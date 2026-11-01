@@ -3581,6 +3581,725 @@
         "rationale": "Recommended by match_capabilities (medium). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'medium' records the planned effort, not a setting applied.",
         "sessionId": null
       }
+    },
+    {
+      "createdAt": "2026-11-01T10:02:43.181Z",
+      "decidedAt": "2026-11-01T11:19:59.506Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Two independent red-teams (EpicFinalRedteam 0.8, FU397ConvergeRedteam 0.8) refuted attempt 1; reports saved to /tmp/dm-linear/DM-397-redteam-1-*.md with probes in /tmp/dm-review/DM-397/head/src/probe/ and /tmp/dm-review/DM-397/head2/src/core/repo/. Survived: T3 and T2 end to end, no conflict for A's own queued export, s1 when B writes again before A flushes, s3, apply-failure rollback (savepoint), no export loop, cost (only changed records), DM-388 refusal unchanged, every import writer goes through upsertAttempt/writeTicketStatus/settleCompletedTickets. Out of scope, to follow-ups: two standing acceptances in one run after a rejected-vs-accepted split (E2), UNIQUE(run, ticket, number) rejection when both machines claim (E3), DM-388 refusing a forward supersede (E5/F8), Write local after a late B write dropping B's newer rows (F5).",
+        "outcome": "rejected",
+        "reasons": [
+          "Blocker (regression; c1, s1 intent): the import's automatic export of a run this machine does not own writes a lossy copy of the owner's live state. After T3, B (owner) resumes and claims ticket 3; A pulls, keeps, exports; B pulls with nothing waiting and its live claimed attempt becomes lease_expired (worker's submit fails: claim token does not match) and the run's auto_continue goes 1 -> 0. Passes on 8483b39, fails on 15452fe (FU397ConvergeRedteam probe_FU397ConvergeRedteam_owner.test.ts). Causes: importedAttemptState/upsertAttempt null the claim and lease; upsertRun resets auto_continue and orchestrator_session_id.",
+          "Major (c2/c3, decision): a held ticket's completion is judged against local run rows the reconcile did not import. Epic Keep tracked while the run conflicts (EpicFinalRedteam E6) and a partial pull where only the other machine's epic state arrives (FU397ConvergeRedteam settle probe) both keep and EXPORT 'completed' for a ticket whose acceptance the other machine's run history supersedes; the other machine then imports a completion over its own revision adoption, with no acceptance behind it.",
+          "Major (c2, c4 docs): the reopen pass in settleCompletedTickets overrides a person's re-completion: when the other machine's tracked state already holds the ticket completed (re-completed by hand on a standing earlier-run acceptance), A's import moves it to in_progress and exports that, reverting B's choice on both machines (EpicFinalRedteam E4, FU397ConvergeRedteam settle probe). STANDING_ACCEPTANCE (newest acceptance) disagrees with hasAcceptedAttempt (any standing acceptance, tickets.ts:166). docs/architecture.md's reopen sentence and 'Completing a ticket always imports' are contradicted.",
+          "Test gap (c4): a mutant narrowing the protection to a tracked 'submitted' copy survives all 11 tests; no test covers a tracked copy of the local acceptance as lease_expired, rejected or failed.",
+          "Decision applied at review (branch switch): the reconcile that sees the checkout branch change (branchChanged) now writes this machine's acceptance into the other branch's working tree and re-dirties it after every discard. Required: on a reconcile with branchChanged, the import follows the checkout as before (the rule neither keeps nor queues); document it.",
+          "Nits: docs 'the run's rows, which now hold both machines' work' is inaccurate after the owner case; epicConflictMessage and the epicConflict.ts module comment still say epic Keep tracked drops all local changes / writes no file."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "exit 0 (node, web and fireguard tsconfigs) on the final tree committed as 15452fe; run after the last edit",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0 at 15452fe, no findings (an earlier max-lines-per-function finding in the new test file was fixed by splitting describe blocks)",
+            "name": "npx oxlint src/core/repo/importer.ts src/core/repo/importer.accepted.test.ts src/core/services/outbox.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "5 files / 333 tests passed at 15452fe (new file: 11 tests). Log /tmp/dm-linear/DM-397-vitest.log",
+            "name": "npx vitest run src/core/repo/importer.accepted.test.ts src/core/repo/importer.test.ts src/core/repo/importer.hostile.test.ts src/core/services/outbox.test.ts src/core/repo/finalizer.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "8 of 11 fail on base. Both T3 variants (B's history holds attempt a as submitted / lacks it), first test: attempt a comes back state 'submitted' with notes null (variant 1), and ticket 1 'backlog' instead of 'completed' (variant 2). Both variants, flush test: flush expected 2 entries, got 0 (nothing queued). Both variants, T2 epic Keep tracked: ticket 2 'in_progress' instead of 'completed'. Forward-change test: A3 'submitted' instead of 'accepted', ticket 3 'in_progress'. Later-reconcile test: ticket 1 'in_progress' instead of kept 'completed' after the first reconcile. Three guard tests pass on base by design, since base applies every tracked status: same-reconcile adoption, earlier-run acceptance, and removed ticket. Each guard was shown to fail under a targeted mutant of this change: settling before runs (trap 1), any acceptance backing a ticket / candidates not limited to acceptances standing before the import, and dropping the still-planned check. Log /tmp/dm-linear/DM-397-red.log",
+            "name": "Red run of the new tests on 8483b39 (scratch detached worktree /tmp/dm-red/DM-397, removed afterwards)",
+            "status": "passed"
+          },
+          {
+            "detail": "Every one of these mutants failed at least one new test: WHERE clause removed; superseded local acceptance also protected; tracked superseded copy blocked; run export never/always queued; kept-attempt search-index filter removed; held-ticket epic export removed; tickets never held; settle run before runs; any acceptance (not the newest) backs; oldest run first; reopen loop removed; reopen export removed; still-planned check removed; reopen candidates not limited to acceptances standing before the import.",
+            "name": "Mutation checks of the change (temporary source edits, file restored, run with npx vitest run src/core/repo/importer.accepted.test.ts)",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "importer.accepted.test.ts > describe.each 'an import over a tracked history that holds as submitted / lacks this machine's acceptance (two machines)'. Real services drive it: startRun, claim/submit, acceptAttempt on A; takeoverRun + acceptAttempt on B before reconciling; B's run Keep tracked refused with DM-388's message; B writes local for the run and the epic. Test 'keeps A's acceptance and completed ticket after B writes local...': A's reconcile reports no conflict; attempt a stays accepted with A's decision notes and its search entry; ticket 1 stays completed; the run owner is B; run_history and epic_state are queued; the next reconcile before the flush has no conflict. Test 'A flushes a history holding both acceptances...': A flushes 2 entries; tracked run.json holds a and b accepted and state.json both completed; A then sees its own files as unchanged; B imports with no conflict, queues nothing, and B's rebuilt history equals A's file byte for byte. Both variants fail on 8483b39."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "importer.accepted.test.ts > 'an import that keeps an acceptance still applies every forward change'. In one import, A1 accepted→superseded (adoption), A2 submitted→accepted with ticket 2 completed, and A4 (accepted and superseded here, tracked submitted) takes the tracked state. A3 is kept, which is why the test fails on base. Guard tests: same-reconcile adoption moves ticket 1 back with no export (the trap-1 order); an earlier run's acceptance does not keep a ticket the newer run's adoption reopened; a ticket the adopted revision no longer plans stays completed; a later-reconcile supersede moves a kept ticket back and exports it."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "importer.accepted.test.ts > 'epic Keep tracked keeps B's completed ticket that its accepted attempt backs, and exports it' (both variants). After B's epic Keep tracked, b is still accepted, ticket 2 stays completed, only epic_state is queued, the next reconcile has no conflict, the flush writes both tickets completed, and A then imports with no conflict, keeping a accepted. Fails on 8483b39 (ticket 2 'in_progress'). DM-388 is unchanged: requireAcceptedWorkKept and acceptanceTrackedLacks behave as before (only its doc comment was updated). The T3 setup asserts the refusal message, and the existing importer.test.ts Keep tracked tests all pass."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Rule in one place: upsertAttempt's WHERE clause; applyRun's post-apply acceptanceTrackedLacks check queuing the run export; upsertTicketStatuses holding tickets; settleCompletedTickets deciding them (STANDING_ACCEPTANCE). The reconcile, run Keep tracked and epic Keep tracked all call reconcileRepository; runConflict.ts and epicConflict.ts are untouched. docs/architecture.md: a sub-bullet under the epic records bullet (ticket status rule) and one under the run history bullet (run import rule). Red-run evidence is in checks: 8/11 fail on base; the 3 guards are covered by mutants."
+          }
+        ],
+        "notes": "Traps. (1) ORDER: epics are applied before runs, so applyEpic only holds a ticket. settleCompletedTickets decides held tickets after all runs of the reconcile are applied, so an acceptance the same reconcile's run import supersedes backs nothing (test 'moves a completed ticket back when the same reconcile's run import supersedes...'; the settle-before-runs mutant fails it). (2) OWNERSHIP: finalizer.exportRunHistory has no owner check. A imports B's owner_machine_id and exports its own rows, including owner B; the T3 test asserts owner B and a successful flush. (3) NO LOOP: the import marks the run/epic synced with the tracked hash before queuing. The next reconcile finds the files equal to sync, so neither planRuns/planEpics nor runConflictHolds sees a conflict. The flush passes unimportedRun/requireWritableRecords because imported_hash equals the file, and recordExport makes A's own file the exported hash. B imports with no keep, so nothing is queued (tested). (4) KEEP TRACKED: both choices end in reconcileRepository, so they share the rule. Run Keep tracked: DM-388's refusal guarantees nothing is kept, so the run's rows still equal the tracked record and no run export is queued. Epic Keep tracked: tested (T2). (5) NO CHURN: an export is queued only when a local standing acceptance is not held as accepted and not superseded by the record, or when a held ticket is backed; B's import of the merged files queues nothing (tested). Review fixes: a red-team subagent on eb45c32 found (a) an earlier run's acceptance kept completed a ticket that the other machine's adoption in a newer run had reopened, and (b) a supersede arriving in a later reconcile than the state (merge markers in run.json, or a partial pull) froze the ticket completed. Both are fixed in 15452fe (newest acceptance; reopen when a later run import supersedes a standing acceptance and the run's revision still plans the ticket) and tested. I found myself that a tracked history lacking the local acceptance entirely queued no export; this is fixed in eb45c32 by acceptanceTrackedLacks and tested by the 'lacks' variant. Also attacked and held: a failed run apply rolls back its queued export (savepoint); held tickets are collected only after applyEpic returns; transfer-held and skipped epics apply no runs; a kept attempt is closed, so it cannot hit the one-open-attempt index; db mode never reconciles. The STANDING_ACCEPTANCE check in the reopen UPDATE only fails to hold if a newer run holds a standing acceptance of a ticket an older run's import supersedes, which one active run per epic makes practically unreachable. It is kept because it states the invariant at no branch cost."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6b8zdkd82nngwa69fymm9fm",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "branch",
+            "location": "linear-DM-397",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "red run log on 8483b39",
+            "location": "/tmp/dm-linear/DM-397-red.log",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "targeted vitest log",
+            "location": "/tmp/dm-linear/DM-397-vitest.log",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-397",
+        "changedFiles": [
+          "src/core/repo/importer.ts",
+          "src/core/repo/importer.accepted.test.ts",
+          "src/core/services/outbox.ts",
+          "docs/architecture.md"
+        ],
+        "commits": [
+          "eb45c32d719737fdce9aef5ad6a34633f563e5ff",
+          "15452fec304e51184509f739af1323c94ade3a15"
+        ],
+        "summary": "Acceptance is now terminal on every import path. The rule lives in the importer, so the reconcile, run Keep tracked (its reconcile) and epic Keep tracked (its reconcile) all go through it, with no per-caller copy. (1) upsertAttempt's ON CONFLICT update has a WHERE clause: it never overwrites an attempt that is accepted here and not superseded with a tracked copy that is not 'accepted'. A tracked copy that is accepted (superseded by revision adoption or not) is still written, and so is any copy of an attempt not accepted here or superseded here. (2) After a run is applied, applyRun finds the acceptances the tracked record does not hold as accepted and not superseded, using DM-388's acceptanceTrackedLacks: the ones it kept, plus any the record lacks entirely. If there are any, it queues the run's run_history export and leaves those attempts' search entries alone. (3) upsertTicketStatuses no longer writes a tracked status that would move a ticket completed here back. Such tickets are held. Once every run of the reconcile has been applied, settleCompletedTickets keeps a held ticket completed, and queues the epic_state export, only while the ticket's newest acceptance among the epic's runs (latest run, then latest attempt) is not superseded. Otherwise the ticket takes its tracked status. (4) If a later reconcile's run import supersedes an acceptance that was standing here, and the run's revision still plans that ticket, a ticket still completed with no standing acceptance moves to in_progress (as the other machine's adoption left it) and the epic export is queued. enqueueOutbox now takes Pick<Ctx,'db'|'clock'> so the importer can queue exports. docs/architecture.md gains one sub-bullet under the epic bullet and one under the run bullet."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6b06q1cpprt2mtaa91x2zwt",
+      "state": "rejected",
+      "submittedAt": "2026-11-01T10:55:59.110Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:e8115612f73aa93dc42da773ef9b491f5c6dfae3d8a11554751896712f637b0f",
+      "ticketId": "tk_01m6azzw9hmdvnhhbdjw0fkrkx",
+      "updatedAt": "2026-11-01T11:19:59.506Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-397)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (high). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'high' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T10:02:43.243Z",
+      "decidedAt": "2026-11-01T10:25:48.128Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "FU399Redteam (independent adversarial review, confidence 0.85) refuted the attempt with probes in /tmp/dm-review/DM-399/head/src/core/repo/probe_dm399.test.ts (PROBE-S1-FIRST, PROBE-S1-PRESYNC, PROBE-EPIC-COMMENT). Survived: profiles (no no-row exemption), stale stored run conflict cleared, intent with a re-changed local run, foreign file over an interrupted export for a run with a row, skipped import while the write keeps failing, throws, epic reorder apart from the comment case. The rewritten 'passes on a failure to read the tracked history' test is legitimate.",
+        "outcome": "rejected",
+        "reasons": [
+          "s1 / c1 regression (blocker): runConflictHolds goes through unimportedRun, which exempts a run with no sync_state row, so planRuns now records no conflict for such a run. Base recorded a resolvable conflict whose note row made the finalizer refuse the flush. Probes PROBE-S1-FIRST (first export dies after the rename, then the other machine's history lands over it) and PROBE-S1-PRESYNC (pre-sync_state run with a waiting export and a pulled change) pass on 8483b39 and fail on c40b1a9: the flush overwrites the other machine's run.json with no conflict.",
+          "c2 (minor): epicConflict.ts matches rejections with rejection.path.includes(epicId), so a bad comment file under epics/<id>/comments/ (scan-time, ordered before the plan-time clash) is named instead of the revision clash (PROBE-EPIC-COMMENT). runConflict.ts uses an exact epic-directory path match.",
+          "Docs/comments (nit): docs/architecture.md still describes the conflict-note row as stored by a reconcile while an export waits, which no reconcile path could create on c40b1a9; the new planRuns doc comment and docs say the skipped import lets the next flush write, which is the overwrite in the first reason for a run with no row."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "exit 0 at c40b1a97af733618e806096c87ef90948ac603b3",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0, no findings (an earlier run flagged max-lines-per-function on the new profile describe; fixed by splitting the describe)",
+            "name": "npx oxlint src/core/repo/importer.ts src/core/repo/profileImport.ts src/core/services/epicConflict.ts src/core/repo/importer.test.ts src/core/repo/profileImport.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "5 files / 373 tests passed. Also ran src/core/repo/ (all), src/core/commands/{capabilities,comments,deletion,profiles}.test.ts, src/core/workspace{,.dbMode}.test.ts, src/integration: 42 files / 870 tests passed (before the final describe split, which changed no assertions).",
+            "name": "npx vitest run src/core/repo/importer.test.ts src/core/repo/profileImport.test.ts src/core/repo/finalizer.test.ts src/core/repo/storage.test.ts src/core/repo/importer.hostile.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "Scratch detached worktree /tmp/dm-red/DM-399 at 8483b39 with the new importer.test.ts and profileImport.test.ts: 7 failed / 178 passed. Failing: run 'records no conflict on the next reconcile...' and 'records no conflict across reconciles while its write keeps failing...' (reconcile result conflicts held the 'Tracked history for run ... changed' entry); profile 'records no conflict after %s...' x2 (profileConflicts held CONFLICT) and '...while its write keeps failing...' x2 (Storage listed ui's conflict); epic 'keeping an epic's tracked records under a revision clash...' (message ended 'Tracked history for run ... changed while local run changes are waiting to be exported.' instead of 'Revision ... already exists locally with different content or another epic.'). The two 'another machine's file over the waiting export' tests passed on base, as expected: they guard that the fix keeps live conflicts. Worktree removed afterwards.",
+            "name": "Red run of the new tests on 8483b39",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "importer.test.ts > this machine's own run history left by a process that died before its commit > 'records no conflict on the next reconcile, Keep tracked finds nothing to choose, and the next flush commits it' (intent file present; reconcile conflicts [], no stored conflict, Storage empty, flush 1/0, exported_hash = written file) and '...while its write keeps failing, and the flush commits once the write succeeds' (two failing flush+reconcile rounds record none); both failed on 8483b39. '...still records another machine's run history pulled over the waiting export, and offers the choice' (conflict stored, Storage resolvable:true, Write local writes). profileImport.test.ts > same three for profiles (first export with no sync_state row and a synced profile, each failed on 8483b39), plus describe 'another machine's profile pulled over this machine's export that died before its commit' (recorded, resolvable:true, Write local writes)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "importer.test.ts > the person's choice between local and pulled epic records while a run's history export is refused > 'keeping an epic's tracked records under a revision clash refuses, changing nothing, naming the clash and not the run's conflict': exact message ends with the clash 'Revision <R1> already exists locally with different content or another epic.'; domain/outbox/sync_state unchanged. Failed on 8483b39 naming the run's conflict."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "All listed tests pass at the commit; each of the 7 tests exercising the change failed on 8483b39 (see the red-run check). The two another-machine tests pass on both by design (they guard against over-suppression); they cover the planRuns/sortEntry 'holds' branch, the own-crash tests cover the 'does not hold' branch."
+          }
+        ],
+        "notes": "Decisions: reused runConflictHolds and profile conflictHolds unchanged (no new holds-test). planRuns keeps its skip on hasPendingRunChanges and asks runConflictHolds only for whether to record, so a waiting export is never imported over. One existing test ('passes on a failure to read the tracked history as it is...') injected a fault on the 2nd read of run.json; the reconcile's holds-test now hashes the file into the stamp cache, so Keep tracked's conflict check reads nothing and the fault moved to the 1st read (comment updated). epicConflict keeps rejection.path.includes(epicId) and only swaps the order; a bad comment file under the epic dir could still be named ahead of the clash (pre-existing, unchanged). Behaviour change to know: a local run with no sync_state row and a waiting export over a tracked run.json now gets no conflict, consistent with the finalizer, which writes over it in that case (it used to get an unresolvable one). Adversarial pass: another machine's file over a waiting export after the crash (still recorded and resolvable, tested for both kinds); a write that keeps failing (intent names the put-back file, so no conflict across reconciles, tested); first export with no sync_state row (profile, tested); unsafe path (holds-test returns false, scan rejects it anyway); stale stored conflicts (storeConflicts recomputes every reconcile; test asserts sync_state.conflict null); Keep tracked over own file still says nothing to choose (tested). Did not touch upsertAttempt/upsertTicketStatuses/applyRun/applyEpic or how rejected-run conflicts clear (DM-397/DM-398). Coordinated with DM397Worker: it does not edit epicConflict.ts keepTracked."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6b8zdnb730bzr8jvwktwwsz",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "branch",
+            "location": "linear-DM-399",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-399",
+        "changedFiles": [
+          "src/core/repo/importer.ts",
+          "src/core/repo/profileImport.ts",
+          "src/core/services/epicConflict.ts",
+          "docs/architecture.md",
+          "src/core/repo/importer.test.ts",
+          "src/core/repo/profileImport.test.ts"
+        ],
+        "commits": [
+          "c40b1a97af733618e806096c87ef90948ac603b3"
+        ],
+        "summary": "planRuns (importer.ts) now records a run's pending-export conflict only when runConflictHolds, the same holds-test planRejectedRuns and planSkippedEpicRuns use, which honours export intents through unimportedRunHistory. When the export waits but the tracked run.json is this machine's own (e.g. a process died between the rename and the commit, so the export intent names it), the reconcile records no conflict and still skips the import, so the next flush writes. planRuns now takes ImporterDeps instead of Db. profileImport.ts sortEntry does the same with the existing profile holds-test conflictHolds (now takes ProfileImportDeps). epicConflict.ts Keep tracked looks up the epic's rejection before conflicts filed under the epic, so under a revision clash it names the clash instead of the run's conflict that DM-389 files under the epic (matching runConflict.ts). docs/architecture.md: three sentences updated (run intent sentence, profile intent sentence, and the profile import rule that said an unexported save is always a conflict). Existing tests that asserted the buggy resolvable:false entry were rewritten to the new rule."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6b06q1cpprt2mtaa91x2zwt",
+      "state": "rejected",
+      "submittedAt": "2026-11-01T10:13:56.379Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:dd99aa9365106e7627dd32a6ca03dfb7a8bec35b7717436237ee95c9a3c10998",
+      "ticketId": "tk_01m6azzw9hgcr87k0st2t4gx3w",
+      "updatedAt": "2026-11-01T10:25:48.128Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "medium",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-399)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (medium). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'medium' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T10:25:48.184Z",
+      "decidedAt": "2026-11-01T10:35:58.371Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Attempt 2 accepted after FU399Redteam re-review (correct, 0.85). Attempt 1 rejected for an s1 regression (no-row run overwrite) and the comment-file rejection match. Minor, accepted: a pre-sync_state run in a skipped epic with a waiting export now records a resolvable conflict (consistent with planRuns; Write local clears it). Pre-existing, out of scope: a flush before any reconcile still exempts a no-row run in finalizer.unimportedRun.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "exit 0 at e6f9a85fb0cd309bb156c07b970a520563ed950c",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0, no findings (attempt-2 files; profileImport.ts/.test.ts are unchanged since c40b1a9, where they were lint-clean)",
+            "name": "npx oxlint src/core/repo/finalizer.ts src/core/repo/importer.ts src/core/services/epicConflict.ts src/core/repo/importer.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0, 'No new dead exports found.' (new export unimportedTrackedRun)",
+            "name": "npm run deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "98 files / 1956 tests passed at e6f9a85fb0cd309bb156c07b970a520563ed950c",
+            "name": "npx vitest run src/core/repo/ src/core/services/ src/core/commands/ src/core/workspace.test.ts src/core/workspace.dbMode.test.ts src/integration",
+            "status": "passed"
+          },
+          {
+            "detail": "HEAD importer.test.ts + profileImport.test.ts copied into a scratch detached worktree at 8483b39: 12 failed / 179 passed. Failed: the run own-crash tests x2 (conflict recorded), the run first-export own-crash 'records no conflict...' (conflict recorded), the no-row 'reconcile does not plan' x2 (rejected run.json, skipped epic: no conflict, flush wrote over the pulled file), the epic clash tests x2 (named the run's conflict), the profile own-crash tests x4, and the rewritten 'passes on a failure to read...' (fault moved to the 1st read, justified in notes). The S1-FIRST and S1-PRESYNC tests pass on base by design: base recorded the conflict for every waiting export. They fail on c40b1a9 (next check). Worktree removed.",
+            "name": "Red run of the new tests on 8483b39",
+            "status": "passed"
+          },
+          {
+            "detail": "Same files in a scratch worktree at c40b1a9: 5 failed / 186 passed. Failed: 'this machine's first export of a run ... > records another machine's history pulled over it...' (PROBE-S1-FIRST: no conflict, flush wrote over attempt A4); 'a run with no sync_state row whose export waits over another machine's history > records the conflict...' (PROBE-S1-PRESYNC); the no-row 'reconcile does not plan' x2; the epic clash 'beside a comment file of the epic that is not valid JSON' (named the comment file). Worktree removed.",
+            "name": "Red run of the new tests on c40b1a9",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "importer.test.ts and profileImport.test.ts: an interrupted run or profile export (intent present, including a first export with no sync_state row) records no conflict, Storage lists nothing, and the next flush commits. Another machine's file over a waiting export, with or without a sync_state row (red-team PROBE-S1-FIRST / PROBE-S1-PRESYNC scenarios now in the suite), is recorded, resolvable, and the flush is refused. Red-team re-ran its probes on e6f9a85: all pass."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "epicConflict.ts matches the epic's own rejection by exact directory, as runConflict.ts does; Keep tracked under a revision clash names the clash, also beside a run conflict and a bad comment file (PROBE-EPIC-COMMENT). Clash, bad state.json and bad snapshot rejections are still named (PROBE-A2-EPIC-SCANREJECT / SNAPREJECT)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Red runs reproduced by FU399Redteam: head's importer.test.ts fails 8 tests on 8483b39 and 5 on c40b1a9; each new test fails on at least one. Targeted checks at e6f9a85: typecheck, oxlint, deadcode, vitest (repo/services/commands/workspace) pass; red-team re-ran 379/379 in the touched files."
+          }
+        ],
+        "notes": "Holds-test: there is still one run holds-test (runConflictHolds). It now calls finalizer unimportedTrackedRun, which reads the file through readTrackedFile and judges it with unimportedFile, minus unimportedRun's no-row exemption. For a no-row run, readExportIntent compares the intent's row (none) with the current one (none) and counts the intent's hashes, so the own crashed first export holds none. A foreign or unread file holds. Every reader of the holds-test: planRuns, planRejectedRuns and planSkippedEpicRuns all now hold for no-row runs over a foreign file. Two of these cases had a pre-existing gap on base: a no-row run whose pulled run.json is rejected, or whose epic is skipped, got no conflict, and the finalizer wrote over the file. Both are now recorded and refused (new tests, which fail on base too). Readers of unimportedRunHistory/unimportedRun, all unchanged: the finalizer's exportRunHistory, Storage runChoiceStands and runConflict requireConflict/keepLocal. They keep the no-row exemption. That is safe because the reconcile that records a conflict stores the note-only row in the same pass (storeConflicts), and from then on they all see a row. A note-only row reads as unchanged for the intent. So for a foreign file the finalizer refuses and Storage reports resolvable:true; for this machine's own file no conflict and no row is stored, and the flush commits. The runConflict.ts comment 'history with no sync_state row is never in conflict' still holds for the choice itself. Existing tests: none changed expectation in attempt 2. The c40b1a9 rewrite of 'passes on a failure to read the tracked history as it is...' moved the injected fault from read 2 to read 1. The reconcile's holds-test now caches the run.json hash by stamp, so Keep tracked's conflict check reads nothing and the first read is the one before the drop; the red-team confirmed this is not weaker. Epic: the match is now exact on epicDir, which is where the epic's scan, clash and apply rejections are filed. A comment-dir rejection (comments/) or a comment file no longer matches. Attacked: PROBE-S1-FIRST and S1-PRESYNC (now tests); the own first export with intent and no row; the rejected and skipped-epic no-row paths; the intent after the note row is stored; the unsafe path (still none); a write that keeps failing; and PROBE-STALE/PROBE-INTENT-RECHANGE (behaviour unchanged since c40b1a9, which the red-team confirmed passing). Corrected from attempt 1: on base, a no-row run over a foreign file was resolvable and refused, not overwritten."
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m6ba9p4rkat99qz93sb7nh85",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "branch",
+            "location": "linear-DM-399",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-399",
+        "changedFiles": [
+          "src/core/repo/importer.ts",
+          "src/core/repo/finalizer.ts",
+          "src/core/repo/profileImport.ts",
+          "src/core/services/epicConflict.ts",
+          "docs/architecture.md",
+          "src/core/repo/importer.test.ts",
+          "src/core/repo/profileImport.test.ts"
+        ],
+        "commits": [
+          "c40b1a97af733618e806096c87ef90948ac603b3",
+          "e6f9a85fb0cd309bb156c07b970a520563ed950c"
+        ],
+        "summary": "Attempt 2, on top of c40b1a9. (1) planRuns records a run's pending-export conflict only when runConflictHolds, the one run holds-test that planRejectedRuns and planSkippedEpicRuns also use. The holds-test now asks a new finalizer export, unimportedTrackedRun, instead of unimportedRunHistory. It is the same file check minus the no-sync_state-row exemption: for a run with no row, any tracked run.json that is not named by the run's export intent counts as unimported. So this machine's own interrupted export (first export included) gets no conflict, the import is still skipped, and the next flush commits. Another machine's run.json over a waiting export is recorded whether or not the run has a row (fixes the attempt-1 blocker). The stored note-only row then makes the finalizer refuse, as on base. The finalizer's own check (unimportedRunHistory/unimportedRun) is unchanged. (2) profileImport sortEntry records the conflict only when conflictHolds (from c40b1a9). (3) epicConflict Keep tracked names the epic's own rejection first, matched exactly on its directory (displayPath(layout, epicDir)) as runConflict.ts does. A bad comment file, the run's conflict filed under the epic, and the epic's own conflict no longer mask a revision clash. (4) docs/architecture.md and the planRuns/runConflictHolds/profile doc comments describe the behaviour exactly."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6b06q1cpprt2mtaa91x2zwt",
+      "state": "accepted",
+      "submittedAt": "2026-11-01T10:33:12.157Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:dd99aa9365106e7627dd32a6ca03dfb7a8bec35b7717436237ee95c9a3c10998",
+      "ticketId": "tk_01m6azzw9hgcr87k0st2t4gx3w",
+      "updatedAt": "2026-11-01T10:35:58.371Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-399)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (high). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'high' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T10:36:24.813Z",
+      "decidedAt": "2026-11-01T10:49:22.902Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Accepted after FU399Redteam review (correct, 0.88). Nits: junctions share the non-regular-file rule (statTrackedFile/lstat) but have no own test. Forward-looking for DM-397: conflicts are planned before apply, so an export queued inside apply for a run whose apply then fails would leave one reconcile where the finalizer refuses and Storage shows nothing.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "exit 0 at e6a63d7c6bdcda005eadbe7d4cb702f295be3218",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0, no findings. A first run flagged max-lines-per-function on the 'keeping the conflicts of records it could not read' describe, so the unsafe-path tests moved into their own describe.",
+            "name": "npx oxlint src/core/repo/importer.ts src/core/repo/importer.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "5 files / 438 tests passed",
+            "name": "npx vitest run src/core/repo/importer.test.ts src/core/repo/importer.hostile.test.ts src/core/repo/finalizer.test.ts src/core/repo/portable.test.ts src/core/repo/storage.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "Scratch detached worktree /tmp/dm-red/DM-398 at e6f9a85, with the final importer.test.ts copied in: 6 failed, 143 passed. All 6 failed on the assertion that the stored conflict is null after the reconcile (received 'Tracked history for run ...'): became a directory; became a link; write local failing over 8 MiB; write local failing over 32 MiB; write local failing over 8 MiB under a skipped epic; 'clears nothing while history/ is rejected' (at its final clear, once history/ reads again). The guard test 'keeps the conflict, offered, across reconciles while the export waits' passes on base, as intended. A mutation run (this change plus the planRejectedRuns call removed) made it fail, together with the existing 'keeps the conflict of a run whose history file was rejected'. Scratch worktree removed.",
+            "name": "Red run of the new tests on e6f9a85",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "importer.test.ts it.each at 9 MiB and 33 MiB (and 9 MiB under a skipped epic): after Write local whose write keeps failing, the next reconcile clears the stored message and keeps the outbox error; a new pull from the other machine brings it back, resolvable. FU399Redteam reproduced; PROBE-S1-AFTER-CLEAR shows a new pull is still refused by the flush after a clear."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Directory and link cases clear and the flush reports 'Unsafe repository path'; red-team also probed a link inside .darkmechanicus and a history/<run> link (clear, flush refuses). A rejected run.json over a waiting export with unimported history keeps its conflict across two reconciles, resolvable; red-team probes for bad JSON, skipped epic, rejected epic, transfer hold and no sync_state row keep theirs over 3 reconciles."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "docs/architecture.md run bullet states the rule. Red run on e6f9a85: exactly the 6 new tests fail (reproduced by the red-team). Mutations: removing planRejectedRuns fails 39 tests including the keep guard; removing planSkippedEpicRuns fails 37. Targeted checks at e6a63d7: typecheck, oxlint, 438 tests in 5 files; red-team 386/386 in touched files."
+          }
+        ],
+        "notes": "Design: the clause is removed rather than calling runConflictHolds inside storeConflicts. The planners already call runConflictHolds for every rejected run with a local row (planRejectedRuns when its local epic is not skipped, planSkippedEpicRuns when it is), and storeConflicts re-inserts every planned conflict right after the clear. So 'kept only while it holds' follows directly, and the holds-test is not copied. A run with no local row cannot hold a planned conflict and has no epic for Storage, so dropping it is right.\nTrap 1: the holds-test uses readTrackedFile, not readOwnedText. At 9 MiB the file is hashed and keepLocal records that hash as imported_hash; past 32 MiB it is pastBound and keepLocal records unread-file:<stamp>, which matchesSync matches. Either way unimportedTrackedRun returns null, holds is false, and the stored row clears. A new pull gets a new stamp (and new text), so it holds again; tested at both sizes.\nTrap 2: the guard test (two reconciles, resolvable) passes.\nTrap 3: a run in rejectedRuns under a skipped epic follows DM-389: planSkippedEpicRuns plans it while it holds, and it is dropped once it doesn't (third it.each row). Before this change the rejectedRuns exemption kept it forever.\nTrap 4: no new call that can throw. storeConflicts only runs SQL. runConflictHolds was already called on every rejected run during planImport, and unimportedTrackedRun throws only unsafe_path (readTrackedFile maps every other failure to UNKNOWN_FILE), which runConflictHolds turns into false.\nOther adversarial checks: a junction run.json is read by the scan (not rejected), so planRuns handles it, unchanged. A cleared row of a run that had no sync_state row stays as a row with both hashes NULL, so the finalizer still refuses another machine's file (s1 intact). history/ rejected keeps every run conflict (tested). Write local whose write fails keeps refusing a later pull (existing SPOILED_RUNS test still passes). Not touched: upsertAttempt, upsertTicketStatuses, applyRun, applyEpic, Keep tracked, the profile rules, planRuns, planRejectedRuns, planSkippedEpicRuns. No export changed, so deadcode was not needed.\nThe docs edit was a single exact-substring replacement in the run bullet (asserted unique), not a whole-line rewrite."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6bax3vd2tzgh8zwba3qf9c7",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "branch",
+            "location": "linear-DM-398",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-398",
+        "changedFiles": [
+          "src/core/repo/importer.ts",
+          "src/core/repo/importer.test.ts",
+          "docs/architecture.md"
+        ],
+        "commits": [
+          "e6a63d7c6bdcda005eadbe7d4cb702f295be3218"
+        ],
+        "summary": "storeConflicts no longer exempts runs in plan.unread.rejectedRuns from the run-history clear. A rejected run's conflict is planned again on every reconcile while runConflictHolds holds, by planRejectedRuns (local epic not skipped) or planSkippedEpicRuns (local epic skipped, DM-389's rule). So the stored row now lasts exactly as long as the holds-test passes, and no second copy of that test was written. As a result, write local over a rejected run.json (over 8 MiB, or over the 32 MiB bound) whose write keeps failing clears on the next reconcile. So does a rejected run.json that became a directory or link, which is unsafe_path and holds nothing. A new pull brings the conflict back, resolvable. A history/ directory rejected as a whole still clears nothing. plan.unread drops the now-unused rejectedRuns (Scan.rejectedRuns stays for planRejectedRuns). The storeConflicts doc comment and the run bullet in docs/architecture.md state the rule."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6b06q1cpprt2mtaa91x2zwt",
+      "state": "accepted",
+      "submittedAt": "2026-11-01T10:44:12.263Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:4de4e85e48268203ea0c23c5f08d9bd750c362f2e947db1946da465fcce1e148",
+      "ticketId": "tk_01m6azzw9hn4mp5xnnsc6x4yn8",
+      "updatedAt": "2026-11-01T10:49:22.902Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "medium",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-398)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (medium). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'medium' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T11:19:59.561Z",
+      "decidedAt": "2026-11-01T12:26:57.981Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Two independent red-teams re-reviewed 3b8149e: EpicFinalRedteam incorrect 0.8, FU397ConvergeRedteam incorrect 0.75; reports in /tmp/dm-linear/DM-397-redteam-2-*.md, probes in /tmp/dm-review/DM-397/head/src/probe/ (E7, E8) and /tmp/dm-review/DM-397/head2/src/core/repo/probe_FU397ConvergeRedteam_{leak,branch,cost2}.test.ts. Fixed and survived: R1 owner's live state (claims, auto_continue, takeover, paused-for-sign-in, expired leases), R3 (E4 hand re-completion kept on both machines), R4 mutants killed, R5 in the branch-change reconcile, R6 text, E1 T3, E5 T2, E6 ticket a, E7, DM-388 unchanged, s1 for a late B write, s3, no loop, DM-399/DM-398 seam by reasoning. Minor, pre-existing in kind: rows a checked-out branch lacks are written into it by a later ordinary import (base writes them on the next run mutation).",
+        "outcome": "rejected",
+        "reasons": [
+          "Blocker (c2, s1, decision; new in attempt 2): a completion the import keeps but must not export ('keep, export nothing') still goes out with any other export of the epic's state, and then never settles. EpicFinalRedteam E8: partial pull of B's adoption, A's person changes ticket c, A's flush writes a=completed, B imports it over its own superseded acceptance, and after B's run.json arrives A stays completed because unsettledTickets skips an epic whose tracked state is A's own export. FU397ConvergeRedteam probe_FU397ConvergeRedteam_leak.test.ts reproduces it with no person acting: in one reconcile the settlement's own epic_state export for ticket 3 carries ticket 1's kept completion. 15452fe settled this case; 8483b39 imported in_progress.",
+          "Minor (cost): unsettledTickets re-parses state.json of every epic with completed tickets last synced by import on each heartbeat (idle reconcile 6-7 ms vs 2-4 ms on base at 12 epics x 250 tickets).",
+          "Nit: settleCompletedTickets runs outside the per-item savepoints; a throw from parseRecord/JSON.parse there would abort the whole reconcile on every heartbeat."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "exit 0 at 3b8149e (node, web and fireguard tsconfigs)",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0, no findings, at 3b8149e. Two max-lines-per-function findings in the test file appeared during the work and were fixed by splitting describe blocks. src/core/services/outbox.ts was last changed in eb45c32 and passed oxlint then.",
+            "name": "npx oxlint src/core/repo/importer.ts src/core/repo/importer.accepted.test.ts src/core/services/execution.ts src/core/services/epicConflict.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "npx vitest run src/core/repo/importer.accepted.test.ts src/core/repo/importer.test.ts src/core/repo/importer.hostile.test.ts src/core/services/outbox.test.ts src/core/repo/finalizer.test.ts src/core/services/execution.test.ts src/core/workspace.test.ts src/core/repo/storage.test.ts src/core/repo/profileImport.test.ts: 9 files / 445 tests passed at 3b8149e (importer.accepted.test.ts: 31 tests). Log /tmp/dm-linear/DM-397-vitest.log",
+            "name": "npx vitest run src/core/repo/importer.accepted.test.ts src/core/repo/importer.test.ts src/core/repo/importer.hostile.test.ts src/core/services/outbox.test.ts src/core/repo/finalizer.test.ts  …",
+            "status": "passed"
+          },
+          {
+            "detail": "17 of 31 tests fail. The R1 owner test fails with claim {state:'lease_expired', secret:0}. Both R2 partial-pull tests and the unreadable-run test fail on epic_state queued. The R2 standing variant expects ['completed',[]] and gets an export. The plan-changed test fails on an export. The R3 re-exported hand-completion test gets 'in_progress'. E6 gets ['completed','completed']. Both newer-history tests (Keep tracked and Write local) fail. Both E4 tests get 'in_progress'. The three R4 tests fail on the missing epic_state. All three branch tests fail: on 15452fe the switch keeps and queues. The 14 that pass are T3, forward-change and guard tests. Log /tmp/dm-linear/DM-397-red-15452fe.log",
+            "name": "Red run of the final importer.accepted.test.ts on 15452fe (scratch detached worktree, removed)",
+            "status": "passed"
+          },
+          {
+            "detail": "20 of 31 fail: T3 x6, R1 owner, forward change, all R2 tests, E6, the missing-file run, both newer-history tests, R4 x3, and the branch-unsettled test. 11 pass on base by design. Base imports tracked statuses, so E4 x2, the re-exported hand completion, same-reconcile adoption and earlier-run adoption pass. Base follows the checkout, so two branch tests pass. The run-imports-with-epic-unreadable x3 and the takeover-expires-claims test also pass. Each of these is killed by a mutant of this change (see the mutation check). Log /tmp/dm-linear/DM-397-red-8483b39.log",
+            "name": "Red run of the final importer.accepted.test.ts on 8483b39 (scratch detached worktree, removed)",
+            "status": "passed"
+          },
+          {
+            "detail": "Killed (each fails at least one test): WHERE narrowed to protect only against a tracked 'submitted' copy (3 tests fail); WHERE passthrough; protect superseded; block a forward supersede; no live-lease keep; run fields always reset; owned ignores the record's owner; keepLocal always true; no settle early return on branch change; never hold; hold ignores keepLocal; unreadable → export; missing file → unreadable; not-accepted → keep; superseded → export; standing always export; standing always keep; no plan-change check; 'own file' computed as 'not imported'; imported runs ignored; no unsettled re-check; unsettled ignores a waiting epic export; unsettled includes tracked-completed tickets; settle before runs; any acceptance instead of the newest; held export dropped; take dropped; run export never/always; kept-attempt index ignored; kept set ignores keepLocal. One survivor, equivalent: dropping the imported_hash condition in unsettledTickets. On an epic whose tracked state is this machine's own export, local completions already equal the state, so no candidate arises. The condition stays as a cost guard, so this machine's own exports are not parsed.",
+            "name": "Mutation checks (temporary edits of importer.ts, restored; run against importer.accepted.test.ts + importer.test.ts)",
+            "status": "passed"
+          },
+          {
+            "detail": "EFR E1-E6, FU owner, settle (partial pull, reopen, branch), converge x4, and rt2 P1 x3 / P3 / P4 pass. Three probe tests do not pass, all expected. FU 'apply failure' hooks a SQL string from 15452fe's supersededByImport, which was removed, so its injection point moved. rt2 P2 is the documented branch limitation (discovery). rt2 P5 uses a fixture attempt whose ticket_content_hash is a placeholder, so the plan-change check holds the export. The same sequence with a real hash converges in the test 'exports it once the person writes local'. Log /tmp/dm-linear/DM-397-probes.log",
+            "name": "Reviewer probes re-run against the final code (copied in temporarily, removed)",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "importer.accepted.test.ts > describe.each 'an import over a tracked history that holds as submitted / lacks this machine's acceptance (two machines)', both tests, with the real services (startRun, claim, acceptAttempt, takeoverRun, resolveRecordConflict). After B's Write local, A's reconcile keeps attempt a accepted with A's notes and keeps ticket 1 completed, with no conflict. It queues run_history and epic_state, and the next reconcile has no conflict. A flushes 2 entries holding a and b accepted and both tickets completed. B then imports with no conflict and nothing queued, and its rebuilt history equals A's file. R1 makes this safe for a working owner: 'an import of another machine's export of a run this machine owns and is working' shows B's live claim surviving A's export. B's submit succeeds, auto_continue and orchestrator_session_id are kept, and B's next export imports on A with no conflict. Fails on 8483b39 and 15452fe."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Forward changes: 'supersedes an accepted attempt, accepts a submitted one and completes its ticket, and protects no superseded acceptance'. Guards: same-reconcile adoption; earlier-run acceptance; the plan-changed test, where the later run supersedes and the ticket takes in_progress; E6, where a tracked superseded copy takes the tracked status; the unreadable-run and partial-pull tests, which take the other machine's status once its run supersedes. R4 lease_expired/rejected/failed tests kill the 'submitted only' mutant. The R5 branch tests show the import following the checkout on a branch change."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "T2: 'epic Keep tracked keeps B's completed ticket that its accepted attempt backs, and exports it' (both variants). E6: a ticket whose acceptance the other machine's history holds superseded takes its status, and the not-accepted one is kept and exported. The ticket completed by an unexported local run is kept and exported. The newer-history describe keeps without export, then exports after the run is settled by either choice. DM-388's refusal (acceptanceTrackedLacks / requireAcceptedWorkKept) is unchanged in code; its doc comment was updated in attempt 1. The T3 setup asserts its refusal text, and the existing importer.test.ts Keep tracked tests pass."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "One place: importer.ts. upsertAttempt's WHERE (acceptance), applyRun (live leases and run export), upsertRun (owner fields), upsertTicketStatuses + settleCompletedTickets (completions, using the scan's unchanged-epic texts), and ImportRules.keepLocal (branch change). runConflict.ts is untouched. epicConflict.ts changes only in its comment, and execution.ts only in liveLeases' parameter type. docs/architecture.md has the rewritten epic and run sub-bullets, including the branch-change and same-branch stash/reset sentences. Red runs and mutants are in checks."
+          }
+        ],
+        "notes": "Mechanism: verdictOf/trackedVerdict judge a held ticket by its newest acceptance, as far as this machine knows it, every reconcile. A 'keep' is re-decided each time, from the scan's own read of unchanged epics. Nothing is persisted, and no file is read outside the scan except the backing run's run.json, behind a catch-all that maps to 'keep'. Where R1-R3 could disagree, and what was checked. (1) Finalizer: every export settlement queues lands on an epic imported this reconcile or found unchanged with imported_hash = file hash, so requireWritableRecords passes. The run export from applyRun lands on the file just imported (markSynced first), so unimportedRunHistory passes. No export is queued over another machine's unimported file (s1). Kept/deferred states record no conflict, and storeConflicts is untouched (no s3). 'Own export' is exported_hash = hash AND imported_hash IS NULL. Keep-local's imported_hash, a failed flush, or an export intent all read as not own, which is conservative ('keep'). (2) Storage card: it reads conflicts/outbox only; nothing new is stored. (3) hasAcceptedAttempt (any standing acceptance, by hand) vs NEWEST_ACCEPTANCE (automatic). The automatic rule never reverses a tracked completion, so a person's hand completion on an older acceptance survives (E4 x2 and the re-exported-hand-completion test). Hand completion here while the epic export waits is skipped (earlier-run test). (4) runConflict: requireNoLiveLease refuses Keep tracked while R1 would keep a lease, and requireAcceptedWorkKept refuses while the attempt rule would keep an acceptance. So run Keep tracked never hits either keep, and its rows equal the record. (5) R1 owner condition: record.ownerMachineId === machineId. A takeover by the other machine expires the claim (test). Expired leases are not kept (liveLeases uses expireLeases' rule). (6) Branch change: the reconcile itself keeps and queues nothing, settles nothing, and leaves live leases and run fields as before. Red-team round 2 (on 6e27cc7) findings fixed: P1 settle read epic files unguarded (now from the scan; three tests); R3 hole via this machine's re-export (reopen removed; test); Write local never settling (every-reconcile re-check; test); epicConflict comment. Kept as documented, not fixed: finding 4 (probe rt2 P2). The branch switch delays the write of lingering rows rather than preventing it (discovery; docs sentence). Out-of-scope items E2, E3, E5/F8, F5 are listed in discoveries."
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m6bdcxa9s1w0kr6tabcfmas1",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "branch",
+            "location": "linear-DM-397",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "red run on 15452fe",
+            "location": "/tmp/dm-linear/DM-397-red-15452fe.log",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "red run on 8483b39",
+            "location": "/tmp/dm-linear/DM-397-red-8483b39.log",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "targeted vitest",
+            "location": "/tmp/dm-linear/DM-397-vitest.log",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "reviewer probes",
+            "location": "/tmp/dm-linear/DM-397-probes.log",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-397",
+        "changedFiles": [
+          "src/core/repo/importer.ts",
+          "src/core/repo/importer.accepted.test.ts",
+          "src/core/services/outbox.ts",
+          "src/core/services/execution.ts",
+          "src/core/services/epicConflict.ts",
+          "docs/architecture.md"
+        ],
+        "commits": [
+          "eb45c32d719737fdce9aef5ad6a34633f563e5ff",
+          "15452fec304e51184509f739af1323c94ade3a15",
+          "dbe84d35bd07eba93815a561418671cf8dcfaf92",
+          "3c846f7d17c97f3e3924b3dfb26e68db64b66a05",
+          "6e27cc73cf977096928983b7acf6b7a8212394cb",
+          "bc826a702a10234a4f0a92367b5de3a41ad7bb19",
+          "3b8149eadbf823c6647d78d4cbc0486f3e38353f"
+        ],
+        "summary": "Attempt 2 builds on 15452fe. The rules all live in importer.ts, which every import path goes through (the reconcile, run Keep tracked, and epic Keep tracked, all via reconcileRepository). R1: for a run whose tracked record says this machine owns it, applyRun no longer replaces attempts a worker here still holds (liveLeases, now Pick<Ctx,'db'|'clock'>). upsertRun keeps auto_continue and orchestrator_session_id. A record naming another owner (a takeover) replaces both. R2: a held ticket (tracked status not completed, local completed) is decided once runs are applied, by its newest acceptance. None, or superseded here: take the tracked status. Standing in a run imported this reconcile: keep, and queue epic_state. Standing in a run not imported: read that run's tracked run.json. Unreadable gives keep with no export; held superseded gives take; lacked or held not accepted gives keep and export. Held standing gives keep and export only if the file is this machine's own last export (exported_hash, imported_hash NULL) and the epic's current plan still holds the ticket as the acceptance was made for. Otherwise it gives keep with no export. These deferred completions are decided again on every reconcile. The scan now keeps the state text of epics it found unchanged. Settlement re-checks every such epic whose tracked state is the one this machine imported, has local completed tickets, and has no waiting epic export. So a later run import, or Write local making the run's history this machine's own, settles them. No file is read outside the scan, so a missing or unsafe epic directory cannot abort the reconcile. R3: the own-export reopen pass from 15452fe is removed. A completion the tracked state holds is never moved back, whichever machine wrote it. NEWEST_ACCEPTANCE documents why it differs from hasAcceptedAttempt. R4: tests cover a tracked copy that is lease_expired, rejected or failed. R5: a reconcile with branchChanged sets keepLocal=false. Nothing is kept or queued, and settlement does not run. R6: epicConflictMessage and the epicConflict.ts module comment are now accurate. docs/architecture.md has both sub-bullets rewritten."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6b06q1cpprt2mtaa91x2zwt",
+      "state": "rejected",
+      "submittedAt": "2026-11-01T12:17:35.667Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:e8115612f73aa93dc42da773ef9b491f5c6dfae3d8a11554751896712f637b0f",
+      "ticketId": "tk_01m6azzw9hmdvnhhbdjw0fkrkx",
+      "updatedAt": "2026-11-01T12:26:57.981Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-397)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (high). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'high' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T12:26:58.030Z",
+      "decidedAt": "2026-11-01T17:17:20.361Z",
+      "decision": {
+        "decidedBy": "Claude Code orchestrator (linear follow-ups)",
+        "notes": "Attempt 3 re-reviewed by EpicFinalRedteam (incorrect 0.75) and FU397ConvergeRedteam (incorrect 0.65); reports in /tmp/dm-linear/DM-397-redteam-3-*.md. Only the branch-change deviation blocks. Survived: E1 (T3 converges, completion exported promptly), E4, E5 (T2), E6, E7, E8 and both leak probes closed by held_status masking, owner probe, settle/converge probes, apply-failure rollback, every ticket_status writer handles the marker, v11->v12 migration tested, masked exports hash and intent consistently (no self-conflict), Linear packet masking acceptable (s4-s6 unaffected), DM-388 unchanged, suites src/core+integration+mcp+main 253 files / 6443 tests. Minor, for follow-ups: settlement re-reads the backing run.json without the hash cache while holds exist (600 holds: 25 ms idle reconcile); a hold can stay with no conflict after a partial pull where the run (acceptance standing) arrives before the stale state; setting a held ticket completed by hand releases the hold silently.",
+        "outcome": "rejected",
+        "reasons": [
+          "Major (R5/D4 required at review; c2): the worker changed the branch-change rule so that a reconcile seeing the checkout branch change still settles held tickets. The run is 'imported this reconcile', so verdictOf releases the hold to 'export' without checking the imported record holds the acceptance; the flush writes ticket a = completed into the new branch's state.json while that branch's run.json has no attempt for a. Base writes nothing there; D4 (clear the hold, follow the checkout) would give in_progress and export nothing. Reproduced by EpicFinalRedteam E9 (probe_efr_import.test.ts) and FU397ConvergeRedteam probe_FU397ConvergeRedteam_hold2.test.ts."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "exit 0 at 2a132586b27478dd079845f9848e17056f43b43d",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "importer.ts and importer.accepted.test.ts (all the TS files 30a2f24 and 2a13258 touch): exit 0 at 2a132586b27478dd079845f9848e17056f43b43d. All 11 TS files of attempt 3: exit 0 at 383c852.",
+            "name": "npx oxlint on touched files",
+            "status": "passed"
+          },
+          {
+            "detail": "npx vitest run migrations, finalizer, importer.accepted, importer.hostile, importer, portable, attempts(.review/DefinitionOfDone/Fallback/Increment), execution, outbox, plans, tickets, transfers, adoptionFreshBudget: 17 files / 850 tests passed at 2a132586b27478dd079845f9848e17056f43b43d (importer.accepted: 41 tests)",
+            "name": "npx vitest run migrations, finalizer, importer.accepted, importer.hostile, importer, portable, attempts(.review/DefinitionOfDone/Fallback/Increment), execution, outbox, plans, tickets, trans …",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports found, at 2a132586b27478dd079845f9848e17056f43b43d",
+            "name": "npm run deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "30a2f24: 1 of 126 fails, the branch-change settle test (hold left in place, nothing queued). 383c852 (attempt 3 before red-team 3): 3 fail. The deleted-epic test fails because an export was queued and the hold cleared; both branch tests fail because the hold was reverted to in_progress. 3b8149e (attempt 2): 16 fail / 110 pass, 9 of them with 'no such column: held_status' and the rest on assertions. 8483b39 (base): 31 fail / 95 pass. The transfer-hold test passes on 383c852 by design: it guards the new unchanged-minus-skipped filter, and mutant unchanged_no_skip_filter fails it. Logs: /tmp/dm-linear/DM-397-redF-{30a2f24,383c852,3b8149e,8483b39}.log",
+            "name": "Red run of the final importer.accepted.test.ts + transfers.test.ts on earlier commits",
+            "status": "passed"
+          },
+          {
+            "detail": "At 2a13258, all mutants killed. New code: unchanged_no_skip_filter (1 fail), unchanged_empty (9), settle_no_unchanged_filter (4), skip_settle_on_branch_change (1), revert_holds_on_branch_change (2), no_mask on the COALESCE (4). Earlier code: write_keeps_held (1), write_where_no_held (1), no_marker_reread (9), keep_sets_null (17), export_keeps_marker (12), no_hand_release (1), no_json_valid (1), transfer_unmasked (1), no_trigger (1). Two equivalent mutants were removed by simplifying the code: held_status_any_status, and adding imported epics to the settled set. Log: /tmp/dm-linear/DM-397-mut6.log",
+            "name": "Mutation testing (script swaps one expression, then runs importer.accepted, importer, transfers, tickets and migrations)",
+            "status": "passed"
+          },
+          {
+            "detail": "48 of 51 pass at 2a13258. Passing: EFR E1-E8; FU owner, settle x4, converge x4, leak x2, cost, cost2; rt2 P1 x3, P3, P4; rt3 P1 (deleted epic: nothing queued or written), P2 (the hold survives the round trip, then exports when the run arrives), P3 x3, P4 (uses the ticket_status_held index), P5, P6, P7; rt4 Q1 and Q2 (a run imported in a branch-change reconcile now settles the hold, same as a same-branch pull). Three fail, all known: FU branch and rt2 P2 hit the documented branch-lingering-rows limitation (see discoveries). rt2 P5 fails because its fixture uses a placeholder ticket_content_hash, which makes the plan-change check hold; with the real ticket hash patched in, that probe passes. Log: /tmp/dm-linear/DM-397-probes-final.log",
+            "name": "Probe re-run: every probe from red-team rounds 2, 3 and 4 against the final code",
+            "status": "passed"
+          },
+          {
+            "detail": "At 2a13258: median 1.84 ms, p90 2.10 ms. Red-team 3 measured 3b8149e at 4.08-4.31 ms median; round 2 measured 8483b39 at 2-4 ms. COST probe (600 attempts): idle 2 ms.",
+            "name": "Idle reconcile cost (cost2 probe: 12 epics x 250 completed tickets)",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "importer.accepted.test.ts > describe.each 'an import over a tracked history that holds as submitted / lacks this machine's acceptance (two machines)', both tests, with the real services (startRun, claim, acceptAttempt, takeoverRun, resolveRecordConflict). After B's Write local, A's reconcile keeps attempt a accepted with A's notes and keeps ticket 1 completed, with no conflict. It queues run_history and epic_state, and the next reconcile has no conflict. A flushes 2 entries holding a and b accepted and both tickets completed. B then imports with no conflict and nothing queued, and its rebuilt history equals A's file. R1 makes this safe for a working owner: 'an import of another machine's export of a run this machine owns and is working' shows B's live claim surviving A's export. B's submit succeeds, auto_continue and orchestrator_session_id are kept, and B's next export imports on A with no conflict. Fails on 8483b39 and 15452fe. Still passing at 2a13258; failed on 8483b39."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Forward changes: 'supersedes an accepted attempt, accepts a submitted one and completes its ticket, and protects no superseded acceptance'. Guards: same-reconcile adoption; earlier-run acceptance; the plan-changed test, where the later run supersedes and the ticket takes in_progress; E6, where a tracked superseded copy takes the tracked status; the unreadable-run and partial-pull tests, which take the other machine's status once its run supersedes. R4 lease_expired/rejected/failed tests kill the 'submitted only' mutant. The R5 branch tests show the import following the checkout on a branch change. For held completions: 'a completion this machine holds...' takes the other machine's status once its run supersedes, and 'ends when the other machine completes the ticket...' shows forward changes still apply to a held ticket."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "T2: 'epic Keep tracked keeps B's completed ticket that its accepted attempt backs, and exports it' (both variants). E6: a ticket whose acceptance the other machine's history holds superseded takes its status, and the not-accepted one is kept and exported. The ticket completed by an unexported local run is kept and exported. The newer-history describe keeps without export, then exports after the run is settled by either choice. DM-388's refusal (acceptanceTrackedLacks / requireAcceptedWorkKept) is unchanged in code; its doc comment was updated in attempt 1. The T3 setup asserts its refusal text, and the existing importer.test.ts Keep tracked tests pass. Epic Write local over held tickets writes them masked ('goes out masked when the person writes local')."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "The import rule lives in importer.ts: upsertAttempt (acceptance), applyRun/upsertRun (owner live state), upsertTicketStatuses + settleCompletedTickets (held completions; earlier holds settle only for epics found unchanged and not skipped, branch change included), and ImportRules.keepLocal. The export mask is one function, exportedTicketStatuses in portable.ts. Its callers are buildEpicStateRecord (the finalizer's only state.json builder) and transfers buildCurrentPacket. docs/architecture.md covers held completions, missing or skipped epics, branch change and deleted tickets in the epic sub-bullet, plus the run sub-bullet. Every new test fails on 383c852, 30a2f24, 3b8149e or 8483b39, except the transfer-hold guard, which a mutant fails (see checks)."
+          }
+        ],
+        "notes": "Masked builders and callers of epic ticket status: buildEpicStateRecord, which finalizer exportEpic reaches for every epic_state flush (person edits, Write local's own flush, settlement exports, Keep-tracked follow-ups); and transfers buildCurrentPacket, which queueTransfer reaches. Red-team 3 confirmed the finalizer is the only state.json writer. Comment and run-history files carry no ticket status. Attacked:\n- Fixed, with tests: an epic deleted by the other machine; a branch round trip; a branch-change reconcile importing the settling run (rt4 Q2).\n- Holds that wait: epics that are missing, rejected, transfer-held, in conflict or failed to apply; and an unreadable epics/, where nothing settles (rt3 P7).\n- Masked: leaks within the same reconcile and in later exports (leak probes x2); Write local (test); the Linear packet (test).\n- Hand completion while held releases the hold and exports completed. Hand move back is still refused. Adoption here clears the hold via the trigger.\n- An unreadable run or unparsable plan gives keep and never throws.\n- A ticket deleted from the plan keeps its row and hold until settled; the docs now say so.\n- Idle cost: an indexed held query, with no re-parse.\nEvery new branch is test-covered and mutation-checked. Branch decision: a branch-change reconcile settles holds of unchanged epics by the same rules as the next same-branch reconcile would (red-team round 4 showed that skipping only lost the imported run's evidence). So a held completion can go out into a branch whose run.json lacks its acceptance. That is the existing lingering-rows limitation, documented in the run rule and listed in discoveries."
+      },
+      "failure": null,
+      "fencingToken": 3,
+      "id": "at_01m6bh7hkegmsc7yvmyx0qtc00",
+      "kind": "work",
+      "number": 3,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "branch",
+            "location": "linear-DM-397",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "linear-DM-397",
+        "changedFiles": [
+          "src/core/repo/importer.ts",
+          "src/core/repo/importer.accepted.test.ts",
+          "src/core/services/outbox.ts",
+          "src/core/services/execution.ts",
+          "src/core/services/epicConflict.ts",
+          "src/core/repo/portable.ts",
+          "src/core/services/transfers.ts",
+          "src/core/services/transfers.test.ts",
+          "src/core/services/tickets.ts",
+          "src/core/db/migrations.ts",
+          "src/core/db/migrations.test.ts",
+          "docs/architecture.md"
+        ],
+        "commits": [
+          "eb45c32",
+          "15452fe",
+          "dbe84d3",
+          "3c846f7",
+          "6e27cc7",
+          "bc826a7",
+          "3b8149e",
+          "383c852bfb41f4fc9d811afa1bb39cdb398f14e1",
+          "30a2f2439a74aed1165aecb53968927fb0830c4d",
+          "2a132586b27478dd079845f9848e17056f43b43d"
+        ],
+        "summary": "Attempt 3. The rule lives in one place, importer.ts. An import never moves an attempt this machine accepted, and has not superseded, back, and never moves back a ticket that such an acceptance completed. Attempt 2 was rejected for two reasons. A completion kept without export leaked out with any unrelated epic_state export. And the settlement re-parsed every unchanged epic on every reconcile. Attempt 3 adds a held marker, ticket_status.held_status (schema v12): a nullable column with a CHECK, a partial index, and a trigger that clears it whenever the ticket moves off completed. A held ticket stays completed locally, but every export of the epic writes the held status instead, through exportedTicketStatuses. That covers the finalizer's state.json for any flush (Write local and the settlement's own exports included) and the Linear transfer packet. Settlement is an indexed query over held rows plus this reconcile's held statuses, judged by verdictOf (take / keep / export). Read and parse failures map to keep, so the settlement never throws. Completing a held ticket by hand releases the hold and exports completed. Red-team 3 found that holds of an epic missing from the checkout (deleted by the other machine) were settled and wrote the epic back. It also found that a branch change reverted holds, losing completions on a round trip, and that a docs sentence was wrong. Fixed in 30a2f24 and 2a13258: earlier holds settle only for epics the reconcile found unchanged and does not skip (an imported epic's tickets arrive through upsertTicketStatuses). All other holds wait. A branch-change reconcile settles by the same rules, instead of reverting or skipping, so a run imported then is not lost to the settlement. The docs are corrected."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6b06q1cpprt2mtaa91x2zwt",
+      "state": "rejected",
+      "submittedAt": "2026-11-01T13:20:56.309Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:e8115612f73aa93dc42da773ef9b491f5c6dfae3d8a11554751896712f637b0f",
+      "ticketId": "tk_01m6azzw9hmdvnhhbdjw0fkrkx",
+      "updatedAt": "2026-11-01T17:17:20.361Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "a8s-omp-davidgorden-mac",
+        "label": "a8s task subagent (DM-397)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (high). Host cannot select worker model or effort: the a8s task subagent runs on the session's fixed model at the harness's fixed effort, so 'high' records the planned effort, not a setting applied.",
+        "sessionId": null
+      }
     }
   ],
   "checkpoints": [

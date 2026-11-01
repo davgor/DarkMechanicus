@@ -9,7 +9,7 @@
   "epicId": "ep_01m698z4kqk4a5906hkv6w2ajr",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 42,
+  "generation": 47,
   "outcome": null,
   "provenance": {
     "note": "Follow-ups recorded in the Sprint 3 report (rp_01m693j420drfgpy8ygv9bctc1) of the Linear handoff epic.",
@@ -36,10 +36,10 @@
     "tk_01m6a9f87n5ynpnc9ye3krk67x": "completed",
     "tk_01m6a9f87nms0wfhav8f3vd2q1": "completed",
     "tk_01m6azzw91wapky00kgteky1cg": "backlog",
-    "tk_01m6azzw9hgcr87k0st2t4gx3w": "backlog",
-    "tk_01m6azzw9hmdvnhhbdjw0fkrkx": "backlog",
-    "tk_01m6azzw9hn4mp5xnnsc6x4yn8": "backlog"
+    "tk_01m6azzw9hgcr87k0st2t4gx3w": "completed",
+    "tk_01m6azzw9hmdvnhhbdjw0fkrkx": "in_progress",
+    "tk_01m6azzw9hn4mp5xnnsc6x4yn8": "completed"
   },
   "title": "Linear handoff follow-ups: no pulled run history or profile overwritten, stale conflicts cleared, oversized transfers refused at queue, MCP transport wiring tested, error text intact",
-  "updatedAt": "2026-11-01T07:29:25.107Z"
+  "updatedAt": "2026-11-01T10:49:22.961Z"
 }

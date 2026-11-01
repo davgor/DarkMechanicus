@@ -1,5 +1,5 @@
 {
-  "activeSprintId": "sp_01m43szh7yqbne13wtgk6sg7vm",
+  "activeSprintId": null,
   "attempts": [
     {
       "createdAt": "2026-10-06T21:14:34.059Z",
@@ -5687,28 +5687,942 @@
     },
     {
       "createdAt": "2026-11-01T09:41:15.447Z",
-      "decidedAt": null,
-      "decision": null,
-      "evidence": null,
+      "decidedAt": "2026-11-01T11:17:43.257Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Orchestrator reviewed the evidence (viewed c4 push-and-create screenshot, listed all 30+ evidence files, token-pattern scan clean), re-ran the DoD and a Fireguard delta after landing the rebase-merges conflict sides integration fix, and squashed the sprint as d956b0b (server-verified: one parent, after 3dcbb97, squashed). Remaining minor findings go to the report's follow-ups: FETCH_HEAD-based 'Last fetched' after a failed fetch, a brief '0 conflicted files' banner before conflicts load (main refuses commitMerge meanwhile), doc wording on forced pushes.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npm run lint exit 0 at 7c35c31",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck exit 0 at 7c35c31",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm test exit 0 at 7c35c31: Vitest 545 files, 10081 passed, 9 skipped; Fireguard suite 129 passed",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run coverage exit 0 at 7c35c31: statements 97.8, branches 95.01, functions 96.94, lines 97.97 (thresholds 97/95/96/97)",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run deadcode exit 0 at 7c35c31",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build exit 0 at 7c35c31; the e2e checks used a build of 1482136 (later commits: docs, the conflict sides fix and its tests)",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "FIREGUARD_BASE_REF=51ff2186 at 7c35c31: A 93, flake 100/100, mutation 86/103 (83%)",
+            "name": "fireguard (changes after DM-149 attempt start)",
+            "status": "passed"
+          },
+          {
+            "detail": "No test file changed after DM-157 (commits 0c1f57c and 51ff218 touch only docs/), so per the ticket Fireguard was not re-run. The grade comes from accepted DM-157: A, 92 (/tmp/sc-epic/logs/DM-157-fireguard-5.json).",
+            "name": "fireguard (changes after DM-157)",
+            "status": "skipped"
+          },
+          {
+            "detail": "node scripts c1c2.mjs, c3c4out.mjs, c4in.mjs, c5c6.mjs, c12to14.mjs and c15.mjs (plus the c15 variant) against out/ from npm run build at 1482136, each in a fresh profile; all rc 0",
+            "name": "built-app e2e (c1-c7, c12-c15)",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Built app, isolated profile, signed out (docs/verification/sprint3-acceptance/DM-149-c1c2.txt). octocat/Hello-World typed as owner/repo in the Clone dialog (DM-149-c1-shorthand-dialog.png) cloned into the scratch parent with 14 progress events on window.git.onProgress (Enumerating objects, Receiving objects 84->92->100%); origin https://github.com/octocat/Hello-World.git. git/git (as 'git/git') cancelled with Cancel clone at 'Receiving objects 2%' (DM-149-c1-big-clone-in-progress.png; git-big existed mid-clone) -> after cancel git-big does not exist and the parent holds only hello-short (DM-149-c1-big-clone-cancelled.png). ext:: refused before git runs: URL 'ext::sh -c touch% <S>/ext-ran' shows 'Enter an https:// or ssh:// URL, git@host:path, or owner/repo for GitHub.' (DM-149-c1-ext-refused.png); window.git.clone with the same URL returns invalid_input; the marker file the helper would create does not exist and no ext-clone/ext-direct folder was made, so git never ran."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "docs/verification/sprint3-acceptance/DM-149-c1c2.txt. Sidebar FOLDERS + (Add a folder) menu shows 'Add existing folder…' / 'Clone repository…' (DM-149-c2-sidebar-plus-menu.png); Clone repository… -> URL tab -> https://github.com/octocat/Hello-World.git, name hello-url, Clone (dialog with progress: DM-149-c2-clone-dialog-running.png). The dialog closed and the app shows hello-url selected in the sidebar with the Source control tab active (DM-149-c2-cloned-open-on-source-control.png); the profile's folders.json lists /private/tmp/sc-epic/scratch/DM-149/clones/hello-url; active tab read from the DOM: 'Source control'."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "docs/verification/sprint3-acceptance/DM-149-c3c4out.txt. scratch-c: origin = local bare origin-c.git with refs/pull/1/head (a commit no local branch has; only 'main' locally). window.git.checkoutPullRequest(scratch-c, {number: 1, uncommitted: 'stash'}) was called in the renderer via Playwright page.evaluate (devtools-equivalent: the same preload bridge call) -> ok; `git rev-parse pr/1` == `git --git-dir origin-c.git rev-parse refs/pull/1/head` (true), current branch pr/1, no refs/dm leftover; the app's toolbar shows pr/1 (DM-149-c3-scratch-c-on-pr-1.png). Signed out (empty GH_CONFIG_DIR, gh auth status exit 1, window.github.getAccount -> null): window.git.getPullRequests(scratch-gh) -> {ok:false, error:{code:'auth_required', message:'Sign in to GitHub again: the sign-in is missing or no longer valid.'}}."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "DM-149-c4-push-and-create-pull-request.png: scratch-gh on feature-unpublished (no upstream, origin https://github.com/octocat/Hello-World.git, pushurl a local bare repo), signed in with this machine's gh login in an isolated profile (@davgor), toolbar 'Push and create pull request' + 'Publish branch' (docs/verification/sprint3-acceptance/DM-149-c4in.txt; button not clicked, push-sink stayed empty; signed out at the end, account null). DM-149-c4-pull-requests-signed-out.png: signed out, branch menu -> Pull requests tab shows 'Sign in to GitHub to see pull requests' with Sign in, and the toolbar shows 'Sign in to see pull requests' (DM-149-c3c4out.txt)."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "docs/verification/sprint3-acceptance/DM-149-c5c6.txt. scratch-lines: notes.txt (LF) and crlf.txt (CRLF), each with 5 changed lines over two hunks (-line 3 +A1 | +B1 +B2 +B3). In the built app A1 and B2 were unselected by pressing their gutter checkboxes (DM-149-c5-notes-selected.png, DM-149-c5-crlf-selected.png), the other file excluded, then Commit to main. For each file: `git show --stat HEAD` = '1 file changed, 2 insertions(+), 1 deletion(-)'; `git show HEAD:<file>` equals the expected bytes exactly (lines 1,2,4..17,B1,B3,18..20 with \\n resp. \\r\\n): true; the working file's sha256 is unchanged: true; `git diff` leaves exactly +A1 and +B2 (with \\r for crlf.txt) in Changes (DM-149-c5-crlf-after-commit.png)."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "docs/verification/sprint3-acceptance/DM-149-c5c6.txt. scratch-sel list.txt (4 added lines in two hunks): X2 and Y1 unselected -> line boxes aria-checked false, hunk headers 'mixed', file checkbox indeterminate (DM-149-c6-partial-lines-indeterminate.png). Appending a line to list.txt on disk -> toast 'list.txt changed, so its line selection was reset', every line (incl. the new one) selected again and the file checkbox checked (DM-149-c6-selection-reset-toast.png)."
+          },
+          {
+            "criterionId": "c7",
+            "met": true,
+            "note": "Paths: docs/verification/sprint3-acceptance/scripts/check_docs.py over the whole of docs/decisions/0004-source-control-in-main.md, docs/architecture.md, docs/runbooks/github-sign-in.md and README.md at the tip: 301 links/anchors, repo paths and module names, FAILS none (docs/verification/sprint3-acceptance/DM-149-doccheck.txt; sdk.d.ts resolves to node_modules/@anthropic-ai/claude-agent-sdk). Content: a claim-by-claim read of 0004, the runbook, README '## Source control' and architecture '## Source control' against src/main/git, src/main/github, preload and renderer (runner flags/env/timeouts incl. the 60 s stall, literal pathspecs, --no-ext-diff --no-textconv, pull --no-rebase, apply --cached, trash, clone transports + GIT_ALLOW_PROTOCOL, clone.json/github-account.json, safeStorage, gh token + GET /user + repo scope, gh paths, PR checkout rules, operation marker order, --cleanup=strip, IPC channels, UI labels) matched, except the runbook troubleshooting row 'GitHub CLI isn't installed', which is not the app's text. Fixed in 0c1f57c: 'The GitHub CLI (gh) is not installed' (src/main/github/errors.ts gh_not_installed); every row of that table now matches errors.ts text. Consciously not changed: 'push (never forced)': branch pushes are never forced; deleting a remote branch uses a lease-guarded --force-with-lease delete (branches.ts deleteOnRemote), which the docs do not describe (see notes)."
+          },
+          {
+            "criterionId": "c8",
+            "met": true,
+            "note": "DM-157 (sprint 3 Fireguard) was accepted: its final report /tmp/sc-epic/logs/DM-157-fireguard-5.json grades A, score 92, 'all hard gates passed' (ast pass, flake 100/100, mutation 82). No test file changed after DM-157 in this acceptance (only docs), so Fireguard was not re-run."
+          },
+          {
+            "criterionId": "c9",
+            "met": true,
+            "note": "Orchestrator re-ran the Definition of Done at 7c35c31 (after the rebase-merges conflict sides integration fix), one check at a time, detached: lint 0, typecheck 0, test 0 (Vitest 545 files, 10081 passed, 9 skipped; Fireguard suite 129 passed), coverage 0 (statements 97.8, branches 95.01, functions 96.94, lines 97.97), deadcode 0, build 0 (docs/verification/sprint3-acceptance/dod-final/). The worker's earlier run at 1482136 also passed (dod/)."
+          },
+          {
+            "criterionId": "c10",
+            "met": true,
+            "note": "Orchestrator squash-merged source-control-sprint-3 (39cf5df) onto source-control as one commit d956b0b (parent 2287918; tree identical to the integration tip); its message lists every sprint 3 ticket."
+          },
+          {
+            "criterionId": "c11",
+            "met": true,
+            "note": "Listed in the sprint 3 report under the person's checkpoint checks: clone from the GitHub.com list while signed in, see the current branch's pull request, check out an open pull request from a fork."
+          },
+          {
+            "criterionId": "c12",
+            "met": true,
+            "note": "docs/verification/sprint3-acceptance/DM-149-c12to14.txt. scratch-rebase: `git rebase -r main` stopped at the merge of side (MERGE_HEAD and .git/rebase-merge both exist; `git status`: 'interactive rebase in progress'). The app shows the region 'Operation in progress': 'A rebase is in progress. Finish it in a terminal, or abort it here.' with Abort; no 'Merge in progress' region, no Abort merge or Commit merge button (DM-149-c12-rebase-banner.png). Clicking Abort: the banner went away, neither marker remains, and `git status` = 'On branch feature / nothing to commit, working tree clean' (DM-149-c12-after-abort.png). Integration fix 3ce9b75 (after this check): at a rebase-merges merge step Use mine/Use theirs now pick the person's/merged-in side (main decides ConflictState.mineSide)."
+          },
+          {
+            "criterionId": "c13",
+            "met": true,
+            "note": "docs/verification/sprint3-acceptance/DM-149-c12to14.txt. scratch-pathspec with tracked ':/a' (dir ':' file 'a') and 'a', both modified (`git status --short`: ' M :/a', ' M a'). In the built app 'a' was unchecked, only ':/a' included (DM-149-c13-only-colon-slash-a-included.png), Commit to main. `git show --stat HEAD` lists only ':/a | 2 +-' (1 file changed); `git status --short` after: ' M a'; the Changes list holds only 'a' (DM-149-c13-after-commit.png)."
+          },
+          {
+            "criterionId": "c14",
+            "met": true,
+            "note": "docs/verification/sprint3-acceptance/DM-149-c12to14.txt. scratch-merge: feature/conflict merged into main from the branch menu (right-click -> Merge into main) -> 'Merging feature/conflict into main: 1 conflicted file' (DM-149-c14-merge-conflict.png); .git/MERGE_MSG was \"Merge branch 'feature/conflict'\\n\\n# Conflicts:\\n#\\tc.txt\\n\". Use mine (main) then Commit merge (DM-149-c14-merge-committed.png). `git log -1 --format=%B` = \"Merge branch 'feature/conflict'\" with 0 lines starting with '#'; two parents; HEAD:c.txt = 'mine'."
+          },
+          {
+            "criterionId": "c15",
+            "met": true,
+            "note": "docs/verification/sprint3-acceptance/DM-149-c15.txt (uptime load 17-28). scratch-stall origin 'ext::<S>/stall.sh' (exec sleep 300, prints nothing). Fetch origin -> 'Fetching…' + Cancel (DM-149-c15-fetching.png); 'The connection stalled: git made no progress for 60 seconds.' appeared 60.6 s after the click, the button reads 'Fetch origin' again and the helper processes were gone (DM-149-c15-stall-timeout.png). git's detail: with this helper git writes no stderr at all (checked: `git fetch --progress origin` for 6 s produced no stdout/stderr), so the detail is empty and the UI shows no Details block, which is right for 'git's last stderr line'. To show the detail path, a variant helper that writes one stderr line before it stalls (DM-149-c15-variant.txt, DM-149-c15-variant-stall-timeout.png) produced the same message after 61.1 s with Details 'stall-helper: waiting for the server', and the button returned to Fetch origin. Reviewer: if 'git's detail' was meant to be non-empty for a silent helper, that is not what DM-395 specified (the detail is git's last stderr line)."
+          }
+        ],
+        "notes": "Timing: e2e at load 17-28; the DoD at load 20-116, because the machine is shared. Coverage branches are at 95.01% against a 95% threshold, so there is almost no headroom left for sprint 4.\n\nRed-team pass:\n- c1 (ext::): I proved 'before git runs' with a side effect (a marker file the helper would create) and also called the bridge directly to get around the dialog. Both were refused with invalid_input.\n- c3: started from a fresh setup so no pr/1 existed. Compared full object ids and checked that no refs/dm ref was left.\n- c5: compared whole blobs byte for byte (latin1, CR kept) and the working-file hash, not line counts.\n- c13: checked the Changes list afterwards as well as git.\n- c14: checked that Use mine really applied (HEAD:c.txt = mine) and that no '#' line remained.\n- c15: confirmed git truly writes nothing (so an empty detail is correct), that the helpers are killed, and ran a variant that shows the detail path.\n- c7: ran a whole-doc path check (not just changed lines) and had a scout audit the claims. I verified both mismatches it reported against the code; I fixed one and rejected the other with a reason.\n- Scanned evidence and logs for token-like strings: none.\n\nDiscoveries:\n1. Possible bug (DM-392 seam): when `git rebase -r` stops at a conflicting merge, ConflictsPanel sidesOf() treats it like a rebase pick. The button says 'Use mine (side)' and resolves to git's theirs (stage 3). In that state, stage 2 is the person's replayed branch ('feature') and stage 3 is the merged-in branch ('side'), checked with `git ls-files -u`. So 'Use mine' would take the other branch's content. I inferred this from the code (ConflictsPanel.tsx:292-293) plus the stages; I did not click it.\n2. lastFetchedAt is FETCH_HEAD's mtime (status.ts:142), and git truncates FETCH_HEAD when a fetch starts. A running, stalled or failed fetch therefore reads as 'Last fetched just now' and later '1 minute ago' on a repo that was never fetched (c15 screenshots).\n3. The merge banner's first paint reads 'Merging another branch into the current commit: 0 conflicted files' with Abort merge and Commit merge, until the conflicts load. I did not check whether Commit merge is clickable in that moment.\n4. pullRequestsCheckout.test.ts can still exceed the global 15 s testTimeout in the full suite under heavy load (DM-157 reduced this but did not remove it).\n5. In a fresh worktree, the codex and cursor adapter tests race to download Electron.\n6. Docs say 'push (never forced)', but deleting a remote branch uses `push --force-with-lease=<ref>:<oid> --delete`, which the docs do not mention. Branch pushes are indeed never forced. The http.lowSpeedLimit/lowSpeedTime flags are also undocumented."
+      },
       "failure": null,
       "fencingToken": 1,
       "id": "at_01m6b7r41qc875pd99jb9r1brm",
+      "increment": {
+        "base": {
+          "commit": "3dcbb9729b7475fb8c4f0b4c7aea9b20a7ec26d7",
+          "kind": "previous_increment"
+        },
+        "branch": "source-control",
+        "checks": [
+          {
+            "detail": "Names the epic branch source-control.",
+            "name": "Epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit d956b0b exists.",
+            "name": "Commit exists",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit d956b0b has one parent, 2287918.",
+            "name": "One parent",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit d956b0b is reachable from source-control.",
+            "name": "On the epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit d956b0b is not part of the previous sprint's increment 3dcbb97.",
+            "name": "After the base commit",
+            "status": "passed"
+          },
+          {
+            "detail": "None of the 33 commits recorded by this sprint's accepted work is reachable from source-control.",
+            "name": "Squashed, not merged",
+            "status": "passed"
+          }
+        ],
+        "commit": "d956b0b986773ccf76afa60859f651a30a28f9dc",
+        "parent": "22879188799dbb42fbb9cfd3c5d3a932b8beaf7e",
+        "passed": true,
+        "reasons": [],
+        "verifiedAt": "2026-11-01T11:17:37.383Z"
+      },
       "kind": "work",
       "number": 1,
-      "outputs": null,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Evidence index (criterion -> files)",
+            "location": "docs/verification/sprint3-acceptance/README.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Built-app screenshots (24)",
+            "location": "docs/verification/sprint3-acceptance/DM-149-*.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Script output with terminal checks",
+            "location": "docs/verification/sprint3-acceptance/DM-149-{c1c2,c3c4out,c4in,c5c6,c12to14,c15,c15-variant,doccheck}.txt",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Scripts (setup, Playwright runs, doc check, DoD runner)",
+            "location": "docs/verification/sprint3-acceptance/scripts/",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Definition of Done logs + summary with uptime",
+            "location": "docs/verification/sprint3-acceptance/dod/",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Doc claim audit (scout transcript)",
+            "location": "agent://DM149Acceptance.DocClaimsScout",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Raw logs",
+            "location": "/tmp/sc-epic/logs/DM-149-*",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "source-control",
+        "changedFiles": [
+          "docs/runbooks/github-sign-in.md",
+          "docs/verification/sprint3-acceptance/DM-149-c12-after-abort.png",
+          "docs/verification/sprint3-acceptance/DM-149-c12-rebase-banner.png",
+          "docs/verification/sprint3-acceptance/DM-149-c12to14.txt",
+          "docs/verification/sprint3-acceptance/DM-149-c13-after-commit.png",
+          "docs/verification/sprint3-acceptance/DM-149-c13-only-colon-slash-a-included.png",
+          "docs/verification/sprint3-acceptance/DM-149-c14-merge-committed.png",
+          "docs/verification/sprint3-acceptance/DM-149-c14-merge-conflict.png",
+          "docs/verification/sprint3-acceptance/DM-149-c15-fetching.png",
+          "docs/verification/sprint3-acceptance/DM-149-c15-stall-timeout.png",
+          "docs/verification/sprint3-acceptance/DM-149-c15.txt",
+          "docs/verification/sprint3-acceptance/DM-149-c15-variant-stall-timeout.png",
+          "docs/verification/sprint3-acceptance/DM-149-c15-variant.txt",
+          "docs/verification/sprint3-acceptance/DM-149-c1-big-clone-cancelled.png",
+          "docs/verification/sprint3-acceptance/DM-149-c1-big-clone-in-progress.png",
+          "docs/verification/sprint3-acceptance/DM-149-c1c2.txt",
+          "docs/verification/sprint3-acceptance/DM-149-c1-ext-refused.png",
+          "docs/verification/sprint3-acceptance/DM-149-c1-shorthand-dialog.png",
+          "docs/verification/sprint3-acceptance/DM-149-c2-clone-dialog-running.png",
+          "docs/verification/sprint3-acceptance/DM-149-c2-cloned-open-on-source-control.png",
+          "docs/verification/sprint3-acceptance/DM-149-c2-sidebar-plus-menu.png",
+          "docs/verification/sprint3-acceptance/DM-149-c3c4out.txt",
+          "docs/verification/sprint3-acceptance/DM-149-c3-scratch-c-on-pr-1.png",
+          "docs/verification/sprint3-acceptance/DM-149-c4in.txt",
+          "docs/verification/sprint3-acceptance/DM-149-c4-pull-requests-signed-out.png",
+          "docs/verification/sprint3-acceptance/DM-149-c4-push-and-create-pull-request.png",
+          "docs/verification/sprint3-acceptance/DM-149-c5c6.txt",
+          "docs/verification/sprint3-acceptance/DM-149-c5-crlf-after-commit.png",
+          "docs/verification/sprint3-acceptance/DM-149-c5-crlf-selected.png",
+          "docs/verification/sprint3-acceptance/DM-149-c5-notes-selected.png",
+          "docs/verification/sprint3-acceptance/DM-149-c6-partial-lines-indeterminate.png",
+          "docs/verification/sprint3-acceptance/DM-149-c6-selection-reset-toast.png",
+          "docs/verification/sprint3-acceptance/DM-149-doccheck.txt",
+          "docs/verification/sprint3-acceptance/dod/DM-149-build.txt",
+          "docs/verification/sprint3-acceptance/dod/DM-149-coverage.txt",
+          "docs/verification/sprint3-acceptance/dod/DM-149-deadcode.txt",
+          "docs/verification/sprint3-acceptance/dod/DM-149-dod-summary.txt",
+          "docs/verification/sprint3-acceptance/dod/DM-149-lint.txt",
+          "docs/verification/sprint3-acceptance/dod/DM-149-test-rerun2.txt",
+          "docs/verification/sprint3-acceptance/dod/DM-149-test-rerun.txt",
+          "docs/verification/sprint3-acceptance/dod/DM-149-test.txt",
+          "docs/verification/sprint3-acceptance/dod/DM-149-typecheck.txt",
+          "docs/verification/sprint3-acceptance/README.md",
+          "docs/verification/sprint3-acceptance/scripts/c12to14.mjs",
+          "docs/verification/sprint3-acceptance/scripts/c15.mjs",
+          "docs/verification/sprint3-acceptance/scripts/c1c2.mjs",
+          "docs/verification/sprint3-acceptance/scripts/c3c4out.mjs",
+          "docs/verification/sprint3-acceptance/scripts/c4in.mjs",
+          "docs/verification/sprint3-acceptance/scripts/c5c6.mjs",
+          "docs/verification/sprint3-acceptance/scripts/check_docs.py",
+          "docs/verification/sprint3-acceptance/scripts/dod.sh",
+          "docs/verification/sprint3-acceptance/scripts/lib.mjs",
+          "docs/verification/sprint3-acceptance/scripts/setup.sh",
+          "docs/verification/sprint3-acceptance/scripts/stall2.sh",
+          "docs/verification/sprint3-acceptance/scripts/stall.sh"
+        ],
+        "commits": [
+          "0c1f57c83f1cbda7bd6f4a4637e70cacc362483d",
+          "51ff21866390f6704f9f3067f3e0ceb11a02de5b",
+          "14f42c412515114002057ccf5dc3eaae9fba95fa",
+          "3ce9b75497202359c5a7ae0d0a4f324a0bde7c4d",
+          "39cf5df",
+          "d956b0b986773ccf76afa60859f651a30a28f9dc"
+        ],
+        "summary": "Sprint 3 acceptance on source-control-sprint-3 (tip 1482136, every sprint 3 ticket merged). Built the app and ran c1-c7 and c12-c15 through Playwright Electron, each run with a fresh isolated --user-data-dir that was deleted afterwards, against scratch repositories from /tmp/sc-epic/scratch/DM-149/setup.sh. Signed-out runs used an empty GH_CONFIG_DIR. The one signed-in run (c4 Push and create pull request) used the machine's gh login and signed out at the end. No token was printed, logged or captured, and the evidence was scanned for token-like strings. Nothing was pushed: scratch-gh's pushurl is a local bare repository. I looked at every screenshot cited. All 11 UI/terminal criteria are met. c3's checkoutPullRequest was called through Playwright page.evaluate, which is equivalent to devtools. c15: a helper that prints nothing gives git no stderr, so the timeout shows no Details block; a variant helper shows the detail. c7: one runbook troubleshooting message did not match the app's text and was fixed (docs commit 0c1f57c); the path check is clean. DoD at 1482136: lint, typecheck, coverage, deadcode and build passed; npm test passed on the third run (run 1 Electron download race, run 2 a load timeout at load 92). Fireguard was taken from DM-157 (A, 92) and not re-run, because no test file changed. c10 and c11 are the orchestrator's steps. Evidence is committed in 51ff218 under docs/verification/sprint3-acceptance/.\n\nOrchestrator: the acceptance found that at a `git rebase -r` merge step Use mine took the merged-in side (DM-147's rebase swap applied to a merge step after DM-392 reported it as a rebase). Fixed as an integration fix (14f42c4 tests, 3ce9b75 fix): main decides ConflictState.mineSide, swapping only for a rebase pick without MERGE_HEAD. DoD and a Fireguard delta were re-run afterwards (A 93)."
+      },
       "reconciledAt": null,
       "revisionId": "rv_01m6azd2t1sb9saxsvfzc412qn",
-      "state": "running",
-      "submittedAt": null,
+      "state": "accepted",
+      "submittedAt": "2026-11-01T11:17:37.593Z",
       "supersededAt": null,
       "ticketContentHash": "sha256:c7d7376fb9a863c6718c023b649941db951740c9ce37d2f70e87a2495ea4e8c5",
       "ticketId": "tk_01m43szh7y2zttwkt6jd42301q",
-      "updatedAt": "2026-11-01T09:57:16.543Z",
+      "updatedAt": "2026-11-01T11:17:43.257Z",
       "worker": {
         "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
         "effort": "medium",
         "hostId": "omp-mac-davidgorden",
         "label": "omp task subagent (DM-149)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker. Acceptance node: the orchestrator keeps the claim token, lands the squashed increment and submits.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T14:47:47.420Z",
+      "decidedAt": "2026-11-01T15:02:15.918Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Reviewed d956b0b..029415a. Follow-ups: a sync waiting for the lock can't be cancelled yet; separate worktrees of one repo get separate locks. Accepted.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Commit 32096d2 adds only the tests. Running `npx vitest run src/main/git/handlersLock.test.ts src/main/git/commit.test.ts src/main/git/operationLock.test.ts` before the implementation gave 5 failed (commit-behind-pull, undo-behind-push, PR checkout split, two head_moved) plus a missing-module failure for operationLock.test.ts; the cancel and read-only tests already passed (see notes).",
+            "name": "tests written first (failing)",
+            "status": "passed"
+          },
+          {
+            "detail": "Same command after the implementation: 3 files, 29 tests passed.",
+            "name": "unit tests (touched)",
+            "status": "passed"
+          },
+          {
+            "detail": "`npx vitest run src/main/git src/main/github src/shared/git`: 59 files, 818 tests passed.",
+            "name": "unit tests (git/github/shared-git suites)",
+            "status": "passed"
+          },
+          {
+            "detail": "`npx oxlint` on the 9 touched .ts files: exit 0, no findings.",
+            "name": "lint (touched files)",
+            "status": "passed"
+          },
+          {
+            "detail": "`npm run typecheck`: exit 0.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "`npm run deadcode`: No new dead exports found (new export `canonical` and the operationLock exports are used).",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "Left to the acceptance node, as the epic rules say.",
+            "name": "full suite / fireguard / build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "handlersLock.test.ts (real repo, gated runner): a commit started during a conflicting pull waits and is refused — with the existing, stricter operation_in_progress check (commit.ts order kept by orchestrator decision) — and MERGE_HEAD stays intact. Orchestrator re-ran src/main/git + src/main/github: 810 passed."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "operationLock.ts keyed by canonical repo root wraps commit, undo, discard, fetch/pull/push/publish, branch ops, stash restore/discard, conflict actions, PR checkout; reads and cancelOperation unlocked; subfolder/symlink share one lock; release after failure tested."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Undo checks the commit it read and moves HEAD with a compare-and-swap; head_moved when HEAD changed (incl. root commit); an undo queued behind a push is refused as pushed."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "A concurrent branch switch cannot land between a PR checkout's switch and fast-forward (test)."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Tests first (32096d2), implementation 029415a; touched tests, lint, typecheck, deadcode pass."
+          }
+        ],
+        "notes": "The interleaving tests wait a real 400 ms (SETTLE_MS) only to show that a handler is still waiting. The final state each test asserts fails without the lock on its own. The cancel test also passed before the change, because the runner's per-repository queue already put the commit's writes behind the pull's git, so it guards against regressions rather than proving the fix. Red-team pass: (1) Bypass routes: I checked every GitHandlers method. initRepository (creates a repository, not on the ticket's list), clone (a new folder), openInEditor (no git write) and getPullRequests (only refreshes the cache) are not locked; the rest are as listed. (2) Key mismatch: the lock and the runner both key by canonical(top-level); subfolder and symlink paths fall under the same key (tested). If rev-parse fails, the key is the folder rather than no lock (tested). (3) Deadlock: no locked work calls another handler. PR checkout calls the switchBranch module function, not the handler, so no re-entry. DM-403 confirmed its test calls prs.checkout directly, which is not locked. (4) A lock held for a long time: network operations keep their stall timeouts, and cancel bypasses the lock. A failed or cancelled operation releases the lock (tested), and the runner's own queue still waits for a killed git to exit. (5) Undo CAS: every check now reads the checked oid, so HEAD~1 is not resolved late. head_moved comes only when update-ref fails and HEAD is no longer at the oid; any other update-ref failure is rethrown unchanged. Accepted risk: the CAS compares commits, not branch names, so if HEAD moved from outside the app to another branch at the same commit, that branch would be undone. Discoveries: (a) A fetch, pull or push still queued behind another operation is not yet registered with sync, so cancelling it returns {cancelled:false} and it runs later. Registering it in sync.run before taking the lock would fix this. (b) Separate worktrees of one repository get separate locks and runner queues, although they share refs. (c) initRepository is not locked."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6bs9cyw4jr6m97fxm5yqf89",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Operation lock",
+            "location": "src/main/git/operationLock.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Interleaving tests on real repos (gated runner)",
+            "location": "src/main/git/handlersLock.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Lock unit tests",
+            "location": "src/main/git/operationLock.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "head_moved tests",
+            "location": "src/main/git/commit.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Gated runner test helper",
+            "location": "src/test/gatedRunner.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "source-control-DM-401",
+        "changedFiles": [
+          "src/main/git/operationLock.ts",
+          "src/main/git/operationLock.test.ts",
+          "src/main/git/handlers.ts",
+          "src/main/git/handlersLock.test.ts",
+          "src/main/git/commit.ts",
+          "src/main/git/commit.test.ts",
+          "src/main/git/runner.ts",
+          "src/shared/git/errors.ts",
+          "src/test/gatedRunner.ts",
+          "docs/architecture.md"
+        ],
+        "commits": [
+          "32096d25369c786b71a6d6fd9263de7fba7251b7",
+          "029415accddbf1792614a5991cb7627de04d2348"
+        ],
+        "summary": "Added a per-repository operation lock in main (src/main/git/operationLock.ts). It is keyed by the canonical repository root: `git rev-parse --show-toplevel` passed through the runner's own `canonical()`, which runner.ts now exports. If git finds no repository, the key is the canonical folder, so the work is still locked. handlers.ts runs each mutating handler's whole sequence (status reads, checks, writes) under the lock: commit, undo, discard, fetch, pull and push (publishing is a push), branch create/switch/rename/delete/merge, stash restore/discard, the conflict actions (resolveWith, markResolved, abortMerge, commitMerge, abortOperation) and pull-request checkout. Input validation and the tracked-folder check still run before the lock. Read-only handlers (getState, getWorkingDiff, history, listBranches, checkBranchName, listStashes, getConflicts, openInEditor, the pull request reads and URLs) and cancelOperation are not locked. createSyncHandlers now takes (deps, guarded, writes) like its sibling factories, which keeps oxlint max-params at 4. Undo is now a compare-and-swap on the HEAD oid it checked: rev-list, `branch -r --contains` and log now read that oid instead of `HEAD`, and the move is `git update-ref -m 'reset: moving to HEAD~1' HEAD <parent> <checked>` (for a root commit, `update-ref -d HEAD <checked>`). This changes only the ref, as `reset --soft` did. If update-ref fails and HEAD is no longer at the checked oid, undo fails with the new code `head_moved` (added to src/shared/git/errors.ts). Undo of a merge commit is still refused. docs/architecture.md describes the new module and the undo behaviour. No renderer change, no new channels, and single git calls run as before. On the orchestrator's instruction, commit.ts keeps its check order: a commit queued behind a conflicting pull is refused with the existing, stricter `operation_in_progress` (it runs before the conflicted-file check), not with `merge_conflicts`."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6bs8fwqpb9jyts8s8fyj5ye",
+      "state": "accepted",
+      "submittedAt": "2026-11-01T15:02:15.871Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:d37db725a77612d84604d4bdff219ed4c0293d2f30ce1dba4440e31be5d92977",
+      "ticketId": "tk_01m6bs5armb2mk8tv0fe7tzy8y",
+      "updatedAt": "2026-11-01T15:02:15.918Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "high",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-401)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T14:47:47.467Z",
+      "decidedAt": "2026-11-01T14:55:49.311Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Reviewed d956b0b..8b31587; review round narrowed confinement to the folder chain so symlink diffs keep working. Accepted.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "commit c7e2e8e adds handlersWorkingDiff.test.ts alone; `npx vitest run src/main/git/handlersWorkingDiff.test.ts` on it: 6 failed | 6 passed (12) — the 6 confinement/status tests failed, the 6 unchanged-diff regression guards passed; review change: the new symlink test 'diffs an untracked out -> /etc/hosts as a symlink…' failed (invalid_input) before 8b31587 and passes after",
+            "name": "tests written first",
+            "status": "passed"
+          },
+          {
+            "detail": "npx vitest run src/main/git/handlersWorkingDiff.test.ts src/main/git/handlers.test.ts src/main/git/handlersWrite.test.ts src/main/git/conflicts* — 6 files, 110 tests passed (after 8b31587)",
+            "name": "unit tests (touched)",
+            "status": "passed"
+          },
+          {
+            "detail": "npx oxlint src/main/git/handlers.ts src/main/git/conflicts.ts src/main/git/handlersWorkingDiff.test.ts — exit 0 (re-run on handlers.ts + test after 8b31587)",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck — clean (re-run after 8b31587)",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run deadcode — No new dead exports found (locate newly exported and used)",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node (epic rules)",
+            "name": "full test suite / fireguard / build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "handlersWorkingDiff.test.ts (real repo): with l -> /, getWorkingDiff for l/etc/hosts is refused (not in status; folder chain also confined) and no contents return. Orchestrator re-ran handlers/diff tests: 74 passed."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "requireChange takes kind/oldPath from status via findInStatus; unknown paths → invalid_input before any diff runs; untracked paths whose folder resolves outside the repo are refused."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Modified/added/deleted/renamed/untracked diffs and force unchanged; an untracked symlink still diffs as a link (target path, no contents) after review fix 8b31587."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Tests first (c7e2e8e, 6 red); touched tests, oxlint, typecheck pass."
+          }
+        ],
+        "notes": "Per orchestrator review, untracked symlinks (even ones pointing outside, e.g. out -> /etc/hosts) diff as links again; only the folder chain above an untracked path is confined. Red-team: tests cover forged kind, forged oldPath, paths under symlinked folders to / and to an outside folder (both via real status and via injected status entries so the realpath check itself is exercised), final-component symlink to an outside file (link text only), force. By reading the code: case variants/trailing slashes refused by exact status match; `a/../b` refused by the existing pathArgs check; git paths always use '/', so posix.dirname is correct on every OS. Discoveries:\n- readWorkingDiff also uses `--no-index` for non-untracked kinds in a repository with no commit yet (unborn HEAD); those paths come from the index (git refuses index paths beyond a symlink), so no confinement was added there — out of scope."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6bs9d0b48pzkbxndxjxzejy",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "real-repository tests",
+            "location": "src/main/git/handlersWorkingDiff.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "source-control-DM-402",
+        "changedFiles": [
+          "src/main/git/handlersWorkingDiff.test.ts",
+          "src/main/git/handlers.ts",
+          "src/main/git/conflicts.ts"
+        ],
+        "commits": [
+          "c7e2e8eedebcdacfc44f2c2ab8a3f9c2b0fa51d3",
+          "07f5d9ba93cf6ffc67154b08a4924aeb9858fb34",
+          "8b3158726ace4d602848659d2fe101dab975300a"
+        ],
+        "summary": "git:getWorkingDiff now looks the requested path up in the repository's status (requireStatus + findInStatus from commit.ts, as commit/discard do) and diffs that status entry, so kind and oldPath come from git, not the renderer. A path git does not report is refused with invalid_input before any `git diff` runs. For an untracked entry, the path's parent folder chain is run through conflicts.ts's realpath confinement (`locate`, now exported) and refused when it resolves outside the repository (or into a .git); a final-component symlink stays allowed, since `git diff --no-index` diffs it as a link (mode 120000, target path), not the target's contents (orchestrator review). Request schema/path checks and `force` are unchanged; the renderer is untouched. handlers.ts: `requireChange` helper, getWorkingDiff body, imports; conflicts.ts: only `export` on `locate`."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6bs8fwqpb9jyts8s8fyj5ye",
+      "state": "accepted",
+      "submittedAt": "2026-11-01T14:55:49.215Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:8af1f3bed60abbdf5ed99f2eb6df33274d6487fffdfe0c02b04a2ff5843a98bd",
+      "ticketId": "tk_01m6bs5arm2s28pe25t7mdqett",
+      "updatedAt": "2026-11-01T14:55:49.311Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "medium",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-402)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T14:47:47.500Z",
+      "decidedAt": "2026-11-01T14:55:49.387Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Reviewed d956b0b..6ca292a; openInEditor's 4th arg is now { openPath, system? } (one caller updated). Accepted.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Commit 063d926: the 4 new/changed tests failed against the base for the expected reasons (mineSide 'ours'; .py opened on win32; second checkout made the first fail with 'Git fetched no commit for the pull request.'; no 'Use mine (stashed changes)' button)",
+            "name": "tests written first",
+            "status": "passed"
+          },
+          {
+            "detail": "npx vitest run conflicts.test.ts conflictsOpen.test.ts pullRequestsCheckout.test.ts ConflictsPanel.test.tsx ConflictsPanel.edge.test.tsx handlersConflicts.test.ts: 6 files, 83 tests passed",
+            "name": "unit tests (touched)",
+            "status": "passed"
+          },
+          {
+            "detail": "npx oxlint on the 8 changed files: exit 0",
+            "name": "lint (touched files)",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck: no errors",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run deadcode: exit 0 (the options type is not exported)",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "full suite / fireguard / build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Real-repo stash-pop conflict: mineSide 'theirs', Use mine keeps the stashed content; label 'stashed changes'. Orchestrator re-ran conflicts/pullRequests/ConflictsPanel: 87 passed."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Injected win32 + PATHEXT: .py and every PATHEXT extension refused; 11 script types added to the fixed list."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "fetchPullHead uses refs/dm/pull/<n>/<uuid>; a nested second checkout during the first's fetch: both succeed, no refs/dm left."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Tests first (063d926, 4 red), fix 6ca292a; touched tests, oxlint, typecheck, deadcode pass."
+          }
+        ],
+        "notes": "Red-team pass: attacked stash-restore detection when nothing conflicts (stays 'ours', existing tests kept), a rebase/merge with unmerged files (inProgress non-null, unchanged path), PATHEXT with spaces/mixed case/empty entries (tested), PATHEXT on non-Windows (ignored, tested), the realpath target vs requested name (both checked as before), and overlapping checkouts nesting the whole second checkout inside the first's fetch (the strongest interleaving: the old fixed ref was deleted under the first). DM-401 confirmed its lock wraps only the handler, so the nested test cannot deadlock. Discoveries: (a) Windows ignores trailing dots/spaces and `::$DATA` stream suffixes, so `x.py.` or `x.py::$DATA` gives extname '.'/'' and slips past the extension denylist (pre-existing for all listed types). (b) Unmerged files with nothing in progress can also come from a user's own `git checkout -m` or `git stash apply` in a terminal; those are labelled 'stashed changes' too."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6bs9d1cm58k4jsajtzrdam8",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "source-control-DM-403",
+        "changedFiles": [
+          "src/main/git/conflicts.ts",
+          "src/main/git/conflicts.test.ts",
+          "src/main/git/conflictsOpen.test.ts",
+          "src/main/git/handlers.ts",
+          "src/main/github/pullRequests.ts",
+          "src/main/github/pullRequestsCheckout.test.ts",
+          "src/renderer/src/source/ConflictsPanel.tsx",
+          "src/renderer/src/source/ConflictsPanel.test.tsx"
+        ],
+        "commits": [
+          "063d9267385a214d593a23b3f04b5d665c99d98c",
+          "6ca292a6121f00f6d8bd14dda23cf7ea43b84cc3"
+        ],
+        "summary": "Three fixes, tests first (commit 063d926 adds 4 failing tests; 6ca292a implements). (1) getConflicts returns mineSide 'theirs' when unmerged files exist with nothing in progress (stash restore); ConflictsPanel names git's theirs 'stashed changes' when status.inProgress is null, so the buttons read 'Use mine (stashed changes)' / 'Use theirs (main)'. With no conflicts mineSide stays 'ours'. (2) openInEditor adds .py .pyw .pyz .pl .jnlp .chm .wsc .sct .ws .scf .xbap to the fixed denylist (all platforms) and on win32 also refuses every PATHEXT extension (trimmed, case-insensitive, empty entries ignored). To inject platform/env without breaking max-params, openInEditor's 4th parameter became an options object `{ openPath, system? }` (system defaults to process.platform/process.env); the one caller, handlers.ts:373, now passes `{ openPath: deps.openPath }` (siblings DM-401/DM-402 told; neither touches that line). (3) fetchPullHead fetches into refs/dm/pull/<n>/<randomUUID> and deletes only that ref."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6bs8fwqpb9jyts8s8fyj5ye",
+      "state": "accepted",
+      "submittedAt": "2026-11-01T14:55:49.365Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:28a5264adc0e9b0d72d9155c2b481ad5d68708044554cc592ba295391544f0dc",
+      "ticketId": "tk_01m6bs5armkn6fg3a6kh9939y7",
+      "updatedAt": "2026-11-01T14:55:49.387Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "medium",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-403)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-01T15:04:26.435Z",
+      "decidedAt": "2026-11-01T16:43:49.145Z",
+      "decision": {
+        "decidedBy": "Claude Code",
+        "notes": "Orchestrator reviewed c1 timing log and the c3 'Use mine (stashed changes)' screenshot; Fireguard F→A after tests-only d29a5ed (commit.ts survivors 20→2); DoD green at d29a5ed. Increment 49fc5c2 verified by the server. Follow-up: show a refused commit when a pull ends in conflict.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npm run lint at d29a5ed: oxlint src scripts, 0 warnings, 0 errors (dod/DM-400-lint.txt; load ~12)",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck at d29a5ed: node, web and fireguard projects clean, 9 s (dod/DM-400-typecheck.txt)",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm test at d29a5ed. First run: 2 files (claude.test.ts, cursor.test.ts) failed with 'Electron failed to install correctly' (two files racing to unpack Electron; dod/DM-400-test.txt, load 10->53). Rerun once as the brief says: Vitest 548 files, 10110 passed, 9 skipped; Fireguard suite 21 files, 129 passed (dod/DM-400-rerun-test.txt, load ~31).",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run coverage at d29a5ed: 548 files, 10110 passed; statements 97.81%, branches 95.01%, functions 96.96%, lines 97.98%, thresholds met (dod/DM-400-coverage.txt, load 53->40)",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run deadcode at d29a5ed: 'No new dead exports found.' (dod/DM-400-deadcode.txt)",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build at d29a5ed (electron-vite main/preload/renderer) and earlier at 6aec9a5 for the e2e runs (dod/DM-400-build.txt)",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "FIREGUARD_BASE_REF=d956b0b9 npm run fireguard -- --json, detached. At 6aec9a5: F (mutation 228/312 = 73% < 75%; AST pass; flake 100 runs 0 failures), 09:10-09:54. Tests-only fix d29a5ed. Re-grade at d29a5ed: A (92), mutation 246/312 = 79%, flake 100/0, AST pass, 09:57-10:36 (load 5-16). fireguard/*.json",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "node scripts/c1.mjs and scripts/c2c3.mjs against the build of 6aec9a5, isolated profiles, signed out; outputs DM-400-c1.txt, DM-400-c2c3.txt (load 8-23)",
+            "name": "e2e (built app)",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "DM-400-c1.txt, DM-400-c1-commit-waiting-during-pull.png, DM-400-c1-after-pull-merge-banner.png (scripts/c1.mjs). scratch-pull and its origin both edit c.txt; origin goes through ext:: slow-upload-pack.sh (10 s wait). Pull origin clicked, then Commit to main with summary 'Commit during pull' and notes.txt included. 2 s later the pull still ran and the Commit button had aria-busy=true (screenshot). Pass-through observers on the main-process git:pull/git:commit IPC handlers: both started at +0.0 s; pull answered merge_conflicts at +10.3 s, the commit answered only at +10.4 s with operation_in_progress 'A merge is in progress.' After: git rev-parse -q --verify MERGE_HEAD exit 0 (prints the origin commit), git status 'both modified: c.txt', notes.txt still untracked, HEAD unchanged. Caveat: the refusal text is the IPC answer. The app does not show it, because with a merge in progress the Changes panel swaps the commit box (and its alert) for the conflicts panel, which shows the merge banner '... into main: 1 conflicted file'. Orchestrator read DM-400-c1.txt: commit answered operation_in_progress 0.1 s after the pull's merge_conflicts; MERGE_HEAD present after; HEAD unchanged. The app shows the merge banner rather than the commit's refusal text (the conflicts panel replaces the commit box) — the refusal itself is recorded at the main-process boundary."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "DM-400-c2c3.txt (scripts/c2c3.mjs). scratch-symlink has a committed l -> / (git ls-files -s: mode 120000; HEAD:l is '/'). In the built app, page.evaluate(window.git.getWorkingDiff(folder, {path:'l/etc/hosts', oldPath:null, kind:'untracked'})) returned {ok:false, error:{code:'invalid_input', message:'l/etc/hosts is not a changed file.'}}, with no diff and no hosts content (no localhost/broadcasthost in the answer). kind:'modified' is refused the same way."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "DM-400-c2c3.txt, DM-400-c3-stash-restore-conflict.png, DM-400-c3-after-use-mine.png. scratch-stash: stash pop of 'stashed content' over a commit with 'committed content' left UU s.txt (markers shown). The panel lists s.txt with 'Use mine (stashed changes)' and 'Use theirs (main)'. After Use mine in the app: terminal cat s.txt -> 'stashed content'; git status --short 'M  s.txt'; git diff HEAD shows -committed content +stashed content. The screenshot shows s.txt as modified, no conflicts left."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "fireguard/DM-400-fireguard-first.json: F at 6aec9a5 (mutation 73% < 75%; AST and flake passed). Tests-only commit d29a5ed adds 'commitFiles with chosen lines' to src/main/git/commit.test.ts: a partial line commit, plus stale_selection / no such changed line / chosen more than once refusals. The graded tests had no line-commit case, so 19 commit.ts mutants survived. Re-grade with the same base ref: fireguard/DM-400-fireguard-regrade.json, grade A (92), mutation 246/312 = 79%, flake 100 runs 0 failures, AST pass. No F."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "dod/ at d29a5ed via scripts/dod.sh, one check at a time, uptime in DM-400-dod-summary.txt. lint, typecheck, coverage (97.81/95.01/96.96/97.98), deadcode and build passed. npm test: the first run hit the known 'Electron failed to install correctly' race in 2 adapter files. The rerun passed (548 files, 10110 passed, 9 skipped; Fireguard suite 129 passed): DM-400-rerun-test.txt."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "Orchestrator squash-merged source-control-sprint-4 (6a36ed9) onto source-control as one commit 49fc5c2 (parent d956b0b; tree identical to the integration tip); its message lists every sprint 4 ticket."
+          }
+        ],
+        "notes": "The e2e ran on the build of 6aec9a5. d29a5ed only changes a test file, so the app is the same. Machine load ranged 5-53 (uptime recorded per check). Red-team pass: (1) c1 could have shown the wait for the wrong reason. The IPC timing shows the commit answer comes after the pull answer, and HEAD/MERGE_HEAD/notes.txt were checked in git, not only in the UI. The observers only pass results through, and they change no arguments or results. (2) c2 also checked the 'modified' kind, and searched the answer for hosts content. (3) The new tests were checked to assert exact messages and HEAD unchanged. Their kill effect is measured by Fireguard: commit.ts survivors went from 20 to 2. The out-of-range case uses a 2-change diff, so index 2 really is past the end. (4) No token was used (signed out). The evidence was grepped for gh token patterns, and none were found.\nDiscoveries:\n- Commit clicked during a pull that ends in conflicts: the refusal ('A merge is in progress.') never appears in the app, because the commit box unmounts when the conflicts panel takes over. The busy button just disappears.\n- Fireguard mutants still alive in runner.ts (25), handlers.ts (17) and pullRequests.ts (8) are mostly in code the sprint touched but its graded tests do not reach. The gate passes at 79%."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m6bt7wj3etf4npzmhdn80tak",
+      "increment": {
+        "base": {
+          "commit": "d956b0b986773ccf76afa60859f651a30a28f9dc",
+          "kind": "previous_increment"
+        },
+        "branch": "source-control",
+        "checks": [
+          {
+            "detail": "Names the epic branch source-control.",
+            "name": "Epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 49fc5c2 exists.",
+            "name": "Commit exists",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 49fc5c2 has one parent, d956b0b.",
+            "name": "One parent",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 49fc5c2 is reachable from source-control.",
+            "name": "On the epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit 49fc5c2 is not part of the previous sprint's increment d956b0b.",
+            "name": "After the base commit",
+            "status": "passed"
+          },
+          {
+            "detail": "None of the 7 commits recorded by this sprint's accepted work is reachable from source-control.",
+            "name": "Squashed, not merged",
+            "status": "passed"
+          }
+        ],
+        "commit": "49fc5c2375c14a04c3c3090daa899a43e285f66a",
+        "parent": "d956b0b986773ccf76afa60859f651a30a28f9dc",
+        "passed": true,
+        "reasons": [],
+        "verifiedAt": "2026-11-01T16:43:38.732Z"
+      },
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Evidence index",
+            "location": "docs/verification/sprint4-acceptance/README.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "c1 output",
+            "location": "docs/verification/sprint4-acceptance/DM-400-c1.txt",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "c1 commit waiting during pull",
+            "location": "docs/verification/sprint4-acceptance/DM-400-c1-commit-waiting-during-pull.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "c1 merge banner after pull",
+            "location": "docs/verification/sprint4-acceptance/DM-400-c1-after-pull-merge-banner.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "c2/c3 output",
+            "location": "docs/verification/sprint4-acceptance/DM-400-c2c3.txt",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "c3 stash restore conflict panel",
+            "location": "docs/verification/sprint4-acceptance/DM-400-c3-stash-restore-conflict.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "c3 after Use mine",
+            "location": "docs/verification/sprint4-acceptance/DM-400-c3-after-use-mine.png",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Fireguard first run (F)",
+            "location": "docs/verification/sprint4-acceptance/fireguard/DM-400-fireguard-first.json",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Fireguard re-grade (A)",
+            "location": "docs/verification/sprint4-acceptance/fireguard/DM-400-fireguard-regrade.json",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "DoD logs and summary",
+            "location": "docs/verification/sprint4-acceptance/dod/",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Scripts (setup, slowed remote, e2e, dod)",
+            "location": "docs/verification/sprint4-acceptance/scripts/",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "source-control",
+        "changedFiles": [
+          "src/main/git/commit.test.ts",
+          "docs/verification/sprint4-acceptance/README.md",
+          "docs/verification/sprint4-acceptance/DM-400-c1.txt",
+          "docs/verification/sprint4-acceptance/DM-400-c2c3.txt",
+          "docs/verification/sprint4-acceptance/DM-400-c1-commit-waiting-during-pull.png",
+          "docs/verification/sprint4-acceptance/DM-400-c1-after-pull-merge-banner.png",
+          "docs/verification/sprint4-acceptance/DM-400-c3-stash-restore-conflict.png",
+          "docs/verification/sprint4-acceptance/DM-400-c3-after-use-mine.png",
+          "docs/verification/sprint4-acceptance/fireguard/DM-400-fireguard-first.json",
+          "docs/verification/sprint4-acceptance/fireguard/DM-400-fireguard-regrade.json",
+          "docs/verification/sprint4-acceptance/dod/DM-400-dod-summary.txt",
+          "docs/verification/sprint4-acceptance/dod/DM-400-lint.txt",
+          "docs/verification/sprint4-acceptance/dod/DM-400-typecheck.txt",
+          "docs/verification/sprint4-acceptance/dod/DM-400-test.txt",
+          "docs/verification/sprint4-acceptance/dod/DM-400-coverage.txt",
+          "docs/verification/sprint4-acceptance/dod/DM-400-deadcode.txt",
+          "docs/verification/sprint4-acceptance/dod/DM-400-build.txt",
+          "docs/verification/sprint4-acceptance/dod/DM-400-rerun-dod-summary.txt",
+          "docs/verification/sprint4-acceptance/dod/DM-400-rerun-test.txt",
+          "docs/verification/sprint4-acceptance/scripts/setup.sh",
+          "docs/verification/sprint4-acceptance/scripts/slow-upload-pack.sh",
+          "docs/verification/sprint4-acceptance/scripts/lib.mjs",
+          "docs/verification/sprint4-acceptance/scripts/c1.mjs",
+          "docs/verification/sprint4-acceptance/scripts/c2c3.mjs",
+          "docs/verification/sprint4-acceptance/scripts/dod.sh"
+        ],
+        "commits": [
+          "d29a5edbfcd5f49763c00cbbbe6d2c83be56fd27",
+          "6a36ed9cec126f8f08c5babfce02d63b33d79282",
+          "49fc5c2375c14a04c3c3090daa899a43e285f66a"
+        ],
+        "summary": "Sprint 4 acceptance on source-control-sprint-4 (DM-401/402/403 already merged at 6aec9a5). Built the app and ran three Playwright e2e checks on scratch repositories with isolated, signed-out profiles (c1 commit during a slowed conflicting pull, c2 getWorkingDiff through l -> /, c3 Use mine in a stash restore conflict). Fireguard at the sprint start graded F (mutation 73% < 75%); one tests-only commit (d29a5ed, two tests in src/main/git/commit.test.ts) brought it to A (mutation 79%). Full DoD passed at d29a5ed (npm test needed one rerun for the known Electron-install race). Evidence committed in 6a36ed9 under docs/verification/sprint4-acceptance/. Not squashed or landed (c6 is the orchestrator's step). Reviewer note for c1: the app never renders the commit's refusal text, because the conflicts panel replaces the commit box once the merge starts; the refusal was captured from the IPC answer."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m6bs8fwqpb9jyts8s8fyj5ye",
+      "state": "accepted",
+      "submittedAt": "2026-11-01T16:43:38.807Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:81f90969b70cd1868e75de078a94f61e31ac8576f32a25d271a28b82779e2973",
+      "ticketId": "tk_01m6bs5ar659q6p67bwnwvtw8d",
+      "updatedAt": "2026-11-01T16:43:49.145Z",
+      "worker": {
+        "catalogRevision": "hc_01m683v6zpwtyanf40hj5gg7wd",
+        "effort": "medium",
+        "hostId": "omp-mac-davidgorden",
+        "label": "omp task subagent (DM-400)",
         "modelId": "claude-opus-5-5",
         "rationale": "Run's host catalog (hc_01m49h2h…, Windows) was never imported, so match_capabilities returns not_found and the claim skips catalog checks. omp cannot select a worker model; its task subagents run claude-opus-5-5. Effort recorded as the ticket's planned effort. Lease 4h; orchestrator heartbeats for the worker. Acceptance node: the orchestrator keeps the claim token, lands the squashed increment and submits.",
         "sessionId": null
@@ -5733,10 +6647,28 @@
       "policy": "human",
       "reportId": "rp_01m6agfymndte22mpq62yhe5ht",
       "sprintId": "sp_01m43st80ktpktzfr1x9t6bty4"
+    },
+    {
+      "decidedAt": "2026-11-01T14:47:17.782Z",
+      "decidedBy": "ss_01m6b8jhejvvpcgwhk00t20sr7",
+      "id": "ck_01m6bs8g0pz1d3brvp0ctxfnnt",
+      "outcome": "advanced",
+      "policy": "human",
+      "reportId": "rp_01m6bs5apnsd388jeca1tm7897",
+      "sprintId": "sp_01m43szh7yqbne13wtgk6sg7vm"
+    },
+    {
+      "decidedAt": "2026-11-01T17:17:21.166Z",
+      "decidedBy": "ss_01m6b8jhejvvpcgwhk00t20sr7",
+      "id": "ck_01m6c1v8ce6y7w45wjcc9ghfp2",
+      "outcome": "completed",
+      "policy": "human",
+      "reportId": "rp_01m6bzynpft6njsjyw33g33gm0",
+      "sprintId": "sp_01m6bs5ar651rjeq9ebwvs9qzn"
     }
   ],
   "createdAt": "2026-10-06T21:12:06.155Z",
-  "endedAt": null,
+  "endedAt": "2026-11-01T17:17:21.166Z",
   "epicId": "ep_01m43sbb2tbnxtr35fety5vzhs",
   "format": "darkmechanicus.run",
   "formatVersion": 1,
@@ -6535,9 +7467,795 @@
       "reportRevision": 1,
       "sprintId": "sp_01m43st80ktpktzfr1x9t6bty4",
       "submittedBy": "Claude Code"
+    },
+    {
+      "content": {
+        "accepted": [
+          "DM-150 Clone repositories and list the account's repositories in main",
+          "DM-151 Clone a repository from the sidebar's + menu",
+          "DM-152 Read pull requests and check them out in main",
+          "DM-153 Show, create and check out pull requests from Source control",
+          "DM-154 Commit selected lines of a file through a partial patch",
+          "DM-155 Choose lines and hunks to commit in the diff",
+          "DM-156 Document source control: decision record, architecture, runbook and README",
+          "DM-157 Sprint 3 fireguard: grade the sprint's new unit tests and fix any F",
+          "DM-392 Detect a rebase before a merge when both markers exist",
+          "DM-393 Pass literal pathspecs in commit and discard",
+          "DM-394 Strip git's comment lines from the Commit merge message",
+          "DM-395 Give network git operations a stall timeout",
+          "DM-149 Sprint 3 acceptance: clone, pull requests and line commits on scratch repositories, run the Definition of Done, land one commit"
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "d956b0b986773ccf76afa60859f651a30a28f9dc (sprint 3 squashed onto source-control)",
+            "22879188799dbb42fbb9cfd3c5d3a932b8beaf7e (main merged into source-control before the sprint)"
+          ],
+          "files": [
+            "src/main/git/ (clone, partialPatch, commit, discard, conflicts, status, runner, args, pullRequests)",
+            "src/main/github/ (client listRepositories/pull requests, pullRequestsCheckout)",
+            "src/shared/git/",
+            "src/shared/github/pullRequests.ts",
+            "src/preload/index.ts",
+            "src/main/desktop/bootstrap.ts",
+            "src/renderer/src/source/ (PullRequestBadge, BranchMenu pull requests, ChangesPanel/DiffView line selection, ConflictsPanel sides)",
+            "src/renderer/src/clone/",
+            "src/renderer/src/sidebar/",
+            "src/renderer/src/__mocks__/",
+            "docs/decisions/0004-source-control-in-main.md",
+            "docs/architecture.md",
+            "docs/product-plan.md",
+            "docs/runbooks/github-sign-in.md",
+            "README.md",
+            "docs/verification/"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "at 7c35c31",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "at 7c35c31",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Vitest 545 files, 10081 passed, 9 skipped; Fireguard suite 129 passed",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "statements 97.8, branches 95.01, functions 96.94, lines 97.97",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-157 A 92 (flake 100/100, mutation 82%); changes after the acceptance start A 93",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "at 7c35c31",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "at 7c35c31",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": {
+          "successCriteria": [
+            {
+              "criterionId": "s1",
+              "met": true,
+              "note": "Sprint 1 (DM-130 c5): Source control first, last tab remembered per folder, works on folders not set up for Dark Mechanicus; sprint 2 DM-140 c17 subfolder/root handling."
+            },
+            {
+              "criterionId": "s2",
+              "met": true,
+              "note": "Sprint 1 e2 (diffs, chosen files, trash, undo) plus sprint 3 e3 (selected lines committed exactly, LF and CRLF)."
+            },
+            {
+              "criterionId": "s3",
+              "met": true,
+              "note": "Sprint 1 e3: History lists commits with files and diffs; DM-218 unpushed markers only with a remote; View on GitHub for GitHub repos (DM-153)."
+            },
+            {
+              "criterionId": "s4",
+              "met": true,
+              "note": "Sprint 2 e1 / DM-140 c1–c2: Use my GitHub CLI login imports the gh token, @login in the footer, sign-out; token only safeStorage-encrypted, never in renderer, logs, argv or error text (DM-141 tests)."
+            },
+            {
+              "criterionId": "s5",
+              "met": true,
+              "note": "Sprint 2 e2: ahead/behind and progress; account credentials via a helper scoped to https://github.com when signed in, machine credentials otherwise; stall timeout (DM-395)."
+            },
+            {
+              "criterionId": "s6",
+              "met": true,
+              "note": "Sprint 2 e3/e4: create, switch (stash/bring), rename, delete, merge; conflicts from merge, pull and stash restore resolved, aborted or committed; rebase-merges sides fixed in sprint 3."
+            },
+            {
+              "criterionId": "s7",
+              "met": true,
+              "note": "Sprint 3 e1: clone from the account list or a URL into the chosen folder with progress and cancel, opens tracked."
+            },
+            {
+              "criterionId": "s8",
+              "met": true,
+              "note": "Sprint 3 e2: current branch's PR shown, Create pull request opens the compare page, open PRs including forks checked out."
+            }
+          ],
+          "summary": "Source control is complete on source-control (sprint increments 5a5a03c, 3dcbb97, d956b0b): every tracked folder opens on a GitHub Desktop-style Git view with changes and diffs, file and line commits, discard to trash, undo, history, GitHub sign-in through the machine's GitHub CLI login, fetch/pull/push with progress, branches and stashes, merge conflicts, clone, and pull requests. All eight success criteria are met; s4 follows the person's 2026-10-31 decision (gh CLI login instead of an OAuth device flow). Merging source-control into main is the person's step."
+        },
+        "exitCriteria": [
+          {
+            "criterionId": "e1",
+            "met": true,
+            "note": "DM-149 c1/c2: owner/repo clone with progress; a larger clone cancelled part-way leaves no folder; ext:: refused before git runs; a URL clone from the sidebar + menu ends tracked, selected and open on Source control (screenshots)."
+          },
+          {
+            "criterionId": "e2",
+            "met": true,
+            "note": "DM-149 c3/c4: pr/1 checked out at refs/pull/1/head; signed out getPullRequests → auth_required; Push and create pull request and the signed-out Pull requests view (screenshots). DM-152/153: current branch's PR badge, compare page, fork checkout as pr/<n> (tests)."
+          },
+          {
+            "criterionId": "e3",
+            "met": true,
+            "note": "DM-149 c5/c6: 3 of 5 lines over two hunks committed exactly for LF and CRLF files, working files unchanged; indeterminate checkbox and reset toast (screenshots). DM-154 property test (80 cases)."
+          },
+          {
+            "criterionId": "e4",
+            "met": true,
+            "note": "DM-156 + DM-149 c7: decision record 0004, architecture.md, runbooks/github-sign-in.md and README match the code; 301 links/paths resolve."
+          },
+          {
+            "criterionId": "e5",
+            "met": true,
+            "note": "DM-157 A 92 (no F); delta after the fix A 93; DoD lint, typecheck, test, coverage, deadcode, build pass at 7c35c31."
+          }
+        ],
+        "failed": [],
+        "followUps": [
+          {
+            "body": "Carried from sprint 2: DM_GITHUB_TOKEN is in the environment of every process git starts. A trampoline askpass/credential helper talking to main would keep it out.",
+            "title": "Keep the GitHub token out of git hooks' environment"
+          },
+          {
+            "body": "Runner starts git in its own process group and nothing kills fetch/pull/push/clone on quit; an interrupted clone can leave a half-made folder that later clones refuse (DM-150).",
+            "title": "Stop running git operations when the app quits"
+          },
+          {
+            "body": "networkAuth reads core.sshCommand in the given folder; for a clone that is the parent folder, so a surrounding repository can switch off BatchMode (DM-150).",
+            "title": "Read core.sshCommand without the clone parent's repository config"
+          },
+          {
+            "body": "git truncates FETCH_HEAD when a fetch starts, so a stalled or failed fetch on a never-fetched repo shows 'Last fetched just now' (DM-149).",
+            "title": "'Last fetched' should not come from FETCH_HEAD's mtime"
+          },
+          {
+            "body": "The banner briefly reads '0 conflicted files' with Commit merge before getConflicts answers; main refuses commitMerge meanwhile, but the UI flickers (DM-149).",
+            "title": "Hide the merge banner until conflicts load"
+          },
+          {
+            "body": "docs/decisions/0003 says folders of repositories have no Source control tab; the tab now exists and would offer `git init` on the parent (DM-156).",
+            "title": "Decide Source control in multi-repo folders"
+          },
+          {
+            "body": "DM-157: survivors concentrate in BranchMenu (38), BranchDialogs (19), ChangesPanel (15), DiffView (14), conflicts.ts and runner.ts (9 each).",
+            "title": "Strengthen source-control UI tests against surviving mutants"
+          },
+          {
+            "body": "readWorkingDiff follows the user's diff.context/diff.noprefix; a fixed -U3 would keep hunks consistent for line selection (DM-154).",
+            "title": "Fix the diff context for line selection"
+          },
+          {
+            "body": "Roving tabindex and arrow keys would make keyboard line selection practical on long diffs (DM-155).",
+            "title": "Keyboard navigation in the diff gutter"
+          },
+          {
+            "body": "pull.ff=only handling, cancel a running gh import from the dialog, cache RepoStatus.remote, gone upstreams in the branch menu, bootstrap.ts unit tests, Fireguard single-module scope flag, nodeTransport.kill result (Agents epic).",
+            "title": "Carried from sprint 2"
+          }
+        ],
+        "retro": {
+          "actions": [
+            "When a plan decision changes, search the whole plan (epic success criteria included) for every affected statement in the same revision.",
+            "Run Fireguard and acceptance loops when the machine is quiet, or give git-heavy tests explicit budgets.",
+            "Check cross-ticket seams (shared state such as the rebase/merge side rule) at each row check, not only at acceptance."
+          ],
+          "delivered": [
+            {
+              "demo": "Sidebar + → Clone repository… → URL tab: clone with progress and Cancel; the clone opens tracked on Source control.",
+              "evidence": "docs/verification/sprint3-acceptance/DM-149-c2-*.png, DM-149-c1-*.png",
+              "ticket": "tk_01m43szh82q4hrw4fkwweteqrb"
+            },
+            {
+              "demo": "On an unpublished branch of a GitHub repo, Push and create pull request; the branch menu's Pull requests view (signed out shows the prompt).",
+              "evidence": "DM-149-c4-push-and-create-pull-request.png, DM-149-c4-pull-requests-signed-out.png, DM-149-c3-scratch-c-on-pr-1.png",
+              "ticket": "tk_01m43szh828hgjsz0chrt5qspz"
+            },
+            {
+              "demo": "Untick two lines across two hunks and commit: HEAD holds exactly the chosen lines (also for CRLF).",
+              "evidence": "DM-149-c5-*.png, DM-149-c6-*.png, DM-149-c5c6.txt",
+              "ticket": "tk_01m43szh82gkccz2rshznb6be6"
+            },
+            {
+              "demo": "Read docs/runbooks/github-sign-in.md and docs/decisions/0004-source-control-in-main.md.",
+              "evidence": "DM-149-doccheck.txt",
+              "ticket": "tk_01m43szh82y865rfb7rg8yhcxr"
+            },
+            {
+              "demo": "The squashed sprint increment on source-control.",
+              "evidence": "d956b0b986773ccf76afa60859f651a30a28f9dc, verified by the server",
+              "ticket": "tk_01m43szh7y2zttwkt6jd42301q"
+            }
+          ],
+          "discoveries": [],
+          "leftovers": [],
+          "tierFit": [
+            {
+              "note": "Medium/medium; an hour including a security review subagent.",
+              "ticket": "tk_01m43szh81p623gexyzn5v1qzv",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Medium/high: byte-exact partial patches needed the depth; property tests found an edge case.",
+              "ticket": "tk_01m43szh828jaqw5a0h83kbmkv",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Small/low but 2h25m and four re-grades, driven by machine load and tests near the timeout.",
+              "ticket": "tk_01m43szh825vb3x608ngrsxy4k",
+              "verdict": "undersized"
+            },
+            {
+              "note": "Micro: one commit invocation plus commentChar=auto.",
+              "ticket": "tk_01m6agg8y0q8xpv9qzb36qc2da",
+              "verdict": "right_sized"
+            }
+          ],
+          "wentPoorly": [
+            "Machine load from other sessions (load average up to ~150) caused test timeouts and four Fireguard F runs before an A; most fixes were making git-heavy tests cheaper.",
+            "A string-slicing bug in revision 4 garbled DM-156's body and needed revision 6.",
+            "Revision 4 missed epic success criterion s4, which needed revision 7 before the final report.",
+            "Two more workers edited the coordinating checkout through relative paths and had to revert."
+          ],
+          "wentWell": [
+            "All 12 work tickets were accepted on their first attempt; workers ran their own adversarial reviews (DM-150 transport/cleanup, DM-154 property tests, DM-152 FETCH_HEAD race found in review).",
+            "Merging main at the sprint boundary kept the epic branch mergeable despite three other epics landing meanwhile.",
+            "The acceptance round's seam check caught a real cross-ticket bug (rebase-merges sides) before landing."
+          ]
+        },
+        "risks": [
+          "Branch coverage is at 95.01% against a 95% threshold; the next change without tests will fail coverage.",
+          "Windows remains unexercised (gh.exe lookup, credential helper under Git for Windows' sh, Open in editor's executable check, clone cleanup on locked files).",
+          "Git-backed tests (pullRequestsCheckout in particular) sit near the 15 s timeout when the machine load is very high.",
+          "source-control is not merged into main and its latest commits are not pushed; merging the epic into main is the person's step."
+        ],
+        "summary": "Sprint 3 delivered clone (account list or URL, progress, cancel, cleanup, transport limits), pull requests (toolbar badge, Create pull request via GitHub's compare page, Pull requests view, same-repo and fork checkout), committing selected lines and hunks through a partial patch, the documentation (decision record 0004, architecture, sign-in runbook, README), and the four sprint 2 retro items (DM-392..395). It landed as one squashed commit d956b0b on source-control (server-verified). Main was merged into the epic branch before the sprint (2287918). Revision 6 repaired DM-156's body, revision 7 updated epic success criterion s4 to the person's GitHub CLI sign-in decision; neither changed an accepted ticket. The acceptance round found that a `git rebase -r` merge step swapped Use mine/Use theirs (an interaction of DM-147's rebase swap with DM-392's detection); it was fixed as an integration fix with tests, and the Definition of Done and a Fireguard delta were re-run afterwards."
+      },
+      "contentHash": "sha256:34a33b3e2a8a0057a50929f24eaeac03b28519843f85dd2798234caa2303072b",
+      "createdAt": "2026-11-01T11:18:36.797Z",
+      "id": "rp_01m6bdacfwh0mztan0tqzf6cdb",
+      "reportRevision": 1,
+      "sprintId": "sp_01m43szh7yqbne13wtgk6sg7vm",
+      "submittedBy": "Claude Code"
+    },
+    {
+      "content": {
+        "accepted": [
+          "DM-150 Clone repositories and list the account's repositories in main",
+          "DM-151 Clone a repository from the sidebar's + menu",
+          "DM-152 Read pull requests and check them out in main",
+          "DM-153 Show, create and check out pull requests from Source control",
+          "DM-154 Commit selected lines of a file through a partial patch",
+          "DM-155 Choose lines and hunks to commit in the diff",
+          "DM-156 Document source control: decision record, architecture, runbook and README",
+          "DM-157 Sprint 3 fireguard: grade the sprint's new unit tests and fix any F",
+          "DM-392 Detect a rebase before a merge when both markers exist",
+          "DM-393 Pass literal pathspecs in commit and discard",
+          "DM-394 Strip git's comment lines from the Commit merge message",
+          "DM-395 Give network git operations a stall timeout",
+          "DM-149 Sprint 3 acceptance: clone, pull requests and line commits on scratch repositories, run the Definition of Done, land one commit"
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "d956b0b986773ccf76afa60859f651a30a28f9dc (sprint 3 squashed onto source-control)",
+            "22879188799dbb42fbb9cfd3c5d3a932b8beaf7e (main merged into source-control before the sprint)"
+          ],
+          "files": [
+            "src/main/git/ (clone, partialPatch, commit, discard, conflicts, status, runner, args, pullRequests)",
+            "src/main/github/ (client listRepositories/pull requests, pullRequestsCheckout)",
+            "src/shared/git/",
+            "src/shared/github/pullRequests.ts",
+            "src/preload/index.ts",
+            "src/main/desktop/bootstrap.ts",
+            "src/renderer/src/source/ (PullRequestBadge, BranchMenu pull requests, ChangesPanel/DiffView line selection, ConflictsPanel sides)",
+            "src/renderer/src/clone/",
+            "src/renderer/src/sidebar/",
+            "src/renderer/src/__mocks__/",
+            "docs/decisions/0004-source-control-in-main.md",
+            "docs/architecture.md",
+            "docs/product-plan.md",
+            "docs/runbooks/github-sign-in.md",
+            "README.md",
+            "docs/verification/"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "at 7c35c31",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "at 7c35c31",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Vitest 545 files, 10081 passed, 9 skipped; Fireguard suite 129 passed",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "statements 97.8, branches 95.01, functions 96.94, lines 97.97",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-157 A 92 (flake 100/100, mutation 82%); changes after the acceptance start A 93",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "at 7c35c31",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "at 7c35c31",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": {
+          "successCriteria": [
+            {
+              "criterionId": "s1",
+              "met": true,
+              "note": "Sprint 1 (DM-130 c5): Source control first, last tab remembered per folder, works on folders not set up for Dark Mechanicus; sprint 2 DM-140 c17 subfolder/root handling."
+            },
+            {
+              "criterionId": "s2",
+              "met": true,
+              "note": "Sprint 1 e2 (diffs, chosen files, trash, undo) plus sprint 3 e3 (selected lines committed exactly, LF and CRLF)."
+            },
+            {
+              "criterionId": "s3",
+              "met": true,
+              "note": "Sprint 1 e3: History lists commits with files and diffs; DM-218 unpushed markers only with a remote; View on GitHub for GitHub repos (DM-153)."
+            },
+            {
+              "criterionId": "s4",
+              "met": true,
+              "note": "Sprint 2 e1 / DM-140 c1–c2: Use my GitHub CLI login imports the gh token, @login in the footer, sign-out; token only safeStorage-encrypted, never in renderer, logs, argv or error text (DM-141 tests)."
+            },
+            {
+              "criterionId": "s5",
+              "met": true,
+              "note": "Sprint 2 e2: ahead/behind and progress; account credentials via a helper scoped to https://github.com when signed in, machine credentials otherwise; stall timeout (DM-395)."
+            },
+            {
+              "criterionId": "s6",
+              "met": true,
+              "note": "Sprint 2 e3/e4: create, switch (stash/bring), rename, delete, merge; conflicts from merge, pull and stash restore resolved, aborted or committed; rebase-merges sides fixed in sprint 3."
+            },
+            {
+              "criterionId": "s7",
+              "met": true,
+              "note": "Sprint 3 e1: clone from the account list or a URL into the chosen folder with progress and cancel, opens tracked."
+            },
+            {
+              "criterionId": "s8",
+              "met": true,
+              "note": "Sprint 3 e2: current branch's PR shown, Create pull request opens the compare page, open PRs including forks checked out."
+            }
+          ],
+          "summary": "Source control is complete on source-control (sprint increments 5a5a03c, 3dcbb97, d956b0b): every tracked folder opens on a GitHub Desktop-style Git view with changes and diffs, file and line commits, discard to trash, undo, history, GitHub sign-in through the machine's GitHub CLI login, fetch/pull/push with progress, branches and stashes, merge conflicts, clone, and pull requests. All eight success criteria are met; s4 follows the person's 2026-10-31 decision (gh CLI login instead of an OAuth device flow). Merging source-control into main is the person's step."
+        },
+        "exitCriteria": [
+          {
+            "criterionId": "e1",
+            "met": true,
+            "note": "DM-149 c1/c2: owner/repo clone with progress; a larger clone cancelled part-way leaves no folder; ext:: refused before git runs; a URL clone from the sidebar + menu ends tracked, selected and open on Source control (screenshots)."
+          },
+          {
+            "criterionId": "e2",
+            "met": true,
+            "note": "DM-149 c3/c4: pr/1 checked out at refs/pull/1/head; signed out getPullRequests → auth_required; Push and create pull request and the signed-out Pull requests view (screenshots). DM-152/153: current branch's PR badge, compare page, fork checkout as pr/<n> (tests)."
+          },
+          {
+            "criterionId": "e3",
+            "met": true,
+            "note": "DM-149 c5/c6: 3 of 5 lines over two hunks committed exactly for LF and CRLF files, working files unchanged; indeterminate checkbox and reset toast (screenshots). DM-154 property test (80 cases)."
+          },
+          {
+            "criterionId": "e4",
+            "met": true,
+            "note": "DM-156 + DM-149 c7: decision record 0004, architecture.md, runbooks/github-sign-in.md and README match the code; 301 links/paths resolve."
+          },
+          {
+            "criterionId": "e5",
+            "met": true,
+            "note": "DM-157 A 92 (no F); delta after the fix A 93; DoD lint, typecheck, test, coverage, deadcode, build pass at 7c35c31."
+          }
+        ],
+        "failed": [],
+        "followUps": [
+          {
+            "body": "Carried from sprint 2: DM_GITHUB_TOKEN is in the environment of every process git starts. A trampoline askpass/credential helper talking to main would keep it out.",
+            "title": "Keep the GitHub token out of git hooks' environment"
+          },
+          {
+            "body": "Runner starts git in its own process group and nothing kills fetch/pull/push/clone on quit; an interrupted clone can leave a half-made folder that later clones refuse (DM-150).",
+            "title": "Stop running git operations when the app quits"
+          },
+          {
+            "body": "networkAuth reads core.sshCommand in the given folder; for a clone that is the parent folder, so a surrounding repository can switch off BatchMode (DM-150).",
+            "title": "Read core.sshCommand without the clone parent's repository config"
+          },
+          {
+            "body": "git truncates FETCH_HEAD when a fetch starts, so a stalled or failed fetch on a never-fetched repo shows 'Last fetched just now' (DM-149).",
+            "title": "'Last fetched' should not come from FETCH_HEAD's mtime"
+          },
+          {
+            "body": "The banner briefly reads '0 conflicted files' with Commit merge before getConflicts answers; main refuses commitMerge meanwhile, but the UI flickers (DM-149).",
+            "title": "Hide the merge banner until conflicts load"
+          },
+          {
+            "body": "docs/decisions/0003 says folders of repositories have no Source control tab; the tab now exists and would offer `git init` on the parent (DM-156).",
+            "title": "Decide Source control in multi-repo folders"
+          },
+          {
+            "body": "DM-157: survivors concentrate in BranchMenu (38), BranchDialogs (19), ChangesPanel (15), DiffView (14), conflicts.ts and runner.ts (9 each).",
+            "title": "Strengthen source-control UI tests against surviving mutants"
+          },
+          {
+            "body": "readWorkingDiff follows the user's diff.context/diff.noprefix; a fixed -U3 would keep hunks consistent for line selection (DM-154).",
+            "title": "Fix the diff context for line selection"
+          },
+          {
+            "body": "Roving tabindex and arrow keys would make keyboard line selection practical on long diffs (DM-155).",
+            "title": "Keyboard navigation in the diff gutter"
+          },
+          {
+            "body": "pull.ff=only handling, cancel a running gh import from the dialog, cache RepoStatus.remote, gone upstreams in the branch menu, bootstrap.ts unit tests, Fireguard single-module scope flag, nodeTransport.kill result (Agents epic).",
+            "title": "Carried from sprint 2"
+          }
+        ],
+        "retro": {
+          "actions": [
+            "When a plan decision changes, search the whole plan (epic success criteria included) for every affected statement in the same revision.",
+            "Run Fireguard and acceptance loops when the machine is quiet, or give git-heavy tests explicit budgets.",
+            "Check cross-ticket seams (shared state such as the rebase/merge side rule) at each row check, not only at acceptance."
+          ],
+          "delivered": [
+            {
+              "demo": "Sidebar + → Clone repository… → URL tab: clone with progress and Cancel; the clone opens tracked on Source control.",
+              "evidence": "docs/verification/sprint3-acceptance/DM-149-c2-*.png, DM-149-c1-*.png",
+              "ticket": "tk_01m43szh82q4hrw4fkwweteqrb"
+            },
+            {
+              "demo": "On an unpublished branch of a GitHub repo, Push and create pull request; the branch menu's Pull requests view (signed out shows the prompt).",
+              "evidence": "DM-149-c4-push-and-create-pull-request.png, DM-149-c4-pull-requests-signed-out.png, DM-149-c3-scratch-c-on-pr-1.png",
+              "ticket": "tk_01m43szh828hgjsz0chrt5qspz"
+            },
+            {
+              "demo": "Untick two lines across two hunks and commit: HEAD holds exactly the chosen lines (also for CRLF).",
+              "evidence": "DM-149-c5-*.png, DM-149-c6-*.png, DM-149-c5c6.txt",
+              "ticket": "tk_01m43szh82gkccz2rshznb6be6"
+            },
+            {
+              "demo": "Read docs/runbooks/github-sign-in.md and docs/decisions/0004-source-control-in-main.md.",
+              "evidence": "DM-149-doccheck.txt",
+              "ticket": "tk_01m43szh82y865rfb7rg8yhcxr"
+            },
+            {
+              "demo": "The squashed sprint increment on source-control.",
+              "evidence": "d956b0b986773ccf76afa60859f651a30a28f9dc, verified by the server",
+              "ticket": "tk_01m43szh7y2zttwkt6jd42301q"
+            }
+          ],
+          "discoveries": [
+            {
+              "body": "runner.ts queues single git calls, not a handler's whole read-check-write sequence, and reads are not queued. Commit or Undo clicked while a pull/push runs can interleave: a conflicted pull's MERGE_HEAD is wiped by the commit's `git reset` (the merge is silently dropped), Undo can undo a just-pushed commit or a merge commit (HEAD~1 resolved late), and a pull-request checkout's switch + ff-merge can be split by another write. Fix in main only: a per-repository operation lock around each mutating handler's whole sequence, and Undo as a compare-and-swap on the checked commit.",
+              "ticket": "tk_01m43st80phph8e257thvgm244",
+              "title": "Serialize each source-control operation per repository"
+            },
+            {
+              "body": "git:getWorkingDiff checks the renderer's path only as text and trusts its kind; `git diff --no-index` follows a symlinked directory, so a compromised renderer can read any file (reproduced with `l -> /`). Take the path, kind and oldPath from status, as commit and discard do.",
+              "ticket": "tk_01m43szh828jaqw5a0h83kbmkv",
+              "title": "Confine the working diff to paths git reports"
+            },
+            {
+              "body": "(a) In a stash restore conflict, Use mine keeps HEAD instead of the stashed work (mineSide should be 'theirs' when nothing is in progress). (b) Open in editor relies on a denylist that misses Windows script types (.py, .pyw, .pl, .wsc, .sct, …); also refuse every PATHEXT extension on Windows. (c) Two checkouts of the same fork pull request share refs/dm/pull/<n> and can delete each other's ref; use a unique ref per checkout.",
+              "ticket": "tk_01m43st80p3yhsk2s96zdhphk7",
+              "title": "Fix three conflict and pull request edge cases"
+            }
+          ],
+          "leftovers": [],
+          "tierFit": [
+            {
+              "note": "Medium/medium; an hour including a security review subagent.",
+              "ticket": "tk_01m43szh81p623gexyzn5v1qzv",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Medium/high: byte-exact partial patches needed the depth; property tests found an edge case.",
+              "ticket": "tk_01m43szh828jaqw5a0h83kbmkv",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Small/low but 2h25m and four re-grades, driven by machine load and tests near the timeout.",
+              "ticket": "tk_01m43szh825vb3x608ngrsxy4k",
+              "verdict": "undersized"
+            },
+            {
+              "note": "Micro: one commit invocation plus commentChar=auto.",
+              "ticket": "tk_01m6agg8y0q8xpv9qzb36qc2da",
+              "verdict": "right_sized"
+            }
+          ],
+          "wentPoorly": [
+            "Machine load from other sessions (load average up to ~150) caused test timeouts and four Fireguard F runs before an A; most fixes were making git-heavy tests cheaper.",
+            "A string-slicing bug in revision 4 garbled DM-156's body and needed revision 6.",
+            "Revision 4 missed epic success criterion s4, which needed revision 7 before the final report.",
+            "Two more workers edited the coordinating checkout through relative paths and had to revert."
+          ],
+          "wentWell": [
+            "All 12 work tickets were accepted on their first attempt; workers ran their own adversarial reviews (DM-150 transport/cleanup, DM-154 property tests, DM-152 FETCH_HEAD race found in review).",
+            "Merging main at the sprint boundary kept the epic branch mergeable despite three other epics landing meanwhile.",
+            "The acceptance round's seam check caught a real cross-ticket bug (rebase-merges sides) before landing."
+          ]
+        },
+        "risks": [
+          "Branch coverage is at 95.01% against a 95% threshold; the next change without tests will fail coverage.",
+          "Windows remains unexercised (gh.exe lookup, credential helper under Git for Windows' sh, Open in editor's executable check, clone cleanup on locked files).",
+          "Git-backed tests (pullRequestsCheckout in particular) sit near the 15 s timeout when the machine load is very high.",
+          "source-control is not merged into main and its latest commits are not pushed; merging the epic into main is the person's step."
+        ],
+        "summary": "Sprint 3 delivered clone (account list or URL, progress, cancel, cleanup, transport limits), pull requests (toolbar badge, Create pull request via GitHub's compare page, Pull requests view, same-repo and fork checkout), committing selected lines and hunks through a partial patch, the documentation (decision record 0004, architecture, sign-in runbook, README), and the four sprint 2 retro items (DM-392..395). It landed as one squashed commit d956b0b on source-control (server-verified). Main was merged into the epic branch before the sprint (2287918). Revision 6 repaired DM-156's body, revision 7 updated epic success criterion s4 to the person's GitHub CLI sign-in decision; neither changed an accepted ticket. The acceptance round found that a `git rebase -r` merge step swapped Use mine/Use theirs (an interaction of DM-147's rebase swap with DM-392's detection); it was fixed as an integration fix with tests, and the Definition of Done and a Fireguard delta were re-run afterwards.\n\nRevision 2 of this report: a final whole-epic adversarial review (after landing) found two majors and three minors; the person chose to fix them in a small sprint 4 before completing the epic. They are the retro's three discoveries below, consolidated on purpose to keep sprint 4 small."
+      },
+      "contentHash": "sha256:7a9b94fb510f3eddfa48a4e8a24949f948bcbc9cea6319b47e2f8cb7a1185d52",
+      "createdAt": "2026-11-01T14:45:34.039Z",
+      "id": "rp_01m6bs5apnsd388jeca1tm7897",
+      "reportRevision": 2,
+      "sprintId": "sp_01m43szh7yqbne13wtgk6sg7vm",
+      "submittedBy": "Claude Code"
+    },
+    {
+      "content": {
+        "accepted": [
+          "DM-401 Serialize each source-control operation per repository",
+          "DM-402 Confine the working diff to paths git reports",
+          "DM-403 Fix three conflict and pull request edge cases",
+          "DM-400 Sprint 4 acceptance: serialized writes, confined diff and edge fixes on scratch repositories, Fireguard and the Definition of Done, land one commit"
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "49fc5c2375c14a04c3c3090daa899a43e285f66a (sprint 4 squashed onto source-control)"
+          ],
+          "files": [
+            "src/main/git/operationLock.ts",
+            "src/main/git/handlers.ts",
+            "src/main/git/commit.ts",
+            "src/main/git/runner.ts",
+            "src/main/git/conflicts.ts",
+            "src/main/github/pullRequests.ts",
+            "src/renderer/src/source/ConflictsPanel.tsx",
+            "src/shared/git/errors.ts",
+            "src/test/gatedRunner.ts",
+            "docs/architecture.md",
+            "docs/verification/sprint4-acceptance/"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "DM-400 at d29a5ed",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-400 at d29a5ed",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Vitest 548 files, 10110 passed, 9 skipped; Fireguard suite 129 passed (one rerun after the known Electron install race)",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "statements 97.81, branches 95.01, functions 96.96, lines 97.98",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-400: F (mutation 73%) then A 92 after tests-only d29a5ed (mutation 79%, flake 100/100)",
+            "name": "fireguard",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-400",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-400",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": {
+          "successCriteria": [
+            {
+              "criterionId": "s1",
+              "met": true,
+              "note": "Sprint 1 (DM-130 c5): Source control first, last tab remembered per folder, works on folders not set up for Dark Mechanicus; sprint 2 DM-140 c17 subfolder/root handling."
+            },
+            {
+              "criterionId": "s2",
+              "met": true,
+              "note": "Sprint 1 e2 (diffs, chosen files, trash, undo) plus sprint 3 e3 (selected lines committed exactly, LF and CRLF). Sprint 4: a commit or undo can no longer interleave with a sync (DM-401)."
+            },
+            {
+              "criterionId": "s3",
+              "met": true,
+              "note": "Sprint 1 e3: History lists commits with files and diffs; DM-218 unpushed markers only with a remote; View on GitHub for GitHub repos (DM-153)."
+            },
+            {
+              "criterionId": "s4",
+              "met": true,
+              "note": "Sprint 2 e1 / DM-140 c1–c2: Use my GitHub CLI login imports the gh token, @login in the footer, sign-out; token only safeStorage-encrypted, never in renderer, logs, argv or error text (DM-141 tests)."
+            },
+            {
+              "criterionId": "s5",
+              "met": true,
+              "note": "Sprint 2 e2: ahead/behind and progress; account credentials via a helper scoped to https://github.com when signed in, machine credentials otherwise; stall timeout (DM-395)."
+            },
+            {
+              "criterionId": "s6",
+              "met": true,
+              "note": "Sprint 2 e3/e4: create, switch (stash/bring), rename, delete, merge; conflicts from merge, pull and stash restore resolved, aborted or committed; rebase-merges sides fixed in sprint 3. Sprint 4: stash-restore 'Use mine' keeps the stashed work (DM-403)."
+            },
+            {
+              "criterionId": "s7",
+              "met": true,
+              "note": "Sprint 3 e1: clone from the account list or a URL into the chosen folder with progress and cancel, opens tracked."
+            },
+            {
+              "criterionId": "s8",
+              "met": true,
+              "note": "Sprint 3 e2: current branch's PR shown, Create pull request opens the compare page, open PRs including forks checked out."
+            }
+          ],
+          "summary": "Source control is complete on source-control (sprint increments 5a5a03c, 3dcbb97, d956b0b, 49fc5c2): every tracked folder opens on a GitHub Desktop-style Git view with changes and diffs, file and line commits, discard to trash, undo, history, GitHub sign-in through the machine's GitHub CLI login, fetch/pull/push with progress, branches and stashes, merge conflicts, clone and pull requests. Sprint 4 closed the final review's findings (per-repository operation lock with compare-and-swap undo, confined working diff, stash/Windows/fork-ref edge fixes). All eight success criteria are met. Merging source-control into main is the person's step; main has moved since (Kanban and Terminal chats epics) and the merge will conflict in shared files."
+        },
+        "exitCriteria": [
+          {
+            "criterionId": "e1",
+            "met": true,
+            "note": "DM-401 tests (commit waits behind a conflicting pull and is refused, MERGE_HEAD intact; undo behind a push refused; head_moved CAS) and DM-400 c1 in the built app (commit answered 0.1 s after the pull's merge_conflicts, MERGE_HEAD present)."
+          },
+          {
+            "criterionId": "e2",
+            "met": true,
+            "note": "DM-402 tests and DM-400 c2: getWorkingDiff for l/etc/hosts with l -> / returns invalid_input and no content; kind/oldPath come from status."
+          },
+          {
+            "criterionId": "e3",
+            "met": true,
+            "note": "DM-403 tests and DM-400 c3 (Use mine (stashed changes) keeps the stashed content); PATHEXT/script refusal and unique fork refs tested."
+          },
+          {
+            "criterionId": "e4",
+            "met": true,
+            "note": "Fireguard A 92 on the sprint diff; DoD lint, typecheck, test, coverage, deadcode, build pass."
+          }
+        ],
+        "failed": [],
+        "followUps": [
+          {
+            "body": "With the lock, a commit clicked during a pull waits and is refused with operation_in_progress, but the conflicts panel replaces the commit box so the refusal is never shown (DM-400).",
+            "title": "Show a refused commit when a pull ends in conflict"
+          },
+          {
+            "body": "A sync waiting for the per-repository lock can't be cancelled; cancel returns {cancelled:false} and it runs later (DM-401).",
+            "title": "Let a waiting fetch, pull or push be cancelled"
+          },
+          {
+            "body": "Separate worktrees share branches but get separate locks (DM-401).",
+            "title": "One lock across worktrees of one repository"
+          },
+          {
+            "body": "See the sprint 2 and 3 reports: token out of hooks' environment, stop git on quit, core.sshCommand lookup for clones, 'Last fetched' from FETCH_HEAD, multi-repo folders and Source control, UI test mutants, diff context for line selection, gutter keyboard navigation, pull.ff=only, and the rest.",
+            "title": "Earlier follow-ups"
+          }
+        ],
+        "retro": {
+          "actions": [
+            "Run a whole-epic adversarial review before the final sprint's acceptance round, not after landing.",
+            "Treat IPC handlers' input sources (renderer vs git status) as a review checklist item for every new channel."
+          ],
+          "delivered": [
+            {
+              "demo": "Click Commit while a conflicting pull runs: the commit waits, is refused, and the merge stays in progress.",
+              "evidence": "docs/verification/sprint4-acceptance/DM-400-c1.txt, DM-400-c1-*.png",
+              "ticket": "tk_01m6bs5armb2mk8tv0fe7tzy8y"
+            },
+            {
+              "demo": "Pop a conflicting stash: the panel offers 'Use mine (stashed changes)', which keeps the stashed content.",
+              "evidence": "DM-400-c3-*.png, DM-400-c2c3.txt",
+              "ticket": "tk_01m6bs5armkn6fg3a6kh9939y7"
+            },
+            {
+              "demo": "The squashed sprint increment on source-control.",
+              "evidence": "49fc5c2375c14a04c3c3090daa899a43e285f66a, verified by the server",
+              "ticket": "tk_01m6bs5ar659q6p67bwnwvtw8d"
+            }
+          ],
+          "discoveries": [],
+          "leftovers": [],
+          "tierFit": [
+            {
+              "note": "Medium/high: 12 minutes with gated-runner tests.",
+              "ticket": "tk_01m6bs5armb2mk8tv0fe7tzy8y",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Small/medium; one review round to keep symlink diffs working.",
+              "ticket": "tk_01m6bs5arm2s28pe25t7mdqett",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Small/medium: three contained fixes.",
+              "ticket": "tk_01m6bs5armkn6fg3a6kh9939y7",
+              "verdict": "right_sized"
+            }
+          ],
+          "wentPoorly": [
+            "The concurrency and diff-confinement defects should have been caught when DM-143/DM-145/DM-154 were reviewed, not after the last sprint.",
+            "Fireguard's mutation gate failed the sprint diff until the commit tests were strengthened."
+          ],
+          "wentWell": [
+            "Scoping the sprint to exactly the review's findings, with an explicit scope-discipline rule for workers, kept it to three tickets and about two hours.",
+            "A final adversarial review over the whole epic found cross-ticket defects that per-ticket reviews could not."
+          ]
+        },
+        "risks": [
+          "source-control is behind main by 9 commits (Kanban, Terminal chats); merging it will conflict in .tsprune-ignore, README.md, docs/architecture.md, docs/design/palette.md, bootstrap.ts, preload/index.ts, App.tsx, appHarness.tsx, chooseView.ts and useShell.ts.",
+          "Branch coverage is at 95.01% against a 95% threshold.",
+          "Windows remains unexercised."
+        ],
+        "summary": "Sprint 4 closed the final whole-epic review's two majors and three minors in three tickets, kept deliberately narrow at the person's request: DM-401 serializes every mutating source-control operation per repository and makes Undo a compare-and-swap (head_moved); DM-402 makes the working diff read only paths git reports and refuse symlinked folders that leave the repository; DM-403 fixes stash-restore sides, Windows Open in editor (PATHEXT and script types) and fork pull request refs. It landed as one squashed commit 49fc5c2 on source-control (server-verified). Main was not merged in this sprint: it moved 9 commits (Kanban, Terminal chats) with conflicts in ten shared files, which belongs to the person's epic merge."
+      },
+      "contentHash": "sha256:4a5c46826673cacf5d4c05aebe5f0122bf1aa18f2811fd84550b5feced18de04",
+      "createdAt": "2026-11-01T16:44:15.952Z",
+      "id": "rp_01m6bzynpft6njsjyw33g33gm0",
+      "reportRevision": 1,
+      "sprintId": "sp_01m6bs5ar651rjeq9ebwvs9qzn",
+      "submittedBy": "Claude Code"
     }
   ],
-  "revisionId": "rv_01m6azd2t1sb9saxsvfzc412qn",
+  "revisionId": "rv_01m6bs8fwqpb9jyts8s8fyj5ye",
   "rowChecks": [
     {
       "checks": [
@@ -6891,11 +8609,37 @@
       "recordedBy": "Claude Code",
       "row": 4,
       "sprintId": "sp_01m43szh7yqbne13wtgk6sg7vm"
+    },
+    {
+      "checks": [
+        {
+          "detail": "npm run typecheck exit 0 @ 6aec9a5 (DM-401/402/403 merged)",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "npx oxlint src scripts exit 0",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "vitest src/main/git src/main/github src/renderer/src/source: 78 files, 1040 passed",
+          "name": "tests touching the row's files",
+          "status": "passed"
+        }
+      ],
+      "commit": "6aec9a5e091c92e5ca98c8890ccfc1e0a36bb593",
+      "createdAt": "2026-11-01T15:04:26.403Z",
+      "id": "rk_01m6bt7wh3btpzahc76zyf12vb",
+      "number": 14,
+      "recordedBy": "Claude Code",
+      "row": 1,
+      "sprintId": "sp_01m6bs5ar651rjeq9ebwvs9qzn"
     }
   ],
   "runId": "rn_01m49gyd8b5g5p67pz2awqr99n",
   "skillVersion": "1.5.1",
   "startedAt": "2026-10-06T21:14:34.059Z",
-  "state": "running",
-  "updatedAt": "2026-11-01T09:41:15.392Z"
+  "state": "completed",
+  "updatedAt": "2026-11-01T17:17:21.166Z"
 }

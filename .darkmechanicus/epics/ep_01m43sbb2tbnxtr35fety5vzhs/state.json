@@ -4,15 +4,61 @@
     "repository": null,
     "startCommit": null
   },
-  "completedAt": null,
+  "completedAt": "2026-11-01T17:17:21.166Z",
   "createdAt": "2026-10-04T15:43:31.930Z",
   "epicId": "ep_01m43sbb2tbnxtr35fety5vzhs",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 88,
-  "outcome": null,
+  "generation": 99,
+  "outcome": {
+    "recordedAt": "2026-11-01T17:17:21.166Z",
+    "runId": "rn_01m49gyd8b5g5p67pz2awqr99n",
+    "successCriteria": [
+      {
+        "criterionId": "s1",
+        "met": true,
+        "note": "Sprint 1 (DM-130 c5): Source control first, last tab remembered per folder, works on folders not set up for Dark Mechanicus; sprint 2 DM-140 c17 subfolder/root handling."
+      },
+      {
+        "criterionId": "s2",
+        "met": true,
+        "note": "Sprint 1 e2 (diffs, chosen files, trash, undo) plus sprint 3 e3 (selected lines committed exactly, LF and CRLF). Sprint 4: a commit or undo can no longer interleave with a sync (DM-401)."
+      },
+      {
+        "criterionId": "s3",
+        "met": true,
+        "note": "Sprint 1 e3: History lists commits with files and diffs; DM-218 unpushed markers only with a remote; View on GitHub for GitHub repos (DM-153)."
+      },
+      {
+        "criterionId": "s4",
+        "met": true,
+        "note": "Sprint 2 e1 / DM-140 c1–c2: Use my GitHub CLI login imports the gh token, @login in the footer, sign-out; token only safeStorage-encrypted, never in renderer, logs, argv or error text (DM-141 tests)."
+      },
+      {
+        "criterionId": "s5",
+        "met": true,
+        "note": "Sprint 2 e2: ahead/behind and progress; account credentials via a helper scoped to https://github.com when signed in, machine credentials otherwise; stall timeout (DM-395)."
+      },
+      {
+        "criterionId": "s6",
+        "met": true,
+        "note": "Sprint 2 e3/e4: create, switch (stash/bring), rename, delete, merge; conflicts from merge, pull and stash restore resolved, aborted or committed; rebase-merges sides fixed in sprint 3. Sprint 4: stash-restore 'Use mine' keeps the stashed work (DM-403)."
+      },
+      {
+        "criterionId": "s7",
+        "met": true,
+        "note": "Sprint 3 e1: clone from the account list or a URL into the chosen folder with progress and cancel, opens tracked."
+      },
+      {
+        "criterionId": "s8",
+        "met": true,
+        "note": "Sprint 3 e2: current branch's PR shown, Create pull request opens the compare page, open PRs including forks checked out."
+      }
+    ],
+    "summary": "Source control is complete on source-control (sprint increments 5a5a03c, 3dcbb97, d956b0b, 49fc5c2): every tracked folder opens on a GitHub Desktop-style Git view with changes and diffs, file and line commits, discard to trash, undo, history, GitHub sign-in through the machine's GitHub CLI login, fetch/pull/push with progress, branches and stashes, merge conflicts, clone and pull requests. Sprint 4 closed the final review's findings (per-repository operation lock with compare-and-swap undo, confined working diff, stash/Windows/fork-ref edge fixes). All eight success criteria are met. Merging source-control into main is the person's step; main has moved since (Kanban and Terminal chats epics) and the merge will conflict in shared files."
+  },
   "provenance": null,
-  "status": "in_progress",
+  "status": "completed",
   "ticketStatuses": {
     "tk_01m43sbb2v8cvhsh54mhe8y5s6": "completed",
     "tk_01m43skwxknzfrzy1gqj7k9z68": "completed",
@@ -33,7 +79,7 @@
     "tk_01m43st80pqq25rhh231cnd0y4": "completed",
     "tk_01m43st80ptgtk20bwa6ssqs82": "completed",
     "tk_01m43st80pyacpnw547zmdenfb": "completed",
-    "tk_01m43szh7y2zttwkt6jd42301q": "in_progress",
+    "tk_01m43szh7y2zttwkt6jd42301q": "completed",
     "tk_01m43szh81p623gexyzn5v1qzv": "completed",
     "tk_01m43szh825vb3x608ngrsxy4k": "completed",
     "tk_01m43szh828hgjsz0chrt5qspz": "completed",
@@ -51,8 +97,12 @@
     "tk_01m6agg8xrm564afn2ag0n7ccb": "completed",
     "tk_01m6agg8y0q8xpv9qzb36qc2da": "completed",
     "tk_01m6agg8y0y7qv7x72fn3kfv3f": "completed",
-    "tk_01m6agg8y15m1m44hkme3qncvv": "completed"
+    "tk_01m6agg8y15m1m44hkme3qncvv": "completed",
+    "tk_01m6bs5ar659q6p67bwnwvtw8d": "completed",
+    "tk_01m6bs5arm2s28pe25t7mdqett": "completed",
+    "tk_01m6bs5armb2mk8tv0fe7tzy8y": "completed",
+    "tk_01m6bs5armkn6fg3a6kh9939y7": "completed"
   },
   "title": "Source control: a GitHub Desktop-style Git view in every folder",
-  "updatedAt": "2026-11-01T09:41:15.458Z"
+  "updatedAt": "2026-11-01T17:17:21.200Z"
 }
