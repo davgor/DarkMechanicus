@@ -125,6 +125,13 @@ describe('openInEditor through symlinks and missing files', () => {
     await expect(markResolved(runner, r.root, { path: 'sub/f.txt' })).rejects.toThrow()
     expect(r.git('ls-files', '-u', '--', 'sub/f.txt')).not.toBe('')
   })
+
+  it('stages the deletion of a conflicted file whose whole folder is gone, since no link leads to it', async () => {
+    const r = conflicted()
+    rmSync(join(r.root, 'sub'), { recursive: true })
+    await expect(markResolved(runner, r.root, { path: 'sub/f.txt' })).resolves.toMatchObject({ kind: 'repository' })
+    expect(r.git('ls-files', '--stage', '--', 'sub/f.txt')).toBe('')
+  })
 })
 
 /** `main` merging `topic` with every one of `names` modified on both sides, in one repository and one merge. */

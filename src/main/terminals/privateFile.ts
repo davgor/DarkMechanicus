@@ -13,7 +13,7 @@ type Rename = (from: string, to: string) => Promise<void>
  * What Windows answers a rename onto a path that another rename is replacing at that moment, or that a reader holds
  * open, as two starts of one chat writing at once do. It passes, so the rename is tried again for a short while.
  */
-const REFUSED_FOR_NOW: ReadonlySet<string> = new Set(['EPERM', 'EACCES', 'EBUSY'])
+const REFUSED_FOR_NOW: ReadonlySet<unknown> = new Set(['EPERM', 'EACCES', 'EBUSY'])
 const RENAME_TRIES = 10
 /** The wait after the first refused try; it grows by this much after each one (450 ms in all). */
 const RENAME_BACKOFF_MS = 10
@@ -24,8 +24,7 @@ async function renameOver(from: string, to: string, renameFile: Rename): Promise
       await renameFile(from, to)
       return
     } catch (error: unknown) {
-      const code = error instanceof Error && 'code' in error ? String(error.code) : ''
-      if (attempt === RENAME_TRIES || !REFUSED_FOR_NOW.has(code)) {
+      if (attempt === RENAME_TRIES || !REFUSED_FOR_NOW.has((error as { code?: unknown }).code)) {
         throw error
       }
       await new Promise((resolve) => setTimeout(resolve, RENAME_BACKOFF_MS * attempt))
