@@ -67,20 +67,32 @@ interface Unmerged {
 
 type Located = { kind: 'file'; path: string } | { kind: 'missing' } | { kind: 'outside' }
 
-/** Where `path` really is (symlinks followed), refusing anything outside the working tree or inside a `.git`. */
+/**
+ * Where `path` (git's `/`-separated path) really is, symlinks followed, refusing anything outside the working tree or
+ * inside a `.git`. A path that is not there is placed under the real path of its nearest folder that is, so one under a
+ * link leading out of the working tree is outside too, even when the link's target lacks the rest (`l -> C:\` names no
+ * `C:\etc`).
+ */
 export function locate(root: string, path: string): Located {
-  let real: string
-  try {
-    real = realpathSync.native(join(root, path))
-  } catch {
-    return { kind: 'missing' }
-  }
+  const { real, exists } = nearestReal(root, path.split('/'))
   const within = relative(realpathSync.native(root), real)
   const segments = within.split(sep)
   if (within === '' || segments[0] === '..' || isAbsolute(within) || segments.some((segment) => segment.toLowerCase() === '.git')) {
     return { kind: 'outside' }
   }
-  return { kind: 'file', path: real }
+  return exists ? { kind: 'file', path: real } : { kind: 'missing' }
+}
+
+/** The real path of `names` under `root`, or of the nearest folder of theirs that exists with the rest joined back on. */
+function nearestReal(root: string, names: string[]): { real: string; exists: boolean } {
+  for (let kept = names.length; kept > 0; kept -= 1) {
+    try {
+      return { real: join(realpathSync.native(join(root, ...names.slice(0, kept))), ...names.slice(kept)), exists: kept === names.length }
+    } catch {
+      // Not there: try the folder holding it.
+    }
+  }
+  return { real: join(realpathSync.native(root), ...names), exists: false }
 }
 
 interface MarkerScan {

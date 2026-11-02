@@ -212,14 +212,13 @@ async function requireRepository(runner: GitRunner, folder: string): Promise<str
 /**
  * The status entry for a requested path: its kind and old path come from git, not the renderer. An untracked file
  * whose folder really lies outside the repository is refused, since `git diff --no-index` follows symlinked
- * directories; a symlink itself is diffed as a link (its target path), so the file's own name may be one. So is one
- * whose folder cannot be found, which a link to a folder without it leads to (`l -> C:\` names no `C:\etc`).
+ * directories; a symlink itself is diffed as a link (its target path), so the file's own name may be one.
  */
 async function requireChange(runner: GitRunner, folder: string, path: string): Promise<{ root: string; change: FileChange }> {
   const status = await requireStatus(runner, folder)
   const change = findInStatus(status, path)
   const parent = posix.dirname(change.path)
-  if (change.kind === 'untracked' && parent !== '.' && locate(status.root, parent).kind !== 'file') {
+  if (change.kind === 'untracked' && parent !== '.' && locate(status.root, parent).kind === 'outside') {
     throw new GitInputError(`${path} is outside the repository.`)
   }
   return { root: status.root, change }

@@ -122,7 +122,8 @@ describe('openInEditor through symlinks and missing files', () => {
     const dir = outsideDir(r)
     renameSync(join(r.root, 'sub'), join(r.root, 'sub-moved'))
     symlinkSync(dir, join(r.root, 'sub'), 'junction')
-    await expect(markResolved(runner, r.root, { path: 'sub/f.txt' })).rejects.toThrow()
+    // Refused before git runs: git refuses a path beyond a symlink, but git for Windows stages through a junction.
+    await expect(markResolved(runner, r.root, { path: 'sub/f.txt' })).rejects.toThrow('sub/f.txt is reached through a linked folder, so it is not staged.')
     expect(r.git('ls-files', '-u', '--', 'sub/f.txt')).not.toBe('')
   })
 

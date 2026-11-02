@@ -15,8 +15,8 @@ type Rename = (from: string, to: string) => Promise<void>
  */
 const REFUSED_FOR_NOW: ReadonlySet<unknown> = new Set(['EPERM', 'EACCES', 'EBUSY'])
 const RENAME_TRIES = 10
-/** The wait after the first refused try; it grows by this much after each one (450 ms in all). */
-const RENAME_BACKOFF_MS = 10
+/** The wait between tries: under half a second in all. */
+const RENAME_PAUSE_MS = 50
 
 async function renameOver(from: string, to: string, renameFile: Rename): Promise<void> {
   for (let attempt = 1; ; attempt += 1) {
@@ -27,7 +27,7 @@ async function renameOver(from: string, to: string, renameFile: Rename): Promise
       if (attempt === RENAME_TRIES || !REFUSED_FOR_NOW.has((error as { code?: unknown }).code)) {
         throw error
       }
-      await new Promise((resolve) => setTimeout(resolve, RENAME_BACKOFF_MS * attempt))
+      await new Promise((resolve) => setTimeout(resolve, RENAME_PAUSE_MS))
     }
   }
 }
