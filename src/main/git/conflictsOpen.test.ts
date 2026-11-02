@@ -122,8 +122,16 @@ describe('openInEditor through symlinks and missing files', () => {
     const dir = outsideDir(r)
     renameSync(join(r.root, 'sub'), join(r.root, 'sub-moved'))
     symlinkSync(dir, join(r.root, 'sub'), 'junction')
-    await expect(markResolved(runner, r.root, { path: 'sub/f.txt' })).rejects.toThrow()
+    // Refused before git runs: git refuses a path beyond a symlink, but git for Windows stages through a junction.
+    await expect(markResolved(runner, r.root, { path: 'sub/f.txt' })).rejects.toThrow('sub/f.txt is reached through a linked folder, so it is not staged.')
     expect(r.git('ls-files', '-u', '--', 'sub/f.txt')).not.toBe('')
+  })
+
+  it('stages the deletion of a conflicted file whose whole folder is gone, since no link leads to it', async () => {
+    const r = conflicted()
+    rmSync(join(r.root, 'sub'), { recursive: true })
+    await expect(markResolved(runner, r.root, { path: 'sub/f.txt' })).resolves.toMatchObject({ kind: 'repository' })
+    expect(r.git('ls-files', '--stage', '--', 'sub/f.txt')).toBe('')
   })
 })
 
@@ -157,7 +165,8 @@ function conflictedFile(name: string, mode?: number): GitRepo {
 }
 
 describe('openInEditor never launches a program', () => {
-  it('refuses an executable file, which the default app could run', async () => {
+  // Windows keeps no executable bit; it runs a file by its extension, which the tests below cover.
+  it.skipIf(process.platform === 'win32')('refuses an executable file, which the default app could run', async () => {
     const r = conflictedFile('setup', 0o755)
     const { openPath, opened } = opener()
     await expect(openInEditor(runner, r.root, 'setup', { openPath })).rejects.toThrow(/could run as a program/)

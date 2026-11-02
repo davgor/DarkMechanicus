@@ -232,7 +232,8 @@ describe('getCommitDiff', () => {
   })
 })
 
-describe('getCommitDiff with pathspec-magic file names', () => {
+// Windows allows neither ':' nor '*' in a file name, so these files cannot exist there.
+describe.skipIf(process.platform === 'win32')('getCommitDiff with pathspec-magic file names', () => {
   it.each([':!b', ':/b', '*'])('shows only the file named %s', async (name) => {
     const r = repo()
     put(r.root, 'b', 'b\n')

@@ -192,12 +192,15 @@ describe('gitFor refuses links, before any adapter is built', () => {
 describe('gitFor on a single repository', () => {
   it('refuses every name: the project lists no repositories', async () => {
     const single = createHarness()
+    let core: RepositoryWorkspace | undefined
     try {
       await single.open('desktop', { mode: 'db' }).initializeRepository({ name: 'single' })
-      const core = new RepositoryWorkspace({ ...options(), repoRoot: single.root, homeDir: single.homeDir })
-      cores.push(core)
-      expect(refusal(() => core.gitFor('alpha'))).toMatchObject({ code: 'invalid_input' })
+      core = new RepositoryWorkspace({ ...options(), repoRoot: single.root, homeDir: single.homeDir })
+      const opened = core
+      expect(refusal(() => opened.gitFor('alpha'))).toMatchObject({ code: 'invalid_input' })
     } finally {
+      // Closed before its home folder is removed: Windows refuses to delete the database it still holds open.
+      core?.close()
       single.cleanup()
     }
   })

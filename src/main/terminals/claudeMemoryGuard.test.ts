@@ -283,7 +283,7 @@ describe('memory folder hook: real folders and links', () => {
   })
 
   const scratch = (): string => {
-    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'dm213-')))
+    const dir = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm213-')))
     made.push(dir)
     return dir
   }

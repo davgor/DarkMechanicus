@@ -14,7 +14,7 @@ let deps: LaunchFolderDeps
 
 beforeEach(() => {
   // Canonical from the start: on macOS the temporary directory is reached through the /var symlink.
-  root = realpathSync(mkdtempSync(join(tmpdir(), 'dm-launch-')))
+  root = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-launch-')))
   repo = join(root, 'repo')
   mkdirSync(repo)
   registry = createFolderRegistry({ file: join(root, 'state', 'folders.json'), homeDir: '', dmHome: join(root, 'dm-home') })

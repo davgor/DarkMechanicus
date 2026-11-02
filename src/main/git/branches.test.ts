@@ -208,7 +208,8 @@ describe('switchBranch to a remote branch', () => {
     expect(second.branch).toMatchObject({ name: 'second', upstream: 'origin/second' })
     statusOf(await switchBranch(runner, local.root, { name: 'origin/feature', uncommitted: 'bring' }))
     expect(local.git('branch', '--show-current')).toBe('feature')
-  })
+    // Dozens of git processes: about 4 s alone, but past vitest's 15 s under coverage on a Windows runner.
+  }, 60_000)
 })
 
 describe('renameBranch', () => {

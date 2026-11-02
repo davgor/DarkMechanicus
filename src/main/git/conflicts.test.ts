@@ -342,7 +342,8 @@ describe('red-team regressions', () => {
     await expect(markResolved(runner, r.root, { path: 'both.txt' })).rejects.toMatchObject({ code: 'conflict_markers_remain' })
   })
 
-  it('reads a conflicted name that looks like pathspec magic literally', async () => {
+  // Windows allows no ':' in a file name, so this file cannot exist there.
+  it.skipIf(process.platform === 'win32')('reads a conflicted name that looks like pathspec magic literally', async () => {
     const r = repo()
     put(r.root, 'foo', 'root foo\n')
     put(r.root, ':/foo', 'base\n')

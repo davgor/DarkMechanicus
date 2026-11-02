@@ -40,7 +40,9 @@ describe('listBranches edge cases', () => {
   it('owns remote refs by the longest remote name, keeps an unknown remote whole, and tolerates odd refs', async () => {
     const r = repo()
     r.git('remote', 'add', 'team', '/nowhere/team')
-    r.git('remote', 'add', 'team/fork', '/nowhere/fork')
+    // Git 2.54 refuses to add a remote named under another's; one an older git added still lives in the config.
+    r.git('config', 'remote.team/fork.url', '/nowhere/fork')
+    r.git('config', 'remote.team/fork.fetch', '+refs/heads/*:refs/remotes/team/fork/*')
     r.git('update-ref', 'refs/remotes/team/fork/x', 'HEAD')
     r.git('update-ref', 'refs/remotes/ghost/y', 'HEAD')
     r.git('update-ref', 'refs/remotes/team/tree', r.git('rev-parse', 'HEAD^{tree}'))

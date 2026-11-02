@@ -9,7 +9,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, posix } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { DarkMechanicusCli } from '../../shared/agents/chat'
@@ -22,8 +22,9 @@ import { windowsCommandLine } from './windowsCommandLine'
 /** A path holding everything a careless quoting would break on: spaces, both quotes, `$`, a backtick and `;`. */
 const AWKWARD = `it's "Dark" $HOME \`x\`; Mechanicus`
 
+/** A macOS `dm` invocation: its script path is joined the macOS way, whatever system the tests run on. */
 function cliFor(command: string, scriptDir: string, folder: string): DarkMechanicusCli {
-  return { command, args: [join(scriptDir, 'cli.js'), '--repo', folder], env: { ELECTRON_RUN_AS_NODE: '1', DM_SESSION_TOKEN: 'grant-token' } }
+  return { command, args: [posix.join(scriptDir, 'cli.js'), '--repo', folder], env: { ELECTRON_RUN_AS_NODE: '1', DM_SESSION_TOKEN: 'grant-token' } }
 }
 
 describe('claudeSettingsPaths', () => {
@@ -129,14 +130,14 @@ describe('writeClaudeSettings', () => {
   let root: string
 
   beforeEach(() => {
-    root = realpathSync(mkdtempSync(join(tmpdir(), 'dm-claude-settings-')))
+    root = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-claude-settings-')))
   })
 
   afterEach(() => {
     removeScratch(root)
   })
 
-  it('writes the settings file (0600) and, on macOS, the hook launcher (0700), and returns the settings path', async () => {
+  it('writes the settings file and, on macOS, the hook launcher, and returns the settings path', async () => {
     const userData = join(root, 'userData')
     const folder = join(root, 'repo')
     const cli = cliFor('/app/runtime', '/app/out/main', folder)
@@ -147,7 +148,17 @@ describe('writeClaudeSettings', () => {
     expect(path).toBe(paths.settings)
     expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual(claudeSettings({ userData, chatId: 'ch_1', platform: 'darwin', folder, cli, home: '/Users/me', tmp: '/tmp' }))
     expect(readFileSync(paths.hookLauncher as string, 'utf8')).toBe(memoryHookLauncherScript('/app/runtime', `/app/out/main/${MEMORY_HOOK_SCRIPT}`, [folder, '/Users/me', '/tmp']))
-    expect([statSync(path).mode & 0o777, statSync(paths.hookLauncher as string).mode & 0o777]).toEqual([0o600, 0o700])
+  })
+
+  // Windows keeps no POSIX permission bits: it reports any writable file as 0666.
+  it.skipIf(process.platform === 'win32')('makes the settings file 0600 and the macOS hook launcher 0700', async () => {
+    const userData = join(root, 'userData')
+    const folder = join(root, 'repo')
+
+    const path = await writeClaudeSettings({ userData, chatId: 'ch_1', platform: 'darwin', folder, cli: cliFor('/app/runtime', '/app/out/main', folder), home: '/Users/me', tmp: '/tmp' })
+
+    const launcher = claudeSettingsPaths(userData, 'ch_1', 'darwin').hookLauncher as string
+    expect([statSync(path).mode & 0o777, statSync(launcher).mode & 0o777]).toEqual([0o600, 0o700])
   })
 
   it('writes no launcher on Windows', async () => {
@@ -169,7 +180,7 @@ interface HookScratch {
 }
 
 function hookScratch(): HookScratch {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'dm-claude-hook-')))
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-claude-hook-')))
   const scratch = { root, userData: join(root, AWKWARD, 'userData'), folder: join(root, AWKWARD, 'my repo'), scriptDir: join(root, AWKWARD, 'out', 'main') }
   mkdirSync(scratch.folder, { recursive: true })
   mkdirSync(scratch.scriptDir, { recursive: true })

@@ -119,7 +119,8 @@ describe('read-only handlers and cancel while an operation holds the lock', () =
     const slowPack = join(bin.path, 'slow-upload-pack')
     writeFileSync(slowPack, '#!/bin/sh\nsleep 30\nexec git-upload-pack "$@"\n')
     chmodSync(slowPack, 0o755)
-    local.git('config', 'remote.origin.uploadpack', slowPack)
+    // Git runs it through sh, which would read a Windows path's backslashes as escapes.
+    local.git('config', 'remote.origin.uploadpack', slowPack.replaceAll('\\', '/'))
     put(local.root, 'note.txt', 'note\n')
     const runner = gatedRunner(createGitRunner(), isCommand('pull'))
     const handlers = handlersFor(local.root, runner)

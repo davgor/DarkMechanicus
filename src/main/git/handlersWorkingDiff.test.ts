@@ -6,6 +6,7 @@ import type { GitResult } from '../../shared/git/api'
 import type { FileDiff } from '../../shared/git/diff'
 import { createGitRepo, type GitRepo } from '../../test/gitRepo'
 import { put, scratchDir } from '../../test/gitScratch'
+import { linkDirectory } from '../../test/tempRepo'
 import { findInStatus, requireStatus } from './commit'
 import { readWorkingDiff } from './diff'
 import { createGitHandlers, type GitHandlers } from './handlers'
@@ -125,6 +126,19 @@ describe('getWorkingDiff through a symlinked directory', () => {
     expect(diff.newMode).toBe('120000')
     expect(JSON.stringify(result)).toContain('/etc/hosts')
     expect(JSON.stringify(result)).not.toContain('localhost')
+  })
+})
+
+// A junction on Windows, which needs no privilege to make; a symlink elsewhere.
+describe('getWorkingDiff through a linked folder', () => {
+  it('refuses an untracked file under a linked folder that holds no such subfolder, even if status reports it', async () => {
+    const r = repo()
+    // As l -> C:\ is on Windows: C:\ holds no etc, so l/etc/hosts has no real folder at all.
+    linkDirectory(outside(), join(r.root, 'l'))
+    const { handlers, requests } = setup(r.root, ['l/etc/hosts'])
+    const result = await handlers.getWorkingDiff(r.root, { path: 'l/etc/hosts', oldPath: null, kind: 'untracked' })
+    expect(failure(result).code).toBe('invalid_input')
+    expect(diffRuns(requests)).toEqual([])
   })
 })
 

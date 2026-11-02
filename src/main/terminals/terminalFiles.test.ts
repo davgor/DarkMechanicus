@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { DarkMechanicusCli } from '../../shared/agents/chat'
 import { removeScratch } from '../../test/removeScratch'
 import { transferGuidance } from '../../mcp/transferKickoff'
+import { cliCommandLine } from '../agents/cliInstructions'
 import { kanbanGuidance } from '../agents/kanbanKickoff'
 import { orchestratorGuidance } from '../agents/orchestratorKickoff'
 import { terminalFilePaths, terminalInstructions, writeTerminalFiles } from './terminalFiles'
@@ -108,8 +109,6 @@ describe('writeTerminalFiles', () => {
     expect(files).toEqual({ instructions: join(userData, 'agents', 'instructions', 'ch_1.md'), launcherDir })
     expect(readFileSync(files.instructions, 'utf8')).toBe(terminalInstructions({ cli: cliFor(folder), role: 'planner', allowSave: false, launcherDir, orchestratesRun: false }))
     expect(readFileSync(join(launcherDir, 'dm'), 'utf8')).toContain(`--repo '${folder}' "$@"`)
-    expect(statSync(join(launcherDir, 'dm')).mode & 0o777).toBe(0o700)
-    expect(statSync(files.instructions).mode & 0o777).toBe(0o600)
   })
 
   it('rewrites the instructions at each start, and writes the guidance into those of a chat that orchestrates a run', async () => {
@@ -138,7 +137,7 @@ describe('writeTerminalFiles', () => {
 
     expect(files.launcherDir).toBeNull()
     expect(existsSync(join(userData, 'agents', 'bin'))).toBe(false)
-    expect(readFileSync(files.instructions, 'utf8')).toContain(`--repo ${folder} --list`)
+    expect(readFileSync(files.instructions, 'utf8')).toContain(`${cliCommandLine(cliFor(folder))} --list`)
   })
 
   it('refuses a dm command pinned to another folder, and writes nothing', async () => {
@@ -147,6 +146,26 @@ describe('writeTerminalFiles', () => {
     await expect(writeTerminalFiles(pinnedElsewhere)).rejects.toThrow(/--repo/)
     await expect(writeTerminalFiles({ ...pinnedElsewhere, platform: 'win32' })).rejects.toThrow(/--repo/)
     expect(existsSync(join(userData, 'agents'))).toBe(false)
+  })
+})
+
+// Windows keeps no POSIX permission bits: it reports any writable file as 0666.
+describe.skipIf(process.platform === 'win32')('writeTerminalFiles: permissions', () => {
+  let userData: string
+
+  beforeEach(() => {
+    userData = mkdtempSync(join(tmpdir(), 'dm-terminal-files-'))
+  })
+
+  afterEach(() => {
+    removeScratch(userData)
+  })
+
+  it('makes the macOS launcher 0700 and the instructions 0600', async () => {
+    const folder = join(userData, 'repo')
+    const files = await writeTerminalFiles({ userData, chatId: 'ch_1', platform: 'darwin', folder, cli: cliFor(folder), role: 'planner', allowSave: false, orchestratesRun: false })
+
+    expect([statSync(join(files.launcherDir as string, 'dm')).mode & 0o777, statSync(files.instructions).mode & 0o777]).toEqual([0o700, 0o600])
   })
 })
 

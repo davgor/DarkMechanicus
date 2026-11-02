@@ -7,10 +7,17 @@ import { createGitRepo, type GitRepo } from '../../test/gitRepo'
 import { GitError } from './errors'
 import { type ChildLike, createGitRunner, type GitRunRequest, type SpawnFn } from './runner'
 
+class FakeStream extends EventEmitter {
+  destroyed = false
+  destroy(): void {
+    this.destroyed = true
+  }
+}
+
 class FakeChild extends EventEmitter {
   pid = 4242
-  stdout = new EventEmitter()
-  stderr = new EventEmitter()
+  stdout = new FakeStream()
+  stderr = new FakeStream()
   stdinText: string | null = null
   stdin = {
     on: (): void => undefined,
@@ -258,6 +265,41 @@ describe('abort (fake spawn)', () => {
     expect(calls).toHaveLength(2)
     expect(calls[1].command).toBe('taskkill')
     expect(calls[1].args).toEqual(['/pid', '4242', '/T', '/F'])
+  })
+})
+
+describe('the output pipes of a git that has exited (fake spawn)', () => {
+  /** A child git left running (an sh and its sleep, an ssh) holds them open, which taskkill does not always end on Windows. */
+  const pipesOf = (child: FakeChild): boolean[] => [child.stdout.destroyed, child.stderr.destroyed]
+
+  it('are closed once a git killed on Windows has exited, so the run counts as gone without waiting on its children', async () => {
+    const { spawn, calls } = fakeSpawn()
+    const controller = new AbortController()
+    const exits: string[] = []
+    const run = createGitRunner({ spawn, platform: 'win32' }).run(req({ kind: 'network', signal: controller.signal, onExit: () => exits.push('exit') }))
+    controller.abort()
+    await expect(run).rejects.toMatchObject({ code: 'cancelled' })
+    const git = calls[0].child
+    expect(pipesOf(git)).toEqual([false, false])
+    git.emit('exit', 1, null)
+    expect(pipesOf(git)).toEqual([true, true])
+    git.close(1)
+    expect(exits).toEqual(['exit'])
+  })
+
+  it('are left to close by themselves for a git that exits on its own, and for one killed elsewhere', async () => {
+    const { spawn, calls } = fakeSpawn()
+    const done = createGitRunner({ spawn, platform: 'win32' }).run(req())
+    calls[0].child.emit('exit', 0, null)
+    expect(pipesOf(calls[0].child)).toEqual([false, false])
+    calls[0].child.close(0)
+    await done
+    const controller = new AbortController()
+    const killed = createGitRunner({ spawn, platform: 'linux', killGroup: null }).run(req({ kind: 'network', signal: controller.signal }))
+    controller.abort()
+    await expect(killed).rejects.toMatchObject({ code: 'cancelled' })
+    calls[1].child.emit('exit', null, 'SIGTERM')
+    expect(pipesOf(calls[1].child)).toEqual([false, false])
   })
 })
 

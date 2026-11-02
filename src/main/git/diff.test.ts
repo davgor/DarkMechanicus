@@ -218,7 +218,8 @@ describe('readWorkingDiff (external programs)', () => {
   })
 })
 
-describe('readWorkingDiff with pathspec-magic file names', () => {
+// Windows allows neither ':' nor '*' in a file name, so these files cannot exist there.
+describe.skipIf(process.platform === 'win32')('readWorkingDiff with pathspec-magic file names', () => {
   it.each([':!b', ':/b', '*'])('reads only the file named %s', async (name) => {
     const r = repo()
     put(r.root, 'b', 'b\n')
