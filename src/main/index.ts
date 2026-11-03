@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, type IpcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, shell, type IpcMain } from 'electron'
 import { join } from 'node:path'
 import appIcon from '../../build/icon.png?asset'
 import { SKILLS } from '../mcp/skills'
@@ -8,7 +8,7 @@ import { hardenWebContents, resolveAppUrl } from './desktop/navigation'
 import { guardIpc } from './ipcGuard'
 import { logger, setupGlobalErrorLogging } from './logger'
 import { disposeBeforeQuit } from './quitDisposal'
-import { loadRendererContent, onActivateCreateWindow, onLastWindowClosed } from './windowPolicy'
+import { loadRendererContent, onActivateCreateWindow, onLastWindowClosed, removeWindowMenuBar } from './windowPolicy'
 
 setupGlobalErrorLogging()
 
@@ -93,6 +93,10 @@ app.whenReady().then(() => {
     onError: (error) => {
       logger.error('Could not dispose agent chats or close the app stores on quit:', error)
     }
+  })
+  // No File/Edit/View/Window bar in the window; macOS keeps its system menu for the edit shortcuts.
+  removeWindowMenuBar(process.platform, () => {
+    Menu.setApplicationMenu(null)
   })
   createMainWindow()
 

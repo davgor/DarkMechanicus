@@ -13,7 +13,8 @@ const startup = vi.hoisted(() => ({
   listeners: new Map<string, ((event: { preventDefault(): void }) => void)[]>(),
   quits: 0,
   liveChats: 0,
-  events: [] as string[]
+  events: [] as string[],
+  menus: [] as unknown[]
 }))
 
 vi.mock('electron', () => ({
@@ -36,6 +37,11 @@ vi.mock('electron', () => ({
     on(): void {}
     loadURL(url: string): void { startup.loadedUrls.push(url) }
     loadFile(file: string): void { startup.loadedFiles.push(file) }
+  },
+  Menu: {
+    setApplicationMenu: (menu: unknown) => {
+      startup.menus.push(menu)
+    }
   },
   ipcMain: { handle: () => {} },
   shell: {}
@@ -70,6 +76,7 @@ beforeEach(() => {
   startup.quits = 0
   startup.liveChats = 0
   startup.events = []
+  startup.menus = []
   vi.stubEnv('ELECTRON_RENDERER_URL', '')
 })
 afterEach(() => vi.unstubAllEnvs())
@@ -115,6 +122,17 @@ describe('desktop startup background', () => {
     startup.ready!()
     await Promise.resolve()
     expect(startup.options[0].backgroundColor?.toLowerCase()).toBe(themeBg?.toLowerCase())
+  })
+})
+
+describe('desktop startup menu', () => {
+  it('removes the window menu bar off macOS once Electron is ready', async () => {
+    await import('./index')
+    expect(startup.menus).toHaveLength(0)
+    startup.ready!()
+    await Promise.resolve()
+    expect(startup.options).toHaveLength(1)
+    expect(startup.menus).toEqual(process.platform === 'darwin' ? [] : [null])
   })
 })
 
