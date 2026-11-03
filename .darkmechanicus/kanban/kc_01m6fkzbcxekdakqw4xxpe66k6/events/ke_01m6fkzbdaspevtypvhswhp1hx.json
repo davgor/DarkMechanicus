@@ -1,0 +1,16 @@
+{
+  "actor": {
+    "label": "Desktop",
+    "role": "desktop"
+  },
+  "attemptId": null,
+  "cardId": "kc_01m6fkzbcxekdakqw4xxpe66k6",
+  "createdAt": "2026-11-03T02:31:52.999Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m6fkzbdaspevtypvhswhp1hx",
+  "kind": "created",
+  "payload": {
+    "revision": 1
+  }
+}

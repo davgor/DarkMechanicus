@@ -1,0 +1,1753 @@
+{
+  "baseRevisionId": null,
+  "bundle": {
+    "edges": [
+      {
+        "from": "tk_01m6fkcv7axc0q94arxj551fpm",
+        "to": "tk_01m6fkcv7a1aq81c57cg024wtn"
+      },
+      {
+        "from": "tk_01m6fkcv7a1aq81c57cg024wtn",
+        "to": "tk_01m6fkcv7as0rtmrqda9ysd5x4"
+      },
+      {
+        "from": "tk_01m6fkcv7a1aq81c57cg024wtn",
+        "to": "tk_01m6fkcv7awtppewkwtt6vjbbj"
+      },
+      {
+        "from": "tk_01m6fkcv7as0rtmrqda9ysd5x4",
+        "to": "tk_01m6fkcv7amvqbeqz04fd2k5w6"
+      },
+      {
+        "from": "tk_01m6fkcv7as0rtmrqda9ysd5x4",
+        "to": "tk_01m6fkcv7ayaevqx9916ay93g6"
+      },
+      {
+        "from": "tk_01m6fkcv7a1aq81c57cg024wtn",
+        "to": "tk_01m6fkcv7aky8xd5h8w1amwq4q"
+      },
+      {
+        "from": "tk_01m6fkcv7a1aq81c57cg024wtn",
+        "to": "tk_01m6fkcv7am5ty73pkxjbb48tt"
+      },
+      {
+        "from": "tk_01m6fkcv7axc0q94arxj551fpm",
+        "to": "tk_01m6fkqvqbeazcfjnysasv6321"
+      },
+      {
+        "from": "tk_01m6fkcv7ayaevqx9916ay93g6",
+        "to": "tk_01m6fkqvqbeazcfjnysasv6321"
+      },
+      {
+        "from": "tk_01m6fkcv7axc0q94arxj551fpm",
+        "to": "tk_01m6fkqvqndbhjr2pd93ckj6n2"
+      },
+      {
+        "from": "tk_01m6fkqvqbeazcfjnysasv6321",
+        "to": "tk_01m6fkqvqn1jrwz8q1a5r5ma7r"
+      },
+      {
+        "from": "tk_01m6fkqvqndbhjr2pd93ckj6n2",
+        "to": "tk_01m6fkqvqn1jrwz8q1a5r5ma7r"
+      },
+      {
+        "from": "tk_01m6fkcv7a1aq81c57cg024wtn",
+        "to": "tk_01m6fkqvqn1r5rj2a1a3cy0wsk"
+      },
+      {
+        "from": "tk_01m6fkcv7am5ty73pkxjbb48tt",
+        "to": "tk_01m6fkqvqn1r5rj2a1a3cy0wsk"
+      },
+      {
+        "from": "tk_01m6fkqvqn1r5rj2a1a3cy0wsk",
+        "to": "tk_01m6fkqvqnp7qaep1zy111cvf3"
+      },
+      {
+        "from": "tk_01m6fkqvqbeazcfjnysasv6321",
+        "to": "tk_01m6fkqvqnp7qaep1zy111cvf3"
+      },
+      {
+        "from": "tk_01m6fkcv7amvqbeqz04fd2k5w6",
+        "to": "tk_01m6fkqvqnp7qaep1zy111cvf3"
+      }
+    ],
+    "epic": {
+      "intent": "## Outcome\n\nThe chat pane runs **OMP** (oh-my-pi, the `omp` CLI) directly, so a Dark Mechanicus chat is effectively OMP running inside the Electron app, with OMP's own TUI, themes, extensions and config (`~/.omp`) available for customization.\n\nToday the pane launches Claude Code, Codex, Cursor, Autonomous (`a8s`, which bundles OMP but refuses most OMP flags and commands; `docs/reports/autonomous-acp.md`) or a custom CLI. This epic adds `omp` as a fifth **built-in** agent kind run directly, makes it the agent New chat picks when a folder has no default, and makes the pane render OMP's TUI as faithfully as a standalone terminal.\n\n## Decisions (from the person)\n\n- Add OMP alongside the existing agents and make it the default for new chats. Claude Code, Codex, Cursor, Autonomous and custom CLIs stay available and keep working.\n- \"Swap the terminal view to match\": the pane should look and behave like OMP in a real terminal, not like OMP squeezed into the app's palette.\n\n## Out of scope\n\n- Removing or migrating chats of the other agents.\n- Changing how Autonomous launches.\n- An app UI for editing OMP's own settings (people edit `~/.omp` themselves).\n\n## Standards\n\nOnly the project's Definition of Done. No tests-first and no Fireguard in this epic. Each ticket's **Tests** section lists the tests its worker writes and runs.\n\n## Known unknown\n\n`omp` is not installed on the planning machine, so its exact flags, version line, session and sign-in commands and TUI terminal needs are pinned by the first ticket (`docs/reports/omp-cli.md`), and later tickets build on that report.",
+      "ownerRole": null,
+      "successCriteria": [
+        {
+          "id": "s1",
+          "text": "Add agent lists OMP as a built-in agent; it is found on PATH or installed from the app, and its card shows the OMP version."
+        },
+        {
+          "id": "s2",
+          "text": "With OMP connected and no folder default set, New chat opens an OMP chat; a folder's saved default and chats of the other agents still open as before."
+        },
+        {
+          "id": "s3",
+          "text": "An OMP chat starts OMP's interactive TUI in the pane with the chat's Dark Mechanicus instructions and its pinned `dm` grant, and an orchestrator chat's kickoff reaches OMP exactly once."
+        },
+        {
+          "id": "s4",
+          "text": "Reopening the app on an OMP chat resumes that chat's OMP session instead of starting a new one."
+        },
+        {
+          "id": "s5",
+          "text": "OMP's TUI in the pane matches the same OMP version in a standalone terminal on true color, wide and emoji glyphs, its key bindings and its theme colors, shown by side-by-side screenshots."
+        },
+        {
+          "id": "s6",
+          "text": "The OMP card shows signed in or signed out from OMP's own status, and Sign in opens OMP's own login in a terminal."
+        },
+        {
+          "id": "s7",
+          "text": "At the end, the agent is called Skitarii in the app, its TUI and pane use the Mechanicus palette, and the chibi tech-priest mascot animates in both while it works, without changing the person's own OMP setup."
+        }
+      ],
+      "title": "OMP as the default chat agent: run OMP's own terminal UI in the chat pane"
+    },
+    "formatVersion": 1,
+    "policies": {
+      "leaseSeconds": 900,
+      "maxConcurrency": null,
+      "onTicketFailure": "continue_independent",
+      "retryLimit": 3
+    },
+    "rationale": "Assumptions:\n- OMP means oh-my-pi's `omp` CLI run directly, not through Autonomous (a8s), which refuses most OMP flags.\n- Sprint 1 holds all of the OMP integration (the person asked to blend it into one sprint). Sprint 2 restyles it as **Skitarii** (the person's chosen spelling).\n- The rename is the name people see: the internal kind id and executable stay `omp`, so stored agents and chats need no migration.\n- Skitarii styling applies to app-launched chats only: the theme and extension are enabled per launch and never written into the person's own ~/.omp setup.\n- The mascot is the existing chibi tech-priest; the TUI frames are made from its existing sprite atlases, with no new or third-party art.\n- Nothing about the omp CLI is verified on the planning machine, so DM-406 pins it first, including the customization surface sprint 2 relies on (item 10).\n\nGraph: sprint 1: DM-406 -> DM-407 -> {DM-408, DM-409, DM-412, DM-413}; DM-408 -> {DM-410, DM-411}. Sprint 2: theme (needs DM-411) and mascot frames run in parallel, then the extension needs both; rename (needs DM-413) -> pane dressing (also needs the theme and DM-410).",
+    "relations": [],
+    "sprints": [
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "docs/reports/omp-cli.md pins every OMP fact later tickets use, each with the command and output it came from."
+          },
+          {
+            "id": "x2",
+            "text": "An OMP chat opens OMP in the pane with the chat instructions and the pinned dm grant, and resumes after an app restart."
+          },
+          {
+            "id": "x4",
+            "text": "The OMP agent card shows its version and sign-in state, Sign in opens its login, and Install works on Windows."
+          },
+          {
+            "id": "x5",
+            "text": "New chat opens OMP when it is connected and the folder has no default."
+          },
+          {
+            "id": "x6",
+            "text": "Side-by-side screenshots show the pane and a standalone terminal rendering the same OMP screen alike, in OMP theme colors."
+          }
+        ],
+        "goal": "OMP is a built-in agent and the default for new chats: it opens, resumes, signs in, installs, and its TUI renders in the pane as in a real terminal.",
+        "id": "sp_01m6fk7esyq03cxrbwq5a9bah3",
+        "ordinal": 1,
+        "ticketIds": [
+          "tk_01m6fkcv7axc0q94arxj551fpm",
+          "tk_01m6fkcv7a1aq81c57cg024wtn",
+          "tk_01m6fkcv7as0rtmrqda9ysd5x4",
+          "tk_01m6fkcv7awtppewkwtt6vjbbj",
+          "tk_01m6fkcv7amvqbeqz04fd2k5w6",
+          "tk_01m6fkcv7ayaevqx9916ay93g6",
+          "tk_01m6fkcv7aky8xd5h8w1amwq4q",
+          "tk_01m6fkcv7am5ty73pkxjbb48tt",
+          "tk_01m6fk7esyn10k8krsmbnxmpfe"
+        ]
+      },
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [],
+        "exitCriteria": [
+          {
+            "id": "x4",
+            "text": "The app shows the agent as Skitarii everywhere a person sees its name."
+          },
+          {
+            "id": "x5",
+            "text": "A Skitarii chat's TUI uses the app's Mechanicus palette and shows the tech-priest mascot, which animates while Skitarii works."
+          },
+          {
+            "id": "x6",
+            "text": "The person's own OMP default theme and setup outside the app are unchanged."
+          }
+        ],
+        "goal": "OMP becomes Skitarii: Mechanicus colors, the chibi tech-priest mascot animated in its TUI and pane, and the Skitarii name, matching the app.",
+        "id": "sp_01m6fkcv6z9mhzjn46gvzkhe34",
+        "ordinal": 2,
+        "ticketIds": [
+          "tk_01m6fkqvqbeazcfjnysasv6321",
+          "tk_01m6fkqvqndbhjr2pd93ckj6n2",
+          "tk_01m6fkqvqn1jrwz8q1a5r5ma7r",
+          "tk_01m6fkqvqn1r5rj2a1a3cy0wsk",
+          "tk_01m6fkqvqnp7qaep1zy111cvf3",
+          "tk_01m6fkcv6zvf5gvw6e62arf6bj"
+        ]
+      }
+    ],
+    "tickets": [
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m6fkcv7axc0q94arxj551fpm",
+            "id": "c1",
+            "text": "docs/reports/omp-cli.md answers all 9 items with commands and literal outputs, and its two screenshots are under docs/reports/omp-cli/."
+          },
+          {
+            "covers": "tk_01m6fkcv7a1aq81c57cg024wtn",
+            "id": "c2",
+            "text": "In the built app on Windows, with an existing Claude agent and chat in the app database, the app starts, both still open, and OMP connects from PATH with its version shown on its card."
+          },
+          {
+            "covers": "tk_01m6fkcv7as0rtmrqda9ysd5x4",
+            "id": "c3",
+            "text": "In the built app, a new OMP orchestrator chat opens the OMP TUI, receives the kickoff once, runs dm call get_capabilities successfully; after quitting and reopening the app the chat resumes the same OMP session (screenshots before and after)."
+          },
+          {
+            "covers": "tk_01m6fkcv7awtppewkwtt6vjbbj",
+            "id": "c4",
+            "text": "In the built app, the OMP card shows the sign-in state matching omp's own status, and Sign in opens OMP's login in a terminal (screenshot)."
+          },
+          {
+            "covers": "tk_01m6fkcv7amvqbeqz04fd2k5w6",
+            "id": "c5",
+            "text": "Side-by-side screenshots of one OMP screen with colored output, a wide glyph and an emoji, in the built app's pane and in Windows Terminal, show the same colors and column alignment; OMP key bindings tried in both behave alike."
+          },
+          {
+            "covers": "tk_01m6fkcv7ayaevqx9916ay93g6",
+            "id": "c6",
+            "text": "With a non-default OMP theme active, a screenshot of an OMP chat in the built app shows the pane in that theme's colors, and a Claude chat beside it keeps the app palette."
+          },
+          {
+            "covers": "tk_01m6fkcv7aky8xd5h8w1amwq4q",
+            "id": "c7",
+            "text": "On a Windows account without omp, Install on the OMP card in the built app installs it and the card shows its version."
+          },
+          {
+            "covers": "tk_01m6fkcv7am5ty73pkxjbb48tt",
+            "id": "c8",
+            "text": "In the built app with Claude and OMP connected and no folder default, New chat opens an OMP chat; after setting the folder default to Claude, New chat opens a Claude chat."
+          }
+        ],
+        "body": "",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6fk7esyn10k8krsmbnxmpfe",
+        "key": "DM-404",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [],
+        "title": "Sprint 1 acceptance"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m6fkqvqbeazcfjnysasv6321",
+            "id": "c1",
+            "text": "In the built app, a Skitarii chat's TUI shows crimson accents, brass highlights, bone headings, gunmetal background and lens-green success, next to the app's own screens in one screenshot; ~/.omp's default theme setting is unchanged before and after."
+          },
+          {
+            "covers": "tk_01m6fkqvqndbhjr2pd93ckj6n2",
+            "id": "c2",
+            "text": "The mascot frames in resources/skitarii/mascot/ printed in the built app's pane show the red-hooded tech-priest in idle and drill poses (screenshot)."
+          },
+          {
+            "covers": "tk_01m6fkqvqn1jrwz8q1a5r5ma7r",
+            "id": "c3",
+            "text": "In the built app, a new Skitarii chat shows the animated mascot banner, the drilling indicator and Mechanicus status text while it works, and Skitarii as the window or terminal title (recording or screenshot sequence); plain omp run in Windows Terminal outside the app shows none of it."
+          },
+          {
+            "covers": "tk_01m6fkqvqn1r5rj2a1a3cy0wsk",
+            "id": "c4",
+            "text": "In the built app, Add agent, the agent card, the New chat picker and the chat header all say Skitarii, and an OMP chat made in sprint 1 still opens and resumes."
+          },
+          {
+            "covers": "tk_01m6fkqvqnp7qaep1zy111cvf3",
+            "id": "c5",
+            "text": "In the built app, the Skitarii pane header shows the sprite mascot drilling while the agent streams output and idling when it stops, with the terminal framed in the app style (screenshots of both states)."
+          }
+        ],
+        "body": "",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6fkcv6zvf5gvw6e62arf6bj",
+        "key": "DM-405",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [],
+        "title": "Sprint 2 acceptance"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "docs/reports/omp-cli.md exists and gives, for each of the 10 numbered items, the command run and its literal output, or says plainly what could not be found."
+          },
+          {
+            "id": "c2",
+            "text": "The report gives the exact version line and a regex that matches it."
+          },
+          {
+            "id": "c3",
+            "text": "The report names the flags for working folder, extra system prompt, model and resume, and says whether a session id can be chosen up front."
+          },
+          {
+            "id": "c4",
+            "text": "The report lists the terminal features the OMP TUI uses and the visible differences between the app pane and Windows Terminal, with both screenshots saved under docs/reports/omp-cli/."
+          },
+          {
+            "id": "c5",
+            "text": "The report's item 10 says, with evidence, how a theme and an extension can be enabled for one launch only, what an extension can draw (banner, working indicator, status line, name), and whether inline images work."
+          }
+        ],
+        "body": "## Context\nThe app will run OMP (oh-my-pi, the `omp` CLI) directly as a built-in agent kind in the chat terminal. `omp` is not installed on the planning machine, so nothing about its CLI is verified yet. What is known comes second-hand from Autonomous, which bundles OMP 18.11.2 (`docs/reports/autonomous-acp.md`: `a8s omp --help` lists `--version`, `--mode`, `--cwd`, `--resume`, `--continue`, `--model`, `--provider`, `--thinking`, `--approval-mode`, `--append-system-prompt`, `--config`, `--tools`, `--profile`; `a8s omp --version` prints `omp/18.11.2`; its sign-in store is `~/.omp/agent/agent.db`). Treat that list as a lead, not a fact, since a8s filters it.\n\n## Do\nInstall the current OMP release on this Windows machine with its official installer or package (record exactly how), then write `docs/reports/omp-cli.md` in the style of `docs/reports/autonomous-acp.md`: every fact with the command run and its literal output. Pin:\n1. **Install**: the official install command(s) for Windows and macOS (macOS from its docs/source if not runnable here), where the executable lands, its file names on Windows (`.exe`/`.cmd`, npm or bun shim?) and what it needs at runtime (node/bun).\n2. **Version**: exact `--version` output and a regex for the version.\n3. **Launch flags** for an interactive TUI session in a folder: working folder, extra system prompt (as text and/or a file; the length a Windows command line takes), model, and how a first prompt can be given (positional argument or not).\n4. **Sessions**: whether a session id can be chosen up front or is minted by OMP, its format, where sessions are stored, how to resume a given session, and what happens when that session is missing.\n5. **Sign-in**: a non-interactive status command and its signed-in and signed-out output and exit codes, and the interactive login command.\n6. **Instruction files**: whether it reads AGENTS.md / CLAUDE.md, and whether it supports MCP (chats use the `dm` CLI with `DM_SESSION_TOKEN` either way).\n7. **TUI terminal needs**: what it emits or expects: TERM/COLORTERM, true color, Unicode width (wide glyphs, emoji), kitty keyboard protocol or modifyOtherKeys, bracketed paste, mouse, synchronized output (DEC 2026), OSC 8 links, OSC 52 clipboard, inline image protocols, alternate screen. Use its source and docs plus a pty capture.\n8. **Theme**: where the active theme is configured and the file format that holds its colors (path, keys, an example).\n9. **Smoke in the app**: connect `omp` as a custom agent, open a chat, screenshot it next to the same screen in Windows Terminal, and list each visible difference.\n10. **Customization surface** (for sprint 2's Skitarii styling): how OMP themes are installed and selected, and whether a theme can be chosen per launch without changing the person's own default (flag, `--config`, env); the full list of theme color keys; its extension or hook API (load path, how one is enabled per launch, what it can draw: header or welcome banner, working indicator or spinner frames and text, status line, app name and title); whether it can show inline images (kitty, iTerm2 or sixel) or only text; and how often it may redraw for an animation.\n\nOut of scope: any change under `src/`.\n\n## Tests\nNone: an investigation report with no code.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Pins an unverified CLI across install, flags, sessions, sign-in and TUI needs; later tickets build on it."
+          },
+          "skills": [
+            "cli",
+            "terminal",
+            "windows"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "network",
+            "browser"
+          ],
+          "workType": "investigation"
+        },
+        "expectedArtifacts": [
+          "docs/reports/omp-cli.md",
+          "docs/reports/omp-cli/"
+        ],
+        "id": "tk_01m6fkcv7axc0q94arxj551fpm",
+        "key": "DM-406",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/reports/autonomous-acp.md",
+            "location": "docs/reports/autonomous-acp.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/design/chat-shells.md",
+            "location": "docs/design/chat-shells.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/terminals/terminalLaunchSpec.ts",
+            "location": "src/main/terminals/terminalLaunchSpec.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "omp",
+          "investigation"
+        ],
+        "title": "Pin the OMP CLI facts the app depends on in docs/reports/omp-cli.md"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "npm run typecheck passes with 'omp' in BuiltInAgentKind, AGENT_KINDS and AGENT_DEFINITIONS."
+          },
+          {
+            "id": "c2",
+            "text": "appDatabase.test.ts shows migration V4 keeps existing agent rows and accepts kind omp."
+          },
+          {
+            "id": "c3",
+            "text": "agentProbe.test.ts parses the version line recorded in docs/reports/omp-cli.md and rejects other CLIs' lines."
+          },
+          {
+            "id": "c4",
+            "text": "agentRegistry.test.ts upserts and lists an omp agent with display name OMP."
+          }
+        ],
+        "body": "## Context\nBuilt-in kinds are `claude`, `codex`, `cursor`, `autonomous`. Add `omp` (display name **OMP**) everywhere a kind is listed, using the facts in `docs/reports/omp-cli.md`.\n\n## Do\n- `src/shared/desktop/api.ts`: add `'omp'` to `BuiltInAgentKind`.\n- `src/shared/desktop/agentKinds.ts`: add it to `AGENT_KINDS` and `AGENT_DEFINITIONS` (executable names from the report; `downloadable: false` here, the install ticket turns it on).\n- `src/main/desktop/appDatabase.ts`: the `agents` table's `CHECK (kind IN (...))` refuses `omp`. Add migration V4 that rebuilds the table with `'omp'` added, keeping every row and column (SQLite cannot alter a CHECK). Follow how V2/V3 are written and tested.\n- `src/main/desktop/agentProbe.ts`: add the version-line matcher and version parse for `omp` from the report.\n- `src/renderer/src/agents/agentText.ts` and `src/shared/agents/models.ts`: add the `omp` cases (model list or none, per the report).\n- Fix every exhaustive `Record<BuiltInAgentKind, ...>` or switch the compiler flags, except `KIND_LAUNCHES` and the auth tables, which the next tickets fill. If the compiler forces an entry there, give it one that throws a DomainError \"OMP launch not wired yet\" and say so in the submission.\n\nOut of scope: launch arguments, sign-in, install recipe, default selection.\n\n## Tests\n- `appDatabase.test.ts`: V4 keeps existing agent rows (including a custom and an autonomous row) and accepts an `omp` row.\n- `agentProbe.test.ts`: the report's version line parses; lines from other CLIs do not.\n- `agentRegistry.test.ts`: upsert and list an `omp` agent.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/reports/omp-cli.md"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Touches a SQLite table-rebuild migration and a union type used across main and renderer."
+          },
+          "skills": [
+            "typescript",
+            "database",
+            "electron"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/desktop/appDatabase.ts",
+          "src/shared/desktop/agentKinds.ts",
+          "src/main/desktop/agentProbe.ts"
+        ],
+        "id": "tk_01m6fkcv7a1aq81c57cg024wtn",
+        "key": "DM-407",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/reports/omp-cli.md",
+            "location": "docs/reports/omp-cli.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/desktop/api.ts",
+            "location": "src/shared/desktop/api.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/desktop/agentKinds.ts",
+            "location": "src/shared/desktop/agentKinds.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/appDatabase.ts",
+            "location": "src/main/desktop/appDatabase.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/agentProbe.ts",
+            "location": "src/main/desktop/agentProbe.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/agentRegistry.ts",
+            "location": "src/main/desktop/agentRegistry.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "omp",
+          "agents"
+        ],
+        "title": "Add 'omp' as a built-in agent kind that the app can find, probe and store"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "terminalLaunchSpec.test.ts covers an OMP first start, with and without a model, whose arguments match the flags in docs/reports/omp-cli.md."
+          },
+          {
+            "id": "c2",
+            "text": "The test shows the kickoff is sent once on a first start and not on a resume, with kickoffIn set to where it went."
+          },
+          {
+            "id": "c3",
+            "text": "The test shows a resume asks OMP for the stored session, and a malformed stored id is listed in dropped."
+          },
+          {
+            "id": "c4",
+            "text": "In the dev app, an OMP chat opens OMP in the pane, and `dm call get_capabilities` run from that chat reports the chat's role (screenshot in evidence)."
+          }
+        ],
+        "body": "## Context\n`src/main/terminals/terminalLaunchSpec.ts` builds each kind's command line (`KIND_LAUNCHES`). Add `ompLaunch` from the flags in `docs/reports/omp-cli.md`.\n\n## Do\n- Start: working folder = `context.folder`; instructions through OMP's extra-system-prompt flag (file form if it has one, else text; when `viaShim` is true and only a text form exists, send them in `pasteFirst` as `autonomousLaunch` does); model when set; kickoff on the command line if OMP takes a positional first prompt, else in `pasteFirst`, with `kickoffIn` set to match.\n- Sessions: if OMP accepts a chosen session id, mint one with `newSessionId` as `claudeLaunch` does and return it; otherwise record nothing up front and resume per the report (`resumed: true` only when a resume is actually asked). Update `checkedSessionId` so an `omp` id is checked against the format in the report, not assumed to be a UUID.\n- `src/main/terminals/terminalEnv.ts`: add any OMP-specific variables the report says it needs to run (not rendering ones; the fidelity ticket owns those).\n- The resume-refused path (the pane offers a new session) must work for OMP: check `terminalSessions.ts` handles the new kind.\n\nOut of scope: sign-in, rendering fidelity, defaults.\n\n## Tests\n`terminalLaunchSpec.test.ts`: OMP first start (with and without model, with kickoff), resume, a stored session id that fails the format check lands in `dropped`, and the Windows `.cmd` shim path if OMP installs as one.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/reports/omp-cli.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Launch arguments cross Windows command-line quoting, session resume and kickoff routing."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "terminal"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/terminals/terminalLaunchSpec.ts"
+        ],
+        "id": "tk_01m6fkcv7as0rtmrqda9ysd5x4",
+        "key": "DM-408",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/reports/omp-cli.md",
+            "location": "docs/reports/omp-cli.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/terminals/terminalLaunchSpec.ts",
+            "location": "src/main/terminals/terminalLaunchSpec.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/terminals/terminalEnv.ts",
+            "location": "src/main/terminals/terminalEnv.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/terminals/terminalSessions.ts",
+            "location": "src/main/terminals/terminalSessions.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/design/chat-shells.md",
+            "location": "docs/design/chat-shells.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "omp",
+          "terminal"
+        ],
+        "title": "Launch and resume OMP chats in the terminal with the chat instructions and kickoff"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "agentAuth.test.ts classifies OMP's recorded signed-in and signed-out outputs as signed_in and signed_out."
+          },
+          {
+            "id": "c2",
+            "text": "terminalLaunchSpec.test.ts shows terminalLoginSpec for omp runs the login command from docs/reports/omp-cli.md in the home folder."
+          }
+        ],
+        "body": "## Context\n`src/main/desktop/agentAuth.ts` keeps per-kind `STATUS_ARGS`, `STATUS_TIMEOUT_MS`, `LOGIN_ARGS` and `CLASSIFIERS`. Add `omp` from the status and login commands in `docs/reports/omp-cli.md`.\n\n## Do\n- Add the `omp` entries. The classifier maps OMP's signed-in output to `signed_in`, its signed-out output to `signed_out`, and anything else to the existing unknown path.\n- If OMP has no non-interactive status command, say so in a comment and return the state the other kinds use for \"cannot tell\" (do not guess from files).\n- `terminalLoginSpec` then works for `omp` with no further change; confirm it.\n\n## Tests\n`agentAuth.test.ts`: the signed-in and signed-out outputs recorded in the report (with ANSI escapes, as captured) classify correctly; `terminalLaunchSpec.test.ts`: `terminalLoginSpec` for `omp` runs `LOGIN_ARGS.omp` in the home folder.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/reports/omp-cli.md"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "Table entries and a classifier following the existing per-kind pattern."
+          },
+          "skills": [
+            "typescript"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/desktop/agentAuth.ts"
+        ],
+        "id": "tk_01m6fkcv7awtppewkwtt6vjbbj",
+        "key": "DM-409",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/reports/omp-cli.md",
+            "location": "docs/reports/omp-cli.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/agentAuth.ts",
+            "location": "src/main/desktop/agentAuth.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/agentAuth.test.ts",
+            "location": "src/main/desktop/agentAuth.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "omp",
+          "agents"
+        ],
+        "title": "Show OMP's sign-in state and open its login from the agent card"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "terminalEnv.test.ts shows the PTY environment carries the TERM and COLORTERM values the report says OMP needs."
+          },
+          {
+            "id": "c2",
+            "text": "Terminal kit tests show each added addon is loaded on open and disposed with the terminal."
+          },
+          {
+            "id": "c3",
+            "text": "Screenshots of the same OMP screen in the pane and in Windows Terminal show matching true color and wide and emoji glyph widths, and each difference item 9 of the report listed is gone or explained in notes."
+          }
+        ],
+        "body": "## Context\nThe pane is xterm.js 6 with the fit and WebGL addons (`src/renderer/src/agents/xtermKit.ts`), fed by node-pty in main (`src/main/terminals/`). `docs/reports/omp-cli.md` lists the terminal features OMP's TUI uses (item 7) and the visible differences between the pane and Windows Terminal (item 9).\n\n## Do\nClose every difference the report lists, for every chat kind (they are terminal capabilities, not OMP-specific), each with the smallest change:\n- PTY environment (`terminalEnv.ts`): `TERM`, `COLORTERM=truecolor` and anything else the report shows OMP checks.\n- xterm options and addons the report calls for, e.g. Unicode 11 or grapheme widths (`@xterm/addon-unicode11` or `@xterm/addon-unicode-graphemes`), `@xterm/addon-web-links` or OSC 8 link handling, OSC 52 clipboard, the image addon only if OMP draws images, kitty keyboard or modifyOtherKeys if xterm 6 supports what OMP asks for.\n- Key handling: the pane must not swallow keys OMP binds (check the app's own shortcuts in `useTerminal.ts` and `terminalView.ts`).\n- Keep the Electron security baseline: no new IPC beyond typed, narrow handlers; links open through the existing external-open path.\nA difference xterm cannot close goes in the submission notes with the reason.\n\n## Tests\n- `terminalEnv.test.ts`: the new variables are set.\n- Terminal kit tests against `fakeTerminalKit`: the new addons load on open and are disposed with the terminal.\n- Manual: the side-by-side screenshots in the criteria.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/reports/omp-cli.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Spans the PTY environment, xterm addons and key handling, checked visually."
+          },
+          "skills": [
+            "typescript",
+            "electron",
+            "terminal",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/agents/xtermKit.ts",
+          "src/main/terminals/terminalEnv.ts",
+          "docs/reports/omp-cli/"
+        ],
+        "id": "tk_01m6fkcv7amvqbeqz04fd2k5w6",
+        "key": "DM-410",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/reports/omp-cli.md",
+            "location": "docs/reports/omp-cli.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/agents/xtermKit.ts",
+            "location": "src/renderer/src/agents/xtermKit.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/agents/terminalView.ts",
+            "location": "src/renderer/src/agents/terminalView.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/agents/useTerminal.ts",
+            "location": "src/renderer/src/agents/useTerminal.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/terminals/terminalEnv.ts",
+            "location": "src/main/terminals/terminalEnv.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/design/chat-shells.md",
+            "location": "docs/design/chat-shells.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "omp",
+          "terminal",
+          "ui"
+        ],
+        "title": "Render OMP's TUI in the chat pane as a standalone terminal does"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Unit tests show the OMP theme reader returns colors for a valid theme file and null for a missing or malformed one or one with non-color values."
+          },
+          {
+            "id": "c2",
+            "text": "terminalTheme.test.ts shows an OMP chat takes the OMP theme with missing keys from the app tokens, and a Claude chat keeps the app palette."
+          },
+          {
+            "id": "c3",
+            "text": "A screenshot of an OMP chat with a non-default OMP theme shows the pane background and ANSI colors matching the same theme in Windows Terminal."
+          }
+        ],
+        "body": "## Context\nThe pane's colors come from the app's `:root` tokens (`src/renderer/src/agents/terminalTheme.ts`; `docs/design/chat-shells.md`, \"Theme\"). The person wants an OMP chat to look like OMP in a real terminal, so an OMP chat's pane takes its background, foreground, cursor, selection and 16 ANSI colors from OMP's active theme (location and format: `docs/reports/omp-cli.md` item 8). Other kinds keep the app palette.\n\n## Do\n- Main: read OMP's active theme through a narrow typed IPC call (for example `ompTerminalTheme(): Promise<TerminalTheme | null>`) that reads only that one path, parses with zod, accepts only CSS color strings and returns null on any failure.\n- Renderer: for a chat whose agent kind is `omp`, use that theme, filling missing keys from the app tokens; otherwise unchanged. The pane chrome around the terminal (padding, background) uses the terminal background so no frame of the app color shows.\n- Re-read when an OMP chat is opened (no file watching).\n- Keep `styles.test.ts`'s \"no hex outside :root\" rule: colors arrive as data, not CSS.\n- Update `docs/design/chat-shells.md`, \"Theme\", for the OMP case.\n\nIf the report shows OMP's TUI paints its own background and colors in true color regardless of the terminal palette, keep only the parts that still show (background around the TUI, cursor, selection) and say so in notes.\n\n## Tests\n- Main: the theme reader returns colors for a valid file, and null for a missing or malformed file or non-color values.\n- `terminalTheme.test.ts`: the OMP theme overrides tokens key by key; other kinds are unchanged.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/reports/omp-cli.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "New typed IPC that reads a user file safely, plus renderer theme selection checked visually."
+          },
+          "skills": [
+            "typescript",
+            "electron",
+            "ui",
+            "security-review"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/agents/terminalTheme.ts",
+          "docs/design/chat-shells.md"
+        ],
+        "id": "tk_01m6fkcv7ayaevqx9916ay93g6",
+        "key": "DM-411",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/reports/omp-cli.md",
+            "location": "docs/reports/omp-cli.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/agents/terminalTheme.ts",
+            "location": "src/renderer/src/agents/terminalTheme.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/design/chat-shells.md",
+            "location": "docs/design/chat-shells.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/ipc.ts",
+            "location": "src/main/desktop/ipc.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "omp",
+          "terminal",
+          "ui"
+        ],
+        "title": "Give OMP chats OMP's active theme colors in the pane"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "agentInstallRecipes.test.ts covers the OMP recipe and its executable path on win32 and darwin."
+          },
+          {
+            "id": "c2",
+            "text": "agentInstaller.test.ts shows a missing runtime yields a message that names it."
+          },
+          {
+            "id": "c3",
+            "text": "On Windows, Install on the OMP card in the dev app installs OMP and the card then shows its version (screenshot in evidence)."
+          }
+        ],
+        "body": "## Context\n`src/main/desktop/agentInstallRecipes.ts` holds per-kind install recipes (`DOWNLOADABLE_AGENT_KINDS`, layouts, docs links) used by `agentInstaller.ts`. Add one for `omp` from the official install method in `docs/reports/omp-cli.md` item 1, and set `downloadable: true` in `AGENT_DEFINITIONS.omp`.\n\n## Do\n- Recipe, layout (where the executable and its folders land per platform) and docs link, following the Claude and Codex recipes. Use only the official source the report names.\n- If OMP needs a runtime (node or bun) that may be missing, check for it and show a clear message naming what to install, instead of a failed install.\n\n## Tests\n`agentInstallRecipes.test.ts`: the OMP recipe and layout for win32 and darwin; `agentInstaller.test.ts`: the missing-runtime message.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/reports/omp-cli.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Installer recipe that downloads and runs third-party code; layouts differ per platform."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "windows",
+            "security-review"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "network"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/desktop/agentInstallRecipes.ts"
+        ],
+        "id": "tk_01m6fkcv7aky8xd5h8w1amwq4q",
+        "key": "DM-412",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/reports/omp-cli.md",
+            "location": "docs/reports/omp-cli.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/agentInstallRecipes.ts",
+            "location": "src/main/desktop/agentInstallRecipes.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/agentInstaller.ts",
+            "location": "src/main/desktop/agentInstaller.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "omp",
+          "agents"
+        ],
+        "title": "Install OMP from Add agent"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "NewChatFields.test.ts shows newChatAgent picks a chattable OMP over an earlier-connected Claude when the folder has no default."
+          },
+          {
+            "id": "c2",
+            "text": "NewChatFields.test.ts shows a connected folder default of another agent still wins over OMP."
+          },
+          {
+            "id": "c3",
+            "text": "An AddAgentPane test shows OMP listed first among built-in agents."
+          }
+        ],
+        "body": "## Context\n`newChatAgent` in `src/renderer/src/agents/NewChatFields.tsx` picks the folder's default while it is connected, else the first chattable agent, else the first connected one. Agents come in insertion order.\n\n## Do\n- When there is no connected folder default, prefer `omp` if it is chattable; otherwise keep today's order.\n- List OMP first among built-in agents on the Add agent pane (`AddAgentPane.tsx`), so it reads as the recommended one.\n- A folder default set to another agent still wins.\n\n## Tests\n`NewChatFields.test.ts`: OMP is picked over an earlier-connected Claude when no default is set; a folder default of Claude still wins; a signed-out OMP is skipped for a chattable agent as today. An AddAgentPane test: OMP is listed first.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "A selection-order change in one function plus list order, steps spelled out."
+          },
+          "skills": [
+            "typescript",
+            "react"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/agents/NewChatFields.tsx"
+        ],
+        "id": "tk_01m6fkcv7am5ty73pkxjbb48tt",
+        "key": "DM-413",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/agents/NewChatFields.tsx",
+            "location": "src/renderer/src/agents/NewChatFields.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/agents/AddAgentPane.tsx",
+            "location": "src/renderer/src/agents/AddAgentPane.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/App.tsx",
+            "location": "src/renderer/src/App.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "omp",
+          "agents",
+          "ui"
+        ],
+        "title": "Make New chat pick OMP when the folder has no default"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A test shows every color key OMP lists in the report is set in the Skitarii theme and equals the app token it maps from."
+          },
+          {
+            "id": "c2",
+            "text": "A test shows the theme's text and background pairs meet the contrast ratios in docs/design/palette.md."
+          },
+          {
+            "id": "c3",
+            "text": "terminalLaunchSpec.test.ts shows an OMP launch selects the Skitarii theme for that launch, and the person's ~/.omp default theme file is not written."
+          },
+          {
+            "id": "c4",
+            "text": "A screenshot of a chat in the dev app shows Skitarii's TUI in crimson, brass, bone, gunmetal and lens green (screenshot in evidence)."
+          }
+        ],
+        "body": "## Context\nThe app's palette is defined in `docs/design/palette.md` and the `:root` tokens of `src/renderer/src/styles.css` (crimson `--primary`/`--ring`, brass `--accent`, bone `--ink-display`, gunmetal surfaces, lens green `--lens` for running, plus the `--term-*` ANSI tokens). DM-411 made an OMP chat's pane take OMP's active theme. `docs/reports/omp-cli.md` items 8 and 10 say how OMP themes are written, installed and chosen per launch.\n\n## Do\n- Write a Skitarii theme in OMP's theme format covering every color key the report lists, mapped from the app tokens by role (accent/selection crimson, highlights/links brass, headings bone, background and borders gunmetal, success/running lens green, errors signal rose, warnings orange), checked into the repo (for example `resources/skitarii/theme.json`; follow how `resources` is packaged in `package.json` build files).\n- Generate it from the `:root` tokens with a small script (`scripts/`) rather than copying hex by hand, and add a test that fails when the tokens and the theme drift.\n- Launch OMP chats with that theme for that launch only (flag, config overlay or env per the report), never by editing the person's `~/.omp` defaults. If OMP can only take a theme from its theme folder, copy the file there under a Skitarii name and select it per launch.\n- The pane (DM-411) then takes the Skitarii theme for these chats.\n- Readable: text/background pairs meet the contrast the palette doc requires (reuse the checks in `theme.contrast.test.ts`).\n\n## Tests\n- Theme generator test: every OMP color key is set and equals the token it is mapped from.\n- Contrast test for the theme's text on background pairs.\n- `terminalLaunchSpec.test.ts`: an OMP launch selects the Skitarii theme per launch.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/reports/omp-cli.md",
+              "docs/design/palette.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Maps a design palette onto a foreign theme format and keeps it in step by test, without touching user config."
+          },
+          "skills": [
+            "typescript",
+            "ui",
+            "design"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "resources/skitarii/theme.json",
+          "scripts/"
+        ],
+        "id": "tk_01m6fkqvqbeazcfjnysasv6321",
+        "key": "DM-414",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/reports/omp-cli.md",
+            "location": "docs/reports/omp-cli.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/design/palette.md",
+            "location": "docs/design/palette.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/styles.css",
+            "location": "src/renderer/src/styles.css",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/theme.contrast.test.ts",
+            "location": "src/renderer/src/theme.contrast.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/terminals/terminalLaunchSpec.ts",
+            "location": "src/main/terminals/terminalLaunchSpec.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/agents/terminalTheme.ts",
+            "location": "src/renderer/src/agents/terminalTheme.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "skitarii",
+          "theme",
+          "ui"
+        ],
+        "title": "Ship a Skitarii OMP theme in the Mechanicus palette and use it for app chats"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A generator test on a fixture atlas shows the frame count, size in rows and columns, transparent cells left unpainted, and a fixed foot row across frames."
+          },
+          {
+            "id": "c2",
+            "text": "resources/skitarii/mascot/ holds banner and indicator frames for the idle and drill loops, made by the committed script from src/renderer/src/assets/mascot/."
+          },
+          {
+            "id": "c3",
+            "text": "A screenshot of the banner frames printed in Windows Terminal and in the app pane shows the recognizable red-hooded tech-priest (screenshot in evidence)."
+          }
+        ],
+        "body": "## Context\nThe mascot is the chibi tech-priest: `build/mechanicus-cute-master.png`, the app icon, and the sprite atlases in `src/renderer/src/assets/mascot/` (idle, walk, run, jump, climb, stumble, drill; frame rects in `atlas.json`, documented in `docs/mascot-sprites.md`). `docs/reports/omp-cli.md` item 10 says whether OMP's TUI can show inline images or only text.\n\n## Do\nWrite a build script (`scripts/`) that renders terminal versions of the mascot from those atlases, so the art stays the same character:\n- **Text form (always):** true-color half-block art (upper half block with foreground and background colors, two pixels per cell), alpha-cut to the silhouette, at two sizes: a banner (about 16 rows tall) and a small working indicator (about 4 to 6 rows). Frames for the idle loop and the drill loop, from the atlas rects and foot anchors so the figure does not jump.\n- **Image form (only if the report shows OMP and the pane can show inline images):** small PNG frames for the same loops.\n- Output to `resources/skitarii/mascot/` as a JSON file of frames (rows of ANSI strings) plus images if made; the script is rerunnable, and the output is committed.\n- No new art is generated or hand-drawn: frames come only from the existing atlases.\n\n## Tests\nGenerator test on a tiny fixture atlas: frame count, row and column counts, transparent pixels left as the terminal background, and the foot row staying fixed across frames.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/reports/omp-cli.md",
+              "docs/mascot-sprites.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Image-to-ANSI conversion driven by atlas metadata, judged visually."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "graphics",
+            "terminal"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "resources/skitarii/mascot/",
+          "scripts/"
+        ],
+        "id": "tk_01m6fkqvqndbhjr2pd93ckj6n2",
+        "key": "DM-415",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/reports/omp-cli.md",
+            "location": "docs/reports/omp-cli.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/mascot-sprites.md",
+            "location": "docs/mascot-sprites.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/assets/mascot/atlas.json",
+            "location": "src/renderer/src/assets/mascot/atlas.json",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "build/mechanicus-cute-master.png",
+            "location": "build/mechanicus-cute-master.png",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "skitarii",
+          "mascot",
+          "art"
+        ],
+        "title": "Turn the tech-priest mascot sprites into terminal frames for the Skitarii TUI"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Unit tests show the indicator plays the drill loop while working, stops when idle, and does not animate with reduced motion."
+          },
+          {
+            "id": "c2",
+            "text": "terminalLaunchSpec.test.ts shows OMP launches enable the Skitarii extension from the app resources and nothing is written to the person's ~/.omp."
+          },
+          {
+            "id": "c3",
+            "text": "A screen recording or screenshot sequence of a chat in the dev app shows the mascot banner at start, the drill animation while the agent works, the Mechanicus status text and the Skitarii terminal title."
+          },
+          {
+            "id": "c4",
+            "text": "The submission notes list each part OMP's API did not allow and what was done instead, or say there were none."
+          }
+        ],
+        "body": "## Context\nOMP's extension or hook API (load path, per-launch enabling, what it can draw, redraw rate) is pinned in `docs/reports/omp-cli.md` item 10. The Skitarii theme (colors) and the mascot frames (`resources/skitarii/mascot/`) come from the two tickets before this one. Large because it is one extension whose parts share one runtime and one redraw loop; splitting it would leave half-wired extensions.\n\n## Do\nAn OMP extension, checked in under `resources/skitarii/extension/` and enabled for app-launched OMP chats only (per launch, as the report says; never installed into the person's own OMP setup):\n- **Banner:** on session start, the mascot banner (idle loop, animated a few times then still) with \"SKITARII\" and a Mechanicus line in bone and brass, using the theme colors.\n- **Working indicator:** while the agent is thinking or running tools, the small mascot's drill loop replaces OMP's spinner, at the frame rate the report says OMP allows (stop animating when idle; honor OMP's reduced-motion or no-animation setting if it has one).\n- **Voice:** Mechanicus status text for the working states (for example \"Communing with the machine spirit\", \"Applying the sacred unguents\", \"Reciting the litany of compilation\"), a fixed list in one file.\n- **Name:** the TUI shows Skitarii where OMP lets an extension set its name or title (terminal title via OSC 0/2 at least).\n- Wherever the report shows OMP cannot do something above, do the nearest thing it can, and list each gap in the submission notes.\n- `terminalLaunchSpec.ts`: enable the extension for OMP launches.\n\n## Tests\n- Unit tests of the extension's pure parts: frame sequencing (drill while working, idle or stopped when done), the reduced-motion path, the title string.\n- `terminalLaunchSpec.test.ts`: OMP launches enable the extension from the app's resources path.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/reports/omp-cli.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "multi_step",
+            "rationale": "Writes against a third-party extension API with a redraw loop; one extension that can't be cleanly split."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "terminal",
+            "animation"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "resources/skitarii/extension/",
+          "src/main/terminals/terminalLaunchSpec.ts"
+        ],
+        "id": "tk_01m6fkqvqn1jrwz8q1a5r5ma7r",
+        "key": "DM-416",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/reports/omp-cli.md",
+            "location": "docs/reports/omp-cli.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "resources/skitarii/mascot/",
+            "location": "resources/skitarii/mascot/",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "resources/skitarii/theme.json",
+            "location": "resources/skitarii/theme.json",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/terminals/terminalLaunchSpec.ts",
+            "location": "src/main/terminals/terminalLaunchSpec.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "large",
+        "tags": [
+          "skitarii",
+          "mascot",
+          "animation"
+        ],
+        "title": "Build the Skitarii OMP extension: mascot banner, animated working indicator and Mechanicus voice"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "agentRegistry.test.ts shows a stored omp row lists with display name Skitarii and id omp."
+          },
+          {
+            "id": "c2",
+            "text": "A grep of src/ for person-visible 'OMP' strings for this agent finds none outside the agent description and comments."
+          },
+          {
+            "id": "c3",
+            "text": "Screenshots of Add agent, the agent card and a chat header in the dev app show Skitarii."
+          }
+        ],
+        "body": "## Context\nThe built-in kind added in sprint 1 is `omp` with display name **OMP**. The person wants it called **Skitarii** (this spelling).\n\n## Do\n- `AGENT_DEFINITIONS.omp.displayName` becomes `Skitarii`; `agentText.ts` describes it as the Mechanicus-styled agent built on OMP (oh-my-pi), so a person still knows what to install.\n- Every person-visible string that says OMP for this agent (Add agent, agent card, chat header and picker, sign-in and install messages, errors in `agentAuth.ts`/`agentInstaller.ts`) says Skitarii. Grep `src/` for `'OMP'` and `OMP `.\n- The internal kind id stays `omp`, and the executable stays `omp`: stored agent rows and chats keep working with no migration.\n- Docs: `docs/design/chat-shells.md` and README name it Skitarii (built on OMP).\n\n## Tests\nUpdate the tests that assert the display name; add one that a stored `omp` agent row reads back with display name Skitarii.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "String changes with a spelled-out search, ids unchanged."
+          },
+          "skills": [
+            "typescript",
+            "react"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/shared/desktop/agentKinds.ts",
+          "src/renderer/src/agents/agentText.ts"
+        ],
+        "id": "tk_01m6fkqvqn1r5rj2a1a3cy0wsk",
+        "key": "DM-417",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/desktop/agentKinds.ts",
+            "location": "src/shared/desktop/agentKinds.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/agents/agentText.ts",
+            "location": "src/renderer/src/agents/agentText.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/design/chat-shells.md",
+            "location": "docs/design/chat-shells.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "skitarii",
+          "agents",
+          "ui"
+        ],
+        "title": "Rename OMP to Skitarii everywhere the app shows it"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Component tests show the Skitarii header and mascot appear for an omp chat and not for a Claude chat."
+          },
+          {
+            "id": "c2",
+            "text": "Component tests show the mascot drills while output arrives, idles after the quiet period, and stays still with reduced motion."
+          },
+          {
+            "id": "c3",
+            "text": "styles.test.ts passes with no hex colors added outside :root."
+          },
+          {
+            "id": "c4",
+            "text": "Screenshots in the dev app show the Skitarii pane header, mascot and framed terminal, idle and drilling."
+          }
+        ],
+        "body": "## Context\nThe app already animates the tech-priest from sprite atlases (`src/renderer/src/components/Mascot.tsx`, the `MascotSprite` used in the plan graph, `docs/mascot-sprites.md`; idle loop and the `working` drill loop; it stops for hidden pages and reduced motion). The chat pane around the terminal is plain.\n\n## Do\nFor Skitarii chats only:\n- A pane header in the app's Mechanicus style (palette roles from `docs/design/palette.md`: gunmetal surface, brass rule, bone title \"Skitarii\", lens-green running dot) with the sprite mascot beside the title.\n- The mascot plays the drill loop while the terminal is receiving output (activity in the last ~1.5 s, read from the existing output stream, no new IPC if the renderer already sees the data) and idles otherwise; it respects reduced motion and hidden pages as the graph mascot does.\n- The terminal frame (padding, border) uses the Skitarii theme background and a brass hairline, so the TUI and the app read as one surface.\n- No hex outside `:root` (`styles.test.ts`); reuse existing tokens and the sprite component, no new art.\n\n## Tests\nComponent tests: the header shows for an omp chat and not for a Claude chat; working flips with output activity and back after the quiet period; reduced motion freezes it.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": [
+              "docs/mascot-sprites.md",
+              "docs/design/palette.md"
+            ]
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Renderer UI reusing the sprite animation, driven by terminal activity, checked visually."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui",
+            "animation"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/agents/"
+        ],
+        "id": "tk_01m6fkqvqnp7qaep1zy111cvf3",
+        "key": "DM-418",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/components/Mascot.tsx",
+            "location": "src/renderer/src/components/Mascot.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/mascot-sprites.md",
+            "location": "docs/mascot-sprites.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/design/palette.md",
+            "location": "docs/design/palette.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/agents/terminalPane.css",
+            "location": "src/renderer/src/agents/terminalPane.css",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/agents/useTerminal.ts",
+            "location": "src/renderer/src/agents/useTerminal.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "skitarii",
+          "mascot",
+          "ui",
+          "animation"
+        ],
+        "title": "Dress the Skitarii chat pane in the app style with the animated mascot"
+      }
+    ]
+  },
+  "contentHash": "sha256:38ac51946723413c4ca560e5aa85b1b7c522539588d96e9e4725ed4cd94d23d3",
+  "createdAt": "2026-11-03T02:32:37.799Z",
+  "epicId": "ep_01m6fk7esyy6anvw84fv0e0b4j",
+  "format": "darkmechanicus.plan-snapshot",
+  "formatVersion": 1,
+  "number": 1,
+  "revisionId": "rv_01m6fm0q5731096m06c6m780ke",
+  "savedAt": "2026-11-03T02:32:37.799Z"
+}

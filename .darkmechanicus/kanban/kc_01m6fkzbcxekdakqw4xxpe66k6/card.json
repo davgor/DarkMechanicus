@@ -1,0 +1,27 @@
+{
+  "acceptanceCriteria": [
+    {
+      "id": "c1",
+      "text": "File menu bar is removed"
+    }
+  ],
+  "body": "Currently we have file, edit, view, window on the file menu. Lets just not have a file menu, it doesn't do anything for us but take up space. ",
+  "createdAt": "2026-11-03T02:31:52.999Z",
+  "createdBy": {
+    "label": "Desktop",
+    "role": "desktop"
+  },
+  "expectedArtifacts": [
+    "PR is merged with file menu removed."
+  ],
+  "format": "darkmechanicus.kanban-card",
+  "formatVersion": 1,
+  "generation": 1,
+  "id": "kc_01m6fkzbcxekdakqw4xxpe66k6",
+  "key": "DM-419",
+  "priority": "normal",
+  "references": [],
+  "size": null,
+  "title": "Remove file menu",
+  "updatedAt": "2026-11-03T02:31:52.999Z"
+}

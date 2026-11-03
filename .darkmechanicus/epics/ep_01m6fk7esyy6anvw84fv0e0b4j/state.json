@@ -1,0 +1,35 @@
+{
+  "branch": {
+    "name": "omp-terminal",
+    "repository": null,
+    "startCommit": null
+  },
+  "completedAt": null,
+  "createdAt": "2026-11-03T02:18:50.046Z",
+  "epicId": "ep_01m6fk7esyy6anvw84fv0e0b4j",
+  "format": "darkmechanicus.epic-state",
+  "formatVersion": 1,
+  "generation": 1,
+  "outcome": null,
+  "provenance": null,
+  "status": "backlog",
+  "ticketStatuses": {
+    "tk_01m6fk7esyn10k8krsmbnxmpfe": "backlog",
+    "tk_01m6fkcv6zvf5gvw6e62arf6bj": "backlog",
+    "tk_01m6fkcv7a1aq81c57cg024wtn": "backlog",
+    "tk_01m6fkcv7aky8xd5h8w1amwq4q": "backlog",
+    "tk_01m6fkcv7am5ty73pkxjbb48tt": "backlog",
+    "tk_01m6fkcv7amvqbeqz04fd2k5w6": "backlog",
+    "tk_01m6fkcv7as0rtmrqda9ysd5x4": "backlog",
+    "tk_01m6fkcv7awtppewkwtt6vjbbj": "backlog",
+    "tk_01m6fkcv7axc0q94arxj551fpm": "backlog",
+    "tk_01m6fkcv7ayaevqx9916ay93g6": "backlog",
+    "tk_01m6fkqvqbeazcfjnysasv6321": "backlog",
+    "tk_01m6fkqvqn1jrwz8q1a5r5ma7r": "backlog",
+    "tk_01m6fkqvqn1r5rj2a1a3cy0wsk": "backlog",
+    "tk_01m6fkqvqndbhjr2pd93ckj6n2": "backlog",
+    "tk_01m6fkqvqnp7qaep1zy111cvf3": "backlog"
+  },
+  "title": "OMP as the default chat agent: run OMP's own terminal UI in the chat pane",
+  "updatedAt": "2026-11-03T02:32:37.890Z"
+}
