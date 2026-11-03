@@ -28,3 +28,15 @@ export function onLastWindowClosed(platform: NodeJS.Platform, quit: () => void):
   }
   return false
 }
+
+/**
+ * Drops the in-window File/Edit/View/Window menu bar on Windows and Linux. macOS keeps Electron's
+ * default menu: it lives in the system menu bar, not the window, and it carries Cmd+C/V/X/A and Cmd+Q.
+ */
+export function removeWindowMenuBar(platform: NodeJS.Platform, clearMenu: () => void): boolean {
+  if (platform !== 'darwin') {
+    clearMenu()
+    return true
+  }
+  return false
+}

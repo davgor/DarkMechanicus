@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { loadRendererContent, onActivateCreateWindow, onLastWindowClosed } from './windowPolicy'
+import { loadRendererContent, onActivateCreateWindow, onLastWindowClosed, removeWindowMenuBar } from './windowPolicy'
 
 describe('loadRendererContent', () => {
   it('loads the dev-server URL when provided', () => {
@@ -84,5 +84,24 @@ describe('onLastWindowClosed', () => {
     quits = 0
     expect(onLastWindowClosed('linux', quit)).toBe(true)
     expect(quits).toBe(1)
+  })
+})
+
+describe('removeWindowMenuBar', () => {
+  it('clears the menu on Windows and Linux and keeps the macOS system menu', () => {
+    let clears = 0
+    const clearMenu = (): void => {
+      clears += 1
+    }
+
+    expect(removeWindowMenuBar('darwin', clearMenu)).toBe(false)
+    expect(clears).toBe(0)
+
+    expect(removeWindowMenuBar('win32', clearMenu)).toBe(true)
+    expect(clears).toBe(1)
+
+    clears = 0
+    expect(removeWindowMenuBar('linux', clearMenu)).toBe(true)
+    expect(clears).toBe(1)
   })
 })
