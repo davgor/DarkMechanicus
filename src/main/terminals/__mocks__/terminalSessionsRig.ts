@@ -160,9 +160,13 @@ export interface TerminalRig {
   errors: unknown[]
   /** The runs the desktop's session knows, by id, and every run call the manager made, as `getRun <id>` and `pauseRun <id> <reason>`. */
   runs: { states: Record<string, RunState>; calls: string[] }
+  /** The runs and Kanban cards the desktop's session finds holding a lease, by id, and every lease read the manager made, as `leaseHeld <id>`. */
+  leases: { held: Set<string>; calls: string[] }
   newChat: (agent?: string) => ChatRecord
   /** A chat Start run opened: an orchestrator of `runId`. */
   newOrchestrator: (runId: string, agent?: string) => ChatRecord
+  /** A chat Play opened: the orchestrator that carries the Kanban card `cardId`. */
+  newCardChat: (cardId: string) => ChatRecord
   cleanup: () => void
 }
 
@@ -232,6 +236,11 @@ function rigDeps(rig: RigBase, options: RigOptions): TerminalSessionsDeps {
     },
     cliFor,
     runs: rigRuns(rig),
+    leaseHeld: async (chat) => {
+      const id = chat.runId ?? chat.cardId ?? ''
+      rig.leases.calls.push(`leaseHeld ${id}`)
+      return chat.folder === rig.repo && rig.leases.held.has(id)
+    },
     issueChatCli: async (folder) => {
       rig.grantsAsked += 1
       grants += 1
@@ -286,9 +295,12 @@ export function terminalRig(options: RigOptions = {}): TerminalRig {
     killed: [],
     errors: [],
     runs: { states: {}, calls: [] },
+    leases: { held: new Set(), calls: [] },
     newChat: (agent = 'claude') => store.createChat({ folder: repo, agent, model: null, role: 'worker', allowSave: false, title: 'Fix the build' }),
     newOrchestrator: (runId, agent = 'claude') =>
       store.createChat({ folder: repo, agent, model: null, role: 'orchestrator', allowSave: false, title: 'Orchestrator · Terminal chats', runId }),
+    newCardChat: (cardId) =>
+      store.createChat({ folder: repo, agent: 'claude', model: null, role: 'orchestrator', allowSave: false, title: 'DM-1 · Fix the build', cardId }),
     cleanup: () => {
       removeScratch(root)
     }

@@ -38,7 +38,10 @@
  * (a resume the CLI refused) answers with the last screen and hears the exit, rather than starting it again.
  *
  * **Idle stop.** A PTY with no input and no output on its screen for 10 minutes is stopped (tree killed, grant
- * revoked) with the message `Stopped after 10 minutes idle.`; the next attach resumes it as above.
+ * revoked) with the message `Stopped after 10 minutes idle.`; the next attach resumes it as above. A chat that
+ * carries a run or a Kanban card is an orchestrator that may be watching a worker: once its PTY has gone 10 minutes
+ * quiet, the lease is read (`leaseHeld`) every minute, and each read that finds one held counts as activity, so it
+ * is stopped 10 minutes after the last such read. A read that fails counts as no lease.
  *
  * **Kickoff and pastes** ("The orchestrator chat Start run opens"). `start` is Start run's (and Transfer with
  * agent's, and Play's for a Kanban card): it starts the chat's PTY with the kickoff, which goes only when the record's
@@ -81,6 +84,8 @@ import { createTerminalScreen, type TerminalScreen } from './terminalScreen'
 const FOLDER_CHECK_MS = 60_000
 /** How long a PTY may go with no input and no output before it is stopped. */
 const IDLE_MS = 10 * 60_000
+/** How often a quiet PTY whose chat carries a run or a Kanban card has its lease read again. */
+const LEASE_CHECK_MS = 60_000
 /** The size a PTY starts at, until the pane that shows it sends its own. */
 const START_COLS = 80
 const START_ROWS = 24
@@ -195,6 +200,11 @@ export interface TerminalSessionsDeps {
   /** The `dm` invocation pinned to `folder`, without a grant: what the start files name. */
   cliFor: (folder: string) => DarkMechanicusCli
   runs: OrchestratorRuns
+  /**
+   * Whether the run or Kanban card the chat carries has an attempt holding a lease that has not expired, through the
+   * desktop's own session, and no newer chat carries it (`chatLeases.ts`): while one is held, the chat is not idle.
+   */
+  leaseHeld: (chat: ChatRecord) => Promise<boolean>
   issueChatCli: (folder: string, grant: { role: ChatRole; allowSave: boolean; label: string }) => Promise<{ cli: DarkMechanicusCli; grantId: string }>
   /** Never throws (`chatGrants.ts`). */
   revokeChatGrant: (grantId: string) => Promise<void>
@@ -449,28 +459,59 @@ function closeAfterExit(manager: Manager, live: Live, exit: PtyExit, reportClose
   })
 }
 
+/** Whether the run or Kanban card the chat carries holds a lease; a read that fails is reported and counts as none. Never rejects. */
+async function leaseHeld(manager: Manager, chat: ChatRecord): Promise<boolean> {
+  try {
+    return await manager.deps.leaseHeld(chat)
+  } catch (error) {
+    manager.onError(error)
+    return false
+  }
+}
+
 /**
  * The watches on a running PTY; answers the function that ends them, which also gives up the pastes still waiting. Its
  * folder is checked every minute. It is stopped once it has gone `IDLE_MS` with no activity: a timer set for the
  * earliest moment it can be idle, checked against `lastActive` when it fires, so activity costs a timestamp and
- * not a new timer.
+ * not a new timer. For a chat that carries a run or a Kanban card, a quiet PTY has its lease read every
+ * `LEASE_CHECK_MS` instead, and a read that finds one held counts as activity (`leaseSeen`).
  */
 function watchLive(manager: Manager, live: Live): () => void {
   const { timers } = manager.deps
   const stopFolderWatch = timers.repeat(() => {
     folderStillValid(manager, live)
   }, FOLDER_CHECK_MS)
+  const watchesLease = live.chat.runId !== undefined || live.chat.cardId !== undefined
+  let ended = false
+  let leaseSeen = Number.NEGATIVE_INFINITY
   let stopIdleWatch: () => void = () => {}
-  const check = (): void => {
-    const quiet = timers.now() - live.lastActive
-    if (quiet >= IDLE_MS) {
+  const readLease = async (): Promise<void> => {
+    const held = await leaseHeld(manager, live.chat)
+    if (ended) {
+      return
+    }
+    if (held) {
+      leaseSeen = timers.now()
+    }
+    if (timers.now() - Math.max(live.lastActive, leaseSeen) >= IDLE_MS) {
       void stop(manager, live, IDLE_STOPPED)
     } else {
+      stopIdleWatch = timers.after(check, LEASE_CHECK_MS)
+    }
+  }
+  const check = (): void => {
+    const quiet = timers.now() - live.lastActive
+    if (quiet < IDLE_MS) {
       stopIdleWatch = timers.after(check, IDLE_MS - quiet)
+    } else if (watchesLease) {
+      void track(manager, readLease())
+    } else {
+      void stop(manager, live, IDLE_STOPPED)
     }
   }
   stopIdleWatch = timers.after(check, IDLE_MS)
   return () => {
+    ended = true
     stopFolderWatch()
     stopIdleWatch()
     live.pastes.cancel?.()
