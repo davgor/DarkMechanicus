@@ -40,7 +40,8 @@
  * **No idle stop.** A PTY runs until its CLI exits or main stops it (a deleted chat, a removed agent, a folder that
  * moved, quit). A quiet one may be running a long command or waiting on its workers, so going quiet never stops it.
  * While it runs its grant is renewed every hour (`renewChatGrant`), to the grant's length from then, so a chat that
- * runs for days keeps its role, and one whose app died loses it within that length.
+ * runs for days keeps its role, and one whose app died loses it within that length; and it holds the computer awake
+ * (`keepAwake`, given back once when it is stopped or exits), so going to sleep does not pause it either.
  *
  * **Kickoff and pastes** ("The orchestrator chat Start run opens"). `start` is Start run's (and Transfer with
  * agent's, and Play's for a Kanban card): it starts the chat's PTY with the kickoff, which goes only when the record's
@@ -205,6 +206,8 @@ export interface TerminalSessionsDeps {
   host: () => Promise<PtyHost>
   /** Ends a PTY's process tree; `killPtyTree` by default. */
   killTree?: (tree: PtyTree) => Promise<boolean>
+  /** Keeps the computer awake while a PTY runs, until the returned function is called (`keepAwake.ts`); nothing by default. */
+  keepAwake?: () => () => void
   userData: string
   platform: NodeJS.Platform
   /** main's `process.env`. */
@@ -267,7 +270,7 @@ interface Live {
   /** Its pastes: the launch's `pasteFirst` first, then any `paste`; emptied once it is stopped or has exited. */
   pastes: PasteQueue
   revoke: () => Promise<void>
-  /** Ends the folder watch, the grant's renewal, and the wait for the pastes. */
+  /** Ends the folder watch, the grant's renewal, the hold that keeps the computer awake, and the wait for the pastes. */
   stopWatch: () => void
 }
 
@@ -461,8 +464,9 @@ function renewGrant(manager: Manager, grantId: string): Promise<void> {
 }
 
 /**
- * The watches on a running PTY; answers the function that ends them, which also gives up the pastes still waiting. Its
- * folder is checked every minute, and its grant is renewed every `GRANT_RENEW_MS`.
+ * The watches on a running PTY; answers the function that ends them, which also gives up the pastes still waiting and
+ * the hold that keeps the computer awake (once, though a stop and then the exit both end them). Its folder is checked
+ * every minute, and its grant is renewed every `GRANT_RENEW_MS`.
  */
 function watchLive(manager: Manager, live: Live): () => void {
   const { timers } = manager.deps
@@ -472,9 +476,12 @@ function watchLive(manager: Manager, live: Live): () => void {
   const stopRenewal = timers.repeat(() => {
     void renewGrant(manager, live.grantId)
   }, GRANT_RENEW_MS)
+  let release: (() => void) | null = manager.deps.keepAwake()
   return () => {
     stopFolderWatch()
     stopRenewal()
+    release?.()
+    release = null
     live.pastes.cancel?.()
     live.pastes.cancel = null
     live.pastes.waiting = []
@@ -1045,6 +1052,7 @@ export function createTerminalSessions(deps: TerminalSessionsDeps): TerminalSess
     deps: {
       ...rest,
       killTree: deps.killTree ?? ((tree) => killPtyTree(tree)),
+      keepAwake: deps.keepAwake ?? (() => () => {}),
       newSessionId: deps.newSessionId ?? randomUUID,
       timers: deps.timers ?? nodeTimers
     },

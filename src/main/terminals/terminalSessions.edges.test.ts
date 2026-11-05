@@ -55,6 +55,18 @@ describe('terminal sessions: defaults', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
+  it('runs a PTY with nothing to keep the computer awake when none is given', async () => {
+    rig.cleanup()
+    rig = terminalRig({ deps: () => ({ keepAwake: undefined }) })
+    const heard = recorder()
+    const { pty } = await startTerminal(rig, rig.newChat(CUSTOM_AGENT.id), heard.listener)
+
+    pty.exit({ exitCode: 0, signal: null })
+    await eventually(() => exitOf(heard.events) !== undefined, 'the exit to be told')
+
+    expect([rig.awake, rig.errors]).toEqual([0, []])
+  })
+
   it('starts Claude Code on a random session id when no generator is given', async () => {
     rig.cleanup()
     rig = terminalRig({ deps: () => ({ newSessionId: undefined }) })

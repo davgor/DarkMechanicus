@@ -12,6 +12,7 @@ import {
   dialog,
   MessageChannelMain,
   net,
+  powerSaveBlocker,
   safeStorage,
   shell,
   type IpcMain,
@@ -45,6 +46,7 @@ import { createRepositoryList } from '../github/repositories'
 import { createGithubSession, type GithubSession } from '../github/session'
 import { logger } from '../logger'
 import { createLoginTerminals, type LoginTerminals } from '../terminals/loginTerminals'
+import { createKeepAwake } from '../terminals/keepAwake'
 import { createNodePtyHost, type PtyHost } from '../terminals/ptyHost'
 import { createTerminalHandlers, registerTerminalIpc } from '../terminals/terminalHandlers'
 import { createTerminalSessions, endingTerminals, type TerminalSessions, type TerminalSessionsDeps } from '../terminals/terminalSessions'
@@ -289,9 +291,12 @@ interface TerminalDeps {
 function createTerminalProcesses(store: ChatStore, deps: TerminalDeps): Pick<ChatProcesses, 'terminals' | 'logins'> {
   let host: Promise<PtyHost> | undefined
   const base = { host: () => (host ??= createNodePtyHost()), platform: process.platform, env: process.env }
+  // While a chat terminal runs the computer stays awake: an agent's job can run for days.
+  const awake = createKeepAwake(powerSaveBlocker)
   const terminals = createTerminalSessions({
     ...base,
     store,
+    keepAwake: () => awake.hold(),
     agentFor: (id) => deps.agents.get(id),
     folders: deps.folders,
     checkAuth: (kind, executablePath) => getAgentAuthStatus(kind, executablePath, agentRunDeps()),

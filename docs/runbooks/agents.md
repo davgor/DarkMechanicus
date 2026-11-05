@@ -226,7 +226,7 @@ Nothing is stored on any failure. The codes: `busy` (a download of that agent is
 
 - **Start again** appears when the CLI has exited or been stopped; it starts the CLI again on the chat's session. Claude Code resumes with `--resume <id>` once its session file exists (a chat that exited before its first prompt, for example at the folder-trust question, starts again on the same new id); Autonomous runs `a8s resume` once the chat was typed into; Codex and Cursor resume with their stored session id when they have one.
 - **New session** appears after a resumed session ended, for the case where the CLI refused to resume (it says so on its last screen); it clears the chat's stored session and starts a fresh one.
-- **No idle stop.** A chat terminal runs until its CLI exits, the chat is deleted, its agent is removed, its folder moves, or the app quits; going quiet never stops it, so a long command or an orchestrator waiting on its workers runs for as long as it needs, for days if need be. While it runs, the app renews the chat's grant every hour, so its `dm` access does not lapse at the grant's 12 hours.
+- **No idle stop.** A chat terminal runs until its CLI exits, the chat is deleted, its agent is removed, its folder moves, or the app quits; going quiet never stops it, so a long command or an orchestrator waiting on its workers runs for as long as it needs, for days if need be. While it runs, the app renews the chat's grant every hour, so its `dm` access does not lapse at the grant's 12 hours, and keeps the computer from going to sleep (the display can still turn off; closing a laptop's lid still sleeps it if its power settings say so).
 
 ## Known limitations
 

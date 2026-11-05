@@ -143,6 +143,8 @@ export interface TerminalRig {
   revoked: string[]
   /** Every grant renewal the manager asked for, by grant id, in order. */
   renewed: string[]
+  /** How many holds keep the computer awake now: one per running PTY. */
+  awake: number
   /** The sign-in answer; a test holds it back with `holdAuth`. */
   auth: { status: AgentAuthStatus; held: Gate<AgentAuthStatus> | null }
   /** Makes the next sign-in checks wait until the gate is opened. */
@@ -250,6 +252,13 @@ function rigDeps(rig: RigBase, options: RigOptions): TerminalSessionsDeps {
     renewChatGrant: async (grantId) => {
       rig.renewed.push(grantId)
     },
+    // Counts every release, so a release made twice shows.
+    keepAwake: () => {
+      rig.awake += 1
+      return () => {
+        rig.awake -= 1
+      }
+    },
     host: async () => rig.host,
     killTree: rigKillTree(rig, options),
     userData: rig.userData,
@@ -284,6 +293,7 @@ export function terminalRig(options: RigOptions = {}): TerminalRig {
     steps: [],
     revoked: [],
     renewed: [],
+    awake: 0,
     auth: { status: SIGNED_IN, held: null },
     holdAuth: () => (rig.auth.held = gate<AgentAuthStatus>()),
     holdGrant: () => (rig.grantGate = gate<void>()),

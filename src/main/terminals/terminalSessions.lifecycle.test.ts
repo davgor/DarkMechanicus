@@ -246,3 +246,31 @@ describe('terminal sessions: no idle stop', () => {
     expect([rig.revoked, rig.renewed]).toEqual([['gr_1'], ['gr_2']])
   })
 })
+
+describe('terminal sessions: keeping the computer awake', () => {
+  it('holds the computer awake while each PTY runs, and lets it sleep once every one has exited', async () => {
+    const heard = recorder()
+    const first = await startTerminal(rig, rig.newChat(), heard.listener)
+    const second = await startTerminal(rig, rig.newChat())
+    expect(rig.awake).toBe(2)
+
+    first.pty.exit()
+    await eventually(() => exitOf(heard.events) !== undefined, 'the first exit to be told')
+    expect(rig.awake).toBe(1)
+    await exitAndSettle(second.pty)
+
+    expect(rig.awake).toBe(0)
+  })
+
+  it('gives a stopped PTY’s hold back once, when it is stopped, not again at its exit', async () => {
+    const chat = rig.newChat()
+    const { pty } = await startTerminal(rig, chat)
+
+    const deleting = rig.sessions.deleteChat(chat, async () => {})
+    expect(rig.awake).toBe(0)
+    pty.exit({ exitCode: 0, signal: 9 })
+    await deleting
+
+    expect(rig.awake).toBe(0)
+  })
+})
