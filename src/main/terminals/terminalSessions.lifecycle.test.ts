@@ -216,11 +216,13 @@ describe('terminal sessions: idle stop', () => {
     rig.clock.advance(10 * MINUTE - 1)
     expect([pty.kills, rig.revoked]).toEqual([0, []])
     rig.clock.advance(1)
+    await settle()
     expect([pty.kills, rig.revoked]).toEqual([1, ['gr_1']])
     await exitAndSettle(pty, { exitCode: 0, signal: 9 })
 
     expect(exitOf(heard.events)).toEqual({ kind: 'exited', exitCode: 0, signal: 9, message: IDLE, resumed: false })
     expect(rig.clock.pending).toBe(0)
+    expect(rig.shell.asked).toEqual([pty.pid])
   })
 
   it('counts input as activity', async () => {
@@ -230,8 +232,9 @@ describe('terminal sessions: idle stop', () => {
     rig.clock.advance(9 * MINUTE)
     rig.sessions.write(chat.id, 'x')
     rig.clock.advance(9 * MINUTE)
-    expect(pty.kills).toBe(0)
+    expect([pty.kills, rig.shell.asked]).toEqual([0, []])
     rig.clock.advance(MINUTE)
+    await settle()
 
     expect(pty.kills).toBe(1)
   })
@@ -246,8 +249,32 @@ describe('terminal sessions: idle stop', () => {
     rig.clock.advance(9 * MINUTE)
     expect(pty.kills).toBe(0)
     rig.clock.advance(MINUTE)
+    await settle()
 
     expect(pty.kills).toBe(1)
+  })
+})
+
+describe('terminal sessions: idle stop with a shell running', () => {
+  it('keeps a quiet PTY while a shell runs under its CLI, and stops it 10 minutes after the shell was last seen', async () => {
+    const chat = rig.newChat()
+    const { pty } = await startTerminal(rig, chat)
+    rig.shell.running = true
+
+    for (let checks = 0; checks < 3; checks += 1) {
+      rig.clock.advance(10 * MINUTE)
+      await settle()
+    }
+    expect([pty.kills, rig.revoked]).toEqual([0, []])
+    rig.shell.running = false
+    rig.clock.advance(10 * MINUTE - 1)
+    await settle()
+    expect(pty.kills).toBe(0)
+    rig.clock.advance(1)
+    await settle()
+
+    expect([pty.kills, rig.revoked]).toEqual([1, ['gr_1']])
+    expect(rig.shell.asked).toEqual([pty.pid, pty.pid, pty.pid, pty.pid])
   })
 })
 

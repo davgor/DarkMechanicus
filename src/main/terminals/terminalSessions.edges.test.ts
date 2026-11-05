@@ -5,7 +5,7 @@
  * while a stop is under way or just as the PTY exits, a start after quit, input for a chat with no PTY).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { CUSTOM_AGENT, eventually, recorder, settle, startTerminal, terminalRig, type TerminalRig } from './__mocks__/terminalSessionsRig'
+import { CUSTOM_AGENT, eventually, gate, recorder, settle, startTerminal, terminalRig, type Gate, type TerminalRig } from './__mocks__/terminalSessionsRig'
 import type { TerminalEvent } from './terminalSessions'
 
 const MINUTE = 60_000
@@ -44,7 +44,7 @@ describe('terminal sessions: defaults', () => {
 
     vi.advanceTimersByTime(9 * MINUTE)
     expect([pty.kills, rig.revoked]).toEqual([0, []])
-    vi.advanceTimersByTime(2 * MINUTE)
+    await vi.advanceTimersByTimeAsync(2 * MINUTE)
     expect([pty.kills, rig.revoked]).toEqual([1, ['gr_1']])
     pty.exit({ exitCode: 0, signal: 9 })
     await eventually(() => exitOf(heard.events) !== undefined, 'the exit to be told')
@@ -141,6 +141,64 @@ describe('terminal sessions: dependencies that fail', () => {
   })
 })
 
+describe('terminal sessions: the idle stop’s process listing', () => {
+  /** A rig whose process listings wait for the test to answer them. */
+  function listingRig(): Gate<boolean> {
+    const listing = gate<boolean>()
+    rig.cleanup()
+    rig = terminalRig({ deps: () => ({ shellRunning: () => listing.promise }) })
+    return listing
+  }
+
+  it('reports a process listing that fails, and stops the quiet PTY as if no shell ran', async () => {
+    rig.cleanup()
+    rig = terminalRig({
+      deps: () => ({
+        shellRunning: async () => {
+          throw new Error('PowerShell is blocked.')
+        }
+      })
+    })
+    const { pty } = await startTerminal(rig, rig.newChat(CUSTOM_AGENT.id))
+
+    rig.clock.advance(10 * MINUTE)
+    await settle()
+
+    expect([pty.kills, rig.revoked, errorMessages()]).toEqual([1, ['gr_1'], ['PowerShell is blocked.']])
+  })
+
+  it('keeps a PTY that took output while its processes were listed', async () => {
+    const listing = listingRig()
+    const { pty } = await startTerminal(rig, rig.newChat(CUSTOM_AGENT.id))
+    rig.clock.advance(10 * MINUTE)
+
+    pty.emitData('Tests passed.\r\n')
+    await settle()
+    listing.open(false)
+    await settle()
+    expect(pty.kills).toBe(0)
+    rig.clock.advance(10 * MINUTE)
+    await settle()
+
+    expect(pty.kills).toBe(1)
+  })
+
+  it('does nothing more for a PTY that exited while its processes were listed', async () => {
+    const listing = listingRig()
+    const heard = recorder()
+    const { pty } = await startTerminal(rig, rig.newChat(CUSTOM_AGENT.id), heard.listener)
+    rig.clock.advance(10 * MINUTE)
+
+    pty.exit()
+    await eventually(() => exitOf(heard.events) !== undefined, 'the exit to be told')
+    listing.open(false)
+    await settle()
+
+    expect(exitOf(heard.events)).toEqual({ kind: 'exited', exitCode: 0, signal: null, message: null, resumed: false })
+    expect([pty.kills, rig.clock.pending]).toEqual([0, 0])
+  })
+})
+
 describe('terminal sessions: starts cancelled part way', () => {
   it('revokes a grant issued after its start was cancelled by a delete, and spawns nothing', async () => {
     const grant = rig.holdGrant()
@@ -197,6 +255,7 @@ describe('terminal sessions: attaches at awkward moments', () => {
     const chat = rig.newChat(CUSTOM_AGENT.id)
     const { pty } = await startTerminal(rig, chat)
     rig.clock.advance(10 * MINUTE)
+    await settle()
 
     expect(await rig.sessions.attach(chat)).toEqual({ state: 'refused', message: IDLE })
     pty.exit({ exitCode: 0, signal: 9 })

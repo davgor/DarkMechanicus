@@ -156,6 +156,8 @@ export interface TerminalRig {
    * killed (node-pty's kill, and the kill settles when it exits); one that has exited is only checked for leftovers.
    */
   killed: PtyTree[]
+  /** Whether a shell runs under every PTY's program, as the idle stop asks, and the pid of each ask, in order. */
+  shell: { running: boolean; asked: number[] }
   /** Every error the manager reported. */
   errors: unknown[]
   /** The runs the desktop's session knows, by id, and every run call the manager made, as `getRun <id>` and `pauseRun <id> <reason>`. */
@@ -247,6 +249,10 @@ function rigDeps(rig: RigBase, options: RigOptions): TerminalSessionsDeps {
     },
     host: async () => rig.host,
     killTree: rigKillTree(rig, options),
+    shellRunning: async (pid) => {
+      rig.shell.asked.push(pid)
+      return rig.shell.running
+    },
     userData: rig.userData,
     platform: 'darwin',
     env: { PATH: '/usr/bin:/bin', HOME: rig.root },
@@ -284,6 +290,7 @@ export function terminalRig(options: RigOptions = {}): TerminalRig {
     grantGate: null,
     grantsAsked: 0,
     killed: [],
+    shell: { running: false, asked: [] },
     errors: [],
     runs: { states: {}, calls: [] },
     newChat: (agent = 'claude') => store.createChat({ folder: repo, agent, model: null, role: 'worker', allowSave: false, title: 'Fix the build' }),

@@ -38,7 +38,9 @@
  * (a resume the CLI refused) answers with the last screen and hears the exit, rather than starting it again.
  *
  * **Idle stop.** A PTY with no input and no output on its screen for 10 minutes is stopped (tree killed, grant
- * revoked) with the message `Stopped after 10 minutes idle.`; the next attach resumes it as above.
+ * revoked) with the message `Stopped after 10 minutes idle.`; the next attach resumes it as above. Before it is
+ * stopped its processes are listed, and a shell running under its CLI (a command it started, `runningShell.ts`) counts
+ * as activity, so a long command that prints nothing is never stopped.
  *
  * **Kickoff and pastes** ("The orchestrator chat Start run opens"). `start` is Start run's (and Transfer with
  * agent's, and Play's for a Kanban card): it starts the chat's PTY with the kickoff, which goes only when the record's
@@ -73,13 +75,14 @@ import { killPtyTree, type PtyTree } from '../agents/processTree'
 import { claudeSessionExists } from './claudeSession'
 import { writeClaudeSettings } from './claudeSettingsFile'
 import type { PtyExit, PtyHost, PtyProcess } from './ptyHost'
+import { hasRunningShell } from './runningShell'
 import { terminalLaunchSpec } from './terminalLaunchSpec'
 import { writeTerminalFiles, type TerminalFiles } from './terminalFiles'
 import { createTerminalScreen, type TerminalScreen } from './terminalScreen'
 
 /** How often a running PTY's folder is checked again. */
 const FOLDER_CHECK_MS = 60_000
-/** How long a PTY may go with no input and no output before it is stopped. */
+/** How long a PTY may go with no input, no output and no shell running under it before it is stopped. */
 const IDLE_MS = 10 * 60_000
 /** The size a PTY starts at, until the pane that shows it sends its own. */
 const START_COLS = 80
@@ -202,6 +205,8 @@ export interface TerminalSessionsDeps {
   host: () => Promise<PtyHost>
   /** Ends a PTY's process tree; `killPtyTree` by default. */
   killTree?: (tree: PtyTree) => Promise<boolean>
+  /** Whether a shell runs under the PTY's program `pid`, which the idle stop counts as activity; `hasRunningShell` by default. */
+  shellRunning?: (pid: number) => Promise<boolean>
   userData: string
   platform: NodeJS.Platform
   /** main's `process.env`. */
@@ -449,19 +454,28 @@ function closeAfterExit(manager: Manager, live: Live, exit: PtyExit, reportClose
   })
 }
 
+/** Whether a shell runs under the PTY's program; a listing that fails is reported and counts as none, so the idle stop goes on. */
+function shellRunning(manager: Manager, live: Live): Promise<boolean> {
+  return manager.deps.shellRunning(live.tree.pid).catch((error: unknown) => {
+    manager.onError(error)
+    return false
+  })
+}
+
 /**
  * The watches on a running PTY; answers the function that ends them, which also gives up the pastes still waiting. Its
  * folder is checked every minute. It is stopped once it has gone `IDLE_MS` with no activity: a timer set for the
  * earliest moment it can be idle, checked against `lastActive` when it fires, so activity costs a timestamp and
- * not a new timer.
+ * not a new timer. Only then are its processes listed: a shell found running under it is activity at that moment.
  */
 function watchLive(manager: Manager, live: Live): () => void {
   const { timers } = manager.deps
   const stopFolderWatch = timers.repeat(() => {
     folderStillValid(manager, live)
   }, FOLDER_CHECK_MS)
+  let watching = true
   let stopIdleWatch: () => void = () => {}
-  const check = (): void => {
+  const stopOrWait = (): void => {
     const quiet = timers.now() - live.lastActive
     if (quiet >= IDLE_MS) {
       void stop(manager, live, IDLE_STOPPED)
@@ -469,8 +483,25 @@ function watchLive(manager: Manager, live: Live): () => void {
       stopIdleWatch = timers.after(check, IDLE_MS - quiet)
     }
   }
+  const check = (): void => {
+    if (timers.now() - live.lastActive < IDLE_MS) {
+      stopOrWait()
+      return
+    }
+    void shellRunning(manager, live).then((running) => {
+      // Stopped, or exited, while the processes were listed.
+      if (!watching) {
+        return
+      }
+      if (running) {
+        live.lastActive = timers.now()
+      }
+      stopOrWait()
+    })
+  }
   stopIdleWatch = timers.after(check, IDLE_MS)
   return () => {
+    watching = false
     stopFolderWatch()
     stopIdleWatch()
     live.pastes.cancel?.()
@@ -1045,6 +1076,7 @@ export function createTerminalSessions(deps: TerminalSessionsDeps): TerminalSess
     deps: {
       ...rest,
       killTree: deps.killTree ?? ((tree) => killPtyTree(tree)),
+      shellRunning: deps.shellRunning ?? ((pid) => hasRunningShell(pid)),
       newSessionId: deps.newSessionId ?? randomUUID,
       timers: deps.timers ?? nodeTimers
     },

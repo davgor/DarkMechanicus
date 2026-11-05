@@ -154,6 +154,7 @@ describe('terminal sessions: paste into a chat with no running terminal', () => 
     const chat = rig.newChat('claude')
     const { pty } = await startTerminal(rig, chat)
     rig.clock.advance(10 * 60 * SECOND)
+    await settle()
     expect(pty.kills).toBe(1)
 
     const answer = rig.sessions.paste(chat, MESSAGE)
