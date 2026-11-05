@@ -1,0 +1,2 @@
+{"ev":{"type":"session_start"},"hasUI":true,"n":2,"types":["model_change","thinking_level_change"]}
+{"ev":{"type":"session_start"},"hasUI":true,"n":7,"types":["model_change","thinking_level_change","custom","message:user","custom","message:assistant","custom"]}

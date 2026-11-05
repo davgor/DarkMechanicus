@@ -237,6 +237,10 @@ export class FakeBackend implements DmApi {
     return Promise.resolve({ state: 'unknown', reason: 'Not connected yet.' })
   }
 
+  ompTerminalTheme(): Promise<null> {
+    return Promise.resolve(null)
+  }
+
   folderDefaultAgent(): Promise<AgentId | null> {
     return Promise.resolve(null)
   }

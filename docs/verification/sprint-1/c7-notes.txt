@@ -1,0 +1,15 @@
+# c7: install with LOCALAPPDATA at a scratch folder
+App PATH had no omp folder (launch PATH checked: 0 entries matching local/omp); LOCALAPPDATA=<scratch>/local7; fresh user-data-dir.
+Confirm dialog stubbed in main (response 0 = 'Download and install'); options logged:
+Installs to: <scratch>/local7/omp; C:\Users\davgo\.omp
+Installed file: local7/omp/omp.exe 243591168 bytes (same size as the real one).
+
+User PATH before vs after install (diff):
+18c18,19
+< C:\Users\davgo\AppData\Local\omp
+---
+> C:\Users\davgo\AppData\Local\omp
+> C:\Users\davgo\AppData\Local\Temp\claude\5b2748231b82b70c\46f2df57-16a2-475c-9c1e-531c9afb4fd7\scratchpad\s404\local7\omp
+
+Cleanup: removed exactly the scratch entry; user PATH string equals the saved 'before' value again.
+Real %LOCALAPPDATA%\omp\omp.exe still present (243591168 bytes). ~/.omp/agent/settings.json sha256 unchanged (ea2749aa...).

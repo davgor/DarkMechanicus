@@ -40,11 +40,11 @@ const press = (name: string): void => {
 const claude = agentView({ kind: 'claude', version: '2.1.4' })
 
 describe('AddAgentPane cards', () => {
-  it('shows a titled pane with a card for Claude Code, Codex, Cursor and Autonomous, then the Custom CLI card', async () => {
+  it('shows a titled pane with Skitarii first, then Claude Code, Codex, Cursor and Autonomous, then the Custom CLI card', async () => {
     await mount()
     expect(screen.getByRole('heading', { level: 1, name: 'Add an agent' })).toBeTruthy()
     const names = screen.getAllByRole('article').map((article) => article.getAttribute('aria-label'))
-    expect(names).toEqual(['Claude Code', 'Codex', 'Cursor', 'Autonomous', 'Custom CLI'])
+    expect(names).toEqual(['Skitarii', 'Claude Code', 'Codex', 'Cursor', 'Autonomous', 'Custom CLI'])
   })
 
   it('gives every card a one-line description and the Find and Download actions with their icons', async () => {

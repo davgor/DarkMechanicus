@@ -44,6 +44,37 @@ describe('createAgentRegistry listing', () => {
   })
 })
 
+describe('createAgentRegistry omp', () => {
+  it('upserts and lists an omp agent under the display name Skitarii', () => {
+    const registry = createAgentRegistry({ db: appDb() })
+
+    const view = registry.upsert(connection('omp', { version: '18.16.0' }))
+
+    expect(view).toMatchObject({ id: 'omp', kind: 'omp', displayName: 'Skitarii', version: '18.16.0', needsReview: false })
+    expect(registry.list()).toEqual([view])
+  })
+
+  it('reads a stored omp row written as OMP back as Skitarii, with id omp', () => {
+    const db = appDb()
+    db.run(
+      `INSERT INTO agents (id, kind, display_name, executable_path, connected_via, connected_at, last_probed)
+       VALUES ('omp', 'omp', 'OMP', '/bin/omp', 'found', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`
+    )
+
+    expect(createAgentRegistry({ db }).list()).toMatchObject([{ id: 'omp', kind: 'omp', displayName: 'Skitarii' }])
+  })
+
+  it('keeps the stored display name of a custom agent', () => {
+    const db = appDb()
+    db.run(
+      `INSERT INTO agents (id, kind, display_name, executable_path, args_json, connected_via, connected_at, last_probed)
+       VALUES ('cu_01ARZ3NDEKTSV4RRFFQ69G5FAV', 'custom', 'My own CLI', '/bin/mine', '[]', 'custom', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')`
+    )
+
+    expect(createAgentRegistry({ db }).list()).toMatchObject([{ kind: 'custom', displayName: 'My own CLI' }])
+  })
+})
+
 describe('createAgentRegistry upsert', () => {
   it('adds an entry for a new kind and returns its view', () => {
     const registry = createAgentRegistry({ db: appDb(), now: () => '2026-01-01T00:00:00.000Z' })
@@ -74,7 +105,8 @@ describe('createAgentRegistry upsert', () => {
       { id: 'claude', kind: 'claude', display_name: 'Claude Code', args_json: '[]', needs_review: 0 },
       { id: 'codex', kind: 'codex', display_name: 'Codex', args_json: '[]', needs_review: 0 },
       { id: 'cursor', kind: 'cursor', display_name: 'Cursor', args_json: '[]', needs_review: 0 },
-      { id: 'autonomous', kind: 'autonomous', display_name: 'Autonomous', args_json: '[]', needs_review: 0 }
+      { id: 'autonomous', kind: 'autonomous', display_name: 'Autonomous', args_json: '[]', needs_review: 0 },
+      { id: 'omp', kind: 'omp', display_name: 'Skitarii', args_json: '[]', needs_review: 0 }
     ])
   })
 

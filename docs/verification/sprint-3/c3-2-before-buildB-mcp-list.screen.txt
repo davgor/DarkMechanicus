@@ -1,0 +1,29 @@
+
+                                            ████████████
+                                               ██  ██       ▄▀▀▄ █▀▄▀▄ █▀▀▄
+                                               ██  ██       ▀▄▄▀ █ █ █ █▄▄▀
+                                               ▒▒  ██                  █
+                                                   ██       v18.16.0
+
+                        Tip: Bulk data to classify or triage? Say `jevify` in your message — the
+                         eval kernel's `judge()` processes the batch and you read only what it
+                                           flags — watch it glow as you type
+
+ MCP servers failed to connect: darkmechanicus [config:
+ ~/AppData/Local/Temp/claude/5b2748231b82b70c/46f2df57-16a2-475c-9c1e-531c9afb4f…]: ENOENT: no such file or directory,  
+ uv_spawn '~/AppData/Local/Temp/claude/5b2748…; other [config:
+ ~/AppData/Local/Temp/claude/5b2748231b82b70c/46f2df57-16a2-475c-9c1e-531c9afb4f…]: MCP subprocess closed stdout before 
+ responding
+╭─ Configured MCP Servers ─────────────────────────────────────────────────────────────────────────────────────────────╮
+│                                                                                                                      │
+│ MCP Config                                                                                                           │
+│ (~/AppData/Local/Temp/claude/5b2748231b82b70c/46f2df57-16a2-475c-9c1e-531c9afb4fd7/scratchpad/s3acc/repo2/.mcp.json) │
+│ :                                                                                                                    │
+│   darkmechanicus ○ not connected                                                                                     │
+│   other ○ not connected                                                                                              │
+│                                                                                                                      │
+│ ⎋ to close                                                                                                           │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+ π > ⬢ Mock One > 🗑 …c1e-531c9afb4fd7\scratchpad\s3acc\repo2 > ⑂ master ?2 ▶──6%─────────────────────────╎───┃─────128K─
+╰─                                                                                          ⇧⇥ to change thinking effort

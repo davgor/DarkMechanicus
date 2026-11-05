@@ -8,6 +8,7 @@
     "noUnusedParameters": true,
     "noImplicitOverride": true,
     "skipLibCheck": true,
+    "resolveJsonModule": true,
     "types": ["node", "electron-vite/node"]
   },
   "include": [
@@ -19,7 +20,8 @@
     "src/mcp/**/*",
     "src/cli/**/*",
     "src/test/**/*",
-    "src/integration/**/*"
+    "src/integration/**/*",
+    "resources/skitarii/extension/**/*"
   ],
   "exclude": ["src/renderer"]
 }

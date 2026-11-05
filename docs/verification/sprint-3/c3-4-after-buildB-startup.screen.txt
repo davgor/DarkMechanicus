@@ -1,0 +1,16 @@
+
+                                            ████████████
+                                               ██  ██       ▄▀▀▄ █▀▄▀▄ █▀▀▄
+                                               ██  ██       ▀▄▄▀ █ █ █ █▄▄▀
+                                               ▒▒  ██                  █
+                                                   ██       v18.16.0
+
+                          Tip: `/force read` pins the next turn to one specific tool when the
+                                         model keeps reaching for the wrong one
+
+ MCP finished with failures. Connected: darkmechanicus. Failed: other [config:
+ ~/AppData/Local/Temp/claude/5b2748231b82b70c/46f2df57-16a2-475c-9c1e-531c9afb4f…]: MCP subprocess closed stdout before 
+ responding
+
+ π > ⬢ Mock One > 🗑 …c1e-531c9afb4fd7\scratchpad\s3acc\repo2 > ⑂ master ?2 ▶────11%──────────────────────╎───┃─────128K─
+╰─                                                                                          ⇧⇥ to change thinking effort

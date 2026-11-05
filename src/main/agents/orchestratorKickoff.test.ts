@@ -233,3 +233,20 @@ describe('orchestrator chat title', () => {
     expect(title.startsWith('Orchestrator · xxx')).toBe(true)
   })
 })
+
+describe('orchestrator guidance: the order of the instructions', () => {
+  it('numbers its steps 1 to 5 in order, with the worker handoff as step 4', () => {
+    const steps = stepsOf(orchestratorGuidance())
+    expect(steps.map((line) => line.slice(0, 2))).toEqual(['1.', '2.', '3.', '4.', '5.'])
+    expect(steps[3]).toBe(handoffOf(orchestratorGuidance()))
+    expect(steps[4]).toMatch(/sprint checkpoint/)
+  })
+
+  it('explains where the guides came from after the steps and before the first guide', () => {
+    const text = orchestratorGuidance()
+    const note = text.indexOf('The two guides below are the same text as')
+    expect(note).toBeGreaterThan(text.indexOf('\n5. '))
+    expect(note).toBeLessThan(text.indexOf('=== Orchestrator guidance'))
+    expect(text.slice(note, text.indexOf('=== Orchestrator guidance'))).toMatch(/work from the guidance and the tool descriptions\.\n\n$/)
+  })
+})

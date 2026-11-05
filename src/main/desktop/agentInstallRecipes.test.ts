@@ -36,14 +36,16 @@ const SOURCES: Record<DownloadableAgentKind, Record<InstallPlatform, string>> = 
     win32: 'https://github.com/openai/codex/releases/latest/download/install.ps1',
     darwin: 'https://github.com/openai/codex/releases/latest/download/install.sh'
   },
-  cursor: { win32: 'https://cursor.com/install?win32=true', darwin: 'https://cursor.com/install' }
+  cursor: { win32: 'https://cursor.com/install?win32=true', darwin: 'https://cursor.com/install' },
+  omp: { win32: 'https://omp.sh/install.ps1', darwin: 'https://omp.sh/install' }
 }
 
 /** The hosts each vendor's own documentation lives on: a recipe must cite one of them. */
 const DOC_HOSTS: Record<DownloadableAgentKind, string[]> = {
   claude: ['code.claude.com'],
   codex: ['github.com', 'developers.openai.com'],
-  cursor: ['cursor.com']
+  cursor: ['cursor.com'],
+  omp: ['github.com']
 }
 
 describe('every kind has a recipe for Windows and macOS on both processors', () => {
@@ -159,9 +161,8 @@ describe('a script path is one argument that no command interpreter ever parses'
       const launch = installerLaunch(recipe, hostile, environment)
 
       expect(launch.file).toMatch(/powershell\.exe$|^\/bin\/(bash|sh)$/)
-      expect(launch.args.at(-1)).toBe(hostile)
       expect(launch.args.filter((arg) => arg === hostile)).toHaveLength(1)
-      expect([launch.file, ...launch.args.slice(0, -1)].join(' ')).not.toMatch(/\bcmd\b|\bstart\b|\/c\b/i)
+      expect([launch.file, ...launch.args.filter((arg) => arg !== hostile)].join(' ')).not.toMatch(/\bcmd\b|\bstart\b|\/c\b/i)
     }
   )
 })
@@ -194,5 +195,45 @@ describe('where each installer leaves the executable, so the probe can find it',
     expect(at('codex', MAC)).toEqual(['/Users/ada/.local/bin/codex'])
     expect(at('cursor', WINDOWS)[0]).toBe('C:\\Users\\Ada\\AppData\\Local\\cursor-agent\\agent.exe')
     expect(at('cursor', MAC)).toEqual(['/Users/ada/.local/bin/agent', '/Users/ada/.local/bin/cursor-agent'])
+    expect(at('omp', WINDOWS)).toEqual(['C:\\Users\\Ada\\AppData\\Local\\omp\\omp.exe'])
+    expect(at('omp', MAC)).toEqual(['/Users/ada/.local/bin/omp'])
+  })
+})
+
+describe('OMP is installed from its prebuilt binary, never through Bun', () => {
+  it('runs the official Windows script with -Binary after the script path', () => {
+    const recipe = resolveRecipe('omp', WINDOWS)
+    if (!recipe) {
+      throw new Error('no recipe')
+    }
+
+    expect(recipe.integrity.type).toBe('vendor-installer')
+    expect(recipe.layout(WINDOWS).folders).toEqual(['C:\\Users\\Ada\\AppData\\Local\\omp', 'C:\\Users\\Ada\\.omp'])
+    expect(installerLaunch(recipe, 'C:\\Temp\\install.ps1', WINDOWS).args).toEqual([
+      '-NoProfile',
+      '-NonInteractive',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      'C:\\Temp\\install.ps1',
+      '-Binary'
+    ])
+  })
+
+  it('runs the official macOS script with sh and --binary, on both processors', () => {
+    for (const arch of ['arm64', 'x64']) {
+      const environment = { ...MAC, arch }
+      const recipe = resolveRecipe('omp', environment)
+      if (!recipe) {
+        throw new Error('no recipe')
+      }
+
+      expect(installerLaunch(recipe, '/var/tmp/dm/install', environment)).toEqual({
+        file: '/bin/sh',
+        args: ['/var/tmp/dm/install', '--binary'],
+        env: {}
+      })
+      expect(recipe.layout(environment).folders).toEqual(['/Users/ada/.local/bin', '/Users/ada/.omp'])
+    }
   })
 })

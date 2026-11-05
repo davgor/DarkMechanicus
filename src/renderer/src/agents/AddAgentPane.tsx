@@ -123,6 +123,9 @@ function CustomCliCard({ agents }: AddAgentPaneProps): JSX.Element {
   )
 }
 
+/** OMP leads the built-in cards as the recommended agent; the rest keep their `AGENT_KINDS` order. */
+const CARD_KINDS: readonly BuiltInAgentKind[] = ['omp', ...AGENT_KINDS.filter((kind) => kind !== 'omp')]
+
 /** Replaces the main pane when + is pressed: one card per supported agent to find or download, then the Custom CLI card. */
 export function AddAgentPane({ agents }: AddAgentPaneProps): JSX.Element {
   return (
@@ -138,7 +141,7 @@ export function AddAgentPane({ agents }: AddAgentPaneProps): JSX.Element {
         </div>
       </header>
       <div className="agent-cards">
-        {AGENT_KINDS.map((kind) => (
+        {CARD_KINDS.map((kind) => (
           <AgentCard
             key={kind}
             kind={kind}

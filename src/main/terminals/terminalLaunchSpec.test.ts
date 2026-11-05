@@ -4,16 +4,23 @@
  * resumed, on macOS and Windows; then the rules each row relies on: whole-argument placeholders, the scrubbed
  * environment, Windows shims, and the values that are dropped rather than passed.
  */
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import packageJson from '../../../package.json'
 import type { DarkMechanicusCli } from '../../shared/agents/chat'
 import { transferGuidance } from '../../mcp/transferKickoff'
 import { kanbanGuidance } from '../agents/kanbanKickoff'
 import { orchestratorGuidance } from '../agents/orchestratorKickoff'
+import { OMP_CONFIG_OVERLAY } from './ompSession'
+import { skitariiExtensionPath } from './ompSkitariiExtension'
 import { terminalInstructions } from './terminalFiles'
 import { terminalLaunchSpec, type TerminalLaunchInput, type TerminalLaunchSpec } from './terminalLaunchSpec'
 import { windowsCommandLine } from './windowsCommandLine'
 
-type Kind = TerminalLaunchInput['agent']['kind']
+/** OMP has its own describe at the end: its config overlay and session id come from the files. */
+type Kind = Exclude<TerminalLaunchInput['agent']['kind'], 'omp'>
 type Platform = 'darwin' | 'win32'
 
 const STORED_ID = '0b6f6c1e-3c58-4f8e-9a0b-3d2f4b7c9e11'
@@ -431,6 +438,26 @@ describe('terminalLaunchSpec: a Claude .cmd is followed to the program it runs',
     expect(() => terminalLaunchSpec(inputFor('claude', 'win32', 'new', { agent, shimFs: shimFs(NPM_SHIM, ['relative\\node.exe']) }))).toThrow(/Connect claude\.exe/)
   })
 
+  it.runIf(process.platform === 'win32')('looks for the node.exe beside a real npm shim on the disk: a regular file counts, a missing one or a folder does not', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dm-shim-'))
+    try {
+      const shim = join(dir, 'claude.cmd')
+      writeFileSync(shim, NPM_SHIM)
+      const agent = { id: 'claude', kind: 'claude' as const, executablePath: shim, args: [] }
+      const env = { ...WIN.env, Path: '' }
+      const launch = () => terminalLaunchSpec(inputFor('claude', 'win32', 'new', { agent, env }))
+
+      expect(launch).toThrow(/Connect claude\.exe/)
+      mkdirSync(join(dir, 'node.exe'))
+      expect(launch).toThrow(/Connect claude\.exe/)
+      rmSync(join(dir, 'node.exe'), { recursive: true })
+      writeFileSync(join(dir, 'node.exe'), '')
+      expect(launch().file).toBe(join(dir, 'node.exe'))
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('refuses a Claude .cmd it cannot follow, with what to connect instead', () => {
     const agent = { id: 'claude', kind: 'claude' as const, executablePath: 'C:\\npm\\claude.cmd', args: [] }
 
@@ -509,5 +536,182 @@ describe('terminalLaunchSpec: values dropped before they reach the command line'
 
     expect(argsOf(spec)).not.toContain('haiku')
     expect(spec.dropped).toEqual([])
+  })
+})
+
+const OMP_ID = '01a19f51-856e-7612-8d38-0de416901104'
+const MAC_OMP = {
+  exe: '/Users/me/.local/bin/omp',
+  sessions: '/Users/me/Library/Application Support/Dark Mechanicus/agents/omp/ch_1/sessions',
+  config: '/Users/me/Library/Application Support/Dark Mechanicus/agents/omp/ch_1/config.yml',
+  extension: '/Applications/DarkMechanicus.app/Contents/Resources/skitarii/extension/index.ts'
+}
+const WIN_OMP = {
+  exe: 'C:\\Users\\me\\AppData\\Local\\omp\\omp.exe',
+  sessions: 'C:\\Users\\me\\AppData\\Roaming\\Dark Mechanicus\\agents\\omp\\ch_1\\sessions',
+  config: 'C:\\Users\\me\\AppData\\Roaming\\Dark Mechanicus\\agents\\omp\\ch_1\\config.yml',
+  extension: 'C:\\Users\\me\\AppData\\Local\\Programs\\DarkMechanicus\\resources\\skitarii\\extension\\index.ts'
+}
+
+/** An OMP chat: a first start has no session (the CLI mints one), a resumed one has the id read from its session file. */
+function ompInput(platform: Platform, state: 'new' | 'resumed', overrides: Partial<TerminalLaunchInput> = {}): TerminalLaunchInput {
+  const at = platform === 'win32' ? WIN : MAC
+  const own = platform === 'win32' ? WIN_OMP : MAC_OMP
+  const resumed = state === 'resumed'
+  return {
+    chat: { agent: 'omp', role: 'orchestrator', allowSave: false, model: 'haiku', sessionId: resumed ? OMP_ID : null, sessionStarted: resumed, kickoffSent: resumed },
+    kickoff: KICKOFF,
+    agent: { id: 'omp', kind: 'omp', executablePath: own.exe, args: [] },
+    folder: at.folder,
+    cli: cliFor(platform),
+    files: { instructions: at.instructions, launcherDir: platform === 'win32' ? null : MAC.launcherDir, omp: { sessionDir: own.sessions, config: own.config, extension: own.extension } },
+    platform,
+    env: at.env,
+    newSessionId: () => NEW_ID,
+    ...overrides
+  }
+}
+
+const head = (at: typeof MAC | typeof WIN, own: typeof MAC_OMP) => [
+  '--cwd',
+  at.folder,
+  '--append-system-prompt',
+  at.instructions,
+  '--config',
+  own.config,
+  '-e',
+  own.extension,
+  '--session-dir',
+  own.sessions
+]
+
+describe('terminalLaunchSpec: OMP first start and kickoff', () => {
+  it('starts a first chat with the folder, the instructions file, the overlay, its own session folder, the model and the kickoff as the positional prompt', () => {
+    const spec = terminalLaunchSpec(ompInput('darwin', 'new'))
+
+    expect(spec.file).toBe(MAC_OMP.exe)
+    expect(argsOf(spec)).toEqual([...head(MAC, MAC_OMP), '--model', 'haiku', KICKOFF])
+    expect(spec.cwd).toBe(MAC.folder)
+    expect(spec.pasteFirst).toBeNull()
+    expect(spec.resumed).toBe(false)
+  })
+
+  it('selects the Skitarii theme for that launch only: through the --config overlay, with no theme flag and no theme or agent-folder variable', () => {
+    for (const platform of ['darwin', 'win32'] as const) {
+      const spec = terminalLaunchSpec(ompInput(platform, 'new'))
+      const line = spec.args === undefined ? spec.commandLine : spec.args.join(' ')
+
+      expect(line).toContain('--config')
+      expect(OMP_CONFIG_OVERLAY).toContain('theme:\n  dark: skitarii\n')
+      expect(OMP_CONFIG_OVERLAY).toContain('  light: skitarii\n')
+      expect(line).not.toMatch(/--theme/)
+      expect(Object.keys(spec.env).filter((name) => /THEME|PI_CODING_AGENT_DIR/i.test(name))).toEqual([])
+    }
+  })
+
+  it('starts without --model when the chat has none', () => {
+    const input = ompInput('darwin', 'new')
+    const spec = terminalLaunchSpec({ ...input, chat: { ...input.chat, model: null } })
+
+    expect(argsOf(spec)).toEqual([...head(MAC, MAC_OMP), KICKOFF])
+  })
+
+  it('starts a chat with no kickoff (a plain chat) with no positional prompt', () => {
+    const spec = terminalLaunchSpec(ompInput('darwin', 'new', { kickoff: null }))
+
+    expect(argsOf(spec)).toEqual([...head(MAC, MAC_OMP), '--model', 'haiku'])
+    expect(spec.kickoffIn).toBeNull()
+  })
+
+  it('sends the kickoff once, on the command line, and says so; a resume and a start after it was sent send none', () => {
+    expect(terminalLaunchSpec(ompInput('darwin', 'new')).kickoffIn).toBe('args')
+
+    const resumed = terminalLaunchSpec(ompInput('darwin', 'resumed'))
+    expect(resumed.kickoffIn).toBeNull()
+    expect(argsOf(resumed)).not.toContain(KICKOFF)
+
+    const again = ompInput('darwin', 'new')
+    const sentButNoSession = terminalLaunchSpec({ ...again, chat: { ...again.chat, kickoffSent: true } })
+    expect(sentButNoSession.kickoffIn).toBeNull()
+    expect(argsOf(sentButNoSession)).not.toContain(KICKOFF)
+  })
+
+  it('records no session id up front: OMP mints it', () => {
+    expect(terminalLaunchSpec(ompInput('darwin', 'new')).sessionId).toBeNull()
+  })
+})
+
+describe('terminalLaunchSpec: OMP and the Skitarii extension', () => {
+  it('enables the Skitarii extension for that launch only, from the app resources, and writes nothing to the person’s ~/.omp', () => {
+    for (const platform of ['darwin', 'win32'] as const) {
+      const own = platform === 'win32' ? WIN_OMP : MAC_OMP
+      const spec = terminalLaunchSpec(ompInput(platform, 'new'))
+      const args = spec.args ?? []
+      const line = spec.args === undefined ? spec.commandLine : args.join(' ')
+
+      expect(platform === 'win32' ? line.includes(windowsCommandLine(['-e', own.extension])) : args[args.indexOf('-e') + 1] === own.extension).toBe(true)
+      expect(line).not.toMatch(/--no-extensions|--trusted-extension|\.omp/)
+      expect(Object.keys(spec.env).filter((name) => /EXTENSION|PI_CODING_AGENT_DIR|PI_CONFIG/i.test(name))).toEqual([])
+    }
+  })
+
+  it('finds the extension in the project in development and beside app.asar when packaged, where OMP can read it', () => {
+    expect(skitariiExtensionPath({ packaged: false, appPath: '/src/dm', resourcesPath: '/electron/resources' })).toBe(
+      join('/src/dm', 'resources', 'skitarii', 'extension', 'index.ts')
+    )
+    expect(skitariiExtensionPath({ packaged: true, appPath: '/app/resources/app.asar', resourcesPath: '/app/resources' })).toBe(
+      join('/app/resources', 'skitarii', 'extension', 'index.ts')
+    )
+    expect(existsSync(skitariiExtensionPath({ packaged: false, appPath: process.cwd(), resourcesPath: '' }))).toBe(true)
+    expect(packageJson.build.extraResources).toContainEqual({ from: 'resources/skitarii', to: 'skitarii' })
+  })
+})
+
+describe('terminalLaunchSpec: OMP resume and Windows', () => {
+  it('resumes the stored session with --resume, in the same session folder, and asks for a resume the pane may find refused', () => {
+    const spec = terminalLaunchSpec(ompInput('darwin', 'resumed'))
+
+    expect(argsOf(spec)).toEqual([...head(MAC, MAC_OMP), '--model', 'haiku', '--resume', OMP_ID])
+    expect(spec.sessionId).toBe(OMP_ID)
+    expect(spec.resumed).toBe(true)
+    expect(spec.dropped).toEqual([])
+  })
+
+  it('accepts any UUID version (OMP mints v7) and lists a malformed stored id in dropped, starting a new session', () => {
+    const input = ompInput('darwin', 'resumed')
+    for (const bad of ['--last', 'session; rm -rf ~', OMP_ID.slice(1), `${OMP_ID}x`]) {
+      const spec = terminalLaunchSpec({ ...input, chat: { ...input.chat, sessionId: bad } })
+
+      expect(argsOf(spec)).not.toContain('--resume')
+      expect(argsOf(spec)).not.toContain(bad)
+      expect(spec.resumed).toBe(false)
+      expect(spec.sessionId).toBeNull()
+      expect(spec.dropped).toEqual([{ field: 'sessionId', value: bad }])
+    }
+  })
+
+  it('does not resume, nor drop, a stored id when no session file exists yet', () => {
+    const input = ompInput('darwin', 'new')
+    const spec = terminalLaunchSpec({ ...input, chat: { ...input.chat, sessionId: 'whatever' } })
+
+    expect(argsOf(spec)).not.toContain('--resume')
+    expect(spec.dropped).toEqual([])
+  })
+
+  it('builds a Windows command line for the native omp.exe, with no cmd.exe', () => {
+    const spec = terminalLaunchSpec(ompInput('win32', 'new'))
+
+    expect(spec.file).toBe(WIN_OMP.exe)
+    expect(lineOf(spec)).toBe(windowsCommandLine([...head(WIN, WIN_OMP), '--model', 'haiku', KICKOFF]))
+    expect(lineOf(terminalLaunchSpec(ompInput('win32', 'resumed')))).toBe(windowsCommandLine([...head(WIN, WIN_OMP), '--model', 'haiku', '--resume', OMP_ID]))
+  })
+
+  it('leaves out --config and --session-dir when the files carry none, and adds only the hyperlink and synchronized-output switches to the environment', () => {
+    const input = ompInput('darwin', 'new')
+    const spec = terminalLaunchSpec({ ...input, files: { instructions: MAC.instructions, launcherDir: MAC.launcherDir } })
+
+    expect(argsOf(spec)).toEqual(['--cwd', MAC.folder, '--append-system-prompt', MAC.instructions, '--model', 'haiku', KICKOFF])
+    expect(Object.keys(spec.env).sort()).toEqual([...MAC_ENV, 'PI_FORCE_HYPERLINKS', 'PI_FORCE_SYNC_OUTPUT'].sort())
+    expect(spec.env['PI_FORCE_HYPERLINKS']).toBe('1')
   })
 })

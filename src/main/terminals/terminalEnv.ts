@@ -4,7 +4,8 @@
  * 1. main's own environment, without the Electron and Node switches (`ELECTRON_RUN_AS_NODE`, every `ELECTRON_*`,
  *    `NODE_OPTIONS`) and without any name the layers below set, in any letter case, since Windows reads names
  *    without case;
- * 2. the terminal's constants, `TERM` and `COLORTERM`, and for Claude the switch that turns off its own memory;
+ * 2. the terminal's constants, `TERM` and `COLORTERM`, for OMP its hyperlink and synchronized-output switches, and for Claude the switch that
+ *    turns off its own memory;
  * 3. the chat's `dm` environment: its grant (`DM_SESSION_TOKEN`) and `DARKMECHANICUS_HOME`, nothing else from
  *    the invocation; on Windows a packaged app's `ELECTRON_RUN_AS_NODE=1` stays, as today, because there is no
  *    launcher to hold it (a known limitation);
@@ -19,6 +20,14 @@ import type { AgentView } from '../../shared/desktop/api'
 const SCRUBBED = /^(?:ELECTRON_.*|NODE_OPTIONS)$/i
 
 const TERMINAL_CONSTANTS: Readonly<Record<string, string>> = { TERM: 'xterm-256color', COLORTERM: 'truecolor' }
+
+/**
+ * What OMP's terminal detection cannot learn from `TERM` and `COLORTERM` (`docs/reports/omp-cli.md`, 7): the pane
+ * draws OSC 8 hyperlinks and opens them, but OMP writes them only for terminals it knows or when forced; and xterm 6
+ * supports synchronized output (DEC 2026), but under ConPTY OMP's DECRQM probe for it gets no reply (section 7), so
+ * it is switched on rather than probed.
+ */
+const OMP_CONSTANTS: Readonly<Record<string, string>> = { PI_FORCE_HYPERLINKS: '1', PI_FORCE_SYNC_OUTPUT: '1' }
 
 interface TerminalEnvOptions {
   /** main's `process.env`. */
@@ -70,6 +79,7 @@ function layered(base: TerminalEnvOptions['base'], own: Readonly<Record<string, 
 export function terminalEnv(options: TerminalEnvOptions): Record<string, string> {
   const own: Record<string, string> = {
     ...TERMINAL_CONSTANTS,
+    ...(options.kind === 'omp' ? OMP_CONSTANTS : {}),
     ...(options.kind === 'claude' ? { CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' } : {}),
     ...dmEnv(options.cli, options.platform)
   }

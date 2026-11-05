@@ -44,14 +44,14 @@ describe('App agents section', () => {
 })
 
 describe('App add-agent pane', () => {
-  it('replaces the folder home with the four built-in agent cards and the Custom CLI card when + is pressed', async () => {
+  it('replaces the folder home with the five built-in agent cards, Skitarii first, and the Custom CLI card when + is pressed', async () => {
     await mount()
     expect(onFolderHome()).toBe(true)
     fireEvent.click(sidebar().getByRole('button', { name: 'Add an agent' }))
     await settle()
     expect(onFolderHome()).toBe(false)
     expect(workspace().getByRole('heading', { level: 1, name: 'Add an agent' })).toBeTruthy()
-    expect(workspace().getAllByRole('article').map((article: HTMLElement) => article.getAttribute('aria-label'))).toEqual(['Claude Code', 'Codex', 'Cursor', 'Autonomous', 'Custom CLI'])
+    expect(workspace().getAllByRole('article').map((article: HTMLElement) => article.getAttribute('aria-label'))).toEqual(['Skitarii', 'Claude Code', 'Codex', 'Cursor', 'Autonomous', 'Custom CLI'])
   })
 
   it('goes back to the folder when the folder is chosen in the sidebar', async () => {

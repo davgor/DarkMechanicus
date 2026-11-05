@@ -1,0 +1,28 @@
+{
+  "mcpServers": {
+    "darkmechanicus": {
+      "command": "C:\\Users\\davgo\\AppData\\Local\\Temp\\claude\\5b2748231b82b70c\\46f2df57-16a2-475c-9c1e-531c9afb4fd7\\scratchpad\\c444\\buildB\\DarkMechanicus.exe",
+      "args": [
+        "C:\\Users\\davgo\\AppData\\Local\\Temp\\claude\\5b2748231b82b70c\\46f2df57-16a2-475c-9c1e-531c9afb4fd7\\scratchpad\\c444\\buildB\\resources\\app.asar\\out\\main\\mcp.js",
+        "--repo",
+        "C:\\Users\\davgo\\AppData\\Local\\Temp\\claude\\5b2748231b82b70c\\46f2df57-16a2-475c-9c1e-531c9afb4fd7\\scratchpad\\c444\\repo",
+        "--role",
+        "planner",
+        "--label",
+        "Claude Code"
+      ],
+      "env": {
+        "ELECTRON_RUN_AS_NODE": "1",
+        "DARKMECHANICUS_HOME": "C:\\Users\\davgo\\AppData\\Local\\Temp\\claude\\5b2748231b82b70c\\46f2df57-16a2-475c-9c1e-531c9afb4fd7\\scratchpad\\c444\\dmhome"
+      }
+    },
+    "other": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@acme/other-mcp"
+      ]
+    }
+  },
+  "note": "mine"
+}

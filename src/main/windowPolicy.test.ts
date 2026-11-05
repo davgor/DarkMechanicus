@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { loadRendererContent, onActivateCreateWindow, onLastWindowClosed, removeWindowMenuBar } from './windowPolicy'
+import { applyColorProfile, loadRendererContent, onActivateCreateWindow, onLastWindowClosed, removeWindowMenuBar } from './windowPolicy'
 
 describe('loadRendererContent', () => {
   it('loads the dev-server URL when provided', () => {
@@ -103,5 +103,17 @@ describe('removeWindowMenuBar', () => {
     clears = 0
     expect(removeWindowMenuBar('linux', clearMenu)).toBe(true)
     expect(clears).toBe(1)
+  })
+})
+
+describe('applyColorProfile', () => {
+  it('appends force-color-profile=srgb to the command line', () => {
+    const switches: Array<[string, string | undefined]> = []
+    applyColorProfile({
+      appendSwitch: (name, value) => {
+        switches.push([name, value])
+      }
+    })
+    expect(switches).toEqual([['force-color-profile', 'srgb']])
   })
 })

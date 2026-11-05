@@ -11,7 +11,7 @@
  *   and Codex are given, and the `--repo` the `dm` invocation must be pinned to.
  * - **Environment**: `terminalEnv.ts`.
  *
- * A model that fails `isSafeModelId` (or is `default`) and a stored session id that is not a UUID are left out
+ * A model that fails `isSafeModelId` (or is `default`) and a stored session id that is not a UUID (OMP's are UUIDv7s, which this accepts) are left out
  * and listed in `dropped`, so the pane can say so. What no `.cmd` line can carry (the instructions text and the
  * kickoff) is returned as `pasteFirst`, for main to paste once the CLI is ready; `kickoffIn` says
  * where the kickoff went, so main can record it as sent. The chat Start run opened (one with a `runId`) has the
@@ -119,6 +119,10 @@ interface KindContext {
   instructionsPath: string
   instructionsText: string
   claudeSettings: string | undefined
+  /** OMP's per-chat session folder, config overlay and the Skitarii extension; absent for every other kind. */
+  ompSessionDir: string | undefined
+  ompConfig: string | undefined
+  ompExtension: string | undefined
   model: string | null
   /** A usable stored session id (a UUID), or null. */
   sessionId: string | null
@@ -239,11 +243,44 @@ function customLaunch(context: KindContext): KindLaunch {
   return { args: withPlaceholders(context.customArgs, values), pasteFirst: kickoff, kickoffIn: routeOf(kickoff, 'paste'), sessionId: null, resumed: false }
 }
 
+/**
+ * OMP (`docs/reports/omp-cli.md`, 3 to 5). `omp.exe` is a native program, so the line never goes through cmd.exe.
+ * The instructions go as `--append-system-prompt <file>` (a one-line value naming a readable file is read as the
+ * file), the kickoff as the positional first prompt, the chat's own `--session-dir` keeps its session apart and
+ * `--config` gives the launch an overlay that skips the first-run Setup wizard, and `-e` loads the app's Skitarii
+ * extension for this launch only (from the app's resources, never installed in the person's OMP folder). OMP mints the session id and cannot
+ * be given one, so nothing is recorded up front: a start resumes (`--resume <uuid>`) only once the session folder
+ * holds a session file, which the caller found and put in the chat as `sessionId` with `sessionStarted`.
+ */
+function ompLaunch(context: KindContext): KindLaunch {
+  const resumed = context.sessionStarted ? context.sessionId : null
+  const kickoff = kickoffFor(context, resumed !== null)
+  return {
+    args: [
+      '--cwd',
+      context.folder,
+      '--append-system-prompt',
+      context.instructionsPath,
+      ...(context.ompConfig === undefined ? [] : ['--config', context.ompConfig]),
+      ...(context.ompExtension === undefined ? [] : ['-e', context.ompExtension]),
+      ...(context.ompSessionDir === undefined ? [] : ['--session-dir', context.ompSessionDir]),
+      ...(context.model === null ? [] : ['--model', context.model]),
+      ...(resumed === null ? [] : ['--resume', resumed]),
+      ...(kickoff === null ? [] : [kickoff])
+    ],
+    pasteFirst: null,
+    kickoffIn: routeOf(kickoff, 'args'),
+    sessionId: resumed,
+    resumed: resumed !== null
+  }
+}
+
 const KIND_LAUNCHES: Record<AgentView['kind'], (context: KindContext) => KindLaunch> = {
   claude: claudeLaunch,
   autonomous: autonomousLaunch,
   codex: codexLaunch,
   cursor: cursorLaunch,
+  omp: ompLaunch,
   custom: customLaunch
 }
 
@@ -303,7 +340,7 @@ function checkedModel(input: TerminalLaunchInput, dropped: DroppedValue[]): stri
 function checkedSessionId(input: TerminalLaunchInput, dropped: DroppedValue[]): string | null {
   const { kind } = input.agent
   const { sessionId, sessionStarted } = input.chat
-  const used = kind === 'claude' || ((kind === 'codex' || kind === 'cursor') && sessionStarted)
+  const used = kind === 'claude' || ((kind === 'codex' || kind === 'cursor' || kind === 'omp') && sessionStarted)
   if (!used || sessionId === null) {
     return null
   }
@@ -360,6 +397,9 @@ export function terminalLaunchSpec(input: TerminalLaunchInput): TerminalLaunchSp
       ...(chat.cardId === undefined ? {} : { cardId: chat.cardId })
     }),
     claudeSettings: files.claudeSettings,
+    ompSessionDir: files.omp?.sessionDir,
+    ompConfig: files.omp?.config,
+    ompExtension: files.omp?.extension,
     model,
     sessionId,
     sessionStarted: chat.sessionStarted,

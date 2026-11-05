@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within, type BoundFunctions, type queries, type RenderResult } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within, type BoundFunctions, type queries, type RenderResult } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { ChatRecord } from '../../../shared/agents/chat'
@@ -13,6 +13,7 @@ import { installRootTokens, tokenSource } from '../__mocks__/rootTokens'
 import { settle } from '../__mocks__/settle'
 import { createLiveTerminals, LiveTerminalsContext, type LiveTerminals } from './liveTerminals'
 import { TerminalPane } from './TerminalPane'
+import { OUTPUT_QUIET_MS } from './useTerminal'
 import { rootTokens, terminalTheme } from './terminalTheme'
 
 const CHAT_A = chatRecord({ id: 'chat_a', folder: '/a', title: 'Fix the build', agent: 'claude', role: 'worker' })
@@ -112,6 +113,30 @@ describe('TerminalPane: a chat that does not start', () => {
     expect(details().getByText('Failed')).toBeTruthy()
     expect(notice()).toBe('No chat chat_a in /a.')
   })
+
+  it('marks the notice blocking when the CLI did not start, and not when it ran and then ended', async () => {
+    const blocking = (): boolean => screen.getByRole('status').classList.contains('is-blocking')
+    terminals.outcomes.chat_a = { state: 'refused', message: 'The folder /a moved.' }
+    await show()
+    expect(blocking()).toBe(true)
+    cleanup()
+
+    terminals.outcomes.chat_a = { state: 'failed', message: 'posix_spawnp failed.' }
+    await show()
+    expect(blocking()).toBe(true)
+    cleanup()
+
+    terminals.outcomes.chat_a = { state: 'signed_out', message: 'Claude Code is signed out.' }
+    await show()
+    expect(blocking()).toBe(true)
+    cleanup()
+
+    delete terminals.outcomes.chat_a
+    await show()
+    terminals.latest().emitExit(EXITED)
+    await settle()
+    expect(blocking()).toBe(false)
+  })
 })
 
 describe('TerminalPane screen', () => {
@@ -144,6 +169,83 @@ describe('TerminalPane screen', () => {
     expect(options.theme.background).toBe(tokenSource('--code-bg'))
     expect(options.fontFamily).toBe(rootTokens(document)('--font-mono'))
     expect(options.fontFamily).toContain('IBM Plex Mono')
+  })
+})
+
+describe('TerminalPane theme', () => {
+  const OMP_CHAT = chatRecord({ id: 'chat_o', folder: '/a', title: 'OMP chat', agent: 'omp' })
+  const frame = (): HTMLElement => host().parentElement as HTMLElement
+
+  it('shows an OMP chat in OMP\u2019s theme over the tokens, with the frame around it in its background, reading the theme when the chat opens', async () => {
+    installRootTokens()
+    const dm = window.dm as FakeDm
+    dm.ompTheme = { background: '#101820', red: '#ff0033' }
+    await show(OMP_CHAT)
+
+    const { theme } = kit.latest().options
+    expect(theme).toEqual({ ...terminalTheme(rootTokens(document)), background: '#101820', red: '#ff0033' })
+    expect(frame().style.background).toBe('rgb(16, 24, 32)')
+    expect(dm.agentCalls.filter((call) => call.method === 'ompTerminalTheme')).toHaveLength(1)
+  })
+
+  it('keeps the app palette when OMP has no theme to show, and for a Claude chat without asking', async () => {
+    installRootTokens()
+    const dm = window.dm as FakeDm
+    await show(OMP_CHAT)
+    expect(kit.latest().options.theme).toEqual(terminalTheme(rootTokens(document)))
+    expect(frame().style.background).toBe('')
+    cleanup()
+
+    dm.ompTheme = { background: '#101820' }
+    dm.agentCalls = []
+    await show(CHAT_A)
+    expect(kit.latest().options.theme).toEqual(terminalTheme(rootTokens(document)))
+    expect(frame().style.background).toBe('')
+    expect(dm.agentCalls.filter((call) => call.method === 'ompTerminalTheme')).toHaveLength(0)
+  })
+})
+
+describe('TerminalPane Skitarii header', () => {
+  const OMP_CHAT = chatRecord({ id: 'chat_o', folder: '/a', title: 'OMP chat', agent: 'omp' })
+  const mascot = (): Element | null => document.querySelector('.skitarii-mascot')
+  const quiet = (): void => act(() => scheduler.fireTimeouts(OUTPUT_QUIET_MS))
+
+  it('dresses an OMP chat’s header with the mascot, and leaves a Claude chat’s alone', async () => {
+    await show(OMP_CHAT)
+    expect(mascot()).not.toBeNull()
+    expect(document.querySelector('.chat-header.is-skitarii')).not.toBeNull()
+    expect(document.querySelector('.chat-header .eyebrow')?.textContent).toBe('Claude Code')
+    expect(document.querySelector('.terminal-frame.is-skitarii')).not.toBeNull()
+    expect(details().getByText('Running')).toBeTruthy()
+    cleanup()
+
+    await show(CHAT_A)
+    expect(mascot()).toBeNull()
+    expect(document.querySelector('.chat-header.is-skitarii')).toBeNull()
+    expect(document.querySelector('.chat-header .eyebrow')?.textContent).toBe('CHAT')
+    expect(document.querySelector('.terminal-frame.is-skitarii')).toBeNull()
+  })
+
+  it('drills while output arrives and idles again after the quiet period', async () => {
+    await show(OMP_CHAT)
+    const state = (): string | undefined => (mascot() as HTMLElement).dataset.working
+    expect(state()).toBe('false')
+    act(() => terminals.latest().emitOutput('hello'))
+    expect(state()).toBe('true')
+    // More output restarts the quiet period.
+    act(() => terminals.latest().emitOutput('more'))
+    expect(scheduler.timeouts().filter((ms) => ms === OUTPUT_QUIET_MS)).toHaveLength(1)
+    quiet()
+    expect(state()).toBe('false')
+    expect(document.querySelector('.skitarii-mascot .pg-mascot-sprite')?.getAttribute('data-action')).toBe('idle')
+    act(() => terminals.latest().emitOutput('again'))
+    expect(document.querySelector('.skitarii-mascot .pg-mascot-sprite')?.getAttribute('data-action')).toBe('drill')
+  })
+
+  it('does not count the painted snapshot as output', async () => {
+    terminals.screens.chat_o = 'old screen'
+    await show(OMP_CHAT)
+    expect((mascot() as HTMLElement).dataset.working).toBe('false')
   })
 })
 

@@ -40,3 +40,12 @@ export function removeWindowMenuBar(platform: NodeJS.Platform, clearMenu: () => 
   }
   return false
 }
+
+/**
+ * Render in plain sRGB. Without this Chromium colour-manages the whole window to the display's ICC profile,
+ * so theme colours show shifted (#ea4134 reads back as #d7513d). Theme colours must be the exact values,
+ * as a terminal shows them. Must run before the app is ready.
+ */
+export function applyColorProfile(commandLine: { appendSwitch: (name: string, value?: string) => void }): void {
+  commandLine.appendSwitch('force-color-profile', 'srgb')
+}

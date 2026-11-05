@@ -262,6 +262,7 @@ function rigDeps(rig: RigBase, options: RigOptions): TerminalSessionsDeps {
     host: async () => rig.host,
     killTree: rigKillTree(rig, options),
     userData: rig.userData,
+    ompExtension: '/app/resources/skitarii/extension/index.ts',
     platform: 'darwin',
     env: { PATH: '/usr/bin:/bin', HOME: rig.root },
     newSessionId: () => sessionIdNumber((sessions += 1)),

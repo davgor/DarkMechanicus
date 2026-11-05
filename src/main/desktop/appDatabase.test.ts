@@ -84,11 +84,11 @@ afterEach(() => {
 })
 
 describe('openAppDatabase', () => {
-  it('creates app.sqlite at user_version 3 with the three tables', () => {
+  it('creates app.sqlite at user_version 4 with the three tables', () => {
     const dir = tempDir()
     const db = open(dir)
     expect(existsSync(join(dir, 'app.sqlite'))).toBe(true)
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(3)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(4)
     const tables = db
       .all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
       .map((row) => row.name)
@@ -119,13 +119,13 @@ describe('openAppDatabase on a file already there', () => {
     open(dir).close()
     openDbs.length = 0
     const db = open(dir)
-    expect(migrate(db, APP_MIGRATIONS)).toEqual({ from: 3, to: 3 })
+    expect(migrate(db, APP_MIGRATIONS)).toEqual({ from: 4, to: 4 })
   })
 
   it('refuses a database at a newer user_version with incompatible_schema', () => {
     const dir = tempDir()
     const raw = openDatabase(join(dir, 'app.sqlite'))
-    raw.exec('PRAGMA user_version = 4')
+    raw.exec('PRAGMA user_version = 5')
     raw.close()
     const error = thrownBy(() => open(dir))
     expect(error).toBeInstanceOf(DomainError)
@@ -142,7 +142,7 @@ describe('openAppDatabase on a file already there', () => {
     )
     raw.close()
     const db = open(dir)
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(3)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(4)
     expect(db.get('SELECT id, args_json, needs_review FROM agents')).toEqual({ id: 'cu_1', args_json: '["{folder}"]', needs_review: 1 })
   })
 })
@@ -150,7 +150,7 @@ describe('openAppDatabase on a file already there', () => {
 describe('upgrading an app.sqlite at today’s schema (v2): the protocol goes, ACP and Codex custom rows need review', () => {
   it('drops the protocol column, and the agent name the handshake reported', () => {
     const db = upgraded()
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(3)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(4)
     expect(columnsOf(db, 'agents')).not.toContain('protocol')
     expect(columnsOf(db, 'agents')).not.toContain('reported_name')
     expect(db.get<{ sql: string }>("SELECT sql FROM sqlite_master WHERE name = 'agents'")?.sql).not.toMatch(/protocol|reported_name/)
@@ -199,6 +199,53 @@ describe('upgrading an app.sqlite at today’s schema (v2): what else the upgrad
     const db = upgraded()
     expect(thrownBy(() => insertAgent(db, 'other', 'claude'))).toBeInstanceOf(Error)
     expect(thrownBy(() => db.run("UPDATE agents SET needs_review = 2 WHERE id = 'codex'"))).toBeInstanceOf(Error)
+  })
+})
+
+describe('upgrading an app.sqlite at v3: omp becomes a kind', () => {
+  function writeV3(dir: string): void {
+    const raw = openDatabase(join(dir, 'app.sqlite'))
+    migrate(raw, APP_MIGRATIONS.filter((migration) => migration.version <= 3))
+    const columns = 'id, kind, display_name, executable_path, args_json, version, connected_via, connected_at, last_probed, needs_review'
+    raw.run(`INSERT INTO agents (${columns}) VALUES ('autonomous', 'autonomous', 'Autonomous', '/bin/a8s', '[]', '0.79.0', 'found', 't1', 't2', 0)`)
+    raw.run(`INSERT INTO agents (${columns}) VALUES ('cu_1', 'custom', 'My CLI', '/opt/my cli', '["--x"]', NULL, 'custom', 't3', 't4', 1)`)
+    raw.run("INSERT INTO folder_agent_defaults (folder, agent_id, updated_at) VALUES ('/repos/a', 'autonomous', 't5')")
+    raw.run("INSERT INTO app_meta (key, value) VALUES ('k', 'v')")
+    expect(raw.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(3)
+    raw.close()
+  }
+
+  it('keeps every agent row and column, including a custom and an autonomous row, and the folder defaults', () => {
+    const dir = tempDir()
+    writeV3(dir)
+    const db = open(dir)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(4)
+    expect(columnsOf(db, 'agents')).toEqual(['id', 'kind', 'display_name', 'executable_path', 'args_json', 'version', 'connected_via', 'connected_at', 'last_probed', 'needs_review'])
+    expect(db.all('SELECT * FROM agents ORDER BY rowid')).toEqual([
+      { id: 'autonomous', kind: 'autonomous', display_name: 'Autonomous', executable_path: '/bin/a8s', args_json: '[]', version: '0.79.0', connected_via: 'found', connected_at: 't1', last_probed: 't2', needs_review: 0 },
+      { id: 'cu_1', kind: 'custom', display_name: 'My CLI', executable_path: '/opt/my cli', args_json: '["--x"]', version: null, connected_via: 'custom', connected_at: 't3', last_probed: 't4', needs_review: 1 }
+    ])
+    expect(db.all('SELECT folder, agent_id, updated_at FROM folder_agent_defaults')).toEqual([{ folder: '/repos/a', agent_id: 'autonomous', updated_at: 't5' }])
+    expect(db.all('SELECT key, value FROM app_meta')).toEqual([{ key: 'k', value: 'v' }])
+  })
+
+  it('accepts an omp row, still cascades deletes to the defaults, and keeps the other checks', () => {
+    const dir = tempDir()
+    writeV3(dir)
+    const db = open(dir)
+    insertAgent(db, 'omp', 'omp')
+    db.run("INSERT INTO folder_agent_defaults (folder, agent_id, updated_at) VALUES ('/repos/b', 'omp', 't6')")
+    expect(db.all('SELECT id, kind FROM agents WHERE kind = ?', 'omp')).toEqual([{ id: 'omp', kind: 'omp' }])
+    db.run("DELETE FROM agents WHERE id = 'omp'")
+    expect(db.all('SELECT folder FROM folder_agent_defaults')).toEqual([{ folder: '/repos/a' }])
+    expect(thrownBy(() => insertAgent(db, 'other', 'omp'))).toBeInstanceOf(Error)
+    expect(thrownBy(() => insertAgent(db, 'unknown', 'unknown'))).toBeInstanceOf(Error)
+  })
+
+  it('accepts an omp row on a fresh database', () => {
+    const db = open(tempDir())
+    insertAgent(db, 'omp', 'omp')
+    expect(db.all('SELECT id FROM agents')).toEqual([{ id: 'omp' }])
   })
 })
 

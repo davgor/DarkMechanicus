@@ -32,6 +32,7 @@ export function agentModels(kind: AgentView['kind']): AgentModels {
     case 'claude':
       return { kind: 'list', models: CLAUDE_MODELS }
     case 'autonomous':
+    case 'omp':
       return { kind: 'free' }
     default:
       return { kind: 'cli' }

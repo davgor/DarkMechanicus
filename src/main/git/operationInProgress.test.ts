@@ -139,7 +139,8 @@ describe('whose side Use mine takes', () => {
     const other = repo()
     stoppedRebaseAtMerge(other)
     expect(await resolvedWith(other, 'theirs')).toBe('side\n')
-  })
+    // Two repositories each stopped at a real `git rebase -r`: a few seconds alone, past vitest's 15 s on a loaded Windows CI runner.
+  }, 60_000)
 
   it('while a rebase replays a commit: the replayed commit is mine and the upstream theirs (swapped)', async () => {
     for (const backend of ['--merge', '--apply']) {
@@ -152,7 +153,8 @@ describe('whose side Use mine takes', () => {
         expect(await resolvedWith(r, button)).toBe(button === 'mine' ? 'topic\n' : 'main\n')
       }
     }
-  })
+    // Several real git rebases: a few seconds alone, but past vitest's 15 s on a loaded Windows CI runner.
+  }, 60_000)
 
   it('in a merge, a cherry-pick and a git am: the current branch is mine', async () => {
     const merged = repo()
@@ -171,7 +173,8 @@ describe('whose side Use mine takes', () => {
     applied.git('format-patch', '-q', '-o', patches.path, 'main..topic')
     expect(() => applied.git('am', '-3', join(patches.path, '0001-topic-change.patch'))).toThrow()
     expect(await resolvedWith(applied, 'mine')).toBe('main\n')
-  })
+    // Three real-git repositories (a merge, a cherry-pick and a git am): 20 s on PR #16's loaded Windows CI runner, past vitest's 15 s.
+  }, 60_000)
 })
 
 describe('a git am in progress', () => {

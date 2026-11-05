@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
 import { installRootTokens, tokenSource } from '../__mocks__/rootTokens'
-import { rootTokens, terminalTheme, type TerminalTheme } from './terminalTheme'
+import { chatTerminalTheme, rootTokens, terminalTheme, type TerminalTheme } from './terminalTheme'
 
 /** A token of styles.css without its spaces: the browser serializes `rgba(1, 2, 3, 0.2)` without them. */
 const token = (name: string): string => tokenSource(name).replace(/\s/g, '')
@@ -46,6 +46,39 @@ describe('terminalTheme', () => {
   it('leaves a color whose token is missing to xterm', () => {
     const tokens: Record<string, string> = { '--code-bg': '#000000', '--ink': ' #ffffff ' }
     expect(terminalTheme((name) => (tokens[name] ?? '').trim())).toEqual({ background: '#000000', foreground: '#ffffff', cursorAccent: '#000000' })
+  })
+})
+
+describe('chatTerminalTheme', () => {
+  const OMP = { background: '#101820', foreground: '#e0e0e0', red: '#ff0033', brightBlack: '#667788' }
+
+  it('lets an OMP chat take OMP\u2019s theme key by key, with every other key from the app tokens', () => {
+    installRootTokens()
+    const read = rootTokens(document)
+
+    const theme = chatTerminalTheme(read, 'omp', OMP)
+
+    expect(theme).toEqual({ ...terminalTheme(read), ...OMP })
+    expect(theme.background).toBe('#101820')
+    expect(theme.green).toBe(terminalTheme(read).green)
+    expect(theme.cursor).toBe(terminalTheme(read).cursor)
+  })
+
+  it('keeps the app palette for an OMP chat with no theme, and for every other agent', () => {
+    installRootTokens()
+    const read = rootTokens(document)
+
+    expect(chatTerminalTheme(read, 'omp', null)).toEqual(terminalTheme(read))
+    expect(chatTerminalTheme(read, 'claude', OMP)).toEqual(terminalTheme(read))
+    expect(chatTerminalTheme(read, 'cu_custom1', OMP)).toEqual(terminalTheme(read))
+  })
+
+  it('ignores a value that is not a #rrggbb color and a key xterm does not have', () => {
+    const read = (name: string): string => (name === '--code-bg' ? '#000000' : '')
+
+    const theme = chatTerminalTheme(read, 'omp', { background: 'url(x)', red: 'red', foreground: '#fff', nope: '#123456' } as TerminalTheme)
+
+    expect(theme).toEqual({ background: '#000000', cursorAccent: '#000000' })
   })
 })
 

@@ -114,7 +114,8 @@ describe('deleting a remote branch that a rebase holds', () => {
     expect(() => gitIn(wt, 'rebase', '-q', '--exec', 'false', 'HEAD~1')).toThrow()
     await expect(deleteBranch(deps, local.root, { name: 'x', deleteRemote: true, force: true })).rejects.toThrow(/worktree/)
     expect(gitIn(bare, 'rev-parse', '--verify', '-q', 'refs/heads/x').trim()).not.toBe('')
-  })
+    // Several real git rebases: a few seconds alone, but past vitest's 15 s on a loaded Windows CI runner.
+  }, 60_000)
 
   it('refuses a branch this worktree is rebasing (HEAD detached), before touching the remote', async () => {
     const { local, bare } = pushedTopic()

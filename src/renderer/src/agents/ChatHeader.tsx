@@ -9,6 +9,10 @@ interface ChatHeaderProps {
   agentName: string
   /** What stands after the agent: the state of the chat's terminal. */
   fact: ReactNode
+  /** The title the chat's terminal set (OSC 0): shown as a line under the chat's own title; nothing when empty or absent. */
+  terminalTitle?: string
+  /** A Skitarii chat's mascot: dresses the header in the app's Mechanicus style and takes the place of the CHAT eyebrow's agent line. */
+  mascot?: ReactNode
 }
 
 const saveText = (chat: ChatRecord): string => (chat.allowSave && canSavePlans(chat.role) ? 'Allowed to save plans' : 'Does not save plans')
@@ -17,15 +21,21 @@ const saveText = (chat: ChatRecord): string => (chat.allowSave && canSavePlans(c
  * What the chat is: title, agent, the fact the view puts after it (the terminal's state), role. The agent
  * is text only, since a chat keeps its agent for life; its model is the CLI's own `/model` to change.
  */
-export function ChatHeader({ chat, agentName, fact }: ChatHeaderProps): JSX.Element {
+export function ChatHeader({ chat, agentName, fact, terminalTitle, mascot }: ChatHeaderProps): JSX.Element {
   return (
-    <header className="chat-header">
-      <span className="eyebrow">CHAT</span>
+    <header className={mascot === undefined ? 'chat-header' : 'chat-header is-skitarii'}>
+      <span className="eyebrow">{mascot === undefined ? 'CHAT' : agentName}</span>
       <div className="chat-title-row">
         <h1 className="display chat-title">{chat.title}</h1>
       </div>
+      {terminalTitle === undefined || terminalTitle === '' ? null : (
+        <p className="chat-terminal-title" data-testid="chat-terminal-title" title={terminalTitle}>
+          {terminalTitle}
+        </p>
+      )}
+      {mascot}
       <ul className="chat-facts" aria-label="Chat details">
-        <li>{agentName}</li>
+        {mascot === undefined ? <li>{agentName}</li> : null}
         <li className="chat-model">{fact}</li>
         <li>
           <span className="chat-chip">{ROLE_LABELS[chat.role]}</span>

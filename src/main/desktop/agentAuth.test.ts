@@ -54,11 +54,129 @@ const A8S_SIGNED_IN =
 const A8S_OKTA_ONLY = '✓ Okta  signed in as dev@example.com\n0 problems, 0 warnings.\n'
 const A8S_ROUTE_FAILED = '✗ Model route  Claude subscription · anthropic/claude-opus-5-5 · signed in · token refresh failed\n'
 
+/**
+ * OMP `omp usage --json`. OMP_SIGNED_OUT and OMP_SIGNED_IN_RECORDED are recordings (docs/reports/omp-cli.md section 5,
+ * exit 0; the signed-in one has its account identifiers redacted). OMP_SIGNED_IN is a minimal hand-built shape.
+ */
+const OMP_SIGNED_OUT = `{
+  "generatedAt": 1793674471240,
+  "reports": [],
+  "accountsWithoutUsage": [],
+  "disabledCredentials": [],
+  "capacity": {}
+}
+`
+const OMP_SIGNED_IN = `{
+  "generatedAt": 1793674471240,
+  "reports": [{ "provider": "anthropic", "fetchedAt": 1793674471000, "limits": [] }],
+  "accountsWithoutUsage": [],
+  "disabledCredentials": [],
+  "capacity": {}
+}
+`
+
+const OMP_SIGNED_IN_RECORDED = `{
+  "generatedAt": 1793904116694,
+  "reports": [
+    {
+      "provider": "anthropic",
+      "fetchedAt": 1793904116422,
+      "limits": [
+        {
+          "id": "anthropic:7d",
+          "label": "Claude 7 Day",
+          "scope": {
+            "provider": "anthropic",
+            "windowId": "7d",
+            "shared": true
+          },
+          "window": {
+            "id": "7d",
+            "label": "7 Day",
+            "durationMs": 604800000,
+            "resetsAt": 1794261599511
+          },
+          "amount": {
+            "used": 5,
+            "limit": 100,
+            "remaining": 95,
+            "usedFraction": 0.05,
+            "remainingFraction": 0.95,
+            "unit": "percent"
+          },
+          "status": "ok"
+        },
+        {
+          "id": "anthropic:7d:fable",
+          "label": "Claude 7 Day (Fable)",
+          "scope": {
+            "provider": "anthropic",
+            "windowId": "7d",
+            "tier": "fable"
+          },
+          "window": {
+            "id": "7d",
+            "label": "7 Day",
+            "durationMs": 604800000,
+            "resetsAt": 1794261600000
+          },
+          "amount": {
+            "used": 0,
+            "limit": 100,
+            "remaining": 100,
+            "usedFraction": 0,
+            "remainingFraction": 1,
+            "unit": "percent"
+          },
+          "status": "ok"
+        }
+      ],
+      "metadata": {
+        "endpoint": "https://api.anthropic.com/api/oauth/usage",
+        "accountId": "<redacted>",
+        "email": "<redacted>",
+        "orgId": "<redacted>",
+        "orgName": "<redacted>"
+      },
+      "resetCredits": {
+        "availableCount": 0,
+        "redeemableCount": 0,
+        "eligible": false,
+        "reason": "not_at_wall",
+        "credits": []
+      }
+    }
+  ],
+  "accountsWithoutUsage": [],
+  "disabledCredentials": [],
+  "capacity": {
+    "anthropic": [
+      {
+        "window": "7d",
+        "durationMs": 604800000,
+        "accounts": 1,
+        "usedAccounts": 0.05,
+        "remainingAccounts": 0.95
+      },
+      {
+        "window": "7d",
+        "durationMs": 604800000,
+        "meter": "fable",
+        "accounts": 1,
+        "usedAccounts": 0,
+        "remainingAccounts": 1
+      }
+    ]
+  }
+}
+`
+
 const POSIX_PATHS: Record<BuiltInAgentKind, string> = {
   claude: '/home/me/.local/bin/claude',
   codex: '/usr/local/bin/codex',
   cursor: '/home/me/.local/bin/agent',
-  autonomous: '/home/me/.local/bin/a8s'
+  autonomous: '/home/me/.local/bin/a8s',
+  omp: '/home/me/.local/bin/omp'
 }
 
 interface Run {
@@ -106,7 +224,7 @@ describe('status maps each CLI output to signed_in, signed_out or unknown', () =
     ['cursor', 0, CURSOR_NOT_AUTHENTICATED, 'signed_out'],
     ['autonomous', 0, A8S_SIGNED_IN, 'signed_in'],
     ['autonomous', DOCTOR_SIGNED_OUT.exitCode, DOCTOR_SIGNED_OUT.output, 'signed_out'],
-    ['autonomous', DOCTOR_NO_PROFILE.exitCode, DOCTOR_NO_PROFILE.output, 'signed_out']
+    ['autonomous', DOCTOR_NO_PROFILE.exitCode, DOCTOR_NO_PROFILE.output, 'signed_out'],
   ] as const)('%s exit %i with a recorded output is %s', async (kind, exitCode, output, state) => {
     expect((await statusOf(kind, exited(exitCode, output))).state).toBe(state)
   })
@@ -141,6 +259,33 @@ describe('status maps each CLI output to signed_in, signed_out or unknown', () =
     expect((await statusOf('autonomous', exited(1, output))).state).toBe(state)
   })
 
+})
+
+describe('status for OMP reads the account lists of `omp usage --json`', () => {
+  it.each([
+    ['signed in: an account in reports', 0, OMP_SIGNED_IN, 'signed_in'],
+    ['signed in: the real recording, accounts redacted', 0, OMP_SIGNED_IN_RECORDED, 'signed_in'],
+    ['signed in: an account without usage figures', 0, '{"reports":[],"accountsWithoutUsage":[{"provider":"anthropic"}],"disabledCredentials":[],"capacity":{}}\n', 'signed_in'],
+    ['signed out: every list empty', 0, OMP_SIGNED_OUT, 'signed_out'],
+    ['signed out, ANSI-coloured', 0, `\u001b[32m${OMP_SIGNED_OUT}\u001b[0m`, 'signed_out'],
+    ['signed out with a text message and exit 1', 1, 'No credentials found. Run `omp` and use /login to add accounts.\n', 'unknown'],
+    ['a signed-out JSON document with exit 1', 1, OMP_SIGNED_OUT, 'unknown'],
+    ['not JSON', 0, 'not json at all\n', 'unknown'],
+    ['a models list is not a sign-in answer', 0, '{"models":[]}\n', 'unknown'],
+    ['only a disabled credential', 0, '{"reports":[],"accountsWithoutUsage":[],"disabledCredentials":[{"provider":"anthropic"}],"capacity":{}}\n', 'unknown']
+  ] as const)('%s', async (_label, exitCode, output, state) => {
+    expect((await statusOf('omp', exited(exitCode, output))).state).toBe(state)
+  })
+
+  it('says in words which way OMP answered, naming the agent by its display name', async () => {
+    expect(await statusOf('omp', exited(0, OMP_SIGNED_IN))).toEqual({ state: 'signed_in', reason: 'Skitarii reports it is signed in.' })
+    expect(await statusOf('omp', exited(0, OMP_SIGNED_OUT))).toEqual({ state: 'signed_out', reason: 'Skitarii reports it is not signed in.' })
+  })
+
+  it('tells an answer it does not recognise from a status command that failed, by exit code', async () => {
+    expect((await statusOf('omp', exited(0, 'not json at all\n'))).reason).toBe('Skitarii answered in a way this app does not recognise.')
+    expect((await statusOf('omp', exited(3, 'not json at all\n'))).reason).toBe("Skitarii's status command reported an error (exit code 3).")
+  })
 })
 
 describe('status reads only what the CLI said', () => {

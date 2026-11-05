@@ -1,3 +1,4 @@
+import type { TerminalColors } from '../../../shared/agents/terminalColors'
 import type { CommandName } from '../../../shared/domain/api'
 import { deferred } from './deferred'
 import { FakeChats } from './fakeChats'
@@ -217,6 +218,12 @@ export class FakeDm implements DmApi {
       [kind],
       () => this.agentStatuses[kind] ?? { state: 'unknown', reason: 'Not connected yet.' }
     )
+  }
+
+  ompTheme: TerminalColors | null = null
+
+  ompTerminalTheme(): Promise<TerminalColors | null> {
+    return this.agentCall('ompTerminalTheme', [], () => this.ompTheme)
   }
 
   folderDefaultAgent(folder: string): Promise<AgentId | null> {

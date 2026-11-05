@@ -1,0 +1,15 @@
+
+                                            ████████████
+                                               ██  ██       ▄▀▀▄ █▀▄▀▄ █▀▀▄
+                                               ██  ██       ▀▄▄▀ █ █ █ █▄▄▀
+                                               ▒▒  ██                  █
+                                                   ██       v18.16.0
+
+                                        Tip: You can /btw to ask a side question
+
+ Error: No API key found for anthropic.
+
+ Use /login, set an API key environment variable, or create C:\Users\davgo\.omp\agent\agent.db
+
+ π > ◒ Opus 5.5 > 🗑 …9c1e-531c9afb4fd7\scratchpad\work\other ▶─1%──────────────────────────────────────────╎─┃───────1M─
+╰─ say his

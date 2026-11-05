@@ -16,7 +16,7 @@
     "package:win": "electron-vite build && electron-builder --win --publish never",
     "package:mac": "electron-vite build && electron-builder --mac --publish never",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p fireguard/tsconfig.json",
-    "lint": "oxlint src scripts",
+    "lint": "oxlint src scripts resources/skitarii/extension",
     "test": "vitest run && vitest run --config fireguard/vitest.config.ts",
     "test:fireguard": "vitest run --config fireguard/vitest.config.ts",
     "coverage": "vitest run --coverage",
@@ -27,12 +27,15 @@
     "dm": "node out/main/cli.js",
     "smoke:mcp": "node scripts/mcp-smoke.mjs",
     "spike:claims": "tsx scripts/spike/claim-stress.ts",
-    "postinstall": "node scripts/ptyHelperMode.mjs"
+    "postinstall": "node scripts/ptyHelperMode.mjs && node scripts/xtermGraphemesPatch.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.31.0",
+    "@xterm/addon-clipboard": "^0.2.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-serialize": "^0.14.0",
+    "@xterm/addon-unicode-graphemes": "^0.4.0",
+    "@xterm/addon-web-links": "^0.12.0",
     "@xterm/addon-webgl": "^0.19.0",
     "@xterm/headless": "^6.0.0",
     "@xterm/xterm": "^6.0.0",
@@ -85,7 +88,14 @@
       "output": "release"
     },
     "files": [
-      "out/**/*"
+      "out/**/*",
+      "THIRD_PARTY_NOTICES.md"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/skitarii",
+        "to": "skitarii"
+      }
     ],
     "asarUnpack": [
       "node_modules/node-pty/**"

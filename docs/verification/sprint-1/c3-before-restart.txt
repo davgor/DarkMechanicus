@@ -1,0 +1,7 @@
+session file: ud/agents/omp/chat_ba76a90a-192e-401e-aa65-f3d6e11f31e3/sessions/2026-11-03T12-26-52-602Z_01a1a160-693a-71ae-be48-431517fff262.jsonl
+kickoff occurrences (before restart): 1
+session ids in folder: 1
+-rw-r--r-- 1 davgo 197609 4183 Nov  3 06:27 ud/agents/omp/chat_ba76a90a-192e-401e-aa65-f3d6e11f31e3/sessions/2026-11-03T12-26-52-602Z_01a1a160-693a-71ae-be48-431517fff262.jsonl
+{"type":"title","v":1,"title":"","updatedAt":"2026-11-03T12:26:52.602Z","pad":"                                                                                                                                                                              "}
+{"type":"session","version":3,"id":"01a1a160-693a-71ae-be48-431517fff262","timestamp":"2026-11-03T12:26:52.602Z","cwd":"C:\\Users\\davgo\\AppData\\Local\\Temp\\claude\\5b2748231b82b70c\\46f2df57-16a2-475c-9c1e-531c9afb4fd7\\scratchpad\\s404\\repo"}
+{"type":"model_change","id":"7e4fea75","parentId":null,"timestamp":"2026-11-03T12:26:52.693Z","

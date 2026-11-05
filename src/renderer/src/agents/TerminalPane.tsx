@@ -5,6 +5,7 @@ import type { Scheduler } from '../app/scheduler'
 import { Button } from '../components/Button'
 import { StatePill, type PillState } from '../components/StatePill'
 import { ChatHeader } from './ChatHeader'
+import { SkitariiMascot } from './SkitariiMascot'
 import { EarlierConversation } from './EarlierConversation'
 import { SignInTerminal } from './SignInTerminal'
 import type { TerminalKit } from './terminalView'
@@ -106,6 +107,28 @@ function Ended({ notice, resumed, startAgain }: EndedProps): JSX.Element {
   )
 }
 
+/** The frame around the terminal: hidden while the CLI did not start, and Skitarii's (brass hairline) for an OMP chat. */
+function frameClass(notStarted: boolean, skitarii: boolean): string {
+  return ['terminal-frame', notStarted ? 'is-empty' : '', skitarii ? 'is-skitarii' : ''].filter(Boolean).join(' ')
+}
+
+interface PhaseStatusProps extends Omit<SignInCardProps, 'message' | 'onSignedIn'> {
+  phase: TerminalPhase
+  notice: JSX.Element | null
+  startAgain(options: { newSession: boolean }): void
+}
+
+/** What stands above the terminal for the phase: the sign-in card, the exit with Start again, or the phase's notice. */
+function PhaseStatus({ phase, notice, startAgain, ...card }: PhaseStatusProps): JSX.Element | null {
+  if (phase.state === 'signed_out') {
+    return <SignInCard {...card} message={phase.message} onSignedIn={() => startAgain({ newSession: false })} />
+  }
+  if (phase.state === 'exited' || phase.state === 'stopped') {
+    return <Ended notice={notice} resumed={phase.resumed} startAgain={startAgain} />
+  }
+  return notice
+}
+
 /**
  * An open chat in the main area (`docs/design/chat-shells.md`, "In the app's window"): the chat's header, with
  * the terminal's state where the model was, then its terminal filling the rest of `app-main`, in this window.
@@ -119,17 +142,19 @@ function Ended({ notice, resumed, startAgain }: EndedProps): JSX.Element {
  * terminal, which opens that transcript read-only (`EarlierConversation.tsx`).
  */
 export function TerminalPane({ folder, chat, agentName, kit, scheduler, onAgentStatus }: TerminalPaneProps): JSX.Element {
-  const { host, phase, focus, startAgain } = useTerminal({ folder, chatId: chat.id, kit, scheduler })
+  const { host, phase, background, working, title, focus, startAgain } = useTerminal({ folder, chatId: chat.id, agent: chat.agent, kit, scheduler })
   const pill = PHASE_PILLS[phase.state]
+  const skitarii = chat.agent === 'omp'
   // The host stays laid out while the attach is answered, so the emulator opens at the pane's real size.
   const notStarted = phase.state === 'signed_out' || phase.state === 'refused' || phase.state === 'failed'
-  const ended = phase.state === 'exited' || phase.state === 'stopped' ? phase : null
   const notice = 'message' in phase ? <PhaseNotice message={phase.message} blocking={notStarted} /> : null
   return (
     <section className="terminal-pane" aria-label={`Terminal of ${chat.title}`}>
       <ChatHeader
         chat={chat}
         agentName={agentName}
+        terminalTitle={title}
+        mascot={skitarii ? <SkitariiMascot working={working} /> : undefined}
         fact={
           <>
             <span className="chat-fact-label">Terminal</span>
@@ -138,22 +163,12 @@ export function TerminalPane({ folder, chat, agentName, kit, scheduler, onAgentS
         }
       />
       <EarlierConversation folder={folder} chat={chat} agentName={agentName} />
-      {phase.state === 'signed_out' ? (
-        <SignInCard
-          chat={chat}
-          agentName={agentName}
-          message={phase.message}
-          kit={kit}
-          scheduler={scheduler}
-          onAgentStatus={onAgentStatus}
-          onSignedIn={() => startAgain({ newSession: false })}
-        />
-      ) : ended === null ? (
-        notice
-      ) : (
-        <Ended notice={notice} resumed={ended.resumed} startAgain={startAgain} />
-      )}
-      <div className={notStarted ? 'terminal-frame is-empty' : 'terminal-frame'} onClick={focus}>
+      <PhaseStatus phase={phase} chat={chat} agentName={agentName} notice={notice} kit={kit} scheduler={scheduler} onAgentStatus={onAgentStatus} startAgain={startAgain} />
+      <div
+        className={frameClass(notStarted, skitarii)}
+        style={background === null ? undefined : { background }}
+        onClick={focus}
+      >
         <div ref={host} className="terminal-host" data-testid="terminal-host" />
       </div>
     </section>

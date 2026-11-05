@@ -3,6 +3,7 @@ import type { Node, Viewport } from '@xyflow/react'
 import { usePersistentState } from '../app/usePersistentState'
 import { ticketSurfaces } from './geometry'
 import { MascotSprite } from './MascotSprite'
+import { useMotionPreference, usePageVisible } from './motionGuards'
 import { createMotion, stepMotion, type MotionState, type MotionSurfaces } from './motion'
 import { createShakeState, resetShake, stepShake, type ShakeViewport } from './shake'
 
@@ -29,28 +30,6 @@ function useBoardSize(board: RefObject<HTMLElement>): { width: number; height: n
     return () => observer.disconnect()
   }, [board])
   return size
-}
-
-function useMotionPreference(): boolean {
-  const [reduced, setReduced] = useState(() => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false)
-  useEffect(() => {
-    const media = window.matchMedia?.('(prefers-reduced-motion: reduce)')
-    if (!media) return
-    const changed = () => setReduced(media.matches)
-    media.addEventListener('change', changed)
-    return () => media.removeEventListener('change', changed)
-  }, [])
-  return reduced
-}
-
-function usePageVisible(): boolean {
-  const [visible, setVisible] = useState(() => !document.hidden)
-  useEffect(() => {
-    const changed = () => setVisible(!document.hidden)
-    document.addEventListener('visibilitychange', changed)
-    return () => document.removeEventListener('visibilitychange', changed)
-  }, [])
-  return visible
 }
 
 function useMascotMotion(surfaces: MotionSurfaces, active: boolean): { motion: MotionState; playbackMs: number } {

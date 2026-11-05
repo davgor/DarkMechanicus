@@ -12,13 +12,27 @@ import type { RefObject } from 'react'
 import type { TerminalAttachment, TerminalExit, TerminalHandle, TerminalState } from '../../../shared/agents/terminalApi'
 import type { CommandResult } from '../../../shared/desktop/api'
 import type { Scheduler } from '../app/scheduler'
-import { LiveTerminalsContext } from './liveTerminals'
+import type { TerminalColors } from '../../../shared/agents/terminalColors'
+import { LiveTerminalsContext, type LiveTerminals } from './liveTerminals'
 import { inputChunks } from './terminalInput'
-import { rootTokens, TERMINAL_FONT_TOKEN, terminalTheme } from './terminalTheme'
+import { chatTerminalTheme, rootTokens, TERMINAL_FONT_TOKEN, terminalTheme, type TerminalTheme } from './terminalTheme'
 import type { TerminalKit, TerminalSize, TerminalView } from './terminalView'
 
 /** How long the pane's size must hold still before the grid is fitted again and the PTY resized. */
 const RESIZE_SETTLE_MS = 80
+
+/** How long after its last output a terminal still counts as at work (the Skitarii mascot drills for this long). */
+export const OUTPUT_QUIET_MS = 1500
+
+/** The longest terminal title shown: what the CLI sets is untrusted and may be any length. */
+export const TITLE_MAX_LENGTH = 80
+
+/** The title as shown: control characters (C0, DEL, C1) dropped, whitespace trimmed, cut to `TITLE_MAX_LENGTH` with an ellipsis. */
+export function cleanTitle(raw: string): string {
+  // eslint-disable-next-line no-control-regex
+  const clean = raw.replace(/[\u0000-\u001f\u007f-\u009f]/g, '').trim()
+  return clean.length > TITLE_MAX_LENGTH ? `${clean.slice(0, TITLE_MAX_LENGTH - 1).trimEnd()}…` : clean
+}
 
 export const NOT_SHOWN = 'The terminal could not be shown.'
 
@@ -65,21 +79,32 @@ interface ShowContext {
   snapshot: string
   kit: TerminalKit
   scheduler: Scheduler
+  /** The colors of the theme the pane shows; the app's palette when absent. */
+  theme?: TerminalTheme
   onExit(exit: TerminalExit): void
+  /** Called whenever the CLI prints something after the snapshot (not for the snapshot itself). */
+  onActivity?(): void
+  /** Called with the raw title the CLI sets over OSC 0 or 2. */
+  onTitle?(title: string): void
 }
 
-/** Mounts the emulator for a running terminal (a chat's or a sign-in's) and wires it to the PTY; `hide` undoes all of it. */
-export function showTerminal({ element, terminal, snapshot, kit, scheduler, onExit }: ShowContext): Shown {
-  const read = rootTokens(element.ownerDocument)
-  const view = kit.create(element, { theme: terminalTheme(read), fontFamily: read(TERMINAL_FONT_TOKEN) })
+/** Fits the view to its host, and resizes the PTY when the grid's size changed since the last time. */
+function fitter(view: TerminalView, terminal: TerminalHandle): () => void {
   let sent: TerminalSize | null = null
-  const fit = (): void => {
+  return () => {
     const size = view.fit()
     if (size !== null && (sent === null || size.cols !== sent.cols || size.rows !== sent.rows)) {
       sent = size
       terminal.resize(size.cols, size.rows)
     }
   }
+}
+
+/** Mounts the emulator for a running terminal (a chat's or a sign-in's) and wires it to the PTY; `hide` undoes all of it. */
+export function showTerminal({ element, terminal, snapshot, kit, scheduler, theme, onExit, onActivity, onTitle }: ShowContext): Shown {
+  const read = rootTokens(element.ownerDocument)
+  const view = kit.create(element, { theme: theme ?? terminalTheme(read), fontFamily: read(TERMINAL_FONT_TOKEN) })
+  const fit = fitter(view, terminal)
   // The PTY takes the pane's size before the snapshot is painted: a chat shown again in the same window gets
   // the screen at exactly the size it was serialized at, and a new size makes the CLI redraw after the snapshot.
   fit()
@@ -87,7 +112,11 @@ export function showTerminal({ element, terminal, snapshot, kit, scheduler, onEx
     view.write(snapshot)
   }
   // Subscribing starts the port; what main sent since the snapshot waits in it until then.
-  const stopOutput = terminal.onOutput((data) => view.write(data))
+  const stopOutput = terminal.onOutput((data) => {
+    view.write(data)
+    onActivity?.()
+  })
+  const stopTitle = view.onTitleChange((title) => onTitle?.(title))
   const stopInput = view.onInput((data) => {
     for (const chunk of inputChunks(data)) {
       terminal.write(chunk)
@@ -110,6 +139,7 @@ export function showTerminal({ element, terminal, snapshot, kit, scheduler, onEx
       cancelFit()
       stopExit()
       stopOutput()
+      stopTitle()
       stopInput()
       view.dispose()
     }
@@ -133,6 +163,8 @@ function answered(result: CommandResult<TerminalAttachment>): Answered {
 interface UseTerminalOptions {
   folder: string
   chatId: string
+  /** The chat's agent id: an OMP chat's pane takes OMP's theme (`terminalTheme.ts`). */
+  agent: string
   kit: TerminalKit
   scheduler: Scheduler
 }
@@ -141,6 +173,12 @@ export interface TerminalModel {
   /** The element the emulator is mounted in; rendered whatever the phase. */
   host: RefObject<HTMLDivElement>
   phase: TerminalPhase
+  /** The background of the theme the pane shows when it is not the app's (OMP's), so the frame around the terminal matches. */
+  background: string | null
+  /** The CLI printed something within `OUTPUT_QUIET_MS` (only tracked for an OMP chat, whose header shows it). */
+  working: boolean
+  /** The title the CLI set over OSC 0 or 2, cleaned for display; empty when none is set. */
+  title: string
   /** Focuses the emulator, when one is shown. */
   focus(): void
   /** Attaches again once the CLI has exited, starting it again: resuming its session, or on a new one. */
@@ -166,11 +204,64 @@ function useStartAgain(chatId: string): { start: StartRequest | null; startAgain
   return { start: start?.chatId === chatId ? start : null, startAgain }
 }
 
-export function useTerminal({ folder, chatId, kit, scheduler }: UseTerminalOptions): TerminalModel {
+/** Hands the terminal to the page's registry, which hears its exit while the chat is not shown; without one, the pane owns it. */
+function heldOrOwned(live: LiveTerminals | null, chatId: string, terminal: TerminalHandle | null): TerminalHandle | null {
+  if (terminal === null || live === null) return terminal
+  live.hold(chatId, terminal)
+  return null
+}
+
+/**
+ * The attach, and, for an OMP chat, OMP's theme alongside it (read each time the chat is opened; a failed read is no
+ * theme, and the pane keeps the app's palette).
+ */
+async function openChat(request: { folder: string; chatId: string; agent: string; newSession: boolean }): Promise<{ result: CommandResult<TerminalAttachment>; omp: TerminalColors | null }> {
+  const { folder, chatId, agent, newSession } = request
+  const omp = agent === 'omp' ? window.dm.ompTerminalTheme().catch(() => null) : Promise.resolve(null)
+  const attach = window.dm.terminals.attach(folder, chatId, newSession ? { newSession: true } : undefined)
+  const [result, theme] = await Promise.all([attach, omp])
+  return { result, omp: theme }
+}
+
+/** The colors to show, and the background of the frame around the terminal when it is not the app's. */
+function paneTheme(element: HTMLElement, agent: string, omp: TerminalColors | null): { theme: TerminalTheme; background: string | null } {
+  const theme = chatTerminalTheme(rootTokens(element.ownerDocument), agent, omp)
+  return { theme, background: agent === 'omp' && omp !== null ? (theme.background ?? null) : null }
+}
+
+/**
+ * What the CLI's output tells: whether it printed within `OUTPUT_QUIET_MS` (only when `tracked`; `noteActivity` on each
+ * output), and the title it set (`noteTitle`, cleaned for display). `resetActivity` clears both when the chat goes.
+ */
+function useOutputActivity(
+  scheduler: Scheduler,
+  tracked: boolean
+): { working: boolean; title: string; noteActivity(): void; noteTitle(raw: string): void; resetActivity(): void } {
+  const [working, setWorking] = useState(false)
+  const [title, setTitle] = useState('')
+  const noteTitle = useCallback((raw: string) => setTitle(cleanTitle(raw)), [])
+  const stopQuiet = useRef<() => void>(() => undefined)
+  const resetActivity = useCallback(() => {
+    stopQuiet.current()
+    setWorking(false)
+    setTitle('')
+  }, [])
+  const noteActivity = useCallback(() => {
+    if (!tracked) return
+    setWorking(true)
+    stopQuiet.current()
+    stopQuiet.current = scheduler.after(OUTPUT_QUIET_MS, () => setWorking(false))
+  }, [scheduler, tracked])
+  return { working, title, noteActivity, noteTitle, resetActivity }
+}
+
+export function useTerminal({ folder, chatId, agent, kit, scheduler }: UseTerminalOptions): TerminalModel {
   const host = useRef<HTMLDivElement>(null)
   const view = useRef<TerminalView | null>(null)
   const live = useContext(LiveTerminalsContext)
   const [phase, setPhase] = useState<TerminalPhase>(CHECKING)
+  const [background, setBackground] = useState<string | null>(null)
+  const { working, title, noteActivity, noteTitle, resetActivity } = useOutputActivity(scheduler, agent === 'omp')
   const { start, startAgain } = useStartAgain(chatId)
   const newSession = start?.newSession === true
   useEffect(() => {
@@ -179,15 +270,10 @@ export function useTerminal({ folder, chatId, kit, scheduler }: UseTerminalOptio
     /** The terminal this pane closes when it goes: its own, when no shell keeps the page's terminals. */
     let owned: TerminalHandle | null = null
     setPhase(CHECKING)
-    window.dm.terminals.attach(folder, chatId, newSession ? { newSession: true } : undefined).then(
-      (result) => {
-        const terminal = result.ok ? result.data.terminal : null
-        // The page's registry keeps it, to hear its exit while the chat is not shown.
-        if (terminal !== null && live !== null) {
-          live.hold(chatId, terminal)
-        } else {
-          owned = terminal
-        }
+    setBackground(null)
+    openChat({ folder, chatId, agent, newSession }).then(
+      ({ result, omp }) => {
+        owned = heldOrOwned(live, chatId, result.ok ? result.data.terminal : null)
         if (gone) {
           owned?.close()
           return
@@ -198,8 +284,10 @@ export function useTerminal({ folder, chatId, kit, scheduler }: UseTerminalOptio
           setPhase('phase' in answer ? answer.phase : { state: 'failed', message: NOT_SHOWN })
           return
         }
-        shown = showTerminal({ element, ...answer.show, kit, scheduler, onExit: (exit) => setPhase(exitPhase(exit)) })
+        const { theme, background: frame } = paneTheme(element, agent, omp)
+        shown = showTerminal({ element, ...answer.show, kit, scheduler, theme, onExit: (exit) => setPhase(exitPhase(exit)), onActivity: noteActivity, onTitle: noteTitle })
         view.current = shown.view
+        setBackground(frame)
         setPhase(RUNNING)
       },
       (error: unknown) => {
@@ -208,11 +296,12 @@ export function useTerminal({ folder, chatId, kit, scheduler }: UseTerminalOptio
     )
     return () => {
       gone = true
+      resetActivity()
       shown?.hide()
       view.current = null
       owned?.close()
     }
-  }, [folder, chatId, kit, scheduler, live, start, newSession])
+  }, [folder, chatId, agent, kit, scheduler, live, start, newSession, noteActivity, noteTitle, resetActivity])
   const focus = useCallback(() => view.current?.focus(), [])
-  return { host, phase, focus, startAgain }
+  return { host, phase, background, working, title, focus, startAgain }
 }

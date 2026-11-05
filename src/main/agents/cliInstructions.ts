@@ -23,6 +23,8 @@ interface InstructionOptions {
   role: ChatRole
   /** Whether the chat's grant lets it save a plan without a person pressing Save. */
   allowSave: boolean
+  /** No `dm` launcher exists (Windows): the line below is the whole command, so wherever `dm` is named, run that line. */
+  noLauncher?: boolean
 }
 
 /**
@@ -51,6 +53,13 @@ export function cliInstructions(options: InstructionOptions): string {
     `${line} call get_capabilities '{}'  # run a command; the argument is a JSON object`,
     '```',
     '',
+    ...(options.noLauncher === true
+      ? [
+          "There is no `dm` program on this computer: wherever `dm` is named (here or in your first message), run the command line above, ending `call <command> '<json>'`, as written.",
+          'Its shell may not run scripts or search the PATH, so do not look for a launcher.',
+          ''
+        ]
+      : []),
     `You already hold a **${options.role}** grant for this folder: it is in \`DM_SESSION_TOKEN\` in your`,
     'environment, and the CLI reads it for itself. Do not pass a role, a token or a repository on the',
     'command line — there are no such flags, and asking a person to issue you a grant is wrong, because',

@@ -4,6 +4,7 @@
 # Refreshed 2026-11-01 (135 entries)
 
 electron.vite.config.ts - default
+resources/skitarii/extension/index.ts - default
 src/core/canonical.ts - canonicalJson
 src/core/canonical.ts - prettyJson
 src/core/canonical.ts - sha256Hex
@@ -138,3 +139,5 @@ src/shared/domain/views.ts - RedraftSkipCode
 src/shared/domain/views.ts - RedraftSkippedView
 src/shared/domain/views.ts - StorageLocationView
 src/shared/domain/views.ts - WorkerInfo
+src/shared/agents/terminalColors.ts - TERMINAL_COLOR_KEYS
+src/shared/agents/terminalColors.ts - TerminalColorKey

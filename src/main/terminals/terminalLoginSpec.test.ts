@@ -9,7 +9,7 @@ import { LOGIN_ARGS } from '../desktop/agentAuth'
 import { terminalLoginSpec, type TerminalLoginInput } from './terminalLaunchSpec'
 import { windowsCommandLine } from './windowsCommandLine'
 
-const KINDS: BuiltInAgentKind[] = ['claude', 'codex', 'cursor', 'autonomous']
+const KINDS: BuiltInAgentKind[] = ['claude', 'codex', 'cursor', 'autonomous', 'omp']
 
 const MAC_ENV = {
   PATH: '/usr/bin:/bin',
@@ -26,7 +26,8 @@ const MAC_PATHS: Record<BuiltInAgentKind, string> = {
   claude: '/Users/me/.local/bin/claude',
   codex: '/opt/homebrew/bin/codex',
   cursor: '/Users/me/.local/bin/agent',
-  autonomous: '/Users/me/.local/bin/a8s'
+  autonomous: '/Users/me/.local/bin/a8s',
+  omp: '/Users/me/.local/bin/omp'
 }
 
 function macInput(kind: BuiltInAgentKind): TerminalLoginInput {
@@ -37,7 +38,7 @@ const NATIVE_SHIM = 'endLocal & "%dp0%\\node_modules\\@anthropic-ai\\claude-code
 
 describe('terminalLoginSpec', () => {
   it('names each kind its own login command, with no key, token, email or password option', () => {
-    expect(LOGIN_ARGS).toEqual({ claude: ['auth', 'login'], codex: ['login'], cursor: ['login'], autonomous: ['init'] })
+    expect(LOGIN_ARGS).toEqual({ claude: ['auth', 'login'], codex: ['login'], cursor: ['login'], autonomous: ['init'], omp: ['login'] })
     for (const args of Object.values(LOGIN_ARGS)) {
       expect(args.every((arg) => /^[a-z]+$/.test(arg))).toBe(true)
     }

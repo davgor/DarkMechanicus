@@ -5,6 +5,7 @@
  * lives in the pure modules beside this file and in `../agents`, `../terminals`, `../git` and `../github`;
  * this one is composition only, so it has no unit tests of its own.
  */
+import { existsSync } from 'node:fs'
 import {
   app,
   BrowserWindow,
@@ -49,6 +50,8 @@ import { createLoginTerminals, type LoginTerminals } from '../terminals/loginTer
 import { createKeepAwake } from '../terminals/keepAwake'
 import { createNodePtyHost, type PtyHost } from '../terminals/ptyHost'
 import { createTerminalHandlers, registerTerminalIpc } from '../terminals/terminalHandlers'
+import { removeOmpFolder } from '../terminals/ompSession'
+import { skitariiExtensionPath } from '../terminals/ompSkitariiExtension'
 import { createTerminalSessions, endingTerminals, type TerminalSessions, type TerminalSessionsDeps } from '../terminals/terminalSessions'
 import { getAgentAuthStatus } from './agentAuth'
 import {
@@ -84,7 +87,7 @@ import { registerDesktopIpc } from './ipc'
 import { buildCliConfig, type CliLaunch } from './cliConfig'
 import { buildMcpConfig } from './mcpConfig'
 import { claudeCodeServer } from './mcpJson'
-import { writeMcpServer } from './mcpJsonFile'
+import { refreshMcpServer, writeMcpServer } from './mcpJsonFile'
 import { installClaudeSkills, type SkillDefinition } from './skillInstall'
 import { createWorkspacePool, type WorkspacePool } from './workspacePool'
 
@@ -229,6 +232,15 @@ function mcpConfigFor(repoPath: string): McpConfigView {
   })
 }
 
+/** Points each tracked folder's `.mcp.json` entry at this build when the build that wrote it was removed. */
+function refreshClaudeCodeEntries(registry: FolderRegistry): void {
+  for (const folder of registry.list()) {
+    if (folder.available && folder.storageMode === 'repo') {
+      refreshMcpServer(folder.path, mcpConfigFor(folder.path), existsSync)
+    }
+  }
+}
+
 function openDesktopWorkspace(repoRoot: string): Workspace {
   return openWorkspace({
     repoRoot,
@@ -303,6 +315,7 @@ function createTerminalProcesses(store: ChatStore, deps: TerminalDeps): Pick<Cha
     cliFor: cliConfigFor,
     ...deps.grants,
     userData: app.getPath('userData'),
+    ompExtension: skitariiExtensionPath({ packaged: app.isPackaged, appPath: app.getAppPath(), resourcesPath: process.resourcesPath }),
     onError: (error) => {
       logger.error('Chat terminal failed:', error)
     }
@@ -353,7 +366,11 @@ function createChatProcesses(
       await Promise.all([terminals.dispose(), logins.dispose()])
     }
   }
-  const chats = endingTerminals(createChatRecords({ store, activity, agentFor: (id) => agents.get(id) }), terminals)
+  const userData = app.getPath('userData')
+  const chats = endingTerminals(
+    createChatRecords({ store, activity, agentFor: (id) => agents.get(id), removeOmpFolder: (id) => removeOmpFolder(userData, id) }),
+    terminals
+  )
   return { chats, quit, store, terminals, logins }
 }
 
@@ -589,6 +606,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
     }
   })
   registerDesktopIpc(ipc, handlers)
+  refreshClaudeCodeEntries(registry)
   const close = runLifecycle(pool, appDb)
   startChats(ipc, { folders: registry, agents, chats, store, terminals, workspaces: pool, activity })
   startTerminals(ipc, { folders: registry, agents, store, terminals, logins })

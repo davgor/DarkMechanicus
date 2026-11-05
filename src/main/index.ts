@@ -8,7 +8,7 @@ import { hardenWebContents, resolveAppUrl } from './desktop/navigation'
 import { guardIpc } from './ipcGuard'
 import { logger, setupGlobalErrorLogging } from './logger'
 import { disposeBeforeQuit } from './quitDisposal'
-import { loadRendererContent, onActivateCreateWindow, onLastWindowClosed, removeWindowMenuBar } from './windowPolicy'
+import { applyColorProfile, loadRendererContent, onActivateCreateWindow, onLastWindowClosed, removeWindowMenuBar } from './windowPolicy'
 
 setupGlobalErrorLogging()
 
@@ -69,6 +69,9 @@ function createMainWindow(): BrowserWindow {
 function registerAppVersionHandler(ipc: Pick<IpcMain, 'handle'>): void {
   ipc.handle('app:getVersion', () => app.getVersion())
 }
+
+// Theme colours must render as the exact sRGB values (see applyColorProfile).
+applyColorProfile(app.commandLine)
 
 app.whenReady().then(() => {
   app.dock?.setIcon(appIcon)

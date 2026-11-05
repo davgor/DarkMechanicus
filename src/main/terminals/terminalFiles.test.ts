@@ -12,7 +12,7 @@ import { removeScratch } from '../../test/removeScratch'
 import { transferGuidance } from '../../mcp/transferKickoff'
 import { cliCommandLine } from '../agents/cliInstructions'
 import { kanbanGuidance } from '../agents/kanbanKickoff'
-import { orchestratorGuidance } from '../agents/orchestratorKickoff'
+import { orchestratorGuidance, orchestratorKickoff } from '../agents/orchestratorKickoff'
 import { terminalFilePaths, terminalInstructions, writeTerminalFiles } from './terminalFiles'
 
 const FOLDER = '/Users/me/My Repo'
@@ -35,6 +35,25 @@ describe('terminalFilePaths', () => {
     for (const id of ['../ch_1', 'a/b', '', '.', 'x'.repeat(81)]) {
       expect(() => terminalFilePaths('/data', id, 'darwin')).toThrow(/chat id/)
     }
+  })
+})
+
+describe('terminalInstructions: which dm is named', () => {
+  it('on Windows the kickoff and the instructions name one runnable invocation: the pinned line, which the instructions say stands for dm', () => {
+    const winCli: DarkMechanicusCli = { command: 'C:\\Program Files\\Dark Mechanicus\\Dark Mechanicus.exe', args: ['C:\\app.asar\\out\\main\\cli.js', '--repo', 'C:\\My Repo'], env: { ELECTRON_RUN_AS_NODE: '1', DM_SESSION_TOKEN: 't' } }
+    const text = terminalInstructions({ cli: winCli, role: 'orchestrator', allowSave: false, launcherDir: null, orchestratesRun: true })
+    const first = orchestratorKickoff({ epicId: 'ep_1', epicTitle: 'T', branch: null, runId: 'rn_1' })
+
+    expect(text).toContain(`${cliCommandLine(winCli)} call get_capabilities '{}'`)
+    expect(text).toContain('There is no `dm` program on this computer')
+    expect(first).toContain("exactly as your instructions give it (ending `call get_capabilities '{}'`)")
+    expect(first).not.toMatch(/`dm call|dm get_/)
+  })
+
+  it('does not say dm is missing where a launcher names it (macOS)', () => {
+    const text = terminalInstructions({ cli: cliFor(FOLDER), role: 'worker', allowSave: false, launcherDir: '/data/agents/bin/ch_1', orchestratesRun: false })
+
+    expect(text).not.toContain('There is no `dm` program')
   })
 })
 
