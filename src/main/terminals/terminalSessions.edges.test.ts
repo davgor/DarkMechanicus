@@ -141,15 +141,7 @@ describe('terminal sessions: dependencies that fail', () => {
   })
 })
 
-describe('terminal sessions: the idle stop’s process listing', () => {
-  /** A rig whose process listings wait for the test to answer them. */
-  function listingRig(): Gate<boolean> {
-    const listing = gate<boolean>()
-    rig.cleanup()
-    rig = terminalRig({ deps: () => ({ shellRunning: () => listing.promise }) })
-    return listing
-  }
-
+describe('terminal sessions: a process listing that fails', () => {
   it('reports a process listing that fails, and stops the quiet PTY as if no shell ran', async () => {
     rig.cleanup()
     rig = terminalRig({
@@ -166,18 +158,31 @@ describe('terminal sessions: the idle stop’s process listing', () => {
 
     expect([pty.kills, rig.revoked, errorMessages()]).toEqual([1, ['gr_1'], ['PowerShell is blocked.']])
   })
+})
 
-  it('keeps a PTY that took output while its processes were listed', async () => {
+describe('terminal sessions: the idle stop’s process listing', () => {
+  /** A rig whose process listings wait for the test to answer them. */
+  function listingRig(): Gate<boolean> {
+    const listing = gate<boolean>()
+    rig.cleanup()
+    rig = terminalRig({ deps: () => ({ shellRunning: () => listing.promise }) })
+    return listing
+  }
+
+  it('keeps a PTY that took output while its processes were listed, and stops it 10 minutes after that output', async () => {
     const listing = listingRig()
     const { pty } = await startTerminal(rig, rig.newChat(CUSTOM_AGENT.id))
-    rig.clock.advance(10 * MINUTE)
+    rig.clock.advance(11 * MINUTE)
 
     pty.emitData('Tests passed.\r\n')
     await settle()
+    rig.clock.advance(3 * MINUTE)
     listing.open(false)
     await settle()
+    rig.clock.advance(7 * MINUTE - 1)
+    await settle()
     expect(pty.kills).toBe(0)
-    rig.clock.advance(10 * MINUTE)
+    rig.clock.advance(1)
     await settle()
 
     expect(pty.kills).toBe(1)
