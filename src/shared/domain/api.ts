@@ -377,6 +377,8 @@ export interface CommandApi {
   }): Promise<{ grant: GrantView; token: string }>
   listGrants(): Promise<GrantView[]>
   revokeGrant(input: { grantId: string }): Promise<GrantView>
+  /** Moves a usable grant's expiry to `minutes` from now; only the desktop may call it, for a chat terminal still running on it. */
+  renewGrant(input: { grantId: string; minutes: number }): Promise<GrantView>
 
   // Epics
   listEpics(): Promise<EpicSummaryView[]>

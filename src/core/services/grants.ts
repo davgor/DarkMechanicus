@@ -76,6 +76,26 @@ function expiryOf(clock: Clock, minutes: number): string {
   return new Date(clock.nowMs() + minutes * 60_000).toISOString()
 }
 
+/**
+ * The command schema checks this too; a caller that reached the service directly must not be able to produce a grant
+ * that never expires, or an unparseable date.
+ */
+function checkMinutes(minutes: number): void {
+  if (!Number.isInteger(minutes) || minutes < MIN_GRANT_MINUTES || minutes > MAX_GRANT_MINUTES) {
+    fail('invalid_input', `A grant lasts between ${MIN_GRANT_MINUTES} and ${MAX_GRANT_MINUTES} minutes.`, { minutes })
+  }
+}
+
+const GRANT_COLUMNS = 'id, role, allow_save, label, machine_id, created_at, expires_at, revoked_at, last_used_at'
+
+function grantRow(ctx: Ctx, grantId: string): GrantRow {
+  const row = ctx.db.get<GrantRow>(`SELECT ${GRANT_COLUMNS} FROM grants WHERE id = ?`, grantId)
+  if (row === undefined) {
+    fail('not_found', `Grant ${grantId} does not exist.`, { grantId })
+  }
+  return row
+}
+
 interface IssueGrantInput {
   role: GrantableRole
   label: string
@@ -95,11 +115,7 @@ export function issueGrant(ctx: Ctx, input: IssueGrantInput): { grant: GrantView
     fail('invalid_input', `A ${input.role} role cannot be granted.`, { role: input.role })
   }
   const minutes = input.minutes ?? DEFAULT_GRANT_MINUTES
-  // The command schema checks this too; a caller that reached the service directly must not be
-  // able to produce a grant that never expires, or an unparseable date.
-  if (!Number.isInteger(minutes) || minutes < MIN_GRANT_MINUTES || minutes > MAX_GRANT_MINUTES) {
-    fail('invalid_input', `A grant lasts between ${MIN_GRANT_MINUTES} and ${MAX_GRANT_MINUTES} minutes.`, { minutes })
-  }
+  checkMinutes(minutes)
   const canSave = input.allowSave === true && (input.role === 'planner' || input.role === 'orchestrator')
   const token = formatToken(randomBytes(TOKEN_BYTES).toString('hex'))
   const id = ctx.ids.next('grant')
@@ -135,25 +151,34 @@ export function listGrants(ctx: Ctx): GrantView[] {
   requireCapability(ctx.session, 'read')
   const now = ctx.clock.nowIso()
   return ctx.db
-    .all<GrantRow>(
-      `SELECT id, role, allow_save, label, machine_id, created_at, expires_at, revoked_at, last_used_at
-       FROM grants ORDER BY created_at DESC, id DESC`
-    )
+    .all<GrantRow>(`SELECT ${GRANT_COLUMNS} FROM grants ORDER BY created_at DESC, id DESC`)
     .map((row) => viewOf(row, now))
+}
+
+/**
+ * Moves a grant's expiry to `minutes` from now, for a session still running on it: the desktop renews a chat
+ * terminal's grant while its CLI runs, so a chat that runs for days keeps its role. A grant that is revoked or has
+ * expired is refused and stays as it is, so a renewal that arrives late never brings one back. Refused unless the
+ * session holds `grant.issue`, which only the desktop does: renewing is issuing the time again.
+ */
+export function renewGrant(ctx: Ctx, input: { grantId: string; minutes: number }): GrantView {
+  requireCapability(ctx.session, 'grant.issue')
+  checkMinutes(input.minutes)
+  const now = ctx.clock.nowIso()
+  const row = grantRow(ctx, input.grantId)
+  if (row.revoked_at !== null || row.expires_at <= now) {
+    fail('invalid_state', `Grant ${row.id} is revoked or has expired, so it cannot be renewed.`, { grantId: row.id })
+  }
+  const expiresAt = expiryOf(ctx.clock, input.minutes)
+  ctx.db.run('UPDATE grants SET expires_at = ? WHERE id = ?', expiresAt, row.id)
+  return viewOf({ ...row, expires_at: expiresAt }, now)
 }
 
 /** Revokes a grant. Already revoked is a no-op, so revoking twice is not an error. */
 export function revokeGrant(ctx: Ctx, grantId: string): GrantView {
   requireCapability(ctx.session, 'grant.revoke')
   const now = ctx.clock.nowIso()
-  const row = ctx.db.get<GrantRow>(
-    `SELECT id, role, allow_save, label, machine_id, created_at, expires_at, revoked_at, last_used_at
-     FROM grants WHERE id = ?`,
-    grantId
-  )
-  if (row === undefined) {
-    fail('not_found', `Grant ${grantId} does not exist.`, { grantId })
-  }
+  const row = grantRow(ctx, grantId)
   if (row.revoked_at === null) {
     ctx.db.run('UPDATE grants SET revoked_at = ? WHERE id = ?', now, grantId)
   }

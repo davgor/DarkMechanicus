@@ -28,6 +28,7 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   issueGrant: 'grant.issue',
   listGrants: 'read',
   revokeGrant: 'grant.revoke',
+  renewGrant: 'grant.issue',
   listEvents: 'read',
   getAttemptTimeline: 'read',
   getRunTimeline: 'read',

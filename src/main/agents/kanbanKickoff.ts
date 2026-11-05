@@ -9,7 +9,7 @@
  *   with a `cardId`), after the `dm` instructions: the steps (claim, one worker that reports back, review, submit,
  *   stop, claim again after a kick-back) and the orchestrator and worker guides read from the same skill sources the
  *   MCP server serves as prompts, since a chat has no way to open an MCP prompt. A card chat started again (an exit,
- *   an idle stop, an app restart) on a new session still knows its card.
+ *   an app restart) on a new session still knows its card.
  *
  * Both are built from the card's id, key and title and the branch only, never from anything that grants access:
  * the claim token is issued when the orchestrator calls `claim_kanban_card`, and it hands the token to its worker

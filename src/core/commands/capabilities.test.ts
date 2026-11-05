@@ -43,6 +43,7 @@ const PROBES: Record<CommandName, unknown> = {
   issueGrant: { role: 'reader', label: 'CLI' },
   listGrants: undefined,
   revokeGrant: { grantId: 'gr_00000000000000000000000001' },
+  renewGrant: { grantId: 'gr_00000000000000000000000001', minutes: 60 },
   listEpics: undefined,
   createEpic: { title: 'Probe epic' },
   getEpic: { epicId: EPIC },
@@ -209,6 +210,7 @@ describe('COMMAND_CAPABILITIES', () => {
       'playKanbanCard',
       'queueRun',
       'queueTransfer',
+      'renewGrant',
       'resolveEpicConflict',
       'revokeGrant'
     ])

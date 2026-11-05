@@ -37,13 +37,10 @@
  * session clears the stored id and that flag before a start. An attach whose own start exits before it answered
  * (a resume the CLI refused) answers with the last screen and hears the exit, rather than starting it again.
  *
- * **Idle stop.** A PTY with no input and no output on its screen for 10 minutes is stopped (tree killed, grant
- * revoked) with the message `Stopped after 10 minutes idle.`; the next attach resumes it as above. A chat that
- * carries a run or a Kanban card is an orchestrator that may be watching a worker: once its PTY has gone 10 minutes
- * quiet, the lease is read (`leaseHeld`) every minute, and each read that finds one held counts as activity, so it
- * is stopped 10 minutes after the last such read. A read that fails counts as no lease. When no lease is held, the
- * PTY's processes are listed before it is stopped, and a shell running under its CLI (a command it started,
- * `runningShell.ts`) counts as activity, so a long command that prints nothing is never stopped.
+ * **No idle stop.** A PTY runs until its CLI exits or main stops it (a deleted chat, a removed agent, a folder that
+ * moved, quit). A quiet one may be running a long command or waiting on its workers, so going quiet never stops it.
+ * While it runs its grant is renewed every hour (`renewChatGrant`), to the grant's length from then, so a chat that
+ * runs for days keeps its role, and one whose app died loses it within that length.
  *
  * **Kickoff and pastes** ("The orchestrator chat Start run opens"). `start` is Start run's (and Transfer with
  * agent's, and Play's for a Kanban card): it starts the chat's PTY with the kickoff, which goes only when the record's
@@ -62,8 +59,8 @@
  * way, kills every PTY tree and resolves once every PTY has reported its exit and every revoke and kill has
  * settled; the quit's own bound (5 s) holds.
  *
- * **Signed out.** When an orchestrator chat's CLI exits on its own (not a quit, an idle stop, a deleted chat, a removed
- * agent or a folder stop, which all set the stop message first), main runs the agent's status command, and only when
+ * **Signed out.** When an orchestrator chat's CLI exits on its own (not a quit, a deleted chat, a removed agent or a
+ * folder stop, which all set the stop message first), main runs the agent's status command, and only when
  * it says `signed_out` is a `running` or `paused` run the chat orchestrates paused with the reason `signed_out`,
  * through the desktop's own session (`runs`): that reason keeps the run's leases, so it is given on nothing looser.
  */
@@ -78,17 +75,14 @@ import { killPtyTree, type PtyTree } from '../agents/processTree'
 import { claudeSessionExists } from './claudeSession'
 import { writeClaudeSettings } from './claudeSettingsFile'
 import type { PtyExit, PtyHost, PtyProcess } from './ptyHost'
-import { hasRunningShell } from './runningShell'
 import { terminalLaunchSpec } from './terminalLaunchSpec'
 import { writeTerminalFiles, type TerminalFiles } from './terminalFiles'
 import { createTerminalScreen, type TerminalScreen } from './terminalScreen'
 
 /** How often a running PTY's folder is checked again. */
 const FOLDER_CHECK_MS = 60_000
-/** How long a PTY may go with no input, no output and no shell running under it before it is stopped. */
-const IDLE_MS = 10 * 60_000
-/** How often a quiet PTY whose chat carries a run or a Kanban card has its lease read again. */
-const LEASE_CHECK_MS = 60_000
+/** How often a running PTY's grant is renewed. */
+const GRANT_RENEW_MS = 60 * 60_000
 /** The size a PTY starts at, until the pane that shows it sends its own. */
 const START_COLS = 80
 const START_ROWS = 24
@@ -106,7 +100,6 @@ const BRACKETED_PASTE_ON = '\x1b[?2004h'
 const QUITTING = 'The app is quitting, so the terminal was stopped.'
 const DELETED = 'The chat was deleted, so its terminal was stopped.'
 const AGENT_REMOVED = "The chat's agent was removed, so its terminal was stopped."
-const IDLE_STOPPED = 'Stopped after 10 minutes idle.'
 
 /** How a start ended without a PTY. */
 type NotStartedState = 'refused' | 'signed_out' | 'failed'
@@ -123,7 +116,7 @@ export type TerminalEvent =
   | { kind: 'started'; pid: number }
   | { kind: 'output'; data: string }
   /**
-   * The PTY ended; `message` says why when main stopped it (a folder that moved, a deleted chat, idle, quit), and
+   * The PTY ended; `message` says why when main stopped it (a folder that moved, a deleted chat, quit), and
    * `resumed` whether it was started on an earlier session of the chat (which the CLI may have refused).
    */
   | { kind: 'exited'; exitCode: number; signal: number | null; message: string | null; resumed: boolean }
@@ -161,7 +154,7 @@ export interface TerminalSessions {
   paste(ref: ChatRef, text: string): Promise<TerminalStart>
   /** Stops `listener` hearing the chat. */
   detach(chatId: string, listener: TerminalListener): void
-  /** Input for the chat's running PTY, as typed; nothing when none runs. Input counts as activity. */
+  /** Input for the chat's running PTY, as typed; nothing when none runs. */
   write(chatId: string, data: string): void
   /** Resizes the chat's running PTY and its screen together. */
   resize(chatId: string, cols: number, rows: number): void
@@ -203,20 +196,15 @@ export interface TerminalSessionsDeps {
   /** The `dm` invocation pinned to `folder`, without a grant: what the start files name. */
   cliFor: (folder: string) => DarkMechanicusCli
   runs: OrchestratorRuns
-  /**
-   * Whether the run or Kanban card the chat carries has an attempt holding a lease that has not expired, through the
-   * desktop's own session, and no newer chat carries it (`chatLeases.ts`): while one is held, the chat is not idle.
-   */
-  leaseHeld: (chat: ChatRecord) => Promise<boolean>
   issueChatCli: (folder: string, grant: { role: ChatRole; allowSave: boolean; label: string }) => Promise<{ cli: DarkMechanicusCli; grantId: string }>
   /** Never throws (`chatGrants.ts`). */
   revokeChatGrant: (grantId: string) => Promise<void>
+  /** Moves a running PTY's grant's expiry on; never throws (`chatGrants.ts`). */
+  renewChatGrant: (grantId: string) => Promise<void>
   /** The PTY host; rejects when PTYs cannot run here (no prebuild, a helper that cannot run). */
   host: () => Promise<PtyHost>
   /** Ends a PTY's process tree; `killPtyTree` by default. */
   killTree?: (tree: PtyTree) => Promise<boolean>
-  /** Whether a shell runs under the PTY's program `pid`, which the idle stop counts as activity; `hasRunningShell` by default. */
-  shellRunning?: (pid: number) => Promise<boolean>
   userData: string
   platform: NodeJS.Platform
   /** main's `process.env`. */
@@ -276,12 +264,10 @@ interface Live {
   resumed: boolean
   /** Whether its first input still has to mark the chat's session started (`sessionStarted`). */
   marksStarted: boolean
-  /** When it last had input, or output on its screen (`timers.now`). */
-  lastActive: number
   /** Its pastes: the launch's `pasteFirst` first, then any `paste`; emptied once it is stopped or has exited. */
   pastes: PasteQueue
   revoke: () => Promise<void>
-  /** Ends the folder watch, the idle timer, and the wait for the pastes. */
+  /** Ends the folder watch, the grant's renewal, and the wait for the pastes. */
   stopWatch: () => void
 }
 
@@ -464,74 +450,31 @@ function closeAfterExit(manager: Manager, live: Live, exit: PtyExit, reportClose
   })
 }
 
-/** Whether the run or Kanban card the chat carries holds a lease; a read that fails is reported and counts as none. Never rejects. */
-async function leaseHeld(manager: Manager, chat: ChatRecord): Promise<boolean> {
-  try {
-    return await manager.deps.leaseHeld(chat)
-  } catch (error) {
-    manager.onError(error)
-    return false
-  }
-}
-
-/** Whether a shell runs under the PTY's program; a listing that fails is reported and counts as none, so the idle stop goes on. */
-function shellRunning(manager: Manager, live: Live): Promise<boolean> {
-  return manager.deps.shellRunning(live.tree.pid).catch((error: unknown) => {
-    manager.onError(error)
-    return false
-  })
+/** Renews `grantId`; never rejects. Kept for the quit, so its workspace is not closed under it. */
+function renewGrant(manager: Manager, grantId: string): Promise<void> {
+  return track(
+    manager,
+    manager.deps.renewChatGrant(grantId).catch((error: unknown) => {
+      manager.onError(error)
+    })
+  )
 }
 
 /**
  * The watches on a running PTY; answers the function that ends them, which also gives up the pastes still waiting. Its
- * folder is checked every minute. It is stopped once it has gone `IDLE_MS` with no activity: a timer set for the
- * earliest moment it can be idle, checked against `lastActive` when it fires, so activity costs a timestamp and
- * not a new timer. Only a quiet PTY is asked more: for a chat that carries a run or a Kanban card, its lease, read
- * every `LEASE_CHECK_MS` from then on, and a read that finds one held counts as activity (`leaseSeen`); with no lease
- * held, its processes are listed, and a shell found running under it is activity at that moment.
+ * folder is checked every minute, and its grant is renewed every `GRANT_RENEW_MS`.
  */
 function watchLive(manager: Manager, live: Live): () => void {
   const { timers } = manager.deps
   const stopFolderWatch = timers.repeat(() => {
     folderStillValid(manager, live)
   }, FOLDER_CHECK_MS)
-  const watchesLease = live.chat.runId !== undefined || live.chat.cardId !== undefined
-  let ended = false
-  let leaseSeen = Number.NEGATIVE_INFINITY
-  let stopIdleWatch: () => void = () => {}
-  const readActivity = async (): Promise<void> => {
-    const held = watchesLease && (await track(manager, leaseHeld(manager, live.chat)))
-    const shell = !held && !ended && (await shellRunning(manager, live))
-    // Stopped, or exited, while the lease was read or the processes were listed.
-    if (ended) {
-      return
-    }
-    if (held) {
-      leaseSeen = timers.now()
-    }
-    if (shell) {
-      live.lastActive = timers.now()
-    }
-    const quiet = timers.now() - Math.max(live.lastActive, leaseSeen)
-    if (quiet >= IDLE_MS) {
-      void stop(manager, live, IDLE_STOPPED)
-    } else {
-      stopIdleWatch = timers.after(check, watchesLease ? LEASE_CHECK_MS : IDLE_MS - quiet)
-    }
-  }
-  const check = (): void => {
-    const quiet = timers.now() - live.lastActive
-    if (quiet < IDLE_MS) {
-      stopIdleWatch = timers.after(check, IDLE_MS - quiet)
-    } else {
-      void readActivity()
-    }
-  }
-  stopIdleWatch = timers.after(check, IDLE_MS)
+  const stopRenewal = timers.repeat(() => {
+    void renewGrant(manager, live.grantId)
+  }, GRANT_RENEW_MS)
   return () => {
-    ended = true
     stopFolderWatch()
-    stopIdleWatch()
+    stopRenewal()
     live.pastes.cancel?.()
     live.pastes.cancel = null
     live.pastes.waiting = []
@@ -547,7 +490,8 @@ function bracketedPaste(text: string): string {
  * Writes the next waiting paste once the PTY can take it: its CLI has turned bracketed paste on (`BRACKETED_PASTE_ON`,
  * which a TUI sends when its input is live; Autonomous goes quiet for seconds while it starts before it does, verified
  * live), no earlier paste is still waiting for its Enter, and the screen has then taken nothing for `SETTLE_MS` (the
- * timer is set for the earliest moment, then checked against `lastOutput`, as the idle stop's is). The paste is
+ * timer is set for the earliest moment, then checked against `lastOutput`, so output costs a timestamp and not a new
+ * timer). The paste is
  * written as input the person typed, then Enter as its own keypress `ENTER_DELAY_MS` later (Autonomous takes an
  * Enter that arrives with the paste as part of it, verified live); a kickoff is stored as sent once its Enter has
  * gone. The next paste waits for the screen to settle again, counted from that Enter at the earliest, so it never
@@ -615,9 +559,8 @@ interface Started {
   firstPaste: Paste | null
 }
 
-/** Output the screen has taken: activity for the idle stop, told to listeners, and the pastes' wait goes on. */
+/** Output the screen has taken: told to listeners, and the pastes' wait goes on. */
 function tookOutput(manager: Manager, live: Live, data: string): void {
-  live.lastActive = manager.deps.timers.now()
   emit(manager, live.chat.id, { kind: 'output', data })
   pasteSawOutput(manager, live, data)
 }
@@ -647,7 +590,6 @@ function startLive(manager: Manager, chat: ChatRecord, started: Started): Live {
     last: null,
     resumed: started.resumed,
     marksStarted: started.marksStarted,
-    lastActive: manager.deps.timers.now(),
     pastes: { waiting: started.firstPaste === null ? [] : [started.firstPaste], inputLive: false, seen: '', lastOutput: 0, entering: false, cancel: null },
     tree: { pid: pty.pid, kill: () => pty.kill(), exited: ended, hasExited: () => live.exited },
     revoke: () => (revoked ??= revokeGrant(manager, grantId)),
@@ -710,10 +652,9 @@ async function pauseRunIfActive(manager: Manager, folder: string, runId: string)
   }
 }
 
-/** Input for the chat's running PTY: activity for the idle stop, and the first input marks its session started. */
+/** Input for the chat's running PTY; the first input marks its session started. */
 function writeInput(manager: Manager, live: Live, data: string): void {
   live.pty.write(data)
-  live.lastActive = manager.deps.timers.now()
   if (live.marksStarted) {
     live.marksStarted = false
     try {
@@ -1104,7 +1045,6 @@ export function createTerminalSessions(deps: TerminalSessionsDeps): TerminalSess
     deps: {
       ...rest,
       killTree: deps.killTree ?? ((tree) => killPtyTree(tree)),
-      shellRunning: deps.shellRunning ?? ((pid) => hasRunningShell(pid)),
       newSessionId: deps.newSessionId ?? randomUUID,
       timers: deps.timers ?? nodeTimers
     },

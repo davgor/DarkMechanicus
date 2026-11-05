@@ -7,6 +7,10 @@
  * has disposed its chats. One the pool has closed since is opened again in the folder it was issued
  * in, for the revoke only, and closed after. A grant that cannot be revoked either way is logged in
  * one line naming it and its expiry, and never throws: the session ending must not wait on it.
+ *
+ * While a chat runs its grant is renewed through the same workspace, to `minutes` from the renewal,
+ * so a chat that runs for days keeps its role and one whose app died loses it within `minutes`. A
+ * grant already revoked is renewed nothing; a renewal that fails is logged in one line, never thrown.
  */
 import type { Workspace } from '../../core/workspace'
 import type { ChatRole, DarkMechanicusCli } from '../../shared/agents/chat'
@@ -27,6 +31,8 @@ export interface ChatGrants {
   issueChatCli(folder: string, grant: { role: ChatRole; allowSave: boolean; label: string }): Promise<{ cli: DarkMechanicusCli; grantId: string }>
   /** Never throws: a grant it cannot revoke is logged. */
   revokeChatGrant(grantId: string): Promise<void>
+  /** Moves a held grant's expiry to `minutes` from now. Never throws: a renewal that fails is logged. */
+  renewChatGrant(grantId: string): Promise<void>
 }
 
 interface HeldGrant {
@@ -34,17 +40,21 @@ interface HeldGrant {
   expiresAt: string
 }
 
-async function revokeThrough(held: HeldGrant, grantId: string): Promise<void> {
-  // A workspace with no session is one the pool closed since issue: the revoke opens it again in
+async function through(held: HeldGrant, act: (workspace: Workspace) => Promise<unknown>): Promise<void> {
+  // A workspace with no session is one the pool closed since issue: the command opens it again in
   // its folder, so it is closed again after rather than left open outside the pool.
   const reopened = held.workspace.sessionId() === null
   try {
-    await held.workspace.revokeGrant({ grantId })
+    await act(held.workspace)
   } finally {
     if (reopened) {
       held.workspace.close()
     }
   }
+}
+
+function reasonOf(error: unknown): string {
+  return (error instanceof Error ? error.message : String(error)).replace(/\s+/g, ' ')
 }
 
 export function createChatGrants(deps: ChatGrantsDeps): ChatGrants {
@@ -68,10 +78,22 @@ export function createChatGrants(deps: ChatGrantsDeps): ChatGrants {
       }
       held.delete(grantId)
       try {
-        await revokeThrough(grant, grantId)
+        await through(grant, (workspace) => workspace.revokeGrant({ grantId }))
       } catch (error) {
-        const reason = (error instanceof Error ? error.message : String(error)).replace(/\s+/g, ' ')
-        deps.log(`Could not revoke chat grant ${grantId}; it stays usable until it expires at ${grant.expiresAt}: ${reason}`)
+        deps.log(`Could not revoke chat grant ${grantId}; it stays usable until it expires at ${grant.expiresAt}: ${reasonOf(error)}`)
+      }
+    },
+    async renewChatGrant(grantId) {
+      const grant = held.get(grantId)
+      if (grant === undefined) {
+        return
+      }
+      try {
+        await through(grant, async (workspace) => {
+          grant.expiresAt = (await workspace.renewGrant({ grantId, minutes: deps.minutes })).expiresAt
+        })
+      } catch (error) {
+        deps.log(`Could not renew chat grant ${grantId}; it stays usable until it expires at ${grant.expiresAt}: ${reasonOf(error)}`)
       }
     }
   }
