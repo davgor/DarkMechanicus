@@ -342,4 +342,20 @@ describe('xtermKit keys', () => {
     expect(shiftEnter()).toBe(true)
     expect(handler?.(new KeyboardEvent('keydown', { key: 'Enter' }))).toBe(true)
   })
+
+  it('only watches the mode switches: xterm’s own handlers still get every one of them', () => {
+    create()
+    const terminal = terminals[0]
+    const reached: string[] = []
+    for (const key of ['?h', '?l', '>m']) {
+      terminal?.parser.registerCsiHandler({ prefix: key.slice(0, 1), final: key.slice(1) }, () => {
+        reached.push(key)
+        return false
+      })
+    }
+    terminal?.feed('?h', 9001)
+    terminal?.feed('?l', 9001)
+    terminal?.feed('>m', 4, 2)
+    expect(reached).toEqual(['?h', '?l', '>m'])
+  })
 })

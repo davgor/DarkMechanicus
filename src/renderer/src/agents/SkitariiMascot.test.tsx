@@ -81,3 +81,20 @@ describe('SkitariiMascot', () => {
     expect(frames.size).toBe(1)
   })
 })
+
+describe('SkitariiMascot playback', () => {
+  it('plays the drill by the time that passed between frames, and takes a long gap (a stalled page) as at most 50 ms', () => {
+    // The drill clip runs at 4 frames per second: 300 ms of playback is its second frame, 0 to 249 ms its first.
+    const steady = render(<SkitariiMascot working />)
+    tick(5000)
+    expect(sprite(steady.container).dataset.frame).toBe('0')
+    for (let step = 1; step <= 30; step += 1) tick(5000 + step * 10)
+    expect(sprite(steady.container).dataset.frame).toBe('1')
+    steady.unmount()
+
+    const stalled = render(<SkitariiMascot working />)
+    tick(1000)
+    tick(9000)
+    expect(sprite(stalled.container).dataset.frame).toBe('0')
+  })
+})

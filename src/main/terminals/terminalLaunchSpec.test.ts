@@ -4,7 +4,8 @@
  * resumed, on macOS and Windows; then the rules each row relies on: whole-argument placeholders, the scrubbed
  * environment, Windows shims, and the values that are dropped rather than passed.
  */
-import { existsSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import packageJson from '../../../package.json'
@@ -435,6 +436,26 @@ describe('terminalLaunchSpec: a Claude .cmd is followed to the program it runs',
     const agent = { id: 'claude', kind: 'claude' as const, executablePath: 'C:\\npm\\claude.cmd', args: [] }
 
     expect(() => terminalLaunchSpec(inputFor('claude', 'win32', 'new', { agent, shimFs: shimFs(NPM_SHIM, ['relative\\node.exe']) }))).toThrow(/Connect claude\.exe/)
+  })
+
+  it.runIf(process.platform === 'win32')('looks for the node.exe beside a real npm shim on the disk: a regular file counts, a missing one or a folder does not', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dm-shim-'))
+    try {
+      const shim = join(dir, 'claude.cmd')
+      writeFileSync(shim, NPM_SHIM)
+      const agent = { id: 'claude', kind: 'claude' as const, executablePath: shim, args: [] }
+      const env = { ...WIN.env, Path: '' }
+      const launch = () => terminalLaunchSpec(inputFor('claude', 'win32', 'new', { agent, env }))
+
+      expect(launch).toThrow(/Connect claude\.exe/)
+      mkdirSync(join(dir, 'node.exe'))
+      expect(launch).toThrow(/Connect claude\.exe/)
+      rmSync(join(dir, 'node.exe'), { recursive: true })
+      writeFileSync(join(dir, 'node.exe'), '')
+      expect(launch().file).toBe(join(dir, 'node.exe'))
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 
   it('refuses a Claude .cmd it cannot follow, with what to connect instead', () => {

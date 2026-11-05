@@ -81,7 +81,45 @@ describe('readOmpTerminalTheme', () => {
     })
     expect(colors?.background).toBeUndefined()
   })
+})
 
+describe('readOmpTerminalTheme color values', () => {
+  it('reads a 0-255 color as xterm does: the 16 system colors, the 6x6x6 cube and the gray ramp', () => {
+    config('theme.dark: "indexed"\n')
+    // 0, 4, 8 and 15 are system colors; 16 to 231 the cube; 232 and 255 the first and last gray.
+    theme('indexed', { terminal: { ansi: [0, 4, 8, 15, 16, 21, 46, 196, 226, 231, 59, 102, 100, 130, 232, 255] } })
+
+    expect(readOmpTerminalTheme(dir)).toEqual({
+      black: '#000000',
+      red: '#000080',
+      green: '#808080',
+      yellow: '#ffffff',
+      blue: '#000000',
+      magenta: '#0000ff',
+      cyan: '#00ff00',
+      white: '#ff0000',
+      brightBlack: '#ffff00',
+      brightRed: '#ffffff',
+      brightGreen: '#5f5f5f',
+      brightYellow: '#878787',
+      brightBlue: '#878700',
+      brightMagenta: '#af5f00',
+      brightCyan: '#080808',
+      brightWhite: '#eeeeee'
+    })
+  })
+
+  it('follows a name through other names, but not a chain longer than eight links', () => {
+    const chain = (links: number): Record<string, string> =>
+      Object.fromEntries(Array.from({ length: links }, (_, i) => [`v${i}`, i === links - 1 ? '#abcdef' : `v${i + 1}`]))
+    config('theme.dark: "chained"\n')
+
+    theme('chained', { vars: chain(9), colors: { accent: 'v0' } })
+    expect(readOmpTerminalTheme(dir)).toEqual({ cursor: '#abcdef' })
+
+    theme('chained', { vars: chain(11), colors: { accent: 'v0' } })
+    expect(readOmpTerminalTheme(dir)).toBeNull()
+  })
 })
 
 describe('readOmpTerminalTheme for built-in themes', () => {

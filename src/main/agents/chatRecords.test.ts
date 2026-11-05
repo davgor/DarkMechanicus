@@ -82,6 +82,17 @@ describe('chat records: creating, listing and renaming', () => {
     expect(rig(before.fs).records.listChats(REPO)).toEqual([chat])
   })
 
+  it('keeps the Kanban card a chat was created for across a restart, and records none otherwise', () => {
+    const before = rig()
+
+    const chat = before.records.createChat({ folder: REPO, agent: 'claude', role: 'worker', title: 'Card', cardId: 'kc_1' })
+    const plain = before.records.createChat({ folder: REPO, agent: 'claude', role: 'worker', title: 'No card' })
+
+    expect(chat).toMatchObject({ cardId: 'kc_1' })
+    expect(plain).not.toHaveProperty('cardId')
+    expect(rig(before.fs).records.listChats(REPO).find((listed) => listed.id === chat.id)).toMatchObject({ cardId: 'kc_1' })
+  })
+
   it('renames only the title, and refuses an unknown chat', () => {
     const { records } = rig()
     const chat = newChat(records)

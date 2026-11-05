@@ -15,6 +15,8 @@ describe('agentName', () => {
     expect(agentName('claude')).toBe('Claude Code')
     expect(agentName('codex')).toBe('Codex')
     expect(agentName('cursor')).toBe('Cursor')
+    expect(agentName('autonomous')).toBe('Autonomous')
+    expect(agentName('omp')).toBe('Skitarii')
   })
 })
 
@@ -38,7 +40,7 @@ describe('CUSTOM_AGENT_BLURB', () => {
 
 describe('AGENT_BLURBS', () => {
   it('gives each agent one line to tell it apart', () => {
-    for (const kind of ['claude', 'codex', 'cursor', 'autonomous'] as const) {
+    for (const kind of ['claude', 'codex', 'cursor', 'autonomous', 'omp'] as const) {
       expect(AGENT_BLURBS[kind]).not.toBe('')
       expect(AGENT_BLURBS[kind]).not.toContain('\n')
     }
@@ -83,5 +85,13 @@ describe('phaseText', () => {
     expect(phaseText({ phase: 'done', percent: null })).toBe('Finishing up…')
     expect(phaseText({ phase: 'cancelled', percent: null })).toBe('Cancelled.')
     expect(phaseText({ phase: 'failed', percent: null })).toBe('Stopped.')
+  })
+})
+
+describe('the Skitarii card', () => {
+  it('names Skitarii and the OMP it is built on, so a person can tell it from the other agents', () => {
+    expect(AGENT_BLURBS.omp).toContain('Skitarii')
+    expect(AGENT_BLURBS.omp).toContain('OMP')
+    expect(new Set(Object.values(AGENT_BLURBS)).size).toBe(Object.keys(AGENT_BLURBS).length)
   })
 })

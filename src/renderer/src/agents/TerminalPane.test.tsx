@@ -113,6 +113,30 @@ describe('TerminalPane: a chat that does not start', () => {
     expect(details().getByText('Failed')).toBeTruthy()
     expect(notice()).toBe('No chat chat_a in /a.')
   })
+
+  it('marks the notice blocking when the CLI did not start, and not when it ran and then ended', async () => {
+    const blocking = (): boolean => screen.getByRole('status').classList.contains('is-blocking')
+    terminals.outcomes.chat_a = { state: 'refused', message: 'The folder /a moved.' }
+    await show()
+    expect(blocking()).toBe(true)
+    cleanup()
+
+    terminals.outcomes.chat_a = { state: 'failed', message: 'posix_spawnp failed.' }
+    await show()
+    expect(blocking()).toBe(true)
+    cleanup()
+
+    terminals.outcomes.chat_a = { state: 'signed_out', message: 'Claude Code is signed out.' }
+    await show()
+    expect(blocking()).toBe(true)
+    cleanup()
+
+    delete terminals.outcomes.chat_a
+    await show()
+    terminals.latest().emitExit(EXITED)
+    await settle()
+    expect(blocking()).toBe(false)
+  })
 })
 
 describe('TerminalPane screen', () => {

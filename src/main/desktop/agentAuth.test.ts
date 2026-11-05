@@ -168,6 +168,7 @@ describe('status maps each CLI output to signed_in, signed_out or unknown', () =
 describe('status for OMP reads the account lists of `omp usage --json`', () => {
   it.each([
     ['signed in: an account in reports', 0, OMP_SIGNED_IN, 'signed_in'],
+    ['signed in: an account without usage figures', 0, '{"reports":[],"accountsWithoutUsage":[{"provider":"anthropic"}],"disabledCredentials":[],"capacity":{}}\n', 'signed_in'],
     ['signed out: every list empty', 0, OMP_SIGNED_OUT, 'signed_out'],
     ['signed out, ANSI-coloured', 0, `\u001b[32m${OMP_SIGNED_OUT}\u001b[0m`, 'signed_out'],
     ['signed out with a text message and exit 1', 1, 'No credentials found. Run `omp` and use /login to add accounts.\n', 'unknown'],
@@ -177,6 +178,16 @@ describe('status for OMP reads the account lists of `omp usage --json`', () => {
     ['only a disabled credential', 0, '{"reports":[],"accountsWithoutUsage":[],"disabledCredentials":[{"provider":"anthropic"}],"capacity":{}}\n', 'unknown']
   ] as const)('%s', async (_label, exitCode, output, state) => {
     expect((await statusOf('omp', exited(exitCode, output))).state).toBe(state)
+  })
+
+  it('says in words which way OMP answered, naming the agent by its display name', async () => {
+    expect(await statusOf('omp', exited(0, OMP_SIGNED_IN))).toEqual({ state: 'signed_in', reason: 'Skitarii reports it is signed in.' })
+    expect(await statusOf('omp', exited(0, OMP_SIGNED_OUT))).toEqual({ state: 'signed_out', reason: 'Skitarii reports it is not signed in.' })
+  })
+
+  it('tells an answer it does not recognise from a status command that failed, by exit code', async () => {
+    expect((await statusOf('omp', exited(0, 'not json at all\n'))).reason).toBe('Skitarii answered in a way this app does not recognise.')
+    expect((await statusOf('omp', exited(3, 'not json at all\n'))).reason).toBe("Skitarii's status command reported an error (exit code 3).")
   })
 })
 

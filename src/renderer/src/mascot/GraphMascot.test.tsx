@@ -170,3 +170,58 @@ describe('graph mascot motion preferences', () => {
     expect(layer.dataset.shakeId).toBe('0')
   })
 })
+
+describe('graph mascot starting state', () => {
+  const layerOf = (view: ReturnType<typeof mount>) => view.container.querySelector<HTMLElement>('.pg-mascot-layer')!
+
+  it('says on its layer whether it is animating: yes when shown and free to move, no when paused, reduced or hidden', () => {
+    const free = mount()
+    expect(layerOf(free).dataset.animated).toBe('true')
+    free.unmount()
+
+    localStorage.setItem('mascotMotionPaused', 'true')
+    const paused = mount()
+    expect(layerOf(paused).dataset.animated).toBe('false')
+    paused.unmount()
+
+    localStorage.clear()
+    reduced = true
+    const stilled = mount()
+    expect(layerOf(stilled).dataset.animated).toBe('false')
+    expect(frames.size).toBe(0)
+    stilled.unmount()
+
+    reduced = false
+    visible = false
+    const hidden = mount()
+    expect(layerOf(hidden).dataset.animated).toBe('false')
+    expect(frames.size).toBe(0)
+  })
+
+  it('draws no sprite until the board has a size, and stands it on the bottom middle of the board once it has', () => {
+    const view = mount()
+    expect(view.container.querySelectorAll('.pg-mascot-sprite')).toHaveLength(1)
+    view.unmount()
+
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => 0 })
+    const empty = mount()
+    expect(empty.container.querySelector('.pg-mascot-sprite')).toBeNull()
+    expect(frames.size).toBe(0)
+    empty.unmount()
+
+    Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => 800 })
+    Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get: () => 0 })
+    expect(mount().container.querySelector('.pg-mascot-sprite')).toBeNull()
+  })
+
+  it('moves nothing on its first frame, which has no earlier frame to measure from', () => {
+    const view = mount()
+    const sprite = view.container.querySelector<HTMLElement>('.pg-mascot-sprite')!
+    const left = sprite.style.left
+    const top = sprite.style.top
+    tick(500)
+    expect(sprite.style.left).toBe(left)
+    expect(sprite.style.top).toBe(top)
+    expect(frames.size).toBe(1)
+  })
+})

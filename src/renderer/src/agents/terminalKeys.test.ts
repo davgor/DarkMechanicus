@@ -21,6 +21,20 @@ describe('modifiedEnter', () => {
     expect(modifiedEnter(key({ ctrlKey: true, shiftKey: true }), { ...NONE, modifyOtherKeys: true })).toBe('\x1b[27;6;13~')
   })
 
+  it('adds Alt to the modifier of either mode, and every modifier together', () => {
+    const win32 = { ...NONE, win32: true }
+    const other = { ...NONE, modifyOtherKeys: true }
+    expect(modifiedEnter(key({ shiftKey: true, altKey: true }), other)).toBe('\x1b[27;4;13~')
+    expect(modifiedEnter(key({ ctrlKey: true, altKey: true }), other)).toBe('\x1b[27;7;13~')
+    expect(modifiedEnter(key({ shiftKey: true, ctrlKey: true, altKey: true }), other)).toBe('\x1b[27;8;13~')
+    expect(modifiedEnter(key({ shiftKey: true, altKey: true }), win32)).toBe('\x1b[13;28;13;1;18;1_\x1b[13;28;13;0;18;1_')
+    expect(modifiedEnter(key({ shiftKey: true, ctrlKey: true, altKey: true }), win32)).toBe('\x1b[13;28;13;1;26;1_\x1b[13;28;13;0;26;1_')
+  })
+
+  it('prefers the win32 records when the CLI has switched both modes on', () => {
+    expect(modifiedEnter(key({ shiftKey: true }), { win32: true, modifyOtherKeys: true })).toBe('\x1b[13;28;13;1;16;1_\x1b[13;28;13;0;16;1_')
+  })
+
   it('ignores a plain Enter, other keys, Cmd, Alt alone and key releases', () => {
     const modes: KeyModes = { win32: true, modifyOtherKeys: true }
     for (const event of [key({}), key({ key: 'a', shiftKey: true }), key({ shiftKey: true, metaKey: true }), key({ altKey: true }), key({ shiftKey: true, type: 'keyup' })]) {
