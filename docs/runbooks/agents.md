@@ -226,7 +226,7 @@ Nothing is stored on any failure. The codes: `busy` (a download of that agent is
 
 - **Start again** appears when the CLI has exited or been stopped; it starts the CLI again on the chat's session. Claude Code resumes with `--resume <id>` once its session file exists (a chat that exited before its first prompt, for example at the folder-trust question, starts again on the same new id); Autonomous runs `a8s resume` once the chat was typed into; Codex and Cursor resume with their stored session id when they have one.
 - **New session** appears after a resumed session ended, for the case where the CLI refused to resume (it says so on its last screen); it clears the chat's stored session and starts a fresh one.
-- **Idle stop.** A chat terminal with no input and no output for 10 minutes is stopped (its tree ended, its grant revoked) and says **Stopped after 10 minutes idle.**; **Start again** resumes it. A CLI working in the background keeps producing output, so it is not stopped.
+- **Idle stop.** A chat terminal with no input and no output for 10 minutes is stopped (its tree ended, its grant revoked) and says **Stopped after 10 minutes idle.**; **Start again** resumes it. A CLI working in the background keeps producing output, so it is not stopped. An orchestrator chat (one Start run or Play opened) whose run or Kanban card still has a worker holding a lease is not idle either: once it has gone quiet, the app reads the lease every minute, and stops the chat only 10 minutes after the lease was last held.
 
 ## Known limitations
 

@@ -38,9 +38,12 @@
  * (a resume the CLI refused) answers with the last screen and hears the exit, rather than starting it again.
  *
  * **Idle stop.** A PTY with no input and no output on its screen for 10 minutes is stopped (tree killed, grant
- * revoked) with the message `Stopped after 10 minutes idle.`; the next attach resumes it as above. Before it is
- * stopped its processes are listed, and a shell running under its CLI (a command it started, `runningShell.ts`) counts
- * as activity, so a long command that prints nothing is never stopped.
+ * revoked) with the message `Stopped after 10 minutes idle.`; the next attach resumes it as above. A chat that
+ * carries a run or a Kanban card is an orchestrator that may be watching a worker: once its PTY has gone 10 minutes
+ * quiet, the lease is read (`leaseHeld`) every minute, and each read that finds one held counts as activity, so it
+ * is stopped 10 minutes after the last such read. A read that fails counts as no lease. When no lease is held, the
+ * PTY's processes are listed before it is stopped, and a shell running under its CLI (a command it started,
+ * `runningShell.ts`) counts as activity, so a long command that prints nothing is never stopped.
  *
  * **Kickoff and pastes** ("The orchestrator chat Start run opens"). `start` is Start run's (and Transfer with
  * agent's, and Play's for a Kanban card): it starts the chat's PTY with the kickoff, which goes only when the record's
@@ -84,6 +87,8 @@ import { createTerminalScreen, type TerminalScreen } from './terminalScreen'
 const FOLDER_CHECK_MS = 60_000
 /** How long a PTY may go with no input, no output and no shell running under it before it is stopped. */
 const IDLE_MS = 10 * 60_000
+/** How often a quiet PTY whose chat carries a run or a Kanban card has its lease read again. */
+const LEASE_CHECK_MS = 60_000
 /** The size a PTY starts at, until the pane that shows it sends its own. */
 const START_COLS = 80
 const START_ROWS = 24
@@ -198,6 +203,11 @@ export interface TerminalSessionsDeps {
   /** The `dm` invocation pinned to `folder`, without a grant: what the start files name. */
   cliFor: (folder: string) => DarkMechanicusCli
   runs: OrchestratorRuns
+  /**
+   * Whether the run or Kanban card the chat carries has an attempt holding a lease that has not expired, through the
+   * desktop's own session, and no newer chat carries it (`chatLeases.ts`): while one is held, the chat is not idle.
+   */
+  leaseHeld: (chat: ChatRecord) => Promise<boolean>
   issueChatCli: (folder: string, grant: { role: ChatRole; allowSave: boolean; label: string }) => Promise<{ cli: DarkMechanicusCli; grantId: string }>
   /** Never throws (`chatGrants.ts`). */
   revokeChatGrant: (grantId: string) => Promise<void>
@@ -454,6 +464,16 @@ function closeAfterExit(manager: Manager, live: Live, exit: PtyExit, reportClose
   })
 }
 
+/** Whether the run or Kanban card the chat carries holds a lease; a read that fails is reported and counts as none. Never rejects. */
+async function leaseHeld(manager: Manager, chat: ChatRecord): Promise<boolean> {
+  try {
+    return await manager.deps.leaseHeld(chat)
+  } catch (error) {
+    manager.onError(error)
+    return false
+  }
+}
+
 /** Whether a shell runs under the PTY's program; a listing that fails is reported and counts as none, so the idle stop goes on. */
 function shellRunning(manager: Manager, live: Live): Promise<boolean> {
   return manager.deps.shellRunning(live.tree.pid).catch((error: unknown) => {
@@ -466,42 +486,50 @@ function shellRunning(manager: Manager, live: Live): Promise<boolean> {
  * The watches on a running PTY; answers the function that ends them, which also gives up the pastes still waiting. Its
  * folder is checked every minute. It is stopped once it has gone `IDLE_MS` with no activity: a timer set for the
  * earliest moment it can be idle, checked against `lastActive` when it fires, so activity costs a timestamp and
- * not a new timer. Only then are its processes listed: a shell found running under it is activity at that moment.
+ * not a new timer. Only a quiet PTY is asked more: for a chat that carries a run or a Kanban card, its lease, read
+ * every `LEASE_CHECK_MS` from then on, and a read that finds one held counts as activity (`leaseSeen`); with no lease
+ * held, its processes are listed, and a shell found running under it is activity at that moment.
  */
 function watchLive(manager: Manager, live: Live): () => void {
   const { timers } = manager.deps
   const stopFolderWatch = timers.repeat(() => {
     folderStillValid(manager, live)
   }, FOLDER_CHECK_MS)
-  let watching = true
+  const watchesLease = live.chat.runId !== undefined || live.chat.cardId !== undefined
+  let ended = false
+  let leaseSeen = Number.NEGATIVE_INFINITY
   let stopIdleWatch: () => void = () => {}
-  const stopOrWait = (): void => {
-    const quiet = timers.now() - live.lastActive
+  const readActivity = async (): Promise<void> => {
+    const held = watchesLease && (await track(manager, leaseHeld(manager, live.chat)))
+    const shell = !held && !ended && (await shellRunning(manager, live))
+    // Stopped, or exited, while the lease was read or the processes were listed.
+    if (ended) {
+      return
+    }
+    if (held) {
+      leaseSeen = timers.now()
+    }
+    if (shell) {
+      live.lastActive = timers.now()
+    }
+    const quiet = timers.now() - Math.max(live.lastActive, leaseSeen)
     if (quiet >= IDLE_MS) {
       void stop(manager, live, IDLE_STOPPED)
     } else {
-      stopIdleWatch = timers.after(check, IDLE_MS - quiet)
+      stopIdleWatch = timers.after(check, watchesLease ? LEASE_CHECK_MS : IDLE_MS - quiet)
     }
   }
   const check = (): void => {
-    if (timers.now() - live.lastActive < IDLE_MS) {
-      stopOrWait()
-      return
+    const quiet = timers.now() - live.lastActive
+    if (quiet < IDLE_MS) {
+      stopIdleWatch = timers.after(check, IDLE_MS - quiet)
+    } else {
+      void readActivity()
     }
-    void shellRunning(manager, live).then((running) => {
-      // Stopped, or exited, while the processes were listed.
-      if (!watching) {
-        return
-      }
-      if (running) {
-        live.lastActive = timers.now()
-      }
-      stopOrWait()
-    })
   }
   stopIdleWatch = timers.after(check, IDLE_MS)
   return () => {
-    watching = false
+    ended = true
     stopFolderWatch()
     stopIdleWatch()
     live.pastes.cancel?.()

@@ -47,6 +47,7 @@ import { logger } from '../logger'
 import { createLoginTerminals, type LoginTerminals } from '../terminals/loginTerminals'
 import { createNodePtyHost, type PtyHost } from '../terminals/ptyHost'
 import { createTerminalHandlers, registerTerminalIpc } from '../terminals/terminalHandlers'
+import { createLeaseHeld } from '../terminals/chatLeases'
 import { createTerminalSessions, endingTerminals, type TerminalSessions, type TerminalSessionsDeps } from '../terminals/terminalSessions'
 import { getAgentAuthStatus } from './agentAuth'
 import {
@@ -279,7 +280,7 @@ interface ChatProcesses {
 
 /** What the chat terminals run over besides the store: the grants and runs of the chats, the tracked folders, the agents. */
 interface TerminalDeps {
-  grants: Pick<TerminalSessionsDeps, 'issueChatCli' | 'revokeChatGrant' | 'runs'>
+  grants: Pick<TerminalSessionsDeps, 'issueChatCli' | 'revokeChatGrant' | 'runs' | 'leaseHeld'>
   folders: TerminalSessionsDeps['folders']
   agents: Pick<AgentRegistry, 'get'>
 }
@@ -339,8 +340,14 @@ function createChatProcesses(
     getRun: async (folder: string, runId: string) => desktopWorkspace(folders, workspaces, folder).getRun({ runId }),
     pauseRun: async (folder: string, input: { runId: string; reason: string }) => desktopWorkspace(folders, workspaces, folder).pauseRun(input)
   }
+  // An orchestrator chat watching its run's or card's lease is not idle-stopped.
+  const leaseHeld = createLeaseHeld({
+    listChats: (folder) => store.listChats(folder),
+    getRun: async (folder, runId) => desktopWorkspace(folders, workspaces, folder).getRun({ runId }),
+    getKanbanCard: async (folder, cardId) => desktopWorkspace(folders, workspaces, folder).getKanbanCard({ cardId })
+  })
   const launchFolders = { trackedFolder: (path: string) => folders.resolve(path) }
-  const { terminals, logins } = createTerminalProcesses(store, { grants: { ...grants, runs }, folders: launchFolders, agents })
+  const { terminals, logins } = createTerminalProcesses(store, { grants: { ...grants, runs, leaseHeld }, folders: launchFolders, agents })
   const quit = {
     busy: () => terminals.busy() || logins.busy(),
     dispose: async () => {
