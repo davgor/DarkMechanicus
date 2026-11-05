@@ -142,7 +142,7 @@ function PhaseStatus({ phase, notice, startAgain, ...card }: PhaseStatusProps): 
  * terminal, which opens that transcript read-only (`EarlierConversation.tsx`).
  */
 export function TerminalPane({ folder, chat, agentName, kit, scheduler, onAgentStatus }: TerminalPaneProps): JSX.Element {
-  const { host, phase, background, working, focus, startAgain } = useTerminal({ folder, chatId: chat.id, agent: chat.agent, kit, scheduler })
+  const { host, phase, background, working, title, focus, startAgain } = useTerminal({ folder, chatId: chat.id, agent: chat.agent, kit, scheduler })
   const pill = PHASE_PILLS[phase.state]
   const skitarii = chat.agent === 'omp'
   // The host stays laid out while the attach is answered, so the emulator opens at the pane's real size.
@@ -153,6 +153,7 @@ export function TerminalPane({ folder, chat, agentName, kit, scheduler, onAgentS
       <ChatHeader
         chat={chat}
         agentName={agentName}
+        terminalTitle={title}
         mascot={skitarii ? <SkitariiMascot working={working} /> : undefined}
         fact={
           <>

@@ -5,6 +5,7 @@
  * lives in the pure modules beside this file and in `../agents`, `../terminals`, `../git` and `../github`;
  * this one is composition only, so it has no unit tests of its own.
  */
+import { existsSync } from 'node:fs'
 import {
   app,
   BrowserWindow,
@@ -84,7 +85,7 @@ import { registerDesktopIpc } from './ipc'
 import { buildCliConfig, type CliLaunch } from './cliConfig'
 import { buildMcpConfig } from './mcpConfig'
 import { claudeCodeServer } from './mcpJson'
-import { writeMcpServer } from './mcpJsonFile'
+import { refreshMcpServer, writeMcpServer } from './mcpJsonFile'
 import { installClaudeSkills, type SkillDefinition } from './skillInstall'
 import { createWorkspacePool, type WorkspacePool } from './workspacePool'
 
@@ -226,6 +227,15 @@ function mcpConfigFor(repoPath: string): McpConfigView {
     repoPath,
     dmHome: darkMechanicusHome()
   })
+}
+
+/** Points each tracked folder's `.mcp.json` entry at this build when the build that wrote it was removed. */
+function refreshClaudeCodeEntries(registry: FolderRegistry): void {
+  for (const folder of registry.list()) {
+    if (folder.available && folder.storageMode === 'repo') {
+      refreshMcpServer(folder.path, mcpConfigFor(folder.path), existsSync)
+    }
+  }
 }
 
 function openDesktopWorkspace(repoRoot: string): Workspace {
@@ -590,6 +600,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
     }
   })
   registerDesktopIpc(ipc, handlers)
+  refreshClaudeCodeEntries(registry)
   const close = runLifecycle(pool, appDb)
   startChats(ipc, { folders: registry, agents, chats, store, terminals, workspaces: pool, activity })
   startTerminals(ipc, { folders: registry, agents, store, terminals, logins })

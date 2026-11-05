@@ -1,0 +1,2 @@
+c2: dev build of this branch (electron-vite build, run with the electron binary) on Windows, throwaway --user-data-dir, scratch PI_CODING_AGENT_DIR with a dummy anthropic api key, scratch git folder `omp-scratch`, OMP 18.16.0.
+c2-01: a new Skitarii chat; the header shows the chat title "New chat" as the heading and, beneath it, the terminal title "Skitarii · omp-scratch" in muted text. The shot is the app page only (CDP Page.captureScreenshot).

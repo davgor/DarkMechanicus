@@ -73,6 +73,17 @@ class FakeXterm {
     for (const handler of this.csi.filter((entry) => entry.key === key)) if (handler.callback(params)) return
   }
 
+  private readonly titles = new Set<(title: string) => void>()
+
+  onTitleChange(listener: (title: string) => void): IDisposable {
+    this.titles.add(listener)
+    return { dispose: () => this.titles.delete(listener) }
+  }
+
+  setTitle(title: string): void {
+    for (const listener of this.titles) listener(title)
+  }
+
   type(data: string): void {
     for (const listener of this.data) listener(data)
   }
@@ -357,5 +368,18 @@ describe('xtermKit keys', () => {
     terminal?.feed('?l', 9001)
     terminal?.feed('>m', 4, 2)
     expect(reached).toEqual(['?h', '?l', '>m'])
+  })
+
+})
+
+describe('xtermKit title', () => {
+  it('hands on the title the terminal reports until the subscription is stopped', () => {
+    const view = create()
+    const heard: string[] = []
+    const stop = view.onTitleChange((title) => heard.push(title))
+    terminals[0]?.setTitle('Skitarii · work')
+    stop()
+    terminals[0]?.setTitle('later')
+    expect(heard).toEqual(['Skitarii · work'])
   })
 })

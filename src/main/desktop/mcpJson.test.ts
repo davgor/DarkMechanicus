@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { buildMcpConfig } from './mcpConfig'
-import { claudeCodeServer, darkMechanicusServer, mergeMcpServer, type McpServerEntry } from './mcpJson'
+import { claudeCodeServer, darkMechanicusServer, mergeMcpServer, refreshStaleServer, type McpServerEntry } from './mcpJson'
 
 const SERVER: McpServerEntry = {
   command: '/Apps/DM',
@@ -278,5 +278,102 @@ describe('darkMechanicusServer', () => {
     expect(darkMechanicusServer(dev, { role: 'planner', allowSave: false, label: 'Claude Code' })).toEqual(
       claudeCodeServer(dev, { role: 'planner', allowSave: false })
     )
+  })
+})
+
+const OLD_BUILD = { packaged: true, execPath: '/Apps/DM-1.0/DM', appPath: '/Apps/DM-1.0/resources/app.asar', repoPath: '/repos/site', dmHome: '/home/dm' }
+const NEW_BUILD = { ...OLD_BUILD, execPath: '/Apps/DM-2.0/DM', appPath: '/Apps/DM-2.0/resources/app.asar' }
+const OTHER_ENTRY = { command: 'npx', args: ['-y', '@acme/other-mcp'] }
+
+describe('refreshStaleServer', () => {
+  const REPO = '/repos/site'
+  const launch = { role: 'planner', allowSave: true } as const
+  const initialized = claudeCodeServer(buildMcpConfig(OLD_BUILD), launch)
+  const running = buildMcpConfig(NEW_BUILD)
+  const fileWith = (entry: unknown): string => fileText({ $comment: 'mine', mcpServers: { other: OTHER_ENTRY, darkmechanicus: entry } })
+  const existing = (...paths: string[]) => (path: string) => paths.includes(path)
+  const NEW_SCRIPT = running.args[0] as string
+
+  it('points an entry whose initializing build is gone at the running build, keeping role, label and the other servers', () => {
+    const result = refreshStaleServer(fileWith(initialized), running, { repoRoot: REPO, exists: existing(NEW_SCRIPT) })
+
+    expect(result.outcome).toBe('refreshed')
+    const written = JSON.parse((result as { text: string }).text)
+    expect(written.$comment).toBe('mine')
+    expect(written.mcpServers.other).toEqual(OTHER_ENTRY)
+    expect(written.mcpServers.darkmechanicus).toEqual({
+      command: '/Apps/DM-2.0/DM',
+      args: [NEW_SCRIPT, '--repo', REPO, '--role', 'planner', '--allow-save', '--label', 'Claude Code'],
+      env: { DARKMECHANICUS_HOME: '/home/dm', ELECTRON_RUN_AS_NODE: '1' }
+    })
+  })
+
+  it('leaves an entry alone while the build it names still exists, so two builds never rewrite each other', () => {
+    const oldScript = initialized.args[0] as string
+    const exists = existing(NEW_SCRIPT, oldScript, '/Apps/DM-1.0/DM')
+
+    expect(refreshStaleServer(fileWith(initialized), running, { repoRoot: REPO, exists })).toEqual({ outcome: 'current' })
+  })
+
+  it('refreshes an entry whose script is there but whose launch command is gone', () => {
+    const oldScript = initialized.args[0] as string
+
+    const result = refreshStaleServer(fileWith(initialized), running, { repoRoot: REPO, exists: existing(NEW_SCRIPT, oldScript) })
+
+    expect(result.outcome).toBe('refreshed')
+  })
+
+  it('does not write a path the running build lacks (a development build that was never built)', () => {
+    expect(refreshStaleServer(fileWith(initialized), running, { repoRoot: REPO, exists: existing() })).toEqual({ outcome: 'skipped' })
+  })
+
+  it("moves a packaged entry to a development build, dropping the runtime variable and keeping the person's variables", () => {
+    const dev = buildMcpConfig({ packaged: false, execPath: '/electron', appPath: '/work/dm', repoPath: REPO, dmHome: '/home/dm' })
+    const entry = { ...initialized, env: { ...initialized.env, MY_VAR: 'x' } }
+
+    const result = refreshStaleServer(fileWith(entry), dev, { repoRoot: REPO, exists: existing(dev.args[0] as string) })
+
+    const written = JSON.parse((result as { text: string }).text)
+    expect(written.mcpServers.darkmechanicus.command).toBe('node')
+    expect(written.mcpServers.darkmechanicus.env).toEqual({ DARKMECHANICUS_HOME: '/home/dm', MY_VAR: 'x' })
+  })
+
+  it('handles Windows paths regardless of case and slash direction in --repo', () => {
+    const win = (exe: string) => ({ packaged: true, execPath: `C:\\Apps\\${exe}\\DM.exe`, appPath: `C:\\Apps\\${exe}\\resources\\app.asar`, repoPath: 'C:\\Repos\\Site' })
+    const old = claudeCodeServer(buildMcpConfig(win('old')), launch)
+    const now = buildMcpConfig(win('new'))
+
+    const result = refreshStaleServer(fileWith(old), now, { repoRoot: 'c:/repos/site', exists: existing(now.args[0] as string) })
+
+    expect(result.outcome).toBe('refreshed')
+  })
+
+})
+
+describe('refreshStaleServer on entries the app does not own', () => {
+  const REPO = '/repos/site'
+  const initialized = claudeCodeServer(buildMcpConfig(OLD_BUILD), { role: 'planner', allowSave: true })
+  const running = buildMcpConfig(NEW_BUILD)
+  const NEW_SCRIPT = running.args[0] as string
+  const existing = (...paths: string[]) => (path: string) => paths.includes(path)
+  const fileWith = (entry: unknown): string => fileText({ $comment: 'mine', mcpServers: { other: OTHER_ENTRY, darkmechanicus: entry } })
+
+  it.each([
+    ['a different folder', { ...initialized, args: initialized.args.map((a) => (a === REPO ? '/repos/other' : a)) }],
+    ['a different label', { ...initialized, args: initialized.args.map((a) => (a === 'Claude Code' ? 'Mine' : a)) }],
+    ['a script that is not mcp.js', { ...initialized, args: ['/gone/server.js', ...initialized.args.slice(1)] }],
+    ['a command-only entry', { command: 'my-wrapper' }],
+    ['a hand-written relative path', { command: 'node', args: ['mcp.js', '--repo', REPO, '--label', 'Claude Code'] }]
+  ])('leaves an entry the app did not write alone: %s', (_name, entry) => {
+    const result = refreshStaleServer(fileWith(entry), running, { repoRoot: REPO, exists: existing(NEW_SCRIPT) })
+
+    expect(result.outcome === 'refreshed').toBe(false)
+  })
+
+  it('leaves a file with no darkmechanicus entry, or that is not valid JSON, alone', () => {
+    const context = { repoRoot: REPO, exists: existing(NEW_SCRIPT) }
+
+    expect(refreshStaleServer(fileText({ mcpServers: { other: OTHER_ENTRY } }), running, context)).toEqual({ outcome: 'skipped' })
+    expect(refreshStaleServer('{ not json', running, context)).toEqual({ outcome: 'skipped' })
   })
 })

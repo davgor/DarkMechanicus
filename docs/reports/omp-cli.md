@@ -230,7 +230,108 @@ exit=0
 ```
 
 - **Recommended status probe:** `omp models --json` or `omp usage --json` (both exit 0 signed out; a signed-out account has no model list or report). `omp usage` text exits 1 only when no credential is stored (`usage-cli.ts` line 1736-1739, after `process.stderr.write(...)`). `omp usage` fetches live provider usage over the network when signed in, so it is slower. Do not use `omp token <provider>` or `omp auth export` as a probe: signed in they print the secret token or every stored credential.
-- **Signed-in output was NOT observed (no account).** From source: `omp usage --json` returns `{generatedAt, reports:[{provider, fetchedAt, limits[], ...}], accountsWithoutUsage:[{...identity}], disabledCredentials, capacity:{<provider>:[...]}}` (`packages/coding-agent/src/cli/usage-cli.ts` lines 1700-1722) with exit 0, and the text form prints a breakdown per account with exit 0. So signed in means `reports.length > 0 || accountsWithoutUsage.length > 0`. `omp models --json` signed in lists the models of authenticated providers (exact shape not seen).
+- **Signed-in `omp usage --json` was recorded (DM-438, omp 18.16.0, Anthropic account, 2026-11-05).** Exit code 0 on all 5 runs, empty stderr, 2333 bytes of stdout. Wall time per run: **772 ms, 177 ms, 180 ms, 183 ms, 180 ms (max 772 ms)**. Only the first run fetched live: `fetchedAt` was identical across the five runs, so OMP serves its cached usage report for the later ones (cache lifetime not measured; the live fetch cost about 0.6 s more than a cached run). Account identifiers (`metadata.accountId`, `email`, `orgId`, `orgName`) are replaced with `<redacted>`; everything else is as printed:
+
+```
+$ omp usage --json
+{
+  "generatedAt": 1793904116694,
+  "reports": [
+    {
+      "provider": "anthropic",
+      "fetchedAt": 1793904116422,
+      "limits": [
+        {
+          "id": "anthropic:7d",
+          "label": "Claude 7 Day",
+          "scope": {
+            "provider": "anthropic",
+            "windowId": "7d",
+            "shared": true
+          },
+          "window": {
+            "id": "7d",
+            "label": "7 Day",
+            "durationMs": 604800000,
+            "resetsAt": 1794261599511
+          },
+          "amount": {
+            "used": 5,
+            "limit": 100,
+            "remaining": 95,
+            "usedFraction": 0.05,
+            "remainingFraction": 0.95,
+            "unit": "percent"
+          },
+          "status": "ok"
+        },
+        {
+          "id": "anthropic:7d:fable",
+          "label": "Claude 7 Day (Fable)",
+          "scope": {
+            "provider": "anthropic",
+            "windowId": "7d",
+            "tier": "fable"
+          },
+          "window": {
+            "id": "7d",
+            "label": "7 Day",
+            "durationMs": 604800000,
+            "resetsAt": 1794261600000
+          },
+          "amount": {
+            "used": 0,
+            "limit": 100,
+            "remaining": 100,
+            "usedFraction": 0,
+            "remainingFraction": 1,
+            "unit": "percent"
+          },
+          "status": "ok"
+        }
+      ],
+      "metadata": {
+        "endpoint": "https://api.anthropic.com/api/oauth/usage",
+        "accountId": "<redacted>",
+        "email": "<redacted>",
+        "orgId": "<redacted>",
+        "orgName": "<redacted>"
+      },
+      "resetCredits": {
+        "availableCount": 0,
+        "redeemableCount": 0,
+        "eligible": false,
+        "reason": "not_at_wall",
+        "credits": []
+      }
+    }
+  ],
+  "accountsWithoutUsage": [],
+  "disabledCredentials": [],
+  "capacity": {
+    "anthropic": [
+      {
+        "window": "7d",
+        "durationMs": 604800000,
+        "accounts": 1,
+        "usedAccounts": 0.05,
+        "remainingAccounts": 0.95
+      },
+      {
+        "window": "7d",
+        "durationMs": 604800000,
+        "meter": "fable",
+        "accounts": 1,
+        "usedAccounts": 0,
+        "remainingAccounts": 1
+      }
+    ]
+  }
+}
+exit=0
+```
+
+  The source reading held: signed in is a non-empty `reports` (one entry per provider account, with `limits[]`, `metadata` and `resetCredits`; `accountsWithoutUsage` stayed empty), so `reports.length > 0 || accountsWithoutUsage.length > 0` classifies it as signed in with no change to `classifyOmp`. `STATUS_TIMEOUT_MS.omp` stays at 10 s: the slowest run was 0.77 s, about 13 times under it. `omp models --json` signed in was not recorded.
 - **Interactive login:** `omp login [PROVIDER]` (`omp login anthropic`; omit PROVIDER to pick). `omp login --help`:
 
 ```
@@ -412,7 +513,7 @@ statusLineSpend statusLineStaged statusLineDirty statusLineUntracked statusLineO
 ## Open items for the next tickets
 
 - A hands-on key test (Shift+Enter, paste, resize) and an animated-frame (DEC 2026) check in the app pane; item 9 covered idle frames only.
-- Signed-in outputs of `omp usage --json` and `omp models --json`, and a real resume after a model turn (the session had no turn, only a draft).
+- Signed-in output of `omp models --json` (`omp usage --json` is recorded in section 5), and a real resume after a model turn (the session had no turn, only a draft).
 - Whether xterm.js 6 answers DECRQM 2026 and OSC 11 (so frames are synchronized and the theme slot is right), and whether it can show Kitty graphics.
 - AGENTS.md / CLAUDE.md pickup was read from docs only.
 - Working-indicator text and spinner frames were read from source only.

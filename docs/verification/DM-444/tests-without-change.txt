@@ -1,0 +1,20 @@
+ RUN  v4.1.12 C:/Users/davgo/Documents/GitHub/dm-wt/omp-444
+ ❯ src/main/desktop/mcpJson.test.ts (36 tests | 12 failed) 9ms
+     × points an entry whose initializing build is gone at the running build, keeping role, label and the other servers 2ms
+     × leaves an entry alone while the build it names still exists, so two builds never rewrite each other 0ms
+     × refreshes an entry whose script is there but whose launch command is gone 0ms
+     × does not write a path the running build lacks (a development build that was never built) 0ms
+     × moves a packaged entry to a development build, dropping the runtime variable and keeping the person's variables 0ms
+     × handles Windows paths regardless of case and slash direction in --repo 0ms
+     × leaves an entry the app did not write alone: a different folder 0ms
+     × leaves an entry the app did not write alone: a different label 0ms
+     × leaves an entry the app did not write alone: a script that is not mcp.js 0ms
+     × leaves an entry the app did not write alone: a command-only entry 0ms
+     × leaves an entry the app did not write alone: a hand-written relative path 0ms
+     × leaves a file with no darkmechanicus entry, or that is not valid JSON, alone 0ms
+ ❯ src/main/desktop/mcpJsonFile.test.ts (21 tests | 3 failed) 37ms
+     × rewrites an initialized folder to the running build once the initializing build is deleted, keeping other servers 5ms
+     × does not rewrite while the initializing build still exists, from either build 4ms
+     × leaves a file the app does not own, a missing file and a linked file untouched 2ms
+⎯⎯⎯⎯⎯⎯ Failed Tests 15 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  src/main/desktop/mcpJson.test.ts > refreshStaleServer > points an entry whose initializing build is gone at the running build, keeping role, label and the other servers

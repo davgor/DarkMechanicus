@@ -72,6 +72,16 @@
   white-space: nowrap;
 }
 
+.chat-terminal-title {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .chat-model {
   display: inline-flex;
   align-items: center;

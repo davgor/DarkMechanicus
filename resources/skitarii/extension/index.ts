@@ -12,6 +12,8 @@ interface OmpContext {
   ui: SkitariiUi
   hasUI: boolean
   cwd: string
+  /** OMP's read-only session manager; `getEntries()` is the entries loaded so far (`session-manager.ts`). */
+  sessionManager?: { getEntries: () => readonly { type?: string; message?: { role?: string } }[] }
 }
 
 type Handler = (event: unknown, ctx: OmpContext) => void
@@ -50,13 +52,26 @@ export function reducedMotion(pi: OmpApi, lookup: Lookup | null): boolean {
   }
 }
 
+/**
+ * Whether the session already holds conversation. OMP's `session_start` event carries no reason, but a resumed session
+ * is loaded before it fires, so a user or assistant message among the entries (OMP's own test,
+ * `hasConversationalHistory`) means resumed. Unreadable counts as new, so the banner shows as it always did.
+ */
+function isResumed(ctx: OmpContext): boolean {
+  try {
+    return ctx.sessionManager?.getEntries().some((e) => e.type === 'message' && (e.message?.role === 'user' || e.message?.role === 'assistant')) === true
+  } catch {
+    return false
+  }
+}
+
 /** Registers the extension's handlers; `lookup` and `timers` are OMP's and the process's own unless a test gives them. */
 export function attach(pi: OmpApi, lookup: Lookup | null, timers: Timers = { setInterval, clearInterval: (handle) => clearInterval(handle as ReturnType<typeof setInterval>) }): Skitarii {
   const skitarii = new Skitarii(frames as MascotFrames, { timers, reducedMotion: reducedMotion(pi, lookup) })
   const withUi = (run: (ctx: OmpContext) => void): Handler => (_event, ctx) => {
     if (ctx.hasUI) run(ctx)
   }
-  pi.on('session_start', withUi((ctx) => skitarii.start(ctx.ui, ctx.cwd)))
+  pi.on('session_start', withUi((ctx) => skitarii.start(ctx.ui, ctx.cwd, isResumed(ctx))))
   pi.on('agent_start', withUi((ctx) => skitarii.workStarted(ctx.ui)))
   pi.on('turn_start', withUi((ctx) => skitarii.turnStarted(ctx.ui)))
   pi.on('tool_execution_start', withUi((ctx) => skitarii.toolStarted(ctx.ui)))

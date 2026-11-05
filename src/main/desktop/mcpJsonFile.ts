@@ -7,9 +7,9 @@
  */
 import { closeSync, constants, lstatSync, openSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { isAbsolute, join, relative, sep } from 'node:path'
-import type { ClaudeCodeConnectResult } from '../../shared/desktop/api'
+import type { ClaudeCodeConnectResult, McpConfigView } from '../../shared/desktop/api'
 import { DomainError } from '../../core/errors'
-import { mergeMcpServer, type McpServerEntry } from './mcpJson'
+import { mergeMcpServer, refreshStaleServer, type McpServerEntry } from './mcpJson'
 
 type EntryKind = 'missing' | 'file' | 'directory' | 'symlink' | 'other'
 
@@ -103,4 +103,34 @@ export function writeMcpServer(
   }
   fs.writeFile(file, merged.text)
   return { outcome: merged.outcome }
+}
+
+/**
+ * On app start: when this folder's `.mcp.json` holds an entry the app wrote that names a build which
+ * no longer exists, points it at the running build. Quiet by design: a missing file, a link, an
+ * unreadable or unmergeable file, or an entry the app does not own is left exactly as it is.
+ * Returns whether the file was rewritten.
+ */
+export function refreshMcpServer(
+  repoRoot: string,
+  config: Pick<McpConfigView, 'command' | 'args' | 'env'>,
+  exists: (path: string) => boolean,
+  fs: McpJsonFs = nodeMcpJsonFs
+): boolean {
+  try {
+    const rootReal = resolveRoot(fs, repoRoot)
+    const file = join(repoRoot, FILE_NAME)
+    if (fs.entryKind(file) !== 'file') {
+      return false
+    }
+    assertInside(rootReal, fs.realpath(file))
+    const result = refreshStaleServer(fs.readFile(file), config, { repoRoot: rootReal, exists })
+    if (result.outcome !== 'refreshed') {
+      return false
+    }
+    fs.writeFile(file, result.text)
+    return true
+  } catch {
+    return false
+  }
 }

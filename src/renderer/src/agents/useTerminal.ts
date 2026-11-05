@@ -24,6 +24,16 @@ const RESIZE_SETTLE_MS = 80
 /** How long after its last output a terminal still counts as at work (the Skitarii mascot drills for this long). */
 export const OUTPUT_QUIET_MS = 1500
 
+/** The longest terminal title shown: what the CLI sets is untrusted and may be any length. */
+export const TITLE_MAX_LENGTH = 80
+
+/** The title as shown: control characters (C0, DEL, C1) dropped, whitespace trimmed, cut to `TITLE_MAX_LENGTH` with an ellipsis. */
+export function cleanTitle(raw: string): string {
+  // eslint-disable-next-line no-control-regex
+  const clean = raw.replace(/[\u0000-\u001f\u007f-\u009f]/g, '').trim()
+  return clean.length > TITLE_MAX_LENGTH ? `${clean.slice(0, TITLE_MAX_LENGTH - 1).trimEnd()}…` : clean
+}
+
 export const NOT_SHOWN = 'The terminal could not be shown.'
 
 /** Where the pane's terminal is: `checking` while the attach is answered (main waits out a sign-in check). */
@@ -74,20 +84,27 @@ interface ShowContext {
   onExit(exit: TerminalExit): void
   /** Called whenever the CLI prints something after the snapshot (not for the snapshot itself). */
   onActivity?(): void
+  /** Called with the raw title the CLI sets over OSC 0 or 2. */
+  onTitle?(title: string): void
 }
 
-/** Mounts the emulator for a running terminal (a chat's or a sign-in's) and wires it to the PTY; `hide` undoes all of it. */
-export function showTerminal({ element, terminal, snapshot, kit, scheduler, theme, onExit, onActivity }: ShowContext): Shown {
-  const read = rootTokens(element.ownerDocument)
-  const view = kit.create(element, { theme: theme ?? terminalTheme(read), fontFamily: read(TERMINAL_FONT_TOKEN) })
+/** Fits the view to its host, and resizes the PTY when the grid's size changed since the last time. */
+function fitter(view: TerminalView, terminal: TerminalHandle): () => void {
   let sent: TerminalSize | null = null
-  const fit = (): void => {
+  return () => {
     const size = view.fit()
     if (size !== null && (sent === null || size.cols !== sent.cols || size.rows !== sent.rows)) {
       sent = size
       terminal.resize(size.cols, size.rows)
     }
   }
+}
+
+/** Mounts the emulator for a running terminal (a chat's or a sign-in's) and wires it to the PTY; `hide` undoes all of it. */
+export function showTerminal({ element, terminal, snapshot, kit, scheduler, theme, onExit, onActivity, onTitle }: ShowContext): Shown {
+  const read = rootTokens(element.ownerDocument)
+  const view = kit.create(element, { theme: theme ?? terminalTheme(read), fontFamily: read(TERMINAL_FONT_TOKEN) })
+  const fit = fitter(view, terminal)
   // The PTY takes the pane's size before the snapshot is painted: a chat shown again in the same window gets
   // the screen at exactly the size it was serialized at, and a new size makes the CLI redraw after the snapshot.
   fit()
@@ -99,6 +116,7 @@ export function showTerminal({ element, terminal, snapshot, kit, scheduler, them
     view.write(data)
     onActivity?.()
   })
+  const stopTitle = view.onTitleChange((title) => onTitle?.(title))
   const stopInput = view.onInput((data) => {
     for (const chunk of inputChunks(data)) {
       terminal.write(chunk)
@@ -121,6 +139,7 @@ export function showTerminal({ element, terminal, snapshot, kit, scheduler, them
       cancelFit()
       stopExit()
       stopOutput()
+      stopTitle()
       stopInput()
       view.dispose()
     }
@@ -158,6 +177,8 @@ export interface TerminalModel {
   background: string | null
   /** The CLI printed something within `OUTPUT_QUIET_MS` (only tracked for an OMP chat, whose header shows it). */
   working: boolean
+  /** The title the CLI set over OSC 0 or 2, cleaned for display; empty when none is set. */
+  title: string
   /** Focuses the emulator, when one is shown. */
   focus(): void
   /** Attaches again once the CLI has exited, starting it again: resuming its session, or on a new one. */
@@ -208,13 +229,22 @@ function paneTheme(element: HTMLElement, agent: string, omp: TerminalColors | nu
   return { theme, background: agent === 'omp' && omp !== null ? (theme.background ?? null) : null }
 }
 
-/** Whether the CLI printed within `OUTPUT_QUIET_MS` (only when `tracked`): `noteActivity` on each output, `resetActivity` when the chat goes. */
-function useOutputActivity(scheduler: Scheduler, tracked: boolean): { working: boolean; noteActivity(): void; resetActivity(): void } {
+/**
+ * What the CLI's output tells: whether it printed within `OUTPUT_QUIET_MS` (only when `tracked`; `noteActivity` on each
+ * output), and the title it set (`noteTitle`, cleaned for display). `resetActivity` clears both when the chat goes.
+ */
+function useOutputActivity(
+  scheduler: Scheduler,
+  tracked: boolean
+): { working: boolean; title: string; noteActivity(): void; noteTitle(raw: string): void; resetActivity(): void } {
   const [working, setWorking] = useState(false)
+  const [title, setTitle] = useState('')
+  const noteTitle = useCallback((raw: string) => setTitle(cleanTitle(raw)), [])
   const stopQuiet = useRef<() => void>(() => undefined)
   const resetActivity = useCallback(() => {
     stopQuiet.current()
     setWorking(false)
+    setTitle('')
   }, [])
   const noteActivity = useCallback(() => {
     if (!tracked) return
@@ -222,7 +252,7 @@ function useOutputActivity(scheduler: Scheduler, tracked: boolean): { working: b
     stopQuiet.current()
     stopQuiet.current = scheduler.after(OUTPUT_QUIET_MS, () => setWorking(false))
   }, [scheduler, tracked])
-  return { working, noteActivity, resetActivity }
+  return { working, title, noteActivity, noteTitle, resetActivity }
 }
 
 export function useTerminal({ folder, chatId, agent, kit, scheduler }: UseTerminalOptions): TerminalModel {
@@ -231,7 +261,7 @@ export function useTerminal({ folder, chatId, agent, kit, scheduler }: UseTermin
   const live = useContext(LiveTerminalsContext)
   const [phase, setPhase] = useState<TerminalPhase>(CHECKING)
   const [background, setBackground] = useState<string | null>(null)
-  const { working, noteActivity, resetActivity } = useOutputActivity(scheduler, agent === 'omp')
+  const { working, title, noteActivity, noteTitle, resetActivity } = useOutputActivity(scheduler, agent === 'omp')
   const { start, startAgain } = useStartAgain(chatId)
   const newSession = start?.newSession === true
   useEffect(() => {
@@ -255,7 +285,7 @@ export function useTerminal({ folder, chatId, agent, kit, scheduler }: UseTermin
           return
         }
         const { theme, background: frame } = paneTheme(element, agent, omp)
-        shown = showTerminal({ element, ...answer.show, kit, scheduler, theme, onExit: (exit) => setPhase(exitPhase(exit)), onActivity: noteActivity })
+        shown = showTerminal({ element, ...answer.show, kit, scheduler, theme, onExit: (exit) => setPhase(exitPhase(exit)), onActivity: noteActivity, onTitle: noteTitle })
         view.current = shown.view
         setBackground(frame)
         setPhase(RUNNING)
@@ -271,7 +301,7 @@ export function useTerminal({ folder, chatId, agent, kit, scheduler }: UseTermin
       view.current = null
       owned?.close()
     }
-  }, [folder, chatId, agent, kit, scheduler, live, start, newSession, noteActivity, resetActivity])
+  }, [folder, chatId, agent, kit, scheduler, live, start, newSession, noteActivity, noteTitle, resetActivity])
   const focus = useCallback(() => view.current?.focus(), [])
-  return { host, phase, background, working, focus, startAgain }
+  return { host, phase, background, working, title, focus, startAgain }
 }

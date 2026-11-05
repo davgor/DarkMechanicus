@@ -9,6 +9,7 @@ export class FakeTerminalView implements TerminalView {
   focused = 0
   disposed = false
   private readonly inputs = new Set<(data: string) => void>()
+  private readonly titles = new Set<(title: string) => void>()
 
   constructor(
     readonly host: HTMLElement,
@@ -18,6 +19,21 @@ export class FakeTerminalView implements TerminalView {
 
   write(data: string): void {
     this.written.push(data)
+    // Like xterm's parser: OSC 0 and OSC 2 (`ESC ] 0 ; title BEL`, or ended by ST) set the title.
+    // eslint-disable-next-line no-control-regex
+    for (const match of data.matchAll(/\x1b\][02];([^\x07\x1b]*)(?:\x07|\x1b\\)/g)) {
+      for (const listener of this.titles) listener(match[1])
+    }
+  }
+
+  onTitleChange(listener: (title: string) => void): () => void {
+    this.titles.add(listener)
+    return () => this.titles.delete(listener)
+  }
+
+  /** How many title listeners are subscribed. */
+  get titleListeners(): number {
+    return this.titles.size
   }
 
   onInput(listener: (data: string) => void): () => void {

@@ -22,6 +22,8 @@ export interface TerminalView {
   /** Subscribes to what the person types or pastes, as the CLI should get it; returns the unsubscribe function. */
   onInput(listener: (data: string) => void): () => void
   /** Fits the grid to the host element and answers its size; null while the host has no size to fit. */
+  /** Subscribes to the title the CLI sets (OSC 0 or 2), raw as xterm reports it; returns the unsubscribe function. */
+  onTitleChange(listener: (title: string) => void): () => void
   fit(): TerminalSize | null
   focus(): void
   /** Unmounts the emulator and frees what it holds (its WebGL context). */

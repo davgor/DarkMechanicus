@@ -126,6 +126,13 @@ describe('Skitarii', () => {
     expect(banner?.render(120)[0]).toBe(` ${idle.frames[0]?.rows[0]}`)
   })
 
+  it('shows only the title when told the session is resumed', () => {
+    const ui = fakeUi()
+    new Skitarii(mascot, { timers: fakeTimers(), reducedMotion: false }).start(ui, '/home/a/forge', true)
+    expect(ui.titles).toEqual(['Skitarii · forge'])
+    expect(ui.widgets.has(BANNER_KEY)).toBe(false)
+  })
+
   it('plays the drill loop while working and stops it when idle', () => {
     const timers = fakeTimers()
     const ui = fakeUi()
@@ -260,5 +267,57 @@ describe('the OMP entry', () => {
     handlers.get('session_start')?.({}, { ui, hasUI: true, cwd: '/forge' })
     handlers.get('agent_start')?.({}, { ui, hasUI: true, cwd: '/forge' })
     expect(timers.live.size).toBe(0)
+  })
+})
+
+describe('the OMP entry at session start, new or resumed', () => {
+  function fakePi() {
+    const handlers = new Map<string, (event: unknown, ctx: unknown) => void>()
+    const pi: OmpApi = { on: (event, handler) => handlers.set(event, handler as never), pi: { settings: 'scope' } }
+    return { pi, handlers }
+  }
+
+  const user = { type: 'message', message: { role: 'user' } }
+  const assistant = { type: 'message', message: { role: 'assistant' } }
+  const modelChange = { type: 'model_change' }
+  function startWith(entries: unknown[] | 'unreadable' | undefined) {
+    const { pi, handlers } = fakePi()
+    const timers = fakeTimers()
+    const skitarii = attach(pi, null, timers)
+    const ui = fakeUi()
+    const sessionManager =
+      entries === undefined
+        ? undefined
+        : {
+            getEntries: () => {
+              if (entries === 'unreadable') throw new Error('not ready')
+              return entries
+            }
+          }
+    const ctx = { ui, hasUI: true, cwd: '/home/a/forge', sessionManager }
+    handlers.get('session_start')?.({}, ctx)
+    return { ui, handlers, skitarii, ctx }
+  }
+
+  it('shows the banner and the title on a new session, which has no messages yet', () => {
+    for (const entries of [[], [modelChange], undefined, 'unreadable' as const]) {
+      const { ui } = startWith(entries)
+      expect(ui.titles).toEqual(['Skitarii · forge'])
+      expect(ui.widgets.has(BANNER_KEY)).toBe(true)
+    }
+  })
+
+  it('shows no banner on a resumed session, but still sets the title and keeps the working indicator', () => {
+    for (const entries of [[modelChange, user, assistant], [user]]) {
+      const { ui, handlers, skitarii, ctx } = startWith(entries)
+      expect(ui.titles).toEqual(['Skitarii · forge'])
+      expect(ui.widgets.has(BANNER_KEY)).toBe(false)
+      handlers.get('agent_start')?.({}, ctx)
+      handlers.get('turn_start')?.({}, ctx)
+      expect(skitarii.working).toBe(true)
+      expect(ui.widgets.has(INDICATOR_KEY)).toBe(true)
+      handlers.get('agent_end')?.({}, ctx)
+      expect(ui.widgets.has(INDICATOR_KEY)).toBe(false)
+    }
   })
 })

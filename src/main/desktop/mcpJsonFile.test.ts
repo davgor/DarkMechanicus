@@ -4,7 +4,9 @@ import { join, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DomainError } from '../../core/errors'
 import type { McpServerEntry } from './mcpJson'
-import { writeMcpServer, type McpJsonFs } from './mcpJsonFile'
+import { buildMcpConfig } from './mcpConfig'
+import { claudeCodeServer } from './mcpJson'
+import { refreshMcpServer, writeMcpServer, type McpJsonFs } from './mcpJsonFile'
 
 const SERVER: McpServerEntry = { command: 'node', args: ['/dm/out/main/mcp.js', '--repo', '/repo', '--role', 'planner'] }
 const SERVER_TEXT = `${JSON.stringify({ mcpServers: { darkmechanicus: SERVER } }, null, 2)}\n`
@@ -290,5 +292,75 @@ describe('writeMcpServer containment edge cases', () => {
     expect(errorOf(() => writeMcpServer(root, SERVER, { replace: false }, fs)).code).toBe('unsafe_path')
     expect(reads).toEqual([])
     expect(written).toEqual([])
+  })
+})
+
+/** A build folder holding the mcp.js the entry points at, like an unpacked dev build. */
+function makeBuild(base: string, name: string): string {
+  const root = join(base, name)
+  mkdirSync(join(root, 'out', 'main'), { recursive: true })
+  writeFileSync(join(root, 'out', 'main', 'mcp.js'), '')
+  return root
+}
+const configFor = (appPath: string, repoPath: string) => buildMcpConfig({ packaged: false, execPath: process.execPath, appPath, repoPath })
+
+describe('refreshMcpServer on a real repository', () => {
+  it('rewrites an initialized folder to the running build once the initializing build is deleted, keeping other servers', () => {
+    withSandbox(({ repo, outside }) => {
+      const oldBuild = makeBuild(outside, 'old')
+      const newBuild = makeBuild(outside, 'new')
+      const other = { command: 'npx', args: ['other-mcp'] }
+      const entry = claudeCodeServer(configFor(oldBuild, repo), { role: 'orchestrator', allowSave: false })
+      writeFileSync(mcpJson(repo), `${JSON.stringify({ mcpServers: { other, darkmechanicus: entry } }, null, 2)}\n`)
+      rmSync(oldBuild, { recursive: true })
+
+      const refreshed = refreshMcpServer(repo, configFor(newBuild, repo), existsSync)
+
+      expect(refreshed).toBe(true)
+      const written = JSON.parse(readFileSync(mcpJson(repo), 'utf8'))
+      expect(written.mcpServers.other).toEqual(other)
+      expect(written.mcpServers.darkmechanicus.args).toEqual([
+        join(newBuild, 'out', 'main', 'mcp.js'), '--repo', repo, '--role', 'orchestrator', '--label', 'Claude Code'
+      ])
+      expect(existsSync(written.mcpServers.darkmechanicus.args[0])).toBe(true)
+    })
+  })
+
+  it('does not rewrite while the initializing build still exists, from either build', () => {
+    withSandbox(({ repo, outside }) => {
+      const oldBuild = makeBuild(outside, 'old')
+      const newBuild = makeBuild(outside, 'new')
+      writeMcpServer(repo, claudeCodeServer(configFor(oldBuild, repo), { role: 'planner', allowSave: false }), { replace: false })
+      const before = readFileSync(mcpJson(repo), 'utf8')
+
+      expect(refreshMcpServer(repo, configFor(newBuild, repo), existsSync)).toBe(false)
+      expect(refreshMcpServer(repo, configFor(oldBuild, repo), existsSync)).toBe(false)
+      expect(readFileSync(mcpJson(repo), 'utf8')).toBe(before)
+    })
+  })
+})
+
+describe('refreshMcpServer on files the app does not own', () => {
+  it('leaves a file the app does not own, a missing file and a linked file untouched', () => {
+    withSandbox(({ repo, outside }) => {
+      const newBuild = makeBuild(outside, 'new')
+      const config = configFor(newBuild, repo)
+      expect(refreshMcpServer(repo, config, existsSync)).toBe(false)
+      expect(existsSync(mcpJson(repo))).toBe(false)
+
+      const handWritten = `${JSON.stringify({ mcpServers: { darkmechanicus: { command: 'node', args: [join(outside, 'gone', 'mcp.js'), '--repo', repo] } } }, null, 2)}\n`
+      writeFileSync(mcpJson(repo), handWritten)
+      expect(refreshMcpServer(repo, config, existsSync)).toBe(false)
+      expect(readFileSync(mcpJson(repo), 'utf8')).toBe(handWritten)
+
+      rmSync(mcpJson(repo))
+      const target = join(outside, 'target.json')
+      const stale = `${JSON.stringify({ mcpServers: { darkmechanicus: claudeCodeServer(configFor(join(outside, 'gone'), repo), { role: 'planner', allowSave: false }) } })}\n`
+      writeFileSync(target, stale)
+      if (tryFileSymlink(target, mcpJson(repo))) {
+        expect(refreshMcpServer(repo, config, existsSync)).toBe(false)
+        expect(readFileSync(target, 'utf8')).toBe(stale)
+      }
+    })
   })
 })

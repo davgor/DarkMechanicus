@@ -55,8 +55,8 @@ const A8S_OKTA_ONLY = '✓ Okta  signed in as dev@example.com\n0 problems, 0 war
 const A8S_ROUTE_FAILED = '✗ Model route  Claude subscription · anthropic/claude-opus-5-5 · signed in · token refresh failed\n'
 
 /**
- * OMP `omp usage --json`. The signed-out sample is the recording (docs/reports/omp-cli.md section 5, exit 0). The
- * signed-in sample is built from the source shape (`usage-cli.ts`, one `reports` entry per account), not recorded.
+ * OMP `omp usage --json`. OMP_SIGNED_OUT and OMP_SIGNED_IN_RECORDED are recordings (docs/reports/omp-cli.md section 5,
+ * exit 0; the signed-in one has its account identifiers redacted). OMP_SIGNED_IN is a minimal hand-built shape.
  */
 const OMP_SIGNED_OUT = `{
   "generatedAt": 1793674471240,
@@ -72,6 +72,102 @@ const OMP_SIGNED_IN = `{
   "accountsWithoutUsage": [],
   "disabledCredentials": [],
   "capacity": {}
+}
+`
+
+const OMP_SIGNED_IN_RECORDED = `{
+  "generatedAt": 1793904116694,
+  "reports": [
+    {
+      "provider": "anthropic",
+      "fetchedAt": 1793904116422,
+      "limits": [
+        {
+          "id": "anthropic:7d",
+          "label": "Claude 7 Day",
+          "scope": {
+            "provider": "anthropic",
+            "windowId": "7d",
+            "shared": true
+          },
+          "window": {
+            "id": "7d",
+            "label": "7 Day",
+            "durationMs": 604800000,
+            "resetsAt": 1794261599511
+          },
+          "amount": {
+            "used": 5,
+            "limit": 100,
+            "remaining": 95,
+            "usedFraction": 0.05,
+            "remainingFraction": 0.95,
+            "unit": "percent"
+          },
+          "status": "ok"
+        },
+        {
+          "id": "anthropic:7d:fable",
+          "label": "Claude 7 Day (Fable)",
+          "scope": {
+            "provider": "anthropic",
+            "windowId": "7d",
+            "tier": "fable"
+          },
+          "window": {
+            "id": "7d",
+            "label": "7 Day",
+            "durationMs": 604800000,
+            "resetsAt": 1794261600000
+          },
+          "amount": {
+            "used": 0,
+            "limit": 100,
+            "remaining": 100,
+            "usedFraction": 0,
+            "remainingFraction": 1,
+            "unit": "percent"
+          },
+          "status": "ok"
+        }
+      ],
+      "metadata": {
+        "endpoint": "https://api.anthropic.com/api/oauth/usage",
+        "accountId": "<redacted>",
+        "email": "<redacted>",
+        "orgId": "<redacted>",
+        "orgName": "<redacted>"
+      },
+      "resetCredits": {
+        "availableCount": 0,
+        "redeemableCount": 0,
+        "eligible": false,
+        "reason": "not_at_wall",
+        "credits": []
+      }
+    }
+  ],
+  "accountsWithoutUsage": [],
+  "disabledCredentials": [],
+  "capacity": {
+    "anthropic": [
+      {
+        "window": "7d",
+        "durationMs": 604800000,
+        "accounts": 1,
+        "usedAccounts": 0.05,
+        "remainingAccounts": 0.95
+      },
+      {
+        "window": "7d",
+        "durationMs": 604800000,
+        "meter": "fable",
+        "accounts": 1,
+        "usedAccounts": 0,
+        "remainingAccounts": 1
+      }
+    ]
+  }
 }
 `
 
@@ -168,6 +264,7 @@ describe('status maps each CLI output to signed_in, signed_out or unknown', () =
 describe('status for OMP reads the account lists of `omp usage --json`', () => {
   it.each([
     ['signed in: an account in reports', 0, OMP_SIGNED_IN, 'signed_in'],
+    ['signed in: the real recording, accounts redacted', 0, OMP_SIGNED_IN_RECORDED, 'signed_in'],
     ['signed in: an account without usage figures', 0, '{"reports":[],"accountsWithoutUsage":[{"provider":"anthropic"}],"disabledCredentials":[],"capacity":{}}\n', 'signed_in'],
     ['signed out: every list empty', 0, OMP_SIGNED_OUT, 'signed_out'],
     ['signed out, ANSI-coloured', 0, `\u001b[32m${OMP_SIGNED_OUT}\u001b[0m`, 'signed_out'],

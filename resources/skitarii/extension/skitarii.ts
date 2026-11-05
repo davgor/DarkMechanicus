@@ -187,9 +187,13 @@ export class Skitarii {
     return this.#working
   }
 
-  /** Session start: the title and the banner, its idle loop played `BANNER_CYCLES` times and then still. */
-  start(ui: SkitariiUi, cwd: string): void {
+  /**
+   * Session start: the title, then the banner, its idle loop played `BANNER_CYCLES` times and then still. A resumed
+   * session already shows its history, so it gets the title and no banner.
+   */
+  start(ui: SkitariiUi, cwd: string, resumed = false): void {
     ui.setTitle(titleFor(cwd))
+    if (resumed) return
     const { idle } = this.frames.loops
     const size = idle.sizes.banner
     ui.setWidget(BANNER_KEY, (tui, theme) => {

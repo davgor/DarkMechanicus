@@ -15,7 +15,7 @@ import type { IDisposable, ITerminalAddon, ITerminalOptions } from '@xterm/xterm
 import '@xterm/xterm/css/xterm.css'
 import { withInertStyleElements } from './inertStyles'
 import { modifiedEnter, type KeyModes } from './terminalKeys'
-import type { TerminalKit, TerminalSize } from './terminalView'
+import type { TerminalKit, TerminalSize, TerminalView } from './terminalView'
 
 const FONT_SIZE = 13
 
@@ -29,6 +29,7 @@ interface XtermTerminal {
   open(parent: HTMLElement): void
   write(data: string): void
   onData(listener: (data: string) => void): IDisposable
+  onTitleChange(listener: (title: string) => void): IDisposable
   attachCustomKeyEventHandler(handler: (event: KeyboardEvent) => boolean): void
   input(data: string, wasUserInput?: boolean): void
   readonly parser: {
@@ -141,6 +142,32 @@ function keyHandler(terminal: XtermTerminal, modes: KeyModes): (event: KeyboardE
 
 type LinkActivate = (event: MouseEvent, uri: string) => void
 
+/** The terminal as the pane's view of it. */
+function viewOf(terminal: XtermTerminal, fit: XtermFit): TerminalView {
+  return {
+    write: (data) => terminal.write(data),
+    onInput: (listener) => {
+      const subscription = terminal.onData(listener)
+      return () => subscription.dispose()
+    },
+    onTitleChange: (listener) => {
+      const subscription = terminal.onTitleChange(listener)
+      return () => subscription.dispose()
+    },
+    fit: () => {
+      const proposed = fit.proposeDimensions()
+      // Undefined, or NaN, while the host is hidden or has not been laid out.
+      if (proposed === undefined || !(proposed.cols > 0 && proposed.rows > 0)) {
+        return null
+      }
+      fit.fit()
+      return { cols: terminal.cols, rows: terminal.rows }
+    },
+    focus: () => terminal.focus(),
+    dispose: () => terminal.dispose()
+  }
+}
+
 export function createXtermKit(parts: XtermParts): TerminalKit {
   const activate: LinkActivate = (event, uri) => {
     if (opensLink(event)) {
@@ -165,24 +192,7 @@ export function createXtermKit(parts: XtermParts): TerminalKit {
       // Loaded before `open`, the addon sets its renderer as the terminal opens, so xterm never makes a DOM renderer.
       loadWebgl(parts, terminal, host.ownerDocument)
       withInertStyleElements(host.ownerDocument, () => terminal.open(host))
-      return {
-        write: (data) => terminal.write(data),
-        onInput: (listener) => {
-          const subscription = terminal.onData(listener)
-          return () => subscription.dispose()
-        },
-        fit: () => {
-          const proposed = fit.proposeDimensions()
-          // Undefined, or NaN, while the host is hidden or has not been laid out.
-          if (proposed === undefined || !(proposed.cols > 0 && proposed.rows > 0)) {
-            return null
-          }
-          fit.fit()
-          return { cols: terminal.cols, rows: terminal.rows }
-        },
-        focus: () => terminal.focus(),
-        dispose: () => terminal.dispose()
-      }
+      return viewOf(terminal, fit)
     },
     observeSize: (element, onChange) => {
       const observer = new parts.ResizeObserver(onChange)
