@@ -6,7 +6,8 @@
  * that is not a color, makes the answer null and the pane keeps the app's palette.
  *
  * The slot is `theme.dark` (default `titanium`): OMP picks `theme.dark` or `theme.light` by the terminal's background,
- * and the app's pane is dark. The per-chat `--config` overlay the app passes sets nothing about the theme.
+ * and the app's pane is dark. The per-chat `--config` overlay the app passes sets both slots to `skitarii`
+ * (`terminals/ompSkitariiTheme.ts`), so the handler asks for the bundled copy of that theme, which needs no file; with no name given the reader follows the person's own `config.yml`, as OMP would without the overlay.
  *
  * Built-in themes are compiled into omp.exe, so there is no file to read for them: `ompBuiltinThemes.json` holds the
  * few colors the mapping below needs, per built-in theme (`scripts/omp-builtin-themes.mjs` regenerates it from OMP).
@@ -24,9 +25,15 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { z } from 'zod'
 import { TERMINAL_COLOR, type TerminalColorKey, type TerminalColors } from '../../shared/agents/terminalColors'
-import builtinThemes from './ompBuiltinThemes.json'
+import { skitariiThemeFile } from '../terminals/ompSkitariiTheme'
+import bundledThemes from './ompBuiltinThemes.json'
 
 const DEFAULT_OMP_DARK_THEME = 'titanium'
+/** The generator's header field (upstream source and license), not a theme. */
+const SOURCE_FIELD = '_source'
+const builtinThemes = Object.fromEntries(
+  Object.entries(bundledThemes).filter(([name]) => name !== SOURCE_FIELD)
+) as Record<string, ThemeFile>
 /** OMP's config and theme files are small; anything larger is not read. */
 const MAX_FILE_BYTES = 256 * 1024
 const THEME_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/
@@ -139,21 +146,31 @@ export function ompAgentDir(env: NodeJS.ProcessEnv = process.env, home: string =
   return set !== undefined && set !== '' ? set : join(home, '.omp', 'agent')
 }
 
-/** The active OMP theme's colors from the agent folder, or null when there is none to show (see the file comment). */
-export function readOmpTerminalTheme(agentDir: string): TerminalColors | null {
+/** The name in the person's `config.yml` `theme.dark`, else the default; throws when the file cannot be read (a missing one is a default install). */
+function configuredThemeName(agentDir: string): string {
   try {
-    let name: string | null = null
-    try {
-      name = darkThemeName(readSmall(join(agentDir, 'config.yml')))
-    } catch (error) {
-      // No config.yml is a default install; anything else (unreadable, too large) is a failure.
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return null
-    }
-    name ??= DEFAULT_OMP_DARK_THEME
-    if (!THEME_NAME.test(name) || name.includes('..')) return null
-    const file: ThemeFile = Object.hasOwn(builtinThemes, name)
-      ? (builtinThemes as Record<string, ThemeFile>)[name] ?? {}
-      : themeFileSchema.parse(JSON.parse(readSmall(join(agentDir, 'themes', `${name}.json`))))
+    return darkThemeName(readSmall(join(agentDir, 'config.yml'))) ?? DEFAULT_OMP_DARK_THEME
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return DEFAULT_OMP_DARK_THEME
+    throw error
+  }
+}
+
+/** The theme file for `name`: a built-in's bundled colors, or the one file in the themes folder. */
+function themeFor(agentDir: string, name: string): ThemeFile {
+  if (!THEME_NAME.test(name) || name.includes('..')) throw new Error('not a theme name')
+  return Object.hasOwn(builtinThemes, name)
+    ? builtinThemes[name] ?? {}
+    : themeFileSchema.parse(JSON.parse(readSmall(join(agentDir, 'themes', `${name}.json`))))
+}
+
+/**
+ * The colors of OMP's active theme from the agent folder, or null when there is none to show (see the file comment).
+ * `skitarii` asks for the bundled Skitarii theme instead, which an app chat is launched with and which needs no file.
+ */
+export function readOmpTerminalTheme(agentDir: string, skitarii = false): TerminalColors | null {
+  try {
+    const file = skitarii ? themeFileSchema.parse(skitariiThemeFile) : themeFor(agentDir, configuredThemeName(agentDir))
     const colors = mapTheme(file)
     return Object.keys(colors).length === 0 ? null : colors
   } catch {
@@ -168,5 +185,5 @@ export interface OmpThemeHandlers {
 /** `dm.ompTerminalTheme()`: takes nothing, reads each time it is asked (when an OMP chat is opened). */
 export function createOmpThemeHandlers(deps: { agentDir?: () => string } = {}): OmpThemeHandlers {
   const agentDir = deps.agentDir ?? ompAgentDir
-  return { ompTerminalTheme: async () => readOmpTerminalTheme(agentDir()) }
+  return { ompTerminalTheme: async () => readOmpTerminalTheme(agentDir(), true) }
 }

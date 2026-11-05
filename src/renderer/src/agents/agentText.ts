@@ -19,7 +19,7 @@ export const AGENT_BLURBS: Readonly<Record<BuiltInAgentKind, string>> = {
   codex: 'OpenAI’s coding agent, run from the terminal.',
   cursor: 'Cursor’s coding agent, run from the terminal.',
   autonomous: 'The Autonomous coding agent (a8s). Install it with its own installer, then find it here.',
-  omp: 'The OMP coding agent (omp), run from the terminal.'
+  omp: 'Skitarii, the Mechanicus-styled coding agent built on OMP (oh-my-pi), run from the terminal.'
 }
 
 /** The Custom CLI card's line in the add-agent pane. */

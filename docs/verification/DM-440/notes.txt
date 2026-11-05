@@ -1,0 +1,4 @@
+c2: dev app on Windows (electron.exe from the worktree), throwaway user data dir and PI_CODING_AGENT_DIR (dummy anthropic api key), scratch git folder, OMP 18.16.0, default role Orchestrator.
+Native file dialogs were stubbed through the main-process inspector (folder pick, omp.exe pick).
+c2-00*: the rejected design (a `dm` launcher on the chat PATH): in OMP's `!` shell `dm` is "command not found" (PATH arrives unsplit: `C` / `\Users...;C`), and running the launcher by absolute path fails with "%1 is not a valid Win32 application" (it does not run shebang scripts).
+c2-01/02: the command as the instructions and kickoff now name it (the pinned `node ... cli.js --repo ... call get_capabilities '{}'` line) runs and prints "role": "orchestrator".

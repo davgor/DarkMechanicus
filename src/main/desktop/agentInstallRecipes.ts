@@ -123,7 +123,7 @@ const OMP_NOTES = [
 const OMP_FAILURE_HINTS: readonly FailureHint[] = [
   {
     pattern: /Checksum mismatch/i,
-    message: 'The OMP download does not match the SHA-256 its build service published, so it was not installed.'
+    message: 'The Skitarii download does not match the SHA-256 its build service published, so it was not installed.'
   },
   {
     pattern: /Failed to resolve an omp build|Unexpected answer/i,

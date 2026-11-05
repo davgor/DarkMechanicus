@@ -18,8 +18,11 @@ export interface TerminalFiles {
   instructions: string
   /** Claude's settings file, when one was written for this chat; Claude starts without `--settings` otherwise. */
   claudeSettings?: string
-  /** OMP's per-chat session folder and config overlay (`ompSession.ts`), for an OMP chat. */
-  omp?: { sessionDir: string; config: string }
+  /**
+   * OMP's per-chat session folder and config overlay (`ompSession.ts`), for an OMP chat, and the Skitarii extension
+   * it is launched with (`ompSkitariiExtension.ts`).
+   */
+  omp?: { sessionDir: string; config: string; extension: string }
   /** The folder holding the chat's `dm` launcher (macOS); null on Windows, which has none. */
   launcherDir: string | null
 }
@@ -55,7 +58,7 @@ interface InstructionOptions {
  */
 export function terminalInstructions(options: InstructionOptions): string {
   const dm = options.launcherDir === null ? options.cli : { command: posix.join(options.launcherDir, DM_LAUNCHER_NAME), args: [], env: {} }
-  const sections = [cliInstructions({ cli: dm, role: options.role, allowSave: options.allowSave })]
+  const sections = [cliInstructions({ cli: dm, role: options.role, allowSave: options.allowSave, noLauncher: options.launcherDir === null })]
   if (options.orchestratesRun) sections.push(orchestratorGuidance())
   if (options.transferEpicId !== undefined) sections.push(transferGuidance(options.transferEpicId))
   if (options.cardId !== undefined) sections.push(kanbanGuidance(options.cardId))

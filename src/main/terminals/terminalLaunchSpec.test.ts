@@ -4,11 +4,16 @@
  * resumed, on macOS and Windows; then the rules each row relies on: whole-argument placeholders, the scrubbed
  * environment, Windows shims, and the values that are dropped rather than passed.
  */
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import packageJson from '../../../package.json'
 import type { DarkMechanicusCli } from '../../shared/agents/chat'
 import { transferGuidance } from '../../mcp/transferKickoff'
 import { kanbanGuidance } from '../agents/kanbanKickoff'
 import { orchestratorGuidance } from '../agents/orchestratorKickoff'
+import { OMP_CONFIG_OVERLAY } from './ompSession'
+import { skitariiExtensionPath } from './ompSkitariiExtension'
 import { terminalInstructions } from './terminalFiles'
 import { terminalLaunchSpec, type TerminalLaunchInput, type TerminalLaunchSpec } from './terminalLaunchSpec'
 import { windowsCommandLine } from './windowsCommandLine'
@@ -514,11 +519,17 @@ describe('terminalLaunchSpec: values dropped before they reach the command line'
 })
 
 const OMP_ID = '01a19f51-856e-7612-8d38-0de416901104'
-const MAC_OMP = { exe: '/Users/me/.local/bin/omp', sessions: '/Users/me/Library/Application Support/Dark Mechanicus/agents/omp/ch_1/sessions', config: '/Users/me/Library/Application Support/Dark Mechanicus/agents/omp/ch_1/config.yml' }
+const MAC_OMP = {
+  exe: '/Users/me/.local/bin/omp',
+  sessions: '/Users/me/Library/Application Support/Dark Mechanicus/agents/omp/ch_1/sessions',
+  config: '/Users/me/Library/Application Support/Dark Mechanicus/agents/omp/ch_1/config.yml',
+  extension: '/Applications/DarkMechanicus.app/Contents/Resources/skitarii/extension/index.ts'
+}
 const WIN_OMP = {
   exe: 'C:\\Users\\me\\AppData\\Local\\omp\\omp.exe',
   sessions: 'C:\\Users\\me\\AppData\\Roaming\\Dark Mechanicus\\agents\\omp\\ch_1\\sessions',
-  config: 'C:\\Users\\me\\AppData\\Roaming\\Dark Mechanicus\\agents\\omp\\ch_1\\config.yml'
+  config: 'C:\\Users\\me\\AppData\\Roaming\\Dark Mechanicus\\agents\\omp\\ch_1\\config.yml',
+  extension: 'C:\\Users\\me\\AppData\\Local\\Programs\\DarkMechanicus\\resources\\skitarii\\extension\\index.ts'
 }
 
 /** An OMP chat: a first start has no session (the CLI mints one), a resumed one has the id read from its session file. */
@@ -532,7 +543,7 @@ function ompInput(platform: Platform, state: 'new' | 'resumed', overrides: Parti
     agent: { id: 'omp', kind: 'omp', executablePath: own.exe, args: [] },
     folder: at.folder,
     cli: cliFor(platform),
-    files: { instructions: at.instructions, launcherDir: platform === 'win32' ? null : MAC.launcherDir, omp: { sessionDir: own.sessions, config: own.config } },
+    files: { instructions: at.instructions, launcherDir: platform === 'win32' ? null : MAC.launcherDir, omp: { sessionDir: own.sessions, config: own.config, extension: own.extension } },
     platform,
     env: at.env,
     newSessionId: () => NEW_ID,
@@ -540,7 +551,18 @@ function ompInput(platform: Platform, state: 'new' | 'resumed', overrides: Parti
   }
 }
 
-const head = (at: typeof MAC | typeof WIN, own: typeof MAC_OMP) => ['--cwd', at.folder, '--append-system-prompt', at.instructions, '--config', own.config, '--session-dir', own.sessions]
+const head = (at: typeof MAC | typeof WIN, own: typeof MAC_OMP) => [
+  '--cwd',
+  at.folder,
+  '--append-system-prompt',
+  at.instructions,
+  '--config',
+  own.config,
+  '-e',
+  own.extension,
+  '--session-dir',
+  own.sessions
+]
 
 describe('terminalLaunchSpec: OMP first start and kickoff', () => {
   it('starts a first chat with the folder, the instructions file, the overlay, its own session folder, the model and the kickoff as the positional prompt', () => {
@@ -551,6 +573,19 @@ describe('terminalLaunchSpec: OMP first start and kickoff', () => {
     expect(spec.cwd).toBe(MAC.folder)
     expect(spec.pasteFirst).toBeNull()
     expect(spec.resumed).toBe(false)
+  })
+
+  it('selects the Skitarii theme for that launch only: through the --config overlay, with no theme flag and no theme or agent-folder variable', () => {
+    for (const platform of ['darwin', 'win32'] as const) {
+      const spec = terminalLaunchSpec(ompInput(platform, 'new'))
+      const line = spec.args === undefined ? spec.commandLine : spec.args.join(' ')
+
+      expect(line).toContain('--config')
+      expect(OMP_CONFIG_OVERLAY).toContain('theme:\n  dark: skitarii\n')
+      expect(OMP_CONFIG_OVERLAY).toContain('  light: skitarii\n')
+      expect(line).not.toMatch(/--theme/)
+      expect(Object.keys(spec.env).filter((name) => /THEME|PI_CODING_AGENT_DIR/i.test(name))).toEqual([])
+    }
   })
 
   it('starts without --model when the chat has none', () => {
@@ -582,6 +617,32 @@ describe('terminalLaunchSpec: OMP first start and kickoff', () => {
 
   it('records no session id up front: OMP mints it', () => {
     expect(terminalLaunchSpec(ompInput('darwin', 'new')).sessionId).toBeNull()
+  })
+})
+
+describe('terminalLaunchSpec: OMP and the Skitarii extension', () => {
+  it('enables the Skitarii extension for that launch only, from the app resources, and writes nothing to the person’s ~/.omp', () => {
+    for (const platform of ['darwin', 'win32'] as const) {
+      const own = platform === 'win32' ? WIN_OMP : MAC_OMP
+      const spec = terminalLaunchSpec(ompInput(platform, 'new'))
+      const args = spec.args ?? []
+      const line = spec.args === undefined ? spec.commandLine : args.join(' ')
+
+      expect(platform === 'win32' ? line.includes(windowsCommandLine(['-e', own.extension])) : args[args.indexOf('-e') + 1] === own.extension).toBe(true)
+      expect(line).not.toMatch(/--no-extensions|--trusted-extension|\.omp/)
+      expect(Object.keys(spec.env).filter((name) => /EXTENSION|PI_CODING_AGENT_DIR|PI_CONFIG/i.test(name))).toEqual([])
+    }
+  })
+
+  it('finds the extension in the project in development and beside app.asar when packaged, where OMP can read it', () => {
+    expect(skitariiExtensionPath({ packaged: false, appPath: '/src/dm', resourcesPath: '/electron/resources' })).toBe(
+      join('/src/dm', 'resources', 'skitarii', 'extension', 'index.ts')
+    )
+    expect(skitariiExtensionPath({ packaged: true, appPath: '/app/resources/app.asar', resourcesPath: '/app/resources' })).toBe(
+      join('/app/resources', 'skitarii', 'extension', 'index.ts')
+    )
+    expect(existsSync(skitariiExtensionPath({ packaged: false, appPath: process.cwd(), resourcesPath: '' }))).toBe(true)
+    expect(packageJson.build.extraResources).toContainEqual({ from: 'resources/skitarii', to: 'skitarii' })
   })
 })
 

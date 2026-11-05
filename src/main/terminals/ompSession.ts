@@ -5,20 +5,52 @@
  * the one file OMP wrote there, `<timestamp>_<uuid>.jsonl`; a chat whose folder holds none has no session to
  * resume. `--resume <uuid>` with the same `--session-dir` then finds it.
  *
- * The same folder holds a config overlay that only sets `setupVersion: 2`: OMP's first-run Setup wizard opens
- * (instead of the chat) until that is in its `config.yml`, and an overlay given with `--config` clears it for one
- * launch without changing the person's own `~/.omp` (checked with OMP 18.16.0 and a scratch agent folder).
+ * The same folder holds a config overlay: `setupVersion: 2`, because OMP's first-run Setup wizard opens
+ * (instead of the chat) until that is in its `config.yml`, the Skitarii theme (`ompSkitariiTheme.ts`) and the startup and
+ * status line settings the Skitarii extension's look needs (`resources/skitarii/extension/`). An overlay
+ * given with `--config` applies to one launch without changing the person's own `~/.omp` (checked with OMP 18.16.0
+ * and a scratch agent folder).
  */
-import { mkdir, rename } from 'node:fs/promises'
+import { mkdir, rename, rm } from 'node:fs/promises'
 import { readdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { chatIdSchema } from '../../shared/agents/chat'
+import { SKITARII_THEME_NAME } from './ompSkitariiTheme'
 import { writePrivateFile } from './privateFile'
 
 const SESSION_FILE = /^\d{4}-\d{2}-\d{2}T[\d-]+Z_([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\.jsonl$/i
 
-/** The overlay text: skips the first-run Setup wizard for the launch it is given to. */
-export const OMP_CONFIG_OVERLAY = 'setupVersion: 2\n'
+/**
+ * OMP's `default` status line (`packages/tui/src/status-line/presets.ts` in OMP 18.16.0) without its `pi` brand
+ * segment, which draws `π`. Segment lists are read only under `preset: custom`, so the overlay names the preset too.
+ */
+const STATUS_LINE = [
+  'statusLine:',
+  '  preset: custom',
+  '  leftSegments: [vim, model, mode, collab, stream, path, git, pr, context_pct, cost]',
+  '  rightSegments: [session_name]',
+  '  separator: powerline-thin',
+  '  segmentOptions:',
+  '    model: { showThinkingLevel: true }',
+  '    path: { abbreviate: true, maxLength: 40, stripWorkPrefix: true }',
+  '    git: { showBranch: true, showStaged: true, showUnstaged: true, showUntracked: true }'
+]
+
+/**
+ * The overlay text for the launch it is given to: skips the first-run Setup wizard, picks the Skitarii theme (both
+ * slots), hides OMP's own logo and welcome (`startup.quiet`; the Skitarii extension draws the mascot banner instead) and
+ * drops the `π` brand from the status line.
+ */
+export const OMP_CONFIG_OVERLAY = [
+  'setupVersion: 2',
+  'startup:',
+  '  quiet: true',
+  'theme:',
+  `  dark: ${SKITARII_THEME_NAME}`,
+  `  light: ${SKITARII_THEME_NAME}`,
+  ...STATUS_LINE,
+  ''
+].join('\n')
 
 interface OmpFiles {
   /** `--session-dir`: the chat's own session folder. */
@@ -60,4 +92,13 @@ export async function writeOmpFiles(userData: string, chatId: string, fresh: boo
   await mkdir(files.sessionDir, { recursive: true, mode: 0o700 })
   await writePrivateFile(files.config, OMP_CONFIG_OVERLAY, 0o600)
   return files
+}
+
+/**
+ * Removes a deleted chat's whole OMP folder (overlay and every session). The id is validated by `ompFilePaths` before
+ * anything is touched, so a bad id throws and deletes nothing; a missing folder is not an error.
+ */
+export async function removeOmpFolder(userData: string, chatId: string): Promise<void> {
+  const folder = dirname(ompFilePaths(userData, chatId).config)
+  await rm(folder, { recursive: true, force: true })
 }

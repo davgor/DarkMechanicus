@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, within, type BoundFunctions, type queries, type RenderResult } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within, type BoundFunctions, type queries, type RenderResult } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { ChatRecord } from '../../../shared/agents/chat'
@@ -13,6 +13,7 @@ import { installRootTokens, tokenSource } from '../__mocks__/rootTokens'
 import { settle } from '../__mocks__/settle'
 import { createLiveTerminals, LiveTerminalsContext, type LiveTerminals } from './liveTerminals'
 import { TerminalPane } from './TerminalPane'
+import { OUTPUT_QUIET_MS } from './useTerminal'
 import { rootTokens, terminalTheme } from './terminalTheme'
 
 const CHAT_A = chatRecord({ id: 'chat_a', folder: '/a', title: 'Fix the build', agent: 'claude', role: 'worker' })
@@ -177,6 +178,50 @@ describe('TerminalPane theme', () => {
     expect(kit.latest().options.theme).toEqual(terminalTheme(rootTokens(document)))
     expect(frame().style.background).toBe('')
     expect(dm.agentCalls.filter((call) => call.method === 'ompTerminalTheme')).toHaveLength(0)
+  })
+})
+
+describe('TerminalPane Skitarii header', () => {
+  const OMP_CHAT = chatRecord({ id: 'chat_o', folder: '/a', title: 'OMP chat', agent: 'omp' })
+  const mascot = (): Element | null => document.querySelector('.skitarii-mascot')
+  const quiet = (): void => act(() => scheduler.fireTimeouts(OUTPUT_QUIET_MS))
+
+  it('dresses an OMP chat’s header with the mascot, and leaves a Claude chat’s alone', async () => {
+    await show(OMP_CHAT)
+    expect(mascot()).not.toBeNull()
+    expect(document.querySelector('.chat-header.is-skitarii')).not.toBeNull()
+    expect(document.querySelector('.chat-header .eyebrow')?.textContent).toBe('Claude Code')
+    expect(document.querySelector('.terminal-frame.is-skitarii')).not.toBeNull()
+    expect(details().getByText('Running')).toBeTruthy()
+    cleanup()
+
+    await show(CHAT_A)
+    expect(mascot()).toBeNull()
+    expect(document.querySelector('.chat-header.is-skitarii')).toBeNull()
+    expect(document.querySelector('.chat-header .eyebrow')?.textContent).toBe('CHAT')
+    expect(document.querySelector('.terminal-frame.is-skitarii')).toBeNull()
+  })
+
+  it('drills while output arrives and idles again after the quiet period', async () => {
+    await show(OMP_CHAT)
+    const state = (): string | undefined => (mascot() as HTMLElement).dataset.working
+    expect(state()).toBe('false')
+    act(() => terminals.latest().emitOutput('hello'))
+    expect(state()).toBe('true')
+    // More output restarts the quiet period.
+    act(() => terminals.latest().emitOutput('more'))
+    expect(scheduler.timeouts().filter((ms) => ms === OUTPUT_QUIET_MS)).toHaveLength(1)
+    quiet()
+    expect(state()).toBe('false')
+    expect(document.querySelector('.skitarii-mascot .pg-mascot-sprite')?.getAttribute('data-action')).toBe('idle')
+    act(() => terminals.latest().emitOutput('again'))
+    expect(document.querySelector('.skitarii-mascot .pg-mascot-sprite')?.getAttribute('data-action')).toBe('drill')
+  })
+
+  it('does not count the painted snapshot as output', async () => {
+    terminals.screens.chat_o = 'old screen'
+    await show(OMP_CHAT)
+    expect((mascot() as HTMLElement).dataset.working).toBe('false')
   })
 })
 

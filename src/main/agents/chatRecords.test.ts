@@ -113,6 +113,20 @@ describe('chat records: deleting a chat', () => {
     expect(() => records.readChat(doomed)).toThrowError(expect.objectContaining({ code: 'not_found' }) as Error)
   })
 
+  it('hands an OMP chat its id for removing its folder, and no other chat', async () => {
+    const fs = memoryChatFs()
+    const store = memoryChatStore(fs)
+    const removed: string[] = []
+    const records = createChatRecords({ store, agentFor: connectedAgents(), removeOmpFolder: async (id) => void removed.push(id) })
+    const omp = records.createChat({ folder: REPO, agent: 'omp', role: 'planner' })
+    const codex = records.createChat({ folder: REPO, agent: 'codex', role: 'planner' })
+
+    await records.deleteChat(omp)
+    await records.deleteChat(codex)
+
+    expect(removed).toEqual([omp.id])
+  })
+
   it('refuses an unknown chat', async () => {
     const { records } = rig()
 

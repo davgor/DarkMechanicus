@@ -11,7 +11,7 @@ describe('agent kind definitions', () => {
     expect(AGENT_DEFINITIONS.claude.displayName).toBe('Claude Code')
     expect(AGENT_DEFINITIONS.codex.displayName).toBe('Codex')
     expect(AGENT_DEFINITIONS.cursor.displayName).toBe('Cursor')
-    expect(AGENT_DEFINITIONS.omp.displayName).toBe('OMP')
+    expect(AGENT_DEFINITIONS.omp.displayName).toBe('Skitarii')
     expect(AGENT_DEFINITIONS.autonomous.displayName).toBe('Autonomous')
   })
 

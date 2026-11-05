@@ -21,7 +21,7 @@ export const AGENT_DEFINITIONS: Readonly<Record<BuiltInAgentKind, AgentKindDefin
   codex: { displayName: 'Codex', executables: ['codex'], downloadable: true },
   cursor: { displayName: 'Cursor', executables: ['agent', 'cursor-agent'], downloadable: true },
   autonomous: { displayName: 'Autonomous', executables: ['a8s'], downloadable: false },
-  omp: { displayName: 'OMP', executables: ['omp'], downloadable: true }
+  omp: { displayName: 'Skitarii', executables: ['omp'], downloadable: true }
 }
 
 /** A custom agent's id: `cu_` and a ULID (26 lowercase Crockford base32 characters). */

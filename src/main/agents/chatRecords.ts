@@ -24,6 +24,8 @@ interface ChatRecordsDeps {
   agentFor: (id: AgentId) => AgentView | null
   /** The item-based bindings of old chats; a deleted chat's are forgotten. Without it there are none. */
   activity?: Pick<ActivityBindings, 'forgetChat'>
+  /** Removes an OMP chat's own folder when the chat is deleted (`ompSession.ts`); without it nothing is removed. */
+  removeOmpFolder?: (chatId: string) => Promise<void>
 }
 
 /** A request to create a chat, with the run it orchestrates, the epic it transfers or the Kanban card it carries when there is one. */
@@ -93,6 +95,9 @@ export function createChatRecords(deps: ChatRecordsDeps): ChatRecords {
     deleteChat: async (ref) => {
       const chat = requireChat(store, ref)
       deps.activity?.forgetChat(chat)
+      if (chat.agent === 'omp') {
+        await deps.removeOmpFolder?.(chat.id)
+      }
       store.deleteChat(chat)
     },
     readChat: (ref) => {

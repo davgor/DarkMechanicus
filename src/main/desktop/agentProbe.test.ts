@@ -59,7 +59,7 @@ const VERSION_OUTPUT: Record<BuiltInAgentKind, string> = {
 
 const KINDS: BuiltInAgentKind[] = ['claude', 'codex', 'cursor', 'autonomous', 'omp']
 
-const CLI_NAMES: Record<BuiltInAgentKind, string> = { claude: 'Claude Code', codex: 'Codex', cursor: 'Cursor', autonomous: 'Autonomous', omp: 'OMP' }
+const CLI_NAMES: Record<BuiltInAgentKind, string> = { claude: 'Claude Code', codex: 'Codex', cursor: 'Cursor', autonomous: 'Autonomous', omp: 'Skitarii' }
 
 const IDENTIFIED: [BuiltInAgentKind, string, string | null][] = [
   ['claude', '2.1.281 (Claude Code)\n', '2.1.281'],
@@ -143,10 +143,10 @@ describe('probeAgent refuses a different program', () => {
     ['omp 18.16.0\n'],
     ['not omp/18.16.0\n'],
     ['omp/18.16\n']
-  ])('refuses %j as OMP: only a whole `omp/<semver>` line is it', async (output) => {
+  ])('refuses %j as Skitarii: only a whole `omp/<semver>` line is it', async (output) => {
     const { deps } = harness(exited(output))
 
-    expect(await probeAgent('omp', '/bin/omp', deps)).toEqual({ ok: false, code: 'wrong_program', reason: 'This is not the OMP CLI.' })
+    expect(await probeAgent('omp', '/bin/omp', deps)).toEqual({ ok: false, code: 'wrong_program', reason: 'This is not the Skitarii CLI.' })
   })
 
   it('refuses a program that exits with an error even when it names the CLI', async () => {

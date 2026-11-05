@@ -119,9 +119,10 @@ interface KindContext {
   instructionsPath: string
   instructionsText: string
   claudeSettings: string | undefined
-  /** OMP's per-chat session folder and config overlay; absent for every other kind. */
+  /** OMP's per-chat session folder, config overlay and the Skitarii extension; absent for every other kind. */
   ompSessionDir: string | undefined
   ompConfig: string | undefined
+  ompExtension: string | undefined
   model: string | null
   /** A usable stored session id (a UUID), or null. */
   sessionId: string | null
@@ -246,7 +247,8 @@ function customLaunch(context: KindContext): KindLaunch {
  * OMP (`docs/reports/omp-cli.md`, 3 to 5). `omp.exe` is a native program, so the line never goes through cmd.exe.
  * The instructions go as `--append-system-prompt <file>` (a one-line value naming a readable file is read as the
  * file), the kickoff as the positional first prompt, the chat's own `--session-dir` keeps its session apart and
- * `--config` gives the launch an overlay that skips the first-run Setup wizard. OMP mints the session id and cannot
+ * `--config` gives the launch an overlay that skips the first-run Setup wizard, and `-e` loads the app's Skitarii
+ * extension for this launch only (from the app's resources, never installed in the person's OMP folder). OMP mints the session id and cannot
  * be given one, so nothing is recorded up front: a start resumes (`--resume <uuid>`) only once the session folder
  * holds a session file, which the caller found and put in the chat as `sessionId` with `sessionStarted`.
  */
@@ -260,6 +262,7 @@ function ompLaunch(context: KindContext): KindLaunch {
       '--append-system-prompt',
       context.instructionsPath,
       ...(context.ompConfig === undefined ? [] : ['--config', context.ompConfig]),
+      ...(context.ompExtension === undefined ? [] : ['-e', context.ompExtension]),
       ...(context.ompSessionDir === undefined ? [] : ['--session-dir', context.ompSessionDir]),
       ...(context.model === null ? [] : ['--model', context.model]),
       ...(resumed === null ? [] : ['--resume', resumed]),
@@ -396,6 +399,7 @@ export function terminalLaunchSpec(input: TerminalLaunchInput): TerminalLaunchSp
     claudeSettings: files.claudeSettings,
     ompSessionDir: files.omp?.sessionDir,
     ompConfig: files.omp?.config,
+    ompExtension: files.omp?.extension,
     model,
     sessionId,
     sessionStarted: chat.sessionStarted,

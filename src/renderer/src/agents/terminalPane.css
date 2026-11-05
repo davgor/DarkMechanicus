@@ -89,6 +89,12 @@
   display: none;
 }
 
+/* A Skitarii chat's frame: the theme's background (inline) inside a brass hairline, so the TUI and the app read as one surface. */
+.terminal-frame.is-skitarii {
+  border-top: 1px solid var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
 /* No padding here: the fit addon sizes the grid to this element's box. */
 .terminal-host {
   flex: 1;

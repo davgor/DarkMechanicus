@@ -4,6 +4,7 @@
 # Refreshed 2026-11-01 (135 entries)
 
 electron.vite.config.ts - default
+resources/skitarii/extension/index.ts - default
 src/core/canonical.ts - canonicalJson
 src/core/canonical.ts - prettyJson
 src/core/canonical.ts - sha256Hex

@@ -65,7 +65,7 @@ function toView(row: AgentRow): AgentView {
   return {
     id: row.id,
     kind: row.kind,
-    displayName: row.display_name,
+    displayName: row.kind === 'custom' ? row.display_name : AGENT_DEFINITIONS[row.kind].displayName,
     executablePath: row.executable_path,
     args: JSON.parse(row.args_json) as string[],
     version: row.version,

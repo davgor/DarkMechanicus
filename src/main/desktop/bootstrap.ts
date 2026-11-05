@@ -47,6 +47,8 @@ import { logger } from '../logger'
 import { createLoginTerminals, type LoginTerminals } from '../terminals/loginTerminals'
 import { createNodePtyHost, type PtyHost } from '../terminals/ptyHost'
 import { createTerminalHandlers, registerTerminalIpc } from '../terminals/terminalHandlers'
+import { removeOmpFolder } from '../terminals/ompSession'
+import { skitariiExtensionPath } from '../terminals/ompSkitariiExtension'
 import { createTerminalSessions, endingTerminals, type TerminalSessions, type TerminalSessionsDeps } from '../terminals/terminalSessions'
 import { getAgentAuthStatus } from './agentAuth'
 import {
@@ -297,6 +299,7 @@ function createTerminalProcesses(store: ChatStore, deps: TerminalDeps): Pick<Cha
     cliFor: cliConfigFor,
     ...deps.grants,
     userData: app.getPath('userData'),
+    ompExtension: skitariiExtensionPath({ packaged: app.isPackaged, appPath: app.getAppPath(), resourcesPath: process.resourcesPath }),
     onError: (error) => {
       logger.error('Chat terminal failed:', error)
     }
@@ -347,7 +350,11 @@ function createChatProcesses(
       await Promise.all([terminals.dispose(), logins.dispose()])
     }
   }
-  const chats = endingTerminals(createChatRecords({ store, activity, agentFor: (id) => agents.get(id) }), terminals)
+  const userData = app.getPath('userData')
+  const chats = endingTerminals(
+    createChatRecords({ store, activity, agentFor: (id) => agents.get(id), removeOmpFolder: (id) => removeOmpFolder(userData, id) }),
+    terminals
+  )
   return { chats, quit, store, terminals, logins }
 }
 

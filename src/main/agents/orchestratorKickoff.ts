@@ -73,7 +73,7 @@ export function orchestratorKickoff(input: KickoffInput): string {
     ...branchLines(input),
     `Run: ${input.runId}, queued from the desktop app`,
     '',
-    `First step: call get_capabilities and confirm your role is orchestrator, then call start_run for this epic. It picks up the queued run ${input.runId}; if it says a run is already active, carry on with that run.`
+    `First step: run get_capabilities with your dm command line, exactly as your instructions give it (ending \`call get_capabilities '{}'\`), and confirm your role is orchestrator, then run start_run for this epic. It picks up the queued run ${input.runId}; if it says a run is already active, carry on with that run.`
   ].join('\n')
 }
 

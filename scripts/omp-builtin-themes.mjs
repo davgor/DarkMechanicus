@@ -1,7 +1,10 @@
 // Regenerates src/main/desktop/ompBuiltinThemes.json from OMP's packages/tui/src/theme/defaults.json:
 //   node scripts/omp-builtin-themes.mjs <path to defaults.json>
-// Keeps, per built-in theme, only the colors the pane maps (docs/design/chat-shells.md, "Theme"), resolved to #rrggbb.
+// The file must sit in a git checkout of can1357/oh-my-pi; its HEAD is recorded in the `_source` field, with the
+// license. Keeps, per built-in theme, only the colors the pane maps (docs/design/chat-shells.md, "Theme"), resolved to #rrggbb.
+import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
+import { dirname } from 'node:path'
 
 const KEYS = ['accent', 'selectedBg', 'text', 'error', 'success', 'warning', 'mdLink', 'muted']
 const CUBE = [0, 95, 135, 175, 215, 255]
@@ -21,8 +24,18 @@ function resolve(value, vars, depth = 0) {
   return value in vars && depth < 8 ? resolve(vars[value], vars, depth + 1) : undefined
 }
 
-const defaults = JSON.parse(readFileSync(process.argv[2], 'utf8'))
-const out = {}
+const source = process.argv[2]
+const defaults = JSON.parse(readFileSync(source, 'utf8'))
+const commit = execFileSync('git', ['-C', dirname(source), 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+const out = {
+  _source: {
+    repository: 'can1357/oh-my-pi',
+    file: 'packages/tui/src/theme/defaults.json',
+    commit,
+    license: 'MIT',
+    notice: 'THIRD_PARTY_NOTICES.md'
+  }
+}
 for (const name of Object.keys(defaults).sort()) {
   const { vars = {}, colors = {}, terminal = {} } = defaults[name]
   const entry = { colors: {}, terminal: {} }
@@ -41,4 +54,4 @@ for (const name of Object.keys(defaults).sort()) {
   out[name] = entry
 }
 writeFileSync(new URL('../src/main/desktop/ompBuiltinThemes.json', import.meta.url), JSON.stringify(out) + '\n')
-console.log(`${Object.keys(out).length} themes`)
+console.log(`${Object.keys(out).length - 1} themes from ${commit}`)

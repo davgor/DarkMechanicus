@@ -5,7 +5,7 @@
  * its grant revoked. On the fake PTY host and the fake clock; Claude's session file is on the real disk, in the
  * rig's scratch home folder.
  */
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { builtInAgent } from '../agents/__mocks__/chatFixtures'
@@ -325,5 +325,30 @@ describe('terminal sessions: OMP, whose session id the CLI mints', () => {
     expect(pty.spec.args as string[]).not.toContain('--resume')
     expect(pty.spec.args as string[]).toContain(sessionDir)
     expect(stored(chat)?.sessionId ?? null).toBeNull()
+  })
+})
+
+describe('terminal sessions: the Skitarii look of an OMP chat', () => {
+  beforeEach(() => {
+    rig.cleanup()
+    rig = terminalRig({ agents: [builtInAgent('omp')] })
+  })
+
+  it('puts the Skitarii theme in the CLI’s own themes folder before it starts, and writes no config.yml there', async () => {
+    const chat = rig.newChat('omp')
+    await startTerminal(rig, chat)
+
+    expect(existsSync(join(rig.root, '.omp', 'agent', 'themes', 'skitarii.json'))).toBe(true)
+    expect(existsSync(join(rig.root, '.omp', 'agent', 'config.yml'))).toBe(false)
+  })
+
+  it('loads the Skitarii extension from the app with -e and installs nothing of it in the CLI’s own folder', async () => {
+    const chat = rig.newChat('omp')
+    const { pty } = await startTerminal(rig, chat)
+    const args = pty.spec.args as string[]
+
+    expect(args[args.indexOf('-e') + 1]).toBe('/app/resources/skitarii/extension/index.ts')
+    expect(readdirSync(join(rig.root, '.omp', 'agent'))).toEqual(['themes'])
+    expect(readdirSync(join(rig.root, '.omp', 'agent', 'themes'))).toEqual(['skitarii.json'])
   })
 })

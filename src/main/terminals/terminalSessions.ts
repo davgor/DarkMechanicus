@@ -71,6 +71,8 @@ import type { ChatRef, ChatStore } from '../agents/chatStore'
 import { resolveLaunchFolder, type LaunchFolderDeps } from '../agents/launchFolder'
 import { killPtyTree, type PtyTree } from '../agents/processTree'
 import { claudeSessionExists } from './claudeSession'
+import { ompAgentDir } from '../desktop/ompTheme'
+import { installSkitariiTheme } from './ompSkitariiTheme'
 import { ompSessionId, writeOmpFiles } from './ompSession'
 import { writeClaudeSettings } from './claudeSettingsFile'
 import type { PtyExit, PtyHost, PtyProcess } from './ptyHost'
@@ -204,6 +206,8 @@ export interface TerminalSessionsDeps {
   /** Ends a PTY's process tree; `killPtyTree` by default. */
   killTree?: (tree: PtyTree) => Promise<boolean>
   userData: string
+  /** The Skitarii OMP extension's entry file (`skitariiExtensionPath`), loaded by every OMP chat with `-e`. */
+  ompExtension: string
   platform: NodeJS.Platform
   /** main's `process.env`. */
   env: Readonly<Record<string, string | undefined>>
@@ -409,7 +413,9 @@ async function writeStartFiles(context: StartContext): Promise<TerminalFiles> {
     ...(chat.cardId === undefined ? {} : { cardId: chat.cardId })
   })
   if (agent.kind === 'omp') {
-    return { ...files, omp: await writeOmpFiles(userData, chat.id, fresh) }
+    // OMP's folder is where its themes are read (`ompSkitariiTheme.ts`); the home is main's env on macOS, where os.homedir() reads it too.
+    await installSkitariiTheme(ompAgentDir(manager.deps.env, platform === 'win32' ? undefined : manager.deps.env['HOME']))
+    return { ...files, omp: { ...(await writeOmpFiles(userData, chat.id, fresh)), extension: manager.deps.ompExtension } }
   }
   if (agent.kind !== 'claude') {
     return files

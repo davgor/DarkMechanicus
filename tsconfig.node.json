@@ -20,7 +20,8 @@
     "src/mcp/**/*",
     "src/cli/**/*",
     "src/test/**/*",
-    "src/integration/**/*"
+    "src/integration/**/*",
+    "resources/skitarii/extension/**/*"
   ],
   "exclude": ["src/renderer"]
 }

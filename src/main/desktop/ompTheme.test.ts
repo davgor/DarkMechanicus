@@ -3,9 +3,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { TERMINAL_COLOR } from '../../shared/agents/terminalColors'
+import bundledThemes from './ompBuiltinThemes.json'
 import { createOmpThemeHandlers, darkThemeName, ompAgentDir, readOmpTerminalTheme } from './ompTheme'
 
 let dir: string
+/** `--code-bg`, the Skitarii theme's terminal background. */
+const skitariiBackground = '#100d0c'
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'omp-theme-'))
@@ -101,6 +104,26 @@ describe('readOmpTerminalTheme for built-in themes', () => {
     expect(readOmpTerminalTheme(dir)?.background).toBe('#151820')
   })
 
+  it('records the upstream source and MIT license in _source, and does not read it as a theme', () => {
+    expect(bundledThemes._source).toEqual({
+      repository: 'can1357/oh-my-pi',
+      file: 'packages/tui/src/theme/defaults.json',
+      commit: expect.stringMatching(/^[0-9a-f]{40}$/),
+      license: 'MIT',
+      notice: 'THIRD_PARTY_NOTICES.md'
+    })
+    config('theme:\n  dark: _source\n')
+    expect(readOmpTerminalTheme(dir)).toBeNull()
+  })
+
+  it('parses every bundled theme', () => {
+    const names = Object.keys(bundledThemes).filter((name) => name !== '_source')
+    expect(names.length).toBeGreaterThan(0)
+    for (const name of names) {
+      config(`theme:\n  dark: ${name}\n`)
+      expect(readOmpTerminalTheme(dir), name).not.toBeNull()
+    }
+  })
 })
 
 describe('readOmpTerminalTheme for a missing or malformed theme', () => {
@@ -183,12 +206,21 @@ describe('ompAgentDir and the handler', () => {
     expect(ompAgentDir({}, '/home/x')).toBe(join('/home/x', '.omp', 'agent'))
   })
 
-  it('answers each call from the files as they are then', async () => {
+  it('answers with the Skitarii theme the app launches its chats with, whatever the person set in their own folder', async () => {
     const handlers = createOmpThemeHandlers({ agentDir: () => dir })
-    config('theme:\n  dark: skitarii\n')
-    expect(await handlers.ompTerminalTheme()).toBeNull()
+    expect((await handlers.ompTerminalTheme())?.background).toBe(skitariiBackground)
 
+    config('theme:\n  dark: mine\n')
+    theme('mine', VALID)
     theme('skitarii', VALID)
-    expect((await handlers.ompTerminalTheme())?.background).toBe('#101010')
+    expect((await handlers.ompTerminalTheme())?.background).toBe(skitariiBackground)
+  })
+
+  it('gives an app chat the Skitarii palette, from the bundled theme and not from any file', () => {
+    config('theme:\n  dark: dark-nord\n')
+    const colors = readOmpTerminalTheme(dir, true)
+
+    expect(colors).toMatchObject({ background: skitariiBackground, foreground: '#ece6da', cursor: '#ea4134', red: '#e0574f', green: '#84c20a', selectionBackground: '#b51a1f' })
+    expect(readOmpTerminalTheme(dir)?.background).not.toBe(skitariiBackground)
   })
 })

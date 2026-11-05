@@ -1,0 +1,7 @@
+# userData/agents/omp after delete (2026-11-05T04:09:44-06:00)
+total 8
+drwxr-xr-x 1 davgo 197609 0 04:09:41 .
+drwxr-xr-x 1 davgo 197609 0 03:44:29 ..
+drwxr-xr-x 1 davgo 197609 0 04:04:20 chat_373779b1-cc97-431b-b61b-62ffd745f647
+drwxr-xr-x 1 davgo 197609 0 04:05:53 chat_83901a63-c743-402b-b84f-72999c9f8271
+drwxr-xr-x 1 davgo 197609 0 04:06:19 chat_e91eda30-f2c9-4861-be0d-57398467b555
