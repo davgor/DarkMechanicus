@@ -1,0 +1,1 @@
+banner mascot, 473 half-cell samples (cols0-27, rows1-14, non-background in either): mean |diff| R,G,B = 11.87, 11.13, 7.17; max |diff| = 44, 38, 51; samples within 3 per channel: 52 of 473

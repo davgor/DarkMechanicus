@@ -4,6 +4,8 @@
 
 **Source:** the chibi tech-priest in [`build/icon.png`](../../build/icon.png). The master [`build/mechanicus-cute-master.png`](../../build/mechanicus-cute-master.png) is the same artwork at 1254 px; its region means match the icon's within 1/255 per channel.
 
+**Rendering:** the app forces Chromium's sRGB colour profile (`applyColorProfile` in `src/main/windowPolicy.ts`, called from `src/main/index.ts` before ready), so the hex values here are rendered as exact sRGB on every display instead of being colour-managed to the display's ICC profile. Evidence: [`docs/verification/DM-447/notes.md`](../verification/DM-447/notes.md).
+
 **Unchanged:** the dark-only theme, IBM Plex Sans / Mono / Serif, and the current layout. This doc only sets token values and roles.
 
 ## At a glance

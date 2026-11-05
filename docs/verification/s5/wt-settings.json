@@ -1,0 +1,112 @@
+{
+    "$help": "https://aka.ms/terminal-documentation",
+    "$schema": "https://aka.ms/terminal-profiles-schema",
+    "actions": [],
+    "alwaysShowTabs": false,
+    "defaultProfile": "{b1a5c0de-0000-4000-8000-000000000001}",
+    "disableAnimations": true,
+    "firstWindowPreference": "defaultProfile",
+    "initialCols": 169,
+    "initialPosition": "60,40",
+    "initialRows": 45,
+    "keybindings": [],
+    "launchMode": "default",
+    "newTabMenu":
+    [
+        {
+            "type": "remainingProfiles"
+        }
+    ],
+    "profiles":
+    {
+        "defaults": {},
+        "list":
+        [
+            {
+                "closeOnExit": "always",
+                "colorScheme": "Skitarii",
+                "commandline": "cmd.exe /c C:\\Users\\davgo\\AppData\\Local\\Temp\\claude\\5b2748231b82b70c\\46f2df57-16a2-475c-9c1e-531c9afb4fd7\\scratchpad\\s5\\wt-launch.cmd",
+                "cursorShape": "filledBox",
+                "font":
+                {
+                    "face": "Consolas",
+                    "size": 9.75
+                },
+                "guid": "{b1a5c0de-0000-4000-8000-000000000001}",
+                "hidden": false,
+                "name": "Skitarii OMP",
+                "opacity": 100,
+                "padding": "0",
+                "scrollbarState": "hidden",
+                "startingDirectory": "C:\\Users\\davgo\\AppData\\Local\\Temp\\claude\\5b2748231b82b70c\\46f2df57-16a2-475c-9c1e-531c9afb4fd7\\scratchpad\\s5\\repo",
+                "suppressApplicationTitle": true,
+                "tabTitle": "Skitarii OMP (standalone WT)",
+                "useAcrylic": false
+            },
+            {
+                "guid": "{61c54bbd-c2c6-5271-96e7-009a87ff44bf}",
+                "hidden": false,
+                "name": "Windows PowerShell"
+            },
+            {
+                "guid": "{0caa0dad-35be-5f56-a8ff-afceeeaa6101}",
+                "hidden": false,
+                "name": "Command Prompt"
+            },
+            {
+                "guid": "{b453ae62-4e3d-5e58-b989-0a998ec441b8}",
+                "hidden": false,
+                "name": "Azure Cloud Shell",
+                "source": "Windows.Terminal.Azure"
+            },
+            {
+                "guid": "{39a27290-07e8-5361-a90e-f0920ea366ac}",
+                "hidden": false,
+                "name": "Developer Command Prompt for VS 2022",
+                "source": "Windows.Terminal.VisualStudio"
+            },
+            {
+                "guid": "{8ab4c1ca-8577-5b92-ab5e-3cddc4a924de}",
+                "hidden": false,
+                "name": "Developer PowerShell for VS 2022",
+                "source": "Windows.Terminal.VisualStudio"
+            },
+            {
+                "guid": "{dfc986de-31cb-5cdd-ab5e-17dc03d5dceb}",
+                "hidden": false,
+                "name": "Ubuntu",
+                "source": "Microsoft.WSL"
+            }
+        ]
+    },
+    "schemes":
+    [
+        {
+            "background": "#100D0C",
+            "black": "#2C2520",
+            "blue": "#6AA7FF",
+            "brightBlack": "#797165",
+            "brightBlue": "#93C0FF",
+            "brightCyan": "#84D6BE",
+            "brightGreen": "#A5DC3A",
+            "brightPurple": "#E0A8EE",
+            "brightRed": "#F07068",
+            "brightWhite": "#F5F0E6",
+            "brightYellow": "#F2D7AE",
+            "cursorColor": "#EA4134",
+            "cyan": "#4CC7A8",
+            "foreground": "#ECE6DA",
+            "green": "#84C20A",
+            "name": "Skitarii",
+            "purple": "#C78BD8",
+            "red": "#E0574F",
+            "selectionBackground": "#B51A1F",
+            "white": "#C9C1B2",
+            "yellow": "#D69B4A"
+        }
+    ],
+    "showTabsInTitlebar": false,
+    "theme": "dark",
+    "themes": [],
+    "useAcrylicInTabRow": false
+}
