@@ -18,6 +18,11 @@
  * - Cursor `agent status`: the vendor documents the command but not its wording, so the match is
  *   tolerant: a "not logged in / not authenticated" style message is signed out, and a "logged in" /
  *   "authenticated" message with exit 0 is signed in. Anything else is `unknown`.
+ * - OMP `usage --json` (docs/reports/omp-cli.md section 5): signed out it prints empty lists (`reports`,
+ *   `accountsWithoutUsage`, `disabledCredentials`) with exit 0. The signed-in shape is from source, not a
+ *   recording: `packages/coding-agent/src/cli/usage-cli.ts` lines 1700-1722 put one entry per stored account in
+ *   `reports` or `accountsWithoutUsage`. Only the counts are read. A signed-in run fetches live usage over the
+ *   network, so it may pass the timeout, which is `unknown`.
  * - Autonomous `a8s doctor` (docs/reports/autonomous-acp.md, the only command that showed a sign-in
  *   state): its `Model route` line. Signed in: `✓ Model route  Claude subscription · <model> · signed in`.
  *   Signed out, recorded with an isolated profile (DM-307): `✗ Model route  Claude subscription is not
@@ -45,7 +50,8 @@ const STATUS_TIMEOUT_MS: Readonly<Record<BuiltInAgentKind, number>> = {
   claude: 10_000,
   codex: 10_000,
   cursor: 10_000,
-  autonomous: 30_000
+  autonomous: 30_000,
+  omp: 10_000
 }
 
 /** Constant arguments only: on Windows they go through the shared shim launcher's command line, so no user text ever goes here. */
@@ -53,7 +59,8 @@ const STATUS_ARGS: Readonly<Record<BuiltInAgentKind, readonly string[]>> = {
   claude: ['auth', 'status'],
   codex: ['login', 'status'],
   cursor: ['status'],
-  autonomous: ['doctor']
+  autonomous: ['doctor'],
+  omp: ['usage', '--json'] // account lists tell signed in from signed out, see the classifier
 }
 
 /** Each CLI's own login command: no key, token, email, or password option. Run in the sign-in terminal. */
@@ -61,7 +68,8 @@ export const LOGIN_ARGS: Readonly<Record<BuiltInAgentKind, readonly string[]>> =
   claude: ['auth', 'login'],
   codex: ['login'],
   cursor: ['login'],
-  autonomous: ['init']
+  autonomous: ['init'],
+  omp: ['login'] // no provider: OMP picks one in the terminal (docs/reports/omp-cli.md section 5)
 }
 
 const ANSI_ESCAPE = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*[A-Za-z]`, 'g')
@@ -135,11 +143,37 @@ function classifyAutonomous(_exitCode: number, text: string): Verdict {
   return route.startsWith('✓') && /\bsigned in\b/i.test(route) ? 'signed_in' : null
 }
 
+const ompUsageSchema = z.object({
+  reports: z.array(z.unknown()),
+  accountsWithoutUsage: z.array(z.unknown()),
+  disabledCredentials: z.array(z.unknown())
+})
+
+/**
+ * Signed in when the usage document lists an account (`reports` or `accountsWithoutUsage`). Signed out, every
+ * list is empty. A document with only disabled credentials is neither clearly, so it is unknown.
+ */
+function classifyOmp(exitCode: number, text: string): Verdict {
+  if (exitCode !== 0) {
+    return null
+  }
+  const usage = ompUsageSchema.safeParse(parseJsonDocument(text))
+  if (!usage.success) {
+    return null
+  }
+  const { reports, accountsWithoutUsage, disabledCredentials } = usage.data
+  if (reports.length > 0 || accountsWithoutUsage.length > 0) {
+    return 'signed_in'
+  }
+  return disabledCredentials.length === 0 ? 'signed_out' : null
+}
+
 const CLASSIFIERS: Readonly<Record<BuiltInAgentKind, Classifier>> = {
   claude: classifyClaude,
   codex: classifyCodex,
   cursor: classifyCursor,
-  autonomous: classifyAutonomous
+  autonomous: classifyAutonomous,
+  omp: classifyOmp
 }
 
 function unknown(reason: string): AgentAuthStatus {

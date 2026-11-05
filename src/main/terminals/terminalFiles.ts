@@ -18,6 +18,8 @@ export interface TerminalFiles {
   instructions: string
   /** Claude's settings file, when one was written for this chat; Claude starts without `--settings` otherwise. */
   claudeSettings?: string
+  /** OMP's per-chat session folder and config overlay (`ompSession.ts`), for an OMP chat. */
+  omp?: { sessionDir: string; config: string }
   /** The folder holding the chat's `dm` launcher (macOS); null on Windows, which has none. */
   launcherDir: string | null
 }

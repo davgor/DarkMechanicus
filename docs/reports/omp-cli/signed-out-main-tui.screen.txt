@@ -1,0 +1,14 @@
+
+                                            ████████████
+                                               ██  ██       ▄▀▀▄ █▀▄▀▄ █▀▀▄
+                                               ██  ██       ▀▄▄▀ █ █ █ █▄▄▀
+                                               ▒▒  ██                  █
+                                                   ██       v18.16.0
+
+                        Tip: omp can reconfigure and extend itself — ask any questions you have!
+
+ Warning: No default model selected. Use /login, set an API key environment variable, or select a local model with      
+ /model or --model.
+
+ π > ⬢ no-model > 🗑 …-9c1e-531c9afb4fd7\scratchpad\work\proj > ◫ 8.2K/? ⟲ ▶─────────────────────────────────────────────
+╰─                                                                                          ⇧⇥ to change thinking effort

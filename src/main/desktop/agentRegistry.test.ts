@@ -44,6 +44,17 @@ describe('createAgentRegistry listing', () => {
   })
 })
 
+describe('createAgentRegistry omp', () => {
+  it('upserts and lists an omp agent under the display name OMP', () => {
+    const registry = createAgentRegistry({ db: appDb() })
+
+    const view = registry.upsert(connection('omp', { version: '18.16.0' }))
+
+    expect(view).toMatchObject({ id: 'omp', kind: 'omp', displayName: 'OMP', version: '18.16.0', needsReview: false })
+    expect(registry.list()).toEqual([view])
+  })
+})
+
 describe('createAgentRegistry upsert', () => {
   it('adds an entry for a new kind and returns its view', () => {
     const registry = createAgentRegistry({ db: appDb(), now: () => '2026-01-01T00:00:00.000Z' })
@@ -74,7 +85,8 @@ describe('createAgentRegistry upsert', () => {
       { id: 'claude', kind: 'claude', display_name: 'Claude Code', args_json: '[]', needs_review: 0 },
       { id: 'codex', kind: 'codex', display_name: 'Codex', args_json: '[]', needs_review: 0 },
       { id: 'cursor', kind: 'cursor', display_name: 'Cursor', args_json: '[]', needs_review: 0 },
-      { id: 'autonomous', kind: 'autonomous', display_name: 'Autonomous', args_json: '[]', needs_review: 0 }
+      { id: 'autonomous', kind: 'autonomous', display_name: 'Autonomous', args_json: '[]', needs_review: 0 },
+      { id: 'omp', kind: 'omp', display_name: 'OMP', args_json: '[]', needs_review: 0 }
     ])
   })
 

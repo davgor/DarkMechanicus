@@ -54,11 +54,33 @@ const A8S_SIGNED_IN =
 const A8S_OKTA_ONLY = '✓ Okta  signed in as dev@example.com\n0 problems, 0 warnings.\n'
 const A8S_ROUTE_FAILED = '✗ Model route  Claude subscription · anthropic/claude-opus-5-5 · signed in · token refresh failed\n'
 
+/**
+ * OMP `omp usage --json`. The signed-out sample is the recording (docs/reports/omp-cli.md section 5, exit 0). The
+ * signed-in sample is built from the source shape (`usage-cli.ts`, one `reports` entry per account), not recorded.
+ */
+const OMP_SIGNED_OUT = `{
+  "generatedAt": 1793674471240,
+  "reports": [],
+  "accountsWithoutUsage": [],
+  "disabledCredentials": [],
+  "capacity": {}
+}
+`
+const OMP_SIGNED_IN = `{
+  "generatedAt": 1793674471240,
+  "reports": [{ "provider": "anthropic", "fetchedAt": 1793674471000, "limits": [] }],
+  "accountsWithoutUsage": [],
+  "disabledCredentials": [],
+  "capacity": {}
+}
+`
+
 const POSIX_PATHS: Record<BuiltInAgentKind, string> = {
   claude: '/home/me/.local/bin/claude',
   codex: '/usr/local/bin/codex',
   cursor: '/home/me/.local/bin/agent',
-  autonomous: '/home/me/.local/bin/a8s'
+  autonomous: '/home/me/.local/bin/a8s',
+  omp: '/home/me/.local/bin/omp'
 }
 
 interface Run {
@@ -106,7 +128,7 @@ describe('status maps each CLI output to signed_in, signed_out or unknown', () =
     ['cursor', 0, CURSOR_NOT_AUTHENTICATED, 'signed_out'],
     ['autonomous', 0, A8S_SIGNED_IN, 'signed_in'],
     ['autonomous', DOCTOR_SIGNED_OUT.exitCode, DOCTOR_SIGNED_OUT.output, 'signed_out'],
-    ['autonomous', DOCTOR_NO_PROFILE.exitCode, DOCTOR_NO_PROFILE.output, 'signed_out']
+    ['autonomous', DOCTOR_NO_PROFILE.exitCode, DOCTOR_NO_PROFILE.output, 'signed_out'],
   ] as const)('%s exit %i with a recorded output is %s', async (kind, exitCode, output, state) => {
     expect((await statusOf(kind, exited(exitCode, output))).state).toBe(state)
   })
@@ -141,6 +163,21 @@ describe('status maps each CLI output to signed_in, signed_out or unknown', () =
     expect((await statusOf('autonomous', exited(1, output))).state).toBe(state)
   })
 
+})
+
+describe('status for OMP reads the account lists of `omp usage --json`', () => {
+  it.each([
+    ['signed in: an account in reports', 0, OMP_SIGNED_IN, 'signed_in'],
+    ['signed out: every list empty', 0, OMP_SIGNED_OUT, 'signed_out'],
+    ['signed out, ANSI-coloured', 0, `\u001b[32m${OMP_SIGNED_OUT}\u001b[0m`, 'signed_out'],
+    ['signed out with a text message and exit 1', 1, 'No credentials found. Run `omp` and use /login to add accounts.\n', 'unknown'],
+    ['a signed-out JSON document with exit 1', 1, OMP_SIGNED_OUT, 'unknown'],
+    ['not JSON', 0, 'not json at all\n', 'unknown'],
+    ['a models list is not a sign-in answer', 0, '{"models":[]}\n', 'unknown'],
+    ['only a disabled credential', 0, '{"reports":[],"accountsWithoutUsage":[],"disabledCredentials":[{"provider":"anthropic"}],"capacity":{}}\n', 'unknown']
+  ] as const)('%s', async (_label, exitCode, output, state) => {
+    expect((await statusOf('omp', exited(exitCode, output))).state).toBe(state)
+  })
 })
 
 describe('status reads only what the CLI said', () => {

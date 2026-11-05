@@ -12,7 +12,9 @@
  * so nothing waits on a callback that will not come.
  */
 import { SerializeAddon } from '@xterm/addon-serialize'
+import { UnicodeGraphemesAddon } from '@xterm/addon-unicode-graphemes'
 import { Terminal } from '@xterm/headless'
+import type { ITerminalAddon } from '@xterm/xterm'
 
 /** How many lines above the screen are kept for the snapshot. */
 const SCROLLBACK_LINES = 5_000
@@ -31,6 +33,8 @@ export function createTerminalScreen(cols: number, rows: number): TerminalScreen
   const terminal = new Terminal({ cols, rows, scrollback: SCROLLBACK_LINES, allowProposedApi: true })
   const serializer = new SerializeAddon()
   terminal.loadAddon(serializer)
+  // The same cell widths as the pane's terminal (`xtermKit.ts`), so a snapshot lays out as the CLI did.
+  terminal.loadAddon(new UnicodeGraphemesAddon() as ITerminalAddon)
   return {
     write: (data, onScreen) => {
       try {

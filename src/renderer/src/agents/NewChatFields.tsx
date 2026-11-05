@@ -18,11 +18,13 @@ export function chattableAgents(agents: readonly AgentView[], statuses: Statuses
 
 /**
  * The agent New chat opens: the folder's default while it is connected (signed out too: its terminal says
- * so), else the first agent that can chat, else the first connected one; null when none is connected.
+ * so), else OMP when it can chat, else the first agent that can chat, else the first connected one; null when
+ * none is connected.
  */
 export function newChatAgent(defaultId: AgentId | null, agents: readonly AgentView[], statuses: Statuses): AgentId | null {
   if (defaultId !== null && agents.some((agent) => agent.id === defaultId)) return defaultId
-  return (chattableAgents(agents, statuses)[0] ?? agents[0])?.id ?? null
+  const chattable = chattableAgents(agents, statuses)
+  return (chattable.find((agent) => agent.id === 'omp') ?? chattable[0] ?? agents[0])?.id ?? null
 }
 
 interface AgentChoiceProps {

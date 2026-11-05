@@ -4,6 +4,7 @@
  * clipboard, and external links are separate narrow methods.
  */
 import type { ChatsApi } from '../agents/chatApi'
+import type { TerminalColors } from '../agents/terminalColors'
 import type { TerminalsApi } from '../agents/terminalApi'
 import type { CommandApi, CommandName } from '../domain/api'
 import type { DomainErrorShape } from '../domain/errors'
@@ -29,7 +30,7 @@ export interface TrackedFolderView {
 }
 
 /** The agents the app knows how to find and sign in (and, all but Autonomous, download); vendor maps are keyed by these. */
-export type BuiltInAgentKind = 'claude' | 'codex' | 'cursor' | 'autonomous'
+export type BuiltInAgentKind = 'claude' | 'codex' | 'cursor' | 'autonomous' | 'omp'
 
 /** What an agent is: a built-in vendor CLI, or a custom CLI the person connected. */
 type AgentKind = BuiltInAgentKind | 'custom'
@@ -259,6 +260,12 @@ export interface DmApi {
    * An untracked folder is refused with `unauthorized`.
    */
   folderDefaultAgent(folder: string): Promise<AgentId | null>
+  /**
+   * The colors of OMP's active theme for the pane of an OMP chat (`docs/design/chat-shells.md`, "Theme"), or null when
+   * there is none to show. Takes nothing: main reads OMP's `config.yml` and the one theme file it names, and returns only
+   * `#rrggbb` strings. Called each time an OMP chat is opened.
+   */
+  ompTerminalTheme(): Promise<TerminalColors | null>
   /**
    * Sets (or, with null, clears) a tracked folder's default agent and returns it. An untracked folder is
    * refused with `unauthorized`, a malformed id with `invalid_input` and one that is not connected with `not_found`.

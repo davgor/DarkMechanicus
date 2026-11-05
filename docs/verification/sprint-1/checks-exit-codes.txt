@@ -1,0 +1,4 @@
+lint exit 0
+typecheck exit 0
+deadcode exit 1 (see deadcode.log)
+build exit 0

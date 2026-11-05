@@ -2,7 +2,7 @@
 import type { IDisposable, ITerminalOptions } from '@xterm/xterm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { TerminalSize, TerminalView } from './terminalView'
-import { createXtermKit, keyGoesToTerminal, type XtermParts } from './xtermKit'
+import { createXtermKit, type XtermParts } from './xtermKit'
 
 /** What happened to the fakes, in order. */
 let log: string[]
@@ -25,6 +25,14 @@ class FakeXterm {
   element: HTMLElement | null = null
   readonly written: string[] = []
   readonly addons: { dispose(): void }[] = []
+  readonly inputs: string[] = []
+  readonly csi: { key: string; callback: (params: (number | number[])[]) => boolean }[] = []
+  readonly parser = {
+    registerCsiHandler: (id: { prefix?: string; final: string }, callback: (params: (number | number[])[]) => boolean): IDisposable => {
+      this.csi.push({ key: `${id.prefix ?? ''}${id.final}`, callback })
+      return { dispose: () => undefined }
+    }
+  }
   private readonly data = new Set<(data: string) => void>()
   keyHandler: ((event: KeyboardEvent) => boolean) | null = null
 
@@ -56,6 +64,15 @@ class FakeXterm {
     this.keyHandler = handler
   }
 
+  input(data: string): void {
+    this.inputs.push(data)
+  }
+
+  /** Runs the CSI handlers registered for `key` the way xterm's parser does, until one answers true. */
+  feed(key: string, ...params: number[]): void {
+    for (const handler of this.csi.filter((entry) => entry.key === key)) if (handler.callback(params)) return
+  }
+
   type(data: string): void {
     for (const listener of this.data) listener(data)
   }
@@ -66,8 +83,23 @@ class FakeXterm {
 
   dispose(): void {
     log.push('dispose terminal')
+    for (const addon of this.addons) addon.dispose()
   }
 }
+
+/** An addon that logs when it is loaded, and when it is disposed. */
+const fakeAddon = (name: string): (new (...args: unknown[]) => { activate(terminal: FakeXterm): void; dispose(): void }) =>
+  class {
+    activate(terminal: FakeXterm): void {
+      log.push(`${name} loaded ${terminal.element === null ? 'before open' : 'after open'}`)
+    }
+    dispose(): void {
+      log.push(`${name} disposed`)
+    }
+  }
+
+let opened: string[]
+let copied: string[]
 
 class FakeFit {
   activate(): void {}
@@ -131,13 +163,25 @@ class FakeResizeObserver {
   }
 }
 
-const PARTS = { Terminal: FakeXterm, FitAddon: FakeFit, WebglAddon: FakeWebgl, ResizeObserver: FakeResizeObserver } as unknown as XtermParts
+const PARTS = {
+  Terminal: FakeXterm,
+  FitAddon: FakeFit,
+  WebglAddon: FakeWebgl,
+  UnicodeGraphemesAddon: fakeAddon('graphemes'),
+  WebLinksAddon: fakeAddon('web-links'),
+  ClipboardAddon: fakeAddon('clipboard'),
+  ResizeObserver: FakeResizeObserver,
+  openLink: (url: string) => void opened.push(url),
+  writeClipboard: (text: string) => Promise.resolve(void copied.push(text))
+} as unknown as XtermParts
 const THEME = { background: '#100d0c', foreground: '#ece6da' }
 
 let host: HTMLElement
 
 beforeEach(() => {
   log = []
+  opened = []
+  copied = []
   terminals = []
   webgls = []
   observers = []
@@ -158,11 +202,49 @@ describe('xtermKit create', () => {
     expect(terminals).toHaveLength(1)
     expect(terminals[0]?.options).toMatchObject({ theme: THEME, fontFamily: 'Menlo' })
     expect(terminals[0]?.element).toBe(host)
-    expect(log).toEqual(['webgl 0 loaded before open', 'open', 'viewport style inert'])
+    expect(log).toEqual([
+      'graphemes loaded before open',
+      'web-links loaded before open',
+      'clipboard loaded before open',
+      'webgl 0 loaded before open',
+      'open',
+      'viewport style inert'
+    ])
     expect(document.querySelectorAll('style')).toHaveLength(0)
     expect(document.createElement('style')).toBeInstanceOf(HTMLStyleElement)
   })
 
+})
+
+describe('xtermKit addons', () => {
+  it('loads the grapheme widths, link and clipboard addons on open and disposes each with the terminal', () => {
+    const view = create()
+    expect(terminals[0]?.options.allowProposedApi).toBe(true)
+    log = []
+    view.dispose()
+    expect(log.filter((entry) => entry.endsWith(' disposed') || entry === 'dispose terminal')).toEqual([
+      'dispose terminal',
+      'graphemes disposed',
+      'web-links disposed',
+      'clipboard disposed',
+      'webgl 0 disposed'
+    ])
+  })
+
+  it('opens an OSC 8 link only on a Ctrl or Cmd click, and only through the app', () => {
+    create()
+    const handler = terminals[0]?.options.linkHandler
+    handler?.activate(new MouseEvent('click'), 'https://example.com/a', { start: { x: 1, y: 1 }, end: { x: 2, y: 1 } })
+    expect(opened).toEqual([])
+    handler?.activate(new MouseEvent('click', { ctrlKey: true }), 'https://example.com/a', { start: { x: 1, y: 1 }, end: { x: 2, y: 1 } })
+    handler?.activate(new MouseEvent('click', { metaKey: true }), 'mailto:a@b.c', { start: { x: 1, y: 1 }, end: { x: 2, y: 1 } })
+    expect(opened).toEqual(['https://example.com/a', 'mailto:a@b.c'])
+    expect(handler?.allowNonHttpProtocols).toBe(false)
+  })
+
+})
+
+describe('xtermKit WebGL', () => {
   it('recreates the WebGL renderer when its context is lost, with the DOM renderer’s styles inert in between', () => {
     create()
     log = []
@@ -213,7 +295,7 @@ describe('xtermKit view', () => {
     log = []
     view.focus()
     view.dispose()
-    expect(log).toEqual(['focus', 'dispose terminal'])
+    expect(log.slice(0, 2)).toEqual(['focus', 'dispose terminal'])
   })
 })
 
@@ -233,7 +315,6 @@ describe('xtermKit keys', () => {
   it('leaves every Cmd combination to the app menu, and hands Ctrl+C, Escape and Tab to the CLI', () => {
     create()
     const handler = terminals[0]?.keyHandler
-    expect(handler).toBe(keyGoesToTerminal)
     const press = (init: KeyboardEventInit): boolean | undefined => handler?.(new KeyboardEvent('keydown', init))
     for (const key of ['c', 'v', 'w', 'q']) {
       expect(press({ key, metaKey: true })).toBe(false)
@@ -241,5 +322,24 @@ describe('xtermKit keys', () => {
     expect(press({ key: 'c', ctrlKey: true })).toBe(true)
     expect(press({ key: 'Escape' })).toBe(true)
     expect(press({ key: 'Tab' })).toBe(true)
+  })
+
+  it('sends Shift+Enter as the CLI’s keyboard mode defines it, once the CLI has switched the mode on', () => {
+    create()
+    const terminal = terminals[0]
+    const handler = terminal?.keyHandler
+    const shiftEnter = (): boolean | undefined => handler?.(new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true }))
+    expect(shiftEnter()).toBe(true)
+    terminal?.feed('?h', 9001)
+    expect(shiftEnter()).toBe(false)
+    expect(terminal?.inputs).toEqual(['[13;28;13;1;16;1_[13;28;13;0;16;1_'])
+    terminal?.feed('?l', 9001)
+    expect(shiftEnter()).toBe(true)
+    terminal?.feed('>m', 4, 2)
+    expect(shiftEnter()).toBe(false)
+    expect(terminal?.inputs.at(-1)).toBe('[27;2;13~')
+    terminal?.feed('>m', 4)
+    expect(shiftEnter()).toBe(true)
+    expect(handler?.(new KeyboardEvent('keydown', { key: 'Enter' }))).toBe(true)
   })
 })

@@ -385,6 +385,37 @@ describe('Codex releases that are not the official ones are refused before any d
   })
 })
 
+describe('OMP names what failed instead of a bare exit code', () => {
+  const OMP_EXE = 'C:\\Users\\Ada\\AppData\\Local\\omp\\omp.exe'
+  const failingOmp = (output: string): World => createWorld({ installed: [OMP_EXE], installer: { kind: 'exited', exitCode: 1, output } })
+
+  it('runs the script with -Binary and stores the executable it installed', async () => {
+    const world = createWorld({ installed: [OMP_EXE], probes: [{ ok: true, version: '18.16.0' }] })
+
+    const result = await world.installer.download('omp')
+
+    expect(result).toMatchObject({ outcome: 'installed' })
+    expect(world.launches[0]?.args.slice(-2)).toEqual([win32.join(TEMP, 'install.ps1'), '-Binary'])
+    expect(world.log).toContain(`probe omp ${OMP_EXE}`)
+  })
+
+  it('names the checksum when the download does not match', async () => {
+    const world = failingOmp('Downloading omp-windows-x64.exe...\nChecksum mismatch for omp.exe: expected a, got b')
+
+    const result = await world.installer.download('omp')
+
+    expect(result).toMatchObject({ outcome: 'failed', code: 'installer_failed' })
+    expect(result.outcome === 'failed' && result.reason).toContain('does not match the SHA-256')
+    expect(world.registry.list()).toEqual([])
+  })
+
+  it('names the build service when it cannot be reached', async () => {
+    const result = await failingOmp('Failed to resolve an omp build for windows-x86_64 from https://build.stencil.so/x').installer.download('omp')
+
+    expect(result.outcome === 'failed' && result.reason).toContain('build.stencil.so')
+  })
+})
+
 describe('a failing installer leaves the registry unchanged and reports its last output', () => {
   const noise = Array.from({ length: 30 }, (_, index) => `line ${index + 1}`).join('\r\n')
 

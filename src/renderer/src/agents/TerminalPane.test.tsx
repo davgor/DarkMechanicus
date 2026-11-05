@@ -147,6 +147,39 @@ describe('TerminalPane screen', () => {
   })
 })
 
+describe('TerminalPane theme', () => {
+  const OMP_CHAT = chatRecord({ id: 'chat_o', folder: '/a', title: 'OMP chat', agent: 'omp' })
+  const frame = (): HTMLElement => host().parentElement as HTMLElement
+
+  it('shows an OMP chat in OMP\u2019s theme over the tokens, with the frame around it in its background, reading the theme when the chat opens', async () => {
+    installRootTokens()
+    const dm = window.dm as FakeDm
+    dm.ompTheme = { background: '#101820', red: '#ff0033' }
+    await show(OMP_CHAT)
+
+    const { theme } = kit.latest().options
+    expect(theme).toEqual({ ...terminalTheme(rootTokens(document)), background: '#101820', red: '#ff0033' })
+    expect(frame().style.background).toBe('rgb(16, 24, 32)')
+    expect(dm.agentCalls.filter((call) => call.method === 'ompTerminalTheme')).toHaveLength(1)
+  })
+
+  it('keeps the app palette when OMP has no theme to show, and for a Claude chat without asking', async () => {
+    installRootTokens()
+    const dm = window.dm as FakeDm
+    await show(OMP_CHAT)
+    expect(kit.latest().options.theme).toEqual(terminalTheme(rootTokens(document)))
+    expect(frame().style.background).toBe('')
+    cleanup()
+
+    dm.ompTheme = { background: '#101820' }
+    dm.agentCalls = []
+    await show(CHAT_A)
+    expect(kit.latest().options.theme).toEqual(terminalTheme(rootTokens(document)))
+    expect(frame().style.background).toBe('')
+    expect(dm.agentCalls.filter((call) => call.method === 'ompTerminalTheme')).toHaveLength(0)
+  })
+})
+
 describe('TerminalPane input', () => {
   it('sends what is typed to the CLI', async () => {
     await show()

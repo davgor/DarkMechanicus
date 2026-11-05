@@ -1,0 +1,24 @@
+# signed out: PI_CODING_AGENT_DIR=<empty scratch dir>  (also the default ~/.omp, which the first app run showed "Signed out")
+{
+  "generatedAt": 1793708621307,
+  "reports": [],
+  "accountsWithoutUsage": [],
+  "disabledCredentials": [],
+  "capacity": {}
+}
+exit 0
+
+# signed in: PI_CODING_AGENT_DIR=<scratch dir holding a dummy anthropic api_key imported with omp auth import>
+{
+  "generatedAt": 1793708621476,
+  "reports": [],
+  "accountsWithoutUsage": [
+    {
+      "provider": "anthropic",
+      "type": "api_key"
+    }
+  ],
+  "disabledCredentials": [],
+  "capacity": {}
+}
+exit 0

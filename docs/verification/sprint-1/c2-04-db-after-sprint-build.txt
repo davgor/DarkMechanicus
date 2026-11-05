@@ -1,0 +1,2 @@
+user_version {"user_version":4}
+select id,kind,executable_path,version,connected_via from agents => [{"id":"claude","kind":"claude","executable_path":"C:/Users/davgo/.local/bin/claude.exe","version":"2.1.317","connected_via":"found"},{"id":"omp","kind":"omp","executable_path":"C:/Users/davgo/AppData/Local/omp/omp.exe","version":"18.16.0","connected_via":"found"}]

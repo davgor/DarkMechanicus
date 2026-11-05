@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { AGENT_DEFINITIONS, AGENT_KINDS, agentIdSchema, expectedExecutableNames } from './agentKinds'
 
 describe('agent kind definitions', () => {
-  it('is a closed set of claude, codex, cursor and autonomous', () => {
-    expect([...AGENT_KINDS]).toEqual(['claude', 'codex', 'cursor', 'autonomous'])
+  it('is a closed set of claude, codex, cursor, autonomous and omp', () => {
+    expect([...AGENT_KINDS]).toEqual(['claude', 'codex', 'cursor', 'autonomous', 'omp'])
     expect(Object.keys(AGENT_DEFINITIONS).sort()).toEqual([...AGENT_KINDS].sort())
   })
 
@@ -11,10 +11,11 @@ describe('agent kind definitions', () => {
     expect(AGENT_DEFINITIONS.claude.displayName).toBe('Claude Code')
     expect(AGENT_DEFINITIONS.codex.displayName).toBe('Codex')
     expect(AGENT_DEFINITIONS.cursor.displayName).toBe('Cursor')
+    expect(AGENT_DEFINITIONS.omp.displayName).toBe('OMP')
     expect(AGENT_DEFINITIONS.autonomous.displayName).toBe('Autonomous')
   })
 
-  it('has a download for every kind but Autonomous, which installs itself', () => {
+  it('has a download for every kind but Autonomous and OMP, which are not downloaded', () => {
     expect(AGENT_KINDS.filter((kind) => !AGENT_DEFINITIONS[kind].downloadable)).toEqual(['autonomous'])
   })
 })

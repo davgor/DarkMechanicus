@@ -59,11 +59,41 @@ ALTER TABLE agents DROP COLUMN reported_name;
 ALTER TABLE agents DROP COLUMN protocol;
 `
 
+/**
+ * v4 lets `kind` be `omp`. SQLite cannot alter a CHECK, so `agents` is rebuilt with the same columns and checks and
+ * every row copied. Dropping the old table cascades to `folder_agent_defaults`, so its rows are held in a temp table
+ * and put back (a transaction cannot switch `foreign_keys` off).
+ */
+const V4 = `
+CREATE TEMP TABLE folder_agent_defaults_keep AS SELECT folder, agent_id, updated_at FROM folder_agent_defaults;
+CREATE TABLE agents_v4 (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL CHECK (kind IN ('claude','codex','cursor','autonomous','omp','custom')),
+  display_name TEXT NOT NULL,
+  executable_path TEXT NOT NULL,
+  args_json TEXT NOT NULL DEFAULT '[]',
+  version TEXT,
+  connected_via TEXT NOT NULL CHECK (connected_via IN ('found','downloaded','custom')),
+  connected_at TEXT NOT NULL,
+  last_probed TEXT NOT NULL,
+  needs_review INTEGER NOT NULL DEFAULT 0 CHECK (needs_review IN (0, 1)),
+  CHECK (kind = 'custom' OR id = kind),
+  CHECK (kind <> 'custom' OR substr(id, 1, 3) = 'cu_')
+);
+INSERT INTO agents_v4 (id, kind, display_name, executable_path, args_json, version, connected_via, connected_at, last_probed, needs_review)
+  SELECT id, kind, display_name, executable_path, args_json, version, connected_via, connected_at, last_probed, needs_review FROM agents;
+DROP TABLE agents;
+ALTER TABLE agents_v4 RENAME TO agents;
+INSERT INTO folder_agent_defaults (folder, agent_id, updated_at) SELECT folder, agent_id, updated_at FROM folder_agent_defaults_keep;
+DROP TABLE folder_agent_defaults_keep;
+`
+
 /** Schema of the app-wide database in user data. Separate from the per-folder `MIGRATIONS`. */
 export const APP_MIGRATIONS: Migration[] = [
   { version: 1, sql: V1 },
   { version: 2, sql: V2 },
-  { version: 3, sql: V3 }
+  { version: 3, sql: V3 },
+  { version: 4, sql: V4 }
 ]
 
 /**

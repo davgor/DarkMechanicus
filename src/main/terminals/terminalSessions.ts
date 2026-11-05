@@ -71,6 +71,7 @@ import type { ChatRef, ChatStore } from '../agents/chatStore'
 import { resolveLaunchFolder, type LaunchFolderDeps } from '../agents/launchFolder'
 import { killPtyTree, type PtyTree } from '../agents/processTree'
 import { claudeSessionExists } from './claudeSession'
+import { ompSessionId, writeOmpFiles } from './ompSession'
 import { writeClaudeSettings } from './claudeSettingsFile'
 import type { PtyExit, PtyHost, PtyProcess } from './ptyHost'
 import { terminalLaunchSpec } from './terminalLaunchSpec'
@@ -391,7 +392,8 @@ function killTree(manager: Manager, live: Live): Promise<unknown> {
  * write issues nothing. The instructions and, on macOS, the chat's `dm` launcher; for Claude also its settings
  * file with the memory guards (`claudeSettingsFile.ts`), passed as `files.claudeSettings`.
  */
-async function writeStartFiles(manager: Manager, chat: ChatRecord, agent: AgentView, folder: string): Promise<TerminalFiles> {
+async function writeStartFiles(context: StartContext): Promise<TerminalFiles> {
+  const { manager, chat, agent, folder, newSession: fresh } = context
   const { userData, platform } = manager.deps
   const cli = manager.deps.cliFor(folder)
   const files = await writeTerminalFiles({
@@ -406,6 +408,9 @@ async function writeStartFiles(manager: Manager, chat: ChatRecord, agent: AgentV
     ...(chat.transferEpicId === undefined ? {} : { transferEpicId: chat.transferEpicId }),
     ...(chat.cardId === undefined ? {} : { cardId: chat.cardId })
   })
+  if (agent.kind === 'omp') {
+    return { ...files, omp: await writeOmpFiles(userData, chat.id, fresh) }
+  }
   if (agent.kind !== 'claude') {
     return files
   }
@@ -682,6 +687,8 @@ interface StartContext {
   folder: string
   starting: Starting
   kickoff: string | null
+  /** The start forgets the chat's earlier session (the pane's new session after a refused resume). */
+  newSession: boolean
 }
 
 /** Makes `starting` cancellable: each step gives way to a cancel at once (a sign-in check can take 30 s). */
@@ -735,7 +742,7 @@ async function runStart(context: StartContext, step: Step): Promise<StartOutcome
     }
     starting.phase = 'preparing'
   }
-  const files = await step(writeStartFiles(manager, chat, agent, folder))
+  const files = await step(writeStartFiles(context))
   recheckFolder(context)
   const grant = { role: chat.role, allowSave: chat.allowSave, label: `${agent.displayName} · ${chat.title}` }
   const issued = await step(manager.deps.issueChatCli(folder, grant), ({ grantId }) => {
@@ -759,6 +766,23 @@ function startSteps(context: StartContext): Promise<StartOutcome> {
   })
 }
 
+/** Whether the chat's first input marks its session started: only for a CLI whose session file the app cannot read (not Claude's, not OMP's). */
+function marksSessionStarted(agent: AgentView, chat: ChatRecord): boolean {
+  return agent.kind !== 'claude' && agent.kind !== 'omp' && agent.kind !== 'custom' && chat.sessionStarted !== true
+}
+
+/**
+ * The chat as the launch sees it. For OMP the session id is whatever its session file in the chat's own folder says
+ * (the CLI mints it, so nothing is stored up front); a folder with no file means there is no session to resume.
+ */
+function launchChat({ manager, chat, agent, folder }: StartContext, files: TerminalFiles): ChatRecord & { sessionStarted: boolean } {
+  if (agent.kind === 'omp') {
+    const found = files.omp === undefined ? null : ompSessionId(files.omp.sessionDir)
+    return { ...chat, sessionId: found ?? chat.sessionId, sessionStarted: found !== null }
+  }
+  return { ...chat, sessionStarted: sessionStarted(manager, chat, agent, folder) }
+}
+
 /** Whether the chat's CLI has a session a start resumes: Claude's session file, else the chat's flag. */
 function sessionStarted(manager: Manager, chat: ChatRecord, agent: AgentView, folder: string): boolean {
   if (agent.kind !== 'claude') {
@@ -774,7 +798,7 @@ function sessionStarted(manager: Manager, chat: ChatRecord, agent: AgentView, fo
 async function spawnWithGrant(context: StartContext, files: TerminalFiles, issued: { cli: DarkMechanicusCli; grantId: string }, step: Step): Promise<Live> {
   const { manager, chat, agent, folder } = context
   const spec = terminalLaunchSpec({
-    chat: { ...chat, sessionStarted: sessionStarted(manager, chat, agent, folder), kickoffSent: chat.kickoffSent === true },
+    chat: { ...launchChat(context, files), kickoffSent: chat.kickoffSent === true },
     kickoff: context.kickoff,
     agent,
     folder,
@@ -801,7 +825,7 @@ async function spawnWithGrant(context: StartContext, files: TerminalFiles, issue
     screen.dispose()
     throw error
   }
-  const marksStarted = agent.kind !== 'claude' && agent.kind !== 'custom' && chat.sessionStarted !== true
+  const marksStarted = marksSessionStarted(agent, chat)
   const firstPaste = spec.pasteFirst === null ? null : { text: spec.pasteFirst, kickoff: spec.kickoffIn === 'paste' }
   return startLive(manager, chat, { pty, screen, grantId: issued.grantId, resumed: spec.resumed, marksStarted, firstPaste })
 }
@@ -841,7 +865,7 @@ function beginStart(manager: Manager, found: ChatRecord, options: AttachOptions 
     cancel: () => {}
   }
   manager.entries.set(chat.id, starting)
-  starting.done = startSteps({ manager, chat, agent, folder, starting, kickoff: options.kickoff ?? null }).then((outcome) => {
+  starting.done = startSteps({ manager, chat, agent, folder, starting, kickoff: options.kickoff ?? null, newSession: options.newSession === true }).then((outcome) => {
     if (manager.entries.get(chat.id) === starting) {
       if (outcome.state === 'running' && !outcome.live.exited) {
         manager.entries.set(chat.id, outcome.live)

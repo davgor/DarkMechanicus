@@ -34,5 +34,6 @@ export function registerDesktopIpc(ipcMain: Pick<IpcMain, 'handle'>, handlers: D
   ipcMain.handle('agents:download', (_event, kind: unknown) => handlers.downloadAgent(kind))
   ipcMain.handle('agents:status', (_event, id: unknown) => handlers.agentStatus(id))
   ipcMain.handle('agents:folderDefault', (_event, folder: unknown) => handlers.folderDefaultAgent(folder))
+  ipcMain.handle('agents:ompTerminalTheme', () => handlers.ompTerminalTheme())
   ipcMain.handle('agents:setFolderDefault', (_event, request: unknown) => handlers.setFolderDefaultAgent(request))
 }

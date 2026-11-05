@@ -1,6 +1,6 @@
 /**
  * Machine-local registry of connected agents, stored in the `agents` table of the app database.
- * One row per agent id. A built-in agent's (`claude`, `codex`, `cursor` or `autonomous`) id is its kind; a
+ * One row per agent id. A built-in agent's (`claude`, `codex`, `cursor`, `autonomous` or `omp`) id is its kind; a
  * custom agent's is `cu_` and a ULID, with its own display name and arguments, no version (nothing runs to
  * check it), and `needs_review` when the v3 migration found it saved for a protocol server (`appDatabase.ts`).
  */

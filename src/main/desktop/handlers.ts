@@ -23,6 +23,7 @@ import { createAgentAuthHandlers, type AgentAuthHandlers, type AgentAuthHooks } 
 import { createAgentHandlers, type AgentHandlerDeps, type AgentHandlers } from './agentHandlers'
 import { createFolderDefaultHandlers, type FolderDefaultHandlerDeps, type FolderDefaultHandlers } from './folderAgentDefaults'
 import type { FolderRegistry } from './folderRegistry'
+import { createOmpThemeHandlers, type OmpThemeHandlers } from './ompTheme'
 import { normalizeExternalUrl } from './navigation'
 import type { WorkspacePool } from './workspacePool'
 
@@ -62,12 +63,14 @@ export interface DesktopHandlerDeps extends AgentHandlerDeps, AgentAuthHooks, Fo
   previewBoardRemoval: (repoPath: string) => BoardRemovalView
   /** Deletes the confirmed board files that are still candidates, then the folders left empty; never commits. */
   removeBoardFiles: (repoPath: string, confirmed: readonly string[]) => BoardRemovalResultView
+  /** OMP's agent folder (tests); the default follows `PI_CODING_AGENT_DIR`. */
+  ompAgentDir?: () => string
   /** Told about command failures that are not DomainErrors (bugs, I/O), so main can log the stack. */
   onUnexpectedError?: (error: unknown) => void
 }
 
 /** Arguments are `unknown` because they come straight from IPC. */
-export interface DesktopHandlers extends AgentHandlers, AgentAuthHandlers, FolderDefaultHandlers {
+export interface DesktopHandlers extends AgentHandlers, AgentAuthHandlers, FolderDefaultHandlers, OmpThemeHandlers {
   listFolders(): Promise<TrackedFolderView[]>
   pickFolder(): Promise<FolderPickResult>
   untrackFolder(path: unknown): Promise<TrackedFolderView[]>
@@ -213,6 +216,7 @@ export function createDesktopHandlers(deps: DesktopHandlerDeps): DesktopHandlers
     ...createAgentHandlers(deps),
     ...createAgentAuthHandlers(deps.agents, deps),
     ...createFolderDefaultHandlers(deps, (folder) => requireTracked(deps.registry, folder)),
+    ...createOmpThemeHandlers(deps.ompAgentDir === undefined ? {} : { agentDir: deps.ompAgentDir }),
     listFolders: async () => deps.registry.list(),
     pickFolder: () => pickFolder(deps),
     untrackFolder: (path) => untrackFolder(deps, path),

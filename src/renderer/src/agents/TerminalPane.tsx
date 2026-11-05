@@ -119,7 +119,7 @@ function Ended({ notice, resumed, startAgain }: EndedProps): JSX.Element {
  * terminal, which opens that transcript read-only (`EarlierConversation.tsx`).
  */
 export function TerminalPane({ folder, chat, agentName, kit, scheduler, onAgentStatus }: TerminalPaneProps): JSX.Element {
-  const { host, phase, focus, startAgain } = useTerminal({ folder, chatId: chat.id, kit, scheduler })
+  const { host, phase, background, focus, startAgain } = useTerminal({ folder, chatId: chat.id, agent: chat.agent, kit, scheduler })
   const pill = PHASE_PILLS[phase.state]
   // The host stays laid out while the attach is answered, so the emulator opens at the pane's real size.
   const notStarted = phase.state === 'signed_out' || phase.state === 'refused' || phase.state === 'failed'
@@ -153,7 +153,11 @@ export function TerminalPane({ folder, chat, agentName, kit, scheduler, onAgentS
       ) : (
         <Ended notice={notice} resumed={ended.resumed} startAgain={startAgain} />
       )}
-      <div className={notStarted ? 'terminal-frame is-empty' : 'terminal-frame'} onClick={focus}>
+      <div
+        className={notStarted ? 'terminal-frame is-empty' : 'terminal-frame'}
+        style={background === null ? undefined : { background }}
+        onClick={focus}
+      >
         <div ref={host} className="terminal-host" data-testid="terminal-host" />
       </div>
     </section>

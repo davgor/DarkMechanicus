@@ -246,7 +246,7 @@ async function fetchInstaller(context: InstallContext, scriptPath: string): Prom
   }
 }
 
-function interpretInstall(outcome: InstallOutcome): string[] {
+function interpretInstall(outcome: InstallOutcome, recipe: InstallRecipe): string[] {
   if (outcome.kind === 'spawn_failed') {
     throw new InstallFailure('installer_failed', `The installer could not be started (${outcome.code ?? outcome.message}).`)
   }
@@ -255,7 +255,10 @@ function interpretInstall(outcome: InstallOutcome): string[] {
     throw new InstallFailure('installer_failed', 'The installer did not finish in time and was stopped.', lines)
   }
   if (outcome.exitCode !== 0) {
-    throw new InstallFailure('installer_failed', `The installer failed (exit code ${outcome.exitCode}).`, lines)
+    const hint = recipe.failureHints.find(({ pattern }) => pattern.test(outcome.output))
+    const reason =
+      hint === undefined ? `The installer failed (exit code ${outcome.exitCode}).` : `${hint.message} (exit code ${outcome.exitCode})`
+    throw new InstallFailure('installer_failed', reason, lines)
   }
   return lines
 }
@@ -264,7 +267,7 @@ function interpretInstall(outcome: InstallOutcome): string[] {
 async function runInstaller({ deps, recipe, report }: InstallContext, scriptPath: string): Promise<string[]> {
   report('installing')
   const launch = installerLaunch(recipe, scriptPath, deps.environment)
-  return interpretInstall(await deps.run(launch, deps.timeoutMs ?? INSTALL_TIMEOUT_MS))
+  return interpretInstall(await deps.run(launch, deps.timeoutMs ?? INSTALL_TIMEOUT_MS), recipe)
 }
 
 /** The first of the vendor's documented executable locations that holds a program. */

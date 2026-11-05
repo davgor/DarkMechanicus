@@ -5,7 +5,11 @@
  * its grant revoked. On the fake PTY host and the fake clock; Claude's session file is on the real disk, in the
  * rig's scratch home folder.
  */
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { builtInAgent } from '../agents/__mocks__/chatFixtures'
+import { ompFilePaths } from './ompSession'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { FakePty } from './__mocks__/fakePtyHost'
 import { CUSTOM_AGENT, claudeSessionFile, eventually, recorder, sessionIdNumber, settle, startTerminal, terminalRig, type TerminalRig } from './__mocks__/terminalSessionsRig'
@@ -273,5 +277,53 @@ describe('terminal sessions: after an idle stop', () => {
     await exitAndSettle(pty)
 
     expect(rig.clock.pending).toBe(0)
+  })
+})
+
+describe('terminal sessions: OMP, whose session id the CLI mints', () => {
+  const OMP_SESSION = '01a19f51-856e-7612-8d38-0de416901104'
+
+  function ompRig(): TerminalRig {
+    rig.cleanup()
+    rig = terminalRig({ agents: [builtInAgent('omp')] })
+    return rig
+  }
+
+  function ompSessionFile(chat: ChatRecord): string {
+    const { sessionDir } = ompFilePaths(rig.userData, chat.id)
+    mkdirSync(sessionDir, { recursive: true })
+    writeFileSync(join(sessionDir, `2026-11-03T02-51-22-350Z_${OMP_SESSION}.jsonl`), '{}')
+    return sessionDir
+  }
+
+  it('starts with no session, records none, and writes the overlay and the session folder first', async () => {
+    const chat = ompRig().newChat('omp')
+    const { pty } = await startTerminal(rig, chat)
+    const args = pty.spec.args as string[]
+
+    expect(args).toContain('--session-dir')
+    expect(args).toContain('--config')
+    expect(args).not.toContain('--resume')
+    expect(stored(chat)?.sessionId ?? null).toBeNull()
+  })
+
+  it('resumes the session found in the chat’s folder, tells a refused resume as resumed, and a new session starts without it', async () => {
+    const chat = ompRig().newChat('omp')
+    const sessionDir = ompSessionFile(chat)
+    const heard = recorder()
+    const refused = await startTerminal(rig, chat, heard.listener)
+    expect((refused.pty.spec.args as string[]).slice(-2)).toEqual(['--resume', OMP_SESSION])
+    expect(stored(chat)?.sessionId).toBe(OMP_SESSION)
+    refused.pty.emitData(`Error: Session "${OMP_SESSION}" not found.
+
+`)
+    await exitAndSettle(refused.pty, { exitCode: 1, signal: 0 })
+    expect(exitOf(heard.events)).toMatchObject({ exitCode: 1, resumed: true })
+
+    const { pty } = await startTerminal(rig, chat, undefined, { newSession: true })
+
+    expect(pty.spec.args as string[]).not.toContain('--resume')
+    expect(pty.spec.args as string[]).toContain(sessionDir)
+    expect(stored(chat)?.sessionId ?? null).toBeNull()
   })
 })

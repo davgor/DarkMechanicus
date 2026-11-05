@@ -85,6 +85,7 @@ const dm: DmApi = {
   },
   agentStatus: (id) => ipcRenderer.invoke('agents:status', id),
   folderDefaultAgent: (folder) => ipcRenderer.invoke('agents:folderDefault', folder),
+  ompTerminalTheme: () => ipcRenderer.invoke('agents:ompTerminalTheme'),
   setFolderDefaultAgent: (request) => ipcRenderer.invoke('agents:setFolderDefault', request)
 }
 

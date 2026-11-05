@@ -152,7 +152,8 @@ describe('whose side Use mine takes', () => {
         expect(await resolvedWith(r, button)).toBe(button === 'mine' ? 'topic\n' : 'main\n')
       }
     }
-  })
+    // Several real git rebases: a few seconds alone, but past vitest's 15 s on a loaded Windows CI runner.
+  }, 60_000)
 
   it('in a merge, a cherry-pick and a git am: the current branch is mine', async () => {
     const merged = repo()

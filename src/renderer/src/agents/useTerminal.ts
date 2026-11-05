@@ -12,9 +12,10 @@ import type { RefObject } from 'react'
 import type { TerminalAttachment, TerminalExit, TerminalHandle, TerminalState } from '../../../shared/agents/terminalApi'
 import type { CommandResult } from '../../../shared/desktop/api'
 import type { Scheduler } from '../app/scheduler'
-import { LiveTerminalsContext } from './liveTerminals'
+import type { TerminalColors } from '../../../shared/agents/terminalColors'
+import { LiveTerminalsContext, type LiveTerminals } from './liveTerminals'
 import { inputChunks } from './terminalInput'
-import { rootTokens, TERMINAL_FONT_TOKEN, terminalTheme } from './terminalTheme'
+import { chatTerminalTheme, rootTokens, TERMINAL_FONT_TOKEN, terminalTheme, type TerminalTheme } from './terminalTheme'
 import type { TerminalKit, TerminalSize, TerminalView } from './terminalView'
 
 /** How long the pane's size must hold still before the grid is fitted again and the PTY resized. */
@@ -65,13 +66,15 @@ interface ShowContext {
   snapshot: string
   kit: TerminalKit
   scheduler: Scheduler
+  /** The colors of the theme the pane shows; the app's palette when absent. */
+  theme?: TerminalTheme
   onExit(exit: TerminalExit): void
 }
 
 /** Mounts the emulator for a running terminal (a chat's or a sign-in's) and wires it to the PTY; `hide` undoes all of it. */
-export function showTerminal({ element, terminal, snapshot, kit, scheduler, onExit }: ShowContext): Shown {
+export function showTerminal({ element, terminal, snapshot, kit, scheduler, theme, onExit }: ShowContext): Shown {
   const read = rootTokens(element.ownerDocument)
-  const view = kit.create(element, { theme: terminalTheme(read), fontFamily: read(TERMINAL_FONT_TOKEN) })
+  const view = kit.create(element, { theme: theme ?? terminalTheme(read), fontFamily: read(TERMINAL_FONT_TOKEN) })
   let sent: TerminalSize | null = null
   const fit = (): void => {
     const size = view.fit()
@@ -133,6 +136,8 @@ function answered(result: CommandResult<TerminalAttachment>): Answered {
 interface UseTerminalOptions {
   folder: string
   chatId: string
+  /** The chat's agent id: an OMP chat's pane takes OMP's theme (`terminalTheme.ts`). */
+  agent: string
   kit: TerminalKit
   scheduler: Scheduler
 }
@@ -141,6 +146,8 @@ export interface TerminalModel {
   /** The element the emulator is mounted in; rendered whatever the phase. */
   host: RefObject<HTMLDivElement>
   phase: TerminalPhase
+  /** The background of the theme the pane shows when it is not the app's (OMP's), so the frame around the terminal matches. */
+  background: string | null
   /** Focuses the emulator, when one is shown. */
   focus(): void
   /** Attaches again once the CLI has exited, starting it again: resuming its session, or on a new one. */
@@ -166,11 +173,37 @@ function useStartAgain(chatId: string): { start: StartRequest | null; startAgain
   return { start: start?.chatId === chatId ? start : null, startAgain }
 }
 
-export function useTerminal({ folder, chatId, kit, scheduler }: UseTerminalOptions): TerminalModel {
+/** Hands the terminal to the page's registry, which hears its exit while the chat is not shown; without one, the pane owns it. */
+function heldOrOwned(live: LiveTerminals | null, chatId: string, terminal: TerminalHandle | null): TerminalHandle | null {
+  if (terminal === null || live === null) return terminal
+  live.hold(chatId, terminal)
+  return null
+}
+
+/**
+ * The attach, and, for an OMP chat, OMP's theme alongside it (read each time the chat is opened; a failed read is no
+ * theme, and the pane keeps the app's palette).
+ */
+async function openChat(request: { folder: string; chatId: string; agent: string; newSession: boolean }): Promise<{ result: CommandResult<TerminalAttachment>; omp: TerminalColors | null }> {
+  const { folder, chatId, agent, newSession } = request
+  const omp = agent === 'omp' ? window.dm.ompTerminalTheme().catch(() => null) : Promise.resolve(null)
+  const attach = window.dm.terminals.attach(folder, chatId, newSession ? { newSession: true } : undefined)
+  const [result, theme] = await Promise.all([attach, omp])
+  return { result, omp: theme }
+}
+
+/** The colors to show, and the background of the frame around the terminal when it is not the app's. */
+function paneTheme(element: HTMLElement, agent: string, omp: TerminalColors | null): { theme: TerminalTheme; background: string | null } {
+  const theme = chatTerminalTheme(rootTokens(element.ownerDocument), agent, omp)
+  return { theme, background: agent === 'omp' && omp !== null ? (theme.background ?? null) : null }
+}
+
+export function useTerminal({ folder, chatId, agent, kit, scheduler }: UseTerminalOptions): TerminalModel {
   const host = useRef<HTMLDivElement>(null)
   const view = useRef<TerminalView | null>(null)
   const live = useContext(LiveTerminalsContext)
   const [phase, setPhase] = useState<TerminalPhase>(CHECKING)
+  const [background, setBackground] = useState<string | null>(null)
   const { start, startAgain } = useStartAgain(chatId)
   const newSession = start?.newSession === true
   useEffect(() => {
@@ -179,15 +212,11 @@ export function useTerminal({ folder, chatId, kit, scheduler }: UseTerminalOptio
     /** The terminal this pane closes when it goes: its own, when no shell keeps the page's terminals. */
     let owned: TerminalHandle | null = null
     setPhase(CHECKING)
-    window.dm.terminals.attach(folder, chatId, newSession ? { newSession: true } : undefined).then(
-      (result) => {
+    setBackground(null)
+    openChat({ folder, chatId, agent, newSession }).then(
+      ({ result, omp }) => {
         const terminal = result.ok ? result.data.terminal : null
-        // The page's registry keeps it, to hear its exit while the chat is not shown.
-        if (terminal !== null && live !== null) {
-          live.hold(chatId, terminal)
-        } else {
-          owned = terminal
-        }
+        owned = heldOrOwned(live, chatId, terminal)
         if (gone) {
           owned?.close()
           return
@@ -198,8 +227,10 @@ export function useTerminal({ folder, chatId, kit, scheduler }: UseTerminalOptio
           setPhase('phase' in answer ? answer.phase : { state: 'failed', message: NOT_SHOWN })
           return
         }
-        shown = showTerminal({ element, ...answer.show, kit, scheduler, onExit: (exit) => setPhase(exitPhase(exit)) })
+        const { theme, background: frame } = paneTheme(element, agent, omp)
+        shown = showTerminal({ element, ...answer.show, kit, scheduler, theme, onExit: (exit) => setPhase(exitPhase(exit)) })
         view.current = shown.view
+        setBackground(frame)
         setPhase(RUNNING)
       },
       (error: unknown) => {
@@ -212,7 +243,7 @@ export function useTerminal({ folder, chatId, kit, scheduler }: UseTerminalOptio
       view.current = null
       owned?.close()
     }
-  }, [folder, chatId, kit, scheduler, live, start, newSession])
+  }, [folder, chatId, agent, kit, scheduler, live, start, newSession])
   const focus = useCallback(() => view.current?.focus(), [])
-  return { host, phase, focus, startAgain }
+  return { host, phase, background, focus, startAgain }
 }

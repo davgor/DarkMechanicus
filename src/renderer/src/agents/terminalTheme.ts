@@ -1,3 +1,5 @@
+import { TERMINAL_COLOR, TERMINAL_COLOR_KEYS, type TerminalColors } from '../../../shared/agents/terminalColors'
+
 /**
  * A chat terminal's colors and face (`docs/design/chat-shells.md`, "Theme"). xterm takes colors in JavaScript,
  * so they are read from the `:root` tokens of `styles.css`, which keeps the palette in that one block.
@@ -32,13 +34,16 @@ const THEME_TOKENS = {
 export const TERMINAL_FONT_TOKEN = '--font-mono'
 
 /** xterm's theme colors, as CSS colors. */
-export type TerminalTheme = Partial<Record<keyof typeof THEME_TOKENS, string>>
+export type TerminalTheme = TerminalColors
 
 /** The value of a `:root` token, or '' when there is none. */
 export type TokenReader = (name: string) => string
 
-/** The terminal's colors from the tokens; a color whose token is missing is left to xterm's default. */
-export function terminalTheme(read: TokenReader): TerminalTheme {
+/**
+ * The terminal's colors from the tokens; a color whose token is missing is left to xterm's default. `override` (OMP's
+ * theme) replaces the tokens key by key; it is data, so only known keys with a `#rrggbb` value count.
+ */
+export function terminalTheme(read: TokenReader, override: TerminalColors | null = null): TerminalTheme {
   const theme: TerminalTheme = {}
   for (const [color, name] of Object.entries(THEME_TOKENS) as [keyof TerminalTheme, string][]) {
     const value = read(name)
@@ -46,7 +51,18 @@ export function terminalTheme(read: TokenReader): TerminalTheme {
       theme[color] = value
     }
   }
+  for (const key of TERMINAL_COLOR_KEYS) {
+    const value = override?.[key]
+    if (value !== undefined && TERMINAL_COLOR.test(value)) {
+      theme[key] = value
+    }
+  }
   return theme
+}
+
+/** A chat's theme: an OMP chat takes OMP's theme over the tokens; any other agent keeps the app's palette. */
+export function chatTerminalTheme(read: TokenReader, agent: string, omp: TerminalColors | null): TerminalTheme {
+  return terminalTheme(read, agent === 'omp' ? omp : null)
 }
 
 /** Reads tokens as the document root computes them. */

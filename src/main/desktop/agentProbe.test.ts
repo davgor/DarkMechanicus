@@ -53,12 +53,13 @@ const VERSION_OUTPUT: Record<BuiltInAgentKind, string> = {
   claude: '2.1.281 (Claude Code)\n',
   codex: 'codex-cli 0.46.0\n',
   cursor: '2025.09.18-7ae6800\n',
-  autonomous: 'Autonomous 0.79.0 · darwin-arm64 · OMP 18.11.2\n'
+  autonomous: 'Autonomous 0.79.0 · darwin-arm64 · OMP 18.11.2\n',
+  omp: 'omp/18.16.0\n'
 }
 
-const KINDS: BuiltInAgentKind[] = ['claude', 'codex', 'cursor', 'autonomous']
+const KINDS: BuiltInAgentKind[] = ['claude', 'codex', 'cursor', 'autonomous', 'omp']
 
-const CLI_NAMES: Record<BuiltInAgentKind, string> = { claude: 'Claude Code', codex: 'Codex', cursor: 'Cursor', autonomous: 'Autonomous' }
+const CLI_NAMES: Record<BuiltInAgentKind, string> = { claude: 'Claude Code', codex: 'Codex', cursor: 'Cursor', autonomous: 'Autonomous', omp: 'OMP' }
 
 const IDENTIFIED: [BuiltInAgentKind, string, string | null][] = [
   ['claude', '2.1.281 (Claude Code)\n', '2.1.281'],
@@ -69,7 +70,10 @@ const IDENTIFIED: [BuiltInAgentKind, string, string | null][] = [
   ['cursor', '2025.09.18-7ae6800\n', '2025.09.18-7ae6800'],
   ['cursor', 'cursor-agent 1.0.2\n', '1.0.2'],
   ['autonomous', 'Autonomous 0.79.0 · darwin-arm64 · OMP 18.11.2\n', '0.79.0'],
-  ['autonomous', 'Autonomous 0.77.0 · darwin-arm64 · OMP 18.11.2\n', '0.77.0']
+  ['autonomous', 'Autonomous 0.77.0 · darwin-arm64 · OMP 18.11.2\n', '0.77.0'],
+  ['omp', 'omp/18.16.0\n', '18.16.0'],
+  ['omp', 'Warning: stale cache\r\nomp/18.16.0\r\n', '18.16.0'],
+  ['omp', 'omp/18.17.0-canary.1\n', '18.17.0-canary.1']
 ]
 
 describe('probeAgent identification', () => {
@@ -129,6 +133,21 @@ describe('probeAgent refuses a different program', () => {
       expect(await probeAgent('autonomous', '/bin/a8s', deps)).toEqual({ ok: false, code: 'wrong_program', reason: 'This is not the Autonomous CLI.' })
     }
   )
+
+  it.each([
+    ['omp v18.16.0\n'],
+    ['2.1.281 (Claude Code)\n'],
+    ['codex-cli 0.46.0\n'],
+    ['2025.09.18-7ae6800\n'],
+    ['Autonomous 0.79.0 · darwin-arm64 · OMP 18.11.2\n'],
+    ['omp 18.16.0\n'],
+    ['not omp/18.16.0\n'],
+    ['omp/18.16\n']
+  ])('refuses %j as OMP: only a whole `omp/<semver>` line is it', async (output) => {
+    const { deps } = harness(exited(output))
+
+    expect(await probeAgent('omp', '/bin/omp', deps)).toEqual({ ok: false, code: 'wrong_program', reason: 'This is not the OMP CLI.' })
+  })
 
   it('refuses a program that exits with an error even when it names the CLI', async () => {
     const { deps } = harness(exited('2.1.281 (Claude Code)\n', 3))

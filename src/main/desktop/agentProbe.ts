@@ -12,6 +12,7 @@
  * the product name still connects):
  * - Claude Code: `2.1.281 (Claude Code)` (checked on a Windows install). Matched on the words "Claude Code".
  * - Codex: `codex-cli 0.46.0`. Matched on a line that starts with `codex` or `codex-cli`.
+ * - OMP: `omp/18.16.0`, the whole line (docs/reports/omp-cli.md). `omp v18.16.0` (from `--help`) is not accepted.
  * - Cursor: `agent --version` prints only a date-and-hash build such as `2025.09.18-7ae6800` (it does
  *   not name the product), so that exact shape is accepted, as is any line naming "cursor".
  */
@@ -71,6 +72,7 @@ function refuse(code: AgentRefusalCode, reason: string): AgentRefusal {
 
 const SEMVER = /\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?/
 const CURSOR_BUILD = /^\d{4}\.\d{1,2}\.\d{1,2}-[0-9a-f]{6,}$/i
+const OMP_VERSION_LINE = /^omp\/\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]+)?$/
 /** Terminal colour codes some CLIs print even when piped. */
 const ANSI_ESCAPE = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*[A-Za-z]`, 'g')
 
@@ -85,7 +87,9 @@ const LINE_MATCHERS: Record<BuiltInAgentKind, LineMatcher> = {
   codex: (line) => /^codex(?:-cli)?\b/i.test(line),
   cursor: (line) => CURSOR_BUILD.test(line) || /\bcursor\b/i.test(line),
   // `Autonomous 0.79.0 · darwin-arm64 · OMP 18.11.2` (docs/reports/autonomous-acp.md); the first version on it is Autonomous's own.
-  autonomous: (line) => /^Autonomous \d/.test(line)
+  autonomous: (line) => /^Autonomous \d/.test(line),
+  // `omp/18.16.0` (docs/reports/omp-cli.md, section 2). `omp --help` starts `omp v18.16.0`, which is not a version line.
+  omp: (line) => OMP_VERSION_LINE.test(line)
 }
 
 /** The first output line that names the CLI, with the version found on it, or null for a stranger. */

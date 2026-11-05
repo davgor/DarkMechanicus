@@ -6,6 +6,7 @@ import type { AgentAuthHandlers } from './agentAuth'
 import type { AgentHandlers } from './agentHandlers'
 import type { FolderDefaultHandlers } from './folderAgentDefaults'
 import type { DesktopHandlers } from './handlers'
+import type { OmpThemeHandlers } from './ompTheme'
 import { registerDesktopIpc } from './ipc'
 
 type Listener = Parameters<IpcMain['handle']>[1]
@@ -37,7 +38,7 @@ const REMOVAL_PLAN = { remove: ['board/x.md'], kept: [], editByHand: [] }
 const REMOVAL_RESULT = { removed: ['board/x.md'], removedFolders: ['board'], kept: [], editByHand: [] }
 
 /** The agent handlers, logging like the others. */
-function createRecordingAgentHandlers(calls: unknown[][]): AgentHandlers & AgentAuthHandlers & FolderDefaultHandlers {
+function createRecordingAgentHandlers(calls: unknown[][]): AgentHandlers & AgentAuthHandlers & FolderDefaultHandlers & OmpThemeHandlers {
   return {
     listAgents: async () => {
       calls.push(['listAgents'])
@@ -66,6 +67,10 @@ function createRecordingAgentHandlers(calls: unknown[][]): AgentHandlers & Agent
     agentStatus: async (kind) => {
       calls.push(['agentStatus', kind])
       return { state: 'unknown', reason: 'Not connected yet.' }
+    },
+    ompTerminalTheme: async () => {
+      calls.push(['ompTerminalTheme'])
+      return null
     },
     folderDefaultAgent: async (folder) => {
       calls.push(['folderDefaultAgent', folder])
@@ -136,6 +141,7 @@ const EXPECTED_CHANNELS = [
   'agents:find',
   'agents:folderDefault',
   'agents:list',
+  'agents:ompTerminalTheme',
   'agents:remove',
   'agents:setFolderDefault',
   'agents:status',
@@ -359,6 +365,7 @@ describe('preload bridge', () => {
     expect(preload).toContain("removeAgent: (id) => ipcRenderer.invoke('agents:remove', id)")
     expect(preload).toContain("agentStatus: (id) => ipcRenderer.invoke('agents:status', id)")
     expect(preload).toContain("folderDefaultAgent: (folder) => ipcRenderer.invoke('agents:folderDefault', folder)")
+    expect(preload).toContain("ompTerminalTheme: () => ipcRenderer.invoke('agents:ompTerminalTheme')")
     expect(preload).toContain(
       "setFolderDefaultAgent: (request) => ipcRenderer.invoke('agents:setFolderDefault', request)"
     )
