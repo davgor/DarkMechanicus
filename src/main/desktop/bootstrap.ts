@@ -12,6 +12,7 @@ import {
   dialog,
   MessageChannelMain,
   net,
+  powerSaveBlocker,
   safeStorage,
   shell,
   type IpcMain,
@@ -45,9 +46,9 @@ import { createRepositoryList } from '../github/repositories'
 import { createGithubSession, type GithubSession } from '../github/session'
 import { logger } from '../logger'
 import { createLoginTerminals, type LoginTerminals } from '../terminals/loginTerminals'
+import { createKeepAwake } from '../terminals/keepAwake'
 import { createNodePtyHost, type PtyHost } from '../terminals/ptyHost'
 import { createTerminalHandlers, registerTerminalIpc } from '../terminals/terminalHandlers'
-import { createLeaseHeld } from '../terminals/chatLeases'
 import { createTerminalSessions, endingTerminals, type TerminalSessions, type TerminalSessionsDeps } from '../terminals/terminalSessions'
 import { getAgentAuthStatus } from './agentAuth'
 import {
@@ -201,8 +202,9 @@ function darkMechanicusHome(): string {
 }
 
 /**
- * How long a chat's grant lasts. Long enough that a working session is never interrupted, and it
- * is revoked the moment the session ends anyway; the expiry only matters if the app dies first.
+ * How long a chat's grant lasts from its issue, and from each hourly renewal while its terminal runs
+ * (`terminalSessions.ts`), so a chat that runs for days keeps its role. It is revoked the moment the
+ * terminal ends anyway; the expiry only matters if the app dies first.
  */
 const CHAT_GRANT_MINUTES = 12 * 60
 
@@ -280,7 +282,7 @@ interface ChatProcesses {
 
 /** What the chat terminals run over besides the store: the grants and runs of the chats, the tracked folders, the agents. */
 interface TerminalDeps {
-  grants: Pick<TerminalSessionsDeps, 'issueChatCli' | 'revokeChatGrant' | 'runs' | 'leaseHeld'>
+  grants: Pick<TerminalSessionsDeps, 'issueChatCli' | 'revokeChatGrant' | 'renewChatGrant' | 'runs'>
   folders: TerminalSessionsDeps['folders']
   agents: Pick<AgentRegistry, 'get'>
 }
@@ -289,9 +291,12 @@ interface TerminalDeps {
 function createTerminalProcesses(store: ChatStore, deps: TerminalDeps): Pick<ChatProcesses, 'terminals' | 'logins'> {
   let host: Promise<PtyHost> | undefined
   const base = { host: () => (host ??= createNodePtyHost()), platform: process.platform, env: process.env }
+  // While a chat terminal runs the computer stays awake: an agent's job can run for days.
+  const awake = createKeepAwake(powerSaveBlocker)
   const terminals = createTerminalSessions({
     ...base,
     store,
+    keepAwake: () => awake.hold(),
     agentFor: (id) => deps.agents.get(id),
     folders: deps.folders,
     checkAuth: (kind, executablePath) => getAgentAuthStatus(kind, executablePath, agentRunDeps()),
@@ -340,14 +345,8 @@ function createChatProcesses(
     getRun: async (folder: string, runId: string) => desktopWorkspace(folders, workspaces, folder).getRun({ runId }),
     pauseRun: async (folder: string, input: { runId: string; reason: string }) => desktopWorkspace(folders, workspaces, folder).pauseRun(input)
   }
-  // An orchestrator chat watching its run's or card's lease is not idle-stopped.
-  const leaseHeld = createLeaseHeld({
-    listChats: (folder) => store.listChats(folder),
-    getRun: async (folder, runId) => desktopWorkspace(folders, workspaces, folder).getRun({ runId }),
-    getKanbanCard: async (folder, cardId) => desktopWorkspace(folders, workspaces, folder).getKanbanCard({ cardId })
-  })
   const launchFolders = { trackedFolder: (path: string) => folders.resolve(path) }
-  const { terminals, logins } = createTerminalProcesses(store, { grants: { ...grants, runs, leaseHeld }, folders: launchFolders, agents })
+  const { terminals, logins } = createTerminalProcesses(store, { grants: { ...grants, runs }, folders: launchFolders, agents })
   const quit = {
     busy: () => terminals.busy() || logins.busy(),
     dispose: async () => {

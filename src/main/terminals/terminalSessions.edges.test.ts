@@ -1,15 +1,16 @@
 /**
  * The terminal session manager at its edges: the defaults it falls back on when a dependency is left out (Node's
- * timers, random session ids, errors dropped), dependencies that fail (a sign-in check, a revoke, a tree kill),
- * a start cancelled while its grant is still being issued, and calls that come at the wrong moment (an attach
- * while a stop is under way or just as the PTY exits, a start after quit, input for a chat with no PTY).
+ * timers, random session ids, errors dropped), dependencies that fail (a sign-in check, a revoke, a renewal, a tree
+ * kill), a start cancelled while its grant is still being issued, and calls that come at the wrong moment (an attach
+ * while a stop is under way or just as the PTY exits, a quit while a renewal is under way, a start after quit, input
+ * for a chat with no PTY).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { CUSTOM_AGENT, eventually, recorder, settle, startTerminal, terminalRig, type TerminalRig } from './__mocks__/terminalSessionsRig'
+import { CUSTOM_AGENT, eventually, gate, recorder, settle, startTerminal, terminalRig, type TerminalRig } from './__mocks__/terminalSessionsRig'
 import type { TerminalEvent } from './terminalSessions'
 
 const MINUTE = 60_000
-const IDLE = 'Stopped after 10 minutes idle.'
+const HOUR = 60 * MINUTE
 const DELETED = 'The chat was deleted, so its terminal was stopped.'
 const AGENT_REMOVED = "The chat's agent was removed, so its terminal was stopped."
 const QUITTING = 'The app is quitting, so the terminal was stopped.'
@@ -35,22 +36,35 @@ function errorMessages(): string[] {
 }
 
 describe('terminal sessions: defaults', () => {
-  it('stops an idle PTY on Node timers when none are given, and leaves no timer behind once it has exited', async () => {
+  it('renews the grant on Node timers when none are given, and leaves no timer behind once the PTY has exited', async () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'setTimeout', 'clearTimeout', 'performance'], shouldAdvanceTime: true })
     rig.cleanup()
     rig = terminalRig({ deps: () => ({ timers: undefined }) })
     const heard = recorder()
     const { pty } = await startTerminal(rig, rig.newChat(CUSTOM_AGENT.id), heard.listener)
 
-    vi.advanceTimersByTime(9 * MINUTE)
-    expect([pty.kills, rig.revoked]).toEqual([0, []])
-    vi.advanceTimersByTime(2 * MINUTE)
-    expect([pty.kills, rig.revoked]).toEqual([1, ['gr_1']])
-    pty.exit({ exitCode: 0, signal: 9 })
+    // A minute short, not a millisecond: the fake timers also run on with real time.
+    vi.advanceTimersByTime(HOUR - MINUTE)
+    expect(rig.renewed).toEqual([])
+    vi.advanceTimersByTime(MINUTE)
+    expect([rig.renewed, pty.kills, rig.revoked]).toEqual([['gr_1'], 0, []])
+    pty.exit({ exitCode: 0, signal: null })
     await eventually(() => exitOf(heard.events) !== undefined, 'the exit to be told')
 
-    expect(exitOf(heard.events)).toEqual({ kind: 'exited', exitCode: 0, signal: 9, message: IDLE, resumed: false })
+    expect(exitOf(heard.events)).toEqual({ kind: 'exited', exitCode: 0, signal: null, message: null, resumed: false })
     expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('runs a PTY with nothing to keep the computer awake when none is given', async () => {
+    rig.cleanup()
+    rig = terminalRig({ deps: () => ({ keepAwake: undefined }) })
+    const heard = recorder()
+    const { pty } = await startTerminal(rig, rig.newChat(CUSTOM_AGENT.id), heard.listener)
+
+    pty.exit({ exitCode: 0, signal: null })
+    await eventually(() => exitOf(heard.events) !== undefined, 'the exit to be told')
+
+    expect([rig.awake, rig.errors]).toEqual([0, []])
   })
 
   it('starts Claude Code on a random session id when no generator is given', async () => {
@@ -141,6 +155,48 @@ describe('terminal sessions: dependencies that fail', () => {
   })
 })
 
+describe('terminal sessions: grant renewals', () => {
+  it('reports a renewal that fails, keeps the PTY running, and renews again the next hour', async () => {
+    rig.cleanup()
+    let renewals = 0
+    rig = terminalRig({
+      deps: () => ({
+        renewChatGrant: async () => {
+          renewals += 1
+          throw new Error('The grant store is locked.')
+        }
+      })
+    })
+    const { pty } = await startTerminal(rig, rig.newChat(CUSTOM_AGENT.id))
+
+    rig.clock.advance(2 * HOUR)
+    await settle()
+
+    expect([renewals, pty.kills, rig.revoked]).toEqual([2, 0, []])
+    expect(errorMessages()).toEqual(['The grant store is locked.', 'The grant store is locked.'])
+  })
+
+  it('holds the quit until a renewal under way has settled', async () => {
+    rig.cleanup()
+    const renewal = gate<void>()
+    rig = terminalRig({ deps: () => ({ renewChatGrant: () => renewal.promise }) })
+    const { pty } = await startTerminal(rig, rig.newChat(CUSTOM_AGENT.id))
+    rig.clock.advance(HOUR)
+    let quit = false
+
+    const quitting = rig.sessions.dispose().then(() => {
+      quit = true
+    })
+    pty.exit({ exitCode: 0, signal: 9 })
+    await settle()
+    expect([quit, rig.sessions.busy()]).toEqual([false, true])
+    renewal.open()
+    await quitting
+
+    expect([quit, rig.sessions.busy(), rig.revoked]).toEqual([true, false, ['gr_1']])
+  })
+})
+
 describe('terminal sessions: starts cancelled part way', () => {
   it('revokes a grant issued after its start was cancelled by a delete, and spawns nothing', async () => {
     const grant = rig.holdGrant()
@@ -196,9 +252,13 @@ describe('terminal sessions: attaches at awkward moments', () => {
   it('refuses an attach while a stop is under way, saying why, and starts again once the PTY has exited', async () => {
     const chat = rig.newChat(CUSTOM_AGENT.id)
     const { pty } = await startTerminal(rig, chat)
-    rig.clock.advance(10 * MINUTE)
+    // The folder watch stops it; the folder is tracked again before the PTY has exited.
+    rig.tracked.delete(rig.repo)
+    rig.clock.advance(MINUTE)
+    rig.tracked.add(rig.repo)
+    const message = `The folder ${rig.repo} is no longer tracked. Track the folder again to keep using this chat.`
 
-    expect(await rig.sessions.attach(chat)).toEqual({ state: 'refused', message: IDLE })
+    expect(await rig.sessions.attach(chat)).toEqual({ state: 'refused', message })
     pty.exit({ exitCode: 0, signal: 9 })
     await settle()
     const again = await startTerminal(rig, chat)

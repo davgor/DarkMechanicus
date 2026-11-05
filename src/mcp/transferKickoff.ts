@@ -60,8 +60,8 @@ export function transferKickoff(input: TransferKickoffInput): string {
 
 /**
  * What the instructions of a Linear transfer chat add to the `dm` instructions, on every start of its terminal: the
- * kickoff goes with the first start only, so a CLI that starts on a new session (an exit, an idle stop, an app
- * restart) still has the epic, the steps and the guide. Built from the epic id alone.
+ * kickoff goes with the first start only, so a CLI that starts on a new session (an exit, an app restart)
+ * still has the epic, the steps and the guide. Built from the epic id alone.
  */
 export function transferGuidance(epicId: string): string {
   const epic = oneLine(epicId)

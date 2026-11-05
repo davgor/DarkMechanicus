@@ -13,7 +13,7 @@ import { getStorageStatus } from '../repo/storage'
 import { COMMAND_SCHEMAS } from '../commandSchemas'
 import { resolveEpicConflict } from '../services/epicConflict'
 import { appendEvent, listEvents } from '../services/events'
-import { issueGrant, listGrants, revokeGrant } from '../services/grants'
+import { issueGrant, listGrants, renewGrant, revokeGrant } from '../services/grants'
 import { searchHistory } from '../services/history'
 import { listSessions } from '../services/sessions'
 import { SKILLS_VERSION } from '../version'
@@ -202,6 +202,18 @@ const repositoryCommands = {
       return ctx.db.tx(() => {
         const grant = revokeGrant(ctx, input.grantId)
         appendEvent(ctx, { kind: 'grant.revoked', payload: { grantId: grant.id } })
+        return grant
+      })
+    }
+  },
+  renewGrant: {
+    schema: COMMAND_SCHEMAS.renewGrant,
+    mutates: true,
+    run: (core, input) => {
+      const ctx = core.ctx()
+      return ctx.db.tx(() => {
+        const grant = renewGrant(ctx, input)
+        appendEvent(ctx, { kind: 'grant.renewed', payload: { grantId: grant.id, expiresAt: grant.expiresAt } })
         return grant
       })
     }

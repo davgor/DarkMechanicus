@@ -115,6 +115,7 @@ const HUMAN_ONLY: CommandName[] = [
   // Delegating a role is the person's own act, so no tool offers it.
   'issueGrant',
   'revokeGrant',
+  'renewGrant',
   // Sending a plan out to Linear, and withdrawing that, is the person's decision; an agent only carries it out.
   'queueTransfer',
   'cancelTransfer',

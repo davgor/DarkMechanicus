@@ -34,6 +34,7 @@ const COMMAND_FLAGS: Record<CommandName, true> = {
   issueGrant: true,
   listGrants: true,
   revokeGrant: true,
+  renewGrant: true,
   listEpics: true,
   createEpic: true,
   getEpic: true,

@@ -2,7 +2,8 @@
  * A chat's grant is revoked through the workspace it was issued in, held since issue, never by
  * finding its folder again: a folder renamed or untracked while the chat ran still has its grant
  * revoked, in the database it moved with. One that cannot be reached is logged in one line naming
- * the grant and its expiry, and the revoke does not throw.
+ * the grant and its expiry, and the revoke does not throw. While the chat runs its grant is renewed
+ * the same way, to the grant's length from the renewal.
  */
 import { mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
@@ -11,7 +12,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { DomainError } from '../../core/errors'
 import { openWorkspace } from '../../core/workspace'
-import { createSequentialIds, createTestClock } from '../../test/testContext'
+import { createSequentialIds, createTestClock, type TestClock } from '../../test/testContext'
 import { createFakeGit } from '../../test/workspaceHarness'
 import { buildCliConfig } from '../desktop/cliConfig'
 import { createWorkspacePool, type WorkspacePool } from '../desktop/workspacePool'
@@ -28,6 +29,7 @@ interface GrantRow {
 
 interface Rig {
   grants: ChatGrants
+  clock: TestClock
   pool: WorkspacePool
   tracked: Set<string>
   logged: string[]
@@ -72,7 +74,7 @@ async function rig(): Promise<Rig> {
     minutes: 12 * 60,
     log: (line) => logged.push(line)
   })
-  return { grants, pool, tracked, logged }
+  return { grants, clock, pool, tracked, logged }
 }
 
 /** The grants in the folder's own `state.sqlite`, read after every session on it has closed. */
@@ -163,5 +165,47 @@ describe('chat grants: a workspace that cannot be reached', () => {
     await expect(grants.revokeChatGrant('gr_unknown')).resolves.toBeUndefined()
 
     expect(logged).toEqual([expect.stringContaining('gr_unknown')])
+  })
+})
+
+describe('chat grants: renewed while the chat runs', () => {
+  it('moves the grant’s expiry to twelve hours from the renewal, in the workspace it was issued in', async () => {
+    const state = await rig()
+    const grantId = await liveChat(state)
+    state.clock.advanceSeconds(11 * 60 * 60)
+
+    await state.grants.renewChatGrant(grantId)
+    state.pool.closeAll()
+
+    expect(grantsIn(repo)).toEqual([{ id: grantId, expires_at: '2026-04-02T08:00:00.000Z', revoked_at: null }])
+    expect(state.logged).toEqual([])
+  })
+
+  it('renews nothing once the grant is revoked, and logs nothing: a renewal that lands after the stop is expected', async () => {
+    const state = await rig()
+    const grantId = await liveChat(state)
+    await state.grants.revokeChatGrant(grantId)
+
+    await state.grants.renewChatGrant(grantId)
+    state.pool.closeAll()
+
+    expect(grantsIn(repo)).toEqual([expect.objectContaining({ expires_at: EXPIRES_AT, revoked_at: expect.any(String) })])
+    expect(state.logged).toEqual([])
+  })
+
+  it('logs one line naming the grant when the renewal fails, does not throw, and still revokes it later', async () => {
+    const state = await rig()
+    const grantId = await liveChat(state)
+    // The grant has expired: the app was asleep past it, say. The renewal is refused, and the revoke still goes.
+    state.clock.advanceSeconds(13 * 60 * 60)
+
+    await expect(state.grants.renewChatGrant(grantId)).resolves.toBeUndefined()
+    await state.grants.revokeChatGrant(grantId)
+    state.pool.closeAll()
+
+    expect(state.logged).toHaveLength(1)
+    expect(state.logged[0]).toContain(grantId)
+    expect(state.logged[0]).not.toContain('\n')
+    expect(grantsIn(repo)).toEqual([expect.objectContaining({ expires_at: EXPIRES_AT, revoked_at: expect.any(String) })])
   })
 })

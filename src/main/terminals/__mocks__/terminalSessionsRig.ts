@@ -141,6 +141,10 @@ export interface TerminalRig {
   /** Everything the manager did that the order matters for: `auth`, `grant:<id>`, `spawn`, `revoke:<id>`. */
   steps: string[]
   revoked: string[]
+  /** Every grant renewal the manager asked for, by grant id, in order. */
+  renewed: string[]
+  /** How many holds keep the computer awake now: one per running PTY. */
+  awake: number
   /** The sign-in answer; a test holds it back with `holdAuth`. */
   auth: { status: AgentAuthStatus; held: Gate<AgentAuthStatus> | null }
   /** Makes the next sign-in checks wait until the gate is opened. */
@@ -160,13 +164,9 @@ export interface TerminalRig {
   errors: unknown[]
   /** The runs the desktop's session knows, by id, and every run call the manager made, as `getRun <id>` and `pauseRun <id> <reason>`. */
   runs: { states: Record<string, RunState>; calls: string[] }
-  /** The runs and Kanban cards the desktop's session finds holding a lease, by id, and every lease read the manager made, as `leaseHeld <id>`. */
-  leases: { held: Set<string>; calls: string[] }
   newChat: (agent?: string) => ChatRecord
   /** A chat Start run opened: an orchestrator of `runId`. */
   newOrchestrator: (runId: string, agent?: string) => ChatRecord
-  /** A chat Play opened: the orchestrator that carries the Kanban card `cardId`. */
-  newCardChat: (cardId: string) => ChatRecord
   cleanup: () => void
 }
 
@@ -236,11 +236,6 @@ function rigDeps(rig: RigBase, options: RigOptions): TerminalSessionsDeps {
     },
     cliFor,
     runs: rigRuns(rig),
-    leaseHeld: async (chat) => {
-      const id = chat.runId ?? chat.cardId ?? ''
-      rig.leases.calls.push(`leaseHeld ${id}`)
-      return chat.folder === rig.repo && rig.leases.held.has(id)
-    },
     issueChatCli: async (folder) => {
       rig.grantsAsked += 1
       grants += 1
@@ -253,6 +248,16 @@ function rigDeps(rig: RigBase, options: RigOptions): TerminalSessionsDeps {
     revokeChatGrant: async (grantId) => {
       rig.steps.push(`revoke:${grantId}`)
       rig.revoked.push(grantId)
+    },
+    renewChatGrant: async (grantId) => {
+      rig.renewed.push(grantId)
+    },
+    // Counts every release, so a release made twice shows.
+    keepAwake: () => {
+      rig.awake += 1
+      return () => {
+        rig.awake -= 1
+      }
     },
     host: async () => rig.host,
     killTree: rigKillTree(rig, options),
@@ -287,6 +292,8 @@ export function terminalRig(options: RigOptions = {}): TerminalRig {
     tracked: new Set([repo]),
     steps: [],
     revoked: [],
+    renewed: [],
+    awake: 0,
     auth: { status: SIGNED_IN, held: null },
     holdAuth: () => (rig.auth.held = gate<AgentAuthStatus>()),
     holdGrant: () => (rig.grantGate = gate<void>()),
@@ -295,12 +302,9 @@ export function terminalRig(options: RigOptions = {}): TerminalRig {
     killed: [],
     errors: [],
     runs: { states: {}, calls: [] },
-    leases: { held: new Set(), calls: [] },
     newChat: (agent = 'claude') => store.createChat({ folder: repo, agent, model: null, role: 'worker', allowSave: false, title: 'Fix the build' }),
     newOrchestrator: (runId, agent = 'claude') =>
       store.createChat({ folder: repo, agent, model: null, role: 'orchestrator', allowSave: false, title: 'Orchestrator · Terminal chats', runId }),
-    newCardChat: (cardId) =>
-      store.createChat({ folder: repo, agent: 'claude', model: null, role: 'orchestrator', allowSave: false, title: 'DM-1 · Fix the build', cardId }),
     cleanup: () => {
       removeScratch(root)
     }

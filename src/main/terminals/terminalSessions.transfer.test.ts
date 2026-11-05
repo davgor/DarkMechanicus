@@ -1,6 +1,6 @@
 /**
- * A Linear transfer chat, or the chat Play opened for a Kanban card, started again (an exit, an idle stop, an app
- * restart): its kickoff went with the first start only, so a CLI that starts on a new session (Codex and Cursor with
+ * A Linear transfer chat, or the chat Play opened for a Kanban card, started again (an exit, an app restart): its
+ * kickoff went with the first start only, so a CLI that starts on a new session (Codex and Cursor with
  * no stored session, a custom CLI) must still find its task in the chat's instructions: for a transfer the epic id,
  * the start_transfer step and the guide; for a card the card id, the claim step and the guides. On the fake PTY host
  * and the fake clock.

@@ -10,6 +10,7 @@ import {
   issueGrant,
   listGrants,
   redeemGrant,
+  renewGrant,
   revokeGrant,
   withoutHumanOnly
 } from './grants'
@@ -197,6 +198,59 @@ describe('how long a grant may last', () => {
 
   it.each([5, 60, 7 * 24 * 60])('accepts %p minutes', (minutes) => {
     expect(issueGrant(desktop(), { role: 'reader', label: 'r', minutes }).grant.expiresAt).toBeDefined()
+  })
+})
+
+describe('renewing a grant', () => {
+  const HOUR = 60 * 60
+
+  it('moves its expiry to the minutes given from now, so its token keeps working past the first expiry', () => {
+    const ctx = desktop()
+    const { grant, token } = issueGrant(ctx, { role: 'orchestrator', label: 'Chat', minutes: 12 * 60 })
+    ctx.clock.advanceSeconds(11 * HOUR)
+
+    const renewed = renewGrant(ctx, { grantId: grant.id, minutes: 12 * 60 })
+    expect(Date.parse(renewed.expiresAt) - ctx.clock.nowMs()).toBe(12 * HOUR * 1000)
+    expect(renewed).toMatchObject({ id: grant.id, active: true, revokedAt: null })
+    ctx.clock.advanceSeconds(11 * HOUR)
+
+    expect(redeemGrant(redeemDeps(ctx), token).grantId).toBe(grant.id)
+    expect(listGrants(ctx).find((item) => item.id === grant.id)?.expiresAt).toBe(renewed.expiresAt)
+  })
+
+  it('refuses a revoked grant and leaves it revoked: a late renewal never brings one back', () => {
+    const ctx = desktop()
+    const { grant, token } = issueGrant(ctx, { role: 'orchestrator', label: 'Chat' })
+    revokeGrant(ctx, grant.id)
+
+    expect(domainErrorOf(() => renewGrant(ctx, { grantId: grant.id, minutes: 60 })).code).toBe('invalid_state')
+    expect(domainErrorOf(() => redeemGrant(redeemDeps(ctx), token)).code).toBe('unauthorized')
+  })
+
+  it('refuses a grant that has already expired, and leaves its expiry as it was', () => {
+    const ctx = desktop()
+    const { grant, token } = issueGrant(ctx, { role: 'orchestrator', label: 'Chat', minutes: 5 })
+    ctx.clock.advanceSeconds(5 * 60)
+
+    expect(domainErrorOf(() => renewGrant(ctx, { grantId: grant.id, minutes: 60 })).code).toBe('invalid_state')
+    expect(listGrants(ctx).find((item) => item.id === grant.id)?.expiresAt).toBe(grant.expiresAt)
+    expect(domainErrorOf(() => redeemGrant(redeemDeps(ctx), token)).code).toBe('unauthorized')
+  })
+
+  it.each(['orchestrator', 'worker'] as const)('refuses a %s session', (role) => {
+    const { grant } = issueGrant(desktop(), { role: 'orchestrator', label: 'Chat' })
+    expect(domainErrorOf(() => renewGrant(agent(role), { grantId: grant.id, minutes: 60 })).code).toBe('unauthorized')
+  })
+
+  it.each([0, 4, 10081, Number.NaN, 1.5])('refuses %p minutes rather than clamping it', (minutes) => {
+    const ctx = desktop()
+    const { grant } = issueGrant(ctx, { role: 'orchestrator', label: 'Chat' })
+    expect(domainErrorOf(() => renewGrant(ctx, { grantId: grant.id, minutes })).code).toBe('invalid_input')
+    expect(listGrants(ctx).find((item) => item.id === grant.id)?.expiresAt).toBe(grant.expiresAt)
+  })
+
+  it('reports an unknown grant as not found', () => {
+    expect(domainErrorOf(() => renewGrant(desktop(), { grantId: 'gr_00000000000000000000000001', minutes: 60 })).code).toBe('not_found')
   })
 })
 

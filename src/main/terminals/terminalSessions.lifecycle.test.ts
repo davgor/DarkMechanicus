@@ -1,8 +1,8 @@
 /**
- * A chat terminal's life after its first start (`docs/design/chat-shells.md`, "Resume" and "Idle stop"): Start
+ * A chat terminal's life after its first start (`docs/design/chat-shells.md`, "Resume" and "No idle stop"): Start
  * again resumes the CLI's session once it exists (Claude's `--resume <id>`, `a8s resume`), a resume the CLI refuses
- * is followed by a new session on request, and a PTY with no input and no output for 10 minutes is stopped with
- * its grant revoked. On the fake PTY host and the fake clock; Claude's session file is on the real disk, in the
+ * is followed by a new session on request, and a PTY with no input and no output runs on, for days, with its grant
+ * renewed every hour. On the fake PTY host and the fake clock; Claude's session file is on the real disk, in the
  * rig's scratch home folder.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -11,8 +11,8 @@ import type { FakePty } from './__mocks__/fakePtyHost'
 import { CUSTOM_AGENT, claudeSessionFile, eventually, recorder, sessionIdNumber, settle, startTerminal, terminalRig, type TerminalRig } from './__mocks__/terminalSessionsRig'
 import type { TerminalEvent } from './terminalSessions'
 
-const MINUTE = 60_000
-const IDLE = 'Stopped after 10 minutes idle.'
+const HOUR = 60 * 60_000
+const DAY = 24 * HOUR
 const OLD_SESSION = '7c9e6679-7425-40de-944b-e07fc1f90ae7'
 
 let rig: TerminalRig
@@ -207,71 +207,70 @@ describe('terminal sessions: new sessions', () => {
   })
 })
 
-describe('terminal sessions: idle stop', () => {
-  it('stops a PTY after 10 minutes with no input and no output: tree killed, grant revoked, and the exit says why', async () => {
+describe('terminal sessions: no idle stop', () => {
+  it('keeps a PTY with no input and no output running for 10 days, renewing its grant every hour', async () => {
     const chat = rig.newChat()
     const heard = recorder()
     const { pty } = await startTerminal(rig, chat, heard.listener)
 
-    rig.clock.advance(10 * MINUTE - 1)
-    expect([pty.kills, rig.revoked]).toEqual([0, []])
+    rig.clock.advance(HOUR - 1)
+    expect(rig.renewed).toEqual([])
     rig.clock.advance(1)
-    expect([pty.kills, rig.revoked]).toEqual([1, ['gr_1']])
-    await exitAndSettle(pty, { exitCode: 0, signal: 9 })
-
-    expect(exitOf(heard.events)).toEqual({ kind: 'exited', exitCode: 0, signal: 9, message: IDLE, resumed: false })
-    expect(rig.clock.pending).toBe(0)
-  })
-
-  it('counts input as activity', async () => {
-    const chat = rig.newChat()
-    const { pty } = await startTerminal(rig, chat)
-
-    rig.clock.advance(9 * MINUTE)
-    rig.sessions.write(chat.id, 'x')
-    rig.clock.advance(9 * MINUTE)
-    expect(pty.kills).toBe(0)
-    rig.clock.advance(MINUTE)
-
-    expect(pty.kills).toBe(1)
-  })
-
-  it('counts output as activity, once it is on the screen', async () => {
-    const chat = rig.newChat()
-    const { pty } = await startTerminal(rig, chat)
-
-    rig.clock.advance(9 * MINUTE)
-    pty.emitData('thinking…\r\n')
+    expect(rig.renewed).toEqual(['gr_1'])
+    rig.clock.advance(10 * DAY - HOUR)
     await settle()
-    rig.clock.advance(9 * MINUTE)
-    expect(pty.kills).toBe(0)
-    rig.clock.advance(MINUTE)
 
-    expect(pty.kills).toBe(1)
+    expect([pty.kills, rig.revoked, exitOf(heard.events)]).toEqual([0, [], undefined])
+    expect(rig.renewed).toEqual(Array.from({ length: 240 }, () => 'gr_1'))
+  })
+
+  it('renews nothing once the PTY has exited, and leaves no timer behind', async () => {
+    const chat = rig.newChat()
+    const { pty } = await startTerminal(rig, chat)
+    rig.clock.advance(2 * HOUR)
+
+    await exitAndSettle(pty)
+    rig.clock.advance(5 * HOUR)
+
+    expect([rig.renewed, rig.revoked, rig.clock.pending]).toEqual([['gr_1', 'gr_1'], ['gr_1'], 0])
+  })
+
+  it('renews the grant a start again issued, not the one revoked with the last PTY', async () => {
+    const chat = rig.newChat()
+    const { pty } = await startTerminal(rig, chat)
+    await exitAndSettle(pty)
+
+    await startTerminal(rig, chat)
+    rig.clock.advance(HOUR)
+
+    expect([rig.revoked, rig.renewed]).toEqual([['gr_1'], ['gr_2']])
   })
 })
 
-describe('terminal sessions: after an idle stop', () => {
-  it('starts again after an idle stop with the chat’s session resumed', async () => {
-    const chat = rig.newChat()
-    const { pty } = await startTerminal(rig, chat)
-    claudeSessionFile(rig, sessionIdNumber(1), true)
-    rig.clock.advance(10 * MINUTE)
-    await exitAndSettle(pty, { exitCode: 0, signal: 9 })
+describe('terminal sessions: keeping the computer awake', () => {
+  it('holds the computer awake while each PTY runs, and lets it sleep once every one has exited', async () => {
+    const heard = recorder()
+    const first = await startTerminal(rig, rig.newChat(), heard.listener)
+    const second = await startTerminal(rig, rig.newChat())
+    expect(rig.awake).toBe(2)
 
-    const again = await startTerminal(rig, chat)
+    first.pty.exit()
+    await eventually(() => exitOf(heard.events) !== undefined, 'the first exit to be told')
+    expect(rig.awake).toBe(1)
+    await exitAndSettle(second.pty)
 
-    expect(claudeSession(again.pty)).toEqual(['--resume', sessionIdNumber(1)])
-    expect(rig.revoked).toEqual(['gr_1'])
-    await eventually(() => rig.steps.at(-1) === 'spawn', 'the second spawn')
+    expect(rig.awake).toBe(0)
   })
 
-  it('sets no idle timer for a PTY that exits on its own, and leaves none behind', async () => {
+  it('gives a stopped PTY’s hold back once, when it is stopped, not again at its exit', async () => {
     const chat = rig.newChat()
     const { pty } = await startTerminal(rig, chat)
 
-    await exitAndSettle(pty)
+    const deleting = rig.sessions.deleteChat(chat, async () => {})
+    expect(rig.awake).toBe(0)
+    pty.exit({ exitCode: 0, signal: 9 })
+    await deleting
 
-    expect(rig.clock.pending).toBe(0)
+    expect(rig.awake).toBe(0)
   })
 })

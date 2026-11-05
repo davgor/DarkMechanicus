@@ -130,7 +130,7 @@ The app does not list a chat's role and label anywhere (see [`agents-e2e.md`](..
 - The chat list is the same in every window: a chat created, renamed or deleted in one window shows up in the others. While a stored chat waits for its folder's chat list the main area says **Loading chat…**; the tracked folders and an agent's page say **Loading folders…** and **Loading agents…**.
 - **Claude Code's memory folder asks like any other file.** A chat's Claude Code is started with a settings file of the app's (`--settings`, in `userData/agents/settings/`) that moves the CLI's own memory folder to one nobody reads and adds a `PreToolUse` hook that asks before a Write, Edit, MultiEdit or NotebookEdit into a memory folder (`~/.claude/projects/*/memory/`, or under `CLAUDE_CONFIG_DIR`), however the path is spelled; Claude Code then shows its own permission prompt. None of your Claude Code settings files is changed. How it works: [`architecture.md`](../architecture.md#chats-records-store-terminals).
 - Rename and delete a chat from its row in the sidebar. Delete asks first; it ends the chat's terminal, revokes its grant and removes the chat with its stored transcript.
-- Quitting the app stops every terminal and what each one started, and waits for them to be gone before it exits (at most 5 seconds, so a stuck one cannot keep the app open). Any stop of a process (on quit, the idle stop, a deleted chat, or a Find check or install that times out) ends its whole process tree, not just the process the app started.
+- Quitting the app stops every terminal and what each one started, and waits for them to be gone before it exits (at most 5 seconds, so a stuck one cannot keep the app open). Any stop of a process (on quit, a deleted chat, or a Find check or install that times out) ends its whole process tree, not just the process the app started.
 
 ### Panels that follow a chat
 
@@ -222,11 +222,11 @@ Nothing is stored on any failure. The codes: `busy` (a download of that agent is
 - **A chat's CLI says it is signed out but the agent page says signed in.** The status command reads only what the CLI stores locally and can say signed in for a login that no longer works. Sign in again from the agent's page, or follow the CLI's own prompt in its terminal.
 - **A Cursor chat says it cannot reach Dark Mechanicus.** The app gives a chat no Dark Mechanicus MCP tools by design: the agent runs the `dm` command given in its first prompt, with its grant in `DM_SESSION_TOKEN`. An agent that looks for `darkmechanicus` MCP tools instead finds none; point it at that command.
 
-## Start again, resume and idle stop
+## Start again, resume, and long-running chats
 
 - **Start again** appears when the CLI has exited or been stopped; it starts the CLI again on the chat's session. Claude Code resumes with `--resume <id>` once its session file exists (a chat that exited before its first prompt, for example at the folder-trust question, starts again on the same new id); Autonomous runs `a8s resume` once the chat was typed into; Codex and Cursor resume with their stored session id when they have one.
 - **New session** appears after a resumed session ended, for the case where the CLI refused to resume (it says so on its last screen); it clears the chat's stored session and starts a fresh one.
-- **Idle stop.** A chat terminal with no input and no output for 10 minutes is stopped (its tree ended, its grant revoked) and says **Stopped after 10 minutes idle.**; **Start again** resumes it. A CLI working in the background keeps producing output, so it is not stopped. An orchestrator chat (one Start run or Play opened) whose run or Kanban card still has a worker holding a lease is not idle either: once it has gone quiet, the app reads the lease every minute, and stops the chat only 10 minutes after the lease was last held.
+- **No idle stop.** A chat terminal runs until its CLI exits, the chat is deleted, its agent is removed, its folder moves, or the app quits; going quiet never stops it, so a long command or an orchestrator waiting on its workers runs for as long as it needs, for days if need be. While it runs, the app renews the chat's grant every hour, so its `dm` access does not lapse at the grant's 12 hours, and keeps the computer from going to sleep (the display can still turn off; closing a laptop's lid still sleeps it if its power settings say so).
 
 ## Known limitations
 

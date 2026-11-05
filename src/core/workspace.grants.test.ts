@@ -181,6 +181,29 @@ describe('a grant that is no longer good', () => {
   })
 })
 
+describe('a grant the desktop renews', () => {
+  it('keeps the session running on it working past its first expiry, and records the renewal', async () => {
+    const desktop = await withDesktop()
+    const { grant, token } = await desktop.issueGrant({ role: 'orchestrator', label: 'Chat', minutes: 60 })
+    const cli = harness.open('reader', { transport: 'cli', grantToken: token })
+    harness.clock.advanceSeconds(50 * 60)
+
+    await desktop.renewGrant({ grantId: grant.id, minutes: 60 })
+    harness.clock.advanceSeconds(50 * 60)
+
+    await expect(cli.createEpic({ title: 'Still granted' })).resolves.toMatchObject({ title: 'Still granted' })
+    const renewals = (await desktop.listEvents({})).events.filter((event) => event.kind === 'grant.renewed')
+    expect(renewals.map((event) => event.payload)).toEqual([{ grantId: grant.id, expiresAt: expect.any(String) }])
+  })
+
+  it('cannot be renewed by the session running on it', async () => {
+    const desktop = await withDesktop()
+    const { grant, token } = await desktop.issueGrant({ role: 'orchestrator', label: 'Chat', allowSave: true })
+    const cli = harness.open('reader', { transport: 'cli', grantToken: token })
+    await expect(cli.renewGrant({ grantId: grant.id, minutes: 60 })).rejects.toMatchObject({ code: 'unauthorized' })
+  })
+})
+
 describe('grants and the other transports', () => {
   it('leaves an MCP session role exactly as its launch flags set it', async () => {
     const desktop = await withDesktop()

@@ -150,10 +150,13 @@ describe('terminal sessions: paste into a chat with no running terminal', () => 
     expect(resumed.written).toEqual(pasteOf(MESSAGE))
   })
 
-  it('waits out a terminal being stopped for idle and pastes into the one it starts again', async () => {
+  it('waits out a terminal being stopped and pastes into the one it starts again', async () => {
     const chat = rig.newChat('claude')
     const { pty } = await startTerminal(rig, chat)
-    rig.clock.advance(10 * 60 * SECOND)
+    // The folder watch stops it; the folder is tracked again before the PTY has exited.
+    rig.tracked.delete(rig.repo)
+    rig.clock.advance(60 * SECOND)
+    rig.tracked.add(rig.repo)
     expect(pty.kills).toBe(1)
 
     const answer = rig.sessions.paste(chat, MESSAGE)

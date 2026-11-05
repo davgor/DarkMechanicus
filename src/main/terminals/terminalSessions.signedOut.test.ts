@@ -1,8 +1,8 @@
 /**
  * An orchestrator chat's CLI that exits on its own (`docs/design/chat-shells.md`, "Sign-in detection"): main runs the
  * status command, and only when it says `signed_out` is a `running` or `paused` run the chat orchestrates paused with
- * the reason `signed_out` (which keeps the run's leases, so it is given only then). A quit, an idle stop, a deleted
- * chat, a folder stop and an ordinary `/exit` (the status still says signed in) pause nothing.
+ * the reason `signed_out` (which keeps the run's leases, so it is given only then). A quit, a deleted chat, a folder
+ * stop and an ordinary `/exit` (the status still says signed in) pause nothing.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { FakePty } from './__mocks__/fakePtyHost'
@@ -108,17 +108,6 @@ describe('terminal sessions: an orchestrator CLI that main stopped', () => {
     const disposing = rig.sessions.dispose()
     rig.host.last().exit({ exitCode: 0, signal: 9 })
     await disposing
-    await settle()
-
-    expect([checksAfterStart(), rig.runs.calls]).toEqual([0, []])
-  })
-
-  it('pauses nothing after an idle stop', async () => {
-    const { pty } = await startSignedOutLater()
-
-    rig.clock.advance(10 * MINUTE)
-    await eventually(() => pty.kills > 0, 'the idle stop')
-    pty.exit({ exitCode: 0, signal: 9 })
     await settle()
 
     expect([checksAfterStart(), rig.runs.calls]).toEqual([0, []])
