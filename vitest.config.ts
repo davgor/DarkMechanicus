@@ -9,6 +9,9 @@ export default defineConfig({
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'scripts/**/*.test.mjs'],
     environment: 'node',
     testTimeout: 15_000,
+    // A hook gets the same bound as the test it sets up: on a stalled Windows runner a one-second setup has run past
+    // vitest's 10 s default.
+    hookTimeout: 15_000,
     coverage: {
       provider: 'v8',
       include: ['src/**/*.{ts,tsx}'],
