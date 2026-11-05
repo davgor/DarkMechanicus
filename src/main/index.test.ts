@@ -14,11 +14,13 @@ const startup = vi.hoisted(() => ({
   quits: 0,
   liveChats: 0,
   events: [] as string[],
-  menus: [] as unknown[]
+  menus: [] as unknown[],
+  switches: [] as [string, string][]
 }))
 
 vi.mock('electron', () => ({
   app: {
+    commandLine: { appendSwitch: (name: string, value: string) => startup.switches.push([name, value]) },
     whenReady: () => new Promise<void>((resolve) => { startup.ready = resolve }),
     get dock() {
       return startup.hasDock ? { setIcon: (icon: string) => startup.dockIcons.push(icon) } : undefined
@@ -77,6 +79,7 @@ beforeEach(() => {
   startup.liveChats = 0
   startup.events = []
   startup.menus = []
+  startup.switches = []
   vi.stubEnv('ELECTRON_RENDERER_URL', '')
 })
 afterEach(() => vi.unstubAllEnvs())
@@ -122,6 +125,14 @@ describe('desktop startup background', () => {
     startup.ready!()
     await Promise.resolve()
     expect(startup.options[0].backgroundColor?.toLowerCase()).toBe(themeBg?.toLowerCase())
+  })
+})
+
+describe('desktop startup color profile', () => {
+  it('forces the sRGB color profile at module load, before Electron is ready and the window exists', async () => {
+    await import('./index')
+    expect(startup.switches).toEqual([['force-color-profile', 'srgb']])
+    expect(startup.options).toHaveLength(0)
   })
 })
 
