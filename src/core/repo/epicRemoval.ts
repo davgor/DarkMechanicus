@@ -34,15 +34,12 @@ function collectTree(env: RemovalEnv, dir: string, order: RemovalOrder): void {
 }
 
 /**
- * Deletes an epic's folder and its runs' history folders from the checkout (never commits). Every
- * path is checked to be inside `.darkmechanicus/` with no links before the first removal, so an
- * unsafe tree is refused whole. Returns the repository-relative folders that existed.
+ * Deletes the existing folders among `dirs` from the checkout (never commits). Every path is checked to be inside
+ * `.darkmechanicus/` with no links before the first removal, so an unsafe tree is refused whole. Returns the
+ * repository-relative folders that existed.
  */
-export function removeEpicFiles(env: RemovalEnv, epicId: string, runIds: string[]): string[] {
-  const paths = ownedPaths(env.layout)
-  const roots = [paths.epicDir(epicId), ...runIds.map((runId) => paths.runDir(runId))].filter(
-    (dir) => env.fs.exists(dir) || env.fs.isSymlink(dir)
-  )
+function removeOwnedTrees(env: RemovalEnv, dirs: string[]): string[] {
+  const roots = dirs.filter((dir) => env.fs.exists(dir) || env.fs.isSymlink(dir))
   const order: RemovalOrder = { files: [], dirs: [] }
   for (const dir of roots) {
     collectTree(env, dir, order)
@@ -54,4 +51,15 @@ export function removeEpicFiles(env: RemovalEnv, epicId: string, runIds: string[
     env.fs.removeDir(dir)
   }
   return roots.map((dir) => displayPath(env.layout, dir))
+}
+
+/** Deletes an epic's folder and its runs' history folders. */
+export function removeEpicFiles(env: RemovalEnv, epicId: string, runIds: string[]): string[] {
+  const paths = ownedPaths(env.layout)
+  return removeOwnedTrees(env, [paths.epicDir(epicId), ...runIds.map((runId) => paths.runDir(runId))])
+}
+
+/** Deletes a Kanban card's folder (its definition and every event file). */
+export function removeKanbanCardFiles(env: RemovalEnv, cardId: string): string[] {
+  return removeOwnedTrees(env, [ownedPaths(env.layout).kanbanCardDir(cardId)])
 }
