@@ -64,7 +64,9 @@ const kanbanCardFields = {
   acceptanceCriteria: z.array(criterionInput).max(LIMITS.criteria).optional(),
   expectedArtifacts: ticketInput.shape.expectedArtifacts,
   references: ticketInput.shape.references,
-  priority: ticketInput.shape.priority
+  priority: ticketInput.shape.priority,
+  /** Staged reference images (`add_attachment`) to attach; on an edit the list replaces the card's. */
+  attachments: z.array(attachmentRef.shape.id).max(LIMITS.attachmentsPerRecord).optional()
 }
 
 export const COMMAND_SCHEMAS = {

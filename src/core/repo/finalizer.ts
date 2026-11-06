@@ -9,7 +9,7 @@
  * transaction back, leaving the last good pointer (and every earlier snapshot) untouched and the
  * entry pending for an idempotent retry.
  */
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
 import { z } from 'zod'
 import type { FlushResultView } from '../../shared/domain/views'
 import { contentHash, prettyJson } from '../canonical'
@@ -21,6 +21,7 @@ import { KANBAN_OUTBOX_KINDS, type OutboxKind } from '../services/outbox'
 import { hasTransferHold } from '../services/transferGuard'
 import type { StorageMode } from './storageMode'
 import {
+  ATTACHMENT_FILE_NAME,
   loadStoredAttachment,
   type OwningRecord,
   placementOfAttachment,
@@ -234,6 +235,38 @@ function exportAttachment(deps: FinalizerDeps, attachmentId: string): void {
     }
   }
   exportAttachmentFile(deps, attachment)
+}
+
+/**
+ * Deletes the image files of a card's folder that no remaining row of the card holds (files are named by sha256, so a
+ * file stays while any row of the card, or of one of its attempts, has that hash). Runs before the card record is
+ * written, so a record never lists an image whose file was just removed, and a dropped image's file does not linger.
+ */
+function pruneCardAttachmentFiles(deps: FinalizerDeps, cardId: string): void {
+  const dir = ownedPaths(deps.layout).attachmentsDir({ kind: 'kanban_card', id: cardId })
+  assertContained(deps.layout, deps.fs, dir)
+  if (!deps.fs.exists(dir) || !deps.fs.isDirectory(dir)) {
+    return
+  }
+  const kept = new Set(
+    deps.db
+      .all<{ sha256: string }>(
+        `SELECT sha256 FROM attachments
+         WHERE (owner_kind = 'kanban_card' AND owner_id = ?)
+            OR (owner_kind = 'kanban_attempt' AND owner_id IN (SELECT id FROM kanban_attempts WHERE card_id = ?))`,
+        cardId,
+        cardId
+      )
+      .map((row) => row.sha256)
+  )
+  for (const name of deps.fs.readdir(dir)) {
+    const match = ATTACHMENT_FILE_NAME.exec(name)
+    if (match !== null && !kept.has(match[1] ?? '')) {
+      const file = join(dir, name)
+      assertContained(deps.layout, deps.fs, file)
+      deps.fs.remove(file)
+    }
+  }
 }
 
 /** An epic's tracked pointer and state texts as they are in the checkout; null for a missing file. */
@@ -485,6 +518,7 @@ function exportComment(deps: FinalizerDeps, commentId: string): void {
  */
 function exportKanbanCard(deps: FinalizerDeps, cardId: string): void {
   exportAttachmentsOf(deps, { kind: 'kanban_card', id: cardId })
+  pruneCardAttachmentFiles(deps, cardId)
   const target = ownedPaths(deps.layout).kanbanCardFile(cardId)
   const generation = nextGeneration(deps.db, 'kanban_card', cardId)
   const text = prettyJson(buildKanbanCardRecord(deps.db, cardId, { generation }))

@@ -4,6 +4,7 @@ import { KANBAN_LANE_LABELS, KANBAN_OPEN_ATTEMPT_STATES } from '../../../shared/
 import type { KanbanAttemptView, KanbanCardView, KanbanDoneSummary } from '../../../shared/domain/kanban'
 import type { AttemptView } from '../../../shared/domain/views'
 import { errorMessage, runCommand } from '../api/dm'
+import { AttachmentGallery } from '../attachments/AttachmentGallery'
 import { unwrapChat } from '../agents/chatCalls'
 import { Button } from '../components/Button'
 import type { OrchestrationHost } from '../epic/orchestration'
@@ -153,6 +154,24 @@ function CardDetails({ card, folderKey }: { card: KanbanCardView; folderKey: str
               </li>
             ))}
           </ul>
+        </section>
+      )}
+      {card.references.length === 0 ? null : (
+        <section className="tp-section" aria-label="References">
+          <h3 className="ew-eyebrow">REFERENCES</h3>
+          <ul className="tp-files">
+            {card.references.map((reference) => (
+              <li key={`${reference.kind}:${reference.location}`} className="ew-mono">
+                {reference.label === reference.location ? reference.location : `${reference.label} (${reference.location})`}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {card.attachments === undefined ? null : (
+        <section className="tp-section" aria-label="Attachments">
+          <h3 className="ew-eyebrow">ATTACHMENTS</h3>
+          <AttachmentGallery folderKey={folderKey} attachments={card.attachments} />
         </section>
       )}
       {evidence === null ? null : <EvidenceSections evidence={evidence} folderKey={folderKey} />}

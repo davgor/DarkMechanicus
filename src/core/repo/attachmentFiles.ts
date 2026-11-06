@@ -18,6 +18,9 @@ interface Env {
   fs: FsAdapter
 }
 
+/** The name of an image file in an `attachments/` folder: its sha256 and extension. */
+export const ATTACHMENT_FILE_NAME = /^([0-9a-f]{64})\.(png|jpg)$/
+
 /** An attachment row with its bytes, as the export needs it. */
 export interface StoredAttachment {
   id: string
