@@ -332,6 +332,7 @@ const DESKTOP_COMMANDS = [
   'playKanbanCard',
   'approveKanbanCard',
   'kickBackKanbanCard',
+  'deleteKanbanCard',
   'listProfiles',
   'getProfile',
   'saveProfile',

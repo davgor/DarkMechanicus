@@ -395,7 +395,8 @@ describe('kanban card commands', () => {
       { name: 'getKanbanCard', input: { cardId: 'kc_x' } },
       { name: 'playKanbanCard', input: { cardId: 'kc_x' } },
       { name: 'approveKanbanCard', input: { cardId: 'kc_x' } },
-      { name: 'kickBackKanbanCard', input: { cardId: 'kc_x', comment: 'Cover the empty case.' } }
+      { name: 'kickBackKanbanCard', input: { cardId: 'kc_x', comment: 'Cover the empty case.' } },
+      { name: 'deleteKanbanCard', input: { cardId: 'kc_x' } }
     ]
 
     const results = await Promise.all(calls.map((call) => handlers.command('/repos/a', call.name, call.input)))

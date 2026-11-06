@@ -124,7 +124,8 @@ const HUMAN_ONLY: CommandName[] = [
   // Only a person starts a Kanban card, and only a person approves or kicks one back.
   'playKanbanCard',
   'approveKanbanCard',
-  'kickBackKanbanCard'
+  'kickBackKanbanCard',
+  'deleteKanbanCard'
 ]
 
 /** Read models for the desktop's activity panels: the app polls them, and no MCP tool adapts them. */

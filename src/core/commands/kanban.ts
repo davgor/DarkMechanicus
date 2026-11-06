@@ -11,6 +11,8 @@ import {
   submitKanbanCard
 } from '../services/kanban/attempts'
 import { createKanbanCard, getKanbanCard, listKanbanCards, updateKanbanCard } from '../services/kanban/cards'
+import { removeKanbanCardFiles } from '../repo/epicRemoval'
+import { deleteKanbanCard } from '../services/kanban/deletion'
 import type { CommandTable } from './types'
 
 /** The board reads attempt states as stored, so overdue card leases are expired first, as run reads expire theirs. */
@@ -74,6 +76,12 @@ const kanbanCommands = {
     schema: COMMAND_SCHEMAS.kickBackKanbanCard,
     mutates: true,
     run: (core, input) => kickBackKanbanCard(core.ctx(), input)
+  },
+  deleteKanbanCard: {
+    schema: COMMAND_SCHEMAS.deleteKanbanCard,
+    mutates: true,
+    run: (core, input) =>
+      deleteKanbanCard(core.ctx(), input, (cardId) => removeKanbanCardFiles({ layout: core.layout, fs: core.fs }, cardId))
   }
 } satisfies Partial<CommandTable>
 

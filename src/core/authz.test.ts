@@ -97,7 +97,8 @@ const DESKTOP: Capability[] = [
   'comment.write',
   'kanban.write',
   'kanban.play',
-  'kanban.review'
+  'kanban.review',
+  'kanban.delete'
 ]
 
 /** Capabilities the desktop never holds: they belong to the agents that execute work. */
@@ -132,8 +133,8 @@ function sessionWith(role: SessionRole, capabilities: Capability[]): SessionCont
 
 describe('capability vocabulary', () => {
   it('lists every capability exactly once', () => {
-    expect(CAPABILITIES).toHaveLength(49)
-    expect(new Set(CAPABILITIES).size).toBe(49)
+    expect(CAPABILITIES).toHaveLength(50)
+    expect(new Set(CAPABILITIES).size).toBe(50)
     expect(sorted(CAPABILITIES)).toEqual(sorted([...DESKTOP, ...AGENT_ONLY]))
   })
 
@@ -153,7 +154,8 @@ describe('capability vocabulary', () => {
         'transfer.queue',
         'repo.resolve_conflict',
         'kanban.play',
-        'kanban.review'
+        'kanban.review',
+        'kanban.delete'
       ])
     )
   })
