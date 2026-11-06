@@ -5,11 +5,11 @@
  * the one file OMP wrote there, `<timestamp>_<uuid>.jsonl`; a chat whose folder holds none has no session to
  * resume. `--resume <uuid>` with the same `--session-dir` then finds it.
  *
- * The same folder holds a config overlay: `setupVersion: 2`, because OMP's first-run Setup wizard opens
- * (instead of the chat) until that is in its `config.yml`, the Skitarii theme (`ompSkitariiTheme.ts`) and the startup and
- * status line settings the Skitarii extension's look needs (`resources/skitarii/extension/`). An overlay
- * given with `--config` applies to one launch without changing the person's own `~/.omp` (checked with OMP 18.16.0
- * and a scratch agent folder).
+ * The same folder holds a config overlay: `setupVersion: 3`, because OMP's first-run Setup wizard opens
+ * instead of the chat until its current setup marker is present, the Skitarii theme (`ompSkitariiTheme.ts`) and the
+ * startup and status line settings the Skitarii extension's look needs (`resources/skitarii/extension/`).
+ * An overlay given with `--config` applies to one launch without changing the person's own `~/.omp`.
+ * OMP 18.17.0 was exercised with this production overlay and a fresh isolated agent folder.
  */
 import { mkdir, rename, rm } from 'node:fs/promises'
 import { readdirSync } from 'node:fs'
@@ -42,7 +42,7 @@ const STATUS_LINE = [
  * drops the `π` brand from the status line.
  */
 export const OMP_CONFIG_OVERLAY = [
-  'setupVersion: 2',
+  'setupVersion: 3',
   'startup:',
   '  quiet: true',
   'theme:',

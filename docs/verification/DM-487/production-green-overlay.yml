@@ -1,0 +1,15 @@
+setupVersion: 3
+startup:
+  quiet: true
+theme:
+  dark: skitarii
+  light: skitarii
+statusLine:
+  preset: custom
+  leftSegments: [vim, model, mode, collab, stream, path, git, pr, context_pct, cost]
+  rightSegments: [session_name]
+  separator: powerline-thin
+  segmentOptions:
+    model: { showThinkingLevel: true }
+    path: { abbreviate: true, maxLength: 40, stripWorkPrefix: true }
+    git: { showBranch: true, showStaged: true, showUnstaged: true, showUntracked: true }
