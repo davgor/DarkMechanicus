@@ -7,10 +7,12 @@
  */
 import { createHash } from 'node:crypto'
 import { basename, join } from 'node:path'
-import type { AttachmentOwnerKind, AttachmentRef } from '../../shared/domain/views'
+import type { AttachmentOwnerKind, AttachmentRef, SessionRole } from '../../shared/domain/views'
 import { inspectImageBytes, MAX_IMAGE_BYTES } from '../attachments/intake'
 import type { Db } from '../db/database'
 import { attachmentRef } from '../schemas'
+import { ATTACHMENT_SIDECAR_NAME } from './attachmentFiles'
+import { attachmentSidecar } from './portable'
 import { resolveAttachmentPlacement } from '../services/attachmentOwners'
 import { type AttachmentFolder, assertContained, displayPath, ownedPaths } from './paths'
 import type { FsAdapter, RepoLayout } from './types'
@@ -48,8 +50,20 @@ interface VerifiedFile {
   mime: string
 }
 
+/** Who staged an image, as its sidecar says; a sidecar that is missing or invalid is simply absent. */
+interface SidecarCreator {
+  sha256: string
+  role: SessionRole
+  label: string
+}
+
+/** A sidecar is a few hundred bytes; anything larger is not read. */
+const MAX_SIDECAR_BYTES = 16 * 1024
+
 interface FolderScan {
   files: Map<string, VerifiedFile>
+  /** Valid sidecars by attachment id. */
+  creators: Map<string, SidecarCreator>
   rejected: AttachmentRejection[]
 }
 
@@ -101,10 +115,49 @@ function verifyFile(env: FileEnv, path: string, name: string, match: RegExpExecA
   }
 }
 
+/** The creator a sidecar names, or null when it is unreadable, too large, not a valid sidecar, or not for this id. */
+function readSidecar(env: FileEnv, path: string, id: string): SidecarCreator | null {
+  try {
+    assertContained(env.layout, env.fs, path)
+    if (env.fs.isDirectory(path) || env.fs.fileSize(path) > MAX_SIDECAR_BYTES) {
+      return null
+    }
+    const parsed = attachmentSidecar.safeParse(JSON.parse(env.fs.readFile(path)))
+    return parsed.success && parsed.data.id === id
+      ? { sha256: parsed.data.sha256, role: parsed.data.createdBy.role, label: parsed.data.createdBy.label }
+      : null
+  } catch {
+    return null
+  }
+}
+
+/** Sorts one entry of an `attachments/` folder: a sidecar, an image, or a name this importer ignores. */
+function scanEntry(env: FileEnv, scan: FolderScan, path: string, reject: (path: string, why: string) => void): void {
+  const name = basename(path)
+  const sidecar = ATTACHMENT_SIDECAR_NAME.exec(name)
+  if (sidecar !== null) {
+    const creator = readSidecar(env, path, sidecar[1] ?? '')
+    if (creator !== null) {
+      scan.creators.set(sidecar[1] ?? '', creator)
+    }
+    return
+  }
+  const match = FILE_NAME.exec(name)
+  if (match === null) {
+    return
+  }
+  const verified = verifyFile(env, path, name, match)
+  if (typeof verified === 'string') {
+    reject(path, verified)
+  } else {
+    scan.files.set(match[1] ?? '', verified)
+  }
+}
+
 /** Every verifiable image in the folder's `attachments/` directory, keyed by sha256; the rest is reported as rejected. */
 function scanAttachmentFolder(env: FileEnv, folder: AttachmentFolder): FolderScan {
   const dir = ownedPaths(env.layout).attachmentsDir(folder)
-  const scan: FolderScan = { files: new Map(), rejected: [] }
+  const scan: FolderScan = { files: new Map(), creators: new Map(), rejected: [] }
   const reject = (path: string, why: string): void => {
     const shown = displayPath(env.layout, path)
     scan.rejected.push({ path: shown, message: `${shown} ${why}.` })
@@ -125,19 +178,11 @@ function scanAttachmentFolder(env: FileEnv, folder: AttachmentFolder): FolderSca
       return scan
     }
     for (const name of names) {
-      const match = FILE_NAME.exec(name)
-      if (match === null) {
-        continue
-      }
-      const verified = verifyFile(env, join(dir, name), name, match)
-      if (typeof verified === 'string') {
-        reject(join(dir, name), verified)
-      } else {
-        scan.files.set(match[1] ?? '', verified)
-      }
+      scanEntry(env, scan, join(dir, name), reject)
     }
   } catch (error: unknown) {
     scan.files.clear()
+    scan.creators.clear()
     reject(dir, `was not read: ${messageOf(error).replace(/\.$/, '')}`)
   }
   return scan
@@ -286,6 +331,11 @@ export function restoreAttachmentFiles(env: Env): AttachmentImportOutcome {
         outcome.rejected.push(...scan.rejected)
       }
       file = scan.files.get(row.sha256)
+      // The placeholder creator stays unless the sidecar of this very image (same id and hash) names a valid one.
+      const creator = scan.creators.get(row.id)
+      if (creator !== undefined && creator.sha256 === row.sha256) {
+        env.db.run('UPDATE attachments SET created_by_role = ?, created_by_label = ? WHERE id = ?', creator.role, creator.label, row.id)
+      }
     }
     if (file !== undefined && file.mime === row.mime && file.bytes.byteLength === row.bytes) {
       env.db.run('UPDATE attachments SET data = ?, missing = 0 WHERE id = ?', Buffer.from(file.bytes), row.id)
