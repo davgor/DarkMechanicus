@@ -49,9 +49,11 @@ function fsyncPath(path: string): void {
 export const nodeFs: FsAdapter = {
   exists: (path) => existsSync(path),
   readFile: (path) => readFileSync(path, 'utf8'),
+  readFileBytes: (path) => new Uint8Array(readFileSync(path)),
   fileSize: (path) => statSync(path, { throwIfNoEntry: false })?.size ?? -1,
   fileStamp: stampOf,
   writeFile: (path, data) => writeFileSync(path, data, 'utf8'),
+  writeFileBytes: (path, data) => writeFileSync(path, data),
   fsyncFile: fsyncPath,
   rename: (from, to) => renameSync(from, to),
   mkdirp: (path) => {

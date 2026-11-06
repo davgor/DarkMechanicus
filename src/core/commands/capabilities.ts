@@ -81,6 +81,8 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   approveWithRedraft: 'checkpoint.approve',
   authorizeAutoContinue: 'run.authorize_auto',
   grantRetry: 'ticket.retry_grant',
+  addAttachment: 'attachment.write',
+  getAttachment: 'read',
   addComment: 'comment.write',
   listComments: 'read',
   createKanbanCard: 'kanban.write',

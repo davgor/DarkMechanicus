@@ -18,7 +18,7 @@ export function matchesSync(db: Db, kind: 'epic' | 'run' | 'kanban_card', entity
 /** Unexported plan or state changes; a comment or a Kanban record waiting for export never touches those files. */
 export function hasPendingEpicChanges(db: Db, epicId: string): boolean {
   const row = db.get<{ pending: number }>(
-    `SELECT EXISTS (SELECT 1 FROM outbox WHERE epic_id = ? AND kind NOT IN ('comment', 'kanban_card', 'kanban_event')
+    `SELECT EXISTS (SELECT 1 FROM outbox WHERE epic_id = ? AND kind NOT IN ('comment', 'kanban_card', 'kanban_event', 'attachment')
            AND state IN ('pending', 'failed'))
          OR EXISTS (SELECT 1 FROM plan_revisions WHERE epic_id = ? AND state = 'pending') AS pending`,
     epicId,

@@ -14,6 +14,7 @@ import {
   MessageChannelMain,
   net,
   powerSaveBlocker,
+  protocol,
   safeStorage,
   shell,
   type IpcMain,
@@ -84,6 +85,7 @@ import {
   type CustomAgents
 } from './customAgent'
 import { registerDesktopIpc } from './ipc'
+import { createAttachmentLookup, registerAttachmentProtocol } from './attachmentProtocol'
 import { buildCliConfig, type CliLaunch } from './cliConfig'
 import { buildMcpConfig } from './mcpConfig'
 import { claudeCodeServer } from './mcpJson'
@@ -559,6 +561,17 @@ function startGithub(ipc: Pick<IpcMain, 'handle'>): GithubBridge {
   registerGithubIpc(ipc, handlers)
   return { getAccount: session.getAccount, getToken: session.getToken, client }
 }
+/** Serves stored images to the window (`dm-attachment:`), each read through its folder's own workspace. */
+function startAttachmentProtocol(registry: FolderRegistry, pool: WorkspacePool): void {
+  registerAttachmentProtocol(
+    protocol,
+    createAttachmentLookup({
+      pathForKey: (key) => registry.pathForKey(key),
+      contextFor: (path) => pool.get(path).ctx()
+    })
+  )
+}
+
 /**
  * Registers the `dm:*`, `agents:*`, `chats:*`, `terminals:*`, `git:*` and `github:*` IPC handlers on `ipc`
  * (the sender-guarded registrar from `guardIpc`) and the background heartbeat/shutdown for open workspaces.
@@ -606,6 +619,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
     }
   })
   registerDesktopIpc(ipc, handlers)
+  startAttachmentProtocol(registry, pool)
   refreshClaudeCodeEntries(registry)
   const close = runLifecycle(pool, appDb)
   startChats(ipc, { folders: registry, agents, chats, store, terminals, workspaces: pool, activity })

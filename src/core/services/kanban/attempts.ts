@@ -27,6 +27,7 @@ import type { Ctx } from '../../context'
 import { parseJson, toJson } from '../../db/database'
 import { fail } from '../../errors'
 import { LIMITS } from '../../schemas'
+import { claimEvidenceAttachments } from '../attachments'
 import { heartbeatIntervalSeconds, maskNote, normalizeEvidence, normalizeOutputs, verifyClaimToken } from '../attempts'
 import { appendEvent } from '../events'
 import { guardUnique } from '../execution'
@@ -358,7 +359,8 @@ export function submitKanbanCard(ctx: Ctx, input: SubmitKanbanCardInput): Kanban
     verifyCardClaim(ctx, row, input.claimToken)
     const claim = { token: input.claimToken, secret: row.claim_secret }
     const outputs = maskedReport(normalizeOutputs(input.outputs), claim)
-    const evidence = maskedReport(normalizeEvidence(input.evidence), claim)
+    // Claimed in this transaction: a refused image refuses the whole submission.
+    const evidence = maskedReport(normalizeEvidence(claimEvidenceAttachments(ctx, input.evidence, { kind: 'kanban_attempt', id: row.id })), claim)
     const now = ctx.clock.nowIso()
     ctx.db.run(
       `UPDATE kanban_attempts SET state = 'submitted', outputs_json = ?, evidence_json = ?, submitted_at = ?,

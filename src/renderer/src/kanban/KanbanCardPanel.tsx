@@ -19,6 +19,8 @@ import '../ticket/ticket.css'
 
 interface KanbanCardPanelProps {
   folderPath: string
+  /** The folder's attachment key, which addresses the card's evidence images. */
+  folderKey: string
   cardId: string
   /** The folder's event token: the open card is read again whenever it moves. */
   refreshToken: number
@@ -130,7 +132,7 @@ function KickBackHistory({ attempts }: { attempts: KanbanAttemptView[] }): JSX.E
   )
 }
 
-function CardDetails({ card }: { card: KanbanCardView }): JSX.Element {
+function CardDetails({ card, folderKey }: { card: KanbanCardView; folderKey: string }): JSX.Element {
   const attempts = card.attempts.map((attempt) => asAttemptView(attempt, card.summary))
   const checklist = criteriaChecklist(card, attempts)
   const evidence = evidenceView(card, attempts)
@@ -153,7 +155,7 @@ function CardDetails({ card }: { card: KanbanCardView }): JSX.Element {
           </ul>
         </section>
       )}
-      {evidence === null ? null : <EvidenceSections evidence={evidence} />}
+      {evidence === null ? null : <EvidenceSections evidence={evidence} folderKey={folderKey} />}
       <KickBackHistory attempts={card.attempts} />
       <section className="tp-section" aria-label="Attempts">
         <h3 className="ew-eyebrow">ATTEMPTS</h3>
@@ -240,6 +242,7 @@ function ReviewControls({ folderPath, card, onReviewed }: ReviewProps): JSX.Elem
 
 interface CardBodyProps {
   folderPath: string
+  folderKey: string
   card: KanbanCardView
   host: OrchestrationHost
   onPlay(): void
@@ -247,7 +250,7 @@ interface CardBodyProps {
 }
 
 /** The loaded card: title, Play and the chat link, review controls, the Done summary, then the details. */
-function CardBody({ folderPath, card, host, onPlay, onReviewed }: CardBodyProps): JSX.Element {
+function CardBody({ folderPath, folderKey, card, host, onPlay, onReviewed }: CardBodyProps): JSX.Element {
   // The card's newest chat: the one the last Play started, which a kick-back is pasted into.
   const chat = host.chats
     .filter((item) => item.cardId === card.id)
@@ -265,7 +268,7 @@ function CardBody({ folderPath, card, host, onPlay, onReviewed }: CardBodyProps)
       </div>
       {card.lane === 'ready_for_review' ? <ReviewControls folderPath={folderPath} card={card} onReviewed={onReviewed} /> : null}
       {card.summary === null ? null : <DoneSummary summary={card.summary} />}
-      <CardDetails card={card} />
+      <CardDetails card={card} folderKey={folderKey} />
     </>
   )
 }
@@ -291,7 +294,7 @@ function PanelHead({ card, onClose }: { card: KanbanCardView | null; onClose(): 
  * opened. Play starts an agent on it; a card in Ready for review is approved or kicked back here. A Done
  * card leads with its compact summary.
  */
-export function KanbanCardPanel({ folderPath, cardId, refreshToken, host, onChanged, onClose }: KanbanCardPanelProps): JSX.Element {
+export function KanbanCardPanel({ folderPath, folderKey, cardId, refreshToken, host, onChanged, onClose }: KanbanCardPanelProps): JSX.Element {
   const { card, error, setCard } = useCard(folderPath, cardId, refreshToken)
   const [playing, setPlaying] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -306,7 +309,7 @@ export function KanbanCardPanel({ folderPath, cardId, refreshToken, host, onChan
       {error === null ? null : <p role="alert" className="tp-error">{`Could not read the card: ${error}`}</p>}
       {notice === null ? null : <p role="status" className="kanban-note">{notice}</p>}
       {card !== null ? (
-        <CardBody folderPath={folderPath} card={card} host={host} onPlay={() => setPlaying(true)} onReviewed={changed} />
+        <CardBody folderPath={folderPath} folderKey={folderKey} card={card} host={host} onPlay={() => setPlaying(true)} onReviewed={changed} />
       ) : error === null ? (
         <p className="kanban-note">Loading the card…</p>
       ) : null}

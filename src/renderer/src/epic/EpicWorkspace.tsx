@@ -213,6 +213,7 @@ function SidePanel({ ws }: { ws: WorkspaceHandle }): JSX.Element | null {
       key={ticketId}
       runner={ws.runner}
       folderPath={ws.folder.path}
+      folderKey={ws.folder.attachmentKey}
       activity={ws.state.activity}
       scheduler={ws.scheduler}
       epicId={ws.epicId}

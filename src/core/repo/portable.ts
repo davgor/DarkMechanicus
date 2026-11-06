@@ -17,6 +17,7 @@ import { fail } from '../errors'
 import { type IdKind, isStableId, STABLE_ID_PATTERN } from '../ids'
 import {
   artifactRef,
+  attachmentRef,
   capabilityProfile,
   checkResult,
   commentBody,
@@ -221,7 +222,9 @@ const attemptOutputs = z.strictObject({
 const attemptEvidence = z.strictObject({
   checks: z.array(checkResult).max(LIMITS.listItems).default([]),
   criteria: criterionResults.default([]),
-  notes: markdown.default('')
+  notes: markdown.default(''),
+  // No default: evidence written before attachments existed must parse and re-export byte for byte.
+  attachments: z.array(attachmentRef).max(LIMITS.attachmentsPerRecord).optional()
 })
 
 const attemptFailure = z.strictObject({

@@ -1,0 +1,6 @@
+c6 evidence
+Built app (file://, out/renderer/index.html): CSP meta = default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data: dm-attachment:; object-src 'none'; base-uri 'none'  (no file:)
+  Gallery <img> src = dm-attachment://<folderKey>/im_..., naturalWidth 640 (c7-*.png, c4-*.png)
+Dev mode (electron-vite dev, http://localhost:5173): CSP meta img-src 'self' data: dm-attachment:  (no file:)
+  Gallery <img> src = dm-attachment://<folderKey>/im_..., naturalWidth 640 (c6-dev-mode-evidence-dm-attachment.png)
+Defect found and fixed in this node: before commit b3f5aa8 the images were "Image missing" in the built app (defect-before-fix-evidence-tab-image-missing.png): pool.get(path).ctx is not a function.

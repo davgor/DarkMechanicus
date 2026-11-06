@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import type { KanbanPacket } from '../../../shared/domain/kanban'
 import type { DefinitionOfDoneCheck, SessionRole } from '../../../shared/domain/views'
@@ -5,6 +6,7 @@ import { captureError } from '../../../test/authoring'
 import { createSequentialIds, createTestCtx, type TestCtx, withRole } from '../../../test/testContext'
 import type { IdGenerator } from '../../ids'
 import { LIMITS } from '../../schemas'
+import { createStagedAttachment, getAttachment } from '../attachments'
 import {
   approveKanbanCard,
   claimKanbanCard,
@@ -109,6 +111,51 @@ function workspaceEvents(ctx: TestCtx): { kind: string; epicId: string | null; c
       return { kind: row.kind, epicId: row.epic_id, cardId }
     })
 }
+
+/** A staged PNG whose bytes differ by `seed`, staged by the worker. */
+function stagedPng(ctx: TestCtx, seed: number): string {
+  const bytes = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from([seed, 0x09, 0x08, 0x07])])
+  return createStagedAttachment(ctx, {
+    bytes,
+    sha256: createHash('sha256').update(bytes).digest('hex'),
+    mime: 'image/png',
+    width: 16,
+    height: 9,
+    label: `card shot ${seed}`,
+    purpose: 'evidence'
+  }).id
+}
+
+describe('submitKanbanCard — attachments', () => {
+  it('claims the named images for the card attempt and stores their references as evidence', () => {
+    const ctx = board()
+    const packet = claimedCard(ctx)
+    const first = stagedPng(ctx.worker, 1)
+    const second = stagedPng(ctx.worker, 2)
+    const view = submitKanbanCard(ctx.worker, {
+      attemptId: packet.attemptId,
+      claimToken: token(packet),
+      outputs: { summary: 'Shots attached' },
+      evidence: { attachments: [first, second] }
+    })
+    expect(view.evidence?.attachments?.map((ref) => ref.id)).toEqual([first, second])
+    expect(getAttachment(ctx.worker, first).owner).toEqual({ kind: 'kanban_attempt', id: packet.attemptId })
+    expect(getAttachment(ctx.worker, second).owner).toEqual({ kind: 'kanban_attempt', id: packet.attemptId })
+  })
+
+  it('refuses the whole submission for an unknown id: the card stays unsubmitted and the staged image stays claimable', () => {
+    const ctx = board()
+    const packet = claimedCard(ctx)
+    const staged = stagedPng(ctx.worker, 3)
+    const unknown = ctx.worker.ids.next('attachment')
+    const submission = { attemptId: packet.attemptId, claimToken: token(packet), outputs: { summary: 'Shots attached' } }
+    expect(captureError(() => submitKanbanCard(ctx.worker, { ...submission, evidence: { attachments: [staged, unknown] } })).code).toBe('not_found')
+    expect(getAttachment(ctx.worker, staged).owner).toBeNull()
+    expect(ctx.worker.db.get<{ state: string }>('SELECT state FROM kanban_attempts WHERE id = ?', packet.attemptId)).toEqual({ state: 'claimed' })
+    submitKanbanCard(ctx.worker, { ...submission, evidence: { attachments: [staged] } })
+    expect(getAttachment(ctx.worker, staged).owner).toEqual({ kind: 'kanban_attempt', id: packet.attemptId })
+  })
+})
 
 describe('a card from Backlog to Done', () => {
   it('plays, claims, submits and approves a card, compacting it into its Done summary', () => {

@@ -1,0 +1,87 @@
+# dm --list (built CLI, out/main/cli.js)
+{"command": "add_attachment", "alias": "addAttachment", "capability": "attachment.write", "mutates": true, "beforeInitialize": false}
+{"command": "get_attachment", "alias": "getAttachment", "capability": "read", "mutates": false, "beforeInitialize": false}
+
+# Notes: ~/.ssh/known_hosts does not exist on this machine, so that exact path is refused as 'does not exist'. The policy refusal (outside the allowed folders) is shown for the existing sibling .ssh/id_ed25519.pub (never read; refused before any read). A real file symlink cannot be created here (Administrator privilege required); the Windows directory junction (a reparse point) is refused as 'a symbolic link'. A file reached through the junction is refused by content type (not a PNG).
+# Pictures/Screenshots: one existing file there was attached read-only (not opened or committed).
+
+$ dm call add_attachment {"path":"C:\\Users\\davgo\\Pictures\\Screenshots\\Screenshot 2026-05-21 182424.png","label":"from Pictures Screenshots","purpose":"evidence"}
+{
+  "ok": true,
+  "data": {
+    "id": "im_01m6q66dnj3scj6xyxvnnkt5h8",
+    "sha256": "a3f8fb579747ef8eb51279358886693bb74d25ceef5ae47865530edf8fd893a9",
+    "mime": "image/png",
+    "bytes": 62353,
+    "width": 462,
+    "height": 278,
+    "label": "from Pictures Screenshots",
+    "purpose": "evidence",
+    "owner": null,
+    "missing": false,
+    "createdBy": {
+      "role": "worker",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T01:05:00.082Z"
+  }
+}
+exit=0
+$ dm call add_attachment {"path":"C:\\Users\\davgo\\AppData\\Local\\Temp\\dm-accept-evidence-b.png","label":"temp B","purpose":"evidence"}
+{
+  "ok": true,
+  "data": {
+    "id": "im_01m6q66e0388jmfkmsxfqc0tn3",
+    "sha256": "0f1452d868773aabd82acb1dcb283df816249bc166e14dc5d12c80dab77157f8",
+    "mime": "image/png",
+    "bytes": 9917,
+    "width": 640,
+    "height": 360,
+    "label": "temp B",
+    "purpose": "evidence",
+    "owner": null,
+    "missing": false,
+    "createdBy": {
+      "role": "worker",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T01:05:00.419Z"
+  }
+}
+exit=0
+$ dm call add_attachment {"path":"C:\\Users\\davgo\\.ssh\\known_hosts","label":"x","purpose":"evidence"}
+{
+  "ok": false,
+  "error": {
+    "code": "invalid_input",
+    "message": "Image file cannot be read: it does not exist or is not accessible."
+  }
+}
+exit=1
+$ dm call add_attachment {"path":"C:\\Users\\davgo\\.ssh\\id_ed25519.pub","label":"x","purpose":"evidence"}
+{
+  "ok": false,
+  "error": {
+    "code": "invalid_input",
+    "message": "Image path is outside the allowed folders (project root, worktrees, temp folder, screenshot folder)."
+  }
+}
+exit=1
+$ dm call add_attachment {"path":"C:\\Users\\davgo\\AppData\\Local\\Temp\\dm-accept-link","label":"junction","purpose":"evidence"}
+{
+  "ok": false,
+  "error": {
+    "code": "invalid_input",
+    "message": "Image path is a symbolic link; attach the real file instead."
+  }
+}
+exit=1
+$ dm call add_attachment {"path":"C:\\Users\\davgo\\AppData\\Local\\Temp\\dm-accept-link\\cdp.mjs","label":"file via junction","purpose":"evidence"}
+{
+  "ok": false,
+  "error": {
+    "code": "invalid_input",
+    "message": "Unsupported image type: only PNG and JPEG are accepted (SVG and other files are refused)."
+  }
+}
+exit=1

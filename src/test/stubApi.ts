@@ -54,6 +54,8 @@ const COMMAND_FLAGS: Record<CommandName, true> = {
   getTicket: true,
   setTicketStatus: true,
   deleteTicket: true,
+  addAttachment: true,
+  getAttachment: true,
   addComment: true,
   listComments: true,
   createKanbanCard: true,

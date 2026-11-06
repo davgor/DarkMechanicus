@@ -28,6 +28,12 @@ export interface MemoryFs extends FsAdapter {
   removeTree(path: string): void
   /** Test inspection: file contents at a path (following links), or undefined. */
   get(path: string): string | undefined
+  /** Test inspection: a file's bytes (text files as UTF-8), or undefined. */
+  getBytes(path: string): Buffer | undefined
+  /** Test setup: writes a binary file, creating parent directories (no faults, not logged). */
+  putBytes(path: string, data: Uint8Array): void
+  /** Whether the file at `path` was written as bytes (its text form is a Latin-1 view, not its content). */
+  isBinary(path: string): boolean
   symlink(path: string, target: string): void
   /** A redirect that `isSymlink` does not report (like a reparse point the OS hides). */
   junction(path: string, target: string): void
@@ -61,6 +67,8 @@ class MemoryFsImpl implements MemoryFs {
   readonly reads: string[] = []
   readonly writes: string[] = []
   private readonly fileMap = new Map<string, string>()
+  /** Paths whose content is binary, kept in `fileMap` as a Latin-1 string so each byte is one character. */
+  private readonly binary = new Set<string>()
   private readonly dirSet = new Set<string>()
   private readonly links = new Map<string, string>()
   private readonly junctions = new Map<string, string>()
@@ -132,8 +140,13 @@ class MemoryFsImpl implements MemoryFs {
     }
   }
 
-  private setFile(path: string, text: string): void {
+  private setFile(path: string, text: string, binary = false): void {
     this.fileMap.set(path, text)
+    if (binary) {
+      this.binary.add(path)
+    } else {
+      this.binary.delete(path)
+    }
     this.writeCount += 1
     this.versions.set(path, this.writeCount)
   }
@@ -148,6 +161,10 @@ class MemoryFsImpl implements MemoryFs {
     if (!this.dirSet.has(dirname(path))) {
       throw fsError('ENOENT', path)
     }
+  }
+
+  private lengthOf(target: string, content: string): number {
+    return Buffer.byteLength(content, this.binary.has(target) ? 'latin1' : 'utf8')
   }
 
   exists(path: string): boolean {
@@ -170,12 +187,23 @@ class MemoryFsImpl implements MemoryFs {
     return content
   }
 
+  readFileBytes(path: string): Uint8Array {
+    this.fault('readFile', path)
+    const target = this.follow(path)
+    this.reads.push(target)
+    const content = this.fileMap.get(target)
+    if (content === undefined) {
+      throw fsError(this.dirSet.has(target) ? 'EISDIR' : 'ENOENT', path)
+    }
+    return new Uint8Array(Buffer.from(content, this.binary.has(target) ? 'latin1' : 'utf8'))
+  }
+
   fileSize(path: string): number {
     const target = this.follow(path)
     this.reads.push(target)
     const content = this.fileMap.get(target)
     if (content !== undefined) {
-      return this.sizes.get(target) ?? Buffer.byteLength(content, 'utf8')
+      return this.sizes.get(target) ?? this.lengthOf(target, content)
     }
     return this.dirSet.has(target) ? 0 : -1
   }
@@ -188,7 +216,7 @@ class MemoryFsImpl implements MemoryFs {
     if (content === undefined) {
       return null
     }
-    return `${this.sizes.get(target) ?? Buffer.byteLength(content, 'utf8')}:${this.versions.get(target) ?? 0}`
+    return `${this.sizes.get(target) ?? this.lengthOf(target, content)}:${this.versions.get(target) ?? 0}`
   }
 
   writeFile(path: string, data: string): void {
@@ -199,6 +227,17 @@ class MemoryFsImpl implements MemoryFs {
       throw fsError('EISDIR', path)
     }
     this.setFile(target, data)
+    this.writes.push(target)
+  }
+
+  writeFileBytes(path: string, data: Uint8Array): void {
+    this.fault('writeFile', path)
+    const target = this.follow(path)
+    this.requireParent(target)
+    if (this.dirSet.has(target)) {
+      throw fsError('EISDIR', path)
+    }
+    this.setFile(target, Buffer.from(data).toString('latin1'), true)
     this.writes.push(target)
   }
 
@@ -221,9 +260,11 @@ class MemoryFsImpl implements MemoryFs {
     if (this.dirSet.has(target)) {
       throw fsError('EISDIR', to)
     }
+    const wasBinary = this.binary.has(source)
     this.links.delete(target)
     this.fileMap.delete(source)
-    this.setFile(target, content)
+    this.binary.delete(source)
+    this.setFile(target, content, wasBinary)
     this.writes.push(target)
   }
 
@@ -280,6 +321,7 @@ class MemoryFsImpl implements MemoryFs {
     }
     this.links.delete(target)
     this.fileMap.delete(target)
+    this.binary.delete(target)
     this.writes.push(target)
   }
 
@@ -303,10 +345,33 @@ class MemoryFsImpl implements MemoryFs {
     this.setFile(this.follow(path), text)
   }
 
+  putBytes(path: string, data: Uint8Array): void {
+    this.ensureDirs(dirname(resolve(path)), false)
+    this.setFile(this.follow(path), Buffer.from(data).toString('latin1'), true)
+  }
+
+  isBinary(path: string): boolean {
+    try {
+      return this.binary.has(this.follow(path))
+    } catch {
+      return false
+    }
+  }
+
+  getBytes(path: string): Buffer | undefined {
+    try {
+      const target = this.follow(path)
+      const content = this.fileMap.get(target)
+      return content === undefined ? undefined : Buffer.from(content, this.binary.has(target) ? 'latin1' : 'utf8')
+    } catch {
+      return undefined
+    }
+  }
+
   removeTree(path: string): void {
     const root = resolve(path)
     const inside = (candidate: string): boolean => candidate === root || candidate.startsWith(`${root}${sep}`)
-    for (const collection of [this.fileMap, this.links, this.junctions, this.listings, this.sizes, this.versions]) {
+    for (const collection of [this.fileMap, this.binary, this.links, this.junctions, this.listings, this.sizes, this.versions]) {
       for (const key of [...collection.keys()].filter(inside)) {
         collection.delete(key)
       }

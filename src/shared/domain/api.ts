@@ -31,7 +31,10 @@ import type { WorkStatus } from './status'
 import type {
   ApprovalView,
   ApproveWithRedraftResultView,
-  AttemptEvidence,
+  AttachmentFileView,
+  AttachmentPurpose,
+  AttachmentView,
+  AttemptEvidenceSubmission,
   AttemptFailure,
   AttemptOutputs,
   AttemptView,
@@ -197,7 +200,7 @@ export interface SubmitAttemptInput {
   attemptId: string
   claimToken: string
   outputs: Partial<AttemptOutputs> & { summary: string }
-  evidence?: Partial<AttemptEvidence>
+  evidence?: AttemptEvidenceSubmission
   /**
    * Acceptance nodes only. The server verifies the increment when the submission arrives and stores
    * the verdict, whether it passed or not; a work ticket that names one is refused. A single repository only.
@@ -237,6 +240,20 @@ export interface RecordRowCheckInput {
   commit: string
   checks: { name: string; status: 'passed' | 'failed' | 'skipped'; detail?: string }[]
   idempotencyKey?: string
+}
+
+/** An image from a local path the caller's machine can read. Its size, type and dimensions come from the file itself. */
+interface AddAttachmentInput {
+  /** Absolute, or relative to the caller's working folder. Must sit in an allowed folder (see the attachments intake). */
+  path: string
+  label: string
+  purpose: AttachmentPurpose
+}
+
+interface GetAttachmentInput {
+  attachmentId: string
+  /** `file` writes the bytes to a temporary file and returns its path too. */
+  as: 'metadata' | 'file'
 }
 
 export interface AddCommentInput {
@@ -301,7 +318,7 @@ export interface SubmitKanbanCardInput {
   attemptId: string
   claimToken: string
   outputs: Partial<AttemptOutputs> & { summary: string }
-  evidence?: Partial<AttemptEvidence>
+  evidence?: AttemptEvidenceSubmission
   idempotencyKey?: string
 }
 
@@ -453,6 +470,11 @@ export interface CommandApi {
    */
   deleteTicket(input: { epicId: string; ticketId: string }): Promise<SaveResultView>
 
+  // Image attachments (PNG or JPEG). A staged image is claimed by the record it is attached to.
+  /** Refused on the desktop transport. Stages the image as read from an allowed folder and returns its metadata. */
+  addAttachment(input: AddAttachmentInput): Promise<AttachmentView>
+  getAttachment(input: GetAttachmentInput): Promise<AttachmentView | AttachmentFileView>
+
   // Comments (append-only; the author is the calling session)
   addComment(input: AddCommentInput): Promise<CommentView>
   /** Oldest first. Without ticketId: every comment of the epic, epic-level and ticket-level. */
@@ -534,7 +556,7 @@ export interface CommandApi {
     attemptId: string
     resolution: 'abandon' | 'resubmit'
     outputs?: Partial<AttemptOutputs> & { summary: string }
-    evidence?: Partial<AttemptEvidence>
+    evidence?: AttemptEvidenceSubmission
     notes?: string
   }): Promise<AttemptView>
   carryForwardTicket(input: { runId: string; ticketId: string; note: string }): Promise<AttemptView>

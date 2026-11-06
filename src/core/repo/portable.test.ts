@@ -824,6 +824,39 @@ describe('run history worker efforts', () => {
   })
 })
 
+describe('run history attachments', () => {
+  const REF = {
+    id: idOf('attachment', 1),
+    sha256: 'a'.repeat(64),
+    mime: 'image/png',
+    bytes: 10,
+    width: 4,
+    height: 3,
+    label: 'shot',
+    purpose: 'evidence'
+  }
+
+  it('parses evidence that names no attachments, with no attachments key', () => {
+    const text = prettyJson(runRecord([{ ...(attempt(1, 1, 'accepted') as object), evidence: { checks: [], criteria: [], notes: 'ok' } }]))
+    const record = parseRecord(runHistoryRecord, text, 'run.json')
+    expect(record.attempts[0]?.evidence).toEqual({ checks: [], criteria: [], notes: 'ok' })
+  })
+
+  it('round-trips the references an attempt carries', () => {
+    const text = prettyJson(runRecord([{ ...(attempt(1, 1, 'accepted') as object), evidence: { checks: [], criteria: [], notes: '', attachments: [REF] } }]))
+    const record = parseRecord(runHistoryRecord, text, 'run.json')
+    expect(record.attempts[0]?.evidence?.attachments).toEqual([REF])
+    expect(parseRecord(runHistoryRecord, prettyJson(record), 'run.json')).toEqual(record)
+  })
+
+  it('refuses a reference with bytes stored in the record', () => {
+    const text = prettyJson(
+      runRecord([{ ...(attempt(1, 1, 'accepted') as object), evidence: { checks: [], criteria: [], notes: '', attachments: [{ ...REF, data: 'AAAA' }] } }])
+    )
+    expect(domainErrorOf(() => parseRecord(runHistoryRecord, text, 'run.json')).code).toBe('import_rejected')
+  })
+})
+
 const RK1 = idOf('rowCheck', 1)
 const RK2 = idOf('rowCheck', 2)
 const ROW_COMMIT = 'abcdef0123456789abcdef0123456789abcdef01'

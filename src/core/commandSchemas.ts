@@ -4,6 +4,8 @@ import { repositoryName } from './repo/portable'
 import { STORAGE_MODES } from './repo/storageMode'
 import { MAX_GRANT_MINUTES, MIN_GRANT_MINUTES } from './services/grants'
 import {
+  attachmentPurpose,
+  attachmentRef,
   attemptEvidenceInput,
   attemptOutputsInput,
   capabilityProfile,
@@ -129,6 +131,12 @@ export const COMMAND_SCHEMAS = {
   getTicket: z.strictObject({ epicId: stableId, ticketId: entityRef, view }),
   setTicketStatus: z.strictObject({ ticketId: stableId, status: workStatus, expectedRevision: revision.optional() }),
   deleteTicket: z.strictObject({ epicId: stableId, ticketId: stableId }),
+  addAttachment: z.strictObject({
+    path: z.string().min(1).max(4096),
+    label: z.string().max(LIMITS.label),
+    purpose: attachmentPurpose
+  }),
+  getAttachment: z.strictObject({ attachmentId: attachmentRef.shape.id, as: z.enum(['metadata', 'file']) }),
   addComment: z.strictObject({ epicId: stableId, ticketId: stableId.optional(), body: commentBody, idempotencyKey }),
   listComments: z.strictObject({ epicId: stableId, ticketId: stableId.optional() }),
   createKanbanCard: z.strictObject({ ...kanbanCardFields, size: z.enum(TICKET_SIZES).optional(), idempotencyKey }),

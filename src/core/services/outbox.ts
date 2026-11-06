@@ -1,6 +1,6 @@
 import type { Ctx } from '../context'
 
-export type OutboxKind = 'snapshot' | 'epic_state' | 'run_history' | 'comment' | 'profile' | 'kanban_card' | 'kanban_event'
+export type OutboxKind = 'snapshot' | 'epic_state' | 'run_history' | 'comment' | 'profile' | 'kanban_card' | 'kanban_event' | 'attachment'
 
 /** Kanban records belong to no epic: an epic-scoped flush never writes them, and they never hold an epic's export back. */
 export const KANBAN_OUTBOX_KINDS: readonly OutboxKind[] = ['kanban_card', 'kanban_event']

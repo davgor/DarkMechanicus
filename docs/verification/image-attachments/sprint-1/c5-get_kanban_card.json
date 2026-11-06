@@ -1,0 +1,85 @@
+{
+  "ok": true,
+  "data": {
+    "id": "kc_01m6q6abnfeyjw97vzcfsyz6pr",
+    "key": "REP-5",
+    "title": "Card with screenshots",
+    "lane": "ready_for_review",
+    "priority": "normal",
+    "updatedAt": "2026-11-06T01:07:10.021Z",
+    "playPending": false,
+    "openAttempt": {
+      "number": 1,
+      "state": "submitted"
+    },
+    "kickBackCount": 0,
+    "summary": null,
+    "body": "Kanban evidence demo",
+    "acceptanceCriteria": [
+      {
+        "id": "c1",
+        "text": "Shows two screenshots"
+      }
+    ],
+    "expectedArtifacts": [],
+    "references": [],
+    "size": null,
+    "createdBy": {
+      "role": "orchestrator",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T01:07:09.103Z",
+    "completedAt": null,
+    "revision": 1,
+    "attempts": [
+      {
+        "id": "ka_01m6q6abx5aeq0bcfg2psrts1y",
+        "cardId": "kc_01m6q6abnfeyjw97vzcfsyz6pr",
+        "number": 1,
+        "state": "submitted",
+        "machineId": "mc_01m6q61bmgh5p2p5tsj9rqx4zj",
+        "leaseExpiresAt": null,
+        "heartbeatAt": null,
+        "progressNote": null,
+        "outputs": {
+          "summary": "done with screenshots",
+          "artifacts": [],
+          "commits": [],
+          "changedFiles": [],
+          "branch": null
+        },
+        "evidence": {
+          "checks": [],
+          "criteria": [],
+          "notes": "card shots",
+          "attachments": [
+            {
+              "id": "im_01m6q6ac53y8ms2pc6kc8m78s2",
+              "sha256": "93a9c88223c9ea53b0e2970cc0da286c6c86a45a956d6b8a2d1bc77b953a4d77",
+              "mime": "image/png",
+              "bytes": 10079,
+              "width": 640,
+              "height": 360,
+              "label": "Card shot",
+              "purpose": "evidence"
+            },
+            {
+              "id": "im_01m6q6acc512kq2svwe2chj8ke",
+              "sha256": "2c8244ea5f80064a6e64aa8a8cf348275692f8eb9ee054328622cdaadbb72cce",
+              "mime": "image/png",
+              "bytes": 10069,
+              "width": 640,
+              "height": 360,
+              "label": "Card evidence A",
+              "purpose": "evidence"
+            }
+          ]
+        },
+        "reviewComment": null,
+        "createdAt": "2026-11-06T01:07:09.349Z",
+        "submittedAt": "2026-11-06T01:07:10.021Z",
+        "decidedAt": null
+      }
+    ]
+  }
+}

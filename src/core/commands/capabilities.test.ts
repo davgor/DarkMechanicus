@@ -109,6 +109,8 @@ const PROBES: Record<CommandName, unknown> = {
   listEvents: {},
   getAttemptTimeline: { attemptId: ATTEMPT },
   getRunTimeline: { runId: RUN },
+  addAttachment: { path: '/no/such/probe.png', label: 'probe', purpose: 'evidence' },
+  getAttachment: { attachmentId: probeId('attachment'), as: 'metadata' },
   addComment: { epicId: EPIC, body: 'probe' },
   listComments: { epicId: EPIC },
   createKanbanCard: { title: 'Probe card' },
@@ -187,8 +189,13 @@ describe('declared command capabilities match what the services enforce', () => 
     const lacking = COMMAND_NAMES.filter((name) => !held.has(COMMAND_CAPABILITIES[name]))
     expect(refused).toEqual(lacking)
     // The probe project is a single repository, which an authorized rescan refuses as having nothing to rescan.
+    // The probe image path does not exist, so an authorized add stops at reading the file.
     const invalid = COMMAND_NAMES.filter((name) => outcomes.get(name) === 'invalid_input')
-    expect(invalid).toEqual(held.has('project.repositories') ? ['rescanRepositories'] : [])
+    const expectedInvalid = [
+      ...(held.has('project.repositories') ? ['rescanRepositories'] : []),
+      ...(held.has('attachment.write') ? ['addAttachment'] : [])
+    ]
+    expect(invalid).toEqual(expectedInvalid)
   })
 })
 

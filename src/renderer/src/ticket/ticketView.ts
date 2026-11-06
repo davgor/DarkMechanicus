@@ -9,7 +9,15 @@ import type {
   ToolCapability,
   WorkType
 } from '../../../shared/domain/bundle'
-import type { AttemptView, CheckStatus, EventView, TicketDetailView, TicketLinkView } from '../../../shared/domain/views'
+import type {
+  AttachmentRef,
+  AttemptOutputs,
+  AttemptView,
+  CheckStatus,
+  EventView,
+  TicketDetailView,
+  TicketLinkView
+} from '../../../shared/domain/views'
 import { formatAgo, formatCountdown } from '../epic/time'
 import {
   ATTEMPT_LABELS,
@@ -114,6 +122,10 @@ export interface EvidenceView {
   checks: { name: string; status: CheckStatus; detail: string; icon: string }[]
   criteria: { text: string; met: boolean; note: string }[]
   notes: string
+  /** The images the same attempt attached as evidence; empty when it attached none. */
+  attachments: AttachmentRef[]
+  /** The output artifacts the same attempt named; empty when it named none. */
+  artifacts: AttemptOutputs['artifacts']
 }
 
 interface HistoryItem {
@@ -314,7 +326,9 @@ export function evidenceView(ticket: Pick<TicketContent, 'acceptanceCriteria'>, 
       met: result.met,
       note: result.note
     })),
-    notes: evidence.notes
+    notes: evidence.notes,
+    attachments: evidence.attachments ?? [],
+    artifacts: source.outputs?.artifacts ?? []
   }
 }
 

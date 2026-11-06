@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { PlanBundle, TicketContent } from '../../shared/domain/bundle'
@@ -30,6 +31,7 @@ import type { Ctx } from '../context'
 import { openDatabase } from '../db/database'
 import { DomainError } from '../errors'
 import { buildRunHistoryRecord, buildSnapshotRecord } from '../repo/portable'
+import { claimAttachments, createStagedAttachment, getAttachment } from './attachments'
 import { acceptAttempt, failAttempt, heartbeatAttempt, reconcileAttempt, submitAttempt } from './attempts'
 import { listEvents, MAX_EVENT_PAGE } from './events'
 import { attemptView } from './execution'
@@ -675,6 +677,82 @@ describe('submitAttempt', () => {
     const { runId } = startedRun(ctx, { bundle: makeBundle([[1, 2]], [[1, 2]]) })
     submitClaim(ctx, claim(ctx, runId, 1))
     expect(errorCode(() => claim(ctx, runId, 2))).toBe('unmet_prerequisite')
+  })
+})
+
+/** A staged PNG whose bytes differ by `seed`. */
+function stagedPng(ctx: TestCtx, seed: number): string {
+  const bytes = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from([seed, 0x01, 0x02, 0x03])])
+  return createStagedAttachment(ctx, {
+    bytes,
+    sha256: createHash('sha256').update(bytes).digest('hex'),
+    mime: 'image/png',
+    width: 12,
+    height: 8,
+    label: `shot ${seed}`,
+    purpose: 'evidence'
+  }).id
+}
+
+describe('submitAttempt — attachments', () => {
+  it('claims the named images for the attempt and stores their references as evidence', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx, { bundle: makeBundle([[1, 2]], [[1, 2]]) })
+    const claimed = claim(ctx, runId, 1)
+    const first = stagedPng(ctx, 1)
+    const second = stagedPng(ctx, 2)
+    const view = submitClaim(withRole(ctx, 'worker'), claimed, { evidence: { notes: 'Two shots', attachments: [first, second] } })
+    expect(view.evidence).toMatchObject({ notes: 'Two shots' })
+    expect(view.evidence?.attachments?.map((ref) => ref.id)).toEqual([first, second])
+    expect(view.evidence?.attachments?.[0]).toEqual({
+      id: first,
+      sha256: getAttachment(ctx, first).sha256,
+      mime: 'image/png',
+      bytes: getAttachment(ctx, first).bytes,
+      width: 12,
+      height: 8,
+      label: 'shot 1',
+      purpose: 'evidence'
+    })
+    expect(getAttachment(ctx, first).owner).toEqual({ kind: 'attempt', id: claimed.attempt.id })
+    expect(getAttachment(ctx, second).owner).toEqual({ kind: 'attempt', id: claimed.attempt.id })
+  })
+
+})
+
+describe('submitAttempt — attachment refusals', () => {
+  it('refuses the whole submission for an unknown id, stores nothing, and leaves the staged images claimable', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx, { bundle: makeBundle([[1, 2]], [[1, 2]]) })
+    const claimed = claim(ctx, runId, 1)
+    const staged = stagedPng(ctx, 3)
+    const unknown = ctx.ids.next('attachment')
+    expect(errorCode(() => submitClaim(withRole(ctx, 'worker'), claimed, { evidence: { attachments: [staged, unknown] } }))).toBe('not_found')
+    expect(ctx.db.get<{ state: string; evidence_json: string | null }>('SELECT state, evidence_json FROM attempts WHERE id = ?', claimed.attempt.id)).toEqual({
+      state: 'claimed',
+      evidence_json: null
+    })
+    expect(getAttachment(ctx, staged).owner).toBeNull()
+    const view = submitClaim(withRole(ctx, 'worker'), claimed, { evidence: { attachments: [staged] } })
+    expect(view.evidence?.attachments?.map((ref) => ref.id)).toEqual([staged])
+  })
+
+  it('refuses an image another record already owns, and stores nothing', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx, { bundle: makeBundle([[1, 2]], [[1, 2]]) })
+    const claimed = claim(ctx, runId, 1)
+    const owned = stagedPng(ctx, 4)
+    claimAttachments(ctx, [owned], { kind: 'comment', id: ctx.ids.next('comment') })
+    expect(errorCode(() => submitClaim(withRole(ctx, 'worker'), claimed, { evidence: { attachments: [owned] } }))).toBe('conflict')
+    expect(ctx.db.get<{ state: string }>('SELECT state FROM attempts WHERE id = ?', claimed.attempt.id)).toEqual({ state: 'claimed' })
+    expect(getAttachment(ctx, owned).owner?.kind).toBe('comment')
+  })
+
+  it('keeps evidence that names no images exactly as before: no attachments key', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx, { bundle: makeBundle([[1, 2]], [[1, 2]]) })
+    const view = submitClaim(withRole(ctx, 'worker'), claim(ctx, runId, 1), { evidence: { notes: 'No shots' } })
+    expect(view.evidence).toEqual({ checks: [], criteria: [], notes: 'No shots' })
   })
 })
 

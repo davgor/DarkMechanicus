@@ -232,11 +232,11 @@ const SCHEMA_FINGERPRINTS: Record<string, string> = {
   claim_ticket: '4e01c7293527281d',
   heartbeat_attempt: '00ab97ed57813ee0',
   // Changed on purpose: acceptance nodes in a folder of repositories submit `increments`, one per touched repository.
-  submit_attempt: '0be10277b1a6070b',
+  submit_attempt: '25c7bf5f9f8e0d2f',
   accept_attempt: '1f6d74d0987c0a6e',
   reject_attempt: 'a75cbd153cdd82ca',
   fail_attempt: '90e46283afbb645f',
-  reconcile_attempt: '6323339383e6f737',
+  reconcile_attempt: '051d91324e7620e7',
   carry_forward_ticket: '96660ba8e2cc4f98',
   pause_run: 'be49650976f9ddba',
   resume_run: 'd481e0f29f2ca1c1',

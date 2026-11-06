@@ -22,6 +22,8 @@ export interface WorkspaceCore {
   readonly layout: RepoLayout
   readonly fs: FsAdapter
   readonly git: GitAdapter
+  /** How this session reaches the workspace; some commands refuse one transport (the desktop app, for attachments). */
+  readonly transport: 'stdio' | 'desktop' | 'in_process' | 'cli'
   /**
    * The adapter for child repository `repo` of a folder of repositories (cached per name), or `git` for null.
    * Throws `invalid_input` for a name the project does not list or records as missing, and `unsafe_path` for a

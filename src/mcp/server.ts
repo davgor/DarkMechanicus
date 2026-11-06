@@ -3,6 +3,7 @@ import type { CommandApi } from '../shared/domain/api'
 import type { SessionRole } from '../shared/domain/views'
 import { promptName, registerPrompts } from './prompts'
 import { SKILLS } from './skills'
+import { registerAttachmentTools } from './tools/attachments'
 import { registerAuthoringTools } from './tools/authoring'
 import { registerBoardTools } from './tools/board'
 import { registerCheckpointTools } from './tools/checkpoints'
@@ -55,6 +56,7 @@ export function createMcpServer(
   registerExecutionTools(server, api)
   registerCheckpointTools(server, api)
   registerCommentTools(server, api)
+  registerAttachmentTools(server, api)
   registerTransferTools(server, api)
   registerKanbanTools(server, api)
   registerPrompts(server)

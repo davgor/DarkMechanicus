@@ -28,6 +28,7 @@ import { resolveLayout } from './repo/layout'
 import { nodeFs } from './repo/nodeFs'
 import type { ProjectRecord } from './repo/portable'
 import { resolveHomeDir, resolveStorageMode, type StorageMode } from './repo/storageMode'
+import { pruneStagedAttachments } from './services/attachments'
 import { assertGrantUsable, redeemGrant, type RedeemedGrant } from './services/grants'
 import type { FsAdapter, GitAdapter, RepoLayout } from './repo/types'
 import { parseInput } from './schemas'
@@ -84,6 +85,8 @@ export interface Workspace extends CommandApi {
    * that knows which command it wants.
    */
   execute(name: CommandName, input: unknown): Promise<unknown>
+  /** The open store's core context, for a read the desktop serves outside the command table (`dm-attachment:`). Throws when no store is open. */
+  ctx(): Ctx
   close(): void
 }
 
@@ -140,6 +143,10 @@ export class RepositoryWorkspace implements WorkspaceCore {
   readonly clock: Clock
   readonly ids: IdGenerator
   readonly options: OpenWorkspaceOptions
+
+  get transport(): OpenWorkspaceOptions['transport'] {
+    return this.options.transport
+  }
   private store: Store | null = null
   /** What the presented grant conferred, or null for a session that presented none. */
   private granted: RedeemedGrant | null = null
@@ -270,6 +277,8 @@ export class RepositoryWorkspace implements WorkspaceCore {
     const db = openDatabase(this.layout.dbFile)
     try {
       this.store = this.createStore(db, project)
+      // Staged images nobody claimed within the retention window are dropped each time a workspace opens.
+      pruneStagedAttachments(this.store.ctx)
     } catch (error: unknown) {
       db.close()
       throw error
@@ -574,6 +583,7 @@ export function openWorkspace(options: OpenWorkspaceOptions): Workspace {
     isInitialized: () => core.isInitialized(),
     heartbeat: () => core.heartbeat(),
     execute: (name: CommandName, input: unknown) => core.execute(name, input),
+    ctx: () => core.ctx(),
     close: () => core.close()
   }
   return Object.assign(commands, lifecycle) as unknown as Workspace

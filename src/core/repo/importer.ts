@@ -27,6 +27,7 @@ import { findOpenTransfer, type OpenTransfer, TRANSFER_HOLD_PREFIX } from '../se
 import { type FileHashCache, readUnlessSynced } from './fileHashes'
 import { readProject } from './initialize'
 import { assertContained, displayPath, ownedPaths } from './paths'
+import { registerEvidenceAttachments, restoreAttachmentFiles } from './attachmentImport'
 import { applyKanban, type KanbanScan, scanKanban } from './kanbanImport'
 import { applyProfiles, type ProfileScan, scanProfiles } from './profileImport'
 import {
@@ -1151,6 +1152,8 @@ function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultVi
   const staged = applyStaged(deps, plan, now)
   const profileOutcome = applyProfiles(deps.db, profiles, now)
   const kanbanOutcome = applyKanban(deps.db, kanban, now)
+  registerEvidenceAttachments(deps.db, now)
+  const attachmentOutcome = restoreAttachmentFiles(deps)
   storeConflicts(deps.db, plan.conflicts, now)
   const pausedRuns = branchChanged ? pauseActiveRuns(deps, now) : []
   const result: ReconcileResultView = {
@@ -1159,7 +1162,7 @@ function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultVi
     conflicts: plan.conflicts.map((conflict) => ({ epicId: conflict.epicId, message: conflict.message })),
     profileConflicts: profiles.conflicts,
     kanbanConflicts: kanban.conflicts.map((conflict) => ({ cardId: conflict.cardId, message: conflict.message })),
-    rejected: [...staged.rejected, ...profileOutcome.rejected, ...kanbanOutcome.rejected],
+    rejected: [...staged.rejected, ...profileOutcome.rejected, ...kanbanOutcome.rejected, ...attachmentOutcome.rejected],
     branchChanged,
     pausedRuns
   }

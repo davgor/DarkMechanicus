@@ -268,6 +268,7 @@ export function KanbanBoard({ folder, refreshToken, host, onOpenCard }: KanbanBo
             <KanbanCardPanel
               key={selectedId}
               folderPath={folder.path}
+              folderKey={folder.attachmentKey}
               cardId={selectedId}
               refreshToken={refreshToken}
               host={host}

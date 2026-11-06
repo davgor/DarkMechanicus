@@ -19,6 +19,7 @@ import type {
   AssignmentFallback,
   AttemptDecision,
   AttemptEvidence,
+  AttemptEvidenceSubmission,
   AttemptFailure,
   AttemptOutputs,
   AttemptView,
@@ -43,6 +44,7 @@ import { matchProfile } from '../plan/capabilities'
 import { LIMITS } from '../schemas'
 import type { ExecutionSnapshot } from '../plan/readiness'
 import { appendEvent, appendProgressNote } from './events'
+import { claimEvidenceAttachments } from './attachments'
 import {
   advanceTicketStatus,
   type AttemptRow,
@@ -147,7 +149,9 @@ export function normalizeOutputs(outputs: OutputsInput): AttemptOutputs {
 }
 
 export function normalizeEvidence(evidence: Partial<AttemptEvidence> | undefined): AttemptEvidence {
-  return { checks: evidence?.checks ?? [], criteria: evidence?.criteria ?? [], notes: evidence?.notes ?? '' }
+  const normalized: AttemptEvidence = { checks: evidence?.checks ?? [], criteria: evidence?.criteria ?? [], notes: evidence?.notes ?? '' }
+  // Only a submission that names images carries the key: evidence without them keeps its stored shape and hash.
+  return evidence?.attachments === undefined ? normalized : { ...normalized, attachments: evidence.attachments }
 }
 
 /** Re-indexes the attempt for history search and returns its current row. */
@@ -680,7 +684,9 @@ export function submitAttempt(ctx: Ctx, input: SubmitAttemptInput, verified?: Su
     const row = loadAttempt(ctx, input.attemptId)
     verifyClaim(ctx, row, input.claimToken)
     const increment = verdictOf(ctx, row, input, verified)
-    storeSubmission(ctx, row, { ...input, increment })
+    // Claimed here, in the submission's transaction: a refused image refuses the whole submission.
+    const evidence = claimEvidenceAttachments(ctx, input.evidence, { kind: 'attempt', id: row.id })
+    storeSubmission(ctx, row, { ...input, evidence, increment })
     const run = requireRun(ctx, row.run_id)
     recordAttempt(ctx, row, run.epic_id, { kind: 'attempt.submitted', payload: submittedPayload(increment) })
     return attemptView(indexAttempt(ctx, run, row.id))
@@ -842,7 +848,8 @@ interface ReconcileInput {
   attemptId: string
   resolution: 'abandon' | 'resubmit'
   outputs?: OutputsInput
-  evidence?: Partial<AttemptEvidence>
+  /** Images are named by their staged ids here; they are claimed and stored as references. */
+  evidence?: AttemptEvidenceSubmission
   notes?: string
 }
 
@@ -861,8 +868,9 @@ function abandonAttempt(ctx: Ctx, target: { row: AttemptRow; run: RunRow }, inpu
 function resubmitAttempt(ctx: Ctx, target: { row: AttemptRow; run: RunRow }, input: ReconcileInput): void {
   const outputs =
     input.outputs ?? fail('invalid_input', 'Resubmitting an expired attempt needs its outputs.', { attemptId: target.row.id })
+  const evidence = claimEvidenceAttachments(ctx, input.evidence, { kind: 'attempt', id: target.row.id })
   guardUnique(
-    () => storeSubmission(ctx, target.row, { outputs, evidence: input.evidence }),
+    () => storeSubmission(ctx, target.row, { outputs, evidence }),
     OPEN_ATTEMPT_COLUMNS,
     () =>
       fail('conflict', 'Another attempt for this ticket is already open; abandon this one instead.', {

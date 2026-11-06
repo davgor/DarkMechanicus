@@ -139,7 +139,9 @@ describe('evidence view', () => {
         { text: 'Bundle with client-local refs returns stable IDs', met: true, note: 'stable ids returned' },
         { text: 'An invalid edge rejects the whole bundle and nothing persists', met: false, note: 'partial rows remained' }
       ],
-      notes: 'Replay test is **flaky**.'
+      notes: 'Replay test is **flaky**.',
+      attachments: [],
+      artifacts: []
     })
     expect(evidenceView(IMPORT, [])).toBe(null)
   })

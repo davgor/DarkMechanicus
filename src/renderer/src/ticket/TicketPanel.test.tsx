@@ -30,6 +30,7 @@ function renderPanel(backend: FakeBackend, patch: Partial<TicketPanelProps> = {}
     <TicketPanel
       runner={backend.runner}
       folderPath="/repo"
+      folderKey="00000000000000000000000000000001"
       activity={null}
       scheduler={new ManualScheduler()}
       epicId="ep_1"

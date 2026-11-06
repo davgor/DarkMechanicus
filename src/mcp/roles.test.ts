@@ -29,6 +29,7 @@ const READ_TOOLS = [
   'get_checkpoint',
   'get_run_events',
   'list_comments',
+  'get_attachment',
   'list_profiles',
   'get_profile',
   'preview_board_import',
@@ -40,10 +41,14 @@ const READ_TOOLS = [
 /** Every role may comment. */
 const COMMENT_TOOLS = ['add_comment']
 
+/** Every role that writes records may attach an image from a local path (attachment.write); the desktop refuses it. */
+const ATTACHMENT_WRITE_TOOLS = ['add_attachment']
+
 /** Tools a planner and an orchestrator both hold. */
 const PLANNER_SHARED_TOOLS = [
   ...READ_TOOLS,
   ...COMMENT_TOOLS,
+  ...ATTACHMENT_WRITE_TOOLS,
   'initialize_repository',
   'flush_portable_state',
   'reconcile_repository',
@@ -104,6 +109,7 @@ const ORCHESTRATOR_TOOLS = [
 const WORKER_TOOLS = [
   ...READ_TOOLS,
   ...COMMENT_TOOLS,
+  ...ATTACHMENT_WRITE_TOOLS,
   'heartbeat_attempt',
   'submit_attempt',
   'fail_attempt',
@@ -111,7 +117,7 @@ const WORKER_TOOLS = [
   'submit_kanban_card',
   'fail_kanban_card'
 ]
-const REVIEWER_TOOLS = [...READ_TOOLS, ...COMMENT_TOOLS, 'accept_attempt', 'reject_attempt']
+const REVIEWER_TOOLS = [...READ_TOOLS, ...COMMENT_TOOLS, ...ATTACHMENT_WRITE_TOOLS, 'accept_attempt', 'reject_attempt']
 
 interface ListingCase {
   role: SessionRole

@@ -2,10 +2,11 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { isAcceptanceTicket } from '../../../core/plan/acceptance'
 import type { PlanBundle } from '../../../shared/domain/bundle'
 import type { CheckStatus, EventView, TicketDetailView } from '../../../shared/domain/views'
+import { AttachmentGallery } from '../attachments/AttachmentGallery'
 import { errorMessage } from '../api/dm'
 import type { Runner } from '../epic/runner'
 import { StateLabel } from '../epic/StatePill'
-import { InlineMarkdown, Markdown } from '../markdown/Markdown'
+import { InlineMarkdown, Markdown, SafeLink } from '../markdown/Markdown'
 import { CoverageCriteria, CriteriaItems, DefinitionOfDone } from './AcceptanceSections'
 import { loadHistory } from './ticketData'
 import { capabilityRows, criteriaChecklist, evidenceView, historyItems, linkRows, sizeAndEffortRows, type EvidenceView, type LinkRow } from './ticketView'
@@ -140,8 +141,37 @@ function EvidenceList(props: { heading: string; label: string; rows: EvidenceRow
   )
 }
 
-/** An attempt's evidence: where it came from, its checks, its criteria results and its notes. */
-export function EvidenceSections({ evidence }: { evidence: EvidenceView }): JSX.Element {
+function isWebLocation(location: string): boolean {
+  return /^https?:\/\//i.test(location)
+}
+
+/** The output artifacts an attempt named: each label, then its location as a safe link when it is a web address. */
+function ArtifactList({ artifacts }: { artifacts: EvidenceView['artifacts'] }): JSX.Element | null {
+  if (artifacts.length === 0) {
+    return null
+  }
+  return (
+    <section className="tp-section" aria-label="Artifacts">
+      <h3 className="ew-eyebrow">ARTIFACTS</h3>
+      <ul className="tp-files">
+        {artifacts.map((artifact, index) => (
+          <li key={index}>
+            <span>{artifact.label}</span>
+            <span className="ew-muted"> · </span>
+            {isWebLocation(artifact.location) ? (
+              <SafeLink href={artifact.location}>{artifact.location}</SafeLink>
+            ) : (
+              <span className="ew-mono">{artifact.location}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
+/** An attempt's evidence: where it came from, its attached images, its output artifacts, its checks, criteria results and notes. */
+export function EvidenceSections({ evidence, folderKey }: { evidence: EvidenceView; folderKey: string }): JSX.Element {
   const checks = evidence.checks.map(
     (check): EvidenceRow => ({ key: check.name, tone: check.status, status: check.status, icon: check.icon, title: check.name, detail: check.detail })
   )
@@ -158,6 +188,13 @@ export function EvidenceSections({ evidence }: { evidence: EvidenceView }): JSX.
   return (
     <>
       <p className="ew-eyebrow">{evidence.source.toUpperCase()}</p>
+      {evidence.attachments.length === 0 ? null : (
+        <section className="tp-section" aria-label="Attachments">
+          <h3 className="ew-eyebrow">ATTACHMENTS</h3>
+          <AttachmentGallery folderKey={folderKey} attachments={evidence.attachments} />
+        </section>
+      )}
+      <ArtifactList artifacts={evidence.artifacts} />
       <EvidenceList heading="CHECKS" label="Checks" rows={checks} />
       <EvidenceList heading="CRITERIA" label="Criteria results" rows={criteria} />
       {evidence.notes.trim() === '' ? null : (
@@ -170,9 +207,9 @@ export function EvidenceSections({ evidence }: { evidence: EvidenceView }): JSX.
   )
 }
 
-export function EvidenceTab({ detail }: { detail: TicketDetailView }): JSX.Element {
+export function EvidenceTab({ detail, folderKey }: { detail: TicketDetailView; folderKey: string }): JSX.Element {
   const evidence = evidenceView(detail.ticket, detail.attempts)
-  return evidence === null ? <p className="ew-muted">No evidence recorded yet.</p> : <EvidenceSections evidence={evidence} />
+  return evidence === null ? <p className="ew-muted">No evidence recorded yet.</p> : <EvidenceSections evidence={evidence} folderKey={folderKey} />
 }
 
 function useHistory(runner: Runner, epicId: string, reloadKey: unknown): { events: EventView[] | null; error: string | null } {

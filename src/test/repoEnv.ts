@@ -94,6 +94,7 @@ export function createStubGit(initial: string | null = 'main'): StubGit {
     },
     countUncommitted: async () => 0,
     listLocalBranches: async () => [],
+    listWorktrees: async () => [],
     listFiles: async () => [],
     showFile: async () => null,
     isAncestor: async () => null,
@@ -113,7 +114,12 @@ export function copyTracked(source: RepoEnv, target: RepoEnv): void {
     const rel = relative(source.layout.dmDir, path)
     const tracked = !rel.startsWith('..') && !isAbsolute(rel) && rel.split(sep)[0] !== 'local'
     if (tracked) {
-      target.fs.put(join(target.layout.dmDir, rel), text)
+      const to = join(target.layout.dmDir, rel)
+      if (source.fs.isBinary(path)) {
+        target.fs.putBytes(to, source.fs.getBytes(path) ?? new Uint8Array())
+      } else {
+        target.fs.put(to, text)
+      }
     }
   }
 }

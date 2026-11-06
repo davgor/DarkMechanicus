@@ -9,6 +9,8 @@ import type { StorageMode } from '../../shared/domain/views'
 export interface FsAdapter {
   exists(path: string): boolean
   readFile(path: string): string
+  /** The file's bytes exactly as stored (attachment images; `readFile` decodes text). */
+  readFileBytes(path: string): Uint8Array
   /** Size in bytes, or -1 when the path does not exist. */
   fileSize(path: string): number
   /**
@@ -17,6 +19,7 @@ export interface FsAdapter {
    */
   fileStamp(path: string): string | null
   writeFile(path: string, data: string): void
+  writeFileBytes(path: string, data: Uint8Array): void
   fsyncFile(path: string): void
   rename(from: string, to: string): void
   mkdirp(path: string): void
@@ -42,6 +45,8 @@ export interface GitAdapter {
   /** Uncommitted (modified, added, deleted, untracked) files under `pathspec`; null if git is unavailable. */
   countUncommitted(pathspec: string): Promise<number | null>
   listLocalBranches(): Promise<string[]>
+  /** Absolute paths of this repository's worktrees, main checkout first (`git worktree list --porcelain`); empty when git is unavailable. */
+  listWorktrees(): Promise<string[]>
   /** Paths tracked at `ref` under `pathspec` (no checkout switch). */
   listFiles(ref: string, pathspec: string): Promise<string[]>
   /** File contents at `ref`, or null when absent. */

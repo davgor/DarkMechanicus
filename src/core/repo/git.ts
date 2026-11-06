@@ -196,6 +196,10 @@ export function createGitAdapter(
       return status === null ? null : lines(status).length
     },
     listLocalBranches: async () => lines((await output(['for-each-ref', '--format=%(refname:short)', 'refs/heads'])) ?? ''),
+    listWorktrees: async () =>
+      lines((await output(['worktree', 'list', '--porcelain'])) ?? '')
+        .filter((line) => line.startsWith('worktree '))
+        .map((line) => line.slice('worktree '.length)),
     listFiles: async (ref, pathspec) =>
       lines((await output(['ls-tree', '-r', '--name-only', safeArg(ref), '--', safeArg(pathspec)])) ?? ''),
     showFile: async (ref, path) => output(['show', `${safeArg(ref)}:./${safeArg(path)}`]),

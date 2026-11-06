@@ -37,6 +37,7 @@ export function folderView(patch: Partial<TrackedFolderView> = {}): TrackedFolde
     storageMode: 'repo',
     available: true,
     addedAt: '2026-01-01T00:00:00.000Z',
+    attachmentKey: '00000000000000000000000000000001',
     childRepositories: null,
     ...patch
   }

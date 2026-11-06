@@ -44,6 +44,8 @@ const TOOLS: Record<string, { method: CommandName; kind: Kind }> = {
   create_ticket: { method: 'updatePlanDraft', kind: 'write' },
   update_ticket: { method: 'updatePlanDraft', kind: 'write' },
   set_ticket_status: { method: 'setTicketStatus', kind: 'idempotent' },
+  add_attachment: { method: 'addAttachment', kind: 'write' },
+  get_attachment: { method: 'getAttachment', kind: 'read' },
   add_comment: { method: 'addComment', kind: 'write' },
   list_comments: { method: 'listComments', kind: 'read' },
   list_profiles: { method: 'listProfiles', kind: 'read' },
@@ -159,7 +161,7 @@ describe('tool inventory', () => {
     await withRig(build, createStubApi(), async (rig) => {
       const { tools } = await rig.client.listTools()
       expect(tools.map((tool) => tool.name).sort()).toEqual(Object.keys(ORCHESTRATOR_TOOLS).sort())
-      expect(tools).toHaveLength(72)
+      expect(tools).toHaveLength(74)
     })
   })
 

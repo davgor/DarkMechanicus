@@ -156,7 +156,8 @@ describe('createIdGenerator kinds and secrets', () => {
       grant: 'gr',
       kanbanCard: 'kc',
       kanbanAttempt: 'ka',
-      kanbanEvent: 'ke'
+      kanbanEvent: 'ke',
+      attachment: 'im'
     })
   })
 

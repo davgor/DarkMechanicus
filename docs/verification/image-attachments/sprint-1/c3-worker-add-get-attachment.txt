@@ -1,0 +1,48 @@
+# c3: worker-role CLI, add_attachment then get_attachment as file
+$ dm call add_attachment {"path":"C:\\Users\\davgo\\AppData\\Local\\Temp\\dm-accept-evidence-b.png","label":"temp B","purpose":"evidence"}
+{
+  "ok": true,
+  "data": {
+    "id": "im_01m6q66wjgzznk0dbxa4nqwkse",
+    "sha256": "0f1452d868773aabd82acb1dcb283df816249bc166e14dc5d12c80dab77157f8",
+    "mime": "image/png",
+    "bytes": 9917,
+    "width": 640,
+    "height": 360,
+    "label": "temp B",
+    "purpose": "evidence",
+    "owner": null,
+    "missing": false,
+    "createdBy": {
+      "role": "worker",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T01:05:15.344Z"
+  }
+}
+exit=0
+$ dm call get_attachment {"attachmentId":"im_01m6q66e0388jmfkmsxfqc0tn3","as":"file"}
+{
+  "ok": true,
+  "data": {
+    "id": "im_01m6q66e0388jmfkmsxfqc0tn3",
+    "sha256": "0f1452d868773aabd82acb1dcb283df816249bc166e14dc5d12c80dab77157f8",
+    "mime": "image/png",
+    "bytes": 9917,
+    "width": 640,
+    "height": 360,
+    "label": "temp B",
+    "purpose": "evidence",
+    "owner": null,
+    "missing": false,
+    "createdBy": {
+      "role": "worker",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T01:05:00.419Z",
+    "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\darkmechanicus-attachments\\0f1452d868773aabd82acb1dcb283df816249bc166e14dc5d12c80dab77157f8.png"
+  }
+}
+exit=0
+0f1452d868773aabd82acb1dcb283df816249bc166e14dc5d12c80dab77157f8 *darkmechanicus-attachments/0f1452d868773aabd82acb1dcb283df816249bc166e14dc5d12c80dab77157f8.png
+0f1452d868773aabd82acb1dcb283df816249bc166e14dc5d12c80dab77157f8 *dm-accept-evidence-b.png

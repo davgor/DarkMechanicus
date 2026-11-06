@@ -1,0 +1,148 @@
+{
+  "ok": true,
+  "data": {
+    "epicId": "ep_01m6q67d3f8tn42vpythn1jeh3",
+    "view": "saved",
+    "ticket": {
+      "id": "tk_01m6q68fxy1tk4fwhvc4mdyr00",
+      "key": "REP-4",
+      "title": "Attach screenshots as evidence",
+      "body": "Demo work ticket",
+      "acceptanceCriteria": [
+        {
+          "id": "c1",
+          "text": "Screenshots attached"
+        }
+      ],
+      "tags": [],
+      "priority": "normal",
+      "capability": {
+        "workType": "implementation",
+        "reasoning": {
+          "level": "multi_step",
+          "rationale": ""
+        },
+        "skills": [],
+        "modalities": [
+          "text"
+        ],
+        "tools": [
+          "repo_read",
+          "repo_write"
+        ],
+        "context": {
+          "estimatedInputTokens": null,
+          "requiredArtifacts": []
+        },
+        "constraints": {
+          "environments": [],
+          "dataLocation": null,
+          "maxDurationMinutes": null,
+          "maxCostUsd": null
+        },
+        "preferences": {
+          "quality": null,
+          "latency": null,
+          "cost": null,
+          "autonomy": null,
+          "modelOverride": null
+        }
+      },
+      "references": [],
+      "expectedArtifacts": [],
+      "optional": false
+    },
+    "status": "in_progress",
+    "sprintId": "sp_01m6q67d3g7c1szmj4zdtnznpg",
+    "sprintOrdinal": 1,
+    "prerequisites": [],
+    "dependents": [],
+    "relations": [],
+    "execution": {
+      "ticketId": "tk_01m6q68fxy1tk4fwhvc4mdyr00",
+      "key": "REP-4",
+      "sprintId": "sp_01m6q67d3g7c1szmj4zdtnznpg",
+      "row": 1,
+      "state": "submitted",
+      "attemptCount": 1,
+      "latestAttemptId": "at_01m6q69pkf9hh9patv13vfy5h1",
+      "blockers": [],
+      "prerequisites": []
+    },
+    "attempts": [
+      {
+        "id": "at_01m6q69pkf9hh9patv13vfy5h1",
+        "runId": "rn_01m6q6917he7jnwn1z8m8q8xjy",
+        "ticketId": "tk_01m6q68fxy1tk4fwhvc4mdyr00",
+        "number": 1,
+        "kind": "work",
+        "state": "submitted",
+        "fencingToken": 1,
+        "worker": {
+          "sessionId": "ss_01m6q69pj76hj9x5r82hv0707t",
+          "label": "accept-worker",
+          "modelId": null,
+          "hostId": null,
+          "catalogRevision": null,
+          "rationale": null,
+          "effort": null
+        },
+        "revisionId": "rv_01m6q68s9ng5fawv98htfbqykx",
+        "ticketContentHash": "sha256:f95e69d034651297655748ccf45804e9615d67d0259dbe4cc49e80be79a97db0",
+        "leaseExpiresAt": null,
+        "heartbeatAt": null,
+        "outputs": {
+          "summary": "Attached two screenshots",
+          "artifacts": [
+            {
+              "label": "Design doc",
+              "location": "https://example.com/doc",
+              "hash": null,
+              "remoteOnly": true
+            }
+          ],
+          "commits": [],
+          "changedFiles": [],
+          "branch": null
+        },
+        "evidence": {
+          "checks": [],
+          "criteria": [],
+          "notes": "two screenshots",
+          "attachments": [
+            {
+              "id": "im_01m6q6a0m7qnqcnmq87ewjvgbw",
+              "sha256": "2c8244ea5f80064a6e64aa8a8cf348275692f8eb9ee054328622cdaadbb72cce",
+              "mime": "image/png",
+              "bytes": 10069,
+              "width": 640,
+              "height": 360,
+              "label": "Evidence A: red banner",
+              "purpose": "evidence"
+            },
+            {
+              "id": "im_01m6q6a0wpta93grm9gbc82t75",
+              "sha256": "0f1452d868773aabd82acb1dcb283df816249bc166e14dc5d12c80dab77157f8",
+              "mime": "image/png",
+              "bytes": 9917,
+              "width": 640,
+              "height": 360,
+              "label": "Evidence B: blue banner",
+              "purpose": "evidence"
+            }
+          ]
+        },
+        "failure": null,
+        "decision": null,
+        "createdAt": "2026-11-06T01:06:47.535Z",
+        "updatedAt": "2026-11-06T01:06:58.294Z",
+        "submittedAt": "2026-11-06T01:06:58.294Z",
+        "decidedAt": null,
+        "reconciledAt": null,
+        "superseded": false
+      }
+    ],
+    "readOnly": true,
+    "readOnlyReason": "Read-only while run #1 is active. Changes go to a draft."
+  }
+}

@@ -1,0 +1,4 @@
+# c2: schema 13 project (created by the base build 31e0edd, repo2) opened by the new build
+BEFORE (user_version 13): epics 1, kanban_cards 1, kanban_events 1, outbox 2, sync_state 2  (c2-before.json)
+AFTER  (user_version 14): epics 1, kanban_cards 1, kanban_events 1, outbox 2, sync_state 2, attachments table now present (0 rows)
+Board and epics list unchanged: c2-open-schema13-project-epics-list-after-upgrade.png (Storage panel shows Schema v14)

@@ -20,6 +20,14 @@ import { META_KEYS, setMeta } from '../meta'
 import { KANBAN_OUTBOX_KINDS, type OutboxKind } from '../services/outbox'
 import { hasTransferHold } from '../services/transferGuard'
 import type { StorageMode } from './storageMode'
+import {
+  loadStoredAttachment,
+  type OwningRecord,
+  placementOfAttachment,
+  type StoredAttachment,
+  unexportedAttachments,
+  writeAttachmentFile
+} from './attachmentFiles'
 import { assertContained, displayPath, ownedPaths } from './paths'
 import {
   buildCommentRecord,
@@ -157,7 +165,7 @@ function writeSnapshot(env: WriteEnv, record: SnapshotRecord): void {
 }
 
 /** Kinds of `sync_state` rows the finalizer records exports for. */
-type ExportKind = 'epic' | 'run' | 'comment' | 'profile' | 'kanban_card' | 'kanban_event'
+type ExportKind = 'epic' | 'run' | 'comment' | 'profile' | 'kanban_card' | 'kanban_event' | 'attachment'
 
 function nextGeneration(db: Db, kind: ExportKind, entityId: string): number {
   const row = db.get<{ generation: number }>('SELECT generation FROM sync_state WHERE kind = ? AND entity_id = ?', kind, entityId)
@@ -176,6 +184,48 @@ function recordExport(deps: FinalizerDeps, entry: { kind: ExportKind; entityId: 
     entry.generation,
     deps.clock.nowIso()
   )
+}
+
+/** Writes one image's file beside its owner's records and records the export (its hash is the image's sha256). */
+function exportAttachmentFile(deps: FinalizerDeps, attachment: StoredAttachment): void {
+  writeAttachmentFile(deps, attachment, placementOfAttachment(deps.db, attachment))
+  recordExport(deps, {
+    kind: 'attachment',
+    entityId: attachment.id,
+    hash: attachment.sha256,
+    generation: nextGeneration(deps.db, 'attachment', attachment.id)
+  })
+}
+
+/**
+ * Writes the image files a record points at, before the record itself is written, whatever order the outbox queued
+ * them in: an owner's claim can come after its record's own entry, and a record must never point at a file that is
+ * not there yet. Images already exported are not touched.
+ */
+function exportAttachmentsOf(deps: FinalizerDeps, record: OwningRecord): void {
+  for (const attachment of unexportedAttachments(deps.db, record)) {
+    exportAttachmentFile(deps, attachment)
+  }
+}
+
+/**
+ * The `attachment` entry of one claimed image. An image in an epic's folder waits for the epic's records to be in this
+ * checkout, as a comment does, so a checkout of another branch never gets an epic folder holding images alone.
+ */
+function exportAttachment(deps: FinalizerDeps, attachmentId: string): void {
+  const attachment = loadStoredAttachment(deps.db, attachmentId)
+  const placement = placementOfAttachment(deps.db, attachment)
+  if (placement.folder.kind === 'epic') {
+    const pointer = ownedPaths(deps.layout).epicPointerFile(placement.folder.id)
+    assertContained(deps.layout, deps.fs, pointer)
+    if (!deps.fs.exists(pointer)) {
+      fail(
+        'not_found',
+        `Attachment ${attachmentId} is not exported: the records of epic ${placement.folder.id} are not in this checkout. It is exported once they are, for example after checking out the epic's branch.`
+      )
+    }
+  }
+  exportAttachmentFile(deps, attachment)
 }
 
 /** An epic's tracked pointer and state texts as they are in the checkout; null for a missing file. */
@@ -333,6 +383,7 @@ function exportEpic(deps: FinalizerDeps, epicId: string, entryId: number): void 
     return
   }
   const before = requireWritableRecords(deps, epicId)
+  exportAttachmentsOf(deps, { kind: 'epic', id: epicId })
   const snapshot = buildSnapshotRecord(deps.db, epic.current_revision_id)
   writeSnapshot(deps, snapshot)
   const meta = { generation: nextGeneration(deps.db, 'epic', epicId), updatedAt: deps.clock.nowIso() }
@@ -412,6 +463,7 @@ function exportComment(deps: FinalizerDeps, commentId: string): void {
     fail('internal', `Comment ${commentId} belongs to epic ${record.epicId}, which has no saved plan to export it with yet.`)
   }
   requireEpicRecords(deps, record.epicId, commentId)
+  exportAttachmentsOf(deps, { kind: 'comment', id: commentId })
   const text = writeOnce(deps, ownedPaths(deps.layout).commentFile(record.epicId, commentId), { schema: commentRecord, value: record, plural: 'comments' })
   recordExport(deps, { kind: 'comment', entityId: commentId, hash: trackedCommentHash(text), generation: nextGeneration(deps.db, 'comment', commentId) })
 }
@@ -424,6 +476,7 @@ function exportComment(deps: FinalizerDeps, commentId: string): void {
  * profile's does.
  */
 function exportKanbanCard(deps: FinalizerDeps, cardId: string): void {
+  exportAttachmentsOf(deps, { kind: 'kanban_card', id: cardId })
   const target = ownedPaths(deps.layout).kanbanCardFile(cardId)
   const generation = nextGeneration(deps.db, 'kanban_card', cardId)
   const text = prettyJson(buildKanbanCardRecord(deps.db, cardId, { generation }))
@@ -453,6 +506,7 @@ function exportKanbanEvent(deps: FinalizerDeps, eventId: string): void {
   if (!deps.fs.exists(cardFile)) {
     fail('not_found', `Kanban event ${eventId} is not exported: the record of card ${record.cardId} is not in this checkout.`)
   }
+  exportAttachmentsOf(deps, { kind: 'kanban_card', id: record.cardId })
   const text = writeOnce(deps, paths.kanbanEventFile(record.cardId, eventId), { schema: kanbanEventRecord, value: record, plural: 'Kanban events' })
   recordExport(deps, { kind: 'kanban_event', entityId: eventId, hash: trackedKanbanEventHash(text), generation: nextGeneration(deps.db, 'kanban_event', eventId) })
 }
@@ -479,6 +533,7 @@ const FILE_HANDLERS: Record<OutboxKind, EntryHandler> = {
   epic_state: (deps, _hooks, entry) => exportEpic(deps, required(entry.epic_id, 'epic id'), entry.id),
   run_history: (deps, _hooks, entry) => {
     const runId = required(entry.run_id, 'run id')
+    exportAttachmentsOf(deps, { kind: 'run', id: runId })
     const text = prettyJson(buildRunHistoryRecord(deps.db, runId))
     writeFileSafely(deps, ownedPaths(deps.layout).runHistoryFile(runId), text)
     recordExport(deps, { kind: 'run', entityId: runId, hash: trackedRunHash(text), generation: nextGeneration(deps.db, 'run', runId) })
@@ -491,7 +546,8 @@ const FILE_HANDLERS: Record<OutboxKind, EntryHandler> = {
     recordExport(deps, { kind: 'profile', entityId: name, hash: trackedProfileHash(text), generation: nextGeneration(deps.db, 'profile', name) })
   },
   kanban_card: (deps, _hooks, entry) => exportKanbanCard(deps, required(entry.entity_id, 'card id')),
-  kanban_event: (deps, _hooks, entry) => exportKanbanEvent(deps, required(entry.entity_id, 'event id'))
+  kanban_event: (deps, _hooks, entry) => exportKanbanEvent(deps, required(entry.entity_id, 'event id')),
+  attachment: (deps, _hooks, entry) => exportAttachment(deps, required(entry.entity_id, 'attachment id'))
 }
 
 /** A comment with no `sync_state` row is re-queued by every later save (`enqueueUnexportedComments`). */
@@ -523,7 +579,8 @@ const DB_HANDLERS: Record<OutboxKind, EntryHandler> = {
   },
   profile: () => undefined,
   kanban_card: () => undefined,
-  kanban_event: () => undefined
+  kanban_event: () => undefined,
+  attachment: () => undefined
 }
 
 const HANDLERS_BY_MODE: Record<StorageMode, Record<OutboxKind, EntryHandler>> = {
@@ -635,7 +692,10 @@ function queuedAfter(db: Db, afterId: number, scope: FlushScope | undefined): Ou
   const rows = db.all<OutboxRow>(
     `SELECT o.id, o.kind, o.epic_id, o.run_id, o.revision_id, o.entity_id,
        CASE o.kind WHEN 'kanban_card' THEN o.entity_id
-         WHEN 'kanban_event' THEN (SELECT e.card_id FROM kanban_events e WHERE e.id = o.entity_id) END AS card_id
+         WHEN 'kanban_event' THEN (SELECT e.card_id FROM kanban_events e WHERE e.id = o.entity_id)
+         WHEN 'attachment' THEN (SELECT CASE a.owner_kind WHEN 'kanban_card' THEN a.owner_id
+           WHEN 'kanban_attempt' THEN (SELECT k.card_id FROM kanban_attempts k WHERE k.id = a.owner_id) END
+           FROM attachments a WHERE a.id = o.entity_id) END AS card_id
      FROM outbox o WHERE o.state IN ('pending', 'failed') AND o.id > ? ORDER BY o.id`,
     afterId
   )
