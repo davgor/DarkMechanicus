@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { commentBody } from '../../core/schemas'
+import { z } from 'zod'
+import { attachmentRef, commentBody, LIMITS } from '../../core/schemas'
 import type { CommandApi } from '../../shared/domain/api'
 import { defineTool, registerTools } from './define'
 import { epicId, idempotencyKey, ticketId } from './params'
@@ -14,6 +15,11 @@ const COMMENT_TOOLS = [
       epicId,
       ticketId: ticketId.optional().describe('Ticket stable id (from list_tickets); omit to comment on the epic itself.'),
       body: commentBody.describe('Markdown, at most 20,000 characters.'),
+      attachments: z
+        .array(attachmentRef.shape.id)
+        .max(LIMITS.attachmentsPerRecord)
+        .optional()
+        .describe('Staged image ids (from add_attachment) to attach to this comment, at most 20. Either purpose is allowed.'),
       idempotencyKey
     },
     run: (api, input) => api.addComment(input)

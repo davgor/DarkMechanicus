@@ -34,6 +34,7 @@ import {
   ticketReference,
   workStatus
 } from '../schemas'
+import { listAttachmentRefs } from '../services/attachments'
 import { assertContained, displayPath } from './paths'
 import type { FsAdapter, RepoLayout } from './types'
 
@@ -433,7 +434,9 @@ export const commentRecord = z.strictObject({
   ticketId: anyStableId.nullable(),
   body: commentBody,
   author: z.strictObject({ role: z.enum(SESSION_ROLES), label }),
-  createdAt: isoTime
+  createdAt: isoTime,
+  /** The images the comment carries, by metadata; the files sit in the epic's `attachments/` folder. Omitted when none. */
+  attachments: z.array(attachmentRef).max(LIMITS.attachmentsPerRecord).optional()
 })
 export type CommentRecord = z.infer<typeof commentRecord>
 
@@ -944,6 +947,7 @@ export function readCommentRecord(db: Db, commentId: string): Record<string, unk
   if (row === undefined) {
     return null
   }
+  const attachments = listAttachmentRefs(db, { kind: 'comment', id: row.id })
   return {
     format: 'darkmechanicus.comment',
     formatVersion: 1,
@@ -952,7 +956,8 @@ export function readCommentRecord(db: Db, commentId: string): Record<string, unk
     ticketId: row.ticket_id,
     body: row.body,
     author: { role: row.author_role, label: row.author_label },
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    ...(attachments.length > 0 ? { attachments } : {})
   }
 }
 

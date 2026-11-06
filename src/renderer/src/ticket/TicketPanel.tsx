@@ -150,6 +150,7 @@ function TabBody(props: TabBodyProps): JSX.Element {
           now={panel.now}
           reloadKey={panel.reloadKey}
           canComment={panel.canEdit}
+          folderKey={panel.folderKey}
         />
       )
     case 'history':

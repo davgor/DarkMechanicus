@@ -137,7 +137,13 @@ export const COMMAND_SCHEMAS = {
     purpose: attachmentPurpose
   }),
   getAttachment: z.strictObject({ attachmentId: attachmentRef.shape.id, as: z.enum(['metadata', 'file']) }),
-  addComment: z.strictObject({ epicId: stableId, ticketId: stableId.optional(), body: commentBody, idempotencyKey }),
+  addComment: z.strictObject({
+    epicId: stableId,
+    ticketId: stableId.optional(),
+    body: commentBody,
+    attachments: z.array(attachmentRef.shape.id).max(LIMITS.attachmentsPerRecord).optional(),
+    idempotencyKey
+  }),
   listComments: z.strictObject({ epicId: stableId, ticketId: stableId.optional() }),
   createKanbanCard: z.strictObject({ ...kanbanCardFields, size: z.enum(TICKET_SIZES).optional(), idempotencyKey }),
   updateKanbanCard: z.strictObject({

@@ -1,6 +1,7 @@
 import { type FormEvent, useEffect, useState } from 'react'
 import type { CommentView } from '../../../shared/domain/views'
 import { errorMessage } from '../api/dm'
+import { AttachmentGallery } from '../attachments/AttachmentGallery'
 import type { Runner } from '../epic/runner'
 import { Markdown } from '../markdown/Markdown'
 import { canSubmitComment, commentItems, MAX_COMMENT_LENGTH } from './commentsView'
@@ -14,6 +15,8 @@ interface CommentsTabProps {
   reloadKey: unknown
   /** False for a completed epic: comments stay readable, but no new ones are offered. */
   canComment: boolean
+  /** The folder's attachment key: the host of each image address. */
+  folderKey: string
 }
 
 interface Loaded {
@@ -45,7 +48,7 @@ function useComments(props: CommentsTabProps, refresh: number): Loaded {
   return loaded
 }
 
-function CommentList(props: { loaded: Loaded; now: number }): JSX.Element {
+function CommentList(props: { loaded: Loaded; now: number; folderKey: string }): JSX.Element {
   const { comments, error } = props.loaded
   if (error !== null) {
     return <p role="alert" className="tp-error">{error}</p>
@@ -68,6 +71,7 @@ function CommentList(props: { loaded: Loaded; now: number }): JSX.Element {
             </time>
           </p>
           <Markdown source={item.body} className="tp-comment-body" />
+          {item.attachments === undefined ? null : <AttachmentGallery folderKey={props.folderKey} attachments={item.attachments} />}
         </li>
       ))}
     </ol>
@@ -123,7 +127,7 @@ export function CommentsTab(props: CommentsTabProps): JSX.Element {
   const loaded = useComments(props, refresh)
   return (
     <>
-      <CommentList loaded={loaded} now={props.now} />
+      <CommentList loaded={loaded} now={props.now} folderKey={props.folderKey} />
       {props.canComment ? (
         <CommentForm {...props} onAdded={() => setRefresh((count) => count + 1)} />
       ) : (

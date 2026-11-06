@@ -262,6 +262,8 @@ export interface AddCommentInput {
   ticketId?: string
   /** Markdown, at most 20,000 characters and not blank. */
   body: string
+  /** Staged image ids (`addAttachment`) to attach, at most 20; either purpose. */
+  attachments?: string[]
   idempotencyKey?: string
 }
 

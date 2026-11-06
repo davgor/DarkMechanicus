@@ -16,6 +16,7 @@ import type {
   SessionRole
 } from '../../shared/domain/views'
 import type { Ctx } from '../context'
+import type { Db } from '../db/database'
 import { fail } from '../errors'
 import { isStableId } from '../ids'
 import { isBefore } from '../clock'
@@ -219,7 +220,7 @@ export function claimAttachments(ctx: Ctx, ids: readonly string[], owner: Attach
 }
 
 /** The metadata a record keeps about an image: its reference, without the owner, the bytes or the audit fields. */
-function attachmentRefOf(view: AttachmentView): AttachmentRef {
+export function attachmentRefOf(view: AttachmentView): AttachmentRef {
   return {
     id: view.id,
     sha256: view.sha256,
@@ -230,6 +231,17 @@ function attachmentRefOf(view: AttachmentView): AttachmentRef {
     label: view.label,
     purpose: view.purpose
   }
+}
+
+/** The references of the images `owner` holds, oldest id first; empty when it holds none. */
+export function listAttachmentRefs(db: Db, owner: AttachmentOwner): AttachmentRef[] {
+  return db
+    .all<Omit<AttachmentRow, 'owner_kind' | 'owner_id' | 'missing' | 'created_by_role' | 'created_by_label' | 'created_at'>>(
+      'SELECT id, sha256, mime, bytes, width, height, label, purpose FROM attachments WHERE owner_kind = ? AND owner_id = ? ORDER BY id',
+      owner.kind,
+      owner.id
+    )
+    .map((row) => ({ ...row }))
 }
 
 /**
