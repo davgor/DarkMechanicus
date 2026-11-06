@@ -1,11 +1,10 @@
 /**
- * The pure parts of the Skitarii OMP extension (`index.ts` is the entry OMP loads with `-e`): which mascot frame shows
- * when, the banner and indicator rows, the working messages and the terminal title. Nothing here imports OMP, so the
- * app's tests run it with fake timers and a fake UI.
+ * Skitarii's opening cutscene, drill indicator, working messages and terminal title.
+ * Nothing here imports OMP, so the app's tests exercise the widget lifecycle with fake timers.
  *
- * What OMP lets an extension draw is pinned in `docs/reports/omp-cli.md`, 10: no header or logo replacement, so the
- * banner is a widget above the editor (a component, since a string widget stops at 10 lines and the banner is 16);
- * the loader's own spinner glyph comes from the theme, so the drill mascot plays as a second widget while OMP works;
+ * OMP exposes a non-modal widget above the editor, not a replaceable header. The opening uses a component
+ * (string widgets stop at ten rows) and gives the space back after a single notice / surprise / scurry sequence.
+ * The drill mascot remains a separate widget while OMP works;
  * the label beside the loader is `setWorkingMessage`; the title is `setTitle` (OSC 0).
  */
 import { BANNER_LINE, THINKING_LINES, TOOL_LINES } from './voice'
@@ -23,13 +22,11 @@ interface MascotLoop {
 }
 
 export interface MascotFrames {
-  loops: { idle: MascotLoop; drill: MascotLoop }
+  loops: { idle: MascotLoop; run: MascotLoop; drill: MascotLoop }
 }
 
 /** The fastest an animation here runs: the report keeps custom animation at or below about 12 fps. */
 export const MAX_FPS = 12
-/** How many times the banner's idle loop plays before it holds still. */
-export const BANNER_CYCLES = 3
 export const BANNER_KEY = 'skitarii-banner'
 export const INDICATOR_KEY = 'skitarii-indicator'
 const APP_NAME = 'Skitarii'
@@ -40,18 +37,17 @@ export interface Timers {
 }
 
 /**
- * Steps through one loop's frames on a timer. `cycles` plays the loop that many times and then holds the first frame;
- * without it the loop runs until `stop`. With reduced motion no timer is ever set: the first frame shows and holds.
+ * Steps through one loop's frames on a timer until `stop`.
+ * With reduced motion no timer is ever set: the first frame shows and holds.
  */
 export class FramePlayer {
   #index = 0
-  #ticks = 0
   #handle: unknown = null
 
   constructor(
     private readonly size: FrameSize,
     private readonly fps: number,
-    private readonly options: { timers: Timers; reducedMotion: boolean; onFrame: () => void; cycles?: number }
+    private readonly options: { timers: Timers; reducedMotion: boolean; onFrame: () => void }
   ) {}
 
   get rows(): readonly string[] {
@@ -69,7 +65,6 @@ export class FramePlayer {
   play(): void {
     if (this.playing || this.options.reducedMotion || this.size.frames.length < 2) return
     this.#index = 0
-    this.#ticks = 0
     this.#handle = this.options.timers.setInterval(() => this.#tick(), frameInterval(this.fps))
   }
 
@@ -81,13 +76,7 @@ export class FramePlayer {
   }
 
   #tick(): void {
-    this.#ticks += 1
-    const { cycles } = this.options
-    if (cycles !== undefined && this.#ticks >= cycles * this.size.frames.length) {
-      this.stop()
-    } else {
-      this.#index = this.#ticks % this.size.frames.length
-    }
+    this.#index = (this.#index + 1) % this.size.frames.length
     this.options.onFrame()
   }
 }
@@ -110,22 +99,67 @@ export interface Paint {
 }
 
 /**
- * The banner: the mascot frame on the left, SKITARII in bone and the Mechanicus line in brass beside its middle rows.
- * Each row starts with one column of padding, as OMP's string widgets do. A pane narrower than the mascot gets the text
- * only, and the text is cut to fit.
+ * One 4.4-second opening. Its position is derived from the current width on every render, so resizing cannot leave
+ * stale columns or split ANSI cells. Very narrow panes get only the caption; the editor remains OMP's throughout.
  */
-export function bannerRows(frame: readonly string[], cols: number, width: number, paint: Paint): string[] {
-  const textRows = [paint.bold(paint.fg('toolTitle', 'S K I T A R I I')), paint.fg('customMessageLabel', BANNER_LINE)]
-  const plain = ['S K I T A R I I', BANNER_LINE]
-  const withMascot = width >= cols + 3
-  const room = Math.max(0, width - 1 - (withMascot ? cols + 3 : 0))
-  const text = plain.map((line, i) => (line.length <= room ? textRows[i] : line.slice(0, room)))
-  if (!withMascot) return text.map((line) => ` ${line}`)
-  const top = Math.max(0, Math.floor(frame.length / 2) - 1)
-  return frame.map((row, i) => {
-    const beside = i >= top && i < top + text.length ? `   ${text[i - top]}` : ''
-    return ` ${row}${beside}`
-  })
+class Opening implements Component {
+  #tick = 0
+  #handle: unknown = null
+  #cache: { tick: number; width: number; rows: readonly string[] } | null = null
+
+  constructor(
+    private readonly frames: MascotFrames,
+    private readonly options: { timers: Timers; reducedMotion: boolean },
+    private readonly tui: Tui,
+    private readonly paint: Paint,
+    private readonly finish: () => void
+  ) {
+    if (!options.reducedMotion) {
+      this.#handle = options.timers.setInterval(() => {
+        this.#tick += 1
+        if (this.#tick >= 44) {
+          this.dispose()
+          this.finish()
+        } else {
+          this.tui.requestRender()
+        }
+      }, frameInterval(10))
+    }
+  }
+
+  render(width: number): readonly string[] {
+    if (this.#cache?.tick === this.#tick && this.#cache.width === width) return this.#cache.rows
+    const still = this.options.reducedMotion
+    const running = !still && this.#tick >= 12 && this.#tick < 40
+    const surprised = !still && this.#tick >= 5 && this.#tick < 12
+    const ready = still || this.#tick >= 40
+    const loop = surprised || running ? this.frames.loops.run : this.frames.loops.idle
+    const size = loop.sizes.banner
+    // The final run pose is the open-palmed skid / startled reaction, never part of the stride loop.
+    const index = surprised ? size.frames.length - 1 : running ? (this.#tick - 12) % (size.frames.length - 1) : ready ? 0 : this.#tick < 3 ? 0 : 2
+    const frame = size.frames[index]?.rows ?? []
+    const travel = Math.max(0, width - size.cols - 2)
+    const progress = running ? (this.#tick - 12) / 27 : ready && !still ? 1 : 0
+    const left = 1 + Math.floor(travel * progress)
+    const rows = width >= size.cols + 2 ? frame.map((row) => `${' '.repeat(left)}${row}`) : []
+    const caption = ready ? 'Ready. The Omnissiah guides this forge.' : surprised ? 'Oh! A visitor!' : running ? 'Coming through! Mind the robes.' : BANNER_LINE
+    if (width > 0) {
+      const room = Math.max(0, width - 1)
+      rows.push(` ${this.paint.bold(this.paint.fg('toolTitle', 'S K I T A R I I'.slice(0, room)))}`)
+      rows.push(` ${this.paint.fg('customMessageLabel', caption.slice(0, room))}`)
+    }
+    this.#cache = { tick: this.#tick, width, rows }
+    return rows
+  }
+
+  invalidate(): void {
+    this.#cache = null
+  }
+
+  dispose(): void {
+    if (this.#handle !== null) this.options.timers.clearInterval(this.#handle)
+    this.#handle = null
+  }
 }
 
 /** The working indicator: the drill mascot frame, or nothing when the pane is narrower than it. */
@@ -170,7 +204,7 @@ export interface SkitariiUi {
  * while the agent works, the Mechanicus working messages, and the title. `index.ts` calls these from OMP's events.
  */
 export class Skitarii {
-  #banner: FramePlayer | null = null
+  #banner: Opening | null = null
   #indicator: FramePlayer | null = null
   #thinking = new LineCycle(THINKING_LINES)
   #tools = new LineCycle(TOOL_LINES)
@@ -188,20 +222,18 @@ export class Skitarii {
   }
 
   /**
-   * Session start: the title, then the banner, its idle loop played `BANNER_CYCLES` times and then still. A resumed
-   * session already shows its history, so it gets the title and no banner.
+   * A fresh session gets one opening, then the widget is removed. Resumed conversation gets only the title.
+   * Reduced motion gets a static ready mascot until the first turn, with no timer.
    */
   start(ui: SkitariiUi, cwd: string, resumed = false): void {
+    this.#dropBanner(ui)
     ui.setTitle(titleFor(cwd))
     if (resumed) return
-    const { idle } = this.frames.loops
-    const size = idle.sizes.banner
     ui.setWidget(BANNER_KEY, (tui, theme) => {
-      this.#banner?.stop()
-      const player = new FramePlayer(size, idle.fps, { ...this.options, cycles: BANNER_CYCLES, onFrame: () => tui.requestRender() })
-      this.#banner = player
-      player.play()
-      return frameComponent(player, (rows, width) => bannerRows(rows, size.cols, width, theme))
+      this.#banner?.dispose()
+      const opening = new Opening(this.frames, this.options, tui, theme, () => this.#dropBanner(ui))
+      this.#banner = opening
+      return opening
     })
   }
 
@@ -249,7 +281,7 @@ export class Skitarii {
 
   /** The session is closing: no timer may outlive it. */
   shutdown(): void {
-    this.#banner?.stop()
+    this.#banner?.dispose()
     this.#indicator?.stop()
     this.#banner = null
     this.#indicator = null
@@ -257,7 +289,7 @@ export class Skitarii {
 
   #dropBanner(ui: SkitariiUi): void {
     if (this.#banner === null) return
-    this.#banner.stop()
+    this.#banner.dispose()
     this.#banner = null
     ui.setWidget(BANNER_KEY, undefined)
   }

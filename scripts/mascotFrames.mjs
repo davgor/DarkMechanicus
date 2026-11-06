@@ -18,8 +18,8 @@ export const ATLAS_DIR = join(ROOT, 'src', 'renderer', 'src', 'assets', 'mascot'
 export const OUT_FILE = join(ROOT, 'resources', 'skitarii', 'mascot', 'frames.json')
 
 /** Loops to render, and the output sizes in terminal rows (two image pixels per row). */
-export const LOOPS = ['idle', 'drill']
-export const SIZES = { banner: 16, indicator: 6 }
+export const LOOPS = ['idle', 'run', 'drill']
+export const SIZES = { banner: 20, indicator: 6 }
 
 /** Pixel coverage (0..1) at or above which an output pixel counts as part of the figure. */
 const COVERAGE_CUT = 0.35
@@ -192,8 +192,7 @@ export function renderFrame(img, frame, grid) {
 }
 
 /** Render one loop of an atlas at one size: { rows, cols, footRow, frames: [{ name, rows }] }. */
-export function renderLoop(img, action, rows) {
-  const win = loopWindow(img, action.frames)
+export function renderLoop(img, action, rows, win = loopWindow(img, action.frames)) {
   // Source pixels per output pixel so the loop window (above plus below the foot) fits; one pixel spare under the boots.
   const scale = (win.up + win.down) / (rows * 2 - 1)
   const footPixel = Math.round(win.up / scale)
@@ -205,11 +204,22 @@ export function renderLoop(img, action, rows) {
 /** Build the whole frames document from an atlas object and a loader for its PNG files. */
 export function buildFrames(atlas, loadImage, loops = LOOPS, sizes = SIZES) {
   const doc = { schemaVersion: 1, generatedBy: 'scripts/mascotFrames.mjs', loops: {} }
+  // Idle and run share a camera: the startled pose must not suddenly shrink the hood or move the boot baseline.
+  const opening = loops.filter((name) => name === 'idle' || name === 'run').map((name) => {
+    const action = atlas.actions[name]
+    return loopWindow(loadImage(action.image), action.frames)
+  })
+  const openingWindow = opening.length === 0 ? undefined : {
+    up: Math.max(...opening.map((window) => window.up)),
+    down: Math.max(...opening.map((window) => window.down)),
+    half: Math.max(...opening.map((window) => window.half))
+  }
   for (const name of loops) {
     const action = atlas.actions[name]
     const img = loadImage(action.image)
     doc.loops[name] = { fps: action.fps, sizes: {} }
-    for (const [size, rows] of Object.entries(sizes)) doc.loops[name].sizes[size] = renderLoop(img, action, rows)
+    const window = name === 'idle' || name === 'run' ? openingWindow : undefined
+    for (const [size, rows] of Object.entries(sizes)) doc.loops[name].sizes[size] = renderLoop(img, action, rows, window)
   }
   return doc
 }
