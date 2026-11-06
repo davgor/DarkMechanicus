@@ -30,6 +30,61 @@ stderr, so the output pipes into `jq` cleanly.
 
 `--repo` picks the repository (default `$DARKMECHANICUS_REPO`, else the working directory).
 
+## Pass JSON from a file: `--args-file`
+
+Inline JSON has to survive the shell's quoting, and on Windows it often does not: PowerShell and `cmd` strip
+the double quotes of an inline argument. `call` therefore also reads its arguments from a file, or from
+standard input:
+
+```sh
+node out/main/cli.js call <command> --args-file <path>      # a file holding one JSON object
+cat args.json | node out/main/cli.js call <command> -       # a lone - reads standard input
+```
+
+Use one source: inline JSON together with `--args-file` or `-` is refused with exit code `2`, as is
+`--args-file` on anything but `call`. A UTF-8 byte order mark at the start of the file is ignored. Inside the
+JSON a backslash must be doubled (`"C:\\Users\\me\\shot.png"`), or the path written with forward slashes
+(`"C:/Users/me/shot.png"`); an undoubled backslash is invalid JSON, and the error says so.
+
+## Attach an image: `add_attachment`
+
+An agent adds an image from a file on its own machine, then names the returned id on the record it belongs
+to. The file must be a PNG or JPEG of at most 10 MiB and 8000 pixels per side, and sit in an allowed folder:
+the project and its worktrees, the system temp folder, or the operating system's screenshot folder. A record
+holds at most 20 images. The session needs a grant that may write attachments (an orchestrator, planner or
+worker grant); a reader is refused with `unauthorized`.
+
+PowerShell. The JSON goes in a file, and `ConvertTo-Json` doubles the backslashes for you:
+
+```powershell
+$env:DARKMECHANICUS_REPO = 'C:\path\to\repo'      # or run from the repository
+Add-Type -AssemblyName System.Drawing
+$shot = Join-Path $env:TEMP 'dm-example.png'
+$bmp = New-Object System.Drawing.Bitmap 64, 48
+$bmp.Save($shot, [System.Drawing.Imaging.ImageFormat]::Png)
+$bmp.Dispose()
+$argsFile = Join-Path $env:TEMP 'dm-add-attachment.json'
+@{ path = $shot; label = 'Settings page'; purpose = 'evidence' } | ConvertTo-Json | Set-Content -Encoding utf8 $argsFile
+node out/main/cli.js call add_attachment --args-file $argsFile
+```
+
+Git Bash. Inline JSON works, with forward slashes in the path. `cygpath -m` turns a Unix-style path into the
+`C:/…` form that `node` understands:
+
+```sh
+shot="$(cygpath -m "$TEMP")/dm-example.png"      # a PNG you saved, such as a screenshot
+node out/main/cli.js call add_attachment "{\"path\":\"$shot\",\"label\":\"Settings page\",\"purpose\":\"evidence\"}"
+```
+
+Both print the staged image as JSON: `{"ok":true,"data":{"id":"im_…","sha256":"…","mime":"image/png","bytes":141,"width":64,"height":48,"label":"Settings page","purpose":"evidence","owner":null,…}}`. `owner` is `null` until a record claims the image.
+Pass the id on the record when you report, for example in the arguments of `submit_attempt`:
+`"evidence":{"checks":[…],"criteria":[…],"attachments":["im_…"]}`. Reference images go in the `attachments` of
+`add_comment`, `create_kanban_card`, `update_kanban_card`, `create_ticket`, `update_ticket` and
+`update_plan_draft` tickets. To look at an image, run
+`call get_attachment --args-file <path>` with `{"attachmentId":"im_…","as":"file"}`: the result carries a local
+`path` to open (`"as":"metadata"` returns the label and size only). An image that no record claims is removed
+after a while.
+
 ## Authority: there is no `--role`
 
 Over MCP a session's role comes from its launch flags, and that is trustworthy only because a
