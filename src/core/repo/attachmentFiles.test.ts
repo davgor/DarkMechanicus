@@ -4,8 +4,8 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { makeBundle, tid } from '../../test/bundles'
 import { jpegBytes, pngBytes } from '../../test/images'
-import { createStubGit, copyTracked, createRepoEnv, flush, importerDeps, initProject, type RepoEnv, saveRevision } from '../../test/repoEnv'
-import { idOf, insertAttempt, insertComment, insertRun } from '../../test/repoFixtures'
+import { createStubGit, copyTracked, createRepoEnv, flush, importerDeps, initProject, type RepoEnv, saveRevision, stageRevision } from '../../test/repoEnv'
+import { idOf, insertAttempt, insertComment, insertEpic, insertOutbox, insertRun } from '../../test/repoFixtures'
 import { claim as claimTicket, startedRun, submitClaim } from '../../test/execution'
 import { createTestCtx, type TestCtx, withRole } from '../../test/testContext'
 import { type AttachmentOwner } from '../../shared/domain/views'
@@ -142,7 +142,8 @@ describe('attachment export failures (repo mode)', () => {
     seedEpic(env)
     flush(env)
     const before = env.fs.writes.length
-    claim(ctx, pngBytes(40, 30, 5), { kind: 'ticket', id: tid(9) })
+    claim(ctx, pngBytes(40, 30, 5), { kind: 'ticket', id: tid(1) })
+    env.db.run('DELETE FROM ticket_status WHERE ticket_id = ?', tid(1))
     const outcome = flush(env)
     expect(outcome.failed).toBe(1)
     expect(outcome.errors[0]).toContain('folder cannot be found')
@@ -150,6 +151,38 @@ describe('attachment export failures (repo mode)', () => {
     expect(env.db.all<{ state: string; last_error: string }>("SELECT state, last_error FROM outbox WHERE kind = 'attachment'")[0]?.last_error).toContain(
       'folder cannot be found'
     )
+  })
+
+})
+
+describe('attachment export of unsaved and vanished records (repo mode)', () => {
+  it('finishes the first save of a never-saved epic that holds a comment image, then exports the image with the comment', () => {
+    const { env, ctx } = fixture()
+    insertEpic(env.db, { id: EPIC })
+    insertComment(env.db, { id: COMMENT, epicId: EPIC })
+    const bytes = pngBytes(40, 30, 11)
+    claim(ctx, bytes, { kind: 'comment', id: COMMENT })
+    expect(env.db.all("SELECT kind FROM outbox WHERE kind = 'attachment'")).toEqual([])
+    stageRevision(env, { epicId: EPIC, revisionId: R1, number: 1, bundle: makeBundle([[1, 2]], [[1, 2]]) })
+    expect(flush(env)).toMatchObject({ failed: 0, errors: [], savedRevisionIds: [R1] })
+    const paths = ownedPaths(env.layout)
+    insertOutbox(env.db, { kind: 'comment', epicId: EPIC, entityId: COMMENT })
+    expect(flush(env)).toMatchObject({ failed: 0, errors: [] })
+    const file = paths.attachmentFile({ kind: 'epic', id: EPIC }, sha(bytes), 'image/png')
+    expect(Buffer.from(env.fs.getBytes(file) ?? []).equals(bytes)).toBe(true)
+    expect(writeIndex(env, file)).toBeLessThan(writeIndex(env, paths.commentFile(EPIC, COMMENT)))
+  })
+
+  it('flushes a queued attachment whose row was deleted as done, and writes nothing', () => {
+    const { env, ctx } = fixture()
+    seedEpic(env)
+    flush(env)
+    const id = claim(ctx, pngBytes(40, 30, 12), { kind: 'attempt', id: ATTEMPT })
+    env.db.run('DELETE FROM attachments WHERE id = ?', id)
+    const before = env.fs.writes.length
+    expect(flush(env)).toMatchObject({ failed: 0, errors: [] })
+    expect(env.fs.writes).toHaveLength(before)
+    expect(env.db.all("SELECT kind FROM outbox WHERE state <> 'done'")).toEqual([])
   })
 
   it('fails the entry when the stored bytes do not match their hash, leaving no file', () => {

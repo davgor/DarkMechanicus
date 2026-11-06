@@ -208,11 +208,19 @@ function exportAttachmentsOf(deps: FinalizerDeps, record: OwningRecord): void {
   }
 }
 
+function attachmentExists(db: Db, id: string): boolean {
+  return db.get('SELECT 1 AS present FROM attachments WHERE id = ?', id) !== undefined
+}
+
 /**
  * The `attachment` entry of one claimed image. An image in an epic's folder waits for the epic's records to be in this
  * checkout, as a comment does, so a checkout of another branch never gets an epic folder holding images alone.
  */
 function exportAttachment(deps: FinalizerDeps, attachmentId: string): void {
+  if (!attachmentExists(deps.db, attachmentId)) {
+    // Detached or deleted after it was queued: there is nothing left to export.
+    return
+  }
   const attachment = loadStoredAttachment(deps.db, attachmentId)
   const placement = placementOfAttachment(deps.db, attachment)
   if (placement.folder.kind === 'epic') {
@@ -624,6 +632,10 @@ function entityKeys(entry: OutboxRow): string[] {
   // A card's definition and events are written in order: a failed one holds back the card's later records only.
   if (entry.card_id !== null) {
     return [`kanban:${entry.card_id}`]
+  }
+  // An image file stands alone too: it never holds back, or waits behind, the records of its epic or run.
+  if (entry.kind === 'attachment') {
+    return [`attachment:${entry.entity_id ?? entry.id}`]
   }
   const keys: string[] = []
   if (entry.epic_id !== null) {

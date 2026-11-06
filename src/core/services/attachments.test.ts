@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { captureError } from '../../test/authoring'
+import { makeBundle, tid } from '../../test/bundles'
+import { seedEpic } from '../../test/execution'
 import { jpegBytes, pngBytes } from '../../test/images'
 import { createTestCtx, type TestCtx } from '../../test/testContext'
 import { LIMITS } from '../schemas'
@@ -14,8 +16,15 @@ import {
   stagedAttachmentCutoff
 } from './attachments'
 
-const TICKET = 'tk_00000000000000000000000001'
-const OTHER_TICKET = 'tk_00000000000000000000000002'
+const TICKET = tid(1)
+const OTHER_TICKET = tid(2)
+
+/** A context holding a saved epic whose tickets TICKET and OTHER_TICKET can own images. */
+function seededCtx(): TestCtx {
+  const ctx = createTestCtx()
+  seedEpic(ctx, { bundle: makeBundle([[1, 2]]) })
+  return ctx
+}
 
 function input(overrides: Partial<StagedAttachmentInput> = {}): StagedAttachmentInput {
   return { bytes: pngBytes(800, 600), label: 'terminal screenshot', purpose: 'evidence', ...overrides }
@@ -33,7 +42,7 @@ function codeOf(action: () => unknown): string | undefined {
 
 describe('createStagedAttachment', () => {
   it('stores a PNG with no owner and returns its metadata', () => {
-    const ctx = createTestCtx()
+    const ctx = seededCtx()
     ctx.clock.set('2026-06-01T10:00:00.000Z')
     const bytes = pngBytes(3, 2)
     const view = createStagedAttachment(ctx, input({ bytes }))
@@ -58,7 +67,7 @@ describe('createStagedAttachment', () => {
 
 describe('createStagedAttachment bytes and refusals', () => {
   it('reads the bytes back byte-identical, for PNG and JPEG alike', () => {
-    const ctx = createTestCtx()
+    const ctx = seededCtx()
     const png = pngBytes(40, 30, 7)
     const jpeg = jpegBytes(5, 4)
     const pngId = createStagedAttachment(ctx, input({ bytes: png })).id
@@ -69,7 +78,7 @@ describe('createStagedAttachment bytes and refusals', () => {
   })
 
   it('takes the type, size and hash from the bytes alone', () => {
-    const ctx = createTestCtx()
+    const ctx = seededCtx()
     const bytes = pngBytes(3, 2)
     expect(getAttachment(ctx, createStagedAttachment(ctx, input({ bytes })).id)).toMatchObject({
       mime: 'image/png',
@@ -80,7 +89,7 @@ describe('createStagedAttachment bytes and refusals', () => {
   })
 
   it('refuses SVG, truncated and oversized images with the intake message, and stores nothing', () => {
-    const ctx = createTestCtx()
+    const ctx = seededCtx()
     const refused = (bytes: Buffer): { code?: string; message?: string } => captureError(() => createStagedAttachment(ctx, input({ bytes })))
     const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>')
     expect(refused(svg)).toMatchObject({ code: 'invalid_input', message: expect.stringContaining('Unsupported image type') })
@@ -93,14 +102,14 @@ describe('createStagedAttachment bytes and refusals', () => {
   })
 
   it('refuses a malformed purpose', () => {
-    const ctx = createTestCtx()
+    const ctx = seededCtx()
     expect(codeOf(() => createStagedAttachment(ctx, input({ purpose: 'mockup' as 'reference' })))).toBe('invalid_input')
   })
 })
 
 describe('claimAttachments', () => {
   it('gives staged images to an owner and reports them as owned', () => {
-    const ctx = createTestCtx()
+    const ctx = seededCtx()
     const first = stageAt(ctx, '2026-06-01T10:00:00.000Z')
     const second = stageAt(ctx, '2026-06-01T10:00:01.000Z')
     const claimed = claimAttachments(ctx, [first, second], { kind: 'ticket', id: TICKET })
@@ -112,7 +121,7 @@ describe('claimAttachments', () => {
   })
 
   it('refuses a second claim of the same image, by the same owner or another', () => {
-    const ctx = createTestCtx()
+    const ctx = seededCtx()
     const id = stageAt(ctx, '2026-06-01T10:00:00.000Z')
     claimAttachments(ctx, [id], { kind: 'ticket', id: TICKET })
     expect(codeOf(() => claimAttachments(ctx, [id], { kind: 'ticket', id: TICKET }))).toBe('conflict')
@@ -121,7 +130,7 @@ describe('claimAttachments', () => {
   })
 
   it('refuses an unknown id, a repeated id, and a malformed owner, and claims nothing when it refuses', () => {
-    const ctx = createTestCtx()
+    const ctx = seededCtx()
     const id = stageAt(ctx, '2026-06-01T10:00:00.000Z')
     expect(codeOf(() => claimAttachments(ctx, [id, 'im_00000000000000000000000099'], { kind: 'ticket', id: TICKET }))).toBe(
       'not_found'
@@ -136,8 +145,28 @@ describe('claimAttachments', () => {
     expect(getAttachment(ctx, id).owner).toBeNull()
   })
 
+})
+
+describe('claimAttachments owners', () => {
+  it('refuses an owner this database does not hold, with not_found, and queues nothing', () => {
+    const ctx = seededCtx()
+    const id = stageAt(ctx, '2026-06-01T10:00:00.000Z')
+    const missing = [
+      { kind: 'ticket', id: tid(9) },
+      { kind: 'comment', id: 'cm_00000000000000000000000099' },
+      { kind: 'attempt', id: 'at_00000000000000000000000099' },
+      { kind: 'kanban_card', id: 'kc_00000000000000000000000099' },
+      { kind: 'kanban_attempt', id: 'ka_00000000000000000000000099' }
+    ] as const
+    for (const owner of missing) {
+      expect(codeOf(() => claimAttachments(ctx, [id], owner))).toBe('not_found')
+    }
+    expect(getAttachment(ctx, id).owner).toBeNull()
+    expect(ctx.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM outbox WHERE kind = ?', 'attachment')?.n).toBe(0)
+  })
+
   it('holds at most 20 attachments per record: 21 at once is refused, and so is one more after 20', () => {
-    const ctx = createTestCtx()
+    const ctx = seededCtx()
     const ids = Array.from({ length: LIMITS.attachmentsPerRecord + 1 }, (_, index) =>
       stageAt(ctx, `2026-06-01T10:00:${String(index % 60).padStart(2, '0')}.000Z`)
     )
@@ -155,7 +184,7 @@ describe('claimAttachments', () => {
 
 describe('pruneStagedAttachments', () => {
   it('removes staged images older than seven days and leaves owned and recent ones', () => {
-    const ctx = createTestCtx()
+    const ctx = seededCtx()
     const oldStaged = stageAt(ctx, '2026-06-01T00:00:00.000Z')
     const oldOwned = stageAt(ctx, '2026-06-01T00:00:01.000Z')
     claimAttachments(ctx, [oldOwned], { kind: 'ticket', id: TICKET })
@@ -169,7 +198,7 @@ describe('pruneStagedAttachments', () => {
   })
 
   it('uses the cutoff it is given, and keeps an image exactly seven days old', () => {
-    const ctx = createTestCtx()
+    const ctx = seededCtx()
     const id = stageAt(ctx, '2026-06-01T00:00:00.000Z')
     expect(stagedAttachmentCutoff('2026-06-08T00:00:00.000Z')).toBe('2026-06-01T00:00:00.000Z')
     expect(pruneStagedAttachments(ctx, '2026-06-01T00:00:00.000Z')).toBe(0)
@@ -180,7 +209,7 @@ describe('pruneStagedAttachments', () => {
 
 describe('attachment reads and claims at their edges', () => {
   it('refuses the bytes of an unknown id and of an image whose bytes are not stored', () => {
-    const ctx = createTestCtx()
+    const ctx = seededCtx()
     expect(codeOf(() => readAttachmentBytes(ctx, 'im_00000000000000000000000099'))).toBe('not_found')
     const id = stageAt(ctx, '2026-01-01T00:00:00.000Z')
     ctx.db.run('UPDATE attachments SET data = NULL WHERE id = ?', id)
@@ -188,7 +217,7 @@ describe('attachment reads and claims at their edges', () => {
   })
 
   it('claims nothing for no ids, and refuses a label that is too long', () => {
-    const ctx = createTestCtx()
+    const ctx = seededCtx()
     expect(claimAttachments(ctx, [], { kind: 'ticket', id: TICKET })).toEqual([])
     expect(codeOf(() => createStagedAttachment(ctx, input({ label: 'x'.repeat(LIMITS.label + 1) })))).toBe('invalid_input')
   })

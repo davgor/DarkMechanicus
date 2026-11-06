@@ -20,7 +20,7 @@ import { fail } from '../errors'
 import { isStableId } from '../ids'
 import { isBefore } from '../clock'
 import { enqueueOutbox } from './outbox'
-import { resolveAttachmentPlacement } from './attachmentOwners'
+import { type AttachmentPlacement, resolveAttachmentPlacement } from './attachmentOwners'
 import { attachmentPurpose, LIMITS, parseInput } from '../schemas'
 
 /** A staged image older than this many days is pruned when a workspace opens. */
@@ -155,19 +155,24 @@ export function readAttachmentBytes(ctx: Ctx, id: string): Buffer {
 
 /**
  * Queues the file export of claimed images with the claim, so it sits before the owning record's own export in the
- * outbox. An owner this database does not hold yet queues with no epic or run: the export then fails with its reason
- * until it does.
+ * outbox. An epic with no saved revision queues nothing: its records are exported later, and each record's export writes
+ * its images first.
  */
-function queueAttachmentExports(ctx: Ctx, ids: readonly string[], owner: AttachmentOwner): void {
-  const placement = resolveAttachmentPlacement(ctx.db, owner)
+function queueAttachmentExports(ctx: Ctx, ids: readonly string[], placement: AttachmentPlacement): void {
+  if (placement.folder.kind === 'epic') {
+    const epic = ctx.db.get<{ current_revision_id: string | null }>('SELECT current_revision_id FROM epics WHERE id = ?', placement.folder.id)
+    if ((epic?.current_revision_id ?? null) === null) {
+      return
+    }
+  }
   for (const id of ids) {
-    enqueueOutbox(ctx, { kind: 'attachment', entityId: id, epicId: placement?.epicId ?? null, runId: placement?.runId ?? null })
+    enqueueOutbox(ctx, { kind: 'attachment', entityId: id, epicId: placement.epicId, runId: placement.runId })
   }
 }
 
 /**
  * Gives staged images to `owner`, all or none. Refuses an unknown id, an id already owned (by this owner or another),
- * a repeated id, and any claim that would take the owner past `LIMITS.attachmentsPerRecord`. Each claimed image queues an
+ * a repeated id, an owner this database does not hold (`not_found`), and any claim that would take the owner past `LIMITS.attachmentsPerRecord`. Each claimed image queues an
  * `attachment` outbox entry that writes its file beside the owner's records (`repo` mode).
  */
 export function claimAttachments(ctx: Ctx, ids: readonly string[], owner: AttachmentOwner): AttachmentView[] {
@@ -186,6 +191,10 @@ export function claimAttachments(ctx: Ctx, ids: readonly string[], owner: Attach
     return []
   }
   return ctx.db.tx(() => {
+    const placement = resolveAttachmentPlacement(ctx.db, owner)
+    if (placement === null) {
+      fail('not_found', `The ${owner.kind} ${owner.id} does not exist, so it cannot own attachments.`, { owner })
+    }
     const owned = ctx.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM attachments WHERE owner_kind = ? AND owner_id = ?', owner.kind, owner.id)?.n ?? 0
     if (owned + ids.length > LIMITS.attachmentsPerRecord) {
       fail(
@@ -204,7 +213,7 @@ export function claimAttachments(ctx: Ctx, ids: readonly string[], owner: Attach
       }
       ctx.db.run('UPDATE attachments SET owner_kind = ?, owner_id = ? WHERE id = ? AND owner_kind IS NULL', owner.kind, owner.id, id)
     }
-    queueAttachmentExports(ctx, ids, owner)
+    queueAttachmentExports(ctx, ids, placement)
     return ids.map((id) => getAttachment(ctx, id))
   })
 }
