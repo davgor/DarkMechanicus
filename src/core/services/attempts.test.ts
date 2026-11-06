@@ -25,6 +25,7 @@ import {
   ticketStatus
 } from '../../test/execution'
 import { createStubGit } from '../../test/repoEnv'
+import { insertComment } from '../../test/repoFixtures'
 import { createSequentialIds, createTestClock, createTestCtx, createTestDb, type TestCtx, withRole } from '../../test/testContext'
 import { contentHash } from '../canonical'
 import type { Ctx } from '../context'
@@ -730,10 +731,12 @@ describe('submitAttempt — attachment refusals', () => {
 
   it('refuses an image another record already owns, and stores nothing', () => {
     const ctx = createTestCtx()
-    const { runId } = startedRun(ctx, { bundle: makeBundle([[1, 2]], [[1, 2]]) })
+    const { runId, epicId } = startedRun(ctx, { bundle: makeBundle([[1, 2]], [[1, 2]]) })
     const claimed = claim(ctx, runId, 1)
     const owned = stagedPng(ctx, 4)
-    claimAttachments(ctx, [owned], { kind: 'comment', id: ctx.ids.next('comment') })
+    const commentId = ctx.ids.next('comment')
+    insertComment(ctx.db, { id: commentId, epicId })
+    claimAttachments(ctx, [owned], { kind: 'comment', id: commentId })
     expect(errorCode(() => submitClaim(withRole(ctx, 'worker'), claimed, { evidence: { attachments: [owned] } }))).toBe('conflict')
     expect(ctx.db.get<{ state: string }>('SELECT state FROM attempts WHERE id = ?', claimed.attempt.id)).toEqual({ state: 'claimed' })
     expect(getAttachment(ctx, owned).owner?.kind).toBe('comment')
