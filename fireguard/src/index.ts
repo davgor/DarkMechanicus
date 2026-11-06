@@ -6,7 +6,7 @@ export { runFlakeGate } from './gates/flakeGate.js';
 export { generateMutants, runMutationGate, scoreMutations } from './gates/mutationGate.js';
 export { buildRelatedTests, collectImports, resolveRelative } from './importGraph.js';
 export type { RelatedTests } from './importGraph.js';
-export { openMutationLanes } from './mutationLanes.js';
+export { openLanes } from './workspaceLanes.js';
 export { runFireguard } from './runFireguard.js';
 export { formatHumanReport, formatJsonReport } from './report.js';
 export { runCli } from './cli.js';
@@ -25,8 +25,9 @@ export type {
   AstGateResult,
   FlakeGateResult,
   MutationGateResult,
-  MutationExecution,
-  MutationLanes,
+  Execution,
+  Lanes,
+  WorkspaceSource,
   ApplyAndTest,
   GradeResult,
   GitScope,

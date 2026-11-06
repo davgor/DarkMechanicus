@@ -23,9 +23,9 @@ export interface FireguardConfig {
    */
   testTimeoutMs: number;
   /**
-   * Mutants tested at once. Above 1, each runs in its own temporary copy of the workspace, so
-   * the working tree is not mutated; at 1, or when the copies cannot be made or fail a baseline
-   * run of the graded tests, mutants are written into the working tree in turn.
+   * Lanes: flake runs or mutants tested at once, each lane in its own temporary snapshot of the
+   * committed tree. Only when the snapshots cannot be made do the tests run in the working
+   * tree, one run at a time.
    */
   concurrency: number;
 }
@@ -84,16 +84,25 @@ export interface MutationGateResult {
    * no graded test reaches the module, so every one of its mutants counted as survived.
    */
   moduleTests?: Record<string, number>;
-  /** How the mutants ran; present on every run made through `runFireguard`. */
-  execution?: MutationExecution;
+  /**
+   * Mutants generated on lines the diff left unchanged, which were not run. Present when mutants
+   * were limited to the changed lines of each module.
+   */
+  unchangedLineMutants?: number;
 }
 
-export interface MutationExecution {
-  /** Mutants tested at once, each in its own workspace. */
+/** Where and how the flake and mutation gates ran their tests. */
+export interface Execution {
+  /** Test runs at once, each in its own workspace. */
   lanes: number;
-  /** `copies`: temporary copies of the workspace; `in-place`: the working tree. */
-  workspace: 'copies' | 'in-place';
-  /** Why copies were wanted (concurrency above 1) but the mutants ran in the working tree. */
+  /**
+   * `committed`: temporary snapshots of the committed tree (HEAD), one per lane;
+   * `working-tree`: the working tree itself, one run at a time.
+   */
+  workspace: 'committed' | 'working-tree';
+  /** `warm`: one long-lived vitest per lane; `command`: `testCommand` started for every run. */
+  runner: 'warm' | 'command';
+  /** Why snapshots were wanted but the tests ran in the working tree. */
   fallbackReason?: string;
 }
 
@@ -118,6 +127,8 @@ export interface FireguardReport {
     gradedTestFiles: string[];
     changedModules: string[];
   };
+  /** How the flake and mutation gates ran; present once they ran through `runFireguard`. */
+  execution?: Execution;
   skipped: boolean;
   skipReason?: string;
 }
@@ -154,10 +165,30 @@ export interface MutantRun {
 /** Writes one mutant into a workspace, runs the given tests there, and restores the file. */
 export type ApplyAndTest = (input: MutantRun) => Promise<RunOnceResult>;
 
-export interface MutationLanes {
-  /** One applier per lane; the mutation gate gives each lane one mutant at a time. */
+/** The workspace the lanes run, read for mutation sources and the import graph. */
+export interface WorkspaceSource {
+  readFile: (path: string) => Promise<string>;
+  /**
+   * Whether a repo-relative path is a regular file. With `readFileSync`, lets the mutation gate
+   * run each module's mutants only against the graded tests that transitively import it.
+   * Without both probes every graded test runs for every mutant.
+   */
+  fileExists?: (path: string) => boolean;
+  /** Synchronous repo-relative reader for the import graph: null when missing or unreadable. */
+  readFileSync?: (path: string) => string | null;
+}
+
+/**
+ * The workspaces the flake and mutation gates run tests in, one lane each. A lane runs one
+ * thing at a time: a flake run or a mutant.
+ */
+export interface Lanes {
+  /** One flake runner per lane. */
+  runners: TestRunner[];
+  /** One mutant applier per lane. */
   appliers: ApplyAndTest[];
-  execution: MutationExecution;
-  /** Removes any workspace copies. */
+  execution: Execution;
+  source: WorkspaceSource;
+  /** Stops the lanes and removes any snapshots. */
   close: () => Promise<void>;
 }

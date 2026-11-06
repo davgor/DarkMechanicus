@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { runCli } from '../src/cli.js';
 import type { FireguardReport } from '../src/types.js';
+import { git, initRepo, withTempDir } from './support.js';
 
 describe('runCli', () => {
   it('prints help and exits 0', async () => {
@@ -32,28 +32,49 @@ const skipped: FireguardReport = {
 };
 
 describe('runCli production dependencies', () => {
-  it('wires workspace file probes so mutation runs can be scoped by imports', async () => {
-    const dir = await mkdtemp(join(tmpdir(), 'fireguard-cli-'));
-    try {
-      await mkdir(join(dir, 'src', 'dir'), { recursive: true });
-      await writeFile(join(dir, 'src', 'a.ts'), 'export const a = 1;\n', 'utf8');
-      const probes: Array<boolean | string | null | undefined> = [];
+  it('grades what was committed: committed reads, changed lines, lanes over snapshots', async () => {
+    await withTempDir(async (dir) => {
+      initRepo(dir);
+      await mkdir(join(dir, 'src'), { recursive: true });
+      await writeFile(join(dir, 'src/a.ts'), 'export const a = 1;\n');
+      git(dir, 'add', '.');
+      git(dir, 'commit', '-q', '-m', 'base');
+      const base = git(dir, 'rev-parse', 'HEAD');
+      const committed = 'export const a = 1;\nexport const b = 2;\n';
+      await writeFile(join(dir, 'src/a.ts'), committed);
+      git(dir, 'commit', '-q', '-am', 'change');
+      await writeFile(join(dir, 'src/a.ts'), 'uncommitted\n');
+      const seen: unknown[] = [];
       const code = await runCli({
         cwd: dir,
         argv: [],
-        env: {},
+        env: { FIREGUARD_BASE_REF: base, FIREGUARD_CONCURRENCY: '2' },
         stdout: () => undefined,
         stderr: () => undefined,
         runFireguardFn: async (deps) => {
-          probes.push(deps.fileExists?.('src/a.ts'), deps.fileExists?.('src/dir'));
-          probes.push(deps.readFileSync?.('src/a.ts'), deps.readFileSync?.('src/none.ts'));
+          seen.push(await deps.readFile('src/a.ts'));
+          seen.push(await deps.getChangedLines?.(['src/a.ts']));
+          const lanes = await deps.openLanes();
+          try {
+            const { source } = lanes;
+            seen.push(await source.readFile('src/a.ts'));
+            seen.push([source.fileExists?.('src/a.ts'), source.fileExists?.('src')]);
+            seen.push(source.readFileSync?.('src/none.ts'), lanes.execution);
+          } finally {
+            await lanes.close();
+          }
           return skipped;
         },
       });
       expect(code).toBe(0);
-      expect(probes).toEqual([true, false, 'export const a = 1;\n', null]);
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+      expect(seen).toEqual([
+        committed,
+        new Map([['src/a.ts', new Set([2])]]),
+        committed,
+        [true, false],
+        null,
+        { lanes: 2, workspace: 'committed', runner: 'warm' },
+      ]);
+    });
   });
 });

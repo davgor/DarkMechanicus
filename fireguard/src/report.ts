@@ -1,11 +1,25 @@
-import type { FireguardReport, MutationExecution, MutationGateResult } from './types.js';
+import type {
+  Execution,
+  FireguardReport,
+  FlakeGateResult,
+  MutationGateResult,
+} from './types.js';
 
-function executionLine(execution: MutationExecution): string {
-  if (execution.workspace === 'copies') {
-    return `  ran ${execution.lanes} mutants at a time in temporary workspace copies`;
+function executionLine(execution: Execution): string {
+  const runner =
+    execution.runner === 'warm' ? 'one long-lived vitest per lane' : 'testCommand per run';
+  if (execution.workspace === 'committed') {
+    const lanes = execution.lanes === 1 ? '1 lane' : `${execution.lanes} lanes at a time`;
+    return `Ran: ${lanes}, each in a snapshot of the committed tree (${runner})`;
   }
-  const reason = execution.fallbackReason ? ` (${execution.fallbackReason})` : '';
-  return `  ran one mutant at a time in the working tree${reason}`;
+  const reason = execution.fallbackReason ? `; ${execution.fallbackReason}` : '';
+  return `Ran: one at a time in the working tree (${runner}${reason})`;
+}
+
+function changedLinesLine(mutation: MutationGateResult): string | undefined {
+  const skipped = mutation.unchangedLineMutants;
+  if (skipped === undefined) return undefined;
+  return `  changed lines only: ${mutation.total} mutants on changed lines, ${skipped} on unchanged lines not run`;
 }
 
 function formatModuleTests(moduleTests: Record<string, number> | undefined): string {
@@ -21,16 +35,36 @@ function mutationLines(mutation: MutationGateResult): string[] {
     `Gate 3 Mutation: ${mutation.pass ? 'PASS' : 'FAIL'}`,
     `  score=${mutation.score}% killed=${mutation.killed} survived=${mutation.survived} total=${mutation.total}`,
   ];
+  const changedLines = changedLinesLine(mutation);
+  if (changedLines) {
+    lines.push(changedLines);
+  }
   const perModule = formatModuleTests(mutation.moduleTests);
   if (perModule) {
     lines.push(`  tests per module: ${perModule}`);
   }
-  if (mutation.execution) {
-    lines.push(executionLine(mutation.execution));
-  }
   for (const survivor of mutation.survivors.slice(0, 20)) {
     lines.push(`  - survivor ${survivor.file}:${survivor.line} ${survivor.description}`);
   }
+  return lines;
+}
+
+function flakeLines(flake: FlakeGateResult): string[] {
+  return [
+    `Gate 2 Flake: ${flake.pass ? 'PASS' : 'FAIL'}`,
+    `  executed=${flake.runs}/${flake.configuredRuns} failures=${flake.failures} rate=${flake.flakeRate} failFast=${flake.failFast}`,
+    ...flake.failedRuns.map((failed) => `  - run #${failed.run}: ${failed.error}`),
+  ];
+}
+
+/** What was graded, and how the lanes ran when they did. */
+function scopeLines(report: FireguardReport): string[] {
+  const lines = [
+    `Base ref: ${report.scope.baseRef}`,
+    `Graded tests: ${report.scope.gradedTestFiles.join(', ') || '(none)'}`,
+    `Changed modules: ${report.scope.changedModules.join(', ') || '(none)'}`,
+  ];
+  if (report.execution) lines.push(executionLine(report.execution));
   return lines;
 }
 
@@ -45,9 +79,7 @@ export function formatHumanReport(report: FireguardReport): string {
     return lines.join('\n');
   }
 
-  lines.push(`Base ref: ${report.scope.baseRef}`);
-  lines.push(`Graded tests: ${report.scope.gradedTestFiles.join(', ') || '(none)'}`);
-  lines.push(`Changed modules: ${report.scope.changedModules.join(', ') || '(none)'}`);
+  lines.push(...scopeLines(report));
   lines.push('');
 
   for (const reason of report.grade.reasons) {
@@ -68,13 +100,7 @@ export function formatHumanReport(report: FireguardReport): string {
 
   const flake = report.gates.flake;
   if (flake) {
-    lines.push(`Gate 2 Flake: ${flake.pass ? 'PASS' : 'FAIL'}`);
-    lines.push(
-      `  executed=${flake.runs}/${flake.configuredRuns} failures=${flake.failures} rate=${flake.flakeRate} failFast=${flake.failFast}`
-    );
-    for (const failed of flake.failedRuns) {
-      lines.push(`  - run #${failed.run}: ${failed.error}`);
-    }
+    lines.push(...flakeLines(flake));
   }
 
   const mutation = report.gates.mutation;

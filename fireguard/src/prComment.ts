@@ -14,7 +14,7 @@ export function formatPrMarkdown(report: FireguardReport): string {
     lines.push(`_${report.skipReason ?? 'Nothing to grade.'}_`);
     lines.push('');
     lines.push(
-      'Added/modified Vitest unit tests vs the base ref are graded for mock/assert quality, flake isolation, and mutation kill rate on changed modules. Module-only diffs without test updates fail closed with F.'
+      'Added/modified Vitest unit tests vs the base ref are graded for mock/assert quality, flake isolation, and mutation kill rate on the changed lines of changed modules. Module-only diffs without test updates fail closed with F.'
     );
     return `${lines.join('\n')}\n`;
   }
@@ -59,7 +59,7 @@ export function formatPrMarkdown(report: FireguardReport): string {
   const mutation = report.gates.mutation;
   if (mutation) {
     lines.push(
-      `- **Gate 3 Mutation:** ${mutation.pass ? 'PASS' : 'FAIL'} (${mutation.score}% killed; ${mutation.killed}/${mutation.total})`
+      `- **Gate 3 Mutation:** ${mutation.pass ? 'PASS' : 'FAIL'} (${mutation.score}% killed; ${mutation.killed}/${mutation.total}${mutation.unchangedLineMutants === undefined ? '' : ' on changed lines'})`
     );
     for (const survivor of mutation.survivors.slice(0, 10)) {
       lines.push(`  - survivor \`${survivor.file}:${survivor.line}\` ${survivor.description}`);

@@ -21,8 +21,11 @@ export interface CommandResult {
 /** Exit code reported for a run that fireguard killed after `timeoutMs` (the `timeout(1)` convention). */
 const TIMEOUT_EXIT_CODE = 124;
 
-/** Kills a spawned command together with everything it started (vitest workers, grandchildren). */
-function killTree(pid: number | undefined): void {
+/**
+ * Kills a spawned command together with everything it started (vitest workers, grandchildren).
+ * Off Windows the command must have been spawned `detached`, so it leads its own process group.
+ */
+export function killTree(pid: number | undefined): void {
   if (pid === undefined) return;
   try {
     if (process.platform === 'win32') {
@@ -58,11 +61,14 @@ export function runCommand(
             timedOut = true;
             killTree(child.pid);
           }, options.timeoutMs);
-    child.stdout.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString();
+    // Decoded as a stream, so a character split across chunks is not garbled (file contents).
+    child.stdout.setEncoding('utf8');
+    child.stderr.setEncoding('utf8');
+    child.stdout.on('data', (chunk: string) => {
+      stdout += chunk;
     });
-    child.stderr.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString();
+    child.stderr.on('data', (chunk: string) => {
+      stderr += chunk;
     });
     child.on('close', (code) => {
       clearTimeout(timer);
@@ -77,25 +83,76 @@ export function runCommand(
   });
 }
 
+/**
+ * `git diff <args> base...HEAD`: the committed changes since the merge base. Shallow clones
+ * without a merge base fall back to `base HEAD`. Either way only committed changes count.
+ */
+async function gitDiff(options: { cwd: string; baseRef: string }, args: string[]): Promise<string> {
+  // Unquoted non-ASCII paths, no external diff tool or colour, whatever the user's git config.
+  const base = ['-c', 'core.quotePath=false', 'diff', '--no-ext-diff', '--no-color'];
+  const run = (range: string[]): Promise<CommandResult> =>
+    runCommand('git', [...base, ...args, ...range], { cwd: options.cwd });
+  const result = await run([`${options.baseRef}...HEAD`]);
+  if (result.code === 0) return result.stdout;
+  const fallback = await run([options.baseRef, 'HEAD']);
+  if (fallback.code !== 0) {
+    throw new Error(`git diff failed: ${result.stderr || fallback.stderr || 'unknown git error'}`);
+  }
+  return fallback.stdout;
+}
+
 export async function getGitDiffEntries(options: {
   cwd: string;
   baseRef: string;
 }): Promise<DiffEntry[]> {
-  const range = `${options.baseRef}...HEAD`;
-  const result = await runCommand('git', ['diff', '--name-status', range], { cwd: options.cwd });
-  if (result.code !== 0) {
-    // Fallback for shallow clones / missing merge-base: diff against baseRef
-    const fallback = await runCommand('git', ['diff', '--name-status', options.baseRef], {
-      cwd: options.cwd,
-    });
-    if (fallback.code !== 0) {
-      throw new Error(
-        `git diff failed: ${result.stderr || fallback.stderr || 'unknown git error'}`
-      );
+  return parseNameStatus(await gitDiff(options, ['--name-status']));
+}
+
+/**
+ * Lines each file gained or changed (new side, 1-based), from `git diff -U0` hunk headers.
+ * Pure deletions add no line; a file the diff does not mention is left out.
+ */
+export function parseChangedLines(diff: string): Map<string, Set<number>> {
+  const changed = new Map<string, Set<number>>();
+  let lines: Set<number> | undefined;
+  for (const line of diff.split('\n')) {
+    if (line.startsWith('+++ ')) {
+      const path = line.slice(4).trimEnd();
+      // `+++ /dev/null` is a deleted file; `+++ b/x` names the new path.
+      lines = path.startsWith('b/') ? new Set() : undefined;
+      if (lines) changed.set(path.slice(2), lines);
+      continue;
     }
-    return parseNameStatus(fallback.stdout);
+    const hunk = /^@@ -\S+ \+(\d+)(?:,(\d+))? @@/.exec(line);
+    if (!hunk || !lines) continue;
+    const start = Number(hunk[1]);
+    const count = hunk[2] === undefined ? 1 : Number(hunk[2]);
+    for (let n = start; n < start + count; n += 1) lines.add(n);
   }
-  return parseNameStatus(result.stdout);
+  return changed;
+}
+
+/** Changed lines of `paths` in the committed diff against `baseRef` (see `parseChangedLines`). */
+export async function getChangedLines(options: {
+  cwd: string;
+  baseRef: string;
+  paths: string[];
+}): Promise<Map<string, Set<number>>> {
+  if (options.paths.length === 0) return new Map();
+  const diff = await gitDiff(options, ['-U0', '--src-prefix=a/', '--dst-prefix=b/']);
+  const wanted = new Set(options.paths);
+  const changed = parseChangedLines(diff);
+  for (const path of changed.keys()) if (!wanted.has(path)) changed.delete(path);
+  return changed;
+}
+
+/** A file as HEAD has it (`git show HEAD:path`). */
+export async function readCommittedFile(cwd: string, path: string): Promise<string> {
+  const result = await runCommand('git', ['show', `HEAD:${path}`], { cwd });
+  if (result.code !== 0) {
+    throw new Error(`git show HEAD:${path} failed: ${result.stderr.trim() || `exit ${result.code}`}`);
+  }
+  return result.stdout;
 }
 
 export function createVitestRunner(options: {
@@ -157,12 +214,21 @@ function installExitHook(): void {
 export function createMutationApplier(options: {
   cwd: string;
   runOnce: TestRunner;
+  /**
+   * Called after each write of `file` (the mutant, then the restored original), so a runner that
+   * keeps modules loaded between runs reloads it.
+   */
+  changed?: (file: string) => void;
 }): ApplyAndTest {
   installExitHook();
+  const write = async (file: string, filePath: string, source: string): Promise<void> => {
+    await writeFile(filePath, source, 'utf8');
+    options.changed?.(file);
+  };
   return async (input) => {
     const filePath = join(options.cwd, input.file);
     pendingRestores.set(filePath, input.originalSource);
-    await writeFile(filePath, input.mutatedSource, 'utf8');
+    await write(input.file, filePath, input.mutatedSource);
     try {
       if (input.relatedTests.length === 0) {
         // No related graded tests — treat mutant as survived (cannot validate)
@@ -170,7 +236,7 @@ export function createMutationApplier(options: {
       }
       return await options.runOnce(input.relatedTests);
     } finally {
-      await writeFile(filePath, input.originalSource, 'utf8');
+      await write(input.file, filePath, input.originalSource);
       pendingRestores.delete(filePath);
     }
   };

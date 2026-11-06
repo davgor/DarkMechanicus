@@ -9,38 +9,35 @@ import type {
   FireguardConfig,
   FireguardReport,
   GitScope,
+  Lanes,
   MutationGateResult,
-  MutationLanes,
-  TestRunner,
 } from './types.js';
 
 export interface RunFireguardDeps {
   config: FireguardConfig;
   getDiffEntries: () => Promise<DiffEntry[]>;
+  /** A graded test as committed: the AST gate grades what the diff grades. */
   readFile: (path: string) => Promise<string>;
-  /** Runs graded tests in the working tree (the flake gate). */
-  runOnce: TestRunner;
   /**
-   * Opens the lanes mutants run in, given the graded tests; called only when the mutation gate
-   * runs, and always closed afterwards.
+   * Lines the diff changed in each module (new side, 1-based). With it, the mutation gate runs
+   * only mutants on changed lines; without it, every mutant of every changed module.
    */
-  openMutationLanes: (gradedTests: string[]) => Promise<MutationLanes>;
+  getChangedLines?: (
+    modules: string[]
+  ) => Promise<ReadonlyMap<string, ReadonlySet<number>>>;
   /**
-   * Whether a repo-relative path is a regular file. With `readFileSync`, lets the mutation gate
-   * run each module's mutants only against the graded tests that transitively import it.
-   * Without both probes every graded test runs for every mutant.
+   * Opens the lanes the flake and mutation gates run in; called only once the AST gate passes,
+   * and always closed before `runFireguard` returns.
    */
-  fileExists?: (path: string) => boolean;
-  /** Synchronous repo-relative reader for the import graph: null when missing or unreadable. */
-  readFileSync?: (path: string) => string | null;
+  openLanes: () => Promise<Lanes>;
 }
 
 /** Lookup from a changed module to the graded tests that can kill its mutants, if scopable. */
 function createRelatedTestsLookup(
-  deps: RunFireguardDeps,
+  lanes: Lanes,
   scope: GitScope
 ): ((modulePath: string) => RelatedTests) | undefined {
-  const { fileExists, readFileSync } = deps;
+  const { fileExists, readFileSync } = lanes.source;
   if (!fileExists || !readFileSync) return undefined;
   const related = buildRelatedTests({
     tests: scope.gradedTestFiles,
@@ -53,41 +50,58 @@ function createRelatedTestsLookup(
 
 async function runMutationStage(
   deps: RunFireguardDeps,
-  scope: GitScope
+  scope: GitScope,
+  lanes: Lanes
 ): Promise<MutationGateResult> {
   const modules = await Promise.all(
     scope.changedModules.map(async (path) => ({
       path,
-      source: await deps.readFile(path),
+      source: await lanes.source.readFile(path),
     }))
   );
-  const lanes = await deps.openMutationLanes(scope.gradedTestFiles);
+  return runMutationGate({
+    config: deps.config,
+    modules,
+    relatedTests: scope.gradedTestFiles,
+    relatedTestsFor: createRelatedTestsLookup(lanes, scope),
+    changedLines: await deps.getChangedLines?.(scope.changedModules),
+    appliers: lanes.appliers,
+  });
+}
+
+/**
+ * The flake gate, then (if it passes and modules changed) the mutation gate, on one set of lanes.
+ * No mutant runs while flake runs do: a mutant that hangs or eats memory would slow the flake
+ * runs beside it and could fail them.
+ */
+async function runLaneGates(
+  deps: RunFireguardDeps,
+  scope: GitScope,
+  gates: FireguardReport['gates']
+): Promise<FireguardReport['execution']> {
+  const lanes = await deps.openLanes();
   try {
-    const result = await runMutationGate({
+    gates.flake = await runFlakeGate({
       config: deps.config,
-      modules,
-      relatedTests: scope.gradedTestFiles,
-      relatedTestsFor: createRelatedTestsLookup(deps, scope),
-      appliers: lanes.appliers,
+      files: scope.gradedTestFiles,
+      runners: lanes.runners,
     });
-    return { ...result, execution: lanes.execution };
+    if (gates.flake.pass && scope.changedModules.length > 0) {
+      gates.mutation = await runMutationStage(deps, scope, lanes);
+    }
+    return lanes.execution;
   } finally {
     await lanes.close();
   }
 }
 
-export async function runFireguard(deps: RunFireguardDeps): Promise<FireguardReport> {
-  const entries = await deps.getDiffEntries();
-  const scope = resolveGitScope({ config: deps.config, entries });
-
-  const scopePayload = {
-    baseRef: deps.config.baseRef,
-    gradedTestFiles: scope.gradedTestFiles,
-    changedModules: scope.changedModules,
-  };
-
+/** The report for a diff with no graded tests, which no gate runs for. */
+function untestedReport(
+  scope: GitScope,
+  scopePayload: FireguardReport['scope']
+): FireguardReport {
   // Fail closed: production module changes without graded test updates cannot earn a free A.
-  if (scope.gradedTestFiles.length === 0 && scope.changedModules.length > 0) {
+  if (scope.changedModules.length > 0) {
     return {
       grade: {
         letter: 'F',
@@ -100,20 +114,29 @@ export async function runFireguard(deps: RunFireguardDeps): Promise<FireguardRep
       skipReason: undefined,
     };
   }
+  return {
+    grade: {
+      letter: 'A',
+      score: 100,
+      reasons: ['no graded unit tests to evaluate'],
+    },
+    gates: {},
+    scope: scopePayload,
+    skipped: true,
+    skipReason: 'No added/modified unit tests vs base ref',
+  };
+}
 
-  if (scope.gradedTestFiles.length === 0) {
-    return {
-      grade: {
-        letter: 'A',
-        score: 100,
-        reasons: ['no graded unit tests to evaluate'],
-      },
-      gates: {},
-      scope: scopePayload,
-      skipped: true,
-      skipReason: 'No added/modified unit tests vs base ref',
-    };
-  }
+export async function runFireguard(deps: RunFireguardDeps): Promise<FireguardReport> {
+  const entries = await deps.getDiffEntries();
+  const scope = resolveGitScope({ config: deps.config, entries });
+
+  const scopePayload = {
+    baseRef: deps.config.baseRef,
+    gradedTestFiles: scope.gradedTestFiles,
+    changedModules: scope.changedModules,
+  };
+  if (scope.gradedTestFiles.length === 0) return untestedReport(scope, scopePayload);
 
   const gates: FireguardReport['gates'] = {};
 
@@ -133,28 +156,12 @@ export async function runFireguard(deps: RunFireguardDeps): Promise<FireguardRep
     };
   }
 
-  gates.flake = await runFlakeGate({
-    config: deps.config,
-    files: scope.gradedTestFiles,
-    runOnce: deps.runOnce,
-  });
-  if (!gates.flake.pass) {
-    return {
-      grade: computeGrade(gates),
-      gates,
-      scope: scopePayload,
-      skipped: false,
-    };
-  }
-
-  if (scope.changedModules.length > 0) {
-    gates.mutation = await runMutationStage(deps, scope);
-  }
-
+  const execution = await runLaneGates(deps, scope, gates);
   return {
     grade: computeGrade(gates),
     gates,
     scope: scopePayload,
+    execution,
     skipped: false,
   };
 }
