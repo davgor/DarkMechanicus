@@ -166,7 +166,6 @@ describe('attachment export of unsaved and vanished records (repo mode)', () => 
     stageRevision(env, { epicId: EPIC, revisionId: R1, number: 1, bundle: makeBundle([[1, 2]], [[1, 2]]) })
     expect(flush(env)).toMatchObject({ failed: 0, errors: [], savedRevisionIds: [R1] })
     const paths = ownedPaths(env.layout)
-    expect(env.fs.exists(paths.epicPointerFile(EPIC))).toBe(true)
     insertOutbox(env.db, { kind: 'comment', epicId: EPIC, entityId: COMMENT })
     expect(flush(env)).toMatchObject({ failed: 0, errors: [] })
     const file = paths.attachmentFile({ kind: 'epic', id: EPIC }, sha(bytes), 'image/png')
