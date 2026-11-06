@@ -41,7 +41,8 @@ function draftAfterImport(epic: BoardEpic): PlanBundle {
       return `${kind === 'ticket' ? 'tk' : 'sp'}_new${created}`
     },
     nextKey: () => `DM-${created}`,
-    repositories: () => null
+    repositories: () => null,
+    attachmentRefs: () => []
   }
   return applyDraftOps(initial, ops, deps).bundle
 }

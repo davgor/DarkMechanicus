@@ -14,6 +14,7 @@ import { requestWithoutKey, withIdempotency } from './idempotency'
 import { enqueueOutbox } from './outbox'
 import { withRunWarnings } from './runWarnings'
 import { indexDocument } from './searchIndex'
+import { checkSavedTicketAttachments, claimSavedTicketAttachments } from './ticketAttachments'
 import { assertNoOpenTransfer } from './transferGuard'
 
 type RevisionState = 'pending' | 'saved' | 'failed'
@@ -295,6 +296,7 @@ function saveDraft(ctx: Ctx, input: { epicId: string; expectedDraftRevision: num
     ctx.db.run('DELETE FROM drafts WHERE epic_id = ?', epic.id)
     return { status: 'unchanged', revisionId: current.id, revisionNumber: current.number, contentHash: hash }
   }
+  checkSavedTicketAttachments(ctx.db, bundle)
   return insertPendingRevision(ctx, { epic, bundle, hash })
 }
 
@@ -367,6 +369,8 @@ function markSaved(ctx: Ctx, revision: RevisionRow, bundle: PlanBundle): void {
       now
     )
   }
+  // After ticket_status: a ticket owner resolves through it. Skips, never throws, so the snapshot entry completes.
+  claimSavedTicketAttachments(ctx.db, bundle)
 }
 
 /**

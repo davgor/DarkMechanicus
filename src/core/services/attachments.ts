@@ -23,6 +23,7 @@ import { isBefore } from '../clock'
 import { enqueueOutbox } from './outbox'
 import { type AttachmentPlacement, resolveAttachmentPlacement } from './attachmentOwners'
 import { attachmentPurpose, LIMITS, parseInput } from '../schemas'
+import { plannedAttachmentIds } from './ticketAttachments'
 
 /** A staged image older than this many days is pruned when a workspace opens. */
 const STAGED_ATTACHMENT_MAX_AGE_DAYS = 7
@@ -267,13 +268,15 @@ export function stagedAttachmentCutoff(nowIso: string): string {
 
 /**
  * Deletes staged images created before `olderThan` (an ISO time; default seven days before now) and returns how many.
- * Owned images are never touched.
+ * Owned images are never touched, nor staged ones a draft or a pending revision names on a ticket: they are claimed
+ * when that plan is saved.
  */
 export function pruneStagedAttachments(ctx: Ctx, olderThan: string = stagedAttachmentCutoff(ctx.clock.nowIso())): number {
   return ctx.db.tx(() => {
+    const planned = plannedAttachmentIds(ctx.db)
     const stale = ctx.db
       .all<{ id: string; created_at: string }>('SELECT id, created_at FROM attachments WHERE owner_kind IS NULL')
-      .filter((row) => isBefore(row.created_at, olderThan))
+      .filter((row) => isBefore(row.created_at, olderThan) && !planned.has(row.id))
     for (const row of stale) {
       ctx.db.run('DELETE FROM attachments WHERE id = ? AND owner_kind IS NULL', row.id)
     }
