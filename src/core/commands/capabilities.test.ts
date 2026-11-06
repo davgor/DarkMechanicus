@@ -63,6 +63,7 @@ const PROBES: Record<CommandName, unknown> = {
   getTicket: { epicId: EPIC, ticketId: TICKET, view: 'saved' },
   setTicketStatus: { ticketId: TICKET, status: 'in_progress' },
   deleteTicket: { epicId: EPIC, ticketId: TICKET },
+  deleteKanbanCard: { cardId: CARD },
   registerHost: {
     hostId: 'probe-host',
     hostType: 'probe',
@@ -203,6 +204,7 @@ describe('COMMAND_CAPABILITIES', () => {
       'authorizeAutoContinue',
       'cancelTransfer',
       'deleteEpic',
+      'deleteKanbanCard',
       'deleteTicket',
       'grantRetry',
       'issueGrant',
