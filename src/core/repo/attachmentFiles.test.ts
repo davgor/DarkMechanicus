@@ -303,7 +303,11 @@ describe('comment attachment import', () => {
       'SELECT owner_kind, owner_id, created_by_label FROM attachments WHERE id = ?',
       f.ids.comment
     )
-    expect(row).toEqual({ owner_kind: 'comment', owner_id: COMMENT, created_by_label: 'imported' })
+    expect(row).toEqual({
+      owner_kind: 'comment',
+      owner_id: COMMENT,
+      created_by_label: f.source.db.get<{ l: string }>('SELECT created_by_label AS l FROM attachments WHERE id = ?', f.ids.comment)?.l
+    })
     expect(f.reconcile().rejected).toEqual([])
     const restored = stored(f.target, f.ids.comment)
     expect(restored.missing).toBe(0)
@@ -334,7 +338,7 @@ describe('ticket attachment import', () => {
     expect(target.db.get('SELECT owner_kind, owner_id, created_by_label FROM attachments WHERE id = ?', id)).toEqual({
       owner_kind: 'ticket',
       owner_id: tid(1),
-      created_by_label: 'imported'
+      created_by_label: source.db.get<{ l: string }>('SELECT created_by_label AS l FROM attachments WHERE id = ?', id)?.l
     })
     expect(stored(target, id).missing).toBe(0)
     expect(Buffer.from(stored(target, id).data ?? []).equals(bytes)).toBe(true)
@@ -659,5 +663,97 @@ describe('card reference images across import (repo mode)', () => {
     })
     expect(Buffer.from(stored(target, secondId).data ?? []).equals(second)).toBe(true)
     expect(getKanbanCard(createTestCtx({ db: target.db, clock: target.clock }), { cardId: card.id }).attachments?.map((ref) => ref.id)).toEqual([secondId])
+  })
+})
+
+const creatorOf = (env: RepoEnv, id: string): { created_by_role: string; created_by_label: string } | undefined =>
+  env.db.get('SELECT created_by_role, created_by_label FROM attachments WHERE id = ?', id)
+const setCreator = (env: RepoEnv, id: string, role: string, label: string): void => {
+  env.db.run('UPDATE attachments SET created_by_role = ?, created_by_label = ? WHERE id = ?', role, label, id)
+}
+const evidenceImage = (): { source: RepoEnv; id: string; sidecar: string; epicId: string } => {
+  const { env, ctx } = fixture()
+  const { runId, epicId } = startedRun(ctx, { bundle: makeBundle([[1, 2]], [[1, 2]]) })
+  flush(env)
+  const claimed = claimTicket(ctx, runId, 1)
+  const bytes = pngBytes(40, 30, 51)
+  const id = stage(ctx, bytes)
+  setCreator(env, id, 'worker', 'Worker One')
+  submitClaim(withRole(ctx, 'worker'), claimed, { evidence: { notes: 'Shot', attachments: [id] } })
+  expect(flush(env)).toMatchObject({ failed: 0, errors: [] })
+  const sidecar = ownedPaths(env.layout).attachmentSidecarFile({ kind: 'run', id: runId }, id)
+  return { source: env, id, sidecar, epicId }
+}
+
+describe('attachment sidecars (who staged an image)', () => {
+  it('writes <id>.json beside the image with only id, hash, creator and time', () => {
+    const { source, id, sidecar } = evidenceImage()
+    const record = JSON.parse(source.fs.get(sidecar) ?? 'null') as Record<string, unknown>
+    expect(Object.keys(record).sort()).toEqual(['createdAt', 'createdBy', 'id', 'sha256'])
+    expect(record).toMatchObject({ id, createdBy: { role: 'worker', label: 'Worker One' } })
+  })
+
+  it('restores createdBy for an evidence image and a comment image in a fresh database', () => {
+    const { source, id, sidecar, epicId } = evidenceImage()
+    const commentBytes = jpegBytes(10, 20)
+    const ctx = createTestCtx({ db: source.db, clock: source.clock })
+    insertComment(source.db, { id: COMMENT, epicId: epicId })
+    const commentId = claim(ctx, commentBytes, { kind: 'comment', id: COMMENT })
+    setCreator(source, commentId, 'planner', 'Plan Bot')
+    source.db.run("INSERT INTO outbox (kind, epic_id, entity_id, state, created_at) VALUES ('comment', ?, ?, 'pending', ?)", epicId, COMMENT, '2026-01-01T00:00:00.000Z')
+    expect(sidecar).toContain(id)
+    expect(flush(source)).toMatchObject({ failed: 0 })
+    const { target, reconcile } = cloneOf(source)
+    expect(reconcile().rejected).toEqual([])
+    expect(creatorOf(target, id)).toEqual({ created_by_role: 'worker', created_by_label: 'Worker One' })
+    expect(creatorOf(target, commentId)).toEqual({ created_by_role: 'planner', created_by_label: 'Plan Bot' })
+  })
+
+  it('imports with the placeholder creator when the folder has no sidecars', () => {
+    const { source, id } = evidenceImage()
+    const { target, reconcile } = cloneOf(source)
+    for (const path of target.fs.files().keys()) {
+      if (path.includes('attachments') && path.endsWith('.json')) {
+        target.fs.removeTree(path)
+      }
+    }
+    expect(reconcile().rejected).toEqual([])
+    expect(creatorOf(target, id)).toEqual({ created_by_role: 'worker', created_by_label: 'imported' })
+    expect(stored(target, id).missing).toBe(0)
+  })
+
+})
+
+describe('attachment sidecars that cannot be trusted', () => {
+  it.each([
+    ['not JSON', () => 'not json'],
+    ['an unknown role', (id: string, hash: string) => JSON.stringify({ id, sha256: hash, createdBy: { role: 'root', label: 'x' }, createdAt: '2026-01-01T00:00:00.000Z' })],
+    ['a label over the limit', (id: string, hash: string) => JSON.stringify({ id, sha256: hash, createdBy: { role: 'worker', label: 'x'.repeat(201) }, createdAt: '2026-01-01T00:00:00.000Z' })],
+    ['another hash', (id: string) => JSON.stringify({ id, sha256: 'f'.repeat(64), createdBy: { role: 'reviewer', label: 'x' }, createdAt: '2026-01-01T00:00:00.000Z' })],
+    ['an extra field', (id: string, hash: string) => JSON.stringify({ id, sha256: hash, createdBy: { role: 'reviewer', label: 'x' }, createdAt: '2026-01-01T00:00:00.000Z', token: 't' })]
+  ])('falls back to the placeholder for a sidecar with %s', (_name, make) => {
+    const { source, id, sidecar } = evidenceImage()
+    const { target, reconcile } = cloneOf(source)
+    const hash = (JSON.parse(source.fs.get(sidecar) ?? '{}') as { sha256: string }).sha256
+    target.fs.put(sidecar.replace(source.layout.dmDir, target.layout.dmDir), make(id, hash))
+    expect(reconcile().rejected).toEqual([])
+    expect(creatorOf(target, id)).toEqual({ created_by_role: 'worker', created_by_label: 'imported' })
+  })
+})
+
+describe('attachment sidecars of detached card images', () => {
+  it('removes the sidecar of a detached card image, and keeps the one of an image still listed', () => {
+    const { env, ctx } = fixture()
+    const stageReference = (bytes: Buffer, label: string): string => createStagedAttachment(ctx, { bytes, label, purpose: 'reference' }).id
+    const [keepId, dropId] = [stageReference(pngBytes(40, 30, 61), 'keep'), stageReference(pngBytes(40, 30, 62), 'drop')] as [string, string]
+    const card = createKanbanCard(ctx, { title: 'Mockups', attachments: [keepId, dropId] })
+    expect(flush(env)).toMatchObject({ failed: 0, errors: [] })
+    const paths = ownedPaths(env.layout)
+    const folder = { kind: 'kanban_card', id: card.id } as const
+    expect(env.fs.get(paths.attachmentSidecarFile(folder, dropId))).toBeDefined()
+    updateKanbanCard(ctx, { cardId: card.id, expectedRevision: 1, attachments: [keepId] })
+    expect(flush(env)).toMatchObject({ failed: 0, errors: [] })
+    expect(env.fs.get(paths.attachmentSidecarFile(folder, dropId))).toBeUndefined()
+    expect(env.fs.get(paths.attachmentSidecarFile(folder, keepId))).toBeDefined()
   })
 })

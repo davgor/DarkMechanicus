@@ -460,6 +460,18 @@ const KANBAN_ACTOR_ROLES = [...SESSION_ROLES, 'reader'] as const satisfies reado
 const kanbanActor = z.strictObject({ role: z.enum(KANBAN_ACTOR_ROLES), label })
 
 /**
+ * Who staged an image and when, kept as `attachments/<attachmentId>.json` beside the image file (named by id, because
+ * two ids can share bytes). The image's own record names its metadata only; this is what import restores `createdBy` from.
+ */
+export const attachmentSidecar = z.strictObject({
+  id: idOf('attachment'),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  createdBy: z.strictObject({ role: z.enum(KANBAN_ACTOR_ROLES), label }),
+  createdAt: isoTime
+})
+export type AttachmentSidecar = z.infer<typeof attachmentSidecar>
+
+/**
  * A Kanban card's definition (`kanban/<cardId>/card.json`): what an edit can change, its key and author. Only a create
  * or an edit rewrites it, at the next `generation`; where the card is (lane, attempts, summary) is rebuilt from its
  * events. The local edit revision is not tracked: the events carry it.

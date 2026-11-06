@@ -22,6 +22,7 @@ import { hasTransferHold } from '../services/transferGuard'
 import type { StorageMode } from './storageMode'
 import {
   ATTACHMENT_FILE_NAME,
+  ATTACHMENT_SIDECAR_NAME,
   loadStoredAttachment,
   type OwningRecord,
   placementOfAttachment,
@@ -29,7 +30,7 @@ import {
   unexportedAttachments,
   writeAttachmentFile
 } from './attachmentFiles'
-import { assertContained, displayPath, ownedPaths } from './paths'
+import { type AttachmentFolder, assertContained, displayPath, ownedPaths } from './paths'
 import {
   buildCommentRecord,
   buildEpicPointerRecord,
@@ -187,9 +188,26 @@ function recordExport(deps: FinalizerDeps, entry: { kind: ExportKind; entityId: 
   )
 }
 
+/**
+ * Writes `attachments/<id>.json` beside the image: who staged it and when, so an import can restore `createdBy`. Named by
+ * id (two ids can share bytes); nothing but the id, the hash, the creator and the time goes in. A file already holding
+ * exactly this text is left alone.
+ */
+function writeAttachmentSidecar(deps: FinalizerDeps, attachment: StoredAttachment, folder: AttachmentFolder): void {
+  const target = ownedPaths(deps.layout).attachmentSidecarFile(folder, attachment.id)
+  const text = prettyJson({ id: attachment.id, sha256: attachment.sha256, createdBy: attachment.createdBy, createdAt: attachment.createdAt })
+  assertContained(deps.layout, deps.fs, target)
+  if (deps.fs.exists(target) && readOwnedText(deps, target) === text) {
+    return
+  }
+  writeFileSafely(deps, target, text)
+}
+
 /** Writes one image's file beside its owner's records and records the export (its hash is the image's sha256). */
 function exportAttachmentFile(deps: FinalizerDeps, attachment: StoredAttachment): void {
-  writeAttachmentFile(deps, attachment, placementOfAttachment(deps.db, attachment))
+  const placement = placementOfAttachment(deps.db, attachment)
+  writeAttachmentFile(deps, attachment, placement)
+  writeAttachmentSidecar(deps, attachment, placement.folder)
   recordExport(deps, {
     kind: 'attachment',
     entityId: attachment.id,
@@ -248,20 +266,21 @@ function pruneCardAttachmentFiles(deps: FinalizerDeps, cardId: string): void {
   if (!deps.fs.exists(dir) || !deps.fs.isDirectory(dir)) {
     return
   }
-  const kept = new Set(
-    deps.db
-      .all<{ sha256: string }>(
-        `SELECT sha256 FROM attachments
+  const rows = deps.db
+      .all<{ id: string; sha256: string }>(
+        `SELECT id, sha256 FROM attachments
          WHERE (owner_kind = 'kanban_card' AND owner_id = ?)
             OR (owner_kind = 'kanban_attempt' AND owner_id IN (SELECT id FROM kanban_attempts WHERE card_id = ?))`,
         cardId,
         cardId
       )
-      .map((row) => row.sha256)
-  )
+  const keptHashes = new Set(rows.map((row) => row.sha256))
+  const keptIds = new Set(rows.map((row) => row.id))
   for (const name of deps.fs.readdir(dir)) {
     const match = ATTACHMENT_FILE_NAME.exec(name)
-    if (match !== null && !kept.has(match[1] ?? '')) {
+    const sidecar = ATTACHMENT_SIDECAR_NAME.exec(name)
+    // A sidecar is named by id, so it goes with its own image row, even when another id keeps the same bytes.
+    if ((match !== null && !keptHashes.has(match[1] ?? '')) || (sidecar !== null && !keptIds.has(sidecar[1] ?? ''))) {
       const file = join(dir, name)
       assertContained(deps.layout, deps.fs, file)
       deps.fs.remove(file)
