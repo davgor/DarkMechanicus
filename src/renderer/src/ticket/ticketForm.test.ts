@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { CapabilityProfile, TicketContent } from '../../../shared/domain/bundle'
+import type { CapabilityProfile, PlanBundle, TicketContent } from '../../../shared/domain/bundle'
+import type { AttachmentRef } from '../../../shared/domain/views'
 import { draftPlan, profileView } from '../epic/__mocks__/fixtures'
 import {
   CONFLICT_MESSAGE,
@@ -68,6 +69,8 @@ describe('ticket form from the draft bundle', () => {
       prerequisites: ['tk_102', 'tk_103'],
       size: '',
       loadedSize: '',
+      attachments: [],
+      loadedAttachments: [],
       workType: 'implementation',
       reasoningLevel: 'multi_step',
       reasoningEffort: '',
@@ -89,6 +92,41 @@ describe('ticket form from the draft bundle', () => {
   it('produces no operations when nothing changed', () => {
     expect(formToOps(form(), BUNDLE, 'tk_202')).toEqual([])
     expect(formToOps(form(), BUNDLE, 'tk_nope')).toEqual([])
+  })
+})
+
+describe('ticket form attachments', () => {
+  const ref = (id: string, label: string): AttachmentRef => ({
+    id, sha256: 'a'.repeat(64), mime: 'image/png', bytes: 1, width: 1, height: 1, label, purpose: 'reference'
+  })
+  const withImages = (...refs: AttachmentRef[]): PlanBundle => ({
+    ...BUNDLE,
+    tickets: BUNDLE.tickets.map((item) => (item.id === 'tk_202' ? { ...item, attachments: refs } : item))
+  })
+  const patchOf = (ops: unknown[]): unknown => (ops[0] as { patch: unknown }).patch
+
+  it('lists the ticket images in the form and sends nothing while they are unchanged', () => {
+    const bundle = withImages(ref('im_1', 'one.png'), ref('im_2', 'two.png'))
+    const loaded = formFromBundle(bundle, 'tk_202') as TicketForm
+    expect(loaded.attachments).toEqual([{ id: 'im_1', label: 'one.png' }, { id: 'im_2', label: 'two.png' }])
+    expect(formToOps(loaded, bundle, 'tk_202')).toEqual([])
+  })
+
+  it('sends the full id list when an image is added or removed, and [] when all are removed', () => {
+    const bundle = withImages(ref('im_1', 'one.png'), ref('im_2', 'two.png'))
+    const loaded = formFromBundle(bundle, 'tk_202') as TicketForm
+    const added = { ...loaded, attachments: [...loaded.attachments, { id: 'im_3', label: 'three.png' }] }
+    expect(patchOf(formToOps(added, bundle, 'tk_202'))).toEqual({ attachments: ['im_1', 'im_2', 'im_3'] })
+    const removed = { ...loaded, attachments: loaded.attachments.slice(1) }
+    expect(patchOf(formToOps(removed, bundle, 'tk_202'))).toEqual({ attachments: ['im_2'] })
+    const cleared = { ...loaded, attachments: [] }
+    expect(patchOf(formToOps(cleared, bundle, 'tk_202'))).toEqual({ attachments: [] })
+  })
+
+  it('does not rewrite images an agent changed in the draft since the form loaded', () => {
+    const loaded = form()
+    const changed = withImages(ref('im_9', 'agent.png'))
+    expect(formToOps(loaded, changed, 'tk_202')).toEqual([])
   })
 })
 

@@ -186,6 +186,7 @@ function DraftEditorPanel(props: { ws: WorkspaceHandle; plan: PlanView; ticketId
     <TicketEditor
       key={ticketId}
       runner={ws.runner}
+      folderKey={ws.folder.attachmentKey}
       bundle={plan.bundle}
       repositories={repositories.status === 'ready' ? repositories.value : null}
       ticketId={ticketId}

@@ -3,10 +3,12 @@ import type { FormEvent } from 'react'
 import { TICKET_PRIORITIES } from '../../../shared/domain/bundle'
 import type { TicketPriority } from '../../../shared/domain/bundle'
 import type { KanbanCardView } from '../../../shared/domain/kanban'
+import { ImageAttachField, type FormImage } from '../attachments/ImageAttachField'
 import { errorMessage } from '../api/dm'
 import { Button } from '../components/Button'
 import { Dialog } from '../components/Dialog'
 import { Field } from '../components/Field'
+import type { Runner } from '../epic/runner'
 import { MAX_TITLE } from '../home/newEpic'
 
 export const PRIORITY_LABELS: Record<TicketPriority, string> = { low: 'Low', normal: 'Normal', high: 'High', critical: 'Critical' }
@@ -18,6 +20,8 @@ export interface CardContent {
   acceptanceCriteria: string[]
   expectedArtifacts: string[]
   priority: TicketPriority
+  /** The full list of image ids the card carries after the save. Omitted on an edit that left the images alone. */
+  attachments?: string[]
 }
 
 interface Draft {
@@ -26,9 +30,10 @@ interface Draft {
   criteria: string
   artifacts: string
   priority: TicketPriority
+  images: FormImage[]
 }
 
-const EMPTY_DRAFT: Draft = { title: '', body: '', criteria: '', artifacts: '', priority: 'normal' }
+const EMPTY_DRAFT: Draft = { title: '', body: '', criteria: '', artifacts: '', priority: 'normal', images: [] }
 
 /** An existing card's content as the form edits it. */
 function draftOf(card: KanbanCardView): Draft {
@@ -37,17 +42,29 @@ function draftOf(card: KanbanCardView): Draft {
     body: card.body,
     criteria: card.acceptanceCriteria.map((criterion) => criterion.text).join('\n'),
     artifacts: card.expectedArtifacts.join('\n'),
-    priority: card.priority
+    priority: card.priority,
+    images: (card.attachments ?? []).map(({ id, label }) => ({ id, label }))
   }
 }
 
 const lines = (text: string): string[] => text.split('\n').map((line) => line.trim()).filter((line) => line !== '')
+
+/** The id list to send: always on a new card with images, on an edit only when it differs from the card's (`[]` clears). */
+function attachmentsToSend(draft: Draft, card: KanbanCardView | undefined): string[] | undefined {
+  const ids = draft.images.map((image) => image.id)
+  const saved = (card?.attachments ?? []).map((ref) => ref.id)
+  return ids.length === saved.length && ids.every((id, index) => id === saved[index]) ? undefined : ids
+}
 
 interface CardFormDialogProps {
   /** The card being edited; absent for a new card. */
   card?: KanbanCardView
   /** Sends the content; rejects with the server's refusal, which the form shows. */
   onSubmit(content: CardContent): Promise<void>
+  /** Uploads the form's images. */
+  runner: Runner
+  /** The folder's attachment key: the host of each image address. */
+  folderKey: string
   onClose(): void
 }
 
@@ -59,7 +76,7 @@ interface CardForm {
   submit(event: FormEvent): Promise<void>
 }
 
-function useCardForm({ card, onSubmit, onClose }: CardFormDialogProps): CardForm {
+function useCardForm({ card, onSubmit, onClose }: Pick<CardFormDialogProps, 'card' | 'onSubmit' | 'onClose'>): CardForm {
   const [draft, setDraft] = useState<Draft>(card === undefined ? EMPTY_DRAFT : draftOf(card))
   const [problem, setProblem] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -78,7 +95,9 @@ function useCardForm({ card, onSubmit, onClose }: CardFormDialogProps): CardForm
     setBusy(true)
     try {
       const { body, priority } = draft
-      await onSubmit({ title, body, acceptanceCriteria: lines(draft.criteria), expectedArtifacts: lines(draft.artifacts), priority })
+      const content: CardContent = { title, body, acceptanceCriteria: lines(draft.criteria), expectedArtifacts: lines(draft.artifacts), priority }
+      const attachments = attachmentsToSend(draft, card)
+      await onSubmit(attachments === undefined ? content : { ...content, attachments })
       onClose()
     } catch (error) {
       setProblem(errorMessage(error))
@@ -88,7 +107,7 @@ function useCardForm({ card, onSubmit, onClose }: CardFormDialogProps): CardForm
   return { draft, problem, busy, edit, submit }
 }
 
-function CardFields({ form, formId }: { form: CardForm; formId: string }): JSX.Element {
+function CardFields({ form, formId, runner, folderKey }: { form: CardForm; formId: string; runner: Runner; folderKey: string }): JSX.Element {
   const priorityId = useId()
   const { draft, problem, edit } = form
   return (
@@ -109,6 +128,7 @@ function CardFields({ form, formId }: { form: CardForm; formId: string }): JSX.E
           ))}
         </select>
       </div>
+      <ImageAttachField runner={runner} folderKey={folderKey} images={draft.images} onChange={(images) => edit('images', images)} />
       {problem === null ? null : (
         <p className="form-error" role="alert">
           {problem}
@@ -137,7 +157,7 @@ export function CardFormDialog(props: CardFormDialogProps): JSX.Element {
         </>
       }
     >
-      <CardFields form={form} formId={formId} />
+      <CardFields form={form} formId={formId} runner={props.runner} folderKey={props.folderKey} />
     </Dialog>
   )
 }
