@@ -1,9 +1,11 @@
 /** Deleting Kanban cards end to end through workspaces on scratch folders: the guard, authority and persistence. */
-import { existsSync } from 'node:fs'
+import { existsSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { KanbanPacket } from '../../shared/domain/kanban'
+import { pngBytes } from '../../test/images'
 import { createHarness, type Harness } from '../../test/workspaceHarness'
+import { openDatabase } from '../db/database'
 import type { Workspace } from '../workspace'
 
 let harness: Harness
@@ -162,5 +164,60 @@ describe('deleteKanbanCard authority', () => {
     }
     expect((await desktop.getKanbanCard({ cardId: card.id })).title).toBe('Mine')
     expect(existsSync(cardDir(card.id))).toBe(true)
+  })
+})
+
+/** The rows naming any of `ids` in attachments, and attachment rows in outbox and sync_state. */
+function imageRows(ids: string[]): string[] {
+  const db = openDatabase(join(harness.root, '.darkmechanicus', 'local', 'state.sqlite'))
+  try {
+    const marks = ids.map(() => '?').join(', ')
+    return [
+      ...db.all<{ id: string }>(`SELECT id FROM attachments WHERE id IN (${marks})`, ...ids).map((row) => `attachments: ${row.id}`),
+      ...db
+        .all<{ entity_id: string }>(`SELECT entity_id FROM outbox WHERE kind = 'attachment' AND entity_id IN (${marks})`, ...ids)
+        .map((row) => `outbox: ${row.entity_id}`),
+      ...db
+        .all<{ entity_id: string }>(`SELECT entity_id FROM sync_state WHERE kind = 'attachment' AND entity_id IN (${marks})`, ...ids)
+        .map((row) => `sync_state: ${row.entity_id}`)
+    ]
+  } finally {
+    db.close()
+  }
+}
+
+async function upload(seed: number, purpose: 'reference' | 'evidence'): Promise<string> {
+  const path = join(harness.root, `image-${seed}.png`)
+  writeFileSync(path, pngBytes(8, 6, seed))
+  const view = await orchestrator.addAttachment({ path, label: `image ${seed}`, purpose })
+  return view.id
+}
+
+describe('deleteKanbanCard with images', () => {
+  it('deletes the card image and its attempt evidence image with their exports, and leaves a staged image', async () => {
+    const reference = await upload(1, 'reference')
+    const evidence = await upload(2, 'evidence')
+    const staged = await upload(3, 'reference')
+    const card = await desktop.createKanbanCard({ title: 'With images', attachments: [reference] })
+    await desktop.playKanbanCard({ cardId: card.id })
+    const packet = await orchestrator.claimKanbanCard({ cardId: card.id })
+    await orchestrator.submitKanbanCard({
+      attemptId: packet.attemptId,
+      claimToken: tokenOf(packet),
+      outputs: { summary: 'Done.' },
+      evidence: { attachments: [evidence] }
+    })
+    await desktop.approveKanbanCard({ cardId: card.id })
+    await desktop.flushPortableState()
+    expect(imageRows([reference, evidence])).toEqual(expect.arrayContaining([`sync_state: ${reference}`, `sync_state: ${evidence}`]))
+
+    await desktop.deleteKanbanCard({ cardId: card.id })
+
+    expect(imageRows([reference, evidence])).toEqual([])
+    expect(imageRows([staged])).toEqual([`attachments: ${staged}`])
+    await desktop.flushPortableState()
+    const status = await desktop.getStorageStatus()
+    expect(status.outbox).toMatchObject({ pending: 0, failed: 0 })
+    expect(status.outbox.failedEntries).toBeUndefined()
   })
 })
