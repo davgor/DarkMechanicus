@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { generateMutants, scoreMutations, runMutationGate } from '../src/gates/mutationGate.js';
+import {
+  generateMutants,
+  runMutationGate,
+  scoreMutations,
+  touchesLines,
+} from '../src/gates/mutationGate.js';
 import { DEFAULT_CONFIG } from '../src/config.js';
 
 const source = `
@@ -76,5 +81,62 @@ describe('runMutationGate', () => {
     });
     expect(gate.total).toBeGreaterThan(0);
     expect(gate.killed + gate.survived).toBe(gate.total);
+  });
+});
+
+const MULTI_LINE = [
+  'export function inRange(n: number): boolean {',
+  '  if (',
+  '    n > 0 &&',
+  '    n < 10',
+  '  ) {',
+  '    return true;',
+  '  }',
+  '  return false;',
+  '}',
+  '',
+].join('\n');
+
+describe('generateMutants lines', () => {
+  it('spans a mutant over every line of the code it replaces', () => {
+    const lines = generateMutants('src/r.ts', MULTI_LINE).map((m) => [m.description, m.line, m.endLine]);
+    expect(lines).toEqual([
+      ['invert if condition', 3, 4],
+      ['swap operator to <', 3, 3],
+      ['swap operator to >', 4, 4],
+      ['invert boolean return to false', 6, 6],
+      ['invert boolean return to true', 8, 8],
+    ]);
+  });
+
+  it('touches a line set when any replaced line is in it', () => {
+    const [ifMutant] = generateMutants('src/r.ts', MULTI_LINE);
+    expect(touchesLines(ifMutant!, new Set([4]))).toBe(true);
+    expect(touchesLines(ifMutant!, new Set([2, 5]))).toBe(false);
+  });
+});
+
+describe('runMutationGate changed lines', () => {
+  it('runs only mutants that touch a changed line and counts the rest', async () => {
+    const applied: string[] = [];
+    const gate = await runMutationGate({
+      config: DEFAULT_CONFIG,
+      modules: [
+        { path: 'src/r.ts', source: MULTI_LINE },
+        { path: 'src/clamp.ts', source },
+      ],
+      relatedTests: ['src/r.test.ts'],
+      changedLines: new Map([['src/r.ts', new Set([4, 8])]]),
+      appliers: [
+        async ({ mutatedSource }) => {
+          applied.push(mutatedSource);
+          return { ok: false };
+        },
+      ],
+    });
+    // The if (lines 3-4), `<` -> `>` (line 4) and `return false` (line 8); clamp.ts has no changed line.
+    expect(applied).toHaveLength(3);
+    expect([gate.total, gate.killed, gate.score]).toEqual([3, 3, 100]);
+    expect(gate.unchangedLineMutants).toBe(2 + generateMutants('src/clamp.ts', source).length);
   });
 });

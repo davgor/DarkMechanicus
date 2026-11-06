@@ -6,7 +6,9 @@ Fireguard assigns a letter grade (**A–F**) using three fail-fast gates — no 
 
 1. **AST** — mock/assert ratio, tautological assertions, empty tests  
 2. **Flake** — added/modified tests (git diff vs `main`) must pass **100** isolated runs at **0%** flake (fail-fast; reports `executed/configuredRuns`)  
-3. **Mutation** — changed production modules must kill ≥ **75%** of mutants; a module's mutants run only against the graded tests that transitively import it, nearest importers first
+3. **Mutation** — the graded tests must kill ≥ **75%** of the mutants on the lines the diff changed in production modules; a module's mutants run only against the graded tests that transitively import it, nearest importers first
+
+Fireguard grades what is committed: the diff is `baseRef...HEAD`, and every test run happens in a temporary snapshot of HEAD, so uncommitted edits are neither graded nor run, and the working tree is never mutated.
 
 Playwright / e2e is out of scope.
 
@@ -70,7 +72,9 @@ Also writes `GITHUB_STEP_SUMMARY` when that env var is set.
 }
 ```
 
-`concurrency` (default: one per three CPUs, so 4 on a 12-core machine and 1 below 6 cores) is how many mutants are tested at once; see [Speed](#speed). This repository's `.fireguardrc.json` sets `testCommand` to `node node_modules/vitest/vitest.mjs run`, which skips `npx`'s start-up on every one of the thousands of test runs.
+`concurrency` (default: one per three CPUs, so 4 on a 12-core machine and 1 below 6 cores) is how many lanes run tests at once; see [Speed](#speed).
+
+`testCommand` names the vitest to run and its options. When it runs vitest itself (`npx vitest run`, `node node_modules/vitest/vitest.mjs run --config x`), fireguard reads its `vitest run` options and keeps one vitest running per lane instead of starting the command for every run. Any other command (`npm test --`) is started for every run, as before, which is much slower.
 
 Env overrides: `FIREGUARD_MIN_MUTATION_SCORE`, `FIREGUARD_MAX_MOCK_RATIO`, `FIREGUARD_AGENTIC_FLAKINESS_RUNS`, `FIREGUARD_BASE_REF`, `FIREGUARD_TEST_COMMAND`, `FIREGUARD_TEST_TIMEOUT_MS`, `FIREGUARD_CONCURRENCY`.
 
@@ -78,16 +82,19 @@ Env overrides: `FIREGUARD_MIN_MUTATION_SCORE`, `FIREGUARD_MAX_MOCK_RATIO`, `FIRE
 
 ## Scope rules
 
-- **Graded tests** — paths with git status `A`/`M`/`R`/`C` matching `include` vs `baseRef`
+- **Graded tests** — paths with git status `A`/`M`/`R`/`C` matching `include` in `git diff baseRef...HEAD` (or `baseRef HEAD` when there is no merge base)
 - **Changed modules** — added/modified production `src|lib|app` files (not tests)
+- Only committed changes count; the AST gate reads the graded tests as committed, and the other gates run in snapshots of HEAD
 - Production modules changed with **no** graded test updates → grade **F** (fail closed)
 - No graded tests and no module changes → skip with grade A
 - Mutation runs when there are graded tests and changed modules
-- At `concurrency` 1, mutation writes in-place with `try/finally` restore plus a process `exit` hook to avoid dirty trees; above 1 it writes only temporary workspace copies, unless it has to fall back to the working tree (see [Speed](#speed))
+- Mutants are written only into the snapshots, unless fireguard has to fall back to the working tree (see [Speed](#speed)); there it restores each file with `try/finally` plus a process `exit` hook to avoid dirty trees
 
 ## Mutation
 
 Each changed production module is mutated one operator at a time (`+ - * / < > <= >= === !==`, `if` inversion, boolean/number `return` tweaks) and the tests are re-run against every mutant; a mutant that still passes them survives.
+
+**Only mutants on changed lines run.** A mutant counts when the code it replaces touches a line the diff added or changed (`git diff -U0`, new side; a condition spanning lines counts if any of them changed). The score is the kill rate of those mutants, so a branch is graded on the code it wrote, not on old code it happens to touch; a module whose diff only deletes lines has none. The report says how many mutants sat on unchanged lines and were not run (`changed lines only: 15 mutants on changed lines, 166 on unchanged lines not run`; `--json`: `gates.mutation.unchangedLineMutants`). Callers of `runFireguard` that do not supply `getChangedLines` run every mutant of every changed module.
 
 **Mutants of a module run only against graded tests that transitively import it.** Only those tests can load the mutated code, so grading semantics are unchanged, but a milestone-sized branch no longer re-runs every graded test file for every mutant. Fireguard builds a static import graph with the TypeScript compiler (nothing is executed):
 
@@ -99,21 +106,22 @@ Each changed production module is mutated one operator at a time (`+ - * / < > <
 
 **Nearest tests first.** A mutant first runs against the related tests that reach its module in the fewest import hops (usually the module's own test file). Only a mutant those tests leave alive runs against the module's remaining related tests. A mutant is killed exactly when one of its related tests fails, as before, but most mutants are killed by the first, small batch, so they no longer pay for every importer.
 
-Mutant runs add two vitest flags. `--bail=1` stops a run at its first failing test (that failure already kills the mutant) instead of also waiting out every other test the mutant makes hang until vitest's test timeout; it cannot change a verdict. `--passWithNoTests` makes a batch of graded files that vitest does not collect (for example `*.spec.ts` outside vitest's `include`) pass; before, such a run failed with "No test files found" and its mutant counted as killed.
+Every mutant run stops at its first failing test (vitest's `bail: 1`): that failure already kills the mutant, so waiting out the other tests it makes hang cannot change the verdict. A batch of graded files that vitest does not collect (for example `*.spec.ts` outside vitest's `include`) passes rather than counting as a kill.
 
-`--json` output carries the same counts as `gates.mutation.moduleTests` (module path → number of related graded test files, nearest and farther). Callers of `runFireguard` that do not supply `fileExists` and `readFileSync` keep the previous behavior of running every graded test for every mutant.
+`--json` output carries the same counts as `gates.mutation.moduleTests` (module path → number of related graded test files, nearest and farther). Callers of `runFireguard` whose lanes' `source` has no `fileExists` and `readFileSync` keep the previous behavior of running every graded test for every mutant.
 
 ## Speed
 
-A sprint-sized change can mean 1,000 to 2,000 mutants, and the mutation gate used to be most of a multi-hour run. Each mutant's test run is a whole vitest process, mostly start-up and module loading, and leaves most CPUs idle, so fireguard tests several mutants at once.
+Both test gates run in **lanes**, `concurrency` of them. Each lane is a temporary snapshot of HEAD with one long-lived vitest in it, and runs one thing at a time: a flake run (every graded file once) or a mutant.
 
-With `concurrency` above 1, fireguard copies the workspace into a temporary directory once per lane: every file `git ls-files --cached --others --exclude-standard` lists, as the working tree has it (ignored files such as build output are not copied), with `node_modules` linked rather than copied. Each lane tests one mutant at a time in its own copy, so the working tree is never mutated and a build or an interrupted run cannot pick up a mutant. Each lane's vitest runs get `VITEST_MAX_WORKERS` set to their share of the CPUs, so all lanes together use about as many workers as one ordinary vitest run. The copies are deleted when the gate finishes.
+- **Snapshots of the committed tree.** `git checkout-index` writes HEAD into a temporary directory per lane, through a temporary index, so the repository's index, branches and worktree list are untouched. Uncommitted, untracked and ignored files (build output) are left out; each `node_modules` (top-level and nested) is linked to the working tree's. A snapshot has no `.git`. The snapshots are deleted at the end, or on exit if fireguard is interrupted.
+- **One vitest per lane.** Starting vitest and transforming the modules is most of a short test run. A lane keeps one vitest running (`fireguard/src/vitestLane.mjs`) and sends it each run, so only the first run of a lane pays for start-up and transforms. Each run still gets fresh test workers, as `vitest run` does, so runs stay isolated from each other; a mutant written into a snapshot is reloaded before its run. A run that exceeds `testTimeoutMs` is killed with everything it started, and the lane starts a fresh vitest for its next run. A run that vitest reports as interrupted without a failing test of its own (a bail from the previous run's workers can arrive after that run ended) has no verdict, since its skipped files would read as passing, so the lane starts it again; on this benchmark that kept whole-module mutation results identical to fresh `vitest run`s.
+- **Flake runs spread over the lanes.** The 100 runs go to whichever lane is free, so several run at once. Each lane's vitest gets `VITEST_MAX_WORKERS` set to its share of two thirds of the CPUs (2 each for 8 lanes on 24 CPUs), so every run sees about the load of a full test-suite run. The rest of the CPUs is for each lane's vitest, the processes tests start, and antivirus scanning: at one worker per CPU a CPU-heavy test ran 8 times slower than alone and came within 2x of its timeout, while two thirds made as many runs per minute with it at half that. With fail-fast, no run starts after a failure; runs already under way finish, and every failure among them is reported.
+- **Mutants on the same lanes, after the flake gate.** The mutation gate starts once the flake gate has passed, in the same lanes and vitests. Mutants never run beside flake runs: a mutant that makes a test hang or exhaust memory would slow the flake runs next to it and could fail them.
 
-Before using the copies, fireguard runs the graded tests once in one of them. If that fails (for example, a test needs `.git`, an ignored file, or a nested `node_modules`), or the workspace cannot be copied, the mutants run in the working tree one at a time, exactly as at `concurrency` 1, and the report says why: `ran one mutant at a time in the working tree (graded tests failed in a workspace copy: …)`. `--json` carries this as `gates.mutation.execution`.
+If the snapshots cannot be made, the tests run in the working tree, one at a time, and the report says why: `Ran: one at a time in the working tree (…; could not snapshot the committed tree: …)`. `--json` carries how the lanes ran as `execution`. If a graded test needs something a snapshot lacks (`.git`, an ignored or untracked file), it fails there, so the flake gate fails and says which test; commit what it needs.
 
-The flake gate still makes its 100 runs one after another in the working tree: each run already keeps vitest's workers busy, and running several at once measured slower and made timing-sensitive tests fail.
-
-Tests that share a fixed resource across processes (a fixed port, a fixed path outside the workspace) can collide when two lanes run them at once, and a collision counts as a kill. Set `FIREGUARD_CONCURRENCY=1` if a suite has such tests.
+Tests that share a fixed resource across processes (a fixed port, a fixed path outside the workspace) can collide when two lanes run them at once: in the flake gate that counts as flaky, in the mutation gate as a kill. Set `FIREGUARD_CONCURRENCY=1` if a suite has such tests.
 
 ## Grades
 

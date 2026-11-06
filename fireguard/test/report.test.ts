@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { formatHumanReport, formatJsonReport } from '../src/report.js';
-import type { FireguardReport, MutationExecution } from '../src/types.js';
+import type { Execution, FireguardReport } from '../src/types.js';
 
 const failingReport: FireguardReport = {
   grade: { letter: 'F', score: 0, reasons: ['ast gate failed'] },
@@ -50,7 +50,7 @@ describe('report', () => {
 
 function mutationReport(
   moduleTests?: Record<string, number>,
-  execution?: MutationExecution
+  extra: { execution?: Execution; unchangedLineMutants?: number } = {}
 ): FireguardReport {
   return {
     grade: { letter: 'F', score: 0, reasons: ['mutation gate failed'] },
@@ -67,7 +67,7 @@ function mutationReport(
         ],
         modules: ['src/add.ts', 'src/orphan.ts'],
         moduleTests,
-        execution,
+        unchangedLineMutants: extra.unchangedLineMutants,
       },
     },
     scope: {
@@ -75,6 +75,7 @@ function mutationReport(
       gradedTestFiles: ['src/add.test.ts'],
       changedModules: ['src/add.ts', 'src/orphan.ts'],
     },
+    execution: extra.execution,
     skipped: false,
   };
 }
@@ -100,22 +101,36 @@ describe('report mutation scoping', () => {
     expect(json.gates.mutation?.moduleTests).toEqual({ 'src/add.ts': 1 });
   });
 
-  it('says how mutants ran: copies, in place, or in place after a fallback', () => {
-    const copies = formatHumanReport(mutationReport(undefined, { lanes: 4, workspace: 'copies' }));
-    expect(copies).toContain('  ran 4 mutants at a time in temporary workspace copies');
-    const inPlace = formatHumanReport(
-      mutationReport(undefined, { lanes: 1, workspace: 'in-place' })
+  it('says how the lanes ran: committed snapshots, or the working tree after a fallback', () => {
+    const warm = formatHumanReport(
+      mutationReport(undefined, { execution: { lanes: 4, workspace: 'committed', runner: 'warm' } })
     );
-    expect(inPlace).toContain('  ran one mutant at a time in the working tree');
+    expect(warm).toContain(
+      'Ran: 4 lanes at a time, each in a snapshot of the committed tree (one long-lived vitest per lane)'
+    );
+    const single = formatHumanReport(
+      mutationReport(undefined, { execution: { lanes: 1, workspace: 'committed', runner: 'command' } })
+    );
+    expect(single).toContain('Ran: 1 lane, each in a snapshot of the committed tree (testCommand per run)');
     const fallback = formatHumanReport(
       mutationReport(undefined, {
-        lanes: 1,
-        workspace: 'in-place',
-        fallbackReason: 'graded tests failed in a workspace copy: boom',
+        execution: {
+          lanes: 1,
+          workspace: 'working-tree',
+          runner: 'warm',
+          fallbackReason: 'could not snapshot the committed tree: boom',
+        },
       })
     );
     expect(fallback).toContain(
-      '  ran one mutant at a time in the working tree (graded tests failed in a workspace copy: boom)'
+      'Ran: one at a time in the working tree (one long-lived vitest per lane; could not snapshot the committed tree: boom)'
     );
+    expect(formatHumanReport(mutationReport())).not.toContain('Ran:');
+  });
+
+  it('says when mutants were limited to changed lines', () => {
+    const text = formatHumanReport(mutationReport(undefined, { unchangedLineMutants: 7 }));
+    expect(text).toContain('  changed lines only: 3 mutants on changed lines, 7 on unchanged lines not run');
+    expect(formatHumanReport(mutationReport())).not.toContain('changed lines only');
   });
 });

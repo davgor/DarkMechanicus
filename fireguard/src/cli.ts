@@ -1,13 +1,6 @@
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { loadConfig } from './config.js';
-import { openMutationLanes } from './mutationLanes.js';
-import {
-  createVitestRunner,
-  getGitDiffEntries,
-  readWorkspaceFile,
-  readWorkspaceFileSync,
-  workspaceFileExists,
-} from './processAdapters.js';
+import { getChangedLines, getGitDiffEntries, readCommittedFile } from './processAdapters.js';
 import {
   formatPrMarkdown,
   postPrCommentViaGithub,
@@ -16,6 +9,7 @@ import {
 import { formatHumanReport, formatJsonReport } from './report.js';
 import { runFireguard, type RunFireguardDeps } from './runFireguard.js';
 import type { FireguardConfig, FireguardReport } from './types.js';
+import { openLanes } from './workspaceLanes.js';
 
 export interface CliOptions {
   cwd?: string;
@@ -37,16 +31,15 @@ function flagValue(argv: string[], name: string): string | undefined {
   return argv[idx + 1];
 }
 
-/** Git/vitest/filesystem-backed dependencies for a real run. */
+/** Git/vitest/filesystem-backed dependencies for a real run: everything graded is committed. */
 function createDeps(cwd: string, config: FireguardConfig): RunFireguardDeps {
+  const { baseRef } = config;
   return {
     config,
-    getDiffEntries: () => getGitDiffEntries({ cwd, baseRef: config.baseRef }),
-    readFile: (path) => readWorkspaceFile(cwd, path),
-    fileExists: (path) => workspaceFileExists(cwd, path),
-    readFileSync: (path) => readWorkspaceFileSync(cwd, path),
-    runOnce: createVitestRunner({ cwd, config }),
-    openMutationLanes: (gradedTests) => openMutationLanes({ cwd, config, gradedTests }),
+    getDiffEntries: () => getGitDiffEntries({ cwd, baseRef }),
+    readFile: (path) => readCommittedFile(cwd, path),
+    getChangedLines: (paths) => getChangedLines({ cwd, baseRef, paths }),
+    openLanes: () => openLanes({ cwd, config }),
   };
 }
 
@@ -74,16 +67,18 @@ export async function runCli(options: CliOptions = {}): Promise<number> {
 Usage:
   fireguard [--json] [--comment-pr] [--markdown-out path] [--json-out path]
 
-Grades added or modified unit tests (git diff vs baseRef, default main) through:
+Grades committed, added or modified unit tests (git diff baseRef...HEAD, default main):
   Gate 1  AST mock/assert/tautology/empty checks
   Gate 2  Flakiness (default 100 isolated runs, 0% flake; fail-fast)
-  Gate 3  Mutation score on changed production modules (≥75%); each mutant runs the
-          nearest importing tests first, the rest only if it survives them
+  Gate 3  Mutation score on the changed lines of changed production modules (≥75%); each
+          mutant runs the nearest importing tests first, the rest only if it survives them
+
+Tests run in temporary snapshots of the committed tree (HEAD), so uncommitted edits are not
+graded and the working tree is never mutated.
 
 Speed:
-  FIREGUARD_CONCURRENCY  mutants tested at once (default: 1 per 3 CPUs). Above 1 they run
-                         in temporary workspace copies, not the working tree (unless copying
-                         or a baseline run there fails: then one at a time in the working tree)
+  FIREGUARD_CONCURRENCY  lanes: flake runs or mutants tested at once, each lane a snapshot
+                         with one long-lived vitest (default: 1 per 3 CPUs)
 
 PR integration:
   --comment-pr     Upsert a sticky grade comment on the current GitHub PR

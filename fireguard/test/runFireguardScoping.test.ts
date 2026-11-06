@@ -1,8 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { runFireguard, type RunFireguardDeps } from '../src/runFireguard.js';
 import { DEFAULT_CONFIG } from '../src/config.js';
-import type { DiffEntry, MutationLanes } from '../src/types.js';
-import { inPlaceLanes } from './support.js';
+import type {
+  ApplyAndTest,
+  DiffEntry,
+  Lanes,
+  RunOnceResult,
+  TestRunner,
+  WorkspaceSource,
+} from '../src/types.js';
+import { deferred, fakeLanes, memorySource, settleMicrotasks, type Deferred } from './support.js';
 
 function testSource(name: string): string {
   return [
@@ -30,8 +37,20 @@ interface Call {
   relatedTests: string[];
 }
 
-function harness(changed: string[], overrides: Partial<RunFireguardDeps> = {}) {
+interface HarnessOptions {
+  /** Decides a mutant run; kills every mutant by default. */
+  apply?: ApplyAndTest;
+  /** The lanes' flake runner; passes by default. */
+  runOnce?: TestRunner;
+  /** Where the lanes read sources; the in-memory workspace with import-graph probes by default. */
+  source?: WorkspaceSource;
+  deps?: Partial<RunFireguardDeps>;
+}
+
+function harness(changed: string[], options: HarnessOptions = {}) {
   const calls: Call[] = [];
+  const lanes = { opened: 0, closed: 0 };
+  const apply: ApplyAndTest = options.apply ?? (async () => ({ ok: false }));
   const deps: RunFireguardDeps = {
     config: {
       ...DEFAULT_CONFIG,
@@ -39,27 +58,32 @@ function harness(changed: string[], overrides: Partial<RunFireguardDeps> = {}) {
     },
     getDiffEntries: async () => changed.map((path): DiffEntry => ({ status: 'M', path })),
     readFile: async (path) => FILES[path] ?? '',
-    runOnce: async () => ({ ok: true }),
-    openMutationLanes: async () =>
-      inPlaceLanes(async (input) => {
-        calls.push({ file: input.file, relatedTests: input.relatedTests });
-        return { ok: false };
-      }),
-    ...overrides,
+    openLanes: async (): Promise<Lanes> => {
+      lanes.opened += 1;
+      return fakeLanes(
+        async (input) => {
+          calls.push({ file: input.file, relatedTests: input.relatedTests });
+          return apply(input);
+        },
+        {
+          runOnce: options.runOnce,
+          source: options.source ?? memorySource(FILES),
+          close: async () => {
+            lanes.closed += 1;
+          },
+        }
+      );
+    },
+    ...options.deps,
   };
-  return { deps, calls };
+  return { deps, calls, lanes };
 }
-
-const WORKSPACE_PROBES = {
-  fileExists: (path: string): boolean => Object.hasOwn(FILES, path),
-  readFileSync: (path: string): string | null => FILES[path] ?? null,
-};
 
 const CHANGED = [...ALL_TESTS, 'src/add.ts', 'src/twice.ts'];
 
 describe('runFireguard mutation scoping', () => {
   it('runs each changed module against the nearest graded tests that import it first', async () => {
-    const { deps, calls } = harness(CHANGED, WORKSPACE_PROBES);
+    const { deps, calls } = harness(CHANGED);
     const report = await runFireguard(deps);
     expect(calls).toEqual([
       { file: 'src/add.ts', relatedTests: ['src/add.test.ts'] },
@@ -72,12 +96,7 @@ describe('runFireguard mutation scoping', () => {
 
   it('runs the farther importers of a module only when the nearest ones miss the mutant', async () => {
     const { deps, calls } = harness(CHANGED, {
-      ...WORKSPACE_PROBES,
-      openMutationLanes: async () =>
-        inPlaceLanes(async (input) => {
-          calls.push({ file: input.file, relatedTests: input.relatedTests });
-          return { ok: !input.relatedTests.includes('src/barrel.test.ts') };
-        }),
+      apply: async (input) => ({ ok: !input.relatedTests.includes('src/barrel.test.ts') }),
     });
     const report = await runFireguard(deps);
     expect(calls).toEqual([
@@ -89,7 +108,7 @@ describe('runFireguard mutation scoping', () => {
   });
 
   it('fails a changed module that no graded test imports', async () => {
-    const { deps, calls } = harness([...CHANGED, 'src/orphan.ts'], WORKSPACE_PROBES);
+    const { deps, calls } = harness([...CHANGED, 'src/orphan.ts']);
     const report = await runFireguard(deps);
     expect(calls.map((call) => call.file)).toEqual(['src/add.ts', 'src/twice.ts']);
     expect(report.gates.mutation?.moduleTests?.['src/orphan.ts']).toBe(0);
@@ -101,7 +120,7 @@ describe('runFireguard mutation scoping', () => {
 
 describe('runFireguard without an import graph', () => {
   it('keeps running every graded test for every module', async () => {
-    const { deps, calls } = harness(CHANGED);
+    const { deps, calls } = harness(CHANGED, { source: { readFile: async (p) => FILES[p] ?? '' } });
     const report = await runFireguard(deps);
     expect(calls).toEqual([
       { file: 'src/add.ts', relatedTests: ALL_TESTS },
@@ -111,63 +130,125 @@ describe('runFireguard without an import graph', () => {
   });
 
   it('needs both file probes before it scopes anything', async () => {
-    const existsOnly = harness(CHANGED, { fileExists: WORKSPACE_PROBES.fileExists });
+    const { fileExists, readFileSync, readFile } = memorySource(FILES);
+    const existsOnly = harness(CHANGED, { source: { readFile, fileExists } });
     await runFireguard(existsOnly.deps);
-    const readOnly = harness(CHANGED, { readFileSync: WORKSPACE_PROBES.readFileSync });
+    const readOnly = harness(CHANGED, { source: { readFile, readFileSync } });
     await runFireguard(readOnly.deps);
     expect(existsOnly.calls.map((call) => call.relatedTests)).toEqual([ALL_TESTS, ALL_TESTS]);
     expect(readOnly.calls.map((call) => call.relatedTests)).toEqual([ALL_TESTS, ALL_TESTS]);
   });
 });
 
-function lanesSpy(lanes: MutationLanes) {
-  const spy = { opened: [] as string[][], closed: 0 };
-  const openMutationLanes = async (gradedTests: string[]): Promise<MutationLanes> => {
-    spy.opened.push(gradedTests);
-    return {
-      ...lanes,
-      close: async () => {
-        spy.closed += 1;
-      },
-    };
-  };
-  return { spy, openMutationLanes };
-}
-
-describe('runFireguard mutation lanes', () => {
-  it('opens lanes for the graded tests after the flake gate, reports them, and closes them', async () => {
-    const { spy, openMutationLanes } = lanesSpy({
-      appliers: [async () => ({ ok: false }), async () => ({ ok: false })],
-      execution: { lanes: 2, workspace: 'copies' },
-      close: async () => {},
+describe('runFireguard changed lines', () => {
+  it('runs only mutants on lines the diff changed and reports the rest', async () => {
+    // add.ts has one mutant (line 2, `+`), twice.ts one (line 2, `*`); only add.ts line 2 changed.
+    const changedLines = new Map([['src/add.ts', new Set([2])]]);
+    const { deps, calls } = harness(CHANGED, {
+      deps: { getChangedLines: async () => changedLines },
     });
-    const report = await runFireguard(harness(CHANGED, { openMutationLanes }).deps);
-    expect(spy.opened).toEqual([ALL_TESTS]);
-    expect(spy.closed).toBe(1);
-    expect(report.gates.mutation?.execution).toEqual({ lanes: 2, workspace: 'copies' });
-    expect(report.gates.mutation?.killed).toBe(2);
+    const report = await runFireguard(deps);
+    expect(calls.map((call) => call.file)).toEqual(['src/add.ts']);
+    expect(report.gates.mutation?.total).toBe(1);
+    expect(report.gates.mutation?.unchangedLineMutants).toBe(1);
   });
 
-  it('never opens lanes when the flake gate fails', async () => {
-    const { spy, openMutationLanes } = lanesSpy(inPlaceLanes(async () => ({ ok: false })));
-    const report = await runFireguard(
-      harness(CHANGED, { openMutationLanes, runOnce: async () => ({ ok: false, error: 'x' }) })
-        .deps
-    );
+  it('asks for the changed lines of the changed modules', async () => {
+    const asked: string[][] = [];
+    const { deps } = harness(CHANGED, {
+      deps: {
+        getChangedLines: async (modules) => {
+          asked.push(modules);
+          return new Map();
+        },
+      },
+    });
+    const report = await runFireguard(deps);
+    expect(asked).toEqual([['src/add.ts', 'src/twice.ts']]);
+    expect([report.gates.mutation?.total, report.gates.mutation?.score]).toEqual([0, 100]);
+  });
+
+  it('runs every mutant without changed lines', async () => {
+    const { deps } = harness(CHANGED);
+    const report = await runFireguard(deps);
+    expect(report.gates.mutation?.total).toBe(2);
+    expect(report.gates.mutation?.unchangedLineMutants).toBeUndefined();
+  });
+});
+
+describe('runFireguard lanes', () => {
+  it('opens the lanes once for both gates, reports how they ran, and closes them', async () => {
+    const { deps, lanes } = harness(CHANGED);
+    const report = await runFireguard(deps);
+    expect(lanes).toEqual({ opened: 1, closed: 1 });
+    expect(report.gates.flake?.pass).toBe(true);
+    expect(report.gates.mutation?.killed).toBe(2);
+    expect(report.execution).toEqual({ lanes: 1, workspace: 'committed', runner: 'warm' });
+  });
+
+  it('runs no mutant when the flake gate fails, and still closes the lanes', async () => {
+    const { deps, calls, lanes } = harness(CHANGED, {
+      runOnce: async () => ({ ok: false, error: 'x' }),
+    });
+    const report = await runFireguard(deps);
     expect(report.gates.flake?.pass).toBe(false);
     expect(report.gates.mutation).toBeUndefined();
-    expect(spy.opened).toEqual([]);
+    expect(calls).toEqual([]);
+    expect(lanes.closed).toBe(1);
+    expect(report.grade.letter).toBe('F');
+  });
+
+  it('runs the flake gate without mutation when only tests changed', async () => {
+    const { deps, calls } = harness(ALL_TESTS);
+    const report = await runFireguard(deps);
+    expect(report.gates.flake?.pass).toBe(true);
+    expect(report.gates.mutation).toBeUndefined();
+    expect(calls).toEqual([]);
+  });
+
+  it('starts no mutant until every flake run is done, even with free lanes', async () => {
+    const held: Array<Deferred<RunOnceResult>> = [];
+    const runOnce: TestRunner = () => {
+      const run = deferred<RunOnceResult>();
+      held.push(run);
+      return run.promise;
+    };
+    const calls: string[] = [];
+    const apply: ApplyAndTest = async (input) => {
+      calls.push(input.file);
+      return { ok: false };
+    };
+    const lanes: Lanes = {
+      runners: [runOnce, runOnce],
+      appliers: [apply, apply],
+      execution: { lanes: 2, workspace: 'committed', runner: 'warm' },
+      source: memorySource(FILES),
+      close: async () => {},
+    };
+    const runs = { ...DEFAULT_CONFIG.thresholds, agenticFlakinessRuns: 3 };
+    const { deps } = harness(CHANGED, {
+      deps: { config: { ...DEFAULT_CONFIG, thresholds: runs }, openLanes: async () => lanes },
+    });
+    const report = runFireguard(deps);
+    for (let i = 0; i < 5; i += 1) await settleMicrotasks();
+    held[0]!.resolve({ ok: true });
+    held[1]!.resolve({ ok: true });
+    for (let i = 0; i < 5; i += 1) await settleMicrotasks();
+    // One lane is free, but the third flake run is still under way.
+    expect([held.length, calls.length]).toEqual([3, 0]);
+    held[2]!.resolve({ ok: true });
+    const done = await report;
+    expect(calls).toEqual(['src/add.ts', 'src/twice.ts']);
+    expect([done.gates.flake?.runs, done.gates.mutation?.killed]).toEqual([3, 2]);
   });
 
   it('closes the lanes when a mutant run throws', async () => {
-    const { spy, openMutationLanes } = lanesSpy(
-      inPlaceLanes(async () => {
+    const { deps, lanes } = harness(CHANGED, {
+      apply: async () => {
         throw new Error('EACCES: permission denied');
-      })
-    );
-    await expect(runFireguard(harness(CHANGED, { openMutationLanes }).deps)).rejects.toThrow(
-      'EACCES'
-    );
-    expect(spy.closed).toBe(1);
+      },
+    });
+    await expect(runFireguard(deps)).rejects.toThrow('EACCES');
+    expect(lanes.closed).toBe(1);
   });
 });
