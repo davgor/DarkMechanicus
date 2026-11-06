@@ -143,8 +143,8 @@ function sessionWith(role: SessionRole, capabilities: Capability[]): SessionCont
 
 describe('capability vocabulary', () => {
   it('lists every capability exactly once', () => {
-    expect(CAPABILITIES).toHaveLength(50)
-    expect(new Set(CAPABILITIES).size).toBe(50)
+    expect(CAPABILITIES).toHaveLength(51)
+    expect(new Set(CAPABILITIES).size).toBe(51)
     expect(sorted(CAPABILITIES)).toEqual(sorted([...DESKTOP, ...AGENT_ONLY]))
   })
 
