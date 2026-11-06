@@ -4,7 +4,7 @@
  * This module holds the storage, staging and claiming rules; the commands adapt it and nothing here touches the UI.
  */
 import { createHash } from 'node:crypto'
-import { readImageFile } from '../attachments/intake'
+import { inspectImageBytes, readImageFile } from '../attachments/intake'
 import { requireCapability } from '../authz'
 import type {
   AttachmentMime,
@@ -21,23 +21,16 @@ import { isStableId } from '../ids'
 import { isBefore } from '../clock'
 import { enqueueOutbox } from './outbox'
 import { resolveAttachmentPlacement } from './attachmentOwners'
-import { attachmentMime, attachmentPurpose, LIMITS, parseInput } from '../schemas'
+import { attachmentPurpose, LIMITS, parseInput } from '../schemas'
 
 /** A staged image older than this many days is pruned when a workspace opens. */
 const STAGED_ATTACHMENT_MAX_AGE_DAYS = 7
 
 const OWNER_KINDS: readonly AttachmentOwnerKind[] = ['attempt', 'kanban_attempt', 'comment', 'kanban_card', 'ticket']
 
-const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
-const JPEG_SIGNATURE = Buffer.from([0xff, 0xd8, 0xff])
-
 export interface StagedAttachmentInput {
+  /** The image file's bytes. Its hash, type and size are read from them. */
   bytes: Uint8Array
-  /** Lowercase hex SHA-256 of `bytes`; checked against them. */
-  sha256: string
-  mime: AttachmentMime
-  width: number
-  height: number
   label: string
   purpose: AttachmentPurpose
 }
@@ -79,73 +72,33 @@ function toAttachmentView(row: AttachmentRow): AttachmentView {
   }
 }
 
-/** The image type the first bytes declare, or null when they are neither PNG nor JPEG. */
-function detectMime(bytes: Uint8Array): AttachmentMime | null {
-  const head = Buffer.from(bytes.buffer, bytes.byteOffset, Math.min(bytes.byteLength, PNG_SIGNATURE.length))
-  if (head.equals(PNG_SIGNATURE)) {
-    return 'image/png'
-  }
-  if (head.subarray(0, JPEG_SIGNATURE.length).equals(JPEG_SIGNATURE)) {
-    return 'image/jpeg'
-  }
-  return null
-}
-
-function checkBytes(input: StagedAttachmentInput): void {
-  const size = input.bytes.byteLength
-  if (size < 1 || size > LIMITS.attachmentBytes) {
-    fail('invalid_input', `An attachment is between 1 and ${LIMITS.attachmentBytes} bytes; this one is ${size}.`, { bytes: size })
-  }
-  const detected = detectMime(input.bytes)
-  if (detected === null || detected !== input.mime) {
-    fail('invalid_input', 'Only PNG and JPEG images are accepted, and the file must be the type its first bytes declare.', {
-      declared: input.mime,
-      detected
-    })
-  }
-  if (!/^[0-9a-f]{64}$/.test(input.sha256)) {
-    fail('invalid_input', 'An attachment sha256 is a lowercase hex SHA-256 digest.')
-  }
-  if (createHash('sha256').update(input.bytes).digest('hex') !== input.sha256) {
-    fail('invalid_input', 'The attachment sha256 does not match its bytes.')
-  }
-}
-
-function checkDetails(input: StagedAttachmentInput): void {
-  for (const [name, value] of [
-    ['width', input.width],
-    ['height', input.height]
-  ] as const) {
-    if (!Number.isInteger(value) || value < 1 || value > LIMITS.attachmentSide) {
-      fail('invalid_input', `An attachment's ${name} is a whole number from 1 to ${LIMITS.attachmentSide} pixels.`, { [name]: value })
-    }
-  }
+function checkStagedInput(input: StagedAttachmentInput): void {
   if (input.label.length > LIMITS.label) {
     fail('invalid_input', `An attachment's label is at most ${LIMITS.label} characters.`)
   }
   parseInput(attachmentPurpose, input.purpose, 'attachment purpose')
-  parseInput(attachmentMime, input.mime, 'attachment type')
 }
 
-function checkStagedInput(input: StagedAttachmentInput): void {
-  checkDetails(input)
-  checkBytes(input)
-}
-
-/** Stores one image with no owner (staged) and returns its metadata. Refuses anything that is not a valid PNG or JPEG. */
+/**
+ * Stores one image with no owner (staged) and returns its metadata. The hash, type and size come from the bytes
+ * (`inspectImageBytes`), never from the caller; anything it refuses (not a PNG or JPEG, truncated, too large) is
+ * refused with its `invalid_input` message and nothing is stored.
+ */
 export function createStagedAttachment(ctx: Ctx, input: StagedAttachmentInput): AttachmentView {
+  const { mime, width, height } = inspectImageBytes(input.bytes)
   checkStagedInput(input)
+  const sha256 = createHash('sha256').update(input.bytes).digest('hex')
   const id = ctx.ids.next('attachment')
   ctx.db.run(
     `INSERT INTO attachments (id, sha256, mime, bytes, width, height, label, purpose, owner_kind, owner_id, missing, data,
        created_by_role, created_by_label, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, 0, ?, ?, ?, ?)`,
     id,
-    input.sha256,
-    input.mime,
+    sha256,
+    mime,
     input.bytes.byteLength,
-    input.width,
-    input.height,
+    width,
+    height,
     input.label,
     input.purpose,
     Buffer.from(input.bytes),
@@ -174,10 +127,6 @@ export function stageAttachmentFile(ctx: Ctx, input: StageFileInput): Attachment
   const image = readImageFile(input.path, input.roots)
   return createStagedAttachment(ctx, {
     bytes: image.bytes,
-    sha256: image.sha256,
-    mime: image.mime,
-    width: image.width,
-    height: image.height,
     label: input.label,
     purpose: input.purpose
   })

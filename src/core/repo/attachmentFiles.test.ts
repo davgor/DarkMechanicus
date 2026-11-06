@@ -3,11 +3,12 @@ import { createHash } from 'node:crypto'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { makeBundle, tid } from '../../test/bundles'
+import { jpegBytes, pngBytes } from '../../test/images'
 import { createStubGit, copyTracked, createRepoEnv, flush, importerDeps, initProject, type RepoEnv, saveRevision } from '../../test/repoEnv'
 import { idOf, insertAttempt, insertComment, insertRun } from '../../test/repoFixtures'
 import { claim as claimTicket, startedRun, submitClaim } from '../../test/execution'
 import { createTestCtx, type TestCtx, withRole } from '../../test/testContext'
-import { type AttachmentMime, type AttachmentOwner } from '../../shared/domain/views'
+import { type AttachmentOwner } from '../../shared/domain/views'
 import { claimAttachments, createStagedAttachment } from '../services/attachments'
 import { resolveAttachmentPlacement } from '../services/attachmentOwners'
 import { claimKanbanCard, playKanbanCard, submitKanbanCard } from '../services/kanban/attempts'
@@ -22,21 +23,6 @@ const R1 = idOf('revision', 1)
 const RUN = idOf('run', 1)
 const ATTEMPT = idOf('attempt', 1)
 const COMMENT = idOf('comment', 1)
-
-function pngBytes(seed: number): Buffer {
-  const header = Buffer.alloc(33)
-  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(header)
-  header.writeUInt32BE(13, 8)
-  header.write('IHDR', 12, 'latin1')
-  header.writeUInt32BE(40, 16)
-  header.writeUInt32BE(30, 20)
-  return Buffer.concat([header, Buffer.from([seed, 0xff, 0x00, seed ^ 0x55, 0x80])])
-}
-
-function jpegBytes(): Buffer {
-  // SOI, a start-of-frame segment (height 20, width 10) and an end marker.
-  return Buffer.from([0xff, 0xd8, 0xff, 0xc0, 0x00, 0x0b, 0x08, 0x00, 0x14, 0x00, 0x0a, 0x01, 0x01, 0x11, 0x00, 0xff, 0xd9])
-}
 
 function sha(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex')
@@ -61,12 +47,12 @@ function seedEpic(env: RepoEnv): void {
   insertComment(env.db, { id: COMMENT, epicId: EPIC })
 }
 
-function stage(ctx: TestCtx, bytes: Buffer, mime: AttachmentMime = 'image/png'): string {
-  return createStagedAttachment(ctx, { bytes, sha256: sha(bytes), mime, width: 40, height: 30, label: 'shot', purpose: 'evidence' }).id
+function stage(ctx: TestCtx, bytes: Buffer): string {
+  return createStagedAttachment(ctx, { bytes, label: 'shot', purpose: 'evidence' }).id
 }
 
-function claim(ctx: TestCtx, bytes: Buffer, owner: AttachmentOwner, mime: AttachmentMime = 'image/png'): string {
-  const id = stage(ctx, bytes, mime)
+function claim(ctx: TestCtx, bytes: Buffer, owner: AttachmentOwner): string {
+  const id = stage(ctx, bytes)
   claimAttachments(ctx, [id], owner)
   return id
 }
@@ -80,7 +66,7 @@ describe('attachment export (repo mode)', () => {
     const { env, ctx } = fixture()
     seedEpic(env)
     flush(env)
-    const bytes = pngBytes(1)
+    const bytes = pngBytes(40, 30, 1)
     // The run record is queued first and the claim after it: the file must still come first.
     env.db.run("INSERT INTO outbox (kind, epic_id, run_id, state, created_at) VALUES ('run_history', ?, ?, 'pending', ?)", EPIC, RUN, '2026-01-01T00:00:00.000Z')
     const id = claim(ctx, bytes, { kind: 'attempt', id: ATTEMPT })
@@ -99,10 +85,10 @@ describe('attachment export (repo mode)', () => {
     const { env, ctx } = fixture()
     seedEpic(env)
     flush(env)
-    const ticketBytes = pngBytes(2)
-    const commentBytes = jpegBytes()
+    const ticketBytes = pngBytes(40, 30, 2)
+    const commentBytes = jpegBytes(10, 20)
     claim(ctx, ticketBytes, { kind: 'ticket', id: tid(1) })
-    claim(ctx, commentBytes, { kind: 'comment', id: COMMENT }, 'image/jpeg')
+    claim(ctx, commentBytes, { kind: 'comment', id: COMMENT })
     env.db.run("INSERT INTO outbox (kind, epic_id, state, created_at) VALUES ('epic_state', ?, 'pending', ?)", EPIC, '2026-01-01T00:00:00.000Z')
     env.db.run("INSERT INTO outbox (kind, epic_id, entity_id, state, created_at) VALUES ('comment', ?, ?, 'pending', ?)", EPIC, COMMENT, '2026-01-01T00:00:00.000Z')
     expect(flush(env)).toMatchObject({ failed: 0, errors: [] })
@@ -122,7 +108,7 @@ describe('attachment export of cards (repo mode)', () => {
   it('writes card images into the card folder before card.json', () => {
     const { env, ctx } = fixture()
     const card = createKanbanCard(ctx, { title: 'Card with a mockup' })
-    const bytes = pngBytes(3)
+    const bytes = pngBytes(40, 30, 3)
     claim(ctx, bytes, { kind: 'kanban_card', id: card.id })
     expect(flush(env)).toMatchObject({ failed: 0, errors: [] })
     const paths = ownedPaths(env.layout)
@@ -138,7 +124,7 @@ describe('attachment export idempotence (repo mode)', () => {
     const { env, ctx } = fixture()
     seedEpic(env)
     flush(env)
-    const bytes = pngBytes(4)
+    const bytes = pngBytes(40, 30, 4)
     claim(ctx, bytes, { kind: 'attempt', id: ATTEMPT })
     flush(env)
     const file = ownedPaths(env.layout).attachmentFile({ kind: 'run', id: RUN }, sha(bytes), 'image/png')
@@ -156,7 +142,7 @@ describe('attachment export failures (repo mode)', () => {
     seedEpic(env)
     flush(env)
     const before = env.fs.writes.length
-    claim(ctx, pngBytes(5), { kind: 'ticket', id: tid(9) })
+    claim(ctx, pngBytes(40, 30, 5), { kind: 'ticket', id: tid(9) })
     const outcome = flush(env)
     expect(outcome.failed).toBe(1)
     expect(outcome.errors[0]).toContain('folder cannot be found')
@@ -170,7 +156,7 @@ describe('attachment export failures (repo mode)', () => {
     const { env, ctx } = fixture()
     seedEpic(env)
     flush(env)
-    const bytes = pngBytes(6)
+    const bytes = pngBytes(40, 30, 6)
     const id = claim(ctx, bytes, { kind: 'attempt', id: ATTEMPT })
     env.db.run('UPDATE attachments SET data = ? WHERE id = ?', Buffer.from('tampered'), id)
     expect(flush(env).errors.join('\n')).toContain('do not match its sha256')
@@ -182,7 +168,7 @@ describe('attachment export failures (repo mode)', () => {
     const { env, ctx } = fixture()
     seedEpic(env)
     flush(env)
-    claim(ctx, pngBytes(7), { kind: 'attempt', id: ATTEMPT })
+    claim(ctx, pngBytes(40, 30, 7), { kind: 'attempt', id: ATTEMPT })
     env.fs.failOn({ op: 'rename', match: (path) => path.endsWith('.png') })
     expect(flush(env).failed).toBeGreaterThan(0)
     const leftovers = [...env.fs.files().keys()].filter((path) => path.includes('.tmp-') && path.includes('attachments'))
@@ -196,7 +182,7 @@ describe('attachment export (db mode)', () => {
     seedEpic(env)
     flush(env)
     const before = env.fs.writes.length
-    claim(ctx, pngBytes(8), { kind: 'attempt', id: ATTEMPT })
+    claim(ctx, pngBytes(40, 30, 8), { kind: 'attempt', id: ATTEMPT })
     expect(env.db.all("SELECT kind FROM outbox WHERE state = 'pending'")).toEqual([{ kind: 'attachment' }])
     expect(flush(env)).toMatchObject({ failed: 0, errors: [] })
     expect(env.fs.writes).toHaveLength(before)
@@ -209,8 +195,8 @@ describe('epic removal', () => {
     const { env, ctx } = fixture()
     seedEpic(env)
     flush(env)
-    const runBytes = pngBytes(9)
-    const epicBytes = pngBytes(10)
+    const runBytes = pngBytes(40, 30, 9)
+    const epicBytes = pngBytes(40, 30, 10)
     claim(ctx, runBytes, { kind: 'attempt', id: ATTEMPT })
     claim(ctx, epicBytes, { kind: 'ticket', id: tid(1) })
     flush(env)
@@ -239,11 +225,11 @@ function importedFixture(): Imported {
   const { env: source, ctx } = fixture()
   seedEpic(source)
   const card = createKanbanCard(ctx, { title: 'Card with a mockup' })
-  const bytes = { run: pngBytes(11), ticket: pngBytes(12), comment: jpegBytes(), card: pngBytes(13) }
+  const bytes = { run: pngBytes(40, 30, 11), ticket: pngBytes(40, 30, 12), comment: jpegBytes(10, 20), card: pngBytes(40, 30, 13) }
   const ids = {
     run: claim(ctx, bytes.run, { kind: 'attempt', id: ATTEMPT }),
     ticket: claim(ctx, bytes.ticket, { kind: 'ticket', id: tid(1) }),
-    comment: claim(ctx, bytes.comment, { kind: 'comment', id: COMMENT }, 'image/jpeg'),
+    comment: claim(ctx, bytes.comment, { kind: 'comment', id: COMMENT }),
     card: claim(ctx, bytes.card, { kind: 'kanban_card', id: card.id })
   }
   source.db.run("INSERT INTO outbox (kind, epic_id, run_id, state, created_at) VALUES ('run_history', ?, ?, 'pending', ?)", EPIC, RUN, '2026-01-01T00:00:00.000Z')
@@ -298,7 +284,7 @@ describe('attachment import', () => {
   it('refuses a file whose bytes do not match the hash in its name', () => {
     const f = importedFixture()
     const file = ownedPaths(f.target.layout).attachmentFile({ kind: 'run', id: RUN }, sha(f.bytes.run), 'image/png')
-    f.target.fs.putBytes(file, pngBytes(99))
+    f.target.fs.putBytes(file, pngBytes(40, 30, 99))
     const result = f.reconcile()
     expect(result.rejected).toHaveLength(1)
     expect(result.rejected[0]?.message).toContain('hash differs')
@@ -336,7 +322,7 @@ describe('attachments named by a submission (repo mode round trip)', () => {
     const { runId } = startedRun(ctx, { bundle: makeBundle([[1, 2]], [[1, 2]]) })
     flush(env)
     const claimed = claimTicket(ctx, runId, 1)
-    const bytes = pngBytes(21)
+    const bytes = pngBytes(40, 30, 21)
     const id = stage(ctx, bytes)
     submitClaim(withRole(ctx, 'worker'), claimed, { evidence: { notes: 'Shot', attachments: [id] } })
     expect(flush(env)).toMatchObject({ failed: 0, errors: [] })
@@ -356,7 +342,7 @@ describe('attachments named by a submission (repo mode round trip)', () => {
     const card = createKanbanCard(desktop, { title: 'Card with a screenshot', acceptanceCriteria: ['It shows'] })
     playKanbanCard(desktop, { cardId: card.id })
     const packet = claimKanbanCard(withRole(desktop, 'orchestrator'), { cardId: card.id })
-    const bytes = pngBytes(22)
+    const bytes = pngBytes(40, 30, 22)
     const worker = withRole(desktop, 'worker')
     const id = stage(worker, bytes)
     submitKanbanCard(worker, {
@@ -428,21 +414,21 @@ describe('attachment import refusals', () => {
 describe('attachment export helpers', () => {
   it('reads an unowned image back with no owner, and refuses an unknown id', () => {
     const { env, ctx } = fixture()
-    const id = stage(ctx, pngBytes(21))
+    const id = stage(ctx, pngBytes(40, 30, 21))
     expect(loadStoredAttachment(env.db, id)).toMatchObject({ id, owner: null })
     expect(() => loadStoredAttachment(env.db, idOf('attachment', 9))).toThrow('does not exist')
   })
 
   it('has no folder for an image nobody owns', () => {
     const { env, ctx } = fixture()
-    const stored = loadStoredAttachment(env.db, stage(ctx, pngBytes(22)))
+    const stored = loadStoredAttachment(env.db, stage(ctx, pngBytes(40, 30, 22)))
     expect(() => placementOfAttachment(env.db, stored)).toThrow('has no owner')
   })
 
   it('refuses to write an image whose bytes are not stored, and one that does not read back as written', () => {
     const { env, ctx } = fixture()
     seedEpic(env)
-    const bytes = pngBytes(23)
+    const bytes = pngBytes(40, 30, 23)
     const id = claim(ctx, bytes, { kind: 'attempt', id: ATTEMPT })
     const stored = loadStoredAttachment(env.db, id)
     const placement = placementOfAttachment(env.db, stored)
@@ -490,7 +476,7 @@ describe('attachment import of odd folders and files', () => {
 
   it('refuses a file whose type differs from the type in its name', () => {
     const f = importedFixture()
-    const png = pngBytes(31)
+    const png = pngBytes(40, 30, 31)
     f.target.fs.putBytes(`${dirOf(f, 'run', RUN)}/${sha(png)}.jpg`, png)
     expect(f.reconcile().rejected.map((item) => item.message).join(' ')).toContain('named as image/jpeg')
   })

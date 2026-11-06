@@ -1,9 +1,9 @@
-import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { PlanBundle, TicketContent } from '../../shared/domain/bundle'
 import type { EventView } from '../../shared/domain/views'
 import { makeBundle, sid, tid } from '../../test/bundles'
+import { pngBytes } from '../../test/images'
 import {
   attemptRow,
   bundleWith,
@@ -682,16 +682,7 @@ describe('submitAttempt', () => {
 
 /** A staged PNG whose bytes differ by `seed`. */
 function stagedPng(ctx: TestCtx, seed: number): string {
-  const bytes = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from([seed, 0x01, 0x02, 0x03])])
-  return createStagedAttachment(ctx, {
-    bytes,
-    sha256: createHash('sha256').update(bytes).digest('hex'),
-    mime: 'image/png',
-    width: 12,
-    height: 8,
-    label: `shot ${seed}`,
-    purpose: 'evidence'
-  }).id
+  return createStagedAttachment(ctx, { bytes: pngBytes(12, 8, seed), label: `shot ${seed}`, purpose: 'evidence' }).id
 }
 
 describe('submitAttempt — attachments', () => {
