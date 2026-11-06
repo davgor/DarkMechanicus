@@ -8,7 +8,7 @@ import type { Runner } from '../epic/runner'
 import { StatePill } from '../epic/StatePill'
 import type { Result } from '../epic/workspaceActions'
 import type { TicketBadge } from '../graph/graphModel'
-import { BasicFields, CapabilityFields, CriteriaFields, DetailFields, PrerequisiteFields } from './editorFields'
+import { BasicFields, CapabilityFields, CriteriaFields, DetailFields, ImageFields, PrerequisiteFields } from './editorFields'
 import { ProfileBar } from './ProfileBar'
 import {
   applyOutcome,
@@ -25,6 +25,8 @@ import {
 interface TicketEditorProps {
   /** Reads and saves named capability profiles for this folder. */
   runner: Runner
+  /** The folder's attachment key: the host of each image address. */
+  folderKey: string
   bundle: PlanBundle
   /** The folder's repositories, or null for a single repository (or while they load). */
   repositories: RepositoryView[] | null
@@ -154,6 +156,7 @@ export function TicketEditor(props: TicketEditorProps): JSX.Element {
       <div className="tp-body tp-form">
         <BasicFields form={form} update={editor.update} />
         <CriteriaFields form={form} update={editor.update} />
+        <ImageFields form={form} update={editor.update} runner={props.runner} folderKey={props.folderKey} />
         <DetailFields form={form} update={editor.update} bundle={props.bundle} repositories={props.repositories} />
         <PrerequisiteFields form={form} update={editor.update} bundle={props.bundle} ticketId={props.ticketId} />
         <CapabilityFields form={form} update={editor.update}>

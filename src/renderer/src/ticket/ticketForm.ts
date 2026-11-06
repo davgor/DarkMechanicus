@@ -24,6 +24,7 @@ import {
   type WorkType
 } from '../../../shared/domain/bundle'
 import type { ProfileView, RepositoryView } from '../../../shared/domain/views'
+import type { FormImage } from '../attachments/ImageAttachField'
 import { isAcceptanceTicket } from '../../../core/plan/acceptance'
 import { descriptionOf } from '../../../core/plan/repoTitles'
 
@@ -60,6 +61,10 @@ export interface TicketForm {
   size: TicketSize | ''
   /** The ticket's size when the form was loaded: a size still equal to it is not the person's edit. */
   loadedSize: TicketSize | ''
+  /** The reference images the ticket will carry: its own, minus those removed, plus those uploaded in the editor. */
+  attachments: FormImage[]
+  /** The ids the ticket had when the form was loaded: an unchanged list is not the person's edit. */
+  loadedAttachments: string[]
   workType: WorkType
   reasoningLevel: ReasoningLevel
   reasoningEffort: ReasoningEffort | ''
@@ -152,6 +157,8 @@ export function formFromBundle(bundle: PlanBundle, ticketId: string): TicketForm
     prerequisites: prerequisitesOf(bundle, ticketId),
     size: ticket.size ?? '',
     loadedSize: ticket.size ?? '',
+    attachments: (ticket.attachments ?? []).map(({ id, label }) => ({ id, label })),
+    loadedAttachments: (ticket.attachments ?? []).map((ref) => ref.id),
     profile: '',
     ...capabilityFields(ticket.capability),
     loadedCapability: ticket.capability
@@ -456,6 +463,15 @@ function sizeChange(form: TicketForm, ticket: TicketContent): TicketSize | null 
   return form.size === form.loadedSize || next === (ticket.size ?? null) ? undefined : next
 }
 
+/**
+ * The image ids to write: `undefined` leaves them be (the person did not change the list, or the ticket already
+ * has what they chose), `[]` removes every image.
+ */
+function attachmentsChange(form: TicketForm, ticket: TicketContent): string[] | undefined {
+  const next = form.attachments.map((image) => image.id)
+  return sameList(next, form.loadedAttachments) || sameList(next, (ticket.attachments ?? []).map((ref) => ref.id)) ? undefined : next
+}
+
 function ticketPatch(form: TicketForm, ticket: TicketContent): Partial<TicketInput> {
   const patch = contentPatch(form, ticket)
   const capability = capabilityPatch(form, ticket.capability)
@@ -471,6 +487,10 @@ function ticketPatch(form: TicketForm, ticket: TicketContent): Partial<TicketInp
   }
   if (Object.keys(capability).length > 0) {
     patch.capability = capability
+  }
+  const attachments = attachmentsChange(form, ticket)
+  if (attachments !== undefined) {
+    patch.attachments = attachments
   }
   return patch
 }
