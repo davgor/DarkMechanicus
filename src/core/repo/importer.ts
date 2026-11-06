@@ -27,7 +27,7 @@ import { findOpenTransfer, type OpenTransfer, TRANSFER_HOLD_PREFIX } from '../se
 import { type FileHashCache, readUnlessSynced } from './fileHashes'
 import { readProject } from './initialize'
 import { assertContained, displayPath, ownedPaths } from './paths'
-import { insertOwnedRow, registerEvidenceAttachments, restoreAttachmentFiles } from './attachmentImport'
+import { insertOwnedRow, registerEvidenceAttachments, registerTicketAttachments, restoreAttachmentFiles } from './attachmentImport'
 import { applyKanban, type KanbanScan, scanKanban } from './kanbanImport'
 import { applyProfiles, type ProfileScan, scanProfiles } from './profileImport'
 import {
@@ -1158,6 +1158,7 @@ function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultVi
   const profileOutcome = applyProfiles(deps.db, profiles, now)
   const kanbanOutcome = applyKanban(deps.db, kanban, now)
   registerEvidenceAttachments(deps.db, now)
+  registerTicketAttachments(deps.db, now)
   const attachmentOutcome = restoreAttachmentFiles(deps)
   storeConflicts(deps.db, plan.conflicts, now)
   const pausedRuns = branchChanged ? pauseActiveRuns(deps, now) : []

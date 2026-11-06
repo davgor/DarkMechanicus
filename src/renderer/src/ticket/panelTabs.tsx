@@ -77,6 +77,8 @@ interface OverviewTabProps {
   /** The plan the ticket is read from: an acceptance node names the tickets it covers by id. */
   bundle: PlanBundle
   runner: Runner
+  /** The folder's attachment key: the host of each image address. */
+  folderKey: string
   onSelect(ticketId: string): void
 }
 
@@ -93,12 +95,52 @@ function Criteria({ detail, bundle, runner, onSelect }: OverviewTabProps): JSX.E
   )
 }
 
+/** The ticket's reference images, its inert references and the files it is expected to produce; each shows only when present. */
+function TicketMaterials({ ticket, folderKey }: { ticket: TicketDetailView['ticket']; folderKey: string }): JSX.Element {
+  const attachments = ticket.attachments ?? []
+  return (
+    <>
+      {attachments.length === 0 ? null : (
+        <section className="tp-section" aria-label="Attachments">
+          <h3 className="ew-eyebrow">ATTACHMENTS</h3>
+          <AttachmentGallery folderKey={folderKey} attachments={attachments} />
+        </section>
+      )}
+      {ticket.references.length === 0 ? null : (
+        <section className="tp-section" aria-label="References">
+          <h3 className="ew-eyebrow">REFERENCES</h3>
+          <ul className="tp-files">
+            {ticket.references.map((reference) => (
+              <li key={`${reference.kind}:${reference.location}`} className="ew-mono">
+                {reference.label === reference.location ? reference.location : `${reference.label} (${reference.location})`}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {ticket.expectedArtifacts.length === 0 ? null : (
+        <section className="tp-section" aria-label="Expected artifacts">
+          <h3 className="ew-eyebrow">EXPECTED ARTIFACTS</h3>
+          <ul className="tp-files">
+            {ticket.expectedArtifacts.map((artifact) => (
+              <li key={artifact} className="ew-mono">
+                {artifact}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </>
+  )
+}
+
 export function OverviewTab(props: OverviewTabProps): JSX.Element {
   const detail = props.detail
   return (
     <>
       {detail.ticket.body.trim() === '' ? <p className="ew-muted">No description.</p> : <Markdown source={detail.ticket.body} />}
       <Criteria {...props} />
+      <TicketMaterials ticket={detail.ticket} folderKey={props.folderKey} />
       <CapabilityProfile detail={detail} />
       <LinkList title="REQUIRES" rows={linkRows(detail.prerequisites)} onSelect={props.onSelect} />
       <LinkList title="UNLOCKS" rows={linkRows(detail.dependents)} onSelect={props.onSelect} />

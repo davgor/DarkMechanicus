@@ -177,6 +177,52 @@ export function registerEvidenceAttachments(db: Db, now: string): void {
   }
 }
 
+/**
+ * Records each image a saved plan revision names on a ticket as an owned row with no bytes, so `restoreAttachmentFiles`
+ * fills it from the epic's folder. Only a ticket the database tracks owns an image; a row that exists is left as it is.
+ * Runs after the records are applied, before the restore.
+ */
+export function registerTicketAttachments(db: Db, now: string): void {
+  const revisions = db.all<{ bundle_json: string; saved_at: string | null }>(
+    "SELECT bundle_json, saved_at FROM plan_revisions WHERE state = 'saved' AND bundle_json LIKE '%\"attachments\"%' ORDER BY number"
+  )
+  for (const revision of revisions) {
+    for (const ticket of namedTickets(revision.bundle_json)) {
+      registerTicketImages(db, ticket, revision.saved_at ?? now)
+    }
+  }
+}
+
+function registerTicketImages(db: Db, ticket: { id: string; refs: AttachmentRef[] }, createdAt: string): void {
+  if (db.get('SELECT ticket_id FROM ticket_status WHERE ticket_id = ?', ticket.id) === undefined) {
+    return
+  }
+  for (const ref of ticket.refs) {
+    if (db.get('SELECT id FROM attachments WHERE id = ?', ref.id) === undefined) {
+      insertOwnedRow(db, ref, { owner: 'ticket', ownerId: ticket.id, createdAt })
+    }
+  }
+}
+
+/** The tickets of a stored bundle that name images, with their valid references; anything malformed is skipped. */
+function namedTickets(bundleJson: string): { id: string; refs: AttachmentRef[] }[] {
+  const bundle = JSON.parse(bundleJson) as { tickets?: unknown }
+  if (!Array.isArray(bundle.tickets)) {
+    return []
+  }
+  return bundle.tickets.flatMap((item: unknown) => {
+    const ticket = item as { id?: unknown; attachments?: unknown } | null
+    if (typeof ticket?.id !== 'string' || !Array.isArray(ticket.attachments)) {
+      return []
+    }
+    const refs = ticket.attachments.flatMap((entry: unknown) => {
+      const parsed = attachmentRef.safeParse(entry)
+      return parsed.success ? [parsed.data] : []
+    })
+    return refs.length === 0 ? [] : [{ id: ticket.id, refs }]
+  })
+}
+
 function registerRowImages(db: Db, owner: { owner: AttachmentOwnerKind; ownerId: string; createdAt: string }, evidenceJson: string): void {
   for (const ref of namedImages(evidenceJson)) {
     if (db.get('SELECT id FROM attachments WHERE id = ?', ref.id) === undefined) {

@@ -312,6 +312,38 @@ describe('comment attachment import', () => {
   })
 })
 
+describe('ticket attachment import', () => {
+  it('registers the images a saved plan names on a ticket in a fresh database, then serves their bytes after the restore', () => {
+    const { env: source, ctx } = fixture()
+    seedEpic(source)
+    flush(source)
+    const bytes = pngBytes(40, 30, 21)
+    const id = claim(ctx, bytes, { kind: 'ticket', id: tid(1) })
+    const refs = listAttachmentRefs(source.db, { kind: 'ticket', id: tid(1) })
+    expect(refs.map((ref) => ref.id)).toEqual([id])
+    const bundle = makeBundle([[1, 2]], [[1, 2]])
+    bundle.tickets = bundle.tickets.map((ticket) => (ticket.id === tid(1) ? { ...ticket, attachments: refs } : ticket))
+    saveRevision(source, { epicId: EPIC, revisionId: idOf('revision', 2), number: 2, bundle, baseRevisionId: R1 })
+    source.db.run("INSERT INTO outbox (kind, epic_id, state, created_at) VALUES ('epic_state', ?, 'pending', ?)", EPIC, '2026-01-01T00:00:00.000Z')
+    expect(flush(source)).toMatchObject({ failed: 0 })
+
+    const target = createRepoEnv({ root: '/clone' })
+    copyTracked(source, target)
+    const result = reconcileRepository(importerDeps(target, createStubGit('main')))
+    expect(result.rejected).toEqual([])
+    expect(target.db.get('SELECT owner_kind, owner_id, created_by_label FROM attachments WHERE id = ?', id)).toEqual({
+      owner_kind: 'ticket',
+      owner_id: tid(1),
+      created_by_label: 'imported'
+    })
+    expect(stored(target, id).missing).toBe(0)
+    expect(Buffer.from(stored(target, id).data ?? []).equals(bytes)).toBe(true)
+    expect(listAttachmentRefs(target.db, { kind: 'ticket', id: tid(1) })).toEqual(refs)
+    reconcileRepository(importerDeps(target, createStubGit('main')))
+    expect(target.db.all('SELECT id FROM attachments')).toHaveLength(1)
+  })
+})
+
 describe('attachment import', () => {
   it('restores byte-identical attachments for every owner kind after an export and a clone', () => {
     const f = importedFixture()
