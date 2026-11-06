@@ -1,0 +1,18 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": "ka_01m6qpr60f8sf9hpxhebsrcf4f",
+  "cardId": "kc_01m6qpm0nckappdb468b94akgj",
+  "createdAt": "2026-11-06T05:54:19.279Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m6qpr60f4mcnj7w39qxqmwkz",
+  "kind": "claimed",
+  "payload": {
+    "leaseExpiresAt": "2026-11-06T06:54:19.279Z",
+    "machineId": "mc_01m41707wstg1crxjbt3jw2ap5",
+    "number": 1
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "acceptanceCriteria": [
+    {
+      "id": "c1",
+      "text": "Replaying claim_kanban_card with the same idempotencyKey returns the attempt id (claimToken null), matching claim_ticket"
+    },
+    {
+      "id": "c2",
+      "text": "An orchestrator can release a claimed card attempt whose token was lost (fail_kanban_card by attemptId without claimToken, as fail_attempt allows), and the card can then be claimed again without another Play"
+    },
+    {
+      "id": "c3",
+      "text": "The dm CLI writes its JSON output to stdout when run from Windows PowerShell, or the CLI runbook and the injected chat instructions say to run it from Git Bash"
+    },
+    {
+      "id": "c4",
+      "text": "Tests cover the replay, the tokenless release and the reclaim"
+    }
+  ],
+  "body": "When an orchestrator calls claim_kanban_card and the response never reaches it, the card has no recovery path. In practice: the dm CLI (DarkMechanicus.exe + cli.js) run from Windows PowerShell 5.1 printed nothing to stdout (Electron GUI-subsystem exe; the same call under Git Bash prints JSON), yet the claim succeeded. A repeat claim then fails with already_claimed, the token is shown once and cannot be recovered, there is no agent-callable way to release the attempt (fail_kanban_card needs the claimToken), and after the lease expires claim_kanban_card needs a fresh Play from the desktop. Seen on DM-420, attempt #1. Tickets have a recovery path (an idempotency-key replay returns the attempt, then fail_attempt works without a token); Kanban cards need the same.",
+  "createdAt": "2026-11-06T05:54:54.198Z",
+  "createdBy": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "expectedArtifacts": [],
+  "format": "darkmechanicus.kanban-card",
+  "formatVersion": 1,
+  "generation": 1,
+  "id": "kc_01m6qps83a5pvew9vkppvwv795",
+  "key": "DM-488",
+  "priority": "high",
+  "references": [],
+  "size": null,
+  "title": "Lost Kanban claim response strands the card until a person presses Play again",
+  "updatedAt": "2026-11-06T05:54:54.198Z"
+}

@@ -1,0 +1,20 @@
+{
+  "acceptanceCriteria": [],
+  "body": "Failed outbox entries keep retrying, and their attempt count keeps growing.\n\nFound during the image-attachments epic (sprint 2, DM-434).",
+  "createdAt": "2026-11-06T23:36:48.171Z",
+  "createdBy": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "expectedArtifacts": [],
+  "format": "darkmechanicus.kanban-card",
+  "formatVersion": 1,
+  "generation": 1,
+  "id": "kc_01m6skhms107h0avghb5vtrpc5",
+  "key": "DM-499",
+  "priority": "normal",
+  "references": [],
+  "size": null,
+  "title": "Stop retrying failed outbox entries forever",
+  "updatedAt": "2026-11-06T23:36:48.171Z"
+}

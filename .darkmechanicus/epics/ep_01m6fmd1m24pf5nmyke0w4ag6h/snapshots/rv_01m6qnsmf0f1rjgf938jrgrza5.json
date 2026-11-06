@@ -1,0 +1,2751 @@
+{
+  "baseRevisionId": "rv_01m6qdmnjhfpze8atjdhzzrabz",
+  "bundle": {
+    "edges": [
+      {
+        "from": "tk_01m6gnpwm1m0b8x505kwgk1g4k",
+        "to": "tk_01m6gnpx4zm4707ap49kjwfbse"
+      },
+      {
+        "from": "tk_01m6gnpwwezfjbd1bcm6gg94th",
+        "to": "tk_01m6gnpx4zm4707ap49kjwfbse"
+      },
+      {
+        "from": "tk_01m6gnpwwezfjbd1bcm6gg94th",
+        "to": "tk_01m6gnpxdysedcrpecz3ennkef"
+      },
+      {
+        "from": "tk_01m6gnpx4zm4707ap49kjwfbse",
+        "to": "tk_01m6gnpxphk3k11d1cynjyevd2"
+      },
+      {
+        "from": "tk_01m6gnpxdysedcrpecz3ennkef",
+        "to": "tk_01m6gnpxphk3k11d1cynjyevd2"
+      },
+      {
+        "from": "tk_01m6gnpwwezfjbd1bcm6gg94th",
+        "to": "tk_01m6gnpxz5a2pdr3h6xdndmb5f"
+      },
+      {
+        "from": "tk_01m6gnpxphk3k11d1cynjyevd2",
+        "to": "tk_01m6gnpy7n7f8ahb2x9hbxcj79"
+      },
+      {
+        "from": "tk_01m6gnpxz5a2pdr3h6xdndmb5f",
+        "to": "tk_01m6gnpy7n7f8ahb2x9hbxcj79"
+      },
+      {
+        "from": "tk_01m6qccpch394774rh7xs2s5gw",
+        "to": "tk_01m6qccpc19aw2bbee0h6h9d9q"
+      },
+      {
+        "from": "tk_01m6qccpc19aw2bbee0h6h9d9q",
+        "to": "tk_01m6qccpchvhgvxma1wk7xjy2p"
+      },
+      {
+        "from": "tk_01m6qccpc19aw2bbee0h6h9d9q",
+        "to": "tk_01m6qccpchnh0b6mm2w8xxgp34"
+      },
+      {
+        "from": "tk_01m6qccpchvhgvxma1wk7xjy2p",
+        "to": "tk_01m6gnrnvv55vjd6kzp8jrc6da"
+      },
+      {
+        "from": "tk_01m6qccpchvhgvxma1wk7xjy2p",
+        "to": "tk_01m6gnrpy54qdrsnttpna80w0h"
+      },
+      {
+        "from": "tk_01m6gnrnvv55vjd6kzp8jrc6da",
+        "to": "tk_01m6gnrp4fj7jfnreypm9frk6z"
+      },
+      {
+        "from": "tk_01m6gnrnvv55vjd6kzp8jrc6da",
+        "to": "tk_01m6gnrpnd0384mzgdeja33jn8"
+      },
+      {
+        "from": "tk_01m6gnrp4fj7jfnreypm9frk6z",
+        "to": "tk_01m6gnrpczh9gcnpkx7afs5f68"
+      },
+      {
+        "from": "tk_01m6gnrpczh9gcnpkx7afs5f68",
+        "to": "tk_01m6qkq9166g3xz9821vbh491y"
+      },
+      {
+        "from": "tk_01m6gnrp4fj7jfnreypm9frk6z",
+        "to": "tk_01m6qkq9a3dr9y73qvrn7mjvw5"
+      },
+      {
+        "from": "tk_01m6gnrpczh9gcnpkx7afs5f68",
+        "to": "tk_01m6qkq9a3dr9y73qvrn7mjvw5"
+      },
+      {
+        "from": "tk_01m6gnrpnd0384mzgdeja33jn8",
+        "to": "tk_01m6qkq9a3dr9y73qvrn7mjvw5"
+      },
+      {
+        "from": "tk_01m6qkq9166g3xz9821vbh491y",
+        "to": "tk_01m6qccpchpqh554drrrae7nh4"
+      },
+      {
+        "from": "tk_01m6gnrp4fj7jfnreypm9frk6z",
+        "to": "tk_01m6qccpchpqh554drrrae7nh4"
+      },
+      {
+        "from": "tk_01m6qccpchsj20pw91d1h2hega",
+        "to": "tk_01m6gnrq6w2fbrmsvgn5d0x1qg"
+      },
+      {
+        "from": "tk_01m6qkq9a3dr9y73qvrn7mjvw5",
+        "to": "tk_01m6gnrq6w2fbrmsvgn5d0x1qg"
+      },
+      {
+        "from": "tk_01m6qccpchpqh554drrrae7nh4",
+        "to": "tk_01m6gnrq6w2fbrmsvgn5d0x1qg"
+      },
+      {
+        "from": "tk_01m6qccpchnh0b6mm2w8xxgp34",
+        "to": "tk_01m6gnrq6w2fbrmsvgn5d0x1qg"
+      },
+      {
+        "from": "tk_01m6gnrpczh9gcnpkx7afs5f68",
+        "to": "tk_01m6gnrpnd0384mzgdeja33jn8"
+      },
+      {
+        "from": "tk_01m6qccpchpqh554drrrae7nh4",
+        "to": "tk_01m6gnrpy54qdrsnttpna80w0h"
+      },
+      {
+        "from": "tk_01m6qkq9a3dr9y73qvrn7mjvw5",
+        "to": "tk_01m6gnrpy54qdrsnttpna80w0h"
+      }
+    ],
+    "epic": {
+      "intent": "## Outcome\n\nAgents in terminal sessions and people in the desktop app can attach images (screenshots, mockups, reference images), and the desktop app shows them. Workers attach screenshots as evidence when they submit an attempt. Planners and people attach mockups or reference images to tickets, Kanban cards and comments, so workers have visual references to build from. Today evidence and references are text-only.\n\n## Decisions (from the person)\n\n- **Storage follows the folder's storage mode.** In `db` mode, images are stored as blobs in SQLite. In repository mode, image files sit next to the JSON records that reference them (for example beside the run history or card record holding the evidence), and the record points to the file by path.\n- **People can add images from the app** (for example paste or drag-and-drop), as well as agents through the `dm` CLI and MCP tools.\n- **Allowed source folders** for images an agent attaches by path: the project folder and its worktrees, the system temp folder, and the OS screenshot folder.\n- **Linear is out of scope.** Transfers to Linear do not upload images.\n\n## Scope\n\n- Attach images from the CLI/MCP surface and from the desktop app to attempt evidence (epic and Kanban), and to tickets, Kanban cards and comments as references.\n- Store attachments per the storage decision above, so they persist and, in repository mode, travel with the portable state.\n- Render images inline in the desktop app: thumbnails that open an enlarged view.\n- Label each image as evidence or as a mockup/reference.\n- Let workers read attached images back, by path or content, while they implement.\n- Enforce size and type limits (PNG and JPEG; no SVG).\n\n## Findings from the codebase survey\n\n- No binary storage exists. `FsAdapter` reads and writes text only and needs binary read, write and hash methods. Records cap at 8 MiB (`run.json` holds every attempt of a run) and comments at 256 KiB, so images are never inlined as base64.\n- Attempt evidence (`checks`, `criteria`, `notes`) has no attachment field. A new ticket field must be optional with no default so saved plan content hashes do not change.\n- Image files must be written before the record that points to them (the snapshot-before-pointer rule in `finalizer.ts`). The importers need to scan and verify attachments with containment, size and count limits; a missing file shows as missing rather than failing the import.\n- A new outbox record kind means rebuilding the `outbox` and `sync_state` tables, as v13 did.\n- The CLI takes its JSON as one positional argument (no stdin, no input file), and Windows caps a command line at about 32K characters, so images are passed by file path, with an `attach` subcommand or an `--input-file` option.\n- The renderer has no custom protocol, and in dev the page is served over http and cannot load `file:` images. Serve attachments through a dedicated protocol (or bytes over IPC) by attachment id only; the renderer never handles paths (`src/shared/desktop/api.ts`). Images inside untrusted Markdown stay disabled.\n- References, ticket `expectedArtifacts` and `outputs.artifacts` are not shown in the ticket or attempt views today; this epic displays them.\n- Role guides (worker, reviewer, planner, sprint-reporter), chat kickoff text and the CLI runbook need updating.\n\n## Risks\n\n- Reading paths an agent supplies could copy secrets into committed records. Restrict sources, refuse links, check the file type by its contents, and cap size and dimensions.\n- Images committed with `.darkmechanicus` grow the repository; show attachment bytes in storage status.\n\n## Standards\n\nOnly the project's Definition of Done. No tests-first and no Fireguard in this epic. Each ticket's **Tests** section lists the tests its worker writes and runs.\n\n## Out of scope\n\n- Uploading images to Linear.\n- Image editing or annotation in the app.\n- Video or other binary attachment types.\n\n## Origin\n\nStarted as Kanban card DM-420, which was too large for one card. DM-420 now tracks deleting Kanban cards from the app.\n",
+      "ownerRole": null,
+      "successCriteria": [
+        {
+          "id": "s1",
+          "text": "A PNG or JPEG can be attached from a terminal session via the dm CLI / MCP tools as attempt evidence, or as a reference on a ticket, Kanban card or comment"
+        },
+        {
+          "id": "s2",
+          "text": "Attached images are stored with the folder's project data (SQLite blobs in database-only folders, files next to their records otherwise) and survive app restarts"
+        },
+        {
+          "id": "s3",
+          "text": "The desktop app renders attached images inline as thumbnails with click-to-enlarge wherever the evidence or reference appears"
+        },
+        {
+          "id": "s4",
+          "text": "Each image is labelled as evidence or as a mockup/reference"
+        },
+        {
+          "id": "s5",
+          "text": "Workers can read attached images back (path or content) to use mockups as references during implementation"
+        },
+        {
+          "id": "s6",
+          "text": "Oversized, unsupported or out-of-folder files are rejected with a clear error"
+        },
+        {
+          "id": "s7",
+          "text": "People can add images in the app by pasting, dropping or picking a file"
+        }
+      ],
+      "title": "Image attachments: send screenshots from terminals and view them in the app as evidence or mockups"
+    },
+    "formatVersion": 1,
+    "policies": {
+      "leaseSeconds": 900,
+      "maxConcurrency": null,
+      "onTicketFailure": "continue_independent",
+      "retryLimit": 3
+    },
+    "rationale": "Assumptions:\n- The SQLite database holds attachment bytes in both storage modes and the app serves from it; in repo mode files are also exported next to the owning record (the person's decision: blobs in SQL for database-only folders, files next to JSON otherwise). Keeping bytes in SQLite in repo mode is my choice: it mirrors how other records work (database first, files exported) and lets the app serve one way.\n- Agents attach by local file path because the CLI takes JSON as one argument and Windows caps command lines near 32K characters. The desktop app uploads bytes instead, so no path crosses the renderer bridge.\n- Allowed folders: project and worktrees, system temp, OS screenshot folder (the person's decision).\n- Limits (10 MiB, 8,000 px, 20 per record, PNG and JPEG only) are my defaults; change them before Save if you want others.\n- Linear transfers do not carry images (the person's decision).\n\nGraph:\n- Sprint 1: intake and storage start in parallel; commands joins them; portable export follows storage; evidence joins commands and portable; the protocol and gallery follow storage; the evidence UI joins evidence and protocol. Critical path: store → portable → evidence → evidenceUi.\n- Sprint 2: comments, card references, ticket references and storage status run in parallel; app upload joins the three reference tickets; docs follow app upload.\n\nSprint 2 revision (final sprint, after two code reviews against image-attachments at 797d943):\n- Order: DM-482 (green local tests) -> DM-478 (decode from bytes) -> DM-479 (owner checks, outbox keys) -> comments -> cards -> plan tickets (split a: drafts and save, b: import and Overview) -> app upload (split a: command, hook, comments; b: card form and ticket editor) -> sidecars (DM-483) -> docs last. DM-480 and DM-481 run in parallel early; DM-434 runs late, beside the docs ticket, because it shares views.ts and test files with the comment and upload tickets. DM-433 follows DM-432 (shared commandSchemas.ts and api.ts).\n- Edges follow shared files, so parallel tickets never edit the same file.\n- DM-432 and DM-433 were split because each was too large for one attempt. No scope was added; scope inside each ticket is fenced with Out of scope.\n- No sprint 3: discoveries go to Kanban, and no ticket is accepted with a failed or skipped check.",
+    "relations": [],
+    "sprints": [
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "add_attachment from the project folder, temp folder and screenshot folder succeeds; other paths, links and non-images are refused."
+          },
+          {
+            "id": "x2",
+            "text": "An epic attempt and a Kanban attempt submitted with attachment ids show their screenshots in the app."
+          },
+          {
+            "id": "x3",
+            "text": "In repo mode the image files sit next to run.json and the card record and import back byte-identical on a fresh checkout; in db mode no files are written."
+          },
+          {
+            "id": "x4",
+            "text": "The CSP no longer allows file: images, and attachments load through dm-attachment: in dev and in the built app."
+          }
+        ],
+        "goal": "Agents attach screenshots from a terminal as attempt evidence, the images are stored and exported per storage mode, and the app shows them on tickets and Kanban cards.",
+        "id": "sp_01m6fmd1m239r75ktbpqw63yta",
+        "ordinal": 1,
+        "ticketIds": [
+          "tk_01m6gnpwm1m0b8x505kwgk1g4k",
+          "tk_01m6gnpwwezfjbd1bcm6gg94th",
+          "tk_01m6gnpx4zm4707ap49kjwfbse",
+          "tk_01m6gnpxdysedcrpecz3ennkef",
+          "tk_01m6gnpxphk3k11d1cynjyevd2",
+          "tk_01m6gnpxz5a2pdr3h6xdndmb5f",
+          "tk_01m6gnpy7n7f8ahb2x9hbxcj79",
+          "tk_01m6fmd1m2kn4h1kh2k3a4nca0"
+        ]
+      },
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "A comment, a Kanban card and a plan ticket each show an attached mockup in the app, added from the dm CLI, and survive deleting local/state.sqlite in repo mode."
+          },
+          {
+            "id": "x2",
+            "text": "A person can paste, drop or pick an image in the comment composer, the card form and the ticket editor, and it renders after saving."
+          },
+          {
+            "id": "x3",
+            "text": "Card packets and execution packets list reference images, and get_attachment returns a readable copy."
+          },
+          {
+            "id": "x4",
+            "text": "Storage status shows image totals and failed exports; the guides and CLI runbook describe attaching images."
+          },
+          {
+            "id": "x5",
+            "text": "Every Definition of Done check passes locally and in CI, with no accepted failures, and every epic success criterion has evidence."
+          }
+        ],
+        "goal": "Final sprint: images work as references on comments, Kanban cards and plan tickets, added by agents or in the app; the attachment pipeline is hardened, storage status shows images, the guides document it, and the epic closes with every success criterion evidenced.",
+        "id": "sp_01m6gnrnk831e4j8z3tqpmzxcm",
+        "ordinal": 2,
+        "ticketIds": [
+          "tk_01m6gnrnvv55vjd6kzp8jrc6da",
+          "tk_01m6gnrp4fj7jfnreypm9frk6z",
+          "tk_01m6gnrpczh9gcnpkx7afs5f68",
+          "tk_01m6gnrpnd0384mzgdeja33jn8",
+          "tk_01m6gnrpy54qdrsnttpna80w0h",
+          "tk_01m6gnrq6w2fbrmsvgn5d0x1qg",
+          "tk_01m6qccpc19aw2bbee0h6h9d9q",
+          "tk_01m6qccpchvhgvxma1wk7xjy2p",
+          "tk_01m6qccpchsj20pw91d1h2hega",
+          "tk_01m6qccpchnh0b6mm2w8xxgp34",
+          "tk_01m6qccpch394774rh7xs2s5gw",
+          "tk_01m6qccpchpqh554drrrae7nh4",
+          "tk_01m6qkq9166g3xz9821vbh491y",
+          "tk_01m6qkq9a3dr9y73qvrn7mjvw5",
+          "tk_01m6gnrnk8cbqv7rnvaynphhxp"
+        ]
+      }
+    ],
+    "tickets": [
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m6gnpwm1m0b8x505kwgk1g4k",
+            "id": "c1",
+            "text": "In the built app's dm CLI on Windows, add_attachment accepts a PNG from %USERPROFILE%\\Pictures\\Screenshots and from the temp folder, and refuses C:\\Users\\<user>\\.ssh\\known_hosts and a symlink, with reasons shown."
+          },
+          {
+            "covers": "tk_01m6gnpwwezfjbd1bcm6gg94th",
+            "id": "c2",
+            "text": "Opening an existing project upgrades it to schema 14 with its epics, cards, outbox and sync state intact (app starts, board and epics list unchanged)."
+          },
+          {
+            "covers": "tk_01m6gnpx4zm4707ap49kjwfbse",
+            "id": "c3",
+            "text": "A worker-role CLI session runs add_attachment then get_attachment as file and the returned path opens the same image."
+          },
+          {
+            "covers": "tk_01m6gnpxdysedcrpecz3ennkef",
+            "id": "c4",
+            "text": "In a repo-mode folder, the image files appear under history/<runId>/attachments and kanban/<cardId>/attachments; after deleting local/state.sqlite and reopening, the images still render."
+          },
+          {
+            "covers": "tk_01m6gnpxphk3k11d1cynjyevd2",
+            "id": "c5",
+            "text": "submit_attempt and submit_kanban_card with evidence.attachments return the refs from get_ticket and get_kanban_card."
+          },
+          {
+            "covers": "tk_01m6gnpxz5a2pdr3h6xdndmb5f",
+            "id": "c6",
+            "text": "Screenshots from dev mode and the built app show an attachment loaded via dm-attachment:, and the served CSP has no file: in img-src."
+          },
+          {
+            "covers": "tk_01m6gnpy7n7f8ahb2x9hbxcj79",
+            "id": "c7",
+            "text": "Screenshots show a ticket Evidence tab and a Kanban card with attached screenshots as thumbnails, and the lightbox open."
+          }
+        ],
+        "body": "Definition of Done evidence: because local Windows test runs hit environmental symlink (EPERM) and pty-helper failures that also occur on the base commit, the full gate (npm test, coverage, lint, typecheck, build, deadcode) is taken from the CI run on the sprint PR for the squashed increment.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6fmd1m2kn4h1kh2k3a4nca0",
+        "key": "DM-421",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [],
+        "title": "Sprint 1 acceptance"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "intake.test.ts covers acceptance from the project root and the temp folder, and passes."
+          },
+          {
+            "id": "c2",
+            "text": "Files outside the allowed roots, symbolic links, SVG and non-image files are refused with invalid_input and a reason in the message."
+          },
+          {
+            "id": "c3",
+            "text": "Type is decided by magic bytes, and width and height are parsed for PNG and JPEG without adding a dependency."
+          },
+          {
+            "id": "c4",
+            "text": "Files over 10 MiB or 8,000 px on a side are refused."
+          }
+        ],
+        "body": "## Context\nAgents attach images by local file path (the CLI takes its JSON as one argument, and Windows caps a command line near 32K characters, so bytes cannot be passed inline). Reading a path an agent supplies could copy secrets into committed records, so intake is restricted.\n\n## Attachment model (shared by this epic)\n- An attachment is one image: stable id (new id kind `attachment`; pick an unused prefix such as `at` and register it wherever stable id kinds are listed), `sha256`, `mime` (`image/png` or `image/jpeg`), `bytes`, `width`, `height`, `label`, `purpose` (`evidence` or `reference`), `owner` (`{kind: 'attempt' | 'kanban_attempt' | 'comment' | 'kanban_card' | 'ticket', id}`, or null while staged), `createdBy` (session role and label), `createdAt`.\n- Records reference images with an `attachmentRef`: `{id, sha256, mime, bytes, width, height, label, purpose}`. Never base64 inside a record.\n- SQLite always holds the metadata and the bytes (BLOB) in both storage modes; the app serves from it. In `repo` mode the bytes are also exported as files next to the record that owns them: `history/<runId>/attachments/<sha256>.<ext>` (epic attempt evidence), `kanban/<cardId>/attachments/<sha256>.<ext>` (card references and card attempt evidence), `epics/<epicId>/attachments/<sha256>.<ext>` (comments and ticket references). In `db` mode no files are written.\n- Limits: PNG and JPEG only, detected by magic bytes; at most 10 MiB per file and 8,000 px per side; at most 20 attachments per record. SVG is always refused.\n- Allowed source folders for agent paths: the project root and its worktrees, the system temp folder, and the OS screenshot folder.\n\n## Do\nCreate `src/core/attachments/intake.ts` (pure Node, no Electron) exporting:\n- `resolveAllowedRoots({repoRoot, worktrees, env, platform, homeDir})`: the project root, its git worktrees, `os.tmpdir()`, and the OS screenshot folder (Windows `%USERPROFILE%\\Pictures\\Screenshots`, plus the OneDrive Pictures\\Screenshots folder when `OneDrive` is set; macOS the `com.apple.screencapture location` default when readable, else `~/Desktop`; Linux `$XDG_PICTURES_DIR/Screenshots` or `~/Pictures/Screenshots`). Missing folders are skipped. Inject env and platform so tests do not depend on the machine.\n- `readImageFile(path, roots, fs)`: realpath the file and each root; refuse when the file is not inside a root, is a symbolic link, or is not a regular file; read the bytes; return `{bytes, sha256, mime, width, height}`.\n- `inspectImageBytes(bytes)`: shared with the desktop upload later. Detect PNG/JPEG by magic bytes (ignore the extension), parse width and height from the PNG IHDR or JPEG SOF marker without a new dependency, and enforce the limits above.\n- Failures throw a DomainError with code `invalid_input` and a message naming the reason (outside allowed folders, link, unsupported type, too large, too many pixels).\n\nOut of scope: storage, commands, UI.\n\n## Tests\n`src/core/attachments/intake.test.ts`: accepts a PNG and a JPEG in the project root and in the temp folder; refuses a file outside every root, a symlink into a root, an SVG, a text file renamed .png, an over-size file and an over-dimension header; a PNG renamed .jpg is accepted as PNG; resolveAllowedRoots for win32, darwin and linux with injected env.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "deep",
+            "rationale": "Security boundary on reading agent-supplied paths; a wrong call leaks secrets into committed records."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "security-review",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/attachments/intake.ts",
+          "src/core/attachments/intake.test.ts"
+        ],
+        "id": "tk_01m6gnpwm1m0b8x505kwgk1g4k",
+        "key": "DM-422",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/paths.ts",
+            "location": "src/core/repo/paths.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/nodeFs.ts",
+            "location": "src/core/repo/nodeFs.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/errors.ts",
+            "location": "src/core/errors.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "attachments",
+          "security"
+        ],
+        "title": "Add a core image intake module that reads an allowed local file and validates it as a PNG or JPEG"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "migrations.test.ts shows schema 14 adds the attachments table and keeps existing outbox and sync_state rows while accepting kind attachment."
+          },
+          {
+            "id": "c2",
+            "text": "attachments.test.ts shows bytes stored and read back byte-identical, staged attachments claimed by an owner, and a second claim or more than 20 refused."
+          },
+          {
+            "id": "c3",
+            "text": "pruneStagedAttachments removes staged rows older than 7 days and leaves owned and recent rows."
+          },
+          {
+            "id": "c4",
+            "text": "npm run typecheck passes with AttachmentView, AttachmentRef and attachmentRef exported."
+          }
+        ],
+        "body": "## Context\n## Attachment model (shared by this epic)\n- An attachment is one image: stable id (new id kind `attachment`; pick an unused prefix such as `at` and register it wherever stable id kinds are listed), `sha256`, `mime` (`image/png` or `image/jpeg`), `bytes`, `width`, `height`, `label`, `purpose` (`evidence` or `reference`), `owner` (`{kind: 'attempt' | 'kanban_attempt' | 'comment' | 'kanban_card' | 'ticket', id}`, or null while staged), `createdBy` (session role and label), `createdAt`.\n- Records reference images with an `attachmentRef`: `{id, sha256, mime, bytes, width, height, label, purpose}`. Never base64 inside a record.\n- SQLite always holds the metadata and the bytes (BLOB) in both storage modes; the app serves from it. In `repo` mode the bytes are also exported as files next to the record that owns them: `history/<runId>/attachments/<sha256>.<ext>` (epic attempt evidence), `kanban/<cardId>/attachments/<sha256>.<ext>` (card references and card attempt evidence), `epics/<epicId>/attachments/<sha256>.<ext>` (comments and ticket references). In `db` mode no files are written.\n- Limits: PNG and JPEG only, detected by magic bytes; at most 10 MiB per file and 8,000 px per side; at most 20 attachments per record. SVG is always refused.\n- Allowed source folders for agent paths: the project root and its worktrees, the system temp folder, and the OS screenshot folder.\n\n## Do\n- `src/core/db/migrations.ts`: add migration 14 (bump `SCHEMA_VERSION`) creating `attachments` (id, sha256, mime, bytes, width, height, label, purpose, owner_kind, owner_id nullable, missing flag, data BLOB nullable, created_by_role, created_by_label, created_at) with an index on (owner_kind, owner_id). In the same migration rebuild `outbox` and `sync_state` to add `attachment` to their `kind` CHECK lists, following how v13 rebuilt them (`migrations.ts` ~560-594), keeping every row.\n- `src/core/schemas.ts`: `attachmentRef` and `attachmentPurpose`; `LIMITS.attachmentsPerRecord = 20`.\n- `src/shared/domain/views.ts`: `AttachmentView` and `AttachmentRef` types.\n- `src/core/services/attachments.ts`: `createStagedAttachment(ctx, {bytes, sha256, mime, width, height, label, purpose})`, `getAttachment(ctx, id)` (metadata), `readAttachmentBytes(ctx, id)`, `claimAttachments(ctx, ids, owner)` (moves staged to owned; refuses unknown ids, ids owned by something else, and more than the per-record limit), `pruneStagedAttachments(ctx, olderThan)` (deletes staged rows older than 7 days; call it once when a workspace opens).\n- Do not wire commands, files or UI here.\n\n## Tests\n- `migrations.test.ts`: v14 creates the table, keeps existing outbox and sync_state rows, and accepts kind `attachment`.\n- `src/core/services/attachments.test.ts`: create, read bytes back identical, claim, refuse double claim and over-limit, prune only old staged rows.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Schema migration with a table rebuild plus a new service; must keep existing rows."
+          },
+          "skills": [
+            "typescript",
+            "database",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/services/attachments.ts",
+          "src/core/db/migrations.ts"
+        ],
+        "id": "tk_01m6gnpwwezfjbd1bcm6gg94th",
+        "key": "DM-423",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/db/migrations.ts",
+            "location": "src/core/db/migrations.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/db/database.ts",
+            "location": "src/core/db/database.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/schemas.ts",
+            "location": "src/core/schemas.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/views.ts",
+            "location": "src/shared/domain/views.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "attachments",
+          "database"
+        ],
+        "title": "Store attachments in SQLite: schema v14, domain types, schemas and an attachment service"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "add_attachment stores a staged attachment from an allowed path and returns its id, sha256, mime and dimensions."
+          },
+          {
+            "id": "c2",
+            "text": "add_attachment is refused on the desktop transport and for a path outside the allowed roots."
+          },
+          {
+            "id": "c3",
+            "text": "get_attachment with as file returns a temp path whose bytes equal the original; as metadata returns the view."
+          },
+          {
+            "id": "c4",
+            "text": "The worker role sees add_attachment and get_attachment in MCP and in dm --list, and the new tests pass."
+          }
+        ],
+        "body": "## Context\n## Attachment model (shared by this epic)\n- An attachment is one image: stable id (new id kind `attachment`; pick an unused prefix such as `at` and register it wherever stable id kinds are listed), `sha256`, `mime` (`image/png` or `image/jpeg`), `bytes`, `width`, `height`, `label`, `purpose` (`evidence` or `reference`), `owner` (`{kind: 'attempt' | 'kanban_attempt' | 'comment' | 'kanban_card' | 'ticket', id}`, or null while staged), `createdBy` (session role and label), `createdAt`.\n- Records reference images with an `attachmentRef`: `{id, sha256, mime, bytes, width, height, label, purpose}`. Never base64 inside a record.\n- SQLite always holds the metadata and the bytes (BLOB) in both storage modes; the app serves from it. In `repo` mode the bytes are also exported as files next to the record that owns them: `history/<runId>/attachments/<sha256>.<ext>` (epic attempt evidence), `kanban/<cardId>/attachments/<sha256>.<ext>` (card references and card attempt evidence), `epics/<epicId>/attachments/<sha256>.<ext>` (comments and ticket references). In `db` mode no files are written.\n- Limits: PNG and JPEG only, detected by magic bytes; at most 10 MiB per file and 8,000 px per side; at most 20 attachments per record. SVG is always refused.\n- Allowed source folders for agent paths: the project root and its worktrees, the system temp folder, and the OS screenshot folder.\nUses `readImageFile` from the intake ticket and the attachment service from the storage ticket. CLI and MCP open the workspace in-process (`src/core/workspace.ts`), so the path is read on the agent's own machine.\n\n## Do\n- `src/core/commandSchemas.ts`: `addAttachment {path, label, purpose}` and `getAttachment {attachmentId, as: 'metadata' | 'file'}`.\n- `src/core/commands/capabilities.ts` and `src/core/authz.ts`: new capability `attachment.write` for add (granted to worker, reviewer, orchestrator and planner); get uses `read`.\n- `addAttachment` refuses the `desktop` transport (`workspace.ts` ~42) with `unauthorized`; it resolves allowed roots (project root, worktrees from git, temp, screenshot folder), reads and validates the file, and stores a staged attachment. Returns the `AttachmentView`.\n- `getAttachment` with `as: 'file'` writes the bytes to `<os tmpdir>/darkmechanicus-attachments/<sha256>.<ext>` (reuse when present) and returns its absolute path, so a worker can open a mockup; `metadata` returns the view only.\n- MCP: register `add_attachment` and `get_attachment` in a new `src/mcp/tools/attachments.ts` via `defineTool`.\n- CLI: `--describe` and `--list` pick them up from the registry; confirm `dm call add_attachment` works with Windows paths written with forward slashes or escaped backslashes.\n\n## Tests\n- `src/core/commands/attachments.test.ts`: add from the project root succeeds and is staged; desktop transport refused; outside-root path refused; get as file writes a byte-identical copy and returns its path.\n- MCP tool registration test listing both tools for the worker role.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Wires a new capability across command schemas, authorization, MCP and CLI."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/mcp/tools/attachments.ts"
+        ],
+        "id": "tk_01m6gnpx4zm4707ap49kjwfbse",
+        "key": "DM-424",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/commandSchemas.ts",
+            "location": "src/core/commandSchemas.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/commands/capabilities.ts",
+            "location": "src/core/commands/capabilities.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/authz.ts",
+            "location": "src/core/authz.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/tools/define.ts",
+            "location": "src/mcp/tools/define.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/workspace.ts",
+            "location": "src/core/workspace.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/cli/main.ts",
+            "location": "src/cli/main.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "attachments",
+          "cli",
+          "mcp"
+        ],
+        "title": "Add add_attachment and get_attachment commands to the CLI and MCP surface"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "FsAdapter has byte read and write methods implemented in nodeFs and all fakes, and typecheck passes."
+          },
+          {
+            "id": "c2",
+            "text": "Finalizer tests show attachment files written before the referencing record in repo mode and no files in db mode."
+          },
+          {
+            "id": "c3",
+            "text": "Import tests show a byte-identical round trip, missing files flagged rather than failing, and wrong-hash or linked files refused."
+          }
+        ],
+        "body": "## Context\n## Attachment model (shared by this epic)\n- An attachment is one image: stable id (new id kind `attachment`; pick an unused prefix such as `at` and register it wherever stable id kinds are listed), `sha256`, `mime` (`image/png` or `image/jpeg`), `bytes`, `width`, `height`, `label`, `purpose` (`evidence` or `reference`), `owner` (`{kind: 'attempt' | 'kanban_attempt' | 'comment' | 'kanban_card' | 'ticket', id}`, or null while staged), `createdBy` (session role and label), `createdAt`.\n- Records reference images with an `attachmentRef`: `{id, sha256, mime, bytes, width, height, label, purpose}`. Never base64 inside a record.\n- SQLite always holds the metadata and the bytes (BLOB) in both storage modes; the app serves from it. In `repo` mode the bytes are also exported as files next to the record that owns them: `history/<runId>/attachments/<sha256>.<ext>` (epic attempt evidence), `kanban/<cardId>/attachments/<sha256>.<ext>` (card references and card attempt evidence), `epics/<epicId>/attachments/<sha256>.<ext>` (comments and ticket references). In `db` mode no files are written.\n- Limits: PNG and JPEG only, detected by magic bytes; at most 10 MiB per file and 8,000 px per side; at most 20 attachments per record. SVG is always refused.\n- Allowed source folders for agent paths: the project root and its worktrees, the system temp folder, and the OS screenshot folder.\nThe file layer is text-only today (`FsAdapter` in `src/core/repo/types.ts`; `nodeFs.ts` uses utf8). Records are written by outbox handlers in `src/core/repo/finalizer.ts`; images must be written before the record that points at them (the snapshot-before-pointer rule, ~470-478).\n\n## Do\n- `FsAdapter`: add `readFileBytes(path): Uint8Array` and `writeFileBytes(path, data: Uint8Array)`; implement them in `nodeFs.ts` and every test fake.\n- `src/core/repo/paths.ts` `ownedPaths`: `attachmentFile(owner, sha256, mime)` for the three locations above, built only from validated ids and a hex sha256.\n- `finalizer.ts`: an `attachment` outbox handler that writes the file once (temp, fsync, rename, read back and compare sha256). Enqueue it whenever an attachment is claimed by an owner, ordered before the owning record's export. `DB_HANDLERS` (db mode) treat it as done without writing.\n- Importers (`importer.ts`, `kanbanImport.ts`): read `attachments/` folders inside run, card and epic folders; verify the hash and the image type; enforce containment (`assertContained`), at most 2,000 files and 512 MiB per folder; store bytes in the attachments table. A record that references a missing or corrupt file imports with the attachment flagged missing instead of failing.\n- Epic and card removal already delete their folders; confirm attachments go with them.\n\n## Tests\n- `finalizer.test.ts`: the attachment file is written before the record that references it, and db mode writes nothing.\n- Importer tests: export then import restores byte-identical attachments; a missing file imports as missing; a file with a wrong hash is refused; a symlink in attachments/ is refused.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "deep",
+            "rationale": "Write ordering and import verification in the sync layer; mistakes corrupt state across machines."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/repo/finalizer.ts",
+          "src/core/repo/importer.ts",
+          "src/core/repo/kanbanImport.ts"
+        ],
+        "id": "tk_01m6gnpxdysedcrpecz3ennkef",
+        "key": "DM-425",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/types.ts",
+            "location": "src/core/repo/types.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/nodeFs.ts",
+            "location": "src/core/repo/nodeFs.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/finalizer.ts",
+            "location": "src/core/repo/finalizer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/paths.ts",
+            "location": "src/core/repo/paths.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/importer.ts",
+            "location": "src/core/repo/importer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/kanbanImport.ts",
+            "location": "src/core/repo/kanbanImport.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/portable.ts",
+            "location": "src/core/repo/portable.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "attachments",
+          "portable-state"
+        ],
+        "title": "Export and import attachment files next to their owning records in repository mode"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "submit_attempt and submit_kanban_card accept evidence.attachments ids, and the attempt views return the attachment refs."
+          },
+          {
+            "id": "c2",
+            "text": "An unknown or already-owned attachment id refuses the submission with nothing stored."
+          },
+          {
+            "id": "c3",
+            "text": "Older run.json and Kanban event records without attachments parse unchanged, and the new tests pass."
+          }
+        ],
+        "body": "## Context\n## Attachment model (shared by this epic)\n- An attachment is one image: stable id (new id kind `attachment`; pick an unused prefix such as `at` and register it wherever stable id kinds are listed), `sha256`, `mime` (`image/png` or `image/jpeg`), `bytes`, `width`, `height`, `label`, `purpose` (`evidence` or `reference`), `owner` (`{kind: 'attempt' | 'kanban_attempt' | 'comment' | 'kanban_card' | 'ticket', id}`, or null while staged), `createdBy` (session role and label), `createdAt`.\n- Records reference images with an `attachmentRef`: `{id, sha256, mime, bytes, width, height, label, purpose}`. Never base64 inside a record.\n- SQLite always holds the metadata and the bytes (BLOB) in both storage modes; the app serves from it. In `repo` mode the bytes are also exported as files next to the record that owns them: `history/<runId>/attachments/<sha256>.<ext>` (epic attempt evidence), `kanban/<cardId>/attachments/<sha256>.<ext>` (card references and card attempt evidence), `epics/<epicId>/attachments/<sha256>.<ext>` (comments and ticket references). In `db` mode no files are written.\n- Limits: PNG and JPEG only, detected by magic bytes; at most 10 MiB per file and 8,000 px per side; at most 20 attachments per record. SVG is always refused.\n- Allowed source folders for agent paths: the project root and its worktrees, the system temp folder, and the OS screenshot folder.\nEvidence today is `{checks, criteria, notes}` (`attemptEvidenceInput` in `src/core/schemas.ts` ~398) with no files.\n\n## Do\n- Add optional `attachments: string[]` (attachment ids, at most 20) to the evidence input of `submitAttempt`, `reconcileAttempt` and `submitKanbanCard` (`src/core/commandSchemas.ts`).\n- In `src/core/services/attempts.ts` (`submitAttempt` ~676, `normalizeEvidence` ~139) and `src/core/services/kanban/attempts.ts` (`submitKanbanCard` ~351): claim the ids for the attempt (`claimAttachments`) and store `attachments: AttachmentRef[]` in the evidence. The field is optional with no default so existing records parse unchanged.\n- Portable records: add the optional `attachments` array to `attemptEvidence` in `src/core/repo/portable.ts` (run.json and the Kanban submitted event).\n- Views: `AttemptEvidence` and `KanbanAttemptView` include the refs; `get_ticket` and `get_kanban_card` return them.\n\n## Tests\n- Attempts service test: submit with two staged ids stores two refs and claims them; an unknown or already-owned id refuses the submission and stores nothing.\n- Kanban attempts test: the same for submit_kanban_card.\n- Portable test: a run.json without attachments still parses; one with them round-trips.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Threads a new optional field through two submission services, records and views."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/services/attempts.ts",
+          "src/core/services/kanban/attempts.ts"
+        ],
+        "id": "tk_01m6gnpxphk3k11d1cynjyevd2",
+        "key": "DM-426",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/schemas.ts",
+            "location": "src/core/schemas.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/commandSchemas.ts",
+            "location": "src/core/commandSchemas.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/attempts.ts",
+            "location": "src/core/services/attempts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/kanban/attempts.ts",
+            "location": "src/core/services/kanban/attempts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/portable.ts",
+            "location": "src/core/repo/portable.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/views.ts",
+            "location": "src/shared/domain/views.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/kanban.ts",
+            "location": "src/shared/domain/kanban.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "attachments",
+          "evidence"
+        ],
+        "title": "Let attempt submissions carry image attachments as evidence"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The protocol handler test shows bytes with the stored mime and nosniff for a known id, 404 for unknown or missing ids, and 405 for non-GET."
+          },
+          {
+            "id": "c2",
+            "text": "Both CSPs list dm-attachment: in img-src and no longer list file:."
+          },
+          {
+            "id": "c3",
+            "text": "AttachmentGallery tests cover thumbnails, the lightbox and the missing placeholder."
+          },
+          {
+            "id": "c4",
+            "text": "A screenshot shows a stored attachment rendered in the app in dev mode."
+          }
+        ],
+        "body": "## Context\n## Attachment model (shared by this epic)\n- An attachment is one image: stable id (new id kind `attachment`; pick an unused prefix such as `at` and register it wherever stable id kinds are listed), `sha256`, `mime` (`image/png` or `image/jpeg`), `bytes`, `width`, `height`, `label`, `purpose` (`evidence` or `reference`), `owner` (`{kind: 'attempt' | 'kanban_attempt' | 'comment' | 'kanban_card' | 'ticket', id}`, or null while staged), `createdBy` (session role and label), `createdAt`.\n- Records reference images with an `attachmentRef`: `{id, sha256, mime, bytes, width, height, label, purpose}`. Never base64 inside a record.\n- SQLite always holds the metadata and the bytes (BLOB) in both storage modes; the app serves from it. In `repo` mode the bytes are also exported as files next to the record that owns them: `history/<runId>/attachments/<sha256>.<ext>` (epic attempt evidence), `kanban/<cardId>/attachments/<sha256>.<ext>` (card references and card attempt evidence), `epics/<epicId>/attachments/<sha256>.<ext>` (comments and ticket references). In `db` mode no files are written.\n- Limits: PNG and JPEG only, detected by magic bytes; at most 10 MiB per file and 8,000 px per side; at most 20 attachments per record. SVG is always refused.\n- Allowed source folders for agent paths: the project root and its worktrees, the system temp folder, and the OS screenshot folder.\nThe renderer is sandboxed and must never receive or send file paths (`src/shared/desktop/api.ts` ~68-71). There is no custom protocol yet, and the dev page is served from http://localhost, which cannot load `file:` images. The CSP (`electron.vite.config.ts` ~8-26) allows `img-src 'self' data: file:`.\n\n## Do\n- `src/main`: register `dm-attachment` as a privileged standard, secure scheme before app ready, and `protocol.handle` it: `dm-attachment://<folder handle>/<attachmentId>`, where the folder handle is the identifier the renderer already passes to `dm:command` (never a path). Look the id up through the workspace and respond with the stored bytes, the stored mime, `X-Content-Type-Options: nosniff` and `Cache-Control: private, max-age=31536000, immutable`; 404 for unknown ids or ids flagged missing; GET only.\n- CSP: replace `file:` with `dm-attachment:` in `img-src` for both prod and dev policies.\n- Renderer: `src/renderer/src/attachments/AttachmentGallery.tsx`: thumbnails (fixed height, label and an Evidence/Reference badge); click opens a lightbox at full size, with Escape and arrow keys; a missing attachment shows a placeholder with its label. Use existing theme tokens and components.\n- Markdown keeps refusing images.\n\n## Tests\n- Main: unit test of the request handler (known id returns bytes and headers; unknown returns 404; non-GET returns 405) with a fake workspace.\n- Renderer: AttachmentGallery component test for thumbnails, lightbox open and close, and the missing placeholder.\n- Verify in the dev app that a stored attachment renders (screenshot).",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "New Electron protocol and CSP change plus a themed React component checked visually."
+          },
+          "skills": [
+            "typescript",
+            "electron",
+            "react",
+            "ui",
+            "security-review"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "browser"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/attachments/AttachmentGallery.tsx"
+        ],
+        "id": "tk_01m6gnpxz5a2pdr3h6xdndmb5f",
+        "key": "DM-427",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "electron.vite.config.ts",
+            "location": "electron.vite.config.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/index.ts",
+            "location": "src/main/index.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/navigation.ts",
+            "location": "src/main/desktop/navigation.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/ipc.ts",
+            "location": "src/main/desktop/ipc.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/desktop/api.ts",
+            "location": "src/shared/desktop/api.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "attachments",
+          "ui",
+          "electron"
+        ],
+        "title": "Serve attachments to the app through a dm-attachment protocol and add a thumbnail and lightbox component"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The ticket Evidence tab and the Kanban card panel show evidence attachments as thumbnails that open the lightbox."
+          },
+          {
+            "id": "c2",
+            "text": "outputs.artifacts are listed with labels, and http/https locations open through the safe external link."
+          },
+          {
+            "id": "c3",
+            "text": "Component tests cover present and absent cases and pass."
+          }
+        ],
+        "body": "## Context\nAttempts now carry `evidence.attachments`, and `AttachmentGallery` renders them. `outputs.artifacts` is not displayed anywhere today.\n\n## Do\n- `src/renderer/src/ticket/panelTabs.tsx` `EvidenceSections` (~144-171): add an Attachments section using `AttachmentGallery` when the attempt has any; add an Artifacts list for `outputs.artifacts` (label and location; http/https locations as links through the existing safe link, others as text).\n- `src/renderer/src/kanban/KanbanCardPanel.tsx` reuses `EvidenceSections`; confirm it shows there too, including in kick-back history.\n- `src/renderer/src/ticket/ticketView.ts`: extend `evidenceView` and `outputFields` as needed.\n\n## Tests\n- Component tests: EvidenceSections renders the gallery and the artifacts list when present and neither when absent.\n- Screenshot of a ticket's Evidence tab and a Kanban card with an attached screenshot.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "The body names the components and fields to render."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "browser"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/ticket/panelTabs.tsx"
+        ],
+        "id": "tk_01m6gnpy7n7f8ahb2x9hbxcj79",
+        "key": "DM-428",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/panelTabs.tsx",
+            "location": "src/renderer/src/ticket/panelTabs.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/ticketView.ts",
+            "location": "src/renderer/src/ticket/ticketView.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/kanban/KanbanCardPanel.tsx",
+            "location": "src/renderer/src/kanban/KanbanCardPanel.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "attachments",
+          "ui"
+        ],
+        "title": "Show evidence attachments and output artifacts in the ticket and Kanban card views"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m6qccpch394774rh7xs2s5gw",
+            "id": "c1",
+            "text": "Local npm test on this Windows machine finishes with 0 failures (totals), and CI on the sprint PR is green for every Definition of Done check."
+          },
+          {
+            "covers": "tk_01m6qccpc19aw2bbee0h6h9d9q",
+            "id": "c2",
+            "text": "A test excerpt shows createStagedAttachment storing decoded width, height and mime from raw bytes, and an app-uploaded image's get_attachment metadata matches the real image."
+          },
+          {
+            "covers": "tk_01m6qccpchvhgvxma1wk7xjy2p",
+            "id": "c3",
+            "text": "Test output shows a claim for a missing owner refused; in a repo-mode folder a new epic with a comment image completes its first save (snapshot and current.json written)."
+          },
+          {
+            "covers": "tk_01m6gnrnvv55vjd6kzp8jrc6da",
+            "id": "c4",
+            "text": "A comment added from the CLI with an image shows it in the ticket Comments tab (screenshot); in repo mode epics/<epicId>/attachments/<sha>.png exists after the flush."
+          },
+          {
+            "covers": "tk_01m6gnrp4fj7jfnreypm9frk6z",
+            "id": "c5",
+            "text": "A Kanban card created from the CLI with a mockup shows it and its references in the card panel (screenshot); a packetOf test excerpt lists the ref; removing it via update_kanban_card removes the exported file."
+          },
+          {
+            "covers": "tk_01m6gnrpczh9gcnpkx7afs5f68",
+            "id": "c6",
+            "text": "DM-432's recompute test output shows a pre-epic saved snapshot recomputing to its stored contentHash; a draft ticket given an image via update_plan_draft is claimed on Save and its execution packet lists the ref."
+          },
+          {
+            "covers": "tk_01m6qkq9166g3xz9821vbh491y",
+            "id": "c7",
+            "text": "After Save, the ticket Overview tab shows the image, references and expected artifacts (screenshot); after deleting local/state.sqlite and reopening, the image still renders."
+          },
+          {
+            "covers": "tk_01m6gnrpnd0384mzgdeja33jn8",
+            "id": "c8",
+            "text": "In the running app, an image pasted into the comment composer renders after posting (screenshot; drive paste with a synthetic ClipboardEvent carrying a PNG File if no person is at the keyboard)."
+          },
+          {
+            "covers": "tk_01m6qkq9a3dr9y73qvrn7mjvw5",
+            "id": "c9",
+            "text": "In the running app, an image dropped on the card form and one picked in the ticket editor each render after saving (screenshots; synthetic DragEvent / file input are fine)."
+          },
+          {
+            "covers": "tk_01m6gnrpy54qdrsnttpna80w0h",
+            "id": "c10",
+            "text": "The storage card shows the images row and a failed export entry matching get_storage_status (screenshot plus JSON excerpt)."
+          },
+          {
+            "covers": "tk_01m6qccpchsj20pw91d1h2hega",
+            "id": "c11",
+            "text": "In PowerShell 5.1 and Git Bash, dm call add_attachment --args-file with a JSON-escaped Windows path attaches the image (terminal excerpts)."
+          },
+          {
+            "covers": "tk_01m6qccpchnh0b6mm2w8xxgp34",
+            "id": "c12",
+            "text": "The dm-attachment integration test runs green in the full suite (excerpt)."
+          },
+          {
+            "covers": "tk_01m6qccpchpqh554drrrae7nh4",
+            "id": "c13",
+            "text": "In a repo-mode folder, after deleting local/state.sqlite and reopening, get_attachment shows the original createdBy for an evidence image and a comment image (CLI excerpt)."
+          },
+          {
+            "covers": "tk_01m6gnrq6w2fbrmsvgn5d0x1qg",
+            "id": "c14",
+            "text": "Following docs/runbooks/cli.md word for word in PowerShell attaches a screenshot as evidence on a test attempt (terminal excerpt)."
+          }
+        ],
+        "body": "## Final acceptance round of the epic\nThis is the last sprint: there is no sprint 3. Its report carries the epic outcome.\n\n- Before you start, the orchestrator opens (or updates) the draft PR for the epic branch so CI runs. Report every Definition of Done check (lint, typecheck, test, coverage, deadcode, build) as passed only when it passed, citing the local run and the CI job. A failed or skipped check means this node is not done: fix integration defects here, or hand back a blocker.\n- Also produce evidence for each epic success criterion s1-s7 in docs/verification/image-attachments/sprint-2/epic-outcome.md, each pointing at a sprint 1 or sprint 2 artifact.\n- Discoveries go to notes for Kanban; they never become plan tickets.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6gnrnk8cbqv7rnvaynphhxp",
+        "key": "DM-429",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [],
+        "title": "Sprint 2 acceptance"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "add_comment (CLI and MCP) accepts attachment ids and list_comments returns their refs."
+          },
+          {
+            "id": "c2",
+            "text": "Comment records round-trip attachments, records without them are unchanged, and import restores the images."
+          },
+          {
+            "id": "c3",
+            "text": "CommentsTab shows the images under the comment, and the listed tests pass."
+          }
+        ],
+        "body": "## Context\nComments can't carry images. Owner placement and export for comments already work (`attachmentOwners.ts:43-44`, `exportComment` writes images first, `finalizer.ts:466`).\n\n## Sprint 1 provides (build on it, do not rebuild it)\n- Id kind `attachment` with prefix `im` (`src/core/ids.ts:28`). Never use `at`: attempts own it.\n- `src/core/attachments/intake.ts`: `readImageFile`, `inspectImageBytes`, `MAX_IMAGE_BYTES`, allowed roots.\n- `src/core/services/attachments.ts`: `createStagedAttachment`, `stageAttachmentFile`, `claimAttachments`, `claimEvidenceAttachments`, `pruneStagedAttachments`, `getAttachment`, `readAttachmentBytes`.\n- `src/core/services/attachmentOwners.ts` resolves placement for all five owner kinds (attempt, kanban_attempt, comment, kanban_card, ticket).\n- `src/core/repo/finalizer.ts` already writes an owner's images before its record (`exportAttachmentsOf`, ~386, 466, 479, 509, 536) and `exportAttachment` handles history, kanban and epic folders.\n- `src/renderer/src/attachments/AttachmentGallery.tsx` renders thumbnails, the lightbox and an Evidence/Reference badge; it needs a `folderKey`.\n- Conventions for this sprint: refs are read from the `attachments` table (`WHERE owner_kind=? AND owner_id=? ORDER BY id`), with **no schema migration**; portable records **omit** `attachments` when empty so existing files stay byte-identical; new view fields are **optional**; reference images use `purpose: 'reference'`.\n\n## Rules for this sprint (final sprint of the epic)\n- Stay inside **Do**. Anything else you notice goes in your notes under Discoveries; it becomes a Kanban card, never part of this ticket.\n- If a discovery blocks one of this ticket's criteria, fix it here and say so.\n- Every check you report must pass. Do not hand back failed or skipped checks expecting them to be accepted.\n\n## Do\n- `addComment` input (`src/core/commandSchemas.ts:140`) and the MCP tool's explicit input list (`src/mcp/tools/comments.ts:13-18`): optional `attachments: string[]` (at most 20). Either purpose is allowed; the body stays required.\n- `src/shared/domain/api.ts`: add `attachments?: string[]` to `AddCommentInput` (:259).\n- `src/core/services/comments.ts`: insert the comment row, then `claimAttachments` for owner `{kind:'comment', id}` in the same transaction.\n- Export `attachmentRefOf` from `services/attachments.ts` (~264); DM-431 and DM-432 reuse it.\n- `CommentView.attachments?: AttachmentRef[]` read from the attachments table.\n- Portable: `buildCommentRecord` and `readCommentRecord` (`src/core/repo/portable.ts:427, 941-956`) carry `attachments`, omitted when empty.\n- Import: `applyComment` (`src/core/repo/importer.ts:986-1001`) inserts owned rows (no bytes yet) for the record's refs; share the insert with `insertOwnedRow` in `attachmentImport.ts` (export it). The existing file restore fills the bytes.\n- Renderer: `commentItems` (`src/renderer/src/ticket/commentsView.ts:36-45`) keeps `attachments`; `TicketPanel.tsx:146-153` passes `folderKey` to `CommentsTab`; `CommentsTab.tsx` renders `AttachmentGallery` under the body.\n\n## Out of scope\nUploading from the app (DM-433). Editing or deleting comments.\n\n## Tests\n- Service: add with staged ids claims them and list_comments returns refs; an id owned elsewhere is refused.\n- Portable: a record without attachments is byte-identical to before; one with them round-trips.\n- Import into a fresh database registers the comment's rows and the image serves after restore.\n- CommentsTab component test renders the gallery.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Command, record, import and UI plumbing across about eight files."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "react",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/services/comments.ts",
+          "src/renderer/src/ticket/CommentsTab.tsx"
+        ],
+        "id": "tk_01m6gnrnvv55vjd6kzp8jrc6da",
+        "key": "DM-430",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/commandSchemas.ts",
+            "location": "src/core/commandSchemas.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/tools/comments.ts",
+            "location": "src/mcp/tools/comments.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/comments.ts",
+            "location": "src/core/services/comments.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/portable.ts",
+            "location": "src/core/repo/portable.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/importer.ts",
+            "location": "src/core/repo/importer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/attachmentImport.ts",
+            "location": "src/core/repo/attachmentImport.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/commentsView.ts",
+            "location": "src/renderer/src/ticket/commentsView.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/TicketPanel.tsx",
+            "location": "src/renderer/src/ticket/TicketPanel.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/CommentsTab.tsx",
+            "location": "src/renderer/src/ticket/CommentsTab.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "attachments",
+          "comments"
+        ],
+        "title": "Attach images to epic and ticket comments"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "create_kanban_card and update_kanban_card accept attachment ids, and get_kanban_card and the card packet return their refs."
+          },
+          {
+            "id": "c2",
+            "text": "Dropping an id deletes the row and, in repo mode, its file on the next export; import syncs rows both ways."
+          },
+          {
+            "id": "c3",
+            "text": "The card panel shows reference images and the references list, and the listed tests pass."
+          }
+        ],
+        "body": "## Context\nCards can't carry mockups. Placement and export for `kanban_card` already work (`attachmentOwners.ts:41-42`, `exportKanbanCard` writes images before `card.json`, `finalizer.ts:479`). `KanbanBoard.tsx:180-182` already spreads form content into create/update.\n\n## Sprint 1 provides (build on it, do not rebuild it)\n- Id kind `attachment` with prefix `im` (`src/core/ids.ts:28`). Never use `at`: attempts own it.\n- `src/core/attachments/intake.ts`: `readImageFile`, `inspectImageBytes`, `MAX_IMAGE_BYTES`, allowed roots.\n- `src/core/services/attachments.ts`: `createStagedAttachment`, `stageAttachmentFile`, `claimAttachments`, `claimEvidenceAttachments`, `pruneStagedAttachments`, `getAttachment`, `readAttachmentBytes`.\n- `src/core/services/attachmentOwners.ts` resolves placement for all five owner kinds (attempt, kanban_attempt, comment, kanban_card, ticket).\n- `src/core/repo/finalizer.ts` already writes an owner's images before its record (`exportAttachmentsOf`, ~386, 466, 479, 509, 536) and `exportAttachment` handles history, kanban and epic folders.\n- `src/renderer/src/attachments/AttachmentGallery.tsx` renders thumbnails, the lightbox and an Evidence/Reference badge; it needs a `folderKey`.\n- Conventions for this sprint: refs are read from the `attachments` table (`WHERE owner_kind=? AND owner_id=? ORDER BY id`), with **no schema migration**; portable records **omit** `attachments` when empty so existing files stay byte-identical; new view fields are **optional**; reference images use `purpose: 'reference'`.\n\n## Rules for this sprint (final sprint of the epic)\n- Stay inside **Do**. Anything else you notice goes in your notes under Discoveries; it becomes a Kanban card, never part of this ticket.\n- If a discovery blocks one of this ticket's criteria, fix it here and say so.\n- Every check you report must pass. Do not hand back failed or skipped checks expecting them to be accepted.\n\n## Do\n- `kanbanCardFields` (`src/core/commandSchemas.ts:59`): optional `attachments: string[]`; add `'attachments'` to `KANBAN_EDITABLE_FIELDS` (`src/shared/domain/kanban.ts:31`). This widens the `updated` event schema (`portable.ts:521`); older builds will refuse such events, which is accepted.\n- `src/shared/domain/api.ts`: add `attachments?: string[]` to `CreateKanbanCardInput` (:269) and `UpdateKanbanCardInput` (:284).\n- `src/core/services/kanban/cards.ts` (`createKanbanCard` ~232, `updateKanbanCard` ~297): claim new ids for `{kind:'kanban_card', id}` after the card row exists; refuse `purpose: 'evidence'`. An update's `attachments` replaces the list (omitted keeps it); dropped ids are deleted rows.\n- `KanbanCardView.attachments?` and `KanbanPacket.card.attachments?` read from the attachments table; `packetOf` (`src/core/services/kanban/attempts.ts:231-259`) fills it; one line in `src/main/agents/kanbanKickoff.ts` (~76) tells the worker to fetch them with get_attachment.\n- Portable: `kanbanCardRecord` / `buildKanbanCardRecord` (`portable.ts:464-480, 1005-1028`) carry refs, omitted when empty.\n- Export: `exportKanbanCard` deletes files in `kanban/<cardId>/attachments/` whose sha256 no remaining card-owned row holds (files are named by sha; an editable card has no attempts).\n- Import: `applyDefinition` (`src/core/repo/kanbanImport.ts:299-315`) inserts missing ref rows and deletes card-owned rows the record no longer lists.\n- `src/renderer/src/kanban/KanbanCardPanel.tsx` `CardDetails` (~135-163): show attachments with `AttachmentGallery`, and the card's `references` list.\n\n## Out of scope\nUploading from the app (DM-486). Card attempt evidence (done in sprint 1).\n\n## Tests\n- Service: create with ids claims them; update removing one deletes its row; an evidence-purpose or foreign-owned id is refused.\n- Export removes the dropped image's file; import round-trips both ways.\n- packetOf includes the refs.\n- CardDetails component test shows attachments and references.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "multi_step",
+            "rationale": "Two-way sync on import and file pruning on export; easy to get wrong."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "react",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/services/kanban/cards.ts",
+          "src/renderer/src/kanban/KanbanCardPanel.tsx"
+        ],
+        "id": "tk_01m6gnrp4fj7jfnreypm9frk6z",
+        "key": "DM-431",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/commandSchemas.ts",
+            "location": "src/core/commandSchemas.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/kanban.ts",
+            "location": "src/shared/domain/kanban.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/kanban/cards.ts",
+            "location": "src/core/services/kanban/cards.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/kanban/attempts.ts",
+            "location": "src/core/services/kanban/attempts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/portable.ts",
+            "location": "src/core/repo/portable.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/kanbanImport.ts",
+            "location": "src/core/repo/kanbanImport.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/finalizer.ts",
+            "location": "src/core/repo/finalizer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/kanbanKickoff.ts",
+            "location": "src/main/agents/kanbanKickoff.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/kanban/KanbanCardPanel.tsx",
+            "location": "src/renderer/src/kanban/KanbanCardPanel.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "attachments",
+          "kanban"
+        ],
+        "title": "Attach reference images to Kanban cards and show them on the card"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A pre-epic saved plan recomputes to its stored content hash (test)."
+          },
+          {
+            "id": "c2",
+            "text": "Draft ops turn attachment ids into refs on tickets with the listed refusals, and prune keeps images a draft references."
+          },
+          {
+            "id": "c3",
+            "text": "Save claims the refs for the ticket (refusing vanished ones) and the execution packet lists them; the listed tests pass."
+          }
+        ],
+        "body": "## Context\nTickets live in the plan bundle and their content is hashed and pinned on attempts. Ticket owners resolve only through `ticket_status`, which `markSaved` (`src/core/services/plans.ts:362-369`) writes after the snapshot. So images can't be claimed at draft time: refs live in the draft and the rows stay staged until save. `canonicalJson` drops `undefined` (`canonical.ts:8-10`), so an optional field with no default keeps old hashes. create_ticket / update_ticket are MCP wrappers over update_plan_draft (`src/mcp/tools/authoring.ts:141-159`).\n\n## Sprint 1 provides (build on it, do not rebuild it)\n- Id kind `attachment` with prefix `im` (`src/core/ids.ts:28`). Never use `at`: attempts own it.\n- `src/core/attachments/intake.ts`: `readImageFile`, `inspectImageBytes`, `MAX_IMAGE_BYTES`, allowed roots.\n- `src/core/services/attachments.ts`: `createStagedAttachment`, `stageAttachmentFile`, `claimAttachments`, `claimEvidenceAttachments`, `pruneStagedAttachments`, `getAttachment`, `readAttachmentBytes`.\n- `src/core/services/attachmentOwners.ts` resolves placement for all five owner kinds (attempt, kanban_attempt, comment, kanban_card, ticket).\n- `src/core/repo/finalizer.ts` already writes an owner's images before its record (`exportAttachmentsOf`, ~386, 466, 479, 509, 536) and `exportAttachment` handles history, kanban and epic folders.\n- `src/renderer/src/attachments/AttachmentGallery.tsx` renders thumbnails, the lightbox and an Evidence/Reference badge; it needs a `folderKey`.\n- Conventions for this sprint: refs are read from the `attachments` table (`WHERE owner_kind=? AND owner_id=? ORDER BY id`), with **no schema migration**; portable records **omit** `attachments` when empty so existing files stay byte-identical; new view fields are **optional**; reference images use `purpose: 'reference'`.\n\n## Rules for this sprint (final sprint of the epic)\n- Stay inside **Do**. Anything else you notice goes in your notes under Discoveries; it becomes a Kanban card, never part of this ticket.\n- If a discovery blocks one of this ticket's criteria, fix it here and say so.\n- Every check you report must pass. Do not hand back failed or skipped checks expecting them to be accepted.\n\n## Do\n- `ticketInput` (`src/core/schemas.ts:206`): optional `attachments: string[]` (ids); `ticketContent` (`:271`, beside the no-default fields `:273-281`): optional `attachments: AttachmentRef[]`, no default. `PLAN_FORMAT_VERSION` stays 1.\n- Hand-written types: `TicketContent` (`src/shared/domain/bundle.ts:129`) gets `attachments?: AttachmentRef[]`; `TicketInput` (`src/shared/domain/api.ts:100-119`) gets `attachments?: string[]`. DM-486 relies on both.\n- Draft ops: add `attachmentRefs(ids, ticketId)` to `DraftDeps` (`src/core/plan/draftOps.ts:17-26`, implemented in `src/core/services/draftDeps.ts`) and use it in `addTicket` / `updateTicket` via `buildTicket` / `patchTicket` (`src/core/plan/normalize.ts:147-163, 215-231`). Accept ids that are staged or already owned by the same ticket; refuse unknown, foreign-owned, evidence-purpose, duplicated across tickets, or more than 20. `attachments: []` removes the key. Update the DraftDeps fakes in `draftOps.test.ts`, `draftOpsAcceptance.test.ts`, `redraft.test.ts`, `runWarnings.test.ts`, `board/plan.test.ts`.\n- `pruneStagedAttachments` (`attachments.ts` ~302-312): skip staged ids referenced by a draft or a pending revision (`json_each` over `bundle_json`, as `draftDeps.ts:9-17` does).\n- Save: do every check in `requestSave` / `saveDraft` (`plans.ts:304-312`) before the revision becomes pending: each ref's row exists and is staged or owned by the same ticket, and each ticket has at most 20 refs **in this revision** (do not count rows earlier revisions dropped). `markSaved` (runs inside the snapshot finalizer entry, `plans.ts:375-394`, `finalizer.ts:523-531`) then claims each ticket's still-staged refs right after inserting `ticket_status` and must never throw there: skip an id already owned by the ticket, owned elsewhere, or gone (a throw would fail the snapshot entry on every flush). Claim with a path that does not apply the per-owner 20-row count across old revisions. The finalizer then writes files via `exportEpic` → `exportAttachmentsOf` before `current.json` names the revision. No finalizer changes.\n- Execution packets carry the refs automatically (`ExecutionPacket.ticket` is `TicketContent`, `views.ts:649`); add a test that proves it.\n\n## Out of scope\nImport and UI (DM-485). Discard cleanup (staged rows prune after 7 days).\n\n## Tests\n- Hash: a committed pre-epic snapshot under `.darkmechanicus/epics/*/snapshots/` recomputes to its stored contentHash.\n- Draft ops: ids become refs; each refusal case.\n- Prune keeps a staged image referenced by a draft.\n- Save claims the refs for the ticket; save refuses a vanished ref.\n- Replace all 15 images on a saved ticket with 10 new ones, then save: succeeds.\n- An id claimed elsewhere between save request and flush is skipped and the snapshot entry still completes.\n- An execution packet for the ticket lists the refs.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "deep",
+            "rationale": "Changes hashed plan content and the save path; a default or ordering mistake breaks every saved plan."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/schemas.ts",
+          "src/renderer/src/ticket/panelTabs.tsx"
+        ],
+        "id": "tk_01m6gnrpczh9gcnpkx7afs5f68",
+        "key": "DM-432",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/schemas.ts",
+            "location": "src/core/schemas.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/plan/draftOps.ts",
+            "location": "src/core/plan/draftOps.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/plan/normalize.ts",
+            "location": "src/core/plan/normalize.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/draftDeps.ts",
+            "location": "src/core/services/draftDeps.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/plans.ts",
+            "location": "src/core/services/plans.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/attachments.ts",
+            "location": "src/core/services/attachments.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/tools/authoring.ts",
+            "location": "src/mcp/tools/authoring.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "attachments",
+          "plans"
+        ],
+        "title": "Attach reference images to plan tickets in drafts and claim them on save, without changing saved plan hashes"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "upload_attachment accepts PNG and JPEG base64 only on the desktop transport and refuses non-images, data: prefixes and oversized input."
+          },
+          {
+            "id": "c2",
+            "text": "useImageAttach handles paste, drop and the picker with remove and inline errors."
+          },
+          {
+            "id": "c3",
+            "text": "The comment composer sends uploaded images with the comment, and the listed tests (including stubApi and server command-list tests) pass."
+          }
+        ],
+        "body": "## Context\n`add_attachment` reads a path and refuses the desktop transport; the renderer must never send paths, so the app uploads bytes. There is no IPC payload cap; command input is validated by its zod schema before anything runs (`workspace.ts:543-547`).\n\n## Sprint 1 provides (build on it, do not rebuild it)\n- Id kind `attachment` with prefix `im` (`src/core/ids.ts:28`). Never use `at`: attempts own it.\n- `src/core/attachments/intake.ts`: `readImageFile`, `inspectImageBytes`, `MAX_IMAGE_BYTES`, allowed roots.\n- `src/core/services/attachments.ts`: `createStagedAttachment`, `stageAttachmentFile`, `claimAttachments`, `claimEvidenceAttachments`, `pruneStagedAttachments`, `getAttachment`, `readAttachmentBytes`.\n- `src/core/services/attachmentOwners.ts` resolves placement for all five owner kinds (attempt, kanban_attempt, comment, kanban_card, ticket).\n- `src/core/repo/finalizer.ts` already writes an owner's images before its record (`exportAttachmentsOf`, ~386, 466, 479, 509, 536) and `exportAttachment` handles history, kanban and epic folders.\n- `src/renderer/src/attachments/AttachmentGallery.tsx` renders thumbnails, the lightbox and an Evidence/Reference badge; it needs a `folderKey`.\n- Conventions for this sprint: refs are read from the `attachments` table (`WHERE owner_kind=? AND owner_id=? ORDER BY id`), with **no schema migration**; portable records **omit** `attachments` when empty so existing files stay byte-identical; new view fields are **optional**; reference images use `purpose: 'reference'`.\n\n## Rules for this sprint (final sprint of the epic)\n- Stay inside **Do**. Anything else you notice goes in your notes under Discoveries; it becomes a Kanban card, never part of this ticket.\n- If a discovery blocks one of this ticket's criteria, fix it here and say so.\n- Every check you report must pass. Do not hand back failed or skipped checks expecting them to be accepted.\n\n## Do\n- Command `uploadAttachment {data, label?, purpose?}`: allowed only on the `desktop` transport (mirror the inverse check in `commands/attachments.ts:19-23`). `data` is plain base64 (no `data:` prefix, base64 alphabet only), capped in zod at 13,981,016 characters (`Math.ceil(MAX_IMAGE_BYTES/3)*4`). Decode and call `createStagedAttachment({bytes, label, purpose})` (DM-478 decodes and validates). `purpose` defaults to `reference`; `label` defaults to \"Pasted image\" and is cut to the label limit.\n- Wire it everywhere commands are listed: `commandSchemas.ts`, `src/core/commands/capabilities.ts:14`, `src/shared/desktop/api.ts:295` (`DESKTOP_COMMANDS`), `src/shared/domain/api.ts`, `src/test/stubApi.ts` (`stubApi.test.ts:54`), and a desktop-only list next to `DESKTOP_READS` in `src/mcp/server.test.ts:133, 181-188`.\n- `src/renderer/src/attachments/useImageAttach.ts`: paste (clipboard image items), drop (image files), and a picker button (`accept=\"image/png,image/jpeg\"`); FileReader → base64 → upload; pending list with remove and inline errors. The label is the file name, or \"Pasted image\". Previews may use `dm-attachment://` (it serves staged rows). Remove just drops the id from the list.\n- Wire the hook into the comment composer in `CommentsTab.tsx` and pass the ids to add_comment on submit.\n\n## Out of scope\nCard form and ticket editor (DM-486). Screenshots (the acceptance round takes them).\n\n## Tests\n- Command: desktop accepts PNG and JPEG; cli and mcp transports refused; non-image, `data:` prefix and over-cap input refused.\n- Hook: paste and drop upload; an upload error shows inline and nothing is attached; remove drops it.\n- CommentsTab: a pending image is sent with the comment.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "New desktop-only command with list wiring plus a renderer hook."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "react",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/attachments/useImageAttach.ts"
+        ],
+        "id": "tk_01m6gnrpnd0384mzgdeja33jn8",
+        "key": "DM-433",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/commands/attachments.ts",
+            "location": "src/core/commands/attachments.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/commandSchemas.ts",
+            "location": "src/core/commandSchemas.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/commands/capabilities.ts",
+            "location": "src/core/commands/capabilities.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/desktop/api.ts",
+            "location": "src/shared/desktop/api.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/api.ts",
+            "location": "src/shared/domain/api.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/test/stubApi.ts",
+            "location": "src/test/stubApi.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/server.test.ts",
+            "location": "src/mcp/server.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/CommentsTab.tsx",
+            "location": "src/renderer/src/ticket/CommentsTab.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "attachments",
+          "ui"
+        ],
+        "title": "Upload images from the app and attach them in the comment composer"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "get_storage_status returns attachments {count, bytes, missing} for owned rows and outbox.failedEntries."
+          },
+          {
+            "id": "c2",
+            "text": "The storage card shows the images row and failed entries in both storage modes."
+          },
+          {
+            "id": "c3",
+            "text": "Both new view fields are optional, failedEntries is omitted when empty, and storage.test plus the six listed test files pass."
+          }
+        ],
+        "body": "## Context\nPeople need to see how much space images use and which exports keep failing. Status already reports `outbox: {pending, failed, lastError}` (`src/core/repo/storage.ts:36-45`, `views.ts:737`), shown as \"Save queue … failed — error\" in `src/renderer/src/home/StorageCard.tsx:37-41`.\n\n## Sprint 1 provides (build on it, do not rebuild it)\n- Id kind `attachment` with prefix `im` (`src/core/ids.ts:28`). Never use `at`: attempts own it.\n- `src/core/attachments/intake.ts`: `readImageFile`, `inspectImageBytes`, `MAX_IMAGE_BYTES`, allowed roots.\n- `src/core/services/attachments.ts`: `createStagedAttachment`, `stageAttachmentFile`, `claimAttachments`, `claimEvidenceAttachments`, `pruneStagedAttachments`, `getAttachment`, `readAttachmentBytes`.\n- `src/core/services/attachmentOwners.ts` resolves placement for all five owner kinds (attempt, kanban_attempt, comment, kanban_card, ticket).\n- `src/core/repo/finalizer.ts` already writes an owner's images before its record (`exportAttachmentsOf`, ~386, 466, 479, 509, 536) and `exportAttachment` handles history, kanban and epic folders.\n- `src/renderer/src/attachments/AttachmentGallery.tsx` renders thumbnails, the lightbox and an Evidence/Reference badge; it needs a `folderKey`.\n- Conventions for this sprint: refs are read from the `attachments` table (`WHERE owner_kind=? AND owner_id=? ORDER BY id`), with **no schema migration**; portable records **omit** `attachments` when empty so existing files stay byte-identical; new view fields are **optional**; reference images use `purpose: 'reference'`.\n\n## Rules for this sprint (final sprint of the epic)\n- Stay inside **Do**. Anything else you notice goes in your notes under Discoveries; it becomes a Kanban card, never part of this ticket.\n- If a discovery blocks one of this ticket's criteria, fix it here and say so.\n- Every check you report must pass. Do not hand back failed or skipped checks expecting them to be accepted.\n\n## Do\n- `getStorageStatus` (`storage.ts:131-150`): add `attachments: {count, bytes, missing}` over owned rows (`bytes` = SUM of owned rows including missing ones) and `outbox.failedEntries: {kind, entityId, attempts, lastError}[]` (every kind, at most 20, omitted when empty). Zero attachments in `NO_DATABASE` (`:115-123`).\n- In `StorageStatusView` (`src/shared/domain/views.ts:729-737`) make both new fields optional: `attachments?` is always returned by `getStorageStatus`; `outbox.failedEntries?` is omitted when there are none, so existing exact `outbox` assertions keep passing. Update the expectations in `src/core/repo/storage.test.ts`. Then run and keep green: `src/core/commands/comments.test.ts`, `src/core/commands/kanbanRecords.test.ts`, `src/core/commands/profiles.test.ts`, `src/renderer/src/sidebar/footerStatus.test.ts`, `src/renderer/src/App.footer.test.tsx`, `src/renderer/src/sidebar/SidebarFooter.test.tsx`.\n- `StorageCard.tsx` `Details` (`:88-130`, `Row` at `:28`): one row \"Images: 12 (4.3 MB), 1 missing\" (write a small byte formatter), and list failed entries under the save queue row. Show in both storage modes.\n\n## Out of scope\nRetrying or clearing failed rows.\n\n## Tests\n- Two owned rows (one of them missing) and one staged row → count 2, bytes of both owned, missing 1.\n- A failed outbox row appears in failedEntries.\n- StorageCard component test for the images row and a failed entry.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "View shape change with many fixture literals."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/repo/storage.ts"
+        ],
+        "id": "tk_01m6gnrpy54qdrsnttpna80w0h",
+        "key": "DM-434",
+        "optional": false,
+        "priority": "low",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/storage.ts",
+            "location": "src/core/repo/storage.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/views.ts",
+            "location": "src/shared/domain/views.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/home/StorageCard.tsx",
+            "location": "src/renderer/src/home/StorageCard.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "attachments",
+          "storage"
+        ],
+        "title": "Show attachment totals and failed exports in storage status"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The worker, reviewer, planner, graph-planner, orchestrator and sprint-reporter guides describe attaching and reading images, and SKILLS_VERSION is 1.8.0 with its test."
+          },
+          {
+            "id": "c2",
+            "text": "docs/runbooks/cli.md has PowerShell (--args-file) and Git Bash examples, run once word for word with the output in notes."
+          },
+          {
+            "id": "c3",
+            "text": "docs/decisions/0006-image-attachments.md and the architecture storage layout record the decisions; skills and cliInstructions tests pass."
+          }
+        ],
+        "body": "## Context\nAgents learn the workflow from the shipped role guides (embedded as MCP prompts by `src/mcp/skills.ts`) and the chat instructions. This runs last, so it documents what the sprint actually built.\n\n## Sprint 1 provides (build on it, do not rebuild it)\n- Id kind `attachment` with prefix `im` (`src/core/ids.ts:28`). Never use `at`: attempts own it.\n- `src/core/attachments/intake.ts`: `readImageFile`, `inspectImageBytes`, `MAX_IMAGE_BYTES`, allowed roots.\n- `src/core/services/attachments.ts`: `createStagedAttachment`, `stageAttachmentFile`, `claimAttachments`, `claimEvidenceAttachments`, `pruneStagedAttachments`, `getAttachment`, `readAttachmentBytes`.\n- `src/core/services/attachmentOwners.ts` resolves placement for all five owner kinds (attempt, kanban_attempt, comment, kanban_card, ticket).\n- `src/core/repo/finalizer.ts` already writes an owner's images before its record (`exportAttachmentsOf`, ~386, 466, 479, 509, 536) and `exportAttachment` handles history, kanban and epic folders.\n- `src/renderer/src/attachments/AttachmentGallery.tsx` renders thumbnails, the lightbox and an Evidence/Reference badge; it needs a `folderKey`.\n- Conventions for this sprint: refs are read from the `attachments` table (`WHERE owner_kind=? AND owner_id=? ORDER BY id`), with **no schema migration**; portable records **omit** `attachments` when empty so existing files stay byte-identical; new view fields are **optional**; reference images use `purpose: 'reference'`.\n\n## Rules for this sprint (final sprint of the epic)\n- Stay inside **Do**. Anything else you notice goes in your notes under Discoveries; it becomes a Kanban card, never part of this ticket.\n- If a discovery blocks one of this ticket's criteria, fix it here and say so.\n- Every check you report must pass. Do not hand back failed or skipped checks expecting them to be accepted.\n\n## Do\n- `skills/worker.md`: attach screenshots as evidence (`add_attachment` then `evidence.attachments`), read reference images from packets with `get_attachment`, allowed folders and limits.\n- `skills/reviewer.md`: open evidence images with `get_attachment`.\n- `skills/planner.md`, `skills/graph-planner.md`: attach mockups to tickets; screenshot criteria expect attachments.\n- `skills/orchestrator.md`, `skills/sprint-reporter.md`: evidence images in reviews and reports.\n- `src/main/agents/cliInstructions.ts`: one line on `add_attachment`.\n- `docs/runbooks/cli.md`: attach examples for PowerShell (using `--args-file`) and Git Bash, with the backslash-escaping note from DM-480.\n- `docs/architecture.md` storage layout (`:212-225`): the `attachments/` folders and sidecars. New `docs/decisions/0006-image-attachments.md` (0005 is taken): storage per mode, allowed folders, protocol, limits, Linear out of scope.\n- Bump `SKILLS_VERSION` in `src/core/version.ts:2` to 1.8.0 and add the matching \"moved past\" case in `src/mcp/skills.test.ts:99-128`. No vendor names in guides (`skills.test.ts:19`).\n\n## Out of scope\nCode changes beyond the version constant and its test.\n\n## Tests\n- `npx vitest run src/mcp/skills.test.ts src/main/agents/cliInstructions.test.ts` passes.\n- Follow the PowerShell example in cli.md word for word once and paste the output in notes.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "Documentation with a skills version bump and its test."
+          },
+          "skills": [
+            "documentation"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "documentation"
+        },
+        "expectedArtifacts": [
+          "docs/decisions/0005-image-attachments.md"
+        ],
+        "id": "tk_01m6gnrq6w2fbrmsvgn5d0x1qg",
+        "key": "DM-435",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/worker.md",
+            "location": "skills/worker.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/reviewer.md",
+            "location": "skills/reviewer.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/planner.md",
+            "location": "skills/planner.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/graph-planner.md",
+            "location": "skills/graph-planner.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/orchestrator.md",
+            "location": "skills/orchestrator.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/sprint-reporter.md",
+            "location": "skills/sprint-reporter.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/cliInstructions.ts",
+            "location": "src/main/agents/cliInstructions.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/runbooks/cli.md",
+            "location": "docs/runbooks/cli.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/architecture.md",
+            "location": "docs/architecture.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/version.ts",
+            "location": "src/core/version.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/skills.test.ts",
+            "location": "src/mcp/skills.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "attachments",
+          "docs"
+        ],
+        "title": "Document image attachments in the role guides, CLI runbook and architecture docs"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "createStagedAttachment takes only bytes, label and purpose; sha256, mime, width and height are derived from the bytes."
+          },
+          {
+            "id": "c2",
+            "text": "Bytes inspectImageBytes refuses are refused with its invalid_input message and nothing is stored."
+          },
+          {
+            "id": "c3",
+            "text": "src/test/images.ts replaces the three PNG builders, the seven touched test files pass, and typecheck and deadcode are clean."
+          }
+        ],
+        "body": "## Context\n`createStagedAttachment(ctx, {bytes, sha256, mime, width, height, label, purpose})` (`src/core/services/attachments.ts:34-43, 136`) trusts caller-supplied mime and dimensions. The only production caller, `stageAttachmentFile` (~172-184), already passes decoded values; the desktop upload (DM-433) will call it with raw bytes, so it must decode them itself.\n\n## Sprint 1 provides (build on it, do not rebuild it)\n- Id kind `attachment` with prefix `im` (`src/core/ids.ts:28`). Never use `at`: attempts own it.\n- `src/core/attachments/intake.ts`: `readImageFile`, `inspectImageBytes`, `MAX_IMAGE_BYTES`, allowed roots.\n- `src/core/services/attachments.ts`: `createStagedAttachment`, `stageAttachmentFile`, `claimAttachments`, `claimEvidenceAttachments`, `pruneStagedAttachments`, `getAttachment`, `readAttachmentBytes`.\n- `src/core/services/attachmentOwners.ts` resolves placement for all five owner kinds (attempt, kanban_attempt, comment, kanban_card, ticket).\n- `src/core/repo/finalizer.ts` already writes an owner's images before its record (`exportAttachmentsOf`, ~386, 466, 479, 509, 536) and `exportAttachment` handles history, kanban and epic folders.\n- `src/renderer/src/attachments/AttachmentGallery.tsx` renders thumbnails, the lightbox and an Evidence/Reference badge; it needs a `folderKey`.\n- Conventions for this sprint: refs are read from the `attachments` table (`WHERE owner_kind=? AND owner_id=? ORDER BY id`), with **no schema migration**; portable records **omit** `attachments` when empty so existing files stay byte-identical; new view fields are **optional**; reference images use `purpose: 'reference'`.\n\n## Rules for this sprint (final sprint of the epic)\n- Stay inside **Do**. Anything else you notice goes in your notes under Discoveries; it becomes a Kanban card, never part of this ticket.\n- If a discovery blocks one of this ticket's criteria, fix it here and say so.\n- Every check you report must pass. Do not hand back failed or skipped checks expecting them to be accepted.\n\n## Do\n- Change the input to `{bytes, label, purpose}`: compute `sha256`, and take `mime`, `width`, `height` from `inspectImageBytes(bytes)`; rethrow its `invalid_input` message unchanged.\n- Update `stageAttachmentFile` to pass only bytes, label and purpose.\n- Delete what becomes dead: `detectMime`, `PNG_SIGNATURE`, `JPEG_SIGNATURE` and the width/height checks in `checkDetails` (~31-32, 82-128). `npm run deadcode` must stay clean.\n- Add `src/test/images.ts` with `pngBytes(width, height)` and `jpegBytes(width, height)` producing headers `inspectImageBytes` accepts; replace the copies in `intake.test.ts:8`, `commands/attachments.test.ts:11`, `repo/attachmentFiles.test.ts:26`.\n- Fix fake images that will now be refused: `services/attachments.test.ts:21-37` (and its mime/width cases ~89-103), `services/attempts.test.ts:684-695`, `services/kanban/attempts.test.ts:116-127`, `main/desktop/attachmentProtocol.test.ts:24, 133-145`.\n\n## Out of scope\n`attachmentImport.ts` (it inserts rows itself and does not call this); checking imported files' dimensions.\n\n## Tests\n- A 3x2 PNG from `pngBytes` stores width 3, height 2, mime image/png and the right sha256.\n- Truncated or non-image bytes are refused with `invalid_input` and nothing is stored.\n- The five touched test files pass; `npm run typecheck` and `npm run deadcode` are clean.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Signature change with test fixture churn in five files and dead-code removal."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6qccpc19aw2bbee0h6h9d9q",
+        "key": "DM-478",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/attachments.ts",
+            "location": "src/core/services/attachments.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/attachments/intake.ts",
+            "location": "src/core/attachments/intake.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/test/images.ts",
+            "location": "src/test/images.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [],
+        "title": "Decode attachment width, height and format from the image bytes instead of trusting the caller"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Claims for an owner that does not exist are refused with not_found and queue nothing."
+          },
+          {
+            "id": "c2",
+            "text": "In repo mode a never-saved epic with a comment image still completes its first save (test)."
+          },
+          {
+            "id": "c3",
+            "text": "Attachment outbox rows use their own key and a vanished row flushes as done; the listed tests pass."
+          }
+        ],
+        "body": "## Context\nThree defects in the attachment outbox path, found in DM-425 and the sprint 2 review:\n1. A claim for an owner not in the database queues a row that fails every flush (`attachments.ts:207-216`, deferred-owner fallback).\n2. `queueAttachmentExports` always queues with `epic_id`; `entityKeys` gives attachment rows the key `epic:<id>` (`finalizer.ts:628-631`), and a failed row blocks later rows with the same key (`:664-668`). For a never-saved epic `exportAttachment` fails (no `current.json`, `finalizer.ts:218-226`), so the epic's first save never completes in repo mode.\n3. A row deleted after queueing (a detached image) fails forever with `not_found` (`attachmentFiles.ts:52-58`).\n\n## Sprint 1 provides (build on it, do not rebuild it)\n- Id kind `attachment` with prefix `im` (`src/core/ids.ts:28`). Never use `at`: attempts own it.\n- `src/core/attachments/intake.ts`: `readImageFile`, `inspectImageBytes`, `MAX_IMAGE_BYTES`, allowed roots.\n- `src/core/services/attachments.ts`: `createStagedAttachment`, `stageAttachmentFile`, `claimAttachments`, `claimEvidenceAttachments`, `pruneStagedAttachments`, `getAttachment`, `readAttachmentBytes`.\n- `src/core/services/attachmentOwners.ts` resolves placement for all five owner kinds (attempt, kanban_attempt, comment, kanban_card, ticket).\n- `src/core/repo/finalizer.ts` already writes an owner's images before its record (`exportAttachmentsOf`, ~386, 466, 479, 509, 536) and `exportAttachment` handles history, kanban and epic folders.\n- `src/renderer/src/attachments/AttachmentGallery.tsx` renders thumbnails, the lightbox and an Evidence/Reference badge; it needs a `folderKey`.\n- Conventions for this sprint: refs are read from the `attachments` table (`WHERE owner_kind=? AND owner_id=? ORDER BY id`), with **no schema migration**; portable records **omit** `attachments` when empty so existing files stay byte-identical; new view fields are **optional**; reference images use `purpose: 'reference'`.\n\n## Rules for this sprint (final sprint of the epic)\n- Stay inside **Do**. Anything else you notice goes in your notes under Discoveries; it becomes a Kanban card, never part of this ticket.\n- If a discovery blocks one of this ticket's criteria, fix it here and say so.\n- Every check you report must pass. Do not hand back failed or skipped checks expecting them to be accepted.\n\n## Do\n- `claimAttachments` / `claimEvidenceAttachments`: resolve the owner via `resolveAttachmentPlacement` first; refuse with `not_found` when it does not exist, in the same transaction. Remove the deferred-owner fallback. (Ticket owners resolve via `ticket_status`; DM-432 claims only at save, after that row exists.)\n- Give `attachment` outbox rows their own key `attachment:<id>` in `entityKeys`.\n- Do not queue image exports for an epic with no saved revision; the owning record's export writes its images first anyway.\n- `exportAttachment`: a row that no longer exists is done, not failed.\n- Seed real owners in tests that claim for missing ones: `services/attachments.test.ts:114-200`, `services/attempts.test.ts:745`.\n\n## Out of scope\nStorage status (DM-434 lists failed rows). Any other outbox kind.\n\n## Tests\n- Claim for a missing owner id: refused, nothing queued.\n- Repo mode: an image claimed for a comment on a never-saved epic, then the first save completes and writes the snapshot.\n- A queued attachment row whose row was deleted flushes as done.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Outbox ordering semantics in the finalizer; small diff but must not stall saves."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "sqlite",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6qccpchvhgvxma1wk7xjy2p",
+        "key": "DM-479",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/attachments.ts",
+            "location": "src/core/services/attachments.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/attachmentOwners.ts",
+            "location": "src/core/services/attachmentOwners.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/finalizer.ts",
+            "location": "src/core/repo/finalizer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/attachmentFiles.ts",
+            "location": "src/core/repo/attachmentFiles.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [],
+        "title": "Claim attachments only for existing owners, and stop attachment exports from blocking epic saves"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "dm call <cmd> --args-file <path> and dm call <cmd> - read the JSON object from the file or stdin, BOM stripped."
+          },
+          {
+            "id": "c2",
+            "text": "Combining inline JSON with either, or --args-file outside call, is refused."
+          },
+          {
+            "id": "c3",
+            "text": "The bad-JSON error explains backslash escaping and names both options; args and main tests pass."
+          }
+        ],
+        "body": "## Context\nTwo real problems on Windows: a single backslash is an invalid JSON escape (`\"C:\\Users\"` fails in any shell, so paths must be written `C:\\\\Users` or with forward slashes), and PowerShell 5.1 strips the inner double quotes from native-command arguments, so inline JSON breaks there. An args file or stdin avoids shell quoting.\n\n## Sprint 1 provides (build on it, do not rebuild it)\n- Id kind `attachment` with prefix `im` (`src/core/ids.ts:28`). Never use `at`: attempts own it.\n- `src/core/attachments/intake.ts`: `readImageFile`, `inspectImageBytes`, `MAX_IMAGE_BYTES`, allowed roots.\n- `src/core/services/attachments.ts`: `createStagedAttachment`, `stageAttachmentFile`, `claimAttachments`, `claimEvidenceAttachments`, `pruneStagedAttachments`, `getAttachment`, `readAttachmentBytes`.\n- `src/core/services/attachmentOwners.ts` resolves placement for all five owner kinds (attempt, kanban_attempt, comment, kanban_card, ticket).\n- `src/core/repo/finalizer.ts` already writes an owner's images before its record (`exportAttachmentsOf`, ~386, 466, 479, 509, 536) and `exportAttachment` handles history, kanban and epic folders.\n- `src/renderer/src/attachments/AttachmentGallery.tsx` renders thumbnails, the lightbox and an Evidence/Reference badge; it needs a `folderKey`.\n- Conventions for this sprint: refs are read from the `attachments` table (`WHERE owner_kind=? AND owner_id=? ORDER BY id`), with **no schema migration**; portable records **omit** `attachments` when empty so existing files stay byte-identical; new view fields are **optional**; reference images use `purpose: 'reference'`.\n\n## Rules for this sprint (final sprint of the epic)\n- Stay inside **Do**. Anything else you notice goes in your notes under Discoveries; it becomes a Kanban card, never part of this ticket.\n- If a discovery blocks one of this ticket's criteria, fix it here and say so.\n- Every check you report must pass. Do not hand back failed or skipped checks expecting them to be accepted.\n\n## Do\n- `src/cli/args.ts`: add `--args-file` to `VALUE_FLAGS` (`:73-77`), resolved against the current folder like `--token-file` (`:170`); a lone `-` as the input means stdin. `CliMode.call.input` becomes a tagged source (inline | file | stdin). Refuse inline JSON combined with either, and `--args-file` outside `call`.\n- `src/cli/main.ts`: read the file or stdin there (add `readStdin` to `CliHost`, `nodeHost` ~318, and the fake host in `main.test.ts:46`); strip a UTF-8 BOM; the bad-JSON message (`:97-103`) says to double backslashes or use forward slashes, and names `--args-file` and `-`.\n- Show both in `--help`.\n\n## Out of scope\nThe runbook (DM-435 documents it). Other commands.\n\n## Tests\n- args: inline, `--args-file`, `-`, and each refusal.\n- main: file with BOM and `C:\\\\Users\\\\...` path parses; stdin parses; the error text.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "Additive CLI input sources with tests."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6qccpchsj20pw91d1h2hega",
+        "key": "DM-480",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/cli/args.ts",
+            "location": "src/cli/args.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/cli/main.ts",
+            "location": "src/cli/main.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/cli/main.test.ts",
+            "location": "src/cli/main.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [],
+        "title": "Add an args-file or stdin JSON option to dm call"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "An integration test drives the dm-attachment handler against a real workspace through the pool and gets the PNG bytes back."
+          },
+          {
+            "id": "c2",
+            "text": "Unknown id and unknown key return 404 in the same file."
+          },
+          {
+            "id": "c3",
+            "text": "The test was shown to fail with ctx removed (noted) and passes on the branch."
+          }
+        ],
+        "body": "## Context\nProtocol tests used a stub Workspace, so `openWorkspace()` missing `ctx` reached the built app (fixed in b3f5aa8). Without `ctx`, `contextFor` throws and the handler returns 404 (`attachmentProtocol.ts:70-75, 101-106`); typecheck can't catch it (`workspace.ts:589` cast).\n\n## Sprint 1 provides (build on it, do not rebuild it)\n- Id kind `attachment` with prefix `im` (`src/core/ids.ts:28`). Never use `at`: attempts own it.\n- `src/core/attachments/intake.ts`: `readImageFile`, `inspectImageBytes`, `MAX_IMAGE_BYTES`, allowed roots.\n- `src/core/services/attachments.ts`: `createStagedAttachment`, `stageAttachmentFile`, `claimAttachments`, `claimEvidenceAttachments`, `pruneStagedAttachments`, `getAttachment`, `readAttachmentBytes`.\n- `src/core/services/attachmentOwners.ts` resolves placement for all five owner kinds (attempt, kanban_attempt, comment, kanban_card, ticket).\n- `src/core/repo/finalizer.ts` already writes an owner's images before its record (`exportAttachmentsOf`, ~386, 466, 479, 509, 536) and `exportAttachment` handles history, kanban and epic folders.\n- `src/renderer/src/attachments/AttachmentGallery.tsx` renders thumbnails, the lightbox and an Evidence/Reference badge; it needs a `folderKey`.\n- Conventions for this sprint: refs are read from the `attachments` table (`WHERE owner_kind=? AND owner_id=? ORDER BY id`), with **no schema migration**; portable records **omit** `attachments` when empty so existing files stay byte-identical; new view fields are **optional**; reference images use `purpose: 'reference'`.\n\n## Rules for this sprint (final sprint of the epic)\n- Stay inside **Do**. Anything else you notice goes in your notes under Discoveries; it becomes a Kanban card, never part of this ticket.\n- If a discovery blocks one of this ticket's criteria, fix it here and say so.\n- Every check you report must pass. Do not hand back failed or skipped checks expecting them to be accepted.\n\n## Do\n- New `src/main/desktop/attachmentProtocol.integration.test.ts`: open a real workspace with `createHarness()` (`src/test/workspaceHarness.ts`), wrap it in `createWorkspacePool` (`workspacePool.ts:27`) with a stub `pathForKey`, mirroring `src/main/desktop/bootstrap.ts:568-570`; stage an image with `createStagedAttachment` and `pngBytes` from `src/test/images.ts` (no claim needed: the lookup ignores the owner).\n\n## Out of scope\nChanging production code.\n\n## Tests\n- 200 with the PNG bytes and image/png.\n- Unknown id and unknown key return 404.\n- Temporarily remove `ctx` from the openWorkspace lifecycle: the 200 test fails. Restore it and say so in notes.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Integration test wiring real workspace and pool."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6qccpchnh0b6mm2w8xxgp34",
+        "key": "DM-481",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/attachmentProtocol.ts",
+            "location": "src/main/desktop/attachmentProtocol.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/test/workspaceHarness.ts",
+            "location": "src/test/workspaceHarness.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/workspacePool.ts",
+            "location": "src/main/desktop/workspacePool.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/bootstrap.ts",
+            "location": "src/main/desktop/bootstrap.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [],
+        "title": "Integration test for the dm-attachment protocol against a real workspace"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "npm test in a worktree with junctioned node_modules on this account finishes with 0 failures; report the totals."
+          },
+          {
+            "id": "c2",
+            "text": "Directory-symlink cases run via junctions on win32; only file-symlink cases skip, each with a reason; with CI set nothing skips."
+          },
+          {
+            "id": "c3",
+            "text": "fireguard tests pass locally, and only the seven listed test files, src/test/symlinks.ts, src/test/symlinks.test.ts, fireguard/test/snapshots.test.ts and src/main/terminals/ptyHelperCheck.test.ts changed."
+          }
+        ],
+        "body": "## Context\nOn this Windows account file and directory symlinks fail with EPERM; junctions work. Measured: 17 Vitest failures in 7 files and 1 Fireguard failure. CI (GitHub sets CI=true) is green. This runs first so every later worker and the acceptance round get a green local `npm test`.\n\n## Sprint 1 provides (build on it, do not rebuild it)\n- Id kind `attachment` with prefix `im` (`src/core/ids.ts:28`). Never use `at`: attempts own it.\n- `src/core/attachments/intake.ts`: `readImageFile`, `inspectImageBytes`, `MAX_IMAGE_BYTES`, allowed roots.\n- `src/core/services/attachments.ts`: `createStagedAttachment`, `stageAttachmentFile`, `claimAttachments`, `claimEvidenceAttachments`, `pruneStagedAttachments`, `getAttachment`, `readAttachmentBytes`.\n- `src/core/services/attachmentOwners.ts` resolves placement for all five owner kinds (attempt, kanban_attempt, comment, kanban_card, ticket).\n- `src/core/repo/finalizer.ts` already writes an owner's images before its record (`exportAttachmentsOf`, ~386, 466, 479, 509, 536) and `exportAttachment` handles history, kanban and epic folders.\n- `src/renderer/src/attachments/AttachmentGallery.tsx` renders thumbnails, the lightbox and an Evidence/Reference badge; it needs a `folderKey`.\n- Conventions for this sprint: refs are read from the `attachments` table (`WHERE owner_kind=? AND owner_id=? ORDER BY id`), with **no schema migration**; portable records **omit** `attachments` when empty so existing files stay byte-identical; new view fields are **optional**; reference images use `purpose: 'reference'`.\n\n## Rules for this sprint (final sprint of the epic)\n- Stay inside **Do**. Anything else you notice goes in your notes under Discoveries; it becomes a Kanban card, never part of this ticket.\n- If a discovery blocks one of this ticket's criteria, fix it here and say so.\n- Every check you report must pass. Do not hand back failed or skipped checks expecting them to be accepted.\n\n## Do\n- Add `src/test/symlinks.ts` exporting `canCreateFileSymlinks()` (probes once in the temp folder, caches; returns true when `process.env.CI` is set).\n- Directory symlinks: on win32 create them with type `'junction'` so the test runs instead of skipping (e.g. the shared `symlinkSync(root, link)` at `src/main/git/operationLock.test.ts:57-66`).\n- File symlinks: `it.skipIf(!canCreateFileSymlinks())` with a reason in the name (e.g. `src/main/git/conflictsOpen.test.ts:99, 214`, file cases in `handlersWorkingDiff.test.ts`).\n- The failing files: `src/main/agents/chatHandlers.folder.test.ts` (2), `src/main/agents/launchFolder.test.ts` (2), `src/main/desktop/folderAgentDefaults.test.ts` (1), `src/main/git/conflictsOpen.test.ts` (2), `src/main/git/handlersWorkingDiff.test.ts` (4), `src/main/git/operationLock.test.ts` (4), `src/main/terminals/terminalHandlers.test.ts` (2).\n- Fireguard `fireguard/test/snapshots.test.ts` \"points committed absolute links…\" (1): inline the same probe there (Fireguard cannot import `src/test`). Do not touch `fireguard/test/support.ts`.\n- `src/main/terminals/ptyHelperCheck.test.ts:111-113`: compare both paths through `realpathSync.native` so a junctioned node_modules passes.\n\n## Out of scope\nProduct code; other test files; changing what any test asserts.\n\n## Tests\n- Unit test for `src/test/symlinks.ts` (available, EPERM, CI forced).\n- `npm test` in your worktree (node_modules is a junction there): 0 failures. Report the totals.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "Test-only changes in named files with measured failures."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6qccpch394774rh7xs2s5gw",
+        "key": "DM-482",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/git/operationLock.test.ts",
+            "location": "src/main/git/operationLock.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/git/conflictsOpen.test.ts",
+            "location": "src/main/git/conflictsOpen.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/terminals/ptyHelperCheck.test.ts",
+            "location": "src/main/terminals/ptyHelperCheck.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "fireguard/test/snapshots.test.ts",
+            "location": "fireguard/test/snapshots.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [],
+        "title": "Make the full test suite pass on Windows accounts without symlink rights"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Export writes attachments/<id>.json beside each image and import restores createdBy for every owner kind."
+          },
+          {
+            "id": "c2",
+            "text": "Missing or invalid sidecars fall back to the placeholder creator."
+          },
+          {
+            "id": "c3",
+            "text": "Detached card images lose their sidecar; no attachmentRef or plan hash changes; the listed tests pass."
+          }
+        ],
+        "body": "## Context\nImport registers attachment rows with the placeholder creator `'worker','imported'` (`attachmentImport.ts:203`) because no portable record says who staged an image. `attachmentFiles.ts` writes only image bytes; Kanban events are immutable.\n\n## Sprint 1 provides (build on it, do not rebuild it)\n- Id kind `attachment` with prefix `im` (`src/core/ids.ts:28`). Never use `at`: attempts own it.\n- `src/core/attachments/intake.ts`: `readImageFile`, `inspectImageBytes`, `MAX_IMAGE_BYTES`, allowed roots.\n- `src/core/services/attachments.ts`: `createStagedAttachment`, `stageAttachmentFile`, `claimAttachments`, `claimEvidenceAttachments`, `pruneStagedAttachments`, `getAttachment`, `readAttachmentBytes`.\n- `src/core/services/attachmentOwners.ts` resolves placement for all five owner kinds (attempt, kanban_attempt, comment, kanban_card, ticket).\n- `src/core/repo/finalizer.ts` already writes an owner's images before its record (`exportAttachmentsOf`, ~386, 466, 479, 509, 536) and `exportAttachment` handles history, kanban and epic folders.\n- `src/renderer/src/attachments/AttachmentGallery.tsx` renders thumbnails, the lightbox and an Evidence/Reference badge; it needs a `folderKey`.\n- Conventions for this sprint: refs are read from the `attachments` table (`WHERE owner_kind=? AND owner_id=? ORDER BY id`), with **no schema migration**; portable records **omit** `attachments` when empty so existing files stay byte-identical; new view fields are **optional**; reference images use `purpose: 'reference'`.\n\n## Rules for this sprint (final sprint of the epic)\n- Stay inside **Do**. Anything else you notice goes in your notes under Discoveries; it becomes a Kanban card, never part of this ticket.\n- If a discovery blocks one of this ticket's criteria, fix it here and say so.\n- Every check you report must pass. Do not hand back failed or skipped checks expecting them to be accepted.\n\n## Do\n- Write a sidecar `attachments/<attachmentId>.json` = `{id, sha256, createdBy:{role,label}, createdAt}` beside each exported image, from the same finalizer step (`finalizer.ts:185-210`). Named by id, not sha (two ids can share bytes). No token or secret.\n- Read it in every import registration: attempt and card-attempt evidence (`registerRowImages`), comments (DM-430), cards (DM-431) and tickets (DM-485). Validate role with the session-role enum and label with its length limit; otherwise fall back to the placeholder.\n- Remove the sidecar wherever DM-431 removes a detached image's file.\n- The import scanner already skips non-image names (`attachmentImport.ts:27, 128-130`); keep it that way.\n\n## Out of scope\nChanging `attachmentRef`, any record schema or plan hash.\n\n## Tests\n- Export then import into a fresh database restores createdBy for an evidence image and a comment image.\n- A folder without sidecars imports with the placeholder; an invalid sidecar falls back.\n- Detaching a card image removes its sidecar.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "New sidecar file written on export and read by five import paths."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m6qccpchpqh554drrrae7nh4",
+        "key": "DM-483",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/finalizer.ts",
+            "location": "src/core/repo/finalizer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/attachmentImport.ts",
+            "location": "src/core/repo/attachmentImport.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/attachmentFiles.ts",
+            "location": "src/core/repo/attachmentFiles.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Record who staged each attachment in portable records"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Importing a repo-mode folder into a fresh database restores saved ticket images (test)."
+          },
+          {
+            "id": "c2",
+            "text": "The Overview tab shows the ticket's images, references and expected artifacts, and the listed tests pass."
+          }
+        ],
+        "body": "## Context\nDM-432 stores ticket image refs in saved plans and claims them on save. A fresh checkout must restore them, and the Overview tab shows none of a ticket's images, references or expected artifacts today.\n\n## Sprint 1 provides (build on it, do not rebuild it)\n- Id kind `attachment` with prefix `im` (`src/core/ids.ts:28`). Never use `at`: attempts own it.\n- `src/core/attachments/intake.ts`: `readImageFile`, `inspectImageBytes`, `MAX_IMAGE_BYTES`, allowed roots.\n- `src/core/services/attachments.ts`: `createStagedAttachment`, `stageAttachmentFile`, `claimAttachments`, `claimEvidenceAttachments`, `pruneStagedAttachments`, `getAttachment`, `readAttachmentBytes`.\n- `src/core/services/attachmentOwners.ts` resolves placement for all five owner kinds (attempt, kanban_attempt, comment, kanban_card, ticket).\n- `src/core/repo/finalizer.ts` already writes an owner's images before its record (`exportAttachmentsOf`, ~386, 466, 479, 509, 536) and `exportAttachment` handles history, kanban and epic folders.\n- `src/renderer/src/attachments/AttachmentGallery.tsx` renders thumbnails, the lightbox and an Evidence/Reference badge; it needs a `folderKey`.\n- Conventions for this sprint: refs are read from the `attachments` table (`WHERE owner_kind=? AND owner_id=? ORDER BY id`), with **no schema migration**; portable records **omit** `attachments` when empty so existing files stay byte-identical; new view fields are **optional**; reference images use `purpose: 'reference'`.\n\n## Rules for this sprint (final sprint of the epic)\n- Stay inside **Do**. Anything else you notice goes in your notes under Discoveries; it becomes a Kanban card, never part of this ticket.\n- If a discovery blocks one of this ticket's criteria, fix it here and say so.\n- Every check you report must pass. Do not hand back failed or skipped checks expecting them to be accepted.\n\n## Do\n- `src/core/repo/attachmentImport.ts` (called from `importer.ts:1155`): register owner-`ticket` rows from the refs in saved `plan_revisions` bundles, using the shared `insertOwnedRow`; the existing file restore fills the bytes from `epics/<epicId>/attachments/`.\n- `src/renderer/src/ticket/panelTabs.tsx` `OverviewTab` (~75-106): add `folderKey` to its props and show `attachments` (AttachmentGallery), `references` and `expectedArtifacts`; pass `folderKey` from `TicketPanel.tsx:128`.\n\n## Out of scope\nEditing `src/renderer/src/__mocks__/fixtures.ts` (keep test fixtures local to your tests). Editing ticket images in the app (DM-486).\n\n## Tests\n- Import into a fresh database from a repo-mode folder with a saved ticket image registers the row and the image serves.\n- OverviewTab component test shows attachments, references and expected artifacts.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "One import path and one view change."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/repo/attachmentImport.ts",
+          "src/renderer/src/ticket/panelTabs.tsx"
+        ],
+        "id": "tk_01m6qkq9166g3xz9821vbh491y",
+        "key": "DM-485",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/attachmentImport.ts",
+            "location": "src/core/repo/attachmentImport.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/importer.ts",
+            "location": "src/core/repo/importer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/panelTabs.tsx",
+            "location": "src/renderer/src/ticket/panelTabs.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/TicketPanel.tsx",
+            "location": "src/renderer/src/ticket/TicketPanel.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "attachments",
+          "plans"
+        ],
+        "title": "Import plan ticket images and show images, references and expected artifacts on the ticket Overview tab"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The card form attaches, shows and removes images and saves the full attachments list."
+          },
+          {
+            "id": "c2",
+            "text": "The ticket editor attaches, shows and removes images and formToOps sends attachments only when changed."
+          },
+          {
+            "id": "c3",
+            "text": "The listed tests pass."
+          }
+        ],
+        "body": "## Context\nDM-433 adds `uploadAttachment` and the `useImageAttach` hook; DM-431 and DM-432 accept attachment ids on cards and draft tickets.\n\n## Sprint 1 provides (build on it, do not rebuild it)\n- Id kind `attachment` with prefix `im` (`src/core/ids.ts:28`). Never use `at`: attempts own it.\n- `src/core/attachments/intake.ts`: `readImageFile`, `inspectImageBytes`, `MAX_IMAGE_BYTES`, allowed roots.\n- `src/core/services/attachments.ts`: `createStagedAttachment`, `stageAttachmentFile`, `claimAttachments`, `claimEvidenceAttachments`, `pruneStagedAttachments`, `getAttachment`, `readAttachmentBytes`.\n- `src/core/services/attachmentOwners.ts` resolves placement for all five owner kinds (attempt, kanban_attempt, comment, kanban_card, ticket).\n- `src/core/repo/finalizer.ts` already writes an owner's images before its record (`exportAttachmentsOf`, ~386, 466, 479, 509, 536) and `exportAttachment` handles history, kanban and epic folders.\n- `src/renderer/src/attachments/AttachmentGallery.tsx` renders thumbnails, the lightbox and an Evidence/Reference badge; it needs a `folderKey`.\n- Conventions for this sprint: refs are read from the `attachments` table (`WHERE owner_kind=? AND owner_id=? ORDER BY id`), with **no schema migration**; portable records **omit** `attachments` when empty so existing files stay byte-identical; new view fields are **optional**; reference images use `purpose: 'reference'`.\n\n## Rules for this sprint (final sprint of the epic)\n- Stay inside **Do**. Anything else you notice goes in your notes under Discoveries; it becomes a Kanban card, never part of this ticket.\n- If a discovery blocks one of this ticket's criteria, fix it here and say so.\n- Every check you report must pass. Do not hand back failed or skipped checks expecting them to be accepted.\n\n## Do\n- `src/renderer/src/kanban/CardFormDialog.tsx`: use `useImageAttach`; show existing card attachments with remove; on save send the full `attachments` id list through create/update (`KanbanBoard.tsx` spreads form content).\n- Ticket editor (`src/renderer/src/ticket/TicketEditor.tsx`, `editorFields.tsx`): same, with ids flowing into the update_ticket patch built by `contentPatch` / `formToOps` in `src/renderer/src/ticket/ticketForm.ts:425-497`; pass `folderKey` from `src/renderer/src/epic/EpicWorkspace.tsx:179-186`.\n\n## Out of scope\nEditing `src/renderer/src/__mocks__/fixtures.ts` (keep test fixtures local to your tests). New commands or core changes.\n\n## Tests\n- CardFormDialog: an uploaded image and a removed existing one produce the right attachments list.\n- ticketForm: formToOps includes attachments only when changed; [] when all removed.\n- TicketEditor component test renders pending and existing images.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Renderer wiring of an existing hook into two forms."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/kanban/CardFormDialog.tsx",
+          "src/renderer/src/ticket/ticketForm.ts"
+        ],
+        "id": "tk_01m6qkq9a3dr9y73qvrn7mjvw5",
+        "key": "DM-486",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/kanban/CardFormDialog.tsx",
+            "location": "src/renderer/src/kanban/CardFormDialog.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/kanban/KanbanBoard.tsx",
+            "location": "src/renderer/src/kanban/KanbanBoard.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/TicketEditor.tsx",
+            "location": "src/renderer/src/ticket/TicketEditor.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/editorFields.tsx",
+            "location": "src/renderer/src/ticket/editorFields.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/ticketForm.ts",
+            "location": "src/renderer/src/ticket/ticketForm.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/epic/EpicWorkspace.tsx",
+            "location": "src/renderer/src/epic/EpicWorkspace.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "attachments",
+          "ui"
+        ],
+        "title": "Attach images in the Kanban card form and the ticket editor"
+      }
+    ]
+  },
+  "contentHash": "sha256:82df2d63ec5b79fb2d5aa74c7d096fae76f9033695304763376c6688fd10e126",
+  "createdAt": "2026-11-06T05:37:38.273Z",
+  "epicId": "ep_01m6fmd1m24pf5nmyke0w4ag6h",
+  "format": "darkmechanicus.plan-snapshot",
+  "formatVersion": 1,
+  "number": 4,
+  "revisionId": "rv_01m6qnsmf0f1rjgf938jrgrza5",
+  "savedAt": "2026-11-06T05:37:38.273Z"
+}

@@ -1,0 +1,79 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": "ka_01m6fkzw7hrvvwstcw471f484p",
+  "cardId": "kc_01m6fkzbcxekdakqw4xxpe66k6",
+  "createdAt": "2026-11-03T02:40:15.391Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m6fmep0zv5cvkq0tpaegkt28",
+  "kind": "submitted",
+  "payload": {
+    "evidence": {
+      "checks": [
+        {
+          "detail": "npm run lint clean",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "all three tsc projects clean",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "17 Vitest tests in 7 files + 2 Fireguard tests (test/mutationLanes.test.ts) fail with EPERM creating symlinks (Windows without Developer Mode/admin). Same failures with the change stashed (pre-existing, environmental). New/changed tests index.test.ts and windowPolicy.test.ts: 12/12 pass (re-run by orchestrator).",
+          "name": "test",
+          "status": "failed"
+        },
+        {
+          "detail": "Fails on the same 17 symlink EPERM tests. Excluding those 7 files: branch coverage 94.84% with change vs 94.83% baseline (threshold 95%), so the change does not lower coverage; shortfall is from the excluded files.",
+          "name": "coverage",
+          "status": "failed"
+        },
+        {
+          "detail": "No new dead exports found",
+          "name": "deadcode",
+          "status": "passed"
+        },
+        {
+          "detail": "electron-vite build succeeded",
+          "name": "build",
+          "status": "passed"
+        }
+      ],
+      "criteria": [
+        {
+          "criterionId": "c1",
+          "met": true,
+          "note": "Windows/Linux: Menu.setApplicationMenu(null) at whenReady before createMainWindow (src/main/index.ts); unit tests in src/main/index.test.ts and src/main/windowPolicy.test.ts assert null menu off macOS and untouched on darwin. Not verified visually by launching the app. macOS keeps its system menu by design."
+        }
+      ],
+      "notes": "Limits: app not launched for a visual check. test and coverage failures are pre-existing symlink EPERM failures on this Windows machine, reproduced on the tree without the change. Developers lose Ctrl+Shift+I DevTools in dev builds on Windows/Linux.\n\nDiscoveries:\n- title: Make the symlink tests runnable or skipped on Windows without symlink rights\n  reason: 17 Vitest tests (chatHandlers.folder, launchFolder, folderAgentDefaults, conflictsOpen, handlersWorkingDiff, operationLock, terminalHandlers) and 2 Fireguard tests fail locally with EPERM on symlink creation, so npm test and npm run coverage cannot pass on this machine regardless of the change.\n  ticket: DM-419"
+    },
+    "number": 1,
+    "outputs": {
+      "artifacts": [
+        {
+          "hash": null,
+          "label": "commit",
+          "location": "3e62ba845590f6c86ae24909440a105cb09f049e",
+          "remoteOnly": false
+        }
+      ],
+      "branch": "fix/installer-lone-process",
+      "changedFiles": [
+        "src/main/windowPolicy.ts",
+        "src/main/windowPolicy.test.ts",
+        "src/main/index.ts",
+        "src/main/index.test.ts"
+      ],
+      "commits": [
+        "3e62ba845590f6c86ae24909440a105cb09f049e"
+      ],
+      "summary": "On Windows and Linux the app window no longer shows the File/Edit/View/Window menu bar: once Electron is ready, startup calls Menu.setApplicationMenu(null) before creating the main window (via a pure helper removeWindowMenuBar in src/main/windowPolicy.ts). macOS keeps Electron's default menu deliberately: it lives in the system menu bar, not the window, and carries Cmd+C/V/X/A and Cmd+Q. Side effect on Windows/Linux: default menu accelerators (Ctrl+R reload, Ctrl+Shift+I DevTools, zoom, F11, Ctrl+W) are gone; nothing in the app relies on them. Text-field copy/paste still works (handled by Chromium). Commit is local, not pushed."
+    }
+  }
+}

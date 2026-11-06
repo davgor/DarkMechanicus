@@ -1,0 +1,84 @@
+{
+  "branch": {
+    "name": "image-attachments",
+    "repository": "C:/Users/davgo/Documents/GitHub/DarkMechanicus",
+    "startCommit": "31e0eddfef191dae3843f24e089eb60e938bf10a"
+  },
+  "completedAt": "2026-11-06T23:36:25.384Z",
+  "createdAt": "2026-11-03T02:39:21.730Z",
+  "epicId": "ep_01m6fmd1m24pf5nmyke0w4ag6h",
+  "format": "darkmechanicus.epic-state",
+  "formatVersion": 1,
+  "generation": 54,
+  "outcome": {
+    "recordedAt": "2026-11-06T23:36:25.384Z",
+    "runId": "rn_01m6q242hsxeb9txv2k8axa6z5",
+    "successCriteria": [
+      {
+        "criterionId": "s1",
+        "met": true,
+        "note": "docs/verification/image-attachments/sprint-2/epic-outcome.md (s1): sprint 1 c1-add-attachment-cli.txt and c5; sprint 2 c4, c5, c6, c11"
+      },
+      {
+        "criterionId": "s2",
+        "met": true,
+        "note": "docs/verification/image-attachments/sprint-2/epic-outcome.md (s2): sprint 1 c4.txt; sprint 2 s2-db-mode.txt, s2-db-mode-card-image-after-app-restart.png, x1-*.png, c13"
+      },
+      {
+        "criterionId": "s3",
+        "met": true,
+        "note": "docs/verification/image-attachments/sprint-2/epic-outcome.md (s3): sprint 1 c7-*.png; sprint 2 s3-comment-image-lightbox.png, s3-card-mockup-lightbox.png, c7"
+      },
+      {
+        "criterionId": "s4",
+        "met": true,
+        "note": "docs/verification/image-attachments/sprint-2/epic-outcome.md (s4): evidence versus reference purposes on the Evidence tab, the Overview tab and cards"
+      },
+      {
+        "criterionId": "s5",
+        "met": true,
+        "note": "docs/verification/image-attachments/sprint-2/epic-outcome.md (s5): sprint 1 c3-worker-add-get-attachment.txt; sprint 2 x3-get-attachment-file.txt and packet references"
+      },
+      {
+        "criterionId": "s6",
+        "met": true,
+        "note": "docs/verification/image-attachments/sprint-2/epic-outcome.md (s6): sprint 2 s6-refusals.txt; sprint 1 c1"
+      },
+      {
+        "criterionId": "s7",
+        "met": true,
+        "note": "docs/verification/image-attachments/sprint-2/epic-outcome.md (s7): sprint 2 c8-*.png, c9-*.png, c2-app-upload-metadata.txt"
+      }
+    ],
+    "summary": "The image-attachments epic is complete. A PNG or JPEG can be attached from a terminal or in the app, as attempt evidence or as a reference on a ticket, Kanban card or comment. Images are stored with the project data and shown as thumbnails with click-to-enlarge, labelled as evidence or reference, readable by workers, and checked on intake. Each criterion is evidenced in docs/verification/image-attachments/sprint-2/epic-outcome.md."
+  },
+  "provenance": null,
+  "status": "completed",
+  "ticketStatuses": {
+    "tk_01m6fmd1m2kn4h1kh2k3a4nca0": "completed",
+    "tk_01m6gnpwm1m0b8x505kwgk1g4k": "completed",
+    "tk_01m6gnpwwezfjbd1bcm6gg94th": "completed",
+    "tk_01m6gnpx4zm4707ap49kjwfbse": "completed",
+    "tk_01m6gnpxdysedcrpecz3ennkef": "completed",
+    "tk_01m6gnpxphk3k11d1cynjyevd2": "completed",
+    "tk_01m6gnpxz5a2pdr3h6xdndmb5f": "completed",
+    "tk_01m6gnpy7n7f8ahb2x9hbxcj79": "completed",
+    "tk_01m6gnrnk8cbqv7rnvaynphhxp": "completed",
+    "tk_01m6gnrnvv55vjd6kzp8jrc6da": "completed",
+    "tk_01m6gnrp4fj7jfnreypm9frk6z": "completed",
+    "tk_01m6gnrpczh9gcnpkx7afs5f68": "completed",
+    "tk_01m6gnrpnd0384mzgdeja33jn8": "completed",
+    "tk_01m6gnrpy54qdrsnttpna80w0h": "completed",
+    "tk_01m6gnrq6w2fbrmsvgn5d0x1qg": "completed",
+    "tk_01m6qccpc19aw2bbee0h6h9d9q": "completed",
+    "tk_01m6qccpch394774rh7xs2s5gw": "completed",
+    "tk_01m6qccpchnh0b6mm2w8xxgp34": "completed",
+    "tk_01m6qccpchpqh554drrrae7nh4": "completed",
+    "tk_01m6qccpchsj20pw91d1h2hega": "completed",
+    "tk_01m6qccpchvhgvxma1wk7xjy2p": "completed",
+    "tk_01m6qkq9166g3xz9821vbh491y": "completed",
+    "tk_01m6qkq9a3dr9y73qvrn7mjvw5": "completed"
+  },
+  "title": "Image attachments: send screenshots from terminals and view them in the app as evidence or mockups",
+  "updatedAt": "2026-11-06T23:36:25.412Z"
+}

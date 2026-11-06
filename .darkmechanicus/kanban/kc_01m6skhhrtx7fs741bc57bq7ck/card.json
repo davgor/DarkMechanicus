@@ -1,0 +1,20 @@
+{
+  "acceptanceCriteria": [],
+  "body": "A junction that points at a drive root makes git status and similar commands walk the entire drive.\n\nFound during the image-attachments epic (sprint 2, DM-482).",
+  "createdAt": "2026-11-06T23:36:45.092Z",
+  "createdBy": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "expectedArtifacts": [],
+  "format": "darkmechanicus.kanban-card",
+  "formatVersion": 1,
+  "generation": 1,
+  "id": "kc_01m6skhhrtx7fs741bc57bq7ck",
+  "key": "DM-490",
+  "priority": "normal",
+  "references": [],
+  "size": null,
+  "title": "Stop git from walking a whole drive through a junction",
+  "updatedAt": "2026-11-06T23:36:45.092Z"
+}

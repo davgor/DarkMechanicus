@@ -1,0 +1,114 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": "ka_01m6sm2yfz6qkcg86ardmp92x1",
+  "cardId": "kc_01m6fmawmhq3gzqzsqa65pzg0h",
+  "createdAt": "2026-11-06T23:46:39.128Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m6sm3nwr08p6hrwbs6xnrjgh",
+  "kind": "submitted",
+  "payload": {
+    "evidence": {
+      "checks": [
+        {
+          "detail": "CI lint job on PR #20, and locally",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "locally, npm run typecheck",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "CI test job on PR #20 (vitest plus fireguard suite)",
+          "name": "test",
+          "status": "passed"
+        },
+        {
+          "detail": "not run separately; CI has no coverage job",
+          "name": "coverage",
+          "status": "skipped"
+        },
+        {
+          "detail": "CI deadcode job on PR #20, and locally",
+          "name": "deadcode",
+          "status": "passed"
+        },
+        {
+          "detail": "CI build job on PR #20",
+          "name": "build",
+          "status": "passed"
+        }
+      ],
+      "criteria": [
+        {
+          "criterionId": "c7",
+          "met": true,
+          "note": "Delete button in KanbanCardPanel (DeleteCardControl.tsx); KanbanCardPanel.delete.test.tsx deletes after confirming and removes the card from its lane"
+        },
+        {
+          "criterionId": "c8",
+          "met": true,
+          "note": "Confirmation dialog; test asks for confirmation, and Keep leaves the card alone"
+        },
+        {
+          "criterionId": "c9",
+          "met": true,
+          "note": "kanbanDeletion.test.ts: card gone from board and getKanbanCard not_found; stays gone after restart, reconcile and a later clone"
+        },
+        {
+          "criterionId": "c10",
+          "met": true,
+          "note": "invalid_state while claimed/running/submitted (core test), lapsed lease or failed attempt allows delete; UI disables Delete and explains why"
+        },
+        {
+          "criterionId": "c11",
+          "met": true,
+          "note": "kanbanDeletion.test.ts and KanbanCardPanel.delete.test.tsx cover the delete path, guard and desktop-only authority"
+        }
+      ],
+      "notes": "Limits: deletion removes the card folder from the checkout without committing it, so a branch still holding the folder would resurrect the card on merge (no tombstones). A deleted card frees its key for reuse. Local run had one unrelated failure (chatHandlers.folder symlinkSync on Windows); CI green."
+    },
+    "number": 2,
+    "outputs": {
+      "artifacts": [
+        {
+          "hash": null,
+          "label": "PR #20",
+          "location": "https://github.com/davgor/DarkMechanicus/pull/20",
+          "remoteOnly": true
+        }
+      ],
+      "branch": "main (PR #20 from dm-420-delete-kanban-cards)",
+      "changedFiles": [
+        "src/core/authz.test.ts",
+        "src/core/authz.ts",
+        "src/core/commandSchemas.ts",
+        "src/core/commands/capabilities.test.ts",
+        "src/core/commands/capabilities.ts",
+        "src/core/commands/kanban.ts",
+        "src/core/commands/kanbanDeletion.test.ts",
+        "src/core/repo/epicRemoval.ts",
+        "src/core/services/kanban/deletion.ts",
+        "src/main/desktop/handlers.test.ts",
+        "src/mcp/server.test.ts",
+        "src/renderer/src/kanban/DeleteCardControl.tsx",
+        "src/renderer/src/kanban/KanbanCardPanel.delete.test.tsx",
+        "src/renderer/src/kanban/KanbanCardPanel.tsx",
+        "src/shared/desktop/api.ts",
+        "src/shared/domain/api.ts",
+        "src/shared/domain/kanban.ts",
+        "src/test/stubApi.ts"
+      ],
+      "commits": [
+        "54a31373fe1beacc2c248ff472acbe9ea6f1e93c",
+        "418e2c1d4c1a574794ddaba445ac18ef9919b948"
+      ],
+      "summary": "Desktop-only Kanban card deletion, merged to main via PR #20 (merge commit 418e2c1). New deleteKanbanCard command behind a human-only kanban.delete capability (agents get unauthorized; no MCP tool). It removes the card rows, attempts, events, pending outbox, sync state, cached idempotency replies and the tracked .darkmechanicus/kanban/<cardId>/ folder in one transaction, and refuses while an attempt is claimed, running or submitted. The card panel has a Delete button with a Keep/Delete confirmation, disabled with an explanation while an attempt is in flight. Note: this attempt was claimed after the Play flag was set directly in the database at the owner request, because the first claim token was lost (see DM-488)."
+    }
+  }
+}

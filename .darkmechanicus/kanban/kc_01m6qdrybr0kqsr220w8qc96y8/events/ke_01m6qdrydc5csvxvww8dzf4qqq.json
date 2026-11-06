@@ -1,0 +1,16 @@
+{
+  "actor": {
+    "label": "Claude Code",
+    "role": "orchestrator"
+  },
+  "attemptId": null,
+  "cardId": "kc_01m6qdrybr0kqsr220w8qc96y8",
+  "createdAt": "2026-11-06T03:17:27.083Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m6qdrydc5csvxvww8dzf4qqq",
+  "kind": "created",
+  "payload": {
+    "revision": 1
+  }
+}

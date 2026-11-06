@@ -1,0 +1,20 @@
+{
+  "acceptanceCriteria": [],
+  "body": "Images removed from a ticket by a later revision stay owned by that ticket.\n\nFound during the image-attachments epic (sprint 2, DM-432).",
+  "createdAt": "2026-11-06T23:36:46.111Z",
+  "createdBy": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "expectedArtifacts": [],
+  "format": "darkmechanicus.kanban-card",
+  "formatVersion": 1,
+  "generation": 1,
+  "id": "kc_01m6skhjrm85hvhfby5qx02t8h",
+  "key": "DM-493",
+  "priority": "normal",
+  "references": [],
+  "size": null,
+  "title": "Release images a later plan revision dropped",
+  "updatedAt": "2026-11-06T23:36:46.111Z"
+}

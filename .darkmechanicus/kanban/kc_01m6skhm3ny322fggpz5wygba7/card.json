@@ -1,0 +1,20 @@
+{
+  "acceptanceCriteria": [],
+  "body": "The ticket panel header can show a different revision from the one the Overview tab renders.\n\nFound during the image-attachments epic (sprint 2, DM-485).",
+  "createdAt": "2026-11-06T23:36:47.487Z",
+  "createdBy": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "expectedArtifacts": [],
+  "format": "darkmechanicus.kanban-card",
+  "formatVersion": 1,
+  "generation": 1,
+  "id": "kc_01m6skhm3ny322fggpz5wygba7",
+  "key": "DM-497",
+  "priority": "normal",
+  "references": [],
+  "size": null,
+  "title": "Fix the ticket panel revision header",
+  "updatedAt": "2026-11-06T23:36:47.487Z"
+}

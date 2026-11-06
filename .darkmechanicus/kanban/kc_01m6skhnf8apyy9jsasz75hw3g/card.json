@@ -1,0 +1,20 @@
+{
+  "acceptanceCriteria": [],
+  "body": "git.test.ts isAncestor and handlersLock.test.ts timed out at 15s in the coverage step of run 42236760497; main has the same flake in installer-nsh.test.mjs.\n\nFound during the image-attachments epic (sprint 2, DM-429).",
+  "createdAt": "2026-11-06T23:36:48.882Z",
+  "createdBy": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "expectedArtifacts": [],
+  "format": "darkmechanicus.kanban-card",
+  "formatVersion": 1,
+  "generation": 1,
+  "id": "kc_01m6skhnf8apyy9jsasz75hw3g",
+  "key": "DM-501",
+  "priority": "normal",
+  "references": [],
+  "size": null,
+  "title": "Make real-git tests reliable under coverage on Windows CI",
+  "updatedAt": "2026-11-06T23:36:48.882Z"
+}

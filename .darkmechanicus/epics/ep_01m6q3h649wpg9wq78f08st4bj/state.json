@@ -1,0 +1,26 @@
+{
+  "branch": null,
+  "completedAt": null,
+  "createdAt": "2026-11-06T00:18:27.081Z",
+  "epicId": "ep_01m6q3h649wpg9wq78f08st4bj",
+  "format": "darkmechanicus.epic-state",
+  "formatVersion": 1,
+  "generation": 1,
+  "outcome": null,
+  "provenance": null,
+  "status": "backlog",
+  "ticketStatuses": {
+    "tk_01m6q3h649b2jx4xkahy7d65n1": "backlog",
+    "tk_01m6q3n87yqxsv1hb3yq0pa90a": "backlog",
+    "tk_01m6q3n88m0nm3xnbee7fb49ct": "backlog",
+    "tk_01m6q3n88marfycfdg04qbcxr0": "backlog",
+    "tk_01m6q3n88maw6gx9wg89fweaze": "backlog",
+    "tk_01m6q3n88mawjsynca0zrtb16h": "backlog",
+    "tk_01m6q3n88mbzq2pc2sgmxh4yb0": "backlog",
+    "tk_01m6q3n88me3aa8as7wr0p3rmb": "backlog",
+    "tk_01m6q3n88mjakd4zxf0vmfb6es": "backlog",
+    "tk_01m6q3n88mv9m0hfsdjrtfg990": "backlog"
+  },
+  "title": "Knowledge layers: the orchestrator gets scoped context from per-repo and overall knowledge instead of one monolithic guide",
+  "updatedAt": "2026-11-06T00:20:59.466Z"
+}

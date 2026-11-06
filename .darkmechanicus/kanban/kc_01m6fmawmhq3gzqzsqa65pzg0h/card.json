@@ -1,0 +1,43 @@
+{
+  "acceptanceCriteria": [
+    {
+      "id": "c7",
+      "text": "A person can delete a Kanban card from the desktop app (e.g. from the card's detail view or menu)"
+    },
+    {
+      "id": "c8",
+      "text": "Deleting asks for confirmation before the card is removed"
+    },
+    {
+      "id": "c9",
+      "text": "The deleted card disappears from its lane and from list_kanban_cards results, and stays gone after an app restart"
+    },
+    {
+      "id": "c10",
+      "text": "A card with a running attempt cannot be deleted, or the app explains what happens to the attempt before deleting"
+    },
+    {
+      "id": "c11",
+      "text": "Tests cover the delete path and the running-attempt guard"
+    }
+  ],
+  "body": "There is no way to delete a Kanban card: the desktop app has no delete action, and the dm CLI / MCP surface has no delete command. Add a delete action to the card in the desktop app so a person can remove a card they no longer want (for example one that was promoted to an epic).",
+  "createdAt": "2026-11-03T02:38:11.099Z",
+  "createdBy": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "expectedArtifacts": [
+    "PR merged adding Kanban card deletion to the desktop app, with tests"
+  ],
+  "format": "darkmechanicus.kanban-card",
+  "formatVersion": 1,
+  "generation": 2,
+  "id": "kc_01m6fmawmhq3gzqzsqa65pzg0h",
+  "key": "DM-420",
+  "priority": "normal",
+  "references": [],
+  "size": null,
+  "title": "Delete Kanban cards from the app",
+  "updatedAt": "2026-11-03T02:41:39.925Z"
+}

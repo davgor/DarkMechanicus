@@ -1,0 +1,48 @@
+{
+  "acceptanceCriteria": [
+    {
+      "id": "c1",
+      "text": "docs/reports/omp-cli.md section 5 holds a real signed-in `omp usage --json` recording (redacted) with exit code and timings."
+    },
+    {
+      "id": "c2",
+      "text": "agentAuth.test.ts classifies that recording as signed_in, and the timeout covers the slowest observed run."
+    },
+    {
+      "id": "c3",
+      "text": "With the person signed in, the dev app's Skitarii card shows Signed in within the status timeout (screenshot)."
+    }
+  ],
+  "body": "## Context\nDM-438 from the OMP epic (ep_01m6fk7esyy6anvw84fv0e0b4j, sprint 2), moved here because the run is at its final checkpoint and cannot claim tickets. Work on top of branch omp-terminal (PR #16).\n\nDM-409 classifies OMP's sign-in from `omp usage --json`: signed out was recorded (empty lists, exit 0), but the signed-in shape comes from OMP's source (`usage-cli.ts`), and a signed-in run fetches live usage over the network, which may exceed `STATUS_TIMEOUT_MS.omp` (10 s) and show \"unknown\". The person is now signed in (`omp login`, Anthropic).\n\n## Do\n- Record `omp usage --json` signed in (exit code, timing over 5 runs, and the JSON with any account identifiers redacted) into docs/reports/omp-cli.md section 5.\n- If the shape differs from the classifier's assumption, fix `classifyOmp`; set `STATUS_TIMEOUT_MS.omp` to cover the slowest observed run with margin (or switch to a cheaper status command the recording shows).\n\n## Tests\n- agentAuth.test.ts: the recorded (redacted) signed-in output classifies as signed_in.",
+  "createdAt": "2026-11-05T18:27:34.730Z",
+  "createdBy": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "expectedArtifacts": [],
+  "format": "darkmechanicus.kanban-card",
+  "formatVersion": 1,
+  "generation": 1,
+  "id": "kc_01m6pfeq5y6s5mzpc2rhkdjrrd",
+  "key": "DM-441",
+  "priority": "normal",
+  "references": [
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "src/main/desktop/agentAuth.ts",
+      "location": "src/main/desktop/agentAuth.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "docs/reports/omp-cli.md",
+      "location": "docs/reports/omp-cli.md",
+      "remoteOnly": false
+    }
+  ],
+  "size": "small",
+  "title": "Record signed-in OMP status and size its timeout (DM-438)",
+  "updatedAt": "2026-11-05T18:27:34.730Z"
+}

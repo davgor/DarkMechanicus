@@ -1,0 +1,17 @@
+{
+  "actor": {
+    "label": "Desktop",
+    "role": "desktop"
+  },
+  "attemptId": "ka_01m6qp46gbhh4yk2r11n2434zr",
+  "cardId": "kc_01m6fmawmhq3gzqzsqa65pzg0h",
+  "createdAt": "2026-11-06T06:02:09.451Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m6qq6h5bpn4habqb4dc0w3wc",
+  "kind": "lease_expired",
+  "payload": {
+    "leaseExpiresAt": "2026-11-06T05:58:24.427Z",
+    "number": 1
+  }
+}

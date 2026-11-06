@@ -1,0 +1,23 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": null,
+  "cardId": "kc_01m6fmawmhq3gzqzsqa65pzg0h",
+  "createdAt": "2026-11-03T02:41:39.925Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m6fmh8jn3f0ns8absqpnqejk",
+  "kind": "updated",
+  "payload": {
+    "fields": [
+      "title",
+      "body",
+      "acceptanceCriteria",
+      "expectedArtifacts",
+      "priority"
+    ],
+    "revision": 2
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "acceptanceCriteria": [
+    {
+      "id": "c1",
+      "text": "A db-mode folder can be switched to repo mode: all its records appear as .darkmechanicus/ JSON files, the machine-local project directory is removed, and the app reports repo mode."
+    },
+    {
+      "id": "c2",
+      "text": "A repo-mode folder can be switched to db mode: all records move to the machine-local database and the .darkmechanicus/ JSON files (and DM's .gitignore entry) are purged from the checkout."
+    },
+    {
+      "id": "c3",
+      "text": "A round trip db -> repo -> db loses or changes no record (test)."
+    },
+    {
+      "id": "c4",
+      "text": "A switch is refused while a run is active, and a failed switch leaves the original store and mode intact (tests)."
+    },
+    {
+      "id": "c5",
+      "text": "The desktop app offers the switch as a confirmed action that states what will be deleted (screenshot)."
+    }
+  ],
+  "body": "## Context\nA folder's storage mode is fixed at setup (docs/decisions/0002-storage-modes.md): `repo` keeps records as JSON files in `.darkmechanicus/` with a derived SQLite beside them, and `db` keeps everything in one machine-local SQLite under `$DARKMECHANICUS_HOME/projects/<key>/` and writes nothing into the checkout. `initialize_repository` refuses to set a folder up the other way, so today there is no way to move between them. The person wants to switch in both directions.\n\n## Do\n- **db -> repo:** export every record in the folder's local database (project, epics, revisions/snapshots, tickets, runs/history, comments, kanban cards and events, profiles) into the `.darkmechanicus/` file layout, rebuild the working database from those files, and remove the machine-local project directory only once the files are written and the rebuild matches. After that, `resolveStorageMode` reports `repo`.\n- **repo -> db (purge):** import the `.darkmechanicus/` records into a machine-local project database, verify it, then purge the JSON files from the checkout: `.darkmechanicus/` (including `local/`) and the `.gitignore` entry Dark Mechanicus added. Leave `.mcp.json` and installed skills alone unless the person asks, or list them for the person to remove.\n- Refuse to switch while a run is active or an attempt is claimed, or while uncommitted `.darkmechanicus/` changes exist (for repo -> db), with a clear error.\n- Make the switch an explicit, confirmed action in the desktop app's storage card (and a CLI/MCP command if the server's command set warrants it). It is a destructive operation and must say what it deletes.\n- Update decision 0002 (or add a new decision) to record that the mode is now switchable.\n\n## Tests\n- Round trip: a populated `db` project switched to `repo` then back to `db` keeps every record, unchanged.\n- repo -> db leaves no `.darkmechanicus/` files or DM `.gitignore` entry in the checkout.\n- A failed or interrupted switch leaves the original store intact and the mode unchanged.\n- The switch is refused while a run is active.\n\n## Note\nThis spans the storage layer, the desktop app and possibly the command set, so it may be better planned as an epic than done as one card.",
+  "createdAt": "2026-11-06T00:10:04.688Z",
+  "createdBy": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "expectedArtifacts": [],
+  "format": "darkmechanicus.kanban-card",
+  "formatVersion": 1,
+  "generation": 1,
+  "id": "kc_01m6q31vg1yq3fckva13jw4fat",
+  "key": "DM-467",
+  "priority": "normal",
+  "references": [
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "docs/decisions/0002-storage-modes.md",
+      "location": "docs/decisions/0002-storage-modes.md",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "src/core/repo/storageMode.ts",
+      "location": "src/core/repo/storageMode.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "src/core/repo/layout.ts",
+      "location": "src/core/repo/layout.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "src/main/desktop/folderRegistry.ts",
+      "location": "src/main/desktop/folderRegistry.ts",
+      "remoteOnly": false
+    }
+  ],
+  "size": "large",
+  "title": "Switch a folder's storage mode both ways: local DB <-> JSON files in the repo",
+  "updatedAt": "2026-11-06T00:10:04.688Z"
+}

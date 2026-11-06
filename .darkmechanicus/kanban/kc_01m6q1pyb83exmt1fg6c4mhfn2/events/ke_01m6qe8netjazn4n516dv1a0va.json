@@ -1,0 +1,117 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": "ka_01m6qcbhapc0sb31kb22p5xy27",
+  "cardId": "kc_01m6q1pyb83exmt1fg6c4mhfn2",
+  "createdAt": "2026-11-06T03:26:02.202Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m6qe8netjazn4n516dv1a0va",
+  "kind": "submitted",
+  "payload": {
+    "evidence": {
+      "checks": [
+        {
+          "detail": "npm run lint exit 0",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run typecheck exit 0",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "10126 passed, 17 failed. All 17 are EPERM from symlinkSync in untouched src/main files (operationLock, handlersWorkingDiff, conflictsOpen, terminalHandlers, launchFolder, chatHandlers.folder, folderAgentDefaults). This Windows account cannot create symlinks. Fireguard suite: 166 passed, 1 EPERM symlink failure in test/snapshots.test.ts (unrelated uncommitted work). Touched suites pass; the orchestrator re-ran xtermKit + terminalPaneStyles: 17/17 passed.",
+          "name": "test",
+          "status": "failed"
+        },
+        {
+          "detail": "Exits 1 on the same 17 EPERM failures. With reportOnFailure the thresholds are met: statements 97.61%, branches 95.05%, functions 96.83%, lines 97.8%.",
+          "name": "coverage",
+          "status": "failed"
+        },
+        {
+          "detail": "No new dead exports",
+          "name": "deadcode",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run build exit 0",
+          "name": "build",
+          "status": "passed"
+        }
+      ],
+      "criteria": [
+        {
+          "criterionId": "c1",
+          "met": true,
+          "note": "Built app: the long line wraps at the pane edge at 228 cols (1900 wide) and 104 cols (1030 wide): real-after/2-wide-1900x1000.png, 4-narrow-short-1030x690.png. Real PowerShell wraps the same way (real-before-ps)."
+        },
+        {
+          "criterionId": "c2",
+          "met": true,
+          "note": "Before/after widening: real-after/1-initial-1300x1000.png (cols=143) -> 2-wide-1900x1000.png (cols=228, grid fills the pane, wraps at 228). PTY sizes come from the fixture log in measure.json. With the fix, no app-main scrollbar steals width (228 not 227)."
+        },
+        {
+          "criterionId": "c4",
+          "met": true,
+          "note": "real-after/3-short-1900x690.png, 3b-clicked-terminal-after-shrink.png, 4-narrow-short-1030x690.png: the grid shrinks to 36 rows, INPUT> sits on the pane's last row, and app-main scrollTop stays 0 after a wheel. Before the fix the pane scrolled 291px (real-before/3b). Typing was exercised with PowerShell. Limit: the window minimum is 1024x680."
+        },
+        {
+          "criterionId": "c3",
+          "met": true,
+          "note": "xtermKit.test.ts 'xtermKit following the pane's size': real createXtermKit + showTerminal with fake xterm/fit/ResizeObserver refits wider, taller, narrower and shorter, and the PTY receives [120,40],[240,40],[240,60],[90,60],[90,22]. terminalPaneStyles.test.ts pins flex/min-size/overflow:clip and fails without the clip."
+        }
+      ],
+      "notes": "The grid/PTY failing to follow the size was not reproduced on current code. The fixed overflow defect produces the reported symptom family; ask the person to re-test with Claude Code or OMP.\n\nDiscoveries:\n- title: Symlink-based main-process tests fail on Windows without symlink privilege\n  reason: npm test and coverage exit 1 here. 17 src/main tests and fireguard test/snapshots.test.ts fail with EPERM from symlinkSync, so the Definition of Done can't pass on a Windows account without Developer Mode or admin. They need a skip or a junction fallback.\n  ticket: DM-448\n- title: xterm helper textarea stays at a stale row after the terminal shrinks while unfocused\n  reason: After an unfocused height shrink, .xterm-helper-textarea stayed at y=966 in a 690px window until the cursor moved. It is clipped now, but IME composition placement may be off until then.\n  ticket: DM-448"
+    },
+    "number": 1,
+    "outputs": {
+      "artifacts": [
+        {
+          "hash": null,
+          "label": "Before screenshots + measure.json (built app, unfocused shrink + wheel)",
+          "location": "C:\\Users\\davgo\\AppData\\Local\\Temp\\claude\\5b2748231b82b70c\\f5e1d1e1-1f47-4b07-b74c-522d9430b24d\\scratchpad\\real-before",
+          "remoteOnly": true
+        },
+        {
+          "hash": null,
+          "label": "After screenshots + measure.json (same scenario, with fix)",
+          "location": "C:\\Users\\davgo\\AppData\\Local\\Temp\\claude\\5b2748231b82b70c\\f5e1d1e1-1f47-4b07-b74c-522d9430b24d\\scratchpad\\real-after",
+          "remoteOnly": true
+        },
+        {
+          "hash": null,
+          "label": "Real PowerShell under ConPTY wrapping at 228/104 cols",
+          "location": "C:\\Users\\davgo\\AppData\\Local\\Temp\\claude\\5b2748231b82b70c\\f5e1d1e1-1f47-4b07-b74c-522d9430b24d\\scratchpad\\real-before-ps",
+          "remoteOnly": true
+        },
+        {
+          "hash": null,
+          "label": "Refit/PTY unit test",
+          "location": "src/renderer/src/agents/xtermKit.test.ts",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "Host CSS test",
+          "location": "src/renderer/src/agents/terminalPaneStyles.test.ts",
+          "remoteOnly": false
+        }
+      ],
+      "branch": "image-attachments",
+      "changedFiles": [
+        "src/renderer/src/agents/terminalPane.css",
+        "src/renderer/src/agents/xtermKit.test.ts",
+        "src/renderer/src/agents/terminalPaneStyles.test.ts"
+      ],
+      "commits": [
+        "f94ff0d954af425e93c9cfee7e066affd8b612a8"
+      ],
+      "summary": "Root cause: .terminal-host did not clip its children. xterm's grid (until the 80 ms debounced refit) and its helper textarea (left at the old cursor row after an unfocused height shrink) overflowed the host, making app-main (overflow:auto) scrollable. Its scrollbar took 10px from the pane (PTY got 227 instead of 228 cols), and one wheel tick over the terminal scrolled the whole pane up 291px, pushing the header and output away and leaving a dead strip below the grid, with the input line out of place. Fix: overflow: clip on .terminal-host (terminalPane.css). The fit / ResizeObserver / PTY resize path was already correct and is now pinned by tests. Reproduced and verified in the built app over CDP with a fixture CLI and with real PowerShell under ConPTY. Caveat: the worker could not reproduce the grid/PTY failing to follow the size on current code (it refit at every size before the fix too); it did not run Claude Code or OMP, so the person should re-test with their agent."
+    }
+  }
+}

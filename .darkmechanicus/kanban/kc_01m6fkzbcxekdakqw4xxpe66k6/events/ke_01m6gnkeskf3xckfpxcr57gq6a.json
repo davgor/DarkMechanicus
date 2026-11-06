@@ -1,0 +1,24 @@
+{
+  "actor": {
+    "label": "Desktop",
+    "role": "desktop"
+  },
+  "attemptId": "ka_01m6fkzw7hrvvwstcw471f484p",
+  "cardId": "kc_01m6fkzbcxekdakqw4xxpe66k6",
+  "createdAt": "2026-11-03T12:19:34.835Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m6gnkeskf3xckfpxcr57gq6a",
+  "kind": "approved",
+  "payload": {
+    "number": 1,
+    "summary": {
+      "approvedBy": "Desktop",
+      "commits": [
+        "3e62ba845590f6c86ae24909440a105cb09f049e"
+      ],
+      "completedAt": "2026-11-03T12:19:34.835Z",
+      "outcome": "On Windows and Linux the app window no longer shows the File/Edit/View/Window menu bar: once Electron is ready, startup calls Menu.setApplicationMenu(null) before creating the main window (via a pure helper removeWindowMenuBar in src/main/windowPolicy.ts). macOS keeps Electron's…"
+    }
+  }
+}

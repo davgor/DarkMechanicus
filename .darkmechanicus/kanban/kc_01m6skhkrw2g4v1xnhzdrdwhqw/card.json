@@ -1,0 +1,20 @@
+{
+  "acceptanceCriteria": [],
+  "body": "The comment composer has its own attach UI; it should use the shared ImageAttachField.\n\nFound during the image-attachments epic (sprint 2, DM-486).",
+  "createdAt": "2026-11-06T23:36:47.142Z",
+  "createdBy": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "expectedArtifacts": [],
+  "format": "darkmechanicus.kanban-card",
+  "formatVersion": 1,
+  "generation": 1,
+  "id": "kc_01m6skhkrw2g4v1xnhzdrdwhqw",
+  "key": "DM-496",
+  "priority": "normal",
+  "references": [],
+  "size": null,
+  "title": "Reuse ImageAttachField in CommentsTab",
+  "updatedAt": "2026-11-06T23:36:47.142Z"
+}

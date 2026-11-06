@@ -1,0 +1,50 @@
+{
+  "acceptanceCriteria": [
+    {
+      "id": "c1",
+      "text": "A fresh Skitarii terminal visibly plays a brief opening with a recognizable higher-detail mascot, a cute surprised reaction, and an articulated run across the available pane; visual captures show reaction, running and completion."
+    },
+    {
+      "id": "c2",
+      "text": "The opening ends cleanly at the ready chat, never blocks typing or agent work, skips resumed sessions, and preserves the drill working indicator."
+    },
+    {
+      "id": "c3",
+      "text": "Reduced motion stays static; narrow panes and mid-animation resizing do not wrap or corrupt terminal rows; all animation timers stop on finish, interruption, disposal and shutdown, with behavioral regression coverage."
+    },
+    {
+      "id": "c4",
+      "text": "Targeted behavioral tests and the applicable full delivery gate pass; real terminal smoke evidence and updated existing documentation are recorded in the card submission."
+    },
+    {
+      "id": "c5",
+      "text": "All implementation, asset generation and verification run in a dedicated isolated Git worktree on its own feature branch; the coordinating checkout and unrelated ongoing work remain untouched."
+    },
+    {
+      "id": "c6",
+      "text": "After code completion, open a draft GitHub PR even if checks are initially failing. Resolve failures, confirm all required PR checks are green, mark ready for review, and merge without bypassing repository protections. Record the PR URL, check results and merge commit. The user explicitly authorizes commits, push, draft PR creation and merge; Kanban approval remains a separate human action."
+    }
+  ],
+  "body": "Customize the existing Skitarii terminal opening, not the Electron app startup. User wants a higher-fidelity dooder, is flexible on appearance, and suggests a cute surprised reaction followed by running across the screen. Preserve the recognizable crimson-hooded tech-priest, brass hardware and glowing optics. Replace the current stationary idle banner intro with a brief readable sequence: notice viewer, startled reaction, scurry across available terminal width, then settle cleanly into the normal ready chat. Use expressive pose changes, a readable run cycle and secondary robe/mechanical motion rather than translating a static sprite. Reuse the existing true-color half-block asset pipeline and extension widget lifecycle; no external image protocol dependency or OMP global config changes. Keep agent work/indicator behavior intact. Respect reduced motion, resumed sessions, width changes and early work start; do not delay or capture typing for the cutscene. Stop timers on completion/disposal/shutdown. Scope: resources/skitarii/extension, resources/skitarii/mascot, scripts/mascotFrames.mjs, relevant mascot source assets and existing tests.\n\n## Tests\nOutside-epic TDD for testable animation behavior: cover surprise-to-run-to-finish progression, travel/clipping at narrow and resized widths, reduced-motion static behavior, resumed-session suppression, interruption by agent work and timer cleanup. Extend src/main/terminals/skitariiExtension.test.ts and scripts/mascotFrames.test.mjs where appropriate. Do not pin incidental artwork/source strings. Run targeted checks during development; run full delivery gate once at end, including Fireguard if unit tests change. Exercise the real OMP terminal cutscene and capture visual evidence at surprise/run/completion plus reduced-motion and narrow-width checks. Update existing Skitarii documentation after smoke proof. No changes to authentication, agent launching, unrelated mascot exploration, or the active image-attachments epic.",
+  "createdAt": "2026-11-06T05:52:02.743Z",
+  "createdBy": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "expectedArtifacts": [
+    "Updated Skitarii cutscene controller and higher-fidelity mascot frame assets/pipeline",
+    "Behavioral regression tests and complete verification evidence",
+    "Visual terminal cutscene evidence and updated existing Skitarii documentation",
+    "Isolated worktree feature branch; draft PR URL, green required-check evidence and final merge commit"
+  ],
+  "format": "darkmechanicus.kanban-card",
+  "formatVersion": 1,
+  "generation": 2,
+  "id": "kc_01m6qpm0nckappdb468b94akgj",
+  "key": "DM-487",
+  "priority": "normal",
+  "references": [],
+  "size": "medium",
+  "title": "Give Skitarii a higher-fidelity surprised mascot opening cutscene",
+  "updatedAt": "2026-11-06T05:52:45.144Z"
+}

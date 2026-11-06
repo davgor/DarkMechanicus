@@ -1,0 +1,28 @@
+{
+  "actor": {
+    "label": "Desktop",
+    "role": "desktop"
+  },
+  "attemptId": "ka_01m6qpr60f8sf9hpxhebsrcf4f",
+  "cardId": "kc_01m6qpm0nckappdb468b94akgj",
+  "createdAt": "2026-11-06T14:04:19.636Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m6rjsd9mkqd5ah08p1ypdt1n",
+  "kind": "approved",
+  "payload": {
+    "number": 1,
+    "summary": {
+      "approvedBy": "Desktop",
+      "commits": [
+        "f8a38b61ee764f3e2451667e7ec9d5e84476c042",
+        "1499ee602ed381d5b06e8dc928de25700e055d69",
+        "bd9e4cda8bdd3ab3815bee80a165a9666d0fa29b",
+        "0cc4ab39de6baeece968cf1f3130c158a40135a9",
+        "b1e99ec91cef0e547c726586ee1629b08589ab3d"
+      ],
+      "completedAt": "2026-11-06T14:04:19.636Z",
+      "outcome": "DM-487: replaced the idle banner with a 4.4-second notice, cute hands-up surprise, articulated cross-pane scurry and clean ready-chat handoff. Increased half-block fidelity using existing raster art and a shared camera. Preserved responsive input, drill lifecycle, reduced motion…"
+    }
+  }
+}
