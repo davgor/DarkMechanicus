@@ -102,9 +102,9 @@ describe('committed output', () => {
     expect(committed).toEqual(fresh)
   })
 
-  it('holds banner and indicator frames for the idle and drill loops with a steady foot row', () => {
-    for (const loop of ['idle', 'drill']) {
-      for (const [size, rows] of [['banner', 16], ['indicator', 6]]) {
+  it('holds higher-detail banner and compact indicator frames for every opening and working pose', () => {
+    for (const loop of ['idle', 'run', 'drill']) {
+      for (const [size, rows] of [['banner', 20], ['indicator', 6]]) {
         const s = committed.loops[loop].sizes[size]
         expect(s.frames).toHaveLength(6)
         expect(s.rows).toBe(rows)
@@ -113,5 +113,13 @@ describe('committed output', () => {
         expect(Math.max(...feet) - s.footRow).toBeLessThanOrEqual(1)
       }
     }
+  })
+
+  it('keeps opening poses at one scale, canvas width and boot baseline when changing actions', () => {
+    const idle = committed.loops.idle.sizes.banner
+    const run = committed.loops.run.sizes.banner
+    expect(run.cols).toBe(idle.cols)
+    expect(run.footRow).toBe(idle.footRow)
+    expect(new Set(run.frames.map((frame) => frame.rows.join('\n'))).size).toBeGreaterThan(3)
   })
 })

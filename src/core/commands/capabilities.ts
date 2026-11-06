@@ -97,6 +97,7 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   failKanbanCard: 'kanban.report',
   approveKanbanCard: 'kanban.review',
   kickBackKanbanCard: 'kanban.review',
+  deleteKanbanCard: 'kanban.delete',
   listProfiles: 'read',
   getProfile: 'read',
   saveProfile: 'profile.write',

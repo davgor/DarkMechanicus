@@ -70,6 +70,7 @@ const COMMAND_FLAGS: Record<CommandName, true> = {
   failKanbanCard: true,
   approveKanbanCard: true,
   kickBackKanbanCard: true,
+  deleteKanbanCard: true,
   listProfiles: true,
   getProfile: true,
   saveProfile: true,

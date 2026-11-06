@@ -107,7 +107,8 @@ const DESKTOP: Capability[] = [
   'attachment.write',
   'kanban.write',
   'kanban.play',
-  'kanban.review'
+  'kanban.review',
+  'kanban.delete'
 ]
 
 /** Capabilities the desktop never holds: they belong to the agents that execute work. */
@@ -163,7 +164,8 @@ describe('capability vocabulary', () => {
         'transfer.queue',
         'repo.resolve_conflict',
         'kanban.play',
-        'kanban.review'
+        'kanban.review',
+        'kanban.delete'
       ])
     )
   })

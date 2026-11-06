@@ -14,6 +14,7 @@ import { CriteriaItems } from '../ticket/AcceptanceSections'
 import { AttemptList } from '../ticket/AttemptList'
 import { EvidenceSections } from '../ticket/panelTabs'
 import { criteriaChecklist, evidenceView } from '../ticket/ticketView'
+import { DeleteCardControl } from './DeleteCardControl'
 import { StartCardDialog } from './StartCardDialog'
 import '../epic/tones.css'
 import '../ticket/ticket.css'
@@ -266,10 +267,11 @@ interface CardBodyProps {
   host: OrchestrationHost
   onPlay(): void
   onReviewed(card: KanbanCardView, problem: string | null): void
+  onDeleted(): void
 }
 
 /** The loaded card: title, Play and the chat link, review controls, the Done summary, then the details. */
-function CardBody({ folderPath, folderKey, card, host, onPlay, onReviewed }: CardBodyProps): JSX.Element {
+function CardBody({ folderPath, folderKey, card, host, onPlay, onReviewed, onDeleted }: CardBodyProps): JSX.Element {
   // The card's newest chat: the one the last Play started, which a kick-back is pasted into.
   const chat = host.chats
     .filter((item) => item.cardId === card.id)
@@ -284,6 +286,7 @@ function CardBody({ folderPath, folderKey, card, host, onPlay, onReviewed }: Car
           </Button>
         ) : null}
         {chat === null ? null : <Button onClick={() => host.onOpenChat(chat.id)}>Open chat</Button>}
+        <DeleteCardControl folderPath={folderPath} card={card} onDeleted={onDeleted} />
       </div>
       {card.lane === 'ready_for_review' ? <ReviewControls folderPath={folderPath} card={card} onReviewed={onReviewed} /> : null}
       {card.summary === null ? null : <DoneSummary summary={card.summary} />}
@@ -322,13 +325,22 @@ export function KanbanCardPanel({ folderPath, folderKey, cardId, refreshToken, h
     setNotice(problem)
     onChanged()
   }
+  const deleted = (): void => { onChanged(); onClose() }
   return (
     <aside className="kanban-panel" aria-label={card === null ? 'Card' : `${card.key} ${card.title}`}>
       <PanelHead card={card} onClose={onClose} />
       {error === null ? null : <p role="alert" className="tp-error">{`Could not read the card: ${error}`}</p>}
       {notice === null ? null : <p role="status" className="kanban-note">{notice}</p>}
       {card !== null ? (
-        <CardBody folderPath={folderPath} folderKey={folderKey} card={card} host={host} onPlay={() => setPlaying(true)} onReviewed={changed} />
+        <CardBody
+          folderPath={folderPath}
+          folderKey={folderKey}
+          card={card}
+          host={host}
+          onPlay={() => setPlaying(true)}
+          onReviewed={changed}
+          onDeleted={deleted}
+        />
       ) : error === null ? (
         <p className="kanban-note">Loading the card…</p>
       ) : null}

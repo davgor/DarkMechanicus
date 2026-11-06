@@ -1,0 +1,29 @@
+{
+  "program": "omp v18.17.0",
+  "source": "Actual imported writeOmpFiles output and installSkitariiTheme, without equivalent handwritten overlay",
+  "overlay": "setupVersion: 2\nstartup:\n  quiet: true\ntheme:\n  dark: skitarii\n  light: skitarii\nstatusLine:\n  preset: custom\n  leftSegments: [vim, model, mode, collab, stream, path, git, pr, context_pct, cost]\n  rightSegments: [session_name]\n  separator: powerline-thin\n  segmentOptions:\n    model: { showThinkingLevel: true }\n    path: { abbreviate: true, maxLength: 40, stripWorkPrefix: true }\n    git: { showBranch: true, showStaged: true, showUnstaged: true, showUntracked: true }\n",
+  "agentDir": ".cache/production-red/agent (fresh isolated directory)",
+  "sessionDir": ".cache/production-red/app/agents/omp/ch_01hzzzzzzzzzzzzzzzzzzzzzzz/sessions",
+  "arguments": [
+    "--no-tools",
+    "--no-skills",
+    "--no-rules",
+    "--no-context-files",
+    "--no-extensions",
+    "--config",
+    "C:\\Users\\davgo\\Documents\\GitHub\\DarkMechanicus-dm487\\.cache\\production-red\\app\\agents\\omp\\ch_01hzzzzzzzzzzzzzzzzzzzzzzz\\config.yml",
+    "--session-dir",
+    "C:\\Users\\davgo\\Documents\\GitHub\\DarkMechanicus-dm487\\.cache\\production-red\\app\\agents\\omp\\ch_01hzzzzzzzzzzzzzzzzzzzzzzz\\sessions",
+    "-e",
+    "C:\\Users\\davgo\\Documents\\GitHub\\DarkMechanicus-dm487\\resources\\skitarii\\extension\\index.ts"
+  ],
+  "sentKeys": [],
+  "escapeOrOnboardingDismissalSent": false,
+  "sawOnboarding": true,
+  "sawOpening": false,
+  "stages": [
+    "production-red-onboarding",
+    "production-red-final"
+  ],
+  "bytes": 1932073
+}

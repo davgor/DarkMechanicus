@@ -190,6 +190,7 @@ export const COMMAND_SCHEMAS = {
   }),
   approveKanbanCard: z.strictObject({ cardId: stableId, idempotencyKey }),
   kickBackKanbanCard: z.strictObject({ cardId: stableId, comment: commentBody, idempotencyKey }),
+  deleteKanbanCard: z.strictObject({ cardId: stableId }),
   getProfile: z.strictObject({ name: profileName }),
   saveProfile: z.strictObject({
     name: profileName,

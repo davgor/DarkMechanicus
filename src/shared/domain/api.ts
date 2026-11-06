@@ -26,7 +26,7 @@ import type {
   TransferReadbackResult,
   TransferView
 } from './transfer'
-import type { KanbanAttemptView, KanbanBoardView, KanbanCardView, KanbanPacket } from './kanban'
+import type { DeleteKanbanCardResultView, KanbanAttemptView, KanbanBoardView, KanbanCardView, KanbanPacket } from './kanban'
 import type { WorkStatus } from './status'
 import type {
   ApprovalView,
@@ -529,6 +529,11 @@ export interface CommandApi {
   approveKanbanCard(input: { cardId: string; idempotencyKey?: string }): Promise<KanbanCardView>
   /** Rejects the submission with the comment (see `KickBackKanbanCardInput`). Human-only. */
   kickBackKanbanCard(input: KickBackKanbanCardInput): Promise<KanbanCardView>
+  /**
+   * Permanently removes a card, its attempts and events, and its tracked folder. Refused while an attempt is
+   * claimed, running or submitted. Human-only.
+   */
+  deleteKanbanCard(input: { cardId: string }): Promise<DeleteKanbanCardResultView>
 
   // Named capability profiles (reusable presets tickets can start from)
   listProfiles(): Promise<ProfileView[]>

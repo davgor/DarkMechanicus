@@ -50,6 +50,7 @@ export const CAPABILITIES = [
   'kanban.claim',
   'kanban.report',
   'kanban.review',
+  'kanban.delete',
   'grant.issue',
   'grant.revoke'
 ] as const
@@ -75,7 +76,9 @@ export const HUMAN_ONLY_CAPABILITIES: readonly Capability[] = [
   'repo.resolve_conflict',
   // Starting a Kanban card, and approving or kicking back its result: an agent never grades or launches its own work.
   'kanban.play',
-  'kanban.review'
+  'kanban.review',
+  // Removing a card from the board is the person's call; agents create and edit cards but never delete them.
+  'kanban.delete'
 ]
 
 /** What a planner and an orchestrator both hold. */

@@ -134,3 +134,12 @@ export interface KanbanPacket {
   /** The project's Definition of Done, each check to be reported by name; empty when the project has none. */
   definitionOfDone: DefinitionOfDoneCheck[]
 }
+
+/** What deleting a Kanban card removed. */
+export interface DeleteKanbanCardResultView {
+  cardId: string
+  key: string
+  title: string
+  /** Repository-relative folders removed from the checkout (left for the person to commit). */
+  removedPaths: string[]
+}
