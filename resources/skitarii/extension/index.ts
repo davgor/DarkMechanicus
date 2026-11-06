@@ -41,12 +41,13 @@ async function ompLookup(): Promise<Lookup | null> {
 }
 
 /**
- * OMP has no reduced-motion setting; its one switch for UI animation is `display.shimmer: disabled` ("No animation;
- * static muted text"), so the mascot holds still under it too. Unreadable means animate, as OMP's default does.
+ * Current OMP exposes `tui.motion`; both reduced and none hold the mascot still.
+ * Older OMP used `display.shimmer: disabled`, which remains a static opt-out too.
  */
 export function reducedMotion(pi: OmpApi, lookup: Lookup | null): boolean {
   try {
-    return lookup?.('display.shimmer')?.get(pi.pi?.settings) === 'disabled'
+    const motion = lookup?.('tui.motion')?.get(pi.pi?.settings)
+    return motion === 'reduced' || motion === 'none' || lookup?.('display.shimmer')?.get(pi.pi?.settings) === 'disabled'
   } catch {
     return false
   }

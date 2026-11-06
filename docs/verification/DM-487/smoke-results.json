@@ -1,0 +1,49 @@
+{
+  "program": "omp v18.17.0",
+  "backend": "real Windows ConPTY -> xterm/headless; screenshots replay serialized captured terminal cells in xterm.js",
+  "results": [
+    {
+      "name": "fresh",
+      "stages": [
+        "notice",
+        "surprise",
+        "running",
+        "running-late",
+        "settle",
+        "complete",
+        "final"
+      ],
+      "bytes": 468748
+    },
+    {
+      "name": "resize",
+      "stages": [
+        "notice",
+        "surprise",
+        "running",
+        "narrow",
+        "running-late",
+        "settle",
+        "complete",
+        "final"
+      ],
+      "bytes": 387210
+    },
+    {
+      "name": "reduced",
+      "stages": [
+        "notice",
+        "settle",
+        "static"
+      ],
+      "bytes": 17812
+    },
+    {
+      "name": "resume",
+      "stages": [
+        "resumed"
+      ],
+      "bytes": 2961
+    }
+  ]
+}

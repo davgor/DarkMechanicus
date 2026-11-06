@@ -2,13 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 import frames from '../../../resources/skitarii/mascot/frames.json'
 import skitariiExtension, { attach, reducedMotion, type OmpApi } from '../../../resources/skitarii/extension/index'
 import {
-  BANNER_CYCLES,
   BANNER_KEY,
   FramePlayer,
   INDICATOR_KEY,
   MAX_FPS,
   Skitarii,
-  bannerRows,
   frameInterval,
   indicatorRows,
   titleFor,
@@ -18,11 +16,10 @@ import {
   type Timers,
   type Tui
 } from '../../../resources/skitarii/extension/skitarii'
-import { BANNER_LINE, THINKING_LINES, TOOL_LINES } from '../../../resources/skitarii/extension/voice'
+import { THINKING_LINES, TOOL_LINES } from '../../../resources/skitarii/extension/voice'
 
 const mascot = frames as MascotFrames
 const drill = mascot.loops.drill.sizes.indicator
-const idle = mascot.loops.idle.sizes.banner
 
 /** Timers that only run when the test ticks them. */
 function fakeTimers(): Timers & { live: Map<number, { callback: () => void; ms: number }>; tick: (times?: number) => void } {
@@ -45,6 +42,8 @@ function fakeTimers(): Timers & { live: Map<number, { callback: () => void; ms: 
 }
 
 const plainPaint: Paint = { fg: (_color, text) => text, bold: (text) => text }
+const SGR = new RegExp(String.fromCharCode(27) + '\\[[0-9;]*m', 'g')
+const strip = (text: string): string => text.replace(SGR, '')
 
 type Widget = Parameters<SkitariiUi['setWidget']>[1]
 
@@ -85,16 +84,6 @@ describe('FramePlayer', () => {
     expect(timers.live.size).toBe(0)
   })
 
-  it('plays a counted loop that many times and then holds the first frame', () => {
-    const timers = fakeTimers()
-    const player = new FramePlayer(idle, 6, { timers, reducedMotion: false, onFrame: () => {}, cycles: 2 })
-    player.play()
-    timers.tick(2 * idle.frames.length - 1)
-    expect(player.playing).toBe(true)
-    timers.tick()
-    expect(player.playing).toBe(false)
-    expect(player.index).toBe(0)
-  })
 
   it('never sets a timer with reduced motion, nor for a one-frame loop', () => {
     const timers = fakeTimers()
@@ -111,21 +100,112 @@ describe('FramePlayer', () => {
 })
 
 describe('Skitarii', () => {
-  it('shows the title and the banner at session start, which animates BANNER_CYCLES times and then holds still', () => {
+  it('notices the viewer, startles, articulates a run across the pane, then removes the opening', () => {
     const timers = fakeTimers()
     const ui = fakeUi()
     new Skitarii(mascot, { timers, reducedMotion: false }).start(ui, 'C:\\work\\forge\\')
     expect(ui.titles).toEqual(['Skitarii · forge'])
-    const banner = ui.widgets.get(BANNER_KEY)
-    expect(banner?.render(120)[0]).toBe(` ${idle.frames[0]?.rows[0]}`)
-    timers.tick()
-    expect(ui.tui.requestRender).toHaveBeenCalledTimes(1)
-    expect(banner?.render(120)[0]).toBe(` ${idle.frames[1]?.rows[0]}`)
-    timers.tick(BANNER_CYCLES * idle.frames.length)
+    const samples: { text: string; left: number; art: string }[] = []
+    for (let tick = 0; tick < 100 && ui.widgets.has(BANNER_KEY); tick += 1) {
+      const rows = ui.widgets.get(BANNER_KEY)?.render(120) ?? []
+      const plain = rows.map(strip)
+      const art = plain.slice(0, -2)
+      samples.push({
+        text: plain.slice(-2).join('\n'),
+        left: Math.min(...art.filter((row) => row.trim()).map((row) => row.search(/\S/))),
+        art: art.map((row) => row.trim()).join('\n')
+      })
+      timers.tick()
+    }
+    expect(samples[0]?.text).toContain('S K I T A R I I')
+    expect(samples.some((sample) => sample.text.includes('Oh!'))).toBe(true)
+    const running = samples.filter((sample) => sample.text.includes('Coming through'))
+    expect(new Set(running.map((sample) => sample.art)).size).toBeGreaterThan(2)
+    expect(running.at(-1)!.left - running[0]!.left).toBeGreaterThan(60)
+    expect(samples.at(-1)?.text).toContain('Ready')
+    expect(ui.widgets.has(BANNER_KEY)).toBe(false)
     expect(timers.live.size).toBe(0)
-    expect(banner?.render(120)[0]).toBe(` ${idle.frames[0]?.rows[0]}`)
+    const repaints = vi.mocked(ui.tui.requestRender).mock.calls.length
+    timers.tick(10)
+    expect(ui.tui.requestRender).toHaveBeenCalledTimes(repaints)
   })
 
+  it('reflows every animated frame safely during narrow, zero-width and wide resizes', () => {
+    const timers = fakeTimers()
+    const ui = fakeUi()
+    new Skitarii(mascot, { timers, reducedMotion: false }).start(ui, '/forge')
+    const banner = ui.widgets.get(BANNER_KEY)!
+    for (let tick = 0; tick < 30; tick += 1) {
+      for (const width of [120, 25, 1, 0, 64, 160]) {
+        const rows = banner.render(width)
+        for (const row of rows) expect(strip(row).length).toBeLessThanOrEqual(width)
+        expect(rows.join('')).not.toContain('undefined')
+      }
+      timers.tick()
+    }
+    expect(banner.render(160).some((row) => strip(row).trim().includes('▀'))).toBe(true)
+  })
+
+})
+
+describe('Skitarii: opening disposal and resume', () => {
+  it('stops a disposed opening and cannot resurrect it on later ticks', () => {
+    const timers = fakeTimers()
+    const ui = fakeUi()
+    new Skitarii(mascot, { timers, reducedMotion: false }).start(ui, '/forge')
+    ui.widgets.get(BANNER_KEY)?.dispose?.()
+    const repaints = vi.mocked(ui.tui.requestRender).mock.calls.length
+    timers.tick(100)
+    expect(timers.live.size).toBe(0)
+    expect(ui.tui.requestRender).toHaveBeenCalledTimes(repaints)
+  })
+
+  it('drops an earlier opening when a process starts a resumed session', () => {
+    const timers = fakeTimers()
+    const ui = fakeUi()
+    const skitarii = new Skitarii(mascot, { timers, reducedMotion: false })
+    skitarii.start(ui, '/forge')
+    skitarii.start(ui, '/forge', true)
+    expect(ui.widgets.has(BANNER_KEY)).toBe(false)
+    expect(timers.live.size).toBe(0)
+  })
+
+})
+
+describe('Skitarii: opening interruption', () => {
+  it.each([0, 8, 24, 42])('hands off immediately to working at opening tick %s without stale completion', (tick) => {
+    const timers = fakeTimers()
+    const ui = fakeUi()
+    const skitarii = new Skitarii(mascot, { timers, reducedMotion: false })
+    skitarii.start(ui, '/forge')
+    timers.tick(tick)
+    skitarii.workStarted(ui)
+    const indicator = ui.widgets.get(INDICATOR_KEY)
+    expect(ui.widgets.has(BANNER_KEY)).toBe(false)
+    expect(timers.live.size).toBe(1)
+    timers.tick(100)
+    expect(ui.widgets.get(INDICATOR_KEY)).toBe(indicator)
+    expect(ui.widgets.has(BANNER_KEY)).toBe(false)
+    skitarii.workEnded(ui)
+    expect(timers.live.size).toBe(0)
+  })
+
+  it('stops the drill timer on widget disposal or process shutdown', () => {
+    const timers = fakeTimers()
+    const ui = fakeUi()
+    const skitarii = new Skitarii(mascot, { timers, reducedMotion: false })
+    skitarii.workStarted(ui)
+    ui.widgets.get(INDICATOR_KEY)?.dispose?.()
+    expect(timers.live.size).toBe(0)
+    skitarii.workEnded(ui)
+    skitarii.workStarted(ui)
+    skitarii.shutdown()
+    expect(timers.live.size).toBe(0)
+  })
+
+})
+
+describe('Skitarii: ready and working', () => {
   it('shows only the title when told the session is resumed', () => {
     const ui = fakeUi()
     new Skitarii(mascot, { timers: fakeTimers(), reducedMotion: false }).start(ui, '/home/a/forge', true)
@@ -165,7 +245,10 @@ describe('Skitarii: motion, voice and shutdown', () => {
     const ui = fakeUi()
     const skitarii = new Skitarii(mascot, { timers, reducedMotion: true })
     skitarii.start(ui, '/forge')
-    expect(ui.widgets.get(BANNER_KEY)?.render(120)[0]).toBe(` ${idle.frames[0]?.rows[0]}`)
+    const before = ui.widgets.get(BANNER_KEY)?.render(120)
+    timers.tick(100)
+    expect(ui.widgets.get(BANNER_KEY)?.render(120)).toEqual(before)
+    expect(before?.map(strip).join('\n')).toContain('Ready')
     skitarii.workStarted(ui)
     expect(ui.widgets.get(INDICATOR_KEY)?.render(80)).toEqual(drill.frames[0]?.rows.map((row) => ` ${row}`))
     expect(timers.live.size).toBe(0)
@@ -202,14 +285,7 @@ describe('Skitarii: motion, voice and shutdown', () => {
 })
 
 describe('rows and title', () => {
-  it('puts SKITARII and the Mechanicus line beside the mascot, painted bone and brass', () => {
-    const paint: Paint = { fg: (color, text) => `<${color}>${text}`, bold: (text) => `*${text}` }
-    const rows = bannerRows(['a', 'b', 'c', 'd'], 1, 80, paint)
-    expect(rows).toEqual([' a', ' b   *<toolTitle>S K I T A R I I', ` c   <customMessageLabel>${BANNER_LINE}`, ' d'])
-  })
-
-  it('drops the mascot and cuts the text in a narrow pane', () => {
-    expect(bannerRows(idle.frames[0]?.rows ?? [], idle.cols, 12, plainPaint)).toEqual([' S K I T A R', ` ${BANNER_LINE.slice(0, 11)}`])
+  it('hides the drill in a pane that cannot hold its full rows', () => {
     expect(indicatorRows(drill.frames[0]?.rows ?? [], drill.cols, drill.cols)).toEqual([])
   })
 
@@ -219,12 +295,13 @@ describe('rows and title', () => {
   })
 })
 
+function fakePi() {
+  const handlers = new Map<string, (event: unknown, ctx: { ui: SkitariiUi; hasUI: boolean; cwd: string }) => void>()
+  const pi: OmpApi = { on: (event, handler) => handlers.set(event, handler), pi: { settings: 'scope' } }
+  return { pi, handlers }
+}
+
 describe('the OMP entry', () => {
-  function fakePi() {
-    const handlers = new Map<string, (event: unknown, ctx: { ui: SkitariiUi; hasUI: boolean; cwd: string }) => void>()
-    const pi: OmpApi = { on: (event, handler) => handlers.set(event, handler), pi: { settings: 'scope' } }
-    return { pi, handlers }
-  }
 
   it('wires session start, work and shutdown to OMP events, only where OMP has a UI', () => {
     const timers = fakeTimers()
@@ -266,6 +343,22 @@ describe('the OMP entry', () => {
     attach(still, lookup('disabled'), timers)
     handlers.get('session_start')?.({}, { ui, hasUI: true, cwd: '/forge' })
     handlers.get('agent_start')?.({}, { ui, hasUI: true, cwd: '/forge' })
+    expect(timers.live.size).toBe(0)
+  })
+
+})
+
+describe('the OMP motion presets', () => {
+  it.each(['reduced', 'none'])('holds still under the current OMP tui.motion=%s preset', (motion) => {
+    const { pi, handlers } = fakePi()
+    const timers = fakeTimers()
+    attach(pi, (id) => id === 'tui.motion' ? { get: () => motion } : undefined, timers)
+    const ui = fakeUi()
+    handlers.get('session_start')?.({}, { ui, hasUI: true, cwd: '/forge' })
+    const before = ui.widgets.get(BANNER_KEY)?.render(120)
+    timers.tick(60)
+    expect(ui.widgets.get(BANNER_KEY)?.render(120)).toEqual(before)
+    expect(before?.map(strip).join('\n')).toContain('Ready')
     expect(timers.live.size).toBe(0)
   })
 })

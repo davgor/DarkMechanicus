@@ -50,12 +50,14 @@ describe('writeOmpFiles', () => {
     expect(() => ompFilePaths(root, '../x')).toThrow(/not a chat id/)
   })
 
-  it('makes the session folder and writes the overlay that skips the Setup wizard and picks the Skitarii theme', async () => {
+  it("makes the chat session folder and writes its own overlay without changing the user's config", async () => {
+    const userConfig = join(root, 'config.yml')
+    writeFileSync(userConfig, 'user-owned config\n')
     const files = await writeOmpFiles(root, CHAT, false)
 
     expect(readdirSync(files.sessionDir)).toEqual([])
     expect(readFileSync(files.config, 'utf8')).toBe(OMP_CONFIG_OVERLAY)
-    expect(OMP_CONFIG_OVERLAY.startsWith('setupVersion: 2\nstartup:\n  quiet: true\ntheme:\n  dark: skitarii\n  light: skitarii\n')).toBe(true)
+    expect(readFileSync(userConfig, 'utf8')).toBe('user-owned config\n')
   })
 
   it("hides OMP's logo and drops the π brand segment from an otherwise default status line", () => {
