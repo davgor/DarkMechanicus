@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
 import type { IDisposable, ITerminalOptions } from '@xterm/xterm'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { FakeTerminalHandle } from '../__mocks__/fakeTerminals'
+import { ManualScheduler } from '../__mocks__/manualScheduler'
 import type { TerminalSize, TerminalView } from './terminalView'
+import { showTerminal } from './useTerminal'
 import { createXtermKit, type XtermParts } from './xtermKit'
 
 /** What happened to the fakes, in order. */
@@ -319,6 +322,57 @@ describe('xtermKit observeSize', () => {
     expect(changes).toBe(1)
     stop()
     expect(observers[0]?.disconnected).toBe(true)
+  })
+})
+
+describe('xtermKit following the pane’s size', () => {
+  /** The chat terminal as the pane mounts it: this kit, observed and fitted by `showTerminal`, wired to a PTY handle. */
+  function mount(): { pty: FakeTerminalHandle; scheduler: ManualScheduler; resizeHost(size: TerminalSize): void } {
+    const pty = new FakeTerminalHandle()
+    const scheduler = new ManualScheduler()
+    showTerminal({ element: host, terminal: pty, snapshot: '', kit: createXtermKit(PARTS), scheduler, theme: THEME, onExit: () => undefined })
+    return {
+      pty,
+      scheduler,
+      // The host's box changed: what fits it now, then the ResizeObserver's call.
+      resizeHost: (size) => {
+        proposed = size
+        observers[0]?.callback()
+      }
+    }
+  }
+
+  it('observes the host itself and refits the grid as it grows and shrinks in width and height, sending each new size to the PTY', () => {
+    const { pty, scheduler, resizeHost } = mount()
+    expect(observers[0]?.observed).toEqual([host])
+    expect(pty.resizes).toEqual([[120, 40]])
+    // Wider, taller, narrower, shorter.
+    const steps: TerminalSize[] = [
+      { cols: 240, rows: 40 },
+      { cols: 240, rows: 60 },
+      { cols: 90, rows: 60 },
+      { cols: 90, rows: 22 }
+    ]
+    for (const size of steps) {
+      resizeHost(size)
+      scheduler.fireTimeouts()
+      expect({ cols: terminals[0]?.cols, rows: terminals[0]?.rows }).toEqual(size)
+    }
+    expect(pty.resizes).toEqual([[120, 40], ...steps.map(({ cols, rows }): [number, number] => [cols, rows])])
+  })
+
+  it('refits once the size settles, and sends a size the PTY already has only once', () => {
+    const { pty, scheduler, resizeHost } = mount()
+    resizeHost({ cols: 200, rows: 50 })
+    resizeHost({ cols: 100, rows: 20 })
+    expect(pty.resizes).toEqual([[120, 40]])
+    scheduler.fireTimeouts()
+    resizeHost({ cols: 100, rows: 20 })
+    scheduler.fireTimeouts()
+    expect(pty.resizes).toEqual([
+      [120, 40],
+      [100, 20]
+    ])
   })
 })
 

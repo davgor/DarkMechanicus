@@ -95,11 +95,18 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
-/* No padding here: the fit addon sizes the grid to this element's box. */
+/*
+ * No padding here: the fit addon sizes the grid to this element's box. Clipped, never scrolled: xterm's children can
+ * reach past it (the grid until the debounced refit, the helper textarea left at the old cursor row after the pane got
+ * shorter), and without the clip that overflow made app-main scrollable, so a scrollbar took the pane's width and a
+ * wheel over the terminal scrolled the whole pane, its input line with it. `clip`, not `hidden`, so focusing the textarea
+ * cannot scroll this box either.
+ */
 .terminal-host {
   flex: 1;
   min-width: 0;
   min-height: 0;
+  overflow: clip;
 }
 
 /* xterm colors its scrollbar slider with a <style> element of its own, which the CSP blocks (inertStyles.ts). */
