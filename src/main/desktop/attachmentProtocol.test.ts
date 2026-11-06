@@ -1,7 +1,7 @@
-import { createHash } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import type { Ctx } from '../../core/context'
 import { createStagedAttachment, type StagedAttachmentInput } from '../../core/services/attachments'
+import { pngBytes } from '../../test/images'
 import { createTestCtx } from '../../test/testContext'
 import { attachmentUrl } from '../../shared/desktop/attachmentUrl'
 import {
@@ -15,13 +15,12 @@ import {
 
 const FOLDER_KEY = '0123456789abcdef0123456789abcdef'
 const ATTACHMENT_ID = 'im_00000000000000000000000001'
-const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
 
 function request(url: string, method = 'GET'): Request {
   return new Request(url, { method })
 }
 
-const PNG = Buffer.concat([PNG_SIGNATURE, Buffer.from('stored-bytes')])
+const PNG = pngBytes(10, 10, 1)
 
 /** A lookup that knows one folder key and one attachment id. */
 function knownLookup(): AttachmentLookup {
@@ -130,15 +129,7 @@ describe('registerAttachmentScheme and registerAttachmentProtocol', () => {
 })
 
 describe('createAttachmentLookup', () => {
-  const INPUT: StagedAttachmentInput = {
-    bytes: PNG,
-    sha256: createHash('sha256').update(PNG).digest('hex'),
-    mime: 'image/png',
-    width: 10,
-    height: 10,
-    label: 'shot',
-    purpose: 'evidence'
-  }
+  const INPUT: StagedAttachmentInput = { bytes: PNG, label: 'shot', purpose: 'evidence' }
 
   function stored(): { ctx: ReturnType<typeof createTestCtx>; id: string } {
     const ctx = createTestCtx()

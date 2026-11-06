@@ -1,6 +1,7 @@
-import { createHash, randomBytes } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { captureError } from '../../test/authoring'
+import { jpegBytes, pngBytes } from '../../test/images'
 import { createTestCtx, type TestCtx } from '../../test/testContext'
 import { LIMITS } from '../schemas'
 import {
@@ -13,27 +14,11 @@ import {
   stagedAttachmentCutoff
 } from './attachments'
 
-const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
-const JPEG_SIGNATURE = Buffer.from([0xff, 0xd8, 0xff, 0xe0])
 const TICKET = 'tk_00000000000000000000000001'
 const OTHER_TICKET = 'tk_00000000000000000000000002'
 
-function pngBytes(size = 512): Buffer {
-  return Buffer.concat([PNG_SIGNATURE, randomBytes(size - PNG_SIGNATURE.length)])
-}
-
 function input(overrides: Partial<StagedAttachmentInput> = {}): StagedAttachmentInput {
-  const bytes = overrides.bytes ?? pngBytes()
-  return {
-    bytes,
-    sha256: createHash('sha256').update(bytes).digest('hex'),
-    mime: 'image/png',
-    width: 800,
-    height: 600,
-    label: 'terminal screenshot',
-    purpose: 'evidence',
-    ...overrides
-  }
+  return { bytes: pngBytes(800, 600), label: 'terminal screenshot', purpose: 'evidence', ...overrides }
 }
 
 /** Stages one image at `iso` and returns its id. */
@@ -50,15 +35,15 @@ describe('createStagedAttachment', () => {
   it('stores a PNG with no owner and returns its metadata', () => {
     const ctx = createTestCtx()
     ctx.clock.set('2026-06-01T10:00:00.000Z')
-    const bytes = pngBytes()
+    const bytes = pngBytes(3, 2)
     const view = createStagedAttachment(ctx, input({ bytes }))
     expect(view).toEqual({
       id: view.id,
       sha256: createHash('sha256').update(bytes).digest('hex'),
       mime: 'image/png',
       bytes: bytes.length,
-      width: 800,
-      height: 600,
+      width: 3,
+      height: 2,
       label: 'terminal screenshot',
       purpose: 'evidence',
       owner: null,
@@ -74,35 +59,42 @@ describe('createStagedAttachment', () => {
 describe('createStagedAttachment bytes and refusals', () => {
   it('reads the bytes back byte-identical, for PNG and JPEG alike', () => {
     const ctx = createTestCtx()
-    const png = pngBytes(4096)
-    const jpeg = Buffer.concat([JPEG_SIGNATURE, randomBytes(4096)])
+    const png = pngBytes(40, 30, 7)
+    const jpeg = jpegBytes(5, 4)
     const pngId = createStagedAttachment(ctx, input({ bytes: png })).id
-    const jpegId = createStagedAttachment(ctx, input({ bytes: jpeg, mime: 'image/jpeg' })).id
+    const jpegId = createStagedAttachment(ctx, input({ bytes: jpeg })).id
     expect(readAttachmentBytes(ctx, pngId).equals(png)).toBe(true)
     expect(readAttachmentBytes(ctx, jpegId).equals(jpeg)).toBe(true)
-    expect(getAttachment(ctx, jpegId).mime).toBe('image/jpeg')
+    expect(getAttachment(ctx, jpegId)).toMatchObject({ mime: 'image/jpeg', width: 5, height: 4 })
   })
 
-  it('refuses SVG and anything else whose first bytes are not PNG or JPEG', () => {
+  it('takes the type, size and hash from the bytes alone', () => {
     const ctx = createTestCtx()
+    const bytes = pngBytes(3, 2)
+    expect(getAttachment(ctx, createStagedAttachment(ctx, input({ bytes })).id)).toMatchObject({
+      mime: 'image/png',
+      width: 3,
+      height: 2,
+      sha256: createHash('sha256').update(bytes).digest('hex')
+    })
+  })
+
+  it('refuses SVG, truncated and oversized images with the intake message, and stores nothing', () => {
+    const ctx = createTestCtx()
+    const refused = (bytes: Buffer): { code?: string; message?: string } => captureError(() => createStagedAttachment(ctx, input({ bytes })))
     const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>')
-    expect(codeOf(() => createStagedAttachment(ctx, input({ bytes: svg, mime: 'image/png' })))).toBe('invalid_input')
-    expect(codeOf(() => createStagedAttachment(ctx, input({ bytes: pngBytes(), mime: 'image/jpeg' })))).toBe('invalid_input')
-    expect(codeOf(() => createStagedAttachment(ctx, input({ bytes: pngBytes(), mime: 'image/svg+xml' as 'image/png' })))).toBe(
-      'invalid_input'
-    )
+    expect(refused(svg)).toMatchObject({ code: 'invalid_input', message: expect.stringContaining('Unsupported image type') })
+    expect(refused(pngBytes(3, 2).subarray(0, 14))).toMatchObject({ code: 'invalid_input', message: expect.stringContaining('PNG') })
+    expect(refused(pngBytes(LIMITS.attachmentSide + 1, 2)).code).toBe('invalid_input')
+    expect(refused(pngBytes(3, 0)).code).toBe('invalid_input')
+    const tooBig = Buffer.concat([pngBytes(3, 2), Buffer.alloc(LIMITS.attachmentBytes)])
+    expect(refused(tooBig).code).toBe('invalid_input')
     expect(ctx.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM attachments')?.n).toBe(0)
   })
 
-  it('refuses a sha256 that does not match the bytes, and malformed dimensions, purpose, or size', () => {
+  it('refuses a malformed purpose', () => {
     const ctx = createTestCtx()
-    expect(codeOf(() => createStagedAttachment(ctx, input({ sha256: 'f'.repeat(64) })))).toBe('invalid_input')
-    expect(codeOf(() => createStagedAttachment(ctx, input({ sha256: 'ABC' })))).toBe('invalid_input')
-    expect(codeOf(() => createStagedAttachment(ctx, input({ width: LIMITS.attachmentSide + 1 })))).toBe('invalid_input')
-    expect(codeOf(() => createStagedAttachment(ctx, input({ height: 0 })))).toBe('invalid_input')
     expect(codeOf(() => createStagedAttachment(ctx, input({ purpose: 'mockup' as 'reference' })))).toBe('invalid_input')
-    const tooBig = Buffer.concat([PNG_SIGNATURE, Buffer.alloc(LIMITS.attachmentBytes)])
-    expect(codeOf(() => createStagedAttachment(ctx, input({ bytes: tooBig })))).toBe('invalid_input')
   })
 })
 

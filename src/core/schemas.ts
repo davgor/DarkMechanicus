@@ -99,7 +99,7 @@ export const commentBody = z
 /** Why an image is attached: as evidence of an attempt's work, or as a reference to build from. */
 export const attachmentPurpose = z.enum(['evidence', 'reference'])
 /** The image types the store accepts. */
-export const attachmentMime = z.enum(['image/png', 'image/jpeg'])
+const attachmentMime = z.enum(['image/png', 'image/jpeg'])
 
 /** The metadata a record keeps about one image: never the bytes, which stay in the store. */
 export const attachmentRef = z.strictObject({

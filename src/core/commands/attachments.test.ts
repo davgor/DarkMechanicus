@@ -4,29 +4,9 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { AttachmentFileView } from '../../shared/domain/views'
+import { jpegBytes, pngBytes } from '../../test/images'
 import { createFakeGit, createHarness, type Harness } from '../../test/workspaceHarness'
 import { DomainError } from '../errors'
-
-/** A PNG header with the given size: the signature and IHDR, which is all the intake reads. */
-function pngBytes(width: number, height: number): Buffer {
-  const header = Buffer.alloc(33)
-  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).copy(header, 0)
-  header.writeUInt32BE(13, 8)
-  header.write('IHDR', 12, 'latin1')
-  header.writeUInt32BE(width, 16)
-  header.writeUInt32BE(height, 20)
-  header[24] = 8
-  header[25] = 6
-  return header
-}
-
-/** A JPEG with one baseline frame header at the given size. */
-function jpegBytes(width: number, height: number): Buffer {
-  return Buffer.from([
-    0xff, 0xd8, 0xff, 0xc0, 0x00, 0x11, 0x08, height >> 8, height & 0xff, width >> 8, width & 0xff, 0x03, 0x01, 0x22, 0x00, 0x02, 0x11,
-    0x01, 0x03, 0x11, 0x01
-  ])
-}
 
 function sha256Of(bytes: Buffer): string {
   return createHash('sha256').update(bytes).digest('hex')
