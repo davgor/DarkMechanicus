@@ -109,17 +109,16 @@ class Opening implements Component {
 
   constructor(
     private readonly frames: MascotFrames,
-    private readonly options: { timers: Timers; reducedMotion: boolean },
+    private readonly options: { timers: Timers; reducedMotion: boolean; finish: () => void },
     private readonly tui: Tui,
-    private readonly paint: Paint,
-    private readonly finish: () => void
+    private readonly paint: Paint
   ) {
     if (!options.reducedMotion) {
       this.#handle = options.timers.setInterval(() => {
         this.#tick += 1
         if (this.#tick >= 44) {
           this.dispose()
-          this.finish()
+          this.options.finish()
         } else {
           this.tui.requestRender()
         }
@@ -129,20 +128,11 @@ class Opening implements Component {
 
   render(width: number): readonly string[] {
     if (this.#cache?.tick === this.#tick && this.#cache.width === width) return this.#cache.rows
-    const still = this.options.reducedMotion
-    const running = !still && this.#tick >= 12 && this.#tick < 40
-    const surprised = !still && this.#tick >= 5 && this.#tick < 12
-    const ready = still || this.#tick >= 40
-    const loop = surprised || running ? this.frames.loops.run : this.frames.loops.idle
-    const size = loop.sizes.banner
-    // The final run pose is the open-palmed skid / startled reaction, never part of the stride loop.
-    const index = surprised ? size.frames.length - 1 : running ? (this.#tick - 12) % (size.frames.length - 1) : ready ? 0 : this.#tick < 3 ? 0 : 2
+    const { size, index, progress, caption } = this.#pose()
     const frame = size.frames[index]?.rows ?? []
     const travel = Math.max(0, width - size.cols - 2)
-    const progress = running ? (this.#tick - 12) / 27 : ready && !still ? 1 : 0
     const left = 1 + Math.floor(travel * progress)
     const rows = width >= size.cols + 2 ? frame.map((row) => `${' '.repeat(left)}${row}`) : []
-    const caption = ready ? 'Ready. The Omnissiah guides this forge.' : surprised ? 'Oh! A visitor!' : running ? 'Coming through! Mind the robes.' : BANNER_LINE
     if (width > 0) {
       const room = Math.max(0, width - 1)
       rows.push(` ${this.paint.bold(this.paint.fg('toolTitle', 'S K I T A R I I'.slice(0, room)))}`)
@@ -150,6 +140,20 @@ class Opening implements Component {
     }
     this.#cache = { tick: this.#tick, width, rows }
     return rows
+  }
+
+  #pose(): { size: FrameSize; index: number; progress: number; caption: string } {
+    const idle = this.frames.loops.idle.sizes.banner
+    const run = this.frames.loops.run.sizes.banner
+    const ready = 'Ready. The Omnissiah guides this forge.'
+    if (this.options.reducedMotion) return { size: idle, index: 0, progress: 0, caption: ready }
+    if (this.#tick < 5) return { size: idle, index: this.#tick < 3 ? 0 : 2, progress: 0, caption: BANNER_LINE }
+    // The last run pose has open palms; keep it out of the five-pose stride loop.
+    if (this.#tick < 12) return { size: run, index: run.frames.length - 1, progress: 0, caption: 'Oh! A visitor!' }
+    if (this.#tick < 40) {
+      return { size: run, index: (this.#tick - 12) % (run.frames.length - 1), progress: (this.#tick - 12) / 27, caption: 'Coming through! Mind the robes.' }
+    }
+    return { size: idle, index: 0, progress: 1, caption: ready }
   }
 
   invalidate(): void {
@@ -231,7 +235,7 @@ export class Skitarii {
     if (resumed) return
     ui.setWidget(BANNER_KEY, (tui, theme) => {
       this.#banner?.dispose()
-      const opening = new Opening(this.frames, this.options, tui, theme, () => this.#dropBanner(ui))
+      const opening = new Opening(this.frames, { ...this.options, finish: () => this.#dropBanner(ui) }, tui, theme)
       this.#banner = opening
       return opening
     })

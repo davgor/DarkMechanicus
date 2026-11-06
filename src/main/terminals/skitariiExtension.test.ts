@@ -42,7 +42,8 @@ function fakeTimers(): Timers & { live: Map<number, { callback: () => void; ms: 
 }
 
 const plainPaint: Paint = { fg: (_color, text) => text, bold: (text) => text }
-const strip = (text: string): string => text.replace(/\u001b\[[0-9;]*m/g, '')
+const SGR = new RegExp(String.fromCharCode(27) + '\\[[0-9;]*m', 'g')
+const strip = (text: string): string => text.replace(SGR, '')
 
 type Widget = Parameters<SkitariiUi['setWidget']>[1]
 
@@ -145,6 +146,9 @@ describe('Skitarii', () => {
     expect(banner.render(160).some((row) => strip(row).trim().includes('▀'))).toBe(true)
   })
 
+})
+
+describe('Skitarii: opening disposal and resume', () => {
   it('stops a disposed opening and cannot resurrect it on later ticks', () => {
     const timers = fakeTimers()
     const ui = fakeUi()
@@ -166,6 +170,9 @@ describe('Skitarii', () => {
     expect(timers.live.size).toBe(0)
   })
 
+})
+
+describe('Skitarii: opening interruption', () => {
   it.each([0, 8, 24, 42])('hands off immediately to working at opening tick %s without stale completion', (tick) => {
     const timers = fakeTimers()
     const ui = fakeUi()
@@ -196,6 +203,9 @@ describe('Skitarii', () => {
     expect(timers.live.size).toBe(0)
   })
 
+})
+
+describe('Skitarii: ready and working', () => {
   it('shows only the title when told the session is resumed', () => {
     const ui = fakeUi()
     new Skitarii(mascot, { timers: fakeTimers(), reducedMotion: false }).start(ui, '/home/a/forge', true)
@@ -285,12 +295,13 @@ describe('rows and title', () => {
   })
 })
 
+function fakePi() {
+  const handlers = new Map<string, (event: unknown, ctx: { ui: SkitariiUi; hasUI: boolean; cwd: string }) => void>()
+  const pi: OmpApi = { on: (event, handler) => handlers.set(event, handler), pi: { settings: 'scope' } }
+  return { pi, handlers }
+}
+
 describe('the OMP entry', () => {
-  function fakePi() {
-    const handlers = new Map<string, (event: unknown, ctx: { ui: SkitariiUi; hasUI: boolean; cwd: string }) => void>()
-    const pi: OmpApi = { on: (event, handler) => handlers.set(event, handler), pi: { settings: 'scope' } }
-    return { pi, handlers }
-  }
 
   it('wires session start, work and shutdown to OMP events, only where OMP has a UI', () => {
     const timers = fakeTimers()
@@ -335,6 +346,9 @@ describe('the OMP entry', () => {
     expect(timers.live.size).toBe(0)
   })
 
+})
+
+describe('the OMP motion presets', () => {
   it.each(['reduced', 'none'])('holds still under the current OMP tui.motion=%s preset', (motion) => {
     const { pi, handlers } = fakePi()
     const timers = fakeTimers()
