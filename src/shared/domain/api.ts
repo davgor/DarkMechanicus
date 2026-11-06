@@ -116,6 +116,8 @@ export interface TicketInput {
   references?: TicketReference[]
   expectedArtifacts?: string[]
   optional?: boolean
+  /** Staged image ids (or ones the ticket already owns) to show as references, at most 20; `[]` removes them all. */
+  attachments?: string[]
 }
 
 export interface SprintInput {

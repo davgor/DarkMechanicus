@@ -14,6 +14,7 @@ import {
   type TicketSize
 } from '../../shared/domain/bundle'
 import type { CriterionInput, SprintInput, TicketCriterionInput, TicketInput } from '../../shared/domain/api'
+import type { AttachmentRef } from '../../shared/domain/views'
 import { acceptanceTitle } from './acceptance'
 import { descriptionOf, withRepoPrefix } from './repoTitles'
 
@@ -144,7 +145,15 @@ function targetedTitle(input: TicketInput): { title: string; repo?: string } {
   return repo === undefined ? { title } : { title: withRepoPrefix(repo, descriptionOf(repo, title)), repo }
 }
 
-export function buildTicket(input: TicketInput, identity: { id: string; key: string }): TicketContent {
+/**
+ * Builds a new ticket. `attachments` are the refs of the images it shows, resolved by the draft ops from the input's ids
+ * (the ids themselves are never stored); none, or an empty list, leaves the ticket without an `attachments` key.
+ */
+export function buildTicket(
+  input: TicketInput,
+  identity: { id: string; key: string },
+  attachments?: AttachmentRef[]
+): TicketContent {
   return {
     id: identity.id,
     key: identity.key,
@@ -158,8 +167,28 @@ export function buildTicket(input: TicketInput, identity: { id: string; key: str
     capability: startingCapability(input),
     references: input.references ?? [],
     expectedArtifacts: input.expectedArtifacts ?? [],
-    optional: input.optional ?? false
+    optional: input.optional ?? false,
+    ...attachmentsKey(attachments)
   }
+}
+
+/** The `attachments` key of a new ticket: present only when it shows images, so a ticket without keeps its hash. */
+function attachmentsKey(attachments: AttachmentRef[] | undefined): { attachments?: AttachmentRef[] } {
+  return attachments === undefined || attachments.length === 0 ? {} : { attachments }
+}
+
+/** Sets the images of a copy of the ticket: an empty list removes the key (never stored empty), undefined keeps it. */
+function withAttachments(ticket: TicketContent, attachments: AttachmentRef[] | undefined): TicketContent {
+  if (attachments === undefined) {
+    return ticket
+  }
+  const next = { ...ticket }
+  if (attachments.length === 0) {
+    delete next.attachments
+  } else {
+    next.attachments = attachments
+  }
+  return next
 }
 
 /** Sets the size of a copy of the ticket: null removes the key (never stored as null), undefined keeps it. */
@@ -210,9 +239,14 @@ function withKind(ticket: TicketContent, kind: TicketKind | undefined): TicketCo
 
 /**
  * Applies a patch to a ticket; a null `size`, `repo` or `capability.reasoning.effort` removes that key, and
- * a `kind` of `work` removes the kind. The title follows the ticket's repository (see `retargeted`).
+ * a `kind` of `work` removes the kind. The title follows the ticket's repository (see `retargeted`). `attachments` are
+ * the refs the draft ops resolved from the patch's ids: they replace the ticket's, and an empty list removes the key.
  */
-export function patchTicket(ticket: TicketContent, patch: Partial<TicketInput>): TicketContent {
+export function patchTicket(
+  ticket: TicketContent,
+  patch: Partial<TicketInput>,
+  attachments?: AttachmentRef[]
+): TicketContent {
   const patched: TicketContent = {
     ...ticket,
     body: patch.body ?? ticket.body,
@@ -227,7 +261,7 @@ export function patchTicket(ticket: TicketContent, patch: Partial<TicketInput>):
     expectedArtifacts: patch.expectedArtifacts ?? ticket.expectedArtifacts,
     optional: patch.optional ?? ticket.optional
   }
-  return withKind(resized(retargeted(patched, patch), patch.size), patch.kind)
+  return withAttachments(withKind(resized(retargeted(patched, patch), patch.size), patch.kind), attachments)
 }
 
 /** The acceptance node of a sprint: required, for testing, and with criteria still to fill in. */

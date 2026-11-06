@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { DraftOp } from '../../shared/domain/api'
 import type { PlanBundle } from '../../shared/domain/bundle'
+import type { AttachmentRef } from '../../shared/domain/views'
 import { makeBundle, makeSprint, makeTicket, sid, tid } from '../../test/bundles'
 import { DomainError } from '../errors'
 import { applyDraftOps, type DraftDeps, type DraftOpsResult } from './draftOps'
@@ -30,8 +31,14 @@ function makeDeps(bundle: PlanBundle, repositories: string[] | null = null): Dra
       key += 1
       return `DM-${key}`
     },
-    repositories: () => repositories
+    repositories: () => repositories,
+    attachmentRefs: (ids) => ids.map(fakeRef)
   }
+}
+
+/** A reference image's ref, as the deps would read it for a staged image `id`. */
+function fakeRef(id: string): AttachmentRef {
+  return { id, sha256: 'a'.repeat(64), mime: 'image/png', bytes: 10, width: 2, height: 2, label: id, purpose: 'reference' }
 }
 
 function apply(bundle: PlanBundle, ...ops: DraftOp[]): DraftOpsResult {
@@ -123,7 +130,8 @@ describe('applyDraftOps failures', () => {
         throw new Error('id source exhausted')
       },
       nextKey: () => 'DM-4',
-      repositories: () => null
+      repositories: () => null,
+      attachmentRefs: () => []
     }
     const attempt = (): DraftOpsResult =>
       applyDraftOps(baseBundle(), [{ op: 'add_ticket', sprint: '1', ticket: { title: 'x' } }], deps)
@@ -1047,5 +1055,47 @@ describe('ticket repositories that are refused', () => {
     const before = structuredClone(base)
     refusal(base, REPOSITORIES, { op: 'update_ticket', ticket: 'DM-4', patch: { repo: 'gamma' } })
     expect(base).toEqual(before)
+  })
+})
+
+describe('ticket reference images', () => {
+  const IMAGE_A = 'im_0000000000000000000000000a'
+  const IMAGE_B = 'im_0000000000000000000000000b'
+
+  it('turns the ids of an added ticket into refs, in order, and stores no key when none are named', () => {
+    const { bundle, refMap } = apply(baseBundle(), {
+      op: 'add_ticket',
+      ref: 'new',
+      sprint: '1',
+      ticket: { title: 'Mockup', attachments: [IMAGE_B, IMAGE_A] }
+    })
+    const added = bundle.tickets.find((ticket) => ticket.id === refMap.new)
+    expect(added?.attachments).toEqual([fakeRef(IMAGE_B), fakeRef(IMAGE_A)])
+    const plain = apply(baseBundle(), { op: 'add_ticket', sprint: '1', ticket: { title: 'Plain', attachments: [] } })
+    expect(Object.hasOwn(plain.bundle.tickets.at(-1) ?? {}, 'attachments')).toBe(false)
+  })
+
+  it('replaces a ticket images on update, keeps them when the patch names none, and removes the key on []', () => {
+    const withImages = apply(baseBundle(), { op: 'update_ticket', ticket: 'DM-1', patch: { attachments: [IMAGE_A] } }).bundle
+    expect(withImages.tickets[0]?.attachments).toEqual([fakeRef(IMAGE_A)])
+    const kept = apply(withImages, { op: 'update_ticket', ticket: 'DM-1', patch: { body: 'more' } }).bundle
+    expect(kept.tickets[0]?.attachments).toEqual([fakeRef(IMAGE_A)])
+    const replaced = apply(withImages, { op: 'update_ticket', ticket: 'DM-1', patch: { attachments: [IMAGE_B] } }).bundle
+    expect(replaced.tickets[0]?.attachments).toEqual([fakeRef(IMAGE_B)])
+    const cleared = apply(withImages, { op: 'update_ticket', ticket: 'DM-1', patch: { attachments: [] } }).bundle
+    expect(Object.hasOwn(cleared.tickets[0] ?? {}, 'attachments')).toBe(false)
+  })
+
+  it('refuses an image another ticket of the draft already shows', () => {
+    const withImages = apply(baseBundle(), { op: 'update_ticket', ticket: 'DM-1', patch: { attachments: [IMAGE_A] } }).bundle
+    const refused = rejection(withImages, { op: 'update_ticket', ticket: 'DM-2', patch: { attachments: [IMAGE_A] } })
+    expect(refused?.code).toBe('conflict')
+    expect(refused?.message).toContain('DM-1')
+    const moved = apply(
+      withImages,
+      { op: 'update_ticket', ticket: 'DM-1', patch: { attachments: [] } },
+      { op: 'update_ticket', ticket: 'DM-2', patch: { attachments: [IMAGE_A] } }
+    ).bundle
+    expect(moved.tickets[1]?.attachments).toEqual([fakeRef(IMAGE_A)])
   })
 })

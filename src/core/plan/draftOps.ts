@@ -1,5 +1,6 @@
 import type { DraftOp, TicketInput } from '../../shared/domain/api'
 import type { PlanBundle, SprintDef, TicketContent } from '../../shared/domain/bundle'
+import type { AttachmentRef } from '../../shared/domain/views'
 import { DomainError } from '../errors'
 import { LIMITS } from '../schemas'
 import { acceptanceNodesOf, acceptanceTitle, isAcceptanceTicket } from './acceptance'
@@ -23,6 +24,12 @@ export interface DraftDeps {
    * repository. Asked only when an op names a ticket's `repo`.
    */
   repositories(): string[] | null
+  /**
+   * The refs of the images `ids` names for ticket `ticketId`, in order. Refuses an unknown id, an evidence image, one
+   * owned by another record, one another epic's draft or a pending revision shows on another ticket, a repeated id,
+   * or more than 20. Asked only when an op names a ticket's `attachments`.
+   */
+  attachmentRefs(ids: readonly string[], ticketId: string): AttachmentRef[]
 }
 
 export interface DraftOpsResult {
@@ -214,6 +221,24 @@ function checkRepo(state: OpState, ticket: TicketContent, requested: string | nu
   }
 }
 
+/**
+ * The refs of the images an op names for a ticket, or undefined when it names none. An image shows on one ticket of the
+ * draft; the deps check the rest (see `DraftDeps.attachmentRefs`).
+ */
+function resolveAttachments(state: OpState, ids: readonly string[] | undefined, ticketId: string): AttachmentRef[] | undefined {
+  if (ids === undefined || ids.length === 0) {
+    return ids === undefined ? undefined : []
+  }
+  const wanted = new Set(ids)
+  for (const other of state.bundle.tickets) {
+    const shared = other.id === ticketId ? undefined : other.attachments?.find((ref) => wanted.has(ref.id))
+    if (shared !== undefined) {
+      throw new DomainError('conflict', `Attachment ${shared.id} is already shown on ${other.key}.`, { id: shared.id })
+    }
+  }
+  return state.deps.attachmentRefs(ids, ticketId)
+}
+
 const addTicket: Handler<'add_ticket'> = (state, op) => {
   const sprint = resolveSprint(state, op.sprint)
   if (op.ticket.title.trim() === '') {
@@ -221,7 +246,8 @@ const addTicket: Handler<'add_ticket'> = (state, op) => {
   }
   const id = state.deps.newId('ticket')
   declareRef(state, op.ref, id)
-  const ticket = buildTicket(resolveCovers(state, op.ticket), { id, key: state.deps.nextKey() })
+  const attachments = resolveAttachments(state, op.ticket.attachments, id)
+  const ticket = buildTicket(resolveCovers(state, op.ticket), { id, key: state.deps.nextKey() }, attachments)
   checkRepo(state, ticket, op.ticket.repo)
   sprint.ticketIds = insertAt(sprint.ticketIds, id, defaultPosition(state.bundle, sprint, ticket))
   state.bundle.tickets.push(ticket)
@@ -232,7 +258,8 @@ const updateTicket: Handler<'update_ticket'> = (state, op) => {
   if (op.patch.title !== undefined && op.patch.title.trim() === '') {
     reject(`${ticket.key} needs a title.`)
   }
-  const patched = patchTicket(ticket, resolveCovers(state, op.patch))
+  const attachments = resolveAttachments(state, op.patch.attachments, ticket.id)
+  const patched = patchTicket(ticket, resolveCovers(state, op.patch), attachments)
   checkRepo(state, patched, op.patch.repo)
   state.bundle.tickets = state.bundle.tickets.map((item) => (item.id === ticket.id ? patched : item))
 }
