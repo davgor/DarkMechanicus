@@ -9,7 +9,7 @@ import { idOf, insertAttempt, insertComment, insertEpic, insertOutbox, insertRun
 import { claim as claimTicket, startedRun, submitClaim } from '../../test/execution'
 import { createTestCtx, type TestCtx, withRole } from '../../test/testContext'
 import { type AttachmentOwner } from '../../shared/domain/views'
-import { claimAttachments, createStagedAttachment } from '../services/attachments'
+import { claimAttachments, createStagedAttachment, listAttachmentRefs } from '../services/attachments'
 import { resolveAttachmentPlacement } from '../services/attachmentOwners'
 import { claimKanbanCard, playKanbanCard, submitKanbanCard } from '../services/kanban/attempts'
 import { createKanbanCard } from '../services/kanban/cards'
@@ -273,6 +273,10 @@ function importedFixture(): Imported {
   const deps = importerDeps(target, createStubGit('main'))
   reconcileRepository(deps)
   for (const row of source.db.all<Record<string, unknown>>('SELECT * FROM attachments')) {
+    // A comment's rows arrive with its record; the importer registers them.
+    if (target.db.get('SELECT id FROM attachments WHERE id = ?', row['id'] as string) !== undefined) {
+      continue
+    }
     target.db.run(
       `INSERT INTO attachments (id, sha256, mime, bytes, width, height, label, purpose, owner_kind, owner_id, missing, data,
          created_by_role, created_by_label, created_at)
@@ -288,6 +292,22 @@ function importedFixture(): Imported {
 function stored(env: RepoEnv, id: string): { missing: number; data: Uint8Array | null } {
   return env.db.get<{ missing: number; data: Uint8Array | null }>('SELECT missing, data FROM attachments WHERE id = ?', id) ?? { missing: -1, data: null }
 }
+
+describe('comment attachment import', () => {
+  it('registers the images a comment record names on import into a fresh database, then serves them after the restore', () => {
+    const f = importedFixture()
+    const row = f.target.db.get<{ owner_kind: string; owner_id: string; created_by_label: string }>(
+      'SELECT owner_kind, owner_id, created_by_label FROM attachments WHERE id = ?',
+      f.ids.comment
+    )
+    expect(row).toEqual({ owner_kind: 'comment', owner_id: COMMENT, created_by_label: 'imported' })
+    expect(f.reconcile().rejected).toEqual([])
+    const restored = stored(f.target, f.ids.comment)
+    expect(restored.missing).toBe(0)
+    expect(Buffer.from(restored.data ?? []).equals(f.bytes.comment)).toBe(true)
+    expect(listAttachmentRefs(f.target.db, { kind: 'comment', id: COMMENT }).map((ref) => ref.id)).toEqual([f.ids.comment])
+  })
+})
 
 describe('attachment import', () => {
   it('restores byte-identical attachments for every owner kind after an export and a clone', () => {

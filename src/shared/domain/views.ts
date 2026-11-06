@@ -1064,6 +1064,8 @@ export interface CommentView {
   /** The session that wrote it (role and label), never caller-supplied. */
   author: { role: SessionRole; label: string }
   createdAt: string
+  /** The images attached to the comment; absent when it has none. */
+  attachments?: AttachmentRef[]
 }
 
 /** Why a person or agent attached an image: a screenshot as proof, or a mockup to work from. */

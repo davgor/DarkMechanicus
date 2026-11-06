@@ -6,8 +6,10 @@ import type { AddCommentInput } from '../../shared/domain/api'
 import type { CommentView, SessionRole } from '../../shared/domain/views'
 import { requireCapability } from '../authz'
 import type { Ctx } from '../context'
+import type { Db } from '../db/database'
 import { fail } from '../errors'
 import { LIMITS } from '../schemas'
+import { attachmentRefOf, claimAttachments, listAttachmentRefs } from './attachments'
 import { assertEpicOpen, type EpicRow, loadEpicRow } from './epics'
 import { appendEvent } from './events'
 import { requestWithoutKey, withIdempotency } from './idempotency'
@@ -24,14 +26,16 @@ interface CommentRow {
   created_at: string
 }
 
-function toCommentView(row: CommentRow): CommentView {
+function toCommentView(db: Db, row: CommentRow): CommentView {
+  const attachments = listAttachmentRefs(db, { kind: 'comment', id: row.id })
   return {
     id: row.id,
     epicId: row.epic_id,
     ticketId: row.ticket_id,
     body: row.body,
     author: { role: row.author_role, label: row.author_label },
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    ...(attachments.length > 0 ? { attachments } : {})
   }
 }
 
@@ -95,7 +99,12 @@ function insertComment(ctx: Ctx, input: AddCommentInput): CommentView {
     row.author_label,
     row.created_at
   )
-  const comment = toCommentView(row)
+  // Claim before the comment's outbox entry so each image file is written before the record that names it.
+  const claimed = claimAttachments(ctx, input.attachments ?? [], { kind: 'comment', id: row.id })
+  const comment: CommentView = {
+    ...toCommentView(ctx.db, row),
+    ...(claimed.length > 0 ? { attachments: claimed.map(attachmentRefOf) } : {})
+  }
   appendEvent(ctx, {
     kind: 'comment.added',
     epicId: epic.id,
@@ -129,7 +138,7 @@ export function listComments(ctx: Ctx, input: { epicId: string; ticketId?: strin
     ticketId,
     ticketId
   )
-  return rows.map(toCommentView)
+  return rows.map((row) => toCommentView(ctx.db, row))
 }
 
 /**

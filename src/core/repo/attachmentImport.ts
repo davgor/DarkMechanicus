@@ -197,7 +197,8 @@ function namedImages(evidenceJson: string): AttachmentRef[] {
   })
 }
 
-function insertOwnedRow(db: Db, ref: AttachmentRef, owner: { owner: AttachmentOwnerKind; ownerId: string; createdAt: string }): void {
+/** Inserts an owned row with no bytes for `ref`; `restoreAttachmentFiles` fills the bytes from the owner's folder. */
+export function insertOwnedRow(db: Db, ref: AttachmentRef, owner: { owner: AttachmentOwnerKind; ownerId: string; createdAt: string }): void {
   db.run(
     `INSERT INTO attachments (id, sha256, mime, bytes, width, height, label, purpose, owner_kind, owner_id, missing, data,
        created_by_role, created_by_label, created_at)
