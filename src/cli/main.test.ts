@@ -20,7 +20,10 @@ interface Recorded {
   files: Record<string, string>
 }
 
-function recorder(argv: string[], options: { env?: Record<string, string | undefined>; files?: Record<string, string>; openError?: Error } = {}): Recorded {
+function recorder(
+  argv: string[],
+  options: { env?: Record<string, string | undefined>; files?: Record<string, string>; stdin?: string; openError?: Error } = {}
+): Recorded {
   const stdout: string[] = []
   const stderr: string[] = []
   const exits: number[] = []
@@ -44,6 +47,7 @@ function recorder(argv: string[], options: { env?: Record<string, string | undef
         return createStubWorkspace({ canned: { listEpics: [] } })
       },
       readFile: (path) => files[path] ?? '',
+      readStdin: () => options.stdin ?? '',
       writeStdout: (text) => stdout.push(text),
       writeStderr: (text) => stderr.push(text),
       exit: (code) => exits.push(code)
@@ -170,6 +174,77 @@ describe('dm and the grant hint', () => {
     await runCli(recorded.host)
     expect(payload(recorded)).toMatchObject({ ok: false, error: { code: 'invalid_input' } })
     expect(recorded.exits).toEqual([1])
+  })
+
+  it('says how to write a Windows path and names both other sources when the JSON is bad', async () => {
+    const recorded = recorder(['call', 'create_epic', '{"title":"C:\\Users"}'])
+    await runCli(recorded.host)
+    const text = recorded.stdout.join('')
+    expect(text).toContain('doubled backslashes')
+    expect(text).toContain('forward slashes')
+    expect(text).toContain('--args-file <path>')
+    expect(text).toContain('pass -')
+    expect(recorded.exits).toEqual([1])
+  })
+})
+
+/** A recorder whose workspace keeps the input each command was run with. */
+function capturing(argv: string[], options: Parameters<typeof recorder>[1] = {}): { recorded: Recorded; seen: unknown[] } {
+  const recorded = recorder(argv, options)
+  const seen: unknown[] = []
+  recorded.host.open = (open) => {
+    recorded.opened.push(open)
+    const workspace = createStubWorkspace({ canned: {} })
+    workspace.execute = (_name, input) => {
+      seen.push(input)
+      return Promise.resolve([])
+    }
+    return workspace
+  }
+  return { recorded, seen }
+}
+
+describe('dm call with --args-file and stdin', () => {
+  it('reads the file, strips its byte-order mark, and keeps a Windows path written with doubled backslashes', async () => {
+    const path = resolve(CWD, 'args.json')
+    const { recorded, seen } = capturing(['call', 'create_epic', '--args-file', 'args.json'], {
+      files: { [path]: '\uFEFF{"title":"C:\\\\Users\\\\dev"}' }
+    })
+    await runCli(recorded.host)
+    expect(seen).toEqual([{ title: 'C:\\Users\\dev' }])
+    expect(recorded.exits).toEqual([0])
+  })
+
+  it('reads stdin for a lone dash, and strips a byte-order mark there too', async () => {
+    const { recorded, seen } = capturing(['call', 'create_epic', '-'], { stdin: '\uFEFF{"title":"from stdin"}' })
+    await runCli(recorded.host)
+    expect(seen).toEqual([{ title: 'from stdin' }])
+    expect(recorded.exits).toEqual([0])
+  })
+
+  it('reads inline JSON as before', async () => {
+    const { recorded, seen } = capturing(['call', 'create_epic', '{"title":"inline"}'])
+    await runCli(recorded.host)
+    expect(seen).toEqual([{ title: 'inline' }])
+  })
+
+  it('reports an unreadable arguments file as a failed result, not a crash', async () => {
+    const recorded = recorder(['call', 'create_epic', '--args-file', 'missing.json'])
+    recorded.host.readFile = () => {
+      throw new Error('ENOENT: no such file')
+    }
+    await runCli(recorded.host)
+    expect(payload(recorded)).toMatchObject({ ok: false, error: { code: 'invalid_input' } })
+    expect(recorded.stdout.join('')).toContain('ENOENT')
+    expect(recorded.exits).toEqual([1])
+  })
+
+  it('refuses inline JSON together with --args-file before opening anything', async () => {
+    const recorded = recorder(['call', 'create_epic', '{}', '--args-file', 'args.json'])
+    await runCli(recorded.host)
+    expect(recorded.exits).toEqual([2])
+    expect(recorded.opened).toEqual([])
+    expect(recorded.stdout).toEqual([])
   })
 })
 

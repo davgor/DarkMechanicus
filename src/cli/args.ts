@@ -8,11 +8,17 @@
  */
 import { resolve } from 'node:path'
 
+/** Where a call's arguments come from: one inline JSON object, a file, or stdin. */
+export type CallInput =
+  | { source: 'inline'; text: string }
+  | { source: 'file'; path: string }
+  | { source: 'stdin' }
+
 type CliMode =
   | { kind: 'help' }
   | { kind: 'list' }
   | { kind: 'describe'; command: string }
-  | { kind: 'call'; command: string; input: string }
+  | { kind: 'call'; command: string; input: CallInput }
   | { kind: 'transfer'; target: 'linear'; epicId: string; json: boolean }
 
 export interface CliOptions {
@@ -34,7 +40,9 @@ export const CLI_USAGE = [
   'Commands:',
   '  --list                   Every command, with the capability it needs',
   '  --describe <command>     One command: what it needs and its input schema',
-  '  call <command> [json]    Run <command> with a JSON object of arguments (default {})',
+  '  call <command> [json|-]  Run <command> with a JSON object of arguments (default {}); - reads stdin',
+  '  call <command> --args-file <path>',
+  '                           Run <command> with the JSON object read from a file (a BOM is ignored)',
   '  transfer linear --epic <id> [--json]',
   '                           The Linear transfer kickoff for an epic, as text; --json prints its packet',
   '  --help                   Show this help',
@@ -58,16 +66,18 @@ interface Parsed {
   repo?: string
   tokenFile?: string
   epic?: string
+  argsFile?: string
   json: boolean
   rest: string[]
   help: boolean
 }
 
 /** Flags that take a value, and where that value is kept. */
-const VALUE_FLAGS: Readonly<Record<string, 'repo' | 'tokenFile' | 'epic'>> = {
+const VALUE_FLAGS: Readonly<Record<string, 'repo' | 'tokenFile' | 'epic' | 'argsFile'>> = {
   '--repo': 'repo',
   '--token-file': 'tokenFile',
-  '--epic': 'epic'
+  '--epic': 'epic',
+  '--args-file': 'argsFile'
 }
 
 /** Flags that are modes rather than options, so they travel with the positional words. */
@@ -123,18 +133,45 @@ function transferMode(flags: Parsed): CliMode {
   return { kind: 'transfer', target: 'linear', epicId: flags.epic, json: flags.json }
 }
 
-function modeOf(flags: Parsed): CliMode {
+function modeOf(flags: Parsed, cwd: string): CliMode {
   if (flags.rest[0] === 'transfer') {
+    if (flags.argsFile !== undefined) {
+      throw usageError('--args-file belongs to call only.')
+    }
     return transferMode(flags)
   }
   if (flags.epic !== undefined || flags.json) {
     throw usageError('--epic and --json belong to transfer linear only.')
   }
-  return commandMode(flags.rest)
+  return commandMode(flags, cwd)
 }
 
-function commandMode(rest: readonly string[]): CliMode {
+/**
+ * The arguments of `call`: the third word is inline JSON, or `-` for stdin; `--args-file` names a
+ * file instead. Two sources at once are refused, so a reader never wonders which one won.
+ */
+function callInput(third: string | undefined, argsFile: string | undefined, cwd: string): CallInput {
+  if (third !== undefined && argsFile !== undefined) {
+    throw usageError('Give the arguments once: inline JSON, - (stdin) or --args-file, not two of them.')
+  }
+  if (third === '-') {
+    return { source: 'stdin' }
+  }
+  if (third !== undefined) {
+    return { source: 'inline', text: third }
+  }
+  if (argsFile !== undefined) {
+    return { source: 'file', path: resolve(cwd, argsFile) }
+  }
+  return { source: 'inline', text: '{}' }
+}
+
+function commandMode(flags: Parsed, cwd: string): CliMode {
+  const rest = flags.rest
   const [first, second, third] = rest
+  if (flags.argsFile !== undefined && first !== 'call') {
+    throw usageError('--args-file belongs to call only.')
+  }
   if (first === undefined) {
     throw usageError('Give a command.')
   }
@@ -154,7 +191,7 @@ function commandMode(rest: readonly string[]): CliMode {
     if (rest.length > 3) {
       throw usageError('call takes a command name and at most one JSON argument.')
     }
-    return { kind: 'call', command: second, input: third ?? '{}' }
+    return { kind: 'call', command: second, input: callInput(third, flags.argsFile, cwd) }
   }
   throw usageError(`Unknown command "${first}".`)
 }
@@ -170,7 +207,7 @@ export function parseCliArgs(
   if (flags.help) {
     return { repo, tokenFile, mode: { kind: 'help' } }
   }
-  return { repo, tokenFile, mode: modeOf(flags) }
+  return { repo, tokenFile, mode: modeOf(flags, cwd) }
 }
 
 function nonBlank(value: string | undefined): string | undefined {
