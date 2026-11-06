@@ -1,4 +1,4 @@
-import { chmodSync, cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -110,7 +110,7 @@ describe('ptyHelperPath', () => {
 
   it('is the installed node-pty’s helper for this machine', () => {
     expect(installedPtyHelperPath()).toBe(
-      join(process.cwd(), 'node_modules', 'node-pty', 'prebuilds', `${process.platform}-${process.arch}`, 'spawn-helper')
+      join(realpathSync.native(join(process.cwd(), 'node_modules')), 'node-pty', 'prebuilds', `${process.platform}-${process.arch}`, 'spawn-helper')
     )
   })
 })
