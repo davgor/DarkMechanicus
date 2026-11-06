@@ -110,6 +110,7 @@ const PROBES: Record<CommandName, unknown> = {
   getAttemptTimeline: { attemptId: ATTEMPT },
   getRunTimeline: { runId: RUN },
   addAttachment: { path: '/no/such/probe.png', label: 'probe', purpose: 'evidence' },
+  uploadAttachment: { data: 'AAAA' },
   getAttachment: { attachmentId: probeId('attachment'), as: 'metadata' },
   addComment: { epicId: EPIC, body: 'probe' },
   listComments: { epicId: EPIC },
@@ -186,7 +187,8 @@ describe('declared command capabilities match what the services enforce', () => 
     }
 
     const refused = COMMAND_NAMES.filter((name) => outcomes.get(name) === 'unauthorized')
-    const lacking = COMMAND_NAMES.filter((name) => !held.has(COMMAND_CAPABILITIES[name]))
+    // Uploading image bytes is the desktop transport's alone, so a holder on any other transport is refused too.
+    const lacking = COMMAND_NAMES.filter((name) => !held.has(COMMAND_CAPABILITIES[name]) || name === 'uploadAttachment')
     expect(refused).toEqual(lacking)
     // The probe project is a single repository, which an authorized rescan refuses as having nothing to rescan.
     // The probe image path does not exist, so an authorized add stops at reading the file.

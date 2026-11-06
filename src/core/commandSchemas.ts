@@ -138,6 +138,12 @@ export const COMMAND_SCHEMAS = {
     label: z.string().max(LIMITS.label),
     purpose: attachmentPurpose
   }),
+  uploadAttachment: z.strictObject({
+    /** Plain base64 of the image: no `data:` prefix, base64 alphabet only. */
+    data: z.string().min(1).max(Math.ceil(LIMITS.attachmentBytes / 3) * 4).regex(/^[A-Za-z0-9+/]+={0,2}$/, 'data must be plain base64 with no data: prefix'),
+    label: z.string().optional(),
+    purpose: attachmentPurpose.optional()
+  }),
   getAttachment: z.strictObject({ attachmentId: attachmentRef.shape.id, as: z.enum(['metadata', 'file']) }),
   addComment: z.strictObject({
     epicId: stableId,

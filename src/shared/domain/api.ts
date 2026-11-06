@@ -252,6 +252,16 @@ interface AddAttachmentInput {
   purpose: AttachmentPurpose
 }
 
+/** An image's bytes sent by the desktop app (never a path). */
+interface UploadAttachmentInput {
+  /** Plain base64 of a PNG or JPEG: no `data:` prefix. */
+  data: string
+  /** Defaults to "Pasted image"; cut to the label limit. */
+  label?: string
+  /** Defaults to `reference`. */
+  purpose?: AttachmentPurpose
+}
+
 interface GetAttachmentInput {
   attachmentId: string
   /** `file` writes the bytes to a temporary file and returns its path too. */
@@ -479,6 +489,8 @@ export interface CommandApi {
   // Image attachments (PNG or JPEG). A staged image is claimed by the record it is attached to.
   /** Refused on the desktop transport. Stages the image as read from an allowed folder and returns its metadata. */
   addAttachment(input: AddAttachmentInput): Promise<AttachmentView>
+  /** Desktop only: stages the image from base64 bytes the app read; refused on every other transport. */
+  uploadAttachment(input: UploadAttachmentInput): Promise<AttachmentView>
   getAttachment(input: GetAttachmentInput): Promise<AttachmentView | AttachmentFileView>
 
   // Comments (append-only; the author is the calling session)
