@@ -21,7 +21,7 @@ import type { LinearTransferPacket, TransferView } from '../shared/domain/transf
 import type { EpicDetailView } from '../shared/domain/views'
 import { openWorkspace, type OpenWorkspaceOptions, type Workspace } from '../core/workspace'
 import { transferKickoff } from '../mcp/transferKickoff'
-import { CLI_USAGE, type CliOptions, parseCliArgs, TOKEN_ENV } from './args'
+import { CLI_USAGE, type CallInput, type CliOptions, parseCliArgs, TOKEN_ENV } from './args'
 
 /** Exit codes: 0 fine, 1 the command failed, 2 the arguments were wrong. */
 const EXIT_OK = 0
@@ -34,6 +34,8 @@ export interface CliHost {
   cwd: string
   open: (options: OpenWorkspaceOptions) => Workspace
   readFile: (path: string) => string
+  /** Everything on standard input, for `call <command> -`. */
+  readStdin: () => string
   writeStdout: (text: string) => void
   writeStderr: (text: string) => void
   exit: (code: number) => void
@@ -98,7 +100,26 @@ function parseInputJson(text: string): unknown {
   try {
     return JSON.parse(text)
   } catch {
-    throw new DomainError('invalid_input', 'The arguments must be one JSON object.')
+    throw new DomainError(
+      'invalid_input',
+      'The arguments must be one JSON object. In JSON a backslash starts an escape, so a Windows path needs doubled backslashes ("C:\\\\Users") or forward slashes ("C:/Users"). To skip shell quoting, pass the object with --args-file <path>, or pipe it on stdin and pass -.'
+    )
+  }
+}
+
+/** The JSON text of a call's arguments, from wherever it was given. A UTF-8 byte-order mark is not JSON, so it goes. */
+function readInput(host: CliHost, source: CallInput): string {
+  const text =
+    source.source === 'inline' ? source.text : source.source === 'stdin' ? host.readStdin() : readArgsFile(host, source.path)
+  return text.replace(/^\uFEFF/, '')
+}
+
+function readArgsFile(host: CliHost, path: string): string {
+  try {
+    return host.readFile(path)
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    throw new DomainError('invalid_input', `Cannot read the arguments file ${path}: ${reason}`)
   }
 }
 
@@ -133,7 +154,7 @@ function hintAboutGrants(host: CliHost, error: unknown, presentedToken: boolean)
   )
 }
 
-async function runCommand(host: CliHost, options: CliOptions, requested: string, input: string): Promise<number> {
+async function runCommand(host: CliHost, options: CliOptions, requested: string, source: CallInput): Promise<number> {
   const name = resolveCommand(requested)
   if (name === null) {
     host.writeStderr(`dm: unknown command "${requested}". Use --list to see them all.\n`)
@@ -152,7 +173,7 @@ async function runCommand(host: CliHost, options: CliOptions, requested: string,
       pid: process.pid,
       ...(token === null ? {} : { grantToken: token })
     })
-    ok(host, await workspace.execute(name, parseInputJson(input)))
+    ok(host, await workspace.execute(name, parseInputJson(readInput(host, source))))
     return EXIT_OK
   } catch (error) {
     failed(host, error)
@@ -316,6 +337,7 @@ function nodeHost(): CliHost {
     cwd: process.cwd(),
     open: (options) => openWorkspace(options),
     readFile: (path) => readFileSync(path, 'utf8'),
+    readStdin: () => readFileSync(0, 'utf8'),
     writeStdout: (text) => {
       process.stdout.write(text)
     },
