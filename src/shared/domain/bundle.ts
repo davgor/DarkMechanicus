@@ -3,6 +3,7 @@
  * A draft holds one mutable bundle; every Save freezes a bundle into an immutable revision snapshot.
  * Layout is never part of the bundle — the desktop derives node positions from sprints and edges.
  */
+import type { AttachmentRef } from './views'
 
 export const PLAN_FORMAT_VERSION = 1
 
@@ -150,6 +151,11 @@ export interface TicketContent {
   expectedArtifacts: string[]
   /** Optional tickets do not gate sprint advancement or epic completion. */
   optional: boolean
+  /**
+   * Reference images to build from, at most 20. Absent when the ticket has none; never defaulted, so older plans keep
+   * their content hash. The images are claimed by the ticket when the revision naming them is saved.
+   */
+  attachments?: AttachmentRef[]
 }
 
 export const CHECKPOINT_MODES = ['human', 'auto'] as const

@@ -125,7 +125,7 @@ function TabBody(props: TabBodyProps): JSX.Element {
   const { detail, panel } = props
   switch (props.focus.tab) {
     case 'overview':
-      return <OverviewTab detail={detail} bundle={panel.plan.bundle} runner={panel.runner} onSelect={panel.onSelectTicket} />
+      return <OverviewTab detail={detail} bundle={panel.plan.bundle} runner={panel.runner} folderKey={panel.folderKey} onSelect={panel.onSelectTicket} />
     case 'attempts':
       return <AttemptList attempts={detail.attempts} now={panel.now} onReview={panel.onReview} />
     case 'activity':
@@ -150,6 +150,7 @@ function TabBody(props: TabBodyProps): JSX.Element {
           now={panel.now}
           reloadKey={panel.reloadKey}
           canComment={panel.canEdit}
+          folderKey={panel.folderKey}
         />
       )
     case 'history':

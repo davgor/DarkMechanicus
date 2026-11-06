@@ -1,0 +1,42 @@
+# c2 (runtime half): the image pasted into the comment composer in the running app (c8) went through uploadAttachment; its get_attachment metadata vs the real file
+$ dm call get_attachment '{"attachmentId":"im_01m6rkm8tsxaqa31bswhs5k6rz","as":"metadata"}'   [reader grant]
+{
+  "ok": true,
+  "data": {
+    "id": "im_01m6rkm8tsxaqa31bswhs5k6rz",
+    "sha256": "ccc2ebcd98578e35b55cd8a5d00c4f416fdb67e37262d03386074d0479d8f026",
+    "mime": "image/png",
+    "bytes": 12706,
+    "width": 600,
+    "height": 340,
+    "label": "paste.png",
+    "purpose": "reference",
+    "owner": {
+      "kind": "comment",
+      "id": "cm_01m6rkmbbh5es7kd5726w3102d"
+    },
+    "missing": false,
+    "createdBy": {
+      "role": "desktop",
+      "label": "Desktop"
+    },
+    "createdAt": "2026-11-06T14:18:59.801Z"
+  }
+}
+exit=0
+
+# the real file accept-s2/img/paste.png (PNG IHDR read directly, sha256 over the bytes):
+{
+  "mime": "image/png",
+  "width": 600,
+  "height": 340,
+  "bytes": 12706,
+  "sha256": "ccc2ebcd98578e35b55cd8a5d00c4f416fdb67e37262d03386074d0479d8f026"
+}
+
+# comparison
+mime: stored=image/png real=image/png MATCH
+width: stored=600 real=600 MATCH
+height: stored=340 real=340 MATCH
+bytes: stored=12706 real=12706 MATCH
+sha256: stored=ccc2ebcd98578e35b55cd8a5d00c4f416fdb67e37262d03386074d0479d8f026 real=ccc2ebcd98578e35b55cd8a5d00c4f416fdb67e37262d03386074d0479d8f026 MATCH

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { captureError, createSavedEpic, eventKinds } from '../../test/authoring'
+import { pngBytes } from '../../test/images'
 import { createTestCtx, type TestCtx, withRole } from '../../test/testContext'
 import { DomainError } from '../errors'
 import { LIMITS } from '../schemas'
+import { createStagedAttachment } from './attachments'
 import { addComment, enqueueUnexportedComments, listComments } from './comments'
 import { updatePlanDraft } from './drafts'
 import { createEpic } from './epics'
@@ -290,5 +292,54 @@ describe('enqueueUnexportedComments', () => {
     ctx.db.run("INSERT INTO outbox (kind, epic_id, entity_id, state, created_at) VALUES ('comment', ?, ?, 'done', 't')", epic.id, comment.id)
     enqueueUnexportedComments(ctx, epic.id)
     expect(outboxOf(ctx).map((row) => row.state)).toEqual(['done', 'pending'])
+  })
+})
+
+describe('addComment attachments', () => {
+  const stage = (ctx: TestCtx, purpose: 'evidence' | 'reference' = 'reference'): string =>
+    createStagedAttachment(ctx, { bytes: pngBytes(40, 30, purpose === 'reference' ? 1 : 2), label: 'shot', purpose }).id
+
+  it('claims staged images for the comment and list_comments returns their references', () => {
+    const { ctx, epicId, alpha } = planned()
+    const ids = [stage(ctx, 'reference'), stage(ctx, 'evidence')]
+    const added = addComment(ctx, { epicId, ticketId: alpha, body: 'See these', attachments: ids })
+    expect(added.attachments?.map((ref) => ref.id)).toEqual([...ids].sort())
+    expect(ctx.db.all('SELECT owner_kind, owner_id FROM attachments')).toEqual(
+      ids.map(() => ({ owner_kind: 'comment', owner_id: added.id }))
+    )
+    const listed = listComments(ctx, { epicId, ticketId: alpha })
+    expect(listed).toEqual([added])
+    expect(listed[0]?.attachments?.[0]).toEqual({
+      id: expect.stringMatching(/^im_/),
+      sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+      mime: 'image/png',
+      bytes: expect.any(Number),
+      width: 40,
+      height: 30,
+      label: 'shot',
+      purpose: expect.stringMatching(/^(evidence|reference)$/)
+    })
+  })
+
+  it('leaves the view without an attachments key when none were given', () => {
+    const { ctx, epicId } = planned()
+    expect('attachments' in addComment(ctx, { epicId, body: 'Plain' })).toBe(false)
+    expect('attachments' in (listComments(ctx, { epicId })[0] ?? {})).toBe(false)
+  })
+
+  it('refuses an id owned elsewhere and stores no comment', () => {
+    const { ctx, epicId } = planned()
+    const id = stage(ctx)
+    addComment(ctx, { epicId, body: 'First', attachments: [id] })
+    const error = captureError(() => addComment(ctx, { epicId, body: 'Second', attachments: [id] }))
+    expect(error.code).toBe('conflict')
+    expect(rowCount(ctx)).toBe(1)
+  })
+
+  it('refuses an unknown attachment id and stores no comment', () => {
+    const { ctx, epicId } = planned()
+    const error = captureError(() => addComment(ctx, { epicId, body: 'x', attachments: ['im_00000000000000000000000001'] }))
+    expect(error.code).toBe('not_found')
+    expect(rowCount(ctx)).toBe(0)
   })
 })

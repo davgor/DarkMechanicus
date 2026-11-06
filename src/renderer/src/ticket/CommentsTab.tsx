@@ -1,6 +1,9 @@
 import { type FormEvent, useEffect, useState } from 'react'
 import type { CommentView } from '../../../shared/domain/views'
 import { errorMessage } from '../api/dm'
+import { attachmentUrl } from '../../../shared/desktop/attachmentUrl'
+import { AttachmentGallery } from '../attachments/AttachmentGallery'
+import { type ImageAttach, type PendingImage, useImageAttach } from '../attachments/useImageAttach'
 import type { Runner } from '../epic/runner'
 import { Markdown } from '../markdown/Markdown'
 import { canSubmitComment, commentItems, MAX_COMMENT_LENGTH } from './commentsView'
@@ -14,6 +17,8 @@ interface CommentsTabProps {
   reloadKey: unknown
   /** False for a completed epic: comments stay readable, but no new ones are offered. */
   canComment: boolean
+  /** The folder's attachment key: the host of each image address. */
+  folderKey: string
 }
 
 interface Loaded {
@@ -45,7 +50,7 @@ function useComments(props: CommentsTabProps, refresh: number): Loaded {
   return loaded
 }
 
-function CommentList(props: { loaded: Loaded; now: number }): JSX.Element {
+function CommentList(props: { loaded: Loaded; now: number; folderKey: string }): JSX.Element {
   const { comments, error } = props.loaded
   if (error !== null) {
     return <p role="alert" className="tp-error">{error}</p>
@@ -68,26 +73,63 @@ function CommentList(props: { loaded: Loaded; now: number }): JSX.Element {
             </time>
           </p>
           <Markdown source={item.body} className="tp-comment-body" />
+          {item.attachments === undefined ? null : <AttachmentGallery folderKey={props.folderKey} attachments={item.attachments} />}
         </li>
       ))}
     </ol>
   )
 }
 
+function PendingImages(props: { images: ImageAttach; folderKey: string }): JSX.Element | null {
+  const { images } = props
+  const problem = images.error === null ? null : <p role="alert" className="tp-error">{images.error}</p>
+  if (images.pending.length === 0) {
+    return problem
+  }
+  return (
+    <>
+    {problem}
+    <ul className="tp-pending-images" aria-label="Images to attach">
+      {images.pending.map((image) => (
+        <li key={image.id} className="tp-pending-image">
+          <img src={attachmentUrl(props.folderKey, image.id)} alt={image.label} height={48} />
+          <span>{image.label}</span>
+          <button type="button" className="btn" aria-label={`Remove ${image.label}`} onClick={() => images.remove(image.id)}>
+            Remove
+          </button>
+        </li>
+      ))}
+    </ul>
+    </>
+  )
+}
+
+async function sendComment(props: CommentsTabProps, body: string, pending: PendingImage[]): Promise<void> {
+  const attachments = pending.map((image) => image.id)
+  await props.runner('addComment', {
+    epicId: props.epicId,
+    ticketId: props.ticketId,
+    body,
+    ...(attachments.length === 0 ? {} : { attachments })
+  })
+}
+
 function CommentForm(props: CommentsTabProps & { onAdded(): void }): JSX.Element {
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const images = useImageAttach(props.runner)
   const submit = async (event: FormEvent): Promise<void> => {
     event.preventDefault()
-    if (!canSubmitComment(draft, busy)) {
+    if (!canSubmitComment(draft, busy || images.busy)) {
       return
     }
     setBusy(true)
     setError(null)
     try {
-      await props.runner('addComment', { epicId: props.epicId, ticketId: props.ticketId, body: draft })
+      await sendComment(props, draft, images.pending)
       setDraft('')
+      images.clear()
       props.onAdded()
     } catch (failure: unknown) {
       setError(errorMessage(failure))
@@ -105,11 +147,17 @@ function CommentForm(props: CommentsTabProps & { onAdded(): void }): JSX.Element
           maxLength={MAX_COMMENT_LENGTH}
           placeholder="Markdown: a blocker, a decision, a review note…"
           onChange={(event) => setDraft(event.target.value)}
+          {...images.targetProps}
         />
       </label>
+      <PendingImages images={images} folderKey={props.folderKey} />
       {error === null ? null : <p role="alert" className="tp-error">{error}</p>}
       <div className="tp-row-actions">
-        <button type="submit" className="btn btn-primary" disabled={!canSubmitComment(draft, busy)}>
+        <label className="btn">
+          {images.busy ? 'Uploading…' : 'Attach image'}
+          <input {...images.pickerProps} hidden />
+        </label>
+        <button type="submit" className="btn btn-primary" disabled={!canSubmitComment(draft, busy || images.busy)}>
           Add comment
         </button>
       </div>
@@ -123,7 +171,7 @@ export function CommentsTab(props: CommentsTabProps): JSX.Element {
   const loaded = useComments(props, refresh)
   return (
     <>
-      <CommentList loaded={loaded} now={props.now} />
+      <CommentList loaded={loaded} now={props.now} folderKey={props.folderKey} />
       {props.canComment ? (
         <CommentForm {...props} onAdded={() => setRefresh((count) => count + 1)} />
       ) : (

@@ -1,0 +1,39 @@
+# c1 / Definition of Done, run locally on img-s2 at c3e2d0730640d11121521b399fa90c964f9f89c6 (Windows 11, this machine)
+
+=== npm run lint  ->  EXIT 0
+
+=== npm run typecheck  ->  EXIT 0
+
+=== npm run test  ->  EXIT 0
+
+=== npm run coverage  ->  EXIT 0
+
+=== npm run deadcode  ->  EXIT 0
+
+=== npm run build  ->  EXIT 0
+
+=== test totals (vitest over src and scripts, then the Fireguard suite)
+ Test Files  595 passed | 2 skipped (597)
+      Tests  10261 passed | 59 skipped (10320)
+ Test Files  24 passed (24)
+      Tests  164 passed | 1 skipped (165)
+
+=== coverage summary (thresholds: lines 97, branches 95, functions 96, statements 97)
+Statements   : 97.66% ( 22392/22928 )
+Branches     : 95.05% ( 13709/14422 )
+Functions    : 96.86% ( 7475/7717 )
+Lines        : 97.84% ( 20722/21178 )
+
+=== deadcode
+No new dead exports found.
+
+=== build
+out/main/cli.js                                   15.01 kB
+out/main/index.js                                436.67 kB
+✓ built in 859ms
+✓ built in 15ms
+../../out/renderer/index.html                              0.61 kB
+✓ built in 1.96s
+
+# Before the fixes in this round, the same checks on 69067f3 (the 14 merged tickets) gave: deadcode FAILED (4 new dead exports: AttachmentSidecar, cardAttachments, MAX_PENDING_IMAGES, formatBytes); coverage FAILED (branches 94.88% < 95%). lint, typecheck, test (594 files, 10244 tests, 0 failed) and build passed.
+# CI on draft PR #22: added by the orchestrator.

@@ -92,7 +92,7 @@ export function updatePlanDraft(
     assertEpicOpen(epic)
     const draft = ensureDraft(ctx, epic)
     assertDraftRevision(draft, input.expectedDraftRevision)
-    const result = applyDraftOps(JSON.parse(draft.bundle_json) as PlanBundle, input.ops, draftDeps(ctx))
+    const result = applyDraftOps(JSON.parse(draft.bundle_json) as PlanBundle, input.ops, draftDeps(ctx, epic.id))
     const draftRevision = writeDraft(ctx, draft, result.bundle)
     appendEvent(ctx, { kind: 'draft.updated', epicId: epic.id, payload: { draftRevision, ops: input.ops.length } })
     const validation = withRunWarnings(ctx, epic.id, result.bundle, validatePlan(result.bundle, { repositories: ctx.repositoryEntries() }))

@@ -1,0 +1,167 @@
+# s2 (database-only folder accept-s2/dbrepo, initialized in the app with "Database only"): images stored as SQLite blobs, no files in the repository
+$ dm call add_attachment '{"path":"C:/Users/davgo/AppData/Local/Temp/dmplan/accept-s2/img/card-mockup.png","label":"DB-mode card mockup","purpose":"reference"}'   [db-orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "id": "im_01m6rm50ebhaxqd9rpzd27nzvw",
+    "sha256": "b77424356b0c858b80c2ae9cf3a405cec47e4aec9ad56e8b4fc246d1c4a47bce",
+    "mime": "image/png",
+    "bytes": 14367,
+    "width": 800,
+    "height": 450,
+    "label": "DB-mode card mockup",
+    "purpose": "reference",
+    "owner": null,
+    "missing": false,
+    "createdBy": {
+      "role": "orchestrator",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:28:08.267Z"
+  }
+}
+exit=0
+$ dm call create_kanban_card '{"title":"DB-mode card with a mockup","attachments":["im_01m6rm50ebhaxqd9rpzd27nzvw"]}'   [db-orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "id": "kc_01m6rm50m2edpmq6cspkqg3k3t",
+    "key": "DBR-1",
+    "title": "DB-mode card with a mockup",
+    "lane": "backlog",
+    "priority": "normal",
+    "updatedAt": "2026-11-06T14:28:08.450Z",
+    "playPending": false,
+    "openAttempt": null,
+    "kickBackCount": 0,
+    "summary": null,
+    "body": "",
+    "acceptanceCriteria": [],
+    "expectedArtifacts": [],
+    "references": [],
+    "size": null,
+    "createdBy": {
+      "role": "orchestrator",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:28:08.450Z",
+    "completedAt": null,
+    "revision": 1,
+    "attachments": [
+      {
+        "id": "im_01m6rm50ebhaxqd9rpzd27nzvw",
+        "sha256": "b77424356b0c858b80c2ae9cf3a405cec47e4aec9ad56e8b4fc246d1c4a47bce",
+        "mime": "image/png",
+        "bytes": 14367,
+        "width": 800,
+        "height": 450,
+        "label": "DB-mode card mockup",
+        "purpose": "reference"
+      }
+    ],
+    "attempts": []
+  }
+}
+exit=0
+$ dm call add_attachment '{"path":"C:/Users/davgo/AppData/Local/Temp/dmplan/accept-s2/img/comment-cli.png","label":"DB-mode comment image","purpose":"reference"}'   [db-orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "id": "im_01m6rm512pf2waaftw1rxd0p89",
+    "sha256": "785277e3be5d7268b4f5f00c787221bf82a6e0601bf0238b1484a41f6bc4f1b8",
+    "mime": "image/png",
+    "bytes": 11144,
+    "width": 640,
+    "height": 360,
+    "label": "DB-mode comment image",
+    "purpose": "reference",
+    "owner": null,
+    "missing": false,
+    "createdBy": {
+      "role": "orchestrator",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:28:08.918Z"
+  }
+}
+exit=0
+$ dm call add_comment '{"epicId":"ep_01m6rm50trwj04rs2dytnnxbdn","body":"DB-mode comment with an image","attachments":["im_01m6rm512pf2waaftw1rxd0p89"]}'   [db-orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "id": "cm_01m6rm5197j5cb0f4az0zwskp7",
+    "epicId": "ep_01m6rm50trwj04rs2dytnnxbdn",
+    "ticketId": null,
+    "body": "DB-mode comment with an image",
+    "author": {
+      "role": "orchestrator",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:28:09.128Z",
+    "attachments": [
+      {
+        "id": "im_01m6rm512pf2waaftw1rxd0p89",
+        "sha256": "785277e3be5d7268b4f5f00c787221bf82a6e0601bf0238b1484a41f6bc4f1b8",
+        "mime": "image/png",
+        "bytes": 11144,
+        "width": 640,
+        "height": 360,
+        "label": "DB-mode comment image",
+        "purpose": "reference"
+      }
+    ]
+  }
+}
+exit=0
+$ dm call flush_portable_state '{}'   [db-orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "flushed": 0,
+    "failed": 0,
+    "errors": []
+  }
+}
+exit=0
+
+# get_storage_status: storage={"mode":"db","projectDir":"C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\home\\projects\\dbrepo-1de6eb556535b9a5","databasePath":"C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\home\\projects\\dbrepo-1de6eb556535b9a5\\local\\state.sqlite"} attachments={"count":2,"bytes":25511,"missing":0} outbox={"pending":0,"failed":0,"lastError":null}
+# files in the repository folder: .git/, README.md  (.darkmechanicus exists: false)
+
+# before an app restart: read-only query of C:/Users/davgo/AppData/Local/Temp/dmplan/accept-s2/home/projects/dbrepo-1de6eb556535b9a5/local/state.sqlite (SELECT id, owner_kind, bytes, length(data) FROM attachments)
+im_01m6rm50ebhaxqd9rpzd27nzvw owner=kanban_card bytes=14367 blob length=14367 sha256(blob)=b77424356b0c858b80c2ae9cf3a405cec47e4aec9ad56e8b4fc246d1c4a47bce
+im_01m6rm512pf2waaftw1rxd0p89 owner=comment bytes=11144 blob length=11144 sha256(blob)=785277e3be5d7268b4f5f00c787221bf82a6e0601bf0238b1484a41f6bc4f1b8
+# expected sha256: b77424356b0c858b80c2ae9cf3a405cec47e4aec9ad56e8b4fc246d1c4a47bce and 785277e3be5d7268b4f5f00c787221bf82a6e0601bf0238b1484a41f6bc4f1b8
+
+# after quitting and relaunching the app: read-only query of C:/Users/davgo/AppData/Local/Temp/dmplan/accept-s2/home/projects/dbrepo-1de6eb556535b9a5/local/state.sqlite (SELECT id, owner_kind, bytes, length(data) FROM attachments)
+im_01m6rm50ebhaxqd9rpzd27nzvw owner=kanban_card bytes=14367 blob length=14367 sha256(blob)=b77424356b0c858b80c2ae9cf3a405cec47e4aec9ad56e8b4fc246d1c4a47bce
+im_01m6rm512pf2waaftw1rxd0p89 owner=comment bytes=11144 blob length=11144 sha256(blob)=785277e3be5d7268b4f5f00c787221bf82a6e0601bf0238b1484a41f6bc4f1b8
+# expected sha256: b77424356b0c858b80c2ae9cf3a405cec47e4aec9ad56e8b4fc246d1c4a47bce and 785277e3be5d7268b4f5f00c787221bf82a6e0601bf0238b1484a41f6bc4f1b8
+
+# after the restart: get_attachment as file returns a readable copy
+$ dm call get_attachment '{"attachmentId":"im_01m6rm50ebhaxqd9rpzd27nzvw","as":"file"}'   [db-worker grant]
+{
+  "ok": true,
+  "data": {
+    "id": "im_01m6rm50ebhaxqd9rpzd27nzvw",
+    "sha256": "b77424356b0c858b80c2ae9cf3a405cec47e4aec9ad56e8b4fc246d1c4a47bce",
+    "mime": "image/png",
+    "bytes": 14367,
+    "width": 800,
+    "height": 450,
+    "label": "DB-mode card mockup",
+    "purpose": "reference",
+    "owner": {
+      "kind": "kanban_card",
+      "id": "kc_01m6rm50m2edpmq6cspkqg3k3t"
+    },
+    "missing": false,
+    "createdBy": {
+      "role": "orchestrator",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:28:08.267Z",
+    "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\darkmechanicus-attachments\\b77424356b0c858b80c2ae9cf3a405cec47e4aec9ad56e8b4fc246d1c4a47bce.png"
+  }
+}
+exit=0
+# sha256 of the file at the returned path: b77424356b0c858b80c2ae9cf3a405cec47e4aec9ad56e8b4fc246d1c4a47bce (stored b77424356b0c858b80c2ae9cf3a405cec47e4aec9ad56e8b4fc246d1c4a47bce) MATCH

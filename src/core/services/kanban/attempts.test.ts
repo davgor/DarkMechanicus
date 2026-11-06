@@ -1,8 +1,8 @@
-import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import type { KanbanPacket } from '../../../shared/domain/kanban'
 import type { DefinitionOfDoneCheck, SessionRole } from '../../../shared/domain/views'
 import { captureError } from '../../../test/authoring'
+import { pngBytes } from '../../../test/images'
 import { createSequentialIds, createTestCtx, type TestCtx, withRole } from '../../../test/testContext'
 import type { IdGenerator } from '../../ids'
 import { LIMITS } from '../../schemas'
@@ -114,16 +114,7 @@ function workspaceEvents(ctx: TestCtx): { kind: string; epicId: string | null; c
 
 /** A staged PNG whose bytes differ by `seed`, staged by the worker. */
 function stagedPng(ctx: TestCtx, seed: number): string {
-  const bytes = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from([seed, 0x09, 0x08, 0x07])])
-  return createStagedAttachment(ctx, {
-    bytes,
-    sha256: createHash('sha256').update(bytes).digest('hex'),
-    mime: 'image/png',
-    width: 16,
-    height: 9,
-    label: `card shot ${seed}`,
-    purpose: 'evidence'
-  }).id
+  return createStagedAttachment(ctx, { bytes: pngBytes(16, 9, seed), label: `card shot ${seed}`, purpose: 'evidence' }).id
 }
 
 describe('submitKanbanCard — attachments', () => {
@@ -913,5 +904,17 @@ describe('the claim secret', () => {
       expect(views).not.toContain(secret)
     }
     expect(views).toContain('[claim token masked]')
+  })
+})
+
+describe('claimKanbanCard packet attachments', () => {
+  it('carries the reference images of the card, and omits the key when it has none', () => {
+    const ctx = board()
+    const id = createStagedAttachment(ctx.desktop, { bytes: pngBytes(40, 30, 5), label: 'mockup', purpose: 'reference' }).id
+    const card = createKanbanCard(ctx.desktop, { title: 'With a mockup', attachments: [id] })
+    playKanbanCard(ctx.desktop, { cardId: card.id })
+    const packet = claimKanbanCard(ctx.orchestrator, { cardId: card.id })
+    expect(packet.card.attachments).toEqual([expect.objectContaining({ id, label: 'mockup', purpose: 'reference', width: 40, height: 30 })])
+    expect('attachments' in claimedCard(board()).card).toBe(false)
   })
 })

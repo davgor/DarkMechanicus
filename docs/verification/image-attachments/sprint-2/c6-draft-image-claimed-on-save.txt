@@ -1,0 +1,378 @@
+# c6: a draft ticket given an image via update_plan_draft is claimed on Save; its execution packet lists the ref
+$ dm call add_attachment '{"path":"C:/Users/davgo/AppData/Local/Temp/dmplan/accept-s2/img/ticket-ref.png","label":"Ticket mockup","purpose":"reference"}'   [planner grant]
+{
+  "ok": true,
+  "data": {
+    "id": "im_01m6rkfzhfxc7ht970a2vp3twf",
+    "sha256": "b005f696960f8e971e22f75c52fa1db1848894a425c02040c6f739aeb1a25dcd",
+    "mime": "image/png",
+    "bytes": 13647,
+    "width": 720,
+    "height": 405,
+    "label": "Ticket mockup",
+    "purpose": "reference",
+    "owner": null,
+    "missing": false,
+    "createdBy": {
+      "role": "planner",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:16:39.215Z"
+  }
+}
+exit=0
+$ dm call update_plan_draft '{"epicId":"ep_01m6rkev18cm3y119vhf5m31vf","ops":[{"op":"update_ticket","ticket":"tk_01m6rkevcfgpcfmsc5289zjkqg","patch":{"attachments":["im_01m6rkfzhfxc7ht970a2vp3twf"],"body":"Build the screen shown in the mockup.","references":[{"kind":"url","label":"Design spec","location":"https://example.com/spec","hash":null,"remoteOnly":true},{"kind":"file","label":"Screen source","location":"src/screen.tsx","hash":null,"remoteOnly":false}],"expectedArtifacts":["Screenshot of the finished screen","src/screen.tsx"]}},{"op":"add_ticket","ref":"w2","sprint":"sp_01m6rkev181s46qkx9fqhm7qta","ticket":{"title":"S2 runbook test ticket","acceptanceCriteria":["Evidence attached per the CLI runbook"]}}]}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "epicId": "ep_01m6rkev18cm3y119vhf5m31vf",
+    "draftRevision": 2,
+    "refMap": {
+      "w2": "tk_01m6rkfzn8q2az234h1gnf17h3"
+    },
+    "validation": {
+      "valid": true,
+      "errors": [],
+      "warnings": [
+        {
+          "code": "missing_acceptance_criteria",
+          "message": "REP-1 has no acceptance criteria.",
+          "ticketIds": [
+            "tk_01m6rkev18mhgr1vkyzt8cm1x0"
+          ]
+        },
+        {
+          "code": "ticket_not_covered",
+          "message": "REP-2 isn't covered by any criterion of acceptance node REP-1.",
+          "sprintIds": [
+            "sp_01m6rkev181s46qkx9fqhm7qta"
+          ],
+          "ticketIds": [
+            "tk_01m6rkevcfgpcfmsc5289zjkqg",
+            "tk_01m6rkev18mhgr1vkyzt8cm1x0"
+          ]
+        },
+        {
+          "code": "ticket_not_covered",
+          "message": "REP-3 isn't covered by any criterion of acceptance node REP-1.",
+          "sprintIds": [
+            "sp_01m6rkev181s46qkx9fqhm7qta"
+          ],
+          "ticketIds": [
+            "tk_01m6rkfzn8q2az234h1gnf17h3",
+            "tk_01m6rkev18mhgr1vkyzt8cm1x0"
+          ]
+        }
+      ]
+    }
+  }
+}
+exit=0
+# draft ticket tk_01m6rkevcfgpcfmsc5289zjkqg attachments: [{"id":"im_01m6rkfzhfxc7ht970a2vp3twf","sha256":"b005f696960f8e971e22f75c52fa1db1848894a425c02040c6f739aeb1a25dcd","mime":"image/png","bytes":13647,"width":720,"height":405,"label":"Ticket mockup","purpose":"reference"}]
+$ dm call get_attachment '{"attachmentId":"im_01m6rkfzhfxc7ht970a2vp3twf","as":"metadata"}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "id": "im_01m6rkfzhfxc7ht970a2vp3twf",
+    "sha256": "b005f696960f8e971e22f75c52fa1db1848894a425c02040c6f739aeb1a25dcd",
+    "mime": "image/png",
+    "bytes": 13647,
+    "width": 720,
+    "height": 405,
+    "label": "Ticket mockup",
+    "purpose": "reference",
+    "owner": null,
+    "missing": false,
+    "createdBy": {
+      "role": "planner",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:16:39.215Z"
+  }
+}
+exit=0
+# ^ before Save: owner null (staged)
+$ dm call save_plan '{"epicId":"ep_01m6rkev18cm3y119vhf5m31vf","expectedDraftRevision":2}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "status": "saved",
+    "epicId": "ep_01m6rkev18cm3y119vhf5m31vf",
+    "revisionId": "rv_01m6rkg00jm0zbs4t6bqhpqyqt",
+    "revisionNumber": 2,
+    "contentHash": "sha256:503390c21a3ab8d64583f1b7e5176a9b43278086950f2e1ea80353375429ba2a",
+    "error": null
+  }
+}
+exit=0
+$ dm call flush_portable_state '{}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "flushed": 0,
+    "failed": 0,
+    "errors": []
+  }
+}
+exit=0
+$ dm call get_attachment '{"attachmentId":"im_01m6rkfzhfxc7ht970a2vp3twf","as":"metadata"}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "id": "im_01m6rkfzhfxc7ht970a2vp3twf",
+    "sha256": "b005f696960f8e971e22f75c52fa1db1848894a425c02040c6f739aeb1a25dcd",
+    "mime": "image/png",
+    "bytes": 13647,
+    "width": 720,
+    "height": 405,
+    "label": "Ticket mockup",
+    "purpose": "reference",
+    "owner": {
+      "kind": "ticket",
+      "id": "tk_01m6rkevcfgpcfmsc5289zjkqg"
+    },
+    "missing": false,
+    "createdBy": {
+      "role": "planner",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:16:39.215Z"
+  }
+}
+exit=0
+# ^ after Save: owner is the ticket tk_01m6rkevcfgpcfmsc5289zjkqg
+$ dm call start_run '{"epicId":"ep_01m6rkev18cm3y119vhf5m31vf"}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "id": "rn_01m6rkg0cw0d35p5vme1rccjh9",
+    "number": 1,
+    "epicId": "ep_01m6rkev18cm3y119vhf5m31vf",
+    "revisionId": "rv_01m6rkg00jm0zbs4t6bqhpqyqt",
+    "revisionNumber": 2,
+    "state": "running",
+    "activeSprintId": "sp_01m6rkev181s46qkx9fqhm7qta",
+    "activeSprintOrdinal": 1,
+    "sprintCount": 1,
+    "host": null,
+    "skillVersion": "1.8.0",
+    "ownerMachineId": "mc_01m6rkax89hrsnynpgtnjg79aw",
+    "ownedByThisMachine": true,
+    "pauseReason": null,
+    "autoContinue": false,
+    "createdAt": "2026-11-06T14:16:40.092Z",
+    "startedAt": "2026-11-06T14:16:40.093Z",
+    "updatedAt": "2026-11-06T14:16:40.093Z",
+    "endedAt": null,
+    "counts": {
+      "accepted": 0,
+      "submitted": 0,
+      "running": 0,
+      "ready": 2,
+      "waiting": 1,
+      "blocked": 0,
+      "failed": 0,
+      "needsReconciliation": 0
+    },
+    "tickets": [
+      {
+        "ticketId": "tk_01m6rkevcfgpcfmsc5289zjkqg",
+        "key": "REP-2",
+        "sprintId": "sp_01m6rkev181s46qkx9fqhm7qta",
+        "row": 1,
+        "state": "ready",
+        "attemptCount": 0,
+        "latestAttemptId": null,
+        "blockers": [],
+        "prerequisites": []
+      },
+      {
+        "ticketId": "tk_01m6rkfzn8q2az234h1gnf17h3",
+        "key": "REP-3",
+        "sprintId": "sp_01m6rkev181s46qkx9fqhm7qta",
+        "row": 1,
+        "state": "ready",
+        "attemptCount": 0,
+        "latestAttemptId": null,
+        "blockers": [],
+        "prerequisites": []
+      },
+      {
+        "ticketId": "tk_01m6rkev18mhgr1vkyzt8cm1x0",
+        "key": "REP-1",
+        "sprintId": "sp_01m6rkev181s46qkx9fqhm7qta",
+        "row": null,
+        "state": "waiting",
+        "attemptCount": 0,
+        "latestAttemptId": null,
+        "blockers": [
+          {
+            "kind": "prerequisite",
+            "ticketId": "tk_01m6rkevcfgpcfmsc5289zjkqg",
+            "key": "REP-2",
+            "state": "ready"
+          },
+          {
+            "kind": "prerequisite",
+            "ticketId": "tk_01m6rkfzn8q2az234h1gnf17h3",
+            "key": "REP-3",
+            "state": "ready"
+          }
+        ],
+        "prerequisites": [
+          {
+            "ticketId": "tk_01m6rkevcfgpcfmsc5289zjkqg",
+            "key": "REP-2",
+            "state": "ready",
+            "acceptedAttemptId": null
+          },
+          {
+            "ticketId": "tk_01m6rkfzn8q2az234h1gnf17h3",
+            "key": "REP-3",
+            "state": "ready",
+            "acceptedAttemptId": null
+          }
+        ]
+      }
+    ],
+    "rows": [
+      {
+        "sprintId": "sp_01m6rkev181s46qkx9fqhm7qta",
+        "row": 1,
+        "tickets": [
+          {
+            "ticketId": "tk_01m6rkevcfgpcfmsc5289zjkqg",
+            "key": "REP-2"
+          },
+          {
+            "ticketId": "tk_01m6rkfzn8q2az234h1gnf17h3",
+            "key": "REP-3"
+          }
+        ],
+        "latestCheck": null
+      }
+    ],
+    "increments": [],
+    "attempts": [],
+    "checkpoint": {
+      "runId": "rn_01m6rkg0cw0d35p5vme1rccjh9",
+      "runState": "running",
+      "sprintId": "sp_01m6rkev181s46qkx9fqhm7qta",
+      "sprintOrdinal": 1,
+      "sprintCount": 1,
+      "isFinalSprint": true,
+      "policy": "human",
+      "autoContinueAuthorized": false,
+      "report": null,
+      "conditions": [
+        {
+          "id": "report_submitted",
+          "label": "Sprint report submitted",
+          "met": false,
+          "detail": "No report for Sprint 1 yet"
+        },
+        {
+          "id": "no_active_leases",
+          "label": "No worker still holds a lease",
+          "met": true,
+          "detail": "All claims released or expired"
+        },
+        {
+          "id": "required_accepted",
+          "label": "Every required ticket accepted",
+          "met": false,
+          "detail": "REP-2 not started; REP-3 not started"
+        },
+        {
+          "id": "acceptance_accepted",
+          "label": "Sprint acceptance accepted",
+          "met": false,
+          "detail": "REP-1 not started"
+        },
+        {
+          "id": "increment_merged",
+          "label": "Sprint increment merged",
+          "met": false,
+          "detail": "No sprint increment named yet: submit REP-1 with increment { branch, commit }"
+        },
+        {
+          "id": "retro",
+          "label": "Sprint retro included",
+          "met": false,
+          "detail": "No Sprint 1 report yet, so no retro"
+        },
+        {
+          "id": "exit_criteria",
+          "label": "Exit criteria reported met",
+          "met": true,
+          "detail": "This sprint has no exit criteria"
+        },
+        {
+          "id": "epic_outcome",
+          "label": "Epic success criteria met",
+          "met": false,
+          "detail": "The final sprint report must include the epic outcome"
+        },
+        {
+          "id": "plan_current",
+          "label": "Run executes the current plan",
+          "met": true,
+          "detail": "The run executes revision 2, the saved plan, and no draft holds unsaved changes"
+        },
+        {
+          "id": "approval",
+          "label": "Advance authorized",
+          "met": false,
+          "detail": "A person must approve this checkpoint in the desktop app"
+        }
+      ],
+      "gatesMet": false,
+      "canAdvance": false,
+      "approval": null
+    }
+  }
+}
+exit=0
+$ dm call claim_ticket '{"runId":"rn_01m6rkg0cw0d35p5vme1rccjh9","ticketId":"tk_01m6rkevcfgpcfmsc5289zjkqg","worker":{"label":"accept-s2 worker"}}'   [orchestrator grant]  (claim token masked; packet.ticket excerpt)
+{
+  "ok": true,
+  "attemptId": "at_01m6rkg0hkqhkrkc0aw45d4hjt",
+  "packet": {
+    "ticket": {
+      "key": "REP-2",
+      "title": "S2 work ticket",
+      "references": [
+        {
+          "kind": "url",
+          "label": "Design spec",
+          "location": "https://example.com/spec",
+          "hash": null,
+          "remoteOnly": true
+        },
+        {
+          "kind": "file",
+          "label": "Screen source",
+          "location": "src/screen.tsx",
+          "hash": null,
+          "remoteOnly": false
+        }
+      ],
+      "expectedArtifacts": [
+        "Screenshot of the finished screen",
+        "src/screen.tsx"
+      ],
+      "attachments": [
+        {
+          "id": "im_01m6rkfzhfxc7ht970a2vp3twf",
+          "sha256": "b005f696960f8e971e22f75c52fa1db1848894a425c02040c6f739aeb1a25dcd",
+          "mime": "image/png",
+          "bytes": 13647,
+          "width": 720,
+          "height": 405,
+          "label": "Ticket mockup",
+          "purpose": "reference"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,112 @@
+﻿# c14: docs/runbooks/cli.md, 'Attach an image: add_attachment', PowerShell block, run line by line in Windows PowerShell 5.1.26100.9711 from the worktree root C:\Users\davgo\Documents\GitHub\dm-wt\img-s2
+# Only substitution: the runbook's placeholder 'C:\path\to\repo' is the scratch repository. The grant is passed the way the runbook's Authority section says (DM_SESSION_TOKEN; token value not shown).
+PS> $env:DM_SESSION_TOKEN = 'dmg_...'      # worker grant issued in the app's Agent access card
+PS> $env:DARKMECHANICUS_REPO = 'C:\Users\davgo\AppData\Local\Temp\dmplan\accept-s2\repo'      # or run from the repository
+PS> Add-Type -AssemblyName System.Drawing
+PS> $shot = Join-Path $env:TEMP 'dm-example.png'
+PS> $bmp = New-Object System.Drawing.Bitmap 64, 48
+PS> $bmp.Save($shot, [System.Drawing.Imaging.ImageFormat]::Png)
+PS> $bmp.Dispose()
+PS> $argsFile = Join-Path $env:TEMP 'dm-add-attachment.json'
+PS> @{ path = $shot; label = 'Settings page'; purpose = 'evidence' } | ConvertTo-Json | Set-Content -Encoding utf8 $argsFile
+PS> node out/main/cli.js call add_attachment --args-file $argsFile
+{
+  "ok": true,
+  "data": {
+    "id": "im_01m6rkwwn4fp1981yf415mfwcv",
+    "sha256": "a868cd71245565baa2c3f35a81b9414c33ae844bc32ba8498da21b6d518e3abc",
+    "mime": "image/png",
+    "bytes": 141,
+    "width": 64,
+    "height": 48,
+    "label": "Settings page",
+    "purpose": "evidence",
+    "owner": null,
+    "missing": false,
+    "createdBy": {
+      "role": "worker",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:23:42.244Z"
+  }
+}
+exit=0
+# the args file ConvertTo-Json wrote (backslashes doubled):
+{
+    "label":  "Settings page",
+    "path":  "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm-example.png",
+    "purpose":  "evidence"
+}
+# then, as the runbook says, the id goes in the arguments of submit_attempt: evidence.attachments = ["im_01m6rkwwn4fp1981yf415mfwcv"]
+PS> $submit | ConvertTo-Json -Depth 6 | Set-Content -Encoding utf8 $submitFile      # {attemptId, claimToken (masked here), outputs, evidence:{checks, criteria, attachments:[id]}}
+PS> node out/main/cli.js call submit_attempt --args-file $submitFile
+{
+  "ok": true,
+  "data": {
+    "id": "at_01m6rkw4hpzba14d721aapeqy8",
+    "runId": "rn_01m6rkg0cw0d35p5vme1rccjh9",
+    "ticketId": "tk_01m6rkfzn8q2az234h1gnf17h3",
+    "number": 1,
+    "kind": "work",
+    "state": "submitted",
+    "fencingToken": 1,
+    "worker": {
+      "sessionId": "ss_01m6rkw4gza5rmv7ttbvf3yh87",
+      "label": "runbook test worker",
+      "modelId": null,
+      "hostId": null,
+      "catalogRevision": null,
+      "rationale": null,
+      "effort": null
+    },
+    "revisionId": "rv_01m6rkg00jm0zbs4t6bqhpqyqt",
+    "ticketContentHash": "sha256:1c7cbcc4d2b71a17e325876afe8d0a37f6e463c6b64bad97bd489b35693d4cb8",
+    "leaseExpiresAt": null,
+    "heartbeatAt": null,
+    "outputs": {
+      "summary": "Runbook test attempt",
+      "artifacts": [],
+      "commits": [],
+      "changedFiles": [],
+      "branch": "main"
+    },
+    "evidence": {
+      "checks": [
+        {
+          "name": "runbook",
+          "status": "passed",
+          "detail": "followed docs/runbooks/cli.md"
+        }
+      ],
+      "criteria": [
+        {
+          "criterionId": "c1",
+          "met": true,
+          "note": "screenshot attached as evidence"
+        }
+      ],
+      "notes": "",
+      "attachments": [
+        {
+          "id": "im_01m6rkwwn4fp1981yf415mfwcv",
+          "sha256": "a868cd71245565baa2c3f35a81b9414c33ae844bc32ba8498da21b6d518e3abc",
+          "mime": "image/png",
+          "bytes": 141,
+          "width": 64,
+          "height": 48,
+          "label": "Settings page",
+          "purpose": "evidence"
+        }
+      ]
+    },
+    "failure": null,
+    "decision": null,
+    "createdAt": "2026-11-06T14:23:17.558Z",
+    "updatedAt": "2026-11-06T14:23:42.441Z",
+    "submittedAt": "2026-11-06T14:23:42.441Z",
+    "decidedAt": null,
+    "reconciledAt": null,
+    "superseded": false
+  }
+}
+exit=0

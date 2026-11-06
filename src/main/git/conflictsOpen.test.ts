@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createGitRepo, type GitRepo } from '../../test/gitRepo'
 import { isolateGitConfig } from '../../test/gitRemotes'
 import { put } from '../../test/gitScratch'
+import { canCreateFileSymlinks } from '../../test/symlinks'
 import { getConflicts, markResolved, openInEditor } from './conflicts'
 import { createGitRunner } from './runner'
 
@@ -92,7 +93,7 @@ describe('openInEditor through symlinks and missing files', () => {
     expect(file?.markers).toBe(0)
   })
 
-  it('refuses a conflicted file that is itself a symlink out of the repository', async () => {
+  it.skipIf(!canCreateFileSymlinks())('refuses a conflicted file that is itself a symlink out of the repository (needs file symlink rights)', async () => {
     const r = conflicted()
     const dir = outsideDir(r)
     renameSync(join(r.root, 'top.txt'), join(r.root, 'top-moved.txt'))
@@ -201,12 +202,21 @@ describe('openInEditor never launches a program', () => {
     expect(opened).toEqual([join(r.root, 'job.xyz')])
   })
 
-  it('refuses a conflicted path that is a folder (a submodule), and one inside a nested .git', async () => {
+});
+
+describe('openInEditor refuses a folder and a nested .git', () => {
+
+  it('refuses a conflicted path that is a folder (a submodule)', async () => {
     const r = conflictedFile('top.txt')
     rmSync(join(r.root, 'top.txt'))
     mkdirSync(join(r.root, 'top.txt'))
     const { openPath, opened } = opener()
     await expect(openInEditor(runner, r.root, 'top.txt', { openPath })).rejects.toThrow(/is not a file/)
+    expect(opened).toEqual([])
+  })
+
+  it.skipIf(!canCreateFileSymlinks())('refuses a file inside a nested .git that a file symlink reaches (needs file symlink rights)', async () => {
+    const { openPath, opened } = opener()
     const nested = conflictedFile('cfg')
     mkdirSync(join(nested.root, 'vendor', 'n', '.git'), { recursive: true })
     put(nested.root, 'vendor/n/.git/config', '[core]\n')

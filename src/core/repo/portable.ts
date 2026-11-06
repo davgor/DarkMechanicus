@@ -34,6 +34,7 @@ import {
   ticketReference,
   workStatus
 } from '../schemas'
+import { listAttachmentRefs } from '../services/attachments'
 import { assertContained, displayPath } from './paths'
 import type { FsAdapter, RepoLayout } from './types'
 
@@ -433,7 +434,9 @@ export const commentRecord = z.strictObject({
   ticketId: anyStableId.nullable(),
   body: commentBody,
   author: z.strictObject({ role: z.enum(SESSION_ROLES), label }),
-  createdAt: isoTime
+  createdAt: isoTime,
+  /** The images the comment carries, by metadata; the files sit in the epic's `attachments/` folder. Omitted when none. */
+  attachments: z.array(attachmentRef).max(LIMITS.attachmentsPerRecord).optional()
 })
 export type CommentRecord = z.infer<typeof commentRecord>
 
@@ -457,6 +460,17 @@ const KANBAN_ACTOR_ROLES = [...SESSION_ROLES, 'reader'] as const satisfies reado
 const kanbanActor = z.strictObject({ role: z.enum(KANBAN_ACTOR_ROLES), label })
 
 /**
+ * Who staged an image and when, kept as `attachments/<attachmentId>.json` beside the image file (named by id, because
+ * two ids can share bytes). The image's own record names its metadata only; this is what import restores `createdBy` from.
+ */
+export const attachmentSidecar = z.strictObject({
+  id: idOf('attachment'),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/),
+  createdBy: z.strictObject({ role: z.enum(KANBAN_ACTOR_ROLES), label }),
+  createdAt: isoTime
+})
+
+/**
  * A Kanban card's definition (`kanban/<cardId>/card.json`): what an edit can change, its key and author. Only a create
  * or an edit rewrites it, at the next `generation`; where the card is (lane, attempts, summary) is rebuilt from its
  * events. The local edit revision is not tracked: the events carry it.
@@ -473,6 +487,8 @@ export const kanbanCardRecord = z.strictObject({
   references: z.array(ticketReference).max(LIMITS.references),
   priority: z.enum(TICKET_PRIORITIES),
   size: z.enum(TICKET_SIZES).nullable(),
+  /** The reference images the card carries, by metadata; the files sit in the card's `attachments/` folder. Omitted when none. */
+  attachments: z.array(attachmentRef).max(LIMITS.attachmentsPerRecord).optional(),
   createdBy: kanbanActor,
   createdAt: isoTime,
   updatedAt: isoTime,
@@ -944,6 +960,7 @@ export function readCommentRecord(db: Db, commentId: string): Record<string, unk
   if (row === undefined) {
     return null
   }
+  const attachments = listAttachmentRefs(db, { kind: 'comment', id: row.id })
   return {
     format: 'darkmechanicus.comment',
     formatVersion: 1,
@@ -952,7 +969,8 @@ export function readCommentRecord(db: Db, commentId: string): Record<string, unk
     ticketId: row.ticket_id,
     body: row.body,
     author: { role: row.author_role, label: row.author_label },
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    ...(attachments.length > 0 ? { attachments } : {})
   }
 }
 
@@ -1008,6 +1026,7 @@ export function buildKanbanCardRecord(db: Db, cardId: string, meta: { generation
     "SELECT MAX(created_at) AS at FROM kanban_events WHERE card_id = ? AND kind IN ('created', 'updated')",
     cardId
   )
+  const attachments = listAttachmentRefs(db, { kind: 'kanban_card', id: cardId })
   const record = {
     format: 'darkmechanicus.kanban-card',
     formatVersion: 1,
@@ -1020,6 +1039,7 @@ export function buildKanbanCardRecord(db: Db, cardId: string, meta: { generation
     references: parseJson<unknown>(row.references_json, []),
     priority: row.priority,
     size: row.size,
+    ...(attachments.length > 0 ? { attachments } : {}),
     createdBy: { role: row.created_by_role, label: row.created_by_label },
     createdAt: row.created_at,
     updatedAt: edited?.at ?? row.created_at,

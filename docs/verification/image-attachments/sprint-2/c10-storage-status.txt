@@ -1,0 +1,344 @@
+# c10: force one failed export, then read get_storage_status
+$ dm call create_kanban_card '{"title":"S2 card whose image export fails"}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "id": "kc_01m6rkrx794qrz8mkw40t62zwc",
+    "key": "REP-6",
+    "title": "S2 card whose image export fails",
+    "lane": "backlog",
+    "priority": "normal",
+    "updatedAt": "2026-11-06T14:21:31.753Z",
+    "playPending": false,
+    "openAttempt": null,
+    "kickBackCount": 0,
+    "summary": null,
+    "body": "",
+    "acceptanceCriteria": [],
+    "expectedArtifacts": [],
+    "references": [],
+    "size": null,
+    "createdBy": {
+      "role": "orchestrator",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:21:31.753Z",
+    "completedAt": null,
+    "revision": 1,
+    "attempts": []
+  }
+}
+exit=0
+$ dm call flush_portable_state '{}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "flushed": 0,
+    "failed": 0,
+    "errors": []
+  }
+}
+exit=0
+
+# fault injected: created a DIRECTORY at kanban/kc_01m6rkrx794qrz8mkw40t62zwc/attachments/edd479890c1dad29c1f6d414e1108d224fd0cd2ac803e5c797fdbf1a4baceb04.png, where the image file must go
+$ dm call add_attachment '{"path":"C:/Users/davgo/AppData/Local/Temp/dmplan/accept-s2/img/upload-meta.png","label":"Export will fail","purpose":"reference"}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "id": "im_01m6rkrxhmgz0922bvfhgdtwxj",
+    "sha256": "edd479890c1dad29c1f6d414e1108d224fd0cd2ac803e5c797fdbf1a4baceb04",
+    "mime": "image/png",
+    "bytes": 6932,
+    "width": 333,
+    "height": 222,
+    "label": "Export will fail",
+    "purpose": "reference",
+    "owner": null,
+    "missing": false,
+    "createdBy": {
+      "role": "orchestrator",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:21:32.084Z"
+  }
+}
+exit=0
+$ dm call update_kanban_card '{"cardId":"kc_01m6rkrx794qrz8mkw40t62zwc","expectedRevision":1,"attachments":["im_01m6rkrxhmgz0922bvfhgdtwxj"]}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "id": "kc_01m6rkrx794qrz8mkw40t62zwc",
+    "key": "REP-6",
+    "title": "S2 card whose image export fails",
+    "lane": "backlog",
+    "priority": "normal",
+    "updatedAt": "2026-11-06T14:21:32.220Z",
+    "playPending": false,
+    "openAttempt": null,
+    "kickBackCount": 0,
+    "summary": null,
+    "body": "",
+    "acceptanceCriteria": [],
+    "expectedArtifacts": [],
+    "references": [],
+    "size": null,
+    "createdBy": {
+      "role": "orchestrator",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:21:31.753Z",
+    "completedAt": null,
+    "revision": 2,
+    "attachments": [
+      {
+        "id": "im_01m6rkrxhmgz0922bvfhgdtwxj",
+        "sha256": "edd479890c1dad29c1f6d414e1108d224fd0cd2ac803e5c797fdbf1a4baceb04",
+        "mime": "image/png",
+        "bytes": 6932,
+        "width": 333,
+        "height": 222,
+        "label": "Export will fail",
+        "purpose": "reference"
+      }
+    ],
+    "attempts": []
+  }
+}
+exit=0
+$ dm call flush_portable_state '{}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "flushed": 0,
+    "failed": 1,
+    "errors": [
+      "attachment im_01m6rkrxhmgz0922bvfhgdtwxj: EPERM: operation not permitted, rename 'C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo\\.darkmechanicus\\kanban\\kc_01m6rkrx794qrz8mkw40t62zwc\\attachments\\edd479890c1dad29c1f6d414e1108d224fd0cd2ac803e5c797fdbf1a4baceb04.png.tmp-11464' -> 'C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo\\.darkmechanicus\\kanban\\kc_01m6rkrx794qrz8mkw40t62zwc\\attachments\\edd479890c1dad29c1f6d414e1108d224fd0cd2ac803e5c797fdbf1a4baceb04.png'"
+    ]
+  }
+}
+exit=0
+$ dm call flush_portable_state '{}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "flushed": 0,
+    "failed": 1,
+    "errors": [
+      "attachment im_01m6rkrxhmgz0922bvfhgdtwxj: EPERM: operation not permitted, rename 'C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo\\.darkmechanicus\\kanban\\kc_01m6rkrx794qrz8mkw40t62zwc\\attachments\\edd479890c1dad29c1f6d414e1108d224fd0cd2ac803e5c797fdbf1a4baceb04.png.tmp-49796' -> 'C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo\\.darkmechanicus\\kanban\\kc_01m6rkrx794qrz8mkw40t62zwc\\attachments\\edd479890c1dad29c1f6d414e1108d224fd0cd2ac803e5c797fdbf1a4baceb04.png'"
+    ]
+  }
+}
+exit=0
+$ dm call flush_portable_state '{}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "flushed": 0,
+    "failed": 1,
+    "errors": [
+      "attachment im_01m6rkrxhmgz0922bvfhgdtwxj: EPERM: operation not permitted, rename 'C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo\\.darkmechanicus\\kanban\\kc_01m6rkrx794qrz8mkw40t62zwc\\attachments\\edd479890c1dad29c1f6d414e1108d224fd0cd2ac803e5c797fdbf1a4baceb04.png.tmp-13796' -> 'C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo\\.darkmechanicus\\kanban\\kc_01m6rkrx794qrz8mkw40t62zwc\\attachments\\edd479890c1dad29c1f6d414e1108d224fd0cd2ac803e5c797fdbf1a4baceb04.png'"
+    ]
+  }
+}
+exit=0
+$ dm call flush_portable_state '{}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "flushed": 0,
+    "failed": 1,
+    "errors": [
+      "attachment im_01m6rkrxhmgz0922bvfhgdtwxj: EPERM: operation not permitted, rename 'C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo\\.darkmechanicus\\kanban\\kc_01m6rkrx794qrz8mkw40t62zwc\\attachments\\edd479890c1dad29c1f6d414e1108d224fd0cd2ac803e5c797fdbf1a4baceb04.png.tmp-5544' -> 'C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo\\.darkmechanicus\\kanban\\kc_01m6rkrx794qrz8mkw40t62zwc\\attachments\\edd479890c1dad29c1f6d414e1108d224fd0cd2ac803e5c797fdbf1a4baceb04.png'"
+    ]
+  }
+}
+exit=0
+$ dm call flush_portable_state '{}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "flushed": 0,
+    "failed": 1,
+    "errors": [
+      "attachment im_01m6rkrxhmgz0922bvfhgdtwxj: EPERM: operation not permitted, rename 'C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo\\.darkmechanicus\\kanban\\kc_01m6rkrx794qrz8mkw40t62zwc\\attachments\\edd479890c1dad29c1f6d414e1108d224fd0cd2ac803e5c797fdbf1a4baceb04.png.tmp-16260' -> 'C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo\\.darkmechanicus\\kanban\\kc_01m6rkrx794qrz8mkw40t62zwc\\attachments\\edd479890c1dad29c1f6d414e1108d224fd0cd2ac803e5c797fdbf1a4baceb04.png'"
+    ]
+  }
+}
+exit=0
+$ dm call flush_portable_state '{}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "flushed": 0,
+    "failed": 1,
+    "errors": [
+      "attachment im_01m6rkrxhmgz0922bvfhgdtwxj: EPERM: operation not permitted, rename 'C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo\\.darkmechanicus\\kanban\\kc_01m6rkrx794qrz8mkw40t62zwc\\attachments\\edd479890c1dad29c1f6d414e1108d224fd0cd2ac803e5c797fdbf1a4baceb04.png.tmp-58752' -> 'C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo\\.darkmechanicus\\kanban\\kc_01m6rkrx794qrz8mkw40t62zwc\\attachments\\edd479890c1dad29c1f6d414e1108d224fd0cd2ac803e5c797fdbf1a4baceb04.png'"
+    ]
+  }
+}
+exit=0
+$ dm call get_storage_status '{}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "initialized": true,
+    "repoRoot": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo",
+    "storage": {
+      "mode": "repo",
+      "projectDir": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo\\.darkmechanicus",
+      "databasePath": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo\\.darkmechanicus\\local\\state.sqlite"
+    },
+    "projectId": "pj_01m6rkax82eshtema9aysrgvjy",
+    "projectName": "repo",
+    "uncommittedRecordFiles": 34,
+    "schemaVersion": 14,
+    "outbox": {
+      "pending": 2,
+      "failed": 1,
+      "lastError": "EPERM: operation not permitted, rename 'C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo\\.darkmechanicus\\kanban\\kc_01m6rkrx794qrz8mkw40t62zwc\\attachments\\edd479890c1dad29c1f6d414e1108d224fd0cd2ac803e5c797fdbf1a4baceb04.png.tmp-70256' -> 'C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo\\.darkmechanicus\\kanban\\kc_01m6rkrx794qrz8mkw40t62zwc\\attachments\\edd479890c1dad29c1f6d414e1108d224fd0cd2ac803e5c797fdbf1a4baceb04.png'",
+      "failedEntries": [
+        {
+          "kind": "attachment",
+          "entityId": "im_01m6rkrxhmgz0922bvfhgdtwxj",
+          "attempts": 14,
+          "lastError": "EPERM: operation not permitted, rename 'C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo\\.darkmechanicus\\kanban\\kc_01m6rkrx794qrz8mkw40t62zwc\\attachments\\edd479890c1dad29c1f6d414e1108d224fd0cd2ac803e5c797fdbf1a4baceb04.png.tmp-70256' -> 'C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo\\.darkmechanicus\\kanban\\kc_01m6rkrx794qrz8mkw40t62zwc\\attachments\\edd479890c1dad29c1f6d414e1108d224fd0cd2ac803e5c797fdbf1a4baceb04.png'"
+        }
+      ]
+    },
+    "attachments": {
+      "count": 9,
+      "bytes": 104594,
+      "missing": 0
+    },
+    "lastFlushAt": "2026-11-06T14:21:31.765Z",
+    "branch": {
+      "current": "main",
+      "recorded": "main",
+      "changed": false,
+      "repository": true
+    },
+    "conflicts": [],
+    "profileConflicts": [],
+    "kanbanConflicts": [],
+    "sessions": {
+      "active": 2,
+      "byRole": {
+        "desktop": 1,
+        "orchestrator": 1
+      }
+    }
+  }
+}
+exit=0
+
+# get_storage_status re-read right after the storage-card screenshot (c10-storage-card-images-row-and-failed-export.png):
+$ dm call get_storage_status '{}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "initialized": true,
+    "repoRoot": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo",
+    "storage": {
+      "mode": "repo",
+      "projectDir": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo\\.darkmechanicus",
+      "databasePath": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo\\.darkmechanicus\\local\\state.sqlite"
+    },
+    "projectId": "pj_01m6rkax82eshtema9aysrgvjy",
+    "projectName": "repo",
+    "uncommittedRecordFiles": 34,
+    "schemaVersion": 14,
+    "outbox": {
+      "pending": 2,
+      "failed": 1,
+      "lastError": "EPERM: operation not permitted, rename 'C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo\\.darkmechanicus\\kanban\\kc_01m6rkrx794qrz8mkw40t62zwc\\attachments\\edd479890c1dad29c1f6d414e1108d224fd0cd2ac803e5c797fdbf1a4baceb04.png.tmp-66144' -> 'C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo\\.darkmechanicus\\kanban\\kc_01m6rkrx794qrz8mkw40t62zwc\\attachments\\edd479890c1dad29c1f6d414e1108d224fd0cd2ac803e5c797fdbf1a4baceb04.png'",
+      "failedEntries": [
+        {
+          "kind": "attachment",
+          "entityId": "im_01m6rkrxhmgz0922bvfhgdtwxj",
+          "attempts": 17,
+          "lastError": "EPERM: operation not permitted, rename 'C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo\\.darkmechanicus\\kanban\\kc_01m6rkrx794qrz8mkw40t62zwc\\attachments\\edd479890c1dad29c1f6d414e1108d224fd0cd2ac803e5c797fdbf1a4baceb04.png.tmp-66144' -> 'C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo\\.darkmechanicus\\kanban\\kc_01m6rkrx794qrz8mkw40t62zwc\\attachments\\edd479890c1dad29c1f6d414e1108d224fd0cd2ac803e5c797fdbf1a4baceb04.png'"
+        }
+      ]
+    },
+    "attachments": {
+      "count": 9,
+      "bytes": 104594,
+      "missing": 0
+    },
+    "lastFlushAt": "2026-11-06T14:21:31.765Z",
+    "branch": {
+      "current": "main",
+      "recorded": "main",
+      "changed": false,
+      "repository": true
+    },
+    "conflicts": [],
+    "profileConflicts": [],
+    "kanbanConflicts": [],
+    "sessions": {
+      "active": 2,
+      "byRole": {
+        "desktop": 1,
+        "orchestrator": 1
+      }
+    }
+  }
+}
+exit=0
+
+# fault removed (the blocking directory deleted); one more flush:
+$ dm call flush_portable_state '{}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "flushed": 0,
+    "failed": 0,
+    "errors": []
+  }
+}
+exit=0
+$ dm call get_storage_status '{}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "initialized": true,
+    "repoRoot": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo",
+    "storage": {
+      "mode": "repo",
+      "projectDir": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo\\.darkmechanicus",
+      "databasePath": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\repo\\.darkmechanicus\\local\\state.sqlite"
+    },
+    "projectId": "pj_01m6rkax82eshtema9aysrgvjy",
+    "projectName": "repo",
+    "uncommittedRecordFiles": 37,
+    "schemaVersion": 14,
+    "outbox": {
+      "pending": 0,
+      "failed": 0,
+      "lastError": null
+    },
+    "attachments": {
+      "count": 9,
+      "bytes": 104594,
+      "missing": 0
+    },
+    "lastFlushAt": "2026-11-06T14:22:19.085Z",
+    "branch": {
+      "current": "main",
+      "recorded": "main",
+      "changed": false,
+      "repository": true
+    },
+    "conflicts": [],
+    "profileConflicts": [],
+    "kanbanConflicts": [],
+    "sessions": {
+      "active": 2,
+      "byRole": {
+        "desktop": 1,
+        "orchestrator": 1
+      }
+    }
+  }
+}
+exit=0

@@ -99,7 +99,7 @@ export const commentBody = z
 /** Why an image is attached: as evidence of an attempt's work, or as a reference to build from. */
 export const attachmentPurpose = z.enum(['evidence', 'reference'])
 /** The image types the store accepts. */
-export const attachmentMime = z.enum(['image/png', 'image/jpeg'])
+const attachmentMime = z.enum(['image/png', 'image/jpeg'])
 
 /** The metadata a record keeps about one image: never the bytes, which stay in the store. */
 export const attachmentRef = z.strictObject({
@@ -218,7 +218,9 @@ export const ticketInput = z.strictObject({
   capability: capabilityPatch.optional(),
   references: z.array(ticketReference).max(LIMITS.references).optional(),
   expectedArtifacts: z.array(z.string().max(LIMITS.label)).max(LIMITS.references).optional(),
-  optional: z.boolean().optional()
+  optional: z.boolean().optional(),
+  // Staged image ids to show on the ticket as references; the draft stores their refs and `[]` removes them all.
+  attachments: z.array(attachmentRef.shape.id).max(LIMITS.attachmentsPerRecord).optional()
 })
 
 const concurrencyCap = z.number().int().min(1).max(1_000).nullable()
@@ -285,7 +287,9 @@ export const ticketContent = z.strictObject({
   capability: capabilityProfile,
   references: z.array(ticketReference).max(LIMITS.references),
   expectedArtifacts: z.array(z.string().max(LIMITS.label)).max(LIMITS.references),
-  optional: z.boolean()
+  optional: z.boolean(),
+  // No default, like `size`: a ticket without reference images keeps its saved shape and hash.
+  attachments: z.array(attachmentRef).max(LIMITS.attachmentsPerRecord).optional()
 })
 
 export const sprintDef = z.strictObject({

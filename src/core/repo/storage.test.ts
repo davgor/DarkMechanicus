@@ -49,6 +49,7 @@ describe('getStorageStatus without a database', () => {
       projectName: null,
       schemaVersion: null,
       outbox: { pending: 0, failed: 0, lastError: null },
+      attachments: { count: 0, bytes: 0, missing: 0 },
       lastFlushAt: null,
       branch: { current: null, recorded: null, changed: false, repository: true },
       uncommittedRecordFiles: null,
@@ -106,6 +107,8 @@ function seededDb(): Db {
   return db
 }
 
+const SEEDED_FAILURE = { kind: 'run_history', entityId: idOf('run', 1), attempts: 0, lastError: 'permission denied' }
+
 describe('getStorageStatus with a database', () => {
   it('summarizes the outbox, flush time, branch, conflicts, and sessions', async () => {
     const status = await getStorageStatus({ db: seededDb(), layout, fs: initializedFs(), git: gitWith(0, 'main'), clock: createTestClock() })
@@ -114,9 +117,9 @@ describe('getStorageStatus with a database', () => {
       repoRoot: layout.root,
       storage: { mode: 'repo', projectDir: layout.dmDir, databasePath: layout.dbFile },
       projectId: PROJECT.projectId,
-      projectName: 'Demo',
-      schemaVersion: SCHEMA_VERSION,
-      outbox: { pending: 2, failed: 1, lastError: 'permission denied' },
+      projectName: 'Demo', schemaVersion: SCHEMA_VERSION,
+      outbox: { pending: 2, failed: 1, lastError: 'permission denied', failedEntries: [SEEDED_FAILURE] },
+      attachments: { count: 0, bytes: 0, missing: 0 },
       lastFlushAt: '2026-01-01T00:05:00.000Z',
       branch: { current: 'main', recorded: 'release', changed: true, repository: true },
       uncommittedRecordFiles: 0,
@@ -156,6 +159,36 @@ describe('getStorageStatus with a database', () => {
     expect(status.outbox).toEqual({ pending: 0, failed: 0, lastError: null })
     expect(status.branch).toEqual({ current: 'main', recorded: 'main', changed: false, repository: true })
     expect([status.conflicts, status.profileConflicts, status.kanbanConflicts]).toEqual([[], [], []])
+  })
+})
+
+const ATTACHMENT_SQL = `INSERT INTO attachments (id, sha256, mime, bytes, width, height, label, purpose, owner_kind, owner_id, missing, data,
+  created_by_role, created_by_label, created_at) VALUES (?, 'x', 'image/png', ?, 1, 1, 'shot', 'evidence', ?, ?, ?, NULL, 'desktop', 'x', ?)`
+
+describe('getStorageStatus attachments and failed exports', () => {
+  it('counts owned images including missing ones, and ignores staged ones', async () => {
+    const db = createTestDb()
+    db.run(ATTACHMENT_SQL, idOf('attachment', 1), 1000, 'comment', idOf('comment', 1), 0, T0)
+    db.run(ATTACHMENT_SQL, idOf('attachment', 2), 500, 'ticket', idOf('ticket', 1), 1, T0)
+    db.run(ATTACHMENT_SQL, idOf('attachment', 3), 70, null, null, 0, T0)
+    const status = await getStorageStatus({ db, layout, fs: initializedFs(), git: gitWith(0, 'main'), clock: createTestClock() })
+    expect(status.attachments).toEqual({ count: 2, bytes: 1500, missing: 1 })
+  })
+
+  it('lists failed outbox rows of every kind, at most 20, and omits the list when none failed', async () => {
+    const db = createTestDb()
+    const deps = { db, layout, fs: initializedFs(), git: gitWith(0, 'main'), clock: createTestClock() }
+    expect((await getStorageStatus(deps)).outbox).not.toHaveProperty('failedEntries')
+    const id = insertOutbox(db, { kind: 'comment', entityId: idOf('comment', 1), state: 'failed', attempts: 3 })
+    db.run('UPDATE outbox SET last_error = ? WHERE id = ?', 'EACCES', id)
+    insertOutbox(db, { kind: 'comment', entityId: idOf('comment', 2), state: 'done' })
+    expect((await getStorageStatus(deps)).outbox.failedEntries).toEqual([
+      { kind: 'comment', entityId: idOf('comment', 1), attempts: 3, lastError: 'EACCES' }
+    ])
+    for (let i = 0; i < 25; i += 1) {
+      insertOutbox(db, { kind: 'comment', entityId: idOf('comment', 10 + i), state: 'failed' })
+    }
+    expect((await getStorageStatus(deps)).outbox.failedEntries).toHaveLength(20)
   })
 })
 

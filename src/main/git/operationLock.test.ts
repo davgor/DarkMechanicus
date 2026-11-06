@@ -1,8 +1,9 @@
 /** The per-repository operation lock: one operation at a time per canonical repository root, others in parallel. */
-import { mkdirSync, symlinkSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { scratchDir } from '../../test/gitScratch'
+import { linkDirectory } from '../../test/tempRepo'
 import { GitError } from './errors'
 import { createOperationLocks } from './operationLock'
 import type { GitRunner } from './runner'
@@ -63,7 +64,7 @@ function repositoryDirs(): { root: string; sub: string; link: string; other: str
   mkdirSync(sub, { recursive: true })
   mkdirSync(other)
   const link = join(dir.path, 'link')
-  symlinkSync(root, link)
+  linkDirectory(root, link)
   return { root, sub, link, other }
 }
 

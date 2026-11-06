@@ -249,7 +249,8 @@ function packetOf(ctx: Ctx, cardId: string, claim: NewClaim): KanbanPacket {
       expectedArtifacts: card.expectedArtifacts,
       references: card.references,
       priority: card.priority,
-      size: card.size
+      size: card.size,
+      ...(card.attachments === undefined ? {} : { attachments: card.attachments })
     },
     branch,
     reviewComments,

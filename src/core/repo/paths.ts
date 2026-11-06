@@ -61,6 +61,8 @@ export function ownedPaths(layout: RepoLayout) {
     attachmentsDir,
     attachmentFile: (folder: AttachmentFolder, sha256: string, mime: keyof typeof ATTACHMENT_EXTENSIONS): string =>
       join(attachmentsDir(folder), `${checkedSha256(sha256)}.${ATTACHMENT_EXTENSIONS[mime]}`),
+    attachmentSidecarFile: (folder: AttachmentFolder, attachmentId: string): string =>
+      join(attachmentsDir(folder), `${checkedId(attachmentId, 'attachment')}.json`),
     snapshotsDir,
     snapshotFile: (epicId: string, revisionId: string): string =>
       join(snapshotsDir(epicId), `${checkedId(revisionId, 'revision')}.json`),

@@ -9,7 +9,7 @@
  * transaction back, leaving the last good pointer (and every earlier snapshot) untouched and the
  * entry pending for an idempotent retry.
  */
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
 import { z } from 'zod'
 import type { FlushResultView } from '../../shared/domain/views'
 import { contentHash, prettyJson } from '../canonical'
@@ -21,6 +21,8 @@ import { KANBAN_OUTBOX_KINDS, type OutboxKind } from '../services/outbox'
 import { hasTransferHold } from '../services/transferGuard'
 import type { StorageMode } from './storageMode'
 import {
+  ATTACHMENT_FILE_NAME,
+  ATTACHMENT_SIDECAR_NAME,
   loadStoredAttachment,
   type OwningRecord,
   placementOfAttachment,
@@ -28,7 +30,7 @@ import {
   unexportedAttachments,
   writeAttachmentFile
 } from './attachmentFiles'
-import { assertContained, displayPath, ownedPaths } from './paths'
+import { type AttachmentFolder, assertContained, displayPath, ownedPaths } from './paths'
 import {
   buildCommentRecord,
   buildEpicPointerRecord,
@@ -186,9 +188,26 @@ function recordExport(deps: FinalizerDeps, entry: { kind: ExportKind; entityId: 
   )
 }
 
+/**
+ * Writes `attachments/<id>.json` beside the image: who staged it and when, so an import can restore `createdBy`. Named by
+ * id (two ids can share bytes); nothing but the id, the hash, the creator and the time goes in. A file already holding
+ * exactly this text is left alone.
+ */
+function writeAttachmentSidecar(deps: FinalizerDeps, attachment: StoredAttachment, folder: AttachmentFolder): void {
+  const target = ownedPaths(deps.layout).attachmentSidecarFile(folder, attachment.id)
+  const text = prettyJson({ id: attachment.id, sha256: attachment.sha256, createdBy: attachment.createdBy, createdAt: attachment.createdAt })
+  assertContained(deps.layout, deps.fs, target)
+  if (deps.fs.exists(target) && readOwnedText(deps, target) === text) {
+    return
+  }
+  writeFileSafely(deps, target, text)
+}
+
 /** Writes one image's file beside its owner's records and records the export (its hash is the image's sha256). */
 function exportAttachmentFile(deps: FinalizerDeps, attachment: StoredAttachment): void {
-  writeAttachmentFile(deps, attachment, placementOfAttachment(deps.db, attachment))
+  const placement = placementOfAttachment(deps.db, attachment)
+  writeAttachmentFile(deps, attachment, placement)
+  writeAttachmentSidecar(deps, attachment, placement.folder)
   recordExport(deps, {
     kind: 'attachment',
     entityId: attachment.id,
@@ -208,11 +227,19 @@ function exportAttachmentsOf(deps: FinalizerDeps, record: OwningRecord): void {
   }
 }
 
+function attachmentExists(db: Db, id: string): boolean {
+  return db.get('SELECT 1 AS present FROM attachments WHERE id = ?', id) !== undefined
+}
+
 /**
  * The `attachment` entry of one claimed image. An image in an epic's folder waits for the epic's records to be in this
  * checkout, as a comment does, so a checkout of another branch never gets an epic folder holding images alone.
  */
 function exportAttachment(deps: FinalizerDeps, attachmentId: string): void {
+  if (!attachmentExists(deps.db, attachmentId)) {
+    // Detached or deleted after it was queued: there is nothing left to export.
+    return
+  }
   const attachment = loadStoredAttachment(deps.db, attachmentId)
   const placement = placementOfAttachment(deps.db, attachment)
   if (placement.folder.kind === 'epic') {
@@ -226,6 +253,39 @@ function exportAttachment(deps: FinalizerDeps, attachmentId: string): void {
     }
   }
   exportAttachmentFile(deps, attachment)
+}
+
+/**
+ * Deletes the image files of a card's folder that no remaining row of the card holds (files are named by sha256, so a
+ * file stays while any row of the card, or of one of its attempts, has that hash). Runs before the card record is
+ * written, so a record never lists an image whose file was just removed, and a dropped image's file does not linger.
+ */
+function pruneCardAttachmentFiles(deps: FinalizerDeps, cardId: string): void {
+  const dir = ownedPaths(deps.layout).attachmentsDir({ kind: 'kanban_card', id: cardId })
+  assertContained(deps.layout, deps.fs, dir)
+  if (!deps.fs.exists(dir) || !deps.fs.isDirectory(dir)) {
+    return
+  }
+  const rows = deps.db
+      .all<{ id: string; sha256: string }>(
+        `SELECT id, sha256 FROM attachments
+         WHERE (owner_kind = 'kanban_card' AND owner_id = ?)
+            OR (owner_kind = 'kanban_attempt' AND owner_id IN (SELECT id FROM kanban_attempts WHERE card_id = ?))`,
+        cardId,
+        cardId
+      )
+  const keptHashes = new Set(rows.map((row) => row.sha256))
+  const keptIds = new Set(rows.map((row) => row.id))
+  for (const name of deps.fs.readdir(dir)) {
+    const match = ATTACHMENT_FILE_NAME.exec(name)
+    const sidecar = ATTACHMENT_SIDECAR_NAME.exec(name)
+    // A sidecar is named by id, so it goes with its own image row, even when another id keeps the same bytes.
+    if ((match !== null && !keptHashes.has(match[1] ?? '')) || (sidecar !== null && !keptIds.has(sidecar[1] ?? ''))) {
+      const file = join(dir, name)
+      assertContained(deps.layout, deps.fs, file)
+      deps.fs.remove(file)
+    }
+  }
 }
 
 /** An epic's tracked pointer and state texts as they are in the checkout; null for a missing file. */
@@ -477,6 +537,7 @@ function exportComment(deps: FinalizerDeps, commentId: string): void {
  */
 function exportKanbanCard(deps: FinalizerDeps, cardId: string): void {
   exportAttachmentsOf(deps, { kind: 'kanban_card', id: cardId })
+  pruneCardAttachmentFiles(deps, cardId)
   const target = ownedPaths(deps.layout).kanbanCardFile(cardId)
   const generation = nextGeneration(deps.db, 'kanban_card', cardId)
   const text = prettyJson(buildKanbanCardRecord(deps.db, cardId, { generation }))
@@ -624,6 +685,10 @@ function entityKeys(entry: OutboxRow): string[] {
   // A card's definition and events are written in order: a failed one holds back the card's later records only.
   if (entry.card_id !== null) {
     return [`kanban:${entry.card_id}`]
+  }
+  // An image file stands alone too: it never holds back, or waits behind, the records of its epic or run.
+  if (entry.kind === 'attachment') {
+    return [`attachment:${entry.entity_id ?? entry.id}`]
   }
   const keys: string[] = []
   if (entry.epic_id !== null) {

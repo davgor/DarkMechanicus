@@ -20,6 +20,7 @@ import { KANBAN_OPEN_ATTEMPT_STATES, type KanbanAttemptState, type KanbanLane } 
 import { contentHash } from '../canonical'
 import { type Db, parseJson, toJson } from '../db/database'
 import { fail } from '../errors'
+import { insertOwnedRow } from './attachmentImport'
 import { type FileHashCache, readUnlessSynced } from './fileHashes'
 import { assertContained, displayPath, ownedPaths } from './paths'
 import {
@@ -320,6 +321,26 @@ function applyDefinition(db: Db, record: KanbanCardRecord): void {
     record.createdAt,
     record.updatedAt
   )
+  syncCardAttachments(db, record)
+}
+
+/**
+ * Makes the card's owned image rows the record's list: a listed image with no row gets one without bytes (the restore
+ * that follows an import fills it from the card's folder), and a row of the card the record no longer lists is deleted.
+ */
+function syncCardAttachments(db: Db, record: KanbanCardRecord): void {
+  const listed = record.attachments ?? []
+  const listedIds = new Set(listed.map((ref) => ref.id))
+  const held = db.all<{ id: string }>("SELECT id FROM attachments WHERE owner_kind = 'kanban_card' AND owner_id = ?", record.id)
+  for (const row of held.filter((item) => !listedIds.has(item.id))) {
+    db.run('DELETE FROM attachments WHERE id = ?', row.id)
+    db.run("DELETE FROM sync_state WHERE kind = 'attachment' AND entity_id = ?", row.id)
+  }
+  for (const ref of listed) {
+    if (db.get('SELECT id FROM attachments WHERE id = ?', ref.id) === undefined) {
+      insertOwnedRow(db, ref, { owner: 'kanban_card', ownerId: record.id, createdAt: record.updatedAt })
+    }
+  }
 }
 
 /**

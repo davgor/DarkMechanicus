@@ -11,6 +11,8 @@ import {
 } from '../../../shared/domain/bundle'
 import type { RepositoryView } from '../../../shared/domain/views'
 import { repoPrefix } from '../../../core/plan/repoTitles'
+import { ImageAttachField } from '../attachments/ImageAttachField'
+import type { Runner } from '../epic/runner'
 import { Markdown } from '../markdown/Markdown'
 import {
   addCriterion,
@@ -127,6 +129,19 @@ export function CriteriaFields({ form, update }: FieldProps): JSX.Element {
 }
 
 /** A select whose first option, None, clears the value (an empty string in the form). */
+/** Reference images of the ticket: attach, see and remove; the ids go out with the update_ticket patch. */
+export function ImageFields(props: FieldProps & { runner: Runner; folderKey: string }): JSX.Element {
+  const { form, update } = props
+  return (
+    <ImageAttachField
+      runner={props.runner}
+      folderKey={props.folderKey}
+      images={form.attachments}
+      onChange={(attachments) => update({ ...form, attachments })}
+    />
+  )
+}
+
 function OptionalSelect<T extends string>(props: {
   label: string
   value: T | ''

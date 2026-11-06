@@ -67,6 +67,8 @@ export function cliInstructions(options: InstructionOptions): string {
     '',
     saving,
     '',
+    'To attach a screenshot, save it as a PNG or JPEG in the project, the temp folder or the screenshots folder, run `add_attachment` with its `path`, a `label` and a `purpose` of `evidence` or `reference`, and pass the returned id in the `attachments` of the record. On Windows, put the JSON in a file and run `call <command> --args-file <path>`.',
+    '',
     'Commands take either spelling, `claim_ticket` or `claimTicket`. Output is JSON on stdout:',
     '`{"ok":true,"data":…}` or `{"ok":false,"error":{"code","message"}}`. Start with `get_capabilities`.'
   ].join('\n')

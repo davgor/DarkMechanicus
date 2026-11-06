@@ -6,7 +6,7 @@
  */
 import { createHash } from 'node:crypto'
 import { dirname } from 'node:path'
-import type { AttachmentMime, AttachmentOwner, AttachmentOwnerKind } from '../../shared/domain/views'
+import type { AttachmentMime, AttachmentOwner, AttachmentOwnerKind, SessionRole } from '../../shared/domain/views'
 import type { Db } from '../db/database'
 import { fail } from '../errors'
 import { type AttachmentPlacement, resolveAttachmentPlacement } from '../services/attachmentOwners'
@@ -18,6 +18,12 @@ interface Env {
   fs: FsAdapter
 }
 
+/** The name of an image file in an `attachments/` folder: its sha256 and extension. */
+export const ATTACHMENT_FILE_NAME = /^([0-9a-f]{64})\.(png|jpg)$/
+
+/** The name of an image's sidecar in an `attachments/` folder: its attachment id. */
+export const ATTACHMENT_SIDECAR_NAME = /^(im_[0-9a-hjkmnp-tv-z]{26})\.json$/
+
 /** An attachment row with its bytes, as the export needs it. */
 export interface StoredAttachment {
   id: string
@@ -25,6 +31,8 @@ export interface StoredAttachment {
   mime: AttachmentMime
   owner: AttachmentOwner | null
   data: Uint8Array | null
+  createdBy: { role: SessionRole; label: string }
+  createdAt: string
 }
 
 interface StoredRow {
@@ -34,9 +42,12 @@ interface StoredRow {
   owner_kind: AttachmentOwnerKind | null
   owner_id: string | null
   data: Uint8Array | null
+  created_by_role: SessionRole
+  created_by_label: string
+  created_at: string
 }
 
-const STORED_COLUMNS = 'a.id, a.sha256, a.mime, a.owner_kind, a.owner_id, a.data'
+const STORED_COLUMNS = 'a.id, a.sha256, a.mime, a.owner_kind, a.owner_id, a.data, a.created_by_role, a.created_by_label, a.created_at'
 
 function toStored(row: StoredRow): StoredAttachment {
   return {
@@ -44,7 +55,9 @@ function toStored(row: StoredRow): StoredAttachment {
     sha256: row.sha256,
     mime: row.mime,
     owner: row.owner_kind === null || row.owner_id === null ? null : { kind: row.owner_kind, id: row.owner_id },
-    data: row.data
+    data: row.data,
+    createdBy: { role: row.created_by_role, label: row.created_by_label },
+    createdAt: row.created_at
   }
 }
 

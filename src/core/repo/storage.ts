@@ -21,7 +21,7 @@ interface StorageDeps {
 
 type DatabaseStatus = Pick<
   StorageStatusView,
-  'schemaVersion' | 'outbox' | 'lastFlushAt' | 'branch' | 'conflicts' | 'profileConflicts' | 'kanbanConflicts' | 'sessions'
+  'schemaVersion' | 'outbox' | 'attachments' | 'lastFlushAt' | 'branch' | 'conflicts' | 'profileConflicts' | 'kanbanConflicts' | 'sessions'
 >
 
 /** Status must render for broken folders too: an unreadable project reads as "not initialized". */
@@ -33,6 +33,8 @@ function projectOrNull(deps: StorageDeps): ProjectRecord | null {
   }
 }
 
+const FAILED_ENTRY_LIMIT = 20
+
 function outboxStatus(db: Db): StorageStatusView['outbox'] {
   const counts = db.all<{ state: string; count: number }>(
     "SELECT state, COUNT(*) AS count FROM outbox WHERE state IN ('pending', 'failed') GROUP BY state"
@@ -41,7 +43,22 @@ function outboxStatus(db: Db): StorageStatusView['outbox'] {
   const latest = db.get<{ last_error: string }>(
     "SELECT last_error FROM outbox WHERE state <> 'done' AND last_error IS NOT NULL ORDER BY id DESC LIMIT 1"
   )
-  return { pending: countOf('pending'), failed: countOf('failed'), lastError: latest?.last_error ?? null }
+  const outbox: StorageStatusView['outbox'] = { pending: countOf('pending'), failed: countOf('failed'), lastError: latest?.last_error ?? null }
+  const failedEntries = db
+    .all<{ kind: string; entity_id: string; attempts: number; last_error: string | null }>(
+      `SELECT kind, COALESCE(entity_id, revision_id, run_id, epic_id, '') AS entity_id, attempts, last_error
+       FROM outbox WHERE state = 'failed' ORDER BY id LIMIT ${FAILED_ENTRY_LIMIT}`
+    )
+    .map((row) => ({ kind: row.kind, entityId: row.entity_id, attempts: row.attempts, lastError: row.last_error }))
+  return failedEntries.length === 0 ? outbox : { ...outbox, failedEntries }
+}
+
+/** Images attached to a record: staged ones that nothing owns yet do not count. */
+function attachmentsStatus(db: Db): NonNullable<StorageStatusView['attachments']> {
+  const row = db.get<{ count: number; bytes: number | null; missing: number | null }>(
+    'SELECT COUNT(*) AS count, SUM(bytes) AS bytes, SUM(missing) AS missing FROM attachments WHERE owner_id IS NOT NULL'
+  )
+  return { count: row?.count ?? 0, bytes: row?.bytes ?? 0, missing: row?.missing ?? 0 }
 }
 
 type RecordsDeps = Pick<StorageDeps, 'layout' | 'fs'> & { db: Db }
@@ -102,6 +119,7 @@ function databaseStatus(deps: RecordsDeps & { clock: Clock }, head: { current: s
   return {
     schemaVersion: readSchemaVersion(db),
     outbox: outboxStatus(db),
+    attachments: attachmentsStatus(db),
     lastFlushAt: getMeta(db, META_KEYS.lastFlushAt),
     branch: { current: head.current, recorded: branch.recorded, changed: branch.changed, repository: head.repository },
     conflicts: conflictsOf(deps),
@@ -114,6 +132,7 @@ function databaseStatus(deps: RecordsDeps & { clock: Clock }, head: { current: s
 const NO_DATABASE: Omit<DatabaseStatus, 'branch'> = {
   schemaVersion: null,
   outbox: { pending: 0, failed: 0, lastError: null },
+  attachments: { count: 0, bytes: 0, missing: 0 },
   lastFlushAt: null,
   conflicts: [],
   profileConflicts: [],

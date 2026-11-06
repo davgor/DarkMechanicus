@@ -1,0 +1,65 @@
+# c11 (Git Bash): GNU bash, version 5.3.9(1)-release (x86_64-pc-cygwin); uname MINGW64_NT-10.0-26200; cwd /c/Users/davgo/Documents/GitHub/dm-wt/img-s2
+$ win=$(cygpath -w "$A/img/bash.png"); echo "$win"
+C:\Users\davgo\AppData\Local\Temp\dmplan\accept-s2\img\bash.png
+# 1) path written into the JSON as-is (single backslashes): refused, and the message says how to fix it
+$ printf '{"path":"%s","label":"Git Bash args file","purpose":"evidence"}' "$win" > args-bash-raw.json
+$ node out/main/cli.js --repo $A/repo --token-file $A/tok-worker.txt call add_attachment --args-file args-bash-raw.json
+{
+  "ok": false,
+  "error": {
+    "code": "invalid_input",
+    "message": "The arguments must be one JSON object. In JSON a backslash starts an escape, so a Windows path needs doubled backslashes (\"C:\\\\Users\") or forward slashes (\"C:/Users\"). To skip shell quoting, pass the object with --args-file <path>, or pipe it on stdin and pass -."
+  }
+}
+exit=1
+
+# 2) JSON-escaped Windows path (each backslash doubled): attached
+$ esc=$(printf %s "$win" | sed 's/[\]/&&/g')
+$ printf '{"path":"%s","label":"Git Bash args file","purpose":"evidence"}' "$esc" > args-bash.json; cat args-bash.json
+{"path":"C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\img\\bash.png","label":"Git Bash args file","purpose":"evidence"}
+$ node out/main/cli.js --repo C:/Users/davgo/AppData/Local/Temp/dmplan/accept-s2/repo --token-file C:/Users/davgo/AppData/Local/Temp/dmplan/accept-s2/tok-worker.txt call add_attachment --args-file C:/Users/davgo/AppData/Local/Temp/dmplan/accept-s2/args-bash.json
+{
+  "ok": true,
+  "data": {
+    "id": "im_01m6rkvxkngg8gs37esvgbzr43",
+    "sha256": "205989f901a5b4b47d0327aa8fa33984d21e009f45e3f4a0c8a3ad2d5142a2dc",
+    "mime": "image/png",
+    "bytes": 6529,
+    "width": 410,
+    "height": 210,
+    "label": "Git Bash args file",
+    "purpose": "evidence",
+    "owner": null,
+    "missing": false,
+    "createdBy": {
+      "role": "worker",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:23:10.453Z"
+  }
+}
+exit=0
+
+# 3) the same file on stdin with a lone -
+$ cat args-bash.json | node out/main/cli.js --repo C:/Users/davgo/AppData/Local/Temp/dmplan/accept-s2/repo --token-file C:/Users/davgo/AppData/Local/Temp/dmplan/accept-s2/tok-worker.txt call add_attachment -
+{
+  "ok": true,
+  "data": {
+    "id": "im_01m6rkvxsdgzays6bfvvx2p43d",
+    "sha256": "205989f901a5b4b47d0327aa8fa33984d21e009f45e3f4a0c8a3ad2d5142a2dc",
+    "mime": "image/png",
+    "bytes": 6529,
+    "width": 410,
+    "height": 210,
+    "label": "Git Bash args file",
+    "purpose": "evidence",
+    "owner": null,
+    "missing": false,
+    "createdBy": {
+      "role": "worker",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:23:10.637Z"
+  }
+}
+exit=0

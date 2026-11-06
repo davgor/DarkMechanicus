@@ -734,7 +734,15 @@ export interface StorageStatusView {
   projectId: string | null
   projectName: string | null
   schemaVersion: number | null
-  outbox: { pending: number; failed: number; lastError: string | null }
+  /** `failedEntries` lists up to 20 failed rows of every kind, and is omitted when none failed. */
+  outbox: {
+    pending: number
+    failed: number
+    lastError: string | null
+    failedEntries?: { kind: string; entityId: string; attempts: number; lastError: string | null }[]
+  }
+  /** Images attached to a record; `bytes` includes the ones whose bytes are missing. Always returned by `get_storage_status`. */
+  attachments?: { count: number; bytes: number; missing: number }
   lastFlushAt: string | null
   /** `repository` is false outside a Git checkout (then `current` is null too, but not because HEAD is detached). */
   branch: { current: string | null; recorded: string | null; changed: boolean; repository: boolean }
@@ -1064,6 +1072,8 @@ export interface CommentView {
   /** The session that wrote it (role and label), never caller-supplied. */
   author: { role: SessionRole; label: string }
   createdAt: string
+  /** The images attached to the comment; absent when it has none. */
+  attachments?: AttachmentRef[]
 }
 
 /** Why a person or agent attached an image: a screenshot as proof, or a mockup to work from. */

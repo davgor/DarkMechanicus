@@ -40,6 +40,26 @@ function queueText(status: StorageStatusView): string {
   return failed > 0 && lastError !== null ? `${summary} — ${lastError}` : summary
 }
 
+/** 1536 -> "1.5 KB"; whole bytes below 1 KB. */
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`
+  }
+  const units = ['KB', 'MB', 'GB']
+  let value = bytes / 1024
+  let unit = 0
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024
+    unit += 1
+  }
+  return `${value.toFixed(1)} ${units[unit]}`
+}
+
+function imagesText({ count, bytes, missing }: NonNullable<StorageStatusView['attachments']>): string {
+  const summary = `${count} (${formatBytes(bytes)})`
+  return missing > 0 ? `${summary}, ${missing} missing` : summary
+}
+
 const MODE_LABELS: Record<StorageStatusView['storage']['mode'], string> = {
   repo: 'In this repository',
   db: 'Database only'
@@ -79,6 +99,20 @@ function ConflictChoice({ epicId, onResolve }: { epicId: string; onResolve: Reso
   )
 }
 
+function SaveQueueRow({ status }: { status: StorageStatusView }): JSX.Element {
+  return (
+    <Row label="Save queue">
+      {queueText(status)}
+      {(status.outbox.failedEntries ?? []).map((entry, index) => (
+        <div key={`${index}:${entry.kind}:${entry.entityId}`}>
+          {entry.kind} {entry.entityId}: failed {entry.attempts} {entry.attempts === 1 ? 'time' : 'times'}
+          {entry.lastError === null ? '' : ` — ${entry.lastError}`}
+        </div>
+      ))}
+    </Row>
+  )
+}
+
 interface DetailsProps {
   status: StorageStatusView
   titles: Readonly<Record<string, string>>
@@ -108,7 +142,8 @@ function Details({ status, titles, onResolveConflict }: DetailsProps): JSX.Eleme
       {databaseOnly ? null : (
         <Row label="Last export">{status.lastFlushAt === null ? 'Never' : formatShortDate(status.lastFlushAt)}</Row>
       )}
-      <Row label="Save queue">{queueText(status)}</Row>
+      <SaveQueueRow status={status} />
+      {status.attachments === undefined ? null : <Row label="Images">{imagesText(status.attachments)}</Row>}
       {status.conflicts.length + status.profileConflicts.length === 0 ? null : (
         <Row label="Conflicts">
           {/* One epic can have several conflicts (its own, runs, comments), so the epic id alone is no key. */}

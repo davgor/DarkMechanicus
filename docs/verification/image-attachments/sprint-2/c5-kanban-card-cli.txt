@@ -1,0 +1,208 @@
+# c5: a Kanban card created from the CLI with a mockup and references (repo mode)
+$ dm call add_attachment '{"path":"C:/Users/davgo/AppData/Local/Temp/dmplan/accept-s2/img/card-mockup.png","label":"Card mockup","purpose":"reference"}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "id": "im_01m6rkjc31s7hp2gmj0b1c1f94",
+    "sha256": "b77424356b0c858b80c2ae9cf3a405cec47e4aec9ad56e8b4fc246d1c4a47bce",
+    "mime": "image/png",
+    "bytes": 14367,
+    "width": 800,
+    "height": 450,
+    "label": "Card mockup",
+    "purpose": "reference",
+    "owner": null,
+    "missing": false,
+    "createdBy": {
+      "role": "orchestrator",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:17:57.601Z"
+  }
+}
+exit=0
+$ dm call add_attachment '{"path":"C:/Users/davgo/AppData/Local/Temp/dmplan/accept-s2/img/card-second.png","label":"Second card image","purpose":"reference"}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "id": "im_01m6rkjc7jmkpjv4r8pknkprjf",
+    "sha256": "acc9b92d02c4aff97213396b53f704af82f31bebe2066223799d8daea60391ac",
+    "mime": "image/png",
+    "bytes": 11033,
+    "width": 640,
+    "height": 360,
+    "label": "Second card image",
+    "purpose": "reference",
+    "owner": null,
+    "missing": false,
+    "createdBy": {
+      "role": "orchestrator",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:17:57.746Z"
+  }
+}
+exit=0
+$ dm call create_kanban_card '{"title":"S2 card with a mockup","body":"Match the mockup.","acceptanceCriteria":["Looks like the mockup"],"references":[{"kind":"url","label":"Card design doc","location":"https://example.com/card-design","hash":null,"remoteOnly":true},{"kind":"file","label":"Card component","location":"src/card.tsx","hash":null,"remoteOnly":false}],"attachments":["im_01m6rkjc31s7hp2gmj0b1c1f94","im_01m6rkjc7jmkpjv4r8pknkprjf"]}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "id": "kc_01m6rkjcbb3892548nxwsbcn8d",
+    "key": "REP-4",
+    "title": "S2 card with a mockup",
+    "lane": "backlog",
+    "priority": "normal",
+    "updatedAt": "2026-11-06T14:17:57.867Z",
+    "playPending": false,
+    "openAttempt": null,
+    "kickBackCount": 0,
+    "summary": null,
+    "body": "Match the mockup.",
+    "acceptanceCriteria": [
+      {
+        "id": "c1",
+        "text": "Looks like the mockup"
+      }
+    ],
+    "expectedArtifacts": [],
+    "references": [
+      {
+        "kind": "url",
+        "label": "Card design doc",
+        "location": "https://example.com/card-design",
+        "hash": null,
+        "remoteOnly": true
+      },
+      {
+        "kind": "file",
+        "label": "Card component",
+        "location": "src/card.tsx",
+        "hash": null,
+        "remoteOnly": false
+      }
+    ],
+    "size": null,
+    "createdBy": {
+      "role": "orchestrator",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:17:57.867Z",
+    "completedAt": null,
+    "revision": 1,
+    "attachments": [
+      {
+        "id": "im_01m6rkjc31s7hp2gmj0b1c1f94",
+        "sha256": "b77424356b0c858b80c2ae9cf3a405cec47e4aec9ad56e8b4fc246d1c4a47bce",
+        "mime": "image/png",
+        "bytes": 14367,
+        "width": 800,
+        "height": 450,
+        "label": "Card mockup",
+        "purpose": "reference"
+      },
+      {
+        "id": "im_01m6rkjc7jmkpjv4r8pknkprjf",
+        "sha256": "acc9b92d02c4aff97213396b53f704af82f31bebe2066223799d8daea60391ac",
+        "mime": "image/png",
+        "bytes": 11033,
+        "width": 640,
+        "height": 360,
+        "label": "Second card image",
+        "purpose": "reference"
+      }
+    ],
+    "attempts": []
+  }
+}
+exit=0
+$ dm call flush_portable_state '{}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "flushed": 0,
+    "failed": 0,
+    "errors": []
+  }
+}
+exit=0
+
+# after the flush: kanban/kc_01m6rkjcbb3892548nxwsbcn8d/attachments/ = acc9b92d02c4aff97213396b53f704af82f31bebe2066223799d8daea60391ac.png, b77424356b0c858b80c2ae9cf3a405cec47e4aec9ad56e8b4fc246d1c4a47bce.png, im_01m6rkjc31s7hp2gmj0b1c1f94.json, im_01m6rkjc7jmkpjv4r8pknkprjf.json
+
+# remove the second image with update_kanban_card (attachments lists only the first)
+$ dm call update_kanban_card '{"cardId":"kc_01m6rkjcbb3892548nxwsbcn8d","expectedRevision":1,"attachments":["im_01m6rkjc31s7hp2gmj0b1c1f94"]}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "id": "kc_01m6rkjcbb3892548nxwsbcn8d",
+    "key": "REP-4",
+    "title": "S2 card with a mockup",
+    "lane": "backlog",
+    "priority": "normal",
+    "updatedAt": "2026-11-06T14:18:19.451Z",
+    "playPending": false,
+    "openAttempt": null,
+    "kickBackCount": 0,
+    "summary": null,
+    "body": "Match the mockup.",
+    "acceptanceCriteria": [
+      {
+        "id": "c1",
+        "text": "Looks like the mockup"
+      }
+    ],
+    "expectedArtifacts": [],
+    "references": [
+      {
+        "kind": "url",
+        "label": "Card design doc",
+        "location": "https://example.com/card-design",
+        "hash": null,
+        "remoteOnly": true
+      },
+      {
+        "kind": "file",
+        "label": "Card component",
+        "location": "src/card.tsx",
+        "hash": null,
+        "remoteOnly": false
+      }
+    ],
+    "size": null,
+    "createdBy": {
+      "role": "orchestrator",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:17:57.867Z",
+    "completedAt": null,
+    "revision": 2,
+    "attachments": [
+      {
+        "id": "im_01m6rkjc31s7hp2gmj0b1c1f94",
+        "sha256": "b77424356b0c858b80c2ae9cf3a405cec47e4aec9ad56e8b4fc246d1c4a47bce",
+        "mime": "image/png",
+        "bytes": 14367,
+        "width": 800,
+        "height": 450,
+        "label": "Card mockup",
+        "purpose": "reference"
+      }
+    ],
+    "attempts": []
+  }
+}
+exit=0
+$ dm call flush_portable_state '{}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "flushed": 0,
+    "failed": 0,
+    "errors": []
+  }
+}
+exit=0
+
+# after the flush: kanban/kc_01m6rkjcbb3892548nxwsbcn8d/attachments/ = b77424356b0c858b80c2ae9cf3a405cec47e4aec9ad56e8b4fc246d1c4a47bce.png, im_01m6rkjc31s7hp2gmj0b1c1f94.json
+# acc9b92d02c4aff97213396b53f704af82f31bebe2066223799d8daea60391ac.png (removed image) exists = false; its sidecar im_01m6rkjc7jmkpjv4r8pknkprjf.json exists = false
+# b77424356b0c858b80c2ae9cf3a405cec47e4aec9ad56e8b4fc246d1c4a47bce.png (kept image) exists = true
+# card.json attachments: ["im_01m6rkjc31s7hp2gmj0b1c1f94"]

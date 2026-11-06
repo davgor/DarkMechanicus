@@ -7,10 +7,12 @@
  */
 import { createHash } from 'node:crypto'
 import { basename, join } from 'node:path'
-import type { AttachmentOwnerKind, AttachmentRef } from '../../shared/domain/views'
+import type { AttachmentOwnerKind, AttachmentRef, SessionRole } from '../../shared/domain/views'
 import { inspectImageBytes, MAX_IMAGE_BYTES } from '../attachments/intake'
 import type { Db } from '../db/database'
 import { attachmentRef } from '../schemas'
+import { ATTACHMENT_SIDECAR_NAME } from './attachmentFiles'
+import { attachmentSidecar } from './portable'
 import { resolveAttachmentPlacement } from '../services/attachmentOwners'
 import { type AttachmentFolder, assertContained, displayPath, ownedPaths } from './paths'
 import type { FsAdapter, RepoLayout } from './types'
@@ -48,8 +50,20 @@ interface VerifiedFile {
   mime: string
 }
 
+/** Who staged an image, as its sidecar says; a sidecar that is missing or invalid is simply absent. */
+interface SidecarCreator {
+  sha256: string
+  role: SessionRole
+  label: string
+}
+
+/** A sidecar is a few hundred bytes; anything larger is not read. */
+const MAX_SIDECAR_BYTES = 16 * 1024
+
 interface FolderScan {
   files: Map<string, VerifiedFile>
+  /** Valid sidecars by attachment id. */
+  creators: Map<string, SidecarCreator>
   rejected: AttachmentRejection[]
 }
 
@@ -101,10 +115,49 @@ function verifyFile(env: FileEnv, path: string, name: string, match: RegExpExecA
   }
 }
 
+/** The creator a sidecar names, or null when it is unreadable, too large, not a valid sidecar, or not for this id. */
+function readSidecar(env: FileEnv, path: string, id: string): SidecarCreator | null {
+  try {
+    assertContained(env.layout, env.fs, path)
+    if (env.fs.isDirectory(path) || env.fs.fileSize(path) > MAX_SIDECAR_BYTES) {
+      return null
+    }
+    const parsed = attachmentSidecar.safeParse(JSON.parse(env.fs.readFile(path)))
+    return parsed.success && parsed.data.id === id
+      ? { sha256: parsed.data.sha256, role: parsed.data.createdBy.role, label: parsed.data.createdBy.label }
+      : null
+  } catch {
+    return null
+  }
+}
+
+/** Sorts one entry of an `attachments/` folder: a sidecar, an image, or a name this importer ignores. */
+function scanEntry(env: FileEnv, scan: FolderScan, path: string, reject: (path: string, why: string) => void): void {
+  const name = basename(path)
+  const sidecar = ATTACHMENT_SIDECAR_NAME.exec(name)
+  if (sidecar !== null) {
+    const creator = readSidecar(env, path, sidecar[1] ?? '')
+    if (creator !== null) {
+      scan.creators.set(sidecar[1] ?? '', creator)
+    }
+    return
+  }
+  const match = FILE_NAME.exec(name)
+  if (match === null) {
+    return
+  }
+  const verified = verifyFile(env, path, name, match)
+  if (typeof verified === 'string') {
+    reject(path, verified)
+  } else {
+    scan.files.set(match[1] ?? '', verified)
+  }
+}
+
 /** Every verifiable image in the folder's `attachments/` directory, keyed by sha256; the rest is reported as rejected. */
 function scanAttachmentFolder(env: FileEnv, folder: AttachmentFolder): FolderScan {
   const dir = ownedPaths(env.layout).attachmentsDir(folder)
-  const scan: FolderScan = { files: new Map(), rejected: [] }
+  const scan: FolderScan = { files: new Map(), creators: new Map(), rejected: [] }
   const reject = (path: string, why: string): void => {
     const shown = displayPath(env.layout, path)
     scan.rejected.push({ path: shown, message: `${shown} ${why}.` })
@@ -125,19 +178,11 @@ function scanAttachmentFolder(env: FileEnv, folder: AttachmentFolder): FolderSca
       return scan
     }
     for (const name of names) {
-      const match = FILE_NAME.exec(name)
-      if (match === null) {
-        continue
-      }
-      const verified = verifyFile(env, join(dir, name), name, match)
-      if (typeof verified === 'string') {
-        reject(join(dir, name), verified)
-      } else {
-        scan.files.set(match[1] ?? '', verified)
-      }
+      scanEntry(env, scan, join(dir, name), reject)
     }
   } catch (error: unknown) {
     scan.files.clear()
+    scan.creators.clear()
     reject(dir, `was not read: ${messageOf(error).replace(/\.$/, '')}`)
   }
   return scan
@@ -177,6 +222,52 @@ export function registerEvidenceAttachments(db: Db, now: string): void {
   }
 }
 
+/**
+ * Records each image a saved plan revision names on a ticket as an owned row with no bytes, so `restoreAttachmentFiles`
+ * fills it from the epic's folder. Only a ticket the database tracks owns an image; a row that exists is left as it is.
+ * Runs after the records are applied, before the restore.
+ */
+export function registerTicketAttachments(db: Db, now: string): void {
+  const revisions = db.all<{ bundle_json: string; saved_at: string | null }>(
+    "SELECT bundle_json, saved_at FROM plan_revisions WHERE state = 'saved' AND bundle_json LIKE '%\"attachments\"%' ORDER BY number"
+  )
+  for (const revision of revisions) {
+    for (const ticket of namedTickets(revision.bundle_json)) {
+      registerTicketImages(db, ticket, revision.saved_at ?? now)
+    }
+  }
+}
+
+function registerTicketImages(db: Db, ticket: { id: string; refs: AttachmentRef[] }, createdAt: string): void {
+  if (db.get('SELECT ticket_id FROM ticket_status WHERE ticket_id = ?', ticket.id) === undefined) {
+    return
+  }
+  for (const ref of ticket.refs) {
+    if (db.get('SELECT id FROM attachments WHERE id = ?', ref.id) === undefined) {
+      insertOwnedRow(db, ref, { owner: 'ticket', ownerId: ticket.id, createdAt })
+    }
+  }
+}
+
+/** The tickets of a stored bundle that name images, with their valid references; anything malformed is skipped. */
+function namedTickets(bundleJson: string): { id: string; refs: AttachmentRef[] }[] {
+  const bundle = JSON.parse(bundleJson) as { tickets?: unknown }
+  if (!Array.isArray(bundle.tickets)) {
+    return []
+  }
+  return bundle.tickets.flatMap((item: unknown) => {
+    const ticket = item as { id?: unknown; attachments?: unknown } | null
+    if (typeof ticket?.id !== 'string' || !Array.isArray(ticket.attachments)) {
+      return []
+    }
+    const refs = ticket.attachments.flatMap((entry: unknown) => {
+      const parsed = attachmentRef.safeParse(entry)
+      return parsed.success ? [parsed.data] : []
+    })
+    return refs.length === 0 ? [] : [{ id: ticket.id, refs }]
+  })
+}
+
 function registerRowImages(db: Db, owner: { owner: AttachmentOwnerKind; ownerId: string; createdAt: string }, evidenceJson: string): void {
   for (const ref of namedImages(evidenceJson)) {
     if (db.get('SELECT id FROM attachments WHERE id = ?', ref.id) === undefined) {
@@ -197,7 +288,8 @@ function namedImages(evidenceJson: string): AttachmentRef[] {
   })
 }
 
-function insertOwnedRow(db: Db, ref: AttachmentRef, owner: { owner: AttachmentOwnerKind; ownerId: string; createdAt: string }): void {
+/** Inserts an owned row with no bytes for `ref`; `restoreAttachmentFiles` fills the bytes from the owner's folder. */
+export function insertOwnedRow(db: Db, ref: AttachmentRef, owner: { owner: AttachmentOwnerKind; ownerId: string; createdAt: string }): void {
   db.run(
     `INSERT INTO attachments (id, sha256, mime, bytes, width, height, label, purpose, owner_kind, owner_id, missing, data,
        created_by_role, created_by_label, created_at)
@@ -239,6 +331,11 @@ export function restoreAttachmentFiles(env: Env): AttachmentImportOutcome {
         outcome.rejected.push(...scan.rejected)
       }
       file = scan.files.get(row.sha256)
+      // The placeholder creator stays unless the sidecar of this very image (same id and hash) names a valid one.
+      const creator = scan.creators.get(row.id)
+      if (creator !== undefined && creator.sha256 === row.sha256) {
+        env.db.run('UPDATE attachments SET created_by_role = ?, created_by_label = ? WHERE id = ?', creator.role, creator.label, row.id)
+      }
     }
     if (file !== undefined && file.mime === row.mime && file.bytes.byteLength === row.bytes) {
       env.db.run('UPDATE attachments SET data = ?, missing = 0 WHERE id = ?', Buffer.from(file.bytes), row.id)

@@ -1,4 +1,5 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { linkDirectory } from '../../test/tempRepo'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -68,7 +69,7 @@ describe('resolveLaunchFolder: folders that are refused', () => {
     const elsewhere = join(root, 'elsewhere')
     mkdirSync(elsewhere)
     rmSync(repo, { recursive: true })
-    symlinkSync(elsewhere, repo)
+    linkDirectory(elsewhere, repo)
 
     const error = refusal(repo)
 
@@ -96,7 +97,7 @@ describe('resolveLaunchFolder: folders that are refused', () => {
 
   it('refuses a chat stored under a path that is not canonical', () => {
     const link = join(root, 'link')
-    symlinkSync(repo, link)
+    linkDirectory(repo, link)
 
     expect(refusal(link)).toMatchObject({ code: 'not_found', message: expect.stringContaining(repo) })
   })

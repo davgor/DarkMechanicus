@@ -1,0 +1,111 @@
+# Test excerpts from the full Vitest suite on img-s2 at 09bdf9bb01085f859be07fabb2e4e38909aeadeb, run with: npx vitest run --reporter=verbose
+# Totals of that run:
+ Test Files  595 passed | 2 skipped (597)
+      Tests  10260 passed | 59 skipped (10319)
+   Start at  08:28:23
+   Duration  63.88s (transform 22.73s, setup 0ms, import 166.88s, tests 899.73s, environment 261.00s)
+
+=== c2: createStagedAttachment takes mime, width and height from the raw bytes (src/core/services/attachments.test.ts)
+ ✓ src/core/services/attachments.test.ts > createStagedAttachment bytes and refusals > reads the bytes back byte-identical, for PNG and JPEG alike 9ms
+ ✓ src/core/services/attachments.test.ts > createStagedAttachment bytes and refusals > takes the type, size and hash from the bytes alone 9ms
+ ✓ src/core/services/attachments.test.ts > createStagedAttachment bytes and refusals > refuses SVG, truncated and oversized images with the intake message, and stores nothing 17ms
+ ✓ src/core/services/attachments.test.ts > createStagedAttachment bytes and refusals > refuses a malformed purpose 20ms
+--- test source:
+  it('takes the type, size and hash from the bytes alone', () => {
+    const ctx = seededCtx()
+    const bytes = pngBytes(3, 2)
+    expect(getAttachment(ctx, createStagedAttachment(ctx, input({ bytes })).id)).toMatchObject({
+      mime: 'image/png',
+      width: 3,
+      height: 2,
+      sha256: createHash('sha256').update(bytes).digest('hex')
+    })
+  })
+  it('reads the bytes back byte-identical, for PNG and JPEG alike', () => {
+    const ctx = seededCtx()
+    const png = pngBytes(40, 30, 7)
+    const jpeg = jpegBytes(5, 4)
+    const pngId = createStagedAttachment(ctx, input({ bytes: png })).id
+    const jpegId = createStagedAttachment(ctx, input({ bytes: jpeg })).id
+    expect(readAttachmentBytes(ctx, pngId).equals(png)).toBe(true)
+    expect(readAttachmentBytes(ctx, jpegId).equals(jpeg)).toBe(true)
+    expect(getAttachment(ctx, jpegId)).toMatchObject({ mime: 'image/jpeg', width: 5, height: 4 })
+  })
+
+=== c3: a claim for a missing owner is refused (src/core/services/attachments.test.ts), and the first save of a new epic holding a comment image completes (src/core/repo/attachmentFiles.test.ts)
+ ✓ src/core/repo/attachmentFiles.test.ts > attachment export of unsaved and vanished records (repo mode) > finishes the first save of a never-saved epic that holds a comment image, then exports the image with the comment 22ms
+ ✓ src/core/services/attachments.test.ts > claimAttachments owners > refuses an owner this database does not hold, with not_found, and queues nothing 22ms
+--- test source:
+  it('refuses an owner this database does not hold, with not_found, and queues nothing', () => {
+    const ctx = seededCtx()
+    const id = stageAt(ctx, '2026-06-01T10:00:00.000Z')
+    const missing = [
+      { kind: 'ticket', id: tid(9) },
+      { kind: 'comment', id: 'cm_00000000000000000000000099' },
+      { kind: 'attempt', id: 'at_00000000000000000000000099' },
+      { kind: 'kanban_card', id: 'kc_00000000000000000000000099' },
+      { kind: 'kanban_attempt', id: 'ka_00000000000000000000000099' }
+    ] as const
+    for (const owner of missing) {
+      expect(codeOf(() => claimAttachments(ctx, [id], owner))).toBe('not_found')
+    }
+    expect(getAttachment(ctx, id).owner).toBeNull()
+    expect(ctx.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM outbox WHERE kind = ?', 'attachment')?.n).toBe(0)
+  })
+
+=== c5: packetOf (src/core/services/kanban/attempts.ts) lists the card's reference images in the claim packet (src/core/services/kanban/attempts.test.ts)
+ ✓ src/core/services/kanban/attempts.test.ts > claimKanbanCard packet attachments > carries the reference images of the card, and omits the key when it has none 30ms
+--- test source:
+describe('claimKanbanCard packet attachments', () => {
+  it('carries the reference images of the card, and omits the key when it has none', () => {
+    const ctx = board()
+    const id = createStagedAttachment(ctx.desktop, { bytes: pngBytes(40, 30, 5), label: 'mockup', purpose: 'reference' }).id
+    const card = createKanbanCard(ctx.desktop, { title: 'With a mockup', attachments: [id] })
+    playKanbanCard(ctx.desktop, { cardId: card.id })
+    const packet = claimKanbanCard(ctx.orchestrator, { cardId: card.id })
+    expect(packet.card.attachments).toEqual([expect.objectContaining({ id, label: 'mockup', purpose: 'reference', width: 40, height: 30 })])
+    expect('attachments' in claimedCard(board()).card).toBe(false)
+  })
+})
+
+=== c6: DM-432's recompute test: pre-epic saved snapshots recompute to their stored contentHash; execution packets list ticket refs (src/core/services/ticketAttachments.test.ts)
+ ✓ src/core/services/ticketAttachments.test.ts > saved plan hashes > recomputes a pre-epic snapshot to its stored content hash 17ms
+ ✓ src/core/services/ticketAttachments.test.ts > saving a plan claims its ticket images > claims the refs for their ticket when the save completes 19ms
+ ✓ src/core/services/ticketAttachments.test.ts > saving a plan claims its ticket images > refuses a save naming an image that vanished, before any revision is pending 17ms
+ ✓ src/core/services/ticketAttachments.test.ts > saving a plan claims its ticket images > replaces 15 saved images with 10 new ones and saves 25ms
+ ✓ src/core/services/ticketAttachments.test.ts > execution packets carry ticket images > lists the ticket refs in the claimed packet 15ms
+--- test source:
+describe('saved plan hashes', () => {
+  it('recomputes a pre-epic snapshot to its stored content hash', () => {
+    for (const path of PRE_EPIC_SNAPSHOTS) {
+      const record = parseRecord(snapshotRecord, readFileSync(resolve(REPO_ROOT, path), 'utf8'), path)
+      expect(record.bundle.tickets.length).toBeGreaterThan(0)
+      expect(record.bundle.tickets.some((ticket) => Object.hasOwn(ticket, 'attachments'))).toBe(false)
+      expect(contentHash(record.bundle)).toBe(record.contentHash)
+    }
+  })
+})
+
+=== c12: the dm-attachment protocol integration test, green inside the full suite (src/main/desktop/attachmentProtocol.integration.test.ts)
+ ✓ src/main/desktop/attachmentProtocol.integration.test.ts > dm-attachment protocol against a real workspace > serves the stored PNG bytes as image/png through the pool 80ms
+ ✓ src/main/desktop/attachmentProtocol.integration.test.ts > dm-attachment protocol against a real workspace > answers 404 for an unknown attachment id 53ms
+ ✓ src/main/desktop/attachmentProtocol.integration.test.ts > dm-attachment protocol against a real workspace > answers 404 for an unknown folder key 51ms
+
+=== s2 support: db mode writes no files
+ ✓ src/core/repo/attachmentFiles.test.ts > attachment export (db mode) > completes the entry and writes no file 13ms
+
+=== s6 support: intake refusals
+ ✓ src/core/attachments/intake.test.ts > image intake > accepts a PNG and a JPEG from the project root and the temp folder 10ms
+ ✓ src/core/attachments/intake.test.ts > image intake > refuses a file outside every root 1ms
+ ✓ src/core/attachments/intake.test.ts > image intake > refuses a path that escapes a root through .. 1ms
+ ↓ src/core/attachments/intake.test.ts > image intake > refuses a symlink into a root 1ms [creating a symlink needs privileges on this machine]
+ ✓ src/core/attachments/intake.test.ts > image intake > refuses a link reported by the file system (injected, so it runs without symlink privileges) 0ms
+ ✓ src/core/attachments/intake.test.ts > image intake > refuses a directory 0ms
+ ✓ src/core/attachments/intake.test.ts > image intake > refuses an SVG and a text file renamed .png 3ms
+ ✓ src/core/attachments/intake.test.ts > image intake > refuses an over-size file and an over-dimension header 15ms
+ ✓ src/core/attachments/intake.test.ts > image intake > decides the type by magic bytes: a PNG renamed .jpg is a PNG 4ms
+ ✓ src/core/attachments/intake.test.ts > image intake > refuses a truncated PNG and a JPEG with no frame header 1ms
+ ✓ src/core/attachments/intake.test.ts > image intake > reports a missing file as invalid_input and checks size before reading 0ms
+ ✓ src/core/attachments/intake.test.ts > resolveAllowedRoots > win32: project, worktrees, temp, Screenshots and OneDrive Screenshots; skips missing 1ms
+ ✓ src/core/attachments/intake.test.ts > resolveAllowedRoots > darwin: the screencapture location when set, else ~/Desktop 0ms
+ ✓ src/core/attachments/intake.test.ts > resolveAllowedRoots > linux: XDG_PICTURES_DIR/Screenshots, else ~/Pictures/Screenshots 0ms

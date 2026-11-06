@@ -1,0 +1,29 @@
+# x3: a worker reads a plan ticket's reference image back with get_attachment as file (repo-mode folder, no grant needed: read)
+$ node out/main/cli.js --repo C:/Users/davgo/AppData/Local/Temp/dmplan/accept-s2/repo call get_attachment '{"attachmentId":"im_01m6rkfzhfxc7ht970a2vp3twf","as":"file"}'
+{
+  "ok": true,
+  "data": {
+    "id": "im_01m6rkfzhfxc7ht970a2vp3twf",
+    "sha256": "b005f696960f8e971e22f75c52fa1db1848894a425c02040c6f739aeb1a25dcd",
+    "mime": "image/png",
+    "bytes": 13647,
+    "width": 720,
+    "height": 405,
+    "label": "Ticket mockup",
+    "purpose": "reference",
+    "owner": {
+      "kind": "ticket",
+      "id": "tk_01m6rkevcfgpcfmsc5289zjkqg"
+    },
+    "missing": false,
+    "createdBy": {
+      "role": "planner",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:16:39.698Z",
+    "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\darkmechanicus-attachments\\b005f696960f8e971e22f75c52fa1db1848894a425c02040c6f739aeb1a25dcd.png"
+  }
+}
+# sha256 of the returned file and of the original mockup:
+\b005f696960f8e971e22f75c52fa1db1848894a425c02040c6f739aeb1a25dcd *C:\\Users\\davgo\\AppData\\Local\\Temp\\darkmechanicus-attachments\\b005f696960f8e971e22f75c52fa1db1848894a425c02040c6f739aeb1a25dcd.png
+b005f696960f8e971e22f75c52fa1db1848894a425c02040c6f739aeb1a25dcd *C:/Users/davgo/AppData/Local/Temp/dmplan/accept-s2/img/ticket-ref.png

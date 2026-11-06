@@ -125,6 +125,11 @@ describe('SKILLS_VERSION', () => {
     const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
     expect(major > 1 || (major === 1 && minor >= 7)).toBe(true)
   })
+
+  it('moved past 1.7.0 when the guides started covering image attachments', () => {
+    const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
+    expect(major > 1 || (major === 1 && minor >= 8)).toBe(true)
+  })
 })
 
 /** The Kanban routing rule, worded identically in every agent guide that plans or runs work. */
