@@ -1,4 +1,5 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
+import { linkDirectory } from '../../test/tempRepo'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -108,7 +109,7 @@ describe('folder default IPC handlers', () => {
   it('reads the tracked folder default through a symlinked path', async () => {
     const { handlers, repo } = createWorld()
     const link = join(root, 'link')
-    symlinkSync(repo, link)
+    linkDirectory(repo, link)
     await handlers.setFolderDefaultAgent({ folder: repo, agentId: 'codex' })
     expect(await handlers.folderDefaultAgent(link)).toBe('codex')
   })

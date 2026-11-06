@@ -4,7 +4,8 @@
  * chat's own, and leaves everything else to the session manager: nothing is started and no grant is issued for a
  * refused attach, and for an accepted one the spawn is the one main builds from its own records.
  */
-import { mkdirSync, renameSync, rmSync, symlinkSync } from 'node:fs'
+import { mkdirSync, renameSync, rmSync } from 'node:fs'
+import { linkDirectory } from '../../test/tempRepo'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { ChatRecord } from '../../shared/agents/chat'
@@ -179,7 +180,7 @@ describe('terminals:attach: the folder, before a grant is issued', () => {
     mkdirSync(elsewhere)
     // Still tracked under its old path, which now leads somewhere else.
     rmSync(h.rig.repo, { recursive: true })
-    symlinkSync(elsewhere, h.rig.repo)
+    linkDirectory(elsewhere, h.rig.repo)
 
     const answer = await h.attach({ folder: h.rig.repo, chatId: chat.id })
 
@@ -274,7 +275,7 @@ function specFromRecords(chat: ChatRecord, agent: AgentView, grantId: string): P
 describe('terminals:attach: what an accepted attach starts', () => {
   it('spawns, for every accepted spelling of the folder, exactly what main builds from its own records', async () => {
     const alias = join(h.rig.root, 'alias')
-    symlinkSync(h.rig.repo, alias)
+    linkDirectory(h.rig.repo, alias)
     const claudeChat = h.rig.newChat('claude')
     const customChat = h.rig.newChat(CUSTOM_AGENT.id)
 
