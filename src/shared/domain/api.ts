@@ -31,7 +31,10 @@ import type { WorkStatus } from './status'
 import type {
   ApprovalView,
   ApproveWithRedraftResultView,
-  AttemptEvidence,
+  AttachmentFileView,
+  AttachmentPurpose,
+  AttachmentView,
+  AttemptEvidenceSubmission,
   AttemptFailure,
   AttemptOutputs,
   AttemptView,
@@ -113,6 +116,8 @@ export interface TicketInput {
   references?: TicketReference[]
   expectedArtifacts?: string[]
   optional?: boolean
+  /** Staged image ids (or ones the ticket already owns) to show as references, at most 20; `[]` removes them all. */
+  attachments?: string[]
 }
 
 export interface SprintInput {
@@ -197,7 +202,7 @@ export interface SubmitAttemptInput {
   attemptId: string
   claimToken: string
   outputs: Partial<AttemptOutputs> & { summary: string }
-  evidence?: Partial<AttemptEvidence>
+  evidence?: AttemptEvidenceSubmission
   /**
    * Acceptance nodes only. The server verifies the increment when the submission arrives and stores
    * the verdict, whether it passed or not; a work ticket that names one is refused. A single repository only.
@@ -239,12 +244,38 @@ export interface RecordRowCheckInput {
   idempotencyKey?: string
 }
 
+/** An image from a local path the caller's machine can read. Its size, type and dimensions come from the file itself. */
+interface AddAttachmentInput {
+  /** Absolute, or relative to the caller's working folder. Must sit in an allowed folder (see the attachments intake). */
+  path: string
+  label: string
+  purpose: AttachmentPurpose
+}
+
+/** An image's bytes sent by the desktop app (never a path). */
+interface UploadAttachmentInput {
+  /** Plain base64 of a PNG or JPEG: no `data:` prefix. */
+  data: string
+  /** Defaults to "Pasted image"; cut to the label limit. */
+  label?: string
+  /** Defaults to `reference`. */
+  purpose?: AttachmentPurpose
+}
+
+interface GetAttachmentInput {
+  attachmentId: string
+  /** `file` writes the bytes to a temporary file and returns its path too. */
+  as: 'metadata' | 'file'
+}
+
 export interface AddCommentInput {
   epicId: string
   /** A ticket of the epic's saved plan or draft; omit for a comment on the epic itself. */
   ticketId?: string
   /** Markdown, at most 20,000 characters and not blank. */
   body: string
+  /** Staged image ids (`addAttachment`) to attach, at most 20; either purpose. */
+  attachments?: string[]
   idempotencyKey?: string
 }
 
@@ -260,6 +291,8 @@ export interface CreateKanbanCardInput {
   /** `normal` when omitted. */
   priority?: TicketPriority
   size?: TicketSize
+  /** Staged image ids (`addAttachment`) to attach as references, at most 20; `purpose: 'evidence'` is refused. */
+  attachments?: string[]
   idempotencyKey?: string
 }
 
@@ -301,7 +334,7 @@ export interface SubmitKanbanCardInput {
   attemptId: string
   claimToken: string
   outputs: Partial<AttemptOutputs> & { summary: string }
-  evidence?: Partial<AttemptEvidence>
+  evidence?: AttemptEvidenceSubmission
   idempotencyKey?: string
 }
 
@@ -453,6 +486,13 @@ export interface CommandApi {
    */
   deleteTicket(input: { epicId: string; ticketId: string }): Promise<SaveResultView>
 
+  // Image attachments (PNG or JPEG). A staged image is claimed by the record it is attached to.
+  /** Refused on the desktop transport. Stages the image as read from an allowed folder and returns its metadata. */
+  addAttachment(input: AddAttachmentInput): Promise<AttachmentView>
+  /** Desktop only: stages the image from base64 bytes the app read; refused on every other transport. */
+  uploadAttachment(input: UploadAttachmentInput): Promise<AttachmentView>
+  getAttachment(input: GetAttachmentInput): Promise<AttachmentView | AttachmentFileView>
+
   // Comments (append-only; the author is the calling session)
   addComment(input: AddCommentInput): Promise<CommentView>
   /** Oldest first. Without ticketId: every comment of the epic, epic-level and ticket-level. */
@@ -539,7 +579,7 @@ export interface CommandApi {
     attemptId: string
     resolution: 'abandon' | 'resubmit'
     outputs?: Partial<AttemptOutputs> & { summary: string }
-    evidence?: Partial<AttemptEvidence>
+    evidence?: AttemptEvidenceSubmission
     notes?: string
   }): Promise<AttemptView>
   carryForwardTicket(input: { runId: string; ticketId: string; note: string }): Promise<AttemptView>

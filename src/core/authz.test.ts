@@ -22,6 +22,7 @@ const PLANNER_SHARED: Capability[] = [
   'epic.create',
   'draft.edit',
   'comment.write',
+  'attachment.write',
   'kanban.write',
   'profile.write',
   'project.repositories'
@@ -56,8 +57,16 @@ const ORCHESTRATOR: Capability[] = [
   'kanban.report'
 ]
 
-const WORKER: Capability[] = ['read', 'attempt.heartbeat', 'attempt.submit', 'attempt.fail', 'comment.write', 'kanban.report']
-const REVIEWER: Capability[] = ['read', 'attempt.review', 'comment.write']
+const WORKER: Capability[] = [
+  'read',
+  'attempt.heartbeat',
+  'attempt.submit',
+  'attempt.fail',
+  'comment.write',
+  'attachment.write',
+  'kanban.report'
+]
+const REVIEWER: Capability[] = ['read', 'attempt.review', 'comment.write', 'attachment.write']
 
 const DESKTOP: Capability[] = [
   'read',
@@ -95,6 +104,7 @@ const DESKTOP: Capability[] = [
   'checkpoint.approve',
   'checkpoint.advance',
   'comment.write',
+  'attachment.write',
   'kanban.write',
   'kanban.play',
   'kanban.review',
@@ -133,8 +143,8 @@ function sessionWith(role: SessionRole, capabilities: Capability[]): SessionCont
 
 describe('capability vocabulary', () => {
   it('lists every capability exactly once', () => {
-    expect(CAPABILITIES).toHaveLength(50)
-    expect(new Set(CAPABILITIES).size).toBe(50)
+    expect(CAPABILITIES).toHaveLength(51)
+    expect(new Set(CAPABILITIES).size).toBe(51)
     expect(sorted(CAPABILITIES)).toEqual(sorted([...DESKTOP, ...AGENT_ONLY]))
   })
 

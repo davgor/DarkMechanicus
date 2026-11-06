@@ -14,6 +14,9 @@ import { loadSummaryRow } from './cards'
 type CardFilesRemover = (cardId: string) => string[]
 
 const CARD_EVENTS = 'SELECT id FROM kanban_events WHERE card_id = ?'
+/** Images the card or one of its attempts owns; staged images (no owner) are not the card's and stay. */
+const CARD_IMAGES = `SELECT id FROM attachments WHERE (owner_kind = 'kanban_card' AND owner_id = ?)
+  OR (owner_kind = 'kanban_attempt' AND owner_id IN (SELECT id FROM kanban_attempts WHERE card_id = ?))`
 
 /** Children before parents, since foreign keys are enforced. Every `?` binds the card id. */
 const DELETE_STATEMENTS = [
@@ -21,6 +24,10 @@ const DELETE_STATEMENTS = [
   `DELETE FROM sync_state WHERE (kind = 'kanban_card' AND entity_id = ?) OR (kind = 'kanban_event' AND entity_id IN (${CARD_EVENTS}))`,
   // Cached replies that name the card (createKanbanCard, updateKanbanCard) would otherwise replay a deleted card.
   'DELETE FROM idempotency WHERE instr(response_json, ?) > 0',
+  // The card's images go before its attempts, whose ids name the attempt images' owner.
+  `DELETE FROM outbox WHERE kind = 'attachment' AND entity_id IN (${CARD_IMAGES})`,
+  `DELETE FROM sync_state WHERE kind = 'attachment' AND entity_id IN (${CARD_IMAGES})`,
+  `DELETE FROM attachments WHERE id IN (${CARD_IMAGES})`,
   'DELETE FROM kanban_events WHERE card_id = ?',
   'DELETE FROM kanban_attempts WHERE card_id = ?',
   'DELETE FROM kanban_cards WHERE id = ?'

@@ -40,6 +40,9 @@ export function createStubWorkspace(options: StubWorkspaceOptions = {}): StubWor
     execute: (name: CommandName, input: unknown): Promise<unknown> =>
       (workspace as unknown as Record<string, (value: unknown) => Promise<unknown>>)[name]?.(input) ??
       Promise.resolve(undefined),
+    ctx: () => {
+      throw new Error('The stub workspace has no store, so it has no core context.')
+    },
     close: (): void => {
       workspace.closes += 1
       if (options.closeError !== undefined) {

@@ -1,0 +1,41 @@
+# s6: oversized, unsupported and out-of-folder files are refused with a clear error (worker grant, db-mode scratch folder)
+# 11 MiB file
+$ dm call add_attachment '{"path":"C:/Users/davgo/AppData/Local/Temp/dmplan/accept-s2/img/too-big.png","label":"x","purpose":"evidence"}'   [db-worker grant]
+{
+  "ok": false,
+  "error": {
+    "code": "invalid_input",
+    "message": "Image is too large: 11534344 bytes exceeds the 10485760 byte (10 MiB) limit."
+  }
+}
+exit=1
+# 8001 px wide PNG
+$ dm call add_attachment '{"path":"C:/Users/davgo/AppData/Local/Temp/dmplan/accept-s2/img/too-wide.png","label":"x","purpose":"evidence"}'   [db-worker grant]
+{
+  "ok": false,
+  "error": {
+    "code": "invalid_input",
+    "message": "Image has too many pixels: 8001x10 exceeds 8000 px on a side."
+  }
+}
+exit=1
+# text file named .png
+$ dm call add_attachment '{"path":"C:/Users/davgo/AppData/Local/Temp/dmplan/accept-s2/img/notes.png","label":"x","purpose":"evidence"}'   [db-worker grant]
+{
+  "ok": false,
+  "error": {
+    "code": "invalid_input",
+    "message": "Unsupported image type: only PNG and JPEG are accepted (SVG and other files are refused)."
+  }
+}
+exit=1
+# file outside the allowed folders
+$ dm call add_attachment '{"path":"C:/Users/davgo/Documents/GitHub/dm-wt/img-s2/package.json","label":"x","purpose":"evidence"}'   [db-worker grant]
+{
+  "ok": false,
+  "error": {
+    "code": "invalid_input",
+    "message": "Image path is outside the allowed folders (project root, worktrees, temp folder, screenshot folder)."
+  }
+}
+exit=1

@@ -1,0 +1,122 @@
+# c13: repo-mode folder; createdBy of an evidence image and a comment image BEFORE deleting local/state.sqlite
+$ dm call get_attachment '{"attachmentId":"im_01m6rkhyd8gsjeyx1w8pbaw7kp","as":"metadata"}'   [reader grant]
+{
+  "ok": true,
+  "data": {
+    "id": "im_01m6rkhyd8gsjeyx1w8pbaw7kp",
+    "sha256": "72dc089363e9b2ec94b5c76dae6ce604e3c4afbb818f8725dcb75a69cce7b11f",
+    "mime": "image/png",
+    "bytes": 8575,
+    "width": 500,
+    "height": 300,
+    "label": "REP-2 evidence",
+    "purpose": "evidence",
+    "owner": {
+      "kind": "attempt",
+      "id": "at_01m6rkg0hkqhkrkc0aw45d4hjt"
+    },
+    "missing": false,
+    "createdBy": {
+      "role": "worker",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:17:43.592Z"
+  }
+}
+exit=0
+$ dm call get_attachment '{"attachmentId":"im_01m6rkgn8j5f3p3yva2a9c0v3h","as":"metadata"}'   [reader grant]
+{
+  "ok": true,
+  "data": {
+    "id": "im_01m6rkgn8j5f3p3yva2a9c0v3h",
+    "sha256": "785277e3be5d7268b4f5f00c787221bf82a6e0601bf0238b1484a41f6bc4f1b8",
+    "mime": "image/png",
+    "bytes": 11144,
+    "width": 640,
+    "height": 360,
+    "label": "CLI comment screenshot",
+    "purpose": "reference",
+    "owner": {
+      "kind": "comment",
+      "id": "cm_01m6rkgnc95h87552s4mqhsct4"
+    },
+    "missing": false,
+    "createdBy": {
+      "role": "worker",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:17:01.458Z"
+  }
+}
+exit=0
+
+# app quit; local/ before the delete:
+exports
+machine.json
+state.sqlite
+$ rm .darkmechanicus/local/state.sqlite*
+removed 'C:/Users/davgo/AppData/Local/Temp/dmplan/accept-s2/repo/.darkmechanicus/local/state.sqlite'
+# local/ after the delete:
+exports
+machine.json
+
+# app relaunched on the same folder: state.sqlite recreated by the import. CLI with no grant (a reader; the old grants lived in the deleted database):
+$ node out/main/cli.js --repo C:/Users/davgo/AppData/Local/Temp/dmplan/accept-s2/repo call get_attachment '{"attachmentId":"im_01m6rkhyd8gsjeyx1w8pbaw7kp","as":"metadata"}'
+{
+  "ok": true,
+  "data": {
+    "id": "im_01m6rkhyd8gsjeyx1w8pbaw7kp",
+    "sha256": "72dc089363e9b2ec94b5c76dae6ce604e3c4afbb818f8725dcb75a69cce7b11f",
+    "mime": "image/png",
+    "bytes": 8575,
+    "width": 500,
+    "height": 300,
+    "label": "REP-2 evidence",
+    "purpose": "evidence",
+    "owner": {
+      "kind": "attempt",
+      "id": "at_01m6rkg0hkqhkrkc0aw45d4hjt"
+    },
+    "missing": false,
+    "createdBy": {
+      "role": "worker",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:17:43.714Z"
+  }
+}
+exit=0
+$ node out/main/cli.js --repo C:/Users/davgo/AppData/Local/Temp/dmplan/accept-s2/repo call get_attachment '{"attachmentId":"im_01m6rkgn8j5f3p3yva2a9c0v3h","as":"metadata"}'
+{
+  "ok": true,
+  "data": {
+    "id": "im_01m6rkgn8j5f3p3yva2a9c0v3h",
+    "sha256": "785277e3be5d7268b4f5f00c787221bf82a6e0601bf0238b1484a41f6bc4f1b8",
+    "mime": "image/png",
+    "bytes": 11144,
+    "width": 640,
+    "height": 360,
+    "label": "CLI comment screenshot",
+    "purpose": "reference",
+    "owner": {
+      "kind": "comment",
+      "id": "cm_01m6rkgnc95h87552s4mqhsct4"
+    },
+    "missing": false,
+    "createdBy": {
+      "role": "worker",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:17:01.577Z"
+  }
+}
+exit=0
+# for contrast: the old worker token is refused outright (its grant was in the deleted database)
+$ node out/main/cli.js --repo C:/Users/davgo/AppData/Local/Temp/dmplan/accept-s2/repo --token-file tok-worker.txt call get_capabilities '{}'
+{
+  "ok": false,
+  "error": {
+    "code": "unauthorized",
+    "message": "That grant is not usable: it is unknown, expired, revoked, or was issued on another machine."
+  }
+}

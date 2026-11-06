@@ -186,7 +186,8 @@ describe('startMcpServer tool list', () => {
     const planner = await listedTools(['--role', 'planner'])
     const saver = await listedTools(['--role', 'planner', '--allow-save'])
 
-    expect([worker.length, planner.length, saver.length]).toEqual([34, 43, 44])
+    // Each role gains add_attachment (where it may write) and get_attachment (a read every role holds).
+    expect([worker.length, planner.length, saver.length]).toEqual([36, 45, 46])
     expect([worker.includes('submit_kanban_card'), planner.includes('submit_kanban_card')]).toEqual([true, false])
     expect([worker.includes('create_kanban_card'), planner.includes('create_kanban_card')]).toEqual([false, true])
     expect([worker.includes('submit_attempt'), planner.includes('submit_attempt')]).toEqual([true, false])

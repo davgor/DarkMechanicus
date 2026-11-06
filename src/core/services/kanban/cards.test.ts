@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 import type { PlanBundle } from '../../../shared/domain/bundle'
 import type { KanbanAttemptState, KanbanCardView, KanbanLane } from '../../../shared/domain/kanban'
 import { captureError, TWO_TICKETS } from '../../../test/authoring'
+import { pngBytes } from '../../../test/images'
 import { createTestCtx, type TestCtx, withRole } from '../../../test/testContext'
 import { updatePlanDraft } from '../drafts'
+import { createStagedAttachment } from '../attachments'
 import { createEpic } from '../epics'
 import { createKanbanCard, getKanbanCard, listKanbanCards, updateKanbanCard } from './cards'
 
@@ -502,5 +504,72 @@ describe('getKanbanCard refusals', () => {
     const card = createKanbanCard(ctx, { title: 'Here' })
     expect(captureError(() => getKanbanCard(ctx, { cardId: 'kc_0000000000000000000000zzzz' })).code).toBe('not_found')
     expect(captureError(() => getKanbanCard(withRole(ctx, 'worker', { capabilities: [] }), { cardId: card.id })).code).toBe('unauthorized')
+  })
+})
+
+describe('card reference images', () => {
+  const stage = (ctx: TestCtx, seed: number, purpose: 'evidence' | 'reference' = 'reference'): string =>
+    createStagedAttachment(ctx, { bytes: pngBytes(40, 30, seed), label: `shot ${seed}`, purpose }).id
+  const owned = (ctx: TestCtx, cardId: string): string[] =>
+    ctx.db.all<{ id: string }>("SELECT id FROM attachments WHERE owner_kind = 'kanban_card' AND owner_id = ? ORDER BY id", cardId).map((row) => row.id)
+
+  it('claims the ids on create, and get_kanban_card returns their references', () => {
+    const ctx = plannerCtx()
+    const ids = [stage(ctx, 1), stage(ctx, 2)]
+    const card = createKanbanCard(ctx, { title: 'With mockups', attachments: ids })
+    expect(card.attachments?.map((ref) => ref.id)).toEqual([...ids].sort())
+    expect(owned(ctx, card.id)).toEqual([...ids].sort())
+    expect(getKanbanCard(ctx, { cardId: card.id }).attachments).toEqual(card.attachments)
+    expect(card.attachments?.[0]).toMatchObject({ mime: 'image/png', width: 40, height: 30, purpose: 'reference' })
+  })
+
+  it('leaves the view without an attachments key when there are none', () => {
+    const ctx = plannerCtx()
+    const card = createKanbanCard(ctx, { title: 'Plain' })
+    expect('attachments' in card).toBe(false)
+  })
+
+})
+
+describe('card reference images on update', () => {
+  const stage = (ctx: TestCtx, seed: number, purpose: 'evidence' | 'reference' = 'reference'): string =>
+    createStagedAttachment(ctx, { bytes: pngBytes(40, 30, seed), label: `shot ${seed}`, purpose }).id
+  const owned = (ctx: TestCtx, cardId: string): string[] =>
+    ctx.db.all<{ id: string }>("SELECT id FROM attachments WHERE owner_kind = 'kanban_card' AND owner_id = ? ORDER BY id", cardId).map((row) => row.id)
+
+  it('replaces the list on update: a dropped id is a deleted row, an omitted list keeps them, a new id is claimed', () => {
+    const ctx = plannerCtx()
+    const [a, b] = [stage(ctx, 1), stage(ctx, 2)] as [string, string]
+    const card = createKanbanCard(ctx, { title: 'Edit me', attachments: [a, b] })
+    const kept = updateKanbanCard(ctx, { cardId: card.id, expectedRevision: 1, title: 'Edit me again' })
+    expect(kept.attachments).toHaveLength(2)
+    const c = stage(ctx, 3)
+    const edited = updateKanbanCard(ctx, { cardId: card.id, expectedRevision: 2, attachments: [b, c] })
+    expect(edited.attachments?.map((ref) => ref.id)).toEqual([b, c].sort())
+    expect(ctx.db.get('SELECT id FROM attachments WHERE id = ?', a)).toBeUndefined()
+    const emptied = updateKanbanCard(ctx, { cardId: card.id, expectedRevision: 3, attachments: [] })
+    expect('attachments' in emptied).toBe(false)
+    expect(owned(ctx, card.id)).toEqual([])
+    const events = kanbanEvents(ctx).filter((event) => event.kind === 'updated')
+    expect(events[0]?.payload).toEqual({ revision: 2, fields: ['title'] })
+    expect(events[1]?.payload).toEqual({ revision: 3, fields: ['attachments'] })
+  })
+
+  it('refuses an evidence-purpose image, a foreign-owned one, an unknown one and a repeat, storing nothing', () => {
+    const ctx = plannerCtx()
+    const other = createKanbanCard(ctx, { title: 'Other', attachments: [stage(ctx, 1)] })
+    const foreign = owned(ctx, other.id)[0] ?? ''
+    const evidence = stage(ctx, 2, 'evidence')
+    const fine = stage(ctx, 3)
+    const before = cardCount(ctx)
+    expect(captureError(() => createKanbanCard(ctx, { title: 'x', attachments: [evidence] })).code).toBe('invalid_input')
+    expect(captureError(() => createKanbanCard(ctx, { title: 'x', attachments: [foreign] })).code).toBe('conflict')
+    expect(captureError(() => createKanbanCard(ctx, { title: 'x', attachments: ['im_0000000000000000000000zzzz'] })).code).toBe('not_found')
+    expect(captureError(() => createKanbanCard(ctx, { title: 'x', attachments: [fine, fine] })).code).toBe('invalid_input')
+    expect(cardCount(ctx)).toBe(before)
+    const card = createKanbanCard(ctx, { title: 'Target', attachments: [fine] })
+    expect(captureError(() => updateKanbanCard(ctx, { cardId: card.id, expectedRevision: 1, attachments: [fine, evidence] })).code).toBe('invalid_input')
+    expect(owned(ctx, card.id)).toEqual([fine])
+    expect(getKanbanCard(ctx, { cardId: card.id }).revision).toBe(1)
   })
 })

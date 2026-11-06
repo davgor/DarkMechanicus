@@ -77,6 +77,20 @@ describe('Workspace branch guard', () => {
   })
 })
 
+describe('Workspace core context', () => {
+  it('exposes the context of the open store on the opened workspace, for the dm-attachment protocol', async () => {
+    const harness = createHarness()
+    try {
+      const agent = harness.open('orchestrator')
+      await agent.initializeRepository({ name: 'ctx-repo' })
+      const ctx = agent.ctx()
+      expect(ctx.db.get<{ n: number }>('SELECT count(*) AS n FROM attachments')?.n).toBe(0)
+    } finally {
+      harness.cleanup()
+    }
+  })
+})
+
 describe('Workspace save durability and pinning', () => {
   let harness: Harness
 

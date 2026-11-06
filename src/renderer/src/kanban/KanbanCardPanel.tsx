@@ -4,6 +4,7 @@ import { KANBAN_LANE_LABELS, KANBAN_OPEN_ATTEMPT_STATES } from '../../../shared/
 import type { KanbanAttemptView, KanbanCardView, KanbanDoneSummary } from '../../../shared/domain/kanban'
 import type { AttemptView } from '../../../shared/domain/views'
 import { errorMessage, runCommand } from '../api/dm'
+import { AttachmentGallery } from '../attachments/AttachmentGallery'
 import { unwrapChat } from '../agents/chatCalls'
 import { Button } from '../components/Button'
 import type { OrchestrationHost } from '../epic/orchestration'
@@ -20,6 +21,8 @@ import '../ticket/ticket.css'
 
 interface KanbanCardPanelProps {
   folderPath: string
+  /** The folder's attachment key, which addresses the card's evidence images. */
+  folderKey: string
   cardId: string
   /** The folder's event token: the open card is read again whenever it moves. */
   refreshToken: number
@@ -131,7 +134,7 @@ function KickBackHistory({ attempts }: { attempts: KanbanAttemptView[] }): JSX.E
   )
 }
 
-function CardDetails({ card }: { card: KanbanCardView }): JSX.Element {
+function CardDetails({ card, folderKey }: { card: KanbanCardView; folderKey: string }): JSX.Element {
   const attempts = card.attempts.map((attempt) => asAttemptView(attempt, card.summary))
   const checklist = criteriaChecklist(card, attempts)
   const evidence = evidenceView(card, attempts)
@@ -154,7 +157,25 @@ function CardDetails({ card }: { card: KanbanCardView }): JSX.Element {
           </ul>
         </section>
       )}
-      {evidence === null ? null : <EvidenceSections evidence={evidence} />}
+      {card.references.length === 0 ? null : (
+        <section className="tp-section" aria-label="References">
+          <h3 className="ew-eyebrow">REFERENCES</h3>
+          <ul className="tp-files">
+            {card.references.map((reference) => (
+              <li key={`${reference.kind}:${reference.location}`} className="ew-mono">
+                {reference.label === reference.location ? reference.location : `${reference.label} (${reference.location})`}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {card.attachments === undefined ? null : (
+        <section className="tp-section" aria-label="Attachments">
+          <h3 className="ew-eyebrow">ATTACHMENTS</h3>
+          <AttachmentGallery folderKey={folderKey} attachments={card.attachments} />
+        </section>
+      )}
+      {evidence === null ? null : <EvidenceSections evidence={evidence} folderKey={folderKey} />}
       <KickBackHistory attempts={card.attempts} />
       <section className="tp-section" aria-label="Attempts">
         <h3 className="ew-eyebrow">ATTEMPTS</h3>
@@ -241,6 +262,7 @@ function ReviewControls({ folderPath, card, onReviewed }: ReviewProps): JSX.Elem
 
 interface CardBodyProps {
   folderPath: string
+  folderKey: string
   card: KanbanCardView
   host: OrchestrationHost
   onPlay(): void
@@ -249,7 +271,7 @@ interface CardBodyProps {
 }
 
 /** The loaded card: title, Play and the chat link, review controls, the Done summary, then the details. */
-function CardBody({ folderPath, card, host, onPlay, onReviewed, onDeleted }: CardBodyProps): JSX.Element {
+function CardBody({ folderPath, folderKey, card, host, onPlay, onReviewed, onDeleted }: CardBodyProps): JSX.Element {
   // The card's newest chat: the one the last Play started, which a kick-back is pasted into.
   const chat = host.chats
     .filter((item) => item.cardId === card.id)
@@ -268,7 +290,7 @@ function CardBody({ folderPath, card, host, onPlay, onReviewed, onDeleted }: Car
       </div>
       {card.lane === 'ready_for_review' ? <ReviewControls folderPath={folderPath} card={card} onReviewed={onReviewed} /> : null}
       {card.summary === null ? null : <DoneSummary summary={card.summary} />}
-      <CardDetails card={card} />
+      <CardDetails card={card} folderKey={folderKey} />
     </>
   )
 }
@@ -294,7 +316,7 @@ function PanelHead({ card, onClose }: { card: KanbanCardView | null; onClose(): 
  * opened. Play starts an agent on it; a card in Ready for review is approved or kicked back here. A Done
  * card leads with its compact summary.
  */
-export function KanbanCardPanel({ folderPath, cardId, refreshToken, host, onChanged, onClose }: KanbanCardPanelProps): JSX.Element {
+export function KanbanCardPanel({ folderPath, folderKey, cardId, refreshToken, host, onChanged, onClose }: KanbanCardPanelProps): JSX.Element {
   const { card, error, setCard } = useCard(folderPath, cardId, refreshToken)
   const [playing, setPlaying] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -303,6 +325,7 @@ export function KanbanCardPanel({ folderPath, cardId, refreshToken, host, onChan
     setNotice(problem)
     onChanged()
   }
+  const deleted = (): void => { onChanged(); onClose() }
   return (
     <aside className="kanban-panel" aria-label={card === null ? 'Card' : `${card.key} ${card.title}`}>
       <PanelHead card={card} onClose={onClose} />
@@ -311,14 +334,12 @@ export function KanbanCardPanel({ folderPath, cardId, refreshToken, host, onChan
       {card !== null ? (
         <CardBody
           folderPath={folderPath}
+          folderKey={folderKey}
           card={card}
           host={host}
           onPlay={() => setPlaying(true)}
           onReviewed={changed}
-          onDeleted={() => {
-            onChanged()
-            onClose()
-          }}
+          onDeleted={deleted}
         />
       ) : error === null ? (
         <p className="kanban-note">Loading the card…</p>

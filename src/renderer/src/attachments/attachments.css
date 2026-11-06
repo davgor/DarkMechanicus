@@ -1,0 +1,163 @@
+/* Attachment thumbnails and the lightbox. Colors come from the theme tokens in styles.css. */
+
+.attachment-gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.attachment-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 160px;
+  min-width: 0;
+}
+
+.attachment-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 112px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  cursor: zoom-in;
+  overflow: hidden;
+}
+
+.attachment-thumb:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.attachment-thumb-image {
+  height: 100%;
+  width: 100%;
+  object-fit: contain;
+}
+
+.attachment-caption {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.attachment-caption-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-2);
+  font-size: 12px;
+}
+
+.attachment-badge {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.attachment-badge-evidence {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.attachment-badge-reference {
+  border-color: var(--line-strong);
+  color: var(--ink-2);
+}
+
+.attachment-missing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.attachment-missing-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-2);
+}
+
+.attachment-missing-note {
+  color: var(--faint);
+  font-size: 11px;
+}
+
+.attachment-lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: var(--overlay);
+}
+
+.attachment-lightbox {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(96vw, 1400px);
+  max-height: 94vh;
+  padding: 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.attachment-lightbox-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.attachment-lightbox-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink);
+}
+
+.attachment-lightbox-count {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.attachment-lightbox-stage {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 0;
+}
+
+.attachment-lightbox-image {
+  flex: 1;
+  min-width: 0;
+  max-height: calc(94vh - 80px);
+  object-fit: contain;
+}
+
+.attachment-lightbox .attachment-missing {
+  min-height: 240px;
+}

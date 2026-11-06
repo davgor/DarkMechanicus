@@ -23,6 +23,7 @@ function fakeGit(current: string | null, branches: Record<string, Tree>): FakeGi
     head: () => ({ branch: current, commit: null, detached: current === null }),
     countUncommitted: async () => 0,
     listLocalBranches: async () => Object.keys(branches),
+    listWorktrees: async () => [],
     listFiles: async (ref, pathspec) => {
       listed.push(ref)
       return Object.keys(branches[ref] ?? {}).filter((path) => path.startsWith(`${pathspec}/`))

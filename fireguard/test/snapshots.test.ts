@@ -1,9 +1,28 @@
 import { describe, it, expect } from 'vitest';
-import { existsSync, realpathSync } from 'node:fs';
+import { existsSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { snapshotCommittedTree } from '../src/snapshots.js';
 import { git, initRepo, withTempDir } from './support.js';
+
+// Whether a file symlink can be made here. CI always answers yes, so the case runs and fails there rather than skipping.
+// Inlined: Fireguard cannot import src/test.
+function canCreateFileSymlinks(): boolean {
+  if (process.env.CI) {
+    return true;
+  }
+  const dir = mkdtempSync(join(tmpdir(), 'fg-symlink-probe-'));
+  try {
+    writeFileSync(join(dir, 'target.txt'), '');
+    symlinkSync(join(dir, 'target.txt'), join(dir, 'link.txt'));
+    return true;
+  } catch {
+    return false;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 /** A committed repo whose working tree then differs from HEAD in every way a snapshot ignores. */
 async function seedRepo(dir: string): Promise<void> {
@@ -63,6 +82,9 @@ describe('snapshotCommittedTree', () => {
     });
   });
 
+});
+
+describe('snapshotCommittedTree: links and failures', () => {
   it('links a top-level node_modules that git does not ignore, such as a link', async () => {
     await withTempDir(async (dir) => {
       const repo = join(dir, 'repo');
@@ -87,7 +109,11 @@ describe('snapshotCommittedTree', () => {
     });
   });
 
-  it('points committed absolute links into the workspace at the snapshot', async () => {
+});
+
+describe('snapshotCommittedTree: file symlinks and failures', () => {
+
+  it.skipIf(!canCreateFileSymlinks())('points committed absolute links into the workspace at the snapshot (needs file symlink rights)', async () => {
     await withTempDir(async (dir) => {
       const repo = join(dir, 'repo');
       await mkdir(join(repo, 'src'), { recursive: true });

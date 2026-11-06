@@ -18,7 +18,7 @@ import { epicBranchName } from '../shared/domain/branchName'
 import { TIER_VERDICTS } from '../shared/domain/retro'
 import { WORK_STATUSES } from '../shared/domain/status'
 import { DomainError } from './errors'
-import { STABLE_ID_PATTERN } from './ids'
+import { isStableId, STABLE_ID_PATTERN } from './ids'
 import { CRITERION_ID_PATTERN } from './plan/normalize'
 import { checkNameKey } from './definitionOfDone'
 import { isProfileName, PROFILE_NAME_RULE } from './profileNames'
@@ -42,6 +42,12 @@ export const LIMITS = {
   models: 200,
   /** Characters in one comment's Markdown body. */
   comment: 20_000,
+  /** Image attachments one record may hold. */
+  attachmentsPerRecord: 20,
+  /** Bytes in one image attachment (10 MiB). */
+  attachmentBytes: 10 * 1024 * 1024,
+  /** Pixels along each side of one image attachment. */
+  attachmentSide: 8_000,
   /** Comments one epic may hold (the importer reads at most this many per epic). */
   commentsPerEpic: 10_000,
   profileDescription: 500,
@@ -89,6 +95,23 @@ export const commentBody = z
   .string()
   .max(LIMITS.comment, `A comment is at most ${LIMITS.comment} characters`)
   .refine((body) => body.trim() !== '', 'A comment needs some text')
+
+/** Why an image is attached: as evidence of an attempt's work, or as a reference to build from. */
+export const attachmentPurpose = z.enum(['evidence', 'reference'])
+/** The image types the store accepts. */
+const attachmentMime = z.enum(['image/png', 'image/jpeg'])
+
+/** The metadata a record keeps about one image: never the bytes, which stay in the store. */
+export const attachmentRef = z.strictObject({
+  id: stableId.refine((id) => isStableId(id, 'attachment'), 'Expected an attachment id such as im_…'),
+  sha256: z.string().regex(/^[0-9a-f]{64}$/, 'Expected a lowercase SHA-256 hex digest'),
+  mime: attachmentMime,
+  bytes: z.number().int().min(1).max(LIMITS.attachmentBytes),
+  width: z.number().int().min(1).max(LIMITS.attachmentSide),
+  height: z.number().int().min(1).max(LIMITS.attachmentSide),
+  label: z.string().max(LIMITS.label),
+  purpose: attachmentPurpose
+})
 
 const title = z.string().max(LIMITS.title)
 const markdown = z.string().max(LIMITS.markdown)
@@ -195,7 +218,9 @@ export const ticketInput = z.strictObject({
   capability: capabilityPatch.optional(),
   references: z.array(ticketReference).max(LIMITS.references).optional(),
   expectedArtifacts: z.array(z.string().max(LIMITS.label)).max(LIMITS.references).optional(),
-  optional: z.boolean().optional()
+  optional: z.boolean().optional(),
+  // Staged image ids to show on the ticket as references; the draft stores their refs and `[]` removes them all.
+  attachments: z.array(attachmentRef.shape.id).max(LIMITS.attachmentsPerRecord).optional()
 })
 
 const concurrencyCap = z.number().int().min(1).max(1_000).nullable()
@@ -262,7 +287,9 @@ export const ticketContent = z.strictObject({
   capability: capabilityProfile,
   references: z.array(ticketReference).max(LIMITS.references),
   expectedArtifacts: z.array(z.string().max(LIMITS.label)).max(LIMITS.references),
-  optional: z.boolean()
+  optional: z.boolean(),
+  // No default, like `size`: a ticket without reference images keeps its saved shape and hash.
+  attachments: z.array(attachmentRef).max(LIMITS.attachmentsPerRecord).optional()
 })
 
 export const sprintDef = z.strictObject({
@@ -398,7 +425,9 @@ export const heartbeatProgress = z.strictObject({
 export const attemptEvidenceInput = z.strictObject({
   checks: z.array(checkResult).max(LIMITS.listItems).optional(),
   criteria: z.array(criterionResult).max(LIMITS.criteria).optional(),
-  notes: markdown.optional()
+  notes: markdown.optional(),
+  /** Staged image ids to claim as this submission's evidence; stored as their `attachmentRef`s. */
+  attachments: z.array(attachmentRef.shape.id).max(LIMITS.attachmentsPerRecord).optional()
 })
 
 /**

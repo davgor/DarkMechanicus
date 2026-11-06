@@ -1,5 +1,5 @@
 /** Pure view model for the ticket panel's Comments tab. */
-import type { CommentView, SessionRole } from '../../../shared/domain/views'
+import type { AttachmentRef, CommentView, SessionRole } from '../../../shared/domain/views'
 import { formatAgo } from '../epic/time'
 
 /** The command layer's limit on one comment's Markdown (characters). */
@@ -26,6 +26,8 @@ interface CommentItem {
   at: string
   /** Untrusted Markdown for the safe renderer. */
   body: string
+  /** The images attached to the comment, if any. */
+  attachments?: AttachmentRef[]
 }
 
 function roleChip(role: SessionRole, label: string): string | null {
@@ -40,7 +42,8 @@ export function commentItems(comments: CommentView[], now: number): CommentItem[
     role: roleChip(comment.author.role, comment.author.label),
     when: formatAgo(comment.createdAt, now),
     at: comment.createdAt,
-    body: comment.body
+    body: comment.body,
+    ...(comment.attachments === undefined ? {} : { attachments: comment.attachments })
   }))
 }
 

@@ -3,7 +3,7 @@ import { redactedJson } from '../storedSecrets'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 13
+export const SCHEMA_VERSION = 14
 
 export interface Migration {
   version: number
@@ -594,6 +594,70 @@ DROP TABLE sync_state;
 ALTER TABLE sync_state_v13 RENAME TO sync_state;
 `
 
+/**
+ * v14 adds image attachments: one row per PNG or JPEG, its metadata and its bytes (`data`, a BLOB). A row is staged
+ * (no owner) until a record claims it. `missing` marks a row whose bytes a repository file import could not find.
+ * The outbox and sync state gain the `attachment` kind; both tables are rebuilt the way v13 rebuilt them, keeping
+ * every row, id and the outbox id sequence.
+ */
+const V14 = `
+CREATE TABLE attachments (
+  id TEXT PRIMARY KEY,
+  sha256 TEXT NOT NULL,
+  mime TEXT NOT NULL CHECK (mime IN ('image/png','image/jpeg')),
+  bytes INTEGER NOT NULL CHECK (bytes >= 1),
+  width INTEGER NOT NULL CHECK (width >= 1),
+  height INTEGER NOT NULL CHECK (height >= 1),
+  label TEXT NOT NULL,
+  purpose TEXT NOT NULL CHECK (purpose IN ('evidence','reference')),
+  owner_kind TEXT CHECK (owner_kind IN ('attempt','kanban_attempt','comment','kanban_card','ticket')),
+  owner_id TEXT,
+  missing INTEGER NOT NULL DEFAULT 0 CHECK (missing IN (0,1)),
+  data BLOB,
+  created_by_role TEXT NOT NULL,
+  created_by_label TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  CHECK ((owner_kind IS NULL) = (owner_id IS NULL))
+);
+CREATE INDEX attachments_owner ON attachments(owner_kind, owner_id);
+
+CREATE TABLE outbox_v14 (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL CHECK (kind IN ('snapshot','epic_state','run_history','comment','profile','kanban_card','kanban_event','attachment')),
+  epic_id TEXT,
+  run_id TEXT,
+  revision_id TEXT,
+  entity_id TEXT,
+  state TEXT NOT NULL CHECK (state IN ('pending','done','failed')),
+  attempts INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT,
+  created_at TEXT NOT NULL,
+  done_at TEXT
+);
+INSERT INTO outbox_v14 (id, kind, epic_id, run_id, revision_id, entity_id, state, attempts, last_error, created_at, done_at)
+  SELECT id, kind, epic_id, run_id, revision_id, entity_id, state, attempts, last_error, created_at, done_at FROM outbox;
+DELETE FROM sqlite_sequence WHERE name = 'outbox_v14';
+INSERT INTO sqlite_sequence (name, seq) SELECT 'outbox_v14', seq FROM sqlite_sequence WHERE name = 'outbox';
+DROP TABLE outbox;
+ALTER TABLE outbox_v14 RENAME TO outbox;
+CREATE INDEX outbox_state ON outbox(state, id);
+
+CREATE TABLE sync_state_v14 (
+  kind TEXT NOT NULL CHECK (kind IN ('epic','run','comment','profile','kanban_card','kanban_event','attachment')),
+  entity_id TEXT NOT NULL,
+  exported_hash TEXT,
+  generation INTEGER NOT NULL DEFAULT 0,
+  imported_hash TEXT,
+  conflict TEXT,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (kind, entity_id)
+);
+INSERT INTO sync_state_v14 (kind, entity_id, exported_hash, generation, imported_hash, conflict, updated_at)
+  SELECT kind, entity_id, exported_hash, generation, imported_hash, conflict, updated_at FROM sync_state;
+DROP TABLE sync_state;
+ALTER TABLE sync_state_v14 RENAME TO sync_state;
+`
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, sql: V1 },
   { version: 2, sql: V2 },
@@ -607,7 +671,8 @@ export const MIGRATIONS: Migration[] = [
   { version: 10, sql: '', data: scrubStoredResponses },
   { version: 11, sql: V11 },
   { version: 12, sql: V12 },
-  { version: 13, sql: V13 }
+  { version: 13, sql: V13 },
+  { version: 14, sql: V14 }
 ]
 
 export function readSchemaVersion(db: Db): number {

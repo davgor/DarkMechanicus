@@ -2,6 +2,7 @@ import type { Ctx } from '../context'
 import { getMeta, META_KEYS } from '../meta'
 import type { DraftDeps } from '../plan/draftOps'
 import { type InitialPlanIds, maxKeyNumber } from '../plan/normalize'
+import { ticketAttachmentRefs } from './ticketAttachments'
 
 const DEFAULT_KEY_PREFIX = 'DM'
 
@@ -28,8 +29,11 @@ export function nextProjectKey(ctx: Ctx): string {
   return `${prefix}-${maxKeyNumber(allProjectKeys(ctx)) + 1}`
 }
 
-/** Id and key allocation for the tickets and sprints a draft edit creates, and the project's repositories. */
-export function draftDeps(ctx: Ctx): DraftDeps {
+/**
+ * Id and key allocation for the tickets and sprints a draft edit creates, the project's repositories, and the refs of
+ * the images a ticket names. `epicId` is the epic whose draft is edited: the draft ops check that draft themselves.
+ */
+export function draftDeps(ctx: Ctx, epicId?: string): DraftDeps {
   const prefix = getMeta(ctx.db, META_KEYS.keyPrefix) ?? DEFAULT_KEY_PREFIX
   let next: number | null = null
   return {
@@ -39,7 +43,8 @@ export function draftDeps(ctx: Ctx): DraftDeps {
       next = number + 1
       return `${prefix}-${number}`
     },
-    repositories: () => ctx.repositories()
+    repositories: () => ctx.repositories(),
+    attachmentRefs: (ids, ticketId) => ticketAttachmentRefs(ctx.db, { ids, ticketId, epicId })
   }
 }
 

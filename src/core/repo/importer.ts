@@ -27,6 +27,7 @@ import { findOpenTransfer, type OpenTransfer, TRANSFER_HOLD_PREFIX } from '../se
 import { type FileHashCache, readUnlessSynced } from './fileHashes'
 import { readProject } from './initialize'
 import { assertContained, displayPath, ownedPaths } from './paths'
+import { insertOwnedRow, registerEvidenceAttachments, registerTicketAttachments, restoreAttachmentFiles } from './attachmentImport'
 import { applyKanban, type KanbanScan, scanKanban } from './kanbanImport'
 import { applyProfiles, type ProfileScan, scanProfiles } from './profileImport'
 import {
@@ -995,6 +996,11 @@ function applyComment(db: Db, file: CommentFiles, now: string): void {
     record.author.label,
     record.createdAt
   )
+  for (const ref of record.attachments ?? []) {
+    if (db.get('SELECT id FROM attachments WHERE id = ?', ref.id) === undefined) {
+      insertOwnedRow(db, ref, { owner: 'comment', ownerId: record.id, createdAt: record.createdAt })
+    }
+  }
   markSynced(db, { kind: 'comment', entityId: file.commentId, hash: file.trackedHash, generation: null, now })
   indexComment(db, record)
 }
@@ -1151,6 +1157,9 @@ function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultVi
   const staged = applyStaged(deps, plan, now)
   const profileOutcome = applyProfiles(deps.db, profiles, now)
   const kanbanOutcome = applyKanban(deps.db, kanban, now)
+  registerEvidenceAttachments(deps.db, now)
+  registerTicketAttachments(deps.db, now)
+  const attachmentOutcome = restoreAttachmentFiles(deps)
   storeConflicts(deps.db, plan.conflicts, now)
   const pausedRuns = branchChanged ? pauseActiveRuns(deps, now) : []
   const result: ReconcileResultView = {
@@ -1159,7 +1168,7 @@ function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultVi
     conflicts: plan.conflicts.map((conflict) => ({ epicId: conflict.epicId, message: conflict.message })),
     profileConflicts: profiles.conflicts,
     kanbanConflicts: kanban.conflicts.map((conflict) => ({ cardId: conflict.cardId, message: conflict.message })),
-    rejected: [...staged.rejected, ...profileOutcome.rejected, ...kanbanOutcome.rejected],
+    rejected: [...staged.rejected, ...profileOutcome.rejected, ...kanbanOutcome.rejected, ...attachmentOutcome.rejected],
     branchChanged,
     pausedRuns
   }

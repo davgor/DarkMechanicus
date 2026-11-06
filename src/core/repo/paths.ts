@@ -22,6 +22,23 @@ function checkedProfileName(name: string): string {
  * App-generated paths of repository-owned records. Every segment comes from a validated stable id
  * (or profile name), so no caller-supplied text can introduce separators or traversal.
  */
+/** Which record folder an attachment's `attachments/` folder sits in: a run's history, a Kanban card, or an epic. */
+type AttachmentFolderKind = 'run' | 'kanban_card' | 'epic'
+
+export interface AttachmentFolder {
+  kind: AttachmentFolderKind
+  id: string
+}
+
+const ATTACHMENT_EXTENSIONS = { 'image/png': 'png', 'image/jpeg': 'jpg' } as const
+
+function checkedSha256(value: string): string {
+  if (!/^[0-9a-f]{64}$/.test(value)) {
+    fail('unsafe_path', 'Refusing to build a repository path from an invalid SHA-256 digest.')
+  }
+  return value
+}
+
 export function ownedPaths(layout: RepoLayout) {
   const epicDir = (epicId: string): string => join(layout.epicsDir, checkedId(epicId, 'epic'))
   const snapshotsDir = (epicId: string): string => join(epicDir(epicId), 'snapshots')
@@ -29,8 +46,23 @@ export function ownedPaths(layout: RepoLayout) {
   const commentsDir = (epicId: string): string => join(epicDir(epicId), 'comments')
   const kanbanCardDir = (cardId: string): string => join(layout.kanbanDir, checkedId(cardId, 'kanbanCard'))
   const kanbanEventsDir = (cardId: string): string => join(kanbanCardDir(cardId), 'events')
+  const attachmentsDir = (folder: AttachmentFolder): string => {
+    switch (folder.kind) {
+      case 'run':
+        return join(runDir(folder.id), 'attachments')
+      case 'kanban_card':
+        return join(kanbanCardDir(folder.id), 'attachments')
+      case 'epic':
+        return join(epicDir(folder.id), 'attachments')
+    }
+  }
   return {
     epicDir,
+    attachmentsDir,
+    attachmentFile: (folder: AttachmentFolder, sha256: string, mime: keyof typeof ATTACHMENT_EXTENSIONS): string =>
+      join(attachmentsDir(folder), `${checkedSha256(sha256)}.${ATTACHMENT_EXTENSIONS[mime]}`),
+    attachmentSidecarFile: (folder: AttachmentFolder, attachmentId: string): string =>
+      join(attachmentsDir(folder), `${checkedId(attachmentId, 'attachment')}.json`),
     snapshotsDir,
     snapshotFile: (epicId: string, revisionId: string): string =>
       join(snapshotsDir(epicId), `${checkedId(revisionId, 'revision')}.json`),

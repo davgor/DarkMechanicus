@@ -12,8 +12,11 @@ describe('parseCliArgs modes', () => {
   it.each([
     [['--list'], { kind: 'list' }],
     [['--describe', 'claim_ticket'], { kind: 'describe', command: 'claim_ticket' }],
-    [['call', 'list_epics'], { kind: 'call', command: 'list_epics', input: '{}' }],
-    [['call', 'get_epic', '{"epicId":"ep_1"}'], { kind: 'call', command: 'get_epic', input: '{"epicId":"ep_1"}' }],
+    [['call', 'list_epics'], { kind: 'call', command: 'list_epics', input: { source: 'inline', text: '{}' } }],
+    [
+      ['call', 'get_epic', '{"epicId":"ep_1"}'],
+      { kind: 'call', command: 'get_epic', input: { source: 'inline', text: '{"epicId":"ep_1"}' } }
+    ],
     [['--help'], { kind: 'help' }],
     [['-h'], { kind: 'help' }]
   ])('reads %j', (argv, mode) => {
@@ -72,13 +75,49 @@ describe('parseCliArgs refusals', () => {
     ['call with too many arguments', ['call', 'list_epics', '{}', 'extra']],
     ['--repo with no value', ['--repo']],
     ['--repo followed by a flag', ['--repo', '--list']],
-    ['--token-file with no value', ['--token-file']]
+    ['--token-file with no value', ['--token-file']],
+    ['--args-file with no value', ['call', 'list_epics', '--args-file']],
+    ['--args-file outside call', ['--list', '--args-file', 'a.json']],
+    ['--args-file on transfer', ['transfer', 'linear', '--epic', 'ep_1', '--args-file', 'a.json']],
+    ['inline JSON with --args-file', ['call', 'list_epics', '{}', '--args-file', 'a.json']],
+    ['stdin with --args-file', ['call', 'list_epics', '-', '--args-file', 'a.json']]
   ])('refuses %s', (_label, argv) => {
     expect(() => parse(argv)).toThrow()
   })
 
   it('shows the usage with every refusal, so the next try can be right', () => {
     expect(() => parse(['frobnicate'])).toThrow(/Usage: dm/)
+  })
+})
+
+describe('parseCliArgs call input sources', () => {
+  it('reads a file, resolved against the working directory', () => {
+    expect(parse(['call', 'create_epic', '--args-file', 'input/epic.json']).mode).toEqual({
+      kind: 'call',
+      command: 'create_epic',
+      input: { source: 'file', path: resolve(CWD, 'input/epic.json') }
+    })
+  })
+
+  it('reads stdin for a lone dash', () => {
+    expect(parse(['call', 'create_epic', '-']).mode).toEqual({
+      kind: 'call',
+      command: 'create_epic',
+      input: { source: 'stdin' }
+    })
+  })
+
+  it('takes the file when a dash-like word is not the third word', () => {
+    expect(parse(['call', 'create_epic', '--args-file', '-']).mode).toEqual({
+      kind: 'call',
+      command: 'create_epic',
+      input: { source: 'file', path: resolve(CWD, '-') }
+    })
+  })
+
+  it('lists the new sources in the usage', () => {
+    expect(CLI_USAGE).toContain('--args-file <path>')
+    expect(CLI_USAGE).toContain('json|-')
   })
 })
 

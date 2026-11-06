@@ -25,7 +25,8 @@ function makeDeps(bundle: PlanBundle): DraftDeps {
       key += 1
       return `DM-${key}`
     },
-    repositories: () => null
+    repositories: () => null,
+    attachmentRefs: () => []
   }
 }
 

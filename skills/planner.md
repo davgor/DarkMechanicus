@@ -32,6 +32,7 @@ When the goal is one isolated change, create a card instead of an epic. Follow-u
 - Call `list_kanban_cards` first and reuse a card that already covers the change.
 - Call `create_kanban_card` with a `title` (the one change), a `body` (Markdown: what to change and why), and, where they help the reviewer, `acceptanceCriteria`, `expectedArtifacts`, `references`, `priority` and `size`. The card lands in Backlog with a display key and waits there until a person presses Play.
 - Edit a Backlog card that was never claimed with `update_kanban_card`, passing the `revision` you last read as `expectedRevision`. A card in any other lane is refused.
+- A card takes reference images the same way: `attachments` on `create_kanban_card` or `update_kanban_card` (staged with `add_attachment`, references only; an update replaces the list).
 - A card works on the checked-out branch of its folder. It has no sprints, dependencies or capability profile.
 
 ## 3. Create the epic
@@ -74,6 +75,7 @@ For each ticket provide:
   - Start from a named profile when one fits: read it with `get_profile` and pass its `capability` as the ticket's `capability`, then adjust only what this ticket needs: set its `reasoning.effort`, and clear any `quality` the profile carries unless the person asked for it. A ticket keeps a copy, so later profile changes never alter it.
   - When the same requirements recur across tickets or epics, save them with `save_profile`: a short lowercase name (letters, digits, hyphens, such as `ui-implementation`), a one-line description of when to use it, and the complete capability. Omit `expectedRevision` to create; to change a profile, pass the `revision` you read, and on `conflict` read it again. Profiles are provider-neutral like tickets: never put vendor or model names in them.
 - `priority`, `tags`, and `optional: true` for work that must not gate a sprint or the epic.
+- `attachments`: reference images, such as a mockup the worker must match. Stage each with `add_attachment` (`purpose: "reference"`; a PNG or JPEG file in an allowed folder: the project and its worktrees, the system temp folder or the screenshot folder; at most 10 MiB, 8000 pixels per side, 20 per ticket) and pass the ids in `attachments` of `create_ticket`, `update_ticket` or a ticket in `update_plan_draft`. The images are claimed when the plan is saved, and an edit with `attachments` replaces the ticket's list (`[]` removes it). The worker sees them in its packet and opens them with `get_attachment`. When a criterion asks for a screenshot, say so in the criterion: the worker then attaches one as evidence.
 
 **Folders of repositories.** When `get_project` returns `repositories`, set `repo` on every work ticket to the repository it changes. One ticket changes one repository, so split a cross-repository change into one ticket per repository and wire them with dependencies. The server writes the `<repo> - ` prefix, so give the title without it. Acceptance nodes take no `repo`.
 

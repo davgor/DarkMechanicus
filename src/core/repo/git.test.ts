@@ -141,6 +141,15 @@ describe('GitAdapter CLI methods', () => {
     expect(run.calls).toEqual([['for-each-ref', '--format=%(refname:short)', 'refs/heads']])
     expect(await createGitAdapter(ROOT, { runGit: fakeRun(1, 'main\n').runGit }).listLocalBranches()).toEqual([])
   })
+})
+
+describe('GitAdapter.listWorktrees', () => {
+  it('lists worktree paths from the porcelain output, main checkout first, and none when git fails', async () => {
+    const run = fakeRun(0, `worktree /repo\nHEAD ${SHA_A}\nbranch refs/heads/main\n\nworktree /repo/wt with space\nHEAD ${SHA_B}\ndetached\n`)
+    expect(await createGitAdapter(ROOT, { runGit: run.runGit }).listWorktrees()).toEqual(['/repo', '/repo/wt with space'])
+    expect(run.calls).toEqual([['worktree', 'list', '--porcelain']])
+    expect(await createGitAdapter(ROOT, { runGit: fakeRun(128, '').runGit }).listWorktrees()).toEqual([])
+  })
 
   it('lists files at a ref without switching the checkout', async () => {
     const run = fakeRun(0, '.darkmechanicus/epics/a/current.json\n.darkmechanicus/epics/a/state.json\n')

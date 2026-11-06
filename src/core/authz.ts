@@ -44,6 +44,7 @@ export const CAPABILITIES = [
   'checkpoint.approve',
   'checkpoint.advance',
   'comment.write',
+  'attachment.write',
   'kanban.write',
   'kanban.play',
   'kanban.claim',
@@ -89,6 +90,8 @@ const PLANNER_SHARED: Capability[] = [
   'epic.create',
   'draft.edit',
   'comment.write',
+  // Attaching an image from a local path (evidence or a reference), the same for both planning roles.
+  'attachment.write',
   // Adding or editing a Kanban card; only a person may start, approve or kick one back.
   'kanban.write',
   'profile.write',
@@ -154,8 +157,8 @@ const ROLE_CAPABILITIES: Record<SessionRole, Capability[]> = {
   reader: ['read'],
   planner: PLANNER,
   orchestrator: ORCHESTRATOR,
-  worker: ['read', 'attempt.heartbeat', 'attempt.submit', 'attempt.fail', 'comment.write', 'kanban.report'],
-  reviewer: ['read', 'attempt.review', 'comment.write']
+  worker: ['read', 'attempt.heartbeat', 'attempt.submit', 'attempt.fail', 'comment.write', 'attachment.write', 'kanban.report'],
+  reviewer: ['read', 'attempt.review', 'comment.write', 'attachment.write']
 }
 
 interface RoleOptions {

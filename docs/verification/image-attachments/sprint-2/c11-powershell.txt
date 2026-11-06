@@ -1,0 +1,26 @@
+﻿# c11 (PowerShell): PSVersion 5.1.26100.9711 (Desktop); cwd C:\Users\davgo\Documents\GitHub\dm-wt\img-s2
+PS> $json = '{"path":"C:\\Users\\davgo\\AppData\\Local\\Temp\\dmplan\\accept-s2\\img\\pwsh.png","label":"PowerShell 5.1 args file","purpose":"evidence"}'
+PS> $json | Set-Content -Encoding utf8 C:\Users\davgo\AppData\Local\Temp\dmplan\accept-s2\args-pwsh.json      # PowerShell 5.1 writes a UTF-8 BOM
+# first bytes of the file: EF BB BF (EF BB BF = BOM)
+PS> node out/main/cli.js --repo C:\Users\davgo\AppData\Local\Temp\dmplan\accept-s2\repo --token-file C:\Users\davgo\AppData\Local\Temp\dmplan\accept-s2\tok-worker.txt call add_attachment --args-file C:\Users\davgo\AppData\Local\Temp\dmplan\accept-s2\args-pwsh.json
+{
+  "ok": true,
+  "data": {
+    "id": "im_01m6rktv1eg6bs2t9tew4rxj5m",
+    "sha256": "15f39434f00d07ccdf7fd8e7a3729de465961fa712e389d5622ff59aaae4172f",
+    "mime": "image/png",
+    "bytes": 7684,
+    "width": 400,
+    "height": 200,
+    "label": "PowerShell 5.1 args file",
+    "purpose": "evidence",
+    "owner": null,
+    "missing": false,
+    "createdBy": {
+      "role": "worker",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:22:35.054Z"
+  }
+}
+exit=0

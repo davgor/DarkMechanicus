@@ -19,6 +19,8 @@ You turn the state of the active sprint into an honest report that a person can 
 5. Read `get_sprint_report` for the retro's facts. It returns `tierFacts`, which the server computes from the attempts for every ticket of the sprint (see "The retro" below).
 6. Make sure no leases are open. Expired leases must be reconciled with `reconcile_attempt` first. When the sprint has an acceptance node, make sure it is accepted before you submit: a run waiting at the checkpoint takes no claims. The one exception is a required leftover that keeps the node from ever being ready: then submit the report with its retro first, and write a new revision once the node is accepted (the orchestrator skill, `darkmechanicus-orchestrator`, describes that case).
 
+Where a criterion or an exit criterion asks for a screenshot, look at the evidence image before you call it met: the attempts' `evidence.attachments` list the ids, and `get_attachment` with `as: "file"` gives a local path to open. A report that says a screen was shown with no image attached to the accepted attempt is not evidence; report the criterion as unmet or name the gap in `risks`.
+
 ## 2. Compose the report
 
 Fill every field from evidence:
@@ -39,7 +41,7 @@ Fill every field from evidence:
 
 Write each part from evidence the server or an attempt recorded, never from impression. Name a ticket by its id or display key (such as `DM-12`); a ticket the run's plan does not have is refused with `invalid_input`. Every list is optional on input, but work through all of them.
 
-- `delivered`: one entry per delivered ticket, `{ ticket, demo, evidence }`. `demo` says what to look at: the screen, command, or file, and how to open it. `evidence` says where the proof is: a test, a check, an artifact path, a commit. A person who reads only this list should be able to see the sprint's work.
+- `delivered`: one entry per delivered ticket, `{ ticket, demo, evidence }`. `demo` says what to look at: the screen, command, or file, and how to open it. `evidence` says where the proof is: a test, a check, an artifact path, a commit, or an attached image (name its attachment id and label). A person who reads only this list should be able to see the sprint's work.
 - `wentWell` and `wentPoorly`: short, specific statements, each tied to something that happened: a rejection and its reason, an escalation, an expired lease, a failed row check, a failed increment, a ticket that needed splitting. Say what went poorly as plainly as what went well. Do not pad one list to balance the other, and do not leave a failure out. A rejection caused by vague ticket text is a planning problem: say so here instead of blaming the worker's tier.
 - `tierFit`: one entry per ticket whose tier you can judge, `{ ticket, verdict, note }`, with a verdict of `right_sized`, `oversized`, or `undersized`. Tier-fit verdicts come from the computed facts: `tierFacts` in `get_sprint_report`, which you read and do not write. For each ticket it gives the planned size, level, and effort, each attempt's model, effort, and whether it was a fallback, the `rejectionCount`, and whether it `escalated`. Name the fact a verdict rests on in the `note` ("rejected on the first tier, accepted one tier up").
   - `undersized`: the ticket was rejected or `escalated` because the tier fell short.

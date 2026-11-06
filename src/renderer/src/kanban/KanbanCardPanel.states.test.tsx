@@ -54,6 +54,7 @@ function panelAt(cardId: string, token = 0, chats: ChatRecord[] = []): JSX.Eleme
   return (
     <KanbanCardPanel
       folderPath="/a"
+      folderKey="00000000000000000000000000000001"
       cardId={cardId}
       refreshToken={token}
       host={host(chats)}
@@ -225,6 +226,31 @@ describe('KanbanCardPanel decided attempts', () => {
     expect(within(panel()).queryByRole('list', { name: 'Checks' })).toBeNull()
     expect(within(panel()).queryByRole('list', { name: 'Criteria results' })).toBeNull()
     expect(panel().textContent).not.toContain('NOTES')
+  })
+
+  it('shows the evidence images as thumbnails and the output artifacts, addressed by the folder key', async () => {
+    cards.kc_a = cardView({
+      id: 'kc_a',
+      key: 'DM-7',
+      lane: 'ready_for_review',
+      openAttempt: { number: 1, state: 'submitted' },
+      attempts: [
+        attempt({
+          evidence: {
+            checks: [],
+            criteria: [],
+            notes: '',
+            attachments: [{ id: 'im_00000000000000000000000009', sha256: 'b'.repeat(64), mime: 'image/png', bytes: 10, width: 320, height: 200, label: 'terminal', purpose: 'evidence' }]
+          },
+          outputs: { summary: '', artifacts: [{ label: 'Report', location: 'https://example.com/r', hash: null, remoteOnly: true }], commits: [], changedFiles: [], branch: null }
+        })
+      ]
+    })
+    await show('kc_a')
+    const gallery = within(panel()).getByRole('list', { name: 'Attachments' })
+    const image = within(gallery).getByRole('img', { name: 'terminal' }) as HTMLImageElement
+    expect(image.getAttribute('src')).toBe('dm-attachment://00000000000000000000000000000001/im_00000000000000000000000009')
+    expect(within(panel()).getByRole('region', { name: 'Artifacts' }).textContent).toContain('Report')
   })
 })
 

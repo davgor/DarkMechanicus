@@ -73,7 +73,7 @@ export function kanbanGuidance(cardId: string): string {
       'If this conversation has lost track of the card, start from step 1: claim_kanban_card returns its packet again.',
     '',
     '1. Call get_capabilities first and confirm your role is orchestrator.',
-    `2. Call claim_kanban_card with cardId ${card}. It returns the card's packet: its content, the branch, every earlier kick-back comment and a claim token.`,
+    `2. Call claim_kanban_card with cardId ${card}. It returns the card's packet: its content, the branch, every earlier kick-back comment and a claim token. If the packet's card lists attachments, they are the card's reference images or mockups: fetch each with get_attachment and give the worker what they show.`,
     '3. Start one worker subagent with three things written into the message you give it: the whole packet, the worker guidance below, and this rule: do not call submit_kanban_card or fail_kanban_card, report back to the orchestrator instead. ' +
       'The claim token is a secret: give it only to the worker, and never put it in a commit, comment, report or note.',
     '4. The worker works on the checked-out branch, commits there, calls heartbeat_kanban_card with a progress note every heartbeatIntervalSeconds, and reports back to you. It does not submit the card.',

@@ -330,7 +330,12 @@ export interface AttemptEvidence {
   checks: CheckResult[]
   criteria: CriterionResult[]
   notes: string
+  /** The images the submission claimed as evidence. Absent on records written before attachments existed. */
+  attachments?: AttachmentRef[]
 }
+
+/** Evidence as a submission names it: its images by their staged ids; the server stores their references. */
+export type AttemptEvidenceSubmission = Omit<Partial<AttemptEvidence>, 'attachments'> & { attachments?: string[] }
 
 export interface AttemptFailure {
   reason: string
@@ -729,7 +734,15 @@ export interface StorageStatusView {
   projectId: string | null
   projectName: string | null
   schemaVersion: number | null
-  outbox: { pending: number; failed: number; lastError: string | null }
+  /** `failedEntries` lists up to 20 failed rows of every kind, and is omitted when none failed. */
+  outbox: {
+    pending: number
+    failed: number
+    lastError: string | null
+    failedEntries?: { kind: string; entityId: string; attempts: number; lastError: string | null }[]
+  }
+  /** Images attached to a record; `bytes` includes the ones whose bytes are missing. Always returned by `get_storage_status`. */
+  attachments?: { count: number; bytes: number; missing: number }
   lastFlushAt: string | null
   /** `repository` is false outside a Git checkout (then `current` is null too, but not because HEAD is detached). */
   branch: { current: string | null; recorded: string | null; changed: boolean; repository: boolean }
@@ -1059,6 +1072,47 @@ export interface CommentView {
   /** The session that wrote it (role and label), never caller-supplied. */
   author: { role: SessionRole; label: string }
   createdAt: string
+  /** The images attached to the comment; absent when it has none. */
+  attachments?: AttachmentRef[]
+}
+
+/** Why a person or agent attached an image: a screenshot as proof, or a mockup to work from. */
+export type AttachmentPurpose = 'evidence' | 'reference'
+
+export type AttachmentMime = 'image/png' | 'image/jpeg'
+
+/** The kinds of record an attachment can belong to. */
+export type AttachmentOwnerKind = 'attempt' | 'kanban_attempt' | 'comment' | 'kanban_card' | 'ticket'
+
+export interface AttachmentOwner {
+  kind: AttachmentOwnerKind
+  id: string
+}
+
+/** A record's reference to one image: its metadata, never the bytes (those are read from the store). */
+export interface AttachmentRef {
+  id: string
+  sha256: string
+  mime: AttachmentMime
+  bytes: number
+  width: number
+  height: number
+  label: string
+  purpose: AttachmentPurpose
+}
+
+/** One stored image. `owner` is null while the image is staged, waiting for a record to claim it. */
+export interface AttachmentView extends AttachmentRef {
+  owner: AttachmentOwner | null
+  /** True when a repository import could not find the file that holds the bytes. */
+  missing: boolean
+  createdBy: { role: SessionRole; label: string }
+  createdAt: string
+}
+
+/** An image's metadata plus the absolute path of a temporary copy of its bytes (`getAttachment` with `as: 'file'`). */
+export interface AttachmentFileView extends AttachmentView {
+  path: string
 }
 
 /**

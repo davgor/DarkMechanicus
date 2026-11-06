@@ -1,0 +1,64 @@
+# c4: worker-grant CLI adds a ticket comment carrying an image (repo mode)
+$ dm call add_attachment '{"path":"C:/Users/davgo/AppData/Local/Temp/dmplan/accept-s2/img/comment-cli.png","label":"CLI comment screenshot","purpose":"reference"}'   [worker grant]
+{
+  "ok": true,
+  "data": {
+    "id": "im_01m6rkgn8j5f3p3yva2a9c0v3h",
+    "sha256": "785277e3be5d7268b4f5f00c787221bf82a6e0601bf0238b1484a41f6bc4f1b8",
+    "mime": "image/png",
+    "bytes": 11144,
+    "width": 640,
+    "height": 360,
+    "label": "CLI comment screenshot",
+    "purpose": "reference",
+    "owner": null,
+    "missing": false,
+    "createdBy": {
+      "role": "worker",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:17:01.458Z"
+  }
+}
+exit=0
+$ dm call add_comment '{"epicId":"ep_01m6rkev18cm3y119vhf5m31vf","ticketId":"tk_01m6rkevcfgpcfmsc5289zjkqg","body":"Comment from the dm CLI with a screenshot attached.","attachments":["im_01m6rkgn8j5f3p3yva2a9c0v3h"]}'   [worker grant]
+{
+  "ok": true,
+  "data": {
+    "id": "cm_01m6rkgnc95h87552s4mqhsct4",
+    "epicId": "ep_01m6rkev18cm3y119vhf5m31vf",
+    "ticketId": "tk_01m6rkevcfgpcfmsc5289zjkqg",
+    "body": "Comment from the dm CLI with a screenshot attached.",
+    "author": {
+      "role": "worker",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:17:01.577Z",
+    "attachments": [
+      {
+        "id": "im_01m6rkgn8j5f3p3yva2a9c0v3h",
+        "sha256": "785277e3be5d7268b4f5f00c787221bf82a6e0601bf0238b1484a41f6bc4f1b8",
+        "mime": "image/png",
+        "bytes": 11144,
+        "width": 640,
+        "height": 360,
+        "label": "CLI comment screenshot",
+        "purpose": "reference"
+      }
+    ]
+  }
+}
+exit=0
+$ dm call flush_portable_state '{}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "flushed": 0,
+    "failed": 0,
+    "errors": []
+  }
+}
+exit=0
+
+# after the flush: epics/ep_01m6rkev18cm3y119vhf5m31vf/attachments/785277e3be5d7268b4f5f00c787221bf82a6e0601bf0238b1484a41f6bc4f1b8.png exists = true
+# attachments folder: 40700ff20a34c635d6d3d2c433843fd61be9c07ec98e1da07fd36b8caec606cc.png, 785277e3be5d7268b4f5f00c787221bf82a6e0601bf0238b1484a41f6bc4f1b8.png, b005f696960f8e971e22f75c52fa1db1848894a425c02040c6f739aeb1a25dcd.png, im_01m6rketxjze6wttvncrernj96.json, im_01m6rkfzhfxc7ht970a2vp3twf.json, im_01m6rkgn8j5f3p3yva2a9c0v3h.json

@@ -13,6 +13,11 @@ import type { BoardRemovalResultView, BoardRemovalView, StorageMode } from '../d
 export interface TrackedFolderView {
   /** Canonical real path; the registry key. */
   path: string
+  /**
+   * Opaque key for this folder, kept by main for this run: the host segment of `dm-attachment://` URLs.
+   * Random per run, so no path reaches the renderer through an image address.
+   */
+  attachmentKey: string
   name: string
   /** Path with the home directory abbreviated to `~`. */
   displayPath: string
@@ -323,6 +328,7 @@ const DESKTOP_COMMANDS = [
   'getTicket',
   'setTicketStatus',
   'deleteTicket',
+  'uploadAttachment',
   'addComment',
   'listComments',
   'createKanbanCard',

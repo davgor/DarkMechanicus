@@ -29,7 +29,7 @@ export interface CloneRig {
 
 /** The view the rig's registry returns for a tracked path. */
 export function trackedView(path: string): TrackedFolderView {
-  return { path, name: basename(path), displayPath: path, initialized: false, storageMode: 'repo', available: true, addedAt: '2026-11-01T00:00:00.000Z', childRepositories: null }
+  return { path, name: basename(path), displayPath: path, initialized: false, storageMode: 'repo', available: true, addedAt: '2026-11-01T00:00:00.000Z', attachmentKey: '00000000000000000000000000000001', childRepositories: null }
 }
 
 export function cloneRig(cleanups: Array<() => void>, options: CloneRigOptions = {}): CloneRig {

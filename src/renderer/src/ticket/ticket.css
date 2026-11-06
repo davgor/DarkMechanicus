@@ -727,3 +727,22 @@
 .tp-message.is-info {
   color: var(--st-accepted);
 }
+
+.tp-pending-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tp-pending-image {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tp-pending-image img {
+  border-radius: 4px;
+}

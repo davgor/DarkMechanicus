@@ -39,6 +39,7 @@ function panelElement(backend: FakeBackend, patch: Partial<TicketPanelProps>, sc
     <TicketPanel
       runner={backend.runner}
       folderPath="/repo"
+      folderKey="00000000000000000000000000000001"
       activity={null}
       scheduler={scheduler}
       epicId="ep_1"

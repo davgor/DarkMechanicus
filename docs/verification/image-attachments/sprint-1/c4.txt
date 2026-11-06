@@ -1,0 +1,14 @@
+# c4: repo-mode files
+.darkmechanicus/history/rn_01m6q6917he7jnwn1z8m8q8xjy/attachments/0f1452d868773aabd82acb1dcb283df816249bc166e14dc5d12c80dab77157f8.png
+.darkmechanicus/history/rn_01m6q6917he7jnwn1z8m8q8xjy/attachments/2c8244ea5f80064a6e64aa8a8cf348275692f8eb9ee054328622cdaadbb72cce.png
+.darkmechanicus/kanban/kc_01m6q6abnfeyjw97vzcfsyz6pr/attachments/2c8244ea5f80064a6e64aa8a8cf348275692f8eb9ee054328622cdaadbb72cce.png
+.darkmechanicus/kanban/kc_01m6q6abnfeyjw97vzcfsyz6pr/attachments/93a9c88223c9ea53b0e2970cc0da286c6c86a45a956d6b8a2d1bc77b953a4d77.png
+
+# delete local/state.sqlite*
+removed 'C:/Users/davgo/AppData/Local/Temp/dmplan/accept-s1/repo2/.darkmechanicus/local/state.sqlite'
+exports
+machine.json
+
+# reopened after deleting local/state.sqlite (app relaunched, same folder)
+state.sqlite recreated by import: user_version 14, attachments 4 (the 4 owned images restored from the exported files), attempts 1, kanban_attempts 1, kanban_cards 2, runs 1
+Gallery images (ticket Evidence tab and Kanban card) load via dm-attachment:// with naturalWidth 640: screenshots c4-after-*.png

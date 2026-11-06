@@ -18,6 +18,8 @@ export interface TicketPanelProps {
   runner: Runner
   /** The tracked folder the ticket belongs to; the Activity tab follows its attempts there. */
   folderPath: string
+  /** The folder's attachment key (`TrackedFolderView.attachmentKey`): the Evidence tab's images are addressed by it. */
+  folderKey: string
   /** Set when the person asked for the live activity of an attempt: the panel shows its Activity tab for it. */
   activity: { attemptId: string } | null
   /** Paces the Activity tab's polling of an open attempt. */
@@ -123,7 +125,7 @@ function TabBody(props: TabBodyProps): JSX.Element {
   const { detail, panel } = props
   switch (props.focus.tab) {
     case 'overview':
-      return <OverviewTab detail={detail} bundle={panel.plan.bundle} runner={panel.runner} onSelect={panel.onSelectTicket} />
+      return <OverviewTab detail={detail} bundle={panel.plan.bundle} runner={panel.runner} folderKey={panel.folderKey} onSelect={panel.onSelectTicket} />
     case 'attempts':
       return <AttemptList attempts={detail.attempts} now={panel.now} onReview={panel.onReview} />
     case 'activity':
@@ -138,7 +140,7 @@ function TabBody(props: TabBodyProps): JSX.Element {
         />
       )
     case 'evidence':
-      return <EvidenceTab detail={detail} />
+      return <EvidenceTab detail={detail} folderKey={panel.folderKey} />
     case 'comments':
       return (
         <CommentsTab
@@ -148,6 +150,7 @@ function TabBody(props: TabBodyProps): JSX.Element {
           now={panel.now}
           reloadKey={panel.reloadKey}
           canComment={panel.canEdit}
+          folderKey={panel.folderKey}
         />
       )
     case 'history':

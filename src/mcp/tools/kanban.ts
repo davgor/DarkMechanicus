@@ -30,6 +30,7 @@ const CARD_CONTENT_TOOLS = [
       ...CREATE,
       title: CREATE.title.describe('Short title of the one change.'),
       body: CREATE.body.describe('Markdown: what to change and why.'),
+      attachments: CREATE.attachments.describe('Staged image ids (from add_attachment, purpose reference) to attach as mockups or reference images, at most 20.'),
       idempotencyKey
     },
     run: (api, input) => api.createKanbanCard(input)
@@ -42,6 +43,7 @@ const CARD_CONTENT_TOOLS = [
       ...UPDATE,
       cardId,
       expectedRevision: UPDATE.expectedRevision.describe('The card revision you last read; a stale value fails with `conflict`.'),
+      attachments: UPDATE.attachments.describe('Image ids that replace the reference images of the card (keep the ids you want to keep; a dropped image is deleted). Omit to keep them. New ids are staged images (from add_attachment, purpose reference).'),
       idempotencyKey
     },
     run: (api, input) => api.updateKanbanCard(input)

@@ -23,7 +23,7 @@ import {
   type KanbanDoneSummary,
   type KanbanLane
 } from '../../../shared/domain/kanban'
-import type { AttemptEvidence, AttemptOutputs, SessionRole } from '../../../shared/domain/views'
+import type { AttachmentRef, AttemptEvidence, AttemptOutputs, SessionRole } from '../../../shared/domain/views'
 import { requireCapability } from '../../authz'
 import type { Ctx } from '../../context'
 import { parseJson, toJson } from '../../db/database'
@@ -33,6 +33,7 @@ import { normalizeCriteria } from '../../plan/normalize'
 import { LIMITS } from '../../schemas'
 import { nextProjectKey } from '../draftDeps'
 import { appendEvent } from '../events'
+import { claimAttachments, listAttachmentRefs } from '../attachments'
 import { requestWithoutKey, withIdempotency } from '../idempotency'
 import { enqueueOutbox } from '../outbox'
 
@@ -148,6 +149,7 @@ export function loadSummaryRow(ctx: Ctx, cardId: string): SummaryRow {
 export function cardView(ctx: Ctx, cardId: string): KanbanCardView {
   const row = loadSummaryRow(ctx, cardId)
   const attempts = ctx.db.all<AttemptRow>('SELECT * FROM kanban_attempts WHERE card_id = ? ORDER BY number', cardId)
+  const attachments = cardAttachments(ctx, cardId)
   return {
     ...toSummaryView(row),
     body: row.body,
@@ -159,8 +161,45 @@ export function cardView(ctx: Ctx, cardId: string): KanbanCardView {
     createdAt: row.created_at,
     completedAt: row.completed_at,
     revision: row.revision,
+    ...(attachments.length > 0 ? { attachments } : {}),
     attempts: attempts.map(toAttemptView)
   }
+}
+
+/** The reference images the card holds; empty when it holds none. */
+function cardAttachments(ctx: Ctx, cardId: string): AttachmentRef[] {
+  return listAttachmentRefs(ctx.db, { kind: 'kanban_card', id: cardId })
+}
+
+/** Refuses a repeated id, and an image staged as evidence: a card carries references. */
+function assertReferenceImages(ctx: Ctx, ids: readonly string[]): void {
+  if (new Set(ids).size !== ids.length) {
+    fail('invalid_input', 'The same attachment is listed more than once.')
+  }
+  for (const id of ids) {
+    const row = ctx.db.get<{ purpose: string }>('SELECT purpose FROM attachments WHERE id = ?', id)
+    if (row?.purpose === 'evidence') {
+      fail('invalid_input', `Attachment ${id} was staged as evidence; a card carries reference images.`, { id })
+    }
+  }
+}
+
+/**
+ * Makes `ids` the card's reference images: ids it already holds stay, the others are claimed (a foreign or unknown id is
+ * refused), and the card's images not listed are deleted. Runs inside the write transaction, before the card's events.
+ */
+function setCardAttachments(ctx: Ctx, cardId: string, ids: readonly string[]): void {
+  assertReferenceImages(ctx, ids)
+  const held = cardAttachments(ctx, cardId).map((ref) => ref.id)
+  for (const id of held.filter((heldId) => !ids.includes(heldId))) {
+    ctx.db.run("DELETE FROM attachments WHERE id = ? AND owner_kind = 'kanban_card' AND owner_id = ?", id, cardId)
+    ctx.db.run("DELETE FROM sync_state WHERE kind = 'attachment' AND entity_id = ?", id)
+  }
+  claimAttachments(
+    ctx,
+    ids.filter((id) => !held.includes(id)),
+    { kind: 'kanban_card', id: cardId }
+  )
 }
 
 /** A title without its surrounding whitespace; a blank one is refused. */
@@ -234,6 +273,7 @@ function insertCard(ctx: Ctx, input: CreateKanbanCardInput): KanbanCardView {
     now,
     now
   )
+  setCardAttachments(ctx, id, input.attachments ?? [])
   recordCardEvent(ctx, { id, key }, { kind: 'created', payload: { revision: 1 }, at: now })
   return cardView(ctx, id)
 }
@@ -289,6 +329,9 @@ function applyCardUpdate(ctx: Ctx, input: UpdateKanbanCardInput): KanbanCardView
     revision,
     row.id
   )
+  if (input.attachments !== undefined) {
+    setCardAttachments(ctx, row.id, input.attachments)
+  }
   const fields = KANBAN_EDITABLE_FIELDS.filter((field) => input[field] !== undefined)
   recordCardEvent(ctx, row, { kind: 'updated', payload: { revision, fields }, at: now })
   return cardView(ctx, row.id)

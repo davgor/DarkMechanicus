@@ -20,6 +20,7 @@ export function createFakeGit(initial: GitHead | null): FakeGit {
     },
     countUncommitted: async () => 0,
     listLocalBranches: async () => [],
+    listWorktrees: async () => [],
     listFiles: async () => [],
     showFile: async () => null,
     isAncestor: async () => null,

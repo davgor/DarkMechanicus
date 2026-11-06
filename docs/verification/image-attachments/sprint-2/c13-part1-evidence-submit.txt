@@ -1,0 +1,116 @@
+# c13 setup: worker-grant CLI stages an evidence image and submits it on REP-2 (claim token masked below)
+$ dm call add_attachment '{"path":"C:/Users/davgo/AppData/Local/Temp/dmplan/accept-s2/img/evidence.png","label":"REP-2 evidence","purpose":"evidence"}'   [worker grant]
+{
+  "ok": true,
+  "data": {
+    "id": "im_01m6rkhyd8gsjeyx1w8pbaw7kp",
+    "sha256": "72dc089363e9b2ec94b5c76dae6ce604e3c4afbb818f8725dcb75a69cce7b11f",
+    "mime": "image/png",
+    "bytes": 8575,
+    "width": 500,
+    "height": 300,
+    "label": "REP-2 evidence",
+    "purpose": "evidence",
+    "owner": null,
+    "missing": false,
+    "createdBy": {
+      "role": "worker",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:17:43.592Z"
+  }
+}
+exit=0
+$ dm call submit_attempt '{"attemptId":"at_01m6rkg0hkqhkrkc0aw45d4hjt","claimToken":"<masked>","outputs":{...},"evidence":{...,"attachments":["im_01m6rkhyd8gsjeyx1w8pbaw7kp"]}}'   [worker grant]
+{
+  "ok": true,
+  "data": {
+    "id": "at_01m6rkg0hkqhkrkc0aw45d4hjt",
+    "runId": "rn_01m6rkg0cw0d35p5vme1rccjh9",
+    "ticketId": "tk_01m6rkevcfgpcfmsc5289zjkqg",
+    "number": 1,
+    "kind": "work",
+    "state": "submitted",
+    "fencingToken": 1,
+    "worker": {
+      "sessionId": "ss_01m6rkg0h7ft0n0kfp3r4xzjxr",
+      "label": "accept-s2 worker",
+      "modelId": null,
+      "hostId": null,
+      "catalogRevision": null,
+      "rationale": null,
+      "effort": null
+    },
+    "revisionId": "rv_01m6rkg00jm0zbs4t6bqhpqyqt",
+    "ticketContentHash": "sha256:3e5b3d16667288ef0557ea29fbd993ba9e3da68243a0808160e6dc74a5f6eaeb",
+    "leaseExpiresAt": null,
+    "heartbeatAt": null,
+    "outputs": {
+      "summary": "Acceptance scratch work",
+      "artifacts": [],
+      "commits": [],
+      "changedFiles": [],
+      "branch": "main"
+    },
+    "evidence": {
+      "checks": [
+        {
+          "name": "scratch",
+          "status": "passed",
+          "detail": "n/a"
+        }
+      ],
+      "criteria": [
+        {
+          "criterionId": "c1",
+          "met": true,
+          "note": "evidence image attached"
+        }
+      ],
+      "notes": "",
+      "attachments": [
+        {
+          "id": "im_01m6rkhyd8gsjeyx1w8pbaw7kp",
+          "sha256": "72dc089363e9b2ec94b5c76dae6ce604e3c4afbb818f8725dcb75a69cce7b11f",
+          "mime": "image/png",
+          "bytes": 8575,
+          "width": 500,
+          "height": 300,
+          "label": "REP-2 evidence",
+          "purpose": "e
+
+$ dm call flush_portable_state '{}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "flushed": 0,
+    "failed": 0,
+    "errors": []
+  }
+}
+exit=0
+$ dm call get_attachment '{"attachmentId":"im_01m6rkhyd8gsjeyx1w8pbaw7kp","as":"metadata"}'   [worker grant]
+{
+  "ok": true,
+  "data": {
+    "id": "im_01m6rkhyd8gsjeyx1w8pbaw7kp",
+    "sha256": "72dc089363e9b2ec94b5c76dae6ce604e3c4afbb818f8725dcb75a69cce7b11f",
+    "mime": "image/png",
+    "bytes": 8575,
+    "width": 500,
+    "height": 300,
+    "label": "REP-2 evidence",
+    "purpose": "evidence",
+    "owner": {
+      "kind": "attempt",
+      "id": "at_01m6rkg0hkqhkrkc0aw45d4hjt"
+    },
+    "missing": false,
+    "createdBy": {
+      "role": "worker",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:17:43.592Z"
+  }
+}
+exit=0

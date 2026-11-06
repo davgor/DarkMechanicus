@@ -641,6 +641,36 @@ describe('comment record schema', () => {
   })
 })
 
+describe('buildCommentRecord attachments', () => {
+  it('carries the image references of a comment, omits the key when it has none, and round-trips through the schema', () => {
+    const db = createTestDb()
+    insertEpic(db, { id: EPIC })
+    insertComment(db, { id: COMMENT_ID, epicId: EPIC, ticketId: tid(1), body: 'Blocked on **DM-2**' })
+    const before = JSON.stringify(buildCommentRecord(db, COMMENT_ID))
+    expect(before).not.toContain('attachments')
+    const ref = {
+      id: idOf('attachment', 1),
+      sha256: 'c'.repeat(64),
+      mime: 'image/png' as const,
+      bytes: 120,
+      width: 40,
+      height: 30,
+      label: 'mockup',
+      purpose: 'reference' as const
+    }
+    db.run(
+      `INSERT INTO attachments (id, sha256, mime, bytes, width, height, label, purpose, owner_kind, owner_id, missing, data,
+         created_by_role, created_by_label, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'comment', ?, 0, NULL, 'worker', 'w', ?)`,
+      ref.id, ref.sha256, ref.mime, ref.bytes, ref.width, ref.height, ref.label, ref.purpose, COMMENT_ID, '2026-01-01T00:00:00.000Z'
+    )
+    const record = buildCommentRecord(db, COMMENT_ID)
+    expect(record).toEqual({ ...COMMENT, attachments: [ref] })
+    expect(commentRecord.parse(JSON.parse(JSON.stringify(record)))).toEqual(record)
+    expect(JSON.stringify(record).startsWith(before.slice(0, -1))).toBe(true)
+  })
+})
+
 describe('buildCommentRecord', () => {
   it('builds the record of a ticket comment and of an epic comment from their rows', () => {
     const db = createTestDb()
@@ -820,6 +850,39 @@ describe('run history worker efforts', () => {
   it('refuses to export, and refuses to import, an effort that is not low, medium or high', () => {
     expect(domainErrorOf(() => buildRunHistoryRecord(runWith({ label: 'w', effort: 'extreme' }), RUN)).code).toBe('internal')
     const text = prettyJson(runRecord([{ ...(attempt(1, 1, 'accepted') as object), worker: { label: 'w', effort: 'extreme' } }]))
+    expect(domainErrorOf(() => parseRecord(runHistoryRecord, text, 'run.json')).code).toBe('import_rejected')
+  })
+})
+
+describe('run history attachments', () => {
+  const REF = {
+    id: idOf('attachment', 1),
+    sha256: 'a'.repeat(64),
+    mime: 'image/png',
+    bytes: 10,
+    width: 4,
+    height: 3,
+    label: 'shot',
+    purpose: 'evidence'
+  }
+
+  it('parses evidence that names no attachments, with no attachments key', () => {
+    const text = prettyJson(runRecord([{ ...(attempt(1, 1, 'accepted') as object), evidence: { checks: [], criteria: [], notes: 'ok' } }]))
+    const record = parseRecord(runHistoryRecord, text, 'run.json')
+    expect(record.attempts[0]?.evidence).toEqual({ checks: [], criteria: [], notes: 'ok' })
+  })
+
+  it('round-trips the references an attempt carries', () => {
+    const text = prettyJson(runRecord([{ ...(attempt(1, 1, 'accepted') as object), evidence: { checks: [], criteria: [], notes: '', attachments: [REF] } }]))
+    const record = parseRecord(runHistoryRecord, text, 'run.json')
+    expect(record.attempts[0]?.evidence?.attachments).toEqual([REF])
+    expect(parseRecord(runHistoryRecord, prettyJson(record), 'run.json')).toEqual(record)
+  })
+
+  it('refuses a reference with bytes stored in the record', () => {
+    const text = prettyJson(
+      runRecord([{ ...(attempt(1, 1, 'accepted') as object), evidence: { checks: [], criteria: [], notes: '', attachments: [{ ...REF, data: 'AAAA' }] } }])
+    )
     expect(domainErrorOf(() => parseRecord(runHistoryRecord, text, 'run.json')).code).toBe('import_rejected')
   })
 })

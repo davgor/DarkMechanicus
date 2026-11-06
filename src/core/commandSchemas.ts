@@ -4,6 +4,8 @@ import { repositoryName } from './repo/portable'
 import { STORAGE_MODES } from './repo/storageMode'
 import { MAX_GRANT_MINUTES, MIN_GRANT_MINUTES } from './services/grants'
 import {
+  attachmentPurpose,
+  attachmentRef,
   attemptEvidenceInput,
   attemptOutputsInput,
   capabilityProfile,
@@ -62,7 +64,9 @@ const kanbanCardFields = {
   acceptanceCriteria: z.array(criterionInput).max(LIMITS.criteria).optional(),
   expectedArtifacts: ticketInput.shape.expectedArtifacts,
   references: ticketInput.shape.references,
-  priority: ticketInput.shape.priority
+  priority: ticketInput.shape.priority,
+  /** Staged reference images (`add_attachment`) to attach; on an edit the list replaces the card's. */
+  attachments: z.array(attachmentRef.shape.id).max(LIMITS.attachmentsPerRecord).optional()
 }
 
 export const COMMAND_SCHEMAS = {
@@ -129,7 +133,25 @@ export const COMMAND_SCHEMAS = {
   getTicket: z.strictObject({ epicId: stableId, ticketId: entityRef, view }),
   setTicketStatus: z.strictObject({ ticketId: stableId, status: workStatus, expectedRevision: revision.optional() }),
   deleteTicket: z.strictObject({ epicId: stableId, ticketId: stableId }),
-  addComment: z.strictObject({ epicId: stableId, ticketId: stableId.optional(), body: commentBody, idempotencyKey }),
+  addAttachment: z.strictObject({
+    path: z.string().min(1).max(4096),
+    label: z.string().max(LIMITS.label),
+    purpose: attachmentPurpose
+  }),
+  uploadAttachment: z.strictObject({
+    /** Plain base64 of the image: no `data:` prefix, base64 alphabet only. */
+    data: z.string().min(1).max(Math.ceil(LIMITS.attachmentBytes / 3) * 4).regex(/^[A-Za-z0-9+/]+={0,2}$/, 'data must be plain base64 with no data: prefix'),
+    label: z.string().optional(),
+    purpose: attachmentPurpose.optional()
+  }),
+  getAttachment: z.strictObject({ attachmentId: attachmentRef.shape.id, as: z.enum(['metadata', 'file']) }),
+  addComment: z.strictObject({
+    epicId: stableId,
+    ticketId: stableId.optional(),
+    body: commentBody,
+    attachments: z.array(attachmentRef.shape.id).max(LIMITS.attachmentsPerRecord).optional(),
+    idempotencyKey
+  }),
   listComments: z.strictObject({ epicId: stableId, ticketId: stableId.optional() }),
   createKanbanCard: z.strictObject({ ...kanbanCardFields, size: z.enum(TICKET_SIZES).optional(), idempotencyKey }),
   updateKanbanCard: z.strictObject({

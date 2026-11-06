@@ -7,6 +7,7 @@ import type { FileDiff } from '../../shared/git/diff'
 import { createGitRepo, type GitRepo } from '../../test/gitRepo'
 import { put, scratchDir } from '../../test/gitScratch'
 import { linkDirectory } from '../../test/tempRepo'
+import { canCreateFileSymlinks } from '../../test/symlinks'
 import { findInStatus, requireStatus } from './commit'
 import { readWorkingDiff } from './diff'
 import { createGitHandlers, type GitHandlers } from './handlers'
@@ -60,6 +61,13 @@ function outside(): string {
   return dir.path
 }
 
+// A small stand-in for the file system root: a junction to C: makes git walk the whole drive when it scans for untracked files.
+function fakeRoot(): string {
+  const root = outside()
+  put(root, 'etc/hosts', 'localhost 127.0.0.1\n')
+  return root
+}
+
 function failure(result: GitResult<unknown>): { code: string; message: string } {
   if (result.ok) {
     throw new Error('expected a failure')
@@ -79,7 +87,7 @@ const diffRuns = (requests: GitRunRequest[]): GitRunRequest[] => requests.filter
 describe('getWorkingDiff through a symlinked directory', () => {
   it('refuses l/etc/hosts when l -> / and returns no file content', async () => {
     const r = repo()
-    symlinkSync('/', join(r.root, 'l'))
+    linkDirectory(fakeRoot(), join(r.root, 'l'))
     const { handlers, requests } = setup(r.root)
     for (const kind of ['untracked', 'modified', 'added'] as const) {
       const result = await handlers.getWorkingDiff(r.root, { path: 'l/etc/hosts', oldPath: null, kind })
@@ -93,7 +101,7 @@ describe('getWorkingDiff through a symlinked directory', () => {
     const r = repo()
     const secret = outside()
     put(secret, 'secret.txt', 'top secret\n')
-    symlinkSync(secret, join(r.root, 's'))
+    linkDirectory(secret, join(r.root, 's'))
     const { handlers, requests } = setup(r.root)
     const result = await handlers.getWorkingDiff(r.root, { path: 's/secret.txt', oldPath: null, kind: 'untracked' })
     expect(failure(result).code).toBe('invalid_input')
@@ -105,8 +113,8 @@ describe('getWorkingDiff through a symlinked directory', () => {
     const r = repo()
     const secret = outside()
     put(secret, 'secret.txt', 'top secret\n')
-    symlinkSync(secret, join(r.root, 's'))
-    symlinkSync('/', join(r.root, 'l'))
+    linkDirectory(secret, join(r.root, 's'))
+    linkDirectory(fakeRoot(), join(r.root, 'l'))
     const { handlers, requests } = setup(r.root, ['s/secret.txt', 'l/etc/hosts'])
     for (const path of ['s/secret.txt', 'l/etc/hosts']) {
       const result = await handlers.getWorkingDiff(r.root, { path, oldPath: null, kind: 'untracked' })
@@ -116,7 +124,7 @@ describe('getWorkingDiff through a symlinked directory', () => {
     expect(diffRuns(requests)).toEqual([])
   })
 
-  it('diffs an untracked out -> /etc/hosts as a symlink showing only its target path', async () => {
+  it.skipIf(!canCreateFileSymlinks())('diffs an untracked out -> /etc/hosts as a symlink showing only its target path (needs file symlink rights)', async () => {
     const r = repo()
     symlinkSync('/etc/hosts', join(r.root, 'out'))
     const { handlers } = setup(r.root)

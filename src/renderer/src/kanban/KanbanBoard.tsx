@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { TrackedFolderView } from '../../../shared/desktop/api'
 import { KANBAN_LANE_LABELS } from '../../../shared/domain/kanban'
@@ -10,6 +10,7 @@ import { classNames } from '../components/classNames'
 import { Icon } from '../components/Icon'
 import { formatShortDate } from '../sidebar/epicStatusLine'
 import type { OrchestrationHost } from '../epic/orchestration'
+import { bindRunner } from '../epic/runner'
 import { CardFormDialog, PRIORITY_LABELS } from './CardFormDialog'
 import type { CardContent } from './CardFormDialog'
 import { KanbanCardPanel } from './KanbanCardPanel'
@@ -187,6 +188,20 @@ function useBoardForms(path: string, reload: () => void): BoardForms {
   }
 }
 
+/** The open New card or Edit form, with the runner its image uploads go through. */
+function BoardCardForm({ folder, forms, form }: { folder: TrackedFolderView; forms: BoardForms; form: NonNullable<FormState> }): JSX.Element {
+  const runner = useMemo(() => bindRunner(folder.path), [folder.path])
+  return (
+    <CardFormDialog
+      card={form.kind === 'edit' ? form.card : undefined}
+      runner={runner}
+      folderKey={folder.attachmentKey}
+      onSubmit={forms.save}
+      onClose={forms.close}
+    />
+  )
+}
+
 interface LanesProps {
   model: KanbanBoardModel
   board: KanbanBoardView
@@ -268,6 +283,7 @@ export function KanbanBoard({ folder, refreshToken, host, onOpenCard }: KanbanBo
             <KanbanCardPanel
               key={selectedId}
               folderPath={folder.path}
+              folderKey={folder.attachmentKey}
               cardId={selectedId}
               refreshToken={refreshToken}
               host={host}
@@ -277,9 +293,7 @@ export function KanbanBoard({ folder, refreshToken, host, onOpenCard }: KanbanBo
           )}
         </div>
       )}
-      {forms.form === null ? null : (
-        <CardFormDialog card={forms.form.kind === 'edit' ? forms.form.card : undefined} onSubmit={forms.save} onClose={forms.close} />
-      )}
+      {forms.form === null ? null : <BoardCardForm folder={folder} forms={forms} form={forms.form} />}
     </div>
   )
 }

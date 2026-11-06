@@ -46,6 +46,7 @@ vi.mock('electron', () => ({
     }
   },
   ipcMain: { handle: () => {} },
+  protocol: { registerSchemesAsPrivileged: () => {} },
   shell: {}
 }))
 vi.mock('./autoUpdate', () => ({ initAutoUpdate: () => {}, registerAutoUpdateHandlers: () => {} }))

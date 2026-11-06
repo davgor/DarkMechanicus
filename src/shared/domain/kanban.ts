@@ -1,5 +1,5 @@
 import type { TicketCriterion, TicketPriority, TicketReference, TicketSize } from './bundle'
-import type { AttemptEvidence, AttemptOutputs, DefinitionOfDoneCheck, SessionRole } from './views'
+import type { AttachmentRef, AttemptEvidence, AttemptOutputs, DefinitionOfDoneCheck, SessionRole } from './views'
 
 /** The board's lanes, left to right. A card moves between them only through its transitions, never by hand. */
 export const KANBAN_LANES = ['backlog', 'in_progress', 'ready_for_review', 'done'] as const
@@ -28,7 +28,7 @@ export type KanbanAttemptState = (typeof KANBAN_ATTEMPT_STATES)[number]
 export const KANBAN_OPEN_ATTEMPT_STATES: readonly KanbanAttemptState[] = ['claimed', 'running', 'submitted']
 
 /** The fields an edit may change, in the order the `updated` event lists them. */
-export const KANBAN_EDITABLE_FIELDS = ['title', 'body', 'acceptanceCriteria', 'expectedArtifacts', 'references', 'priority', 'size'] as const
+export const KANBAN_EDITABLE_FIELDS = ['title', 'body', 'acceptanceCriteria', 'expectedArtifacts', 'references', 'priority', 'size', 'attachments'] as const
 
 /** The compact record an approved card keeps in Done. */
 export interface KanbanDoneSummary {
@@ -96,6 +96,8 @@ export interface KanbanCardView extends KanbanCardSummaryView {
   completedAt: string | null
   /** Increases with every change to the card; pass it as `expectedRevision` to edit the card. */
   revision: number
+  /** The reference images the card carries, oldest id first; omitted when it has none. */
+  attachments?: AttachmentRef[]
   attempts: KanbanAttemptView[]
 }
 
@@ -116,6 +118,8 @@ export interface KanbanPacket {
     references: TicketReference[]
     priority: TicketPriority
     size: TicketSize | null
+    /** Reference images of the card (fetch each with get_attachment); omitted when it has none. */
+    attachments?: AttachmentRef[]
   }
   /** The checkout's current branch; cards work on it directly. Null when it cannot be read. */
   branch: string | null

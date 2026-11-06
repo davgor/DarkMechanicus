@@ -1,0 +1,158 @@
+# c3: repo-mode folder (accept-s2/repo), new epic whose comment carries an image before its first save
+$ dm call add_attachment '{"path":"C:/Users/davgo/AppData/Local/Temp/dmplan/accept-s2/img/epic-comment.png","label":"epic comment pre-save","purpose":"reference"}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "id": "im_01m6rketxjze6wttvncrernj96",
+    "sha256": "40700ff20a34c635d6d3d2c433843fd61be9c07ec98e1da07fd36b8caec606cc",
+    "mime": "image/png",
+    "bytes": 13459,
+    "width": 640,
+    "height": 360,
+    "label": "epic comment pre-save",
+    "purpose": "reference",
+    "owner": null,
+    "missing": false,
+    "createdBy": {
+      "role": "orchestrator",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:16:01.715Z"
+  }
+}
+exit=0
+$ dm call create_epic '{"title":"S2 acceptance epic","intent":"Exercise sprint 2 image attachments","successCriteria":["Images travel with records"]}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "id": "ep_01m6rkev18cm3y119vhf5m31vf",
+    "title": "S2 acceptance epic",
+    "status": "backlog",
+    "revision": 1,
+    "currentRevisionId": null,
+    "currentRevisionNumber": null,
+    "hasDraft": true,
+    "draftRevision": 1,
+    "draftChanged": true,
+    "ticketCount": 1,
+    "sprintCount": 1,
+    "run": null,
+    "branch": null,
+    "pendingSave": false,
+    "conflict": null,
+    "createdAt": "2026-11-06T14:16:01.832Z",
+    "updatedAt": "2026-11-06T14:16:01.832Z",
+    "completedAt": null,
+    "intent": "Exercise sprint 2 image attachments",
+    "successCriteria": [
+      {
+        "id": "s1",
+        "text": "Images travel with records"
+      }
+    ],
+    "ownerRole": null,
+    "provenance": null,
+    "outcome": null
+  }
+}
+exit=0
+$ dm call add_comment '{"epicId":"ep_01m6rkev18cm3y119vhf5m31vf","body":"Pre-save comment with an image","attachments":["im_01m6rketxjze6wttvncrernj96"]}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "id": "cm_01m6rkev4ys1r5cex8vsex1k03",
+    "epicId": "ep_01m6rkev18cm3y119vhf5m31vf",
+    "ticketId": null,
+    "body": "Pre-save comment with an image",
+    "author": {
+      "role": "orchestrator",
+      "label": "dm CLI"
+    },
+    "createdAt": "2026-11-06T14:16:01.950Z",
+    "attachments": [
+      {
+        "id": "im_01m6rketxjze6wttvncrernj96",
+        "sha256": "40700ff20a34c635d6d3d2c433843fd61be9c07ec98e1da07fd36b8caec606cc",
+        "mime": "image/png",
+        "bytes": 13459,
+        "width": 640,
+        "height": 360,
+        "label": "epic comment pre-save",
+        "purpose": "reference"
+      }
+    ]
+  }
+}
+exit=0
+# epic ep_01m6rkev18cm3y119vhf5m31vf has no saved revision yet; the comment cm_01m6rkev4ys1r5cex8vsex1k03 claims im_01m6rketxjze6wttvncrernj96
+$ dm call update_plan_draft '{"epicId":"ep_01m6rkev18cm3y119vhf5m31vf","ops":[{"op":"add_ticket","ref":"w1","sprint":"sp_01m6rkev181s46qkx9fqhm7qta","ticket":{"title":"S2 work ticket","acceptanceCriteria":["It works"]}}]}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "epicId": "ep_01m6rkev18cm3y119vhf5m31vf",
+    "draftRevision": 2,
+    "refMap": {
+      "w1": "tk_01m6rkevcfgpcfmsc5289zjkqg"
+    },
+    "validation": {
+      "valid": true,
+      "errors": [],
+      "warnings": [
+        {
+          "code": "missing_acceptance_criteria",
+          "message": "REP-1 has no acceptance criteria.",
+          "ticketIds": [
+            "tk_01m6rkev18mhgr1vkyzt8cm1x0"
+          ]
+        },
+        {
+          "code": "ticket_not_covered",
+          "message": "REP-2 isn't covered by any criterion of acceptance node REP-1.",
+          "sprintIds": [
+            "sp_01m6rkev181s46qkx9fqhm7qta"
+          ],
+          "ticketIds": [
+            "tk_01m6rkevcfgpcfmsc5289zjkqg",
+            "tk_01m6rkev18mhgr1vkyzt8cm1x0"
+          ]
+        }
+      ]
+    }
+  }
+}
+exit=0
+$ dm call save_plan '{"epicId":"ep_01m6rkev18cm3y119vhf5m31vf","expectedDraftRevision":2}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "status": "saved",
+    "epicId": "ep_01m6rkev18cm3y119vhf5m31vf",
+    "revisionId": "rv_01m6rkevkwcj85d5dkywm2v0rs",
+    "revisionNumber": 1,
+    "contentHash": "sha256:1a4ea8a23fccdd91279f2bf20aee9c981c4d73eda3f687f46b1673f0f11d0ce1",
+    "error": null
+  }
+}
+exit=0
+$ dm call flush_portable_state '{}'   [orchestrator grant]
+{
+  "ok": true,
+  "data": {
+    "flushed": 0,
+    "failed": 0,
+    "errors": []
+  }
+}
+exit=0
+
+# files under .darkmechanicus/epics/ep_01m6rkev18cm3y119vhf5m31vf/ after the first save and flush
+attachments/40700ff20a34c635d6d3d2c433843fd61be9c07ec98e1da07fd36b8caec606cc.png
+attachments/im_01m6rketxjze6wttvncrernj96.json
+comments/cm_01m6rkev4ys1r5cex8vsex1k03.json
+current.json
+snapshots/rv_01m6rkevkwcj85d5dkywm2v0rs.json
+state.json
+current.json exists: true
+snapshots: rv_01m6rkevkwcj85d5dkywm2v0rs.json
+image sha256 40700ff20a34c635d6d3d2c433843fd61be9c07ec98e1da07fd36b8caec606cc
+get_epic: currentRevisionId=rv_01m6rkevkwcj85d5dkywm2v0rs 

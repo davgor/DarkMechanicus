@@ -84,6 +84,7 @@ describe('createFolderRegistry tracking', () => {
         added: true,
         folder: {
           path: folder,
+          attachmentKey: expect.stringMatching(/^[0-9a-f]{32}$/),
           name: 'alpha',
           displayPath: join('~', 'projects', 'alpha'),
           initialized: false,
@@ -126,7 +127,10 @@ describe('createFolderRegistry persistence', () => {
       const restarted = createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home) })
 
       expect(first.list().map((folder) => folder.name)).toEqual(['b', 'a', 'c'])
-      expect(restarted.list()).toEqual(first.list())
+      // Keys are kept per run, so a restart issues new ones; everything else reads back the same.
+      const withoutKeys = (views: { attachmentKey: string }[]): Omit<(typeof views)[number], "attachmentKey">[] =>
+        views.map(({ attachmentKey: _key, ...view }) => view)
+      expect(withoutKeys(restarted.list())).toEqual(withoutKeys(first.list()))
     })
   })
 
@@ -690,6 +694,38 @@ describe('createFolderRegistry and database-only folders', () => {
         ['tracked', 'repo'],
         ['local', 'db']
       ])
+    })
+  })
+})
+
+describe('createFolderRegistry attachment keys', () => {
+  it('gives each tracked folder an opaque key of 32 hex digits, stable for the run, and no path', () => {
+    withSandbox(({ file, home }) => {
+      const a = makeFolder(home, 'a')
+      const b = makeFolder(home, 'b')
+      const registry = createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home) })
+      registry.track(a)
+      registry.track(b)
+      const [keyA, keyB] = registry.list().map((folder) => folder.attachmentKey)
+      expect(keyA).toMatch(/^[0-9a-f]{32}$/)
+      expect(keyB).toMatch(/^[0-9a-f]{32}$/)
+      expect(keyA).not.toBe(keyB)
+      expect(keyA).not.toContain(a)
+      expect(registry.list()[0]?.attachmentKey).toBe(keyA)
+      expect(registry.pathForKey(String(keyA))).toBe(a)
+      expect(registry.pathForKey(String(keyB))).toBe(b)
+    })
+  })
+
+  it('answers null for an untracked folder, an unknown key, and a key of a folder since untracked', () => {
+    withSandbox(({ file, home }) => {
+      const a = makeFolder(home, 'a')
+      const registry = createFolderRegistry({ file, homeDir: home, dmHome: dmHomeFor(home) })
+      registry.track(a)
+      const key = registry.list()[0]?.attachmentKey ?? ''
+      expect(registry.pathForKey('0'.repeat(32))).toBeNull()
+      registry.untrack(a)
+      expect(registry.pathForKey(key)).toBeNull()
     })
   })
 })

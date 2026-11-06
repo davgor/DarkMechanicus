@@ -14,6 +14,7 @@ import {
   statSync,
   writeFileSync
 } from 'node:fs'
+import { randomBytes } from 'node:crypto'
 import { basename, dirname, isAbsolute, sep } from 'node:path'
 import { z } from 'zod'
 import { DomainError } from '../../core/errors'
@@ -50,6 +51,8 @@ export interface FolderRegistry {
   has(path: string): boolean
   /** The canonical tracked path for `path`, or null when that folder is not tracked. */
   resolve(path: string): string | null
+  /** The tracked folder whose attachment key is `key`, or null (untracked, or a key this run never handed out). */
+  pathForKey(key: string): string | null
 }
 
 const FILE_VERSION = 1
@@ -98,6 +101,8 @@ interface RegistryContext {
   dmHome: string
   fs: RegistryFs
   now: () => string
+  /** The attachment key of a folder: made on first use and kept for this run. */
+  keyFor: (path: string) => string
 }
 
 interface RegistryState {
@@ -181,6 +186,7 @@ function toView(context: RegistryContext, entry: FolderEntry): TrackedFolderView
   const initialized = fs.exists(layout.projectFile)
   return {
     path: entry.path,
+    attachmentKey: context.keyFor(entry.path),
     name: basename(entry.path) || entry.path,
     displayPath: abbreviateHome(entry.path, homeDir),
     initialized,
@@ -264,16 +270,26 @@ export function createFolderRegistry(options: {
   /** ISO timestamp source for `addedAt`. */
   now?: () => string
 }): FolderRegistry {
+  const keys = new Map<string, string>()
   const context: RegistryContext = {
     file: options.file,
     homeDir: options.homeDir,
     dmHome: options.dmHome,
     fs: options.fs ?? nodeRegistryFs,
-    now: options.now ?? (() => new Date().toISOString())
+    now: options.now ?? (() => new Date().toISOString()),
+    keyFor: (path) => {
+      let key = keys.get(path)
+      if (key === undefined) {
+        key = randomBytes(16).toString('hex')
+        keys.set(path, key)
+      }
+      return key
+    }
   }
   const state: RegistryState = { entries: loadEntries(context.fs, context.file) }
   return {
     list: () => state.entries.map((entry) => toView(context, entry)),
+    pathForKey: (key) => state.entries.find((entry) => keys.get(entry.path) === key)?.path ?? null,
     storageMode: (path) => storageModeOf(context, findEntry(context.fs, state.entries, path)?.path ?? path),
     track: (path) => trackFolder(context, state, path),
     untrack: (path) => untrackFolder(context, state, path),

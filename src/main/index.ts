@@ -1,8 +1,9 @@
-import { app, BrowserWindow, ipcMain, Menu, shell, type IpcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, protocol, shell, type IpcMain } from 'electron'
 import { join } from 'node:path'
 import appIcon from '../../build/icon.png?asset'
 import { SKILLS } from '../mcp/skills'
 import { initAutoUpdate, registerAutoUpdateHandlers } from './autoUpdate'
+import { registerAttachmentScheme } from './desktop/attachmentProtocol'
 import { startDesktopBridge } from './desktop/bootstrap'
 import { hardenWebContents, resolveAppUrl } from './desktop/navigation'
 import { guardIpc } from './ipcGuard'
@@ -72,6 +73,8 @@ function registerAppVersionHandler(ipc: Pick<IpcMain, 'handle'>): void {
 
 // Theme colours must render as the exact sRGB values (see applyColorProfile).
 applyColorProfile(app.commandLine)
+// Must run before the app is ready; the protocol handler itself is registered in startDesktopBridge.
+registerAttachmentScheme(protocol)
 
 app.whenReady().then(() => {
   app.dock?.setIcon(appIcon)

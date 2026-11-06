@@ -4,7 +4,8 @@
  * message that names the folder and where it now leads, before anything is looked up: no chat is found
  * under the symlink's target, and no stored chat file is rewritten or moved.
  */
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from 'node:fs'
+import { linkDirectory } from '../../test/tempRepo'
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -89,7 +90,7 @@ function storedFiles(): Record<string, string> {
 /** Replaces the tracked folder with a symlink to another directory: the path still resolves, to somewhere else. */
 function swapForSymlink(): void {
   rmSync(repo, { recursive: true })
-  symlinkSync(elsewhere, repo)
+  linkDirectory(elsewhere, repo)
 }
 
 function refusal(result: CommandResult<unknown>): { code: string; message: string } {

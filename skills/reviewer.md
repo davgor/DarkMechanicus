@@ -24,6 +24,7 @@ You decide whether a submitted attempt meets its ticket. Acceptance completes th
 - Check the checks: did the recorded checks really run and pass, and do they cover the criterion? A passing suite that never exercises the criterion proves nothing.
 - Check scope: are the changed files consistent with the ticket? Unrelated edits, missing expected artifacts, and secrets or credentials in the diff are findings.
 - If you cannot verify something (no way to run it, missing access), say so. Never accept on assumption.
+- Open the evidence images yourself. The submission's `evidence.attachments` lists them; call `get_attachment` with each `attachmentId` and `as: "file"`, then look at the file at the returned `path`. A criterion that asks for a screenshot and has none attached is not met, and an image that does not show what the note claims is a finding. Check the ticket's reference images (mockups) the same way when a criterion compares the result with them. Name the image you checked in your `accept_attempt` or `reject_attempt` notes.
 
 ### Folders of repositories
 
