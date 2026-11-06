@@ -12,7 +12,7 @@ import { type AttachmentOwner } from '../../shared/domain/views'
 import { claimAttachments, createStagedAttachment, listAttachmentRefs } from '../services/attachments'
 import { resolveAttachmentPlacement } from '../services/attachmentOwners'
 import { claimKanbanCard, playKanbanCard, submitKanbanCard } from '../services/kanban/attempts'
-import { createKanbanCard } from '../services/kanban/cards'
+import { createKanbanCard, getKanbanCard, updateKanbanCard } from '../services/kanban/cards'
 import { loadStoredAttachment, placementOfAttachment, writeAttachmentFile } from './attachmentFiles'
 import { removeEpicFiles } from './epicRemoval'
 import { reconcileRepository } from './importer'
@@ -286,6 +286,9 @@ function importedFixture(): Imported {
       )
     )
   }
+  // A card's rows arrive with its record too, and the first reconcile restored their bytes: the tests below start from
+  // rows without bytes, as a clone that has only the records.
+  target.db.run('UPDATE attachments SET data = NULL, missing = 0 WHERE id = ?', ids.card)
   return { source, target, ctx, bytes, ids, cardId: card.id, reconcile: () => reconcileRepository(deps) }
 }
 
@@ -548,5 +551,81 @@ describe('attachment placement of owners the database does not hold', () => {
     expect(resolveAttachmentPlacement(env.db, { kind: 'attempt', id: idOf('attempt', 8) })).toBeNull()
     expect(resolveAttachmentPlacement(env.db, { kind: 'kanban_attempt', id: 'ka_00000000000000000000000008' })).toBeNull()
     expect(resolveAttachmentPlacement(env.db, { kind: 'kanban_card', id: 'kc_00000000000000000000000008' })).toBeNull()
+  })
+})
+
+describe('card reference images across export and import (repo mode)', () => {
+  const stageReference = (ctx: TestCtx, bytes: Buffer, label: string): string =>
+    createStagedAttachment(ctx, { bytes, label, purpose: 'reference' }).id
+  const cardFile = (env: RepoEnv, cardId: string): { attachments?: { id: string }[] } =>
+    JSON.parse(env.fs.get(ownedPaths(env.layout).kanbanCardFile(cardId)) ?? '{}')
+
+  it('lists the images in card.json and removes the file of a dropped one on the next export', () => {
+    const { env, ctx } = fixture()
+    const keep = pngBytes(40, 30, 31)
+    const drop = pngBytes(40, 30, 32)
+    const [keepId, dropId] = [stageReference(ctx, keep, 'keep'), stageReference(ctx, drop, 'drop')] as [string, string]
+    const card = createKanbanCard(ctx, { title: 'Mockups', attachments: [keepId, dropId] })
+    expect(flush(env)).toMatchObject({ failed: 0, errors: [] })
+    const paths = ownedPaths(env.layout)
+    const folder = { kind: 'kanban_card', id: card.id } as const
+    const keepFile = paths.attachmentFile(folder, sha(keep), 'image/png')
+    const dropFile = paths.attachmentFile(folder, sha(drop), 'image/png')
+    expect(env.fs.getBytes(dropFile)).toBeDefined()
+    expect(cardFile(env, card.id).attachments?.map((ref) => ref.id)).toEqual([keepId, dropId].sort())
+    updateKanbanCard(ctx, { cardId: card.id, expectedRevision: 1, attachments: [keepId] })
+    expect(flush(env)).toMatchObject({ failed: 0, errors: [] })
+    expect(env.fs.getBytes(dropFile)).toBeUndefined()
+    expect(Buffer.from(env.fs.getBytes(keepFile) ?? []).equals(keep)).toBe(true)
+    expect(cardFile(env, card.id).attachments?.map((ref) => ref.id)).toEqual([keepId])
+    updateKanbanCard(ctx, { cardId: card.id, expectedRevision: 2, attachments: [] })
+    expect(flush(env)).toMatchObject({ failed: 0, errors: [] })
+    expect(env.fs.getBytes(keepFile)).toBeUndefined()
+    expect('attachments' in cardFile(env, card.id)).toBe(false)
+  })
+
+  it('omits attachments from a card without images, so its record is unchanged', () => {
+    const { env, ctx } = fixture()
+    const card = createKanbanCard(ctx, { title: 'Plain' })
+    flush(env)
+    expect('attachments' in cardFile(env, card.id)).toBe(false)
+  })
+
+})
+
+describe('card reference images across import (repo mode)', () => {
+  const stageReference = (ctx: TestCtx, bytes: Buffer, label: string): string =>
+    createStagedAttachment(ctx, { bytes, label, purpose: 'reference' }).id
+
+  it('imports both ways: a listed image gets a row and its bytes, a dropped one loses its row', () => {
+    const { env: source, ctx } = fixture()
+    const first = pngBytes(40, 30, 41)
+    const second = pngBytes(40, 30, 42)
+    const firstId = stageReference(ctx, first, 'first')
+    const card = createKanbanCard(ctx, { title: 'Mockups', attachments: [firstId] })
+    flush(source)
+    const { target, reconcile } = cloneOf(source)
+    expect(reconcile().rejected).toEqual([])
+    expect(target.db.get('SELECT owner_kind, owner_id, purpose, missing FROM attachments WHERE id = ?', firstId)).toEqual({
+      owner_kind: 'kanban_card',
+      owner_id: card.id,
+      purpose: 'reference',
+      missing: 0
+    })
+    expect(Buffer.from(stored(target, firstId).data ?? []).equals(first)).toBe(true)
+    // The source swaps the image: the clone gains a row for the new one and loses the old one.
+    const secondId = stageReference(ctx, second, 'second')
+    updateKanbanCard(ctx, { cardId: card.id, expectedRevision: 1, attachments: [secondId] })
+    flush(source)
+    copyTracked(source, target)
+    expect(reconcile().rejected).toEqual([])
+    expect(target.db.get('SELECT id FROM attachments WHERE id = ?', firstId)).toBeUndefined()
+    expect(target.db.get('SELECT owner_kind, owner_id, missing FROM attachments WHERE id = ?', secondId)).toEqual({
+      owner_kind: 'kanban_card',
+      owner_id: card.id,
+      missing: 0
+    })
+    expect(Buffer.from(stored(target, secondId).data ?? []).equals(second)).toBe(true)
+    expect(getKanbanCard(createTestCtx({ db: target.db, clock: target.clock }), { cardId: card.id }).attachments?.map((ref) => ref.id)).toEqual([secondId])
   })
 })

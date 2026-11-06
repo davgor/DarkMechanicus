@@ -476,6 +476,8 @@ export const kanbanCardRecord = z.strictObject({
   references: z.array(ticketReference).max(LIMITS.references),
   priority: z.enum(TICKET_PRIORITIES),
   size: z.enum(TICKET_SIZES).nullable(),
+  /** The reference images the card carries, by metadata; the files sit in the card's `attachments/` folder. Omitted when none. */
+  attachments: z.array(attachmentRef).max(LIMITS.attachmentsPerRecord).optional(),
   createdBy: kanbanActor,
   createdAt: isoTime,
   updatedAt: isoTime,
@@ -1013,6 +1015,7 @@ export function buildKanbanCardRecord(db: Db, cardId: string, meta: { generation
     "SELECT MAX(created_at) AS at FROM kanban_events WHERE card_id = ? AND kind IN ('created', 'updated')",
     cardId
   )
+  const attachments = listAttachmentRefs(db, { kind: 'kanban_card', id: cardId })
   const record = {
     format: 'darkmechanicus.kanban-card',
     formatVersion: 1,
@@ -1025,6 +1028,7 @@ export function buildKanbanCardRecord(db: Db, cardId: string, meta: { generation
     references: parseJson<unknown>(row.references_json, []),
     priority: row.priority,
     size: row.size,
+    ...(attachments.length > 0 ? { attachments } : {}),
     createdBy: { role: row.created_by_role, label: row.created_by_label },
     createdAt: row.created_at,
     updatedAt: edited?.at ?? row.created_at,

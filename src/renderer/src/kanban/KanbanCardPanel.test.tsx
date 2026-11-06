@@ -282,6 +282,36 @@ describe('KanbanCardPanel loading', () => {
     expect(panel.textContent).toContain('Backlog')
   })
 
+})
+
+describe('KanbanCardPanel attachments', () => {
+  it("shows the card's reference images, addressed by the folder key, and its references list", async () => {
+    seed(
+      cardView({
+        id: 'kc_a',
+        key: 'DM-7',
+        references: [{ kind: 'url', label: 'Design doc', location: 'https://example.test/design', hash: null, remoteOnly: true }],
+        attachments: [
+          { id: 'im_00000000000000000000000001', sha256: 'a'.repeat(64), mime: 'image/png', bytes: 1024, width: 800, height: 600, label: 'login mockup', purpose: 'reference' }
+        ]
+      })
+    )
+    seed(cardView({ id: 'kc_b', key: 'DM-8' }))
+    await showBoard()
+    const panel = await openCard('DM-7')
+    const image = within(panel).getByRole('img', { name: 'login mockup' }) as HTMLImageElement
+    expect(image.getAttribute('src')).toBe(`dm-attachment://${folder.attachmentKey}/im_00000000000000000000000001`)
+    expect(within(panel).getByRole('region', { name: 'References' }).textContent).toContain('https://example.test/design')
+    fireEvent.click(screen.getByRole('button', { name: /^DM-8/ }))
+    await settle()
+    const plain = screen.getByRole('complementary', { name: /DM-8/ })
+    expect(within(plain).queryByRole('img')).toBeNull()
+    expect(within(plain).queryByRole('region', { name: 'References' })).toBeNull()
+  })
+
+})
+
+describe('KanbanCardPanel Done card', () => {
   it('shows a Done card compactly, summary first, with its details below', async () => {
     seed(
       cardView({

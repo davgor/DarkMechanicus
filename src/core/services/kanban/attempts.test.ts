@@ -906,3 +906,15 @@ describe('the claim secret', () => {
     expect(views).toContain('[claim token masked]')
   })
 })
+
+describe('claimKanbanCard packet attachments', () => {
+  it('carries the reference images of the card, and omits the key when it has none', () => {
+    const ctx = board()
+    const id = createStagedAttachment(ctx.desktop, { bytes: pngBytes(40, 30, 5), label: 'mockup', purpose: 'reference' }).id
+    const card = createKanbanCard(ctx.desktop, { title: 'With a mockup', attachments: [id] })
+    playKanbanCard(ctx.desktop, { cardId: card.id })
+    const packet = claimKanbanCard(ctx.orchestrator, { cardId: card.id })
+    expect(packet.card.attachments).toEqual([expect.objectContaining({ id, label: 'mockup', purpose: 'reference', width: 40, height: 30 })])
+    expect('attachments' in claimedCard(board()).card).toBe(false)
+  })
+})

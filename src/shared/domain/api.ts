@@ -279,6 +279,8 @@ export interface CreateKanbanCardInput {
   /** `normal` when omitted. */
   priority?: TicketPriority
   size?: TicketSize
+  /** Staged image ids (`addAttachment`) to attach as references, at most 20; `purpose: 'evidence'` is refused. */
+  attachments?: string[]
   idempotencyKey?: string
 }
 
