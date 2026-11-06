@@ -2,10 +2,12 @@ import { resolveAllowedRootsForMachine } from '../attachments/intake'
 import { writeAttachmentTempFile } from '../attachments/tempFile'
 import { requireCapability } from '../authz'
 import { fail } from '../errors'
+import { LIMITS } from '../schemas'
 import { COMMAND_SCHEMAS } from '../commandSchemas'
 import {
   getAttachment as getAttachmentView,
   readAttachmentBytes,
+  createStagedAttachment,
   stageAttachmentFile
 } from '../services/attachments'
 import type { CommandTable } from './types'
@@ -25,6 +27,26 @@ const attachmentCommands = {
       requireCapability(ctx.session, 'attachment.write')
       const roots = resolveAllowedRootsForMachine(core.repoRoot, await core.git.listWorktrees())
       return stageAttachmentFile(ctx, { ...input, roots })
+    }
+  },
+  uploadAttachment: {
+    schema: COMMAND_SCHEMAS.uploadAttachment,
+    mutates: true,
+    run: (core, input) => {
+      // The inverse of addAttachment: only the app uploads bytes; an agent names a file on its own machine.
+      if (core.transport !== 'desktop') {
+        fail('unauthorized', 'Only the desktop app uploads image bytes; an agent adds an image from a file with add_attachment.', {
+          transport: core.transport
+        })
+      }
+      const ctx = core.ctx()
+      requireCapability(ctx.session, 'attachment.write')
+      const label = input.label === undefined || input.label === '' ? 'Pasted image' : input.label.slice(0, LIMITS.label)
+      return createStagedAttachment(ctx, {
+        bytes: Buffer.from(input.data, 'base64'),
+        label,
+        purpose: input.purpose ?? 'reference'
+      })
     }
   },
   getAttachment: {

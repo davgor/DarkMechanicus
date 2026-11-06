@@ -328,6 +328,7 @@ const DESKTOP_COMMANDS = [
   'getTicket',
   'setTicketStatus',
   'deleteTicket',
+  'uploadAttachment',
   'addComment',
   'listComments',
   'createKanbanCard',

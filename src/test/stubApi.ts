@@ -55,6 +55,7 @@ const COMMAND_FLAGS: Record<CommandName, true> = {
   setTicketStatus: true,
   deleteTicket: true,
   addAttachment: true,
+  uploadAttachment: true,
   getAttachment: true,
   addComment: true,
   listComments: true,

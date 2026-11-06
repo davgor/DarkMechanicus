@@ -132,6 +132,9 @@ const HUMAN_ONLY: CommandName[] = [
 /** Read models for the desktop's activity panels: the app polls them, and no MCP tool adapts them. */
 const DESKTOP_READS: CommandName[] = ['getAttemptTimeline', 'getRunTimeline', 'listGrants']
 
+/** Commands only the desktop app may call (an agent has a path-based equivalent): no MCP tool adapts them. */
+const DESKTOP_ONLY: CommandName[] = ['uploadAttachment']
+
 function kindOf(annotations: ToolAnnotations | undefined): Kind {
   if (annotations?.readOnlyHint === true) {
     return 'read'
@@ -181,10 +184,10 @@ describe('tool inventory', () => {
   it('adapts every command an agent may use, and none of the human-only ones or the desktop-only reads', () => {
     const adapted = new Set(Object.values(TOOLS).map((tool) => tool.method))
     const agentCommands = COMMAND_NAMES.filter(
-      (name) => !HUMAN_ONLY.includes(name) && !DESKTOP_READS.includes(name)
+      (name) => !HUMAN_ONLY.includes(name) && !DESKTOP_READS.includes(name) && !DESKTOP_ONLY.includes(name)
     )
     expect([...adapted].sort()).toEqual([...agentCommands].sort())
-    expect(COMMAND_NAMES).toHaveLength(agentCommands.length + HUMAN_ONLY.length + DESKTOP_READS.length)
+    expect(COMMAND_NAMES).toHaveLength(agentCommands.length + HUMAN_ONLY.length + DESKTOP_READS.length + DESKTOP_ONLY.length)
   })
 
   it('annotates each tool by kind and only cancel_run as destructive', async () => {
