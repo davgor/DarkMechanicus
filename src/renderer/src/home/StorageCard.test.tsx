@@ -106,6 +106,33 @@ describe('StorageCard content', () => {
   })
 })
 
+describe('StorageCard images and failed exports', () => {
+  const failedEntries = [{ kind: 'comment', entityId: 'cm_1', attempts: 3, lastError: 'EACCES' }]
+
+  it.each(['repo', 'db'] as const)('shows the images row and failed entries in %s mode', (mode) => {
+    const base = storageStatus()
+    renderCard(
+      storageStatus({
+        storage: { ...base.storage, mode },
+        outbox: { pending: 0, failed: 1, lastError: 'EACCES', failedEntries },
+        attachments: { count: 12, bytes: 4.3 * 1024 * 1024, missing: 1 }
+      })
+    )
+    expect(row('Images')).toBe('12 (4.3 MB), 1 missing')
+    expect(row('Save queue')).toContain('comment cm_1: failed 3 times — EACCES')
+  })
+
+  it('omits the missing count and formats small sizes', () => {
+    renderCard(storageStatus({ attachments: { count: 1, bytes: 512, missing: 0 } }))
+    expect(row('Images')).toBe('1 (512 B)')
+  })
+
+  it('hides the images row when the status carries none', () => {
+    renderCard(storageStatus())
+    expect(screen.queryByText('Images')).toBeNull()
+  })
+})
+
 describe('StorageCard warnings', () => {
   it('warns about a changed branch', () => {
     renderCard(storageStatus({ branch: { current: 'feature/x', recorded: 'main', changed: true, repository: true } }))
