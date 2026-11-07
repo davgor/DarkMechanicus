@@ -6,7 +6,7 @@ import { errorMessage } from '../api/dm'
 import type { Tokens } from '../app/eventRouting'
 import { FakeDm } from '../__mocks__/fakeDm'
 import { settle } from '../__mocks__/settle'
-import { FakeBoard, cardSummary } from './__mocks__/fixtures'
+import { FakeBoard, cardSummary, doneCard } from './__mocks__/fixtures'
 import { useKanbanCounts } from './useKanbanCounts'
 import type { KanbanCounts } from './useKanbanCounts'
 
@@ -85,5 +85,28 @@ describe('useKanbanCounts: what counts', () => {
     await settle()
 
     expect(view.result.current).toEqual({ '/a': 4 })
+  })
+
+  it('reduces the open count after completion and retains it on another board refresh', async () => {
+    const card = cardSummary({ lane: 'ready_for_review' })
+    board.open = [card]
+    const view = mount()
+    await settle()
+    expect(view.result.current).toEqual({ '/a': 1 })
+    board.open = []
+    board.done = [{ ...card, lane: 'done' }]
+    view.rerender({ tokens: tokensAt(1) })
+    await settle()
+    expect(view.result.current).toEqual({ '/a': 0 })
+    view.rerender({ tokens: tokensAt(2) })
+    await settle()
+    expect(view.result.current).toEqual({ '/a': 0 })
+  })
+
+  it('reports zero for an all-Done board with 45 historical cards spanning multiple pages', async () => {
+    board.done = Array.from({ length: 45 }, (_, index) => doneCard(index + 1))
+    const view = mount()
+    await settle()
+    expect(view.result.current).toEqual({ '/a': 0 })
   })
 })
