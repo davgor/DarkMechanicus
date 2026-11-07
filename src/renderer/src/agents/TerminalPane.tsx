@@ -8,6 +8,7 @@ import { ChatHeader } from './ChatHeader'
 import { SkitariiMascot } from './SkitariiMascot'
 import { EarlierConversation } from './EarlierConversation'
 import { SignInTerminal } from './SignInTerminal'
+import { PromptComposer } from './PromptComposer'
 import type { TerminalKit } from './terminalView'
 import { useTerminal, type TerminalPhase } from './useTerminal'
 import './chatView.css'
@@ -171,6 +172,7 @@ export function TerminalPane({ folder, chat, agentName, kit, scheduler, onAgentS
       >
         <div ref={host} className="terminal-host" data-testid="terminal-host" />
       </div>
+      <PromptComposer key={chat.id} folder={folder} chatId={chat.id} disabled={phase.state !== 'running'} />
     </section>
   )
 }

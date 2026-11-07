@@ -42,6 +42,7 @@ const chats: ChatsApi = {
   boundThreads: (request) => ipcRenderer.invoke('chats:boundThreads', request),
   boundTerminal: (request) => ipcRenderer.invoke('chats:boundTerminal', request),
   rename: (request) => ipcRenderer.invoke('chats:rename', request),
+  submitPrompt: (request) => ipcRenderer.invoke('chats:submitPrompt', request),
   delete: (request) => ipcRenderer.invoke('chats:delete', request),
   onEvent: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, event: ChatPushEvent): void => {

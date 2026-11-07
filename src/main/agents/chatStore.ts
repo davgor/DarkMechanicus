@@ -44,7 +44,7 @@ export type NewChat = Pick<ChatRecord, 'folder' | 'agent' | 'model' | 'role' | '
 /** Identifies a chat: its folder (any spelling) and id. Every `ChatRecord` is one. */
 export type ChatRef = Pick<ChatRecord, 'folder' | 'id'>
 
-type ChatPatch = Partial<Pick<ChatRecord, 'title' | 'model' | 'role' | 'allowSave' | 'sessionId' | 'cutShortMessageId' | 'grantIds' | 'sessionStarted' | 'kickoffSent'>>
+type ChatPatch = Partial<Pick<ChatRecord, 'title' | 'autoTitlePending' | 'model' | 'role' | 'allowSave' | 'sessionId' | 'cutShortMessageId' | 'grantIds' | 'sessionStarted' | 'kickoffSent'>>
 
 interface ChatTranscript {
   chat: ChatRecord
@@ -212,6 +212,7 @@ function createChat(context: StoreContext, input: NewChat): ChatRecord {
     role: input.role,
     allowSave: input.allowSave,
     title: input.title ?? DEFAULT_TITLE,
+    ...(input.title === undefined && input.runId === undefined && input.transferEpicId === undefined && input.cardId === undefined ? { autoTitlePending: true } : {}),
     createdAt: now,
     updatedAt: now,
     sessionId: null,

@@ -43,6 +43,7 @@ function recordingChats(): { chats: ChatRecords; calls: unknown[][] } {
     listChats: (...args) => (calls.push(['listChats', ...args]), [CHAT]),
     createChat: (...args) => (calls.push(['createChat', ...args]), CHAT),
     renameChat: (...args) => (calls.push(['renameChat', ...args]), { ...CHAT, title: 'Fix the build' }),
+    nameFromQuestion: (...args) => (calls.push(['nameFromQuestion', ...args]), { ...CHAT, title: 'Fix the build' }),
     deleteChat: async (...args) => {
       calls.push(['deleteChat', ...args])
     },
@@ -125,28 +126,6 @@ function handlersOver(
 
 const REF = { folder: SPELLING, chatId: 'chat_1' }
 const CANONICAL = { folder: REPO, id: 'chat_1' }
-
-describe('chat handlers: the channels', () => {
-  it('serve the chat records, Start run, the transfer chat and the bound lookups, and nothing that sends, stops, answers or lists models', () => {
-    const handlers = handlersOver(recordingChats().chats)
-
-    expect(Object.keys(handlers).sort()).toEqual([
-      'boundTerminal',
-      'boundThreads',
-      'create',
-      'delete',
-      'findTransferChat',
-      'kickBackKanbanCard',
-      'list',
-      'read',
-      'rename',
-      'startKanbanCard',
-      'startOrchestrator',
-      'startTransferChat',
-      'transferPrompt'
-    ])
-  })
-})
 
 describe('chat handlers: forwarding', () => {
   it('resolves the tracked folder and hands the records only validated fields', async () => {

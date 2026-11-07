@@ -48,6 +48,8 @@ export const chatRecordSchema = z.object({
   role: z.enum(CHAT_ROLES),
   allowSave: z.boolean(),
   title: z.string(),
+  /** Only new, implicitly titled chats may take a title from the first app-composer prompt. Absent on older chats. */
+  autoTitlePending: z.boolean().optional(),
   createdAt: timestampSchema,
   updatedAt: timestampSchema,
   /** The vendor's own session id, once the agent has reported it. */
