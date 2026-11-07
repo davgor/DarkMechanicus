@@ -65,6 +65,9 @@ describe('App sidebar Kanban', () => {
     expect(within(screen.getByRole('main', { name: 'Workspace' })).getByRole('heading', { name: 'Kanban' })).toBeTruthy()
   })
 
+})
+
+describe('App sidebar Kanban mutation counts', () => {
   it('updates the displayed open count immediately after approval and deletion, without an event poll', async () => {
     seed()
     const board = new FakeBoard(h.dm)
