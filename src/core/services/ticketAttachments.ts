@@ -2,6 +2,10 @@
  * Reference images on plan tickets. A ticket's images live in the plan bundle as refs, and a ticket owner resolves only
  * once its `ticket_status` row exists, which a save writes. So a draft only names staged images; they stay staged until
  * the revision naming them is saved, when `claimSavedTicketAttachments` gives them to their tickets.
+ *
+ * An image a later revision drops stays owned by its ticket: earlier saved revisions, their content hashes, repo-mode
+ * snapshots and imports still name it. It is never pruned, may be shown on the same ticket again, and is refused on any
+ * other ticket or record.
  */
 import type { PlanBundle, TicketContent } from '../../shared/domain/bundle'
 import type { AttachmentPurpose, AttachmentRef } from '../../shared/domain/views'
