@@ -151,6 +151,27 @@ describe('saving a plan claims its ticket images', () => {
   })
 })
 
+describe('images a later revision dropped', () => {
+  it('stay owned by their ticket, survive the prune, keep revision 1 intact, and return only to that ticket', () => {
+    const ctx = createTestCtx()
+    const { epicId, refMap } = createSavedEpic(ctx)
+    const x = stage(ctx)
+    setImages(ctx, epicId, refMap.a, [x])
+    const first = saveNow(ctx, epicId)
+    setImages(ctx, epicId, refMap.a, [])
+    saveNow(ctx, epicId)
+    expect(ownerOf(ctx, x)).toBe(refMap.a)
+    expect(pruneStagedAttachments(ctx, '9999-01-01T00:00:00.000Z')).toBe(0)
+    expect(getAttachment(ctx, x).id).toBe(x)
+    const view = getPlan(ctx, { epicId, view: 'saved', revisionId: first })
+    expect(view.bundle.tickets.find((ticket) => ticket.id === refMap.a)?.attachments?.map((ref) => ref.id)).toEqual([x])
+    expect(contentHash(view.bundle)).toBe(view.contentHash)
+    setImages(ctx, epicId, refMap.a, [x])
+    expect(draftImages(ctx, epicId, refMap.a)?.map((ref) => ref.id)).toEqual([x])
+    expect(editRefusal(ctx, epicId, refMap.b, [x])).toBe('conflict')
+  })
+})
+
 describe('the snapshot entry claims what it still can', () => {
   it('skips an image claimed elsewhere between the save request and the flush, and still completes', () => {
     const ctx = createTestCtx()
