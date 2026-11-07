@@ -188,7 +188,9 @@ describe('lost Kanban claim response recovery', () => {
     }
     expect((await desktop.getKanbanCard({ cardId: card.id })).attempts.map(({ state }) => state)).toEqual(['failed', 'claimed'])
   })
+})
 
+describe('lost Kanban claim recovery authority', () => {
   it('requires orchestrator authority for tokenless release, while a worker still proves its token', async () => {
     const { packet, claimToken } = await claimed()
     for (const role of ['worker', 'reviewer', 'planner', 'reader', 'desktop'] as const) {
