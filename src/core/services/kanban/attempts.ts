@@ -1,6 +1,6 @@
 /**
- * A Kanban card's lifecycle. A person presses Play; an orchestrator claims the card, which holds a lease and a claim
- * secret like a plan attempt (`<attemptId>.<secret>` token, checked by `verifyClaimToken`); its agent heartbeats and
+ * A Kanban card's lifecycle. Desktop Play or an authorized external launch queues the card; an orchestrator claims it,
+ * with a lease and a secret like a plan attempt (`<attemptId>.<secret>` token, checked by `verifyClaimToken`); its agent heartbeats and
  * submits or fails with the token; and a person approves the card to Done or kicks it back with a comment. Nothing
  * here touches an epic, a sprint, a plan revision or a run.
  */
@@ -9,6 +9,7 @@ import type {
   FailKanbanCardInput,
   HeartbeatKanbanCardInput,
   KickBackKanbanCardInput,
+  LaunchKanbanCardsInput,
   SubmitKanbanCardInput
 } from '../../../shared/domain/api'
 import { DEFAULT_POLICIES } from '../../../shared/domain/bundle'
@@ -25,7 +26,7 @@ import { CLAIM_TOKEN_MASK, maskWholeClaimTokens } from '../../claimTokenMask'
 import { addSeconds, isBefore } from '../../clock'
 import type { Ctx } from '../../context'
 import { parseJson, toJson } from '../../db/database'
-import { fail } from '../../errors'
+import { DomainError, fail } from '../../errors'
 import { LIMITS } from '../../schemas'
 import { claimEvidenceAttachments } from '../attachments'
 import { heartbeatIntervalSeconds, maskNote, normalizeEvidence, normalizeOutputs, verifyClaimToken } from '../attempts'
@@ -178,6 +179,69 @@ function assertPlayable(row: SummaryRow): void {
   }
 }
 
+/** Shared queued/claimable transition; never creates a desktop chat or an attempt. */
+function queueCard(ctx: Ctx, row: SummaryRow): KanbanCardView {
+  if (row.play_requested_at === null) {
+    const now = ctx.clock.nowIso()
+    ctx.db.run(
+      'UPDATE kanban_cards SET play_requested_at = ?, play_requested_by = ?, updated_at = ? WHERE id = ?',
+      now,
+      ctx.session.label.slice(0, LIMITS.label),
+      now,
+      row.id
+    )
+    recordCardEvent(ctx, row, { kind: 'played', payload: {}, at: now })
+  }
+  return cardView(ctx, row.id)
+}
+
+/** A local overdue lease will expire during launch, but preflight itself must write nothing. */
+function launchableRow(ctx: Ctx, cardId: string): SummaryRow {
+  const row = loadSummaryRow(ctx, cardId)
+  if (row.open_state === 'claimed' || row.open_state === 'running') {
+    const attempt = ctx.db.get<{ lease_expires_at: string | null; machine_id: string | null }>(
+      'SELECT lease_expires_at, machine_id FROM kanban_attempts WHERE card_id = ? AND number = ?',
+      cardId,
+      row.open_number
+    )
+    if (attempt?.lease_expires_at != null && (attempt.machine_id === null || attempt.machine_id === ctx.machineId) &&
+      isBefore(attempt.lease_expires_at, ctx.clock.nowIso())) {
+      return { ...row, open_state: null, open_number: null }
+    }
+  }
+  return row
+}
+
+/**
+ * External orchestrator launch: one explicit nonempty batch, deduplicated and checked atomically.
+ * No replay cache is used: a retry checks the current state, never requeues claimed or submitted work.
+ */
+export function launchKanbanCards(ctx: Ctx, input: LaunchKanbanCardsInput): KanbanCardView[] {
+  requireCapability(ctx.session, 'kanban.launch')
+  ctx.assertBranch()
+  return ctx.db.tx(() => {
+    const rows: SummaryRow[] = []
+    const errors: { cardId: string; code: string; message: string }[] = []
+    for (const cardId of new Set(input.cardIds)) {
+      try {
+        const row = launchableRow(ctx, cardId)
+        assertPlayable(row)
+        rows.push(row)
+      } catch (error) {
+        if (!(error instanceof DomainError) || (error.code !== 'not_found' && error.code !== 'invalid_state')) throw error
+        errors.push({ cardId, code: error.code, message: error.message })
+      }
+    }
+    if (errors.length > 0) {
+      fail('invalid_state', 'No cards launched. Resolve each card error, then retry the explicit batch.', { cards: errors })
+    }
+    return rows.map((row) => {
+      expireKanbanLeases(ctx, row.id)
+      return queueCard(ctx, row)
+    })
+  })
+}
+
 /**
  * The person presses Play: marks a pending play that an orchestrator's claim consumes. Allowed in Backlog, or In
  * progress with no open attempt; a card whose play is already pending is returned unchanged.
@@ -189,18 +253,7 @@ export function playKanbanCard(ctx: Ctx, input: { cardId: string }): KanbanCardV
     expireKanbanLeases(ctx, input.cardId)
     const row = loadSummaryRow(ctx, input.cardId)
     assertPlayable(row)
-    if (row.play_requested_at === null) {
-      const now = ctx.clock.nowIso()
-      ctx.db.run(
-        'UPDATE kanban_cards SET play_requested_at = ?, play_requested_by = ?, updated_at = ? WHERE id = ?',
-        now,
-        ctx.session.label.slice(0, LIMITS.label),
-        now,
-        row.id
-      )
-      recordCardEvent(ctx, row, { kind: 'played', payload: {}, at: now })
-    }
-    return cardView(ctx, row.id)
+    return queueCard(ctx, row)
   })
 }
 
@@ -215,7 +268,7 @@ function assertClaimable(row: SummaryRow): void {
     fail('invalid_state', `${row.key} is Done.`, { cardId: row.id, lane: row.lane })
   }
   if (row.play_requested_at === null) {
-    fail('play_required', `${row.key} has no pending Play. Only a person starts a card, by pressing Play in the desktop app.`, {
+    fail('play_required', `${row.key} has no pending Play. Press Play in the desktop app or ask an authorized orchestrator to call launch_kanban_cards with explicit cardIds.`, {
       cardId: row.id
     })
   }
@@ -293,7 +346,7 @@ function claimCard(ctx: Ctx, row: SummaryRow, leaseSeconds: number): KanbanPacke
 }
 
 /**
- * Claims a card a person pressed Play on, in one transaction after expiring its overdue lease. The packet carries
+ * Claims a card queued by desktop Play or an authorized launch, in one transaction after expiring its overdue lease. The packet carries
  * the claim token once: an idempotent replay returns it as null, since no copy is kept.
  */
 export function claimKanbanCard(ctx: Ctx, input: ClaimKanbanCardInput): KanbanPacket {

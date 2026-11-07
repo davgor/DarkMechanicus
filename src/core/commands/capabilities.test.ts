@@ -120,6 +120,7 @@ const PROBES: Record<CommandName, unknown> = {
   listKanbanCards: {},
   getKanbanCard: { cardId: CARD },
   playKanbanCard: { cardId: CARD },
+  launchKanbanCards: { cardIds: [CARD] },
   claimKanbanCard: { cardId: CARD },
   heartbeatKanbanCard: { attemptId: CARD_ATTEMPT, claimToken: CARD_TOKEN },
   submitKanbanCard: { attemptId: CARD_ATTEMPT, claimToken: CARD_TOKEN, outputs: { summary: 'probe' } },
