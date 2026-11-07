@@ -27,6 +27,7 @@ import type { Ctx } from '../context'
 import { parseJson, toJson } from '../db/database'
 import { fail } from '../errors'
 import { type AttemptSnapshot, computeExecution, type ExecutionSnapshot } from '../plan/readiness'
+import { flagMissingEvidence } from './attachments'
 import { appendEvent } from './events'
 import { enqueueOutbox } from './outbox'
 
@@ -305,6 +306,7 @@ export function listAttempts(ctx: Ctx, filter: { runId?: string; ticketId?: stri
       filter.epicId ?? null
     )
     .map(attemptView)
+    .map((view) => ({ ...view, evidence: flagMissingEvidence(ctx.db, view.evidence) }))
 }
 
 /** Runs a write, turning a UNIQUE violation on exactly `columns` into the caller's domain error. */

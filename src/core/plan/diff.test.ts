@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PlanBundle } from '../../shared/domain/bundle'
+import type { AttachmentRef } from '../../shared/domain/views'
 import { makeBundle, makeTicket, sid, tid } from '../../test/bundles'
 import { computeChanges } from './diff'
 
@@ -449,5 +450,65 @@ describe('computeChanges for a ticket repository', () => {
   it('reports nothing for a ticket whose repository did not change', () => {
     const alpha = edited(makeBundle([[1]]), targeted('alpha'))
     expect(computeChanges(alpha, structuredClone(alpha))).toEqual([])
+  })
+})
+
+/** A reference image whose id is 'im_' and 26 characters. */
+const image = (n: number): AttachmentRef => ({
+  id: `im_${String(n).padStart(26, '0')}`,
+  sha256: String(n).repeat(64).slice(0, 64),
+  mime: 'image/png',
+  bytes: 100 * n,
+  width: 10,
+  height: 10,
+  label: `Image ${n}`,
+  purpose: 'reference'
+})
+/** Sets, or with undefined deletes, the first ticket's images. */
+const withImages = (refs: AttachmentRef[] | undefined) => (copy: PlanBundle) => {
+  if (refs === undefined) {
+    delete copy.tickets[0].attachments
+  } else {
+    copy.tickets[0].attachments = refs
+  }
+}
+
+describe('computeChanges for ticket images', () => {
+  it('reports two images added to a ticket that had none as an edited ticket', () => {
+    const base = makeBundle([[1]])
+    const next = edited(base, withImages([image(1), image(2)]))
+    expect(computeChanges(base, next)).toEqual([
+      { kind: 'edited', target: 'ticket', id: tid(1), label: 'DM-1 Ticket 1', detail: 'images 2 added' }
+    ])
+  })
+
+  it('reports one image swapped for another as one added and one removed', () => {
+    const base = edited(makeBundle([[1]]), withImages([image(1), image(2)]))
+    const next = edited(base, withImages([image(1), image(3)]))
+    expect(details(base, next)).toEqual(['edited ticket: images 1 added, 1 removed'])
+  })
+
+  it('reports both images removed', () => {
+    const base = edited(makeBundle([[1]]), withImages([image(1), image(2)]))
+    const next = edited(base, withImages([]))
+    expect(details(base, next)).toEqual(['edited ticket: images 2 removed'])
+  })
+
+  it('reports a pure reordering of images', () => {
+    const base = edited(makeBundle([[1]]), withImages([image(1), image(2)]))
+    const next = edited(base, withImages([image(2), image(1)]))
+    expect(details(base, next)).toEqual(['edited ticket: images reordered'])
+  })
+
+  it('reports nothing for unchanged images', () => {
+    const base = edited(makeBundle([[1]]), withImages([image(1), image(2)]))
+    expect(computeChanges(base, structuredClone(base))).toEqual([])
+  })
+
+  it('treats absent images and an empty list as the same', () => {
+    const base = edited(makeBundle([[1]]), withImages(undefined))
+    const next = edited(base, withImages([]))
+    expect(computeChanges(base, next)).toEqual([])
+    expect(computeChanges(next, base)).toEqual([])
   })
 })

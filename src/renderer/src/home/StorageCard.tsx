@@ -99,13 +99,21 @@ function ConflictChoice({ epicId, onResolve }: { epicId: string; onResolve: Reso
   )
 }
 
+/** The finalizer stops counting a failed entry's attempts here and keeps retrying it on every flush. */
+const MAX_FLUSH_ATTEMPTS = 5
+
+function failedText(attempts: number): string {
+  if (attempts >= MAX_FLUSH_ATTEMPTS) return `failed ${MAX_FLUSH_ATTEMPTS} or more times; retried on every flush`
+  return `failed ${attempts} ${attempts === 1 ? 'time' : 'times'}`
+}
+
 function SaveQueueRow({ status }: { status: StorageStatusView }): JSX.Element {
   return (
     <Row label="Save queue">
       {queueText(status)}
       {(status.outbox.failedEntries ?? []).map((entry, index) => (
         <div key={`${index}:${entry.kind}:${entry.entityId}`}>
-          {entry.kind} {entry.entityId}: failed {entry.attempts} {entry.attempts === 1 ? 'time' : 'times'}
+          {entry.kind} {entry.entityId}: {failedText(entry.attempts)}
           {entry.lastError === null ? '' : ` — ${entry.lastError}`}
         </div>
       ))}

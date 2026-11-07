@@ -181,6 +181,22 @@ function ignoringEffort(capability: CapabilityProfile): CapabilityProfile {
   return { ...capability, reasoning: { ...capability.reasoning, effort: undefined } }
 }
 
+/** How a ticket's reference images changed, by id: counts added and removed, or a pure reordering. */
+function imagesPhrase(before: TicketContent, after: TicketContent): Phrase {
+  const old = (before.attachments ?? []).map((ref) => ref.id)
+  const now = (after.attachments ?? []).map((ref) => ref.id)
+  if (canonicalJson(old) === canonicalJson(now)) {
+    return null
+  }
+  const added = now.filter((id) => !old.includes(id)).length
+  const removed = old.filter((id) => !now.includes(id)).length
+  if (added === 0 && removed === 0) {
+    return 'images reordered'
+  }
+  const parts = [added === 0 ? null : `${added} added`, removed === 0 ? null : `${removed} removed`]
+  return `images ${parts.filter((part): part is string => part !== null).join(', ')}`
+}
+
 function ticketPhrases(before: TicketContent, after: TicketContent): Phrase[] {
   return [
     arrow('key', before.key, after.key),
@@ -196,7 +212,8 @@ function ticketPhrases(before: TicketContent, after: TicketContent): Phrase[] {
     changed(ignoringEffort(before.capability), ignoringEffort(after.capability), 'capability profile changed'),
     optionalPhrase(before, after),
     changed(before.references, after.references, 'references changed'),
-    changed(before.expectedArtifacts, after.expectedArtifacts, 'expected artifacts changed')
+    changed(before.expectedArtifacts, after.expectedArtifacts, 'expected artifacts changed'),
+    imagesPhrase(before, after)
   ]
 }
 

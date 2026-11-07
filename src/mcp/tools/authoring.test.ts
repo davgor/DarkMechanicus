@@ -319,6 +319,21 @@ describe('ticket size and reasoning effort tool validation', () => {
       expect(described['get_ticket']).toContain('size')
     })
   })
+
+  it('tells planners that tickets take reference images', async () => {
+    await inRig(createCannedApi({}), async (rig) => {
+      const { tools } = await rig.client.listTools()
+      const described = Object.fromEntries(tools.map((tool) => [tool.name, tool.description ?? '']))
+      for (const name of ['create_ticket', 'update_ticket']) {
+        expect(described[name]).toContain('attachments')
+        expect(described[name]).toContain('add_attachment')
+      }
+      expect(described['get_ticket']).toContain('get_attachment')
+      const create = tools.find((tool) => tool.name === 'create_ticket')
+      const ticket = create?.inputSchema.properties?.['ticket'] as { properties?: Record<string, { description?: string }> } | undefined
+      expect(ticket?.properties?.['attachments']?.description).toContain('add_attachment')
+    })
+  })
 })
 
 describe('ticket kind and covers tools', () => {

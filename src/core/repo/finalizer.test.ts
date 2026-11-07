@@ -239,6 +239,23 @@ describe('flushOutbox failure accounting', () => {
     expect(outboxRow(env, entry)).toEqual({ state: 'done', attempts: 5, last_error: null })
   })
 
+  it('keeps retrying a failed entry on every flush without counting past the maximum', () => {
+    const env = createRepoEnv()
+    const entry = stageRevision(env, { epicId: EPIC, revisionId: R1, number: 1 })
+    for (let attempt = 1; attempt <= 5; attempt += 1) {
+      env.hook.failNext = true
+      flush(env)
+    }
+    expect(outboxRow(env, entry)).toMatchObject({ state: 'failed', attempts: 5 })
+    for (let retry = 1; retry <= 3; retry += 1) {
+      env.hook.failNext = true
+      expect(flush(env).errors).toEqual([`snapshot ${R1}: Injected DB commit failure`])
+      expect(outboxRow(env, entry)).toMatchObject({ state: 'failed', attempts: 5, last_error: 'Injected DB commit failure' })
+    }
+    expect(flush(env).savedRevisionIds).toEqual([R1])
+    expect(outboxRow(env, entry)).toEqual({ state: 'done', attempts: 5, last_error: null })
+  })
+
   it('skips later entries of a failed epic but continues with other epics', () => {
     const env = createRepoEnv()
     stageRevision(env, { epicId: EPIC, revisionId: R1, number: 1 })

@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createGitRepo, type GitRepo } from '../test/gitRepo'
 import { linkDirectory } from '../test/tempRepo'
-import { createHarness, type Harness } from '../test/workspaceHarness'
+import { createHarness, TEST_STORAGE, type Harness } from '../test/workspaceHarness'
 import { DomainError } from './errors'
 import { createGitAdapter } from './repo/git'
 import type { GitAdapter } from './repo/types'
@@ -28,6 +28,7 @@ function options(extra: Partial<OpenWorkspaceOptions> = {}): OpenWorkspaceOption
     label: 'gitFor test',
     transport: 'in_process',
     homeDir: harness.homeDir,
+    ...TEST_STORAGE,
     ...extra
   }
 }

@@ -11,7 +11,7 @@ import { createWorkspacePool } from '../main/desktop/workspacePool'
 import type { CommandResult } from '../shared/desktop/api'
 import type { EpicDetailView, PlanView, RunView, SprintReportView } from '../shared/domain/views'
 import { createSequentialIds, createTestClock } from '../test/testContext'
-import { createFakeGit } from '../test/workspaceHarness'
+import { createFakeGit, TEST_STORAGE } from '../test/workspaceHarness'
 import { idleAgentDeps } from '../test/idleAgents'
 
 /** The completed "MCP connection test" epic committed in this repository's portable state. */
@@ -42,7 +42,7 @@ function createDesktop(repo: string, config: string): Desktop {
   const git = createFakeGit({ branch: 'main', commit: 'c'.repeat(40), detached: false })
   const ids = createSequentialIds()
   const pool = createWorkspacePool((repoRoot) =>
-    openWorkspace({ repoRoot, role: 'desktop', label: 'Desktop', transport: 'desktop', clock, ids, git })
+    openWorkspace({ repoRoot, role: 'desktop', label: 'Desktop', transport: 'desktop', clock, ids, git, ...TEST_STORAGE })
   )
   const handlers = createDesktopHandlers({
     registry: createFolderRegistry({ dmHome: join(config, 'dm-home'), file: join(config, 'folders.json'), homeDir: config }),

@@ -529,6 +529,17 @@ describe('card reference images', () => {
     expect('attachments' in card).toBe(false)
   })
 
+  it('get_kanban_card flags a card image whose bytes are not stored, and only that one', () => {
+    const ctx = plannerCtx()
+    const ids = [stage(ctx, 1), stage(ctx, 2)].sort()
+    const card = createKanbanCard(ctx, { title: 'With mockups', attachments: ids })
+    ctx.db.run('UPDATE attachments SET data = NULL, missing = 1 WHERE id = ?', ids[0])
+    const attachments = getKanbanCard(ctx, { cardId: card.id }).attachments
+    expect(attachments?.[0]).toEqual({ ...card.attachments?.[0], missing: true })
+    expect(attachments?.[1]).toEqual(card.attachments?.[1])
+    expect(attachments?.[1]).not.toHaveProperty('missing')
+  })
+
 })
 
 describe('card reference images on update', () => {

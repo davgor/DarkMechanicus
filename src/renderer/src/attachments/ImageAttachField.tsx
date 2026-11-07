@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { type ReactNode, useEffect, useRef } from 'react'
 import { attachmentUrl } from '../../../shared/desktop/attachmentUrl'
 import type { Runner } from '../epic/runner'
 import { useImageAttach } from './useImageAttach'
@@ -16,13 +16,17 @@ interface ImageAttachFieldProps {
   /** Every image the record will carry once saved, existing and newly uploaded. */
   images: readonly FormImage[]
   onChange(images: FormImage[]): void
+  /** Rendered first inside the paste and drop target, so a paste or drop on a child is taken too. */
+  children?: ReactNode
+  /** Told whenever an upload starts or the last one in flight ends. */
+  onBusyChange?(busy: boolean): void
 }
 
 /**
  * The attach control of a record form: paste, drop or pick PNG and JPEG images; each upload joins the list and each
  * listed image (new or existing) can be removed. Nothing is claimed until the form is saved with the ids.
  */
-export function ImageAttachField({ runner, folderKey, images, onChange }: ImageAttachFieldProps): JSX.Element {
+export function ImageAttachField({ runner, folderKey, images, onChange, children, onBusyChange }: ImageAttachFieldProps): JSX.Element {
   const attach = useImageAttach(runner)
   const latest = useRef(images)
   latest.current = images
@@ -33,12 +37,16 @@ export function ImageAttachField({ runner, folderKey, images, onChange }: ImageA
       onChange([...latest.current, ...fresh])
     }
   }, [pending])
+  useEffect(() => {
+    onBusyChange?.(attach.busy)
+  }, [attach.busy])
   const remove = (id: string): void => {
     attach.remove(id)
     onChange(images.filter((image) => image.id !== id))
   }
   return (
     <div className="field" {...attach.targetProps}>
+      {children}
       <span className="field-label">Images</span>
       <span className="field-hint">Paste or drop PNG or JPEG images here, or attach them.</span>
       {attach.error === null ? null : (

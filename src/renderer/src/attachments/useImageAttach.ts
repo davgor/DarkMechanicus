@@ -3,7 +3,7 @@ import { errorMessage } from '../api/dm'
 import type { Runner } from '../epic/runner'
 
 /** An uploaded, still unattached image: staged in the folder, claimed when the record that lists it is saved. */
-export interface PendingImage {
+interface PendingImage {
   id: string
   label: string
 }
@@ -15,7 +15,7 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 const ACCEPTED_TYPES = ['image/png', 'image/jpeg']
 const DEFAULT_LABEL = 'Pasted image'
 
-export interface ImageAttach {
+interface ImageAttach {
   pending: PendingImage[]
   /** The last upload problem, shown inline; null when the last batch went through. */
   error: string | null
