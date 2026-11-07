@@ -76,11 +76,11 @@ const OMP_SIGNED_IN = `{
 `
 
 const OMP_SIGNED_IN_RECORDED = `{
-  "generatedAt": 1793904116694,
+  "generatedAt": 1794025525742,
   "reports": [
     {
       "provider": "anthropic",
-      "fetchedAt": 1793904116422,
+      "fetchedAt": 1794025525433,
       "limits": [
         {
           "id": "anthropic:7d",
@@ -94,14 +94,14 @@ const OMP_SIGNED_IN_RECORDED = `{
             "id": "7d",
             "label": "7 Day",
             "durationMs": 604800000,
-            "resetsAt": 1794261599511
+            "resetsAt": 1794261599965
           },
           "amount": {
-            "used": 5,
+            "used": 12,
             "limit": 100,
-            "remaining": 95,
-            "usedFraction": 0.05,
-            "remainingFraction": 0.95,
+            "remaining": 88,
+            "usedFraction": 0.12,
+            "remainingFraction": 0.88,
             "unit": "percent"
           },
           "status": "ok"
@@ -145,6 +145,66 @@ const OMP_SIGNED_IN_RECORDED = `{
         "reason": "not_at_wall",
         "credits": []
       }
+    },
+    {
+      "provider": "openai-codex",
+      "fetchedAt": 1794025383969,
+      "limits": [
+        {
+          "id": "openai-codex:primary",
+          "label": "7 days",
+          "scope": {
+            "provider": "openai-codex",
+            "windowId": "7d",
+            "shared": true
+          },
+          "window": {
+            "id": "7d",
+            "label": "7 days",
+            "durationMs": 604800000,
+            "resetsAt": 1794627590000
+          },
+          "amount": {
+            "used": 0,
+            "limit": 100,
+            "remaining": 100,
+            "usedFraction": 0,
+            "remainingFraction": 1,
+            "unit": "percent"
+          },
+          "status": "ok"
+        }
+      ],
+      "resetCredits": {
+        "availableCount": 2,
+        "credits": [
+          {
+            "grantedAt": "2026-10-31T20:29:44.237380Z",
+            "expiresAt": "2026-11-30T20:29:44.237380Z",
+            "status": "available"
+          },
+          {
+            "grantedAt": "2026-11-01T23:00:00.507246Z",
+            "expiresAt": "2026-12-01T23:00:00.507246Z",
+            "status": "available"
+          }
+        ]
+      },
+      "metadata": {
+        "planType": "prolite",
+        "allowed": true,
+        "limitReached": false,
+        "email": "<redacted>",
+        "accountId": "<redacted>",
+        "meterStates": {
+          "chat": {
+            "allowed": true,
+            "limitReached": false
+          }
+        },
+        "orgId": "<redacted>",
+        "orgName": "<redacted>"
+      }
     }
   ],
   "accountsWithoutUsage": [],
@@ -155,13 +215,23 @@ const OMP_SIGNED_IN_RECORDED = `{
         "window": "7d",
         "durationMs": 604800000,
         "accounts": 1,
-        "usedAccounts": 0.05,
-        "remainingAccounts": 0.95
+        "usedAccounts": 0.12,
+        "remainingAccounts": 0.88
       },
       {
         "window": "7d",
         "durationMs": 604800000,
         "meter": "fable",
+        "accounts": 1,
+        "usedAccounts": 0,
+        "remainingAccounts": 1
+      }
+    ],
+    "openai-codex": [
+      {
+        "window": "7d",
+        "durationMs": 604800000,
+        "meter": "chat",
         "accounts": 1,
         "usedAccounts": 0,
         "remainingAccounts": 1

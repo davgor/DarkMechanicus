@@ -19,10 +19,10 @@
  *   tolerant: a "not logged in / not authenticated" style message is signed out, and a "logged in" /
  *   "authenticated" message with exit 0 is signed in. Anything else is `unknown`.
  * - OMP `usage --json` (docs/reports/omp-cli.md section 5): signed out it prints empty lists (`reports`,
- *   `accountsWithoutUsage`, `disabledCredentials`) with exit 0. The signed-in shape is from source, not a
- *   recording: `packages/coding-agent/src/cli/usage-cli.ts` lines 1700-1722 put one entry per stored account in
- *   `reports` or `accountsWithoutUsage`. Only the counts are read. A signed-in run fetches live usage over the
- *   network, so it may pass the timeout, which is `unknown`.
+ *   `accountsWithoutUsage`, `disabledCredentials`) with exit 0. Real signed-in recordings of 18.16.0
+ *   (Anthropic) and 18.18.0 (Anthropic and Codex) list accounts in `reports`, matching the source shape.
+ *   Only account counts are read. The slowest of the two five-run samples was 772 ms; the 10 s timeout
+ *   leaves margin for a live network fetch. A timeout still means `unknown`, never signed out.
  * - Autonomous `a8s doctor` (docs/reports/autonomous-acp.md, the only command that showed a sign-in
  *   state): its `Model route` line. Signed in: `✓ Model route  Claude subscription · <model> · signed in`.
  *   Signed out, recorded with an isolated profile (DM-307): `✗ Model route  Claude subscription is not
