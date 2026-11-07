@@ -70,7 +70,7 @@ async function rig(): Promise<Rig> {
       }
       return pool.get(folder)
     },
-    cliFor: (folder) => buildCliConfig({ packaged: false, execPath: '/bin/electron', appPath: '/app', repoPath: folder }),
+    cliFor: (folder) => buildCliConfig({ execPath: '/bin/electron', appPath: '/app', repoPath: folder }),
     minutes: 12 * 60,
     log: (line) => logged.push(line)
   })

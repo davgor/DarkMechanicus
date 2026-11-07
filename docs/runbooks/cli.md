@@ -30,6 +30,17 @@ stderr, so the output pipes into `jq` cleanly.
 
 `--repo` picks the repository (default `$DARKMECHANICUS_REPO`, else the working directory).
 
+### Hosted chats use the running build
+
+A chat's injected command names the executable and `out/main/cli.js` of the app that started it,
+including a development build in a repository checkout. It does not select an installed app or
+`node` from `PATH`. The command sets `ELECTRON_RUN_AS_NODE=1` for that invocation, so the selected
+Electron executable runs the CLI even when the chat's shell does not inherit that switch.
+
+If the CLI returns `incompatible_schema`, its error names the executable and CLI entry it ran.
+A newer build owns the database: use the command injected by the app that started the chat, or
+update the older build. The JSON keeps the original error code and schema-version details.
+
 ## Pass JSON from a file: `--args-file`
 
 Inline JSON has to survive the shell's quoting, and on Windows it often does not: PowerShell and `cmd` strip

@@ -15,7 +15,8 @@ function word(part: string): string {
 }
 
 export function cliCommandLine(cli: DarkMechanicusCli): string {
-  return [cli.command, ...cli.args].map(word).join(' ')
+  const runtimeEnv = cli.env['ELECTRON_RUN_AS_NODE'] === '1' ? 'ELECTRON_RUN_AS_NODE=1 ' : ''
+  return runtimeEnv + [cli.command, ...cli.args].map(word).join(' ')
 }
 
 interface InstructionOptions {
