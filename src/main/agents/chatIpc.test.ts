@@ -52,6 +52,7 @@ const CHAT_CHANNELS = [
   'chats:startKanbanCard',
   'chats:startOrchestrator',
   'chats:startTransferChat',
+  'chats:submitPrompt',
   'chats:transferPrompt'
 ]
 
@@ -244,6 +245,35 @@ describe('chat IPC: rename and delete', () => {
     expect(state.store.readTranscript({ folder: REPO, id: chat.id })).toBeNull()
     expect(data(await state.invoke<CommandResult<ChatRecord[]>>('chats:list', REPO))).toEqual([])
     expect(await state.invoke('chats:delete', ref)).toMatchObject({ ok: false, error: { code: 'not_found' } })
+  })
+})
+
+describe('chat IPC: explicit prompt submission', () => {
+  it('passes the whole prompt unchanged to the terminal, names once and pushes the persisted title', async () => {
+    const sent: unknown[][] = []
+    const window: ChatWindow = { isDestroyed: () => false, webContents: { isDestroyed: () => false, send: (...args) => sent.push(args) } }
+    const state = ipcRig({ windows: [window] })
+    const chat = data(await state.invoke<CommandResult<ChatRecord>>('chats:create', { folder: REPO, agent: 'claude', role: 'planner' }))
+    const ref = { folder: REPO, chatId: chat.id }
+    const text = 'Why does\n the build fail?'
+    expect(await state.invoke('chats:submitPrompt', { ...ref, text })).toEqual({ ok: true, data: { problem: null } })
+    expect(state.terminalPastes).toEqual([{ chatId: chat.id, text }])
+    expect(state.store.getChat(chat)?.title).toBe('Why does the build fail?')
+    expect(sent.at(-1)).toEqual([CHAT_EVENT_CHANNEL, { type: 'chats_changed', folder: REPO, chatId: chat.id }])
+    await state.invoke('chats:submitPrompt', { ...ref, text: 'A second question' })
+    expect(state.store.getChat(chat)?.title).toBe('Why does the build fail?')
+    expect(state.terminalPastes).toHaveLength(2)
+  })
+
+  it('rejects blanks, extra fields, missing chats and unauthorized folders before pasting', async () => {
+    const state = ipcRig()
+    const chat = data(await state.invoke<CommandResult<ChatRecord>>('chats:create', { folder: REPO, agent: 'claude', role: 'planner' }))
+    const ref = { folder: REPO, chatId: chat.id }
+    for (const request of [{ ...ref, text: ' \n ' }, { ...ref, text: 'Hi', source: 'assistant' }, { ...ref, chatId: 'missing', text: 'Hi' }, { ...ref, folder: '/untracked', text: 'Hi' }]) {
+      expect(await state.invoke('chats:submitPrompt', request)).toMatchObject({ ok: false })
+    }
+    expect(state.terminalPastes).toEqual([])
+    expect(state.store.getChat(chat)?.title).toBe('New chat')
   })
 })
 

@@ -38,6 +38,8 @@ import type {
   StartOrchestratorResult,
   StartTransferChatRequest,
   StartTransferChatResult,
+  SubmitPromptRequest,
+  SubmitPromptResult,
   TransferChatRequest
 } from '../../../shared/agents/chatApi'
 import type { CommandResult } from '../../../shared/desktop/api'
@@ -59,6 +61,7 @@ type Method =
   | 'findTransferChat'
   | 'transferPrompt'
   | 'rename'
+  | 'submitPrompt'
   | 'delete'
   | 'read'
   | 'boundThreads'
@@ -161,6 +164,10 @@ export class FakeChats implements ChatsApi {
       this.changed(chat)
       return { ok: true, data: chat }
     })
+  }
+
+  submitPrompt(request: SubmitPromptRequest): Promise<CommandResult<SubmitPromptResult>> {
+    return this.call('submitPrompt', [request], () => ({ ok: true, data: { problem: null } }))
   }
 
   startOrchestrator(request: StartOrchestratorRequest): Promise<CommandResult<StartOrchestratorResult>> {

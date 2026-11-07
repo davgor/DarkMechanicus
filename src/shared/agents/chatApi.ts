@@ -113,6 +113,16 @@ interface RenameChatRequest extends ChatRequestRef {
   title: string
 }
 
+/** An explicit app-owned prompt, never inferred from raw terminal input or output. */
+export interface SubmitPromptRequest extends ChatRequestRef {
+  text: string
+}
+
+export interface SubmitPromptResult {
+  /** Null once queued for the CLI's bracketed-paste input; otherwise why it could not be queued. */
+  problem: string | null
+}
+
 /** A chat and the transcript it stored before chats became terminals (empty for a chat that stored none). */
 export interface ChatReadView {
   chat: ChatRecord
@@ -187,6 +197,8 @@ export interface ChatsApi {
   boundTerminal(request: BoundThreadsRequest): Promise<CommandResult<string | null>>
   /** Changes the chat's title and returns the updated chat. */
   rename(request: RenameChatRequest): Promise<CommandResult<ChatRecord>>
+  /** Queues an explicit prompt through the terminal's existing paste path and names an untitled chat once. */
+  submitPrompt(request: SubmitPromptRequest): Promise<CommandResult<SubmitPromptResult>>
   /** Ends the chat's terminal and removes the chat and its transcript from the app-wide store. */
   delete(request: ChatRequestRef): Promise<CommandResult<null>>
   /** Subscribes to pushed chat events; returns the unsubscribe function. */

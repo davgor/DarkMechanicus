@@ -20,6 +20,7 @@ export function registerChatIpc(ipcMain: Pick<IpcMain, 'handle'>, handlers: Chat
   ipcMain.handle('chats:boundThreads', (_event, request: unknown) => handlers.boundThreads(request))
   ipcMain.handle('chats:boundTerminal', (_event, request: unknown) => handlers.boundTerminal(request))
   ipcMain.handle('chats:rename', (_event, request: unknown) => handlers.rename(request))
+  ipcMain.handle('chats:submitPrompt', (_event, request: unknown) => handlers.submitPrompt(request))
   ipcMain.handle('chats:delete', (_event, request: unknown) => handlers.delete(request))
 }
 
