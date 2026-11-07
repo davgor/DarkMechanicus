@@ -102,9 +102,9 @@ const CARD_ATTEMPT_TOOLS = [
   }),
   defineTool({
     name: 'fail_kanban_card',
-    description: `Reports that your card attempt failed or is blocked, with the reason, instead of submitting incomplete work. ${CARD_RULES} The card stays on the board, and another attempt needs desktop Play or an authorized explicit launch.`,
+    description: `Reports that your card attempt failed or is blocked, with the reason, instead of submitting incomplete work. ${CARD_RULES} Workers must provide claimToken. An orchestrator may omit a lost token to release a live claim and requeue the card without another Play; reclaim with a new idempotencyKey. Normal failures need desktop Play or an authorized explicit launch. Expired, superseded or submitted claims cannot be released.`,
     kind: 'write',
-    input: { attemptId, claimToken, reason: FAIL.reason.describe('Why the attempt failed or what blocks it.'), idempotencyKey },
+    input: { attemptId, claimToken: FAIL.claimToken, reason: FAIL.reason.describe('Why the attempt failed or what blocks it.'), idempotencyKey },
     run: (api, input) => api.failKanbanCard(input)
   })
 ]

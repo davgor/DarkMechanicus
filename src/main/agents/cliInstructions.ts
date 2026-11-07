@@ -53,6 +53,9 @@ export function cliInstructions(options: InstructionOptions): string {
     `${line} call get_capabilities '{}'  # run a command; the argument is a JSON object`,
     '```',
     '',
+    'On Windows, run this command from Git Bash, not PowerShell or cmd: the packaged Electron executable can return no stdout there; a claim may have succeeded even when no output appeared.',
+    'Give each Kanban claim an idempotencyKey. If its response is lost, replay the same request with that key; the replay returns the attempt id with claimToken null. An orchestrator can call fail_kanban_card with that attemptId and a reason, omitting claimToken, then claim the requeued card with a new key.',
+    '',
     ...(options.noLauncher === true
       ? [
           "There is no `dm` program on this computer: wherever `dm` is named (here or in your first message), run the command line above, ending `call <command> '<json>'`, as written.",

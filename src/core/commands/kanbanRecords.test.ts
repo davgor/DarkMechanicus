@@ -166,6 +166,9 @@ describe('importing Kanban records into a fresh database', () => {
     const report = { attemptId: open.attemptId, claimToken: tokenOf(open) }
     await expect(cloneAgent.heartbeatKanbanCard(report)).rejects.toMatchObject({ code: 'card_not_owned' })
     await expect(cloneAgent.failKanbanCard({ ...report, reason: 'Not mine' })).rejects.toMatchObject({ code: 'card_not_owned' })
+    await expect(cloneAgent.failKanbanCard({ attemptId: open.attemptId, reason: 'Not my lost token' })).rejects.toMatchObject({
+      code: 'card_not_owned'
+    })
     // The computer that claimed it still reports on it.
     expect((await s.orchestrator.heartbeatKanbanCard(report)).state).toBe('running')
   })

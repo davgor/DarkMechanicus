@@ -185,7 +185,7 @@ export const COMMAND_SCHEMAS = {
   }),
   failKanbanCard: z.strictObject({
     attemptId: stableId,
-    claimToken,
+    claimToken: claimToken.optional().describe('Workers must provide the token. An orchestrator may omit a lost token to release and requeue a live claim.'),
     reason: z.string().min(1).max(LIMITS.shortText),
     idempotencyKey
   }),
