@@ -38,7 +38,6 @@ import type {
   StartOrchestratorResult,
   StartTransferChatRequest,
   StartTransferChatResult,
-  SubmitPromptRequest,
   SubmitPromptResult,
   TransferChatRequest
 } from '../../../shared/agents/chatApi'
@@ -166,7 +165,7 @@ export class FakeChats implements ChatsApi {
     })
   }
 
-  submitPrompt(request: SubmitPromptRequest): Promise<CommandResult<SubmitPromptResult>> {
+  submitPrompt(request: Parameters<ChatsApi['submitPrompt']>[0]): Promise<CommandResult<SubmitPromptResult>> {
     return this.call('submitPrompt', [request], () => ({ ok: true, data: { problem: null } }))
   }
 
