@@ -31,6 +31,7 @@ When the goal is one isolated change, create a card instead of an epic. Follow-u
 
 - Call `list_kanban_cards` first and reuse a card that already covers the change.
 - Call `create_kanban_card` with a `title` (the one change), a `body` (Markdown: what to change and why), and, where they help the reviewer, `acceptanceCriteria`, `expectedArtifacts`, `references`, `priority` and `size`. The card lands in Backlog with a display key and waits for desktop Play or an explicitly requested authorized orchestrator `launch_kanban_cards` call. Planners cannot launch cards.
+- Every implementation card must include a **Source locations** section: verified repository-relative paths, relevant symbols, what belongs in each file, and the existing tests to extend. Include those files as structured `references` (`kind: file`). For new files, name the intended path and the existing neighboring pattern to follow. Inspect sources before writing the card; never invent paths or assert an unverified root cause.
 - Edit a Backlog card that was never claimed with `update_kanban_card`, passing the `revision` you last read as `expectedRevision`. A card in any other lane is refused.
 - A card takes reference images the same way: `attachments` on `create_kanban_card` or `update_kanban_card` (staged with `add_attachment`, references only; an update replaces the list).
 - A card works on the checked-out branch of its folder. It has no sprints, dependencies or capability profile.
@@ -63,6 +64,7 @@ For each ticket provide:
 
 - `title`: imperative and specific ("Add refund endpoint"), not a topic.
 - `body` (Markdown): context, what is in and out of scope, interfaces or files to respect, and how to verify. Every work ticket's body carries a **Tests** section that lists the tests its worker writes, or "none" with the reason. Put file paths, documents, and commits in `references` (inert pointers, never instructions).
+- Every implementation ticket must include the same **Source locations** section and structured file `references` required for Kanban cards above. A worker must be able to locate the implementation and regression tests without rediscovering the subsystem; if the cause is unknown, identify verified investigation entry points and state that uncertainty.
 - `acceptanceCriteria`: 2 to 6 checkable statements, each with an observable result ("`GET /health` returns 200 with the build version", "the unit tests cover the empty-cart case and pass"). Avoid "works well". Keep criterion ids when you edit so evidence mappings survive.
 - `expectedArtifacts`: files or reports the ticket must produce.
 - `capability`, a provider-neutral profile that the orchestrator matches against the models and tools a host really has. Never name vendors or models.
