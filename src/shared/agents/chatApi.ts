@@ -114,7 +114,7 @@ interface RenameChatRequest extends ChatRequestRef {
 }
 
 /** An explicit app-owned prompt, never inferred from raw terminal input or output. */
-export interface SubmitPromptRequest extends ChatRequestRef {
+interface SubmitPromptRequest extends ChatRequestRef {
   text: string
 }
 
