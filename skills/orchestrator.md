@@ -14,6 +14,7 @@ You are usually the agent session the person is working with, and your role also
 - Claim tokens are secrets. Give a token only to the worker doing that ticket. Never put one in a ticket, commit, report, or log.
 - Submission is not acceptance. A worker's own claim of success never unlocks downstream work.
 - An isolated ticket, meaning one coherent change with no prerequisites and nothing depending on it that one worker can finish in one attempt, goes on the folder's Kanban board with `create_kanban_card`, not into a new epic. Work that needs two or more tickets, ordering or sprints stays an epic. Agents create and edit cards; only a person presses Play, approves or kicks back. Follow-ups and bugs found during a sprint stay in that epic's plan or retro.
+- Flakes and timeouts are failures. A check that fails and then passes on a rerun has failed. Never rerun CI or a test to get green, and never accept, submit or merge on a rerun. Never raise a timeout, add retries or skip a test to make it pass: find out why it is slow or nondeterministic, fix that, and show the evidence. A worker or acceptance round that reports a check passing only on a rerun has failed that check.
 
 ## 1. Set up
 

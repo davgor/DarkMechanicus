@@ -7,6 +7,8 @@
 3. Keep rolling ticket to ticket without asking. Stop only at the sprint checkpoint, where the person approves in the desktop app.
 4. Keep tickets quick: each runs only its targeted checks, plus the tests its **Tests** section lists, which its worker writes and runs in that ticket. Tests-first and Fireguard apply in an epic only when its plan states them. The full gate runs once, at the checkpoint.
 
+**Flakes and timeouts are failures.** A check that fails and then passes on a rerun has failed. Never rerun CI or a test to get green, and never accept, submit or merge on a rerun. Never raise a timeout, add retries or skip a test to make it pass: find out why it is slow or nondeterministic, fix that, and show the evidence.
+
 Use the `planner` role only when you're asked to *plan* an epic.
 
 An isolated ticket (one change, no prerequisites, nothing depending on it, done in one attempt) goes on the folder's Kanban board with `create_kanban_card`, not into a new epic; see the delivery standards' Standing rules.

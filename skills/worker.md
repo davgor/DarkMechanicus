@@ -11,6 +11,7 @@ You carry out one ticket. Your input is one execution packet, either returned by
 - The claim token is a secret. Use it only in the reporting tools. Never write it into files, commits, logs, or output.
 - Late writes from an expired or superseded claim are rejected. Stop on `expired_claim` or `stale_claim`, tell the orchestrator, and do not retry the write.
 - An isolated ticket, meaning one coherent change with no prerequisites and nothing depending on it that one worker can finish in one attempt, goes on the folder's Kanban board with `create_kanban_card`, not into a new epic. Work that needs two or more tickets, ordering or sprints stays an epic. Agents create and edit cards; only a person presses Play, approves or kicks back. A discovery from your ticket still goes in your report, not on the board.
+- Flakes and timeouts are failures. A check that fails and then passes on a rerun has failed. Never rerun CI or a test to get green, and never accept, submit or merge on a rerun. Never raise a timeout, add retries or skip a test to make it pass: find out why it is slow or nondeterministic, fix that, and show the evidence. Report a flaky or timed-out check as failed.
 
 ## Read the packet
 
