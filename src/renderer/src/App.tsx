@@ -203,7 +203,7 @@ function MainPane(props: PaneProps): JSX.Element | null {
     case 'chat':
       return <ChatPane key={view.chat.id} shell={shell} folder={view.folder} chat={view.chat} scheduler={props.scheduler} terminalKit={props.terminalKit} />
     case 'kanban':
-      return <KanbanBoard key={view.folder.path} folder={view.folder} refreshToken={shell.folderToken(view.folder.path)} host={orchestrationFor(shell, view.folder)} />
+      return <KanbanBoard key={view.folder.path} folder={view.folder} refreshToken={shell.folderToken(view.folder.path)} host={orchestrationFor(shell, view.folder)} onChanged={() => actions.changed(view.folder.path)} />
     case 'unavailable':
       return <UnavailableView folder={view.folder} onStopTracking={props.onRequestUntrack} />
     default:

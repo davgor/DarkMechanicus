@@ -16,6 +16,7 @@ An agent helps you shape an epic, decomposes it into tickets with acceptance cri
 ## Using it
 
 1. **Track a folder** — press **+** in the sidebar and choose **Add existing folder…** to pick a repository, or **Clone repository…** to clone one (see [Source control](#source-control)). Each tracked folder expands into its **In progress** and **Backlog** epics, its **Kanban** board (with a count of open cards), its **Completed** epics, and its **Agents** chats.
+   The Kanban count includes Backlog, In progress and Ready for review only. Approving or deleting a card updates it immediately; completed cards stay available in the paged Done lane without increasing the open count.
 2. **Initialize** — a new folder shows the setup screen, where you choose where its plans and history are stored:
    - **In this repository** (default) — initializing creates `.darkmechanicus/` (Git-tracked plans and history, plus a Git-ignored `local/` working database), so the plan travels with the code. Nothing is committed for you.
    - **Database only** — nothing at all is written into the repository: no `.darkmechanicus/`, no `.mcp.json`, no skills. Epics, tickets, plan revisions, run history and comments live in one machine-local database under `~/.darkmechanicus/projects/`, for a checkout whose history should not carry planning data. It stays on this machine, a clone sees none of it, and moving or renaming the folder orphans it — see the limitations in [`docs/decisions/0002-storage-modes.md`](docs/decisions/0002-storage-modes.md).

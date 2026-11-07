@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { AppHarness } from './__mocks__/appHarness'
 import { EPIC_A, EPIC_B, EPIC_C, epicSummary, folderView, runSummary } from './__mocks__/fixtures'
 import { settle } from './__mocks__/settle'
-import { cardSummary, doneCard } from './kanban/__mocks__/fixtures'
+import { FakeBoard, cardSummary, cardView, doneCard } from './kanban/__mocks__/fixtures'
 
 let h: AppHarness
 
@@ -63,6 +63,49 @@ describe('App sidebar Kanban', () => {
     h.mount()
     await settle()
     expect(within(screen.getByRole('main', { name: 'Workspace' })).getByRole('heading', { name: 'Kanban' })).toBeTruthy()
+  })
+
+  it('updates the displayed open count immediately after approval and deletion, without an event poll', async () => {
+    seed()
+    const board = new FakeBoard(h.dm)
+    let review = cardView({ id: 'kc_review', key: 'DM-7', lane: 'ready_for_review', openAttempt: { number: 1, state: 'submitted' } })
+    board.open = [review, cardSummary({ id: 'kc_delete', key: 'DM-8' }), cardSummary({ id: 'kc_work', key: 'DM-9', lane: 'in_progress' })]
+    board.done = Array.from({ length: 45 }, (_, index) => doneCard(index + 1))
+    h.dm.handlers.getKanbanCard = (input) =>
+      typeof input === 'object' && input !== null && 'cardId' in input && input.cardId === review.id
+        ? review
+        : cardView({ id: 'kc_delete', key: 'DM-8' })
+    h.dm.handlers.approveKanbanCard = () => {
+      review = { ...review, lane: 'done', openAttempt: null }
+      board.open = board.open.filter((card) => card.id !== review.id)
+      board.done.unshift(review)
+      return review
+    }
+    h.dm.handlers.deleteKanbanCard = () => {
+      board.open = board.open.filter((card) => card.id !== 'kc_delete')
+      return { cardId: 'kc_delete', key: 'DM-8', title: 'A card', removedPaths: [] }
+    }
+    h.mount()
+    await settle()
+    fireEvent.click(sidebar().getByRole('button', { name: 'Kanban, 3 open cards' }))
+    await settle()
+    fireEvent.click(screen.getByRole('button', { name: /^DM-7/ }))
+    await settle()
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
+    await settle()
+    expect(sidebar().getByRole('button', { name: 'Kanban, 2 open cards' })).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Done, 46 cards' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: /^DM-8/ }))
+    await settle()
+    fireEvent.click(screen.getByRole('button', { name: 'Delete…' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete card' }))
+    await settle()
+    expect(sidebar().getByRole('button', { name: 'Kanban, 1 open card' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Show Done' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
+    await settle()
+    expect(sidebar().getByRole('button', { name: 'Kanban, 1 open card' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^DM-7/ })).toBeTruthy()
   })
 })
 
