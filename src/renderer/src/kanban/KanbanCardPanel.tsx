@@ -12,6 +12,7 @@ import { Markdown } from '../markdown/Markdown'
 import { formatShortDate } from '../sidebar/epicStatusLine'
 import { CriteriaItems } from '../ticket/AcceptanceSections'
 import { AttemptList } from '../ticket/AttemptList'
+import { ReferenceList } from '../ticket/ReferenceList'
 import { EvidenceSections } from '../ticket/panelTabs'
 import { criteriaChecklist, evidenceView } from '../ticket/ticketView'
 import { DeleteCardControl } from './DeleteCardControl'
@@ -157,18 +158,7 @@ function CardDetails({ card, folderKey }: { card: KanbanCardView; folderKey: str
           </ul>
         </section>
       )}
-      {card.references.length === 0 ? null : (
-        <section className="tp-section" aria-label="References">
-          <h3 className="ew-eyebrow">REFERENCES</h3>
-          <ul className="tp-files">
-            {card.references.map((reference) => (
-              <li key={`${reference.kind}:${reference.location}`} className="ew-mono">
-                {reference.label === reference.location ? reference.location : `${reference.label} (${reference.location})`}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      <ReferenceList references={card.references} />
       {card.attachments === undefined ? null : (
         <section className="tp-section" aria-label="Attachments">
           <h3 className="ew-eyebrow">ATTACHMENTS</h3>
