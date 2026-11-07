@@ -122,8 +122,9 @@ function CommentForm(props: CommentsTabProps & { onAdded(): void }): JSX.Element
       await sendComment(props, draft, images)
       setDraft('')
       setImages([])
-      // A fresh field drops the old field's own pending list, which would otherwise come back on the next upload.
-      setFieldKey((key) => key + 1)
+      // A fresh field (its key flips on each send) drops the old field's own pending list, which would otherwise
+      // come back on the next upload.
+      setFieldKey((key) => (key === 0 ? 1 : 0))
       props.onAdded()
     } catch (failure: unknown) {
       setError(errorMessage(failure))
