@@ -90,8 +90,19 @@ function failureText(error: unknown): string {
   return stderr !== '' ? stderr : String(error)
 }
 
+/** A git command slower than this is reported, so a stalled CI run shows which command stalled. */
+const SLOW_GIT_MS = 2_000
+
 function runGit(deps: GitRepoDeps, root: string, args: string[]): string {
-  return deps.execFileSync('git', ['-C', root, ...CONFIG, ...args], { encoding: 'utf8', env: gitEnv(), stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+  const started = performance.now()
+  try {
+    return deps.execFileSync('git', ['-C', root, ...CONFIG, ...args], { encoding: 'utf8', env: gitEnv(), stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+  } finally {
+    const ms = Math.round(performance.now() - started)
+    if (ms > SLOW_GIT_MS) {
+      deps.warn(`slow git: git ${args.join(' ')} took ${ms} ms`)
+    }
+  }
 }
 
 /**

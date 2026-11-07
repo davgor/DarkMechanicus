@@ -61,6 +61,8 @@ export interface OpenWorkspaceOptions {
   clock?: Clock
   ids?: IdGenerator
   fs?: FsAdapter
+  /** The local database's synchronous setting (default 'full'); see `OpenDatabaseOptions.synchronous`. Tests only. */
+  databaseSynchronous?: 'full' | 'off'
   git?: GitAdapter
   /**
    * Builds the adapter for a child repository of a folder of repositories, given its checked real path
@@ -274,7 +276,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
       fail('not_initialized', `${this.repoRoot} has no valid project record at ${this.layout.projectFile}.`)
     }
     this.fs.mkdirp(this.layout.localDir)
-    const db = openDatabase(this.layout.dbFile)
+    const db = openDatabase(this.layout.dbFile, { synchronous: this.options.databaseSynchronous ?? 'full' })
     try {
       this.store = this.createStore(db, project)
       // Staged images nobody claimed within the retention window are dropped each time a workspace opens.
