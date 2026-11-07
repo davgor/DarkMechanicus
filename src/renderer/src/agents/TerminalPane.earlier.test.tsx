@@ -96,7 +96,9 @@ describe('TerminalPane: a chat stored before terminals', () => {
 
   it('hides the transcript again, the terminal staying where it was', async () => {
     await show(OLD_CHAT)
+    expect(screen.getByRole('textbox', { name: 'Prompt' })).toBeTruthy()
     toggle()
+    expect(screen.queryByRole('textbox', { name: 'Prompt' })).toBe(null)
 
     toggle()
 
@@ -104,6 +106,8 @@ describe('TerminalPane: a chat stored before terminals', () => {
     expect(earlier()?.getAttribute('aria-expanded')).toBe('false')
     expect(kit.views).toHaveLength(1)
     expect(kit.latest().disposed).toBe(false)
+    expect(screen.getByRole('textbox', { name: 'Prompt' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Send prompt' })).toBeTruthy()
   })
 })
 
