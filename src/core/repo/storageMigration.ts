@@ -1,5 +1,6 @@
-import { closeSync, fsyncSync, openSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { closeSync, fsyncSync, linkSync, openSync, writeFileSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
+import { basename, dirname, join, relative, resolve } from 'node:path'
 import { z } from 'zod'
 import { prettyJson } from '../canonical'
 import type { Clock } from '../clock'
@@ -16,7 +17,7 @@ import { layoutUnder, resolveLayout } from './layout'
 import { checkpointOf, rebuildCheckpoint } from './migrationCheckpoint'
 import { exportMigrationRecords } from './migrationExport'
 import type { ProjectRecord } from './portable'
-import { assertContained, ownedPaths } from './paths'
+import { assertContained, isStrictlyInside, ownedPaths } from './paths'
 import { projectKey, type StorageMode } from './storageMode'
 import type { FsAdapter, GitAdapter, RepoLayout } from './types'
 
@@ -55,6 +56,48 @@ function journalPath(env: MigrationEnv): string {
   return join(env.homeDir, 'projects', `${projectKey(env.repoRoot)}.switch.json`)
 }
 
+function canonicalCandidate(fs: FsAdapter, path: string): string {
+  const suffix: string[] = []
+  let ancestor = resolve(path)
+  while (!fs.exists(ancestor)) {
+    if (fs.isSymlink(ancestor) || dirname(ancestor) === ancestor) {
+      fail('unsafe_path', `Cannot safely resolve storage migration path ${path}.`)
+    }
+    suffix.unshift(basename(ancestor))
+    ancestor = dirname(ancestor)
+  }
+  return resolve(fs.realpath(ancestor), ...suffix)
+}
+
+function assertDisjointPaths(env: MigrationEnv, paths: MigrationPaths): void {
+  const candidates = [paths.source.dmDir, paths.target.dmDir, paths.staging.dmDir, paths.retired, journalPath(env)]
+    .map((path) => canonicalCandidate(env.fs, path))
+  for (const [index, left] of candidates.entries()) {
+    for (const right of candidates.slice(index + 1)) {
+      if (relative(left, right) === '' || isStrictlyInside(left, right) || isStrictlyInside(right, left)) {
+        fail('unsafe_path', 'Storage source, destination, staging and journal paths must not overlap. Choose a Dark Mechanicus home outside those stores.')
+      }
+    }
+  }
+}
+
+function discardTemporary(fs: FsAdapter, path: string): void {
+  try { fs.remove(path) } catch { /* A unique, unreferenced temporary file is safe to clean up on a later open. */ }
+}
+
+/** wx never follows an existing link; all writes and syncing use the exclusively owned descriptor. */
+function prepareFile(fs: FsAdapter, target: string, text: string): string {
+  const temp = `${target}.prepare-${process.pid}-${randomUUID()}`
+  const fd = openSync(temp, 'wx', 0o600)
+  try {
+    try { writeFileSync(fd, text); fsyncSync(fd) } finally { closeSync(fd) }
+  } catch (error) {
+    discardTemporary(fs, temp)
+    throw error
+  }
+  return temp
+}
+
 /** Never follows a link, including a junction. A linked child is unlinked, not traversed. */
 function removeTree(fs: FsAdapter, path: string): void {
   if (fs.isSymlink(path)) { fs.remove(path); return }
@@ -71,21 +114,38 @@ function purgeIgnoreEntry(env: MigrationEnv): void {
   const before = env.fs.readFile(path)
   const after = before.split(/(?<=\n)/).filter((line) => !/^\/?\.darkmechanicus\/local\/?\r?\n?$/.test(line)).join('')
   if (after === before) return
-  const temp = `${path}.dm-switch.tmp`
-  env.fs.writeFile(temp, after)
-  env.fs.fsyncFile(temp)
-  env.fs.rename(temp, path)
+  const temp = prepareFile(env.fs, `${path}.dm-switch`, after)
+  try {
+    if (env.fs.isSymlink(path) || env.fs.readFile(path) !== before || env.fs.isSymlink(temp) || env.fs.fileStamp(temp) === null) {
+      fail('unsafe_path', 'The Git ignore file changed while storage cleanup was preparing its replacement.')
+    }
+    env.fs.rename(temp, path)
+  } finally { discardTemporary(env.fs, temp) }
 }
 
 function committed(env: MigrationEnv, sourceMode: StorageMode): boolean {
   const paths = migrationPaths(env, sourceMode)
   return sourceMode === 'repo' ? env.fs.exists(paths.target.projectFile) : !env.fs.exists(paths.source.projectFile) && env.fs.exists(paths.target.projectFile)
 }
+function purgeRepository(env: MigrationEnv, source: RepoLayout): void {
+  // Keep both protecting ignore rules until every private byte has been removed.
+  removeTree(env.fs, source.localDir)
+  if (env.fs.exists(source.dmDir)) {
+    for (const name of env.fs.readdir(source.dmDir).filter((entry) => entry !== '.gitignore')) {
+      removeTree(env.fs, join(source.dmDir, name))
+    }
+    env.fs.remove(source.gitignoreFile)
+    env.fs.removeDir(source.dmDir)
+  }
+  purgeIgnoreEntry(env)
+}
+
 
 function recover(env: MigrationEnv, sourceMode: StorageMode): void {
   const paths = migrationPaths(env, sourceMode)
+  assertDisjointPaths(env, paths)
   if (committed(env, sourceMode)) {
-    if (sourceMode === 'repo') { purgeIgnoreEntry(env); removeTree(env.fs, paths.source.dmDir) }
+    if (sourceMode === 'repo') purgeRepository(env, paths.source)
     removeTree(env.fs, paths.retired)
   } else {
     // A db -> repo export may already be published while the db marker still selects the untouched original.
@@ -100,6 +160,17 @@ function processAlive(pid: number): boolean {
     return (error as NodeJS.ErrnoException).code !== 'ESRCH'
   }
 }
+function cleanupPreparedJournals(env: MigrationEnv): void {
+  const file = journalPath(env)
+  const directory = dirname(file)
+  if (!env.fs.exists(directory)) return
+  const prefix = `${basename(file)}.prepare-`
+  for (const name of env.fs.readdir(directory).filter((entry) => entry.startsWith(prefix))) {
+    const match = /^([0-9]+)-[0-9a-f-]{36}$/.exec(name.slice(prefix.length))
+    if (match !== null && !processAlive(Number(match[1]))) discardTemporary(env.fs, join(directory, name))
+  }
+}
+
 
 /** Existing connections must not enqueue writes against the original store while it is being copied. */
 export function assertStorageMigrationIdle(env: MigrationEnv): void {
@@ -113,6 +184,7 @@ export function assertStorageMigrationIdle(env: MigrationEnv): void {
 
 /** On open, finish committed cleanup or discard an interrupted staging export. Never imports the JSON checkpoint. */
 export function recoverStorageMigration(env: MigrationEnv): void {
+  cleanupPreparedJournals(env)
   const file = journalPath(env)
   if (!env.fs.exists(file)) return
   if (active.has(file)) fail('conflict', 'A storage switch is already in progress for this folder.')
@@ -166,6 +238,7 @@ function assertVacantDestinations(deps: MigrationDeps, paths: MigrationPaths): v
 async function preflight(deps: MigrationDeps, mode: StorageMode): Promise<{ paths: MigrationPaths; project: ProjectRecord }> {
   if (deps.layout.mode === mode) fail('invalid_input', `This folder already uses ${mode} storage.`)
   const paths = migrationPaths(deps, deps.layout.mode)
+  assertDisjointPaths(deps, paths)
   const project = readProject(paths.source, deps.fs) ?? fail('not_initialized', 'Initialize the folder before switching storage.')
   if (project.repositories !== undefined && mode === 'repo') fail('invalid_input', 'A folder of repositories must remain database only.')
   await assertCleanRecords(deps)
@@ -218,6 +291,7 @@ function prepareDestination(deps: MigrationDeps, paths: MigrationPaths, project:
     try {
       if (paths.target.mode === 'repo') exportMigrationRecords({ ...env, db: rebuilt, clock: deps.clock })
       else importCanonical(deps, rebuilt, paths.source)
+      assertIdle({ ...deps, db: rebuilt })
       rebuilt.exec('PRAGMA wal_checkpoint(TRUNCATE)')
     } finally { rebuilt.close() }
   })
@@ -226,8 +300,8 @@ function prepareDestination(deps: MigrationDeps, paths: MigrationPaths, project:
 function beginJournal(deps: MigrationDeps): string {
   const file = journalPath(deps)
   deps.fs.mkdirp(dirname(file))
-  const fd = openSync(file, 'wx')
-  try { writeFileSync(fd, prettyJson({ version: 1, sourceMode: deps.layout.mode, pid: process.pid })); fsyncSync(fd) } finally { closeSync(fd) }
+  const temp = prepareFile(deps.fs, file, prettyJson({ version: 1, sourceMode: deps.layout.mode, pid: process.pid }))
+  try { linkSync(temp, file) } finally { discardTemporary(deps.fs, temp) }
   active.add(file)
   return file
 }
@@ -240,6 +314,7 @@ export async function switchStorage(deps: MigrationDeps, mode: StorageMode): Pro
   let destination: Db | null = null
   try {
     prepareDestination(deps, paths, project)
+    assertDisjointPaths(deps, paths)
     // No source write has happened. Close the sole live handle only after the complete destination passed verification.
     deps.detach()
     detached = true

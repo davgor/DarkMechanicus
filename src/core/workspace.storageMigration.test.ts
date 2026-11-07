@@ -99,6 +99,9 @@ describe('storage mode migration', () => {
     expect(records(workspace.ctx().db)).toEqual(before)
     expect(existsSync(join(harness.root, '.darkmechanicus'))).toBe(false)
   })
+})
+
+describe('storage migration preflight and staging failures', () => {
 
   it('refuses dirty tracked records and unknown Git status', async () => {
     const workspace = await populated()
@@ -135,6 +138,9 @@ describe('storage mode migration', () => {
     expect(records(workspace.ctx().db)).toEqual(before)
     expect(existsSync(join(harness.root, '.darkmechanicus'))).toBe(false)
   })
+})
+
+describe('storage migration cutover and purge recovery', () => {
 
   it('rolls back a failed cutover after publishing the export, keeping the original usable', async () => {
     const original = await populated()
@@ -176,6 +182,9 @@ describe('storage mode migration', () => {
     expect((await reopened.listEpics()).map((epic) => epic.id).sort()).toEqual(expected)
     expect(existsSync(`${dbProjectDir(harness.root, harness.homeDir)}.switch-retired`)).toBe(false)
   })
+})
+
+describe('storage migration session and work fencing', () => {
 
   it('fences a stale connection after the storage mode moves', async () => {
     const workspace = await populated()
@@ -207,6 +216,9 @@ describe('storage mode migration', () => {
     await expect(switchTo(workspace, 'repo')).rejects.toThrow(/pending records/i)
     expect(resolved()).toBe('db')
   })
+})
+
+describe('storage migration canonical records and image bytes', () => {
 
   it('does not put private credentials in portable records or reuse the checkpoint after canonical edits', async () => {
     const workspace = await populated()
@@ -233,6 +245,9 @@ describe('storage mode migration', () => {
     expect(Buffer.from(image?.data ?? [])).toEqual(pngBytes(2, 3))
     expect(existsSync(join(harness.root, '.darkmechanicus'))).toBe(false)
   })
+})
+
+describe('storage migration process interruption recovery', () => {
 
   it.each([
     ['db', 'before_commit'], ['db', 'after_commit'], ['repo', 'before_commit'], ['repo', 'after_commit']
@@ -267,6 +282,9 @@ describe('storage mode migration', () => {
     expect(existsSync(`${target}.switch-staging`)).toBe(false)
     expect(existsSync(`${source}.switch-retired`)).toBe(false)
   })
+})
+
+describe('storage migration in-flight command fencing', () => {
 
   it('fences commands on an existing connection while the source is being copied', async () => {
     const original = await populated()
