@@ -1,7 +1,7 @@
 # Baseline ignore for ts-prune: one `file - export` per line (line numbers are not matched)
 # Generated from tsconfig.node.json + tsconfig.web.json
 # Refresh after export moves/deletes: npm run deadcode:refresh
-# Refreshed 2026-11-06 (142 entries)
+# Refreshed 2026-11-07 (143 entries)
 
 electron.vite.config.ts - default
 resources/skitarii/extension/index.ts - default
@@ -78,6 +78,7 @@ src/shared/domain/api.ts - HeartbeatAttemptInput
 src/shared/domain/api.ts - HeartbeatKanbanCardInput
 src/shared/domain/api.ts - IncrementRef
 src/shared/domain/api.ts - KickBackKanbanCardInput
+src/shared/domain/api.ts - LaunchKanbanCardsInput
 src/shared/domain/api.ts - RecordRowCheckInput
 src/shared/domain/api.ts - SprintInput
 src/shared/domain/api.ts - SprintReportInput

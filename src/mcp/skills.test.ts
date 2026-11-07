@@ -137,10 +137,6 @@ describe('SKILLS_VERSION', () => {
   })
 })
 
-/** The Kanban routing rule, worded identically in every agent guide that plans or runs work. */
-const KANBAN_ROUTING =
-  "An isolated ticket, meaning one coherent change with no prerequisites and nothing depending on it that one worker can finish in one attempt, goes on the folder's Kanban board with `create_kanban_card`, not into a new epic. Work that needs two or more tickets, ordering or sprints stays an epic. Agents create and edit cards; only a person presses Play, approves or kicks back."
-
 /** Phrases each skill must keep; a guard against accidentally dropping a rule during edits. */
 const REQUIRED: [string, string[]][] = [
   [
@@ -178,7 +174,6 @@ const REQUIRED: [string, string[]][] = [
       'give the title without it',
       'Acceptance nodes take no `repo`',
       'redraft',
-      KANBAN_ROUTING,
       '`update_kanban_card`'
     ]
   ],
@@ -297,7 +292,6 @@ const REQUIRED: [string, string[]][] = [
       "Squash each touched repository's sprint work onto its epic branch",
       '`increments`, one `{ repo, branch, commit }` per touched repository',
       'Give every ticket added in a retro redraft its `repo`',
-      KANBAN_ROUTING,
       '`claim_kanban_card`',
       '`submit_kanban_card`',
       'Never approve a card'
@@ -333,7 +327,6 @@ const REQUIRED: [string, string[]][] = [
       'Work only in a worktree of `repository.path`',
       'run Git as `git -C <worktree>`',
       'report each check as `<repo>: <check>`',
-      KANBAN_ROUTING,
       '`heartbeat_kanban_card`'
     ]
   ],

@@ -25,9 +25,9 @@ project's ticket sequence, so a card and a plan ticket never share a key.
 The agent guides route work by this rule: an isolated ticket, meaning one coherent change with no
 prerequisites and nothing depending on it that one worker can finish in one attempt, goes on the
 folder's Kanban board with `create_kanban_card`, not into a new epic. Work that needs two or more
-tickets, ordering or sprints stays an epic. Agents create and edit cards; only a person presses
-Play, approves or kicks back. Follow-ups and bugs found during a sprint stay in that epic's plan or
-retro.
+tickets, ordering or sprints stays an epic. Agents create and edit cards; an authorized orchestrator
+explicitly asked to run named cards can queue them, while approval, kick-back and deletion remain
+human-only. Follow-ups and bugs found during a sprint stay in that epic's plan or retro.
 
 ### Fixed lanes, with the agent as the mover
 
@@ -36,17 +36,28 @@ configurable, and nobody drags a card between them: a card moves only through it
 Creating a card puts it in Backlog. The agent moves it: claiming takes it to In progress, and
 submitting takes it to Ready for review. Failing or a lease expiry leaves it In progress.
 
-### A person presses Play and reviews
+### Explicit launch, with human review
 
-Starting a card and judging its result belong to a person in the desktop app. `kanban.play` and
-`kanban.review` are human-only capabilities: no agent role, MCP tool, grant or `dm` session holds
-them. A claim needs a pending Play (`play_required` otherwise), so an agent cannot start work on a
-card by itself. After a submission the person approves the card to Done or kicks it back with a
-comment; a kick-back rejects the attempt, returns the card to In progress with a pending Play, and
-the next attempt's packet carries every earlier comment. Pressing Play starts an agent as the
-card's orchestrator in a terminal chat of the folder, which claims it, hands it to one worker,
-reviews, submits and stops; a kick-back's comment is pasted into that chat's terminal, so the same
-agent claims the card again (`docs/design/chat-shells.md`, "The card chat Play opens").
+The original decision reserved every launch for desktop Play. DM-500 deliberately extends that
+policy: an orchestrator authorized through MCP configuration or a live CLI grant may call
+`launch_kanban_cards` with an explicit nonempty `cardIds` list. One item launches one card; there is
+no implicit launch-all. Its separate `kanban.launch` capability is orchestrator-only, not available
+to planners, workers, reviewers or readers. Desktop `kanban.play` remains human-only.
+
+Launch validates the whole deduplicated batch in one transaction before mutation and queues the
+normal pending Play state without starting chats or creating attempts. An invalid or ineligible
+card refuses the entire batch with per-card errors. Pending repeats change nothing; active claims,
+Ready for review and Done cannot be reset. A claim still needs a pending Play (`play_required`
+otherwise), whether queued by desktop Play or external launch. Existing leases and claim-token
+reporting are unchanged; CLI grants are checked before each command.
+
+Judging results stays human-only (`kanban.review`): after submission the person approves the card
+to Done or kicks it back with a comment. A kick-back rejects the attempt, returns the card to In
+progress with a pending Play, and the next packet carries every earlier comment. Desktop Play
+starts an orchestrator terminal chat of the folder, which claims, delegates to one worker, reviews,
+submits and stops; a kick-back's comment is pasted into that chat. External launch uses the caller's
+existing chat instead. Card deletion and checkpoint approval also stay human-only; this extension
+changes no epic execution. See [the CLI runbook](../runbooks/cli.md#launch-named-kanban-cards).
 
 ### The checked-out branch
 
@@ -80,5 +91,6 @@ folder's machine-local database, and nothing is written into the repository.
   everywhere.
 - Cards have no dependencies. Work that turns out to need ordering is moved into an epic instead of
   being chained across cards.
-- A card shares the checked-out branch with whatever else happens there, so two cards played at once
-  in one folder can touch the same files. The person decides when to press Play.
+- A card shares the checked-out branch with whatever else happens there, so concurrent cards can
+  touch the same files. The person decides when to press desktop Play or authorizes an external
+  orchestrator to launch explicitly named cards; launch does not arrange file ownership.

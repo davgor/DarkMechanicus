@@ -91,6 +91,7 @@ const TOOLS: Record<string, { method: CommandName; kind: Kind }> = {
   update_kanban_card: { method: 'updateKanbanCard', kind: 'write' },
   list_kanban_cards: { method: 'listKanbanCards', kind: 'read' },
   get_kanban_card: { method: 'getKanbanCard', kind: 'read' },
+  launch_kanban_cards: { method: 'launchKanbanCards', kind: 'idempotent' },
   claim_kanban_card: { method: 'claimKanbanCard', kind: 'write' },
   heartbeat_kanban_card: { method: 'heartbeatKanbanCard', kind: 'idempotent' },
   submit_kanban_card: { method: 'submitKanbanCard', kind: 'write' },
@@ -165,7 +166,6 @@ describe('tool inventory', () => {
     await withRig(build, createStubApi(), async (rig) => {
       const { tools } = await rig.client.listTools()
       expect(tools.map((tool) => tool.name).sort()).toEqual(Object.keys(ORCHESTRATOR_TOOLS).sort())
-      expect(tools).toHaveLength(74)
     })
   })
 

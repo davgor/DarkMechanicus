@@ -53,6 +53,7 @@ const ORCHESTRATOR: Capability[] = [
   'attempt.carry_forward',
   'report.submit',
   'checkpoint.advance',
+  'kanban.launch',
   'kanban.claim',
   'kanban.report'
 ]
@@ -122,6 +123,7 @@ const AGENT_ONLY = [
   'run.start',
   'run.row_check',
   'host.register',
+  'kanban.launch',
   'kanban.claim',
   'kanban.report'
 ] as const
@@ -143,8 +145,7 @@ function sessionWith(role: SessionRole, capabilities: Capability[]): SessionCont
 
 describe('capability vocabulary', () => {
   it('lists every capability exactly once', () => {
-    expect(CAPABILITIES).toHaveLength(51)
-    expect(new Set(CAPABILITIES).size).toBe(51)
+    expect(new Set(CAPABILITIES).size).toBe(CAPABILITIES.length)
     expect(sorted(CAPABILITIES)).toEqual(sorted([...DESKTOP, ...AGENT_ONLY]))
   })
 

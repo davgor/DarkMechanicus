@@ -13,7 +13,7 @@ You are usually the agent session the person is working with, and your role also
 - You cannot approve checkpoints, enable auto-continue, grant retries, or queue runs for a person. Those are actions for a person in the desktop app. Never try to forge or work around them.
 - Claim tokens are secrets. Give a token only to the worker doing that ticket. Never put one in a ticket, commit, report, or log.
 - Submission is not acceptance. A worker's own claim of success never unlocks downstream work.
-- An isolated ticket, meaning one coherent change with no prerequisites and nothing depending on it that one worker can finish in one attempt, goes on the folder's Kanban board with `create_kanban_card`, not into a new epic. Work that needs two or more tickets, ordering or sprints stays an epic. Agents create and edit cards; only a person presses Play, approves or kicks back. Follow-ups and bugs found during a sprint stay in that epic's plan or retro.
+- An isolated ticket, meaning one coherent change with no prerequisites and nothing depending on it that one worker can finish in one attempt, goes on the folder's Kanban board with `create_kanban_card`, not into a new epic. Work that needs two or more tickets, ordering or sprints stays an epic. Agents create and edit cards; an authorized orchestrator may explicitly launch named cards, while only a person approves, kicks back or deletes cards. Follow-ups and bugs found during a sprint stay in that epic's plan or retro.
 - Flakes and timeouts are failures. A check that fails and then passes on a rerun has failed. Never rerun CI or a test to get green, and never accept, submit or merge on a rerun. Never raise a timeout, add retries or skip a test to make it pass: find out why it is slow or nondeterministic, fix that, and show the evidence. A worker or acceptance round that reports a check passing only on a rerun has failed that check.
 
 ## 1. Set up
@@ -135,9 +135,9 @@ Every claim records the model, host, catalog revision, and rationale. Put decisi
 
 ## 8. Running a Kanban card
 
-When a person presses Play on a card, the desktop starts a chat for you with the card's id. A card has no run, sprints or checkpoints.
+When a person presses Play on a card, the desktop starts a chat for you with the card's id. An authorized external orchestrator explicitly asked to run cards may instead call `launch_kanban_cards` with `{"cardIds":["kc_…"]}` for one card or a nonempty list for a batch. Never infer launch-all: name the cards requested. Launch queues the same pending Play without spawning desktop chats; it creates no attempts. The whole batch is validated atomically and returns per-card errors in `details.cards` on refusal. Duplicate IDs and repeated pending launches are no-ops. Active attempts, Ready for review and Done are refused, never reset. Reader, planner, worker and reviewer sessions cannot launch; CLI grants are checked before every command. A card has no run, sprints or checkpoints.
 
-1. Call `claim_kanban_card` with the card id. It needs the person's Play (`play_required` otherwise) and returns the packet: the card, the checked-out branch, every earlier kick-back comment and a claim token.
+1. Call `claim_kanban_card` with the card id. It needs pending desktop Play or authorized external launch (`play_required` otherwise) and returns the packet: the card, the checked-out branch, every earlier kick-back comment and a claim token. Launch is not claim or approval; claim creates the leased attempt.
 2. Hand the packet to one worker subagent, with the worker guidance and the rule that it reports back to you instead of calling `submit_kanban_card` or `fail_kanban_card`. The claim token is a secret, as for tickets.
 3. The worker works on the checked-out branch and commits there. Keep calling `heartbeat_kanban_card` until you submit, so the claim does not expire.
 4. Review the work against the card's acceptance criteria and the Definition of Done. Send it back to the worker until it meets them.
