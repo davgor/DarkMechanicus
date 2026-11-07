@@ -40,6 +40,7 @@ export interface WorkspaceCore {
   db(): Db | null
   ctx(): Ctx
   initialize(input: { name?: string; keyPrefix?: string; mode?: StorageMode; layout?: ProjectLayout }): InitializeResultView
+  switchStorageMode(mode: StorageMode): Promise<{ mode: StorageMode; projectDir: string; cleanupPending: boolean }>
   reconcile(): ReconcileResultView
   /** Flushes every waiting entry, or only those in `scope`. */
   flush(scope?: FlushScope): FlushResultView

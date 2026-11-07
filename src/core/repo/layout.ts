@@ -13,7 +13,7 @@ export interface ResolveLayoutOptions {
 }
 
 /** Where one project's owned files live, relative to `base`. Paths only; nothing is created. */
-function layoutUnder(root: string, mode: StorageMode, base: string): RepoLayout {
+export function layoutUnder(root: string, mode: StorageMode, base: string): RepoLayout {
   const localDir = join(base, 'local')
   return {
     root,

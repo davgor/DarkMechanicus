@@ -8,6 +8,7 @@ export const CAPABILITIES = [
   'repo.reconcile',
   'repo.backup',
   'repo.resolve_conflict',
+  'repo.switch_storage',
   'epic.create',
   'epic.status',
   'epic.branch',
@@ -75,6 +76,7 @@ export const HUMAN_ONLY_CAPABILITIES: readonly Capability[] = [
   'transfer.queue',
   // Settling an epic records conflict drops one side's changes: which survive is the person's call.
   'repo.resolve_conflict',
+  'repo.switch_storage',
   // Desktop Play starts a chat; external orchestrators queue named cards with the separate launch capability.
   'kanban.play',
   'kanban.review',

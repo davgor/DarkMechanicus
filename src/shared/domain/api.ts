@@ -390,6 +390,8 @@ export interface CommandApi {
    */
   rescanRepositories(): Promise<RepositoryView[]>
   getStorageStatus(): Promise<StorageStatusView>
+  /** Person-confirmed desktop-only migration; never exposed as an agent MCP tool. */
+  switchStorageMode(input: { mode: 'repo' | 'db'; confirmed: true }): Promise<{ mode: 'repo' | 'db'; projectDir: string; cleanupPending: boolean }>
   flushPortableState(): Promise<FlushResultView>
   reconcileRepository(): Promise<ReconcileResultView>
   /**
