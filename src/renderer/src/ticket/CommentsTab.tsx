@@ -1,9 +1,8 @@
 import { type FormEvent, useEffect, useState } from 'react'
 import type { CommentView } from '../../../shared/domain/views'
 import { errorMessage } from '../api/dm'
-import { attachmentUrl } from '../../../shared/desktop/attachmentUrl'
 import { AttachmentGallery } from '../attachments/AttachmentGallery'
-import { type ImageAttach, type PendingImage, useImageAttach } from '../attachments/useImageAttach'
+import { type FormImage, ImageAttachField } from '../attachments/ImageAttachField'
 import type { Runner } from '../epic/runner'
 import { Markdown } from '../markdown/Markdown'
 import { canSubmitComment, commentItems, MAX_COMMENT_LENGTH } from './commentsView'
@@ -80,32 +79,8 @@ function CommentList(props: { loaded: Loaded; now: number; folderKey: string }):
   )
 }
 
-function PendingImages(props: { images: ImageAttach; folderKey: string }): JSX.Element | null {
-  const { images } = props
-  const problem = images.error === null ? null : <p role="alert" className="tp-error">{images.error}</p>
-  if (images.pending.length === 0) {
-    return problem
-  }
-  return (
-    <>
-    {problem}
-    <ul className="tp-pending-images" aria-label="Images to attach">
-      {images.pending.map((image) => (
-        <li key={image.id} className="tp-pending-image">
-          <img src={attachmentUrl(props.folderKey, image.id)} alt={image.label} height={48} />
-          <span>{image.label}</span>
-          <button type="button" className="btn" aria-label={`Remove ${image.label}`} onClick={() => images.remove(image.id)}>
-            Remove
-          </button>
-        </li>
-      ))}
-    </ul>
-    </>
-  )
-}
-
-async function sendComment(props: CommentsTabProps, body: string, pending: PendingImage[]): Promise<void> {
-  const attachments = pending.map((image) => image.id)
+async function sendComment(props: CommentsTabProps, body: string, images: FormImage[]): Promise<void> {
+  const attachments = images.map((image) => image.id)
   await props.runner('addComment', {
     epicId: props.epicId,
     ticketId: props.ticketId,
@@ -114,22 +89,41 @@ async function sendComment(props: CommentsTabProps, body: string, pending: Pendi
   })
 }
 
+function CommentDraft(props: { draft: string; onChange(draft: string): void }): JSX.Element {
+  return (
+    <label className="tp-field">
+      <span>New comment</span>
+      <textarea
+        value={props.draft}
+        rows={3}
+        maxLength={MAX_COMMENT_LENGTH}
+        placeholder="Markdown: a blocker, a decision, a review note…"
+        onChange={(event) => props.onChange(event.target.value)}
+      />
+    </label>
+  )
+}
+
 function CommentForm(props: CommentsTabProps & { onAdded(): void }): JSX.Element {
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const images = useImageAttach(props.runner)
+  const [images, setImages] = useState<FormImage[]>([])
+  const [uploading, setUploading] = useState(false)
+  const [fieldKey, setFieldKey] = useState(0)
   const submit = async (event: FormEvent): Promise<void> => {
     event.preventDefault()
-    if (!canSubmitComment(draft, busy || images.busy)) {
+    if (!canSubmitComment(draft, busy || uploading)) {
       return
     }
     setBusy(true)
     setError(null)
     try {
-      await sendComment(props, draft, images.pending)
+      await sendComment(props, draft, images)
       setDraft('')
-      images.clear()
+      setImages([])
+      // A fresh field drops the old field's own pending list, which would otherwise come back on the next upload.
+      setFieldKey((key) => key + 1)
       props.onAdded()
     } catch (failure: unknown) {
       setError(errorMessage(failure))
@@ -139,25 +133,19 @@ function CommentForm(props: CommentsTabProps & { onAdded(): void }): JSX.Element
   }
   return (
     <form className="tp-comment-form" onSubmit={(event) => void submit(event)}>
-      <label className="tp-field">
-        <span>New comment</span>
-        <textarea
-          value={draft}
-          rows={3}
-          maxLength={MAX_COMMENT_LENGTH}
-          placeholder="Markdown: a blocker, a decision, a review note…"
-          onChange={(event) => setDraft(event.target.value)}
-          {...images.targetProps}
-        />
-      </label>
-      <PendingImages images={images} folderKey={props.folderKey} />
+      <ImageAttachField
+        key={fieldKey}
+        runner={props.runner}
+        folderKey={props.folderKey}
+        images={images}
+        onChange={setImages}
+        onBusyChange={setUploading}
+      >
+        <CommentDraft draft={draft} onChange={setDraft} />
+      </ImageAttachField>
       {error === null ? null : <p role="alert" className="tp-error">{error}</p>}
       <div className="tp-row-actions">
-        <label className="btn">
-          {images.busy ? 'Uploading…' : 'Attach image'}
-          <input {...images.pickerProps} hidden />
-        </label>
-        <button type="submit" className="btn btn-primary" disabled={!canSubmitComment(draft, busy || images.busy)}>
+        <button type="submit" className="btn btn-primary" disabled={!canSubmitComment(draft, busy || uploading)}>
           Add comment
         </button>
       </div>
