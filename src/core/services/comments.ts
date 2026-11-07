@@ -9,7 +9,7 @@ import type { Ctx } from '../context'
 import type { Db } from '../db/database'
 import { fail } from '../errors'
 import { LIMITS } from '../schemas'
-import { attachmentRefOf, claimAttachments, listAttachmentRefs } from './attachments'
+import { attachmentRefOf, claimAttachments, flagMissingAttachments, listAttachmentRefs } from './attachments'
 import { assertEpicOpen, type EpicRow, loadEpicRow } from './epics'
 import { appendEvent } from './events'
 import { requestWithoutKey, withIdempotency } from './idempotency'
@@ -27,7 +27,7 @@ interface CommentRow {
 }
 
 function toCommentView(db: Db, row: CommentRow): CommentView {
-  const attachments = listAttachmentRefs(db, { kind: 'comment', id: row.id })
+  const attachments = flagMissingAttachments(db, listAttachmentRefs(db, { kind: 'comment', id: row.id }))
   return {
     id: row.id,
     epicId: row.epic_id,

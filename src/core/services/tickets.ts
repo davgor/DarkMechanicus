@@ -8,6 +8,7 @@ import { type BundleIndex, dependentsOf, indexBundle, prerequisitesOf, sortedSpr
 import { activeRun, applyEpicStatus, assertEpicOpen, type EpicRow, loadEpicRow } from './epics'
 import { appendEvent } from './events'
 import { enqueueOutbox } from './outbox'
+import { flagMissingAttachments } from './attachments'
 import { readPlanBundle } from './plans'
 
 type PlanViewKind = 'saved' | 'draft'
@@ -124,7 +125,7 @@ export function getTicket(
   return {
     epicId: epic.id,
     view: input.view,
-    ticket,
+    ticket: ticket.attachments === undefined ? ticket : { ...ticket, attachments: flagMissingAttachments(ctx.db, ticket.attachments) },
     status: summary.status,
     sprintId: summary.sprintId,
     sprintOrdinal: summary.sprintOrdinal,

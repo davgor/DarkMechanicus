@@ -11,7 +11,7 @@ import { contentHash } from '../canonical'
 import { flushOutbox } from '../repo/finalizer'
 import { resolveLayout } from '../repo/layout'
 import { parseRecord, snapshotRecord } from '../repo/portable'
-import { claimAttachments, createStagedAttachment, getAttachment, pruneStagedAttachments } from './attachments'
+import { attachmentRefOf, claimAttachments, createStagedAttachment, getAttachment, pruneStagedAttachments } from './attachments'
 import { claimTicket } from './attempts'
 import { updatePlanDraft } from './drafts'
 import { createEpic } from './epics'
@@ -212,7 +212,7 @@ describe('a save refuses ticket images that cannot be theirs', () => {
     const bundle = getPlan(ctx, { epicId, view: 'saved' }).bundle
     const tickets = bundle.tickets.map((ticket) => {
       const ids = images[ticket.id]
-      return ids === undefined ? ticket : { ...ticket, attachments: ids.map((id) => getAttachment(ctx, id)) }
+      return ids === undefined ? ticket : { ...ticket, attachments: ids.map((id) => attachmentRefOf(getAttachment(ctx, id))) }
     })
     return { ...bundle, tickets }
   }
