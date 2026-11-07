@@ -64,6 +64,7 @@ const COMMAND_FLAGS: Record<CommandName, true> = {
   listKanbanCards: true,
   getKanbanCard: true,
   playKanbanCard: true,
+  launchKanbanCards: true,
   claimKanbanCard: true,
   heartbeatKanbanCard: true,
   submitKanbanCard: true,

@@ -46,6 +46,38 @@ Use one source: inline JSON together with `--args-file` or `-` is refused with e
 JSON a backslash must be doubled (`"C:\\Users\\me\\shot.png"`), or the path written with forward slashes
 (`"C:/Users/me/shot.png"`); an undoubled backslash is invalid JSON, and the error says so.
 
+## Launch named Kanban cards
+
+When explicitly asked to run cards, an external session with an **orchestrator** grant may queue named
+cards without pressing desktop Play or spawning duplicate desktop chats. Discovery exposes
+`launch_kanban_cards` / `launchKanbanCards`, its `kanban.launch` capability and the nonempty `cardIds`
+contract. MCP exposes the same command and rules to orchestrators.
+
+```sh
+node out/main/cli.js --describe launch_kanban_cards
+node out/main/cli.js call launch_kanban_cards '{"cardIds":["kc_…"]}'
+node out/main/cli.js call launch_kanban_cards '{"cardIds":["kc_…","kc_…"]}'
+node out/main/cli.js call claim_kanban_card '{"cardId":"kc_…"}'
+```
+
+Use real stable IDs from `list_kanban_cards`, not display keys. A single-item list launches one card;
+a nonempty multi-item list launches a batch. There is no launch-all. On Windows, put the same object
+in an args file and use `call launch_kanban_cards --args-file <path>` to avoid shell quoting.
+
+The entire batch is authorized and validated before mutation. Unknown or ineligible cards return
+`invalid_state` with actionable `details.cards` entries (`cardId`, `code`, `message`); nothing launches.
+Malformed or empty ID lists fail `invalid_input`. Duplicate IDs are ignored; pending requests retried
+before claim do not create new events or attempts. Backlog and In progress with no open attempt may
+be queued, including locally expired claims. Active claims, Ready for review and Done are refused,
+never reset; a retry after claim or submission cannot queue another attempt.
+
+Launch only queues pending Play. **Claim** creates the leased attempt and returns its secret token;
+continue with `heartbeat_kanban_card`, then `submit_kanban_card` (Ready for review) or `fail_kanban_card`.
+Keep the token secret. Reader, planner, worker and reviewer sessions cannot launch. Revoked or expired
+CLI grants are refused before every command. Desktop Play remains human-only and starts a chat.
+**Approval**, kick-back, card deletion and checkpoint approval remain human-only; launch grants none
+of those powers and changes no epic execution.
+
 ## Attach an image: `add_attachment`
 
 An agent adds an image from a file on its own machine, then names the returned id on the record it belongs

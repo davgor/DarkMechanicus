@@ -47,6 +47,7 @@ export const CAPABILITIES = [
   'attachment.write',
   'kanban.write',
   'kanban.play',
+  'kanban.launch',
   'kanban.claim',
   'kanban.report',
   'kanban.review',
@@ -74,7 +75,7 @@ export const HUMAN_ONLY_CAPABILITIES: readonly Capability[] = [
   'transfer.queue',
   // Settling an epic records conflict drops one side's changes: which survive is the person's call.
   'repo.resolve_conflict',
-  // Starting a Kanban card, and approving or kicking back its result: an agent never grades or launches its own work.
+  // Desktop Play starts a chat; external orchestrators queue named cards with the separate launch capability.
   'kanban.play',
   'kanban.review',
   // Removing a card from the board is the person's call; agents create and edit cards but never delete them.
@@ -92,7 +93,7 @@ const PLANNER_SHARED: Capability[] = [
   'comment.write',
   // Attaching an image from a local path (evidence or a reference), the same for both planning roles.
   'attachment.write',
-  // Adding or editing a Kanban card; only a person may start, approve or kick one back.
+  // Adding or editing a Kanban card; review remains human-only.
   'kanban.write',
   'profile.write',
   // Re-detecting a folder's repositories only records what is on disk, so both planning roles may do it.
@@ -131,6 +132,7 @@ const ORCHESTRATOR: Capability[] = [
   'attempt.carry_forward',
   'report.submit',
   'checkpoint.advance',
+  'kanban.launch',
   'kanban.claim',
   'kanban.report'
 ]
@@ -146,6 +148,7 @@ const AGENT_ONLY: readonly Capability[] = [
   'run.start',
   'run.row_check',
   'host.register',
+  'kanban.launch',
   'kanban.claim',
   'kanban.report'
 ]

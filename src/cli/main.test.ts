@@ -92,6 +92,20 @@ describe('dm --list and --describe', () => {
     expect(payload(recorded).data).toMatchObject({ command: 'create_epic', alias: 'createEpic', mutates: true })
   })
 
+  it('discovers the external launch capability and explicit nonempty cardIds contract', async () => {
+    const listed = recorder(['--list'])
+    await runCli(listed.host)
+    expect(payload(listed).data).toContainEqual(expect.objectContaining({ command: 'launch_kanban_cards', capability: 'kanban.launch' }))
+    const described = recorder(['--describe', 'launch_kanban_cards'])
+    await runCli(described.host)
+    expect(payload(described).data).toMatchObject({ command: 'launch_kanban_cards', capability: 'kanban.launch', mutates: true, input: { fields: ['cardIds'] } })
+    expect(payload(described).data).toMatchObject({ input: { descriptions: { cardIds: expect.stringContaining('Explicit nonempty') } } })
+    const { recorded, seen } = capturing(['call', 'launch_kanban_cards', '{"cardIds":["kc_00000000000000000000000001"]}'])
+    await runCli(recorded.host)
+    expect(seen).toEqual([{ cardIds: ['kc_00000000000000000000000001'] }])
+    expect(recorded.exits).toEqual([0])
+  })
+
   it('refuses an unknown name with the usage exit code and writes nothing to stdout', async () => {
     const recorded = recorder(['--describe', 'frobnicate'])
     await runCli(recorded.host)

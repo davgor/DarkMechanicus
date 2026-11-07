@@ -88,12 +88,15 @@ function describing(name: CommandName): unknown {
 
 /** The input shape, as far as zod will describe it without a JSON Schema dependency. */
 function describeSchema(schema: { safeParse: (value: unknown) => unknown }): unknown {
-  const candidate = schema as { _zod?: { def?: { shape?: Record<string, unknown> } } }
+  const candidate = schema as { _zod?: { def?: { shape?: Record<string, { description?: string }> } } }
   const shape = candidate._zod?.def?.shape
   if (shape === undefined) {
     return { fields: null, note: 'Pass a JSON object; the command validates it and says what is wrong.' }
   }
-  return { fields: Object.keys(shape).sort() }
+  const descriptions = Object.fromEntries(Object.entries(shape).flatMap(([key, value]) =>
+    value.description === undefined ? [] : [[key, value.description]]
+  ))
+  return { fields: Object.keys(shape).sort(), ...(Object.keys(descriptions).length === 0 ? {} : { descriptions }) }
 }
 
 function parseInputJson(text: string): unknown {

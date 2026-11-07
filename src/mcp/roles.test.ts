@@ -99,7 +99,8 @@ const ORCHESTRATOR_TOOLS = [
   'start_transfer',
   'record_transfer_item',
   'submit_transfer_readback',
-  // kanban.claim and kanban.report: carrying a card a person pressed Play on.
+  // External orchestrators queue named cards, then use the existing claim/report workflow.
+  'launch_kanban_cards',
   'claim_kanban_card',
   'heartbeat_kanban_card',
   'submit_kanban_card',

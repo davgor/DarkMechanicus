@@ -7,6 +7,7 @@ import {
   failKanbanCard,
   heartbeatKanbanCard,
   kickBackKanbanCard,
+  launchKanbanCards,
   playKanbanCard,
   submitKanbanCard
 } from '../services/kanban/attempts'
@@ -46,6 +47,11 @@ const kanbanCommands = {
     schema: COMMAND_SCHEMAS.playKanbanCard,
     mutates: true,
     run: (core, input) => playKanbanCard(core.ctx(), input)
+  },
+  launchKanbanCards: {
+    schema: COMMAND_SCHEMAS.launchKanbanCards,
+    mutates: true,
+    run: (core, input) => launchKanbanCards(core.ctx(), input)
   },
   claimKanbanCard: {
     schema: COMMAND_SCHEMAS.claimKanbanCard,

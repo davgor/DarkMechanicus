@@ -169,6 +169,7 @@ export const COMMAND_SCHEMAS = {
   }),
   getKanbanCard: z.strictObject({ cardId: stableId }),
   playKanbanCard: z.strictObject({ cardId: stableId }),
+  launchKanbanCards: z.strictObject({ cardIds: z.array(stableId).min(1).describe('Explicit nonempty card IDs; one item launches one card. Duplicates are ignored; no launch-all.') }),
   claimKanbanCard: z.strictObject({ cardId: stableId, leaseSeconds: leaseSeconds.optional(), idempotencyKey }),
   heartbeatKanbanCard: z.strictObject({
     attemptId: stableId,

@@ -23,6 +23,7 @@ const CASES: Case[] = [
   { tool: 'update_kanban_card', args: { cardId: CARD, expectedRevision: 2, size: null }, method: 'updateKanbanCard' },
   { tool: 'list_kanban_cards', args: { doneLimit: 5 }, method: 'listKanbanCards' },
   { tool: 'get_kanban_card', args: { cardId: CARD }, method: 'getKanbanCard' },
+  { tool: 'launch_kanban_cards', args: { cardIds: [CARD] }, method: 'launchKanbanCards' },
   { tool: 'claim_kanban_card', args: { cardId: CARD, leaseSeconds: 600, idempotencyKey: 'claim-1' }, method: 'claimKanbanCard' },
   {
     tool: 'heartbeat_kanban_card',
@@ -57,23 +58,22 @@ describe('Kanban card tools map to the command layer', () => {
   })
 })
 
-describe('Kanban card tool descriptions', () => {
-  it('say what a card is and that only a person plays, approves or kicks back', async () => {
+describe('external launch discovery contract', () => {
+  it('requires an explicit nonempty array of stable card IDs', async () => {
     await inRig(createCannedApi({}), async (rig) => {
-      const { tools } = await rig.client.listTools()
-      expect(tools).toHaveLength(8)
-      for (const tool of tools) {
-        expect(tool.description).toContain('no prerequisites and nothing depending on it, done in one attempt')
-        expect(tool.description).toContain('Only a person presses Play, approves or kicks back, in the desktop app')
-      }
+      const launch = (await rig.client.listTools()).tools.find((tool) => tool.name === 'launch_kanban_cards')
+      expect(launch?.inputSchema).toMatchObject({
+        type: 'object', required: ['cardIds'], additionalProperties: false,
+        properties: { cardIds: { type: 'array', minItems: 1, items: { type: 'string', pattern: expect.any(String) } } }
+      })
     })
   })
 
-  it('tell the claimer that a claim needs a person\'s Play', async () => {
-    await inRig(createCannedApi({}), async (rig) => {
-      const claim = (await rig.client.listTools()).tools.find((tool) => tool.name === 'claim_kanban_card')
-      expect(claim?.description).toContain("Claim needs a person's Play")
-      expect(claim?.description).toContain('play_required')
+  it.each([{}, { cardIds: [] }, { cardIds: ['not-an-id'] }])('refuses malformed launch input before forwarding: %j', async (input) => {
+    const api = createCannedApi({ launchKanbanCards: MARKER })
+    await inRig(api, async (rig) => {
+      expect((await callTool(rig, 'launch_kanban_cards', input)).payload).toMatchObject({ ok: false, error: { code: 'invalid_input' } })
+      expect(api.calls).toEqual([])
     })
   })
 })

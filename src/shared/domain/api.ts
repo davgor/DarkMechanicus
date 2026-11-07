@@ -313,7 +313,13 @@ export interface ListKanbanCardsInput {
   doneCursor?: string
 }
 
-/** Claims a card a person pressed Play on. */
+/** Queues only explicitly named cards for an external orchestrator; duplicates are ignored. */
+export interface LaunchKanbanCardsInput {
+  /** Nonempty list; use one id for a single-card launch. No implicit launch-all. */
+  cardIds: string[]
+}
+
+/** Claims a card queued by desktop Play or an authorized orchestrator launch. */
 export interface ClaimKanbanCardInput {
   cardId: string
   /** 30 to 86,400 seconds; 900 when omitted. */
@@ -515,6 +521,8 @@ export interface CommandApi {
    * open attempt; pressing it again changes nothing. Human-only.
    */
   playKanbanCard(input: { cardId: string }): Promise<KanbanCardView>
+  /** Atomically queues named playable cards without spawning chats. Orchestrator only; pending retries are no-ops. */
+  launchKanbanCards(input: LaunchKanbanCardsInput): Promise<KanbanCardView[]>
   /**
    * Claims a card with a pending Play (`play_required` without one, `already_claimed` while an attempt is open) and
    * moves it to In progress. The packet's claim token is returned once. Orchestrator only.
