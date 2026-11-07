@@ -8,6 +8,7 @@ import { ChatHeader } from './ChatHeader'
 import { SkitariiMascot } from './SkitariiMascot'
 import { EarlierConversation } from './EarlierConversation'
 import { SignInTerminal } from './SignInTerminal'
+import { PromptComposer } from './PromptComposer'
 import type { TerminalKit } from './terminalView'
 import { useTerminal, type TerminalPhase } from './useTerminal'
 import './chatView.css'
@@ -143,6 +144,7 @@ function PhaseStatus({ phase, notice, startAgain, ...card }: PhaseStatusProps): 
  */
 export function TerminalPane({ folder, chat, agentName, kit, scheduler, onAgentStatus }: TerminalPaneProps): JSX.Element {
   const { host, phase, background, working, title, focus, startAgain } = useTerminal({ folder, chatId: chat.id, agent: chat.agent, kit, scheduler })
+  const [earlierOpen, setEarlierOpen] = useState(false)
   const pill = PHASE_PILLS[phase.state]
   const skitarii = chat.agent === 'omp'
   // The host stays laid out while the attach is answered, so the emulator opens at the pane's real size.
@@ -162,7 +164,7 @@ export function TerminalPane({ folder, chat, agentName, kit, scheduler, onAgentS
           </>
         }
       />
-      <EarlierConversation folder={folder} chat={chat} agentName={agentName} />
+      <EarlierConversation folder={folder} chat={chat} agentName={agentName} open={earlierOpen} onOpenChange={setEarlierOpen} />
       <PhaseStatus phase={phase} chat={chat} agentName={agentName} notice={notice} kit={kit} scheduler={scheduler} onAgentStatus={onAgentStatus} startAgain={startAgain} />
       <div
         className={frameClass(notStarted, skitarii)}
@@ -171,6 +173,7 @@ export function TerminalPane({ folder, chat, agentName, kit, scheduler, onAgentS
       >
         <div ref={host} className="terminal-host" data-testid="terminal-host" />
       </div>
+      {earlierOpen ? null : <PromptComposer key={chat.id} folder={folder} chatId={chat.id} disabled={phase.state !== 'running'} />}
     </section>
   )
 }

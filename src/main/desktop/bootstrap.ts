@@ -216,7 +216,6 @@ const CHAT_GRANT_MINUTES = 12 * 60
 /** The `dm` invocation a chat may make, pinned to its folder. */
 function cliConfigFor(repoPath: string): CliLaunch {
   return buildCliConfig({
-    packaged: app.isPackaged,
     execPath: process.execPath,
     appPath: app.getAppPath(),
     repoPath,

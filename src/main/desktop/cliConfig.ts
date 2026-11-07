@@ -6,9 +6,7 @@
 import { join } from 'node:path'
 
 export interface CliConfigOptions {
-  /** `app.isPackaged`. */
-  packaged: boolean
-  /** `process.execPath`: the app executable, used as the Node runtime when packaged. */
+  /** `process.execPath`: this build's Electron executable, used as the Node runtime. */
   execPath: string
   /** `app.getAppPath()`: the project root in development, `…/resources/app.asar` when packaged. */
   appPath: string
@@ -31,11 +29,10 @@ export interface CliLaunch {
 }
 
 export function buildCliConfig(options: CliConfigOptions): CliLaunch {
-  const command = options.packaged ? options.execPath : 'node'
   const env = {
-    ...(options.packaged ? { ELECTRON_RUN_AS_NODE: '1' } : {}),
+    ELECTRON_RUN_AS_NODE: '1',
     ...(options.dmHome === undefined ? {} : { DARKMECHANICUS_HOME: options.dmHome })
   }
-  return { command, args: [join(options.appPath, 'out', 'main', 'cli.js'), '--repo', options.repoPath], env }
+  return { command: options.execPath, args: [join(options.appPath, 'out', 'main', 'cli.js'), '--repo', options.repoPath], env }
 }
 

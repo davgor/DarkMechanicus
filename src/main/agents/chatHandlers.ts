@@ -19,7 +19,8 @@ import type {
   KickBackKanbanCardResult,
   StartKanbanCardResult,
   StartOrchestratorResult,
-  StartTransferChatResult
+  StartTransferChatResult,
+  SubmitPromptResult
 } from '../../shared/agents/chatApi'
 import { agentIdSchema } from '../../shared/desktop/agentKinds'
 import type { CommandResult } from '../../shared/desktop/api'
@@ -71,6 +72,7 @@ const boundThreadsSchema = z.union([z.strictObject({ folder: folderSchema, attem
 const startKanbanCardSchema = z.strictObject({ folder: folderSchema, cardId: cardIdSchema, agent: agentIdSchema, model: modelSchema.nullable().optional() })
 const kickBackKanbanCardSchema = z.strictObject({ folder: folderSchema, cardId: cardIdSchema, comment: commentBody })
 const renameSchema = z.strictObject({ ...refShape, title: z.string().trim().min(1).max(LIMITS.title) })
+const promptSchema = z.strictObject({ ...refShape, text: z.string().min(1).max(65_536).refine((text) => text.trim().length > 0, 'Prompt must not be blank') })
 
 /** Finds the id of the chat of a (canonical) folder that an attempt or a run is bound to by grant; null when none is. */
 export type BoundTerminalLookup = (folder: string, target: BoundTarget) => Promise<string | null>
@@ -115,6 +117,7 @@ export interface ChatHandlers {
   /** The id of the chat whose terminal the attempt or run is bound to by grant, or null. */
   boundTerminal(request: unknown): Promise<CommandResult<string | null>>
   rename(request: unknown): Promise<CommandResult<ChatRecord>>
+  submitPrompt(request: unknown): Promise<CommandResult<SubmitPromptResult>>
   delete(request: unknown): Promise<CommandResult<null>>
 }
 
@@ -237,6 +240,21 @@ function renameChat(deps: ChatHandlerDeps, input: unknown): ChatRecord {
   return chat
 }
 
+/** Only this explicit submission supplies a question; PTY bytes and automated pastes never name a chat. */
+async function submitPrompt(deps: ChatHandlerDeps, input: unknown): Promise<SubmitPromptResult> {
+  const { ref, request } = chatRequest(deps, promptSchema, input)
+  deps.chats.readChat(ref)
+  const result = await deps.terminals.paste(ref, request.text)
+  if (result.state !== 'running') return { problem: result.message }
+  // Naming is incidental: a title write failure must not turn an already queued prompt into a failed send.
+  try {
+    if (deps.chats.nameFromQuestion(ref, request.text) !== null) chatsChanged(deps, ref)
+  } catch (error) {
+    deps.onUnexpectedError?.(error)
+  }
+  return { problem: null }
+}
+
 async function deleteChat(deps: ChatHandlerDeps, input: unknown): Promise<null> {
   const { ref } = chatRequest(deps, refSchema, input)
   await deps.chats.deleteChat(ref)
@@ -249,6 +267,7 @@ export function createChatHandlers(deps: ChatHandlerDeps): ChatHandlers {
   return {
     list: (folder) => answer(deps, () => chats.listChats(chatFolder(deps, parseInput(folderSchema, folder, 'folder')))),
     create: (input) => answer(deps, () => createChat(deps, input)),
+    submitPrompt: (input) => answer(deps, () => submitPrompt(deps, input)),
     startOrchestrator: (input) => answer(deps, () => startOrchestrator(deps, input)),
     startTransferChat: (input) => answer(deps, () => startTransfer(deps, input)),
     startKanbanCard: (input) => answer(deps, () => startCard(deps, input)),

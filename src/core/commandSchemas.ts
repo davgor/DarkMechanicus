@@ -72,6 +72,7 @@ const kanbanCardFields = {
 export const COMMAND_SCHEMAS = {
   /** `repo`: in a folder of repositories, the repository whose checks these are (required there, refused otherwise). */
   setDefinitionOfDone: z.strictObject({ checks: definitionOfDoneChecks, repo: repositoryName.optional() }),
+  switchStorageMode: z.strictObject({ mode: z.enum(STORAGE_MODES), confirmed: z.literal(true) }),
   initializeRepository: z.strictObject({
     name: z.string().min(1).max(200).optional(),
     keyPrefix: z.string().regex(/^[A-Z][A-Z0-9]{0,11}$/).optional(),
@@ -185,7 +186,7 @@ export const COMMAND_SCHEMAS = {
   }),
   failKanbanCard: z.strictObject({
     attemptId: stableId,
-    claimToken,
+    claimToken: claimToken.optional().describe('Workers must provide the token. An orchestrator may omit a lost token to release and requeue a live claim.'),
     reason: z.string().min(1).max(LIMITS.shortText),
     idempotencyKey
   }),

@@ -58,6 +58,19 @@ describe('Kanban card tools map to the command layer', () => {
   })
 })
 
+describe('lost Kanban claim recovery discovery', () => {
+  it('advertises tokenless release without weakening heartbeat or submission requirements', async () => {
+    await inRig(createCannedApi({}), async (rig) => {
+      const tools = (await rig.client.listTools()).tools
+      const failure = tools.find((tool) => tool.name === 'fail_kanban_card')
+      expect(failure?.inputSchema.required).toEqual(['attemptId', 'reason'])
+      for (const name of ['heartbeat_kanban_card', 'submit_kanban_card']) {
+        expect(tools.find((tool) => tool.name === name)?.inputSchema.required).toContain('claimToken')
+      }
+    })
+  })
+})
+
 describe('external launch discovery contract', () => {
   it('requires an explicit nonempty array of stable card IDs', async () => {
     await inRig(createCannedApi({}), async (rig) => {

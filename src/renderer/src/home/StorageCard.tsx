@@ -4,6 +4,7 @@ import { Button } from '../components/Button'
 import { Icon } from '../components/Icon'
 import { formatShortDate } from '../sidebar/epicStatusLine'
 import { branchWarning, storageFooterLine } from '../sidebar/footerStatus'
+import { StorageModeSwitch } from './StorageModeSwitch'
 
 interface StorageCardProps {
   status: StorageStatusView | null
@@ -208,6 +209,7 @@ export function StorageCard({ status, titles, busy, onFlush, onReconcile, onReso
             : 'Flush writes pending changes to the repository files. Reconcile re-reads them after a pull, clone or branch switch.'}
         </p>
       )}
+      {status === null ? null : <div className="button-row"><StorageModeSwitch key={`${status.repoRoot}:${status.storage.mode}`} status={status} /></div>}
     </section>
   )
 }

@@ -28,6 +28,7 @@ import { resolveLayout } from './repo/layout'
 import { nodeFs } from './repo/nodeFs'
 import type { ProjectRecord } from './repo/portable'
 import { resolveHomeDir, resolveStorageMode, type StorageMode } from './repo/storageMode'
+import { assertStorageMigrationIdle, recoverStorageMigration, switchStorage } from './repo/storageMigration'
 import { pruneStagedAttachments } from './services/attachments'
 import { assertGrantUsable, redeemGrant, type RedeemedGrant } from './services/grants'
 import type { FsAdapter, GitAdapter, RepoLayout } from './repo/types'
@@ -167,6 +168,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
       options.transport === 'stdio'
         ? findRepositoryRoot(options.repoRoot, this.fs, this.homeDir)
         : canonicalRoot(options.repoRoot, this.fs)
+    recoverStorageMigration({ repoRoot: this.repoRoot, homeDir: this.homeDir, fs: this.fs })
     this.layout = this.layoutFor(options.mode ?? this.resolvedMode())
     this.git = options.git ?? createGitAdapter(this.repoRoot, { fs: this.fs })
     this.clock = options.clock ?? createSystemClock()
@@ -262,8 +264,16 @@ export class RepositoryWorkspace implements WorkspaceCore {
     }
   }
 
+  private assertCurrentStorage(): void {
+    assertStorageMigrationIdle({ repoRoot: this.repoRoot, homeDir: this.homeDir, fs: this.fs })
+    if (this.store !== null && this.resolvedMode() !== this.layout.mode) {
+      fail('conflict', 'This folder’s storage mode changed in another session. Close and reconnect this session before continuing.')
+    }
+  }
+
   private requireStore(): Store {
     this.openIfReady()
+    this.assertCurrentStorage()
     if (!this.store) {
       fail('not_initialized', `${this.repoRoot} is not initialized for Dark Mechanicus. Run initialize_repository first.`)
     }
@@ -473,6 +483,20 @@ export class RepositoryWorkspace implements WorkspaceCore {
     }
   }
 
+  async switchStorageMode(mode: StorageMode): Promise<{ mode: StorageMode; projectDir: string; cleanupPending: boolean }> {
+    const store = this.requireStore()
+    return switchStorage({
+      repoRoot: this.repoRoot, homeDir: this.homeDir, fs: this.fs,
+      db: store.db, layout: this.layout, git: this.git, clock: this.clock, sessionId: store.ctx.session.id,
+      detach: () => { store.db.close() },
+      attach: (layout, db) => {
+        this.layout = layout
+        store.db = db
+        store.ctx.db = db
+      }
+    }, mode)
+  }
+
   reconcile(): ReconcileResultView {
     const store = this.requireStore()
     const result = reconcileRepository({
@@ -510,6 +534,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
   }
 
   heartbeat(): void {
+    this.assertCurrentStorage()
     if (!this.store) {
       this.openIfReady()
       return
@@ -547,6 +572,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
     const spec = COMMANDS[name]
     // Untrusted input is validated before anything else, whatever state the repository is in.
     const input = spec.schema ? parseInput(spec.schema, rawInput ?? {}, `${name} input`) : undefined
+    this.assertCurrentStorage()
     if (!spec.beforeInit) {
       this.requireStore()
     }
@@ -566,7 +592,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
     }
     this.store = null
     try {
-      endSession({ db: store.db, clock: this.clock }, store.ctx.session.id)
+      if (this.resolvedMode() === this.layout.mode) endSession({ db: store.db, clock: this.clock }, store.ctx.session.id)
     } finally {
       store.db.close()
     }

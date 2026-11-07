@@ -17,7 +17,7 @@ the Dark Mechanicus workflow against such a checkout should change nothing in it
 
 ## Decision
 
-A repository folder has a **storage mode**, fixed when it is set up:
+A repository folder has a **storage mode**, chosen when it is set up and switchable explicitly from the desktop Storage card:
 
 - **`repo`** (default, unchanged): the records are files in `.darkmechanicus/`, tracked by Git, with
   the working database beside them in the Git-ignored `local/`.
@@ -67,6 +67,63 @@ pauses every active run. A `db` project gets no such pause. The alternative — 
 to keep the pause — would also turn the guard back on and block saves that have no reason to be
 blocked, so the two would have to be split before that is worth doing.
 
+### Switching an existing folder
+
+The Storage card offers a person-confirmed switch in either direction. The dialog names the
+source it will delete, explains that existing `.mcp.json` and installed skills remain, and never
+suggests that removing checkout files removes previously committed Git history. This destructive
+action is desktop-only (`repo.switch_storage`); agents do not receive a migration MCP tool.
+
+Before switching, finish or cancel every active run, resolve claimed or uncertain attempts, flush
+pending exports, resolve record conflicts, and close other connected sessions. Moving from `repo`
+to `db` also requires a clean `.darkmechanicus/` Git status; an unavailable Git status is a refusal.
+Folders of repositories remain database-only.
+The source, destination, staging/retired directories and recovery journal must be disjoint after
+resolving existing ancestors. A home directory beneath a store (including a junction or symlink
+alias into `.darkmechanicus/local/`) is refused before any migration files are created.
+
+The destination is built in a sibling staging directory. A complete, schema-checked JSON checkpoint
+is written under its ignored `local/`, including unsaved drafts, terminal attempt/history rows,
+images, and machine-private session/grant data. A new database is rebuilt from that checkpoint,
+then checked for SQLite integrity, foreign keys, and equality of every checkpointed row. Standard
+portable serializers (not a second portable format) export saved plans/snapshots, comments,
+profiles, Kanban records/events, run histories and owned images for `db` to `repo`. For the reverse
+direction, the existing canonical JSON importer also reads the repository records into the staged
+database before verification completes, so a stale cache or checkpoint cannot override later
+canonical edits. Images held only as files are hydrated into the destination database before purge.
+The fully imported destination is checked again for active runs, claimed attempts and queued work
+before cutover, not merely the possibly stale source cache.
+
+The private checkpoint is not read by ordinary workspace opens or reconciliation. It is never
+Git-tracked: unsaved drafts, credentials and other machine-local history retain the same
+machine-local semantics they have in ordinary repo mode. Rebuilding a cache from tracked records
+alone does not restore that ignored state; the switch itself preserves it on this machine.
+
+Only after verification are the destination files published. For `repo` to `db`, publishing the
+new machine-local project directory is the atomic commit point; cleanup then removes the entire
+checkout `.darkmechanicus/` (including `local/`) and the exact DM local-database ignore entry, if
+present in the root `.gitignore`. For `db` to `repo`, the original machine-local directory is
+atomically renamed out of mode resolution only after the repository export is published; that
+rename is the commit point, and its retired directory is then removed.
+Private `local/` files are removed before either the inner or root Git ignore rule is deleted.
+An interrupted private purge therefore leaves its credentials and checkpoint ignored. Root-ignore
+rewrites use uniquely named, exclusively created temporary descriptors and revalidate the file
+before publication; a pre-existing temporary link can never be followed or truncated.
+
+A machine-local migration journal records the source mode and owner process. Its complete JSON is
+written and synced to an exclusive temporary file before an atomic, no-replace hard link publishes
+the authoritative journal and claims ownership. A write failure cannot expose a partial journal;
+failed writes remove their temporary file, and later opens remove orphan preparations of dead
+processes. The home filesystem must support local hard links; publication failure safely leaves
+the source unchanged.
+Before the commit point, errors or process interruption leave the original authoritative store
+and mode intact; the next open discards staging/uncommitted exports. After the commit point, the
+verified destination is authoritative and the next open finishes any interrupted purge. A cleanup
+failure is reported as a committed switch with cleanup pending, never by deleting the verified
+destination or pretending that the old mode still applies. Old open sessions are fenced when the
+resolved mode changes and must reconnect before reading or writing again.
+
+
 ## Consequences
 
 - A `db` project is machine-local. It does not travel with the repository, a clone sees none of it,
@@ -78,7 +135,7 @@ blocked, so the two would have to be split before that is worth doing.
   repository. It is configuration, not a ticket, and keeping it a file keeps it readable and
   hand-editable, and keeps `readProject`, the Definition of Done writer and initialization working
   unchanged.
-- Converting a folder between modes is not implemented. It would be an explicit migration command.
+- Switching modes preserves the complete machine-local project while retaining the existing portable-record boundary; it never commits, rewrites Git history, or removes agent configuration and skills.
 
 ## Known limitations
 

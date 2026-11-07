@@ -346,7 +346,8 @@ export interface SubmitKanbanCardInput {
 
 export interface FailKanbanCardInput {
   attemptId: string
-  claimToken: string
+  /** Workers must provide it; an orchestrator may omit a lost token to release and requeue a live claim. */
+  claimToken?: string
   reason: string
   idempotencyKey?: string
 }
@@ -389,6 +390,8 @@ export interface CommandApi {
    */
   rescanRepositories(): Promise<RepositoryView[]>
   getStorageStatus(): Promise<StorageStatusView>
+  /** Person-confirmed desktop-only migration; never exposed as an agent MCP tool. */
+  switchStorageMode(input: { mode: 'repo' | 'db'; confirmed: true }): Promise<{ mode: 'repo' | 'db'; projectDir: string; cleanupPending: boolean }>
   flushPortableState(): Promise<FlushResultView>
   reconcileRepository(): Promise<ReconcileResultView>
   /**
@@ -531,7 +534,7 @@ export interface CommandApi {
   heartbeatKanbanCard(input: HeartbeatKanbanCardInput): Promise<KanbanAttemptView>
   /** Moves the card to Ready for review. */
   submitKanbanCard(input: SubmitKanbanCardInput): Promise<KanbanAttemptView>
-  /** The attempt fails and the card stays In progress, where a person can press Play again. */
+  /** Fails the attempt. An orchestrator's tokenless recovery requeues it; normal failure needs Play or launch again. */
   failKanbanCard(input: FailKanbanCardInput): Promise<KanbanAttemptView>
   /** Moves a card in Ready for review to Done with its compact summary. Human-only. */
   approveKanbanCard(input: { cardId: string; idempotencyKey?: string }): Promise<KanbanCardView>

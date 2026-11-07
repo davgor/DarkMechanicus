@@ -16,9 +16,11 @@ An agent helps you shape an epic, decomposes it into tickets with acceptance cri
 ## Using it
 
 1. **Track a folder** — press **+** in the sidebar and choose **Add existing folder…** to pick a repository, or **Clone repository…** to clone one (see [Source control](#source-control)). Each tracked folder expands into its **In progress** and **Backlog** epics, its **Kanban** board (with a count of open cards), its **Completed** epics, and its **Agents** chats.
+   The Kanban count includes Backlog, In progress and Ready for review only. Approving or deleting a card updates it immediately; completed cards stay available in the paged Done lane without increasing the open count.
 2. **Initialize** — a new folder shows the setup screen, where you choose where its plans and history are stored:
    - **In this repository** (default) — initializing creates `.darkmechanicus/` (Git-tracked plans and history, plus a Git-ignored `local/` working database), so the plan travels with the code. Nothing is committed for you.
    - **Database only** — nothing at all is written into the repository: no `.darkmechanicus/`, no `.mcp.json`, no skills. Epics, tickets, plan revisions, run history and comments live in one machine-local database under `~/.darkmechanicus/projects/`, for a checkout whose history should not carry planning data. It stays on this machine, a clone sees none of it, and moving or renaming the folder orphans it — see the limitations in [`docs/decisions/0002-storage-modes.md`](docs/decisions/0002-storage-modes.md).
+   - **Change it later** — the folder’s **Storage** card offers a confirmed switch in either direction. It verifies the destination before deleting the old store. Finish active work and close other sessions first; repository-to-database switching requires committed `.darkmechanicus/` records and deletes that entire directory (including `local/`) and DM’s ignore entry. `.mcp.json`, installed skills and past Git history are left alone. [Migration and interruption safety](docs/decisions/0002-storage-modes.md#switching-an-existing-folder).
 3. **Or drive it from a terminal** — `node out/main/cli.js --list` runs any command and prints JSON, with nothing configured in the agent's host (useful where an enterprise MCP policy blocks server registration). A `dm` session reads only until you issue it a role from the folder's **Agent access** card; see [Use the `dm` CLI](docs/runbooks/cli.md).
 4. **Connect an agent host** — copy the MCP snippet from the setup screen into your agent host. The server runs headless: agents can plan and execute with the desktop closed. `--allow-save` lets an agent save plans; without it, you save in the app. Connect the agent session you work with as `orchestrator`: that role includes everything a planner can do, so the same session plans epics and runs them (see [the working model](docs/runbooks/mcp-setup.md#working-model-your-session-is-the-orchestrator)).
 5. **Add an agent** — to work with an agent inside the app instead, press **+** next to **AGENTS** in the sidebar. **Find** a Skitarii (OMP, `omp`), Claude Code, Codex, Cursor or Autonomous (`a8s`) CLI that is already installed, **Download** one of the first three from its official source after a confirmation, or **Add a custom CLI**: any agent program and its arguments, run in a chat's terminal (you confirm its exact command first). Then **Sign in** with the CLI's own login (the app never sees a password). Open a chat from a folder's **Agents** group; it runs in that folder and its edits and commands wait for your approval in the chat. A folder's page can set its **Default agent**. Connecting, custom CLIs, sign-in prompts, approvals and troubleshooting are in [the agents runbook](docs/runbooks/agents.md).
@@ -96,14 +98,16 @@ npm run spike:claims # multi-process competing-claim stress proof
 
 ## CI
 
-`.github/workflows/pr-checks.yml` (**CI Checks**) runs on every PR targeting `main` and on every push to `main`:
+`.github/workflows/pr-checks.yml` (**CI Checks**) runs on every PR targeting `main` or `feature/**` and on every push to `main`:
 
-- `test` — `npm test` (app Vitest + fireguard's own suite)
-- `fireguard` — grades **new** Vitest unit tests vs `main` (AST + 100× flake + mutation); letter **F** fails the job; posts/updates a sticky PR comment with the grade
+- `test-shards` — four parallel Windows jobs: two native Vitest shards for app/scripts, two for Fireguard's own suite; each caps Vitest at two workers and uploads a JSON file inventory. The required `test` aggregate fails unless every shard succeeds.
+- `fireguard-shards` — two parallel Ubuntu jobs grade disjoint flake runs (50 each of the configured 100) and changed production-module partitions, using one pinned HEAD/base. The required `fireguard` aggregate validates every report, sums raw mutation counts before grading, and alone posts/updates the sticky PR comment. Missing/failed shards and tool errors fail the check. See [shard reproduction](fireguard/README.md#ci-sharding).
 - `lint` — `npm run lint`
 - `build` — `npm run typecheck` && `npm run build`
 
 Treat `test`, `fireguard`, `lint`, and `build` as **required status checks** in branch protection / rulesets for `main`.
+
+CI does not collect coverage or enforce coverage thresholds. `npm run coverage` remains an opt-in local command with its existing thresholds. To reproduce a test shard locally, run `node node_modules/vitest/vitest.mjs run --config vitest.config.ts --shard 1/2 --maxWorkers 2`; repeat with `2/2` and with `--config fireguard/vitest.config.ts`. These four invocations collectively replace `npm test` in CI, not four copies of the full suite.
 
 Also mirrored:
 

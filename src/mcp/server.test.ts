@@ -124,6 +124,7 @@ const HUMAN_ONLY: CommandName[] = [
   'cancelTransfer',
   // Which side of an epic records conflict survives drops the other side's changes: the person's call.
   'resolveEpicConflict',
+  'switchStorageMode',
   // Only a person starts a Kanban card, and only a person approves or kicks one back.
   'playKanbanCard',
   'approveKanbanCard',
@@ -174,7 +175,7 @@ describe('tool inventory', () => {
     await withRig(build, createStubApi(), async (rig) => {
       const { tools } = await rig.client.listTools()
       const names = tools.map((tool) => tool.name)
-      const forbidden = ['queue_run', 'approve_checkpoint', 'approve_and_advance', 'authorize_auto_continue', 'grant_retry', 'backup_database', 'delete_epic', 'delete_ticket']
+      const forbidden = ['queue_run', 'approve_checkpoint', 'approve_and_advance', 'authorize_auto_continue', 'grant_retry', 'backup_database', 'delete_epic', 'delete_ticket', 'switch_storage_mode']
       for (const name of forbidden) {
         expect(names).not.toContain(name)
       }

@@ -154,6 +154,70 @@ describe('kanban card lifecycle commands', () => {
   })
 })
 
+describe('lost Kanban claim response recovery', () => {
+  it('replays the claim without its secret, releases it and reclaims without another Play', async () => {
+    const orchestrator = harness.open('orchestrator')
+    const card = await desktop.createKanbanCard({ title: 'Recover a lost response' })
+    await desktop.playKanbanCard({ cardId: card.id })
+    const request = { cardId: card.id, idempotencyKey: 'lost-claim' }
+    const first = await orchestrator.claimKanbanCard(request)
+    const replay = await orchestrator.claimKanbanCard(request)
+    expect(replay).toEqual({ ...first, claimToken: null })
+    expect((await desktop.getKanbanCard({ cardId: card.id })).attempts).toHaveLength(1)
+
+    const release = orchestrator.failKanbanCard
+    const failure = { attemptId: replay.attemptId, reason: 'Claim response was lost', idempotencyKey: 'release-lost-claim' }
+    await expect(release(failure)).resolves.toMatchObject({ id: first.attemptId, state: 'failed', leaseExpiresAt: null })
+    expect(await desktop.getKanbanCard({ cardId: card.id })).toMatchObject({ playPending: true, openAttempt: null })
+
+    const next = await orchestrator.claimKanbanCard({ cardId: card.id, idempotencyKey: 'replacement-claim' })
+    expect(next.attemptId).not.toBe(first.attemptId)
+    expect(next.claimToken).toBeTypeOf('string')
+    expect(next.claimToken).not.toBe(first.claimToken)
+    await release(failure)
+    expect(await desktop.getKanbanCard({ cardId: card.id })).toMatchObject({
+      lane: 'in_progress', playPending: false, openAttempt: { number: 2, state: 'claimed' }
+    })
+    for (const report of [
+      () => orchestrator.heartbeatKanbanCard({ attemptId: first.attemptId, claimToken: first.claimToken ?? '' }),
+      () => orchestrator.submitKanbanCard({ attemptId: first.attemptId, claimToken: first.claimToken ?? '', outputs: { summary: 'Late' } }),
+      () => orchestrator.failKanbanCard({ attemptId: first.attemptId, claimToken: first.claimToken ?? '', reason: 'Late' }),
+      () => release({ attemptId: first.attemptId, reason: 'Late tokenless release' })
+    ]) {
+      expect((await failureOf(report())).code).toBe('stale_claim')
+    }
+    expect((await desktop.getKanbanCard({ cardId: card.id })).attempts.map(({ state }) => state)).toEqual(['failed', 'claimed'])
+  })
+})
+
+describe('lost Kanban claim recovery authority', () => {
+  it('requires orchestrator authority for tokenless release, while a worker still proves its token', async () => {
+    const { packet, claimToken } = await claimed()
+    for (const role of ['worker', 'reviewer', 'planner', 'reader', 'desktop'] as const) {
+      const release = harness.open(role).failKanbanCard
+      expect((await failureOf(release({ attemptId: packet.attemptId, reason: 'Not authorized' }))).code).toBe('unauthorized')
+    }
+    expect(await desktop.getKanbanCard({ cardId: packet.cardId })).toMatchObject({ playPending: false, openAttempt: { state: 'claimed' } })
+    await harness.open('worker').failKanbanCard({ attemptId: packet.attemptId, claimToken, reason: 'Cannot finish' })
+    expect(await desktop.getKanbanCard({ cardId: packet.cardId })).toMatchObject({ playPending: false, openAttempt: null })
+  })
+
+  it('does not tokenlessly release expired or submitted work or bypass a supplied invalid token', async () => {
+    const orchestrator = harness.open('orchestrator')
+    const release = orchestrator.failKanbanCard
+    const expired = await claimed(30)
+    harness.clock.advanceSeconds(31)
+    expect((await failureOf(release({ attemptId: expired.packet.attemptId, reason: 'Too late' }))).code).toBe('expired_claim')
+
+    const { packet, claimToken } = await claimed()
+    expect((await failureOf(release({ attemptId: packet.attemptId, claimToken: `${packet.attemptId}.wrong`, reason: 'Bad token' }))).code)
+      .toBe('stale_claim')
+    await orchestrator.submitKanbanCard({ attemptId: packet.attemptId, claimToken, outputs: { summary: 'Ready for human review' } })
+    expect((await failureOf(release({ attemptId: packet.attemptId, reason: 'Cannot withdraw review' }))).code).toBe('stale_claim')
+    expect(await desktop.getKanbanCard({ cardId: packet.cardId })).toMatchObject({ lane: 'ready_for_review', playPending: false })
+  })
+})
+
 describe('kanban card lifecycle authority and leases', () => {
   it('refuses Play, approve and kick back to agent sessions, and the claim and every report to the desktop', async () => {
     const { packet, claimToken } = await claimed()

@@ -122,6 +122,17 @@ const repositoryCommands = {
       return core.initialize(input)
     }
   },
+  switchStorageMode: {
+    schema: COMMAND_SCHEMAS.switchStorageMode,
+    mutates: true,
+    run: (core, input) => {
+      requireCapability(core.ctx().session, 'repo.switch_storage')
+      if (core.role !== 'desktop' || core.transport !== 'desktop') {
+        fail('unauthorized', 'Only a person in the desktop app may confirm a storage switch.')
+      }
+      return core.switchStorageMode(input.mode)
+    }
+  },
   getStorageStatus: {
     mutates: false,
     beforeInit: true,

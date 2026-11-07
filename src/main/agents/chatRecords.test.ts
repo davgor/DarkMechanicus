@@ -105,6 +105,62 @@ describe('chat records: creating, listing and renaming', () => {
   })
 })
 
+describe('chat records: first submitted question title', () => {
+  it('names once from a real question, normalizes whitespace and persists across restart', () => {
+    const before = rig()
+    const chat = before.records.createChat({ folder: REPO, agent: 'omp', role: 'planner' })
+    const named = before.records.nameFromQuestion(chat, '  Why does\n the build fail?  ')
+
+    expect(named?.title).toBe('Why does the build fail?')
+    expect(before.records.nameFromQuestion(chat, 'A later question')).toBeNull()
+    expect(rig(before.fs).records.readChat(chat).chat.title).toBe('Why does the build fail?')
+  })
+
+  it('ignores blank questions without consuming eligibility, and bounds long titles at a word', () => {
+    const { records } = rig()
+    const chat = records.createChat({ folder: REPO, agent: 'omp', role: 'planner' })
+    expect(records.nameFromQuestion(chat, ' \n\t ')).toBeNull()
+    const question = 'Explain how to fix the application build without changing any of the existing security boundaries or dependencies'
+    const title = records.nameFromQuestion(chat, question)?.title
+    expect(title).toBe('Explain how to fix the application build without changing any…')
+    expect(title?.length).toBeLessThanOrEqual(64)
+  })
+
+  it('persists a bounded Unicode title without cutting an emoji surrogate pair at the limit', () => {
+    const before = rig()
+    const chat = before.records.createChat({ folder: REPO, agent: 'omp', role: 'planner' })
+    const question = `${'界'.repeat(62)}${String.fromCodePoint(0x1f680)}続き`
+    const title = before.records.nameFromQuestion(chat, question)?.title
+
+    expect(title).toBe(`${'界'.repeat(62)}…`)
+    expect(title?.length).toBeLessThanOrEqual(64)
+    expect(rig(before.fs).records.readChat(chat).chat.title).toBe(title)
+  })
+
+  it('preserves creation titles, including an explicitly supplied generic title and run/Kanban titles', () => {
+    const { records } = rig()
+    for (const fields of [{ title: 'New chat' }, { title: 'My investigation' }, { title: 'Run: deployment', runId: RUN_ID }, { title: 'DM-504: Naming', cardId: 'kc_1' }]) {
+      const chat = records.createChat({ folder: REPO, agent: 'omp', role: 'planner', ...fields })
+      expect(records.nameFromQuestion(chat, 'Replace this title?')).toBeNull()
+      expect(records.readChat(chat).chat.title).toBe(fields.title)
+    }
+  })
+
+  it('checks current persisted eligibility, so manual titles win before or after automatic naming', () => {
+    const { records } = rig()
+    const chat = records.createChat({ folder: REPO, agent: 'omp', role: 'planner' })
+    records.renameChat(chat, 'New chat')
+    expect(records.nameFromQuestion(chat, 'Delayed automatic question')).toBeNull()
+    expect(records.readChat(chat).chat.title).toBe('New chat')
+
+    const other = records.createChat({ folder: REPO, agent: 'omp', role: 'planner' })
+    records.nameFromQuestion(other, 'Automatic question')
+    records.renameChat(other, 'My title')
+    expect(records.nameFromQuestion(other, 'Another delayed question')).toBeNull()
+    expect(records.readChat(other).chat.title).toBe('My title')
+  })
+})
+
 describe('chat records: deleting a chat', () => {
   it('removes the chat, its transcript and its old bindings, and leaves its sibling alone', async () => {
     const fs = memoryChatFs()
