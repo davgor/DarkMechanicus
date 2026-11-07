@@ -68,6 +68,13 @@ interface HarnessEnv {
 /** The real filesystem without fsync: writes, renames and reads behave as in production. */
 const UNSYNCED_FS: FsAdapter = { ...nodeFs, fsyncFile: () => undefined }
 
+/**
+ * Storage options for any test that opens a workspace itself instead of through the harness: the real filesystem without
+ * fsync, and the database with synchronous off. Test folders are thrown away, and a forced sync per write made those
+ * tests take seconds on a Windows CI runner.
+ */
+export const TEST_STORAGE: Pick<OpenWorkspaceOptions, 'fs' | 'databaseSynchronous'> = { fs: UNSYNCED_FS, databaseSynchronous: 'off' }
+
 function openOptions(env: HarnessEnv, role: SessionRole, options: OpenOptions): OpenWorkspaceOptions {
   return {
     repoRoot: options.root ?? env.root,
@@ -84,8 +91,8 @@ function openOptions(env: HarnessEnv, role: SessionRole, options: OpenOptions): 
     // Harness folders are thrown away, so nothing here needs to reach the disk before a call returns. Forcing it (a
     // file fsync per tracked write, a WAL sync per commit) made a workspace test take seconds on a Windows CI runner
     // instead of milliseconds. Durability has its own tests: database.test.ts, nodeFs.test.ts and finalizer.test.ts.
-    fs: options.fs ?? UNSYNCED_FS,
-    databaseSynchronous: 'off',
+    ...TEST_STORAGE,
+    ...(options.fs ? { fs: options.fs } : {}),
     ...(options.autoReconcile === undefined ? {} : { autoReconcile: options.autoReconcile }),
     serverInfo: { name: 'darkmechanicus-test', version: '0.0.0-test' }
   }
