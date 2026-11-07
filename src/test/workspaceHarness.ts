@@ -2,6 +2,7 @@
 import { cpSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { nodeFs } from '../core/repo/nodeFs'
 import type { FsAdapter, GitAdapter, GitHead } from '../core/repo/types'
 import { openWorkspace, type OpenWorkspaceOptions, type Workspace } from '../core/workspace'
 import type { SessionRole } from '../shared/domain/views'
@@ -64,6 +65,9 @@ interface HarnessEnv {
   git: FakeGit
 }
 
+/** The real filesystem without fsync: writes, renames and reads behave as in production. */
+const UNSYNCED_FS: FsAdapter = { ...nodeFs, fsyncFile: () => undefined }
+
 function openOptions(env: HarnessEnv, role: SessionRole, options: OpenOptions): OpenWorkspaceOptions {
   return {
     repoRoot: options.root ?? env.root,
@@ -77,7 +81,11 @@ function openOptions(env: HarnessEnv, role: SessionRole, options: OpenOptions): 
     clock: env.clock,
     ids: env.ids,
     git: options.git ?? env.git,
-    ...(options.fs ? { fs: options.fs } : {}),
+    // Harness folders are thrown away, so nothing here needs to reach the disk before a call returns. Forcing it (a
+    // file fsync per tracked write, a WAL sync per commit) made a workspace test take seconds on a Windows CI runner
+    // instead of milliseconds. Durability has its own tests: database.test.ts, nodeFs.test.ts and finalizer.test.ts.
+    fs: options.fs ?? UNSYNCED_FS,
+    databaseSynchronous: 'off',
     ...(options.autoReconcile === undefined ? {} : { autoReconcile: options.autoReconcile }),
     serverInfo: { name: 'darkmechanicus-test', version: '0.0.0-test' }
   }

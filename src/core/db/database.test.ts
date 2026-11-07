@@ -140,6 +140,13 @@ describe('openDatabase pragmas', () => {
     expect(db.get<{ synchronous: number }>('PRAGMA synchronous')?.synchronous).toBe(2)
   })
 
+  it('turns synchronous off only when asked, and keeps WAL either way', () => {
+    const off = open(tempDbPath(), { synchronous: 'off' })
+    expect(off.get<{ synchronous: number }>('PRAGMA synchronous')?.synchronous).toBe(0)
+    expect(off.get<{ journal_mode: string }>('PRAGMA journal_mode')?.journal_mode).toBe('wal')
+    expect(open(tempDbPath(), { synchronous: 'full' }).get<{ synchronous: number }>('PRAGMA synchronous')?.synchronous).toBe(2)
+  })
+
   it('uses a custom busy timeout, flooring fractions and clamping negatives to zero', () => {
     const timeout = (options: OpenDatabaseOptions): number | undefined =>
       open(':memory:', options).get<{ timeout: number }>('PRAGMA busy_timeout')?.timeout

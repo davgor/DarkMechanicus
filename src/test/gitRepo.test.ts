@@ -1,6 +1,6 @@
 import { execFileSync, type ExecFileSyncOptionsWithStringEncoding } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createGitRepo, type GitRepo } from './gitRepo'
 import { createTempRepo, type TempRepo } from './tempRepo'
 import { thrownBy } from './thrownBy'
@@ -163,6 +163,24 @@ describe('createGitRepo: any other git failure', () => {
 
     expect(thrownBy(() => repo.commit('second'))).toBe(failure)
     expect(seen.warnings).toEqual([])
+  })
+})
+
+describe('createGitRepo: a slow git command', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('is reported with its arguments and duration, and a fast one is not', () => {
+    const seen = observed()
+    const repo = track(createGitRepo({ ...seen.deps }))
+    expect(seen.warnings).toEqual([])
+    // The clock reads 0 when git starts and 2,500 ms when it returns, as on a stalled runner.
+    vi.spyOn(performance, 'now').mockReturnValueOnce(0).mockReturnValueOnce(2_500)
+
+    repo.git('status', '--porcelain')
+
+    expect(seen.warnings).toEqual(['slow git: git status --porcelain took 2500 ms'])
   })
 })
 
