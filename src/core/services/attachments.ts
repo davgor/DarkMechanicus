@@ -246,6 +246,33 @@ export function listAttachmentRefs(db: Db, owner: AttachmentOwner): AttachmentRe
 }
 
 /**
+ * Marks each reference whose bytes this database does not hold (no row, or a row with NULL data) with `missing: true`,
+ * for read views only; present images come back unchanged, without the key. One query for the whole list.
+ */
+export function flagMissingAttachments(db: Db, refs: readonly AttachmentRef[]): AttachmentRef[] {
+  if (refs.length === 0) {
+    return [...refs]
+  }
+  const present = new Set(
+    db
+      .all<{ id: string }>(
+        `SELECT id FROM attachments WHERE data IS NOT NULL AND id IN (${refs.map(() => '?').join(',')})`,
+        ...refs.map((ref) => ref.id)
+      )
+      .map((row) => row.id)
+  )
+  return refs.map((ref) => (present.has(ref.id) ? ref : { ...ref, missing: true }))
+}
+
+/** The evidence with its images flagged by flagMissingAttachments; unchanged when null or when it names no images. */
+export function flagMissingEvidence<E extends { attachments?: AttachmentRef[] }>(db: Db, evidence: E | null): E | null {
+  if (evidence === null || evidence.attachments === undefined) {
+    return evidence
+  }
+  return { ...evidence, attachments: flagMissingAttachments(db, evidence.attachments) }
+}
+
+/**
  * Claims the images a submission's evidence names, for `owner`, inside the caller's transaction, and returns the evidence
  * with their references in place of the ids. Evidence that names no images keeps its shape: no `attachments` key.
  */

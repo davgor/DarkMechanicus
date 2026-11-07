@@ -1099,10 +1099,12 @@ export interface AttachmentRef {
   height: number
   label: string
   purpose: AttachmentPurpose
+  /** Set only by read views when this database holds no bytes for the image; never stored or hashed. */
+  missing?: true
 }
 
 /** One stored image. `owner` is null while the image is staged, waiting for a record to claim it. */
-export interface AttachmentView extends AttachmentRef {
+export interface AttachmentView extends Omit<AttachmentRef, 'missing'> {
   owner: AttachmentOwner | null
   /** True when a repository import could not find the file that holds the bytes. */
   missing: boolean

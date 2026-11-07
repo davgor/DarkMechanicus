@@ -295,6 +295,22 @@ describe('enqueueUnexportedComments', () => {
   })
 })
 
+describe('listComments missing images', () => {
+  const stage = (ctx: TestCtx, seed: number): string =>
+    createStagedAttachment(ctx, { bytes: pngBytes(40, 30, seed), label: 'shot', purpose: 'reference' }).id
+
+  it('list_comments flags an image whose bytes are not stored, and leaves the stored one without the key', () => {
+    const { ctx, epicId, alpha } = planned()
+    const ids = [stage(ctx, 1), stage(ctx, 2)].sort()
+    addComment(ctx, { epicId, ticketId: alpha, body: 'See these', attachments: ids })
+    ctx.db.run('UPDATE attachments SET data = NULL, missing = 1 WHERE id = ?', ids[0])
+    const attachments = listComments(ctx, { epicId, ticketId: alpha })[0]?.attachments
+    expect(attachments?.map((ref) => ref.id)).toEqual(ids)
+    expect(attachments?.[0]?.missing).toBe(true)
+    expect(attachments?.[1]).not.toHaveProperty('missing')
+  })
+})
+
 describe('addComment attachments', () => {
   const stage = (ctx: TestCtx, purpose: 'evidence' | 'reference' = 'reference'): string =>
     createStagedAttachment(ctx, { bytes: pngBytes(40, 30, purpose === 'reference' ? 1 : 2), label: 'shot', purpose }).id
