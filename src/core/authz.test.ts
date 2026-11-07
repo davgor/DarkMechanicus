@@ -78,6 +78,7 @@ const DESKTOP: Capability[] = [
   'repo.reconcile',
   'repo.backup',
   'repo.resolve_conflict',
+  'repo.switch_storage',
   'epic.create',
   'epic.status',
   'epic.branch',
@@ -164,6 +165,7 @@ describe('capability vocabulary', () => {
         'ticket.delete',
         'transfer.queue',
         'repo.resolve_conflict',
+        'repo.switch_storage',
         'kanban.play',
         'kanban.review',
         'kanban.delete'

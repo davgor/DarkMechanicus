@@ -18,6 +18,7 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   rescanRepositories: 'project.repositories',
   initializeRepository: 'repo.init',
   getStorageStatus: 'read',
+  switchStorageMode: 'repo.switch_storage',
   flushPortableState: 'repo.flush',
   reconcileRepository: 'repo.reconcile',
   resolveEpicConflict: 'repo.resolve_conflict',

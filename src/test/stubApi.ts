@@ -24,6 +24,7 @@ const COMMAND_FLAGS: Record<CommandName, true> = {
   rescanRepositories: true,
   initializeRepository: true,
   getStorageStatus: true,
+  switchStorageMode: true,
   flushPortableState: true,
   reconcileRepository: true,
   resolveEpicConflict: true,

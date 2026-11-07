@@ -299,6 +299,7 @@ const DESKTOP_COMMANDS = [
   'rescanRepositories',
   'initializeRepository',
   'getStorageStatus',
+  'switchStorageMode',
   'flushPortableState',
   'reconcileRepository',
   'resolveEpicConflict',
