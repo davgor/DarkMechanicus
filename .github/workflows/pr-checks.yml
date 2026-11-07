@@ -23,12 +23,12 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Run disjoint Vitest shard
-        run: node node_modules/vitest/vitest.mjs run --config ${{ matrix.config }} --shard ${{ matrix.shard }}/2 --maxWorkers 2 --reporter default --reporter json --outputFile test-shard.json
+        run: node node_modules/vitest/vitest.mjs run --config ${{ matrix.config }} --shard ${{ matrix.shard }}/2 --maxWorkers 2 --reporter default --reporter json --outputFile "${{ github.workspace }}/test-shard.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: test-shard-${{ strategy.job-index }}
-          path: test-shard.json
+          path: ${{ github.workspace }}/test-shard.json
           if-no-files-found: error
 
   test:
