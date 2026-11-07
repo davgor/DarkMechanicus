@@ -32,6 +32,7 @@ async function populated(): Promise<Workspace> {
   await workspace.initializeRepository({ name: 'Migration proof' })
   const epic = await workspace.createEpic({ title: 'Saved history' })
   const draft = await workspace.openDraft({ epicId: epic.id })
+  if (draft.draftRevision === null) throw new Error('Expected the migration fixture to have an open draft')
   await workspace.savePlan({ epicId: epic.id, expectedDraftRevision: draft.draftRevision })
   const image = await workspace.uploadAttachment({ data: pngBytes(2, 3).toString('base64'), label: 'Migration image', purpose: 'reference' })
   await workspace.addComment({ epicId: epic.id, body: 'Keep this comment unchanged.', attachments: [image.id] })

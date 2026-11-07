@@ -30,6 +30,7 @@ async function prepared(): Promise<Workspace> {
   await app.initializeRepository({ name: 'Safety proof' })
   const epic = await app.createEpic({ title: 'Keep the authoritative source' })
   const draft = await app.openDraft({ epicId: epic.id })
+  if (draft.draftRevision === null) throw new Error('Expected the safety fixture to have an open draft')
   await app.savePlan({ epicId: epic.id, expectedDraftRevision: draft.draftRevision })
   return app
 }
