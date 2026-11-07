@@ -81,7 +81,10 @@ function settledItems(items: readonly ChatItem[]): ChatItem[] {
 function questionTitle(question: string): string {
   const text = question.replace(/\s+/gu, ' ').trim()
   if (text.length <= 64) return text
-  const prefix = text.slice(0, 63)
+  let end = 63
+  const last = text.charCodeAt(end - 1)
+  if (last >= 0xd800 && last <= 0xdbff) end -= 1
+  const prefix = text.slice(0, end)
   const boundary = prefix.lastIndexOf(' ')
   return `${boundary > 0 ? prefix.slice(0, boundary) : prefix}…`
 }

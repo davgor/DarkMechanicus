@@ -126,6 +126,17 @@ describe('chat records: first submitted question title', () => {
     expect(title?.length).toBeLessThanOrEqual(64)
   })
 
+  it('persists a bounded Unicode title without cutting an emoji surrogate pair at the limit', () => {
+    const before = rig()
+    const chat = before.records.createChat({ folder: REPO, agent: 'omp', role: 'planner' })
+    const question = `${'界'.repeat(62)}${String.fromCodePoint(0x1f680)}続き`
+    const title = before.records.nameFromQuestion(chat, question)?.title
+
+    expect(title).toBe(`${'界'.repeat(62)}…`)
+    expect(title?.length).toBeLessThanOrEqual(64)
+    expect(rig(before.fs).records.readChat(chat).chat.title).toBe(title)
+  })
+
   it('preserves creation titles, including an explicitly supplied generic title and run/Kanban titles', () => {
     const { records } = rig()
     for (const fields of [{ title: 'New chat' }, { title: 'My investigation' }, { title: 'Run: deployment', runId: RUN_ID }, { title: 'DM-504: Naming', cardId: 'kc_1' }]) {
