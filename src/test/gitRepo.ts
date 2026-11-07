@@ -1,6 +1,6 @@
 /** A real temporary Git repository, for tests that need real history (ancestry, merges, squashes). Not shipped. */
 import { execFileSync, type ExecFileSyncOptionsWithStringEncoding } from 'node:child_process'
-import { appendFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { removeScratch } from './removeScratch'
 import { createTempRepo, type TempRepo } from './tempRepo'
@@ -39,8 +39,17 @@ const CONFIG = [
   '-c',
   'commit.gpgsign=false',
   '-c',
-  'core.autocrlf=false'
+  'core.autocrlf=false',
+  '-c',
+  'maintenance.auto=false'
 ]
+
+/**
+ * Written into each new repository's own config: the identity (see `initRepository`) and no automatic maintenance.
+ * Git otherwise starts a detached `git maintenance run --auto` after every commit, merge, fetch and push, the code
+ * under test's included: one more process each time, and one that can still hold the folder when the test removes it.
+ */
+const REPO_CONFIG = '[user]\n\tname = Test\n\temail = test@example.com\n[maintenance]\n\tauto = false\n'
 
 /** What the helper runs and creates, so a test can make `git init` or the temp folder fail. */
 interface GitRepoDeps {
@@ -112,7 +121,7 @@ function runGit(deps: GitRepoDeps, root: string, args: string[]): string {
 function initRepository(deps: GitRepoDeps, root: string): void {
   runGit(deps, root, ['init', '-q', '-b', 'main'])
   // Written straight into the file: a `git config` process each costs tests that build many repositories.
-  appendFileSync(join(root, '.git', 'config'), '[user]\n\tname = Test\n\temail = test@example.com\n')
+  appendFileSync(join(root, '.git', 'config'), REPO_CONFIG)
 }
 
 /** A temp folder holding a new, empty repository on `main`; each failed attempt's folder is removed. */
@@ -137,6 +146,64 @@ function initFolder(deps: GitRepoDeps): TempRepo {
   }
 }
 
+/** The text of `path` when it is a file, else null. */
+function fileText(path: string): string | null {
+  return existsSync(path) && statSync(path).isFile() ? readFileSync(path, 'utf8').trim() : null
+}
+
+const OID = /^[0-9a-f]{40}([0-9a-f]{24})?$/
+
+/**
+ * The commit HEAD names, read from the repository's files when HEAD is a loose branch ref or a detached commit (one
+ * git process fewer per commit); anything else, such as a packed ref or a worktree's `.git` file, asks git.
+ */
+function headCommit(root: string, git: (...args: string[]) => string): string {
+  const head = fileText(join(root, '.git', 'HEAD')) ?? ''
+  const ref = /^ref: (refs\/heads\/\S+)$/.exec(head)
+  const oid = ref === null ? head : (fileText(join(root, '.git', ref[1] ?? '')) ?? '')
+  return OID.test(oid) ? oid : git('rev-parse', 'HEAD')
+}
+
+/** How many files each repository's `commit` has written, so a copy carries on from its template's count. */
+const counters = new WeakMap<GitRepo, () => number>()
+
+function openRepo(deps: GitRepoDeps, root: string, start: number, cleanup: () => void): GitRepo {
+  let counter = start
+  const git = (...args: string[]): string => runGit(deps, root, args)
+  const commit = (message: string): string => {
+    counter += 1
+    const file = `file-${counter}.txt`
+    writeFileSync(join(root, file), `${message}\n${counter}\n`)
+    git('add', '--', file)
+    git('commit', '-q', '-m', message)
+    return headCommit(root, git)
+  }
+  const repo: GitRepo = {
+    root,
+    git,
+    commit,
+    rev: (ref) => git('rev-parse', '--verify', `${ref}^{commit}`),
+    branch: (name) => {
+      git('checkout', '-q', '-b', name)
+    },
+    switchTo: (name) => {
+      git('checkout', '-q', name)
+    },
+    merge: (name) => {
+      git('merge', '--no-ff', '--no-edit', '-q', name)
+      return headCommit(root, git)
+    },
+    squash: (name, message) => {
+      git('merge', '--squash', '-q', name)
+      git('commit', '-q', '-m', message)
+      return headCommit(root, git)
+    },
+    cleanup
+  }
+  counters.set(repo, () => counter)
+  return repo
+}
+
 /**
  * A repository whose `main` branch holds one initial commit: in a temporary directory of its own, or at `root`
  * (created here, and removed by `cleanup`), e.g. a child of a folder of repositories. A temporary directory and its
@@ -152,37 +219,25 @@ export function createGitRepo(options: { root?: string } & Partial<GitRepoDeps> 
     mkdirSync(root)
     initRepository(deps, root)
   }
-  let counter = 0
-  const git = (...args: string[]): string => runGit(deps, root, args)
-  const commit = (message: string): string => {
-    counter += 1
-    const file = `file-${counter}.txt`
-    writeFileSync(join(root, file), `${message}\n${counter}\n`)
-    git('add', '--', file)
-    git('commit', '-q', '-m', message)
-    return git('rev-parse', 'HEAD')
-  }
-  commit('initial commit')
-  return {
-    root,
-    git,
-    commit,
-    rev: (ref) => git('rev-parse', '--verify', `${ref}^{commit}`),
-    branch: (name) => {
-      git('checkout', '-q', '-b', name)
-    },
-    switchTo: (name) => {
-      git('checkout', '-q', name)
-    },
-    merge: (name) => {
-      git('merge', '--no-ff', '--no-edit', '-q', name)
-      return git('rev-parse', 'HEAD')
-    },
-    squash: (name, message) => {
-      git('merge', '--squash', '-q', name)
-      git('commit', '-q', '-m', message)
-      return git('rev-parse', 'HEAD')
-    },
-    cleanup: temp?.cleanup ?? (() => rmSync(root, { recursive: true, force: true }))
-  }
+  const repo = openRepo(deps, root, 0, temp?.cleanup ?? (() => rmSync(root, { recursive: true, force: true })))
+  repo.commit('initial commit')
+  return repo
+}
+
+/**
+ * A copy of `template` (history, branches, index, working files and any operation in progress), made without a git
+ * process: in a temporary directory of its own, or at `root` (created here, and removed by `cleanup`). Its `commit`
+ * carries on from the template's file count. The template must name no other repository by path (a remote); copy a
+ * folder of repositories with `copyRepositories` instead.
+ */
+export function copyGitRepo(template: GitRepo, options: { root?: string } = {}): GitRepo {
+  const temp = options.root === undefined ? createTempRepo() : null
+  const root = options.root ?? temp?.root ?? ''
+  cpSync(template.root, root, { recursive: true })
+  return openRepo(DEFAULT_DEPS, root, counters.get(template)?.() ?? 0, temp?.cleanup ?? (() => rmSync(root, { recursive: true, force: true })))
+}
+
+/** A repository already on disk at `root`, as `createGitRepo` would give it, whose `commit` has written `files` files. */
+export function openGitRepo(root: string, files: number, cleanup: () => void): GitRepo {
+  return openRepo(DEFAULT_DEPS, root, files, cleanup)
 }

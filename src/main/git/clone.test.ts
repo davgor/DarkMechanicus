@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cloneRig, trackedView, type CloneRig, type CloneRigOptions } from '../../test/cloneRig'
-import { remoteRepos, isolateGitConfig } from '../../test/gitRemotes'
+import { isolateGitConfig, useRemoteRepos } from '../../test/gitRemotes'
 import { gitIn, scratchDir } from '../../test/gitScratch'
 import { linkDirectory } from '../../test/tempRepo'
 import { createCloneParentStore } from './clone'
@@ -12,6 +12,7 @@ import { GitError, GitInputError } from './errors'
 import { createGitRunner, type GitRunner, type GitRunRequest } from './runner'
 
 const cleanups: Array<() => void> = []
+const remotes = useRemoteRepos()
 beforeEach(() => isolateGitConfig(cleanups))
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -78,7 +79,7 @@ describe('the clone parent', () => {
 
 describe('clone from a local bare repository', () => {
   it('clones into <chosen folder>/<name> with progress events, then tracks the new folder and returns it', async () => {
-    const { local, bare } = remoteRepos(cleanups)
+    const { local, bare } = remotes(cleanups)
     const r = rig()
     await r.cloner.chooseParent()
     const target = join(r.parent, 'copy')
@@ -91,7 +92,7 @@ describe('clone from a local bare repository', () => {
   })
 
   it('clones into an empty folder that was already there', async () => {
-    const { bare } = remoteRepos(cleanups)
+    const { bare } = remotes(cleanups)
     const r = rig()
     await r.cloner.chooseParent()
     mkdirSync(join(r.parent, 'empty'))
@@ -160,7 +161,7 @@ describe('a failed clone', () => {
   })
 
   it('removes the folder it created when tracking it fails', async () => {
-    const { bare } = remoteRepos(cleanups)
+    const { bare } = remotes(cleanups)
     const r = rig({
       track: () => {
         throw new Error('disk full')
