@@ -97,14 +97,16 @@ npm run spike:claims # multi-process competing-claim stress proof
 
 ## CI
 
-`.github/workflows/pr-checks.yml` (**CI Checks**) runs on every PR targeting `main` and on every push to `main`:
+`.github/workflows/pr-checks.yml` (**CI Checks**) runs on every PR targeting `main` or `feature/**` and on every push to `main`:
 
-- `test` — `npm test` (app Vitest + fireguard's own suite)
-- `fireguard` — grades **new** Vitest unit tests vs `main` (AST + 100× flake + mutation); letter **F** fails the job; posts/updates a sticky PR comment with the grade
+- `test-shards` — four parallel Windows jobs: two native Vitest shards for app/scripts, two for Fireguard's own suite; each caps Vitest at two workers and uploads a JSON file inventory. The required `test` aggregate fails unless every shard succeeds.
+- `fireguard-shards` — two parallel Ubuntu jobs grade disjoint flake runs (50 each of the configured 100) and changed production-module partitions, using one pinned HEAD/base. The required `fireguard` aggregate validates every report, sums raw mutation counts before grading, and alone posts/updates the sticky PR comment. Missing/failed shards and tool errors fail the check. See [shard reproduction](fireguard/README.md#ci-sharding).
 - `lint` — `npm run lint`
 - `build` — `npm run typecheck` && `npm run build`
 
 Treat `test`, `fireguard`, `lint`, and `build` as **required status checks** in branch protection / rulesets for `main`.
+
+CI does not collect coverage or enforce coverage thresholds. `npm run coverage` remains an opt-in local command with its existing thresholds. To reproduce a test shard locally, run `node node_modules/vitest/vitest.mjs run --config vitest.config.ts --shard 1/2 --maxWorkers 2`; repeat with `2/2` and with `--config fireguard/vitest.config.ts`. These four invocations collectively replace `npm test` in CI, not four copies of the full suite.
 
 Also mirrored:
 
