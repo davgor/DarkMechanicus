@@ -1,11 +1,8 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { once } from 'node:events'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { killProcessTree, startsOwnGroup } from './agents/processTree'
 import { disposeBeforeQuit, type QuitApp } from './quitDisposal'
-
-/** The test below starts and kills real processes, which can stall on Windows when the whole suite is running. */
-vi.setConfig({ testTimeout: 60_000 })
 
 interface FakeApp extends QuitApp {
   /** Emits before-quit; returns whether the quit was prevented. */

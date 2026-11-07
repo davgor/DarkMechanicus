@@ -3,9 +3,10 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RepoState, RepoStatus } from '../../shared/git/status'
-import { createGitRepo, type GitRepo } from '../../test/gitRepo'
-import { bareRepo, isolateGitConfig, remoteRepos, teammatePushes } from '../../test/gitRemotes'
+import { copyGitRepo, createGitRepo, type GitRepo } from '../../test/gitRepo'
+import { bareRepo, isolateGitConfig, teammatePushes, useRemoteRepos } from '../../test/gitRemotes'
 import { gitIn, put, scratchDir } from '../../test/gitScratch'
+import { useTemplate } from '../../test/gitTemplate'
 import { createBranch, deleteBranch, listBranches, mergeIntoCurrent, renameBranch, switchBranch } from './branches'
 import { createGitRunner } from './runner'
 
@@ -13,6 +14,7 @@ const runner = createGitRunner()
 const signedOut = { getAccount: () => null, getToken: () => null }
 const deps = { runner, session: signedOut, env: {} }
 const cleanups: Array<() => void> = []
+const remotes = useRemoteRepos()
 
 beforeEach(() => isolateGitConfig(cleanups))
 
@@ -46,7 +48,7 @@ function localBranches(r: GitRepo): string[] {
 
 describe('listBranches', () => {
   it('lists local and remote branches with upstream, ahead/behind, last commit time, current and default', async () => {
-    const { local, other } = remoteRepos(cleanups)
+    const { local, other } = remotes(cleanups)
     teammatePushes(other, 'team.txt', 2)
     gitIn(other, 'switch', '-q', '-c', 'feature')
     teammatePushes(other, 'feature.txt')
@@ -79,7 +81,7 @@ describe('listBranches', () => {
   })
 
   it('keeps remote names that hold a slash whole', async () => {
-    const { local, bare } = remoteRepos(cleanups)
+    const { local, bare } = remotes(cleanups)
     local.git('remote', 'add', 'team/fork', bare)
     local.git('fetch', '-q', 'team/fork')
     const remote = (await listBranches(runner, local.root)).branches.find((branch) => branch.name === 'team/fork/main')
@@ -107,7 +109,7 @@ describe('createBranch', () => {
   })
 
   it("starts at the remote's default branch when there is no local one", async () => {
-    const { local } = remoteRepos(cleanups)
+    const { local } = remotes(cleanups)
     local.git('remote', 'set-head', 'origin', 'main')
     local.branch('work')
     local.git('branch', '-D', 'main')
@@ -124,9 +126,10 @@ describe('createBranch', () => {
   })
 })
 
-/** `main` and `other`, where `shared.txt` differs. */
-function withOtherBranch(): GitRepo {
-  const r = repo()
+/** `main` and `other`, where `shared.txt` differs: built once for the file, copied for each test. */
+const otherBranchTemplate = useTemplate((templateCleanups) => {
+  const r = createGitRepo()
+  templateCleanups.push(r.cleanup)
   put(r.root, 'shared.txt', 'base\n')
   r.git('add', '.')
   r.git('commit', '-q', '-m', 'shared')
@@ -134,6 +137,12 @@ function withOtherBranch(): GitRepo {
   put(r.root, 'shared.txt', 'other\n')
   r.git('commit', '-q', '-am', 'other')
   r.switchTo('main')
+  return r
+})
+
+function withOtherBranch(): GitRepo {
+  const r = copyGitRepo(otherBranchTemplate())
+  cleanups.push(r.cleanup)
   return r
 }
 
@@ -196,7 +205,7 @@ describe('switchBranch when git refuses after the stash', () => {
 
 describe('switchBranch to a remote branch', () => {
   it('checks out a remote-only branch as a tracking branch, by its own name or its remote name', async () => {
-    const { local, other } = remoteRepos(cleanups)
+    const { local, other } = remotes(cleanups)
     gitIn(other, 'switch', '-q', '-c', 'feature')
     teammatePushes(other, 'feature.txt')
     gitIn(other, 'switch', '-q', '-c', 'second')
@@ -208,8 +217,7 @@ describe('switchBranch to a remote branch', () => {
     expect(second.branch).toMatchObject({ name: 'second', upstream: 'origin/second' })
     statusOf(await switchBranch(runner, local.root, { name: 'origin/feature', uncommitted: 'bring' }))
     expect(local.git('branch', '--show-current')).toBe('feature')
-    // Dozens of git processes: about 4 s alone, but past vitest's 15 s under coverage on a Windows runner.
-  }, 60_000)
+  })
 })
 
 describe('renameBranch', () => {
@@ -245,7 +253,7 @@ describe('deleteBranch', () => {
 
 describe('deleteBranch with its remote branch', () => {
   it("deletes the branch's upstream on its own remote, and refuses one under another name", async () => {
-    const { local, bare } = remoteRepos(cleanups)
+    const { local, bare } = remotes(cleanups)
     const fork = bareRepo(cleanups)
     local.git('remote', 'add', 'fork', fork)
     local.git('push', '-q', 'origin', 'main:feature')
@@ -261,7 +269,7 @@ describe('deleteBranch with its remote branch', () => {
   })
 
   it('keeps everything when the remote branch has work HEAD lacks, unless forced', async () => {
-    const { local, other, bare } = remoteRepos(cleanups)
+    const { local, other, bare } = remotes(cleanups)
     gitIn(other, 'switch', '-q', '-c', 'feature')
     teammatePushes(other, 'feature.txt')
     local.git('fetch', '-q', 'origin')

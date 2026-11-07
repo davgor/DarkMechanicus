@@ -7,9 +7,10 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { RepoStatus } from '../../shared/git/status'
-import { createGitRepo, type GitRepo } from '../../test/gitRepo'
+import { copyGitRepo, createGitRepo, type GitRepo } from '../../test/gitRepo'
 import { isolateGitConfig } from '../../test/gitRemotes'
 import { put, scratchDir } from '../../test/gitScratch'
+import { useTemplate } from '../../test/gitTemplate'
 import { mergeIntoCurrent } from './branches'
 import { abortMerge, abortOperation, commitMerge, getConflicts, resolveWith } from './conflicts'
 import { createGitRunner, type GitRunner } from './runner'
@@ -24,12 +25,6 @@ afterEach(() => {
     cleanups.pop()?.()
   }
 })
-
-function repo(): GitRepo {
-  const r = createGitRepo()
-  cleanups.push(r.cleanup)
-  return r
-}
 
 function commitAll(r: GitRepo, message: string): void {
   r.git('add', '-A')
@@ -51,7 +46,7 @@ function recording(): { runner: GitRunner; calls: string[][] } {
 }
 
 /** `main` with a commit `topic` changes `a.txt` in, and a conflicting change to it on `main`. */
-function divergedOnA(r: GitRepo): void {
+function buildDivergedOnA(r: GitRepo): void {
   put(r.root, 'a.txt', 'base\n')
   commitAll(r, 'base')
   r.branch('topic')
@@ -66,7 +61,7 @@ function divergedOnA(r: GitRepo): void {
  * `topic` merges `side`, both having changed `a.txt`, with the conflict resolved by hand; `main` moved on elsewhere.
  * `git rebase -r main` replays the merge without the hand resolution, so it stops at the merge with MERGE_HEAD set.
  */
-function stoppedRebaseAtMerge(r: GitRepo): string {
+function buildStoppedRebaseAtMerge(r: GitRepo): string {
   put(r.root, 'a.txt', 'base\n')
   commitAll(r, 'base')
   r.branch('side')
@@ -88,10 +83,37 @@ function stoppedRebaseAtMerge(r: GitRepo): string {
   return head
 }
 
+/** Both repositories, and `topic`'s commit as a patch for `git am`, built once for the file; each test copies them. */
+const templates = useTemplate((templateCleanups) => {
+  const diverged = createGitRepo()
+  const stopped = createGitRepo()
+  const patches = scratchDir('dm-am-')
+  templateCleanups.push(diverged.cleanup, stopped.cleanup, patches.cleanup)
+  buildDivergedOnA(diverged)
+  diverged.git('format-patch', '-q', '-o', patches.path, 'main..topic')
+  const stoppedHead = buildStoppedRebaseAtMerge(stopped)
+  return { diverged, stopped, stoppedHead, patch: join(patches.path, '0001-topic-change.patch') }
+})
+
+function copied(template: GitRepo): GitRepo {
+  const r = copyGitRepo(template)
+  cleanups.push(r.cleanup)
+  return r
+}
+
+/** A copy of `buildDivergedOnA`'s repository. */
+function divergedOnA(): GitRepo {
+  return copied(templates().diverged)
+}
+
+/** A copy of `buildStoppedRebaseAtMerge`'s repository, and `topic`'s commit before the rebase. */
+function stoppedRebaseAtMerge(): { r: GitRepo; head: string } {
+  return { r: copied(templates().stopped), head: templates().stoppedHead }
+}
+
 describe('a rebase stopped at a conflicting merge', () => {
   it('is reported as a rebase although MERGE_HEAD exists, and Abort ends the rebase', async () => {
-    const r = repo()
-    const head = stoppedRebaseAtMerge(r)
+    const { r, head } = stoppedRebaseAtMerge()
     expect(existsSync(join(r.root, '.git', 'MERGE_HEAD'))).toBe(true)
     expect(existsSync(join(r.root, '.git', 'rebase-merge'))).toBe(true)
     expect(await statusOf(r.root)).toMatchObject({ inProgress: 'rebase' })
@@ -105,8 +127,7 @@ describe('a rebase stopped at a conflicting merge', () => {
   })
 
   it('reports a stopped apply-backend rebase (rebase-apply without `applying`) as a rebase', async () => {
-    const r = repo()
-    divergedOnA(r)
+    const r = divergedOnA()
     r.switchTo('topic')
     const head = r.rev('HEAD')
     expect(() => r.git('rebase', '--apply', 'main')).toThrow()
@@ -132,60 +153,54 @@ async function resolvedWith(r: GitRepo, button: 'mine' | 'theirs'): Promise<stri
 
 describe('whose side Use mine takes', () => {
   it('at a rebase-merges merge step: the rewritten branch is mine and the merged-in side theirs (no swap)', async () => {
-    const r = repo()
-    stoppedRebaseAtMerge(r)
+    const { r } = stoppedRebaseAtMerge()
     expect(await getConflicts(runner, r.root)).toMatchObject({ mineSide: 'ours' })
     expect(await resolvedWith(r, 'mine')).toBe('topic\n')
-    const other = repo()
-    stoppedRebaseAtMerge(other)
+    const { r: other } = stoppedRebaseAtMerge()
     expect(await resolvedWith(other, 'theirs')).toBe('side\n')
-    // Two repositories each stopped at a real `git rebase -r`: a few seconds alone, past vitest's 15 s on a loaded Windows CI runner.
-  }, 60_000)
+  })
 
   it('while a rebase replays a commit: the replayed commit is mine and the upstream theirs (swapped)', async () => {
-    for (const backend of ['--merge', '--apply']) {
-      for (const button of ['mine', 'theirs'] as const) {
-        const r = repo()
-        divergedOnA(r)
+    const cases = ['--merge', '--apply'].flatMap((backend) => (['mine', 'theirs'] as const).map((button) => ({ backend, button })))
+    // Each case stops a rebase in a repository of its own, so the cases are checked side by side.
+    await Promise.all(
+      cases.map(async ({ backend, button }) => {
+        const r = divergedOnA()
         r.switchTo('topic')
         expect(() => r.git('rebase', backend, 'main')).toThrow()
         expect(await getConflicts(runner, r.root)).toMatchObject({ mineSide: 'theirs' })
         expect(await resolvedWith(r, button)).toBe(button === 'mine' ? 'topic\n' : 'main\n')
-      }
-    }
-    // Several real git rebases: a few seconds alone, but past vitest's 15 s on a loaded Windows CI runner.
-  }, 60_000)
+      })
+    )
+  })
 
   it('in a merge, a cherry-pick and a git am: the current branch is mine', async () => {
-    const merged = repo()
-    divergedOnA(merged)
-    await expect(mergeIntoCurrent(runner, merged.root, { branch: 'topic' })).rejects.toMatchObject({ code: 'merge_conflicts' })
-    expect(await getConflicts(runner, merged.root)).toMatchObject({ mineSide: 'ours' })
-    expect(await resolvedWith(merged, 'mine')).toBe('main\n')
-    const picked = repo()
-    divergedOnA(picked)
-    expect(() => picked.git('cherry-pick', 'topic')).toThrow()
-    expect(await resolvedWith(picked, 'mine')).toBe('main\n')
-    const applied = repo()
-    divergedOnA(applied)
-    const patches = scratchDir('dm-am-')
-    cleanups.push(patches.cleanup)
-    applied.git('format-patch', '-q', '-o', patches.path, 'main..topic')
-    expect(() => applied.git('am', '-3', join(patches.path, '0001-topic-change.patch'))).toThrow()
-    expect(await resolvedWith(applied, 'mine')).toBe('main\n')
-    // Three real-git repositories (a merge, a cherry-pick and a git am): 20 s on PR #16's loaded Windows CI runner, past vitest's 15 s.
-  }, 60_000)
+    // Three repositories of their own, checked side by side.
+    const merging = async (): Promise<void> => {
+      const merged = divergedOnA()
+      await expect(mergeIntoCurrent(runner, merged.root, { branch: 'topic' })).rejects.toMatchObject({ code: 'merge_conflicts' })
+      expect(await getConflicts(runner, merged.root)).toMatchObject({ mineSide: 'ours' })
+      expect(await resolvedWith(merged, 'mine')).toBe('main\n')
+    }
+    const picking = async (): Promise<void> => {
+      const picked = divergedOnA()
+      expect(() => picked.git('cherry-pick', 'topic')).toThrow()
+      expect(await resolvedWith(picked, 'mine')).toBe('main\n')
+    }
+    const applying = async (): Promise<void> => {
+      const applied = divergedOnA()
+      expect(() => applied.git('am', '-3', templates().patch)).toThrow()
+      expect(await resolvedWith(applied, 'mine')).toBe('main\n')
+    }
+    await Promise.all([merging(), picking(), applying()])
+  })
 })
 
 describe('a git am in progress', () => {
   it('is reported as its own kind, and Abort runs `git am --abort`', async () => {
-    const r = repo()
-    divergedOnA(r)
-    const patches = scratchDir('dm-am-')
-    cleanups.push(patches.cleanup)
-    r.git('format-patch', '-q', '-o', patches.path, 'main..topic')
+    const r = divergedOnA()
     const head = r.rev('HEAD')
-    expect(() => r.git('am', '-3', join(patches.path, '0001-topic-change.patch'))).toThrow()
+    expect(() => r.git('am', '-3', templates().patch)).toThrow()
     expect(existsSync(join(r.root, '.git', 'rebase-apply', 'applying'))).toBe(true)
     expect(await statusOf(r.root)).toMatchObject({ inProgress: 'am' })
     await expect(commitMerge(runner, r.root, {})).rejects.toThrow(/No merge is in progress/)
@@ -200,8 +215,7 @@ describe('a git am in progress', () => {
 
 describe('other operations, detected as before', () => {
   it('reports a plain conflicting merge as a merge', async () => {
-    const r = repo()
-    divergedOnA(r)
+    const r = divergedOnA()
     await expect(mergeIntoCurrent(runner, r.root, { branch: 'topic' })).rejects.toMatchObject({ code: 'merge_conflicts' })
     expect(await statusOf(r.root)).toMatchObject({ inProgress: 'merge' })
     await expect(abortOperation(runner, r.root)).rejects.toThrow(/No rebase, cherry-pick or revert/)
@@ -209,8 +223,7 @@ describe('other operations, detected as before', () => {
   })
 
   it('reports a conflicting cherry-pick and revert as such', async () => {
-    const r = repo()
-    divergedOnA(r)
+    const r = divergedOnA()
     expect(() => r.git('cherry-pick', 'topic')).toThrow()
     expect(await statusOf(r.root)).toMatchObject({ inProgress: 'cherry-pick' })
     await abortOperation(runner, r.root)
@@ -222,8 +235,7 @@ describe('other operations, detected as before', () => {
   })
 
   it('reports nothing in progress on a clean repository', async () => {
-    const r = repo()
-    divergedOnA(r)
+    const r = divergedOnA()
     expect(await statusOf(r.root)).toMatchObject({ inProgress: null })
   })
 })

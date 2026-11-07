@@ -2,8 +2,9 @@
 import { chmodSync, existsSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createGitRepo, type GitRepo } from '../../test/gitRepo'
-import { isolateGitConfig, remoteRepos, teammatePushes } from '../../test/gitRemotes'
+import { copyGitRepo, createGitRepo, type GitRepo } from '../../test/gitRepo'
+import { isolateGitConfig, teammatePushes, useRemoteRepos } from '../../test/gitRemotes'
+import { useTemplate } from '../../test/gitTemplate'
 import { put } from '../../test/gitScratch'
 import { mergeIntoCurrent, switchBranch } from './branches'
 import { abortMerge, abortOperation, commitMerge, getConflicts, markResolved, resolveWith } from './conflicts'
@@ -35,10 +36,12 @@ function commitAll(r: GitRepo, message: string): void {
 
 /**
  * `main` merging `topic` with a conflict of each common kind: `both.txt` and `two.txt` (two hunks) both modified,
- * `gone.txt` deleted by them, `mine-gone.txt` deleted by us, and `new.txt` added on both sides.
+ * `gone.txt` deleted by them, `mine-gone.txt` deleted by us, and `new.txt` added on both sides. Built, and the merge
+ * refused, once for the file; each test gets a copy of its own.
  */
-async function conflictedMerge(): Promise<GitRepo> {
-  const r = repo()
+const conflictedTemplate = useTemplate(async (templateCleanups) => {
+  const r = createGitRepo()
+  templateCleanups.push(r.cleanup)
   put(r.root, 'both.txt', 'base\n')
   put(r.root, 'two.txt', 'one\nkeep\nkeep\nkeep\nkeep\ntwo\n')
   put(r.root, 'gone.txt', 'base\n')
@@ -60,13 +63,21 @@ async function conflictedMerge(): Promise<GitRepo> {
   commitAll(r, 'ours')
   await expect(mergeIntoCurrent(runner, r.root, { branch: 'topic' })).rejects.toMatchObject({ code: 'merge_conflicts' })
   return r
+})
+
+const remotes = useRemoteRepos()
+
+function conflictedMerge(): GitRepo {
+  const r = copyGitRepo(conflictedTemplate())
+  cleanups.push(r.cleanup)
+  return r
 }
 
 const read = (r: GitRepo, path: string): string => readFileSync(join(r.root, path), 'utf8')
 
 describe('getConflicts', () => {
   it('lists each conflicted file with its kind and marker count, and names both sides', async () => {
-    const r = await conflictedMerge()
+    const r = conflictedMerge()
     expect(await getConflicts(runner, r.root)).toEqual({
       ourBranch: 'main',
       theirLabel: 'topic', mineSide: 'ours',
@@ -99,7 +110,7 @@ describe('getConflicts', () => {
   })
 
   it('counts markers again as the working file changes, and 0 once the file is gone', async () => {
-    const r = await conflictedMerge()
+    const r = conflictedMerge()
     put(r.root, 'two.txt', 'fixed one\nkeep\n<<<<<<< HEAD\nTWO ours\n=======\nTWO theirs\n>>>>>>> topic\n')
     put(r.root, 'both.txt', '<<<<<<<not a marker\n <<<<<<< indented\n')
     rmSync(join(r.root, 'new.txt'))
@@ -113,7 +124,7 @@ describe('getConflicts', () => {
   })
 
   it('shows the working file, markers and all, as the diff of a conflicted file', async () => {
-    const r = await conflictedMerge()
+    const r = conflictedMerge()
     const diff = await readWorkingDiff(runner, r.root, { path: 'both.txt', oldPath: null, kind: 'conflicted' })
     expect(JSON.stringify(diff)).toContain('<<<<<<< HEAD')
   })
@@ -121,7 +132,7 @@ describe('getConflicts', () => {
 
 describe('resolveWith', () => {
   it('takes our or their version of a file and stages it', async () => {
-    const r = await conflictedMerge()
+    const r = conflictedMerge()
     await resolveWith(runner, r.root, { path: 'both.txt', side: 'ours' })
     await resolveWith(runner, r.root, { path: 'two.txt', side: 'theirs' })
     expect(read(r, 'both.txt')).toBe('ours\n')
@@ -132,7 +143,7 @@ describe('resolveWith', () => {
   })
 
   it('deletes the file when the chosen side deleted it, and keeps it when the other side did', async () => {
-    const r = await conflictedMerge()
+    const r = conflictedMerge()
     await resolveWith(runner, r.root, { path: 'gone.txt', side: 'theirs' })
     await resolveWith(runner, r.root, { path: 'mine-gone.txt', side: 'ours' })
     expect(existsSync(join(r.root, 'gone.txt'))).toBe(false)
@@ -161,7 +172,7 @@ describe('resolveWith', () => {
   })
 
   it('refuses a path that is not conflicted, or leaves the repository', async () => {
-    const r = await conflictedMerge()
+    const r = conflictedMerge()
     await expect(resolveWith(runner, r.root, { path: 'file-1.txt', side: 'ours' })).rejects.toThrow(/not a conflicted file/)
     await expect(resolveWith(runner, r.root, { path: '../both.txt', side: 'ours' })).rejects.toThrow(/stay inside the repository/)
     await expect(resolveWith(runner, r.root, { path: join(r.root, 'both.txt'), side: 'ours' })).rejects.toThrow(/stay inside/)
@@ -172,7 +183,7 @@ describe('resolveWith', () => {
 
 describe('markResolved', () => {
   it('is refused while markers remain, then stages the file', async () => {
-    const r = await conflictedMerge()
+    const r = conflictedMerge()
     await expect(markResolved(runner, r.root, { path: 'both.txt' })).rejects.toMatchObject({ code: 'conflict_markers_remain' })
     expect((await getConflicts(runner, r.root)).files.some((file) => file.path === 'both.txt')).toBe(true)
     put(r.root, 'both.txt', 'both, by hand\n')
@@ -182,7 +193,7 @@ describe('markResolved', () => {
   })
 
   it('stages a deletion when the file is gone', async () => {
-    const r = await conflictedMerge()
+    const r = conflictedMerge()
     rmSync(join(r.root, 'gone.txt'))
     await expect(markResolved(runner, r.root, { path: 'gone.txt' })).resolves.toMatchObject({ kind: 'repository' })
     expect(r.git('ls-files', '--stage', '--', 'gone.txt')).toBe('')
@@ -191,7 +202,7 @@ describe('markResolved', () => {
 
 describe('abortMerge', () => {
   it('puts back the state from before the merge', async () => {
-    const r = await conflictedMerge()
+    const r = conflictedMerge()
     const head = r.rev('HEAD')
     const state = await abortMerge(runner, r.root)
     expect(state).toMatchObject({ kind: 'repository', status: { inProgress: null, files: [] } })
@@ -207,7 +218,7 @@ describe('abortMerge', () => {
 
 describe('commitMerge', () => {
   it('is refused while any file is unresolved', async () => {
-    const r = await conflictedMerge()
+    const r = conflictedMerge()
     await expect(commitMerge(runner, r.root, {})).rejects.toMatchObject({ code: 'merge_conflicts' })
     for (const path of ['both.txt', 'two.txt', 'new.txt', 'gone.txt']) {
       await resolveWith(runner, r.root, { path, side: 'ours' })
@@ -216,7 +227,7 @@ describe('commitMerge', () => {
   })
 
   it("makes the merge commit with git's message once every file is resolved", async () => {
-    const r = await conflictedMerge()
+    const r = conflictedMerge()
     const ours = r.rev('HEAD')
     const theirs = r.rev('topic')
     const kept = ['both.txt', 'two.txt', 'new.txt', 'gone.txt']
@@ -232,7 +243,7 @@ describe('commitMerge', () => {
   })
 
   it('takes a summary and description when given', async () => {
-    const r = await conflictedMerge()
+    const r = conflictedMerge()
     const taken = ['both.txt', 'two.txt', 'new.txt', 'mine-gone.txt']
     r.git('checkout', '--theirs', '--', ...taken)
     r.git('add', '--', ...taken)
@@ -284,14 +295,14 @@ describe('abortOperation', () => {
   })
 
   it('is refused when no rebase, cherry-pick or revert is in progress', async () => {
-    const r = await conflictedMerge()
+    const r = conflictedMerge()
     await expect(abortOperation(runner, r.root)).rejects.toThrow(/No rebase, cherry-pick or revert/)
   })
 })
 
 describe('conflicts from a pull, a merge or a stash restore', () => {
   it('shows a conflicting pull', async () => {
-    const { local, other } = remoteRepos(cleanups)
+    const { local, other } = remotes(cleanups)
     teammatePushes(other, 'file-1.txt')
     put(local.root, 'file-1.txt', 'mine\n')
     commitAll(local, 'mine')
@@ -327,7 +338,7 @@ describe('conflicts from a pull, a merge or a stash restore', () => {
 
 describe('marker counts in large files', () => {
   it('counts a marker that straddles two read chunks, and only at the start of a line', async () => {
-    const r = await conflictedMerge()
+    const r = conflictedMerge()
     const chunk = 1024 * 1024
     put(r.root, 'both.txt', `${'a'.repeat(chunk - 4)}\n<<<<<<< straddles\n${'b'.repeat(chunk - 10)}<<<<<<< mid-line\n<<<<<<< last`)
     expect((await getConflicts(runner, r.root)).files.find((file) => file.path === 'both.txt')?.markers).toBe(2)
@@ -336,7 +347,7 @@ describe('marker counts in large files', () => {
 
 describe('red-team regressions', () => {
   it('counts markers of any size git writes (conflict-marker-size), not lines that only look alike', async () => {
-    const r = await conflictedMerge()
+    const r = conflictedMerge()
     put(r.root, 'both.txt', `${'<'.repeat(32)} HEAD\nours\n${'='.repeat(32)}\ntheirs\n${'>'.repeat(32)} topic\n<<<<<<x\n<<<<<<<\n`)
     expect((await getConflicts(runner, r.root)).files.find((file) => file.path === 'both.txt')?.markers).toBe(1)
     await expect(markResolved(runner, r.root, { path: 'both.txt' })).rejects.toMatchObject({ code: 'conflict_markers_remain' })
@@ -388,7 +399,7 @@ describe('red-team regressions: submodules and unreadable files', () => {
   })
 
   it('counts an unreadable conflicted file as still conflicted instead of failing every file', async () => {
-    const r = await conflictedMerge()
+    const r = conflictedMerge()
     chmodSync(join(r.root, 'both.txt'), 0o000)
     cleanups.push(() => chmodSync(join(r.root, 'both.txt'), 0o644))
     const files = (await getConflicts(runner, r.root)).files

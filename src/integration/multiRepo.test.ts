@@ -14,14 +14,13 @@ import { createGitAdapter } from '../core/repo/git'
 import type { Workspace } from '../core/workspace'
 import type { CheckResult, ExecutionPacket, GateCondition, RunView } from '../shared/domain/views'
 import { issued } from '../test/execution'
-import { createGitRepo, type GitRepo } from '../test/gitRepo'
+import { copyGitRepo, createGitRepo, type GitRepo } from '../test/gitRepo'
+import { useTemplate } from '../test/gitTemplate'
 import { createHarness, type Harness } from '../test/workspaceHarness'
 
 const EPIC_BRANCH = 'feature'
 const REPOS = ['alpha', 'beta'] as const
 type RepoName = (typeof REPOS)[number]
-/** A whole run across two real repositories runs many Git commands; leave room for a loaded machine. */
-const RUN_TIMEOUT = { timeout: 60_000 }
 
 const DEFINITIONS: Record<RepoName, { name: string; command: string; description: string }[]> = {
   alpha: [
@@ -51,16 +50,25 @@ interface Planned {
 
 /** The parent with both repositories, each with `feature` checked out one commit ahead of `main`, and a session per role. */
 function useScene(): () => Scene {
+  // Each repository with its history and `feature`, built once for the file and copied into each test's parent.
+  const templates = useTemplate((templateCleanups) =>
+    Object.fromEntries(
+      REPOS.map((name) => {
+        const repo = createGitRepo()
+        templateCleanups.push(repo.cleanup)
+        repo.commit(`${name} history`)
+        repo.branch(EPIC_BRANCH)
+        return [name, repo]
+      })
+    ) as Record<RepoName, GitRepo>
+  )
   let scene: Scene | undefined
   beforeEach(() => {
     const harness = createHarness()
     const parent = harness.root
     const repos = {} as Record<RepoName, GitRepo>
     for (const name of REPOS) {
-      const repo = createGitRepo({ root: join(parent, name) })
-      repo.commit(`${name} history`)
-      repo.branch(EPIC_BRANCH)
-      repos[name] = repo
+      repos[name] = copyGitRepo(templates()[name], { root: join(parent, name) })
     }
     const worktrees = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-worktrees-')))
     // The parent is not a repository: its root adapter is a real one that finds no checkout, as in the app.
@@ -249,7 +257,7 @@ async function expectGatesPass(scene: Scene, run: RunView, squashed: Record<Repo
 describe('a two-repository sprint, each repository squashed onto its own feature branch', () => {
   const scene = useScene()
 
-  it('hands out packets per repository, verifies both increments, and passes both gates', RUN_TIMEOUT, async () => {
+  it('hands out packets per repository, verifies both increments, and passes both gates', async () => {
     const { orchestrator, repos } = scene()
     const planned = await planEpic(scene())
     const run = await startRun(scene(), planned)
@@ -283,7 +291,7 @@ describe('a two-repository sprint, each repository squashed onto its own feature
 describe('a two-repository sprint whose beta work was merged rather than squashed', () => {
   const scene = useScene()
 
-  it('fails the increment gate naming beta, and passes alpha', RUN_TIMEOUT, async () => {
+  it('fails the increment gate naming beta, and passes alpha', async () => {
     const { orchestrator, repos } = scene()
     const planned = await planEpic(scene())
     const run = await startRun(scene(), planned)

@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { killPtyTree, type PtyTree } from '../agents/processTree'
 import { createNodePtyHost, type PtyExit, type PtyProcess } from './ptyHost'
 
@@ -11,7 +11,6 @@ import { createNodePtyHost, type PtyExit, type PtyProcess } from './ptyHost'
  * The tests wait on the fixture's own output (it writes each report to its log before printing it),
  * never on timers.
  */
-vi.setConfig({ testTimeout: 60_000 })
 
 const FIXTURE = join(import.meta.dirname, '__fixtures__', 'agentFixture.mjs')
 const ARGV = ['--model', 'haiku', 'two words', 'ünïcödé', '--background-child']
