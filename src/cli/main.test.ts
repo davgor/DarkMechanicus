@@ -39,6 +39,8 @@ function recorder(
       argv,
       env: options.env ?? {},
       cwd: CWD,
+      execPath: '/old-build/electron',
+      cliPath: '/old-build/out/main/cli.js',
       open: (open) => {
         opened.push(open)
         if (options.openError !== undefined) {
@@ -163,6 +165,35 @@ describe('dm call', () => {
     expect(payload(recorded).ok).toBe(false)
   })
 
+})
+
+describe('dm and a newer database schema', () => {
+  const message = 'Database schema v14 is newer than this build supports (v13)'
+
+  it.each([
+    ['call', 'list_epics'],
+    ['transfer', 'linear', '--epic', 'ep_00000000000000000000000001']
+  ])('identifies the running build and the newer database owner for %j', async (...argv) => {
+    const recorded = recorder(argv, { openError: new DomainError('incompatible_schema', message) })
+    await runCli(recorded.host)
+    const text = [...recorded.stdout, ...recorded.stderr].join('')
+    expect(text).toContain(message)
+    expect(text).toContain('/old-build/electron')
+    expect(text).toContain('/old-build/out/main/cli.js')
+    expect(text).toContain('newer build')
+    expect(text).toContain('started this chat')
+    expect(recorded.exits).toEqual([1])
+    if (argv[0] === 'call') {
+      expect(payload(recorded)).toMatchObject({ ok: false, error: { code: 'incompatible_schema' } })
+    }
+  })
+
+  it('does not add schema diagnostics to unrelated failures', async () => {
+    const recorded = recorder(['call', 'list_epics'], { openError: new DomainError('invalid_state', 'not ready') })
+    await runCli(recorded.host)
+    expect(payload(recorded)).toEqual({ ok: false, error: { code: 'invalid_state', message: 'not ready' } })
+    expect(recorded.stderr).toEqual([])
+  })
 })
 
 describe('dm and the grant hint', () => {

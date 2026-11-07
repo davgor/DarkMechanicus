@@ -58,13 +58,13 @@ const WIN = {
 
 const CUSTOM_ARGS = ['--cwd', '{folder}', '--prompt-file', '{instructions}', '--verbose']
 
-function cliFor(platform: Platform, packaged = true): DarkMechanicusCli {
+function cliFor(platform: Platform, runAsNode = true): DarkMechanicusCli {
   const folder = platform === 'win32' ? WIN.folder : MAC.folder
   const runtime = platform === 'win32' ? 'C:\\Program Files\\Dark Mechanicus\\Dark Mechanicus.exe' : '/Applications/Dark Mechanicus.app/Contents/MacOS/Dark Mechanicus'
   return {
     command: runtime,
     args: [platform === 'win32' ? 'C:\\Program Files\\Dark Mechanicus\\resources\\app.asar\\out\\main\\cli.js' : '/Applications/Dark Mechanicus.app/Contents/Resources/app.asar/out/main/cli.js', '--repo', folder],
-    env: { ...(packaged ? { ELECTRON_RUN_AS_NODE: '1' } : {}), DARKMECHANICUS_HOME: '/Users/me/.darkmechanicus', DM_SESSION_TOKEN: 'grant-token-ch_1' }
+    env: { ...(runAsNode ? { ELECTRON_RUN_AS_NODE: '1' } : {}), DARKMECHANICUS_HOME: '/Users/me/.darkmechanicus', DM_SESSION_TOKEN: 'grant-token-ch_1' }
   }
 }
 
@@ -327,7 +327,7 @@ describe('terminalLaunchSpec: the environment', () => {
     }
   })
 
-  it('keeps ELECTRON_RUN_AS_NODE=1 only for a packaged app on Windows; on macOS the launcher sets it for dm alone', () => {
+  it('keeps an explicitly requested ELECTRON_RUN_AS_NODE=1 on Windows; on macOS the launcher sets it for dm alone', () => {
     expect(terminalLaunchSpec(inputFor('claude', 'win32', 'new')).env['ELECTRON_RUN_AS_NODE']).toBe('1')
     expect(terminalLaunchSpec(inputFor('claude', 'win32', 'new', { cli: cliFor('win32', false) })).env).not.toHaveProperty('ELECTRON_RUN_AS_NODE')
     expect(terminalLaunchSpec(inputFor('claude', 'darwin', 'new')).env).not.toHaveProperty('ELECTRON_RUN_AS_NODE')
