@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { DomainError } from '../../core/errors'
 import { openWorkspace } from '../../core/workspace'
 import { createSequentialIds, createTestClock, type TestClock } from '../../test/testContext'
-import { createFakeGit } from '../../test/workspaceHarness'
+import { createFakeGit, TEST_STORAGE } from '../../test/workspaceHarness'
 import { buildCliConfig } from '../desktop/cliConfig'
 import { createWorkspacePool, type WorkspacePool } from '../desktop/workspacePool'
 import { createChatGrants, type ChatGrants } from './chatGrants'
@@ -58,7 +58,7 @@ async function rig(): Promise<Rig> {
   const git = createFakeGit({ branch: 'main', commit: 'b'.repeat(40), detached: false })
   const homeDir = join(root, 'dm-home')
   const pool = createWorkspacePool((repoRoot) =>
-    openWorkspace({ repoRoot, role: 'desktop', label: 'Desktop', transport: 'desktop', homeDir, clock, ids, git })
+    openWorkspace({ repoRoot, role: 'desktop', label: 'Desktop', transport: 'desktop', homeDir, clock, ids, git, ...TEST_STORAGE })
   )
   await pool.get(repo).initializeRepository({ name: 'scratch-a' })
   const tracked = new Set([repo])
