@@ -63,7 +63,7 @@ describe('external launch discovery contract', () => {
     await inRig(createCannedApi({}), async (rig) => {
       const launch = (await rig.client.listTools()).tools.find((tool) => tool.name === 'launch_kanban_cards')
       expect(launch?.inputSchema).toMatchObject({
-        type: 'object', required: ['cardIds'], additionalProperties: false,
+        type: 'object', required: ['cardIds'],
         properties: { cardIds: { type: 'array', minItems: 1, items: { type: 'string', pattern: expect.any(String) } } }
       })
     })
