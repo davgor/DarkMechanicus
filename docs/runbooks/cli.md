@@ -133,16 +133,36 @@ again; the database keeps only its hash.
 
 Keep the token in a file that only you can read — the better of the two paths:
 
+POSIX shells (bash, zsh, Git Bash):
+
 ```sh
 umask 077 && printf '%s' 'dmg_…' > ~/.config/dm-token
 node out/main/cli.js --token-file ~/.config/dm-token call create_epic '{"title":"…"}'
 ```
 
+PowerShell:
+
+```powershell
+$tokenFile = Join-Path $HOME '.dm-token'
+Set-Content -NoNewline -Encoding ascii -Path $tokenFile -Value 'dmg_…'
+icacls $tokenFile /inheritance:r /grant:r "${env:USERNAME}:(R,W)" | Out-Null
+node out/main/cli.js --token-file $tokenFile call list_epics
+```
+
 The environment works too, and is more convenient for a one-off:
+
+POSIX shells (bash, zsh, Git Bash):
 
 ```sh
 export DM_SESSION_TOKEN='dmg_…'
 node out/main/cli.js call create_epic '{"title":"…"}'
+```
+
+In PowerShell (for this session only; Remove-Item Env:DM_SESSION_TOKEN clears it):
+
+```powershell
+$env:DM_SESSION_TOKEN = 'dmg_…'
+node out/main/cli.js call list_epics
 ```
 
 Neither hides the token from you or from anything running as you: an environment variable is
