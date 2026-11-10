@@ -38,6 +38,12 @@ Rules this change keeps or adds:
 - **Humans keep their authority.** A chat's role is fixed when it starts and its agent cannot raise it. Approving a checkpoint, authorizing auto-continue, granting a retry and the `signed_out` pause stay with the desktop session.
 - **One host per run still holds.** A run has one orchestrator, a single agent, which picks its subagents in its own environment. The desktop does not dispatch work across agents.
 
+## Proposed desktop-control capability
+
+Source review added 2026-11-10: [agent-desktop integration notes](design/agent-desktop-integration.md) describe an optional computer-use tool for the existing hosted agents. This is proposed work, not a shipped feature or a saved execution plan. Start with the upstream CLI and version-matched guides; consider its existing MCP server after validating each host. Dark Mechanicus continues to own plans, attempts, human checkpoints, and evidence; the hosted agent continues to own inference and its action loop.
+
+The integration targets the current terminal-based architecture, which supersedes the early ACP/SDK adapter description above. It must preserve host approvals, isolate snapshot sessions, coordinate access to the shared desktop, verify action outcomes, and reuse image attachments for deliberate evidence. Desktop automation must not be allowed to approve its own work through Dark Mechanicus's human-only UI. The notes identify verified source entry points, platform limits, delivery slices, and unresolved decisions.
+
 ## Domain model
 
 ### Project
