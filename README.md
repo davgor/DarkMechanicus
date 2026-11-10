@@ -6,6 +6,7 @@ An agent helps you shape an epic, decomposes it into tickets with acceptance cri
 
 - Product specification: [`docs/product-plan.md`](docs/product-plan.md)
 - Implementation architecture: [`docs/architecture.md`](docs/architecture.md)
+- Proposed agent-desktop integration: [`docs/design/agent-desktop-integration.md`](docs/design/agent-desktop-integration.md)
 - Connecting an agent host: [`docs/runbooks/mcp-setup.md`](docs/runbooks/mcp-setup.md)
 - Agents the app hosts (Claude Code, Codex, Cursor): [`docs/runbooks/agents.md`](docs/runbooks/agents.md)
 - Handing a saved epic to Linear: [`docs/runbooks/linear-transfer.md`](docs/runbooks/linear-transfer.md)
