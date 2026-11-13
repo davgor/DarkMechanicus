@@ -323,11 +323,11 @@ describe('server metadata', () => {
 })
 
 describe('skills as prompts', () => {
-  it('lists the seven skills and returns their bodies', async () => {
+  it('lists the shipped skills and returns their bodies', async () => {
     await withRig(build, createStubApi(), async (rig) => {
       const { prompts } = await rig.client.listPrompts()
       expect(prompts.map((prompt) => prompt.name)).toEqual(SKILLS.map((skill) => promptName(skill.name)))
-      expect(prompts).toHaveLength(7)
+      expect(prompts).toHaveLength(8)
       const planner = await rig.client.getPrompt({ name: 'darkmechanicus-planner' })
       expect(planner.messages[0]?.content).toEqual({ type: 'text', text: SKILLS[0]?.body })
     })

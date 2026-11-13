@@ -13,7 +13,8 @@ const EXPECTED = [
   ['worker', 'Worker'],
   ['reviewer', 'Reviewer'],
   ['sprint-reporter', 'Sprint reporter'],
-  ['linear-transfer', 'Linear transfer']
+  ['linear-transfer', 'Linear transfer'],
+  ['collaboration', 'Collaboration policy']
 ]
 
 const VENDOR_WORDS = /claude|anthropic|openai|gpt|gemini|llama|mistral|copilot|codex|sonnet|opus|haiku/i
@@ -35,7 +36,7 @@ function skill(name: string) {
 }
 
 describe('SKILLS', () => {
-  it('ships the seven skills in a stable order with their titles', () => {
+  it('ships the skills in a stable order with their titles', () => {
     expect(SKILLS.map((item) => [item.name, item.title])).toEqual(EXPECTED)
   })
 

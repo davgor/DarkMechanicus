@@ -138,6 +138,21 @@ The app does not list a chat's role and label anywhere (see [`agents-e2e.md`](..
 - Rename and delete a chat from its row in the sidebar. Delete asks first; it ends the chat's terminal, revokes its grant and removes the chat with its stored transcript.
 - Quitting the app stops every terminal and what each one started, and waits for them to be gone before it exits (at most 5 seconds, so a stuck one cannot keep the app open). Any stop of a process (on quit, a deleted chat, or a Find check or install that times out) ends its whole process tree, not just the process the app started.
 
+### Built-in collaboration policy
+
+Every hosted chat receives the concise shared policy from [`skills/collaboration.md`](../../skills/collaboration.md), including an ordinary Skitarii chat with no epic, run, transfer or card. Main writes it after the CLI/grant instructions and before any task-specific guidance in `userData/agents/instructions/<chatId>.md`. This is the same shipped source exposed as the `darkmechanicus-collaboration` MCP prompt; it is not a second provider-specific configuration.
+
+- **Planning:** detailed, iterative discovery with meaningful questions about unresolved choices, alternatives, recommendations and tradeoffs; a thorough plan records assumptions, scope/non-goals, risks, dependencies, acceptance and verification. No question quotas, repeated questions or epic questionnaire for small, clear, authorized isolated work.
+- **Execution:** the orchestrator makes in-scope decisions from the approved plan and evidence, resolves worker questions itself, and asks the person only for genuine scope, authority or safety blockers and required human approvals.
+- **Delegation:** summoned workers and reviewers ask only the orchestrator, with facts, options and a recommendation; the orchestrator owns any human escalation and passes the policy to its subagents.
+- **Authority:** planning is a phase, not a role change. The actual grant and Allow save still control commands. Saved-plan/adoption boundaries, checkpoint approvals, retry grants and human-only card controls are unchanged.
+
+Skitarii's existing `--append-system-prompt <instructions file>` loads that file on initial launch **and resume**; no run/card binding or extra privilege is required. Every terminal start rewrites the instructions from the running app's bundled policy, replacing stale generated text. Editing that generated file is not persistent. Other built-in CLIs keep their existing instruction transport; a custom CLI receives the file only when its confirmed arguments use `{instructions}`.
+
+Repository startup guidance in [`AGENTS.md`](../../AGENTS.md) points coding sessions to the common policy and detailed [`planner`](../../skills/planner.md), [`orchestrator`](../../skills/orchestrator.md), [`worker`](../../skills/worker.md) and [`reviewer`](../../skills/reviewer.md) guides. These are instructions, not an enforcement mechanism or a guarantee of model obedience.
+
+**Updating and reloading:** changing repository Markdown does not patch an already installed or running app. Rebuild and relaunch the development app, or install an updated packaged build, then stop/start the chat terminal (**Start again**, or **New session** if a resume is refused) to regenerate and reload its instructions. A currently running CLI is not hot-updated; resuming can retain older conversational context even though the current policy is appended again. This loading contract does not establish that any model will follow the prose, and does not claim a live installed-app or paid-model test.
+
 ### Panels that follow a chat
 
 A ticket's **Activity** tab and a run's **Orchestrator feed** show the command layer's timeline, with **Open terminal** to the chat whose `dm` grant claimed the attempt (or started the run). For an attempt or run of a chat from before terminals they also show that chat's bound thread (the bindings in [Where things are kept](#where-things-are-kept)), read once with `chats:read`, which starts no agent and writes nothing: its approval requests are records with the decision stored for each, and nothing is answered there. A thread can have served more than one attempt of a ticket (a retry in the same chat): an attempt's tab shows only the rows from that attempt's claim to its end, or to now while it is open.

@@ -10,6 +10,7 @@ import { cliInstructions } from '../agents/cliInstructions'
 import { transferGuidance } from '../../mcp/transferKickoff'
 import { kanbanGuidance } from '../agents/kanbanKickoff'
 import { orchestratorGuidance } from '../agents/orchestratorKickoff'
+import { skillBody } from '../../mcp/skills'
 import { DM_LAUNCHER_NAME, dmLauncherScript, pinnedCliScript, writeDmLauncher } from './dmLauncher'
 import { writePrivateFile } from './privateFile'
 
@@ -51,14 +52,15 @@ interface InstructionOptions {
 }
 
 /**
- * The chat's instructions: how to run `dm`, named by the launcher's absolute path where there is one; then, for the
- * chat Start run opened, the orchestrator and worker guidance (`orchestratorGuidance`), for a Linear transfer chat,
- * the transfer guidance (`transferGuidance`), and for the chat Play opened for a Kanban card, the card guidance
- * (`kanbanGuidance`), so a start on a new session still knows its task.
+ * The chat's instructions: how to run `dm`, then the shared collaboration policy for every chat.
+ * Task-specific run, Linear transfer or Kanban guidance follows, so even a new session retains its task.
  */
 export function terminalInstructions(options: InstructionOptions): string {
   const dm = options.launcherDir === null ? options.cli : { command: posix.join(options.launcherDir, DM_LAUNCHER_NAME), args: [], env: {} }
-  const sections = [cliInstructions({ cli: dm, role: options.role, allowSave: options.allowSave, noLauncher: options.launcherDir === null })]
+  const sections = [
+    cliInstructions({ cli: dm, role: options.role, allowSave: options.allowSave, noLauncher: options.launcherDir === null }),
+    skillBody('collaboration')
+  ]
   if (options.orchestratesRun) sections.push(orchestratorGuidance())
   if (options.transferEpicId !== undefined) sections.push(transferGuidance(options.transferEpicId))
   if (options.cardId !== undefined) sections.push(kanbanGuidance(options.cardId))
