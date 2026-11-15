@@ -3,8 +3,19 @@
   "attempts": [
     {
       "createdAt": "2026-11-15T20:25:08.477Z",
-      "decidedAt": null,
-      "decision": null,
+      "decidedAt": "2026-11-15T20:55:44.811Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Reviewed by orchestrator + reviewer subagent. c1 and c3 met; c2 and c4 not met for the reasons listed. The rest of the work is sound; focused fix round on the same branch.",
+        "outcome": "rejected",
+        "reasons": [
+          "c4: baselines.ts:43 freeze guard fails open — Date.parse(...) >= Date.parse(...) is false when either side is NaN, so a 'not-a-date'/''/undefined dispatchedAt selects the mid-run 600,000 budget (bl_…0002) over bl_…0001. Reject the candidate when either time is not finite, and give BaselineSubject a schema.",
+          "c4: gradeSpace (rubric.ts:226-266) trusts any baseline labeled selected: T scores against a tokens budget, K against an active_ms baseline would score 100, and a cohort with sampleSize 1 grades final although the policy minimum is 5. Recheck in the grader or input schema that the metric matches the component, the cohort meets the sample minimum and the value is positive; record dispatchedAt on the grade input and grade so the pre-dispatch rule can be audited.",
+          "c2: a selected baseline of value 0 gives ratio Infinity and K=0 final, and parseGrade(gradeSpace(input)) then throws at components.6.inputs.ratio (rubric.ts:255, contract.ts:176). The grader must never produce output its own schema refuses; treat it as no_eligible_baseline or refuse it at parse.",
+          "c2: letterFor/displayScore (rubric.ts:89,95) take canonical units while SpaceGrade.score is in points: letterFor(95)='F', displayScore(95)='0.0'. Make the public helpers take points (or export the conversion and name the units) so DM-177/178/180 cannot misuse them.",
+          "Also fix (small): rubric.ts:104-106 scores a sprint rating as direct, non-inherited S at run/epic level (ticket says a sprint rating is explicitly inherited context); contract.ts:273 does not tie subject id prefix to level; contract.ts:359-363 accepts a graded record with uncappedScore null and does not check statusReasons against status; contract.ts:227-231 allows displayDecimals > canonicalDecimals. Extend the scratch scripts to demonstrate each fix."
+        ]
+      },
       "evidence": {
         "checks": [
           {
@@ -173,12 +184,12 @@
       },
       "reconciledAt": null,
       "revisionId": "rv_01m65yene3p1dwngx9apevkpn4",
-      "state": "submitted",
+      "state": "rejected",
       "submittedAt": "2026-11-15T20:50:13.977Z",
       "supersededAt": null,
       "ticketContentHash": "sha256:209a3b941c98b129c06640a6e2cec988a2c29675ee4881ef600e7a166f4198c5",
       "ticketId": "tk_01m453gpad722597bff996emwn",
-      "updatedAt": "2026-11-15T20:50:13.977Z",
+      "updatedAt": "2026-11-15T20:55:44.811Z",
       "worker": {
         "catalogRevision": "2026-11-15.1",
         "effort": "medium",
@@ -186,6 +197,1257 @@
         "label": "omp task subagent",
         "modelId": "anthropic/claude-opus-5-5",
         "rationale": "Recommended by match_capabilities (Top-ranked of 1 eligible model.; Highest reasoning level \"deep\" is 1 rank above the ticket's \"multi_step\" need (-20).; Lists skills \"typescript\", \"node\", \"testing\" (+10, capped at 10).; Cost tier \"high\": cheaper tiers sort first on equal scores.; Uses the ticket's \"medium\" effort.). This host cannot set a subagent's model or effort; the worker is an omp task subagent at the harness default, listed in the catalog as anthropic/claude-opus-5-5.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-15T20:55:47.010Z",
+      "decidedAt": "2026-11-15T21:07:49.911Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Attempt 2 fixed all rejection reasons (reviewer re-review ACCEPT). Decisions: S optional; risk = planned reasoning level; failure cap 59; budgets apply only to ticket-level grades (aggregate levels roll up in DM-178). Deadcode for new exports left to DM-273.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "node, web and fireguard projects: exit 0",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "src/shared/domain/space.ts src/core/space/{contract,rubric,baselines}.ts src/core/ids.ts src/core/ids.test.ts scratch/DM-169/*.ts: exit 0",
+            "name": "npx oxlint (changed files)",
+            "status": "passed"
+          },
+          {
+            "detail": "2 files, 584 tests passed",
+            "name": "npx vitest run src/core/ids.test.ts src/core/schemas.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "65 PASS, ALL CHECKS PASSED",
+            "name": "npx tsx scratch/DM-169/c1-contracts.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "47 PASS, ALL CHECKS PASSED",
+            "name": "npx tsx scratch/DM-169/c2-rubric.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "17 PASS, ALL CHECKS PASSED",
+            "name": "npx tsx scratch/DM-169/c3-status.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "23 PASS, ALL CHECKS PASSED",
+            "name": "npx tsx scratch/DM-169/c4-baselines.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "owned by DM-273 per orchestrator decision (new contract exports have no consumer yet; .tsprune-ignore left alone)",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the testing tail",
+            "name": "npm test (full suite)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the testing tail",
+            "name": "npm run lint (whole tree)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the testing tail",
+            "name": "npm run build",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the testing tail",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Contracts in src/shared/domain/space.ts + src/core/space/contract.ts; fixtures parse; c1-contracts.ts 65 checks pass (orchestrator + reviewer reran)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "SPACE_POLICY_V1 equal 1/7 weights, 90/80/70/60 bands, canonical-before-display; worked examples regrade byte-for-byte; zero-baseline and unit-helper defects fixed in b37d617 (c2-rubric.ts 47 checks; reviewer 20k-input fuzz: every grade passes its schema)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Unverified -> Ungraded, confirmed failure -> F capped at 59 with uncapped kept, incomplete -> Provisional/Ungraded with coverage/effective weights (c3-status.ts 17 checks; fuzz invariants)."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Pre-dispatch freeze enforced in selection and re-checked in gradeSpace via dispatchedAt; invalid times refused; metric/sample/value rechecked (c4-baselines.ts 23 checks; reviewer adversarial probes)."
+          }
+        ],
+        "notes": "All five rejection reasons fixed; orchestrator decisions applied (S optional kept and documented; risk = reasoning level; cap 59; .tsprune-ignore untouched; per-command git identity). Design notes: in policy v1 a budget only applies to a ticket-level grade (run/sprint/epic resource scores are expected to roll up from ticket measures in DM-178), cohorts are not key-checked by the grader because the grade input carries no cohort key (selection checks it). gradeSpace now validates input and policy with zod on every call. letterFor/displayScore throw RangeError on non-point input."
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m7gfx922jztdcb6v8z7bnzh1",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Contract types",
+            "location": "src/shared/domain/space.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Contract validation (zod)",
+            "location": "src/core/space/contract.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Policy v1 and reference grader gradeSpace",
+            "location": "src/core/space/rubric.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Baseline eligibility and selection",
+            "location": "src/core/space/baselines.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Rubric document",
+            "location": "docs/space-grading.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Reference fixtures",
+            "location": "src/core/space/fixtures",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Demonstration scripts",
+            "location": "scratch/DM-169",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "space-DM-169",
+        "changedFiles": [
+          "docs/architecture.md",
+          "docs/space-grading.md",
+          "scratch/DM-169/c1-contracts.ts",
+          "scratch/DM-169/c2-rubric.ts",
+          "scratch/DM-169/c3-status.ts",
+          "scratch/DM-169/c4-baselines.ts",
+          "scratch/DM-169/shared.ts",
+          "src/core/ids.test.ts",
+          "src/core/ids.ts",
+          "src/core/space/baselines.ts",
+          "src/core/space/contract.ts",
+          "src/core/space/fixtures/baselines.json",
+          "src/core/space/fixtures/observations.json",
+          "src/core/space/fixtures/policy-v1.json",
+          "src/core/space/fixtures/rubric/complete.json",
+          "src/core/space/fixtures/rubric/failure.json",
+          "src/core/space/fixtures/rubric/sparse.json",
+          "src/core/space/fixtures/rubric/too-sparse.json",
+          "src/core/space/fixtures/rubric/unverified.json",
+          "src/core/space/rubric.ts",
+          "src/shared/domain/space.ts"
+        ],
+        "commits": [
+          "2ded739b914d96438bad92635f406b1af797fb23",
+          "b37d617b5ce5dab5ba4a456a9a4f5db33ee0af11"
+        ],
+        "summary": "Attempt 2 fixes every rejection reason on top of attempt 1 (commit 2ded739). (1) baselines.ts: new exported baselineDefect checks metric, own-ticket budget, freeze strictly before a VALID dispatch time (unparseable/absent frozenAt or dispatchedAt -> new rejection invalid_time, fail closed), value >= 1 unit, cohort minimum sample; baselineRejection = baselineDefect + cohort key/contains-subject. baselineSubjectSchema + parseBaselineSubject added. (2) gradeSpace now parses its input and policy (invalid_input on malformed), and re-runs baselineDefect on whatever baseline is labeled selected against the new SpaceGradeInput.dispatchedAt (subject ticket for budgets); a refused baseline makes T/K missing (no_eligible_baseline) with refusedBaselineId/refusedReason diagnostics; SpaceGrade records dispatchedAt; baselineIds lists only baselines actually used. Input schema refuses T with a tokens baseline / K with active_ms and a selected baseline below one unit. (3) Quantities bounded to <= 1e15 so ratios stay finite; a selected zero baseline is refused at parse; parseGrade(gradeSpace(x)) demonstrated across fixtures and edge variants. (4) letterFor/displayScore take points (0-100) and throw RangeError otherwise (letterFor(95)=A, displayScore(95)=\"95.0\", letterFor(90000000) throws). (5) Run/epic grades use a sprint rating only when shared, labeled inherited; sprint grades use it directly; ticketRating refused on non-ticket inputs; subject id prefix tied to level; grade schema checks uncappedScore null iff ungraded, score <= uncappedScore, status reasons distinct/in order and consistent with outcome, caps, components and status, scoredComponents; policy refuses displayDecimals > canonicalDecimals. Fixtures regraded: only dispatchedAt added (verified equal otherwise). Docs updated (S optional per owner decision; baselines rules 3 and 6 new)."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m65yene3p1dwngx9apevkpn4",
+      "state": "accepted",
+      "submittedAt": "2026-11-15T21:04:36.858Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:209a3b941c98b129c06640a6e2cec988a2c29675ee4881ef600e7a166f4198c5",
+      "ticketId": "tk_01m453gpad722597bff996emwn",
+      "updatedAt": "2026-11-15T21:07:49.911Z",
+      "worker": {
+        "catalogRevision": "2026-11-15.1",
+        "effort": "high",
+        "hostId": "omp-win32-x64-space",
+        "label": "omp task subagent",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (Last attempt on \"anthropic/claude-opus-5-5\" was rejected; nothing eligible sits above it, so the same model runs at higher effort.; Highest reasoning level \"deep\" is 1 rank above the ticket's \"multi_step\" need (-20).; Lists skills \"typescript\", \"node\", \"testing\" (+10, capped at 10).; Cost tier \"high\": cheaper tiers sort first on equal scores.; Effort raised from \"medium\" to \"high\".). This host cannot set a subagent's model or effort; the worker is an omp task subagent at the harness default, listed in the catalog as anthropic/claude-opus-5-5.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-15T21:08:49.773Z",
+      "decidedAt": "2026-11-15T21:45:42.510Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "c1 and c2 met (c2 with the cross-machine idempotency gap); c3 and c4 not met. Rest of the work is sound; fix round on the same branch.",
+        "outcome": "rejected",
+        "reasons": [
+          "c3/c4 BLOCKING: scope membership is validated against runs.revision_id, which adoptRevision rewrites (observations.ts:85-112 scopePlan/checkPlanMembers; observationImport.ts:171). After adoption that removes or moves a ticket, usage on its superseded/rejected attempts cannot be recorded (not_found / 'not in sprint'), and pre-adoption observations are rejected on import on every other machine. Validate against attempts.revision_id when the scope names an attempt; for run-scoped observations without an attempt, accept membership in any saved revision of the epic. Demonstrate with a real adoptRevision + export/reconcile round trip in scratch (the c4 script only seeds 'superseded').",
+          "c3: ledger.ts text screens miss machine-local paths and credentials: /c/Users/..., /d/..., /Library/..., /Applications/..., /data/..., /nix/store/..., $HOME/..., %USERPROFILE%\\...; attribute names secretKey/secret_key/pwd/passwd/apiKeyValue; values password=..., 'Basic <b64>', bare JWT, AIza..., sk_live_.... Multi-line evidence[].detail and measurement.method pass (one-line rule only on attributes) and evidence is not de-duplicated. Treat any boundary-anchored absolute POSIX path, drive path and env-var home as a path, apply the one-line/length rule to every free text, de-duplicate evidence, extend the lists; fix the 'ratio a:/b' false positive.",
+          "c3: import can leave dangling evidence (observationImport.ts:165-178): the batch map is built from all fresh files before insertion, so A citing a refused B imports citing nothing. Resolve only against observations already stored or actually inserted in this pass. Also refuse a self-citing observation.",
+          "c2: the same id recorded with an identical payload on two machines is rejected forever because import compares content including recordedAt (observationImport.ts:158); compare observationPayloadHash and keep the local row. The same id in the project folder and an epic folder surfaces raw 'UNIQUE constraint failed'; report a proper conflict. The same observedAt instant in another UTC offset must not conflict (normalize).",
+          "Ordering (needed by DM-175, cheap here): reads use ORDER BY recorded_at, id and same-call ids are random, so a report and its withdrawal in one call read in either order (75/200 in a probe). Make server-assigned ids monotonic within a call (or store a per-call sequence) and order reads so one call reads back in call order, including after export/import."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "tsc node, web and fireguard projects: exit 0",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0, no findings (after splitting checkScope/citedEpic/parseReported and the contract refine for complexity)",
+            "name": "npx oxlint <changed files incl. scratch/DM-170/*.ts>",
+            "status": "passed"
+          },
+          {
+            "detail": "src/core/db/, src/core/repo/, services/outbox, idempotency, idempotencySecrets, comments, storedSecrets, commands/deletion, workspace.storageMigration(+safety), cli/main, ids: 41 files, 1119 tests passed. migrations.test.ts latest-version pins updated 14->15 and the table/index lists gained metric_observations and its three indexes.",
+            "name": "npx vitest run (touched modules)",
+            "status": "passed"
+          },
+          {
+            "detail": "ALL CHECKS PASSED (25 checks)",
+            "name": "npx tsx scratch/DM-170/c1-migration.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "ALL CHECKS PASSED (39 checks)",
+            "name": "npx tsx scratch/DM-170/c2-idempotency.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "ALL CHECKS PASSED (29 checks)",
+            "name": "npx tsx scratch/DM-170/c3-portable.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "ALL CHECKS PASSED (24 checks)",
+            "name": "npx tsx scratch/DM-170/c4-attribution.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "all four DM-169 scripts: ALL CHECKS PASSED",
+            "name": "npx tsx scratch/DM-169/c1..c4 (fixture moved cause to typed field)",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the testing tail",
+            "name": "npm test (full suite)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the testing tail",
+            "name": "npm run lint (whole tree)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the testing tail",
+            "name": "npm run coverage",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the testing tail (see notes: new exports await DM-171 callers)",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the testing tail; no criterion needs the built app",
+            "name": "npm run build",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the testing tail (DM-198 only)",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "scratch/DM-170/c1-migration.ts: the real legacy records (src/core/repo/__mocks__/legacy) are loaded into a database built at v14 (SCHEMA_VERSION-1, not hard-coded), migrate() runs v14->v15; every row of epics, plan_revisions, ticket_status, runs, attempts, sprint_reports, checkpoints, outbox and sync_state is unchanged, plan and report content hashes still match their contents, buildSnapshotRecord/buildRunHistoryRecord serialize byte for byte as the legacy files, the outbox id sequence carries over, foreign_key_check empty, integrity ok, re-open is a no-op. Recording and flushing an observation leaves the legacy snapshot and run.json byte for byte unchanged (own file). All 13 DM-169 fixture observations parse to the same content hash and never gain cause/intervention/usage. Newer storage: a database at v16 is refused with incompatible_schema ('Database schema v16 is newer than this build supports (v15)') and left as it was; an observation file with formatVersion 2 is rejected on reconcile ('formatVersion: Invalid input: expected 1'), nothing stored, while the legacy plan and run still import."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "scratch/DM-170/c2-idempotency.ts: repeated delivery of mo_...01 writes nothing (created [] / unchanged [id]), keeps the original recordedAt after the clock moved, one row and one outbox entry; same id twice in one call stored once; missing id gets a server mo_ id. Changed value, changed attribution, and two payloads under one id in one call -> conflict, stored record unchanged. Negative, NaN, Infinity, fractional tokens, negative estimate, caller recordedAt, wrong unit -> invalid_input. Unknown epic/run/attempt/ticket/sprint/evidence attempt/criterion/observation/baseline -> not_found; ticket of another sprint, attempt of another ticket, run of another epic, evidence owned by another epic -> invalid_input; epic without saved plan -> not_found; server actor set / host actor missing / agent intervention / agent human_rating -> invalid_input. A batch with one bad observation stores nothing."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "scratch/DM-170/c3-portable.ts: the ledger refuses the live claim token (attribute and evidence detail), credential-named attributes, a provider key, a grant token, Windows/macOS/home paths (also as actor), transcript attributes and multi-line chat text. Interrupted outbox: an injected rename fault leaves no file and the entry pending (attempts 1) while other entries export, and the retry writes it; a file written before a lost commit is completed by the next flush (writeOnce, sync_state recorded); a differing file under the same id is a conflict and never overwritten. Exported files hold only format/formatVersion/observation, no claim secret or token, machine id or local path; run.json names the claimed attempt without its secret; project-level observations go to .darkmechanicus/observations/. Machine B (copyTracked + reconcile) imports all 5 with identical ids, recordedAt, scope, source, measurement and provenance (canonical JSON equal); a second reconcile imports nothing; planted files with a claim token, local path, credential attribute, unknown attempt, and a changed payload under an existing id are each rejected and B still equals A."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "scratch/DM-170/c4-attribution.ts: missing (no value), observed 0 and estimated 0 (with method) are stored and read back distinct (state column missing/observed/estimated); switching missing->0 or estimate->observed under one id is a conflict; a missing value carrying a number is refused. Usage on rejected, failed, canceled, lease_expired and superseded attempts is recorded and attributed to each; the ticket keeps every attempt's usage. Tokens and active time on a carry_forward attempt are refused (it ran nothing), a delivery citing it as evidence is accepted, and no execution usage is attributed to it. Parent/child usage (inclusive parent, self child with parentActor), a human rescue with intervention and cause, and corrective effort with its cause round-trip; non-applicable fields stay absent; rescue time without intervention, usage on a non-usage metric, and a source as its own parent are refused."
+          }
+        ],
+        "notes": "Design: observations are immutable per-file records (like comments/Kanban events), so concurrent machines never edit the same file; epic-scoped ones live in the epic folder (deleted with it), project-level ones in .darkmechanicus/observations/. Authorization (who may report which scope) is intentionally left to the DM-171 commands; this ticket enforces what any stored observation must be. Read order is (recordedAt, id), deterministic on every machine. Shared contract edited (space.ts/contract.ts): three optional fields only, existing records unchanged; the DM-169 fixture's corrective_effort_ms moved its cause from attributes to the typed field (DM-169 scripts still pass). Risk: recordObservations, listObservations and the ObservationInput/RecordObservationsResult/ObservationFilter types have no src caller yet, so ts-prune (npm run deadcode) will list them until DM-171 wires the commands. Not done here: no command/MCP surface, no baseline ledger (baseline evidence references are refused until one exists).\n\nDiscoveries:\n- title: Order same-call observations by call order, not id\n  reason: listObservations orders by (recorded_at, id). Observations recorded in one call share recorded_at, and server ids (createIdGenerator) are time+random, not monotonic within a millisecond, so a report and its withdrawal sent in one call can read in either order (the DM-175 review concern). Callers that need call order must send caller ids that sort in call order, or the ledger needs a recorded sequence carried in the record.\n  ticket: DM-175\n- title: Wire baseline references into the ledger's evidence check\n  reason: src/core/services/observations.ts CITED_EPIC.baseline always fails not_found because no baseline table exists yet; once DM-171 stores baselines it must resolve them there.\n  ticket: DM-171"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m7ggn5fddccz6d6j28sq0qn0",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Ledger service (record/list, reference checks)",
+            "location": "src/core/services/observations.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Ledger storage rules and payload identity",
+            "location": "src/core/space/ledger.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Schema v15 migration",
+            "location": "src/core/db/migrations.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Portable observation record",
+            "location": "src/core/repo/portable.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Observation import",
+            "location": "src/core/repo/observationImport.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Contract fields cause/intervention/usage",
+            "location": "src/shared/domain/space.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Ledger documentation",
+            "location": "docs/architecture.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Demonstration scripts",
+            "location": "scratch/DM-170",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "space-DM-170",
+        "changedFiles": [
+          "docs/architecture.md",
+          "docs/space-grading.md",
+          "scratch/DM-170/c1-migration.ts",
+          "scratch/DM-170/c2-idempotency.ts",
+          "scratch/DM-170/c3-portable.ts",
+          "scratch/DM-170/c4-attribution.ts",
+          "scratch/DM-170/shared.ts",
+          "src/core/db/migrations.test.ts",
+          "src/core/db/migrations.ts",
+          "src/core/repo/finalizer.ts",
+          "src/core/repo/importer.ts",
+          "src/core/repo/migrationExport.ts",
+          "src/core/repo/observationImport.ts",
+          "src/core/repo/paths.ts",
+          "src/core/repo/portable.ts",
+          "src/core/repo/syncState.ts",
+          "src/core/services/epicDeletion.ts",
+          "src/core/services/observations.ts",
+          "src/core/services/outbox.ts",
+          "src/core/space/contract.ts",
+          "src/core/space/fixtures/observations.json",
+          "src/core/space/ledger.ts",
+          "src/core/storedSecrets.ts",
+          "src/shared/domain/space.ts"
+        ],
+        "commits": [
+          "0798d2340281adcf4578436e08f91ecd99458b18"
+        ],
+        "summary": "Append-only metric observation ledger in core/storage. Schema v15 adds table metric_observations (immutable rows: observation_json as the SPACE contract record, scope/metric/source/state lookup columns, payload_hash = observation without recordedAt) plus the metric_observation outbox and sync-state kind (both tables rebuilt like v13/v14, keeping rows, ids and the outbox sequence); no existing table or record format changes. Service src/core/services/observations.ts: recordObservations(ctx, observations) records up to 500 atomically, assigns server recordedAt (a supplied one is refused) and an mo_ id when none is given; same id + same payload returns the stored record with its original recordedAt, a changed payload is conflict; every scope id must resolve (epic with a saved plan, run of that epic, sprint/ticket in the run's pinned revision or the epic's saved plans, ticket in sprint, attempt of that ticket in that run) and every evidence reference must name a record of this project and of the same epic (unknown -> not_found, wrong owner -> invalid_input; baseline refs cannot resolve until a baseline ledger exists). Attempts in every state stay attributable; execution metrics on a carry_forward attempt are refused. listObservations(db, filter) reads in recorded order. Contract (space.ts/contract.ts): new optional fields cause (workflow cause), intervention (human intervention; only human/server, required on rescue_minutes) and usage {coverage self|inclusive, parentActor} for T/K metrics only; absent, never null, so older records keep their hash (DM-169 fixture: corrective cause moved from attributes to the typed field). Storage rules (src/core/space/ledger.ts): server source has no actor, others must; no claim/grant tokens, credentials, machine-local paths or chat text in any text field. Portable: one immutable file per observation at epics/<epicId>/observations/<id>.json or project-level observations/<id>.json (format darkmechanicus.metric-observation v1); finalizer exports with writeOnce (interrupted writes recover, differing files are never overwritten), db mode completes without a file, storage migration exports them, epic deletion removes them; importer (src/core/repo/observationImport.ts) reads them as untrusted input with the same schema, storage rules and reference checks, marks identical ones synced and rejects changed ones. Docs: architecture.md ledger section and file tree, space-grading.md provenance fields. No command/MCP surface (DM-171)."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m65yene3p1dwngx9apevkpn4",
+      "state": "rejected",
+      "submittedAt": "2026-11-15T21:35:10.496Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:17e53ada60a9b588bfcfccaaa35938d1300cacf5acfb5cbb92509ef99792dca3",
+      "ticketId": "tk_01m453gpadq7a63z9sqm20yezm",
+      "updatedAt": "2026-11-15T21:45:42.510Z",
+      "worker": {
+        "catalogRevision": "2026-11-15.1",
+        "effort": "medium",
+        "hostId": "omp-win32-x64-space",
+        "label": "omp task subagent",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (Top-ranked of 1 eligible model.; Highest reasoning level \"deep\" is 1 rank above the ticket's \"multi_step\" need (-20).; Lists skills \"typescript\", \"node\", \"testing\" (+10, capped at 10).; Cost tier \"high\": cheaper tiers sort first on equal scores.; Uses the ticket's \"medium\" effort.). This host cannot set a subagent's model or effort; the worker is an omp task subagent at the harness default, listed in the catalog as anthropic/claude-opus-5-5.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-15T21:45:44.859Z",
+      "decidedAt": "2026-11-15T22:05:10.522Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Attempt 2 fixed B1 and N1-N5 (reviewer re-review ACCEPT). Residual non-blocking items routed to DM-173 and DM-268 as comments.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "node, web and fireguard projects: exit 0",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0, no findings",
+            "name": "npx oxlint <all changed files incl. scratch/DM-170/*.ts>",
+            "status": "passed"
+          },
+          {
+            "detail": "src/core/db/, src/core/repo/, services/outbox, idempotency, idempotencySecrets, comments, storedSecrets, commands/deletion, workspace.storageMigration(+safety), cli/main, ids: 41 files, 1119 tests passed",
+            "name": "npx vitest run (touched modules)",
+            "status": "passed"
+          },
+          {
+            "detail": "ALL CHECKS PASSED (25 checks)",
+            "name": "npx tsx scratch/DM-170/c1-migration.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "ALL CHECKS PASSED (44 checks)",
+            "name": "npx tsx scratch/DM-170/c2-idempotency.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "ALL CHECKS PASSED (62 checks)",
+            "name": "npx tsx scratch/DM-170/c3-portable.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "ALL CHECKS PASSED (24 checks)",
+            "name": "npx tsx scratch/DM-170/c4-attribution.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "ALL CHECKS PASSED (14 checks)",
+            "name": "npx tsx scratch/DM-170/c4-adoption.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "all four DM-169 scripts: ALL CHECKS PASSED",
+            "name": "npx tsx scratch/DM-169/c1..c4",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the testing tail",
+            "name": "npm test (full suite)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the testing tail",
+            "name": "npm run lint (whole tree)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the testing tail",
+            "name": "npm run coverage",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the testing tail (new exports await DM-171 callers, per orchestrator decision)",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the testing tail; no criterion needs the built app",
+            "name": "npm run build",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the testing tail (DM-198 only)",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "v15 adds metric_observations only; legacy rows/hashes unchanged; v16 refused (scratch/DM-170/c1-migration.ts 25 checks; reviewer reran)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Idempotent by id, payload conflicts, invalid values/unknown refs refused, all-or-none; cross-machine identical payload reconciles (c2-idempotency.ts 44 checks; reviewer probes)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Export/import and interrupted outbox recovery keep identity/provenance; paths/credentials/chat screens extended; no dangling citations (c3-portable.ts 62 checks; reviewer 13 evasion values refused)."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Missing/zero/estimated distinct; rejected/failed/canceled/superseded attributable through real adoptRevision + import (c4-attribution.ts, c4-adoption.ts; reviewer repro of removed/moved ticket)."
+          }
+        ],
+        "notes": "Per the orchestrator: contract additions accepted; deadcode and the capability check/assertBranch on recordObservations are left to DM-171. Ordering: server-assigned ids are monotonic within one recordedAt (call), compared only against ids of the same instant so two machines never step from a shared id into each other's; caller-supplied ids order by their own value (DM-175 should let the server allocate ids for same-call report/withdrawal pairs). Import insertion runs in passes (at most one pass per newly resolved citation level); each pass is one savepoint per file.\n\nDiscoveries:\n- title: Wire baseline references into the ledger's evidence check\n  reason: src/core/services/observations.ts CITED_EPIC.baseline always fails not_found because no baseline table exists yet; once DM-171 stores baselines it must resolve them there.\n  ticket: DM-171"
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m7gjrrmvh0mx4m02vhak9a3d",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Ledger service (record/list, reference checks, ordered ids)",
+            "location": "src/core/services/observations.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Ledger storage rules and payload identity",
+            "location": "src/core/space/ledger.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Observation import",
+            "location": "src/core/repo/observationImport.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Finalizer export (writeOnce same-observation check)",
+            "location": "src/core/repo/finalizer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Schema v15 migration",
+            "location": "src/core/db/migrations.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Portable observation record",
+            "location": "src/core/repo/portable.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Contract fields cause/intervention/usage",
+            "location": "src/shared/domain/space.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Ledger documentation",
+            "location": "docs/architecture.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Demonstration scripts",
+            "location": "scratch/DM-170",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "space-DM-170",
+        "changedFiles": [
+          "docs/architecture.md",
+          "docs/space-grading.md",
+          "scratch/DM-170/c1-migration.ts",
+          "scratch/DM-170/c2-idempotency.ts",
+          "scratch/DM-170/c3-portable.ts",
+          "scratch/DM-170/c4-adoption.ts",
+          "scratch/DM-170/c4-attribution.ts",
+          "scratch/DM-170/shared.ts",
+          "src/core/db/migrations.test.ts",
+          "src/core/db/migrations.ts",
+          "src/core/ids.ts",
+          "src/core/repo/finalizer.ts",
+          "src/core/repo/importer.ts",
+          "src/core/repo/migrationExport.ts",
+          "src/core/repo/observationImport.ts",
+          "src/core/repo/paths.ts",
+          "src/core/repo/portable.ts",
+          "src/core/repo/syncState.ts",
+          "src/core/services/epicDeletion.ts",
+          "src/core/services/observations.ts",
+          "src/core/services/outbox.ts",
+          "src/core/space/contract.ts",
+          "src/core/space/fixtures/observations.json",
+          "src/core/space/ledger.ts",
+          "src/core/storedSecrets.ts",
+          "src/shared/domain/space.ts"
+        ],
+        "commits": [
+          "0798d2340281adcf4578436e08f91ecd99458b18",
+          "5064acbd6121f18428b939601ce7bb8fac61b775"
+        ],
+        "summary": "Attempt 2 fixes every rejection reason on top of attempt 1 (0798d23), in commit 5064acb. (1) Scope membership (src/core/services/observations.ts checkScope): the epic must have a saved plan and the run must belong to it; with an attempt, the sprint and ticket are checked against attempts.revision_id (the revision the attempt ran under, which adoptRevision never rewrites); without an attempt, against any saved plan of the epic. Import uses the same checks, so pre-adoption observations import on other machines. Demonstrated with a real adoptRevision that removes a ticket, then flush + copyTracked + reconcile (scratch/DM-170/c4-adoption.ts). (2) Storage screens (src/core/space/ledger.ts): every free text (actor, method, usage parent, evidence detail, attribute names/values) is one line of at most 200 characters; paths: any boundary-anchored absolute POSIX path of 2+ segments (/c/Users/, /d/, /data/, /nix/store/) plus known roots (/Library, /Applications, ...), drive paths (C:\\ or C:/x/), UNC, ~/, $HOME/${HOME}/XDG_*, %USERPROFILE%-style, $env:, file://; ':' is no longer a path boundary, so 'ratio a:/b' passes. Credentials: names with a credential word or pair anywhere (secretKey, secret_key, pwd, passwd, apiKeyValue, authToken) or ending in token; values: password=/token=/api_key= pairs, Basic auth, Bearer, bare JWTs, AIza, sk_live_/sk_test_, sk-, GitHub/GitLab/npm/Slack, AKIA, private key blocks. Evidence is de-duplicated at recording and duplicates/self-citation refused by the ledger rule (so imports refuse them too). observedAt is normalized to UTC at recording and required in that form, so one instant in another offset is the same payload. (3) Import (src/core/repo/observationImport.ts): evidence resolves only against observations already stored or inserted in this import, inserted in passes until nothing more succeeds, so a file citing a refused one is rejected and file order does not matter; self-citing files are rejected. (4) Import compares observationPayloadHash: another machine's record of the same delivery (different recordedAt) is marked synced and the local row is kept; the finalizer's writeOnce accepts such a file for a pending local export instead of a conflict. One id in the project folder and an epic folder is reported as a conflict for both files (no UNIQUE error), none imported. (5) Ordering: server-assigned ids within a call are monotonic (each greater than every id recorded at the same recordedAt and than the previous; nextStableId in src/core/ids.ts), so a call reads back in call order (ORDER BY recorded_at, id) here and after export/import: 200 report/withdrawal pairs with a real random id generator in one millisecond read 0/200 misordered. Docs updated (architecture.md ledger section)."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m65yene3p1dwngx9apevkpn4",
+      "state": "accepted",
+      "submittedAt": "2026-11-15T21:58:44.035Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:17e53ada60a9b588bfcfccaaa35938d1300cacf5acfb5cbb92509ef99792dca3",
+      "ticketId": "tk_01m453gpadq7a63z9sqm20yezm",
+      "updatedAt": "2026-11-15T22:05:10.522Z",
+      "worker": {
+        "catalogRevision": "2026-11-15.1",
+        "effort": "high",
+        "hostId": "omp-win32-x64-space",
+        "label": "omp task subagent",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (Last attempt on \"anthropic/claude-opus-5-5\" was rejected; nothing eligible sits above it, so the same model runs at higher effort.; Highest reasoning level \"deep\" is 1 rank above the ticket's \"multi_step\" need (-20).; Lists skills \"typescript\", \"node\", \"testing\" (+10, capped at 10).; Cost tier \"high\": cheaper tiers sort first on equal scores.; Effort raised from \"medium\" to \"high\".). This host cannot set a subagent's model or effort; the worker is an omp task subagent at the harness default, listed in the catalog as anthropic/claude-opus-5-5.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-15T22:06:44.774Z",
+      "decidedAt": "2026-11-15T22:50:56.538Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Criteria logic is sound; rejected for broken existing tests (delivery rule) plus total-completeness defects in get_run_metrics. Fix round on the same branch.",
+        "outcome": "rejected",
+        "reasons": [
+          "BLOCKING: three existing Vitest files that pass on space-sprint-1 (e3361fa) are red: src/mcp/roles.test.ts (16, per-role tool tables lack the four new tools), src/mcp/validation.test.ts:264 (SCHEMA_FINGERPRINTS stale for create_ticket/update_ticket/update_plan_draft after `budget`), src/core/workspace.grants.test.ts:109 (worker grant list lacks metrics.report). The ticket requires fixing tests you broke; update the tables and show `npx vitest run src/mcp/roles.test.ts src/mcp/validation.test.ts src/core/workspace.grants.test.ts` passing.",
+          "c4/c2: inclusive usage is double-counted across buckets (metricReports.ts:264,309,336): run-level tokens_total 10000 inclusive by actor orch plus two attempts 3000 each `self` with parentActor orch gives an observed run total of 16000 (true 10000). Resolve nesting run-wide for totals (or refuse `inclusive` on run-level reports) so nested usage counts once, as the tool description promises.",
+          "c4: a known gap inside an attempt reads complete (metricReports.ts:279-280): actor main observed 100 + actor child missing/host_unavailable in one attempt gives cell observed 100 and can make the run total observed. Any missing/unavailable component must make the cell and total missing (reportedValue as lower bound). Unreported overhead must likewise not leave a total marked complete without saying so.",
+          "c2: the same usage reported by `agent` and `host` (same actor, same eventId) is summed (2000 for 1000). Dedupe across source kinds by actor+eventId with a stated precedence (host over agent), and say so in the tool description.",
+          "Overhead kind is not part of the delivery identity/stream key: same actor+eventId under orchestration then review is a spurious conflict and a cumulative stream can span both kinds. Include the kind.",
+          "Performance: baseline evidence resolution parses every saved revision of every epic per reference, unmemoized, inside the write transaction and importer (observations.ts:193 -> plannedBaselines.ts:99; ~55 ms/reference on this repo, ~28 s for a 500-report batch). Index or memoize per call.",
+          "runWarnings.ts:41-43 still hashes `budget`, so a budget-only edit in a passed sprint warns that adoption refuses a changed accepted ticket, which adoption.ts:71 no longer does. Make the fingerprint agree with adoption."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "exit 0 (node, web, fireguard projects)",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0 on all 22 changed src files. The scratch scripts are outside the npm run lint scope and report complexity/max-lines on their main() functions.",
+            "name": "npx oxlint <changed src files>",
+            "status": "passed"
+          },
+          {
+            "detail": "1420/1420: authz, commands/capabilities, mcp/server, mcp/tools/execution, authoring, planning, schemas, ids, plan/normalize, diff, draftOps, adoption, adoptionFreshBudget, attempts, drafts, plans, stubApi, db/migrations",
+            "name": "npx vitest run (18 touched-module files)",
+            "status": "passed"
+          },
+          {
+            "detail": "24 PASS, ALL CHECKS PASSED",
+            "name": "npx tsx scratch/DM-171/c1-authorization.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "22 PASS, ALL CHECKS PASSED",
+            "name": "npx tsx scratch/DM-171/c2-delivery.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "25 PASS, ALL CHECKS PASSED",
+            "name": "npx tsx scratch/DM-171/c3-baselines.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "14 PASS, ALL CHECKS PASSED",
+            "name": "npx tsx scratch/DM-171/c4-external-host.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "Ran once for information: it already fails on the integration base (about 110 DM-169/DM-170 findings in src/shared/domain/space.ts, src/core/space, portable.ts, observations.ts), plus shared types in src/shared/domain/metrics.ts that only the node project imports (flagged by the web-project scan). Baseline refresh left to the sweep (DM-273).",
+            "name": "npm run deadcode",
+            "status": "failed"
+          },
+          {
+            "detail": "left to the testing tail",
+            "name": "npm test (full)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the testing tail",
+            "name": "coverage / whole-tree lint / build / fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "scratch/DM-171/c1-authorization.ts over a real MCP client/server per role on real workspaces: own-attempt report ok with server-fixed scope; worker token on another attempt -> stale_claim; no token -> unauthorized; worker/reader on the run bucket -> unauthorized; human_rating as agent, source human, rescue_minutes, verification, handoff_check -> unauthorized; desktop -> unauthorized; expired lease -> expired_claim; superseded and submitted -> stale_claim; orchestrator and reviewer overhead and orchestrator relay succeed. Tool listings per role shown."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "scratch/DM-171/c2-delivery.ts: delta by eventId resent -> unchanged, total 2000 not 4000; same eventId with another value -> conflict; out-of-order cumulative sequences count the latest (400); regressions and a delta in a cumulative stream -> invalid_input; missing eventId/sequence, wrong unit, forged sourceEvent -> invalid_input; a refused batch stores nothing; inclusive parent with child counted once (5000 not 7000)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "scratch/DM-171/c3-baselines.ts: budget saved before dispatch is frozen (server saved_at < dispatch); caller frozenAt refused; draft edit shows only as draft and in the plan diff; save makes v2 prospective while the dispatched ticket keeps v1; undispatched ticket follows the adopted revision then freezes at dispatch; a retry under the newer revision keeps first-dispatch v1; adoption does not supersede accepted work; a clone derives identical bl_ ids, versions and freeze times; evidence citing a bl_ id resolves, an unknown one -> not_found."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "scratch/DM-171/c4-external-host.ts: a plain MCP client in the orchestrator role (no chat adapter) supplies host usage; nothing reported -> missing not_reported; partial -> missing partial_coverage with a lower bound; reasoning reported host_unavailable -> cell unavailable with null value and total missing host_unavailable (never 0); complete -> observed 50000 incl. overhead; estimated span -> estimated total; reader lists provenance (source, sourceEvent/sequence, recordedAt). Shown through the MCP adapter, not the installed dm CLI (which runs the coordinating checkout build)."
+          }
+        ],
+        "notes": "The scratch MCP server registers discovery/authoring/planning/execution tools with grantTools exactly as createMcpServer does; createMcpServer itself cannot load under tsx because src/mcp/skills.ts imports Markdown through Vite. Design choices: (1) budgets are derived from saved revisions instead of a new table, so they are append-only and portable with no migration; (2) deliveries within one call read back in digest order, not call order (the sequence carries order for cumulative streams). The pinned budget as a BudgetBaseline is the applied field of getPlannedBaselines; DM-176/DM-178 can reuse plannedBaselines.ts. Worker/orchestrator skills and server instructions do not teach metric reporting yet (DM-192).\nDiscoveries:\n- title: Refresh the ts-prune baseline for the SPACE epic exports\n  reason: npm run deadcode fails on space-sprint-1 with about 110 findings from DM-169/DM-170 (src/shared/domain/space.ts, src/core/space/*, portable.ts, observations.ts) plus shared metric types only the node project imports; needs confirmation and npm run deadcode:refresh\n  ticket: DM-273"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m7gkz716e45e97sjh0wk4rdk",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Metric ingestion and run usage service",
+            "location": "src/core/services/metricReports.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Planned budget baselines service",
+            "location": "src/core/services/plannedBaselines.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Metrics domain types",
+            "location": "src/shared/domain/metrics.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Command specs",
+            "location": "src/core/commands/metrics.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "MCP metric tools",
+            "location": "src/mcp/tools/execution.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Docs",
+            "location": "docs/architecture.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Demonstration scripts (scratch MCP client)",
+            "location": "scratch/DM-171",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "space-DM-171",
+        "changedFiles": [
+          "docs/architecture.md",
+          "docs/space-grading.md",
+          "scratch/DM-171/c1-authorization.ts",
+          "scratch/DM-171/c2-delivery.ts",
+          "scratch/DM-171/c3-baselines.ts",
+          "scratch/DM-171/c4-external-host.ts",
+          "scratch/DM-171/shared.ts",
+          "src/core/authz.test.ts",
+          "src/core/authz.ts",
+          "src/core/commandSchemas.ts",
+          "src/core/commands/capabilities.test.ts",
+          "src/core/commands/capabilities.ts",
+          "src/core/commands/index.ts",
+          "src/core/commands/metrics.ts",
+          "src/core/ids.ts",
+          "src/core/plan/diff.ts",
+          "src/core/plan/normalize.ts",
+          "src/core/schemas.ts",
+          "src/core/services/adoption.ts",
+          "src/core/services/attempts.ts",
+          "src/core/services/metricReports.ts",
+          "src/core/services/observations.ts",
+          "src/core/services/plannedBaselines.ts",
+          "src/mcp/server.test.ts",
+          "src/mcp/tools/execution.ts",
+          "src/shared/domain/api.ts",
+          "src/shared/domain/bundle.ts",
+          "src/shared/domain/metrics.ts",
+          "src/test/stubApi.ts"
+        ],
+        "commits": [
+          "b5a07f7798851a4831d0398579f2a3a8f229ae55"
+        ],
+        "summary": "Commit b5a07f7. New commands (CommandApi + COMMAND_CAPABILITIES + MCP tools in src/mcp/tools/execution.ts): recordAttemptMetrics/record_attempt_metrics (new agent-only capability metrics.report: worker, orchestrator), recordRunMetrics/record_run_metrics (metrics.report_run: orchestrator, reviewer), getRunMetrics/get_run_metrics and getPlannedBaselines/get_planned_baselines (read). Service src/core/services/metricReports.ts: capability check + ctx.assertBranch(); a worker must present its live claim token (fenced through the exported verifyClaim/settleLeases: stale_claim / expired_claim), a worker without a token is unauthorized; an orchestrator may relay usage for any attempt of a run it owns (external host route, no chat adapter); scope is server-derived (attempt plus its sprint in the attempt revision; run bucket with optional sprintId and attribute overhead). Only agent/host sources and metrics those sources may record; a human source, human_rating, rescue_minutes and server metrics are unauthorized. Delivery identity (scope, source kind and actor, metric, cumulative sequence or delta/event eventId, stored as attribute sourceEvent) derives the mo_ id through the new derivedStableId (src/core/ids.ts), so resends are unchanged and a different payload is a conflict; a stream keeps one accumulation and cumulative values are monotonic in sequence. get_run_metrics: per executing attempt and overhead bucket usage cells (observed/estimated/unavailable/unreported; null, never 0), cumulative latest, delta sum, inclusive-parent nesting counted once; totals observed only when every executing attempt reported, otherwise missing partial_coverage/host_unavailable/not_reported with reportedValue as a lower bound (addresses the earlier review comment about unreported attempts); optional provenance listing. Budgets: TicketContent.budget {tokens, activeMs} (absent when unset, hashes preserved) in the ticketInput/ticketContent schemas, normalize build/patch (null clears), plan diff phrases. src/core/services/plannedBaselines.ts derives append-only budget versions from saved revisions (frozenAt = revision saved_at server time; bl_ id derived from revision+ticket+metric, so portable and identical across machines; no new table or migration), pins a dispatched ticket to the revision of its first claim and an undispatched one to the run revision; later saves are prospective; draft edits are compared with the epic current saved revision (addresses the earlier review comment). Ledger CITED_EPIC.baseline now resolves budget ids. adoption ticketHashes ignores the budget, so re-budgeting never supersedes accepted work. Docs: architecture.md new section, space-grading.md rule 7. Test tables updated only where typecheck/existing tests require (authz.test exact role sets, capabilities.test probes, server.test TOOLS, stubApi COMMAND_FLAGS); no new tests (owner decision)."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m65yene3p1dwngx9apevkpn4",
+      "state": "rejected",
+      "submittedAt": "2026-11-15T22:40:19.112Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:92ac7435766bd50b7b7fe3733c8603eeb84e5e971d6b63d409ae0651eeb1e746",
+      "ticketId": "tk_01m453gpadsqq1e18e766qywbq",
+      "updatedAt": "2026-11-15T22:50:56.538Z",
+      "worker": {
+        "catalogRevision": "2026-11-15.1",
+        "effort": "medium",
+        "hostId": "omp-win32-x64-space",
+        "label": "omp task subagent",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (Top-ranked of 1 eligible model.; Highest reasoning level \"deep\" is 1 rank above the ticket's \"multi_step\" need (-20).; Lists skills \"typescript\", \"node\", \"testing\" (+10, capped at 10).; Cost tier \"high\": cheaper tiers sort first on equal scores.; Uses the ticket's \"medium\" effort.). This host cannot set a subagent's model or effort; the worker is an omp task subagent at the harness default, listed in the catalog as anthropic/claude-opus-5-5.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-15T22:06:57.586Z",
+      "decidedAt": "2026-11-15T22:51:33.350Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Criteria pass on fixtures; rejected for real-record paths giving wrong numbers (carry-forward, sprint rename, inclusive nesting) and quadratic cost. Fix round on the same branch.",
+        "outcome": "rejected",
+        "reasons": [
+          "B1 c1/c3: a carried-forward ticket reads as queued for the whole run and every carry-forward raises an anomaly (timing.ts:669,716,481; services/timing.ts:136-145,216-226). Repro: ticket 1 completed, startRun({carryForward:[t1]}) 09:00, t2 claimed 09:10 accepted 09:50, asOf 18:00 -> t1 waitBeforeDispatch 540m open, run/sprint waits.queue 550m (real 10m), anomaly 'attempt_accepted … no undecided submission'. Carried-forward tickets must not accrue queue time and must not emit a spurious accepted event.",
+          "B2 c1/c3 (earlier-run defect, still present): after an adoption that renames the active sprint, readiness and queue time vanish silently. services/timing.ts:20-33 does not read run.revision_adopted; tickets are assigned by latest attempt's sprint while attempts by their own, so totals don't use one rule (shared/domain/timing.ts:238 claims they do). Repro in reviewer notes: bundle [[1,2,3],[4]], t1 claimed 10:00 rejected 11:00, pause, adopt revision renaming sprint 1, resume 11:30, t1 reclaimed 12:00 accepted 13:00, t2 claimed 13:30, asOf 14:00 -> all readyAt null, t2's 09:00-13:30 and t3's queue lost, run waits.queue 40m observed with no anomaly. Map old->new sprint ids through adoptions, apply one assignment rule everywhere, and if anything can't be attributed say so (partial/anomaly), never silently drop it. Add this scenario to scratch.",
+          "B3 c4: a worker whose parent session reports `inclusive` usage loses its activity (timingActivity.ts:141-162 deletes the child span instead of reducing the parent's). Repro: orch span 09:50-11:10 inclusive; worker span 10:00-11:00 on a1 with parentActor orch -> a1 active missing, whole hour unknown, byRole worker 0 / orch 80m (true 60/20). Subtract the child cover from the parent instead.",
+          "B4 performance: quadratic at ~20k spans (20000 attempts x 1 span: 70.7 s; nested 10k+10k: 13.7 s). Per-attempt/ticket full scans at timing.ts:340,385,671,697; timingActivity.ts:146-158 array copy + cover rebuilt per child span; timingIntervals.ts:55 linear filter. Index spans by attempt/ticket once, memoise cover per actor, binary-search cuts; show 20k spans in well under 2 s in scratch.",
+          "Also fix: N1 lease expiry reconciled by `resubmit` must end at the lease deadline (services/timing.ts:163-174 keys on row.state); N2 effortByOutcome.effortMs double counts a shared overhead span (timing.ts:422) — buckets must sum to effort.total (overlapping-workers fixture: 145 vs 150); N3 zero attempts must read missing, not '0 observed (0/0)' (timingActivity.ts:204-207); N4 overhead coverage must reflect actual coverage and estimated state only from overhead streams (timingActivity.ts:224-234); N5 same worker reported by host and agent must not sum twice (prefer host); N7 clamp asOf to now in the service; N8 emit 'after_cutoff' or remove it. N6 (run-scoped overhead in no sprint): keep, but label it in the sprint result so sprint scorecards can show it as unattributed overhead."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "tsc node, web and fireguard configs: exit 0 (on the final tree after the last source edit, tsc -p tsconfig.node.json exit 0 again).",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npx oxlint src/core/space/timing.ts src/core/space/timingIntervals.ts src/core/space/timingActivity.ts src/shared/domain/timing.ts src/core/services/timing.ts: exit 0, no findings; npx oxlint scratch/DM-172/*.ts: exit 0.",
+            "name": "npx oxlint <changed files>",
+            "status": "passed"
+          },
+          {
+            "detail": "No existing module was modified (all source files are new; only docs/space-grading.md changed), so no existing test file covers the change. New tests are left to the testing tail.",
+            "name": "existing Vitest files for touched modules",
+            "status": "skipped"
+          },
+          {
+            "detail": "143 PASS, 'ALL CHECKS PASSED': every expectation of the 8 fixtures, no negative number anywhere, segments cover each attempt claim..end exactly once with active+waits+unknown = elapsed, ticket segments contiguous, 5 shuffled input orders per fixture give the identical projection.",
+            "name": "npx tsx scratch/DM-172/c1-fixtures.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "5 PASS, 'ALL CHECKS PASSED': 428 quantities across all fixtures name the kind matching their field and milliseconds. Missing ones are null with covered 0.",
+            "name": "npx tsx scratch/DM-172/c2-units.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0: all five @ts-expect-error directives are real type errors (elapsed not accepted as measured_active, cycle time not as classified_wait, effort not as wall clock, unit fixed).",
+            "name": "npx tsc --noEmit --strict --skipLibCheck --target es2022 --module esnext --moduleResolution bundler scratch/DM-172/c2-types.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "15 PASS, 'ALL CHECKS PASSED': a real run driven through claim/heartbeat/submit/accept/reject/lease expiry/reconcile/fail/pause/resume with host spans recorded via recordObservations, projected by projectRunTiming; no anomalies.",
+            "name": "npx tsx scratch/DM-172/c3-c4-service.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "Run for information only (not a ticket check). It already fails on space-sprint-1 because of DM-169/DM-170 exports with no caller (recordObservations, gradeSpace, contract schemas...). This ticket adds projectRunTiming, TimingInput and 33 exports of src/shared/domain/timing.ts, which have no caller until a later ticket wires the projection in. Left to the sweep.",
+            "name": "npm run deadcode",
+            "status": "failed"
+          },
+          {
+            "detail": "left to the testing tail",
+            "name": "npm test (full), coverage, fireguard, build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "src/core/space/fixtures/timing/*.json: pause-resume (incl. a repeated pause, a span starting exactly at the pause and one inside it), lease-expiry (crash: unknown after the last signal, lease deadline end, reconciliation queue), missing-stop and missing-stop-run-ended (no stop: cutoff/open vs run end; pause with no resume), duplicates-out-of-order (shuffled and repeated events, duplicate/conflicting/overlapping/inverted/inconsistent/cumulative/unknown-kind/after-cutoff deliveries -> anomalies, union counts once), overlapping-workers, retries-and-unknown, nested-usage. `npx tsx scratch/DM-172/c1-fixtures.ts` -> 143 PASS, ALL CHECKS PASSED (expectations, no negative values, segments cover each window once, active <= elapsed, order-independent across 5 shuffles)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "TimingQuantity<K> in src/shared/domain/timing.ts: distinct kinds ticket_cycle_time / ticket_lead_time / attempt_elapsed / measured_active / classified_wait / unclassified / resource_effort / in_flight_wall_clock / active_wall_clock / window_elapsed, unit 'milliseconds', aggregation, state, coverage {covered, of, unit: milliseconds|attempts|streams}, open. `npx tsx scratch/DM-172/c2-units.ts` -> ALL CHECKS PASSED (e.g. expired attempt: attempt_elapsed 25 min covered 10/25 min; measured_active 10 min covered 1/1 attempts; 428 quantities checked; missing = null, covered 0). The tsc run on scratch/DM-172/c2-types.ts exits 0, which proves passing an elapsed time as active time (and similar swaps) is a compile error. Documented in docs/space-grading.md 'Time and effort'."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Fixture overlapping-workers (workers 10:00-11:00 and 10:30-11:30 sharing an adapter name): effort 165 min (worker 120, orchestrator 25, reviewer 20; overhead 45), in-flight wall clock 90, active wall clock 120, sprint elapsed 160, checkpoint wait 30. An orchestrator span reported under both attempts counts once in run totals. Real records: `npx tsx scratch/DM-172/c3-c4-service.ts` -> run effort 165 min (worker 145, orchestrator 10, reviewer 10), active wall clock 120, in flight 110, attempt elapsed sum 170, sprint window 160; ALL CHECKS PASSED."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Fixture retries-and-unknown: failed (20 min effort, 10 unknown), rejected+superseded with no activity (effort missing, unreported 1, 20 unknown), accepted (15): ticket effort 35 min partial 2/3, unknown 30 min. lease-expiry: expired attempt keeps 10 min effort and 15 min unknown. Real records (c3-c4-service.ts): the rejected attempt keeps 60 min; the expired attempt ends at its 10:25 deadline with 5 min effort and 15 unknown; the failed attempt's effort is missing (null, never 0) and counted unreported; run unknown 25 min kept. ALL CHECKS PASSED."
+          }
+        ],
+        "notes": "Design notes for reviewers and later tickets:\n- Span attributes the projection reads: spanStart (ISO), role (worker|orchestrator|reviewer|other; default worker when scoped to an attempt, else other), handle (stream identity), waitKind on wait_ms (queue|build_test|blocked|review|human_approval). Host adapters should send role and handle. Without a handle, parallel workers stay separate (keyed by attempt) and orchestrator spans are keyed by role, so one orchestrator is not counted once per attempt (the earlier run's actorKeyOf defect).\n- Sprint totals use one membership rule for everything (the attempt's plan revision; non-attempt spans by their scope.sprintId, else the ticket's sprint). Sprint waits are summed over tickets (ticket-ms) plus the checkpoint wait. A ticket whose sprint id changed by adoption gets no readiness (lead time missing), rather than an invented window.\n- Readiness is derived in the service only where records show it (sprint activation and acceptance of every dependency). Otherwise lead time and waitBeforeDispatch are missing.\n- Failed/canceled end times come from the event log; the row's updated_at (later rewritten by supersession or reconciliation) is only a fallback for runs imported without their local log.\n- Spans scoped to an attempt count as its effort from the claim to the end of its review or reconciliation, so reviewer work after submit is the attempt's overhead. Span time outside that window is reported as outsideWindowMs, not counted.\n- Delta/cumulative active_ms has no place in time and is listed as not_an_interval (not counted here).\n- I did not run the full suite, coverage, build or Fireguard (left to the testing tail).\nDiscoveries:\n- title: Wire projectRunTiming into the metrics read path and grading\n  reason: src/core/services/timing.ts projectRunTiming and src/shared/domain/timing.ts have no caller yet; npm run deadcode lists them (35 entries) on top of the DM-169/DM-170 exports it already lists on space-sprint-1. DM-178 (aggregation, per the earlier run's review comment) should call it, and DM-176 reads its effort and unknown time (and decide whether projected waits are recorded as server wait_ms/elapsed_ms observations).\n  ticket: DM-178\n- title: npm run deadcode already fails on space-sprint-1\n  reason: npm run deadcode reports 'New dead exports detected' for DM-169/DM-170 exports (recordObservations, gradeSpace, letterFor, parseObservation and the contract schemas, readObservationRecord, ...). This is independent of DM-172. The sweep must either wire them in or refresh .tsprune-ignore deliberately.\n  ticket: DM-273\n"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m7gkzkhjcd1jk3brbqev31ak",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Pure timing projection projectTiming",
+            "location": "src/core/space/timing.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Interval, classification and quantity helpers",
+            "location": "src/core/space/timingIntervals.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Activity spans, nesting and effort",
+            "location": "src/core/space/timingActivity.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Timing contract types (TimingQuantity, RunTiming...)",
+            "location": "src/shared/domain/timing.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Run feed projectRunTiming",
+            "location": "src/core/services/timing.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Deterministic clock fixtures",
+            "location": "src/core/space/fixtures/timing",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Time and effort rules",
+            "location": "docs/space-grading.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Demonstration scripts",
+            "location": "scratch/DM-172",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "space-DM-172",
+        "changedFiles": [
+          "docs/space-grading.md",
+          "scratch/DM-172/c1-fixtures.ts",
+          "scratch/DM-172/c2-types.ts",
+          "scratch/DM-172/c2-units.ts",
+          "scratch/DM-172/c3-c4-service.ts",
+          "scratch/DM-172/shared.ts",
+          "src/core/services/timing.ts",
+          "src/core/space/fixtures/timing/duplicates-out-of-order.json",
+          "src/core/space/fixtures/timing/lease-expiry.json",
+          "src/core/space/fixtures/timing/missing-stop-run-ended.json",
+          "src/core/space/fixtures/timing/missing-stop.json",
+          "src/core/space/fixtures/timing/nested-usage.json",
+          "src/core/space/fixtures/timing/overlapping-workers.json",
+          "src/core/space/fixtures/timing/pause-resume.json",
+          "src/core/space/fixtures/timing/retries-and-unknown.json",
+          "src/core/space/timing.ts",
+          "src/core/space/timingActivity.ts",
+          "src/core/space/timingIntervals.ts",
+          "src/shared/domain/timing.ts"
+        ],
+        "commits": [
+          "e1f11653a5a78e391bf4899e75536589846fdf45"
+        ],
+        "summary": "Adds a pure timing projection and its run feed, in commit e1f1165 on space-DM-172. projectTiming (src/core/space/timing.ts, helpers timingIntervals.ts and timingActivity.ts) takes server lifecycle events plus host/agent active_ms and wait_ms span events (spanStart, else observedAt minus the value, to observedAt) and returns classified segments and totals per attempt, ticket, sprint and run as of a cutoff. Claim-to-submit is attempt_elapsed only; active time is only where the attempt worker's activity spans cover it. Classes: active, queue (ready and unclaimed, awaiting reconciliation), build_test, blocked (run paused, host-reported), review (submitted, undecided), human_approval (sprint checkpoint, retry grant, host prompt), unknown (reason after_last_signal or no_activity_evidence). Inside an attempt: activity > host wait > pause > unknown. There is no waste class. Missing stops end at the run end, else the cutoff (open). An expired lease ends at its deadline, or at the takeover that expired it. Duplicates and out-of-order input are ordered, deduplicated (the first delivery of an observation id wins) and listed in anomalies. Nothing is negative or counted after the cutoff. Every number is a TimingQuantity (src/shared/domain/timing.ts) with a distinct kind type, unit, aggregation (single/union/sum), state (observed/estimated/partial/missing), coverage and open flag. A missing value is null and covers 0. Effort is summed over streams (source+actor+handle; without a handle, worker spans are keyed by attempt and other roles by role). It is reported beside the in-flight and active wall-clock unions and the sprint/run elapsed windows. Orchestrator, reviewer and other overhead is listed byRole and as overhead. Nested inclusive usage is not counted twice. Failed, rejected, canceled, expired and superseded attempts keep their elapsed time, effort and unknown time (effortByOutcome, with unreported counts). Carried-forward attempts are listed and not counted. Sprints assign everything by the attempt's plan revision (membership: attempt_revision). projectRunTiming(ctx, {runId, asOf?}) (src/core/services/timing.ts, capability read) feeds the projection from portable rows (attempts, runs, sprint_reports, approvals, checkpoints), the local event log (pauses, takeover, progress notes, retry grants, exact failure/cancel times) and the run's ledger observations. It has no caller yet: wiring it into IPC/MCP/grading belongs to later tickets. Checked-in clock fixtures: src/core/space/fixtures/timing/*.json (8 scenarios with expectations). Rules: docs/space-grading.md 'Time and effort'. No existing module was modified (only docs/space-grading.md), so no existing Vitest file covers the change; tests are left to the testing tail."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m65yene3p1dwngx9apevkpn4",
+      "state": "rejected",
+      "submittedAt": "2026-11-15T22:41:40.624Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:f64ab61b545656ed4e052bc52ccf8da470be19c15003971f1136d3d29a08fc3b",
+      "ticketId": "tk_01m453gpadxyaff2pr641187we",
+      "updatedAt": "2026-11-15T22:51:33.350Z",
+      "worker": {
+        "catalogRevision": "2026-11-15.1",
+        "effort": "medium",
+        "hostId": "omp-win32-x64-space",
+        "label": "omp task subagent",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (Top-ranked of 1 eligible model.; Highest reasoning level \"deep\" is 1 rank above the ticket's \"multi_step\" need (-20).; Lists skills \"typescript\", \"node\", \"testing\" (+10, capped at 10).; Cost tier \"high\": cheaper tiers sort first on equal scores.; Uses the ticket's \"medium\" effort.). This host cannot set a subagent's model or effort; the worker is an omp task subagent at the harness default, listed in the catalog as anthropic/claude-opus-5-5.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-15T22:51:02.051Z",
+      "decidedAt": "2026-11-15T23:07:58.797Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Attempt 2 fixed all rejection reasons (reviewer re-review ACCEPT). The 10-19 s 500-report batch is DM-170 finalizer per-file export, not DM-171; routed to the epic.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "exit 0",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0",
+            "name": "npx oxlint <every src file changed since e3361fa>",
+            "status": "passed"
+          },
+          {
+            "detail": "22 files, 1575/1575 (adds runWarnings.test.ts to the attempt 1 set)",
+            "name": "npx vitest run src/mcp/roles.test.ts src/mcp/validation.test.ts src/core/workspace.grants.test.ts + 19 more touched-module files",
+            "status": "passed"
+          },
+          {
+            "detail": "11 PASS, ALL CHECKS PASSED: run total 10000 not 16000; cell partial 100, total missing partial_coverage 150 lower bound, overheadCoverage unreported; agent+host same delivery 1000 not 1900; same eventId under review is a new delivery; cumulative under review is its own stream; first baseline resolution 0.1 ms, next 500 resolutions 7.1 ms total",
+            "name": "npx tsx scratch/DM-171/fix-round.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "24 PASS",
+            "name": "npx tsx scratch/DM-171/c1-authorization.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "22 PASS",
+            "name": "npx tsx scratch/DM-171/c2-delivery.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "25 PASS",
+            "name": "npx tsx scratch/DM-171/c3-baselines.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "14 PASS",
+            "name": "npx tsx scratch/DM-171/c4-external-host.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "stays with DM-273 per orchestrator decision",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the testing tail",
+            "name": "npm test (full), coverage, whole-tree lint, build, fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Role/claim-token authorization for record_attempt_metrics/record_run_metrics; human and derived metrics refused (scratch/DM-171/c1-authorization.ts; reviewer probes)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Delivery identities incl. overhead kind; resend unchanged, conflict on change, agent/host dedupe with host precedence, nested usage counted once run-wide (c2-delivery.ts, fix-round.ts; reviewer re-review)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Budgets frozen at server save time, pinned to first-claim revision, prospective versions, draft compared to current saved revision, adoption ignores budget-only edits (c3-baselines.ts)."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "External host without adapter: unavailable stays null; partial coverage keeps totals missing with lower bound; overheadCoverage stated (c4-external-host.ts, fix-round.ts)."
+          }
+        ],
+        "notes": "Timing of a 500-report batch is dominated by per-observation work outside the baseline lookup (14.7 s without evidence vs 18.8 s with, on a loaded machine; noisy, so not used as a pass criterion); the baseline lookup itself is about 7 ms for 500 after the index builds.\nDiscoveries:\n- title: Speed up per-observation scope checks in the metric ledger\n  reason: recording 500 observations in one call took about 10 to 19 s on this machine even without evidence (scratch/DM-171/fix-round.ts section 6); the per-observation scope and reference checks in src/core/services/observations.ts run JSON queries over saved plans for every observation\n  ticket: DM-170"
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m7gpga137hkjq7dk5jc51av2",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Metric ingestion and run usage service",
+            "location": "src/core/services/metricReports.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Planned budget baselines service (indexed evidence lookup)",
+            "location": "src/core/services/plannedBaselines.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Run warnings fingerprint",
+            "location": "src/core/plan/runWarnings.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Metrics domain types",
+            "location": "src/shared/domain/metrics.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "MCP metric tools",
+            "location": "src/mcp/tools/execution.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Docs",
+            "location": "docs/architecture.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Demonstration scripts",
+            "location": "scratch/DM-171",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "space-DM-171",
+        "changedFiles": [
+          "docs/architecture.md",
+          "docs/space-grading.md",
+          "scratch/DM-171/c1-authorization.ts",
+          "scratch/DM-171/c2-delivery.ts",
+          "scratch/DM-171/c3-baselines.ts",
+          "scratch/DM-171/c4-external-host.ts",
+          "scratch/DM-171/fix-round.ts",
+          "scratch/DM-171/shared.ts",
+          "src/core/authz.test.ts",
+          "src/core/authz.ts",
+          "src/core/commandSchemas.ts",
+          "src/core/commands/capabilities.test.ts",
+          "src/core/commands/capabilities.ts",
+          "src/core/commands/index.ts",
+          "src/core/commands/metrics.ts",
+          "src/core/ids.ts",
+          "src/core/plan/diff.ts",
+          "src/core/plan/normalize.ts",
+          "src/core/plan/runWarnings.ts",
+          "src/core/schemas.ts",
+          "src/core/services/adoption.ts",
+          "src/core/services/attempts.ts",
+          "src/core/services/metricReports.ts",
+          "src/core/services/observations.ts",
+          "src/core/services/plannedBaselines.ts",
+          "src/core/workspace.grants.test.ts",
+          "src/mcp/roles.test.ts",
+          "src/mcp/server.test.ts",
+          "src/mcp/tools/execution.ts",
+          "src/mcp/validation.test.ts",
+          "src/shared/domain/api.ts",
+          "src/shared/domain/bundle.ts",
+          "src/shared/domain/metrics.ts",
+          "src/test/stubApi.ts"
+        ],
+        "commits": [
+          "b5a07f7798851a4831d0398579f2a3a8f229ae55",
+          "c5afe22aabed50c7198b9c30bed74854e3853525"
+        ],
+        "summary": "Attempt 2: commit c5afe22 on top of b5a07f7 (attempt 1 summary still applies: record_attempt_metrics / record_run_metrics / get_run_metrics / get_planned_baselines, capabilities metrics.report and metrics.report_run, delivery-derived ids, ticket budgets frozen by saved revisions and pinned to first dispatch). Fixes for every rejection reason: (1) broken tests updated: src/mcp/roles.test.ts role tool tables (reads get_run_metrics/get_planned_baselines for every role; record_attempt_metrics for worker and orchestrator; record_run_metrics for orchestrator and reviewer), src/mcp/validation.test.ts SCHEMA_FINGERPRINTS for create_ticket/update_ticket/update_plan_draft (commented as changed on purpose for budget), src/core/workspace.grants.test.ts worker grant list with metrics.report. (2) Run totals resolve nesting across the whole run: the total value is computed over every executing attempt's and the overhead bucket's observations together, so a run-level inclusive 10,000 with two attempts' self 3,000 under it totals 10,000. (3) New coverage state partial: a stream reporting missing beside numbers (a missing delta, or a missing latest cumulative report) makes the cell partial (value a lower bound) and the run total missing partial_coverage; an overhead bucket with a gap also keeps the total missing; each total now carries overheadCoverage, and unreported overhead is stated rather than implied. (4) Agent and host reports of the same delivery (same actor and sourceEvent or sequence) are deduplicated at read with host precedence; the stream key no longer includes the source kind (described in the tool description). (5) The overhead kind is part of the delivery identity and the stream key. (6) Baseline evidence resolution uses a per-database index of budget baseline ids, rebuilt only when the set of saved revisions changes (count, rowid range, id range): 500 lookups take about 7 ms after the build. (7) runWarnings fingerprint leaves the budget out, like adoption. checkStreams now indexes streams in a map (no quadratic scan). Docs: architecture.md gains the read details and the note that graders consume only the applied budget."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m65yene3p1dwngx9apevkpn4",
+      "state": "accepted",
+      "submittedAt": "2026-11-15T23:03:26.964Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:92ac7435766bd50b7b7fe3733c8603eeb84e5e971d6b63d409ae0651eeb1e746",
+      "ticketId": "tk_01m453gpadsqq1e18e766qywbq",
+      "updatedAt": "2026-11-15T23:07:58.797Z",
+      "worker": {
+        "catalogRevision": "2026-11-15.1",
+        "effort": "high",
+        "hostId": "omp-win32-x64-space",
+        "label": "omp task subagent",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (Last attempt on \"anthropic/claude-opus-5-5\" was rejected; nothing eligible sits above it, so the same model runs at higher effort.; Highest reasoning level \"deep\" is 1 rank above the ticket's \"multi_step\" need (-20).; Lists skills \"typescript\", \"node\", \"testing\" (+10, capped at 10).; Cost tier \"high\": cheaper tiers sort first on equal scores.; Effort raised from \"medium\" to \"high\".). This host cannot set a subagent's model or effort; the worker is an omp task subagent at the harness default, listed in the catalog as anthropic/claude-opus-5-5.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-15T22:51:53.944Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m7gphwprymck8ghjna5zjbr6",
+      "kind": "work",
+      "number": 2,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m65yene3p1dwngx9apevkpn4",
+      "state": "running",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:f64ab61b545656ed4e052bc52ccf8da470be19c15003971f1136d3d29a08fc3b",
+      "ticketId": "tk_01m453gpadxyaff2pr641187we",
+      "updatedAt": "2026-11-15T23:06:02.832Z",
+      "worker": {
+        "catalogRevision": "2026-11-15.1",
+        "effort": "high",
+        "hostId": "omp-win32-x64-space",
+        "label": "omp task subagent",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (Last attempt on \"anthropic/claude-opus-5-5\" was rejected; nothing eligible sits above it, so the same model runs at higher effort.; Highest reasoning level \"deep\" is 1 rank above the ticket's \"multi_step\" need (-20).; Lists skills \"typescript\", \"node\", \"testing\" (+10, capped at 10).; Cost tier \"high\": cheaper tiers sort first on equal scores.; Effort raised from \"medium\" to \"high\".). This host cannot set a subagent's model or effort; the worker is an omp task subagent at the harness default, listed in the catalog as anthropic/claude-opus-5-5.",
         "sessionId": null
       }
     }
@@ -206,6 +1468,60 @@
   "pauseReason": null,
   "reports": [],
   "revisionId": "rv_01m65yene3p1dwngx9apevkpn4",
+  "rowChecks": [
+    {
+      "checks": [
+        {
+          "detail": "node, web and fireguard projects on space-sprint-1 after merging DM-169",
+          "name": "npm run typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "2 files, 584 tests",
+          "name": "npx vitest run src/core/ids.test.ts src/core/schemas.test.ts",
+          "status": "passed"
+        },
+        {
+          "detail": "all four demo scripts ALL CHECKS PASSED on the merged head",
+          "name": "npx tsx scratch/DM-169/c1..c4",
+          "status": "passed"
+        }
+      ],
+      "commit": "aecc4f5ebb9d81fcfd84deecfc37fbf913cc9c0d",
+      "createdAt": "2026-11-15T21:08:29.924Z",
+      "id": "rk_01m7ggmj34pt1gq8wzgcg7e7gs",
+      "number": 1,
+      "recordedBy": "dm CLI",
+      "row": 1,
+      "sprintId": "sp_01m452vt12bqj228djrvnak4m9"
+    },
+    {
+      "checks": [
+        {
+          "detail": "node, web, fireguard on space-sprint-1 after merging DM-170",
+          "name": "npm run typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "11 files, 604 tests: src/core/db/migrations.test.ts src/core/ids.test.ts src/core/repo/finalizer.kanban.test.ts src/core/repo/finalizer.test.ts src/core/repo/importer.hostile.test.ts src/core/repo/importer.test.ts src/core/repo/paths.test.ts src/core/repo/portable.kanban.test.ts src/core/repo/portable.test.ts src/core/services/outbox.test.ts src/core/storedSecrets.test.ts",
+          "name": "npx vitest run (tests colocated with DM-170 changed files)",
+          "status": "passed"
+        },
+        {
+          "detail": "all demo scripts ALL CHECKS PASSED on the merged head",
+          "name": "npx tsx scratch/DM-170/* and scratch/DM-169/*",
+          "status": "passed"
+        }
+      ],
+      "commit": "e3361fabb528ea08355117dbf5b57fb36e0a3774",
+      "createdAt": "2026-11-15T22:07:15.716Z",
+      "id": "rk_01m7gm0584cqm6035yvt876fzf",
+      "number": 2,
+      "recordedBy": "dm CLI",
+      "row": 2,
+      "sprintId": "sp_01m452vt12bqj228djrvnak4m9"
+    }
+  ],
   "runId": "rn_01m7gdve7pw5ey7eqtyrkvn9fm",
   "skillVersion": "1.9.0",
   "startedAt": "2026-11-15T20:22:13.476Z",

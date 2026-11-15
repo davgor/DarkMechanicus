@@ -1,0 +1,199 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": "ka_01m7gg9eng5s9t466qe8h5zwdm",
+  "cardId": "kc_01m7gfe4pv2q8s3xvd6z0845d2",
+  "createdAt": "2026-11-15T23:11:23.263Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7gqnjm0wjpqwpkh54h20ndj",
+  "kind": "submitted",
+  "payload": {
+    "evidence": {
+      "attachments": [
+        {
+          "bytes": 73997,
+          "height": 900,
+          "id": "im_01m7gqky13vg0efe36184ycdtv",
+          "label": "DM-619 expanded agent row with folder and No project chats",
+          "mime": "image/png",
+          "purpose": "evidence",
+          "sha256": "b3409592f3e4ec7559628f82d17a91eeafde47e1c1fc9690f6b62736f0d0293d",
+          "width": 1440
+        },
+        {
+          "bytes": 109037,
+          "height": 900,
+          "id": "im_01m7gqkzfxdy133cqbqrqfk57f",
+          "label": "DM-619 summoned project-less chat running, named via per-folder grant",
+          "mime": "image/png",
+          "purpose": "evidence",
+          "sha256": "f18ebd578b934e776091931cafc9f50bf2c75bcbd143d1b89c748f53b1d4d754",
+          "width": 1440
+        }
+      ],
+      "checks": [
+        {
+          "detail": "npm run lint: exit 0. Run once on the integrated merge b3c8ece in C:/Users/davgo/dmwt/cards-integration with CI, DM_DESKTOP_PIPE, DM_SESSION_TOKEN and ELECTRON_RUN_AS_NODE unset (hosting chat sets CI=true, which forces symlink tests the account cannot run, and leaks the desktop pipe into chatNaming.test.ts).",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run typecheck: exit 0 (node, web, fireguard projects), 28 s.",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "npm test: 10 failed, 10564 passed, 59 skipped (7 files failed: pullRequestsCheckout x3, conflicts x2, conflictsOpen PATHEXT, branches, commitLinesProperty, publish/fetch/pull, workspace.storageMigration.safety journal), all 15000 ms timeouts. Pre-existing, not card code: every failing test is in src/main/git, src/main/github or src/core/workspace.storageMigration.safety (none touched by either card) and fails only on the 15000 ms timeout. Machine was under sustained load from an unrelated game server (enshrouded_server, ~30% CPU on 16 threads). commitLinesProperty.test.ts takes 8.9 s alone, so it has little headroom under the parallel suite. Not rerun for green, no timeout raised; the slow git subprocess tests need their own fix.",
+          "name": "test",
+          "status": "failed"
+        },
+        {
+          "detail": "npm run coverage: 1 failed, 10573 passed, 59 skipped; the failure is commitLinesProperty.test.ts timing out at 15000 ms (85 s under coverage instrumentation), so coverage thresholds were not evaluated. Pre-existing, not card code: every failing test is in src/main/git, src/main/github or src/core/workspace.storageMigration.safety (none touched by either card) and fails only on the 15000 ms timeout. Machine was under sustained load from an unrelated game server (enshrouded_server, ~30% CPU on 16 threads). commitLinesProperty.test.ts takes 8.9 s alone, so it has little headroom under the parallel suite. Not rerun for green, no timeout raised; the slow git subprocess tests need their own fix.",
+          "name": "coverage",
+          "status": "failed"
+        },
+        {
+          "detail": "npm run deadcode: exit 0, no new dead exports.",
+          "name": "deadcode",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run build: exit 0, 6 s.",
+          "name": "build",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run fireguard: all hard gates passed on the integrated changed tests (902 s).",
+          "name": "fireguard",
+          "status": "passed"
+        }
+      ],
+      "criteria": [
+        {
+          "criterionId": "c1",
+          "met": true,
+          "note": "App.agentChats.test.tsx: expanding an agent lists its chats from every tracked folder plus project-less ones newest first with folder/\"No project\" labels; updates on create/rename/delete without reload. chatHandlers.projectless.test.ts covers listAll (untracked folders and deleted chats excluded). Screenshot \"DM-619 expanded agent row\"."
+        },
+        {
+          "criterionId": "c2",
+          "met": true,
+          "note": "App.agentChats.test.tsx: rows reuse ChatRow (live dot, Needs sign-in badge) and the existing rename/delete dialogs; folder chats open in their folder, project-less chats in their own pane."
+        },
+        {
+          "criterionId": "c3",
+          "met": true,
+          "note": "\"summoning\" tests in App.agentChats.test.tsx (popup -> create({folder:null}) -> opens chat), terminalSessions.projectless.test.ts (scratch folder under app data, attach with folder null, listed under no folder). Screenshot \"DM-619 summoned project-less chat running\" shows a real Skitarii session."
+        },
+        {
+          "criterionId": "c4",
+          "met": true,
+          "note": "chatStore/chatRecords/terminalSessions projectless tests: records survive reopen and resume in the same scratch folder; selection survives reload; delete ends terminal and removes record, transcript and scratch folder; removing the agent ends the terminal and revokes all grants."
+        },
+        {
+          "criterionId": "c5",
+          "met": true,
+          "note": "chatGrants.reach.test.ts against real workspaces: per-folder orchestrator grants with plan.save, cross-folder token refused, revoked tokens refused, naming bindings correct; cliInstructions/terminalInstructions.projectless tests check per-folder --repo/--token-file lines. In the screenshot the live agent ran dm --repo alpha-service --token-file ... call name_chat -> applied:true."
+        },
+        {
+          "criterionId": "c6",
+          "met": true,
+          "note": "Folder chat instruction text/order unchanged; all existing chat, terminal, sidebar and App tests pass on the integrated branch. Only failures are the pre-existing git/github timeouts listed under checks."
+        },
+        {
+          "criterionId": "c7",
+          "met": false,
+          "note": "Behavioural tests, screenshots, lint, typecheck, fireguard, deadcode and build pass. npm test and npm run coverage did NOT pass: 15000 ms timeouts in untouched src/main/git, src/main/github and storageMigration safety tests under machine load (see checks). Not rerun for green."
+        }
+      ],
+      "notes": "Orchestrator review: diff and screenshots reviewed; decision recorded that a project-less chat with zero tracked folders starts without access instead of being refused. Such a chat cannot name itself (no dm line), so its title ends \"Chat naming failed\"; runbook says to rename. Not merged to main: lands after the person approves."
+    },
+    "number": 1,
+    "outputs": {
+      "artifacts": [],
+      "branch": "card-DM-619 (worktree C:/Users/davgo/dmwt/card-DM-619); integrated on cards-619-620 (integration of card-DM-619 + card-DM-620, merge b3c8ece, worktree C:/Users/davgo/dmwt/cards-integration); not merged to main",
+      "changedFiles": [
+        ".darkmechanicus/epics/ep_01m7gnwzbth5hqr5jjf9vf48v9/current.json",
+        ".darkmechanicus/epics/ep_01m7gnwzbth5hqr5jjf9vf48v9/snapshots/rv_01m7gq0m3zfvb0nmj6ncmn84np.json",
+        ".darkmechanicus/epics/ep_01m7gnwzbth5hqr5jjf9vf48v9/state.json",
+        ".tsprune-ignore",
+        "README.md",
+        "docs/design/chat-shells.md",
+        "docs/runbooks/agents.md",
+        "package-lock.json",
+        "package.json",
+        "src/main/agents/__mocks__/chatFixtures.ts",
+        "src/main/agents/activityBindings.ts",
+        "src/main/agents/chatGrants.reach.test.ts",
+        "src/main/agents/chatGrants.ts",
+        "src/main/agents/chatHandlers.projectless.test.ts",
+        "src/main/agents/chatHandlers.test.ts",
+        "src/main/agents/chatHandlers.ts",
+        "src/main/agents/chatIpc.test.ts",
+        "src/main/agents/chatIpc.ts",
+        "src/main/agents/chatReach.ts",
+        "src/main/agents/chatRecords.projectless.test.ts",
+        "src/main/agents/chatRecords.ts",
+        "src/main/agents/chatStore.projectless.test.ts",
+        "src/main/agents/chatStore.test.ts",
+        "src/main/agents/chatStore.ts",
+        "src/main/agents/chatStoreDelete.test.ts",
+        "src/main/agents/cliInstructions.test.ts",
+        "src/main/agents/cliInstructions.ts",
+        "src/main/agents/launchFolder.ts",
+        "src/main/agents/orchestratorStart.ts",
+        "src/main/agents/scratchFolder.test.ts",
+        "src/main/agents/scratchFolder.ts",
+        "src/main/agents/transferStart.ts",
+        "src/main/desktop/bootstrap.ts",
+        "src/main/desktop/cliConfig.ts",
+        "src/main/naming/controlPipe.ts",
+        "src/main/terminals/__mocks__/terminalSessionsRig.ts",
+        "src/main/terminals/claudeSettingsFile.ts",
+        "src/main/terminals/dmLauncher.ts",
+        "src/main/terminals/terminalEnv.ts",
+        "src/main/terminals/terminalFiles.ts",
+        "src/main/terminals/terminalHandlers.projectless.test.ts",
+        "src/main/terminals/terminalHandlers.ts",
+        "src/main/terminals/terminalInstructions.projectless.test.ts",
+        "src/main/terminals/terminalLaunchSpec.ts",
+        "src/main/terminals/terminalSessions.projectless.test.ts",
+        "src/main/terminals/terminalSessions.ts",
+        "src/preload/index.ts",
+        "src/renderer/src/App.agentChats.test.tsx",
+        "src/renderer/src/App.agents.test.tsx",
+        "src/renderer/src/App.signIn.test.tsx",
+        "src/renderer/src/App.tsx",
+        "src/renderer/src/__mocks__/fakeChats.ts",
+        "src/renderer/src/__mocks__/idleChats.ts",
+        "src/renderer/src/agents/TerminalPane.tsx",
+        "src/renderer/src/agents/useChats.ts",
+        "src/renderer/src/agents/useTerminal.ts",
+        "src/renderer/src/app/chooseView.ts",
+        "src/renderer/src/app/selection.ts",
+        "src/renderer/src/app/shellActions.test.ts",
+        "src/renderer/src/app/shellActions.ts",
+        "src/renderer/src/app/useShell.ts",
+        "src/renderer/src/sidebar/AgentsSection.test.tsx",
+        "src/renderer/src/sidebar/AgentsSection.tsx",
+        "src/renderer/src/sidebar/ChatRow.tsx",
+        "src/renderer/src/sidebar/Sidebar.test.tsx",
+        "src/renderer/src/sidebar/Sidebar.tsx",
+        "src/renderer/src/styles.css",
+        "src/shared/agents/chat.ts",
+        "src/shared/agents/chatApi.ts",
+        "src/shared/agents/terminalApi.ts"
+      ],
+      "commits": [
+        "5c468f99687a6c71bc535e517511a38ad02d41a4",
+        "aa881bb2e94508203200b8528aba9e219b86c421",
+        "d4e195951062300c6d0b69324fa0c910c72e33c6",
+        "f95ccaaf74d179e9c66b8fd0bc43a7ffa49ba8f3",
+        "1df8249a477e93dab2c5ba8553bddf15e19eb688"
+      ],
+      "summary": "Every non-deleted chat is listed under its agent type in the sidebar AGENTS section (expandable rows, folder name or \"No project\" label, live dot, sign-in badge, open/rename/delete via existing dialogs), and each agent row can summon a project-less chat through the first-prompt popup. ChatRecord.folder is nullable; project-less chats live in userData/agents/chats/projectless and run in a per-chat scratch folder userData/agents/scratch/<chatId>, removed on delete. New chats:listAll (main, IPC, preload) lists every tracked folder plus project-less chats. Dark Mechanicus access for project-less chats (wide open, as the person decided): one ordinary server-issued orchestrator+Allow save grant per tracked, set-up folder, each token in a private file passed via the existing --token-file flag, checked by the normal command layer (cross-folder token refused), revoked on terminal exit, chat deletion and agent removal; with no tracked folder the chat starts without access. Folders tracked after start are reached on the next start. README, docs/runbooks/agents.md and docs/design/chat-shells.md document it, including the access risk."
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-170 review (orchestrator, this run): pin in tests (1) same-call observation ids read back in call order including after export/import; (2) a mutual citation (A cites B, B cites A in one call) is accepted by recordObservations but both files are rejected on import on every reconcile — decide (same-call citations only to earlier entries) and pin; (3) idAllocator `SELECT MAX(id) … WHERE recorded_at = ?` (observations.ts ~245) has no index on (recorded_at, id); (4) nextStableId throws a plain Error on id overflow instead of a DomainError.",
+  "createdAt": "2026-11-15T22:05:19.182Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7gkwkee54hrjhgfqgg5veww",
+  "ticketId": "tk_01m65yenctwcrwzkdqz21e6e3j"
+}

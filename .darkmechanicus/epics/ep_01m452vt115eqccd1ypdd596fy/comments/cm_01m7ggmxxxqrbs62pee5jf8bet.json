@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-169 review (orchestrator, this run): policy v1 applies a budget only to ticket-level grades; run, sprint and epic token/time scores must roll up from ticket measures here. The grader cannot verify a cohort's key or membership at aggregate levels and currently accepts a ticket cohort there; decide and enforce the aggregate baseline rule in this ticket.",
+  "createdAt": "2026-11-15T21:08:42.045Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7ggmxxxqrbs62pee5jf8bet",
+  "ticketId": "tk_01m453gpads5cm5ah9pyqk7qtw"
+}

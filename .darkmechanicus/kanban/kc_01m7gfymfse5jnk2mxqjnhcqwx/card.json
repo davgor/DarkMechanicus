@@ -1,0 +1,121 @@
+{
+  "acceptanceCriteria": [
+    {
+      "id": "c1",
+      "text": "The Kanban Play dialog and the epic Start run dialog each show an optional, labelled multi-line Additional instructions field; leaving it empty or whitespace-only starts exactly as today."
+    },
+    {
+      "id": "c2",
+      "text": "Instructions entered on Kanban Play reach the started agent's first input once, appended to the card kickoff as a delimited section attributed to the person, with the card lines and first step intact."
+    },
+    {
+      "id": "c3",
+      "text": "Instructions entered on epic Start run reach the orchestrator chat's first input once, appended to the orchestrator kickoff the same way, with the run lines intact."
+    },
+    {
+      "id": "c4",
+      "text": "startKanbanCard and startOrchestrator accept an optional non-blank instructions string up to 32,000 characters and refuse blank, oversized or extra fields; a failed or retried first start neither loses nor duplicates the instructions, and kick-back/resume behaviour is unchanged."
+    },
+    {
+      "id": "c5",
+      "text": "The instructions do not alter the chat's role, grants, Allow save, card acceptance or saved plan, and the kickoff text states they apply within the assigned scope."
+    },
+    {
+      "id": "c6",
+      "text": "Behavioural tests cover both dialogs, both handlers/schemas and both kickoff builders; docs/design/chat-shells.md is updated; npm run lint, test, fireguard, typecheck, deadcode and build pass; desktop screenshots show both dialogs with the field and a started chat whose first input contains the instructions."
+    }
+  ],
+  "body": "## Request\nUser (verbatim): \"When hitting play, I want to be able to add additional instructions. Apply both to kanban, and epics kicked off from the UI.\"\n\n## Current state (evidence)\n- Kanban Play: `src/renderer/src/kanban/StartCardDialog.tsx` picks agent + model and calls `window.dm.chats.startKanbanCard({ folder, cardId, agent, model })`. Main validates with `startKanbanCardSchema` (`src/main/agents/chatHandlers.ts`, strict: folder, cardId, agent, model) and `src/main/kanban/startKanbanCard.ts` builds the kickoff with `kanbanKickoff` (`src/main/agents/kanbanKickoff.ts`) and passes it to `terminals.start(chat, { kickoff })`.\n- Epic Start run: `src/renderer/src/epic/StartRunDialog.tsx` (`RunWithAgentSection`, reused by StartCardDialog) → `useWorkspace.ts` `startOrchestrator` → `window.dm.chats.startOrchestrator({ folder, epicId, agent, model })`, validated by `startOrchestratorSchema` and run by `src/main/agents/orchestratorStart.ts` with `orchestratorKickoff` (`src/main/agents/orchestratorKickoff.ts`).\n- Both kickoffs are the chat's first input, sent with its first start only; neither accepts person-authored text today.\n\n## Scope\n1. Both dialogs get an optional multi-line \"Additional instructions\" field (labelled, accessible, empty by default). Empty or whitespace-only means none; the existing flow is unchanged in that case.\n2. Shared API and IPC: `startKanbanCard` and `startOrchestrator` requests accept an optional `instructions` string (non-blank after trim, same 32,000-character limit as `firstPrompt`); the strict schemas reject anything else as today.\n3. Main appends the instructions to the kickoff as a clearly delimited section attributed to the person (e.g. \"Additional instructions from the person:\"), delivered exactly once with the first start, and recorded so a first start that fails or is retried before delivery does not lose or duplicate them. Kick-back and resume behaviour stay as they are (kick-back already carries its own comment).\n4. The instructions are guidance within the card's or epic's scope: they do not change the chat's role, grants, Allow save, acceptance criteria or saved plan, and the kickoff wording says so.\n5. Update `docs/design/chat-shells.md` (card chat Play / orchestrator chat Start run sections) and any user docs describing Play/Start run.\n\n## Non-goals\n- Agent-initiated launches (`launch_kanban_cards`, `play_kanban_card` CLI commands) and run takeover/resume.\n- Editing instructions after start, or storing them on the card/epic record.\n\n## Process\nIsolated Kanban card: tests-first for main/preload/renderer logic per delivery standards; full standalone gate (lint, test, fireguard, typecheck, deadcode, build) must pass.",
+  "createdAt": "2026-11-15T20:56:31.506Z",
+  "createdBy": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "expectedArtifacts": [
+    "Additional instructions field in StartCardDialog and StartRunDialog",
+    "Optional instructions in the startKanbanCard/startOrchestrator API, IPC, schemas and kickoff builders",
+    "Behavioural tests, full delivery-gate results and desktop screenshots",
+    "Updated docs/design/chat-shells.md"
+  ],
+  "format": "darkmechanicus.kanban-card",
+  "formatVersion": 1,
+  "generation": 1,
+  "id": "kc_01m7gfymfse5jnk2mxqjnhcqwx",
+  "key": "DM-620",
+  "priority": "normal",
+  "references": [
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Kanban Play dialog",
+      "location": "src/renderer/src/kanban/StartCardDialog.tsx",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Epic Start run dialog",
+      "location": "src/renderer/src/epic/StartRunDialog.tsx",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Epic start call",
+      "location": "src/renderer/src/epic/useWorkspace.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Chats API types",
+      "location": "src/shared/agents/chatApi.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Start schemas and handlers",
+      "location": "src/main/agents/chatHandlers.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Card start",
+      "location": "src/main/kanban/startKanbanCard.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Card kickoff",
+      "location": "src/main/agents/kanbanKickoff.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Orchestrator start",
+      "location": "src/main/agents/orchestratorStart.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Orchestrator kickoff",
+      "location": "src/main/agents/orchestratorKickoff.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Chat shells design",
+      "location": "docs/design/chat-shells.md",
+      "remoteOnly": false
+    }
+  ],
+  "size": "medium",
+  "title": "Let the person add instructions when pressing Play on a Kanban card or Start run on an epic",
+  "updatedAt": "2026-11-15T20:56:31.506Z"
+}

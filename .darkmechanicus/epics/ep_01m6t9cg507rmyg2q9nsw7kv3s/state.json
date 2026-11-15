@@ -9,22 +9,22 @@
   "epicId": "ep_01m6t9cg507rmyg2q9nsw7kv3s",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 4,
+  "generation": 15,
   "outcome": null,
   "provenance": null,
   "status": "in_progress",
   "ticketStatuses": {
     "tk_01m6t9cg50413b45wafx03461d": "backlog",
     "tk_01m6t9s4np95kgyaybsczx6h5t": "backlog",
-    "tk_01m6t9v1s3a46yxszxgmntvmgn": "in_progress",
-    "tk_01m6t9v1sf7e7b4wwtm69nh0kn": "backlog",
+    "tk_01m6t9v1s3a46yxszxgmntvmgn": "completed",
+    "tk_01m6t9v1sf7e7b4wwtm69nh0kn": "completed",
     "tk_01m6t9v1sfapjspg73cxvtzw1f": "backlog",
-    "tk_01m6t9v1sfj9wga1z539n2wsqz": "backlog",
-    "tk_01m6t9v1sfr1astze1a7bq0qyz": "backlog",
-    "tk_01m6t9v1sfrf9bgkw1jsh3mzvd": "backlog",
-    "tk_01m6t9v1sfwv1514vsyn26382f": "backlog",
-    "tk_01m6t9v1sfz3nk1a2d0cbh89f1": "backlog"
+    "tk_01m6t9v1sfj9wga1z539n2wsqz": "completed",
+    "tk_01m6t9v1sfr1astze1a7bq0qyz": "in_progress",
+    "tk_01m6t9v1sfrf9bgkw1jsh3mzvd": "in_progress",
+    "tk_01m6t9v1sfwv1514vsyn26382f": "completed",
+    "tk_01m6t9v1sfz3nk1a2d0cbh89f1": "completed"
   },
   "title": "Skitarii communications: durable direct messages, replies and safe agent notifications",
-  "updatedAt": "2026-11-15T20:38:54.688Z"
+  "updatedAt": "2026-11-15T23:00:35.894Z"
 }
