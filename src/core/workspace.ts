@@ -1,3 +1,4 @@
+import { createDesktopClient, type DesktopClient } from './desktop/desktopClient'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type { CommandApi, CommandName } from '../shared/domain/api'
@@ -58,6 +59,8 @@ export interface OpenWorkspaceOptions {
    * Without one a CLI session is a `reader` and may only read.
    */
   grantToken?: string
+  /** Pure Node authenticated naming transport; defaults to the hosted terminal environment. */
+  desktopClient?: DesktopClient
   pid?: number | null
   clock?: Clock
   ids?: IdGenerator
@@ -136,7 +139,14 @@ function bindProject(db: Db, layout: RepoLayout, project: ProjectRecord): void {
 }
 
 /** Exported for tests that need the core itself (e.g. `gitFor`); everything else opens a `Workspace`. */
+function workspaceDesktopClient(options: OpenWorkspaceOptions): DesktopClient {
+  return options.desktopClient ?? createDesktopClient({
+    env: options.grantToken === undefined ? process.env : { ...process.env, DM_SESSION_TOKEN: options.grantToken }
+  })
+}
+
 export class RepositoryWorkspace implements WorkspaceCore {
+  readonly desktopClient: DesktopClient
   readonly repoRoot: string
   readonly homeDir: string
   /** Re-resolved when `initialize` sets the folder up in a mode other than the one it resolved to. */
@@ -160,6 +170,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
 
   constructor(options: OpenWorkspaceOptions) {
     this.options = options
+    this.desktopClient = workspaceDesktopClient(options)
     this.fs = options.fs ?? nodeFs
     this.homeDir = options.homeDir ?? resolveHomeDir(process.env, homedir())
     // Always canonical: a database-only project is keyed by this path, so two spellings of one

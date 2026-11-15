@@ -16,6 +16,7 @@ const PLANNER_ONLY: Capability[] = ['project.definition_of_done']
 
 const PLANNER_SHARED: Capability[] = [
   'read',
+  'chat.name',
   'repo.init',
   'repo.flush',
   'repo.reconcile',
@@ -60,6 +61,7 @@ const ORCHESTRATOR: Capability[] = [
 
 const WORKER: Capability[] = [
   'read',
+  'chat.name',
   'attempt.heartbeat',
   'attempt.submit',
   'attempt.fail',
@@ -67,10 +69,11 @@ const WORKER: Capability[] = [
   'attachment.write',
   'kanban.report'
 ]
-const REVIEWER: Capability[] = ['read', 'attempt.review', 'comment.write', 'attachment.write']
+const REVIEWER: Capability[] = ['read', 'chat.name', 'attempt.review', 'comment.write', 'attachment.write']
 
 const DESKTOP: Capability[] = [
   'read',
+  'chat.name',
   'grant.issue',
   'grant.revoke',
   'repo.init',

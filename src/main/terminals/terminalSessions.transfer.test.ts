@@ -26,7 +26,7 @@ const CUSTOM = { ...CUSTOM_AGENT, args: ['--prompt-file', '{instructions}'] }
 let rig: TerminalRig
 
 beforeEach(() => {
-  rig = terminalRig({ agents: [builtInAgent('codex'), CUSTOM] })
+  rig = terminalRig({ agents: [builtInAgent('codex'), builtInAgent('claude'), CUSTOM] })
 })
 
 afterEach(() => {
@@ -122,4 +122,92 @@ describe('terminal sessions: a Kanban card chat started again', () => {
     expect(paste).not.toContain('Carry this Dark Mechanicus Kanban card')
     expect(instructionsOf(chat)).toContain('## Carrying a Dark Mechanicus Kanban card')
   })
+})
+
+describe('terminal sessions: original first popup message', () => {
+  const firstPrompt = '  Could you investigate why sign-in fails after expiry?\nPreserve café and 👋 exactly.  '
+
+  it('waits for ready input, submits the whole original once, and never replays on attach or restart', async () => {
+    const chat = rig.store.createChat({ folder: rig.repo, agent: CUSTOM.id, model: null, role: 'orchestrator', allowSave: true, firstPrompt, titleStatus: 'pending', firstPromptDelivery: 'pending' })
+    const first = await startTerminal(rig, chat)
+    rig.clock.advance(20_000)
+    expect(first.pty.written).toEqual([])
+    expect(instructionsOf(chat)).toContain('call name_chat')
+    expect(instructionsOf(chat)).not.toContain(firstPrompt)
+    await settleFirstPaste(first.pty)
+    expect(first.pty.written).toEqual([`\x1b[200~${firstPrompt.replace(/\n/g, '\r')}\x1b[201~`, '\r'])
+    expect(rig.store.getChat(chat)).toMatchObject({ firstPrompt, kickoffSent: true, firstPromptDelivery: 'submitted' })
+    await startTerminal(rig, chat)
+    expect(first.pty.written).toHaveLength(2)
+    await exit(first.pty)
+    const again = await startTerminal(rig, chat)
+    await settleFirstPaste(again.pty)
+    expect(again.pty.written).toEqual([])
+  })
+
+  it('does not automatically replay after exit between insertion and submission, and retains recoverable text', async () => {
+    const chat = rig.store.createChat({ folder: rig.repo, agent: CUSTOM.id, model: null, role: 'orchestrator', allowSave: true, firstPrompt, titleStatus: 'pending', firstPromptDelivery: 'pending' })
+    const first = await startTerminal(rig, chat)
+    first.pty.emitData('\x1b[?2004hready')
+    await settle()
+    rig.clock.advance(SECOND)
+    expect(first.pty.written).toHaveLength(1)
+    await exit(first.pty)
+    expect(rig.store.getChat(chat)).toMatchObject({ firstPrompt, firstPromptDelivery: 'uncertain' })
+    const again = await startTerminal(rig, chat)
+    await settleFirstPaste(again.pty)
+    expect(again.pty.written).toEqual([])
+  })
+
+  it('reports a real PTY write failure and keeps the complete first prompt without automatic retry', async () => {
+    const chat = rig.store.createChat({ folder: rig.repo, agent: CUSTOM.id, model: null, role: 'orchestrator', allowSave: true, firstPrompt, firstPromptDelivery: 'pending' })
+    const first = await startTerminal(rig, chat)
+    const error = new Error('The owned PTY rejected input.')
+    first.pty.write = () => { throw error }
+    first.pty.emitData('\x1b[?2004hready')
+    await settle()
+    expect(() => rig.clock.advance(SECOND)).not.toThrow()
+    expect(rig.errors).toContain(error)
+    expect(rig.store.getChat(chat)).toMatchObject({ firstPrompt, firstPromptDelivery: 'uncertain' })
+    expect(first.pty.written).toEqual([])
+    expect(rig.killed).toHaveLength(1)
+  })
+})
+
+it.each(['help', '- explain this'])('delivers literal popup prompt %s unchanged once through a ready custom terminal', async (firstPrompt) => {
+  const chat = rig.store.createChat({ folder: rig.repo, agent: CUSTOM.id, model: null, role: 'orchestrator', allowSave: true, firstPrompt, firstPromptDelivery: 'pending' })
+  const started = await startTerminal(rig, chat)
+  expect(started.pty.written).toEqual([])
+  await settleFirstPaste(started.pty)
+  expect(started.pty.written).toEqual([`\x1b[200~${firstPrompt}\x1b[201~`, '\r'])
+  expect(rig.store.getChat(chat)).toMatchObject({ firstPrompt, kickoffSent: true, firstPromptDelivery: 'submitted' })
+})
+
+it('hands a full ordinary first popup message to the native startup contract once, without typing into a screen', async () => {
+  const firstPrompt = '  Please explain session refresh.\nKeep the original request intact.  '
+  const chat = rig.store.createChat({ folder: rig.repo, agent: 'claude', model: null, role: 'orchestrator', allowSave: true, firstPrompt, firstPromptDelivery: 'pending' })
+  const started = await startTerminal(rig, chat)
+  expect(started.pty.spec.args).toContain(firstPrompt)
+  expect(started.pty.written).toEqual([])
+  expect(rig.store.getChat(chat)).toMatchObject({ firstPrompt, kickoffSent: true, firstPromptDelivery: 'submitted' })
+  await exit(started.pty)
+  const again = await startTerminal(rig, chat)
+  expect(again.pty.spec.args).not.toContain(firstPrompt)
+  expect(again.pty.written).toEqual([])
+})
+
+it('retains ambiguous first input after a real Enter write failure and never resubmits automatically', async () => {
+  const firstPrompt = 'Please repair the session refresh flow'
+  const chat = rig.store.createChat({ folder: rig.repo, agent: CUSTOM.id, model: null, role: 'orchestrator', allowSave: true, firstPrompt, firstPromptDelivery: 'pending' })
+  const first = await startTerminal(rig, chat)
+  first.pty.emitData('\x1b[?2004hready')
+  await settle()
+  rig.clock.advance(SECOND)
+  const error = new Error('The owned PTY rejected Enter.')
+  first.pty.write = () => { throw error }
+  expect(() => rig.clock.advance(ENTER_DELAY)).not.toThrow()
+  expect(rig.errors).toContain(error)
+  expect(rig.store.getChat(chat)).toMatchObject({ firstPrompt, firstPromptDelivery: 'uncertain' })
+  expect(first.pty.written).toEqual([`\x1b[200~${firstPrompt}\x1b[201~`])
+  expect(rig.killed).toHaveLength(1)
 })

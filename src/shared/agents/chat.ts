@@ -48,8 +48,12 @@ export const chatRecordSchema = z.object({
   role: z.enum(CHAT_ROLES),
   allowSave: z.boolean(),
   title: z.string(),
-  /** Only new, implicitly titled chats may take a title from the first app-composer prompt. Absent on older chats. */
-  autoTitlePending: z.boolean().optional(),
+  /** Original popup message, retained for recovery; never used as a generated title. */
+  firstPrompt: z.string().max(32_000).optional(),
+  /** Uncertain insertion is never automatically replayed after a crash/exit. */
+  firstPromptDelivery: z.enum(['pending', 'submitted', 'uncertain']).optional(),
+  titleStatus: z.enum(['pending', 'generated', 'manual', 'failed']).optional(),
+  titleError: z.string().max(256).optional(),
   createdAt: timestampSchema,
   updatedAt: timestampSchema,
   /** The vendor's own session id, once the agent has reported it. */

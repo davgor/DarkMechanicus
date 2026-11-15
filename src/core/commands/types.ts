@@ -1,3 +1,4 @@
+import type { DesktopClient } from '../desktop/desktopClient'
 import type { CommandApi, CommandName } from '../../shared/domain/api'
 import type {
   FlushResultView,
@@ -18,6 +19,7 @@ import type { z } from 'zod'
 
 /** What command specs may use from the open workspace. */
 export interface WorkspaceCore {
+  readonly desktopClient: DesktopClient
   readonly repoRoot: string
   readonly layout: RepoLayout
   readonly fs: FsAdapter

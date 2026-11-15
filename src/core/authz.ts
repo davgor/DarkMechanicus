@@ -3,6 +3,7 @@ import { fail } from './errors'
 
 export const CAPABILITIES = [
   'read',
+  'chat.name',
   'repo.init',
   'repo.flush',
   'repo.reconcile',
@@ -87,6 +88,7 @@ export const HUMAN_ONLY_CAPABILITIES: readonly Capability[] = [
 /** What a planner and an orchestrator both hold. */
 const PLANNER_SHARED: Capability[] = [
   'read',
+  'chat.name',
   'repo.init',
   'repo.flush',
   'repo.reconcile',
@@ -162,8 +164,8 @@ const ROLE_CAPABILITIES: Record<SessionRole, Capability[]> = {
   reader: ['read'],
   planner: PLANNER,
   orchestrator: ORCHESTRATOR,
-  worker: ['read', 'attempt.heartbeat', 'attempt.submit', 'attempt.fail', 'comment.write', 'attachment.write', 'kanban.report'],
-  reviewer: ['read', 'attempt.review', 'comment.write', 'attachment.write']
+  worker: ['read', 'chat.name', 'attempt.heartbeat', 'attempt.submit', 'attempt.fail', 'comment.write', 'attachment.write', 'kanban.report'],
+  reviewer: ['read', 'chat.name', 'attempt.review', 'comment.write', 'attachment.write']
 }
 
 interface RoleOptions {

@@ -2,6 +2,7 @@
  * The single command/query contract. The core Workspace implements it; MCP tools and desktop IPC
  * are thin adapters over it, so both entry points enforce identical rules.
  */
+import type { NameChatArgs } from '../agents/chatNaming'
 import type {
   CapabilityPatch,
   CapabilityProfile,
@@ -361,6 +362,8 @@ export interface KickBackKanbanCardInput {
 }
 
 export interface CommandApi {
+  /** Selected-agent first-message metadata; target comes only from a live authenticated terminal binding. */
+  nameChat(input: NameChatArgs): Promise<{ applied: boolean }>
   // Discovery and repository lifecycle
   getCapabilities(): Promise<CapabilitiesView>
   getProject(): Promise<ProjectView>

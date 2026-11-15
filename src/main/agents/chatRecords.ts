@@ -41,8 +41,6 @@ export interface ChatRecords {
   createChat(request: NewChatRequest): ChatRecord
   /** Changes the chat's title. */
   renameChat(ref: ChatRef, title: string): ChatRecord
-  /** Names an eligible chat once from an explicitly submitted app prompt; current persisted manual titles always win. */
-  nameFromQuestion(ref: ChatRef, question: string): ChatRecord | null
   /** Removes the chat's activity bindings, then the chat and its transcript; throws `not_found` for an unknown chat. */
   deleteChat(ref: ChatRef): Promise<void>
   /** The chat and its stored transcript, settled as described above; writes nothing. Throws `not_found` for an unknown chat. */
@@ -77,41 +75,23 @@ function settledItems(items: readonly ChatItem[]): ChatItem[] {
   })
 }
 
-/** A local, bounded title: no model call, credentials or asynchronous rename race. */
-function questionTitle(question: string): string {
-  const text = question.replace(/\s+/gu, ' ').trim()
-  if (text.length <= 64) return text
-  let end = 63
-  const last = text.charCodeAt(end - 1)
-  if (last >= 0xd800 && last <= 0xdbff) end -= 1
-  const prefix = text.slice(0, end)
-  const boundary = prefix.lastIndexOf(' ')
-  return `${boundary > 0 ? prefix.slice(0, boundary) : prefix}…`
-}
-
 export function createChatRecords(deps: ChatRecordsDeps): ChatRecords {
   const { store } = deps
   return {
     listChats: (folder) => store.listChats(folder),
-    createChat: (request) =>
-      store.createChat({
-        folder: request.folder,
-        agent: request.agent,
-        role: request.role,
+    createChat: (request) => {
+      const input = {
+        ...request,
         model: request.model ?? null,
         allowSave: request.allowSave ?? true,
-        ...(request.title === undefined ? {} : { title: request.title }),
-        ...(request.runId === undefined ? {} : { runId: request.runId }),
-        ...(request.transferEpicId === undefined ? {} : { transferEpicId: request.transferEpicId }),
-        ...(request.cardId === undefined ? {} : { cardId: request.cardId })
-      }),
-    renameChat: (ref, title) => store.updateChat(requireChat(store, ref), { title, autoTitlePending: false }),
-    nameFromQuestion: (ref, question) => {
-      const title = questionTitle(question)
-      const chat = requireChat(store, ref)
-      if (!title || chat.autoTitlePending !== true || chat.runId !== undefined || chat.transferEpicId !== undefined || chat.cardId !== undefined) return null
-      return store.updateChat(chat, { title, autoTitlePending: false })
+        ...(request.firstPrompt === undefined ? {} : { firstPromptDelivery: 'pending' as const })
+      }
+      if (request.title === undefined && request.firstPrompt !== undefined && request.runId === undefined && request.transferEpicId === undefined && request.cardId === undefined) {
+        return store.createChat({ ...input, title: 'Naming chat…', titleStatus: 'pending' })
+      }
+      return store.createChat(input)
     },
+    renameChat: (ref, title) => store.updateChat(requireChat(store, ref), { title, titleStatus: 'manual' }),
     deleteChat: async (ref) => {
       const chat = requireChat(store, ref)
       deps.activity?.forgetChat(chat)

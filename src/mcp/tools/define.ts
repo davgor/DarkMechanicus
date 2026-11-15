@@ -52,6 +52,8 @@ interface ErasedTool {
   description: string
   kind: ToolKind
   input: z.ZodRawShape | undefined
+  /** Original shared schema, including strict unions and cross-field refinements. */
+  schema?: z.ZodType
   run(api: CommandApi, input: unknown): Promise<unknown>
 }
 
@@ -97,10 +99,10 @@ function commandOf(name: string, declared: CommandName | undefined): CommandName
 
 /** Validates the raw arguments against the tool's input shape, then runs it. */
 function callOf(api: CommandApi, tool: ErasedTool): ToolCall {
-  if (tool.input === undefined) {
+  const schema = tool.schema ?? (tool.input === undefined ? undefined : z.object(tool.input))
+  if (schema === undefined) {
     return () => runTool(() => tool.run(api, undefined))
   }
-  const schema = z.object(tool.input)
   return async (args) => {
     const parsed = await schema.safeParseAsync(args ?? {})
     return parsed.success
@@ -138,7 +140,14 @@ function answerToolCalls(server: McpServer, table: ToolTable): void {
 function registerErased(server: McpServer, api: CommandApi, tool: ErasedTool): void {
   server.registerTool(
     tool.name,
-    { description: tool.description, inputSchema: tool.input, annotations: ANNOTATIONS[tool.kind] },
+    {
+      description: tool.description,
+      // SDK listings need an object wrapper; calls validate the unwrapped original schema.
+      inputSchema: tool.schema === undefined ? tool.input : z.looseObject({}).meta({
+        ...z.toJSONSchema(tool.schema, { target: 'draft-7', io: 'input' }), type: 'object'
+      }),
+      annotations: ANNOTATIONS[tool.kind]
+    },
     // Only reached through the SDK's own handler, which `answerToolCalls` replaces.
     (input: unknown) => runTool(() => tool.run(api, input))
   )
@@ -170,6 +179,24 @@ export function defineTool<Shape extends z.ZodRawShape, Name extends string>(
         input: tool.input,
         run: (target, input) => tool.run(target, input as z.output<z.ZodObject<Shape>>)
       })
+  }
+}
+
+/** Defines a tool from a complete shared schema, including strict unions and refinements. */
+export function defineSchemaTool<Schema extends z.ZodType, Name extends string>(
+  tool: ToolBase<Name> & CommandBinding<Name> & {
+    schema: Schema
+    run: (api: CommandApi, input: z.output<Schema>) => Promise<unknown>
+  }
+): ToolSpec {
+  return {
+    name: tool.name,
+    command: commandOf(tool.name, tool.command),
+    register: (server, api) => registerErased(server, api, {
+      name: tool.name, description: tool.description, kind: tool.kind,
+      input: undefined, schema: tool.schema,
+      run: (target, input) => tool.run(target, input as z.output<Schema>)
+    })
   }
 }
 

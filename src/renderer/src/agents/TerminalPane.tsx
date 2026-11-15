@@ -8,7 +8,6 @@ import { ChatHeader } from './ChatHeader'
 import { SkitariiMascot } from './SkitariiMascot'
 import { EarlierConversation } from './EarlierConversation'
 import { SignInTerminal } from './SignInTerminal'
-import { PromptComposer } from './PromptComposer'
 import type { TerminalKit } from './terminalView'
 import { useTerminal, type TerminalPhase } from './useTerminal'
 import './chatView.css'
@@ -130,6 +129,26 @@ function PhaseStatus({ phase, notice, startAgain, ...card }: PhaseStatusProps): 
   return notice
 }
 
+/** Recovery is read-only metadata, not a second input surface. */
+function FirstPromptRecovery({ chat }: { chat: ChatRecord }): JSX.Element | null {
+  if (chat.firstPrompt === undefined) return null
+  const summary = chat.firstPromptDelivery === 'uncertain'
+    ? 'First prompt delivery is uncertain — not automatically resent'
+    : chat.firstPromptDelivery === 'submitted'
+      ? 'Original first prompt (submitted once)'
+      : 'First prompt saved — waiting for the agent’s ready input'
+  return (
+    <>
+      <details className="terminal-first-prompt">
+        <summary>{summary}</summary>
+        <pre>{chat.firstPrompt}</pre>
+        {chat.titleStatus === 'pending' ? <p role="status">Waiting for the selected agent to infer a short title. Naming has not succeeded yet. If it cannot infer one, it must report the failure in its terminal.</p> : null}
+      </details>
+      {chat.titleStatus === 'failed' ? <p className="terminal-notice" role="alert">{chat.titleError ?? 'The selected agent did not finish naming this chat.'} The full first prompt remains available above.</p> : null}
+    </>
+  )
+}
+
 /**
  * An open chat in the main area (`docs/design/chat-shells.md`, "In the app's window"): the chat's header, with
  * the terminal's state where the model was, then its terminal filling the rest of `app-main`, in this window.
@@ -166,6 +185,7 @@ export function TerminalPane({ folder, chat, agentName, kit, scheduler, onAgentS
       />
       <EarlierConversation folder={folder} chat={chat} agentName={agentName} open={earlierOpen} onOpenChange={setEarlierOpen} />
       <PhaseStatus phase={phase} chat={chat} agentName={agentName} notice={notice} kit={kit} scheduler={scheduler} onAgentStatus={onAgentStatus} startAgain={startAgain} />
+      <FirstPromptRecovery chat={chat} />
       <div
         className={frameClass(notStarted, skitarii)}
         style={background === null ? undefined : { background }}
@@ -173,7 +193,6 @@ export function TerminalPane({ folder, chat, agentName, kit, scheduler, onAgentS
       >
         <div ref={host} className="terminal-host" data-testid="terminal-host" />
       </div>
-      {earlierOpen ? null : <PromptComposer key={chat.id} folder={folder} chatId={chat.id} disabled={phase.state !== 'running'} />}
     </section>
   )
 }

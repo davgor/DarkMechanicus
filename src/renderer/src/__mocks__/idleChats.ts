@@ -23,7 +23,6 @@ export function idleChats(): ChatsApi {
     boundThreads: () => Promise.resolve({ ok: true, data: [] }),
     boundTerminal: () => Promise.resolve({ ok: true, data: null }),
     rename: refused,
-    submitPrompt: refused,
     delete: refused,
     onEvent: () => () => {}
   }

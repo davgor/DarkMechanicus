@@ -39,7 +39,7 @@ const READ_TOOLS = [
 ]
 
 /** Every role may comment. */
-const COMMENT_TOOLS = ['add_comment']
+const COMMENT_TOOLS = ['add_comment', 'name_chat']
 
 /** Every role that writes records may attach an image from a local path (attachment.write); the desktop refuses it. */
 const ATTACHMENT_WRITE_TOOLS = ['add_attachment']

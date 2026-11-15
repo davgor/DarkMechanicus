@@ -49,6 +49,7 @@ interface InstructionOptions {
   transferEpicId?: string
   /** The Kanban card the chat Play opened carries (the chat's `cardId`): the card guidance follows. Absent for every other chat. */
   cardId?: string
+  nameFirstPrompt?: boolean
 }
 
 /**
@@ -64,6 +65,14 @@ export function terminalInstructions(options: InstructionOptions): string {
   if (options.orchestratesRun) sections.push(orchestratorGuidance())
   if (options.transferEpicId !== undefined) sections.push(transferGuidance(options.transferEpicId))
   if (options.cardId !== undefined) sections.push(kanbanGuidance(options.cardId))
+  if (options.nameFirstPrompt) sections.push([
+    '## First-message chat naming',
+    'Before acting on the first user message, infer its intent with your selected model and report a concise semantic title, normally 2–5 words and never more than five.',
+    'Use the dm invocation above with: call name_chat \'{"title":"your inferred intent label"}\'.',
+    'Do not copy the prompt, take its first words, truncate it, or use a canned category. For example, a conversational question about sign-in after expiry can become "Repair expired-session sign-in".',
+    'This is metadata only: keep and act on the complete original user message exactly once. Never ask the user to resend it for naming. A manual name always wins; applied:false means leave it alone.',
+    'If your model cannot infer the intent, report the real problem using call name_chat \'{"error":"concise real inference failure"}\'; never substitute a prefix. Do not claim naming succeeded unless the command succeeds.'
+  ].join('\n'))
   return sections.join('\n\n')
 }
 
@@ -79,6 +88,7 @@ interface WriteOptions {
   orchestratesRun: boolean
   transferEpicId?: string
   cardId?: string
+  nameFirstPrompt?: boolean
 }
 
 /** Writes the chat's instructions and, on macOS, its launcher, before a start; returns where they are. */
@@ -88,12 +98,13 @@ export async function writeTerminalFiles(options: WriteOptions): Promise<Termina
   if (files.launcherDir !== null) {
     await writeDmLauncher(files.launcherDir, dmLauncherScript(options.cli, options.folder))
   }
-  const { cli, role, allowSave, orchestratesRun, transferEpicId, cardId } = options
+  const { cli, role, allowSave, orchestratesRun, transferEpicId, cardId, nameFirstPrompt } = options
   const text = terminalInstructions({
     cli,
     role,
     allowSave,
     orchestratesRun,
+    ...(nameFirstPrompt === undefined ? {} : { nameFirstPrompt }),
     ...(transferEpicId === undefined ? {} : { transferEpicId }),
     ...(cardId === undefined ? {} : { cardId }),
     launcherDir: files.launcherDir

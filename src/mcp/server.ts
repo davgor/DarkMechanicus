@@ -3,6 +3,7 @@ import type { CommandApi } from '../shared/domain/api'
 import type { SessionRole } from '../shared/domain/views'
 import { promptName, registerPrompts } from './prompts'
 import { SKILLS } from './skills'
+import { registerChatNamingTools } from './tools/chatNaming'
 import { registerAttachmentTools } from './tools/attachments'
 import { registerAuthoringTools } from './tools/authoring'
 import { registerBoardTools } from './tools/board'
@@ -49,6 +50,7 @@ export function createMcpServer(
   const server = new McpServer(info, { instructions: buildInstructions() })
   grantTools(server, session)
   registerDiscoveryTools(server, api)
+  registerChatNamingTools(server, api)
   registerAuthoringTools(server, api)
   registerBoardTools(server, api)
   registerProfileTools(server, api)
