@@ -131,6 +131,45 @@ describe('KanbanCardPanel Play', () => {
     expect(opened).toEqual(['chat_new_1'])
     expect(screen.queryByRole('dialog')).toBeNull()
   })
+})
+
+describe('KanbanCardPanel Play with additional instructions', () => {
+  it('offers an empty Additional instructions field and sends what is typed, trimmed, with the start', async () => {
+    seed(cardView({ id: 'kc_a', key: 'DM-7', title: 'Fix login' }))
+    dm.chats.kanban = {
+      play: (_folder, cardId) => Promise.resolve({ ...cards[cardId]!, playPending: true }),
+      kickBack: () => Promise.reject(new Error('not here'))
+    }
+    await showBoard()
+    const panel = await openCard('DM-7')
+    fireEvent.click(within(panel).getByRole('button', { name: 'Play' }))
+    await settle()
+    const dialog = within(screen.getByRole('dialog'))
+    const field = dialog.getByRole('textbox', { name: 'Additional instructions' }) as HTMLTextAreaElement
+    expect(field.tagName).toBe('TEXTAREA')
+    expect(field.value).toBe('')
+    fireEvent.change(field, { target: { value: '\nKeep the fix small.\n' } })
+    fireEvent.click(dialog.getByRole('button', { name: 'Start' }))
+    await settle()
+    expect(dm.chats.callsOf('startKanbanCard')).toEqual([[{ folder: '/a', cardId: 'kc_a', agent: 'claude', model: null, instructions: 'Keep the fix small.' }]])
+  })
+
+  it('sends no instructions when the field holds only whitespace', async () => {
+    seed(cardView({ id: 'kc_a', key: 'DM-7', title: 'Fix login' }))
+    dm.chats.kanban = {
+      play: (_folder, cardId) => Promise.resolve({ ...cards[cardId]!, playPending: true }),
+      kickBack: () => Promise.reject(new Error('not here'))
+    }
+    await showBoard()
+    const panel = await openCard('DM-7')
+    fireEvent.click(within(panel).getByRole('button', { name: 'Play' }))
+    await settle()
+    const dialog = within(screen.getByRole('dialog'))
+    fireEvent.change(dialog.getByRole('textbox', { name: 'Additional instructions' }), { target: { value: '  \n ' } })
+    fireEvent.click(dialog.getByRole('button', { name: 'Start' }))
+    await settle()
+    expect(dm.chats.callsOf('startKanbanCard')).toEqual([[{ folder: '/a', cardId: 'kc_a', agent: 'claude', model: null }]])
+  })
 
 })
 
@@ -143,9 +182,11 @@ describe('KanbanCardPanel Play refused', () => {
     const panel = await openCard('DM-7')
     fireEvent.click(within(panel).getByRole('button', { name: 'Play' }))
     await settle()
+    fireEvent.change(within(screen.getByRole('dialog')).getByRole('textbox', { name: 'Additional instructions' }), { target: { value: 'Keep it small.' } })
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Start' }))
     await settle()
     expect(within(screen.getByRole('dialog')).getByRole('alert').textContent).toContain('The card already has an open attempt.')
+    expect((within(screen.getByRole('dialog')).getByRole('textbox', { name: 'Additional instructions' }) as HTMLTextAreaElement).value).toBe('Keep it small.')
     expect(opened).toEqual([])
   })
 })

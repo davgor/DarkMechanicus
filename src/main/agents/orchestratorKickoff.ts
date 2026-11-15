@@ -3,8 +3,10 @@
  * orchestrator chat Start run opens"): the title of its chat, the kickoff, and the guidance.
  *
  * - **The kickoff** is the chat's first input, sent with its first start only: fixed text and the run lines (the
- *   epic, its branch and, in a folder of repositories, each repository's epic branch, the run, the first step). It is
- *   short enough for any command line, since Claude Code takes it as its positional prompt.
+ *   epic, its branch and, in a folder of repositories, each repository's epic branch, the run, the first step), then
+ *   any additional instructions the person typed in Start run (`kickoffInstructions.ts`). Without those it is short
+ *   enough for any command line, since Claude Code takes it as its positional prompt; with them it is also recorded
+ *   as the chat's first input (`firstPrompt`), so a start that ends before it went delivers it once, later.
  * - **The guidance** is for the whole session, so it goes in the chat's instructions (`terminalFiles.ts`), after
  *   the `dm` instructions: the steps, the worker handoff, and the orchestrator and worker guides read from the same
  *   skill sources the MCP server serves as prompts, since a chat has no way to open an MCP prompt.
@@ -16,6 +18,7 @@
 import { LIMITS } from '../../core/schemas'
 import { skillBody } from '../../mcp/skills'
 import { maskClaimTokens } from './claimTokenMask'
+import { instructionsSection } from './kickoffInstructions'
 
 export interface KickoffInput {
   epicId: string
@@ -29,6 +32,8 @@ export interface KickoffInput {
   repositoryBranches?: readonly KickoffRepositoryBranch[]
   /** The run the desktop queued for this agent to pick up. */
   runId: string
+  /** What the person typed in the Start run dialog: non-blank, appended as a section of its own. */
+  instructions?: string
 }
 
 /** One repository's epic branch, as the epic records it. */
@@ -73,7 +78,13 @@ export function orchestratorKickoff(input: KickoffInput): string {
     ...branchLines(input),
     `Run: ${input.runId}, queued from the desktop app`,
     '',
-    `First step: run get_capabilities with your dm command line, exactly as your instructions give it (ending \`call get_capabilities '{}'\`), and confirm your role is orchestrator, then run start_run for this epic. It picks up the queued run ${input.runId}; if it says a run is already active, carry on with that run.`
+    `First step: run get_capabilities with your dm command line, exactly as your instructions give it (ending \`call get_capabilities '{}'\`), and confirm your role is orchestrator, then run start_run for this epic. It picks up the queued run ${input.runId}; if it says a run is already active, carry on with that run.`,
+    ...(input.instructions === undefined
+      ? []
+      : [
+          '',
+          instructionsSection(input.instructions, 'this epic and its saved plan', 'your role, your grants, Allow save, the tickets’ acceptance criteria or the saved plan')
+        ])
   ].join('\n')
 }
 

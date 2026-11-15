@@ -290,6 +290,42 @@ describe('chat handlers: start an orchestrator', () => {
   })
 })
 
+describe('chat handlers: start an orchestrator with additional instructions', () => {
+  const REQUEST = { folder: SPELLING, epicId: EPIC_ID, agent: 'codex', model: 'big' }
+
+  it('appends non-blank instructions to the orchestrator kickoff and records that kickoff as the chat’s first input', async () => {
+    const { chats, calls } = recordingChats()
+
+    const result = await handlersOver(chats, [], recordingRuns(), { terminals: recordingTerminals(calls) }).startOrchestrator({ ...REQUEST, instructions: 'Run the UI tickets first.' })
+
+    expect(result.ok).toBe(true)
+    const created = calls[0]?.[1] as { firstPrompt?: string; runId?: string }
+    const started = calls[1]?.[2] as { kickoff: string }
+    expect(started.kickoff).toContain(`Epic: Agent chats (${EPIC_ID})`)
+    expect(started.kickoff).toContain('Additional instructions from the person')
+    expect(started.kickoff).toContain('Run the UI tickets first.')
+    expect(created).toMatchObject({ runId: 'rn_2', allowSave: false, firstPrompt: started.kickoff })
+  })
+
+  it('refuses blank, oversized or non-text instructions before anything is queued, and a transfer chat refuses them all', async () => {
+    const { chats, calls } = recordingChats()
+    const queue: string[] = []
+    const handlers = handlersOver(chats, [], recordingRuns(queue))
+
+    const results = [
+      await handlers.startOrchestrator({ ...REQUEST, instructions: '' }),
+      await handlers.startOrchestrator({ ...REQUEST, instructions: '   ' }),
+      await handlers.startOrchestrator({ ...REQUEST, instructions: 'x'.repeat(32_001) }),
+      await handlers.startOrchestrator({ ...REQUEST, instructions: null }),
+      await handlers.startTransferChat({ ...REQUEST, instructions: 'Go.' })
+    ]
+
+    expect(results.map((result) => (result.ok ? 'ok' : result.error.code))).toEqual(Array(5).fill('invalid_input'))
+    expect(queue).toEqual([])
+    expect(calls).toEqual([])
+  })
+})
+
 describe('chat handlers: start a transfer chat', () => {
   const REQUEST = { folder: SPELLING, epicId: EPIC_ID, agent: 'codex', model: 'big' }
 
@@ -606,6 +642,42 @@ describe('chat handlers: play a Kanban card', () => {
     ]
 
     expect(results.map((result) => (result.ok ? 'ok' : result.error.code))).toEqual(['unauthorized', 'not_found', ...Array(4).fill('invalid_input')])
+    expect(cards).toEqual([])
+    expect(calls).toEqual([])
+  })
+})
+
+describe('chat handlers: play a Kanban card with additional instructions', () => {
+  const REQUEST = { folder: SPELLING, cardId: CARD_ID, agent: 'claude', model: 'sonnet' }
+
+  it('appends non-blank instructions to the card kickoff and records that kickoff as the chat’s first input, delivered once', async () => {
+    const { chats, calls } = recordingChats()
+    const instructions = `${'x'.repeat(31_990)} Use tabs.`
+
+    const result = await handlersOver(chats, [], recordingRuns(), { terminals: recordingTerminals(calls), kanban: recordingCards() }).startKanbanCard({ ...REQUEST, instructions })
+
+    expect(result.ok).toBe(true)
+    const created = calls[0]?.[1] as { firstPrompt?: string; role: string; allowSave: boolean }
+    const started = calls[1]?.[2] as { kickoff: string }
+    expect(started.kickoff).toContain(`claim_kanban_card with cardId ${CARD_ID}`)
+    expect(started.kickoff).toContain('Additional instructions from the person')
+    expect(started.kickoff.endsWith(`Use tabs.\n=== End of additional instructions ===`)).toBe(true)
+    expect(created).toMatchObject({ role: 'orchestrator', allowSave: false, firstPrompt: started.kickoff })
+  })
+
+  it('refuses blank, oversized or non-text instructions before the card is played', async () => {
+    const { chats, calls } = recordingChats()
+    const cards: string[] = []
+    const handlers = handlersOver(chats, [], recordingRuns(), { terminals: recordingTerminals(calls), kanban: recordingCards(cards) })
+
+    const results = [
+      await handlers.startKanbanCard({ ...REQUEST, instructions: '' }),
+      await handlers.startKanbanCard({ ...REQUEST, instructions: ' \n\t ' }),
+      await handlers.startKanbanCard({ ...REQUEST, instructions: 'x'.repeat(32_001) }),
+      await handlers.startKanbanCard({ ...REQUEST, instructions: 42 })
+    ]
+
+    expect(results.map((result) => (result.ok ? 'ok' : result.error.code))).toEqual(Array(4).fill('invalid_input'))
     expect(cards).toEqual([])
     expect(calls).toEqual([])
   })
