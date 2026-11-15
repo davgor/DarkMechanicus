@@ -147,3 +147,28 @@ describe('terminal sessions: starting a project-less chat again', () => {
     expect(rig.reachIssued).toHaveLength(2)
   })
 })
+
+describe('terminal sessions: folder chats beside project-less ones', () => {
+  it('keeps a folder chat in its folder, on its one grant, with a dm pinned to it', async () => {
+    const chat = rig.newChat()
+
+    const { pty } = await startTerminal(rig, chat)
+
+    expect(pty.spec.cwd).toBe(rig.repo)
+    expect(rig.reachIssued).toEqual([])
+    expect(readFileSync(join(rig.userData, 'agents', 'bin', chat.id, 'dm'), 'utf8')).toContain('--repo')
+  })
+
+  it('pauses the run of a folder orchestrator whose CLI exits signed out, and asks no run of a project-less chat that does', async () => {
+    rig.runs.states['rn_1'] = 'running'
+    const orchestrator = await startTerminal(rig, rig.newOrchestrator('rn_1'))
+    const summoned = await startTerminal(rig, rig.newProjectless())
+    rig.auth.status = { state: 'signed_out', reason: 'Signed out.' }
+
+    summoned.pty.exit()
+    orchestrator.pty.exit()
+
+    await eventually(() => rig.runs.calls.some((call) => call.startsWith('pauseRun')), 'the run to be paused')
+    expect(rig.runs.calls).toEqual(['getRun rn_1', expect.stringMatching(/^pauseRun rn_1 /)])
+  })
+})

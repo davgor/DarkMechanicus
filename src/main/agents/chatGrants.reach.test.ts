@@ -160,3 +160,32 @@ describe('chat grants: a project-less chat’s grants revoked and bound for nami
     expect(() => state.grants.bindChatGrant(issued.grantIds[0] ?? '', { folder: alpha, chatId: 'chat_9', generation: 'g1' })).toThrow(NamingControlError)
   })
 })
+
+describe('chat grants: later starts and other chats', () => {
+  it('binds a folder chat’s grant to its own folder, as before project-less chats', async () => {
+    const state = await rig()
+    const issued = await state.grants.issueChatCli(alpha, GRANT)
+
+    state.grants.bindChatGrant(issued.grantId, { folder: alpha, chatId: 'chat_1', generation: 'g1' })
+
+    expect(state.grants.authorizeNaming(issued.cli.env['DM_SESSION_TOKEN'] ?? '')).toMatchObject({ folder: alpha, chatId: 'chat_1' })
+  })
+
+  it('ends an earlier start’s bindings when the same project-less chat starts again, and no other chat’s', async () => {
+    const state = await rig()
+    const tokenOf = (target: { tokenFile: string }): string => readFileSync(target.tokenFile, 'utf8').trim()
+    const first = await state.grants.issueReachCli([targets()[0] ?? { folder: alpha, tokenFile: '' }], GRANT)
+    const firstToken = tokenOf(targets()[0] ?? { tokenFile: '' })
+    const other = await state.grants.issueReachCli([targets()[1] ?? { folder: beta, tokenFile: '' }], GRANT)
+    const otherToken = tokenOf(targets()[1] ?? { tokenFile: '' })
+    state.grants.bindChatGrant(first.grantIds[0] ?? '', { folder: null, chatId: 'chat_9', generation: 'g1' })
+    state.grants.bindChatGrant(other.grantIds[0] ?? '', { folder: null, chatId: 'chat_8', generation: 'g1' })
+
+    const again = await state.grants.issueReachCli([{ folder: alpha, tokenFile: join(root, 'scratch', '.dm', 'again.token') }], GRANT)
+    state.grants.bindChatGrant(again.grantIds[0] ?? '', { folder: null, chatId: 'chat_9', generation: 'g2' })
+
+    expect(() => state.grants.authorizeNaming(firstToken)).toThrow(NamingControlError)
+    expect(state.grants.authorizeNaming(otherToken)).toMatchObject({ chatId: 'chat_8' })
+    expect(state.grants.authorizeNaming(readFileSync(join(root, 'scratch', '.dm', 'again.token'), 'utf8').trim())).toMatchObject({ chatId: 'chat_9', generation: 'g2' })
+  })
+})

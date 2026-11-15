@@ -1,6 +1,30 @@
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { connectedAgents, memoryChatFs, memoryChatStore, REPO, type MemoryChatFs } from './__mocks__/chatFixtures'
+import { createActivityBindings } from './activityBindings'
 import { createChatRecords, type ChatRecords } from './chatRecords'
+
+const RUN_ID = 'rn_01m418epbg8qkqa2e2krvdkqk6'
+const BINDINGS_FILE = resolve('/state/agents/activity-bindings.jsonl')
+
+describe('chat records: deleting next to the bindings old chats stored', () => {
+  it('forgets a deleted folder chat’s bindings, and deleting a project-less chat forgets none', async () => {
+    const fs = memoryChatFs()
+    const store = memoryChatStore(fs)
+    const activity = createActivityBindings({ file: BINDINGS_FILE, fs })
+    const records = createChatRecords({ store, agentFor: connectedAgents(), activity })
+    const old = records.createChat({ folder: REPO, agent: 'claude', role: 'orchestrator' })
+    const kept = records.createChat({ folder: REPO, agent: 'claude', role: 'orchestrator' })
+    const summoned = records.createChat({ folder: null, agent: 'claude', role: 'orchestrator' })
+    const line = (chatId: string): string => `${JSON.stringify({ kind: 'run', runId: RUN_ID, chatId, threadId: null, folder: REPO, role: 'orchestrator' })}\n`
+    fs.files.set(BINDINGS_FILE, line(old.id) + line(kept.id))
+
+    await records.deleteChat(summoned)
+    expect(activity.byRun(RUN_ID).map((binding) => binding.chatId)).toEqual([old.id, kept.id])
+    await records.deleteChat(old)
+    expect(activity.byRun(RUN_ID).map((binding) => binding.chatId)).toEqual([kept.id])
+  })
+})
 
 function rig(): { records: ChatRecords; removed: string[]; fs: MemoryChatFs } {
   const fs = memoryChatFs()

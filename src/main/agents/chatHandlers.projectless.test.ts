@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { ChatPushEvent } from '../../shared/agents/chatApi'
 import type { CommandResult } from '../../shared/desktop/api'
+import { linkDirectory } from '../../test/tempRepo'
 import { createFolderRegistry, type FolderRegistry } from '../desktop/folderRegistry'
 import { connectedAgents } from './__mocks__/chatFixtures'
 import { createChatHandlers, type ChatHandlers } from './chatHandlers'
@@ -99,6 +100,19 @@ describe('chats:listAll', () => {
     data(await handlers.delete({ folder: null, chatId: gone.id }))
     registry.untrack(beta)
 
+    expect(data(await handlers.listAll()).map((chat) => chat.id)).toEqual([kept.id])
+  })
+
+  it('leaves out a tracked folder swapped for a symlink to another directory, as listing it alone is refused, and lists the rest', async () => {
+    const { handlers } = rig()
+    data(await handlers.create({ folder: beta, agent: 'claude', role: 'planner' }))
+    const kept = data(await handlers.create({ folder: alpha, agent: 'claude', role: 'planner' }))
+    const elsewhere = join(root, 'elsewhere')
+    mkdirSync(elsewhere)
+    rmSync(beta, { recursive: true })
+    linkDirectory(elsewhere, beta)
+
+    expect(code(await handlers.list(beta))).toBe('not_found')
     expect(data(await handlers.listAll()).map((chat) => chat.id)).toEqual([kept.id])
   })
 })
