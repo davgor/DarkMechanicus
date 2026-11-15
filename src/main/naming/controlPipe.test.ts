@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 import { setImmediate as turn } from 'node:timers/promises'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createDesktopClient } from '../../core/desktop/desktopClient'
+import { DomainError } from '../../core/errors'
 import { openWorkspace, type Workspace } from '../../core/workspace'
 import { NAMING_CONTROL, type NamingOperation, type NamingReply } from '../../shared/agents/chatNaming'
 import { createTestClock, type TestClock } from '../../test/testContext'
@@ -426,4 +427,22 @@ it('retires cooperative active work and queued mutations while shutdown also clo
   expect(queuedEntered).toBe(false)
   expect(published).toBe(false)
   expect(timers.pending).toBe(0)
+})
+
+it('preserves a recognized application error code without exposing its private message', async () => {
+  const server = await endpoint(() => { throw new DomainError('not_found', `private ${issued.token}`) })
+  const reply = await raw(server.address, [wire(NAME)]).reply
+  expect(reply).toMatchObject({ ok: false, error: { code: 'not_found' } })
+  expect(JSON.stringify(reply) + logged.join()).not.toContain(issued.token)
+})
+
+it.each([null, 'private foreign rejection'])('contains a non-Error handler rejection and keeps subsequent requests usable (%j)', async (rejection) => {
+  let reject = true
+  const server = await endpoint(() => {
+    if (reject) { throw rejection }
+    return { applied: true }
+  })
+  expect(await raw(server.address, [wire(NAME)]).reply).toMatchObject({ ok: false, error: { code: 'internal_error' } })
+  reject = false
+  expect(await raw(server.address, [wire(NAME)]).reply).toMatchObject({ ok: true, data: { applied: true } })
 })
