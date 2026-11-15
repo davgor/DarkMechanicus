@@ -60,6 +60,14 @@ function errorCode(error: unknown): NamingErrorCode {
   return 'internal_error'
 }
 
+/** Drain unread Unix input after admission closes, avoiding a reset that discards the reply. */
+function endReply(socket: Socket, wire: string): void {
+  const kill = setTimeout(() => socket.destroy(), NAMING_CONTROL.frameMs)
+  socket.once('close', () => clearTimeout(kill))
+  socket.resume()
+  socket.end(wire)
+}
+
 class ControlServer implements ControlPipe {
   readonly clock: ControlClock
   readonly connections = new Set<ControlConnection>()
@@ -83,7 +91,7 @@ class ControlServer implements ControlPipe {
   private accept(socket: Socket): void {
     if (this.closing || this.connections.size >= NAMING_CONTROL.connections) {
       socket.on('error', () => {})
-      socket.end(`${JSON.stringify(namingFailure('', 'busy'))}\n`, () => socket.destroy())
+      endReply(socket, `${JSON.stringify(namingFailure('', 'busy'))}\n`)
       return
     }
     const connection = new ControlConnection(this, socket)
@@ -183,10 +191,7 @@ class ControlConnection {
       wire = JSON.stringify(parsed.success ? parsed.data : namingFailure(this.requestId, 'internal_error')) + '\n'
       if (Buffer.byteLength(wire) > NAMING_CONTROL.responseBytes) { wire = JSON.stringify(namingFailure(this.requestId, 'response_too_large')) + '\n' }
     } catch { wire = JSON.stringify(namingFailure(this.requestId, 'internal_error')) + '\n' }
-    // A client that does not read cannot retain a response connection indefinitely.
-    const kill = setTimeout(() => this.socket.destroy(), NAMING_CONTROL.frameMs)
-    this.socket.once('close', () => clearTimeout(kill))
-    this.socket.end(wire, () => this.socket.destroy())
+    endReply(this.socket, wire)
   }
   shutdown(): void {
     this.current?.cancel('cancelled')
