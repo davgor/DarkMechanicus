@@ -17,10 +17,17 @@ export const DM_LAUNCHER_NAME = 'dm'
 
 /**
  * The script of a `dm` invocation pinned to `folder`: the invocation must be exactly `[<script>, '--repo', folder]`,
- * as `buildCliConfig` makes it for the chat's folder. Anything else throws, so nothing names another folder.
+ * as `buildCliConfig` makes it for the chat's folder; for a project-less chat (`folder` null), pinned to none, it must
+ * be exactly `[<script>]`. Anything else throws, so nothing names another folder.
  */
-export function pinnedCliScript(cli: Pick<DarkMechanicusCli, 'args'>, folder: string): string {
+export function pinnedCliScript(cli: Pick<DarkMechanicusCli, 'args'>, folder: string | null): string {
   const [script, flag, repo, ...rest] = cli.args
+  if (folder === null) {
+    if (script === undefined || flag !== undefined) {
+      throw new Error("The dm command of a project-less chat must name no folder: each call names its own.")
+    }
+    return script
+  }
   if (script === undefined || flag !== '--repo' || repo !== folder || rest.length > 0) {
     throw new Error(`The dm command is not pinned to this chat's folder with --repo ${folder}.`)
   }
@@ -32,15 +39,15 @@ export function shellQuote(text: string): string {
   return `'${text.replaceAll("'", "'\\''")}'`
 }
 
-/** The launcher's text for the chat's `dm` invocation, which must be pinned to `folder`. */
-export function dmLauncherScript(cli: Pick<DarkMechanicusCli, 'command' | 'args'>, folder: string): string {
+/** The launcher's text for the chat's `dm` invocation, which must be pinned to `folder` (to none for null). */
+export function dmLauncherScript(cli: Pick<DarkMechanicusCli, 'command' | 'args'>, folder: string | null): string {
   const script = pinnedCliScript(cli, folder)
   return [
     '#!/bin/sh',
     '# The Dark Mechanicus dm command for one chat, written by the app at each start.',
     'ELECTRON_RUN_AS_NODE=1',
     'export ELECTRON_RUN_AS_NODE',
-    `exec ${shellQuote(cli.command)} ${shellQuote(script)} --repo ${shellQuote(folder)} "$@"`,
+    `exec ${shellQuote(cli.command)} ${shellQuote(script)}${folder === null ? '' : ` --repo ${shellQuote(folder)}`} "$@"`,
     ''
   ].join('\n')
 }

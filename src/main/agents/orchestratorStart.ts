@@ -55,7 +55,7 @@ function queuedButNoChat(run: RunView, what: string, error: unknown): string {
 }
 
 /** Removes the chat of an agent that could not start; false (after reporting) when it could not be removed. */
-async function removeChat(deps: OrchestratorStartDeps, chat: { folder: string; id: string }): Promise<boolean> {
+async function removeChat(deps: OrchestratorStartDeps, chat: ChatRecord): Promise<boolean> {
   try {
     await deps.chats.deleteChat(chat)
     return true

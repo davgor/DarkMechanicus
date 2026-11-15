@@ -22,6 +22,14 @@ const NO_CHATS: ComponentProps<typeof Sidebar>['chats'] = {
   onDelete: () => Promise.resolve(true)
 }
 
+const NO_AGENT_CHATS: ComponentProps<typeof Sidebar>['agentChats'] = {
+  list: { status: 'ready', chats: [] },
+  onOpen: () => undefined,
+  onRename: () => Promise.resolve(true),
+  onDelete: () => Promise.resolve(true),
+  onSummon: () => undefined
+}
+
 interface Calls {
   track: number
   clone: number
@@ -74,6 +82,7 @@ function renderSidebar(
         onRename: () => Promise.resolve(true),
         onDelete: () => Promise.resolve(true)
       }}
+      agentChats={NO_AGENT_CHATS}
     />
   )
   return calls
@@ -200,7 +209,7 @@ describe('Sidebar agents', () => {
   it('forwards the + button and an agent choice', () => {
     const calls = renderSidebar([alpha], {}, [agentView({ kind: 'claude' })])
     fireEvent.click(screen.getByRole('button', { name: 'Add an agent' }))
-    fireEvent.click(screen.getByRole('button', { name: /Claude Code/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Claude Code/ }))
     expect(calls.addAgent).toBe(1)
     expect(calls.agents).toEqual(['claude'])
     expect(calls.track).toBe(0)
@@ -228,6 +237,7 @@ describe('Sidebar agents', () => {
         onSelectKanban={() => undefined}
         onRequestUntrack={() => undefined}
         chats={NO_CHATS}
+        agentChats={NO_AGENT_CHATS}
       />
     )
     expect(document.querySelector('.is-selected')).toBeNull()

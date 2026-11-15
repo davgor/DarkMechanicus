@@ -9,6 +9,7 @@ import type { ChatHandlers } from './chatHandlers'
 
 export function registerChatIpc(ipcMain: Pick<IpcMain, 'handle'>, handlers: ChatHandlers): void {
   ipcMain.handle('chats:list', (_event, folder: unknown) => handlers.list(folder))
+  ipcMain.handle('chats:listAll', () => handlers.listAll())
   ipcMain.handle('chats:create', (_event, request: unknown) => handlers.create(request))
   ipcMain.handle('chats:startOrchestrator', (_event, request: unknown) => handlers.startOrchestrator(request))
   ipcMain.handle('chats:startTransferChat', (_event, request: unknown) => handlers.startTransferChat(request))

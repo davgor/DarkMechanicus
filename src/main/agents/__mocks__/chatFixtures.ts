@@ -95,7 +95,7 @@ export function memoryChatStore(fs: ChatStoreFs = memoryChatFs()): ChatStore {
 
 /** Where the store keeps a chat's transcript: `<root>/<hash of the canonical folder>/<chat id>.jsonl`. */
 function transcriptPath(chat: ChatRef, root: string = CHAT_ROOT): string {
-  const key = createHash('sha256').update(chat.folder).digest('hex').slice(0, 24)
+  const key = chat.folder === null ? 'projectless' : createHash('sha256').update(chat.folder).digest('hex').slice(0, 24)
   return join(root, key, `${chat.id}.jsonl`)
 }
 

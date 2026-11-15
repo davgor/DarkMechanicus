@@ -12,6 +12,7 @@ function refused(): Promise<CommandResult<never>> {
 export function idleChats(): ChatsApi {
   return {
     list: () => Promise.resolve({ ok: true, data: [] }),
+    listAll: () => Promise.resolve({ ok: true, data: [] }),
     create: refused,
     startOrchestrator: refused,
     startTransferChat: refused,

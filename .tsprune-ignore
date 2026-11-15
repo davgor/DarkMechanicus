@@ -43,9 +43,9 @@ src/shared/agents/chat.ts - ApprovalRequestItem
 src/shared/agents/chat.ts - DarkMechanicusCli
 src/shared/agents/chat.ts - ErrorProblem
 src/shared/agents/chat.ts - IDLE_STOP_CODE
-src/shared/agents/chat.ts - chatIdSchema
 src/shared/agents/chatApi.ts - BoundThreadsRequest
 src/shared/agents/chatApi.ts - ChatRequestRef
+src/shared/agents/chatApi.ts - SummonChatRequest
 src/shared/agents/chatApi.ts - TransferChatRequest
 src/shared/agents/chatNaming.ts - NAMING_CONTROL
 src/shared/agents/chatNaming.ts - NamingControlError

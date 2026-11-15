@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useReducer, useRef } from 'react'
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import type { ChatRecord } from '../../../shared/agents/chat'
-import type { CreateChatRequest } from '../../../shared/agents/chatApi'
+import type { CreateChatRequest, SummonChatRequest } from '../../../shared/agents/chatApi'
 import { useLatest } from '../app/useLatest'
 import { unwrapChat } from './chatCalls'
 
@@ -75,7 +75,7 @@ function useChatEvents(lists: Lists, reload: (path: string) => Promise<void>): v
   useEffect(
     () =>
       window.dm.chats.onEvent((event) => {
-        if (current.current[event.folder] !== undefined) {
+        if (event.folder !== null && current.current[event.folder] !== undefined) {
           void reload(event.folder)
         }
       }),
@@ -87,7 +87,7 @@ export interface ChatsModel {
   lists: Lists
   reload(path: string): Promise<void>
   /** Resolves with the new chat, or null after reporting why it could not be created. */
-  create(request: CreateChatRequest): Promise<ChatRecord | null>
+  create(request: CreateChatRequest | SummonChatRequest): Promise<ChatRecord | null>
   /** Resolves true once the title is changed, false after reporting why it was not. */
   rename(chat: ChatRecord, title: string): Promise<boolean>
   /** Resolves true once the chat is gone, false after reporting why it is not. */
@@ -99,8 +99,8 @@ interface Reporter {
   onError(error: unknown): void
 }
 
-/** Runs a change to one chat; either way the folder's list is fetched again, so it shows what is really stored. */
-async function changeChat(deps: Reporter, folder: string, change: () => Promise<unknown>): Promise<boolean> {
+/** Runs a change to one chat; either way its folder's list (a project-less chat has none) is fetched again, so it shows what is really stored. */
+async function changeChat(deps: Reporter, folder: string | null, change: () => Promise<unknown>): Promise<boolean> {
   let done = true
   try {
     await change()
@@ -108,7 +108,9 @@ async function changeChat(deps: Reporter, folder: string, change: () => Promise<
     done = false
     deps.onError(error)
   }
-  await deps.reload(folder)
+  if (folder !== null) {
+    await deps.reload(folder)
+  }
   return done
 }
 
@@ -125,7 +127,9 @@ export function useChats(options: { paths: readonly string[]; onError(error: unk
     create: async (request) => {
       try {
         const chat = await unwrapChat(window.dm.chats.create(request))
-        await reload(chat.folder)
+        if (chat.folder !== null) {
+          await reload(chat.folder)
+        }
         return chat
       } catch (error) {
         report.current(error)
@@ -135,4 +139,37 @@ export function useChats(options: { paths: readonly string[]; onError(error: unk
     rename: (chat, title) => changeChat(deps, chat.folder, () => unwrapChat(window.dm.chats.rename({ folder: chat.folder, chatId: chat.id, title }))),
     remove: (chat) => changeChat(deps, chat.folder, () => unwrapChat(window.dm.chats.delete({ folder: chat.folder, chatId: chat.id })))
   }
+}
+
+/**
+ * Every chat that is not deleted (`chats.listAll`): each tracked folder's and the project-less ones. Fetched at first,
+ * whenever the tracked folders change (an untracked folder's chats leave the list), and on every chat event, from this
+ * window or another; a response that a newer request overtook is dropped.
+ */
+export function useAllChats(options: { tracked: readonly string[]; onError(error: unknown): void }): ChatListState {
+  const [state, setState] = useState<ChatListState>(LOADING)
+  const latest = useRef<object | null>(null)
+  const report = useLatest(options.onError)
+  const reload = useCallback(async (): Promise<void> => {
+    const ticket = {}
+    latest.current = ticket
+    try {
+      const chats = await unwrapChat(window.dm.chats.listAll())
+      if (latest.current === ticket) {
+        setState({ status: 'ready', chats })
+      }
+    } catch (error) {
+      if (latest.current === ticket) {
+        setState((previous) => ({ status: 'error', chats: previous.chats }))
+        report.current(error)
+      }
+    }
+  }, [report])
+  const key = options.tracked.join('\0')
+  useEffect(() => {
+    void reload()
+    // The joined key stands in for `tracked`, which is a new array on every render.
+  }, [key, reload])
+  useEffect(() => window.dm.chats.onEvent(() => void reload()), [reload])
+  return state
 }

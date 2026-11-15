@@ -6,6 +6,7 @@
  */
 import { join, posix } from 'node:path'
 import { chatIdSchema, type ChatRole, type DarkMechanicusCli } from '../../shared/agents/chat'
+import type { ReachTarget } from '../agents/chatReach'
 import { cliInstructions } from '../agents/cliInstructions'
 import { transferGuidance } from '../../mcp/transferKickoff'
 import { kanbanGuidance } from '../agents/kanbanKickoff'
@@ -50,6 +51,8 @@ interface InstructionOptions {
   /** The Kanban card the chat Play opened carries (the chat's `cardId`): the card guidance follows. Absent for every other chat. */
   cardId?: string
   nameFirstPrompt?: boolean
+  /** A project-less chat's folders and token files (`chatReach.ts`); absent for a chat of a folder. */
+  reach?: readonly ReachTarget[]
 }
 
 /**
@@ -59,16 +62,19 @@ interface InstructionOptions {
 export function terminalInstructions(options: InstructionOptions): string {
   const dm = options.launcherDir === null ? options.cli : { command: posix.join(options.launcherDir, DM_LAUNCHER_NAME), args: [], env: {} }
   const sections = [
-    cliInstructions({ cli: dm, role: options.role, allowSave: options.allowSave, noLauncher: options.launcherDir === null }),
+    cliInstructions({ cli: dm, role: options.role, allowSave: options.allowSave, noLauncher: options.launcherDir === null, ...(options.reach === undefined ? {} : { reach: options.reach }) }),
     skillBody('collaboration')
   ]
   if (options.orchestratesRun) sections.push(orchestratorGuidance())
   if (options.transferEpicId !== undefined) sections.push(transferGuidance(options.transferEpicId))
   if (options.cardId !== undefined) sections.push(kanbanGuidance(options.cardId))
-  if (options.nameFirstPrompt) sections.push([
+  // A project-less chat that reaches no folder has no dm line to name itself with.
+  if (options.nameFirstPrompt && options.reach?.length !== 0) sections.push([
     '## First-message chat naming',
     'Before acting on the first user message, infer its intent with your selected model and report a concise semantic title, normally 2–5 words and never more than five.',
-    'Use the dm invocation above with: call name_chat \'{"title":"your inferred intent label"}\'.',
+    options.reach === undefined
+      ? 'Use the dm invocation above with: call name_chat \'{"title":"your inferred intent label"}\'.'
+      : 'Use the dm line of any folder above with: call name_chat \'{"title":"your inferred intent label"}\'.',
     'Do not copy the prompt, take its first words, truncate it, or use a canned category. For example, a conversational question about sign-in after expiry can become "Repair expired-session sign-in".',
     'This is metadata only: keep and act on the complete original user message exactly once. Never ask the user to resend it for naming. A manual name always wins; applied:false means leave it alone.',
     'If your model cannot infer the intent, report the real problem using call name_chat \'{"error":"concise real inference failure"}\'; never substitute a prefix. Do not claim naming succeeded unless the command succeeds.'
@@ -80,7 +86,10 @@ interface WriteOptions {
   userData: string
   chatId: string
   platform: NodeJS.Platform
-  /** `resolveLaunchFolder`'s path: the launcher's `--repo`, and the folder the `dm` invocation must be pinned to. */
+  /**
+   * `resolveLaunchFolder`'s path: the launcher's `--repo`, and the folder the `dm` invocation must be pinned to; for a
+   * project-less chat (`reach` set), its scratch folder, and the invocation is pinned to none.
+   */
   folder: string
   cli: DarkMechanicusCli
   role: ChatRole
@@ -89,16 +98,19 @@ interface WriteOptions {
   transferEpicId?: string
   cardId?: string
   nameFirstPrompt?: boolean
+  /** A project-less chat's folders and token files (`chatReach.ts`); absent for a chat of a folder. */
+  reach?: readonly ReachTarget[]
 }
 
 /** Writes the chat's instructions and, on macOS, its launcher, before a start; returns where they are. */
 export async function writeTerminalFiles(options: WriteOptions): Promise<TerminalFiles> {
   const files = terminalFilePaths(options.userData, options.chatId, options.platform)
-  pinnedCliScript(options.cli, options.folder)
+  const pin = options.reach === undefined ? options.folder : null
+  pinnedCliScript(options.cli, pin)
   if (files.launcherDir !== null) {
-    await writeDmLauncher(files.launcherDir, dmLauncherScript(options.cli, options.folder))
+    await writeDmLauncher(files.launcherDir, dmLauncherScript(options.cli, pin))
   }
-  const { cli, role, allowSave, orchestratesRun, transferEpicId, cardId, nameFirstPrompt } = options
+  const { cli, role, allowSave, orchestratesRun, transferEpicId, cardId, nameFirstPrompt, reach } = options
   const text = terminalInstructions({
     cli,
     role,
@@ -107,6 +119,7 @@ export async function writeTerminalFiles(options: WriteOptions): Promise<Termina
     ...(nameFirstPrompt === undefined ? {} : { nameFirstPrompt }),
     ...(transferEpicId === undefined ? {} : { transferEpicId }),
     ...(cardId === undefined ? {} : { cardId }),
+    ...(reach === undefined ? {} : { reach }),
     launcherDir: files.launcherDir
   })
   await writePrivateFile(files.instructions, text, 0o600)

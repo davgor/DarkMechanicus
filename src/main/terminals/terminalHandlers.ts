@@ -3,11 +3,11 @@
  * question 2, "How main keeps it to what the person chose"). Free of Electron runtime imports: the port pair comes
  * from `deps.channel` (`MessageChannelMain` in the app), so it is unit tested with Node's message ports.
  *
- * **Attach names a chat, not a program.** The request is a strict `{ folder, chatId }`, with `newSession: true`
- * when the pane asks for a new session instead of the one a start would resume; registered through the
- * sender guard. The folder is checked first, as every `chats:*` request's is (`chatFolder`: tracked, and not
- * swapped for a symlink), then the chat is loaded from the store and must be that folder's own. The session
- * manager's attach then refuses a moved or untracked folder and a disconnected agent before any grant is issued,
+ * **Attach names a chat, not a program.** The request is a strict `{ folder, chatId }` (folder null for a project-less
+ * chat), with `newSession: true` when the pane asks for a new session instead of the one a start would resume;
+ * registered through the sender guard. The folder is checked first, as every `chats:*` request's is (`chatFolder`:
+ * tracked, and not swapped for a symlink), then the chat is loaded from the store and must be that folder's own. The
+ * session manager's attach then refuses a moved or untracked folder and a disconnected agent before any grant is issued,
  * and builds the spawn from main's records alone. An attach that finds the CLI's sign-in check under way answers
  * once the start has ended.
  *
@@ -49,7 +49,7 @@ import type { FolderRegistry } from '../desktop/folderRegistry'
 import type { LoginAttach, LoginTerminals } from './loginTerminals'
 import type { TerminalAttach, TerminalEvent, TerminalListener, TerminalSessions } from './terminalSessions'
 
-const attachSchema = z.strictObject({ folder: folderSchema, chatId: chatIdSchema, newSession: z.literal(true).optional() })
+const attachSchema = z.strictObject({ folder: folderSchema.nullable(), chatId: chatIdSchema, newSession: z.literal(true).optional() })
 const inputSchema = z.strictObject({ type: z.literal('input'), data: z.string() })
 const resizeSchema = z.strictObject({ type: z.literal('resize'), cols: z.int(), rows: z.int() })
 
@@ -178,17 +178,18 @@ function openLink(deps: TerminalHandlerDeps, target: LinkTarget): PortLink {
 
 /**
  * The chat the request names, from the store: it must be in the request's (checked) folder and be that folder's
- * own. With it, whether the request asks for a new session.
+ * own, or a project-less chat named by a null folder. With it, whether the request asks for a new session.
  */
 function chatRequest(deps: TerminalHandlerDeps, input: unknown): { ref: ChatRef; newSession: boolean } {
   const request = parseInput(attachSchema, input, 'terminal request')
-  const folder = chatFolder(deps, request.folder)
+  const folder = request.folder === null ? null : chatFolder(deps, request.folder)
+  const where = folder ?? 'the project-less chats'
   const chat = deps.store.getChat({ folder, id: request.chatId })
   if (chat === null) {
-    throw new DomainError('not_found', `No chat ${request.chatId} in ${folder}.`)
+    throw new DomainError('not_found', `No chat ${request.chatId} in ${where}.`)
   }
   if (chat.folder !== folder) {
-    throw new DomainError('not_found', `The chat ${chat.id} belongs to ${chat.folder}, not to ${folder}.`)
+    throw new DomainError('not_found', `The chat ${chat.id} belongs to ${chat.folder ?? 'the project-less chats'}, not to ${where}.`)
   }
   return { ref: { folder, id: chat.id }, newSession: request.newSession === true }
 }

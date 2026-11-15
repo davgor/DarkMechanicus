@@ -31,6 +31,7 @@ export type AppInfoApi = typeof appInfo
 /** Agent chats: one `chats:*` invoke per request (main validates each payload), plus the pushed list changes. */
 const chats: ChatsApi = {
   list: (folder) => ipcRenderer.invoke('chats:list', folder),
+  listAll: () => ipcRenderer.invoke('chats:listAll'),
   create: (request) => ipcRenderer.invoke('chats:create', request),
   startOrchestrator: (request) => ipcRenderer.invoke('chats:startOrchestrator', request),
   startTransferChat: (request) => ipcRenderer.invoke('chats:startTransferChat', request),
