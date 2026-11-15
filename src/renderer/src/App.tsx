@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ComponentProps, ComponentType } from 'react'
 import type { ChatRecord } from '../../shared/agents/chat'
-import type { TrackedFolderView } from '../../shared/desktop/api'
+import type { AgentId, TrackedFolderView } from '../../shared/desktop/api'
 import { threadLandingFor, ticketLandingFor } from './app/landing'
 import { findFolder } from './app/selection'
 import type { Selection } from './app/selection'
@@ -113,7 +113,8 @@ function EpicPane({ shell, EpicView, folder, epicId }: EpicPaneProps): JSX.Eleme
 
 interface ChatPaneProps {
   shell: ShellModel
-  folder: TrackedFolderView
+  /** The chat's tracked folder; null for a project-less chat. */
+  folder: string | null
   chat: ChatRecord
   scheduler: Scheduler
   terminalKit: TerminalKit
@@ -131,7 +132,7 @@ function ChatPane({ shell, folder, chat, scheduler, terminalKit }: ChatPaneProps
   }, [actions, landing])
   return (
     <TerminalPane
-      folder={folder.path}
+      folder={folder}
       chat={chat}
       agentName={agentName(chat.agent, shell.agents.agents)}
       kit={terminalKit}
@@ -202,7 +203,9 @@ function MainPane(props: PaneProps): JSX.Element | null {
     case 'agent':
       return <AgentPage key={view.agent.id} agent={view.agent} agents={shell.agents} />
     case 'chat':
-      return <ChatPane key={view.chat.id} shell={shell} folder={view.folder} chat={view.chat} scheduler={props.scheduler} terminalKit={props.terminalKit} />
+      return <ChatPane key={view.chat.id} shell={shell} folder={view.folder.path} chat={view.chat} scheduler={props.scheduler} terminalKit={props.terminalKit} />
+    case 'projectless-chat':
+      return <ChatPane key={view.chat.id} shell={shell} folder={null} chat={view.chat} scheduler={props.scheduler} terminalKit={props.terminalKit} />
     case 'kanban':
       return <KanbanBoard key={view.folder.path} folder={view.folder} refreshToken={shell.folderToken(view.folder.path)} host={orchestrationFor(shell, view.folder)} onChanged={() => actions.changed(view.folder.path)} />
     case 'unavailable':
@@ -304,13 +307,15 @@ interface ShellSidebarProps {
   version: string
   /** The new chat's folder, as the sidebar's + names it (null for a path no longer tracked). */
   onNewChat(folder: TrackedFolderView | null): void
+  /** Summon pressed on an agent's row: ask for the first prompt of a project-less chat with it. */
+  onSummon(agent: AgentId): void
   /** Opens the clone dialog. */
   onClone(): void
   onRequestUntrack(folder: TrackedFolderView): void
 }
 
 /** The sidebar, wired to the shell: folders and their epics and chats, the Agents list, and the footer. */
-function ShellSidebar({ shell, version, onNewChat, onClone, onRequestUntrack }: ShellSidebarProps): JSX.Element {
+function ShellSidebar({ shell, version, onNewChat, onSummon, onClone, onRequestUntrack }: ShellSidebarProps): JSX.Element {
   const { actions } = shell
   return (
     <Sidebar
@@ -322,6 +327,7 @@ function ShellSidebar({ shell, version, onNewChat, onClone, onRequestUntrack }: 
       agentStatuses={shell.agents.statuses}
       expansion={shell.expansion}
       chats={sidebarChats(shell, (path) => onNewChat(findFolder(shell.folders, path)))}
+      agentChats={{ list: shell.allChats, onOpen: actions.openChat, onRename: shell.chats.rename, onDelete: shell.chats.remove, onSummon }}
       footer={<ShellFooter shell={shell} />}
       onTrack={() => void actions.track()}
       onClone={onClone}
@@ -342,7 +348,8 @@ function Shell({ scheduler, EpicView, terminalKit }: { scheduler: Scheduler; Epi
   const shell = useShell(scheduler)
   const [pending, setPending] = useState<TrackedFolderView | null>(null)
   const startingChats = useRef(new Set<string>())
-  const [firstPrompt, setFirstPrompt] = useState<{ folder: TrackedFolderView; agent: string } | null>(null)
+  // The folder of the chat the first prompt is asked for; null for a project-less chat summoned from an agent's row.
+  const [firstPrompt, setFirstPrompt] = useState<{ folder: TrackedFolderView | null; agent: string } | null>(null)
   const signIn = useSignInView(shell.selection)
   const signingIn = signIn.request !== null
   const [cloning, setCloning] = useState(false)
@@ -352,6 +359,8 @@ function Shell({ scheduler, EpicView, terminalKit }: { scheduler: Scheduler; Epi
       <div className="app-shell">
         <ShellSidebar shell={shell} version={update.currentVersion} onNewChat={(folder) => {
             if (folder !== null && firstPrompt === null) void startNewChat(shell, folder, startingChats.current, (agent) => setFirstPrompt({ folder, agent }))
+          }} onSummon={(agent) => {
+            if (firstPrompt === null) setFirstPrompt({ folder: null, agent })
           }} onClone={() => setCloning(true)} onRequestUntrack={setPending} />
         <main className="app-main" aria-label="Workspace">
           {signIn.request === null ? null : <SignInView request={signIn.request} kit={terminalKit} scheduler={scheduler} onBack={signIn.close} />}
@@ -366,7 +375,9 @@ function Shell({ scheduler, EpicView, terminalKit }: { scheduler: Scheduler; Epi
           <FirstPromptDialog
             onClose={() => setFirstPrompt(null)}
             onSubmit={async (prompt) =>
-              (await actions.createChat(firstPrompt.folder, { agent: firstPrompt.agent, model: null, role: 'orchestrator', allowSave: true, firstPrompt: prompt })) !== null
+              (firstPrompt.folder === null
+                ? await actions.summonChat(firstPrompt.agent, prompt)
+                : await actions.createChat(firstPrompt.folder, { agent: firstPrompt.agent, model: null, role: 'orchestrator', allowSave: true, firstPrompt: prompt })) !== null
             }
           />
         )}

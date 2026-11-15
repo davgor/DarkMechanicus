@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { FakeDm } from '../__mocks__/fakeDm'
 import { boardImport, boardOpenEpic, chatRecord, EPIC_A, epicDetail, folderView } from '../__mocks__/fixtures'
 import type { ChatRecord } from '../../../shared/agents/chat'
-import type { CreateChatRequest } from '../../../shared/agents/chatApi'
+import type { CreateChatRequest, SummonChatRequest } from '../../../shared/agents/chatApi'
 import type { FolderPickResult } from '../../../shared/desktop/api'
 import type { WorkStatus } from '../../../shared/domain/status'
 import type { Landing } from './landing'
@@ -31,7 +31,7 @@ class Recorder {
   agentsRevealed: string[] = []
   /** Every request a link asked the opened screen to take, in order; null is one being forgotten. */
   landings: (Landing | null)[] = []
-  chatRequests: CreateChatRequest[] = []
+  chatRequests: (CreateChatRequest | SummonChatRequest)[] = []
   /** What creating a chat answers; null stands for a failure that was already reported. */
   createdChat: ChatRecord | null = chatRecord({ id: 'chat_new_1', folder: '/a' })
 

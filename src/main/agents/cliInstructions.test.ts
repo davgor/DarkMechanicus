@@ -85,4 +85,12 @@ describe('cliInstructions: a project-less chat', () => {
   it('never puts a token itself in the prompt', () => {
     expect(text).not.toContain('dmg_secret')
   })
+
+  it('says it holds no grant, and how one comes, while no folder is tracked and set up', () => {
+    const none = cliInstructions({ cli: { ...unpinned, env: {} }, role: 'orchestrator', allowSave: true, reach: [] })
+
+    expect(none).toContain('No folder is tracked and set up')
+    expect(none).toContain('start this chat again')
+    expect(none).not.toContain('--repo')
+  })
 })

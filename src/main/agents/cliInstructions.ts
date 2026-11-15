@@ -58,8 +58,18 @@ function folderGrant(role: ChatRole): string[] {
   ]
 }
 
-/** How a project-less chat runs `dm`: one line per tracked folder, each naming the folder and its grant's token file. */
+/**
+ * How a project-less chat runs `dm`: one line per tracked folder, each naming the folder and its grant's token file;
+ * with no folder to reach, that it holds no grant yet.
+ */
 function reachAccess(line: string, role: ChatRole, reach: readonly ReachTarget[]): string[] {
+  if (reach.length === 0) {
+    return [
+      'This chat is not tied to a project: it runs in a scratch folder of its own. No folder is tracked and set up for',
+      'Dark Mechanicus yet, so it holds no grant and cannot reach any records. Do not ask a person for a grant: once',
+      'they track and set up a folder in the app and start this chat again, it holds an orchestrator grant there.'
+    ]
+  }
   const lines = reach.flatMap(({ folder, tokenFile }) => {
     const pinned = `${line} --repo ${word(folder)} --token-file ${word(tokenFile)}`
     return [`# ${folder}`, `${pinned} --list`, `${pinned} call get_capabilities '{}'`, '']

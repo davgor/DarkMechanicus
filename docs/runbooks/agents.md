@@ -140,6 +140,17 @@ The app does not list a chat's role and label anywhere (see [`agents-e2e.md`](..
 - Rename and delete a chat from its row in the sidebar. Delete asks first; it ends the chat's terminal, revokes its grant and removes the chat with its stored transcript.
 - Quitting the app stops every terminal and what each one started, and waits for them to be gone before it exits (at most 5 seconds, so a stuck one cannot keep the app open). Any stop of a process (on quit, a deleted chat, or a Find check or install that times out) ends its whole process tree, not just the process the app started.
 
+### Every chat under its agent, and agents with no project
+
+Each agent's row in the sidebar **AGENTS** section has a chevron (**Chats of <agent>**) that lists all of that agent's chats that are not deleted, newest first: every tracked folder's chats, labelled with the folder's name, and its project-less chats, labelled **No project**. The list follows creates, renames and deletes in every window, and drops a folder's chats when the folder is untracked. Rows open, rename and delete exactly like the folder's own chat rows, with the same running dot and **Needs sign-in** badge; a folder chat opens in its folder, a project-less one on its own. The folders' own **Agents** groups are unchanged.
+
+The row's **+** (**Summon <agent> without a project**) asks for the first prompt in the same popup and starts a **project-less chat** with that agent: an **orchestrator** with **Allow save**, tied to no folder.
+
+- **Where it runs.** In a scratch folder of its own, `userData/agents/scratch/<chat id>`, made when its terminal starts. No folder check applies to it. Its record lives in `userData/agents/chats/projectless/`, so it survives restarts and resumes like any chat. Deleting it ends its terminal, revokes its grants and removes its record, transcript and scratch folder; removing its agent ends its terminal and revokes its grants.
+- **What it can reach: every tracked folder, read and write.** When its terminal starts it is issued one ordinary **orchestrator** grant with **Allow save** in each tracked, set-up folder, through that folder's own workspace, so the command layer checks it like any other grant and a token works only in its own folder. Each token is written to its own private file in the scratch folder (`.dm/grants/`), and the instructions give one exact line per folder: `dm --repo <folder> --token-file <file> call …`. **This is wide open on purpose:** a project-less agent can change the records of every tracked folder, which the person accepted; server-side checks stay authoritative, and the grants are revoked when its terminal ends.
+- **Folders tracked later** are reached from the chat's next start (**Start again**). With no folder tracked and set up, it starts with no grant at all and its instructions say so; it cannot name itself from its first prompt then, so its title ends as **Chat naming failed** until you rename it.
+- Project-less chats have no **Earlier conversation**: they began after chats ran in terminals.
+
 ### Built-in collaboration policy
 
 Every hosted chat receives the concise shared policy from [`skills/collaboration.md`](../../skills/collaboration.md), including an ordinary Skitarii chat with no epic, run, transfer or card. Main writes it after the CLI/grant instructions and before any task-specific guidance in `userData/agents/instructions/<chatId>.md`. This is the same shipped source exposed as the `darkmechanicus-collaboration` MCP prompt; it is not a second provider-specific configuration.

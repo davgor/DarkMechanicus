@@ -390,7 +390,7 @@ export function terminalLaunchSpec(input: TerminalLaunchInput): TerminalLaunchSp
   const { chat, agent, files, platform } = input
   const literalPaste = literalPopupPaste(input)
   const launcherDir = platform === 'win32' ? null : files.launcherDir
-  const env = terminalEnv({ base: input.env, platform, kind: agent.kind, cli: input.cli, launcherDir })
+  const env = terminalEnv({ base: input.env, platform, kind: agent.kind, cli: input.cli, launcherDir, ...(input.reach?.length === 0 ? { grantless: true as const } : {}) })
   const program: Program = platform === 'win32' ? windowsProgram(input) : { file: agent.executablePath, leading: [], viaShim: false }
   const dropped: DroppedValue[] = []
   const model = checkedModel(input, dropped)

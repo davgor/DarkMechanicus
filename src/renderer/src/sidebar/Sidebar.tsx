@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { ReactNode } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 import type { ChatRecord } from '../../../shared/agents/chat'
 import type { AgentAuthStatus, AgentId, AgentView, TrackedFolderView } from '../../../shared/desktop/api'
 import type { AgentStatuses } from '../agents/useAgents'
@@ -39,6 +39,8 @@ interface SidebarProps {
   agentStatuses: AgentStatuses
   expansion: Expansion
   chats: SidebarChats
+  /** Every chat, listed under its agent in the AGENTS section, and summoning an agent with no project. */
+  agentChats: Omit<ComponentProps<typeof AgentsSection>['chats'], 'folders' | 'selectedChatId'>
   /** Rendered at the bottom of the sidebar (status and update controls). */
   footer: ReactNode
   /** Tracks an existing folder through the native picker. */
@@ -103,6 +105,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
   const { agentPane } = props.selection
   // While an agents screen is open no folder or epic is the current one.
   const folderSelection = agentPane === undefined ? props.selection : EMPTY_SELECTION
+  const openChatId = agentPane === undefined ? (props.selection.chatId ?? null) : agentPane.kind === 'chat' ? agentPane.chatId : null
   return (
     <aside className="sidebar" aria-label="Tracked folders">
       <Brand version={props.version} />
@@ -110,6 +113,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
         agents={props.agents}
         statuses={props.agentStatuses}
         selected={agentPane?.kind === 'agent' ? agentPane.agent : null}
+        chats={{ ...props.agentChats, folders: props.folders, selectedChatId: openChatId }}
         onAdd={props.onAddAgent}
         onSelect={props.onSelectAgent}
         onStatus={props.onAgentStatus}

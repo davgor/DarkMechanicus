@@ -133,9 +133,12 @@ After the start, the renderer can only send bytes to the CLI's terminal input (s
 
 Unchanged rule, same function. `resolveLaunchFolder` runs before each PTY start (first start, Start again, resume); its path is the PTY's cwd, `{folder}` and the `dm` launcher's `--repo`. A refusal is shown in the pane (the `not_found` message naming the folder and the reason) and nothing starts. A live PTY whose folder is moved keeps running in its old cwd, as a live adapter process does today; today's per-turn check (`stoppedForFolder`) has no turn to hang on, so main checks the folder when a terminal is attached and every minute while it runs, and stops it (process tree killed, grant revoked) with the same message when the check fails.
 
+**Project-less chats** (`folder` null, summoned from an agent's row in the AGENTS section) have no folder to pin: their PTY's cwd is their own scratch folder, `userData/agents/scratch/<chat id>`, made at each start and removed with the chat. Their records live apart from every folder's (`userData/agents/chats/projectless/`), listed with every tracked folder's chats by `chats:listAll`.
+
 ### The `dm` grant and the instructions
 
 - **Grant:** issued when the PTY starts, revoked when it exits for any reason (`revokeChatGrant` never throws). In the environment as `DM_SESSION_TOKEN`, as today.
+- **Project-less grants:** a project-less chat holds one ordinary orchestrator grant with Allow save per tracked, set-up folder, issued at its start through each folder's own workspace (`issueReachCli`), so the command layer checks each as it checks any grant and a token works only in its own folder. Each token goes to a private file in the scratch folder; its `dm` command is pinned to no folder, and the instructions give one line per folder, `--repo <folder> --token-file <file>`. All are stored on the chat, renewed, bound for naming and revoked together, on the same ways out as a folder chat's grant (exit, delete, removed agent, quit). This is wide-open read/write access to every tracked folder, accepted by the person; server-side checks stay authoritative. Folders tracked later are reached from the next start; with none, the chat starts with no grant and its instructions say so.
 - **Instructions:** main writes `cliInstructions(...)` to a file it owns, `userData/agents/instructions/<chat id>.md`, rewritten at each start, and passes it by flag:
 
 | Agent | Instructions | Model | New session | Resume | Approvals |

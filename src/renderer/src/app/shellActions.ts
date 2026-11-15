@@ -1,5 +1,5 @@
 import type { ChatRecord } from '../../../shared/agents/chat'
-import type { CreateChatRequest } from '../../../shared/agents/chatApi'
+import type { CreateChatRequest, SummonChatRequest } from '../../../shared/agents/chatApi'
 import type { CreateEpicInput } from '../../../shared/domain/api'
 import type {
   AgentId,
@@ -65,7 +65,7 @@ interface ShellDeps {
   revealAgents(path: string): void
   chats: {
     /** Resolves with the new chat, or null after reporting why it could not be created. */
-    create(request: CreateChatRequest): Promise<ChatRecord | null>
+    create(request: CreateChatRequest | SummonChatRequest): Promise<ChatRecord | null>
   }
   bucketOf(path: string, epicId: string): WorkStatus | null
   /** Refetch a folder's epic list and storage status. */
@@ -107,6 +107,10 @@ export interface ShellActions {
   initialize(folder: TrackedFolderView, options: InitializeOptions): Promise<void>
   /** Creates a chat in the folder with these settings, and opens it; resolves with it, or null after reporting why it could not be created. */
   createChat(folder: TrackedFolderView, choice: Omit<CreateChatRequest, 'folder'>): Promise<ChatRecord | null>
+  /** Creates a project-less chat with the agent and its first prompt, and opens it; resolves with it, or null after reporting why it could not be created. */
+  summonChat(agent: AgentId, firstPrompt: string): Promise<ChatRecord | null>
+  /** Opens any chat: a folder's in its folder, a project-less one on its own. */
+  openChat(chat: ChatRecord): void
   /** Resolves with what the import did, or null after reporting why it failed. */
   importBoard(folder: TrackedFolderView): Promise<BoardImportView | null>
   flush(): Promise<void>
@@ -305,14 +309,33 @@ function epicActions(
   }
 }
 
-function chatActions(deps: ShellDeps, selectChat: (path: string, chatId: string) => void): Pick<ShellActions, 'createChat'> {
+function chatActions(deps: ShellDeps, selection: SelectionActions): Pick<ShellActions, 'createChat' | 'summonChat' | 'openChat'> {
+  // The folder stays selected underneath, so closing a project-less chat lands back on it.
+  const showProjectless = (chatId: string): void => {
+    deps.land(null)
+    deps.select({ folderPath: deps.selectedPath, epicId: null, agentPane: { kind: 'chat', chatId } })
+  }
   return {
     createChat: async (folder, choice) => {
       const chat = await deps.chats.create({ folder: folder.path, ...choice })
       if (chat !== null) {
-        selectChat(folder.path, chat.id)
+        selection.selectChat(folder.path, chat.id)
       }
       return chat
+    },
+    summonChat: async (agent, firstPrompt) => {
+      const chat = await deps.chats.create({ folder: null, agent, model: null, firstPrompt })
+      if (chat !== null) {
+        showProjectless(chat.id)
+      }
+      return chat
+    },
+    openChat: (chat) => {
+      if (chat.folder === null) {
+        showProjectless(chat.id)
+      } else {
+        selection.selectChat(chat.folder, chat.id)
+      }
     }
   }
 }
@@ -322,7 +345,7 @@ export function createShellActions(deps: ShellDeps): ShellActions {
   return {
     ...selection,
     ...linkActions(deps),
-    ...chatActions(deps, selection.selectChat),
+    ...chatActions(deps, selection),
     ...folderActions(deps, selection.selectFolder),
     ...repositoryActions(deps),
     ...epicActions(deps, selection.selectEpic)

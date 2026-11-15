@@ -25,7 +25,8 @@
  * **Project-less chats** (`folder` null, summoned from the AGENTS section) start in their own scratch folder
  * (`scratchFolder.ts`, made at the start), so no folder check applies to them. Instead of one grant they hold one per
  * tracked, set-up folder (`reachFolders`, read at the start; `chatReach.ts`), issued together (`issueReachCli`) and
- * stored, renewed, bound for naming and revoked together on every way out above; with no such folder nothing starts.
+ * stored, renewed, bound for naming and revoked together on every way out above. With no such folder it starts with no
+ * grant at all, and its instructions say no folder is tracked yet; a folder tracked later is reached from its next start.
  *
  * **Screen.** Each PTY's output goes through a headless terminal of the same size (`terminalScreen.ts`). An
  * attach answers with its serialized snapshot and subscribes its listener at that same point in the output, so
@@ -111,8 +112,6 @@ const BRACKETED_PASTE_ON = '\x1b[?2004h'
 const QUITTING = 'The app is quitting, so the terminal was stopped.'
 const DELETED = 'The chat was deleted, so its terminal was stopped.'
 const AGENT_REMOVED = "The chat's agent was removed, so its terminal was stopped."
-const NOTHING_TO_REACH =
-  'This chat is not tied to a project and reaches Dark Mechanicus through your tracked folders, but none is set up yet. Track a folder and set it up, then start this chat again.'
 
 /** Why a chat named by `ref` cannot be found. */
 function noChat(ref: ChatRef): string {
@@ -849,10 +848,13 @@ async function runStart(context: StartContext, step: Step): Promise<StartOutcome
       void revokeGrant(manager, grantId)
     }
   }
+  // A project-less chat with no folder to reach starts with no grant: its instructions say so.
   const issuing =
     context.reach === undefined
       ? manager.deps.issueChatCli(folder, grant).then(({ cli, grantId }) => ({ cli, grantIds: [grantId] }))
-      : manager.deps.issueReachCli(context.reach, grant)
+      : context.reach.length === 0
+        ? Promise.resolve({ cli: manager.deps.cliFor(null), grantIds: [] })
+        : manager.deps.issueReachCli(context.reach, grant)
   const issued = await step(issuing, ({ grantIds }) => {
     revokeAll(grantIds)
   })
@@ -992,9 +994,6 @@ function beginStart(manager: Manager, found: ChatRecord, options: AttachOptions 
     return { state: 'refused', message: messageOf(error) }
   }
   const reach = chat.folder === null ? reachTargets(folder, manager.deps.reachFolders()) : undefined
-  if (reach?.length === 0) {
-    return { state: 'refused', message: NOTHING_TO_REACH }
-  }
   const agent = manager.deps.agentFor(chat.agent)
   if (agent === null) {
     return { state: 'refused', message: `No connected agent has the id ${chat.agent}. Connect it under Agents first.` }

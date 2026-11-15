@@ -37,6 +37,7 @@ function renderSection(agents: AgentView[], statuses: AgentStatuses = {}, select
         agents={agents}
         statuses={statuses}
         selected={selected}
+        chats={{ list: { status: 'ready', chats: [] }, folders: [], selectedChatId: null, onOpen: () => undefined, onRename: () => Promise.resolve(true), onDelete: () => Promise.resolve(true), onSummon: () => undefined }}
         onAdd={() => {
           calls.added += 1
         }}

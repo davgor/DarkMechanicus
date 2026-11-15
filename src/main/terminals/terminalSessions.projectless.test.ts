@@ -7,7 +7,7 @@ import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { claudeProjectName } from './claudeSession'
-import { eventually, startTerminal, terminalRig, type TerminalRig } from './__mocks__/terminalSessionsRig'
+import { eventually, settle, startTerminal, terminalRig, type TerminalRig } from './__mocks__/terminalSessionsRig'
 
 let rig: TerminalRig
 let other: string
@@ -106,14 +106,24 @@ describe('terminal sessions: a project-less chat', () => {
     expect(sorted(rig.revoked)).toEqual(['gr_1', 'gr_2'])
   })
 
-  it('starts nothing, and asks for no grant, while no tracked folder is set up to reach', async () => {
+  it('starts with no grant and says so while no tracked folder is set up, reaching folders tracked later from its next start', async () => {
     rig.reach = []
+    const chat = rig.newProjectless()
 
-    const answer = await rig.sessions.attach(rig.newProjectless())
+    const { pty } = await startTerminal(rig, chat)
 
-    expect(answer).toMatchObject({ state: 'refused', message: expect.stringContaining('Track a folder and set it up') })
+    expect(pty.spec.cwd).toBe(scratchOf(chat.id))
     expect(rig.grantsAsked).toBe(0)
-    expect(rig.host.spawns).toEqual([])
+    expect(Object.keys(pty.spec.env).some((name) => name.toUpperCase() === 'DM_SESSION_TOKEN')).toBe(false)
+    const instructions = readFileSync(join(rig.userData, 'agents', 'instructions', `${chat.id}.md`), 'utf8')
+    expect(instructions).toContain('No folder is tracked and set up')
+    expect(instructions).not.toContain('--token-file')
+    pty.exit()
+
+    rig.reach = [rig.repo]
+    await settle()
+    await startTerminal(rig, chat)
+    expect(rig.reachIssued.map((targets) => targets.map((target) => target.folder))).toEqual([[rig.repo]])
   })
 
   it('resumes its Claude session in the same scratch folder when it starts again', async () => {

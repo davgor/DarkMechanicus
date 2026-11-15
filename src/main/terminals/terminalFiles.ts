@@ -68,7 +68,8 @@ export function terminalInstructions(options: InstructionOptions): string {
   if (options.orchestratesRun) sections.push(orchestratorGuidance())
   if (options.transferEpicId !== undefined) sections.push(transferGuidance(options.transferEpicId))
   if (options.cardId !== undefined) sections.push(kanbanGuidance(options.cardId))
-  if (options.nameFirstPrompt) sections.push([
+  // A project-less chat that reaches no folder has no dm line to name itself with.
+  if (options.nameFirstPrompt && options.reach?.length !== 0) sections.push([
     '## First-message chat naming',
     'Before acting on the first user message, infer its intent with your selected model and report a concise semantic title, normally 2–5 words and never more than five.',
     options.reach === undefined

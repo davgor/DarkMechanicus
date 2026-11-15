@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef } from 'react'
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import type { ChatRecord } from '../../../shared/agents/chat'
 import type { CreateChatRequest, SummonChatRequest } from '../../../shared/agents/chatApi'
 import { useLatest } from '../app/useLatest'
@@ -139,4 +139,37 @@ export function useChats(options: { paths: readonly string[]; onError(error: unk
     rename: (chat, title) => changeChat(deps, chat.folder, () => unwrapChat(window.dm.chats.rename({ folder: chat.folder, chatId: chat.id, title }))),
     remove: (chat) => changeChat(deps, chat.folder, () => unwrapChat(window.dm.chats.delete({ folder: chat.folder, chatId: chat.id })))
   }
+}
+
+/**
+ * Every chat that is not deleted (`chats.listAll`): each tracked folder's and the project-less ones. Fetched at first,
+ * whenever the tracked folders change (an untracked folder's chats leave the list), and on every chat event, from this
+ * window or another; a response that a newer request overtook is dropped.
+ */
+export function useAllChats(options: { tracked: readonly string[]; onError(error: unknown): void }): ChatListState {
+  const [state, setState] = useState<ChatListState>(LOADING)
+  const latest = useRef<object | null>(null)
+  const report = useLatest(options.onError)
+  const reload = useCallback(async (): Promise<void> => {
+    const ticket = {}
+    latest.current = ticket
+    try {
+      const chats = await unwrapChat(window.dm.chats.listAll())
+      if (latest.current === ticket) {
+        setState({ status: 'ready', chats })
+      }
+    } catch (error) {
+      if (latest.current === ticket) {
+        setState((previous) => ({ status: 'error', chats: previous.chats }))
+        report.current(error)
+      }
+    }
+  }, [report])
+  const key = options.tracked.join('\0')
+  useEffect(() => {
+    void reload()
+    // The joined key stands in for `tracked`, which is a new array on every render.
+  }, [key, reload])
+  useEffect(() => window.dm.chats.onEvent(() => void reload()), [reload])
+  return state
 }

@@ -4,8 +4,8 @@ import type { StorageStatusView } from '../../../shared/domain/views'
 import type { ChatRecord } from '../../../shared/agents/chat'
 import { useAgents } from '../agents/useAgents'
 import type { AgentsModel } from '../agents/useAgents'
-import { chatsFor, useChats } from '../agents/useChats'
-import type { ChatsModel } from '../agents/useChats'
+import { chatsFor, useAllChats, useChats } from '../agents/useChats'
+import type { ChatListState, ChatsModel } from '../agents/useChats'
 import { useKanbanCounts } from '../kanban/useKanbanCounts'
 import type { KanbanCounts } from '../kanban/useKanbanCounts'
 import { bucketOfEpic } from '../sidebar/buckets'
@@ -50,6 +50,8 @@ export interface ShellModel {
   agents: AgentsModel
   /** The chats of every active folder, and rename and delete. */
   chats: ChatsModel
+  /** Every chat that is not deleted, of every tracked folder and project-less, for the AGENTS section. */
+  allChats: ChatListState
   busy: Record<BusyKey, boolean>
   actions: ShellActions
   /**
@@ -91,14 +93,15 @@ function knownChats(chats: ChatsModel, folderPath: string | null): readonly Chat
 function useSelection(
   folders: ReturnType<typeof useFolders>,
   connected: readonly AgentView[] | null,
+  projectless: readonly ChatRecord[] | null,
   expansion: Expansion,
   onError: (error: unknown) => void
 ): { selection: Selection; select(selection: Selection): void; paths: string[]; chats: ChatsModel } {
   const [stored, select] = usePersistentState(SELECTION_STORAGE_KEY, EMPTY_SELECTION, isSelection)
-  const folderPath = resolveSelection(stored, folders.folders, folders.loaded, { agents: connected }).folderPath
+  const folderPath = resolveSelection(stored, folders.folders, folders.loaded, { agents: connected, projectless }).folderPath
   const paths = activeFolderPaths(folders.folders, folderPath, expansion.isFolderExpanded)
   const chats = useChats({ paths, onError })
-  const known = { agents: connected, chats: knownChats(chats, stored.folderPath) }
+  const known = { agents: connected, projectless, chats: knownChats(chats, stored.folderPath) }
   return { selection: resolveSelection(stored, folders.folders, folders.loaded, known), select, paths, chats }
 }
 
@@ -108,10 +111,11 @@ function shellView(input: {
   selected: TrackedFolderView | null
   selection: Selection
   chats: readonly ChatRecord[] | null
+  projectless: readonly ChatRecord[] | null
   agents: readonly AgentView[] | null
   folderTabs: FolderTabs
 }): MainView {
-  const { folders, selected, selection, chats, agents, folderTabs } = input
+  const { folders, selected, selection, chats, projectless, agents, folderTabs } = input
   return chooseView({
     loaded: folders.loaded,
     folder: selected,
@@ -121,6 +125,7 @@ function shellView(input: {
     chats,
     agentPane: selection.agentPane,
     agents,
+    projectless,
     folderTab: folderTabOf(folderTabs, selection.folderPath)
   })
 }
@@ -155,7 +160,9 @@ export function useShell(scheduler: Scheduler): ShellModel {
   const [busy, setBusy] = useState(IDLE)
   const [landing, setLanding] = useState<Landing | null>(null)
   const [folderTabs, setFolderTab] = useFolderTabs()
-  const { selection, select, paths, chats } = useSelection(folders, connected, expansion, toasts.reportError)
+  const allChats = useAllChats({ tracked: folders.folders.map((folder) => folder.path), onError: toasts.reportError })
+  const projectless = allChats.status === 'loading' ? null : allChats.chats.filter((chat) => chat.folder === null)
+  const { selection, select, paths, chats } = useSelection(folders, connected, projectless, expansion, toasts.reportError)
   const selected = findFolder(folders.folders, selection.folderPath)
   const feed = useEventFeed({ paths, selectedPath: selection.folderPath, scheduler, onError: toasts.reportError })
   const lists = useEpicLists({ paths, tokens: feed.tokens, onError: toasts.reportError })
@@ -179,13 +186,14 @@ export function useShell(scheduler: Scheduler): ShellModel {
   return {
     folders: folders.folders,
     selection,
-    view: shellView({ folders, selected, selection, chats: knownChats(chats, selection.folderPath), agents: connected, folderTabs }),
+    view: shellView({ folders, selected, selection, chats: knownChats(chats, selection.folderPath), projectless, agents: connected, folderTabs }),
     lists,
     kanbanCounts,
     status,
     expansion,
     agents,
     chats,
+    allChats,
     busy,
     actions,
     landing,
