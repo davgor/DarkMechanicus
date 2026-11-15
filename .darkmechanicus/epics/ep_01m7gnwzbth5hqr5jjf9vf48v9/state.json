@@ -1,0 +1,30 @@
+{
+  "branch": null,
+  "completedAt": null,
+  "createdAt": "2026-11-15T22:40:28.538Z",
+  "epicId": "ep_01m7gnwzbth5hqr5jjf9vf48v9",
+  "format": "darkmechanicus.epic-state",
+  "formatVersion": 1,
+  "generation": 1,
+  "outcome": null,
+  "provenance": null,
+  "status": "backlog",
+  "ticketStatuses": {
+    "tk_01m7gnwzbtxmx4vpd6x0ygyx1s": "backlog",
+    "tk_01m7gp4cdwzc44vr55dhvf2hnd": "backlog",
+    "tk_01m7gp4cen3bvs0jjf4et48xcm": "backlog",
+    "tk_01m7gp4cen5xbgbnvtjbns7vya": "backlog",
+    "tk_01m7gp4cen96sc2ne0v5df9kb1": "backlog",
+    "tk_01m7gp4cena03atve2fwq9rbrn": "backlog",
+    "tk_01m7gp4cend17spheyqqzwjvfn": "backlog",
+    "tk_01m7gp4cenrt0fr9qk4tg5c161": "backlog",
+    "tk_01m7gp4cenvqk3jmtjjjaj8c8j": "backlog",
+    "tk_01m7gp4cenza4c1sqncf40xq15": "backlog",
+    "tk_01m7gp4cenzna8sn9hmnv1j7jf": "backlog",
+    "tk_01m7gp4cep30x481pqw2bdya5s": "backlog",
+    "tk_01m7gp4cepn2ye10s0efpaccy6": "backlog",
+    "tk_01m7gq08z10k1eaf4hxx4d0r3x": "backlog"
+  },
+  "title": "Cults: a Magos leads a timed swarm of acolyte agents you can pause, stop and watch",
+  "updatedAt": "2026-11-15T22:59:56.932Z"
+}
