@@ -1,10 +1,53 @@
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { ChatRecord } from '../../../shared/agents/chat'
 import { Button } from '../components/Button'
 import { Dialog } from '../components/Dialog'
 import { Field } from '../components/Field'
 import { MAX_TITLE } from '../home/newEpic'
+
+interface FirstPromptDialogProps {
+  onSubmit(prompt: string): Promise<boolean>
+  onClose(): void
+}
+
+/** Nothing is created until Start succeeds. Failed creation leaves the original text here. */
+export function FirstPromptDialog({ onSubmit, onClose }: FirstPromptDialogProps): JSX.Element {
+  const formId = useId()
+  const [prompt, setPrompt] = useState('')
+  const [busy, setBusy] = useState(false)
+  const submitting = useRef(false)
+  const close = (): void => { if (!submitting.current) onClose() }
+  const submit = async (event: FormEvent): Promise<void> => {
+    event.preventDefault()
+    if (!prompt.trim() || prompt.length > 32_000 || submitting.current) return
+    submitting.current = true
+    setBusy(true)
+    try {
+      if (await onSubmit(prompt)) onClose()
+    } finally {
+      submitting.current = false
+      setBusy(false)
+    }
+  }
+  return (
+    <Dialog
+      title="Start a new chat"
+      description="What would you like the agent to do? Your full prompt is sent once; the agent names the chat from its intent."
+      onClose={close}
+      actions={
+        <>
+          <Button disabled={busy} onClick={close}>Cancel</Button>
+          <Button variant="primary" type="submit" form={formId} busy={busy} disabled={!prompt.trim() || prompt.length > 32_000}>Start</Button>
+        </>
+      }
+    >
+      <form id={formId} className="form" onSubmit={(event) => void submit(event)}>
+        <Field label="First prompt" rows={6} maxLength={32_000} value={prompt} onChange={setPrompt} />
+      </form>
+    </Dialog>
+  )
+}
 
 interface RenameChatDialogProps {
   chat: ChatRecord

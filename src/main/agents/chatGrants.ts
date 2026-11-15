@@ -12,6 +12,10 @@
  * so a chat that runs for days keeps its role and one whose app died loses it within `minutes`. A
  * grant already revoked is renewed nothing; a renewal that fails is logged in one line, never thrown.
  */
+import { realpathSync } from 'node:fs'
+import { assertGrantCapability, hashToken } from '../../core/services/grants'
+import { NamingControlError } from '../../shared/agents/chatNaming'
+import type { NamingControlBinding } from '../naming/controlPipe'
 import type { Workspace } from '../../core/workspace'
 import type { ChatRole, DarkMechanicusCli } from '../../shared/agents/chat'
 
@@ -24,11 +28,20 @@ interface ChatGrantsDeps {
   minutes: number
   /** Told, in one line, of each grant that could not be revoked. */
   log: (line: string) => void
+  desktopAddress?: () => string | undefined
+  desktopReady?: () => Promise<void>
 }
 
 /** What the chat terminals (`terminalSessions.ts`) issue and revoke chat grants through. */
+interface GrantOptions { role: ChatRole; allowSave: boolean; label: string }
+export interface IssuedChatCli { cli: DarkMechanicusCli; grantId: string }
+interface LiveIdentity { folder: string; chatId: string; generation: string }
+
 export interface ChatGrants {
-  issueChatCli(folder: string, grant: { role: ChatRole; allowSave: boolean; label: string }): Promise<{ cli: DarkMechanicusCli; grantId: string }>
+  bindChatGrant(grantId: string, identity: LiveIdentity): void
+  authorizeNaming(token: string): NamingControlBinding
+  dispose(): void
+  issueChatCli(folder: string, grant: GrantOptions): Promise<IssuedChatCli>
   /** Never throws: a grant it cannot revoke is logged. */
   revokeChatGrant(grantId: string): Promise<void>
   /** Moves a held grant's expiry to `minutes` from now. Never throws: a renewal that fails is logged. */
@@ -38,6 +51,10 @@ export interface ChatGrants {
 interface HeldGrant {
   workspace: Workspace
   expiresAt: string
+  folder: string
+  tokenHash: string
+  live: NamingControlBinding | null
+  lifetime: AbortController
 }
 
 async function through(held: HeldGrant, act: (workspace: Workspace) => Promise<unknown>): Promise<void> {
@@ -53,48 +70,97 @@ async function through(held: HeldGrant, act: (workspace: Workspace) => Promise<u
   }
 }
 
-function reasonOf(error: unknown): string {
-  return (error instanceof Error ? error.message : String(error)).replace(/\s+/g, ' ')
+class ChatGrantRegistry implements ChatGrants {
+  private readonly held = new Map<string, HeldGrant>()
+  private readonly liveByHash = new Map<string, HeldGrant>()
+  constructor(private readonly deps: ChatGrantsDeps) {}
+  private invalidate(grant: HeldGrant): void {
+    grant.lifetime.abort()
+    this.liveByHash.delete(grant.tokenHash)
+    grant.live = null
+  }
+  private assertBinding(grantId: string, grant: HeldGrant, binding: NamingControlBinding): void {
+    if (this.held.get(grantId) !== grant || grant.live !== binding || binding.signal.aborted || grant.workspace.sessionId() === null || realpathSync.native(grant.folder) !== grant.folder) {
+      throw new NamingControlError('unauthorized')
+    }
+    const ctx = grant.workspace.ctx()
+    assertGrantCapability({ db: ctx.db, clock: ctx.clock, machineId: ctx.machineId }, grantId, grant.tokenHash, 'chat.name')
+  }
+  async issueChatCli(folder: string, grant: GrantOptions): Promise<IssuedChatCli> {
+    await this.deps.desktopReady?.()
+    const workspace = this.deps.workspaceFor(folder)
+    const issued = await workspace.issueGrant({ role: grant.role, label: grant.label, allowSave: grant.allowSave, minutes: this.deps.minutes })
+    this.held.set(issued.grant.id, { workspace, expiresAt: issued.grant.expiresAt, folder: realpathSync.native(folder), tokenHash: hashToken(issued.token), live: null, lifetime: new AbortController() })
+    const launch = this.deps.cliFor(folder)
+    const env: Record<string, string> = { ...launch.env, DM_SESSION_TOKEN: issued.token }
+    delete env['DM_DESKTOP_PIPE']
+    const address = this.deps.desktopAddress?.()
+    if (address !== undefined) env['DM_DESKTOP_PIPE'] = address
+    return {
+      cli: { ...launch, env },
+      grantId: issued.grant.id
+    }
+  }
+  bindChatGrant(grantId: string, identity: LiveIdentity): void {
+    const grant = this.held.get(grantId)
+    if (!grant || grant.lifetime.signal.aborted || grant.live !== null || realpathSync.native(identity.folder) !== grant.folder || identity.generation === '') throw new NamingControlError('unauthorized')
+    const binding: NamingControlBinding = {
+      grantId, folder: grant.folder, chatId: identity.chatId, generation: identity.generation,
+      signal: grant.lifetime.signal, assertCurrent: () => this.assertBinding(grantId, grant, binding)
+    }
+    for (const previous of this.liveByHash.values()) {
+      if (previous.live?.folder === binding.folder && previous.live.chatId === binding.chatId) this.invalidate(previous)
+    }
+    grant.live = binding
+    this.liveByHash.set(grant.tokenHash, grant)
+  }
+  authorizeNaming(token: string): NamingControlBinding {
+    const binding = this.liveByHash.get(hashToken(token))?.live
+    if (!binding) throw new NamingControlError('unauthorized')
+    binding.assertCurrent()
+    return binding
+  }
+  dispose(): void {
+    for (const grant of this.held.values()) this.invalidate(grant)
+  }
+  async revokeChatGrant(grantId: string): Promise<void> {
+    const grant = this.held.get(grantId)
+    if (grant === undefined) {
+      this.deps.log(`Could not revoke chat grant ${grantId}: it was not issued by this app session.`)
+      return
+    }
+    this.invalidate(grant)
+    this.held.delete(grantId)
+    try {
+      await through(grant, (workspace) => workspace.revokeGrant({ grantId }))
+    } catch {
+      this.deps.log(`Could not revoke chat grant ${grantId}; it stays usable until it expires at ${grant.expiresAt}.`)
+    }
+  }
+  async renewChatGrant(grantId: string): Promise<void> {
+    const grant = this.held.get(grantId)
+    if (grant === undefined) {
+      return
+    }
+    try {
+      await through(grant, async (workspace) => {
+        grant.expiresAt = (await workspace.renewGrant({ grantId, minutes: this.deps.minutes })).expiresAt
+      })
+    } catch {
+      this.deps.log(`Could not renew chat grant ${grantId}; it stays usable until it expires at ${grant.expiresAt}.`)
+    }
+  }
 }
 
 export function createChatGrants(deps: ChatGrantsDeps): ChatGrants {
-  const held = new Map<string, HeldGrant>()
+  const registry = new ChatGrantRegistry(deps)
+  // Terminal dependencies spread this interface; retain the registry receiver.
   return {
-    async issueChatCli(folder, grant) {
-      const workspace = deps.workspaceFor(folder)
-      const issued = await workspace.issueGrant({ role: grant.role, label: grant.label, allowSave: grant.allowSave, minutes: deps.minutes })
-      held.set(issued.grant.id, { workspace, expiresAt: issued.grant.expiresAt })
-      const launch = deps.cliFor(folder)
-      return {
-        cli: { ...launch, env: { ...launch.env, DM_SESSION_TOKEN: issued.token } },
-        grantId: issued.grant.id
-      }
-    },
-    async revokeChatGrant(grantId) {
-      const grant = held.get(grantId)
-      if (grant === undefined) {
-        deps.log(`Could not revoke chat grant ${grantId}: it was not issued by this app session.`)
-        return
-      }
-      held.delete(grantId)
-      try {
-        await through(grant, (workspace) => workspace.revokeGrant({ grantId }))
-      } catch (error) {
-        deps.log(`Could not revoke chat grant ${grantId}; it stays usable until it expires at ${grant.expiresAt}: ${reasonOf(error)}`)
-      }
-    },
-    async renewChatGrant(grantId) {
-      const grant = held.get(grantId)
-      if (grant === undefined) {
-        return
-      }
-      try {
-        await through(grant, async (workspace) => {
-          grant.expiresAt = (await workspace.renewGrant({ grantId, minutes: deps.minutes })).expiresAt
-        })
-      } catch (error) {
-        deps.log(`Could not renew chat grant ${grantId}; it stays usable until it expires at ${grant.expiresAt}: ${reasonOf(error)}`)
-      }
-    }
+    issueChatCli: (folder, grant) => registry.issueChatCli(folder, grant),
+    revokeChatGrant: (id) => registry.revokeChatGrant(id),
+    renewChatGrant: (id) => registry.renewChatGrant(id),
+    bindChatGrant: (id, identity) => registry.bindChatGrant(id, identity),
+    authorizeNaming: (token) => registry.authorizeNaming(token),
+    dispose: () => registry.dispose()
   }
 }

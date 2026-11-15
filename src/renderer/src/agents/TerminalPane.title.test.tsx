@@ -107,3 +107,39 @@ describe('TerminalPane terminal title lifetime', () => {
     expect(kit.latest().titleListeners).toBe(0)
   })
 })
+
+describe('TerminalPane first-message recovery', () => {
+  const firstPrompt = '  Could you investigate the refresh flow?\nKeep all of this.  '
+
+  it('surfaces naming failure and uncertain delivery with the complete read-only prompt, not an app composer', async () => {
+    await show({ ...CLAUDE, firstPrompt, firstPromptDelivery: 'uncertain', titleStatus: 'failed', titleError: 'Selected model request failed.' })
+    expect(screen.getByRole('alert').textContent).toContain('Selected model request failed.')
+    expect(screen.getByText(/First prompt delivery is uncertain/)).toBeTruthy()
+    expect(document.querySelector('.terminal-first-prompt pre')?.textContent).toBe(firstPrompt)
+    expect(screen.queryByRole('textbox', { name: 'Prompt' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Send prompt' })).toBeNull()
+    expect(screen.getByTestId('terminal-host')).toBeTruthy()
+  })
+
+  it('distinguishes pending delivery and naming from submitted delivery without changing the header title', async () => {
+    const pending = { ...CLAUDE, firstPrompt, firstPromptDelivery: 'pending', titleStatus: 'pending' } as const
+    const mounted = await show(pending)
+    expect(screen.getByText(/First prompt saved/)).toBeTruthy()
+    expect(screen.getByText(/Waiting for the selected agent to infer a short title/)).toBeTruthy()
+    mounted.rerender(pane({ ...pending, title: 'Repair session refresh', firstPromptDelivery: 'submitted', titleStatus: 'generated' }))
+    await settle()
+    expect(screen.getByText('Original first prompt (submitted once)')).toBeTruthy()
+    expect(screen.queryByText(/Waiting for the selected agent to infer a short title/)).toBeNull()
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Repair session refresh')
+    expect(document.querySelector('.terminal-first-prompt pre')?.textContent).toBe(firstPrompt)
+    expect(terminals.calls).toEqual([['/a', CLAUDE.id]])
+  })
+})
+
+it('shows a naming-specific failure even when an interrupted older record has no saved error detail', async () => {
+  const firstPrompt = '  Diagnose the expired session and preserve this complete request.  '
+  await show({ ...CLAUDE, firstPrompt, firstPromptDelivery: 'uncertain', titleStatus: 'failed' })
+  expect(screen.getByRole('alert').textContent).toMatch(/nam(e|ing)|title/i)
+  expect(document.querySelector('.terminal-first-prompt pre')?.textContent).toBe(firstPrompt)
+  expect(screen.queryByRole('textbox')).toBeNull()
+})

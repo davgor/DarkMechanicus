@@ -13,7 +13,8 @@ const EXPECTED = [
   ['worker', 'Worker'],
   ['reviewer', 'Reviewer'],
   ['sprint-reporter', 'Sprint reporter'],
-  ['linear-transfer', 'Linear transfer']
+  ['linear-transfer', 'Linear transfer'],
+  ['collaboration', 'Collaboration policy']
 ]
 
 const VENDOR_WORDS = /claude|anthropic|openai|gpt|gemini|llama|mistral|copilot|codex|sonnet|opus|haiku/i
@@ -35,7 +36,7 @@ function skill(name: string) {
 }
 
 describe('SKILLS', () => {
-  it('ships the seven skills in a stable order with their titles', () => {
+  it('ships the skills in a stable order with their titles', () => {
     expect(SKILLS.map((item) => [item.name, item.title])).toEqual(EXPECTED)
   })
 
@@ -129,6 +130,11 @@ describe('SKILLS_VERSION', () => {
   it('moved past 1.7.0 when the guides started covering image attachments', () => {
     const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
     expect(major > 1 || (major === 1 && minor >= 8)).toBe(true)
+  })
+
+  it('moved past 1.8.0 when the guides started treating flaky and timed-out checks as failures', () => {
+    const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
+    expect(major > 1 || (major === 1 && minor >= 9)).toBe(true)
   })
 })
 

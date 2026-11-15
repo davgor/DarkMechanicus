@@ -28,7 +28,24 @@ anything. Output is `{"ok":true,"data":…}` or `{"ok":false,"error":{"code","me
 `0` for success, `1` when the command failed, `2` for a usage mistake. Everything else goes to
 stderr, so the output pipes into `jq` cleanly.
 
+**On Windows, run `dm` commands from Git Bash, not PowerShell or `cmd`.** In particular, the packaged
+`DarkMechanicus.exe` with `ELECTRON_RUN_AS_NODE=1` can execute a command without returning stdout in
+Windows PowerShell 5.1. No output does **not** mean the command failed: a claim may already have succeeded.
+Git Bash returns its JSON output. The PowerShell examples below use a separate `node` executable;
+do not substitute the packaged Electron executable there. Hosted chats receive the same Git Bash guidance.
+
 `--repo` picks the repository (default `$DARKMECHANICUS_REPO`, else the working directory).
+
+### Hosted chats use the running build
+
+A chat's injected command names the executable and `out/main/cli.js` of the app that started it,
+including a development build in a repository checkout. It does not select an installed app or
+`node` from `PATH`. The command sets `ELECTRON_RUN_AS_NODE=1` for that invocation, so the selected
+Electron executable runs the CLI even when the chat's shell does not inherit that switch.
+
+If the CLI returns `incompatible_schema`, its error names the executable and CLI entry it ran.
+A newer build owns the database: use the command injected by the app that started the chat, or
+update the older build. The JSON keeps the original error code and schema-version details.
 
 ## Pass JSON from a file: `--args-file`
 
@@ -77,6 +94,29 @@ Keep the token secret. Reader, planner, worker and reviewer sessions cannot laun
 CLI grants are refused before every command. Desktop Play remains human-only and starts a chat.
 **Approval**, kick-back, card deletion and checkpoint approval remain human-only; launch grants none
 of those powers and changes no epic execution.
+
+### Recover a lost Kanban claim response
+
+Give each `claim_kanban_card` request an `idempotencyKey`. If its response is lost, replay the **same**
+request and key: the response carries the original `attemptId`, with `claimToken: null`, and creates
+no second attempt. The token is never returned again.
+
+An orchestrator can release that live claim with `fail_kanban_card`, passing its `attemptId` and a
+`reason` but **omitting** `claimToken`. This fails the attempt and requeues the card, so the next claim
+needs no additional desktop Play or launch. Use a **new** claim key for that replacement attempt:
+
+```sh
+node out/main/cli.js call claim_kanban_card '{"cardId":"kc_…","idempotencyKey":"claim-1"}'
+# If that response was lost, repeat that exact command, then use its attemptId:
+node out/main/cli.js call fail_kanban_card '{"attemptId":"ka_…","reason":"Lost claim response","idempotencyKey":"release-1"}'
+node out/main/cli.js call claim_kanban_card '{"cardId":"kc_…","idempotencyKey":"claim-2"}'
+```
+
+Workers still need the token to fail an attempt. A supplied token is always checked; tokenless
+recovery preserves machine ownership, lease expiry and supersession fencing, and cannot withdraw
+a submission awaiting human review. Ordinary failures with a token still require Play or an explicit
+authorized launch before another claim. An expired claim cannot be released this way; an orchestrator
+can explicitly launch that named card again.
 
 ## Attach an image: `add_attachment`
 
@@ -133,16 +173,36 @@ again; the database keeps only its hash.
 
 Keep the token in a file that only you can read — the better of the two paths:
 
+POSIX shells (bash, zsh, Git Bash):
+
 ```sh
 umask 077 && printf '%s' 'dmg_…' > ~/.config/dm-token
 node out/main/cli.js --token-file ~/.config/dm-token call create_epic '{"title":"…"}'
 ```
 
+PowerShell:
+
+```powershell
+$tokenFile = Join-Path $HOME '.dm-token'
+Set-Content -NoNewline -Encoding ascii -Path $tokenFile -Value 'dmg_…'
+icacls $tokenFile /inheritance:r /grant:r "${env:USERNAME}:(R,W)" | Out-Null
+node out/main/cli.js --token-file $tokenFile call list_epics
+```
+
 The environment works too, and is more convenient for a one-off:
+
+POSIX shells (bash, zsh, Git Bash):
 
 ```sh
 export DM_SESSION_TOKEN='dmg_…'
 node out/main/cli.js call create_epic '{"title":"…"}'
+```
+
+In PowerShell (for this session only; Remove-Item Env:DM_SESSION_TOKEN clears it):
+
+```powershell
+$env:DM_SESSION_TOKEN = 'dmg_…'
+node out/main/cli.js call list_epics
 ```
 
 Neither hides the token from you or from anything running as you: an environment variable is
@@ -165,9 +225,9 @@ has copied the whole database, and is not meant to be.
 Capabilities reserved to a person are not grantable, whatever role is chosen: approving a sprint
 checkpoint, authorizing auto-continue, granting a retry, queueing a run, deleting an epic or a
 ticket, issuing or revoking a further grant, and pressing Play on, approving or kicking back a
-Kanban card (`kanban.play`, `kanban.review`). A granted orchestrator can create, edit and claim
-cards and report on them, but only after you press Play. An agent cannot promote itself, and
-approval stays in the app.
+Kanban card (`kanban.play`, `kanban.review`). A granted orchestrator can create and edit cards,
+explicitly launch named cards when asked, claim queued cards and report on them; lost-token recovery
+only requeues a live claim. An agent cannot promote itself, and approval stays in the app.
 
 `plan.save` is granted only if you tick **May save plans**, and only for a planner or orchestrator.
 Without it the agent prepares a draft and you press Save.

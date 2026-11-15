@@ -3,7 +3,7 @@
  * the chat's `dm` launcher, which the instructions name by its absolute path. The orchestrator chat Start run opened
  * also has the orchestrator and worker guidance in its instructions.
  */
-import { existsSync, mkdtempSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -14,6 +14,7 @@ import { cliCommandLine } from '../agents/cliInstructions'
 import { kanbanGuidance } from '../agents/kanbanKickoff'
 import { orchestratorGuidance, orchestratorKickoff } from '../agents/orchestratorKickoff'
 import { terminalFilePaths, terminalInstructions, writeTerminalFiles } from './terminalFiles'
+import { terminalLaunchSpec } from './terminalLaunchSpec'
 
 const FOLDER = '/Users/me/My Repo'
 
@@ -105,6 +106,59 @@ describe('terminalInstructions', () => {
     expect(card).toBe(`${plain}\n\n${kanbanGuidance('kc_01m6a1p7qaxttbw9f5927qk2dx')}`)
     expect(card).toContain('claim_kanban_card with cardId kc_01m6a1p7qaxttbw9f5927qk2dx')
     expect(plain).not.toContain('claim_kanban_card')
+  })
+})
+
+describe('writeTerminalFiles: collaboration policy', () => {
+  let userData: string
+  let folder: string
+
+  beforeEach(() => {
+    userData = mkdtempSync(join(tmpdir(), 'dm-terminal-files-'))
+    folder = join(userData, 'repo')
+  })
+
+  afterEach(() => {
+    removeScratch(userData)
+  })
+
+  it.each(['planner', 'orchestrator', 'worker', 'reviewer'] as const)('loads collaboration for an ordinary %s chat without inventing a grant or task', async (role) => {
+    const files = await writeTerminalFiles({ userData, chatId: 'ch_plain', platform: 'win32', folder, cli: cliFor(folder), role, allowSave: false, orchestratesRun: false })
+    const text = readFileSync(files.instructions, 'utf8')
+
+    expect(text).toContain(`**${role}** grant`)
+    expect(text).toContain('This chat may not save plans')
+    expect(text).toContain('Planning an epic')
+    expect(text).toContain('meaningful questions')
+    expect(text).toContain('in-scope decisions')
+    expect(text).toContain('only the orchestrator')
+    expect(text).toContain('does not grant permissions')
+    expect(text).not.toMatch(/=== Orchestrator guidance|=== Linear transfer guidance|claim_kanban_card|grant-token/)
+  })
+
+  it('passes fresh policy to ordinary Skitarii on initial launch and replaces stale instructions before resume', async () => {
+    const start = { userData, chatId: 'ch_plain', platform: 'darwin' as const, folder, cli: cliFor(folder), role: 'orchestrator' as const, allowSave: false, orchestratesRun: false }
+    const sessionId = '019495d5-1234-7000-8000-000000000001'
+    for (const resumed of [false, true]) {
+      if (resumed) writeFileSync(terminalFilePaths(userData, start.chatId, start.platform).instructions, 'stale instructions from an older app')
+      const files = await writeTerminalFiles(start)
+      const spec = terminalLaunchSpec({
+        chat: { agent: 'omp', role: start.role, allowSave: false, model: null, sessionId: resumed ? sessionId : null, sessionStarted: resumed, kickoffSent: resumed },
+        kickoff: null,
+        agent: { id: 'omp', kind: 'omp', executablePath: '/usr/local/bin/omp', args: [] },
+        folder, cli: start.cli, files, platform: start.platform, env: {}, newSessionId: () => sessionId
+      })
+      const args = spec.args ?? []
+      const instructions = args[args.indexOf('--append-system-prompt') + 1]
+      expect(instructions).toBe(files.instructions)
+      const text = readFileSync(instructions!, 'utf8')
+      expect(text).toContain('Planning an epic')
+      expect(text).toContain('only the orchestrator')
+      expect(text).not.toContain('stale instructions')
+      expect(spec.resumed).toBe(resumed)
+      expect(args.includes('--resume')).toBe(resumed)
+      expect(spec.kickoffIn).toBeNull()
+    }
   })
 })
 

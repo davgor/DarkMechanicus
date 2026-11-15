@@ -1,11 +1,12 @@
 /** Property-style check: for random edits and random line selections, the commit holds exactly the selected content. */
+import { execFileSync } from 'node:child_process'
 import { readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { changedLineIndices, type FileDiff } from '../../shared/git/diff'
 import type { RepoStatus } from '../../shared/git/status'
-import { createGitRepo, type GitRepo } from '../../test/gitRepo'
-import { gitIn, put } from '../../test/gitScratch'
+import { copyGitRepo, createGitRepo, type GitRepo } from '../../test/gitRepo'
+import { put } from '../../test/gitScratch'
 import { commitFiles, findInStatus, requireStatus } from './commit'
 import { readWorkingDiff } from './diff'
 import { createGitRunner } from './runner'
@@ -121,11 +122,19 @@ function writeCases(r: GitRepo, cases: ReadonlyArray<{ path: string; item: Case 
   }
 }
 
-async function prepare(r: GitRepo, status: RepoStatus, { path, item }: { path: string; item: Case }, next: () => number): Promise<Prepared> {
-  const diff = await readWorkingDiff(runner, r.root, findInStatus(status, path))
-  if (diff.kind !== 'text') {
-    throw new Error(`expected a text diff for ${JSON.stringify(item)}`)
-  }
+/** Every case's diff, read at once: the reads are independent, and they take no random numbers. */
+async function readDiffs(r: GitRepo, status: RepoStatus, cases: ReadonlyArray<{ path: string; item: Case }>): Promise<TextDiff[]> {
+  const diffs = await Promise.all(cases.map(({ path }) => readWorkingDiff(runner, r.root, findInStatus(status, path))))
+  return diffs.map((diff, at) => {
+    if (diff.kind !== 'text') {
+      throw new Error(`expected a text diff for ${JSON.stringify(cases[at]?.item)}`)
+    }
+    return diff
+  })
+}
+
+/** A case with its diff and its random selection of the diff's changed lines. */
+function prepare({ path, item }: { path: string; item: Case }, diff: TextDiff, next: () => number): Prepared {
   const count = changedLineIndices(diff).flat().filter((index) => index !== null).length
   return { path, item, diff, selected: pick(next, count), count }
 }
@@ -142,19 +151,54 @@ interface Observed {
   expected: Outcome
 }
 
-function observe(r: GitRepo, { path, item, diff, selected, count }: Prepared): Observed {
-  const label = `${JSON.stringify(item)} lines ${JSON.stringify([...selected])}`
-  const working = item.newText === null ? null : readFileSync(join(r.root, path), 'utf8')
-  if (item.newText === null && selected.size === count) {
-    return {
-      actual: { label, working, committed: r.git('ls-tree', 'HEAD', '--', path) },
-      expected: { label, working: null, committed: '' }
+/** Whether the case deleted its file and committed the whole deletion, so HEAD's tree must not hold it. */
+function deletedWhole({ item, selected, count }: Prepared): boolean {
+  return item.newText === null && selected.size === count
+}
+
+/** HEAD's tree entry for each path (`git ls-tree HEAD -- <path>`'s line, '' for none), from one `ls-tree`. */
+function treeEntries(r: GitRepo, paths: readonly string[]): Map<string, string> {
+  const lines = paths.length === 0 ? [] : r.git('ls-tree', 'HEAD', '--', ...paths).split('\n')
+  return new Map(paths.map((path) => [path, lines.find((line) => line.endsWith(`\t${path}`)) ?? '']))
+}
+
+/** HEAD's content of each path, as `git show HEAD:<path>` prints it, from one `git cat-file --batch`. */
+function committedContents(r: GitRepo, paths: readonly string[]): Map<string, string> {
+  const out = execFileSync('git', ['-C', r.root, 'cat-file', '--batch'], { input: paths.map((path) => `HEAD:${path}\n`).join('') })
+  const contents = new Map<string, string>()
+  let at = 0
+  for (const path of paths) {
+    const end = out.indexOf(0x0a, at)
+    const header = out.subarray(at, end).toString('utf8')
+    const size = /^[0-9a-f]+ blob (\d+)$/.exec(header)?.[1]
+    if (size === undefined) {
+      throw new Error(`HEAD holds no blob ${path}: ${header}`)
     }
+    contents.set(path, out.subarray(end + 1, end + 1 + Number(size)).toString('utf8'))
+    at = end + 1 + Number(size) + 1
   }
-  return {
-    actual: { label, working, committed: gitIn(r.root, 'show', `HEAD:${path}`) },
-    expected: { label, working: item.newText, committed: expectedContent(item.oldText ?? '', item.newText ?? '', diff, selected) }
-  }
+  return contents
+}
+
+/** Each case's working file and committed content, reading HEAD with two git processes for the whole batch. */
+function observe(r: GitRepo, prepared: readonly Prepared[]): Observed[] {
+  const entries = treeEntries(r, prepared.filter(deletedWhole).map(({ path }) => path))
+  const contents = committedContents(r, prepared.filter((one) => !deletedWhole(one)).map(({ path }) => path))
+  return prepared.map((one) => {
+    const { path, item, diff, selected } = one
+    const label = `${JSON.stringify(item)} lines ${JSON.stringify([...selected])}`
+    const working = item.newText === null ? null : readFileSync(join(r.root, path), 'utf8')
+    if (deletedWhole(one)) {
+      return {
+        actual: { label, working, committed: entries.get(path) ?? '' },
+        expected: { label, working: null, committed: '' }
+      }
+    }
+    return {
+      actual: { label, working, committed: contents.get(path) ?? '' },
+      expected: { label, working: item.newText, committed: expectedContent(item.oldText ?? '', item.newText ?? '', diff, selected) }
+    }
+  })
 }
 
 /** Runs `size` random cases through one commit, each case in a file of its own. */
@@ -162,30 +206,33 @@ async function runBatch(r: GitRepo, batch: number, size: number, next: () => num
   const cases = Array.from({ length: size }, (_, at) => ({ path: `case-${batch}-${at}.txt`, item: makeCase(next) }))
   writeCases(r, cases)
   const status = await requireStatus(runner, r.root)
-  const prepared: Prepared[] = []
-  for (const one of cases) {
-    prepared.push(await prepare(r, status, one, next))
-  }
+  const diffs = await readDiffs(r, status, cases)
+  // Selections are picked in case order, so the random numbers each case takes do not depend on the reads' timing.
+  const prepared = cases.map((one, at) => prepare(one, diffs[at] as TextDiff, next))
   const files = prepared.map(({ path, selected, diff }) => ({ path, oldPath: null, lines: [...selected], diffHash: diff.hash }))
   await commitFiles(runner, r.root, { summary: `batch ${batch}`, description: '', files })
-  return prepared.map((one) => observe(r, one))
+  return observe(r, prepared)
 }
 
 describe('commitFiles with random line selections', () => {
   it('commits exactly the selected content and never changes the working file', async () => {
-    const r = createGitRepo()
-    cleanups.push(r.cleanup)
-    r.git('config', 'core.autocrlf', 'false')
-    const next = random(154)
-    const actual: Outcome[] = []
-    const expected: Outcome[] = []
-    for (let batch = 0; batch < 4; batch += 1) {
-      for (const outcome of await runBatch(r, batch, 20, next)) {
-        actual.push(outcome.actual)
-        expected.push(outcome.expected)
+    const base = createGitRepo()
+    cleanups.push(base.cleanup)
+    base.git('config', 'core.autocrlf', 'false')
+    // Four batches of 20 cases, each in a repository of its own with its own generator seeded from 154, run side by
+    // side: the cases stay replayable, and git's processes for one batch overlap another's.
+    const seeds = random(154)
+    const batches = [0, 1, 2, 3].map((batch) => {
+      const r = batch === 0 ? base : copyGitRepo(base)
+      if (r !== base) {
+        cleanups.push(r.cleanup)
       }
-    }
+      return { r, batch, next: random(Math.floor(seeds() * 4294967296)) }
+    })
+    const observed = (await Promise.all(batches.map(({ r, batch, next }) => runBatch(r, batch, 20, next)))).flat()
+    const actual = observed.map((outcome) => outcome.actual)
+    const expected = observed.map((outcome) => outcome.expected)
     expect(actual).toHaveLength(80)
     expect(actual).toEqual(expected)
-  }, 180_000)
+  })
 })

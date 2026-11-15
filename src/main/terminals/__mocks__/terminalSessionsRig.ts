@@ -182,7 +182,7 @@ type RigBase = Omit<TerminalRig, 'sessions'>
 
 /** The `dm` invocation the rig's manager is given for `folder`, before a grant is laid over it. */
 export function cliFor(folder: string): CliLaunch {
-  return buildCliConfig({ packaged: false, execPath: '/bin/electron', appPath: '/app', repoPath: folder })
+  return buildCliConfig({ execPath: '/bin/electron', appPath: '/app', repoPath: folder })
 }
 
 /** The session id the rig's manager generates `n`th: a UUID, `…000000000001` first. */

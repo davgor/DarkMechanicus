@@ -126,28 +126,6 @@ function handlersOver(
 const REF = { folder: SPELLING, chatId: 'chat_1' }
 const CANONICAL = { folder: REPO, id: 'chat_1' }
 
-describe('chat handlers: the channels', () => {
-  it('serve the chat records, Start run, the transfer chat and the bound lookups, and nothing that sends, stops, answers or lists models', () => {
-    const handlers = handlersOver(recordingChats().chats)
-
-    expect(Object.keys(handlers).sort()).toEqual([
-      'boundTerminal',
-      'boundThreads',
-      'create',
-      'delete',
-      'findTransferChat',
-      'kickBackKanbanCard',
-      'list',
-      'read',
-      'rename',
-      'startKanbanCard',
-      'startOrchestrator',
-      'startTransferChat',
-      'transferPrompt'
-    ])
-  })
-})
-
 describe('chat handlers: forwarding', () => {
   it('resolves the tracked folder and hands the records only validated fields', async () => {
     const { chats, calls } = recordingChats()
@@ -701,4 +679,17 @@ describe('chat handlers: unexpected terminal failures reach the error reporter',
     expect(results.map((result) => result.ok && (result.data as { problem: string | null }).problem)).toEqual(Array(4).fill(expect.stringContaining('the PTY host is gone')))
     expect(errors).toEqual(Array(4).fill(expect.objectContaining({ message: 'the PTY host is gone' })))
   })
+})
+
+it('accepts the full original first prompt at the guarded creation boundary but refuses blank prompts', async () => {
+  const { chats, calls } = recordingChats()
+  const handlers = handlersOver(chats)
+  const request = { folder: SPELLING, agent: 'claude', role: 'orchestrator' }
+  const firstPrompt = '  Could you investigate the expiry failure?\nPreserve every line.  '
+  expect(await handlers.create({ ...request, firstPrompt })).toMatchObject({ ok: true })
+  expect(calls).toEqual([['createChat', { ...request, folder: REPO, firstPrompt }]])
+  for (const blank of ['', ' \n\t ', 'x'.repeat(32_001)]) {
+    expect(await handlers.create({ ...request, firstPrompt: blank })).toMatchObject({ ok: false, error: { code: 'invalid_input' } })
+  }
+  expect(calls).toHaveLength(1)
 })

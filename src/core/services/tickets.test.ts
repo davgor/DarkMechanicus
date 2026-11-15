@@ -10,7 +10,9 @@ import {
   saveNow,
   TWO_TICKETS
 } from '../../test/authoring'
+import { pngBytes } from '../../test/images'
 import { createTestCtx, type TestCtx, withRole } from '../../test/testContext'
+import { createStagedAttachment } from './attachments'
 import { updatePlanDraft } from './drafts'
 import { getEpic } from './epics'
 import { getPlan } from './plans'
@@ -154,6 +156,24 @@ describe('getTicket in the draft view', () => {
       message: 'Ticket DM-3 is not in the saved plan.',
       details: { ticketId: 'DM-3' }
     })
+  })
+})
+
+describe('getTicket images', () => {
+  it('flags a saved ticket image whose bytes are not stored, and the stored bundle keeps no missing key', () => {
+    const ctx = createTestCtx()
+    const saved = createSavedEpic(ctx)
+    const ids = [1, 2].map((seed) => createStagedAttachment(ctx, { bytes: pngBytes(4, 3, seed), label: `mockup ${seed}`, purpose: 'reference' }).id)
+    updatePlanDraft(ctx, { epicId: saved.epicId, ops: [{ op: 'update_ticket', ticket: saved.refMap.a, patch: { attachments: ids } }] })
+    saveNow(ctx, saved.epicId)
+    ctx.db.run('UPDATE attachments SET data = NULL, missing = 1 WHERE id = ?', ids[0])
+    const attachments = getTicket(ctx, { epicId: saved.epicId, ticketId: saved.refMap.a, view: 'saved' }).ticket.attachments
+    expect(attachments?.map((ref) => ref.id)).toEqual(ids)
+    expect(attachments?.[0]?.missing).toBe(true)
+    expect(attachments?.[1]).not.toHaveProperty('missing')
+    const bundles = ctx.db.all<{ bundle_json: string }>("SELECT bundle_json FROM plan_revisions WHERE epic_id = ? AND state = 'saved'", saved.epicId)
+    expect(bundles.some((row) => row.bundle_json.includes(ids[0] ?? 'none'))).toBe(true)
+    expect(bundles.every((row) => !row.bundle_json.includes('"missing"'))).toBe(true)
   })
 })
 

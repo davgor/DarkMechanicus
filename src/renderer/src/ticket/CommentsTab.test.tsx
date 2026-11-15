@@ -86,3 +86,77 @@ describe('CommentsTab image composer', () => {
     expect(calls.find((call) => call.name === 'addComment')?.input).toEqual({ epicId: 'ep_1', ticketId: 'tk_202', body: 'Plain' })
   })
 })
+
+function dropImage(name: string): void {
+  const file = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], name, { type: 'image/png' })
+  fireEvent.drop(screen.getByLabelText('New comment'), { dataTransfer: { files: [file], types: ['Files'] } })
+}
+
+/** A runner that records every call and answers each upload through `upload`. */
+function recordingRunner(calls: { name: string; input: unknown }[], upload: () => Promise<unknown>): Runner {
+  return ((name: string, input: unknown) => {
+    calls.push({ name, input })
+    if (name === 'listComments') {
+      return Promise.resolve([])
+    }
+    return name === 'uploadAttachment' ? upload() : Promise.resolve({})
+  }) as unknown as Runner
+}
+
+function renderComposer(runner: Runner): void {
+  render(<CommentsTab runner={runner} epicId="ep_1" ticketId="tk_202" now={NOW} reloadKey={0} canComment folderKey={FOLDER_KEY} />)
+}
+
+describe('CommentsTab composer uploads', () => {
+  it('disables Add comment while an image uploads', async () => {
+    let finish: ((view: { id: string; label: string }) => void) | null = null
+    renderComposer(
+      recordingRunner([], () =>
+        new Promise((resolve) => {
+          finish = resolve
+        })
+      )
+    )
+
+    fireEvent.change(screen.getByLabelText('New comment'), { target: { value: 'Uploading one' } })
+    const button = screen.getByRole('button', { name: 'Add comment' })
+    expect(button).toHaveProperty('disabled', false)
+    dropImage('slow.png')
+    await waitFor(() => expect(button).toHaveProperty('disabled', true))
+
+    // The upload starts only once the file is read, after the button already went busy.
+    const resolveUpload = await waitFor(() => {
+      expect(finish).not.toBeNull()
+      return finish as (view: { id: string; label: string }) => void
+    })
+    resolveUpload({ id: 'im_00000000000000000000000008', label: 'slow.png' })
+    await screen.findByRole('img', { name: 'slow.png' })
+    await waitFor(() => expect(button).toHaveProperty('disabled', false))
+  })
+
+  it('does not bring back a sent image with the next upload', async () => {
+    const calls: { name: string; input: unknown }[] = []
+    const uploads = [
+      { id: 'im_0000000000000000000000000a', label: 'a.png' },
+      { id: 'im_0000000000000000000000000b', label: 'b.png' }
+    ]
+    renderComposer(recordingRunner(calls, () => Promise.resolve(uploads.shift())))
+    const sent = (): unknown[] => calls.filter((call) => call.name === 'addComment').map((call) => call.input)
+
+    fireEvent.change(screen.getByLabelText('New comment'), { target: { value: 'First' } })
+    dropImage('a.png')
+    await screen.findByRole('img', { name: 'a.png' })
+    fireEvent.click(screen.getByRole('button', { name: 'Add comment' }))
+    await waitFor(() => expect(sent()).toHaveLength(1))
+    await waitFor(() => expect(screen.queryByRole('img', { name: 'a.png' })).toBeNull())
+
+    fireEvent.change(screen.getByLabelText('New comment'), { target: { value: 'Second' } })
+    dropImage('b.png')
+    await screen.findByRole('img', { name: 'b.png' })
+    expect(screen.queryByRole('img', { name: 'a.png' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Add comment' }))
+    await waitFor(() => expect(sent()).toHaveLength(2))
+    expect(sent()[1]).toEqual({ epicId: 'ep_1', ticketId: 'tk_202', body: 'Second', attachments: ['im_0000000000000000000000000b'] })
+    expect(screen.queryByRole('img', { name: 'a.png' })).toBeNull()
+  })
+})

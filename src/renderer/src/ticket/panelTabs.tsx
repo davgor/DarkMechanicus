@@ -8,6 +8,7 @@ import type { Runner } from '../epic/runner'
 import { StateLabel } from '../epic/StatePill'
 import { InlineMarkdown, Markdown, SafeLink } from '../markdown/Markdown'
 import { CoverageCriteria, CriteriaItems, DefinitionOfDone } from './AcceptanceSections'
+import { isWebLocation, ReferenceList } from './ReferenceList'
 import { loadHistory } from './ticketData'
 import { capabilityRows, criteriaChecklist, evidenceView, historyItems, linkRows, sizeAndEffortRows, type EvidenceView, type LinkRow } from './ticketView'
 
@@ -106,18 +107,7 @@ function TicketMaterials({ ticket, folderKey }: { ticket: TicketDetailView['tick
           <AttachmentGallery folderKey={folderKey} attachments={attachments} />
         </section>
       )}
-      {ticket.references.length === 0 ? null : (
-        <section className="tp-section" aria-label="References">
-          <h3 className="ew-eyebrow">REFERENCES</h3>
-          <ul className="tp-files">
-            {ticket.references.map((reference) => (
-              <li key={`${reference.kind}:${reference.location}`} className="ew-mono">
-                {reference.label === reference.location ? reference.location : `${reference.label} (${reference.location})`}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      <ReferenceList references={ticket.references} />
       {ticket.expectedArtifacts.length === 0 ? null : (
         <section className="tp-section" aria-label="Expected artifacts">
           <h3 className="ew-eyebrow">EXPECTED ARTIFACTS</h3>
@@ -181,10 +171,6 @@ function EvidenceList(props: { heading: string; label: string; rows: EvidenceRow
       </ul>
     </section>
   )
-}
-
-function isWebLocation(location: string): boolean {
-  return /^https?:\/\//i.test(location)
 }
 
 /** The output artifacts an attempt named: each label, then its location as a safe link when it is a web address. */

@@ -217,6 +217,21 @@ export function assertGrantUsable(deps: RedeemDeps, grantId: string): void {
   }
 }
 
+/** Current authority for an app-owned live binding; historical grant IDs alone are never sufficient. */
+export function assertGrantCapability(deps: RedeemDeps, grantId: string, tokenHash: string, capability: Capability): void {
+  assertGrantUsable(deps, grantId)
+  const row = deps.db.get<{ token_hash: string; role: GrantableRole; allow_save: number }>(
+    'SELECT token_hash, role, allow_save FROM grants WHERE id = ?', grantId
+  )
+  if (row === undefined || row.token_hash !== tokenHash) {
+    fail('unauthorized', NOT_USABLE)
+  }
+  requireCapability({
+    id: grantId, role: row.role, label: 'Live desktop grant',
+    capabilities: new Set(grantedCapabilities(row.role, row.allow_save === 1))
+  }, capability)
+}
+
 /**
  * Turns a token into the role and capabilities a session may run with, and records the use.
  * Fails with `unauthorized` for a token that is unknown, expired, revoked, or issued elsewhere —

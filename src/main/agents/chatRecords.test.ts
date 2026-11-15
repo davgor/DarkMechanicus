@@ -103,6 +103,22 @@ describe('chat records: creating, listing and renaming', () => {
     expect(records.listChats(REPO).map((listed) => listed.title)).toEqual(['Fix the build'])
     expect(() => records.renameChat({ folder: REPO, id: 'chat_nope' }, 'x')).toThrowError(expect.objectContaining({ code: 'not_found' }) as Error)
   })
+
+})
+
+describe('chat records: first popup prompt', () => {
+  it('persists the full first prompt and pending inference without changing explicit or system titles', () => {
+    const before = rig()
+    const firstPrompt = '  Could you investigate why signing in keeps failing after the session expires and fix the refresh flow?\nKeep approvals.  '
+    const chat = before.records.createChat({ folder: REPO, agent: 'codex', role: 'orchestrator', firstPrompt })
+    expect(chat).toMatchObject({ firstPrompt, title: 'Naming chat…', titleStatus: 'pending' })
+    expect(rig(before.fs).store.getChat(chat)).toMatchObject({ firstPrompt, titleStatus: 'pending' })
+    const explicit = before.records.createChat({ folder: REPO, agent: 'codex', role: 'orchestrator', firstPrompt, title: 'My deliberate name' })
+    expect(explicit).toMatchObject({ firstPrompt, title: 'My deliberate name' })
+    expect(explicit.titleStatus).not.toBe('pending')
+    const renamed = before.records.renameChat(chat, 'My deliberate name')
+    expect(renamed).toMatchObject({ firstPrompt, title: 'My deliberate name', titleStatus: 'manual' })
+  })
 })
 
 describe('chat records: deleting a chat', () => {

@@ -15,7 +15,8 @@ function word(part: string): string {
 }
 
 export function cliCommandLine(cli: DarkMechanicusCli): string {
-  return [cli.command, ...cli.args].map(word).join(' ')
+  const runtimeEnv = cli.env['ELECTRON_RUN_AS_NODE'] === '1' ? 'ELECTRON_RUN_AS_NODE=1 ' : ''
+  return runtimeEnv + [cli.command, ...cli.args].map(word).join(' ')
 }
 
 interface InstructionOptions {
@@ -52,6 +53,9 @@ export function cliInstructions(options: InstructionOptions): string {
     `${line} --describe claim_ticket     # one command and its input`,
     `${line} call get_capabilities '{}'  # run a command; the argument is a JSON object`,
     '```',
+    '',
+    'On Windows, run this command from Git Bash, not PowerShell or cmd: the packaged Electron executable can return no stdout there; a claim may have succeeded even when no output appeared.',
+    'Give each Kanban claim an idempotencyKey. If its response is lost, replay the same request with that key; the replay returns the attempt id with claimToken null. An orchestrator can call fail_kanban_card with that attemptId and a reason, omitting claimToken, then claim the requeued card with a new key.',
     '',
     ...(options.noLauncher === true
       ? [

@@ -12,12 +12,14 @@ import type { Capability } from '../authz'
  * `checkpoint.advance`, which the desktop holds too.
  */
 export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
+  nameChat: 'chat.name',
   getCapabilities: 'read',
   getProject: 'read',
   setDefinitionOfDone: 'project.definition_of_done',
   rescanRepositories: 'project.repositories',
   initializeRepository: 'repo.init',
   getStorageStatus: 'read',
+  switchStorageMode: 'repo.switch_storage',
   flushPortableState: 'repo.flush',
   reconcileRepository: 'repo.reconcile',
   resolveEpicConflict: 'repo.resolve_conflict',

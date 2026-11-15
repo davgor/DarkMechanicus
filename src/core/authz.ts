@@ -3,11 +3,13 @@ import { fail } from './errors'
 
 export const CAPABILITIES = [
   'read',
+  'chat.name',
   'repo.init',
   'repo.flush',
   'repo.reconcile',
   'repo.backup',
   'repo.resolve_conflict',
+  'repo.switch_storage',
   'epic.create',
   'epic.status',
   'epic.branch',
@@ -75,6 +77,7 @@ export const HUMAN_ONLY_CAPABILITIES: readonly Capability[] = [
   'transfer.queue',
   // Settling an epic records conflict drops one side's changes: which survive is the person's call.
   'repo.resolve_conflict',
+  'repo.switch_storage',
   // Desktop Play starts a chat; external orchestrators queue named cards with the separate launch capability.
   'kanban.play',
   'kanban.review',
@@ -85,6 +88,7 @@ export const HUMAN_ONLY_CAPABILITIES: readonly Capability[] = [
 /** What a planner and an orchestrator both hold. */
 const PLANNER_SHARED: Capability[] = [
   'read',
+  'chat.name',
   'repo.init',
   'repo.flush',
   'repo.reconcile',
@@ -160,8 +164,8 @@ const ROLE_CAPABILITIES: Record<SessionRole, Capability[]> = {
   reader: ['read'],
   planner: PLANNER,
   orchestrator: ORCHESTRATOR,
-  worker: ['read', 'attempt.heartbeat', 'attempt.submit', 'attempt.fail', 'comment.write', 'attachment.write', 'kanban.report'],
-  reviewer: ['read', 'attempt.review', 'comment.write', 'attachment.write']
+  worker: ['read', 'chat.name', 'attempt.heartbeat', 'attempt.submit', 'attempt.fail', 'comment.write', 'attachment.write', 'kanban.report'],
+  reviewer: ['read', 'chat.name', 'attempt.review', 'comment.write', 'attachment.write']
 }
 
 interface RoleOptions {

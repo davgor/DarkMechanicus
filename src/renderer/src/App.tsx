@@ -18,6 +18,7 @@ import { AgentPage } from './agents/AgentPage'
 import { agentName } from './agents/agentText'
 import { createLiveTerminals, LiveTerminalsContext } from './agents/liveTerminals'
 import { newChatAgent } from './agents/NewChatFields'
+import { FirstPromptDialog } from './agents/ChatDialogs'
 import { SignInContext, type SignInRequest } from './agents/signInContext'
 import { SignInView } from './agents/SignInView'
 import { chatsFor } from './agents/useChats'
@@ -203,7 +204,7 @@ function MainPane(props: PaneProps): JSX.Element | null {
     case 'chat':
       return <ChatPane key={view.chat.id} shell={shell} folder={view.folder} chat={view.chat} scheduler={props.scheduler} terminalKit={props.terminalKit} />
     case 'kanban':
-      return <KanbanBoard key={view.folder.path} folder={view.folder} refreshToken={shell.folderToken(view.folder.path)} host={orchestrationFor(shell, view.folder)} />
+      return <KanbanBoard key={view.folder.path} folder={view.folder} refreshToken={shell.folderToken(view.folder.path)} host={orchestrationFor(shell, view.folder)} onChanged={() => actions.changed(view.folder.path)} />
     case 'unavailable':
       return <UnavailableView folder={view.folder} onStopTracking={props.onRequestUntrack} />
     default:
@@ -231,11 +232,10 @@ function ShellFooter({ shell }: { shell: ShellModel }): JSX.Element {
 }
 
 /**
- * New chat with one click: the folder's agent (see `newChatAgent`) as an orchestrator that may save, on the
- * CLI's own default model, and its terminal opens; with no agent connected, the add-agent pane opens instead.
- * A click while a folder's new chat is still being created does nothing (`starting` holds those folders).
+ * Select the folder's agent before asking for a first prompt; with no connected agent, open setup.
+ * Rapid clicks while the default is loading share one request and do not create a chat.
  */
-async function startNewChat(shell: ShellModel, folder: TrackedFolderView, starting: Set<string>): Promise<void> {
+async function startNewChat(shell: ShellModel, folder: TrackedFolderView, starting: Set<string>, onReady: (agent: string) => void): Promise<void> {
   if (starting.has(folder.path)) return
   starting.add(folder.path)
   try {
@@ -246,7 +246,7 @@ async function startNewChat(shell: ShellModel, folder: TrackedFolderView, starti
       shell.actions.openAddAgent()
       return
     }
-    await shell.actions.createChat(folder, { agent, model: null, role: 'orchestrator', allowSave: true })
+    onReady(agent)
   } finally {
     starting.delete(folder.path)
   }
@@ -342,6 +342,7 @@ function Shell({ scheduler, EpicView, terminalKit }: { scheduler: Scheduler; Epi
   const shell = useShell(scheduler)
   const [pending, setPending] = useState<TrackedFolderView | null>(null)
   const startingChats = useRef(new Set<string>())
+  const [firstPrompt, setFirstPrompt] = useState<{ folder: TrackedFolderView; agent: string } | null>(null)
   const signIn = useSignInView(shell.selection)
   const signingIn = signIn.request !== null
   const [cloning, setCloning] = useState(false)
@@ -350,7 +351,7 @@ function Shell({ scheduler, EpicView, terminalKit }: { scheduler: Scheduler; Epi
     <SignInContext.Provider value={signIn.open}>
       <div className="app-shell">
         <ShellSidebar shell={shell} version={update.currentVersion} onNewChat={(folder) => {
-            if (folder !== null) void startNewChat(shell, folder, startingChats.current)
+            if (folder !== null && firstPrompt === null) void startNewChat(shell, folder, startingChats.current, (agent) => setFirstPrompt({ folder, agent }))
           }} onClone={() => setCloning(true)} onRequestUntrack={setPending} />
         <main className="app-main" aria-label="Workspace">
           {signIn.request === null ? null : <SignInView request={signIn.request} kit={terminalKit} scheduler={scheduler} onBack={signIn.close} />}
@@ -361,6 +362,14 @@ function Shell({ scheduler, EpicView, terminalKit }: { scheduler: Scheduler; Epi
         </main>
         <UpdateBanner />
         {cloning ? <CloneHost shell={shell} onClose={() => setCloning(false)} /> : null}
+        {firstPrompt === null ? null : (
+          <FirstPromptDialog
+            onClose={() => setFirstPrompt(null)}
+            onSubmit={async (prompt) =>
+              (await actions.createChat(firstPrompt.folder, { agent: firstPrompt.agent, model: null, role: 'orchestrator', allowSave: true, firstPrompt: prompt })) !== null
+            }
+          />
+        )}
         {pending === null ? null : (
           <UntrackDialog
             folder={pending}

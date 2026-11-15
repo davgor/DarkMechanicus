@@ -5,7 +5,8 @@ import type { PlanBundle } from '../../shared/domain/bundle'
 import { makeBundle, tid } from '../../test/bundles'
 import { incrementVerdict, seedAttempt, seedRun, type SeededRun } from '../../test/checkpointSeed'
 import { attemptRow, claim, domainError, lastEventPayload, startedRun } from '../../test/execution'
-import { createGitRepo, type GitRepo } from '../../test/gitRepo'
+import { copyGitRepo, createGitRepo, type GitRepo } from '../../test/gitRepo'
+import { useTemplate } from '../../test/gitTemplate'
 import { createTestCtx, type TestCtx } from '../../test/testContext'
 import { DomainError } from '../errors'
 import { createGitAdapter } from '../repo/git'
@@ -188,6 +189,8 @@ interface Folder {
   repos: Record<RepoName, GitRepo>
   /** Each repository's epic branch start commit, as bound for the run. */
   start: Record<RepoName, string>
+  /** Sprint 1's work in alpha (squashed) and beta (squashed or merged), already on their epic branches. */
+  work: { alpha: Landed; beta: Landed }
 }
 
 /** A worker's commits on `branch` off the epic branch, squashed onto the epic branch as the sprint's increment. */
@@ -217,12 +220,61 @@ function named(repo: string, commit: string): IncrementRef {
   return { repo, branch: EPIC, commit }
 }
 
-/** alpha, beta and gamma as real repositories, each with the epic branch bound at its own start commit. */
-function createFolder(): Folder {
-  const repos: Record<RepoName, GitRepo> = { alpha: createGitRepo(), beta: createGitRepo(), gamma: createGitRepo() }
-  for (const name of REPOS) {
-    repos[name].commit(`${name} history`)
-    repos[name].branch(EPIC)
+type Landed = { commits: string[]; squash: string }
+/** How beta's sprint 1 work reached the epic branch. */
+type BetaShape = 'squash' | 'merge'
+
+/** A template repository on the epic branch, and its start commit. */
+interface Started {
+  repo: GitRepo
+  start: string
+}
+
+/** A template repository with the sprint 1 work landed in it. */
+interface Built extends Started {
+  work: Landed
+}
+
+/**
+ * alpha, beta and gamma, each with the epic branch at its own start commit, and sprint 1's work landed: in alpha
+ * squashed, and in beta both squashed and merged (a repository for each). Built once for the file; each test copies
+ * the three it uses, so their commit ids are the template's.
+ */
+const folderTemplate = useTemplate((templateCleanups) => {
+  const started = (name: RepoName): Started => {
+    const repo = createGitRepo()
+    templateCleanups.push(repo.cleanup)
+    const start = repo.commit(`${name} history`)
+    repo.branch(EPIC)
+    return { repo, start }
+  }
+  const alpha = started('alpha')
+  const squashed = started('beta')
+  const merged = started('beta')
+  const gamma = started('gamma')
+  merged.repo.branch('w2')
+  const commits = [merged.repo.commit('beta one')]
+  merged.repo.switchTo(EPIC)
+  merged.repo.commit('beta moves on')
+  const mergeWork = { commits, squash: merged.repo.merge('w2') }
+  return {
+    alpha: { ...alpha, work: land(alpha.repo, 'w1', ['alpha one', 'alpha two']) },
+    beta: { squash: { ...squashed, work: land(squashed.repo, 'w2', ['beta one']) }, merge: { ...merged, work: mergeWork } },
+    gamma
+  } satisfies { alpha: Built; beta: Record<BetaShape, Built>; gamma: Started }
+})
+
+/**
+ * alpha, beta and gamma as real repositories (copies of `folderTemplate`'s), each with the epic branch bound at its own
+ * start commit and sprint 1's work landed in alpha and beta.
+ */
+function createFolder(beta: BetaShape): Folder {
+  const template = folderTemplate()
+  const sources: Record<RepoName, Started> = { alpha: template.alpha, beta: template.beta[beta], gamma: template.gamma }
+  const repos: Record<RepoName, GitRepo> = {
+    alpha: copyGitRepo(sources.alpha.repo),
+    beta: copyGitRepo(sources.beta.repo),
+    gamma: copyGitRepo(sources.gamma.repo)
   }
   const gitFor = (repo: string | null) => {
     const found = REPOS.find((name) => name === repo)
@@ -233,14 +285,14 @@ function createFolder(): Folder {
   }
   const ctx = createTestCtx({ repositories: [...REPOS], gitFor })
   const run = seedRun(ctx, { bundle: folderPlan(), branch: { repository: null, name: EPIC, startCommit: null } })
-  const start: Record<RepoName, string> = { alpha: repos.alpha.rev(EPIC), beta: repos.beta.rev(EPIC), gamma: repos.gamma.rev(EPIC) }
+  const start: Record<RepoName, string> = { alpha: sources.alpha.start, beta: sources.beta.start, gamma: sources.gamma.start }
   const bound = REPOS.map((name) => ({ repository: name, name: EPIC, startCommit: start[name] }))
   ctx.db.run('UPDATE epics SET repository_branches_json = ? WHERE id = ?', JSON.stringify(bound), run.epicId)
-  return { ctx, run, repos, start }
+  return { ctx, run, repos, start, work: { alpha: template.alpha.work, beta: template.beta[beta].work } }
 }
 
 /** A fresh folder per test (`createFolder`), its repositories removed after the test. */
-function useFolder(): () => Folder {
+function useFolder(): (beta?: BetaShape) => Folder {
   let opened: Folder | undefined
   afterEach(() => {
     for (const repo of opened === undefined ? [] : Object.values(opened.repos)) {
@@ -248,29 +300,18 @@ function useFolder(): () => Folder {
     }
     opened = undefined
   })
-  return () => {
-    opened ??= createFolder()
+  return (beta = 'squash') => {
+    opened ??= createFolder(beta)
     return opened
   }
 }
 
-/** Sprint 1's work landed in alpha (squashed) and beta (squashed, or merged), each work ticket accepted; DM-3 claimed. */
-function sprintOne(folder: Folder, beta: 'squash' | 'merge' = 'squash') {
-  const { repos } = folder
-  const alpha = land(repos.alpha, 'w1', ['alpha one', 'alpha two'])
-  let betaWork: { commits: string[]; squash: string }
-  if (beta === 'squash') {
-    betaWork = land(repos.beta, 'w2', ['beta one'])
-  } else {
-    repos.beta.branch('w2')
-    const commits = [repos.beta.commit('beta one')]
-    repos.beta.switchTo(EPIC)
-    repos.beta.commit('beta moves on')
-    betaWork = { commits, squash: repos.beta.merge('w2') }
-  }
+/** Sprint 1's work (landed in the folder's alpha and beta) recorded: each work ticket accepted, and DM-3 claimed. */
+function sprintOne(folder: Folder) {
+  const { alpha, beta } = folder.work
   seedAttempt(folder.ctx, folder.run, { ticket: 1, state: 'accepted', commits: alpha.commits })
-  seedAttempt(folder.ctx, folder.run, { ticket: 2, state: 'accepted', commits: betaWork.commits })
-  return { alpha, beta: betaWork, node: liveNode(folder, 3) }
+  seedAttempt(folder.ctx, folder.run, { ticket: 2, state: 'accepted', commits: beta.commits })
+  return { alpha, beta, node: liveNode(folder, 3) }
 }
 
 describe('submitAttempt in a folder of repositories: one verified increment per touched repository', () => {
@@ -298,8 +339,8 @@ describe('submitAttempt in a folder of repositories: one verified increment per 
   })
 
   it("fails the node's increment when beta's is a merge commit, and names beta", async () => {
-    const folder = openFolder()
-    const { alpha, beta, node } = sprintOne(folder, 'merge')
+    const folder = openFolder('merge')
+    const { alpha, beta, node } = sprintOne(folder)
     const view = await submitIncrements(folder, node, [named('alpha', alpha.squash), named('beta', beta.squash)])
     expect(view.state).toBe('submitted')
     expect(view.increments?.map((verdict) => [verdict.repo, verdict.passed])).toEqual([
@@ -313,10 +354,7 @@ describe('submitAttempt in a folder of repositories: one verified increment per 
   })
 })
 
-/** Two sprints across two real repositories run many Git commands; leave room for a loaded machine and coverage. */
-const TWO_SPRINT_TIMEOUT = { timeout: 60_000 }
-
-describe('submitAttempt in a folder of repositories: a later sprint, measured per repository', TWO_SPRINT_TIMEOUT, () => {
+describe('submitAttempt in a folder of repositories: a later sprint, measured per repository', () => {
   const openFolder = useFolder()
 
   it("checks a second sprint's increment against that repository's previous increment, and an untouched one against its start", async () => {
@@ -351,8 +389,8 @@ describe('submitAttempt in a folder of repositories: a later sprint, measured pe
   })
 
   it('measures against the start commit when the earlier sprint failed in any one repository', async () => {
-    const folder = openFolder()
-    const first = sprintOne(folder, 'merge')
+    const folder = openFolder('merge')
+    const first = sprintOne(folder)
     await submitIncrements(folder, first.node, [named('alpha', first.alpha.squash), named('beta', first.beta.squash)])
     folder.ctx.db.run("UPDATE attempts SET state = 'accepted' WHERE id = ?", first.node.attemptId)
     seedAttempt(folder.ctx, folder.run, { ticket: 4, state: 'accepted', commits: [] })

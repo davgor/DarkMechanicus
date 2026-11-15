@@ -134,6 +134,25 @@ describe('submitKanbanCard — attachments', () => {
     expect(getAttachment(ctx.worker, second).owner).toEqual({ kind: 'kanban_attempt', id: packet.attemptId })
   })
 
+  it('flags an evidence image whose bytes are not stored as missing in get_kanban_card, and leaves the stored one unflagged', () => {
+    const ctx = board()
+    const packet = claimedCard(ctx)
+    const kept = stagedPng(ctx.worker, 1)
+    const nulled = stagedPng(ctx.worker, 2)
+    submitKanbanCard(ctx.worker, {
+      attemptId: packet.attemptId,
+      claimToken: token(packet),
+      outputs: { summary: 'Shots attached' },
+      evidence: { attachments: [nulled, kept] }
+    })
+    ctx.desktop.db.run('UPDATE attachments SET data = NULL, missing = 1 WHERE id = ?', nulled)
+    const evidence = getKanbanCard(ctx.desktop, { cardId: packet.cardId }).attempts[0]?.evidence
+    expect(evidence?.attachments?.[0]?.missing).toBe(true)
+    expect(evidence?.attachments?.[1]).not.toHaveProperty('missing')
+    const stored = ctx.desktop.db.get<{ evidence_json: string }>('SELECT evidence_json FROM kanban_attempts WHERE id = ?', packet.attemptId)
+    expect(stored?.evidence_json).not.toContain('missing')
+  })
+
   it('refuses the whole submission for an unknown id: the card stays unsubmitted and the staged image stays claimable', () => {
     const ctx = board()
     const packet = claimedCard(ctx)

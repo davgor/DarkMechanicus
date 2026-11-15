@@ -25,6 +25,10 @@ giving an agent a way to read arbitrary files or to fill the repository with lar
   takes `attachments`; `create_kanban_card` and `update_kanban_card` take `attachments` (an update replaces the
   list); plan tickets take them in `update_plan_draft`, `create_ticket` and `update_ticket`, and the draft's images are
   claimed when the plan is saved. Execution and card packets list the references.
+- **A ticket keeps the images it showed.** An image a later revision drops stays owned by its ticket: earlier saved
+  revisions, their content hashes, repo-mode snapshots and imports still name it, and an import re-owns every image
+  any saved revision names on a ticket, so releasing it would make machines disagree. It is never pruned, may be shown
+  on the same ticket again, and is refused on any other ticket or record.
 - **Allowed folders.** `add_attachment` reads only from the project and its Git worktrees, the system temp folder and
   the operating system's screenshot folder (`Pictures/Screenshots` on Windows and Linux, the `screencapture`
   location or Desktop on macOS). Paths are resolved through links first, so a link out of those folders is refused.

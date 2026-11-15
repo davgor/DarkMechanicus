@@ -26,9 +26,9 @@ describe.runIf(process.platform === 'win32')('installer.nsh: finding the app run
   let appExe = ''
   const running = []
 
-  /** Starts one process from the install folder, as a lone Dark Mechanicus MCP server would run. */
+  /** Starts one long-running process from the install folder, as a lone Dark Mechanicus MCP server would run. */
   async function start() {
-    const child = spawn(appExe, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' })
+    const child = spawn(appExe, ['-n', '3600', '127.0.0.1'], { stdio: 'ignore' })
     running.push(child)
     await once(child, 'spawn')
   }
@@ -36,8 +36,12 @@ describe.runIf(process.platform === 'win32')('installer.nsh: finding the app run
   beforeAll(() => {
     // The long name: Windows reports a process's path in full, never as a temp folder's 8.3 short name.
     installDir = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-install-')))
-    appExe = join(installDir, basename(process.execPath))
-    copyFileSync(process.execPath, appExe)
+    // Any executable inside the folder stands in for the app: the query matches on the process's path only. Windows'
+    // 45 KB PING.EXE starts in about 20 ms; a copy of the 92 MB node.exe took 400-520 ms to start (an antivirus scans a
+    // new executable on first launch), which on a busy CI runner pushed this test past its timeout.
+    const ping = join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'PING.EXE')
+    appExe = join(installDir, basename(ping))
+    copyFileSync(ping, appExe)
   })
 
   afterEach(async () => {

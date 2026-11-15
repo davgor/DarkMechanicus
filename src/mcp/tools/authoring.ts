@@ -132,7 +132,7 @@ const AUTHORING_TOOLS = [
   defineTool({
     name: 'get_ticket',
     description:
-      'Returns one ticket: Markdown body, kind (acceptance for a sprint acceptance node, absent for work), acceptance criteria (an acceptance node criterion may carry covers, the id of the ticket it verifies), size (when set), capability profile (including reasoning.effort when set), prerequisites, dependents, and (saved view) execution state and attempts. ticketId accepts a stable id or a display key such as DM-12.',
+      'Returns one ticket: Markdown body, kind (acceptance for a sprint acceptance node, absent for work), acceptance criteria (an acceptance node criterion may carry covers, the id of the ticket it verifies), size (when set), capability profile (including reasoning.effort when set), reference images as attachments (open one with get_attachment), prerequisites, dependents, and (saved view) execution state and attempts. ticketId accepts a stable id or a display key such as DM-12.',
     kind: 'read',
     input: { epicId, ticketId: ticketRef, view: view.default('saved') },
     run: (api, input) => api.getTicket(input)
@@ -141,7 +141,7 @@ const AUTHORING_TOOLS = [
     name: 'create_ticket',
     command: 'updatePlanDraft',
     description:
-      'Convenience: adds one ticket to the epic DRAFT in a single atomic update. sprint is a sprint number ("1"), id, or client ref. requires lists prerequisites (ids or keys): the new ticket needs their accepted results, and prerequisites must sit in the same or an earlier sprint. Returns the new ticketId, the draftRevision, and validation. Optional ticket.size (micro, small, medium, large) says how big the ticket is, and ticket.capability.reasoning.effort (low, medium, high) how hard the worker should think; neither is defaulted. ticket.kind "acceptance" makes the ticket the acceptance node of its sprint, the one ticket that verifies the sprint (add_sprint and create_epic already create it, so a sprint holds one): it implicitly requires every other required ticket of its sprint and runs last, so do not list those as requires. An acceptance criterion may carry covers, the id, key or ref of the ticket it verifies; the plan warns about each required work ticket no criterion covers. Nothing executes until save_plan.',
+      'Convenience: adds one ticket to the epic DRAFT in a single atomic update. sprint is a sprint number ("1"), id, or client ref. requires lists prerequisites (ids or keys): the new ticket needs their accepted results, and prerequisites must sit in the same or an earlier sprint. Returns the new ticketId, the draftRevision, and validation. Optional ticket.size (micro, small, medium, large) says how big the ticket is, and ticket.capability.reasoning.effort (low, medium, high) how hard the worker should think; neither is defaulted. ticket.kind "acceptance" makes the ticket the acceptance node of its sprint, the one ticket that verifies the sprint (add_sprint and create_epic already create it, so a sprint holds one): it implicitly requires every other required ticket of its sprint and runs last, so do not list those as requires. An acceptance criterion may carry covers, the id, key or ref of the ticket it verifies; the plan warns about each required work ticket no criterion covers. Optional ticket.attachments lists staged image ids (from add_attachment, purpose reference; at most 20) shown on the ticket as reference images; they are claimed when the plan is saved. Nothing executes until save_plan.',
     kind: 'write',
     input: CREATE_TICKET_INPUT,
     run: createTicket
@@ -150,7 +150,7 @@ const AUTHORING_TOOLS = [
     name: 'update_ticket',
     command: 'updatePlanDraft',
     description:
-      'Edits a ticket in the DRAFT; only the fields in patch change (capability groups merge one level deep). Keep criterion ids in acceptanceCriteria to preserve evidence mappings. patch.size (micro, small, medium, large) and patch.capability.reasoning.effort (low, medium, high) set the size and the effort of the ticket; a change shows up in the changes of the draft. patch.kind (work or acceptance) changes what the ticket is for. A criterion repeated by id or by text keeps its covers unless it names another ticket, and covers null clears it. The saved plan is unchanged until save_plan.',
+      'Edits a ticket in the DRAFT; only the fields in patch change (capability groups merge one level deep). Keep criterion ids in acceptanceCriteria to preserve evidence mappings. patch.size (micro, small, medium, large) and patch.capability.reasoning.effort (low, medium, high) set the size and the effort of the ticket; a change shows up in the changes of the draft. patch.kind (work or acceptance) changes what the ticket is for. A criterion repeated by id or by text keeps its covers unless it names another ticket, and covers null clears it. patch.attachments replaces the ticket\'s reference images with the listed ids (staged with add_attachment, purpose reference, or already on this ticket; at most 20); [] removes them all and omitting it keeps them. The saved plan is unchanged until save_plan.',
     kind: 'write',
     input: UPDATE_TICKET_INPUT,
     run: (api, input) =>

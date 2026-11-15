@@ -16,6 +16,7 @@ import { COMMAND_CAPABILITIES } from '../core/commands/capabilities'
 import { COMMANDS } from '../core/commands/index'
 import { DomainError, toErrorShape } from '../core/errors'
 import type { CommandName } from '../shared/domain/api'
+import type { DomainErrorShape } from '../shared/domain/errors'
 import { LINEAR_SETUP_LINES } from '../shared/domain/linearSetup'
 import type { LinearTransferPacket, TransferView } from '../shared/domain/transfer'
 import type { EpicDetailView } from '../shared/domain/views'
@@ -32,6 +33,9 @@ export interface CliHost {
   argv: string[]
   env: Record<string, string | undefined>
   cwd: string
+  /** The runtime and CLI entry of this invocation, for schema-mismatch diagnostics. */
+  execPath: string
+  cliPath: string
   open: (options: OpenWorkspaceOptions) => Workspace
   readFile: (path: string) => string
   /** Everything on standard input, for `call <command> -`. */
@@ -139,8 +143,19 @@ function ok(host: CliHost, data: unknown): void {
   host.writeStdout(`${JSON.stringify({ ok: true, data }, null, 2)}\n`)
 }
 
+function cliErrorShape(host: CliHost, error: unknown): DomainErrorShape {
+  const shape = toErrorShape(error)
+  if (shape.code !== 'incompatible_schema') {
+    return shape
+  }
+  return {
+    ...shape,
+    message: `${shape.message} This CLI ran with executable "${host.execPath}" and build entry "${host.cliPath}". A newer build owns this database; use the CLI command from the app that started this chat, or update this build before trying again.`
+  }
+}
+
 function failed(host: CliHost, error: unknown): void {
-  host.writeStdout(`${JSON.stringify({ ok: false, error: toErrorShape(error) }, null, 2)}\n`)
+  host.writeStdout(`${JSON.stringify({ ok: false, error: cliErrorShape(host, error) }, null, 2)}\n`)
 }
 
 /**
@@ -274,7 +289,7 @@ async function runTransfer(host: CliHost, options: CliOptions, epicId: string, j
     host.writeStdout(`${text.join('\n')}\n`)
     return EXIT_OK
   } catch (error) {
-    host.writeStderr(`dm: ${toErrorShape(error).message}\n`)
+    host.writeStderr(`dm: ${cliErrorShape(host, error).message}\n`)
     return EXIT_FAILED
   } finally {
     workspace?.close()
@@ -338,6 +353,8 @@ function nodeHost(): CliHost {
     argv: process.argv.slice(2),
     env: process.env,
     cwd: process.cwd(),
+    execPath: process.execPath,
+    cliPath: process.argv[1] ?? __filename,
     open: (options) => openWorkspace(options),
     readFile: (path) => readFileSync(path, 'utf8'),
     readStdin: () => readFileSync(0, 'utf8'),

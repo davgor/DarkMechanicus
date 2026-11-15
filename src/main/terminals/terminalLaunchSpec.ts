@@ -33,7 +33,7 @@ import { terminalEnv, terminalLoginEnv } from './terminalEnv'
 import { terminalInstructions, type TerminalFiles } from './terminalFiles'
 import { windowsCommandLine } from './windowsCommandLine'
 
-interface TerminalChat extends Pick<ChatRecord, 'agent' | 'role' | 'allowSave' | 'model' | 'sessionId' | 'runId' | 'transferEpicId' | 'cardId'> {
+interface TerminalChat extends Pick<ChatRecord, 'agent' | 'role' | 'allowSave' | 'model' | 'sessionId' | 'runId' | 'transferEpicId' | 'cardId' | 'titleStatus' | 'firstPrompt'> {
   /** Whether the CLI has written the chat's session yet, so a start resumes it. */
   sessionStarted: boolean
   /** Whether the kickoff (an orchestrator's or a transfer chat's) went with an earlier start. */
@@ -355,7 +355,7 @@ function refuseMismatches(input: TerminalLaunchInput): void {
   if (input.chat.agent !== input.agent.id) {
     throw new DomainError('invalid_input', `The chat runs the agent ${input.chat.agent}, not ${input.agent.id}.`)
   }
-  if (input.kickoff !== null && /^-|^\S*$/.test(input.kickoff)) {
+  if (input.kickoff !== null && /^-|^\S*$/.test(input.kickoff) && input.chat.firstPrompt !== input.kickoff) {
     throw new DomainError('invalid_input', 'The kickoff is empty, one word or starts with "-", which a CLI would read as a subcommand or an option.')
   }
   pinnedCliScript(input.cli, input.folder)
@@ -375,9 +375,17 @@ function commandLineFor(input: ProgramInput, program: Program, args: string[]): 
   return { file: plan.launch.file, commandLine: plan.launch.args.join(' ') }
 }
 
+/** Literal popup text must not become an option or a native CLI subcommand. */
+function literalPopupPaste(input: TerminalLaunchInput): string | null {
+  if (input.agent.kind !== 'claude' && input.agent.kind !== 'omp') return null
+  if (input.chat.kickoffSent || input.kickoff === null || input.chat.firstPrompt !== input.kickoff) return null
+  return /^-|^\S*$/.test(input.kickoff) ? input.kickoff : null
+}
+
 export function terminalLaunchSpec(input: TerminalLaunchInput): TerminalLaunchSpec {
   refuseMismatches(input)
   const { chat, agent, files, platform } = input
+  const literalPaste = literalPopupPaste(input)
   const launcherDir = platform === 'win32' ? null : files.launcherDir
   const env = terminalEnv({ base: input.env, platform, kind: agent.kind, cli: input.cli, launcherDir })
   const program: Program = platform === 'win32' ? windowsProgram(input) : { file: agent.executablePath, leading: [], viaShim: false }
@@ -393,8 +401,9 @@ export function terminalLaunchSpec(input: TerminalLaunchInput): TerminalLaunchSp
       allowSave: chat.allowSave,
       launcherDir,
       orchestratesRun: chat.runId !== undefined,
-      ...(chat.transferEpicId === undefined ? {} : { transferEpicId: chat.transferEpicId }),
-      ...(chat.cardId === undefined ? {} : { cardId: chat.cardId })
+      nameFirstPrompt: chat.titleStatus === 'pending',
+      transferEpicId: chat.transferEpicId,
+      cardId: chat.cardId
     }),
     claudeSettings: files.claudeSettings,
     ompSessionDir: files.omp?.sessionDir,
@@ -403,7 +412,7 @@ export function terminalLaunchSpec(input: TerminalLaunchInput): TerminalLaunchSp
     model,
     sessionId,
     sessionStarted: chat.sessionStarted,
-    kickoff: chat.kickoffSent ? null : input.kickoff,
+    kickoff: chat.kickoffSent || literalPaste !== null ? null : input.kickoff,
     viaShim: program.viaShim,
     newSessionId: input.newSessionId,
     customArgs: agent.args
@@ -413,8 +422,8 @@ export function terminalLaunchSpec(input: TerminalLaunchInput): TerminalLaunchSp
     cwd: input.folder,
     env,
     dropped,
-    pasteFirst: launch.pasteFirst,
-    kickoffIn: launch.kickoffIn,
+    pasteFirst: literalPaste ?? launch.pasteFirst,
+    kickoffIn: literalPaste === null ? launch.kickoffIn : 'paste',
     sessionId: launch.sessionId,
     resumed: launch.resumed
   }

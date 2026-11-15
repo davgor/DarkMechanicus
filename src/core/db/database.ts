@@ -27,6 +27,11 @@ export interface OpenDatabaseOptions {
   busyTimeoutMs?: number
   /** Bounded retries when BEGIN IMMEDIATE still reports SQLITE_BUSY after the busy timeout. */
   beginRetries?: number
+  /**
+   * SQLite's synchronous setting (default 'full': a commit is on disk before it returns). 'off' leaves syncing to the
+   * operating system; only test harnesses, whose databases are thrown away, pass it.
+   */
+  synchronous?: 'full' | 'off'
 }
 
 export const DEFAULT_BUSY_TIMEOUT_MS = 5_000
@@ -39,13 +44,13 @@ export function isBusyError(error: unknown): boolean {
   return errcode === 5 || errcode === 6 || /database is (locked|busy)/i.test(error.message)
 }
 
-function applyPragmas(db: DatabaseSync, path: string, busyTimeoutMs: number): void {
+function applyPragmas(db: DatabaseSync, path: string, busyTimeoutMs: number, synchronous: 'full' | 'off'): void {
   db.exec(`PRAGMA busy_timeout = ${Math.max(0, Math.floor(busyTimeoutMs))}`)
   db.exec('PRAGMA foreign_keys = ON')
   if (path !== ':memory:') {
     db.exec('PRAGMA journal_mode = WAL')
   }
-  db.exec('PRAGMA synchronous = FULL')
+  db.exec(synchronous === 'off' ? 'PRAGMA synchronous = OFF' : 'PRAGMA synchronous = FULL')
 }
 
 class SqliteDb implements Db {
@@ -60,7 +65,7 @@ class SqliteDb implements Db {
     this.path = path
     this.db = new DatabaseSync(path)
     this.beginAttempts = 1 + Math.max(0, Math.floor(options.beginRetries ?? 3) || 0)
-    applyPragmas(this.db, path, options.busyTimeoutMs ?? DEFAULT_BUSY_TIMEOUT_MS)
+    applyPragmas(this.db, path, options.busyTimeoutMs ?? DEFAULT_BUSY_TIMEOUT_MS, options.synchronous ?? 'full')
   }
 
   private statement(sql: string): StatementSync {

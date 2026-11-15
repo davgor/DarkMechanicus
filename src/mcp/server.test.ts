@@ -20,6 +20,7 @@ type Kind = 'read' | 'idempotent' | 'write' | 'destructive'
 
 /** Every tool the server exposes, the command it adapts, and how it is annotated. */
 const TOOLS: Record<string, { method: CommandName; kind: Kind }> = {
+  name_chat: { method: 'nameChat', kind: 'write' },
   get_capabilities: { method: 'getCapabilities', kind: 'read' },
   get_project: { method: 'getProject', kind: 'read' },
   set_definition_of_done: { method: 'setDefinitionOfDone', kind: 'idempotent' },
@@ -124,6 +125,7 @@ const HUMAN_ONLY: CommandName[] = [
   'cancelTransfer',
   // Which side of an epic records conflict survives drops the other side's changes: the person's call.
   'resolveEpicConflict',
+  'switchStorageMode',
   // Only a person starts a Kanban card, and only a person approves or kicks one back.
   'playKanbanCard',
   'approveKanbanCard',
@@ -174,7 +176,7 @@ describe('tool inventory', () => {
     await withRig(build, createStubApi(), async (rig) => {
       const { tools } = await rig.client.listTools()
       const names = tools.map((tool) => tool.name)
-      const forbidden = ['queue_run', 'approve_checkpoint', 'approve_and_advance', 'authorize_auto_continue', 'grant_retry', 'backup_database', 'delete_epic', 'delete_ticket']
+      const forbidden = ['queue_run', 'approve_checkpoint', 'approve_and_advance', 'authorize_auto_continue', 'grant_retry', 'backup_database', 'delete_epic', 'delete_ticket', 'switch_storage_mode']
       for (const name of forbidden) {
         expect(names).not.toContain(name)
       }
@@ -322,11 +324,11 @@ describe('server metadata', () => {
 })
 
 describe('skills as prompts', () => {
-  it('lists the seven skills and returns their bodies', async () => {
+  it('lists the shipped skills and returns their bodies', async () => {
     await withRig(build, createStubApi(), async (rig) => {
       const { prompts } = await rig.client.listPrompts()
       expect(prompts.map((prompt) => prompt.name)).toEqual(SKILLS.map((skill) => promptName(skill.name)))
-      expect(prompts).toHaveLength(7)
+      expect(prompts).toHaveLength(8)
       const planner = await rig.client.getPrompt({ name: 'darkmechanicus-planner' })
       expect(planner.messages[0]?.content).toEqual({ type: 'text', text: SKILLS[0]?.body })
     })

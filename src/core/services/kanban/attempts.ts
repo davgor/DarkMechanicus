@@ -1,7 +1,8 @@
 /**
  * A Kanban card's lifecycle. Desktop Play or an authorized external launch queues the card; an orchestrator claims it,
  * with a lease and a secret like a plan attempt (`<attemptId>.<secret>` token, checked by `verifyClaimToken`); its agent heartbeats and
- * submits or fails with the token; and a person approves the card to Done or kicks it back with a comment. Nothing
+ * submits or fails with the token (an orchestrator can release and requeue a lost live claim without it);
+ * and a person approves the card to Done or kicks it back with a comment. Nothing
  * here touches an epic, a sprint, a plan revision or a run.
  */
 import type {
@@ -431,21 +432,29 @@ export function submitKanbanCard(ctx: Ctx, input: SubmitKanbanCardInput): Kanban
   })
 }
 
-/** The attempt fails; the card stays In progress with no pending play, so a person can press Play again. */
+/** A normal failure needs Play again; an orchestrator's tokenless recovery requeues the lost claim. */
 export function failKanbanCard(ctx: Ctx, input: FailKanbanCardInput): KanbanAttemptView {
   requireCapability(ctx.session, 'kanban.report')
+  if (input.claimToken === undefined) {
+    requireCapability(ctx.session, 'kanban.claim')
+  }
   settleLeases(ctx, input.attemptId)
   const scope = { command: 'failKanbanCard', key: input.idempotencyKey, request: requestWithoutKey(input) }
   return withIdempotency(ctx, scope, () => {
     const row = loadClaim(ctx, input.attemptId)
     requireOwnedAttempt(ctx, row)
-    verifyCardClaim(ctx, row, input.claimToken)
-    const reason = maskedReport(input.reason, { token: input.claimToken, secret: row.claim_secret })
+    // Recovery has orchestrator authority, but must still obey the same lease and supersession fences.
+    const claimToken = input.claimToken ?? `${row.id}.${row.claim_secret}`
+    verifyCardClaim(ctx, row, claimToken)
+    const reason = maskedReport(input.reason, { token: claimToken, secret: row.claim_secret })
     const now = ctx.clock.nowIso()
     ctx.db.run("UPDATE kanban_attempts SET state = 'failed', lease_expires_at = NULL WHERE id = ?", row.id)
     ctx.db.run('UPDATE kanban_cards SET updated_at = ? WHERE id = ?', now, row.card_id)
     const payload = { number: row.number, reason }
     recordCardEvent(ctx, loadSummaryRow(ctx, row.card_id), { kind: 'failed', payload, attemptId: row.id, at: now })
+    if (input.claimToken === undefined) {
+      queueCard(ctx, loadSummaryRow(ctx, row.card_id))
+    }
     return toAttemptView(loadClaim(ctx, row.id))
   })
 }

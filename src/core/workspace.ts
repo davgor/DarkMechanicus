@@ -1,3 +1,4 @@
+import { createDesktopClient, type DesktopClient } from './desktop/desktopClient'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type { CommandApi, CommandName } from '../shared/domain/api'
@@ -28,6 +29,7 @@ import { resolveLayout } from './repo/layout'
 import { nodeFs } from './repo/nodeFs'
 import type { ProjectRecord } from './repo/portable'
 import { resolveHomeDir, resolveStorageMode, type StorageMode } from './repo/storageMode'
+import { assertStorageMigrationIdle, recoverStorageMigration, switchStorage } from './repo/storageMigration'
 import { pruneStagedAttachments } from './services/attachments'
 import { assertGrantUsable, redeemGrant, type RedeemedGrant } from './services/grants'
 import type { FsAdapter, GitAdapter, RepoLayout } from './repo/types'
@@ -57,10 +59,14 @@ export interface OpenWorkspaceOptions {
    * Without one a CLI session is a `reader` and may only read.
    */
   grantToken?: string
+  /** Pure Node authenticated naming transport; defaults to the hosted terminal environment. */
+  desktopClient?: DesktopClient
   pid?: number | null
   clock?: Clock
   ids?: IdGenerator
   fs?: FsAdapter
+  /** The local database's synchronous setting (default 'full'); see `OpenDatabaseOptions.synchronous`. Tests only. */
+  databaseSynchronous?: 'full' | 'off'
   git?: GitAdapter
   /**
    * Builds the adapter for a child repository of a folder of repositories, given its checked real path
@@ -133,7 +139,14 @@ function bindProject(db: Db, layout: RepoLayout, project: ProjectRecord): void {
 }
 
 /** Exported for tests that need the core itself (e.g. `gitFor`); everything else opens a `Workspace`. */
+function workspaceDesktopClient(options: OpenWorkspaceOptions): DesktopClient {
+  return options.desktopClient ?? createDesktopClient({
+    env: options.grantToken === undefined ? process.env : { ...process.env, DM_SESSION_TOKEN: options.grantToken }
+  })
+}
+
 export class RepositoryWorkspace implements WorkspaceCore {
+  readonly desktopClient: DesktopClient
   readonly repoRoot: string
   readonly homeDir: string
   /** Re-resolved when `initialize` sets the folder up in a mode other than the one it resolved to. */
@@ -157,6 +170,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
 
   constructor(options: OpenWorkspaceOptions) {
     this.options = options
+    this.desktopClient = workspaceDesktopClient(options)
     this.fs = options.fs ?? nodeFs
     this.homeDir = options.homeDir ?? resolveHomeDir(process.env, homedir())
     // Always canonical: a database-only project is keyed by this path, so two spellings of one
@@ -165,6 +179,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
       options.transport === 'stdio'
         ? findRepositoryRoot(options.repoRoot, this.fs, this.homeDir)
         : canonicalRoot(options.repoRoot, this.fs)
+    recoverStorageMigration({ repoRoot: this.repoRoot, homeDir: this.homeDir, fs: this.fs })
     this.layout = this.layoutFor(options.mode ?? this.resolvedMode())
     this.git = options.git ?? createGitAdapter(this.repoRoot, { fs: this.fs })
     this.clock = options.clock ?? createSystemClock()
@@ -260,8 +275,16 @@ export class RepositoryWorkspace implements WorkspaceCore {
     }
   }
 
+  private assertCurrentStorage(): void {
+    assertStorageMigrationIdle({ repoRoot: this.repoRoot, homeDir: this.homeDir, fs: this.fs })
+    if (this.store !== null && this.resolvedMode() !== this.layout.mode) {
+      fail('conflict', 'This folder’s storage mode changed in another session. Close and reconnect this session before continuing.')
+    }
+  }
+
   private requireStore(): Store {
     this.openIfReady()
+    this.assertCurrentStorage()
     if (!this.store) {
       fail('not_initialized', `${this.repoRoot} is not initialized for Dark Mechanicus. Run initialize_repository first.`)
     }
@@ -274,7 +297,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
       fail('not_initialized', `${this.repoRoot} has no valid project record at ${this.layout.projectFile}.`)
     }
     this.fs.mkdirp(this.layout.localDir)
-    const db = openDatabase(this.layout.dbFile)
+    const db = openDatabase(this.layout.dbFile, { synchronous: this.options.databaseSynchronous ?? 'full' })
     try {
       this.store = this.createStore(db, project)
       // Staged images nobody claimed within the retention window are dropped each time a workspace opens.
@@ -471,6 +494,20 @@ export class RepositoryWorkspace implements WorkspaceCore {
     }
   }
 
+  async switchStorageMode(mode: StorageMode): Promise<{ mode: StorageMode; projectDir: string; cleanupPending: boolean }> {
+    const store = this.requireStore()
+    return switchStorage({
+      repoRoot: this.repoRoot, homeDir: this.homeDir, fs: this.fs,
+      db: store.db, layout: this.layout, git: this.git, clock: this.clock, sessionId: store.ctx.session.id,
+      detach: () => { store.db.close() },
+      attach: (layout, db) => {
+        this.layout = layout
+        store.db = db
+        store.ctx.db = db
+      }
+    }, mode)
+  }
+
   reconcile(): ReconcileResultView {
     const store = this.requireStore()
     const result = reconcileRepository({
@@ -508,6 +545,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
   }
 
   heartbeat(): void {
+    this.assertCurrentStorage()
     if (!this.store) {
       this.openIfReady()
       return
@@ -545,6 +583,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
     const spec = COMMANDS[name]
     // Untrusted input is validated before anything else, whatever state the repository is in.
     const input = spec.schema ? parseInput(spec.schema, rawInput ?? {}, `${name} input`) : undefined
+    this.assertCurrentStorage()
     if (!spec.beforeInit) {
       this.requireStore()
     }
@@ -564,7 +603,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
     }
     this.store = null
     try {
-      endSession({ db: store.db, clock: this.clock }, store.ctx.session.id)
+      if (this.resolvedMode() === this.layout.mode) endSession({ db: store.db, clock: this.clock }, store.ctx.session.id)
     } finally {
       store.db.close()
     }

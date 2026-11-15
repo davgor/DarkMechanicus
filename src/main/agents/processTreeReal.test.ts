@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { once } from 'node:events'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { goneWithin } from '../../test/goneWithin'
 import { killProcessTree, startsOwnGroup } from './processTree'
 
@@ -10,7 +10,6 @@ import { killProcessTree, startsOwnGroup } from './processTree'
  * the close of the pipe the grandchild inherited, which only happens once every process that held it
  * has ended. The one exception is `goneWithin`, for a process that holds no pipe of ours.
  */
-vi.setConfig({ testTimeout: 60_000 })
 
 /** A parent that starts a grandchild sharing its stdout pipe, prints the grandchild's pid, and idles. */
 const PARENT = `

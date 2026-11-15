@@ -114,6 +114,13 @@ export interface GradeResult {
   reasons: string[];
 }
 
+export interface ShardIdentity {
+  index: number;
+  count: number;
+  head: string;
+  base: string;
+}
+
 export interface FireguardReport {
   grade: GradeResult;
   gates: {
@@ -131,6 +138,8 @@ export interface FireguardReport {
   execution?: Execution;
   skipped: boolean;
   skipReason?: string;
+  /** Partial CI workload; only mergeShards may issue the final combined grade. */
+  shard?: ShardIdentity & { config: FireguardConfig };
 }
 
 export interface GitScope {

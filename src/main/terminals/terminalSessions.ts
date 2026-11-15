@@ -79,7 +79,7 @@ import { installSkitariiTheme } from './ompSkitariiTheme'
 import { ompSessionId, writeOmpFiles } from './ompSession'
 import { writeClaudeSettings } from './claudeSettingsFile'
 import type { PtyExit, PtyHost, PtyProcess } from './ptyHost'
-import { terminalLaunchSpec } from './terminalLaunchSpec'
+import { terminalLaunchSpec, type TerminalLaunchSpec } from './terminalLaunchSpec'
 import { writeTerminalFiles, type TerminalFiles } from './terminalFiles'
 import { createTerminalScreen, type TerminalScreen } from './terminalScreen'
 
@@ -220,6 +220,9 @@ export interface TerminalSessionsDeps {
   newSessionId?: () => string
   timers?: TerminalTimers
   onError?: (error: unknown) => void
+  onChatChanged?: (ref: ChatRef) => void
+  /** Binds only a tracked live PTY, never a persisted historical grant id. */
+  bindChatGrant?: (grantId: string, identity: { folder: string; chatId: string; generation: string }) => void
 }
 
 interface Subscriber {
@@ -253,6 +256,7 @@ interface PasteQueue {
 
 /** A chat whose PTY is running (or has just exited and is still putting its last output on the screen). */
 interface Live {
+  readonly generation: string
   kind: 'live'
   chat: ChatRecord
   pty: PtyProcess
@@ -292,7 +296,7 @@ interface Starting {
 }
 
 interface Manager {
-  deps: Required<Omit<TerminalSessionsDeps, 'onError'>>
+  deps: Required<Omit<TerminalSessionsDeps, 'onError' | 'onChatChanged' | 'bindChatGrant'>> & Pick<TerminalSessionsDeps, 'onChatChanged' | 'bindChatGrant'>
   onError: (error: unknown) => void
   entries: Map<string, Live | Starting>
   listeners: Map<string, Map<TerminalListener, Subscriber>>
@@ -413,6 +417,7 @@ async function writeStartFiles(context: StartContext): Promise<TerminalFiles> {
     role: chat.role,
     allowSave: chat.allowSave,
     orchestratesRun: chat.runId !== undefined,
+    nameFirstPrompt: chat.titleStatus === 'pending',
     ...(chat.transferEpicId === undefined ? {} : { transferEpicId: chat.transferEpicId }),
     ...(chat.cardId === undefined ? {} : { cardId: chat.cardId })
   })
@@ -504,6 +509,51 @@ function bracketedPaste(text: string): string {
   return `${PASTE_START}${text.replace(/\r?\n/g, '\r').replace(/[^\P{Cc}\t\r]/gu, '')}${PASTE_END}`
 }
 
+/** Claims a first-message insertion before writing; ambiguous exits never replay it. */
+function submitPaste(manager: Manager, live: Live, next: Paste): void {
+  const queue = live.pastes
+  queue.entering = true
+  if (next.kickoff && live.chat.firstPrompt !== undefined) {
+    try {
+      manager.deps.store.updateChat(live.chat, { firstPromptDelivery: 'uncertain' })
+    } catch (error) {
+      manager.onError(error)
+      void stop(manager, live, 'The first prompt could not be recorded safely; no message was sent. Its full text is saved in this chat.')
+      return
+    }
+  }
+  try {
+    writeInput(manager, live, bracketedPaste(next.text))
+  } catch (error) {
+    manager.onError(error)
+    void stop(manager, live, `The queued prompt could not be delivered: ${messageOf(error)}. Its saved first-message text remains available; uncertain input is not automatically resent.`)
+    manager.deps.onChatChanged?.(live.chat)
+    return
+  }
+  queue.cancel = manager.deps.timers.after(() => {
+    queue.cancel = null
+    queue.entering = false
+    try {
+      writeInput(manager, live, ENTER)
+    } catch (error) {
+      manager.onError(error)
+      void stop(manager, live, `The queued prompt could not be submitted: ${messageOf(error)}. Its saved first-message text remains available; uncertain input is not automatically resent.`)
+      manager.deps.onChatChanged?.(live.chat)
+      return
+    }
+    queue.lastOutput = manager.deps.timers.now()
+    if (next.kickoff) {
+      try {
+        manager.deps.store.updateChat(live.chat, { kickoffSent: true, ...(live.chat.firstPrompt === undefined ? {} : { firstPromptDelivery: 'submitted' }) })
+        manager.deps.onChatChanged?.(live.chat)
+      } catch (error) {
+        manager.onError(error)
+      }
+    }
+    writePastes(manager, live)
+  }, ENTER_DELAY_MS)
+}
+
 /**
  * Writes the next waiting paste once the PTY can take it: its CLI has turned bracketed paste on (`BRACKETED_PASTE_ON`,
  * which a TUI sends when its input is live; Autonomous goes quiet for seconds while it starts before it does, verified
@@ -531,22 +581,7 @@ function writePastes(manager: Manager, live: Live): void {
     return
   }
   queue.waiting.shift()
-  queue.entering = true
-  writeInput(manager, live, bracketedPaste(next.text))
-  queue.cancel = timers.after(() => {
-    queue.cancel = null
-    queue.entering = false
-    writeInput(manager, live, ENTER)
-    queue.lastOutput = timers.now()
-    if (next.kickoff) {
-      try {
-        manager.deps.store.updateChat(live.chat, { kickoffSent: true })
-      } catch (error) {
-        manager.onError(error)
-      }
-    }
-    writePastes(manager, live)
-  }, ENTER_DELAY_MS)
+  submitPaste(manager, live, next)
 }
 
 /** The screen took `data`: the pastes' wait goes on, and once the CLI turns bracketed paste on, the first can go. */
@@ -597,6 +632,7 @@ function startLive(manager: Manager, chat: ChatRecord, started: Started): Live {
   let revoked: Promise<void> | null = null
   const live: Live = {
     kind: 'live',
+    generation: randomUUID(),
     chat,
     pty,
     screen,
@@ -632,6 +668,15 @@ function wireLive(manager: Manager, live: Live, reportEnded: () => void, reportC
   const stopExit = pty.onExit((exit) => {
     live.exited = true
     reportEnded()
+    try {
+      const stored = manager.deps.store.getChat(chat)
+      if (stored?.titleStatus === 'pending' && stored.firstPromptDelivery === 'submitted') {
+        manager.deps.store.updateChat(chat, { title: 'Chat naming failed', titleStatus: 'failed', titleError: 'The selected agent exited before reporting an inferred title.' })
+      }
+      if (stored?.firstPrompt !== undefined) manager.deps.onChatChanged?.(chat)
+    } catch (error) {
+      manager.onError(error)
+    }
     live.stopWatch()
     void live.revoke()
     // Asked now, while the group's id can only be the CLI's: ends what it left running in its process group.
@@ -804,6 +849,28 @@ function sessionStarted(manager: Manager, chat: ChatRecord, agent: AgentView, fo
   return chat.sessionId !== null && claudeSessionExists({ env: manager.deps.env, platform: manager.deps.platform, folder, sessionId: chat.sessionId })
 }
 
+/** The PTY is already tracked before any post-spawn record write can fail. */
+function finishArgumentPrompt(manager: Manager, chat: ChatRecord, live: Live): void {
+  try {
+    manager.deps.store.updateChat(chat, { firstPromptDelivery: 'submitted' })
+    manager.deps.onChatChanged?.(chat)
+  } catch (error) {
+    manager.onError(error)
+    void stop(manager, live, 'The first prompt was handed to the agent, but its delivery record could not be finalized. It will not be automatically resent.')
+  }
+}
+
+/** Record launch authority and ambiguous argument delivery atomically before starting the process. */
+function recordLaunch({ manager, chat }: StartContext, spec: TerminalLaunchSpec, grantId: string, firstArgument: boolean): void {
+  const stored = manager.deps.store.getChat(chat)?.grantIds ?? []
+  manager.deps.store.updateChat(chat, {
+    grantIds: [...stored, grantId],
+    ...(spec.sessionId === null ? {} : { sessionId: spec.sessionId }),
+    ...(spec.kickoffIn === 'args' ? { kickoffSent: true } : {}),
+    ...(firstArgument ? { firstPromptDelivery: 'uncertain' as const } : {})
+  })
+}
+
 /**
  * Builds the launch, stores the grant's id, the session id the CLI runs under and a kickoff on its command line
  * (`kickoffSent`) on the chat, then spawns; throws on any failure (the caller revokes).
@@ -824,28 +891,39 @@ async function spawnWithGrant(context: StartContext, files: TerminalFiles, issue
   const host = await step(manager.deps.host())
   // The last await is behind: from this check to the spawn nothing else runs.
   recheckFolder(context)
-  const stored = manager.deps.store.getChat(chat)?.grantIds ?? []
-  manager.deps.store.updateChat(chat, {
-    grantIds: [...stored, issued.grantId],
-    ...(spec.sessionId === null ? {} : { sessionId: spec.sessionId }),
-    ...(spec.kickoffIn === 'args' ? { kickoffSent: true } : {})
-  })
+  const firstArgument = spec.kickoffIn === 'args' && chat.firstPrompt !== undefined
+  recordLaunch(context, spec, issued.grantId, firstArgument)
   const screen = createTerminalScreen(START_COLS, START_ROWS)
   let pty: PtyProcess
   try {
     pty = host.spawn({ file: spec.file, args: spec.commandLine ?? spec.args, cwd: spec.cwd, env: spec.env, cols: START_COLS, rows: START_ROWS })
   } catch (error) {
     screen.dispose()
+    if (firstArgument) manager.deps.store.updateChat(chat, { kickoffSent: false, firstPromptDelivery: 'pending' })
     throw error
   }
   const marksStarted = marksSessionStarted(agent, chat)
   const firstPaste = spec.pasteFirst === null ? null : { text: spec.pasteFirst, kickoff: spec.kickoffIn === 'paste' }
-  return startLive(manager, chat, { pty, screen, grantId: issued.grantId, resumed: spec.resumed, marksStarted, firstPaste })
+  const live = startLive(manager, chat, { pty, screen, grantId: issued.grantId, resumed: spec.resumed, marksStarted, firstPaste })
+  try {
+    manager.deps.bindChatGrant?.(issued.grantId, { folder: chat.folder, chatId: chat.id, generation: live.generation })
+  } catch (error) {
+    void stop(manager, live, 'The terminal could not bind its chat naming authority.')
+    throw error
+  }
+  if (firstArgument) finishArgumentPrompt(manager, chat, live)
+  return live
 }
 
 /** Why a custom CLI marked `needsReview` (its arguments were saved for a protocol server) starts no chat, and what to do. */
 function needsReviewMessage(agent: AgentView): string {
   return `${agent.displayName} was saved with arguments for a chat protocol the app no longer speaks, so it does not start until you review them. Open it under Agents and choose Review arguments.`
+}
+
+/** A saved first message is eligible only until its first physical delivery attempt. */
+function unsentFirstPrompt(chat: ChatRecord): string | null {
+  if (chat.kickoffSent === true || chat.firstPromptDelivery === 'uncertain') return null
+  return chat.firstPrompt ?? null
 }
 
 /** Begins the chat's start, or refuses it at once when its folder or agent fails; see `AttachOptions` and `StartOptions`. */
@@ -878,7 +956,7 @@ function beginStart(manager: Manager, found: ChatRecord, options: AttachOptions 
     cancel: () => {}
   }
   manager.entries.set(chat.id, starting)
-  starting.done = startSteps({ manager, chat, agent, folder, starting, kickoff: options.kickoff ?? null, newSession: options.newSession === true }).then((outcome) => {
+  starting.done = startSteps({ manager, chat, agent, folder, starting, kickoff: options.kickoff ?? unsentFirstPrompt(chat), newSession: options.newSession === true }).then((outcome) => {
     if (manager.entries.get(chat.id) === starting) {
       if (outcome.state === 'running' && !outcome.live.exited) {
         manager.entries.set(chat.id, outcome.live)

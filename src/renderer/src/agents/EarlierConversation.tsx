@@ -17,13 +17,20 @@ interface Stored {
   entries: TranscriptEntry[]
 }
 
+interface EarlierConversationProps {
+  folder: string
+  chat: ChatRecord
+  agentName: string
+  open: boolean
+  onOpenChange(open: boolean): void
+}
+
 /** The control and, once opened, the read-only transcript; nothing for a chat that stored none. */
-export function EarlierConversation({ folder, chat, agentName }: { folder: string; chat: ChatRecord; agentName: string }): JSX.Element | null {
+export function EarlierConversation({ folder, chat, agentName, open, onOpenChange }: EarlierConversationProps): JSX.Element | null {
   const [stored, setStored] = useState<Stored | null>(null)
-  const [open, setOpen] = useState(false)
   useEffect(() => {
     let current = true
-    setOpen(false)
+    onOpenChange(false)
     window.dm.chats.read({ folder, chatId: chat.id }).then(
       (result) => {
         if (current) setStored(result.ok && result.data.items.length > 0 ? { chatId: chat.id, entries: result.data.items.reduce<TranscriptEntry[]>(applyItem, []) } : null)
@@ -35,14 +42,14 @@ export function EarlierConversation({ folder, chat, agentName }: { folder: strin
     return () => {
       current = false
     }
-  }, [folder, chat.id])
+  }, [folder, chat.id, onOpenChange])
   if (stored?.chatId !== chat.id) {
     return null
   }
   return (
     <>
       <div className="terminal-earlier">
-        <Button size="sm" icon={open ? 'chevron-down' : 'chevron-right'} aria-expanded={open} onClick={() => setOpen(!open)}>
+        <Button size="sm" icon={open ? 'chevron-down' : 'chevron-right'} aria-expanded={open} onClick={() => onOpenChange(!open)}>
           Earlier conversation
         </Button>
         <span className="terminal-earlier-note">Read-only: what this chat said before it ran in a terminal.</span>

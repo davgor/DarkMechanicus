@@ -1,4 +1,6 @@
-import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { join } from 'node:path';
 import { loadConfig } from './config.js';
 import { getChangedLines, getGitDiffEntries, readCommittedFile } from './processAdapters.js';
 import {
@@ -8,6 +10,7 @@ import {
 } from './prComment.js';
 import { formatHumanReport, formatJsonReport } from './report.js';
 import { runFireguard, type RunFireguardDeps } from './runFireguard.js';
+import { mergeShards, parseShard } from './sharding.js';
 import type { FireguardConfig, FireguardReport } from './types.js';
 import { openLanes } from './workspaceLanes.js';
 
@@ -60,6 +63,8 @@ export async function runCli(options: CliOptions = {}): Promise<number> {
   const help = argv.includes('--help') || argv.includes('-h');
   const markdownOut = flagValue(argv, '--markdown-out');
   const jsonOut = flagValue(argv, '--json-out');
+  const shardArg = flagValue(argv, '--shard');
+  const mergeDirectory = flagValue(argv, '--merge-shards');
 
   if (help) {
     stdout(`fireguard — deterministic unit-test quality grader
@@ -85,6 +90,9 @@ PR integration:
                    (uses GITHUB_TOKEN, GITHUB_REPOSITORY, GITHUB_EVENT_PATH)
   --markdown-out   Write PR markdown to a file
   --json-out       Write JSON report to a file
+  --shard i/n     Execute disjoint flake-run/module partitions (no final grade/comment)
+  --merge-shards  Directory of shard JSON reports; validate and issue the combined grade
+  --shard-count n Expected report count when merging (required)
 
 Exit codes:
   0  pass (grade not F)
@@ -98,7 +106,26 @@ Exit codes:
   try {
     const config = loadConfig({ cwd, env });
     const run = options.runFireguardFn ?? runFireguard;
-    report = await run(createDeps(cwd, config));
+    if (argv.includes('--shard') && !shardArg) throw new Error('--shard requires index/count');
+    if (argv.includes('--merge-shards') && !mergeDirectory) throw new Error('--merge-shards requires a directory');
+    if (shardArg && (mergeDirectory || commentPr)) throw new Error('shards cannot merge or post PR comments');
+    const deps = createDeps(cwd, config);
+    if (shardArg || mergeDirectory) {
+      const revision = (ref: string) => execFileSync('git', ['rev-parse', '--verify', `${ref}^{commit}`],
+        { cwd, encoding: 'utf8' }).trim();
+      const identity = { head: revision('HEAD'), base: revision(config.baseRef) };
+      if (mergeDirectory) {
+        const count = Number(flagValue(argv, '--shard-count'));
+        const reports = readdirSync(mergeDirectory).filter((name) => name.endsWith('.json'))
+          .sort().map((name) => JSON.parse(readFile(join(mergeDirectory, name), 'utf8')) as FireguardReport);
+        report = mergeShards(reports, count, identity);
+      } else {
+        deps.shard = { ...parseShard(shardArg!), ...identity };
+        report = await run(deps);
+      }
+    } else {
+      report = await run(deps);
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     stderr(`fireguard error: ${message}\n`);
@@ -108,7 +135,8 @@ Exit codes:
   if (json) {
     stdout(formatJsonReport(report));
   } else {
-    stdout(`${formatHumanReport(report)}\n`);
+    stdout(report.shard ? `fireguard shard ${report.shard.index}/${report.shard.count} complete; final grade deferred to aggregation\n`
+      : `${formatHumanReport(report)}\n`);
   }
 
   const markdown = formatPrMarkdown(report);
@@ -120,7 +148,7 @@ Exit codes:
   }
 
   const stepSummary = env.GITHUB_STEP_SUMMARY;
-  if (stepSummary) {
+  if (stepSummary && !report.shard) {
     try {
       // Append — never truncate other job summary content.
       appendFile(stepSummary, `${markdown}\n`);
@@ -168,6 +196,9 @@ Exit codes:
     }
   }
 
+  if (report.shard) {
+    return report.gates.ast?.pass === false || report.gates.flake?.pass === false ? 1 : 0;
+  }
   if (report.grade.letter === 'F') {
     return 1;
   }

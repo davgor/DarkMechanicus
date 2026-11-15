@@ -16,6 +16,15 @@ describe('cliCommandLine', () => {
   it('quotes a part that needs it, so the line can be copied as written', () => {
     expect(cliCommandLine({ ...CLI, args: ['/a b/cli.js'] })).toBe("node '/a b/cli.js'")
   })
+
+  it('sets Electron Node mode for this invocation without exposing the grant or other environment values', () => {
+    const line = cliCommandLine({
+      command: '/My Build/Electron',
+      args: ['/My Build/out/main/cli.js', '--repo', '/work/repo'],
+      env: { ELECTRON_RUN_AS_NODE: '1', DM_SESSION_TOKEN: 'dmg_secret', DARKMECHANICUS_HOME: '/private/home' }
+    })
+    expect(line).toBe("ELECTRON_RUN_AS_NODE=1 '/My Build/Electron' '/My Build/out/main/cli.js' --repo /work/repo")
+  })
 })
 
 describe('cliInstructions', () => {

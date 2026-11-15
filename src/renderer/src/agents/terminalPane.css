@@ -121,3 +121,18 @@
 .terminal-host .xterm .xterm-scrollable-element > .scrollbar > .slider.active {
   background: var(--faint);
 }
+
+/* Saved first-message recovery stays read-only; later input belongs to the CLI. */
+.terminal-first-prompt {
+  flex-shrink: 0;
+  padding: 8px 40px;
+  max-height: 35%;
+  overflow: auto;
+  color: var(--ink-soft);
+}
+
+.terminal-first-prompt pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}

@@ -4,6 +4,7 @@ import { runMutationGate } from './gates/mutationGate.js';
 import { computeGrade } from './grade.js';
 import { resolveGitScope } from './gitScope.js';
 import { buildRelatedTests, type RelatedTests } from './importGraph.js';
+import { partition, shardRunCount } from './sharding.js';
 import type {
   DiffEntry,
   FireguardConfig,
@@ -11,10 +12,12 @@ import type {
   GitScope,
   Lanes,
   MutationGateResult,
+  ShardIdentity,
 } from './types.js';
 
 export interface RunFireguardDeps {
   config: FireguardConfig;
+  shard?: ShardIdentity;
   getDiffEntries: () => Promise<DiffEntry[]>;
   /** A graded test as committed: the AST gate grades what the diff grades. */
   readFile: (path: string) => Promise<string>;
@@ -54,7 +57,7 @@ async function runMutationStage(
   lanes: Lanes
 ): Promise<MutationGateResult> {
   const modules = await Promise.all(
-    scope.changedModules.map(async (path) => ({
+    (deps.shard ? partition(scope.changedModules, deps.shard) : scope.changedModules).map(async (path) => ({
       path,
       source: await lanes.source.readFile(path),
     }))
@@ -82,7 +85,13 @@ async function runLaneGates(
   const lanes = await deps.openLanes();
   try {
     gates.flake = await runFlakeGate({
-      config: deps.config,
+      config: deps.shard ? {
+        ...deps.config,
+        thresholds: {
+          ...deps.config.thresholds,
+          agenticFlakinessRuns: shardRunCount(deps.config.thresholds.agenticFlakinessRuns, deps.shard),
+        },
+      } : deps.config,
       files: scope.gradedTestFiles,
       runners: lanes.runners,
     });
@@ -127,7 +136,7 @@ function untestedReport(
   };
 }
 
-export async function runFireguard(deps: RunFireguardDeps): Promise<FireguardReport> {
+async function run(deps: RunFireguardDeps): Promise<FireguardReport> {
   const entries = await deps.getDiffEntries();
   const scope = resolveGitScope({ config: deps.config, entries });
 
@@ -164,4 +173,10 @@ export async function runFireguard(deps: RunFireguardDeps): Promise<FireguardRep
     execution,
     skipped: false,
   };
+}
+
+export async function runFireguard(deps: RunFireguardDeps): Promise<FireguardReport> {
+  const report = await run(deps);
+  if (deps.shard) report.shard = { ...deps.shard, config: deps.config };
+  return report;
 }

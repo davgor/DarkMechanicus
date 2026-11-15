@@ -5,6 +5,8 @@
  * lives in the pure modules beside this file and in `../agents`, `../terminals`, `../git` and `../github`;
  * this one is composition only, so it has no unit tests of its own.
  */
+import { createControlPipe, type ControlPipe } from '../naming/controlPipe'
+import { createNamingDispatcher } from '../naming/namingCommands'
 import { existsSync } from 'node:fs'
 import {
   app,
@@ -216,7 +218,6 @@ const CHAT_GRANT_MINUTES = 12 * 60
 /** The `dm` invocation a chat may make, pinned to its folder. */
 function cliConfigFor(repoPath: string): CliLaunch {
   return buildCliConfig({
-    packaged: app.isPackaged,
     execPath: process.execPath,
     appPath: app.getAppPath(),
     repoPath,
@@ -296,7 +297,7 @@ interface ChatProcesses {
 
 /** What the chat terminals run over besides the store: the grants and runs of the chats, the tracked folders, the agents. */
 interface TerminalDeps {
-  grants: Pick<TerminalSessionsDeps, 'issueChatCli' | 'revokeChatGrant' | 'renewChatGrant' | 'runs'>
+  grants: Pick<TerminalSessionsDeps, 'issueChatCli' | 'revokeChatGrant' | 'renewChatGrant' | 'bindChatGrant' | 'onChatChanged' | 'runs'>
   folders: TerminalSessionsDeps['folders']
   agents: Pick<AgentRegistry, 'get'>
 }
@@ -347,24 +348,35 @@ function createChatProcesses(
 ): ChatProcesses {
   // One store for all: it keeps each folder's index in memory, so two would write over each other's records.
   const store = createChatStore({ root: join(app.getPath('userData'), 'agents', 'chats') })
+  const push = createChatPush(() => BrowserWindow.getAllWindows())
+  let namingPipe: ControlPipe | null = null
+  let namingReady: Promise<void>
   // Revoked through the workspace each grant was issued in, even after its folder moved.
   const grants = createChatGrants({
     workspaceFor: (folder) => desktopWorkspace(folders, workspaces, folder),
     cliFor: cliConfigFor,
     minutes: CHAT_GRANT_MINUTES,
+    desktopAddress: () => namingPipe?.address,
+    desktopReady: () => namingReady,
     log: (line) => {
       logger.warn(line)
     }
   })
+  namingReady = createControlPipe({ authorize: (token) => grants.authorizeNaming(token), dispatch: createNamingDispatcher({ store, push }) }).then((pipe) => { namingPipe = pipe })
+  // Observe startup failure immediately; each attempted chat launch still receives the real rejection.
+  void namingReady.catch((error: unknown) => logger.error('Chat naming transport failed:', error))
   const runs = {
     getRun: async (folder: string, runId: string) => desktopWorkspace(folders, workspaces, folder).getRun({ runId }),
     pauseRun: async (folder: string, input: { runId: string; reason: string }) => desktopWorkspace(folders, workspaces, folder).pauseRun(input)
   }
   const launchFolders = { trackedFolder: (path: string) => folders.resolve(path) }
-  const { terminals, logins } = createTerminalProcesses(store, { grants: { ...grants, runs }, folders: launchFolders, agents })
+  const { terminals, logins } = createTerminalProcesses(store, { grants: { ...grants, runs, onChatChanged: (ref) => push({ type: 'chats_changed', folder: ref.folder, chatId: ref.id }) }, folders: launchFolders, agents })
   const quit = {
     busy: () => terminals.busy() || logins.busy(),
     dispose: async () => {
+      grants.dispose()
+      await namingReady.catch(() => {})
+      await namingPipe?.close()
       await Promise.all([terminals.dispose(), logins.dispose()])
     }
   }

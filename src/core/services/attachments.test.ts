@@ -7,8 +7,10 @@ import { jpegBytes, pngBytes } from '../../test/images'
 import { createTestCtx, type TestCtx } from '../../test/testContext'
 import { LIMITS } from '../schemas'
 import {
+  attachmentRefOf,
   claimAttachments,
   createStagedAttachment,
+  flagMissingAttachments,
   getAttachment,
   pruneStagedAttachments,
   readAttachmentBytes,
@@ -220,5 +222,23 @@ describe('attachment reads and claims at their edges', () => {
     const ctx = seededCtx()
     expect(claimAttachments(ctx, [], { kind: 'ticket', id: TICKET })).toEqual([])
     expect(codeOf(() => createStagedAttachment(ctx, input({ label: 'x'.repeat(LIMITS.label + 1) })))).toBe('invalid_input')
+  })
+})
+
+describe('flagMissingAttachments', () => {
+  it('flags a row with NULL data and an id with no row, and leaves a stored image without a missing key', () => {
+    const ctx = seededCtx()
+    const stored = attachmentRefOf(getAttachment(ctx, stageAt(ctx, '2026-01-01T00:00:00.000Z')))
+    const nulled = attachmentRefOf(getAttachment(ctx, stageAt(ctx, '2026-01-01T00:00:01.000Z')))
+    ctx.db.run('UPDATE attachments SET data = NULL WHERE id = ?', nulled.id)
+    const gone = { ...stored, id: 'im_00000000000000000000000099' }
+    const flagged = flagMissingAttachments(ctx.db, [stored, nulled, gone])
+    expect(flagged).toEqual([stored, { ...nulled, missing: true }, { ...gone, missing: true }])
+    expect(flagged[0]).not.toHaveProperty('missing')
+  })
+
+  it('returns [] for []', () => {
+    const ctx = seededCtx()
+    expect(flagMissingAttachments(ctx.db, [])).toEqual([])
   })
 })

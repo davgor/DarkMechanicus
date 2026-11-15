@@ -1,10 +1,9 @@
 # Baseline ignore for ts-prune: one `file - export` per line (line numbers are not matched)
 # Generated from tsconfig.node.json + tsconfig.web.json
 # Refresh after export moves/deletes: npm run deadcode:refresh
-# Refreshed 2026-11-07 (143 entries)
+# Refreshed 2026-11-15 (153 entries)
 
 electron.vite.config.ts - default
-resources/skitarii/extension/index.ts - default
 src/core/canonical.ts - canonicalJson
 src/core/canonical.ts - prettyJson
 src/core/canonical.ts - sha256Hex
@@ -28,7 +27,6 @@ src/core/transfer/linearPacket.ts - LinearPacketInput
 src/main/desktop/cliConfig.ts - CliConfigOptions
 src/main/terminals/__mocks__/terminalPorts.ts - PortPair
 src/main/terminals/__mocks__/terminalPorts.ts - Posted
-src/main/terminals/__mocks__/terminalSessionsRig.ts - FakeClock
 src/main/terminals/__mocks__/terminalSessionsRig.ts - Gate
 src/main/terminals/ptyHelperCheck.ts - PtyHelperCheckOptions
 src/main/terminals/ptyHost.ts - NodePtyHostOptions
@@ -49,6 +47,18 @@ src/shared/agents/chat.ts - chatIdSchema
 src/shared/agents/chatApi.ts - BoundThreadsRequest
 src/shared/agents/chatApi.ts - ChatRequestRef
 src/shared/agents/chatApi.ts - TransferChatRequest
+src/shared/agents/chatNaming.ts - NAMING_CONTROL
+src/shared/agents/chatNaming.ts - NamingControlError
+src/shared/agents/chatNaming.ts - NamingErrorCode
+src/shared/agents/chatNaming.ts - NamingOperation
+src/shared/agents/chatNaming.ts - NamingReply
+src/shared/agents/chatNaming.ts - NamingRequest
+src/shared/agents/chatNaming.ts - nameChatArgsSchema
+src/shared/agents/chatNaming.ts - namingErrorCodeSchema
+src/shared/agents/chatNaming.ts - namingFailure
+src/shared/agents/chatNaming.ts - namingOperationSchema
+src/shared/agents/chatNaming.ts - namingReplySchema
+src/shared/agents/chatNaming.ts - namingRequestSchema
 src/shared/agents/models.ts - AgentModels
 src/shared/agents/models.ts - ModelOption
 src/shared/agents/terminalApi.ts - TERMINAL_COLS

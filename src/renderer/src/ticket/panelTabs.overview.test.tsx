@@ -42,7 +42,8 @@ describe('OverviewTab ticket materials', () => {
       attachments: [MOCKUP],
       references: [
         { kind: 'file', label: 'login form', location: 'src/login.tsx', hash: null, remoteOnly: false },
-        { kind: 'file', label: 'src/auth.ts', location: 'src/auth.ts', hash: null, remoteOnly: false }
+        { kind: 'file', label: 'src/auth.ts', location: 'src/auth.ts', hash: null, remoteOnly: false },
+        { kind: 'url', label: 'Design doc', location: 'https://example.test/design', hash: null, remoteOnly: true }
       ],
       expectedArtifacts: ['src/login.test.tsx']
     })
@@ -54,6 +55,10 @@ describe('OverviewTab ticket materials', () => {
     const references = screen.getByRole('region', { name: 'References' })
     expect(within(references).getByText('login form (src/login.tsx)')).toBeTruthy()
     expect(within(references).getByText('src/auth.ts')).toBeTruthy()
+    expect(within(references).getByRole('link', { name: 'Design doc (https://example.test/design)' }).getAttribute('href')).toBe('https://example.test/design')
+    expect(within(references).getAllByRole('link')).toHaveLength(1)
+    expect(within(references).getByText('login form (src/login.tsx)').closest('a')).toBeNull()
+    expect(within(references).getByText('src/auth.ts').closest('a')).toBeNull()
     const artifacts = screen.getByRole('region', { name: 'Expected artifacts' })
     expect(within(artifacts).getByText('src/login.test.tsx')).toBeTruthy()
   })

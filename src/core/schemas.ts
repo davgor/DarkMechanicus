@@ -220,7 +220,13 @@ export const ticketInput = z.strictObject({
   expectedArtifacts: z.array(z.string().max(LIMITS.label)).max(LIMITS.references).optional(),
   optional: z.boolean().optional(),
   // Staged image ids to show on the ticket as references; the draft stores their refs and `[]` removes them all.
-  attachments: z.array(attachmentRef.shape.id).max(LIMITS.attachmentsPerRecord).optional()
+  attachments: z
+    .array(attachmentRef.shape.id)
+    .max(LIMITS.attachmentsPerRecord)
+    .optional()
+    .describe(
+      "Staged image ids (from add_attachment, purpose reference) to show on the ticket as reference images, at most 20. On an update the list replaces the ticket's; [] removes them all."
+    )
 })
 
 const concurrencyCap = z.number().int().min(1).max(1_000).nullable()

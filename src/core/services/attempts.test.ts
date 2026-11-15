@@ -35,7 +35,7 @@ import { buildRunHistoryRecord, buildSnapshotRecord } from '../repo/portable'
 import { claimAttachments, createStagedAttachment, getAttachment } from './attachments'
 import { acceptAttempt, failAttempt, heartbeatAttempt, reconcileAttempt, submitAttempt } from './attempts'
 import { listEvents, MAX_EVENT_PAGE } from './events'
-import { attemptView } from './execution'
+import { attemptView, listAttempts } from './execution'
 import { registerHost } from './hosts'
 import { pauseRun } from './runs'
 
@@ -708,6 +708,21 @@ describe('submitAttempt — attachments', () => {
     })
     expect(getAttachment(ctx, first).owner).toEqual({ kind: 'attempt', id: claimed.attempt.id })
     expect(getAttachment(ctx, second).owner).toEqual({ kind: 'attempt', id: claimed.attempt.id })
+  })
+
+  it('list_attempts flags an evidence image whose bytes are not stored, leaving the stored one and the record unchanged', () => {
+    const ctx = createTestCtx()
+    const { runId } = startedRun(ctx, { bundle: makeBundle([[1, 2]], [[1, 2]]) })
+    const claimed = claim(ctx, runId, 1)
+    const nulled = stagedPng(ctx, 1)
+    const kept = stagedPng(ctx, 2)
+    submitClaim(withRole(ctx, 'worker'), claimed, { evidence: { attachments: [nulled, kept] } })
+    ctx.db.run('UPDATE attachments SET data = NULL, missing = 1 WHERE id = ?', nulled)
+    const evidence = listAttempts(ctx, { runId }).find((view) => view.id === claimed.attempt.id)?.evidence
+    expect(evidence?.attachments?.[0]).toMatchObject({ id: nulled, missing: true })
+    expect(evidence?.attachments?.[1]).not.toHaveProperty('missing')
+    const stored = ctx.db.get<{ evidence_json: string }>('SELECT evidence_json FROM attempts WHERE id = ?', claimed.attempt.id)
+    expect(stored?.evidence_json).not.toContain('missing')
   })
 
 })

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { removeScratch } from './removeScratch'
 
-const CONFIG = ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false', '-c', 'core.quotepath=false']
+const CONFIG = ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false', '-c', 'core.quotepath=false', '-c', 'maintenance.auto=false']
 
 /** Runs git in `cwd` and returns its output untrimmed. */
 export function gitIn(cwd: string, ...args: string[]): string {

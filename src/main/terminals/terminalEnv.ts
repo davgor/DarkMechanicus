@@ -47,6 +47,7 @@ function dmEnv(cli: DarkMechanicusCli, platform: NodeJS.Platform): Record<string
   const home = cli.env['DARKMECHANICUS_HOME']
   return {
     DM_SESSION_TOKEN: token,
+    ...(cli.env['DM_DESKTOP_PIPE'] === undefined ? {} : { DM_DESKTOP_PIPE: cli.env['DM_DESKTOP_PIPE'] }),
     ...(home === undefined ? {} : { DARKMECHANICUS_HOME: home }),
     ...(platform === 'win32' && cli.env['ELECTRON_RUN_AS_NODE'] === '1' ? { ELECTRON_RUN_AS_NODE: '1' } : {})
   }
@@ -83,7 +84,7 @@ export function terminalEnv(options: TerminalEnvOptions): Record<string, string>
     ...(options.kind === 'claude' ? { CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' } : {}),
     ...dmEnv(options.cli, options.platform)
   }
-  const env = layered(options.base, own)
+  const env = layered(options.base, own, ['DM_SESSION_TOKEN', 'DM_DESKTOP_PIPE'])
   if (options.platform !== 'win32') {
     const path = pathWithLauncher(env['PATH'], options.launcherDir)
     if (path !== undefined) {
@@ -93,7 +94,7 @@ export function terminalEnv(options: TerminalEnvOptions): Record<string, string>
   return env
 }
 
-/** The environment of an agent's sign-in terminal: main's own, scrubbed, with the terminal's constants and no grant. */
+/** The environment of an agent's sign-in terminal: main's own, scrubbed, with the terminal's constants and no grant or naming address. */
 export function terminalLoginEnv(base: TerminalEnvOptions['base']): Record<string, string> {
-  return layered(base, TERMINAL_CONSTANTS, ['DM_SESSION_TOKEN'])
+  return layered(base, TERMINAL_CONSTANTS, ['DM_SESSION_TOKEN', 'DM_DESKTOP_PIPE'])
 }

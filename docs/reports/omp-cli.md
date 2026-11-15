@@ -5,11 +5,11 @@ Recorded on 2026-11-02 (US Central) against `omp/18.16.0` on Windows 11 (10.0.26
 ## How it was run, and the limits of this report
 
 - `omp` was installed by the orchestrator, with the person's approval, before this ticket's worker started (see 1). The worker installed nothing.
-- Every command below is a read-only subcommand or a pty launch **while signed out**. No account exists, no login was run, and no model turn was started. A launch with a positional prompt was tried, and it stopped at `Error: No API key found for anthropic.` (see 3).
+- The original 18.16.0 investigation used read-only subcommands or pty launches while signed out. No login or model turn was started. A launch with a positional prompt stopped at `Error: No API key found for anthropic.` (see 3). Section 5 adds later read-only signed-in recordings using the person's existing credentials.
 - Source facts come from a shallow clone of `https://github.com/can1357/oh-my-pi` at tag `v18.16.0` (`git describe --tags` printed `v18.16.0`), kept outside the repository and never run or built. Paths below that start `packages/` or `docs/` are inside that clone.
 - pty captures used a throwaway Node script, [`omp-cli/pty-capture.js`](omp-cli/pty-capture.js): `node-pty` 1.1.0 (the app's own dependency, so ConPTY) feeding `@xterm/headless` 6 (the app's xterm.js major). It sets `TERM=xterm-256color` and `COLORTERM=truecolor`, the same two variables `src/main/terminals/terminalEnv.ts` sets for every chat terminal. **A ConPTY capture shows the bytes ConPTY forwards, not everything `omp` wrote**: some sequences `omp` is documented to send, such as `?2026h` and the startup queries, did not appear in the capture, and I did not establish whether ConPTY dropped them or `omp` did not send them. What `omp` emits is therefore taken from source in 7, and the captured list is marked as such.
 - Side effects of running `omp` itself in `~\.omp`: it created `agent\agent.db`, `models.db`, `history.db`, `skill-descriptions.db`, `cache\`, `logs\`, `natives\`, `run\`, `sessions\`; it renamed `agent\settings.json` (the installer wrote `shellPath` there) to `settings.json.bak` and migrated it into `agent\config.yml`; and the first-run setup wizard (I pressed Escape to skip every step, nothing was chosen) wrote `setupVersion: 2` to `config.yml`.
-- **Not done:** the signed-in outputs of item 5 (see 5). Item 9 was run on a dev build of the app from this worktree with a throwaway profile (see 9).
+- Signed-in status was subsequently recorded and checked in the dev desktop app (section 5, DM-441). Item 9 was run on a dev build of the app from this worktree with a throwaway profile (see 9).
 
 ## 1. Install
 
@@ -230,16 +230,16 @@ exit=0
 ```
 
 - **Recommended status probe:** `omp models --json` or `omp usage --json` (both exit 0 signed out; a signed-out account has no model list or report). `omp usage` text exits 1 only when no credential is stored (`usage-cli.ts` line 1736-1739, after `process.stderr.write(...)`). `omp usage` fetches live provider usage over the network when signed in, so it is slower. Do not use `omp token <provider>` or `omp auth export` as a probe: signed in they print the secret token or every stored credential.
-- **Signed-in `omp usage --json` was recorded (DM-438, omp 18.16.0, Anthropic account, 2026-11-05).** Exit code 0 on all 5 runs, empty stderr, 2333 bytes of stdout. Wall time per run: **772 ms, 177 ms, 180 ms, 183 ms, 180 ms (max 772 ms)**. Only the first run fetched live: `fetchedAt` was identical across the five runs, so OMP serves its cached usage report for the later ones (cache lifetime not measured; the live fetch cost about 0.6 s more than a cached run). Account identifiers (`metadata.accountId`, `email`, `orgId`, `orgName`) are replaced with `<redacted>`; everything else is as printed:
+- **Signed-in `omp usage --json` re-recorded for DM-441 (omp 18.18.0, Windows 11, 2026-11-07 04:25:25–04:25:26 UTC).** The installed binary at `%LOCALAPPDATA%\omp\omp.exe` ran five times in sequence from this ticket's worktree using the person's existing sign-in. No login, logout, token command, credential export, or model turn was invoked. Both Anthropic and OpenAI Codex accounts appeared in `reports`. Exit code **0**, empty stderr, and **4136 stdout bytes before redaction** on each run. Wall times (process spawn through exit, rounded milliseconds): **723, 165, 165, 163, 162 ms; maximum 723 ms**. `fetchedAt` stayed identical per provider across all five runs, so the later runs used the same reports; this is not five independent cold-network fetches. The first Anthropic `fetchedAt` fell inside the first run; the Codex report predated it. Cache expiry and worst-case network latency were not measured. The earlier DM-438 recording (18.16.0, Anthropic, 2026-11-05) measured **772, 177, 180, 183, 180 ms**, all exit 0. The first current recording follows: only `metadata.accountId`, `email`, `orgId`, and `orgName` are replaced with `<redacted>`; no raw output or account identifiers were saved.
 
 ```
 $ omp usage --json
 {
-  "generatedAt": 1793904116694,
+  "generatedAt": 1794025525742,
   "reports": [
     {
       "provider": "anthropic",
-      "fetchedAt": 1793904116422,
+      "fetchedAt": 1794025525433,
       "limits": [
         {
           "id": "anthropic:7d",
@@ -253,14 +253,14 @@ $ omp usage --json
             "id": "7d",
             "label": "7 Day",
             "durationMs": 604800000,
-            "resetsAt": 1794261599511
+            "resetsAt": 1794261599965
           },
           "amount": {
-            "used": 5,
+            "used": 12,
             "limit": 100,
-            "remaining": 95,
-            "usedFraction": 0.05,
-            "remainingFraction": 0.95,
+            "remaining": 88,
+            "usedFraction": 0.12,
+            "remainingFraction": 0.88,
             "unit": "percent"
           },
           "status": "ok"
@@ -304,6 +304,66 @@ $ omp usage --json
         "reason": "not_at_wall",
         "credits": []
       }
+    },
+    {
+      "provider": "openai-codex",
+      "fetchedAt": 1794025383969,
+      "limits": [
+        {
+          "id": "openai-codex:primary",
+          "label": "7 days",
+          "scope": {
+            "provider": "openai-codex",
+            "windowId": "7d",
+            "shared": true
+          },
+          "window": {
+            "id": "7d",
+            "label": "7 days",
+            "durationMs": 604800000,
+            "resetsAt": 1794627590000
+          },
+          "amount": {
+            "used": 0,
+            "limit": 100,
+            "remaining": 100,
+            "usedFraction": 0,
+            "remainingFraction": 1,
+            "unit": "percent"
+          },
+          "status": "ok"
+        }
+      ],
+      "resetCredits": {
+        "availableCount": 2,
+        "credits": [
+          {
+            "grantedAt": "2026-10-31T20:29:44.237380Z",
+            "expiresAt": "2026-11-30T20:29:44.237380Z",
+            "status": "available"
+          },
+          {
+            "grantedAt": "2026-11-01T23:00:00.507246Z",
+            "expiresAt": "2026-12-01T23:00:00.507246Z",
+            "status": "available"
+          }
+        ]
+      },
+      "metadata": {
+        "planType": "prolite",
+        "allowed": true,
+        "limitReached": false,
+        "email": "<redacted>",
+        "accountId": "<redacted>",
+        "meterStates": {
+          "chat": {
+            "allowed": true,
+            "limitReached": false
+          }
+        },
+        "orgId": "<redacted>",
+        "orgName": "<redacted>"
+      }
     }
   ],
   "accountsWithoutUsage": [],
@@ -314,13 +374,23 @@ $ omp usage --json
         "window": "7d",
         "durationMs": 604800000,
         "accounts": 1,
-        "usedAccounts": 0.05,
-        "remainingAccounts": 0.95
+        "usedAccounts": 0.12,
+        "remainingAccounts": 0.88
       },
       {
         "window": "7d",
         "durationMs": 604800000,
         "meter": "fable",
+        "accounts": 1,
+        "usedAccounts": 0,
+        "remainingAccounts": 1
+      }
+    ],
+    "openai-codex": [
+      {
+        "window": "7d",
+        "durationMs": 604800000,
+        "meter": "chat",
         "accounts": 1,
         "usedAccounts": 0,
         "remainingAccounts": 1
@@ -331,7 +401,9 @@ $ omp usage --json
 exit=0
 ```
 
-  The source reading held: signed in is a non-empty `reports` (one entry per provider account, with `limits[]`, `metadata` and `resetCredits`; `accountsWithoutUsage` stayed empty), so `reports.length > 0 || accountsWithoutUsage.length > 0` classifies it as signed in with no change to `classifyOmp`. `STATUS_TIMEOUT_MS.omp` stays at 10 s: the slowest run was 0.77 s, about 13 times under it. `omp models --json` signed in was not recorded.
+  The source reading held: non-empty `reports` (now two provider accounts, with `limits[]`, `metadata` and `resetCredits`) means signed in; `accountsWithoutUsage` and `disabledCredentials` stayed empty. No `classifyOmp` change is needed. Keep `STATUS_TIMEOUT_MS.omp` at **10,000 ms**, covering the slowest recording across both five-run samples (**772 ms**) with **9228 ms** margin. This margin comes from the measured runs and inspection of the existing source timeout, not a simulated timing test. The existing signed-in behavioral regression in `agentAuth.test.ts` uses this exact redacted 18.18.0 recording. `omp models --json` signed in was not recorded.
+
+  **Desktop smoke (DM-441):** the real `electron-vite dev` app used isolated `--user-data-dir=%TEMP%/dm-441-desktop-profile` and remote-debug port 9441, with the installed CLI chosen through its native Find picker. The Skitarii card and sidebar both showed **Signed in** (v18.18.0). A read-only `window.dm.agentStatus('omp')` call through the actual preload/main bridge returned `{state: "signed_in", reason: "Skitarii reports it is signed in."}` in **164 ms**, inside the 10 s timeout. Screenshot captured from that Electron surface: `%TEMP%/dm-441-skitarii-signed-in.png` (handed to the orchestrator for the card's evidence attachment). No real app profile was changed.
 - **Interactive login:** `omp login [PROVIDER]` (`omp login anthropic`; omit PROVIDER to pick). `omp login --help`:
 
 ```

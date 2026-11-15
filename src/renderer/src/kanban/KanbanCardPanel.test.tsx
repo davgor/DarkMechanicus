@@ -302,6 +302,7 @@ describe('KanbanCardPanel attachments', () => {
     const image = within(panel).getByRole('img', { name: 'login mockup' }) as HTMLImageElement
     expect(image.getAttribute('src')).toBe(`dm-attachment://${folder.attachmentKey}/im_00000000000000000000000001`)
     expect(within(panel).getByRole('region', { name: 'References' }).textContent).toContain('https://example.test/design')
+    expect(within(within(panel).getByRole('region', { name: 'References' })).getByRole('link', { name: /Design doc/ })).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: /^DM-8/ }))
     await settle()
     const plain = screen.getByRole('complementary', { name: /DM-8/ })

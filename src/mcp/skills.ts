@@ -1,3 +1,4 @@
+import collaborationSource from '../../skills/collaboration.md?raw'
 import graphPlannerSource from '../../skills/graph-planner.md?raw'
 import linearTransferSource from '../../skills/linear-transfer.md?raw'
 import orchestratorSource from '../../skills/orchestrator.md?raw'
@@ -47,7 +48,8 @@ export const SKILLS: SkillDefinition[] = [
   defineSkill('worker', 'Worker', workerSource),
   defineSkill('reviewer', 'Reviewer', reviewerSource),
   defineSkill('sprint-reporter', 'Sprint reporter', sprintReporterSource),
-  defineSkill('linear-transfer', 'Linear transfer', linearTransferSource)
+  defineSkill('linear-transfer', 'Linear transfer', linearTransferSource),
+  defineSkill('collaboration', 'Collaboration policy', collaborationSource)
 ]
 
 /**

@@ -122,6 +122,18 @@ describe('StorageCard images and failed exports', () => {
     expect(row('Save queue')).toContain('comment cm_1: failed 3 times — EACCES')
   })
 
+  it.each([
+    [5, 'comment cm_1: failed 5 or more times; retried on every flush — EACCES'],
+    [2, 'comment cm_1: failed 2 times — EACCES']
+  ])('describes a failed entry with %i attempts', (attempts, text) => {
+    renderCard(
+      storageStatus({
+        outbox: { pending: 0, failed: 1, lastError: 'EACCES', failedEntries: [{ ...failedEntries[0], attempts }] }
+      })
+    )
+    expect(row('Save queue')).toContain(text)
+  })
+
   it('omits the missing count and formats small sizes', () => {
     renderCard(storageStatus({ attachments: { count: 1, bytes: 512, missing: 0 } }))
     expect(row('Images')).toBe('1 (512 B)')

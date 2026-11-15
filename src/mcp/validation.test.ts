@@ -213,13 +213,15 @@ const SCHEMA_FINGERPRINTS: Record<string, string> = {
   set_epic_branch: '8bd6928c81a9be3a',
   list_tickets: '188aa9fa45c88ef2',
   get_ticket: '2e36fb18f2deeaf5',
-  // Changed on purpose: ticket input gained the optional `repo` (string, or null to clear it in a patch).
-  create_ticket: 'b33bd7f3024c91a1',
-  update_ticket: 'bf382c348f074fbb',
+  // Changed on purpose: ticket input gained the optional `repo` (string, or null to clear it in a patch), then a
+  // description on `attachments`.
+  create_ticket: 'f33e108a91459809',
+  update_ticket: 'ac2dca7720bad0dd',
   set_ticket_status: '2f0069162106363a',
   get_plan: '57dd5f19d19a669e',
   open_plan_draft: 'f7874c5f7d17c6c5',
-  update_plan_draft: '28ef034824a371ac',
+  // Changed on purpose: the ticket input of add_ticket and update_ticket gained a description on `attachments`.
+  update_plan_draft: 'd70e0dad399b41be',
   validate_plan: '3b52b9b5157a2fba',
   save_plan: 'a77f363be76d0e70',
   discard_plan_draft: 'e242b76040271758',

@@ -44,7 +44,8 @@ export function createSequentialIds(): IdGenerator {
 }
 
 export function createTestDb(path = ':memory:'): Db {
-  const db = openDatabase(path)
+  // A test database is thrown away, so commits need not wait for the disk (see workspaceHarness.ts).
+  const db = openDatabase(path, { synchronous: 'off' })
   migrate(db)
   return db
 }

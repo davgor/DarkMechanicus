@@ -10,7 +10,7 @@ import type { CommandName } from '../shared/domain/api'
 import type { EpicSummaryView, PlanView } from '../shared/domain/views'
 import { TWO_TICKETS } from '../test/authoring'
 import { createSequentialIds, createTestClock } from '../test/testContext'
-import { createFakeGit } from '../test/workspaceHarness'
+import { createFakeGit, TEST_STORAGE } from '../test/workspaceHarness'
 import { idleAgentDeps } from '../test/idleAgents'
 
 /**
@@ -36,7 +36,7 @@ function createDesktop(): Desktop {
   const ids = createSequentialIds()
   const git = createFakeGit({ branch: 'main', commit: 'c'.repeat(40), detached: false })
   const open = (repoRoot: string, role: 'desktop' | 'planner'): Workspace =>
-    openWorkspace({ repoRoot, role, label: role, transport: 'in_process', allowSave: true, clock, ids, git })
+    openWorkspace({ repoRoot, role, label: role, transport: 'in_process', allowSave: true, clock, ids, git, ...TEST_STORAGE })
   const planners = { one: open(folders.one, 'planner'), two: open(folders.two, 'planner') }
   const registry = createFolderRegistry({ dmHome: join(config, 'dm-home'), file: join(config, 'folders.json'), homeDir: config })
   registry.track(folders.one)

@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, describe, expect, it } from 'vitest'
 import { createGitRepo, type GitRepo } from '../../test/gitRepo'
 import { createMemoryFs, type MemoryFs } from '../../test/memoryFs'
 import { domainErrorOf, domainErrorOfAsync } from '../../test/repoFixtures'
@@ -353,16 +353,20 @@ function buildHistory(): History {
   return { repo, initial, base, w1, w2, squashed, merged, sideTip }
 }
 
-/** A fresh repository with that history for every test of the surrounding describe. */
+/**
+ * One repository with that history, built on first use and shared by every test that asks for it. They only ask
+ * read-only questions (the "ancestry queries are read-only" test pins that), so one build replaces one per test: about
+ * 35 git processes each, which cost seconds on a Windows CI runner.
+ */
+let sharedHistory: History | undefined
+afterAll(() => {
+  sharedHistory?.repo.cleanup()
+  sharedHistory = undefined
+})
 function useHistory(): () => History {
-  let current: History | undefined
-  afterEach(() => {
-    current?.repo.cleanup()
-    current = undefined
-  })
   return () => {
-    current ??= buildHistory()
-    return current
+    sharedHistory ??= buildHistory()
+    return sharedHistory
   }
 }
 

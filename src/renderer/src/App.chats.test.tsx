@@ -29,8 +29,23 @@ const workspace = (): ReturnType<typeof within> => within(screen.getByRole('main
 const onFolderHome = (): boolean => screen.queryByRole('heading', { level: 1, name: 'alpha' }) !== null
 const openChatTitle = (): string | null => document.querySelector('.terminal-pane h1')?.textContent ?? null
 
+const FIRST_PROMPT = '  Could you investigate why signing in keeps failing after the session expires and fix the refresh flow?\nKeep the existing approvals.  '
+
+async function submitFirstPrompt(prompt = FIRST_PROMPT): Promise<void> {
+  const dialog = screen.getByRole('dialog', { name: 'Start a new chat' })
+  fireEvent.change(within(dialog).getByRole('textbox', { name: 'First prompt' }), { target: { value: prompt } })
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Start' }))
+  await settle()
+}
+
 async function mount(): Promise<void> {
   h.mount()
+  await settle()
+}
+
+async function clickNewChat(): Promise<void> {
+  await mount()
+  fireEvent.click(sidebar().getByRole('button', { name: 'New chat in alpha' }))
   await settle()
 }
 
@@ -90,25 +105,19 @@ describe('App Agents block', () => {
 })
 
 describe('App new chat', () => {
-  async function clickNewChat(): Promise<void> {
-    await mount()
-    fireEvent.click(sidebar().getByRole('button', { name: 'New chat in alpha' }))
-    await settle()
-  }
-
-  it('creates the chat with the folder default agent, as an orchestrator that may save and with no model, and opens its terminal with no dialog', async () => {
+  it('asks before creating, then preserves the full first prompt and folder default settings', async () => {
     h.dm.agents = [agentView({ kind: 'codex' }), agentView({ kind: 'claude' })]
     h.dm.agentStatuses.codex = { state: 'signed_in', reason: 'x' }
     h.dm.agentStatuses.claude = { state: 'signed_in', reason: 'x' }
     h.dm.folderDefaults['/a'] = 'claude'
     await clickNewChat()
-    expect(h.dm.chats.callsOf('create')).toEqual([[{ folder: '/a', agent: 'claude', model: null, role: 'orchestrator', allowSave: true }]])
+    expect(h.dm.chats.callsOf('create')).toEqual([])
+    expect(h.terminalKit.views).toHaveLength(0)
+    expect(screen.getByRole('textbox', { name: 'First prompt' })).toBe(document.activeElement)
+    await submitFirstPrompt()
+    expect(h.dm.chats.callsOf('create')).toEqual([[{ folder: '/a', agent: 'claude', model: null, role: 'orchestrator', allowSave: true, firstPrompt: FIRST_PROMPT }]])
     expect(screen.queryByRole('dialog')).toBeNull()
-    expect(openChatTitle()).toBe('New chat')
-    const titles = Array.from(document.querySelectorAll('.chat-row-title')).map((element) => element.textContent)
-    expect(titles[0]).toBe('New chat')
-    const open = document.querySelector('.chat-row-main[aria-current="true"] .chat-row-title')
-    expect(open?.textContent).toBe('New chat')
+    expect(openChatTitle()).toBeTruthy()
   })
 
   it('uses a signed-out folder default all the same', async () => {
@@ -117,6 +126,7 @@ describe('App new chat', () => {
     h.dm.agentStatuses.claude = { state: 'signed_out', reason: 'x' }
     h.dm.folderDefaults['/a'] = 'claude'
     await clickNewChat()
+    await submitFirstPrompt()
     expect(h.dm.chats.callsOf('create')[0]?.[0]).toMatchObject({ agent: 'claude' })
   })
 
@@ -126,13 +136,14 @@ describe('App new chat', () => {
     h.dm.agentStatuses.codex = { state: 'signed_in', reason: 'x' }
     h.dm.folderDefaults['/a'] = 'cursor'
     await clickNewChat()
-    expect(h.dm.chats.callsOf('create')).toEqual([[{ folder: '/a', agent: 'codex', model: null, role: 'orchestrator', allowSave: true }]])
-    expect(openChatTitle()).toBe('New chat')
+    await submitFirstPrompt()
+    expect(h.dm.chats.callsOf('create')[0]?.[0]).toMatchObject({ agent: 'codex', firstPrompt: FIRST_PROMPT })
   })
 
   it('uses the first agent that can chat when the folder has no default', async () => {
     connectClaude()
     await clickNewChat()
+    await submitFirstPrompt()
     expect(h.dm.chats.callsOf('create')[0]?.[0]).toMatchObject({ agent: 'claude' })
   })
 
@@ -145,17 +156,74 @@ describe('App new chat', () => {
 })
 
 describe('App new chat clicks', () => {
-  it('creates one chat for two quick clicks, and another for a click after the first is created', async () => {
+  it('opens one popup for rapid clicks and creates once for repeated submission', async () => {
     connectClaude()
     await mount()
     const button = sidebar().getByRole('button', { name: 'New chat in alpha' })
     fireEvent.click(button)
     fireEvent.click(button)
     await settle()
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
+    expect(h.dm.chats.callsOf('create')).toHaveLength(0)
+    const pending = h.dm.chats.hold('create')
+    const dialog = screen.getByRole('dialog')
+    const input = within(dialog).getByRole('textbox', { name: 'First prompt' })
+    fireEvent.change(input, { target: { value: FIRST_PROMPT } })
+    const form = input.closest('form')!
+    fireEvent.submit(form)
+    fireEvent.submit(form)
+    await settle()
     expect(h.dm.chats.callsOf('create')).toHaveLength(1)
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveProperty('disabled', true)
+    fireEvent.keyDown(dialog, { key: 'Escape' })
+    expect(screen.getByRole('dialog')).toBe(dialog)
+    pending.resolve()
+    await settle()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    fireEvent.click(button)
+    await settle()
+    await submitFirstPrompt('help')
+    expect(h.dm.chats.callsOf('create')).toHaveLength(2)
+    expect(h.dm.chats.callsOf('create')[1]?.[0]).toMatchObject({ firstPrompt: 'help' })
+  })
+})
+
+describe('App new chat cancellation and recovery', () => {
+
+  it('disallows blank input and cancels without creating on Cancel or Escape', async () => {
+    connectClaude()
+    await mount()
+    for (const action of ['Cancel', 'Escape']) {
+      fireEvent.click(sidebar().getByRole('button', { name: 'New chat in alpha' }))
+      await settle()
+      const dialog = screen.getByRole('dialog')
+      const input = within(dialog).getByRole('textbox', { name: 'First prompt' })
+      expect(within(dialog).getByRole('button', { name: 'Start' })).toHaveProperty('disabled', true)
+      fireEvent.change(input, { target: { value: ' \n\t ' } })
+      fireEvent.submit(input.closest('form')!)
+      expect(within(dialog).getByRole('button', { name: 'Start' })).toHaveProperty('disabled', true)
+      if (action === 'Escape') fireEvent.keyDown(dialog, { key: 'Escape' })
+      else fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(h.terminalKit.views).toHaveLength(0)
+    }
+    expect(h.dm.chats.callsOf('create')).toEqual([])
+  })
+
+  it('keeps the original prompt editable when creation fails, then retries with the edited text', async () => {
+    connectClaude()
+    await mount()
+    h.dm.chats.failures.create = { code: 'internal', message: 'Could not store the chat.' }
     fireEvent.click(sidebar().getByRole('button', { name: 'New chat in alpha' }))
     await settle()
-    expect(h.dm.chats.callsOf('create')).toHaveLength(2)
+    await submitFirstPrompt()
+    expect(screen.getByRole('textbox', { name: 'First prompt' })).toHaveProperty('value', FIRST_PROMPT)
+    expect(screen.getByText('Could not store the chat.')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Start' })).toHaveProperty('disabled', false)
+    delete h.dm.chats.failures.create
+    await submitFirstPrompt('  --help\nKeep this literal.  ')
+    expect(h.dm.chats.callsOf('create')[1]?.[0]).toMatchObject({ firstPrompt: '  --help\nKeep this literal.  ' })
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })
 

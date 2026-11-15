@@ -172,6 +172,15 @@ describe('planning tool descriptions', () => {
       expect(update?.description).toContain('refMap')
     })
   })
+
+  it('tells agents that tickets take reference images', async () => {
+    await inRig(createCannedApi({}), async (rig) => {
+      const { tools } = await rig.client.listTools()
+      const update = tools.find((tool) => tool.name === 'update_plan_draft')
+      expect(update?.description).toContain('attachments')
+      expect(update?.description).toContain('add_attachment')
+    })
+  })
 })
 
 describe('update_plan_draft with ticket size and reasoning effort', () => {

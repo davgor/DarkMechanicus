@@ -50,7 +50,8 @@ const createSchema = z.strictObject({
   role: z.enum(CHAT_ROLES),
   model: modelSchema.nullable().optional(),
   allowSave: z.boolean().optional(),
-  title: z.string().max(LIMITS.title).optional()
+  title: z.string().max(LIMITS.title).optional(),
+  firstPrompt: z.string().min(1).max(32_000).refine((text) => text.trim().length > 0, 'First prompt must not be blank').optional()
 })
 /** Only an epic, an agent and its model, for an orchestrator or a transfer chat: the role, Allow save, title, kickoff message and what the chat records are decided in main. */
 const startOrchestratorSchema = z.strictObject({

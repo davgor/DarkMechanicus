@@ -20,6 +20,8 @@ Any work you do going forward needs to have the lint, unit test, and build confi
 
 An isolated ticket, meaning one coherent change with no prerequisites and nothing depending on it that one worker can finish in one attempt, goes on the folder's Kanban board with `create_kanban_card`, not into a new epic. Work that needs two or more tickets, ordering or sprints stays an epic. Agents create and edit cards; an authorized orchestrator explicitly asked to run named cards may queue them with `launch_kanban_cards`. Desktop Play starts a chat; approval, kick-back and deletion stay human-only. Follow-ups and bugs found during a sprint stay in that epic's plan or retro.
 
+**Flakes and timeouts are failures.** A check that fails and then passes on a rerun has failed. Never rerun CI or a test to get green, and never accept, submit or merge on a rerun. Never raise a timeout, add retries or skip a test to make it pass: find out why it is slow or nondeterministic, fix that, and show the evidence.
+
 Read `README.md` and `.ai-instructions.md` for process boundaries. For tickets already in scope, also follow the shipped role guides listed in section 1.
 
 ## 1. Dark Mechanicus tracking (before or as you start)
@@ -53,6 +55,7 @@ The role guides shipped in `skills/` say how each job is done. Follow the one th
 - `body`: context, what is in and out of scope, files to respect, how to verify. Files and commits go in `references`
 - `acceptanceCriteria`: 2 to 6 checkable statements with observable results, and tests or runbook steps named explicitly where relevant
 - `expectedArtifacts`: the files or reports the ticket must produce
+- **Source locations** (implementation cards and tickets): inspect the repository first, then name verified repository-relative paths, relevant symbols, each file's intended change, and existing tests to extend in the body. Add the files as structured `references` (`kind: file`). For a new file, name its intended path and an existing neighboring pattern. If the cause is unknown, list verified investigation entry points and say so; never invent paths or present a suspected cause as established.
 
 **Plan-stated standards.** Inside an epic, tests-first and Fireguard apply only when the epic's plan states them, in a "Standards" section of the epic intent or in a ticket's body. Never add either by default. Every work ticket's body carries a **Tests** section that lists the tests its worker writes, or "none" with the reason, and the worker writes and runs those tests in that ticket. When the plan states Fireguard, `npm run fireguard` runs once on the combined, committed sprint work, with `FIREGUARD_BASE_REF` set to the sprint's start commit, in the place the plan names (a per-sprint grading ticket that requires the sprint's other work tickets, or the sprint's acceptance node). Any test graded F is rewritten without touching production code, and the grade is recorded in evidence. No other ticket runs fireguard.
 

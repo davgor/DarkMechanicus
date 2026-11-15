@@ -7,12 +7,13 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { GitResult } from '../../shared/git/api'
 import { gatedRunner } from '../../test/gatedRunner'
-import { isolateGitConfig, remoteRepos, teammatePushes } from '../../test/gitRemotes'
+import { isolateGitConfig, teammatePushes, useRemoteRepos } from '../../test/gitRemotes'
 import { put, scratchDir } from '../../test/gitScratch'
 import { createGitHandlers, type GitHandlers } from './handlers'
 import { createGitRunner, type GitRunner, type GitRunRequest } from './runner'
 
 const cleanups: Array<() => void> = []
+const remotes = useRemoteRepos()
 beforeEach(() => isolateGitConfig(cleanups))
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -73,7 +74,7 @@ const note = { summary: 'note', description: '', files: [{ path: 'note.txt', old
 
 describe('a commit started while a conflicting pull runs', () => {
   it('waits for the pull, then is refused with the merge left intact', async () => {
-    const { local, other } = remoteRepos(cleanups)
+    const { local, other } = remotes(cleanups)
     teammatePushes(other, 'shared.txt')
     put(local.root, 'shared.txt', 'mine\n')
     local.git('add', '.')
@@ -100,7 +101,7 @@ describe('a commit started while a conflicting pull runs', () => {
 
 describe('read-only handlers and cancel while an operation holds the lock', () => {
   it('reads the state and lists branches without waiting', async () => {
-    const { local, other } = remoteRepos(cleanups)
+    const { local, other } = remotes(cleanups)
     teammatePushes(other, 'team.txt')
     const runner = gatedRunner(createGitRunner(), isCommand('pull'))
     const handlers = handlersFor(local.root, runner)
@@ -113,7 +114,7 @@ describe('read-only handlers and cancel while an operation holds the lock', () =
   })
 
   it('cancels a running pull while a commit waits behind it, and the commit then runs', async () => {
-    const { local } = remoteRepos(cleanups)
+    const { local } = remotes(cleanups)
     const bin = scratchDir('dm-slow-pack-')
     cleanups.push(bin.cleanup)
     const slowPack = join(bin.path, 'slow-upload-pack')
@@ -139,7 +140,7 @@ describe('read-only handlers and cancel while an operation holds the lock', () =
 
 describe('an undo started while a push runs', () => {
   it('waits for the push, then is refused because the commit is now pushed', async () => {
-    const { local } = remoteRepos(cleanups)
+    const { local } = remotes(cleanups)
     const mine = local.commit('mine')
     const runner = gatedRunner(createGitRunner(), isCommand('push'))
     const handlers = handlersFor(local.root, runner)
@@ -159,7 +160,7 @@ describe('an undo started while a push runs', () => {
 
 describe('a pull request checkout', () => {
   it('switches and fast-forwards without a concurrent write in between', async () => {
-    const { local } = remoteRepos(cleanups)
+    const { local } = remotes(cleanups)
     const main = local.rev('HEAD')
     local.branch('pr/7')
     const first = local.commit('first')

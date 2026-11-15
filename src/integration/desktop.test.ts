@@ -14,7 +14,7 @@ import { createWorkspacePool, type WorkspacePool } from '../main/desktop/workspa
 import { defaultCapabilityProfile } from '../shared/domain/bundle'
 import type { BoardImportView } from '../shared/domain/views'
 import { createSequentialIds, createTestClock } from '../test/testContext'
-import { createFakeGit } from '../test/workspaceHarness'
+import { createFakeGit, TEST_STORAGE } from '../test/workspaceHarness'
 import { idleAgentDeps } from '../test/idleAgents'
 
 interface Desktop {
@@ -36,7 +36,7 @@ function createDesktop(): Desktop {
   const ids = createSequentialIds()
   const git = createFakeGit({ branch: 'main', commit: 'b'.repeat(40), detached: false })
   const pool = createWorkspacePool((repoRoot) =>
-    openWorkspace({ repoRoot, role: 'desktop', label: 'Desktop', transport: 'desktop', clock, ids, git })
+    openWorkspace({ repoRoot, role: 'desktop', label: 'Desktop', transport: 'desktop', clock, ids, git, ...TEST_STORAGE })
   )
   const handlers = createDesktopHandlers({
     registry: createFolderRegistry({ dmHome: join(config, 'dm-home'), file: join(config, 'folders.json'), homeDir: config }),

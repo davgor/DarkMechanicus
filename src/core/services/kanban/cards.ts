@@ -33,7 +33,7 @@ import { normalizeCriteria } from '../../plan/normalize'
 import { LIMITS } from '../../schemas'
 import { nextProjectKey } from '../draftDeps'
 import { appendEvent } from '../events'
-import { claimAttachments, listAttachmentRefs } from '../attachments'
+import { claimAttachments, flagMissingAttachments, flagMissingEvidence, listAttachmentRefs } from '../attachments'
 import { requestWithoutKey, withIdempotency } from '../idempotency'
 import { enqueueOutbox } from '../outbox'
 
@@ -162,13 +162,13 @@ export function cardView(ctx: Ctx, cardId: string): KanbanCardView {
     completedAt: row.completed_at,
     revision: row.revision,
     ...(attachments.length > 0 ? { attachments } : {}),
-    attempts: attempts.map(toAttemptView)
+    attempts: attempts.map(toAttemptView).map((view) => ({ ...view, evidence: flagMissingEvidence(ctx.db, view.evidence) }))
   }
 }
 
 /** The reference images the card holds; empty when it holds none. */
 function cardAttachments(ctx: Ctx, cardId: string): AttachmentRef[] {
-  return listAttachmentRefs(ctx.db, { kind: 'kanban_card', id: cardId })
+  return flagMissingAttachments(ctx.db, listAttachmentRefs(ctx.db, { kind: 'kanban_card', id: cardId }))
 }
 
 /** Refuses a repeated id, and an image staged as evidence: a card carries references. */

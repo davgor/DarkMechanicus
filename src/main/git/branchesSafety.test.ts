@@ -2,9 +2,10 @@
 import { chmodSync, existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createGitRepo, type GitRepo } from '../../test/gitRepo'
-import { isolateGitConfig, remoteRepos, teammatePushes } from '../../test/gitRemotes'
+import { copyGitRepo, createGitRepo, type GitRepo } from '../../test/gitRepo'
+import { isolateGitConfig, teammatePushes, useRemoteRepos } from '../../test/gitRemotes'
 import { gitIn, put, scratchDir } from '../../test/gitScratch'
+import { useTemplate } from '../../test/gitTemplate'
 import { createBranch, deleteBranch, switchBranch } from './branches'
 import { GitInputError } from './errors'
 import { createGitRunner } from './runner'
@@ -13,6 +14,7 @@ import { discardStash, listStashes, restoreStash } from './stash'
 const runner = createGitRunner()
 const deps = { runner, session: { getAccount: () => null, getToken: () => null }, env: {} }
 const cleanups: Array<() => void> = []
+const remotes = useRemoteRepos()
 beforeEach(() => isolateGitConfig(cleanups))
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -21,10 +23,17 @@ afterEach(() => {
   }
 })
 
-function repo(): GitRepo {
+/** `main` and `other` at its initial commit: built once for the file, copied for each test. */
+const repoTemplate = useTemplate((templateCleanups) => {
   const r = createGitRepo()
-  cleanups.push(r.cleanup)
+  templateCleanups.push(r.cleanup)
   r.git('branch', 'other')
+  return r
+})
+
+function repo(): GitRepo {
+  const r = copyGitRepo(repoTemplate())
+  cleanups.push(r.cleanup)
   return r
 }
 
@@ -95,7 +104,7 @@ describe('stashes beside a branch named stash', () => {
 
 /** Local `x` (two commits ahead of `main`) tracking `origin/x`, and the bare origin. */
 function pushedTopic(): { local: GitRepo; bare: string } {
-  const { local, bare } = remoteRepos(cleanups)
+  const { local, bare } = remotes(cleanups)
   local.branch('x')
   local.commit('x one')
   local.commit('x two')
@@ -114,8 +123,7 @@ describe('deleting a remote branch that a rebase holds', () => {
     expect(() => gitIn(wt, 'rebase', '-q', '--exec', 'false', 'HEAD~1')).toThrow()
     await expect(deleteBranch(deps, local.root, { name: 'x', deleteRemote: true, force: true })).rejects.toThrow(/worktree/)
     expect(gitIn(bare, 'rev-parse', '--verify', '-q', 'refs/heads/x').trim()).not.toBe('')
-    // Several real git rebases: a few seconds alone, but past vitest's 15 s on a loaded Windows CI runner.
-  }, 60_000)
+  })
 
   it('refuses a branch this worktree is rebasing (HEAD detached), before touching the remote', async () => {
     const { local, bare } = pushedTopic()
@@ -128,7 +136,7 @@ describe('deleting a remote branch that a rebase holds', () => {
 
 describe('deleting a remote branch safely', () => {
   it('refuses a branch checked out in another worktree before touching the remote', async () => {
-    const { local, bare } = remoteRepos(cleanups)
+    const { local, bare } = remotes(cleanups)
     local.git('push', '-q', 'origin', 'main:x')
     local.git('branch', '--track', 'x', 'origin/x')
     const elsewhere = scratchDir()
@@ -139,7 +147,7 @@ describe('deleting a remote branch safely', () => {
   })
 
   it('refuses a name that is only a prefix of other branches, deleting nothing', async () => {
-    const { local, bare } = remoteRepos(cleanups)
+    const { local, bare } = remotes(cleanups)
     local.git('push', '-q', 'origin', 'main:feature/a')
     local.git('branch', '--track', 'feature/a', 'origin/feature/a')
     await expect(deleteBranch(deps, local.root, { name: 'feature', deleteRemote: true, force: true })).rejects.toBeInstanceOf(GitInputError)
@@ -147,7 +155,7 @@ describe('deleting a remote branch safely', () => {
   })
 
   it('leaves a remote branch that moved since the last fetch, even when forced', async () => {
-    const { local, other, bare } = remoteRepos(cleanups)
+    const { local, other, bare } = remotes(cleanups)
     gitIn(other, 'switch', '-q', '-c', 'feature')
     teammatePushes(other, 'feature.txt')
     local.git('fetch', '-q', 'origin')

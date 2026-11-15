@@ -79,7 +79,7 @@ export interface FlushOutcome extends FlushResultView {
   failedRevisionIds: string[]
 }
 
-/** An entry becomes `failed` after this many attempts (flush still retries it when called). */
+/** An entry becomes `failed` after this many attempts. Failed entries are still retried by every flush, and their count stays at this maximum. */
 const MAX_FLUSH_ATTEMPTS = 5
 const MAX_ERROR_LENGTH = 2_000
 /** Entries queued while flushing (a first save queues its epic's earlier comments) get further passes. */
@@ -667,10 +667,12 @@ function processEntry(deps: FinalizerDeps, hooks: FinalizerHooks, entry: OutboxR
 function recordFailure(deps: FinalizerDeps, entry: OutboxRow, message: string): void {
   deps.db.tx(() => {
     deps.db.run(
-      `UPDATE outbox SET attempts = attempts + 1, last_error = ?,
-         state = CASE WHEN attempts + 1 >= ? THEN 'failed' ELSE 'pending' END
+      `UPDATE outbox SET attempts = MIN(attempts + 1, ?), last_error = ?,
+         state = CASE WHEN MIN(attempts + 1, ?) >= ? THEN 'failed' ELSE 'pending' END
        WHERE id = ?`,
+      MAX_FLUSH_ATTEMPTS,
       message.slice(0, MAX_ERROR_LENGTH),
+      MAX_FLUSH_ATTEMPTS,
       MAX_FLUSH_ATTEMPTS,
       entry.id
     )

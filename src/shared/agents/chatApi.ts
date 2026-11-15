@@ -1,7 +1,7 @@
 /**
  * The chat surface of the desktop bridge (`window.dm.chats`): one `chats:*` IPC channel per request
  * and one push channel that tells every window a folder's chats changed. The renderer names folders,
- * chats, agent ids, models, roles and titles only; which executable runs and the Dark Mechanicus
+ * chats, agent ids, models, roles, titles and first prompts only; which executable runs and the Dark Mechanicus
  * arguments are decided in the main process. Each chat runs in its terminal (`terminalApi.ts`).
  */
 import type { AgentId, CommandResult } from '../desktop/api'
@@ -27,6 +27,8 @@ export interface CreateChatRequest {
   /** Lets the chat save plans (`--allow-save`); on unless turned off. */
   allowSave?: boolean
   title?: string
+  /** Full original first user message: nonblank, at most 32,000 characters, never trimmed. */
+  firstPrompt?: string
 }
 
 /** Starts a connected agent as the orchestrator of a new run of an epic; the role, Allow save and the chat title are decided in main. */
