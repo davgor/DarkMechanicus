@@ -5,7 +5,7 @@
   "epicId": "ep_01m6q3h649wpg9wq78f08st4bj",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 1,
+  "generation": 2,
   "outcome": null,
   "provenance": null,
   "status": "backlog",
@@ -22,5 +22,5 @@
     "tk_01m6q3n88mv9m0hfsdjrtfg990": "backlog"
   },
   "title": "Knowledge layers: the orchestrator gets scoped context from per-repo and overall knowledge instead of one monolithic guide",
-  "updatedAt": "2026-11-06T00:20:59.466Z"
+  "updatedAt": "2026-11-15T20:32:34.014Z"
 }

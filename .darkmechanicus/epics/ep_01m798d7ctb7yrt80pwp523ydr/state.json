@@ -5,7 +5,7 @@
   "epicId": "ep_01m798d7ctb7yrt80pwp523ydr",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 1,
+  "generation": 2,
   "outcome": null,
   "provenance": null,
   "status": "backlog",
@@ -19,5 +19,5 @@
     "tk_01m798x7t1s00gmeraf7hkmkjr": "backlog"
   },
   "title": "dev3000: one timeline of server and browser events that hosted agents can read",
-  "updatedAt": "2026-11-13T01:42:19.342Z"
+  "updatedAt": "2026-11-15T20:35:01.915Z"
 }

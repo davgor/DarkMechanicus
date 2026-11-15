@@ -5,7 +5,7 @@
   "epicId": "ep_01m798d6kpp7pd81mbeqgjx4re",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 1,
+  "generation": 2,
   "outcome": null,
   "provenance": null,
   "status": "backlog",
@@ -23,5 +23,5 @@
     "tk_01m798vazkwb45enfptp4ew99f": "backlog"
   },
   "title": "webreel: scripted browser recordings kept as local video evidence",
-  "updatedAt": "2026-11-13T01:42:17.434Z"
+  "updatedAt": "2026-11-15T20:33:20.457Z"
 }
