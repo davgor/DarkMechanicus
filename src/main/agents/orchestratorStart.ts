@@ -55,7 +55,7 @@ function queuedButNoChat(run: RunView, what: string, error: unknown): string {
 }
 
 /** Removes the chat of an agent that could not start; false (after reporting) when it could not be removed. */
-async function removeChat(deps: OrchestratorStartDeps, chat: { folder: string; id: string }): Promise<boolean> {
+async function removeChat(deps: OrchestratorStartDeps, chat: ChatRecord): Promise<boolean> {
   try {
     await deps.chats.deleteChat(chat)
     return true
@@ -82,6 +82,14 @@ export async function startOrchestratorRun(deps: OrchestratorStartDeps, request:
   const epic = await deps.runs.getEpic(folder, epicId)
   const run = await deps.runs.queueRun(folder, epicId)
   const agentName = deps.chats.agentName(agent)
+  const kickoff = orchestratorKickoff({
+    epicId: epic.id,
+    epicTitle: epic.title,
+    branch: epic.branch?.name ?? null,
+    repositoryBranches: epic.repositoryBranches,
+    runId: run.id,
+    ...(request.instructions === undefined ? {} : { instructions: request.instructions })
+  })
 
   let chat: ChatRecord
   try {
@@ -92,20 +100,15 @@ export async function startOrchestratorRun(deps: OrchestratorStartDeps, request:
       model: request.model ?? null,
       allowSave: false,
       title: orchestratorTitle(epic.title),
-      runId: run.id
+      runId: run.id,
+      // Recorded as the chat's first input, so a start that ends before they went delivers them once, later.
+      ...(request.instructions === undefined ? {} : { firstPrompt: kickoff })
     })
   } catch (error) {
     logUnexpected(deps, error)
     return { run, chat: null, problem: queuedButNoChat(run, 'the orchestrator chat could not be created', error) }
   }
 
-  const kickoff = orchestratorKickoff({
-    epicId: epic.id,
-    epicTitle: epic.title,
-    branch: epic.branch?.name ?? null,
-    repositoryBranches: epic.repositoryBranches,
-    runId: run.id
-  })
   const failure = await startTerminal(deps, chat, kickoff)
   if (failure !== null) {
     const removed = await removeChat(deps, chat)

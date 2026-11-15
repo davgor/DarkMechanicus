@@ -47,6 +47,7 @@ const CHAT_CHANNELS = [
   'chats:findTransferChat',
   'chats:kickBackKanbanCard',
   'chats:list',
+  'chats:listAll',
   'chats:read',
   'chats:rename',
   'chats:startKanbanCard',
@@ -140,7 +141,7 @@ function ipcRig(options: { bindings?: boolean; windows?: readonly ChatWindow[]; 
   registerChatIpc(
     ipc,
     createChatHandlers({
-      registry: { resolve: (path) => (path === REPO ? REPO : null) },
+      registry: { resolve: (path) => (path === REPO ? REPO : null), list: () => [] },
       agents: { get: connectedAgents() },
       chats: createChatRecords({ store, agentFor: connectedAgents(), ...(activity === undefined ? {} : { activity }) }),
       terminals: recordingTerminals(terminalStarts, terminalPastes),
@@ -186,7 +187,8 @@ describe('chat IPC registration', () => {
   it('passes a missing argument through for the handler to refuse', async () => {
     const state = ipcRig()
 
-    for (const channel of CHAT_CHANNELS) {
+    // `chats:listAll` takes no argument, so nothing is missing from it.
+    for (const channel of CHAT_CHANNELS.filter((name) => name !== 'chats:listAll')) {
       expect(await state.invoke<CommandResult<unknown>>(channel)).toMatchObject({ ok: false, error: { code: 'invalid_input' } })
     }
   })
@@ -419,7 +421,7 @@ describe('chat IPC behind the sender guard', () => {
       throw new Error('a handler was reached')
     }
     const handlers = createChatHandlers({
-      registry: { resolve: reached },
+      registry: { resolve: reached, list: () => [] },
       agents: { get: reached },
       chats: {} as ChatRecords,
       terminals: {} as TerminalSessions,

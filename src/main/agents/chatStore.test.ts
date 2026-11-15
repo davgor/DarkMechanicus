@@ -248,7 +248,7 @@ describe('chat store nested threads', () => {
 })
 
 describe('chat store reads chats stored before threads existed', () => {
-  function storedBeforeThreads(): { fs: MemoryFs; chat: { folder: string; id: string } } {
+  function storedBeforeThreads(): { fs: MemoryFs; chat: ChatRef } {
     const fs = memoryFs()
     const chat = openStore(fs).createChat(NEW_CHAT)
     fs.files.set(indexPath(fs).replace('index.jsonl', `${chat.id}.jsonl`), CHAT_BEFORE_THREADS)
@@ -307,7 +307,7 @@ describe('chat store reads index lines written before agents had ids', () => {
 
 describe('chat store reads chats stored before terminals', () => {
   /** A record and its transcript as the app wrote them before chats were terminals (the epic's start commit, live). */
-  function oldChat(fs: MemoryFs): { line: string; transcript: string; folder: string } {
+  function oldChat(fs: MemoryFs): { line: string; transcript: string; folder: string | null } {
     const created = openStore(fs).createChat(NEW_CHAT)
     const line = JSON.stringify({
       id: 'chat_ddd10bef-7606-4919-9971-3c7f2f61a8a1',
@@ -398,7 +398,7 @@ describe('chat store updates and errors', () => {
 })
 
 describe('chat store reads', () => {
-  function seeded(): { fs: MemoryFs; chat: { folder: string; id: string }; path: string } {
+  function seeded(): { fs: MemoryFs; chat: ChatRef; path: string } {
     const fs = memoryFs()
     const chat = openStore(fs).createChat(NEW_CHAT)
     stored(fs, chat, [userMessage('one'), userMessage('two')])

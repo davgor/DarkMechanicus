@@ -10,8 +10,11 @@ export interface CliConfigOptions {
   execPath: string
   /** `app.getAppPath()`: the project root in development, `…/resources/app.asar` when packaged. */
   appPath: string
-  /** Canonical folder the chat works in; the CLI is pinned to it. */
-  repoPath: string
+  /**
+   * Canonical folder the chat works in; the CLI is pinned to it. Null for a project-less chat, whose CLI is pinned to
+   * no folder: each call names its folder (`--repo`) and that folder's grant (`--token-file`).
+   */
+  repoPath: string | null
   /** The Dark Mechanicus home directory the app resolved, so the CLI finds the same projects. */
   dmHome?: string
 }
@@ -23,7 +26,7 @@ export interface CliConfigOptions {
  */
 export interface CliLaunch {
   command: string
-  /** The script and the repository it is pinned to, in this order. */
+  /** The script and the repository it is pinned to, in this order; the script alone for a project-less chat. */
   args: string[]
   env: Record<string, string>
 }
@@ -33,6 +36,7 @@ export function buildCliConfig(options: CliConfigOptions): CliLaunch {
     ELECTRON_RUN_AS_NODE: '1',
     ...(options.dmHome === undefined ? {} : { DARKMECHANICUS_HOME: options.dmHome })
   }
-  return { command: options.execPath, args: [join(options.appPath, 'out', 'main', 'cli.js'), '--repo', options.repoPath], env }
+  const script = join(options.appPath, 'out', 'main', 'cli.js')
+  return { command: options.execPath, args: options.repoPath === null ? [script] : [script, '--repo', options.repoPath], env }
 }
 

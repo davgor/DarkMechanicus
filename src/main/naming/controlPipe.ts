@@ -13,7 +13,8 @@ import {
 /** Created only by the live grant registry, never reconstructed from historical chat records. */
 export interface NamingControlBinding {
   readonly grantId: string
-  readonly folder: string
+  /** The bound chat's folder; null for a project-less chat. */
+  readonly folder: string | null
   readonly chatId: string
   readonly generation: string
   readonly signal: AbortSignal

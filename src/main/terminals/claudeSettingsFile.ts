@@ -49,10 +49,12 @@ interface ClaudeSettingsOptions {
   userData: string
   chatId: string
   platform: NodeJS.Platform
-  /** `resolveLaunchFolder`'s path: the folder the hook resolves relative paths from. */
+  /** `resolveLaunchFolder`'s path (a project-less chat's scratch folder): the folder the hook resolves relative paths from. */
   folder: string
-  /** The chat's `dm` invocation, pinned to `folder`: its runtime runs the hook, whose script lies beside its own. */
+  /** The chat's `dm` invocation, pinned to `folder` (to none for a project-less chat): its runtime runs the hook, whose script lies beside its own. */
   cli: Pick<DarkMechanicusCli, 'command' | 'args'>
+  /** Set for a project-less chat, whose `dm` invocation is pinned to no folder. */
+  projectless?: true
   /** main's home folder and temp folder, which the path rules and the pinned memory folder start from. */
   home: string
   tmp: string
@@ -85,7 +87,7 @@ export function memoryHookLauncherScript(runtime: string, script: string, args: 
 /** The hook script and its arguments, for a `dm` invocation that must be pinned to `options.folder`. */
 function hookCommand(options: ClaudeSettingsOptions): { script: string; args: string[] } {
   const flavour = options.platform === 'win32' ? win32 : posix
-  const script = flavour.join(flavour.dirname(pinnedCliScript(options.cli, options.folder)), MEMORY_HOOK_SCRIPT)
+  const script = flavour.join(flavour.dirname(pinnedCliScript(options.cli, options.projectless === true ? null : options.folder)), MEMORY_HOOK_SCRIPT)
   return { script, args: [options.folder, options.home, options.tmp] }
 }
 

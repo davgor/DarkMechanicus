@@ -12,9 +12,9 @@ import type { ChatItem, ChatRecord, ChatRole } from './chat'
 /** Main pushes every `ChatPushEvent` to the window on this channel. */
 export const CHAT_EVENT_CHANNEL = 'chats:event'
 
-/** Names one chat: the tracked folder it belongs to and its id. */
+/** Names one chat: the tracked folder it belongs to (null for a project-less chat) and its id. */
 export interface ChatRequestRef {
-  folder: string
+  folder: string | null
   chatId: string
 }
 
@@ -31,6 +31,20 @@ export interface CreateChatRequest {
   firstPrompt?: string
 }
 
+/**
+ * Summons an agent with no project: a project-less chat (`folder` null) that runs in its own scratch folder. Its role
+ * and Allow save are decided in main: an orchestrator that may save, reaching every tracked folder.
+ */
+export interface SummonChatRequest {
+  folder: null
+  agent: AgentId
+  /** Null (or left out) lets the agent use its default model. */
+  model?: string | null
+  title?: string
+  /** Full original first user message: nonblank, at most 32,000 characters, never trimmed. */
+  firstPrompt?: string
+}
+
 /** Starts a connected agent as the orchestrator of a new run of an epic; the role, Allow save and the chat title are decided in main. */
 export interface StartOrchestratorRequest {
   folder: string
@@ -38,6 +52,8 @@ export interface StartOrchestratorRequest {
   agent: AgentId
   /** Null (or left out) lets the agent use its default model. */
   model?: string | null
+  /** The person's additional instructions from the Start run dialog: non-blank, at most 32,000 characters; appended to the kickoff. */
+  instructions?: string
 }
 
 /** What starting an orchestrator left behind. The run is queued either way; the chat exists only when its agent was started. */
@@ -74,6 +90,8 @@ export interface StartKanbanCardRequest {
   agent: AgentId
   /** Null (or left out) lets the agent use its default model. */
   model?: string | null
+  /** The person's additional instructions from the Play dialog: non-blank, at most 32,000 characters; appended to the kickoff. */
+  instructions?: string
 }
 
 /** What pressing Play left behind. The play is marked either way; the chat exists only when its agent was started. */
@@ -136,13 +154,22 @@ export interface BoundThread {
   role: 'orchestrator' | 'worker'
 }
 
-/** A chat was created, renamed or deleted (`chatId` is that chat): every window lists the folder's chats again, so none shows a stale list. */
-export type ChatPushEvent = { type: 'chats_changed'; folder: string; chatId: string }
+/**
+ * A chat was created, renamed or deleted (`chatId` is that chat, `folder` its folder, null for a project-less chat):
+ * every window lists that folder's chats, and every chat, again, so none shows a stale list.
+ */
+export type ChatPushEvent = { type: 'chats_changed'; folder: string | null; chatId: string }
 
 export interface ChatsApi {
   /** A tracked folder's chats, most recently updated first. */
   list(folder: string): Promise<CommandResult<ChatRecord[]>>
-  create(request: CreateChatRequest): Promise<CommandResult<ChatRecord>>
+  /**
+   * Every chat that is not deleted: each tracked folder's (by its canonical path) and the project-less ones (`folder`
+   * null), most recently updated first. A folder that is no longer tracked contributes none.
+   */
+  listAll(): Promise<CommandResult<ChatRecord[]>>
+  /** Creates a chat in a tracked folder, or a project-less chat (`SummonChatRequest`), which nothing starts yet. */
+  create(request: CreateChatRequest | SummonChatRequest): Promise<CommandResult<ChatRecord>>
   /**
    * Queues a run of the epic, creates an orchestrator chat for it with Allow save off, records the run's
    * id on the chat and starts its terminal. A failure after the run is queued is reported in the
@@ -189,7 +216,7 @@ export interface ChatsApi {
   boundTerminal(request: BoundThreadsRequest): Promise<CommandResult<string | null>>
   /** Changes the chat's title and returns the updated chat. */
   rename(request: RenameChatRequest): Promise<CommandResult<ChatRecord>>
-  /** Ends the chat's terminal and removes the chat and its transcript from the app-wide store. */
+  /** Ends the chat's terminal (revoking its grants) and removes the chat and its transcript from the app-wide store, and a project-less chat's scratch folder. */
   delete(request: ChatRequestRef): Promise<CommandResult<null>>
   /** Subscribes to pushed chat events; returns the unsubscribe function. */
   onEvent(listener: (event: ChatPushEvent) => void): () => void

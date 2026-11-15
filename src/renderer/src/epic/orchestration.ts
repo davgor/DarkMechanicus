@@ -16,6 +16,8 @@ import type { AgentStatuses } from '../agents/useAgents'
 export interface StartRunChoice {
   agent: AgentId
   model: string | null
+  /** The person's additional instructions for a run's orchestrator, trimmed and not blank; absent when none were typed. */
+  instructions?: string
 }
 
 /** Queues the run and starts the chosen agent as its orchestrator; throws a `CommandError` when nothing was queued. */

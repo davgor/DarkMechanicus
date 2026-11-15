@@ -161,7 +161,8 @@ function answered(result: CommandResult<TerminalAttachment>): Answered {
 }
 
 interface UseTerminalOptions {
-  folder: string
+  /** The chat's tracked folder; null for a project-less chat. */
+  folder: string | null
   chatId: string
   /** The chat's agent id: an OMP chat's pane takes OMP's theme (`terminalTheme.ts`). */
   agent: string
@@ -215,7 +216,7 @@ function heldOrOwned(live: LiveTerminals | null, chatId: string, terminal: Termi
  * The attach, and, for an OMP chat, OMP's theme alongside it (read each time the chat is opened; a failed read is no
  * theme, and the pane keeps the app's palette).
  */
-async function openChat(request: { folder: string; chatId: string; agent: string; newSession: boolean }): Promise<{ result: CommandResult<TerminalAttachment>; omp: TerminalColors | null }> {
+async function openChat(request: { folder: string | null; chatId: string; agent: string; newSession: boolean }): Promise<{ result: CommandResult<TerminalAttachment>; omp: TerminalColors | null }> {
   const { folder, chatId, agent, newSession } = request
   const omp = agent === 'omp' ? window.dm.ompTerminalTheme().catch(() => null) : Promise.resolve(null)
   const attach = window.dm.terminals.attach(folder, chatId, newSession ? { newSession: true } : undefined)

@@ -33,6 +33,7 @@ import { createChatGrants } from '../agents/chatGrants'
 import { createChatHandlers } from '../agents/chatHandlers'
 import { createChatPush, registerChatIpc } from '../agents/chatIpc'
 import { createChatRecords, type ChatRecords } from '../agents/chatRecords'
+import { removeScratchFolder } from '../agents/scratchFolder'
 import { createChatStore, type ChatStore } from '../agents/chatStore'
 import { listBoundThreads } from '../agents/boundThreads'
 import { findBoundTerminal, type GrantBindingReads } from '../agents/grantBindings'
@@ -215,8 +216,8 @@ function darkMechanicusHome(): string {
  */
 const CHAT_GRANT_MINUTES = 12 * 60
 
-/** The `dm` invocation a chat may make, pinned to its folder. */
-function cliConfigFor(repoPath: string): CliLaunch {
+/** The `dm` invocation a chat may make, pinned to its folder (to none for a project-less chat). */
+function cliConfigFor(repoPath: string | null): CliLaunch {
   return buildCliConfig({
     execPath: process.execPath,
     appPath: app.getAppPath(),
@@ -297,8 +298,10 @@ interface ChatProcesses {
 
 /** What the chat terminals run over besides the store: the grants and runs of the chats, the tracked folders, the agents. */
 interface TerminalDeps {
-  grants: Pick<TerminalSessionsDeps, 'issueChatCli' | 'revokeChatGrant' | 'renewChatGrant' | 'bindChatGrant' | 'onChatChanged' | 'runs'>
+  grants: Pick<TerminalSessionsDeps, 'issueChatCli' | 'issueReachCli' | 'revokeChatGrant' | 'renewChatGrant' | 'bindChatGrant' | 'onChatChanged' | 'runs'>
   folders: TerminalSessionsDeps['folders']
+  /** What a project-less chat reaches: the tracked folders set up for Dark Mechanicus. */
+  reachFolders: TerminalSessionsDeps['reachFolders']
   agents: Pick<AgentRegistry, 'get'>
 }
 
@@ -314,6 +317,7 @@ function createTerminalProcesses(store: ChatStore, deps: TerminalDeps): Pick<Cha
     keepAwake: () => awake.hold(),
     agentFor: (id) => deps.agents.get(id),
     folders: deps.folders,
+    reachFolders: deps.reachFolders,
     checkAuth: (kind, executablePath) => getAgentAuthStatus(kind, executablePath, agentRunDeps()),
     cliFor: cliConfigFor,
     ...deps.grants,
@@ -333,6 +337,18 @@ function createTerminalProcesses(store: ChatStore, deps: TerminalDeps): Pick<Cha
   return { terminals, logins }
 }
 
+/** The chat records over the store; deleting an OMP chat removes its own folder, and a project-less chat its scratch folder. */
+function chatRecordsOver(store: ChatStore, activity: ActivityBindings, agents: Pick<AgentRegistry, 'get'>): ChatRecords {
+  const userData = app.getPath('userData')
+  return createChatRecords({
+    store,
+    activity,
+    agentFor: (id) => agents.get(id),
+    removeOmpFolder: (id) => removeOmpFolder(userData, id),
+    removeScratch: (id) => removeScratchFolder(userData, id)
+  })
+}
+
 /**
  * The agent chats (`userData/agents/chats`) with the connected agents, each run in its terminal. When an
  * orchestrator chat's agent turns out to be signed out, the run it orchestrates is paused with the reason
@@ -341,7 +357,7 @@ function createTerminalProcesses(store: ChatStore, deps: TerminalDeps): Pick<Cha
  * Deleting a chat forgets the bindings old chats stored (`activity`).
  */
 function createChatProcesses(
-  folders: Pick<FolderRegistry, 'resolve'>,
+  folders: Pick<FolderRegistry, 'resolve' | 'list'>,
   agents: Pick<AgentRegistry, 'get'>,
   workspaces: Pick<WorkspacePool, 'get'>,
   activity: ActivityBindings
@@ -370,7 +386,8 @@ function createChatProcesses(
     pauseRun: async (folder: string, input: { runId: string; reason: string }) => desktopWorkspace(folders, workspaces, folder).pauseRun(input)
   }
   const launchFolders = { trackedFolder: (path: string) => folders.resolve(path) }
-  const { terminals, logins } = createTerminalProcesses(store, { grants: { ...grants, runs, onChatChanged: (ref) => push({ type: 'chats_changed', folder: ref.folder, chatId: ref.id }) }, folders: launchFolders, agents })
+  const reachFolders = (): string[] => folders.list().flatMap((folder) => (folder.initialized && folder.available ? [folder.path] : []))
+  const { terminals, logins } = createTerminalProcesses(store, { grants: { ...grants, runs, onChatChanged: (ref) => push({ type: 'chats_changed', folder: ref.folder, chatId: ref.id }) }, folders: launchFolders, reachFolders, agents })
   const quit = {
     busy: () => terminals.busy() || logins.busy(),
     dispose: async () => {
@@ -380,11 +397,7 @@ function createChatProcesses(
       await Promise.all([terminals.dispose(), logins.dispose()])
     }
   }
-  const userData = app.getPath('userData')
-  const chats = endingTerminals(
-    createChatRecords({ store, activity, agentFor: (id) => agents.get(id), removeOmpFolder: (id) => removeOmpFolder(userData, id) }),
-    terminals
-  )
+  const chats = endingTerminals(chatRecordsOver(store, activity, agents), terminals)
   return { chats, quit, store, terminals, logins }
 }
 
@@ -398,7 +411,7 @@ function grantReads(workspaces: Pick<WorkspacePool, 'get'>): GrantBindingReads {
 
 /** What the `chats:*` channels run over: the tracked folders, the connected agents, the chats and their terminals, the workspaces and the bindings old chats stored. */
 interface ChatServices {
-  folders: Pick<FolderRegistry, 'resolve'>
+  folders: Pick<FolderRegistry, 'resolve' | 'list'>
   agents: Pick<AgentRegistry, 'get'>
   chats: ChatRecords
   store: ChatStore

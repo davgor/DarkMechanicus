@@ -14,8 +14,8 @@ import './chatView.css'
 import './terminalPane.css'
 
 interface TerminalPaneProps {
-  /** The tracked folder the chat belongs to. */
-  folder: string
+  /** The tracked folder the chat belongs to; null for a project-less chat. */
+  folder: string | null
   chat: ChatRecord
   /** What to call the chat's agent: the connected agent's display name, or its fallback. */
   agentName: string
@@ -183,7 +183,8 @@ export function TerminalPane({ folder, chat, agentName, kit, scheduler, onAgentS
           </>
         }
       />
-      <EarlierConversation folder={folder} chat={chat} agentName={agentName} open={earlierOpen} onOpenChange={setEarlierOpen} />
+      {/* A project-less chat began after chats ran in terminals, so it stored no earlier conversation. */}
+      {folder === null ? null : <EarlierConversation folder={folder} chat={chat} agentName={agentName} open={earlierOpen} onOpenChange={setEarlierOpen} />}
       <PhaseStatus phase={phase} chat={chat} agentName={agentName} notice={notice} kit={kit} scheduler={scheduler} onAgentStatus={onAgentStatus} startAgain={startAgain} />
       <FirstPromptRecovery chat={chat} />
       <div

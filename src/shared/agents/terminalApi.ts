@@ -52,9 +52,9 @@ export interface TerminalPortGrant {
   port: string
 }
 
-/** What `terminals:attach` takes. `newSession` forgets the chat's stored session before a start (not while one runs). */
+/** What `terminals:attach` takes (`folder` null for a project-less chat). `newSession` forgets the chat's stored session before a start (not while one runs). */
 export interface TerminalAttachRequest {
-  folder: string
+  folder: string | null
   chatId: string
   newSession?: true
 }
@@ -102,8 +102,8 @@ export interface TerminalAttachOptions {
 }
 
 export interface TerminalsApi {
-  /** Attaches to the chat's terminal, starting its CLI when none runs. */
-  attach(folder: string, chatId: string, options?: TerminalAttachOptions): Promise<CommandResult<TerminalAttachment>>
+  /** Attaches to the chat's terminal, starting its CLI when none runs; `folder` is null for a project-less chat. */
+  attach(folder: string | null, chatId: string, options?: TerminalAttachOptions): Promise<CommandResult<TerminalAttachment>>
   /**
    * Opens the agent's sign-in terminal (`TERMINAL_SIGN_IN_CHANNEL`), starting the CLI's own login when none runs; the
    * agent id is all it sends. Closing the terminal's handle (Back) stops the sign-in once no other view shows it.

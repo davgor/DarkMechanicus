@@ -17,6 +17,8 @@ interface ChatRowProps {
   onOpen(chatId: string): void
   onRename(chat: ChatRecord): void
   onDelete(chat: ChatRecord): void
+  /** Where the chat belongs, for a list that mixes folders (an agent's chats): its folder's name, or "No project". */
+  place?: string
 }
 
 /** The badge of a chat that waits on the person to sign in to its agent. */
@@ -30,9 +32,10 @@ function WaitingBadge({ chat, agents, signInWaiting }: Pick<ChatRowProps, 'chat'
 
 /**
  * One chat in the sidebar: its title (with a dot while its terminal runs, and a badge while it waits for a
- * sign-in), then its agent and model; opens the chat, and has a menu to rename or delete it.
+ * sign-in), then where it belongs when the list mixes folders, and its agent and model; opens the chat, and has a
+ * menu to rename or delete it.
  */
-export function ChatRow({ chat, agents, signInWaiting, selected, onOpen, onRename, onDelete }: ChatRowProps): JSX.Element {
+export function ChatRow({ chat, agents, signInWaiting, selected, onOpen, onRename, onDelete, place }: ChatRowProps): JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false)
   const live = useLiveTerminal(chat.id)
   return (
@@ -56,6 +59,7 @@ export function ChatRow({ chat, agents, signInWaiting, selected, onOpen, onRenam
           {live ? <span className="chat-live-dot" role="img" aria-label="terminal running" title="Its terminal is running" /> : null}
           <WaitingBadge chat={chat} agents={agents} signInWaiting={signInWaiting} />
         </span>{' '}
+        {place === undefined ? null : <span className="chat-row-place">{place}</span>}
         <span className="chat-row-meta">{chatMeta(chat, agents)}</span>
       </button>
       <Menu

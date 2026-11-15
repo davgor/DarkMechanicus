@@ -1,9 +1,12 @@
-import type { ChatRecord } from '../../../shared/agents/chat'
+import { chatIdSchema, type ChatRecord } from '../../../shared/agents/chat'
 import { agentIdSchema } from '../../../shared/desktop/agentKinds'
 import type { AgentId, AgentView, TrackedFolderView } from '../../../shared/desktop/api'
 
-/** The agents screens that take over the main area: the add-agent pane, or one agent's page by its id. */
-export type AgentPane = { kind: 'add' } | { kind: 'agent'; agent: AgentId }
+/**
+ * The agents screens that take over the main area: the add-agent pane, one agent's page by its id, or a project-less
+ * chat (summoned from an agent's row, tied to no folder) by its id.
+ */
+export type AgentPane = { kind: 'add' } | { kind: 'agent'; agent: AgentId } | { kind: 'chat'; chatId: string }
 
 /** What the main area shows: a tracked folder and, optionally, one of its epics or an agents screen. */
 export interface Selection {
@@ -27,8 +30,12 @@ function isAgentPane(value: unknown): value is AgentPane {
   if (typeof value !== 'object' || value === null) {
     return false
   }
-  const candidate = value as { kind?: unknown; agent?: unknown }
-  return candidate.kind === 'add' || (candidate.kind === 'agent' && agentIdSchema.safeParse(candidate.agent).success)
+  const candidate = value as { kind?: unknown; agent?: unknown; chatId?: unknown }
+  return (
+    candidate.kind === 'add' ||
+    (candidate.kind === 'agent' && agentIdSchema.safeParse(candidate.agent).success) ||
+    (candidate.kind === 'chat' && chatIdSchema.safeParse(candidate.chatId).success)
+  )
 }
 
 /** Guards a selection read back from localStorage. */
@@ -80,12 +87,20 @@ function resolveFolder(
   }
 }
 
-/** The pane to keep: the add-agent pane always, an agent's page only while that agent is still connected. */
-function resolvePane(pane: AgentPane | undefined, agents: readonly AgentView[] | null): AgentPane | undefined {
-  if (pane === undefined || pane.kind === 'add' || agents === null) {
+/**
+ * The pane to keep: the add-agent pane always, an agent's page only while that agent is still connected, a
+ * project-less chat only while it is not deleted.
+ */
+function resolvePane(pane: AgentPane | undefined, known: KnownData): AgentPane | undefined {
+  if (pane === undefined || pane.kind === 'add') {
     return pane
   }
-  return agents.some((agent) => agent.id === pane.agent) ? pane : undefined
+  if (pane.kind === 'chat') {
+    const projectless = known.projectless ?? null
+    return projectless === null || projectless.some((chat) => chat.id === pane.chatId) ? pane : undefined
+  }
+  const agents = known.agents ?? null
+  return agents === null || agents.some((agent) => agent.id === pane.agent) ? pane : undefined
 }
 
 /** What a stored selection is checked against besides the folders; each is null (or absent) until it has loaded. */
@@ -94,6 +109,8 @@ interface KnownData {
   agents?: readonly AgentView[] | null
   /** The chats of the stored selection's folder. */
   chats?: readonly ChatRecord[] | null
+  /** The project-less chats. */
+  projectless?: readonly ChatRecord[] | null
 }
 
 /**
@@ -102,7 +119,8 @@ interface KnownData {
  * the page of an agent that is no longer connected falls back to the folder view. `agents` is null
  * until they have loaded, which keeps an agent pane as stored. A chat that is no longer in its
  * folder's chat list (deleted) falls back to the folder home; `chats` is the stored folder's chats,
- * null until they have loaded, which keeps the chat as stored.
+ * null until they have loaded, which keeps the chat as stored. A project-less chat that is deleted falls back the same
+ * way; `projectless` is null until they have loaded.
  */
 export function resolveSelection(
   stored: Selection,
@@ -114,6 +132,6 @@ export function resolveSelection(
     return stored
   }
   const base = resolveFolder(stored, folders, known.chats ?? null)
-  const agentPane = resolvePane(stored.agentPane, known.agents ?? null)
+  const agentPane = resolvePane(stored.agentPane, known)
   return agentPane === undefined ? base : { ...base, agentPane }
 }

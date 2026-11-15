@@ -37,16 +37,19 @@ interface TerminalEnvOptions {
   cli: DarkMechanicusCli
   /** The chat's launcher folder; needed on macOS, ignored on Windows. */
   launcherDir: string | null
+  /** Set only for a project-less chat that reaches no folder: it starts with no grant, so none is required. */
+  grantless?: true
 }
 
-function dmEnv(cli: DarkMechanicusCli, platform: NodeJS.Platform): Record<string, string> {
+function dmEnv(cli: DarkMechanicusCli, platform: NodeJS.Platform, grantless: boolean): Record<string, string> {
   const token = cli.env['DM_SESSION_TOKEN']
-  if (token === undefined || token === '') {
+  const granted = token !== undefined && token !== ''
+  if (!granted && !grantless) {
     throw new Error('The chat has no grant: its dm environment holds no DM_SESSION_TOKEN.')
   }
   const home = cli.env['DARKMECHANICUS_HOME']
   return {
-    DM_SESSION_TOKEN: token,
+    ...(granted ? { DM_SESSION_TOKEN: token } : {}),
     ...(cli.env['DM_DESKTOP_PIPE'] === undefined ? {} : { DM_DESKTOP_PIPE: cli.env['DM_DESKTOP_PIPE'] }),
     ...(home === undefined ? {} : { DARKMECHANICUS_HOME: home }),
     ...(platform === 'win32' && cli.env['ELECTRON_RUN_AS_NODE'] === '1' ? { ELECTRON_RUN_AS_NODE: '1' } : {})
@@ -82,7 +85,7 @@ export function terminalEnv(options: TerminalEnvOptions): Record<string, string>
     ...TERMINAL_CONSTANTS,
     ...(options.kind === 'omp' ? OMP_CONSTANTS : {}),
     ...(options.kind === 'claude' ? { CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' } : {}),
-    ...dmEnv(options.cli, options.platform)
+    ...dmEnv(options.cli, options.platform, options.grantless === true)
   }
   const env = layered(options.base, own, ['DM_SESSION_TOKEN', 'DM_DESKTOP_PIPE'])
   if (options.platform !== 'win32') {

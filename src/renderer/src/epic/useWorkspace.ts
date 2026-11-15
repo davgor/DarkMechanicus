@@ -119,7 +119,7 @@ export function useWorkspace(input: WorkspaceInput): WorkspaceController {
   const agentsRef = useRef(input.agents)
   agentsRef.current = input.agents
   const startOrchestrator = useMemo<StartOrchestrator>(
-    () => (choice) => unwrapChat(window.dm.chats.startOrchestrator({ folder: folderPath, epicId, agent: choice.agent, model: choice.model })),
+    () => (choice) => unwrapChat(window.dm.chats.startOrchestrator({ folder: folderPath, epicId, ...choice })),
     [folderPath, epicId]
   )
   const transferChats = useMemo(() => transferChatsFor(folderPath, epicId), [folderPath, epicId])

@@ -92,6 +92,8 @@ export async function startKanbanCard(deps: KanbanStartDeps, request: StartKanba
     return null
   })
 
+  const kickoff = kanbanKickoff({ cardId: card.id, key: card.key, title: card.title, branch, ...(request.instructions === undefined ? {} : { instructions: request.instructions }) })
+
   let chat: ChatRecord
   try {
     chat = deps.chats.createChat({
@@ -101,14 +103,15 @@ export async function startKanbanCard(deps: KanbanStartDeps, request: StartKanba
       model: request.model ?? null,
       allowSave: false,
       title: kanbanTitle(card.key, card.title),
-      cardId: card.id
+      cardId: card.id,
+      // Recorded as the chat's first input, so a start that ends before they went delivers them once, later.
+      ...(request.instructions === undefined ? {} : { firstPrompt: kickoff })
     })
   } catch (error) {
     logUnexpected(deps, error)
     return { card, chat: null, problem: `${card.key} is played, but its chat could not be created: ${reasonOf(error)}. ${PLAY_AGAIN}` }
   }
 
-  const kickoff = kanbanKickoff({ cardId: card.id, key: card.key, title: card.title, branch })
   const failure = await terminalStep(deps, () => deps.terminals.start(chat, { kickoff }))
   if (failure !== null) {
     const removed = await removeChat(deps, chat)
