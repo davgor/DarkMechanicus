@@ -39,11 +39,21 @@ Every sprint ends in one acceptance node (`kind: acceptance`). A new sprint gets
 
 ## Sprints and checkpoints
 
-- A sprint is a milestone: tickets that together reach something demonstrable. Sprints run in order. Each ends in a checkpoint where a report is submitted and, by default, a person approves before the next sprint starts.
+- A sprint is like a human team's sprint: it has one key deliverable, something the person can use or see at the checkpoint that they could not before. Sprints run in order. Each ends in a checkpoint where a report is submitted and, by default, a person approves before the next sprint starts.
 - Default to one sprint for one coherent outcome. Put feasibility and interface-risk investigations first as required prerequisite tickets; their accepted results and row checks gate implementation without an extra human checkpoint. Dependency depth, parallel branches and uncertainty alone do not justify more sprints.
-- Add a sprint when there is a distinct demonstrable increment or an explicit consequential human decision that must precede the next work. State that boundary's purpose and the additional full acceptance/report/approval cost in the rationale; do not multiply checkpoints merely to separate investigation from implementation.
+- Add a sprint only for a second, separately usable deliverable, or for an explicit consequential human decision that must precede the next work. State that boundary's purpose and the additional full acceptance/report/approval cost in the rationale.
+- Never cut a sprint boundary through one deliverable. Each of these splits a deliverable arbitrarily and is a reason to merge sprints, not to add one:
+  - by layer: an engine, store or API in one sprint and its UI, card or wiring in the next;
+  - plumbing before the feature: infrastructure whose only consumer arrives in a later sprint;
+  - the risky part later: hold risk with dependencies, the investigation's accepted result and the acceptance node, not with a checkpoint;
+  - proof later: the real-run smoke, runbook and documentation belong in the sprint whose deliverable they prove;
+  - a serial chain cut in half: a checkpoint in the middle of a linear chain only pauses it;
+  - feasibility uncertainty alone: the investigation is the first required ticket.
+- Test every boundary: at this checkpoint, what can the person use or see that they could not before, and would they accept it if the epic stopped here? If the answer is library code, an engine without a surface or "nothing until the next sprint", merge the sprints.
+- A spike sprint is the one investigation-only sprint allowed: when the investigation decides whether and how the rest is built at all (an unreleased or unproven third-party dependency), Sprint 1 is the spike and its deliverable is a vetted next sprint, with real commands, pins, verified source locations, tests and sizes, or that sprint's removal, for the person to approve at the checkpoint. Mark the later sprint's tickets provisional.
+- The same rule applies to epics: an epic whose only output is shared infrastructure for other epics is a layer split. Unless the person decides otherwise, ship its first real consumer in the same epic.
 - A prerequisite must sit in the same sprint or an earlier one. A prerequisite in a later sprint is a validation error. Fix it by moving the prerequisite into the dependent's sprint or an earlier one, moving the dependent ticket to a later sprint (`move_ticket` either way), or removing the edge.
-- Put risky and unknown work early. Keep sprints small enough that a checkpoint is a meaningful decision point.
+- Put risky and unknown work early, inside the sprint, as prerequisite tickets. Keep each checkpoint a meaningful decision point.
 - Give each sprint a `goal` and `exitCriteria`: checkable statements that the sprint report will answer one by one. `entryCriteria` list what must already be true.
 - `checkpoint.mode` is `human` by default and should stay that way. `auto` is only a request and takes effect only if the person authorizes auto-continue on the run. Never use it to skip approvals.
 

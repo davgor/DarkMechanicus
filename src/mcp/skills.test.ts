@@ -136,6 +136,11 @@ describe('SKILLS_VERSION', () => {
     const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
     expect(major > 1 || (major === 1 && minor >= 9)).toBe(true)
   })
+
+  it('moved past 1.9.0 when the planning guides started requiring one key deliverable per sprint', () => {
+    const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
+    expect(major > 1 || (major === 1 && minor >= 10)).toBe(true)
+  })
 })
 
 /** Phrases each skill must keep; a guard against accidentally dropping a rule during edits. */
@@ -175,7 +180,10 @@ const REQUIRED: [string, string[]][] = [
       'give the title without it',
       'Acceptance nodes take no `repo`',
       'redraft',
-      '`update_kanban_card`'
+      '`update_kanban_card`',
+      'one key deliverable',
+      'Never split a deliverable across sprints',
+      'spike sprint'
     ]
   ],
   [
@@ -197,7 +205,14 @@ const REQUIRED: [string, string[]][] = [
       '`set_definition_of_done`',
       'its own ticket',
       'row',
-      'each covering criterion names the repository its check runs in'
+      'each covering criterion names the repository its check runs in',
+      'one key deliverable',
+      'Never cut a sprint boundary',
+      'by layer',
+      'what can the person use or see',
+      'spike sprint',
+      'a vetted next sprint',
+      'ship its first real consumer in the same epic'
     ]
   ],
   [
