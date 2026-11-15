@@ -37,7 +37,7 @@ describe('App agents section', () => {
     h.dm.agents = [claude]
     h.dm.agentStatuses.claude = { state: 'signed_in', reason: 'Signed in.' }
     await mount()
-    const row = sidebar().getByRole('button', { name: /Claude Code/ })
+    const row = sidebar().getByRole('button', { name: /^Claude Code/ })
     expect(within(row).getByText('v2.1.4')).toBeTruthy()
     expect(within(row).getByText('Signed in')).toBeTruthy()
   })
@@ -83,7 +83,7 @@ describe('App add-agent pane actions', () => {
     fireEvent.click(workspace().getByRole('button', { name: 'Find Claude Code' }))
     await settle()
     expect(h.dm.agentCallsOf('findAgent')).toEqual([['claude']])
-    expect(sidebar().getByRole('button', { name: /Claude Code/ })).toBeTruthy()
+    expect(sidebar().getByRole('button', { name: /^Claude Code/ })).toBeTruthy()
     expect(workspace().getByText('Connected · v2.1.4')).toBeTruthy()
   })
 
@@ -95,7 +95,7 @@ describe('App add-agent pane actions', () => {
     await settle()
     fireEvent.click(workspace().getByRole('button', { name: 'Update Claude Code' }))
     await settle()
-    fireEvent.click(sidebar().getByRole('button', { name: /Claude Code/ }))
+    fireEvent.click(sidebar().getByRole('button', { name: /^Claude Code/ }))
     await settle()
     expect(workspace().getByText('Waiting for your confirmation…')).toBeTruthy()
     expect((workspace().getByRole('button', { name: 'Update' }) as HTMLButtonElement).disabled).toBe(true)
@@ -107,18 +107,18 @@ describe('App agent page', () => {
   it('opens from the sidebar and marks its row', async () => {
     h.dm.agents = [claude]
     await mount()
-    fireEvent.click(sidebar().getByRole('button', { name: /Claude Code/ }))
+    fireEvent.click(sidebar().getByRole('button', { name: /^Claude Code/ }))
     await settle()
     expect(workspace().getByRole('heading', { level: 1, name: 'Claude Code' })).toBeTruthy()
     expect(workspace().getByText('/usr/local/bin/claude')).toBeTruthy()
-    expect(sidebar().getByRole('button', { name: /Claude Code/ }).getAttribute('aria-current')).toBe('true')
+    expect(sidebar().getByRole('button', { name: /^Claude Code/ }).getAttribute('aria-current')).toBe('true')
     expect(onFolderHome()).toBe(false)
   })
 
   it('is still open after a reload', async () => {
     h.dm.agents = [claude]
     await mount()
-    fireEvent.click(sidebar().getByRole('button', { name: /Claude Code/ }))
+    fireEvent.click(sidebar().getByRole('button', { name: /^Claude Code/ }))
     await settle()
     cleanup()
     await mount()
@@ -153,7 +153,7 @@ describe('App agent page fallback', () => {
   it('removes the agent after a confirmation and falls back to the folder view', async () => {
     h.dm.agents = [claude]
     await mount()
-    fireEvent.click(sidebar().getByRole('button', { name: /Claude Code/ }))
+    fireEvent.click(sidebar().getByRole('button', { name: /^Claude Code/ }))
     await settle()
     fireEvent.click(workspace().getByRole('button', { name: 'Remove' }))
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Remove' }))

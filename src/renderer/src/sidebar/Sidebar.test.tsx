@@ -209,7 +209,7 @@ describe('Sidebar agents', () => {
   it('forwards the + button and an agent choice', () => {
     const calls = renderSidebar([alpha], {}, [agentView({ kind: 'claude' })])
     fireEvent.click(screen.getByRole('button', { name: 'Add an agent' }))
-    fireEvent.click(screen.getByRole('button', { name: /Claude Code/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Claude Code/ }))
     expect(calls.addAgent).toBe(1)
     expect(calls.agents).toEqual(['claude'])
     expect(calls.track).toBe(0)

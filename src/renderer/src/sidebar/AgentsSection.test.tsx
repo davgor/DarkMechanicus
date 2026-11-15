@@ -122,14 +122,14 @@ describe('AgentsSection list', () => {
 
   it('opens the page of the agent whose row is chosen', () => {
     const calls = renderSection([claude, codex])
-    fireEvent.click(screen.getByRole('button', { name: /Codex/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Codex/ }))
     expect(calls.selected).toEqual(['codex'])
   })
 
   it('marks the agent whose page is open', () => {
     renderSection([claude, codex], {}, 'codex')
-    expect(screen.getByRole('button', { name: /Codex/ }).getAttribute('aria-current')).toBe('true')
-    expect(screen.getByRole('button', { name: /Claude Code/ }).getAttribute('aria-current')).toBeNull()
+    expect(screen.getByRole('button', { name: /^Codex/ }).getAttribute('aria-current')).toBe('true')
+    expect(screen.getByRole('button', { name: /^Claude Code/ }).getAttribute('aria-current')).toBeNull()
   })
 
   it('lists a custom agent by its name, with no Sign in, and opens its page by its id', () => {
@@ -139,7 +139,7 @@ describe('AgentsSection list', () => {
     expect(row.getByText('My Claude')).toBeTruthy()
     expect(row.getByText('Sign-in not checked')).toBeTruthy()
     expect(row.queryByRole('button', { name: 'Sign in' })).toBeNull()
-    fireEvent.click(row.getByRole('button', { name: /My Claude/ }))
+    fireEvent.click(row.getByRole('button', { name: /^My Claude/ }))
     expect(calls.selected).toEqual([custom.id])
   })
 })
