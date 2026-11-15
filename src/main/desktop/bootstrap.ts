@@ -337,6 +337,18 @@ function createTerminalProcesses(store: ChatStore, deps: TerminalDeps): Pick<Cha
   return { terminals, logins }
 }
 
+/** The chat records over the store; deleting an OMP chat removes its own folder, and a project-less chat its scratch folder. */
+function chatRecordsOver(store: ChatStore, activity: ActivityBindings, agents: Pick<AgentRegistry, 'get'>): ChatRecords {
+  const userData = app.getPath('userData')
+  return createChatRecords({
+    store,
+    activity,
+    agentFor: (id) => agents.get(id),
+    removeOmpFolder: (id) => removeOmpFolder(userData, id),
+    removeScratch: (id) => removeScratchFolder(userData, id)
+  })
+}
+
 /**
  * The agent chats (`userData/agents/chats`) with the connected agents, each run in its terminal. When an
  * orchestrator chat's agent turns out to be signed out, the run it orchestrates is paused with the reason
@@ -385,17 +397,7 @@ function createChatProcesses(
       await Promise.all([terminals.dispose(), logins.dispose()])
     }
   }
-  const userData = app.getPath('userData')
-  const chats = endingTerminals(
-    createChatRecords({
-      store,
-      activity,
-      agentFor: (id) => agents.get(id),
-      removeOmpFolder: (id) => removeOmpFolder(userData, id),
-      removeScratch: (id) => removeScratchFolder(userData, id)
-    }),
-    terminals
-  )
+  const chats = endingTerminals(chatRecordsOver(store, activity, agents), terminals)
   return { chats, quit, store, terminals, logins }
 }
 

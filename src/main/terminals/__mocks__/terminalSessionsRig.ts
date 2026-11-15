@@ -229,20 +229,10 @@ function rigKillTree(rig: RigBase, options: RigOptions): TerminalSessionsDeps['k
   }
 }
 
-/** The manager's dependencies, each on the rig's fakes. */
-function rigDeps(rig: RigBase, options: RigOptions): TerminalSessionsDeps {
+/** The grants the rig's manager is issued, renewed and revoked: numbered `gr_1` up, every step written down. */
+function rigGrants(rig: RigBase): Pick<TerminalSessionsDeps, 'issueChatCli' | 'issueReachCli' | 'reachFolders' | 'revokeChatGrant' | 'renewChatGrant'> {
   let grants = 0
-  let sessions = 0
   return {
-    store: rig.store,
-    agentFor: connectedAgents(options.agents ?? [builtInAgent('claude'), builtInAgent('autonomous'), CUSTOM_AGENT]),
-    folders: { trackedFolder: (path) => (rig.tracked.has(path) ? path : null) },
-    checkAuth: async () => {
-      rig.steps.push('auth')
-      return rig.auth.held === null ? rig.auth.status : rig.auth.held.promise
-    },
-    cliFor,
-    runs: rigRuns(rig),
     issueChatCli: async (folder) => {
       rig.grantsAsked += 1
       grants += 1
@@ -270,7 +260,24 @@ function rigDeps(rig: RigBase, options: RigOptions): TerminalSessionsDeps {
     },
     renewChatGrant: async (grantId) => {
       rig.renewed.push(grantId)
+    }
+  }
+}
+
+/** The manager's dependencies, each on the rig's fakes. */
+function rigDeps(rig: RigBase, options: RigOptions): TerminalSessionsDeps {
+  let sessions = 0
+  return {
+    store: rig.store,
+    agentFor: connectedAgents(options.agents ?? [builtInAgent('claude'), builtInAgent('autonomous'), CUSTOM_AGENT]),
+    folders: { trackedFolder: (path) => (rig.tracked.has(path) ? path : null) },
+    checkAuth: async () => {
+      rig.steps.push('auth')
+      return rig.auth.held === null ? rig.auth.status : rig.auth.held.promise
     },
+    cliFor,
+    runs: rigRuns(rig),
+    ...rigGrants(rig),
     // Counts every release, so a release made twice shows.
     keepAwake: () => {
       rig.awake += 1

@@ -100,24 +100,32 @@ function AddFolderMenu({ onTrack, onClone }: Pick<SidebarProps, 'onTrack' | 'onC
   )
 }
 
+/** The AGENTS section, with the chat open in the main area (a folder's, or a project-less one) marked in its agent's list. */
+function SidebarAgents(props: SidebarProps): JSX.Element {
+  const { agentPane, chatId } = props.selection
+  const openChatId = agentPane === undefined ? (chatId ?? null) : agentPane.kind === 'chat' ? agentPane.chatId : null
+  return (
+    <AgentsSection
+      agents={props.agents}
+      statuses={props.agentStatuses}
+      selected={agentPane?.kind === 'agent' ? agentPane.agent : null}
+      chats={{ ...props.agentChats, folders: props.folders, selectedChatId: openChatId }}
+      onAdd={props.onAddAgent}
+      onSelect={props.onSelectAgent}
+      onStatus={props.onAgentStatus}
+    />
+  )
+}
+
 /** The left panel: connected agents, tracked folders with their epic buckets and chats, then the status footer. */
 export function Sidebar(props: SidebarProps): JSX.Element {
   const { agentPane } = props.selection
   // While an agents screen is open no folder or epic is the current one.
   const folderSelection = agentPane === undefined ? props.selection : EMPTY_SELECTION
-  const openChatId = agentPane === undefined ? (props.selection.chatId ?? null) : agentPane.kind === 'chat' ? agentPane.chatId : null
   return (
     <aside className="sidebar" aria-label="Tracked folders">
       <Brand version={props.version} />
-      <AgentsSection
-        agents={props.agents}
-        statuses={props.agentStatuses}
-        selected={agentPane?.kind === 'agent' ? agentPane.agent : null}
-        chats={{ ...props.agentChats, folders: props.folders, selectedChatId: openChatId }}
-        onAdd={props.onAddAgent}
-        onSelect={props.onSelectAgent}
-        onStatus={props.onAgentStatus}
-      />
+      <SidebarAgents {...props} />
       <div className="sidebar-head">
         <span className="eyebrow">FOLDERS</span>
         <AddFolderMenu onTrack={props.onTrack} onClone={props.onClone} />

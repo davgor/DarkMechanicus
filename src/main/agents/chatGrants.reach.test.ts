@@ -111,7 +111,9 @@ describe('chat grants: a project-less chat reaching every tracked folder', () =>
 
     expect(() => cliSession(state, beta, alphaToken)).toThrow(expect.objectContaining({ code: 'unauthorized' }))
   })
+})
 
+describe('chat grants: a project-less chat’s grants revoked and bound for naming', () => {
   it('revokes every grant it issued, after which no token opens its folder', async () => {
     const state = await rig()
     const issued = await state.grants.issueReachCli(targets(), GRANT)

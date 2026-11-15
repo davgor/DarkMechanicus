@@ -92,7 +92,9 @@ describe('AGENTS section: each agent’s chats', () => {
     expect(h.dm.chats.callsOf('delete')).toEqual([[{ folder: null, chatId: SUMMONED.id }]])
     expect(rows()).toEqual(['Beta work | beta', 'Alpha plan | alpha'])
   })
+})
 
+describe('AGENTS section: opening an agent’s chats', () => {
   it('opens a folder chat in its folder and a project-less chat on its own, each in its terminal', async () => {
     await mount()
     await expand()

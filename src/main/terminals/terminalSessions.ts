@@ -923,6 +923,19 @@ function recordLaunch({ manager, chat }: StartContext, spec: TerminalLaunchSpec,
   })
 }
 
+/** Binds each of the PTY's grants to it for naming; a binding that fails stops the PTY, and the failure is thrown. */
+function bindGrants(manager: Manager, live: Live, grantIds: readonly string[]): void {
+  const { chat } = live
+  try {
+    for (const grantId of grantIds) {
+      manager.deps.bindChatGrant?.(grantId, { folder: chat.folder, chatId: chat.id, generation: live.generation })
+    }
+  } catch (error) {
+    void stop(manager, live, 'The terminal could not bind its chat naming authority.')
+    throw error
+  }
+}
+
 /**
  * Builds the launch, stores the grants' ids, the session id the CLI runs under and a kickoff on its command line
  * (`kickoffSent`) on the chat, then spawns; throws on any failure (the caller revokes).
@@ -958,14 +971,7 @@ async function spawnWithGrant(context: StartContext, files: TerminalFiles, issue
   const marksStarted = marksSessionStarted(agent, chat)
   const firstPaste = spec.pasteFirst === null ? null : { text: spec.pasteFirst, kickoff: spec.kickoffIn === 'paste' }
   const live = startLive(manager, chat, { pty, screen, grantIds: issued.grantIds, resumed: spec.resumed, marksStarted, firstPaste })
-  try {
-    for (const grantId of issued.grantIds) {
-      manager.deps.bindChatGrant?.(grantId, { folder: chat.folder, chatId: chat.id, generation: live.generation })
-    }
-  } catch (error) {
-    void stop(manager, live, 'The terminal could not bind its chat naming authority.')
-    throw error
-  }
+  bindGrants(manager, live, issued.grantIds)
   if (firstArgument) finishArgumentPrompt(manager, chat, live)
   return live
 }

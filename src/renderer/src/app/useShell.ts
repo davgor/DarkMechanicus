@@ -92,16 +92,15 @@ function knownChats(chats: ChatsModel, folderPath: string | null): readonly Chat
  */
 function useSelection(
   folders: ReturnType<typeof useFolders>,
-  connected: readonly AgentView[] | null,
-  projectless: readonly ChatRecord[] | null,
+  loaded: { agents: readonly AgentView[] | null; projectless: readonly ChatRecord[] | null },
   expansion: Expansion,
   onError: (error: unknown) => void
 ): { selection: Selection; select(selection: Selection): void; paths: string[]; chats: ChatsModel } {
   const [stored, select] = usePersistentState(SELECTION_STORAGE_KEY, EMPTY_SELECTION, isSelection)
-  const folderPath = resolveSelection(stored, folders.folders, folders.loaded, { agents: connected, projectless }).folderPath
+  const folderPath = resolveSelection(stored, folders.folders, folders.loaded, loaded).folderPath
   const paths = activeFolderPaths(folders.folders, folderPath, expansion.isFolderExpanded)
   const chats = useChats({ paths, onError })
-  const known = { agents: connected, projectless, chats: knownChats(chats, stored.folderPath) }
+  const known = { ...loaded, chats: knownChats(chats, stored.folderPath) }
   return { selection: resolveSelection(stored, folders.folders, folders.loaded, known), select, paths, chats }
 }
 
@@ -162,7 +161,7 @@ export function useShell(scheduler: Scheduler): ShellModel {
   const [folderTabs, setFolderTab] = useFolderTabs()
   const allChats = useAllChats({ tracked: folders.folders.map((folder) => folder.path), onError: toasts.reportError })
   const projectless = allChats.status === 'loading' ? null : allChats.chats.filter((chat) => chat.folder === null)
-  const { selection, select, paths, chats } = useSelection(folders, connected, projectless, expansion, toasts.reportError)
+  const { selection, select, paths, chats } = useSelection(folders, { agents: connected, projectless }, expansion, toasts.reportError)
   const selected = findFolder(folders.folders, selection.folderPath)
   const feed = useEventFeed({ paths, selectedPath: selection.folderPath, scheduler, onError: toasts.reportError })
   const lists = useEpicLists({ paths, tokens: feed.tokens, onError: toasts.reportError })

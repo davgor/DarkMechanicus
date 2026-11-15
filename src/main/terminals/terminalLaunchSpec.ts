@@ -385,12 +385,34 @@ function literalPopupPaste(input: TerminalLaunchInput): string | null {
   return /^-|^\S*$/.test(input.kickoff) ? input.kickoff : null
 }
 
+/** The chat's instructions, for a CLI that takes them as text: the same text `writeTerminalFiles` wrote. */
+function instructionsTextFor(input: TerminalLaunchInput, launcherDir: string | null): string {
+  const { chat } = input
+  return terminalInstructions({
+    cli: input.cli,
+    role: chat.role,
+    allowSave: chat.allowSave,
+    launcherDir,
+    orchestratesRun: chat.runId !== undefined,
+    nameFirstPrompt: chat.titleStatus === 'pending',
+    transferEpicId: chat.transferEpicId,
+    cardId: chat.cardId,
+    ...(input.reach === undefined ? {} : { reach: input.reach })
+  })
+}
+
+/** The terminal's environment (`terminalEnv.ts`); a project-less chat that reaches no folder starts with no grant. */
+function envFor(input: TerminalLaunchInput, launcherDir: string | null): Record<string, string> {
+  const { platform, agent } = input
+  return terminalEnv({ base: input.env, platform, kind: agent.kind, cli: input.cli, launcherDir, ...(input.reach?.length === 0 ? { grantless: true as const } : {}) })
+}
+
 export function terminalLaunchSpec(input: TerminalLaunchInput): TerminalLaunchSpec {
   refuseMismatches(input)
   const { chat, agent, files, platform } = input
   const literalPaste = literalPopupPaste(input)
   const launcherDir = platform === 'win32' ? null : files.launcherDir
-  const env = terminalEnv({ base: input.env, platform, kind: agent.kind, cli: input.cli, launcherDir, ...(input.reach?.length === 0 ? { grantless: true as const } : {}) })
+  const env = envFor(input, launcherDir)
   const program: Program = platform === 'win32' ? windowsProgram(input) : { file: agent.executablePath, leading: [], viaShim: false }
   const dropped: DroppedValue[] = []
   const model = checkedModel(input, dropped)
@@ -398,17 +420,7 @@ export function terminalLaunchSpec(input: TerminalLaunchInput): TerminalLaunchSp
   const launch = KIND_LAUNCHES[agent.kind]({
     folder: input.folder,
     instructionsPath: files.instructions,
-    instructionsText: terminalInstructions({
-      cli: input.cli,
-      role: chat.role,
-      allowSave: chat.allowSave,
-      launcherDir,
-      orchestratesRun: chat.runId !== undefined,
-      nameFirstPrompt: chat.titleStatus === 'pending',
-      transferEpicId: chat.transferEpicId,
-      cardId: chat.cardId,
-      ...(input.reach === undefined ? {} : { reach: input.reach })
-    }),
+    instructionsText: instructionsTextFor(input, launcherDir),
     claudeSettings: files.claudeSettings,
     ompSessionDir: files.omp?.sessionDir,
     ompConfig: files.omp?.config,

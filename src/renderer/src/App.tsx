@@ -343,13 +343,34 @@ function ShellSidebar({ shell, version, onNewChat, onSummon, onClone, onRequestU
   )
 }
 
+/** Whose first prompt the popup asks for: an agent's, for a chat in a folder or, with `folder` null, a project-less chat summoned from its row. */
+interface FirstPromptRequest {
+  folder: TrackedFolderView | null
+  agent: string
+}
+
+/** The first-prompt popup; Start creates the chat (in its folder, or project-less) and opens it. */
+function FirstPromptHost({ shell, request, onClose }: { shell: ShellModel; request: FirstPromptRequest; onClose(): void }): JSX.Element {
+  const { actions } = shell
+  const { folder, agent } = request
+  return (
+    <FirstPromptDialog
+      onClose={onClose}
+      onSubmit={async (prompt) =>
+        (folder === null
+          ? await actions.summonChat(agent, prompt)
+          : await actions.createChat(folder, { agent, model: null, role: 'orchestrator', allowSave: true, firstPrompt: prompt })) !== null
+      }
+    />
+  )
+}
+
 function Shell({ scheduler, EpicView, terminalKit }: { scheduler: Scheduler; EpicView: EpicView; terminalKit: TerminalKit }): JSX.Element {
   const update = useAppUpdate()
   const shell = useShell(scheduler)
   const [pending, setPending] = useState<TrackedFolderView | null>(null)
   const startingChats = useRef(new Set<string>())
-  // The folder of the chat the first prompt is asked for; null for a project-less chat summoned from an agent's row.
-  const [firstPrompt, setFirstPrompt] = useState<{ folder: TrackedFolderView | null; agent: string } | null>(null)
+  const [firstPrompt, setFirstPrompt] = useState<FirstPromptRequest | null>(null)
   const signIn = useSignInView(shell.selection)
   const signingIn = signIn.request !== null
   const [cloning, setCloning] = useState(false)
@@ -371,16 +392,7 @@ function Shell({ scheduler, EpicView, terminalKit }: { scheduler: Scheduler; Epi
         </main>
         <UpdateBanner />
         {cloning ? <CloneHost shell={shell} onClose={() => setCloning(false)} /> : null}
-        {firstPrompt === null ? null : (
-          <FirstPromptDialog
-            onClose={() => setFirstPrompt(null)}
-            onSubmit={async (prompt) =>
-              (firstPrompt.folder === null
-                ? await actions.summonChat(firstPrompt.agent, prompt)
-                : await actions.createChat(firstPrompt.folder, { agent: firstPrompt.agent, model: null, role: 'orchestrator', allowSave: true, firstPrompt: prompt })) !== null
-            }
-          />
-        )}
+        {firstPrompt === null ? null : <FirstPromptHost shell={shell} request={firstPrompt} onClose={() => setFirstPrompt(null)} />}
         {pending === null ? null : (
           <UntrackDialog
             folder={pending}

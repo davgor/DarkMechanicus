@@ -61,7 +61,9 @@ describe('terminal sessions: a project-less chat', () => {
     }
     expect(launcher).not.toContain('--repo')
   })
+})
 
+describe('terminal sessions: a project-less chat’s grants on every way out', () => {
   it('revokes every grant when its CLI exits', async () => {
     const { pty } = await startTerminal(rig, rig.newProjectless())
 
@@ -105,7 +107,9 @@ describe('terminal sessions: a project-less chat', () => {
     expect(pty.kills).toBe(1)
     expect(sorted(rig.revoked)).toEqual(['gr_1', 'gr_2'])
   })
+})
 
+describe('terminal sessions: starting a project-less chat again', () => {
   it('starts with no grant and says so while no tracked folder is set up, reaching folders tracked later from its next start', async () => {
     rig.reach = []
     const chat = rig.newProjectless()

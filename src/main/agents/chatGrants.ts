@@ -43,7 +43,7 @@ interface ChatGrantsDeps {
 interface GrantOptions { role: ChatRole; allowSave: boolean; label: string }
 export interface IssuedChatCli { cli: DarkMechanicusCli; grantId: string }
 /** A project-less chat's `dm` invocation, pinned to no folder, and the grants it holds, one per folder, in the targets' order. */
-export interface IssuedReachCli { cli: DarkMechanicusCli; grantIds: string[] }
+interface IssuedReachCli { cli: DarkMechanicusCli; grantIds: string[] }
 /** The live terminal a grant is bound to for naming: its chat's folder (null for a project-less chat), id and start. */
 interface LiveIdentity { folder: string | null; chatId: string; generation: string }
 
@@ -83,6 +83,11 @@ async function through(held: HeldGrant, act: (workspace: Workspace) => Promise<u
       held.workspace.close()
     }
   }
+}
+
+/** Whether a terminal of a chat in `chatFolder` may be bound by the grant: a folder chat's by a grant of its own folder, a project-less chat's only by one issued to it. */
+function ownedBy(grant: HeldGrant, chatFolder: string | null): boolean {
+  return chatFolder === null ? grant.projectless : !grant.projectless && realpathSync.native(chatFolder) === grant.folder
 }
 
 class ChatGrantRegistry implements ChatGrants {
@@ -143,19 +148,26 @@ class ChatGrantRegistry implements ChatGrants {
     }
     return { cli: this.withGrant(this.deps.cliFor(null), issued[0]?.token ?? ''), grantIds: issued.map(({ grantId }) => grantId) }
   }
-  bindChatGrant(grantId: string, identity: LiveIdentity): void {
+  /** The held grant a live terminal of the chat may be bound by, or `unauthorized`. */
+  private bindable(grantId: string, identity: LiveIdentity): HeldGrant {
     const grant = this.held.get(grantId)
-    // A folder chat's terminal is bound by a grant of its own folder, a project-less chat's only by one issued to it.
-    const ownGrant = identity.folder === null ? grant?.projectless === true : grant?.projectless === false && realpathSync.native(identity.folder) === grant.folder
-    if (!grant || grant.lifetime.signal.aborted || grant.live !== null || !ownGrant || identity.generation === '') throw new NamingControlError('unauthorized')
+    if (!grant || grant.lifetime.signal.aborted || grant.live !== null || identity.generation === '' || !ownedBy(grant, identity.folder)) throw new NamingControlError('unauthorized')
+    return grant
+  }
+  /** Ends the bindings of the chat's earlier starts; a project-less start binds each of its grants, all of one generation. */
+  private invalidateEarlierStarts(binding: NamingControlBinding): void {
+    for (const previous of this.liveByHash.values()) {
+      const live = previous.live
+      if (live?.folder === binding.folder && live.chatId === binding.chatId && live.generation !== binding.generation) this.invalidate(previous)
+    }
+  }
+  bindChatGrant(grantId: string, identity: LiveIdentity): void {
+    const grant = this.bindable(grantId, identity)
     const binding: NamingControlBinding = {
       grantId, folder: identity.folder === null ? null : grant.folder, chatId: identity.chatId, generation: identity.generation,
       signal: grant.lifetime.signal, assertCurrent: () => this.assertBinding(grantId, grant, binding)
     }
-    // An earlier start's bindings go; a project-less start binds each of its grants, all of one generation.
-    for (const previous of this.liveByHash.values()) {
-      if (previous.live?.folder === binding.folder && previous.live.chatId === binding.chatId && previous.live.generation !== binding.generation) this.invalidate(previous)
-    }
+    this.invalidateEarlierStarts(binding)
     grant.live = binding
     this.liveByHash.set(grant.tokenHash, grant)
   }
