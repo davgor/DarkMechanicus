@@ -30,6 +30,7 @@ import type {
   ChatRequestRef,
   ChatsApi,
   CreateChatRequest,
+  SummonChatRequest,
   KickBackKanbanCardRequest,
   KickBackKanbanCardResult,
   StartKanbanCardRequest,
@@ -51,6 +52,7 @@ import type { Deferred } from './deferred'
 
 type Method =
   | 'list'
+  | 'listAll'
   | 'create'
   | 'startOrchestrator'
   | 'startTransferChat'
@@ -143,16 +145,22 @@ export class FakeChats implements ChatsApi {
     return this.call('list', [folder], () => ({ ok: true, data: this.inFolder(folder) }))
   }
 
-  create(request: CreateChatRequest): Promise<CommandResult<ChatRecord>> {
+  /** Every stored chat, newest first: the fake tracks every folder its chats name. */
+  listAll(): Promise<CommandResult<ChatRecord[]>> {
+    return this.call('listAll', [], () => ({ ok: true, data: this.newestFirst(this.chats) }))
+  }
+
+  /** A folder chat as asked, or a project-less one as main makes it: an orchestrator that may save. */
+  create(request: CreateChatRequest | SummonChatRequest): Promise<CommandResult<ChatRecord>> {
     return this.call('create', [request], () => {
       this.created += 1
       const chat = chatRecord({
         id: `chat_new_${this.created}`,
         folder: request.folder,
         agent: request.agent,
-        role: request.role,
+        role: request.folder === null ? 'orchestrator' : request.role,
         model: request.model ?? null,
-        allowSave: request.allowSave ?? true,
+        allowSave: request.folder === null ? true : (request.allowSave ?? true),
         title: request.title ?? 'New chat',
         createdAt: this.tick(),
         updatedAt: this.tick()
@@ -342,10 +350,11 @@ export class FakeChats implements ChatsApi {
   }
 
   private inFolder(folder: string): ChatRecord[] {
-    return this.chats
-      .filter((chat) => chat.folder === folder)
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-      .map((chat) => ({ ...chat }))
+    return this.newestFirst(this.chats.filter((chat) => chat.folder === folder))
+  }
+
+  private newestFirst(chats: readonly ChatRecord[]): ChatRecord[] {
+    return [...chats].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).map((chat) => ({ ...chat }))
   }
 
   /** Strictly increasing ISO timestamps, later than anything a test seeds by hand. */

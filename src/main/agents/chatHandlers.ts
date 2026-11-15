@@ -7,6 +7,10 @@
  * or MCP arguments. Agent ids are checked against the agent registry (`not_found` for one that is not
  * connected) before anything runs. Answers are `CommandResult`s, like `dm:command`, so the UI gets the
  * error code and message.
+ *
+ * A project-less chat (`folder` null) is named by a null folder in the requests about one chat (read, rename,
+ * delete) and created by `create` with a null folder and no role or Allow save: it is an orchestrator that may save,
+ * as the person decided project-less chats are. Every other request needs a tracked folder.
  */
 import { z } from 'zod'
 import { DomainError, toErrorShape } from '../../core/errors'
@@ -29,7 +33,7 @@ import type { FolderRegistry } from '../desktop/folderRegistry'
 import { kickBackKanbanCard, startKanbanCard, type KanbanCards } from '../kanban/startKanbanCard'
 import type { BoundTarget } from './boundThreads'
 import type { ChatRecords } from './chatRecords'
-import type { ChatRef } from './chatStore'
+import { byRecency, type ChatRef } from './chatStore'
 import { refuseSwappedFolder } from './launchFolder'
 import { startOrchestratorRun, type OrchestratorRuns } from './orchestratorStart'
 import { findTransferChat, startTransferChat, transferPrompt, type TransferReads } from './transferStart'
@@ -42,7 +46,8 @@ const MAX_MODEL_LENGTH = 200
 /** A folder as the renderer names it; bounded by the Windows long-path maximum. */
 export const folderSchema = z.string().min(1).max(MAX_PATH_LENGTH)
 const modelSchema = z.string().min(1).max(MAX_MODEL_LENGTH)
-const refShape = { folder: folderSchema, chatId: chatIdSchema }
+const refShape = { folder: folderSchema.nullable(), chatId: chatIdSchema }
+const firstPromptSchema = z.string().min(1).max(32_000).refine((text) => text.trim().length > 0, 'First prompt must not be blank').optional()
 
 const createSchema = z.strictObject({
   folder: folderSchema,
@@ -51,7 +56,15 @@ const createSchema = z.strictObject({
   model: modelSchema.nullable().optional(),
   allowSave: z.boolean().optional(),
   title: z.string().max(LIMITS.title).optional(),
-  firstPrompt: z.string().min(1).max(32_000).refine((text) => text.trim().length > 0, 'First prompt must not be blank').optional()
+  firstPrompt: firstPromptSchema
+})
+/** A project-less chat: no folder, and no role or Allow save, which main decides. */
+const summonSchema = z.strictObject({
+  folder: z.null(),
+  agent: agentIdSchema,
+  model: modelSchema.nullable().optional(),
+  title: z.string().max(LIMITS.title).optional(),
+  firstPrompt: firstPromptSchema
 })
 /** Only an epic, an agent and its model, for an orchestrator or a transfer chat: the role, Allow save, title, kickoff message and what the chat records are decided in main. */
 const startOrchestratorSchema = z.strictObject({
@@ -77,7 +90,8 @@ const renameSchema = z.strictObject({ ...refShape, title: z.string().trim().min(
 export type BoundTerminalLookup = (folder: string, target: BoundTarget) => Promise<string | null>
 
 interface ChatHandlerDeps {
-  registry: Pick<FolderRegistry, 'resolve'>
+  /** The tracked folders: what requests are checked against, and whose chats `listAll` lists. */
+  registry: Pick<FolderRegistry, 'resolve' | 'list'>
   /** The connected agents; a request naming any other agent is refused before anything runs. */
   agents: Pick<AgentRegistry, 'get'>
   /** The chat records; deleting a chat through them also ends its terminal (`endingTerminals`). */
@@ -94,7 +108,7 @@ interface ChatHandlerDeps {
   boundThreads?: (folder: string, target: BoundTarget) => BoundThread[]
   /** The chat of a (canonical) folder an attempt or a run is bound to by grant (`grantBindings.ts`); without it none is. */
   boundTerminal?: BoundTerminalLookup
-  /** Told that a chat was created, renamed or deleted, so every window can list the folder's chats again; without it nothing is pushed. */
+  /** Told that a chat was created, renamed or deleted, so every window can list its folder's chats (and every chat) again; without it nothing is pushed. */
   push?: (event: ChatPushEvent) => void
   /** Told about failures that are not DomainErrors (bugs, I/O), so main can log the stack. */
   onUnexpectedError?: (error: unknown) => void
@@ -103,6 +117,8 @@ interface ChatHandlerDeps {
 /** Arguments are `unknown` because they come straight from IPC. */
 export interface ChatHandlers {
   list(folder: unknown): Promise<CommandResult<ChatRecord[]>>
+  /** Every chat that is not deleted: each tracked folder's and the project-less ones, most recently updated first. */
+  listAll(): Promise<CommandResult<ChatRecord[]>>
   create(request: unknown): Promise<CommandResult<ChatRecord>>
   startOrchestrator(request: unknown): Promise<CommandResult<StartOrchestratorResult>>
   startTransferChat(request: unknown): Promise<CommandResult<StartTransferChatResult>>
@@ -120,7 +136,7 @@ export interface ChatHandlers {
 }
 
 /** The canonical path of a tracked folder; anything else is unauthorized, with a refusal naming the folder like `launchFolder`'s. */
-function trackedFolder(deps: Pick<ChatHandlerDeps, 'registry'>, folder: string): string {
+function trackedFolder(deps: { registry: Pick<FolderRegistry, 'resolve'> }, folder: string): string {
   const tracked = deps.registry.resolve(folder)
   if (tracked === null) {
     throw new DomainError(
@@ -135,16 +151,34 @@ function trackedFolder(deps: Pick<ChatHandlerDeps, 'registry'>, folder: string):
  * A tracked folder's canonical path, as its chats are stored under it; an untracked one is unauthorized, and one
  * replaced by a symlink to another directory is refused (`refuseSwappedFolder`), before any chat is looked up.
  */
-export function chatFolder(deps: Pick<ChatHandlerDeps, 'registry'>, folder: string): string {
+export function chatFolder(deps: { registry: Pick<FolderRegistry, 'resolve'> }, folder: string): string {
   const tracked = trackedFolder(deps, folder)
   refuseSwappedFolder(tracked)
   return tracked
 }
 
-/** Validates a request naming one chat and resolves its folder; returns the chat ref and the rest. */
-function chatRequest<T extends { folder: string; chatId: string }>(deps: ChatHandlerDeps, schema: z.ZodType<T>, input: unknown): { ref: ChatRef; request: T } {
+/** Validates a request naming one chat and resolves its folder (null for a project-less chat); returns the chat ref and the rest. */
+function chatRequest<T extends { folder: string | null; chatId: string }>(deps: ChatHandlerDeps, schema: z.ZodType<T>, input: unknown): { ref: ChatRef; request: T } {
   const request = parseInput(schema, input, 'chat request')
-  return { ref: { folder: chatFolder(deps, request.folder), id: request.chatId }, request }
+  return { ref: { folder: request.folder === null ? null : chatFolder(deps, request.folder), id: request.chatId }, request }
+}
+
+/**
+ * Every chat that is not deleted: the chats of each tracked folder (a folder swapped for a symlink to another
+ * directory is left out, as listing it alone is refused), then the project-less ones, most recently updated first.
+ */
+function listAll(deps: ChatHandlerDeps): ChatRecord[] {
+  const folders = deps.registry.list().flatMap(({ path }) => {
+    try {
+      return [chatFolder(deps, path)]
+    } catch (error) {
+      if (error instanceof DomainError) {
+        return []
+      }
+      throw error
+    }
+  })
+  return [...folders.flatMap((folder) => deps.chats.listChats(folder)), ...deps.chats.listChats(null)].sort(byRecency)
 }
 
 /** Validates the request and the folder before anything is queued; see `startOrchestratorRun` for what happens after. */
@@ -218,16 +252,20 @@ export async function answer<T>(deps: Pick<ChatHandlerDeps, 'onUnexpectedError'>
   }
 }
 
-/** Tells every window that the chat was created, renamed or deleted in its (canonical) folder. */
+/** Tells every window that the chat was created, renamed or deleted in its (canonical) folder, or among the project-less chats. */
 function chatsChanged(deps: ChatHandlerDeps, chat: ChatRef): void {
   deps.push?.({ type: 'chats_changed', folder: chat.folder, chatId: chat.id })
 }
 
+/** A chat in a tracked folder, or a project-less one: an orchestrator that may save, reaching every tracked folder. */
 function createChat(deps: ChatHandlerDeps, input: unknown): ChatRecord {
-  const request = parseInput(createSchema, input, 'new chat')
+  const request = parseInput(z.union([createSchema, summonSchema]), input, 'new chat')
   connectedAgent(deps.agents, request.agent)
-  const chat = deps.chats.createChat({ ...request, folder: chatFolder(deps, request.folder) })
-  chatsChanged(deps, { folder: chat.folder, id: chat.id })
+  const chat =
+    request.folder === null
+      ? deps.chats.createChat({ ...request, role: 'orchestrator', allowSave: true })
+      : deps.chats.createChat({ ...request, folder: chatFolder(deps, request.folder) })
+  chatsChanged(deps, chat)
   return chat
 }
 
@@ -249,6 +287,7 @@ export function createChatHandlers(deps: ChatHandlerDeps): ChatHandlers {
   const { chats } = deps
   return {
     list: (folder) => answer(deps, () => chats.listChats(chatFolder(deps, parseInput(folderSchema, folder, 'folder')))),
+    listAll: () => answer(deps, () => listAll(deps)),
     create: (input) => answer(deps, () => createChat(deps, input)),
     startOrchestrator: (input) => answer(deps, () => startOrchestrator(deps, input)),
     startTransferChat: (input) => answer(deps, () => startTransfer(deps, input)),

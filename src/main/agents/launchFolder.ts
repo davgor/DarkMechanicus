@@ -7,7 +7,6 @@
  */
 import { realpathSync, statSync } from 'node:fs'
 import { DomainError } from '../../core/errors'
-import type { ChatRecord } from '../../shared/agents/chat'
 import { canonicalPath, type RegistryFs } from '../desktop/folderRegistry'
 
 export interface LaunchFolderDeps {
@@ -52,9 +51,10 @@ export function refuseSwappedFolder(folder: string, fs: Pick<RegistryFs, 'realpa
 /**
  * The chat's folder as its agent may start in it: the canonical real path, which must exist, be a directory,
  * equal the path the chat stored (a symlink swapped in leads somewhere else), and still be tracked. Throws a
- * `not_found` DomainError naming the folder and the reason otherwise.
+ * `not_found` DomainError naming the folder and the reason otherwise. A project-less chat has no folder to check: it
+ * starts in its own scratch folder (`scratchFolder.ts`).
  */
-export function resolveLaunchFolder(chat: Pick<ChatRecord, 'folder'>, deps: LaunchFolderDeps): string {
+export function resolveLaunchFolder(chat: { folder: string }, deps: LaunchFolderDeps): string {
   const fs = deps.fs ?? nodeFs
   const { folder } = chat
   const canonical = canonicalPath(fs, folder)

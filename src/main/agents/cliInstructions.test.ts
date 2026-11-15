@@ -60,3 +60,29 @@ describe('cliInstructions', () => {
     expect(cliInstructions({ cli: CLI, role: 'worker', allowSave: false })).toContain('**worker**')
   })
 })
+
+describe('cliInstructions: a project-less chat', () => {
+  const unpinned: DarkMechanicusCli = { command: 'node', args: ['/app/out/main/cli.js'], env: { DM_SESSION_TOKEN: 'dmg_secret' } }
+  const reach = [
+    { folder: '/work/alpha', tokenFile: '/scratch/.dm/grants/a.token' },
+    { folder: '/work/my beta', tokenFile: '/scratch/.dm/grants/b.token' }
+  ]
+  const text = cliInstructions({ cli: unpinned, role: 'orchestrator', allowSave: true, reach })
+
+  it('gives one exact command line per tracked folder, naming the folder and its token file', () => {
+    expect(text).toContain("node /app/out/main/cli.js --repo /work/alpha --token-file /scratch/.dm/grants/a.token call get_capabilities '{}'")
+    expect(text).toContain("node /app/out/main/cli.js --repo '/work/my beta' --token-file /scratch/.dm/grants/b.token call get_capabilities '{}'")
+  })
+
+  it('says it is tied to no project, holds an orchestrator grant that may save in each folder, and must name the folder every time', () => {
+    expect(text).toContain('not tied to a project')
+    expect(text).toMatch(/\*\*orchestrator\*\* grant/)
+    expect(text).toContain('This chat may save plans itself.')
+    expect(text).toContain('--repo <folder> --token-file <file>')
+    expect(text).not.toMatch(/Do not pass a role, a token or a repository/)
+  })
+
+  it('never puts a token itself in the prompt', () => {
+    expect(text).not.toContain('dmg_secret')
+  })
+})

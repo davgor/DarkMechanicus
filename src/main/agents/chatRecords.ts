@@ -26,14 +26,19 @@ interface ChatRecordsDeps {
   activity?: Pick<ActivityBindings, 'forgetChat'>
   /** Removes an OMP chat's own folder when the chat is deleted (`ompSession.ts`); without it nothing is removed. */
   removeOmpFolder?: (chatId: string) => Promise<void>
+  /** Removes a project-less chat's scratch folder when the chat is deleted (`scratchFolder.ts`); without it nothing is removed. */
+  removeScratch?: (chatId: string) => Promise<void>
 }
 
-/** A request to create a chat, with the run it orchestrates, the epic it transfers or the Kanban card it carries when there is one. */
-type NewChatRequest = CreateChatRequest & Pick<ChatRecord, 'runId' | 'transferEpicId' | 'cardId'>
+/**
+ * A request to create a chat, in a tracked folder or project-less (`folder` null), with the run it orchestrates, the
+ * epic it transfers or the Kanban card it carries when there is one.
+ */
+type NewChatRequest = Omit<CreateChatRequest, 'folder'> & Pick<ChatRecord, 'folder' | 'runId' | 'transferEpicId' | 'cardId'>
 
 export interface ChatRecords {
-  /** A folder's chats, most recently updated first. */
-  listChats(folder: string): ChatRecord[]
+  /** A folder's chats (null: the project-less chats), most recently updated first. */
+  listChats(folder: string | null): ChatRecord[]
   /**
    * `runId` links the chat to the run it orchestrates, `transferEpicId` to the epic it moves to Linear, `cardId` to the
    * Kanban card it carries; only main sets them (the `chats:create` request cannot).
@@ -41,7 +46,7 @@ export interface ChatRecords {
   createChat(request: NewChatRequest): ChatRecord
   /** Changes the chat's title. */
   renameChat(ref: ChatRef, title: string): ChatRecord
-  /** Removes the chat's activity bindings, then the chat and its transcript; throws `not_found` for an unknown chat. */
+  /** Removes the chat's activity bindings (and a project-less chat's scratch folder), then the chat and its transcript; throws `not_found` for an unknown chat. */
   deleteChat(ref: ChatRef): Promise<void>
   /** The chat and its stored transcript, settled as described above; writes nothing. Throws `not_found` for an unknown chat. */
   readChat(ref: ChatRef): ChatReadView
@@ -97,6 +102,9 @@ export function createChatRecords(deps: ChatRecordsDeps): ChatRecords {
       deps.activity?.forgetChat(chat)
       if (chat.agent === 'omp') {
         await deps.removeOmpFolder?.(chat.id)
+      }
+      if (chat.folder === null) {
+        await deps.removeScratch?.(chat.id)
       }
       store.deleteChat(chat)
     },

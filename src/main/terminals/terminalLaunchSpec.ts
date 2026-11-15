@@ -27,6 +27,7 @@ import type { AgentView } from '../../shared/desktop/api'
 import { windowsProgramKind } from '../desktop/agentProbe'
 import { planShimLaunch } from '../agents/shimLaunch'
 import { readShimFile, resolveClaudeExecutable } from './claudeExecutable'
+import type { ReachTarget } from '../agents/chatReach'
 import { pinnedCliScript } from './dmLauncher'
 import { LOGIN_ARGS } from '../desktop/agentAuth'
 import { terminalEnv, terminalLoginEnv } from './terminalEnv'
@@ -51,10 +52,12 @@ export interface TerminalLaunchInput {
   /** The kickoff, for a chat Start run or Transfer with agent opened; null for every other chat. */
   kickoff: string | null
   agent: Pick<AgentView, 'id' | 'kind' | 'executablePath' | 'args'>
-  /** `resolveLaunchFolder`'s path. */
+  /** `resolveLaunchFolder`'s path; a project-less chat's scratch folder. */
   folder: string
-  /** The chat's `dm` invocation, pinned to `folder`, with its grant in `env` (`issueChatCli`). */
+  /** The chat's `dm` invocation, pinned to `folder` (to none for a project-less chat), with its grant in `env` (`issueChatCli`, `issueReachCli`). */
   cli: DarkMechanicusCli
+  /** A project-less chat's folders and token files (`chatReach.ts`); absent for a chat of a folder. */
+  reach?: readonly ReachTarget[]
   files: TerminalFiles
   platform: NodeJS.Platform
   /** main's `process.env`. */
@@ -358,7 +361,7 @@ function refuseMismatches(input: TerminalLaunchInput): void {
   if (input.kickoff !== null && /^-|^\S*$/.test(input.kickoff) && input.chat.firstPrompt !== input.kickoff) {
     throw new DomainError('invalid_input', 'The kickoff is empty, one word or starts with "-", which a CLI would read as a subcommand or an option.')
   }
-  pinnedCliScript(input.cli, input.folder)
+  pinnedCliScript(input.cli, input.reach === undefined ? input.folder : null)
 }
 
 function commandLineFor(input: ProgramInput, program: Program, args: string[]): LaunchLine {
@@ -403,7 +406,8 @@ export function terminalLaunchSpec(input: TerminalLaunchInput): TerminalLaunchSp
       orchestratesRun: chat.runId !== undefined,
       nameFirstPrompt: chat.titleStatus === 'pending',
       transferEpicId: chat.transferEpicId,
-      cardId: chat.cardId
+      cardId: chat.cardId,
+      ...(input.reach === undefined ? {} : { reach: input.reach })
     }),
     claudeSettings: files.claudeSettings,
     ompSessionDir: files.omp?.sessionDir,

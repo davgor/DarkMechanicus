@@ -39,8 +39,12 @@ const timestampSchema = z.string().min(1)
 
 export const chatRecordSchema = z.object({
   id: chatIdSchema,
-  /** Canonical path of the folder the chat belongs to. */
-  folder: z.string().min(1),
+  /**
+   * Canonical path of the tracked folder the chat belongs to; null for a project-less chat, summoned from an agent's
+   * row in the AGENTS section, which runs in its own scratch folder and reaches every tracked folder's records
+   * through one grant per folder. Every chat stored before project-less chats has a folder, so old lines load unchanged.
+   */
+  folder: z.string().min(1).nullable(),
   /** The agent's id. Built-in ids equal the kind names stored before agents had ids, so old lines load unchanged. */
   agent: agentIdSchema,
   /** The model the chat currently runs on; null until one is chosen. */

@@ -58,7 +58,7 @@ function logUnexpected(deps: TransferStartDeps, error: unknown): void {
 }
 
 /** Removes the chat of an agent that could not start; false (after reporting) when it could not be removed. */
-async function removeChat(deps: TransferStartDeps, chat: { folder: string; id: string }): Promise<boolean> {
+async function removeChat(deps: TransferStartDeps, chat: ChatRecord): Promise<boolean> {
   try {
     await deps.chats.deleteChat(chat)
     return true

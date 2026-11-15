@@ -102,6 +102,10 @@ function loaded(context: Context): ActivityBinding[] {
 }
 
 function forgetChat(context: Context, chat: ChatRef): void {
+  if (chat.folder === null) {
+    // Bindings were stored by chats from before terminals, every one of a folder; a project-less chat has none.
+    return
+  }
   const all = loaded(context)
   const folder = maskClaimTokens(chat.folder)
   const kept = all.filter((binding) => binding.chatId !== chat.id || binding.folder !== folder)

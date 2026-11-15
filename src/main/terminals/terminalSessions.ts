@@ -22,6 +22,11 @@
  * arrives after the cancel). A CLI that exits on its own has what it left running in its process group ended
  * (`killPtyTree`, asked from the exit). A chat being deleted starts nothing until its record is gone.
  *
+ * **Project-less chats** (`folder` null, summoned from the AGENTS section) start in their own scratch folder
+ * (`scratchFolder.ts`, made at the start), so no folder check applies to them. Instead of one grant they hold one per
+ * tracked, set-up folder (`reachFolders`, read at the start; `chatReach.ts`), issued together (`issueReachCli`) and
+ * stored, renewed, bound for naming and revoked together on every way out above; with no such folder nothing starts.
+ *
  * **Screen.** Each PTY's output goes through a headless terminal of the same size (`terminalScreen.ts`). An
  * attach answers with its serialized snapshot and subscribes its listener at that same point in the output, so
  * the listener hears exactly what came after the snapshot; output reaches listeners once it is on the screen.
@@ -70,8 +75,10 @@ import { homedir, tmpdir } from 'node:os'
 import type { ChatRecord, ChatRole, DarkMechanicusCli } from '../../shared/agents/chat'
 import type { AgentAuthStatus, AgentId, AgentView, BuiltInAgentKind } from '../../shared/desktop/api'
 import { SIGNED_OUT_PAUSE_REASON, type RunState } from '../../shared/domain/status'
+import { reachTargets, type ReachTarget } from '../agents/chatReach'
 import type { ChatRef, ChatStore } from '../agents/chatStore'
 import { resolveLaunchFolder, type LaunchFolderDeps } from '../agents/launchFolder'
+import { ensureScratchFolder } from '../agents/scratchFolder'
 import { killPtyTree, type PtyTree } from '../agents/processTree'
 import { claudeSessionExists } from './claudeSession'
 import { ompAgentDir } from '../desktop/ompTheme'
@@ -104,6 +111,13 @@ const BRACKETED_PASTE_ON = '\x1b[?2004h'
 const QUITTING = 'The app is quitting, so the terminal was stopped.'
 const DELETED = 'The chat was deleted, so its terminal was stopped.'
 const AGENT_REMOVED = "The chat's agent was removed, so its terminal was stopped."
+const NOTHING_TO_REACH =
+  'This chat is not tied to a project and reaches Dark Mechanicus through your tracked folders, but none is set up yet. Track a folder and set it up, then start this chat again.'
+
+/** Why a chat named by `ref` cannot be found. */
+function noChat(ref: ChatRef): string {
+  return `No chat ${ref.id} in ${ref.folder ?? 'the project-less chats'}.`
+}
 
 /** How a start ended without a PTY. */
 type NotStartedState = 'refused' | 'signed_out' | 'failed'
@@ -190,6 +204,13 @@ interface OrchestratorRuns {
   pauseRun(folder: string, input: { runId: string; reason: string }): Promise<unknown>
 }
 
+/** What a chat's grants carry: its role, Allow save, and the label the person sees in the folder's grant list. */
+interface GrantOptions {
+  role: ChatRole
+  allowSave: boolean
+  label: string
+}
+
 export interface TerminalSessionsDeps {
   store: Pick<ChatStore, 'getChat' | 'updateChat'>
   /** The connected agent with this id, or null. */
@@ -197,10 +218,14 @@ export interface TerminalSessionsDeps {
   folders: LaunchFolderDeps
   /** The CLI's own sign-in status (`getAgentAuthStatus`). */
   checkAuth: (kind: BuiltInAgentKind, executablePath: string) => Promise<AgentAuthStatus>
-  /** The `dm` invocation pinned to `folder`, without a grant: what the start files name. */
-  cliFor: (folder: string) => DarkMechanicusCli
+  /** The `dm` invocation pinned to `folder` (to none for null: a project-less chat's), without a grant: what the start files name. */
+  cliFor: (folder: string | null) => DarkMechanicusCli
   runs: OrchestratorRuns
-  issueChatCli: (folder: string, grant: { role: ChatRole; allowSave: boolean; label: string }) => Promise<{ cli: DarkMechanicusCli; grantId: string }>
+  issueChatCli: (folder: string, grant: GrantOptions) => Promise<{ cli: DarkMechanicusCli; grantId: string }>
+  /** A project-less chat's grants, one per target folder, each token written to its file (`chatGrants.ts`). */
+  issueReachCli: (targets: readonly ReachTarget[], grant: GrantOptions) => Promise<{ cli: DarkMechanicusCli; grantIds: string[] }>
+  /** The canonical paths of the tracked folders set up for Dark Mechanicus: what a project-less chat reaches. */
+  reachFolders: () => string[]
   /** Never throws (`chatGrants.ts`). */
   revokeChatGrant: (grantId: string) => Promise<void>
   /** Moves a running PTY's grant's expiry on; never throws (`chatGrants.ts`). */
@@ -222,7 +247,7 @@ export interface TerminalSessionsDeps {
   onError?: (error: unknown) => void
   onChatChanged?: (ref: ChatRef) => void
   /** Binds only a tracked live PTY, never a persisted historical grant id. */
-  bindChatGrant?: (grantId: string, identity: { folder: string; chatId: string; generation: string }) => void
+  bindChatGrant?: (grantId: string, identity: { folder: string | null; chatId: string; generation: string }) => void
 }
 
 interface Subscriber {
@@ -262,7 +287,8 @@ interface Live {
   pty: PtyProcess
   screen: TerminalScreen
   tree: PtyTree
-  grantId: string
+  /** The grants it runs on: one for a folder chat, one per reached folder for a project-less chat. */
+  grantIds: readonly string[]
   /** Why main stopped it, once it has; null while it runs on, or when it exited on its own. */
   stopMessage: string | null
   exited: boolean
@@ -405,9 +431,9 @@ function killTree(manager: Manager, live: Live): Promise<unknown> {
  * file with the memory guards (`claudeSettingsFile.ts`), passed as `files.claudeSettings`.
  */
 async function writeStartFiles(context: StartContext): Promise<TerminalFiles> {
-  const { manager, chat, agent, folder, newSession: fresh } = context
+  const { manager, chat, agent, folder, reach, newSession: fresh } = context
   const { userData, platform } = manager.deps
-  const cli = manager.deps.cliFor(folder)
+  const cli = manager.deps.cliFor(reach === undefined ? folder : null)
   const files = await writeTerminalFiles({
     userData,
     chatId: chat.id,
@@ -419,7 +445,8 @@ async function writeStartFiles(context: StartContext): Promise<TerminalFiles> {
     orchestratesRun: chat.runId !== undefined,
     nameFirstPrompt: chat.titleStatus === 'pending',
     ...(chat.transferEpicId === undefined ? {} : { transferEpicId: chat.transferEpicId }),
-    ...(chat.cardId === undefined ? {} : { cardId: chat.cardId })
+    ...(chat.cardId === undefined ? {} : { cardId: chat.cardId }),
+    ...(reach === undefined ? {} : { reach })
   })
   if (agent.kind === 'omp') {
     // OMP's folder is where its themes are read (`ompSkitariiTheme.ts`); the home is main's env on macOS, where os.homedir() reads it too.
@@ -429,7 +456,7 @@ async function writeStartFiles(context: StartContext): Promise<TerminalFiles> {
   if (agent.kind !== 'claude') {
     return files
   }
-  return { ...files, claudeSettings: await writeClaudeSettings({ userData, chatId: chat.id, platform, folder, cli, home: homedir(), tmp: tmpdir() }) }
+  return { ...files, claudeSettings: await writeClaudeSettings({ userData, chatId: chat.id, platform, folder, cli, home: homedir(), tmp: tmpdir(), ...(reach === undefined ? {} : { projectless: true as const }) }) }
 }
 
 /** Stops a running PTY for `message`: the folder watch ends, the grant is revoked, and the tree is killed. Never rejects. */
@@ -443,10 +470,18 @@ function stop(manager: Manager, live: Live, message: string): Promise<unknown> {
   return killTree(manager, live)
 }
 
+/**
+ * Where the chat's CLI starts: its tracked folder as the launch check passes it (`resolveLaunchFolder`, which throws its
+ * `not_found` refusal), or a project-less chat's own scratch folder, made when it is missing.
+ */
+function launchFolder(manager: Manager, chat: ChatRecord): string {
+  return chat.folder === null ? ensureScratchFolder(manager.deps.userData, chat.id) : resolveLaunchFolder({ folder: chat.folder }, manager.deps.folders)
+}
+
 /** Whether the chat's folder still passes the launch check; a running PTY is stopped with its message when not. */
 function folderStillValid(manager: Manager, live: Live): string | null {
   try {
-    resolveLaunchFolder(live.chat, manager.deps.folders)
+    launchFolder(manager, live.chat)
     return null
   } catch (error) {
     const message = messageOf(error)
@@ -469,20 +504,24 @@ function closeAfterExit(manager: Manager, live: Live, exit: PtyExit, reportClose
   })
 }
 
-/** Renews `grantId`; never rejects. Kept for the quit, so its workspace is not closed under it. */
-function renewGrant(manager: Manager, grantId: string): Promise<void> {
+/** Renews each of `grantIds`; never rejects. Kept for the quit, so its workspace is not closed under it. */
+function renewGrants(manager: Manager, grantIds: readonly string[]): Promise<unknown> {
   return track(
     manager,
-    manager.deps.renewChatGrant(grantId).catch((error: unknown) => {
-      manager.onError(error)
-    })
+    Promise.all(
+      grantIds.map((grantId) =>
+        manager.deps.renewChatGrant(grantId).catch((error: unknown) => {
+          manager.onError(error)
+        })
+      )
+    )
   )
 }
 
 /**
  * The watches on a running PTY; answers the function that ends them, which also gives up the pastes still waiting and
  * the hold that keeps the computer awake (once, though a stop and then the exit both end them). Its folder is checked
- * every minute, and its grant is renewed every `GRANT_RENEW_MS`.
+ * every minute, and its grants are renewed every `GRANT_RENEW_MS`.
  */
 function watchLive(manager: Manager, live: Live): () => void {
   const { timers } = manager.deps
@@ -490,7 +529,7 @@ function watchLive(manager: Manager, live: Live): () => void {
     folderStillValid(manager, live)
   }, FOLDER_CHECK_MS)
   const stopRenewal = timers.repeat(() => {
-    void renewGrant(manager, live.grantId)
+    void renewGrants(manager, live.grantIds)
   }, GRANT_RENEW_MS)
   let release: (() => void) | null = manager.deps.keepAwake()
   return () => {
@@ -605,7 +644,7 @@ function pasteSawOutput(manager: Manager, live: Live, data: string): void {
 interface Started {
   pty: PtyProcess
   screen: TerminalScreen
-  grantId: string
+  grantIds: readonly string[]
   resumed: boolean
   marksStarted: boolean
   /** The launch's `pasteFirst`, and whether the kickoff is in it; null when there is none. */
@@ -620,7 +659,7 @@ function tookOutput(manager: Manager, live: Live, data: string): void {
 
 /** Tracks a PTY just spawned, with the screen made for it: nothing here can fail, so no PTY runs untracked. */
 function startLive(manager: Manager, chat: ChatRecord, started: Started): Live {
-  const { pty, screen, grantId } = started
+  const { pty, screen, grantIds } = started
   let reportEnded: () => void = () => {}
   let reportClosed: () => void = () => {}
   const ended = new Promise<void>((resolve) => {
@@ -636,7 +675,7 @@ function startLive(manager: Manager, chat: ChatRecord, started: Started): Live {
     chat,
     pty,
     screen,
-    grantId,
+    grantIds,
     stopMessage: null,
     exited: false,
     ended,
@@ -646,7 +685,7 @@ function startLive(manager: Manager, chat: ChatRecord, started: Started): Live {
     marksStarted: started.marksStarted,
     pastes: { waiting: started.firstPaste === null ? [] : [started.firstPaste], inputLive: false, seen: '', lastOutput: 0, entering: false, cancel: null },
     tree: { pid: pty.pid, kill: () => pty.kill(), exited: ended, hasExited: () => live.exited },
-    revoke: () => (revoked ??= revokeGrant(manager, grantId)),
+    revoke: () => (revoked ??= Promise.all(grantIds.map((grantId) => revokeGrant(manager, grantId))).then(() => undefined)),
     stopWatch: () => {}
   }
   wireLive(manager, live, reportEnded, reportClosed)
@@ -693,7 +732,7 @@ function wireLive(manager: Manager, live: Live, reportEnded: () => void, reportC
 /** After an orchestrator chat's CLI exited on its own: pauses its run with `signed_out` when the status says signed out. Never rejects. */
 async function pauseIfSignedOut(manager: Manager, chat: ChatRecord): Promise<void> {
   const agent = manager.deps.agentFor(chat.agent)
-  if (chat.runId === undefined || agent === null || agent.kind === 'custom') {
+  if (chat.runId === undefined || chat.folder === null || agent === null || agent.kind === 'custom') {
     return
   }
   try {
@@ -743,6 +782,8 @@ interface StartContext {
   chat: ChatRecord
   agent: AgentView
   folder: string
+  /** A project-less chat's folders and token files, read when the start began; absent for a chat of a folder. */
+  reach: readonly ReachTarget[] | undefined
   starting: Starting
   kickoff: string | null
   /** The start forgets the chat's earlier session (the pane's new session after a refused resume). */
@@ -784,7 +825,7 @@ function cancellableSteps(starting: Starting): { step: Step; cancelled: () => st
  */
 function recheckFolder(context: StartContext): void {
   try {
-    resolveLaunchFolder(context.chat, context.manager.deps.folders)
+    launchFolder(context.manager, context.chat)
   } catch (error) {
     throw new FolderRefused(messageOf(error))
   }
@@ -803,13 +844,22 @@ async function runStart(context: StartContext, step: Step): Promise<StartOutcome
   const files = await step(writeStartFiles(context))
   recheckFolder(context)
   const grant = { role: chat.role, allowSave: chat.allowSave, label: `${agent.displayName} · ${chat.title}` }
-  const issued = await step(manager.deps.issueChatCli(folder, grant), ({ grantId }) => {
-    void revokeGrant(manager, grantId)
+  const revokeAll = (grantIds: readonly string[]): void => {
+    for (const grantId of grantIds) {
+      void revokeGrant(manager, grantId)
+    }
+  }
+  const issuing =
+    context.reach === undefined
+      ? manager.deps.issueChatCli(folder, grant).then(({ cli, grantId }) => ({ cli, grantIds: [grantId] }))
+      : manager.deps.issueReachCli(context.reach, grant)
+  const issued = await step(issuing, ({ grantIds }) => {
+    revokeAll(grantIds)
   })
   try {
     return { state: 'running', live: await spawnWithGrant(context, files, issued, step) }
   } catch (error) {
-    void revokeGrant(manager, issued.grantId)
+    revokeAll(issued.grantIds)
     throw error
   }
 }
@@ -861,10 +911,10 @@ function finishArgumentPrompt(manager: Manager, chat: ChatRecord, live: Live): v
 }
 
 /** Record launch authority and ambiguous argument delivery atomically before starting the process. */
-function recordLaunch({ manager, chat }: StartContext, spec: TerminalLaunchSpec, grantId: string, firstArgument: boolean): void {
+function recordLaunch({ manager, chat }: StartContext, spec: TerminalLaunchSpec, grantIds: readonly string[], firstArgument: boolean): void {
   const stored = manager.deps.store.getChat(chat)?.grantIds ?? []
   manager.deps.store.updateChat(chat, {
-    grantIds: [...stored, grantId],
+    grantIds: [...stored, ...grantIds],
     ...(spec.sessionId === null ? {} : { sessionId: spec.sessionId }),
     ...(spec.kickoffIn === 'args' ? { kickoffSent: true } : {}),
     ...(firstArgument ? { firstPromptDelivery: 'uncertain' as const } : {})
@@ -872,17 +922,18 @@ function recordLaunch({ manager, chat }: StartContext, spec: TerminalLaunchSpec,
 }
 
 /**
- * Builds the launch, stores the grant's id, the session id the CLI runs under and a kickoff on its command line
+ * Builds the launch, stores the grants' ids, the session id the CLI runs under and a kickoff on its command line
  * (`kickoffSent`) on the chat, then spawns; throws on any failure (the caller revokes).
  */
-async function spawnWithGrant(context: StartContext, files: TerminalFiles, issued: { cli: DarkMechanicusCli; grantId: string }, step: Step): Promise<Live> {
-  const { manager, chat, agent, folder } = context
+async function spawnWithGrant(context: StartContext, files: TerminalFiles, issued: { cli: DarkMechanicusCli; grantIds: readonly string[] }, step: Step): Promise<Live> {
+  const { manager, chat, agent, folder, reach } = context
   const spec = terminalLaunchSpec({
     chat: { ...launchChat(context, files), kickoffSent: chat.kickoffSent === true },
     kickoff: context.kickoff,
     agent,
     folder,
     cli: issued.cli,
+    ...(reach === undefined ? {} : { reach }),
     files,
     platform: manager.deps.platform,
     env: manager.deps.env,
@@ -892,7 +943,7 @@ async function spawnWithGrant(context: StartContext, files: TerminalFiles, issue
   // The last await is behind: from this check to the spawn nothing else runs.
   recheckFolder(context)
   const firstArgument = spec.kickoffIn === 'args' && chat.firstPrompt !== undefined
-  recordLaunch(context, spec, issued.grantId, firstArgument)
+  recordLaunch(context, spec, issued.grantIds, firstArgument)
   const screen = createTerminalScreen(START_COLS, START_ROWS)
   let pty: PtyProcess
   try {
@@ -904,9 +955,11 @@ async function spawnWithGrant(context: StartContext, files: TerminalFiles, issue
   }
   const marksStarted = marksSessionStarted(agent, chat)
   const firstPaste = spec.pasteFirst === null ? null : { text: spec.pasteFirst, kickoff: spec.kickoffIn === 'paste' }
-  const live = startLive(manager, chat, { pty, screen, grantId: issued.grantId, resumed: spec.resumed, marksStarted, firstPaste })
+  const live = startLive(manager, chat, { pty, screen, grantIds: issued.grantIds, resumed: spec.resumed, marksStarted, firstPaste })
   try {
-    manager.deps.bindChatGrant?.(issued.grantId, { folder: chat.folder, chatId: chat.id, generation: live.generation })
+    for (const grantId of issued.grantIds) {
+      manager.deps.bindChatGrant?.(grantId, { folder: chat.folder, chatId: chat.id, generation: live.generation })
+    }
   } catch (error) {
     void stop(manager, live, 'The terminal could not bind its chat naming authority.')
     throw error
@@ -934,9 +987,13 @@ function beginStart(manager: Manager, found: ChatRecord, options: AttachOptions 
   }
   let folder: string
   try {
-    folder = resolveLaunchFolder(chat, manager.deps.folders)
+    folder = launchFolder(manager, chat)
   } catch (error) {
     return { state: 'refused', message: messageOf(error) }
+  }
+  const reach = chat.folder === null ? reachTargets(folder, manager.deps.reachFolders()) : undefined
+  if (reach?.length === 0) {
+    return { state: 'refused', message: NOTHING_TO_REACH }
   }
   const agent = manager.deps.agentFor(chat.agent)
   if (agent === null) {
@@ -956,7 +1013,7 @@ function beginStart(manager: Manager, found: ChatRecord, options: AttachOptions 
     cancel: () => {}
   }
   manager.entries.set(chat.id, starting)
-  starting.done = startSteps({ manager, chat, agent, folder, starting, kickoff: options.kickoff ?? unsentFirstPrompt(chat), newSession: options.newSession === true }).then((outcome) => {
+  starting.done = startSteps({ manager, chat, agent, folder, reach, starting, kickoff: options.kickoff ?? unsentFirstPrompt(chat), newSession: options.newSession === true }).then((outcome) => {
     if (manager.entries.get(chat.id) === starting) {
       if (outcome.state === 'running' && !outcome.live.exited) {
         manager.entries.set(chat.id, outcome.live)
@@ -1032,7 +1089,7 @@ async function attach(manager: Manager, ref: ChatRef, listener: TerminalListener
     // Read on each round: the chat may have been deleted while its last PTY exited.
     const chat = manager.deps.store.getChat(ref)
     if (chat === null) {
-      return { state: 'refused', message: `No chat ${ref.id} in ${ref.folder}.` }
+      return { state: 'refused', message: noChat(ref) }
     }
     const answer = await attachEntry(manager, chat, listener, options)
     if (!('kind' in answer)) {
@@ -1050,7 +1107,7 @@ async function start(manager: Manager, ref: ChatRef, options: StartOptions): Pro
   }
   const chat = manager.deps.store.getChat(ref)
   if (chat === null) {
-    return { state: 'refused', message: `No chat ${ref.id} in ${ref.folder}.` }
+    return { state: 'refused', message: noChat(ref) }
   }
   const entry = manager.entries.get(chat.id) ?? beginStart(manager, chat, { kickoff: options.kickoff })
   if (!('kind' in entry)) {
@@ -1085,7 +1142,7 @@ async function paste(manager: Manager, ref: ChatRef, text: string): Promise<Term
     // Read on each round: the chat may have been deleted while its last PTY exited.
     const chat = manager.deps.store.getChat(ref)
     if (chat === null) {
-      return { state: 'refused', message: `No chat ${ref.id} in ${ref.folder}.` }
+      return { state: 'refused', message: noChat(ref) }
     }
     const live = await pasteTarget(manager, chat)
     if (!('kind' in live)) {

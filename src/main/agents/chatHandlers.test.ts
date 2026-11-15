@@ -111,7 +111,7 @@ function handlersOver(
   }: { push?: (event: ChatPushEvent) => void; terminals?: Terminals; transfers?: TransferReads; kanban?: KanbanCards } = {}
 ): ChatHandlers {
   return createChatHandlers({
-    registry: { resolve: (path) => (path === REPO || path === SPELLING ? REPO : null) },
+    registry: { resolve: (path) => (path === REPO || path === SPELLING ? REPO : null), list: () => [] },
     agents: AGENTS,
     chats,
     terminals,
@@ -397,7 +397,7 @@ const FOUND = [{ folder: REPO, chatId: 'chat_1', threadId: 'thread_a', role: 'wo
 /** Handlers whose bound threads are `FOUND`, recording the folder and target they were asked about. */
 function handlersWithBound(asked: unknown[][]): ChatHandlers {
   return createChatHandlers({
-    registry: { resolve: (path) => (path === REPO || path === SPELLING ? REPO : null) },
+    registry: { resolve: (path) => (path === REPO || path === SPELLING ? REPO : null), list: () => [] },
     agents: AGENTS,
     chats: recordingChats().chats,
     terminals: recordingTerminals(),
@@ -457,7 +457,7 @@ describe('chat handlers: bound threads', () => {
   it('reports a failure that is not a domain error and does not throw', async () => {
     const errors: unknown[] = []
     const failing = createChatHandlers({
-      registry: { resolve: () => REPO },
+      registry: { resolve: () => REPO, list: () => [] },
       agents: AGENTS,
       chats: recordingChats().chats,
       terminals: recordingTerminals(),

@@ -113,7 +113,8 @@ class RecordingHost extends FakePtyHost {
     const rig = this.rig()
     rig.steps.push('spawn')
     const grantId = (spec.env['DM_SESSION_TOKEN'] ?? '').replace(/^token-/, '')
-    const stored = rig.reopenedStore().listChats(rig.repo).find((chat) => chat.grantIds?.includes(grantId) === true)
+    const reopened = rig.reopenedStore()
+    const stored = [...reopened.listChats(rig.repo), ...reopened.listChats(null)].find((chat) => chat.grantIds?.includes(grantId) === true)
     this.grantStoredAtSpawn.push(stored !== undefined)
     this.sessionStoredAtSpawn.push(stored?.sessionId ?? null)
     this.kickoffSentAtSpawn.push(stored?.kickoffSent === true)
@@ -147,6 +148,10 @@ export interface TerminalRig {
   awake: number
   /** The sign-in answer; a test holds it back with `holdAuth`. */
   auth: { status: AgentAuthStatus; held: Gate<AgentAuthStatus> | null }
+  /** The folders a project-less chat reaches (`reachFolders`): the tracked repo unless a test changes them. */
+  reach: string[]
+  /** Each project-less start's grant request: the folders and token files it named. */
+  reachIssued: { folder: string; tokenFile: string }[][]
   /** Makes the next sign-in checks wait until the gate is opened. */
   holdAuth: () => Gate<AgentAuthStatus>
   /** Makes the next grant wait until the gate is opened. */
@@ -165,6 +170,8 @@ export interface TerminalRig {
   /** The runs the desktop's session knows, by id, and every run call the manager made, as `getRun <id>` and `pauseRun <id> <reason>`. */
   runs: { states: Record<string, RunState>; calls: string[] }
   newChat: (agent?: string) => ChatRecord
+  /** A chat summoned with no project: an orchestrator that may save, with no folder. */
+  newProjectless: (agent?: string) => ChatRecord
   /** A chat Start run opened: an orchestrator of `runId`. */
   newOrchestrator: (runId: string, agent?: string) => ChatRecord
   cleanup: () => void
@@ -180,8 +187,8 @@ interface RigOptions {
 
 type RigBase = Omit<TerminalRig, 'sessions'>
 
-/** The `dm` invocation the rig's manager is given for `folder`, before a grant is laid over it. */
-export function cliFor(folder: string): CliLaunch {
+/** The `dm` invocation the rig's manager is given for `folder` (for none: a project-less chat's), before a grant is laid over it. */
+export function cliFor(folder: string | null): CliLaunch {
   return buildCliConfig({ execPath: '/bin/electron', appPath: '/app', repoPath: folder })
 }
 
@@ -245,6 +252,18 @@ function rigDeps(rig: RigBase, options: RigOptions): TerminalSessionsDeps {
       const launch = cliFor(folder)
       return { cli: { ...launch, env: { ...launch.env, DM_SESSION_TOKEN: `token-${grantId}` } }, grantId }
     },
+    issueReachCli: async (targets) => {
+      rig.grantsAsked += 1
+      rig.reachIssued.push([...targets])
+      await rig.grantGate?.promise
+      const grantIds = targets.map(() => `gr_${(grants += 1)}`)
+      for (const grantId of grantIds) {
+        rig.steps.push(`grant:${grantId}`)
+      }
+      const launch = cliFor(null)
+      return { cli: { ...launch, env: { ...launch.env, DM_SESSION_TOKEN: `token-${grantIds[0] ?? ''}` } }, grantIds }
+    },
+    reachFolders: () => [...rig.reach],
     revokeChatGrant: async (grantId) => {
       rig.steps.push(`revoke:${grantId}`)
       rig.revoked.push(grantId)
@@ -296,6 +315,8 @@ export function terminalRig(options: RigOptions = {}): TerminalRig {
     renewed: [],
     awake: 0,
     auth: { status: SIGNED_IN, held: null },
+    reach: [repo],
+    reachIssued: [],
     holdAuth: () => (rig.auth.held = gate<AgentAuthStatus>()),
     holdGrant: () => (rig.grantGate = gate<void>()),
     grantGate: null,
@@ -304,6 +325,7 @@ export function terminalRig(options: RigOptions = {}): TerminalRig {
     errors: [],
     runs: { states: {}, calls: [] },
     newChat: (agent = 'claude') => store.createChat({ folder: repo, agent, model: null, role: 'worker', allowSave: false, title: 'Fix the build' }),
+    newProjectless: (agent = 'claude') => store.createChat({ folder: null, agent, model: null, role: 'orchestrator', allowSave: true, title: 'Tidy every board' }),
     newOrchestrator: (runId, agent = 'claude') =>
       store.createChat({ folder: repo, agent, model: null, role: 'orchestrator', allowSave: false, title: 'Orchestrator · Terminal chats', runId }),
     cleanup: () => {

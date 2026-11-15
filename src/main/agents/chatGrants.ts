@@ -11,19 +11,26 @@
  * While a chat runs its grant is renewed through the same workspace, to `minutes` from the renewal,
  * so a chat that runs for days keeps its role and one whose app died loses it within `minutes`. A
  * grant already revoked is renewed nothing; a renewal that fails is logged in one line, never thrown.
+ *
+ * A project-less chat (`issueReachCli`) holds one grant per folder it reaches, each issued in that folder's own
+ * workspace and checked there like any other: its token opens no other folder. Each token is written to its own
+ * file (`chatReach.ts`), and the grants are revoked, renewed and bound for naming one by one, like a folder chat's.
+ * A start that cannot issue all of them revokes the ones it did and fails.
  */
 import { realpathSync } from 'node:fs'
 import { assertGrantCapability, hashToken } from '../../core/services/grants'
 import { NamingControlError } from '../../shared/agents/chatNaming'
 import type { NamingControlBinding } from '../naming/controlPipe'
+import { writePrivateFile } from '../terminals/privateFile'
 import type { Workspace } from '../../core/workspace'
 import type { ChatRole, DarkMechanicusCli } from '../../shared/agents/chat'
+import type { ReachTarget } from './chatReach'
 
 interface ChatGrantsDeps {
   /** The desktop's workspace for a tracked folder; throws for one that is not. Asked only at issue. */
   workspaceFor: (folder: string) => Workspace
-  /** The `dm` invocation pinned to `folder`, before the grant's token is added. */
-  cliFor: (folder: string) => DarkMechanicusCli
+  /** The `dm` invocation pinned to `folder` (to none for null: a project-less chat's), before the grant's token is added. */
+  cliFor: (folder: string | null) => DarkMechanicusCli
   /** How long a chat's grant lasts. */
   minutes: number
   /** Told, in one line, of each grant that could not be revoked. */
@@ -35,13 +42,18 @@ interface ChatGrantsDeps {
 /** What the chat terminals (`terminalSessions.ts`) issue and revoke chat grants through. */
 interface GrantOptions { role: ChatRole; allowSave: boolean; label: string }
 export interface IssuedChatCli { cli: DarkMechanicusCli; grantId: string }
-interface LiveIdentity { folder: string; chatId: string; generation: string }
+/** A project-less chat's `dm` invocation, pinned to no folder, and the grants it holds, one per folder, in the targets' order. */
+export interface IssuedReachCli { cli: DarkMechanicusCli; grantIds: string[] }
+/** The live terminal a grant is bound to for naming: its chat's folder (null for a project-less chat), id and start. */
+interface LiveIdentity { folder: string | null; chatId: string; generation: string }
 
 export interface ChatGrants {
   bindChatGrant(grantId: string, identity: LiveIdentity): void
   authorizeNaming(token: string): NamingControlBinding
   dispose(): void
   issueChatCli(folder: string, grant: GrantOptions): Promise<IssuedChatCli>
+  /** One grant per target folder, each token written to its file; refused (and none left usable) when any fails. */
+  issueReachCli(targets: readonly ReachTarget[], grant: GrantOptions): Promise<IssuedReachCli>
   /** Never throws: a grant it cannot revoke is logged. */
   revokeChatGrant(grantId: string): Promise<void>
   /** Moves a held grant's expiry to `minutes` from now. Never throws: a renewal that fails is logged. */
@@ -51,7 +63,10 @@ export interface ChatGrants {
 interface HeldGrant {
   workspace: Workspace
   expiresAt: string
+  /** The canonical folder the grant was issued in. */
   folder: string
+  /** Whether it was issued to a project-less chat, which only a project-less chat's terminal may be bound by. */
+  projectless: boolean
   tokenHash: string
   live: NamingControlBinding | null
   lifetime: AbortController
@@ -86,30 +101,60 @@ class ChatGrantRegistry implements ChatGrants {
     const ctx = grant.workspace.ctx()
     assertGrantCapability({ db: ctx.db, clock: ctx.clock, machineId: ctx.machineId }, grantId, grant.tokenHash, 'chat.name')
   }
-  async issueChatCli(folder: string, grant: GrantOptions): Promise<IssuedChatCli> {
-    await this.deps.desktopReady?.()
+  /** Issues one grant in the folder's workspace and holds it; answers it with its token. */
+  private async issueHeld(folder: string, grant: GrantOptions, projectless: boolean): Promise<{ grantId: string; token: string }> {
     const workspace = this.deps.workspaceFor(folder)
     const issued = await workspace.issueGrant({ role: grant.role, label: grant.label, allowSave: grant.allowSave, minutes: this.deps.minutes })
-    this.held.set(issued.grant.id, { workspace, expiresAt: issued.grant.expiresAt, folder: realpathSync.native(folder), tokenHash: hashToken(issued.token), live: null, lifetime: new AbortController() })
-    const launch = this.deps.cliFor(folder)
-    const env: Record<string, string> = { ...launch.env, DM_SESSION_TOKEN: issued.token }
+    this.held.set(issued.grant.id, { workspace, expiresAt: issued.grant.expiresAt, folder: realpathSync.native(folder), projectless, tokenHash: hashToken(issued.token), live: null, lifetime: new AbortController() })
+    return { grantId: issued.grant.id, token: issued.token }
+  }
+  /** The invocation with `token` as its grant and the naming transport's address, nothing else of either kind. */
+  private withGrant(launch: DarkMechanicusCli, token: string): DarkMechanicusCli {
+    const env: Record<string, string> = { ...launch.env, DM_SESSION_TOKEN: token }
     delete env['DM_DESKTOP_PIPE']
     const address = this.deps.desktopAddress?.()
     if (address !== undefined) env['DM_DESKTOP_PIPE'] = address
-    return {
-      cli: { ...launch, env },
-      grantId: issued.grant.id
+    return { ...launch, env }
+  }
+  async issueChatCli(folder: string, grant: GrantOptions): Promise<IssuedChatCli> {
+    await this.deps.desktopReady?.()
+    const issued = await this.issueHeld(folder, grant, false)
+    return { cli: this.withGrant(this.deps.cliFor(folder), issued.token), grantId: issued.grantId }
+  }
+  /**
+   * The environment's `DM_SESSION_TOKEN` is the first folder's token, as every chat terminal carries one; the CLI is
+   * pinned to no folder, so a call names its folder and token file and the first token alone reaches nothing else.
+   */
+  async issueReachCli(targets: readonly ReachTarget[], grant: GrantOptions): Promise<IssuedReachCli> {
+    if (targets.length === 0) {
+      throw new Error('A project-less chat needs at least one tracked folder to hold a grant in.')
     }
+    await this.deps.desktopReady?.()
+    const issued: { grantId: string; token: string }[] = []
+    try {
+      for (const target of targets) {
+        const held = await this.issueHeld(target.folder, grant, true)
+        issued.push(held)
+        await writePrivateFile(target.tokenFile, `${held.token}\n`, 0o600)
+      }
+    } catch (error) {
+      await Promise.all(issued.map(({ grantId }) => this.revokeChatGrant(grantId)))
+      throw error
+    }
+    return { cli: this.withGrant(this.deps.cliFor(null), issued[0]?.token ?? ''), grantIds: issued.map(({ grantId }) => grantId) }
   }
   bindChatGrant(grantId: string, identity: LiveIdentity): void {
     const grant = this.held.get(grantId)
-    if (!grant || grant.lifetime.signal.aborted || grant.live !== null || realpathSync.native(identity.folder) !== grant.folder || identity.generation === '') throw new NamingControlError('unauthorized')
+    // A folder chat's terminal is bound by a grant of its own folder, a project-less chat's only by one issued to it.
+    const ownGrant = identity.folder === null ? grant?.projectless === true : grant?.projectless === false && realpathSync.native(identity.folder) === grant.folder
+    if (!grant || grant.lifetime.signal.aborted || grant.live !== null || !ownGrant || identity.generation === '') throw new NamingControlError('unauthorized')
     const binding: NamingControlBinding = {
-      grantId, folder: grant.folder, chatId: identity.chatId, generation: identity.generation,
+      grantId, folder: identity.folder === null ? null : grant.folder, chatId: identity.chatId, generation: identity.generation,
       signal: grant.lifetime.signal, assertCurrent: () => this.assertBinding(grantId, grant, binding)
     }
+    // An earlier start's bindings go; a project-less start binds each of its grants, all of one generation.
     for (const previous of this.liveByHash.values()) {
-      if (previous.live?.folder === binding.folder && previous.live.chatId === binding.chatId) this.invalidate(previous)
+      if (previous.live?.folder === binding.folder && previous.live.chatId === binding.chatId && previous.live.generation !== binding.generation) this.invalidate(previous)
     }
     grant.live = binding
     this.liveByHash.set(grant.tokenHash, grant)
@@ -156,6 +201,7 @@ export function createChatGrants(deps: ChatGrantsDeps): ChatGrants {
   const registry = new ChatGrantRegistry(deps)
   // Terminal dependencies spread this interface; retain the registry receiver.
   return {
+    issueReachCli: (targets, grant) => registry.issueReachCli(targets, grant),
     issueChatCli: (folder, grant) => registry.issueChatCli(folder, grant),
     revokeChatGrant: (id) => registry.revokeChatGrant(id),
     renewChatGrant: (id) => registry.renewChatGrant(id),
