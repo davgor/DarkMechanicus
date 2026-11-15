@@ -1,0 +1,214 @@
+{
+  "activeSprintId": "sp_01m452vt12bqj228djrvnak4m9",
+  "attempts": [
+    {
+      "createdAt": "2026-11-15T20:25:08.477Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": {
+        "checks": [
+          {
+            "detail": "tsc node, web and fireguard projects: exit 0",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npx oxlint src/shared/domain/space.ts src/core/space/{contract,rubric,baselines}.ts src/core/ids.ts src/core/ids.test.ts scratch/DM-169/*.ts: exit 0 (first run flagged complexity/max-lines; refactored, rerun clean)",
+            "name": "npx oxlint (changed files)",
+            "status": "passed"
+          },
+          {
+            "detail": "2 files, 584 tests passed",
+            "name": "npx vitest run src/core/ids.test.ts src/core/schemas.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "48 PASS, ALL CHECKS PASSED",
+            "name": "npx tsx scratch/DM-169/c1-contracts.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "33 PASS, ALL CHECKS PASSED",
+            "name": "npx tsx scratch/DM-169/c2-rubric.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "14 PASS, ALL CHECKS PASSED",
+            "name": "npx tsx scratch/DM-169/c3-status.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "13 PASS, ALL CHECKS PASSED (an earlier run failed 1 check because the demo itself built a v3 budget frozen before v2; fixed the demo data, product code unchanged)",
+            "name": "npx tsx scratch/DM-169/c4-baselines.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "Run for information: 125 new unused exports, all in the new contract modules (src/shared/domain/space.ts, src/core/space/*), which have no in-tree consumer until DM-170+ and the renderer tabs; ts-prune checks tsconfig.web.json separately, so shared types count as unused there too. Not baselined (.tsprune-ignore is shared; refresh belongs to the sweep once consumers land).",
+            "name": "npm run deadcode",
+            "status": "failed"
+          },
+          {
+            "detail": "left to the testing tail",
+            "name": "npm test (full suite)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the testing tail",
+            "name": "npm run lint (whole tree)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the testing tail",
+            "name": "npm run build",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the testing tail",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Types in src/shared/domain/space.ts define units (METRIC_UNITS, fixed per metric), scope (MetricScope + SCOPE_REQUIRED_IDS), source (MetricSource), Measurement observed/estimated/missing, stable ids (mo/bl/as prefixes in src/core/ids.ts), policy, observation, baseline, grade input, grade and EvidenceRef. Fixtures src/core/space/fixtures/{observations,baselines,policy-v1}.json and rubric/*.json parse in `npx tsx scratch/DM-169/c1-contracts.ts` (48 PASS: 13 observations covering all three states, 8 baselines, policy equals SPACE_POLICY_V1, 5 grade inputs + expected grades; 14 malformed records refused, e.g. agent-sourced human_rating, negative/Infinity tokens, unit mismatch, attempt scope without attemptId, ungraded grade with a letter)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "docs/space-grading.md specifies the 0–100 rule for each component, equal integer weight 1 (1/7 base), A≥90/B≥80/C≥70/D≥60/F<60, 10^-6 canonical precision with bands compared before display (display floored to 1 decimal), and worked complete (85.357143 → 85.3 B final), sparse (79.166667 → 79.1 C provisional, weights 1/4) and failure (uncapped 79.166667 → 59.0 F) examples plus too-sparse and unverified. `npx tsx scratch/DM-169/c2-rubric.ts` (33 PASS): boundaries 89.999999→B/90→A, 79.999999→C/80→B, 69.999999→D/70→C, 59.999999→F/60→D; 89.99 shows 89.9 B; all five fixtures regrade byte-for-byte and deterministically; inflated activity volume leaves the grade unchanged."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "gradeSpace (src/core/space/rubric.ts): verification missing/pending → ungraded, no score/letter; confirmed mandatory failure → F with mandatory_failure cap at 59 (uncapped score kept); missing required component or estimated input → provisional; <4 scored → ungraded insufficient_coverage; every result lists coverage, base and effective weights (0 for missing), missing reasons. `npx tsx scratch/DM-169/c3-status.ts` (14 PASS): unverified fixture with A/C/E/T/K at 100 is ungraded; failing change F even with all other components 100; sparse score 79.166667 differs from missing-as-zero 45.238095 and missing-as-100 88.095238; estimated K → provisional; zero scope → missing, not 100."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "src/core/space/baselines.ts: T/K need a budget (per ticket, version, revisionId, server frozenAt) or cohort (workType/size/risk = planned reasoning level, sampleSize ≥ 5, median, spread, members excluding the subject); frozenAt must be strictly before dispatchedAt; zero values refused; no eligible baseline → missing no_eligible_baseline (T/K missing, never 0 or 100). Order: budget, latest frozenAt, version, sample size, id (latest frozen wins before sample size, per the earlier review). `npx tsx scratch/DM-169/c4-baselines.ts` (13 PASS): 5 fixture subjects pick expected baselines with listed rejection reasons; a 1,000,000-token v3 budget saved 2 h after dispatch is rejected (frozen_after_dispatch) and K stays 92.5, yet applies to a later dispatch; frozen exactly at dispatch is refused; zero actual and unreported attempts give missing."
+          }
+        ],
+        "notes": "Design decisions to confirm: (1) S is optional (missing S drops out of weights but does not block Final); all other six are required. (2) Cohort risk = the planned reasoning level, since tickets carry no risk field. (3) Failure ceiling 59; display floors to one decimal so 89.99 shows 89.9 B. (4) An inherited sprint rating needs sharedWithTickets=true (explicit sharing). (5) Added id prefixes mo/bl/as to src/core/ids.ts (shared file) and updated the pinned-prefix test. (6) Commit made with a per-command identity (Dark Mechanicus worker (DM-169) <dm-worker@localhost>) because the worktree has no git user configured; no global config changed. Environment: one `npx tsx` launch failed before running the script (npx could not find npm-prefix.js); the same command succeeded immediately after, and no product check was involved.\n\nDiscoveries:\n- title: Baseline the SPACE contract exports in ts-prune once consumers land\n  reason: npm run deadcode reports 125 new unused exports from src/shared/domain/space.ts and src/core/space/* (no consumer yet; shared types also count as unused in tsconfig.web.json until renderer tabs import them). The sweep must confirm and refresh .tsprune-ignore or the gate fails.\n  ticket: DM-273"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m7ge55kxned45wbyw0qm4h8p",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Contract types",
+            "location": "src/shared/domain/space.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Contract validation (zod)",
+            "location": "src/core/space/contract.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Policy v1 and reference grader gradeSpace",
+            "location": "src/core/space/rubric.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Baseline eligibility and selection",
+            "location": "src/core/space/baselines.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Rubric document",
+            "location": "docs/space-grading.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Reference fixtures",
+            "location": "src/core/space/fixtures",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Demonstration scripts",
+            "location": "scratch/DM-169",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "space-DM-169",
+        "changedFiles": [
+          "docs/architecture.md",
+          "docs/space-grading.md",
+          "scratch/DM-169/c1-contracts.ts",
+          "scratch/DM-169/c2-rubric.ts",
+          "scratch/DM-169/c3-status.ts",
+          "scratch/DM-169/c4-baselines.ts",
+          "scratch/DM-169/shared.ts",
+          "src/core/ids.test.ts",
+          "src/core/ids.ts",
+          "src/core/space/baselines.ts",
+          "src/core/space/contract.ts",
+          "src/core/space/fixtures/baselines.json",
+          "src/core/space/fixtures/observations.json",
+          "src/core/space/fixtures/policy-v1.json",
+          "src/core/space/fixtures/rubric/complete.json",
+          "src/core/space/fixtures/rubric/failure.json",
+          "src/core/space/fixtures/rubric/sparse.json",
+          "src/core/space/fixtures/rubric/too-sparse.json",
+          "src/core/space/fixtures/rubric/unverified.json",
+          "src/core/space/rubric.ts",
+          "src/shared/domain/space.ts"
+        ],
+        "commits": [
+          "2ded739b914d96438bad92635f406b1af797fb23"
+        ],
+        "summary": "Defined the SPACE grading and measurement contract (policy dm-space v1, a SPACE-informed Dark Mechanicus policy, not an official SPACE formula). Types in src/shared/domain/space.ts (units, scope levels with required ids, sources human/server/host/agent, observed/estimated/missing measurements, evidence refs, METRIC_DEFINITIONS with direct/proxy signal and allowed sources per metric, observations, budget and cohort baselines, policy, grade inputs, grades). Zod validation in src/core/space/contract.ts with parse* functions typed against the contract. New stable id prefixes mo (metric observation), bl (baseline), as (assessment) in src/core/ids.ts, so ids.test.ts pins them (its expected map moved to module scope to stay within max-lines-per-function). Reference grader gradeSpace and SPACE_POLICY_V1 in src/core/space/rubric.ts (7 components weight 1 each; integer micro-unit canonical precision; bands on canonical value; display floored to 1 decimal; Ungraded on missing/pending verification or <4 scored components; F cap at 59 on confirmed mandatory failure; Provisional on missing required or estimated components; S optional; missing never imputed). Baseline eligibility/selection in src/core/space/baselines.ts (budget before cohort, then latest frozenAt, version, sample size, id; frozenAt must be strictly before dispatch; cohorts matched on workType/size/risk=reasoning level, min sample 5, subject excluded; no eligible baseline = missing). Rubric doc docs/space-grading.md with direct-vs-proxy table and worked complete/sparse/too-sparse/failure/unverified examples; pointer section in docs/architecture.md. Checked-in fixtures in src/core/space/fixtures (observations, baselines, policy-v1, rubric/*.json with input+expected). Rerunnable demos in scratch/DM-169 (c1..c4). Downstream (DM-177) should extend gradeSpace, not write a second calculator; DM-170/171 must assign frozenAt and dispatchedAt from server records."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m65yene3p1dwngx9apevkpn4",
+      "state": "submitted",
+      "submittedAt": "2026-11-15T20:50:13.977Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:209a3b941c98b129c06640a6e2cec988a2c29675ee4881ef600e7a166f4198c5",
+      "ticketId": "tk_01m453gpad722597bff996emwn",
+      "updatedAt": "2026-11-15T20:50:13.977Z",
+      "worker": {
+        "catalogRevision": "2026-11-15.1",
+        "effort": "medium",
+        "hostId": "omp-win32-x64-space",
+        "label": "omp task subagent",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (Top-ranked of 1 eligible model.; Highest reasoning level \"deep\" is 1 rank above the ticket's \"multi_step\" need (-20).; Lists skills \"typescript\", \"node\", \"testing\" (+10, capped at 10).; Cost tier \"high\": cheaper tiers sort first on equal scores.; Uses the ticket's \"medium\" effort.). This host cannot set a subagent's model or effort; the worker is an omp task subagent at the harness default, listed in the catalog as anthropic/claude-opus-5-5.",
+        "sessionId": null
+      }
+    }
+  ],
+  "checkpoints": [],
+  "createdAt": "2026-11-15T20:19:49.622Z",
+  "endedAt": null,
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.run",
+  "formatVersion": 1,
+  "host": {
+    "label": "Claude Code (omp) on davgo's Windows PC",
+    "type": "omp"
+  },
+  "hostCatalogId": "hc_01m7gdzkyzmn2t5bhtsccjen41",
+  "number": 2,
+  "ownerMachineId": "mc_01m7gdjzvswj7rwweky9e5fxpe",
+  "pauseReason": null,
+  "reports": [],
+  "revisionId": "rv_01m65yene3p1dwngx9apevkpn4",
+  "runId": "rn_01m7gdve7pw5ey7eqtyrkvn9fm",
+  "skillVersion": "1.9.0",
+  "startedAt": "2026-11-15T20:22:13.476Z",
+  "state": "running",
+  "updatedAt": "2026-11-15T20:35:37.658Z"
+}

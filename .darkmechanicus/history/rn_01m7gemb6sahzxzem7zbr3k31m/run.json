@@ -1,0 +1,55 @@
+{
+  "activeSprintId": "sp_01m6t9cg50jykym2g3r7yva6tn",
+  "attempts": [
+    {
+      "createdAt": "2026-11-15T20:38:54.653Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m7geycdxphrmpn125g2f9gjc",
+      "kind": "work",
+      "number": 1,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m7gekkw2d5a7f4h8xq4zbg92",
+      "state": "running",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:8110e568ddde688bac463cdc58bf477258eb63766856c0fd562e5f1df75d1bce",
+      "ticketId": "tk_01m6t9v1s3a46yxszxgmntvmgn",
+      "updatedAt": "2026-11-15T20:41:05.547Z",
+      "worker": {
+        "catalogRevision": "2026-11-15.1",
+        "effort": "medium",
+        "hostId": "omp-win32-x64-skitarii",
+        "label": "omp task subagent",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (only eligible model; ticket effort medium). This host cannot set a subagent's model or effort; the worker is an omp task subagent at the harness default, listed as anthropic/claude-opus-5-5.",
+        "sessionId": null
+      }
+    }
+  ],
+  "checkpoints": [],
+  "createdAt": "2026-11-15T20:33:25.721Z",
+  "endedAt": null,
+  "epicId": "ep_01m6t9cg507rmyg2q9nsw7kv3s",
+  "format": "darkmechanicus.run",
+  "formatVersion": 1,
+  "host": {
+    "label": "Claude Code (omp) on davgo Windows PC (OneDrive checkout)",
+    "type": "omp"
+  },
+  "hostCatalogId": "hc_01m7gessr2yj5pq1avx5vcxyjp",
+  "number": 1,
+  "ownerMachineId": "mc_01m7gdjzvswj7rwweky9e5fxpe",
+  "pauseReason": null,
+  "reports": [],
+  "revisionId": "rv_01m7gekkw2d5a7f4h8xq4zbg92",
+  "runId": "rn_01m7gemb6sahzxzem7zbr3k31m",
+  "skillVersion": "1.9.0",
+  "startedAt": "2026-11-15T20:37:02.107Z",
+  "state": "running",
+  "updatedAt": "2026-11-15T20:37:02.107Z"
+}

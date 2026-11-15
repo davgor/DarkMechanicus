@@ -1,0 +1,154 @@
+{
+  "acceptanceCriteria": [
+    {
+      "id": "c1",
+      "text": "Each agent in the sidebar AGENTS section expands to list every non-deleted chat of that agent across all tracked folders plus project-less chats, newest first, each labelled with its folder name or as project-less; deleted chats never appear and the list updates on create/rename/delete without reload."
+    },
+    {
+      "id": "c2",
+      "text": "Rows in the expanded agent list open, rename and delete chats with the same behaviour as folder chat rows, including live and needs-sign-in indicators."
+    },
+    {
+      "id": "c3",
+      "text": "Each agent row offers a summon action that, via the first-prompt popup, creates and starts a chat with that agent that is not tied to any project; it runs in its own scratch directory under app data and appears under that agent (and under no folder)."
+    },
+    {
+      "id": "c4",
+      "text": "Project-less chats survive app restart, can be reopened and resumed, and deleting one ends its terminal and removes its record, transcript and scratch directory; removing the agent ends its project-less sessions too."
+    },
+    {
+      "id": "c5",
+      "text": "A project-less chat can read and write Dark Mechanicus records for every tracked folder (orchestrator, Allow save) through the dm CLI using server-issued grants, its instructions explain how to target a folder, and its grants are revoked on chat deletion or agent removal."
+    },
+    {
+      "id": "c6",
+      "text": "Existing per-folder chats, the folder AgentsBlock, chat creation in a folder, and existing stored chat records behave exactly as before."
+    },
+    {
+      "id": "c7",
+      "text": "Behavioural tests cover cross-folder listing, project-less create/launch/delete, grant scope/revocation, and the expandable agent rows/summon UI; npm run lint, test, fireguard, typecheck, deadcode and build pass; desktop screenshots show expanded agent rows with mixed folder/project-less chats and a summoned project-less chat running."
+    }
+  ],
+  "body": "## Request\nUser (verbatim): \"I want all active (not deleted) agent sessions. Organized under agent type, so I can expand the agents and see the ones not tied to a given project. I also want to be able to summon up an agent not tied to the project under the agents left tab.\"\n\n## Decisions (made by the person)\n- Expanded agent rows show ALL chats for that agent: every tracked folder's chats plus project-less chats. Project-tied rows are labelled with their folder name; project-less rows are labelled as such.\n- A project-less chat runs in its own per-chat scratch directory under app data (e.g. `userData/agents/scratch/<chatId>`), not in a repo.\n- Dark Mechanicus access for project-less chats: wide open (read/write across all tracked folders). The person explicitly accepted the risk.\n\n## Current state (evidence)\n- Top sidebar AGENTS section (`src/renderer/src/sidebar/AgentsSection.tsx`) lists agent definitions (`AgentView`); rows open `AgentPage`; `+` adds an agent. It does not list chats.\n- Per-folder chats live in `AgentsBlock` (`src/renderer/src/sidebar/AgentsBlock.tsx`, `ChatRow.tsx`) fed by `useChats`/`chatsFor` (`src/renderer/src/agents/useChats.ts`) via `window.dm.chats.list(folder)`. No cross-folder listing exists (`ChatsApi.list(folder)` in `src/shared/agents/chatApi.ts`).\n- `ChatRecord.folder` is required (`src/shared/agents/chat.ts`). `chatHandlers.ts` `trackedFolder`/`chatFolder` and `launchFolder.ts` `resolveLaunchFolder` refuse untracked folders; cwd and `--repo` come from the folder. Store is keyed by folder hash (`src/main/agents/chatStore.ts`).\n- Delete is a hard delete (`chatStore.ts` `deleteChat`), so \"not deleted\" = every chat record currently in any store index (tracked folders + project-less store). Do not add soft delete.\n- Grants are per folder and a chat carries one `DM_SESSION_TOKEN` (`src/main/agents/chatGrants.ts`, `grantBindings.ts`, `cliInstructions.ts`).\n\n## Scope\n1. Main: a cross-folder chat listing (new `ChatsApi` method + IPC + preload) returning non-deleted chats from every tracked folder and from the project-less store, with folder (or null) attached; `chats_changed` events keep it fresh.\n2. Data model: allow a project-less chat (folder-less record or explicit marker) with its own store location; existing per-folder records and stores keep loading unchanged.\n3. Launch: project-less chats start in a created per-chat scratch directory; the folder-specific checks (tracked/swapped/missing folder) do not apply to them; deleting a project-less chat ends its terminal, removes its record and transcript, and removes its scratch directory.\n4. Dark Mechanicus access: a project-less chat gets read/write orchestrator access with Allow save across all tracked folders, and its generated CLI instructions tell it how to target any tracked folder (`--repo <folder>`). Implement within the server-side grant model (e.g. one grant per tracked folder or a multi-folder grant); do not bypass permission checks. Grants are revoked when the chat is deleted and when its agent is removed.\n5. Renderer: each agent row in the top AGENTS section becomes expandable (`aria-expanded`), listing that agent's non-deleted chats newest first, with folder label, live dot, sign-in badge, and the existing open/rename/delete actions. Each agent row gets a summon action that opens the existing first-prompt popup and creates/starts a project-less chat with that agent. Existing per-folder AgentsBlock behaviour is unchanged.\n6. Removing an agent still ends its sessions (`endAgentSessions`), including project-less ones.\n\n## Non-goals\n- Soft delete/archive, new deletion semantics.\n- Changing per-folder chat creation, the per-folder AgentsBlock, or the footer session count.\n- Moving a chat between projects.\n\n## Risks\n- Wide-open grant: a project-less agent can mutate every tracked folder's records. Accepted by the person; keep it visible (card note, docs) and keep server-side checks authoritative.\n- Store/launch code assumes a folder everywhere; audit every `chat.folder` consumer (naming, grants, kickoff, terminals, transfer, kanban) so project-less chats neither crash nor get routed to a folder.\n\n## Process\nIsolated Kanban card: tests-first for main/preload/renderer logic per delivery standards; full standalone gate (lint, test, fireguard, typecheck, deadcode, build) must pass.",
+  "createdAt": "2026-11-15T20:47:31.063Z",
+  "createdBy": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "expectedArtifacts": [
+    "Cross-folder chat listing API (main handler, IPC, preload, shared types) and project-less chat storage/launch support",
+    "Multi-folder Dark Mechanicus access for project-less chats with revocation",
+    "Expandable agent rows with chat lists and summon action in the sidebar AGENTS section",
+    "Behavioural tests, full delivery-gate results and desktop screenshots",
+    "Updated README / agent runbook describing project-less agents and their access"
+  ],
+  "format": "darkmechanicus.kanban-card",
+  "formatVersion": 1,
+  "generation": 1,
+  "id": "kc_01m7gfe4pv2q8s3xvd6z0845d2",
+  "key": "DM-619",
+  "priority": "normal",
+  "references": [
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Sidebar AGENTS section",
+      "location": "src/renderer/src/sidebar/AgentsSection.tsx",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Per-folder chat block",
+      "location": "src/renderer/src/sidebar/AgentsBlock.tsx",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Chat row",
+      "location": "src/renderer/src/sidebar/ChatRow.tsx",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Chat list hook",
+      "location": "src/renderer/src/agents/useChats.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "New-chat entry point",
+      "location": "src/renderer/src/App.tsx",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Chat record schema",
+      "location": "src/shared/agents/chat.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Chats API",
+      "location": "src/shared/agents/chatApi.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Chat handlers",
+      "location": "src/main/agents/chatHandlers.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Chat store",
+      "location": "src/main/agents/chatStore.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Launch folder resolution",
+      "location": "src/main/agents/launchFolder.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Chat grants",
+      "location": "src/main/agents/chatGrants.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "CLI instructions",
+      "location": "src/main/agents/cliInstructions.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Terminal sessions",
+      "location": "src/main/terminals/terminalSessions.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Agent removal ends sessions",
+      "location": "src/main/desktop/agentHandlers.ts",
+      "remoteOnly": false
+    }
+  ],
+  "size": "large",
+  "title": "List every agent session under its agent type in the sidebar Agents section and summon project-less agents there",
+  "updatedAt": "2026-11-15T20:47:31.063Z"
+}

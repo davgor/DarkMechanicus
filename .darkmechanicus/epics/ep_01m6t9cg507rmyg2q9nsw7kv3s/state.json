@@ -1,18 +1,22 @@
 {
-  "branch": null,
+  "branch": {
+    "name": "skitarii-communications",
+    "repository": "C:/Users/davgo/OneDrive/Documents/Github/DarkMechanicus",
+    "startCommit": "fd857e3d37c8ccc9d9ff21086dc203ac8fa5c685"
+  },
   "completedAt": null,
   "createdAt": "2026-11-07T05:58:28.256Z",
   "epicId": "ep_01m6t9cg507rmyg2q9nsw7kv3s",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 1,
+  "generation": 4,
   "outcome": null,
   "provenance": null,
-  "status": "backlog",
+  "status": "in_progress",
   "ticketStatuses": {
     "tk_01m6t9cg50413b45wafx03461d": "backlog",
     "tk_01m6t9s4np95kgyaybsczx6h5t": "backlog",
-    "tk_01m6t9v1s3a46yxszxgmntvmgn": "backlog",
+    "tk_01m6t9v1s3a46yxszxgmntvmgn": "in_progress",
     "tk_01m6t9v1sf7e7b4wwtm69nh0kn": "backlog",
     "tk_01m6t9v1sfapjspg73cxvtzw1f": "backlog",
     "tk_01m6t9v1sfj9wga1z539n2wsqz": "backlog",
@@ -22,5 +26,5 @@
     "tk_01m6t9v1sfz3nk1a2d0cbh89f1": "backlog"
   },
   "title": "Skitarii communications: durable direct messages, replies and safe agent notifications",
-  "updatedAt": "2026-11-07T06:07:11.873Z"
+  "updatedAt": "2026-11-15T20:38:54.688Z"
 }

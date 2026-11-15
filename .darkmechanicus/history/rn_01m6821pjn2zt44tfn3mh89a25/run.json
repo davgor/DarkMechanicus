@@ -2709,7 +2709,7 @@
   ],
   "checkpoints": [],
   "createdAt": "2026-10-31T04:03:54.581Z",
-  "endedAt": null,
+  "endedAt": "2026-11-15T20:19:32.934Z",
   "epicId": "ep_01m452vt115eqccd1ypdd596fy",
   "format": "darkmechanicus.run",
   "formatVersion": 1,
@@ -2719,7 +2719,7 @@
   },
   "hostCatalogId": "hc_01m6821pjj344z42ck5xd6k4y5",
   "number": 1,
-  "ownerMachineId": "mc_01m4912pg590r3j7r99nbcw9wz",
+  "ownerMachineId": "mc_01m7gdjzvswj7rwweky9e5fxpe",
   "pauseReason": null,
   "reports": [],
   "revisionId": "rv_01m65yene3p1dwngx9apevkpn4",
@@ -2854,6 +2854,6 @@
   "runId": "rn_01m6821pjn2zt44tfn3mh89a25",
   "skillVersion": "1.5.1",
   "startedAt": "2026-10-31T04:03:54.582Z",
-  "state": "running",
-  "updatedAt": "2026-10-31T04:03:54.582Z"
+  "state": "canceled",
+  "updatedAt": "2026-11-15T20:19:32.934Z"
 }

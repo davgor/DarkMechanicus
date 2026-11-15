@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Orchestrator, run rn_01m7gdve7pw5ey7eqtyrkvn9fm (Windows host, 2026-11-15). Setup decisions:\n\n- The epic branch `space-scorecards` did not exist on this computer (the canceled run's branches were on the Mac). I created it at current `main` HEAD fd857e3, which descends from the bound start commit 88c212f, so increments still verify against it; starting 101 commits behind main would have forced a large merge later. Sprint integration branch: `space-sprint-1`, in a worktree outside the coordinating checkout. The coordinating checkout stays on `main`; the squash lands through a separate worktree on `space-scorecards`.\n- No Node.js was installed. Workers use a portable Node 24.22.3 (the CI version) under a scratch tools folder; nothing on the system PATH changed.\n- Baseline `npx vitest run` on fd857e3 here: 5 failed of 10,556 (4 files), before any SPACE change:\n  - src/main/git/conflictsOpen.test.ts (2) and src/main/git/handlersWorkingDiff.test.ts (1): need file-symlink rights, which this Windows account lacks.\n  - src/main/git/commitLinesProperty.test.ts › commits exactly the selected content and never changes the working file.\n  - src/mcp/tools/chatNaming.test.ts › expects `desktop_unavailable` but the orchestrator's shell carries DM_DESKTOP_PIPE, so the desktop answered.\n  The acpProcess.test.ts failure noted on 10-31 did not reproduce here. DM-273 owns these at the sweep.",
+  "createdAt": "2026-11-15T20:28:26.828Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7geb7achqv4jfa0bnvq3xfs",
+  "ticketId": null
+}
