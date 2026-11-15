@@ -27,6 +27,7 @@ const CARD_TOKEN = `${CARD_ATTEMPT}.secret`
  * `not_found` (or succeeds harmlessly) right after its authorization check.
  */
 const PROBES: Record<CommandName, unknown> = {
+  nameChat: { title: 'Semantic probe title' },
   getCapabilities: undefined,
   getProject: undefined,
   setDefinitionOfDone: { checks: [] },

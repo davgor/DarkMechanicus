@@ -19,6 +19,7 @@ type AnyMethod = (input: never) => Promise<unknown>
 /** A `Record` over every command name makes the compiler flag a missing or misspelled entry. */
 const COMMAND_FLAGS: Record<CommandName, true> = {
   getCapabilities: true,
+  nameChat: true,
   getProject: true,
   setDefinitionOfDone: true,
   rescanRepositories: true,

@@ -39,12 +39,12 @@ export interface ChatStoreFs {
 }
 
 /** What a caller supplies to start a chat; the store assigns the id, timestamps and session id. */
-export type NewChat = Pick<ChatRecord, 'folder' | 'agent' | 'model' | 'role' | 'allowSave'> & { title?: string; runId?: string; transferEpicId?: string; cardId?: string }
+export type NewChat = Pick<ChatRecord, 'folder' | 'agent' | 'model' | 'role' | 'allowSave'> & Partial<Pick<ChatRecord, 'title' | 'runId' | 'transferEpicId' | 'cardId' | 'firstPrompt' | 'firstPromptDelivery' | 'titleStatus'>>
 
 /** Identifies a chat: its folder (any spelling) and id. Every `ChatRecord` is one. */
 export type ChatRef = Pick<ChatRecord, 'folder' | 'id'>
 
-type ChatPatch = Partial<Pick<ChatRecord, 'title' | 'autoTitlePending' | 'model' | 'role' | 'allowSave' | 'sessionId' | 'cutShortMessageId' | 'grantIds' | 'sessionStarted' | 'kickoffSent'>>
+type ChatPatch = Partial<Pick<ChatRecord, 'title' | 'firstPromptDelivery' | 'titleStatus' | 'titleError' | 'model' | 'role' | 'allowSave' | 'sessionId' | 'cutShortMessageId' | 'grantIds' | 'sessionStarted' | 'kickoffSent'>>
 
 interface ChatTranscript {
   chat: ChatRecord
@@ -212,7 +212,9 @@ function createChat(context: StoreContext, input: NewChat): ChatRecord {
     role: input.role,
     allowSave: input.allowSave,
     title: input.title ?? DEFAULT_TITLE,
-    ...(input.title === undefined && input.runId === undefined && input.transferEpicId === undefined && input.cardId === undefined ? { autoTitlePending: true } : {}),
+    ...(input.firstPrompt === undefined ? {} : { firstPrompt: input.firstPrompt }),
+    ...(input.firstPromptDelivery === undefined ? {} : { firstPromptDelivery: input.firstPromptDelivery }),
+    ...(input.titleStatus === undefined ? {} : { titleStatus: input.titleStatus }),
     createdAt: now,
     updatedAt: now,
     sessionId: null,

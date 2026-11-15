@@ -122,33 +122,17 @@
   background: var(--faint);
 }
 
-/* App-owned prompt submission is distinct from the CLI's raw terminal controls. */
-.terminal-prompt {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 6px 12px;
+/* Saved first-message recovery stays read-only; later input belongs to the CLI. */
+.terminal-first-prompt {
   flex-shrink: 0;
-  padding: 12px 24px;
-  border-top: 1px solid var(--line-soft);
-}
-
-.terminal-prompt label,
-.terminal-prompt small,
-.terminal-prompt p {
-  grid-column: 1 / -1;
-}
-
-.terminal-prompt textarea {
-  min-width: 0;
-  resize: vertical;
-  max-height: 160px;
-}
-
-.terminal-prompt small {
+  padding: 8px 40px;
+  max-height: 35%;
+  overflow: auto;
   color: var(--ink-soft);
 }
 
-.terminal-prompt p {
-  margin: 0;
-  color: var(--ink);
+.terminal-first-prompt pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
 }

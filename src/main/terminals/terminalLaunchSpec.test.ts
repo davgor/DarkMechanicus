@@ -715,3 +715,21 @@ describe('terminalLaunchSpec: OMP resume and Windows', () => {
     expect(spec.env['PI_FORCE_HYPERLINKS']).toBe('1')
   })
 })
+
+describe('terminalLaunchSpec: literal first-popup prompts', () => {
+  it.each(['help', '- explain this', '--dangerously-skip-permissions'])('treats %s as user text, never CLI flags/subcommands', (firstPrompt) => {
+    for (const platform of ['darwin', 'win32'] as const) {
+      for (const kind of [...KINDS, 'omp'] as const) {
+        const input = kind === 'omp' ? ompInput(platform, 'new') : inputFor(kind, platform, 'new')
+        input.chat = { ...input.chat, firstPrompt }
+        input.kickoff = firstPrompt
+        const spec = terminalLaunchSpec(input)
+        expect(spec.kickoffIn).toBe('paste')
+        expect(spec.pasteFirst).toContain(firstPrompt)
+        if (kind === 'claude' || kind === 'omp' || kind === 'custom') expect(spec.pasteFirst).toBe(firstPrompt)
+        if (spec.commandLine !== undefined) expect(spec.commandLine).not.toContain(firstPrompt)
+        else expect(spec.args).not.toContain(firstPrompt)
+      }
+    }
+  })
+})

@@ -12,6 +12,7 @@ import type { Capability } from '../authz'
  * `checkpoint.advance`, which the desktop holds too.
  */
 export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
+  nameChat: 'chat.name',
   getCapabilities: 'read',
   getProject: 'read',
   setDefinitionOfDone: 'project.definition_of_done',

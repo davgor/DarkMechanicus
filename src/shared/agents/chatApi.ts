@@ -1,7 +1,7 @@
 /**
  * The chat surface of the desktop bridge (`window.dm.chats`): one `chats:*` IPC channel per request
  * and one push channel that tells every window a folder's chats changed. The renderer names folders,
- * chats, agent ids, models, roles and titles only; which executable runs and the Dark Mechanicus
+ * chats, agent ids, models, roles, titles and first prompts only; which executable runs and the Dark Mechanicus
  * arguments are decided in the main process. Each chat runs in its terminal (`terminalApi.ts`).
  */
 import type { AgentId, CommandResult } from '../desktop/api'
@@ -27,6 +27,8 @@ export interface CreateChatRequest {
   /** Lets the chat save plans (`--allow-save`); on unless turned off. */
   allowSave?: boolean
   title?: string
+  /** Full original first user message: nonblank, at most 32,000 characters, never trimmed. */
+  firstPrompt?: string
 }
 
 /** Starts a connected agent as the orchestrator of a new run of an epic; the role, Allow save and the chat title are decided in main. */
@@ -113,16 +115,6 @@ interface RenameChatRequest extends ChatRequestRef {
   title: string
 }
 
-/** An explicit app-owned prompt, never inferred from raw terminal input or output. */
-interface SubmitPromptRequest extends ChatRequestRef {
-  text: string
-}
-
-export interface SubmitPromptResult {
-  /** Null once queued for the CLI's bracketed-paste input; otherwise why it could not be queued. */
-  problem: string | null
-}
-
 /** A chat and the transcript it stored before chats became terminals (empty for a chat that stored none). */
 export interface ChatReadView {
   chat: ChatRecord
@@ -197,8 +189,6 @@ export interface ChatsApi {
   boundTerminal(request: BoundThreadsRequest): Promise<CommandResult<string | null>>
   /** Changes the chat's title and returns the updated chat. */
   rename(request: RenameChatRequest): Promise<CommandResult<ChatRecord>>
-  /** Queues an explicit prompt through the terminal's existing paste path and names an untitled chat once. */
-  submitPrompt(request: SubmitPromptRequest): Promise<CommandResult<SubmitPromptResult>>
   /** Ends the chat's terminal and removes the chat and its transcript from the app-wide store. */
   delete(request: ChatRequestRef): Promise<CommandResult<null>>
   /** Subscribes to pushed chat events; returns the unsubscribe function. */

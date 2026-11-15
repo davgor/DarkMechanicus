@@ -103,61 +103,21 @@ describe('chat records: creating, listing and renaming', () => {
     expect(records.listChats(REPO).map((listed) => listed.title)).toEqual(['Fix the build'])
     expect(() => records.renameChat({ folder: REPO, id: 'chat_nope' }, 'x')).toThrowError(expect.objectContaining({ code: 'not_found' }) as Error)
   })
+
 })
 
-describe('chat records: first submitted question title', () => {
-  it('names once from a real question, normalizes whitespace and persists across restart', () => {
+describe('chat records: first popup prompt', () => {
+  it('persists the full first prompt and pending inference without changing explicit or system titles', () => {
     const before = rig()
-    const chat = before.records.createChat({ folder: REPO, agent: 'omp', role: 'planner' })
-    const named = before.records.nameFromQuestion(chat, '  Why does\n the build fail?  ')
-
-    expect(named?.title).toBe('Why does the build fail?')
-    expect(before.records.nameFromQuestion(chat, 'A later question')).toBeNull()
-    expect(rig(before.fs).records.readChat(chat).chat.title).toBe('Why does the build fail?')
-  })
-
-  it('ignores blank questions without consuming eligibility, and bounds long titles at a word', () => {
-    const { records } = rig()
-    const chat = records.createChat({ folder: REPO, agent: 'omp', role: 'planner' })
-    expect(records.nameFromQuestion(chat, ' \n\t ')).toBeNull()
-    const question = 'Explain how to fix the application build without changing any of the existing security boundaries or dependencies'
-    const title = records.nameFromQuestion(chat, question)?.title
-    expect(title).toBe('Explain how to fix the application build without changing any…')
-    expect(title?.length).toBeLessThanOrEqual(64)
-  })
-
-  it('persists a bounded Unicode title without cutting an emoji surrogate pair at the limit', () => {
-    const before = rig()
-    const chat = before.records.createChat({ folder: REPO, agent: 'omp', role: 'planner' })
-    const question = `${'界'.repeat(62)}${String.fromCodePoint(0x1f680)}続き`
-    const title = before.records.nameFromQuestion(chat, question)?.title
-
-    expect(title).toBe(`${'界'.repeat(62)}…`)
-    expect(title?.length).toBeLessThanOrEqual(64)
-    expect(rig(before.fs).records.readChat(chat).chat.title).toBe(title)
-  })
-
-  it('preserves creation titles, including an explicitly supplied generic title and run/Kanban titles', () => {
-    const { records } = rig()
-    for (const fields of [{ title: 'New chat' }, { title: 'My investigation' }, { title: 'Run: deployment', runId: RUN_ID }, { title: 'DM-504: Naming', cardId: 'kc_1' }]) {
-      const chat = records.createChat({ folder: REPO, agent: 'omp', role: 'planner', ...fields })
-      expect(records.nameFromQuestion(chat, 'Replace this title?')).toBeNull()
-      expect(records.readChat(chat).chat.title).toBe(fields.title)
-    }
-  })
-
-  it('checks current persisted eligibility, so manual titles win before or after automatic naming', () => {
-    const { records } = rig()
-    const chat = records.createChat({ folder: REPO, agent: 'omp', role: 'planner' })
-    records.renameChat(chat, 'New chat')
-    expect(records.nameFromQuestion(chat, 'Delayed automatic question')).toBeNull()
-    expect(records.readChat(chat).chat.title).toBe('New chat')
-
-    const other = records.createChat({ folder: REPO, agent: 'omp', role: 'planner' })
-    records.nameFromQuestion(other, 'Automatic question')
-    records.renameChat(other, 'My title')
-    expect(records.nameFromQuestion(other, 'Another delayed question')).toBeNull()
-    expect(records.readChat(other).chat.title).toBe('My title')
+    const firstPrompt = '  Could you investigate why signing in keeps failing after the session expires and fix the refresh flow?\nKeep approvals.  '
+    const chat = before.records.createChat({ folder: REPO, agent: 'codex', role: 'orchestrator', firstPrompt })
+    expect(chat).toMatchObject({ firstPrompt, title: 'Naming chat…', titleStatus: 'pending' })
+    expect(rig(before.fs).store.getChat(chat)).toMatchObject({ firstPrompt, titleStatus: 'pending' })
+    const explicit = before.records.createChat({ folder: REPO, agent: 'codex', role: 'orchestrator', firstPrompt, title: 'My deliberate name' })
+    expect(explicit).toMatchObject({ firstPrompt, title: 'My deliberate name' })
+    expect(explicit.titleStatus).not.toBe('pending')
+    const renamed = before.records.renameChat(chat, 'My deliberate name')
+    expect(renamed).toMatchObject({ firstPrompt, title: 'My deliberate name', titleStatus: 'manual' })
   })
 })
 

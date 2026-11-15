@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { nameChatArgsSchema } from '../shared/agents/chatNaming'
 import { REASONING_EFFORTS, TICKET_SIZES } from '../shared/domain/bundle'
 import { repositoryName } from './repo/portable'
 import { STORAGE_MODES } from './repo/storageMode'
@@ -70,6 +71,7 @@ const kanbanCardFields = {
 }
 
 export const COMMAND_SCHEMAS = {
+  nameChat: nameChatArgsSchema,
   /** `repo`: in a folder of repositories, the repository whose checks these are (required there, refused otherwise). */
   setDefinitionOfDone: z.strictObject({ checks: definitionOfDoneChecks, repo: repositoryName.optional() }),
   switchStorageMode: z.strictObject({ mode: z.enum(STORAGE_MODES), confirmed: z.literal(true) }),

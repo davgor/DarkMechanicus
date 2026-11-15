@@ -43,7 +43,6 @@ function recordingChats(): { chats: ChatRecords; calls: unknown[][] } {
     listChats: (...args) => (calls.push(['listChats', ...args]), [CHAT]),
     createChat: (...args) => (calls.push(['createChat', ...args]), CHAT),
     renameChat: (...args) => (calls.push(['renameChat', ...args]), { ...CHAT, title: 'Fix the build' }),
-    nameFromQuestion: (...args) => (calls.push(['nameFromQuestion', ...args]), { ...CHAT, title: 'Fix the build' }),
     deleteChat: async (...args) => {
       calls.push(['deleteChat', ...args])
     },
@@ -680,4 +679,17 @@ describe('chat handlers: unexpected terminal failures reach the error reporter',
     expect(results.map((result) => result.ok && (result.data as { problem: string | null }).problem)).toEqual(Array(4).fill(expect.stringContaining('the PTY host is gone')))
     expect(errors).toEqual(Array(4).fill(expect.objectContaining({ message: 'the PTY host is gone' })))
   })
+})
+
+it('accepts the full original first prompt at the guarded creation boundary but refuses blank prompts', async () => {
+  const { chats, calls } = recordingChats()
+  const handlers = handlersOver(chats)
+  const request = { folder: SPELLING, agent: 'claude', role: 'orchestrator' }
+  const firstPrompt = '  Could you investigate the expiry failure?\nPreserve every line.  '
+  expect(await handlers.create({ ...request, firstPrompt })).toMatchObject({ ok: true })
+  expect(calls).toEqual([['createChat', { ...request, folder: REPO, firstPrompt }]])
+  for (const blank of ['', ' \n\t ', 'x'.repeat(32_001)]) {
+    expect(await handlers.create({ ...request, firstPrompt: blank })).toMatchObject({ ok: false, error: { code: 'invalid_input' } })
+  }
+  expect(calls).toHaveLength(1)
 })

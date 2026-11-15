@@ -3,6 +3,14 @@
  * Messages are human-readable; `code` is the stable contract.
  */
 export const DOMAIN_ERROR_CODES = [
+  'desktop_unavailable',
+  'timeout',
+  'cancelled',
+  'invalid_request',
+  'busy',
+  'response_too_large',
+  'operation_unavailable',
+  'internal_error',
   'not_found',
   'invalid_input',
   'conflict',
