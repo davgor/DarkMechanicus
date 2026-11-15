@@ -40,6 +40,8 @@ Every sprint ends in one acceptance node (`kind: acceptance`). A new sprint gets
 ## Sprints and checkpoints
 
 - A sprint is a milestone: tickets that together reach something demonstrable. Sprints run in order. Each ends in a checkpoint where a report is submitted and, by default, a person approves before the next sprint starts.
+- Default to one sprint for one coherent outcome. Put feasibility and interface-risk investigations first as required prerequisite tickets; their accepted results and row checks gate implementation without an extra human checkpoint. Dependency depth, parallel branches and uncertainty alone do not justify more sprints.
+- Add a sprint when there is a distinct demonstrable increment or an explicit consequential human decision that must precede the next work. State that boundary's purpose and the additional full acceptance/report/approval cost in the rationale; do not multiply checkpoints merely to separate investigation from implementation.
 - A prerequisite must sit in the same sprint or an earlier one. A prerequisite in a later sprint is a validation error. Fix it by moving the prerequisite into the dependent's sprint or an earlier one, moving the dependent ticket to a later sprint (`move_ticket` either way), or removing the edge.
 - Put risky and unknown work early. Keep sprints small enough that a checkpoint is a meaningful decision point.
 - Give each sprint a `goal` and `exitCriteria`: checkable statements that the sprint report will answer one by one. `entryCriteria` list what must already be true.

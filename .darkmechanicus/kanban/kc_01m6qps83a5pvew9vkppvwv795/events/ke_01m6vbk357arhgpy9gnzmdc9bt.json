@@ -1,0 +1,26 @@
+{
+  "actor": {
+    "label": "Desktop",
+    "role": "desktop"
+  },
+  "attemptId": "ka_01m6t3zee0begahrz5secdqk34",
+  "cardId": "kc_01m6qps83a5pvew9vkppvwv795",
+  "createdAt": "2026-11-07T15:56:15.911Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m6vbk357arhgpy9gnzmdc9bt",
+  "kind": "approved",
+  "payload": {
+    "number": 1,
+    "summary": {
+      "approvedBy": "Desktop",
+      "commits": [
+        "bfee8ff64308beaa7766acea56aca2093032e77f",
+        "9491d2bdf464c02f45ca08eb02db7aa7a575505a",
+        "81a5287c9899d1f5ef63732b39fe77ff955cf0dc"
+      ],
+      "completedAt": "2026-11-07T15:56:15.911Z",
+      "outcome": "Added orchestrator-only tokenless failure/requeue recovery for a lost live Kanban claim, preserving machine ownership and shared lease/supersession/token fencing. Existing keyed claim replay already returned the original attempt with claimToken null and was retained without chur…"
+    }
+  }
+}

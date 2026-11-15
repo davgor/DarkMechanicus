@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "DM520 lifecycle review: backend completed domain checks but did not exit; this was NOT accepted as clean. Parent independently read installed node-pty lib/windowsPtyAgent.js133–160 and lib/windowsConoutConnection.js65–118: useConptyDll quiet kill can retain Conout worker pending a later data event before disposal. No dependency/vendor/private Worker/socket changes authorized. Prefer an explicit bounded disposable host lifetime via public process APIs, after actual production session/server/file cleanup and observed PTY descendant settlement. Driver must observe host reaping/endpoints closed/no late publication before output; retained-resource classes and termination mode remain explicit, not misreported natural exit or graceful closure of all internal handles. Unknown resources, failed cleanup or surviving descendants still fail.",
+  "createdAt": "2026-11-09T18:31:30.049Z",
+  "epicId": "ep_01m6q23ddmdxpzw7pqgyc5hyb7",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m70s8s01zwxbxyezpmphzahd",
+  "ticketId": "tk_01m70mp7q289yb9px9rsgkvvb4"
+}

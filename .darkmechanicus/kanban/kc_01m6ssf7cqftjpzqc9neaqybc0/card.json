@@ -1,0 +1,46 @@
+{
+  "acceptanceCriteria": [
+    {
+      "id": "c1",
+      "text": "An authorized orchestrator can launch a named Backlog card through either CLI or MCP, then claim it with the existing claim_kanban_card command without a desktop Play action."
+    },
+    {
+      "id": "c2",
+      "text": "A caller can explicitly launch multiple card IDs in one request; invalid or ineligible inputs produce actionable per-card errors and no partial mutation, while duplicate IDs and retried requests cannot create duplicate launches or attempts."
+    },
+    {
+      "id": "c3",
+      "text": "Reader, planner and worker callers and revoked/expired grants cannot launch cards; existing active claims, Ready for review and Done cards are not reset or overwritten, and human-only review powers remain unchanged."
+    },
+    {
+      "id": "c4",
+      "text": "CLI discovery and MCP tool discovery expose the new command and its authorization/input contract; CLI runbook and role guidance describe external single/batch launch and distinguish launch from claim and approval."
+    },
+    {
+      "id": "c5",
+      "text": "Behavioral regressions and the required delivery gate pass; disposable-project CLI and MCP smoke evidence demonstrates launch followed by claim/submission and unauthorized rejection."
+    }
+  ],
+  "body": "## Goal\nAn orchestrator explicitly asked to burn down Kanban cards must be able to launch them from an external chat through the supported CLI/MCP API, without requiring desktop Play for each card. Today all incomplete cards can be Backlog with playPending=false, leaving claim_kanban_card blocked. This is a requested product authorization-policy change, not permission to bypass current guards during implementation.\n\n## Scope\nAdd a shared launch command exposed through both CLI discovery/calls and MCP. Let an authorized orchestrator launch one card or an explicit nonempty list of card IDs, then use the existing claim/heartbeat/submit workflow. Use the normal queued/claimable Play transition without spawning duplicate desktop chats for an external caller. Validate and authorize the entire batch before mutation; reject invalid or ineligible IDs with actionable per-card errors and no partial launch. Make retries idempotent and preserve active claims and completed/submitted work. Require explicit card IDs; no implicit launch-all. Keep reader/planner/worker access denied, token/grant checks intact, and approval, kick-back, deletion and checkpoint powers human-only. Update capability discovery, command/tool descriptions, CLI runbook and role guidance to reflect this deliberate policy change. Do not implement the cards being launched or change epic execution.\n\n## Tests\nWrite failing behavioral tests first for authorized single/batch launch followed by successful existing claim; rejected unauthorized callers; mixed-invalid batch atomicity; duplicate IDs and repeated requests; active/Ready for review/Done card protection; and revoked/expired grants. Cover CLI and MCP command exposure using existing integration conventions.\n\n## Verification\nRun the delivery-standards full gate, including Fireguard when tests change. Smoke the supported CLI and MCP against a disposable initialized project: launch explicitly named cards, claim and submit one, observe Ready for review, and prove unauthorized launch is refused. Do not launch real Backlog cards as test fixtures.",
+  "createdAt": "2026-11-07T01:20:20.386Z",
+  "createdBy": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "expectedArtifacts": [
+    "Shared authorized Kanban launch command and capability policy",
+    "CLI and MCP exposure with behavioral regression coverage",
+    "Updated CLI runbook and role guidance",
+    "Verification and disposable-project smoke evidence"
+  ],
+  "format": "darkmechanicus.kanban-card",
+  "formatVersion": 1,
+  "generation": 1,
+  "id": "kc_01m6ssf7cqftjpzqc9neaqybc0",
+  "key": "DM-500",
+  "priority": "normal",
+  "references": [],
+  "size": "medium",
+  "title": "Allow authorized orchestrators to launch Kanban cards through CLI and MCP",
+  "updatedAt": "2026-11-07T01:20:20.386Z"
+}

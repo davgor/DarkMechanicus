@@ -1,6 +1,19 @@
 {
-  "acceptanceCriteria": [],
-  "body": "Images removed from a ticket by a later revision stay owned by that ticket.\n\nFound during the image-attachments epic (sprint 2, DM-432).",
+  "acceptanceCriteria": [
+    {
+      "id": "c1",
+      "text": "The new test passes and pins ownership, survival of the prune, revision-1 hash integrity, re-adding to the same ticket, and refusal on another ticket."
+    },
+    {
+      "id": "c2",
+      "text": "The ADR and the module header state the rule."
+    },
+    {
+      "id": "c3",
+      "text": "No production code changes."
+    }
+  ],
+  "body": "Images a later saved revision drops stay owned by their ticket (src/core/services/ticketAttachments.ts:149-155 only claims). That is correct and must stay: earlier saved revisions name the ref and their contentHash covers it; repo-mode snapshots and epics/<id>/attachments files reference it (src/core/repo/attachmentFiles.ts:164); import re-owns every image any saved revision names (src/core/repo/attachmentImport.ts:225-250), so releasing would make machines disagree; and the prune (src/core/services/attachments.ts:274-285) would delete bytes history still shows. Re-adding to the same ticket works (ticketAttachments.ts:60-62,87,136), other records are refused, and a dropped image does not count toward the per-revision limit (:122). What is missing is a test and the written rule.\n\n## Do\n1. src/core/services/ticketAttachments.ts:1-5 header comment: add \"An image a later revision drops stays owned by its ticket: earlier saved revisions, their content hashes, repo-mode snapshots and imports still name it. It is never pruned, may be shown on the same ticket again, and is refused on any other ticket or record.\"\n2. docs/decisions/0006-image-attachments.md: after the \"Where an image attaches\" bullet (lines 24-27), add a bullet \"A ticket keeps the images it showed.\" saying the same and citing import re-owning from saved revisions.\n3. No production logic changes.\n\n## Out of scope\nReleasing or deleting dropped images; a garbage collector for history images; StorageCard counts.\n\n## Tests\nsrc/core/services/ticketAttachments.test.ts, new describe('images a later revision dropped'), one test: stage x, set it on refMap.a, saveNow; set [], saveNow. Expect ownerOf(ctx, x) to equal refMap.a; pruneStagedAttachments(ctx, '9999-01-01T00:00:00.000Z') returns 0 and getAttachment still finds x; getPlan({ view: 'saved', revisionId: <rev1> }) still lists x on ticket a and contentHash(thatBundle) equals that view's contentHash; setImages(ctx, epicId, refMap.a, [x]) succeeds; editRefusal(ctx, epicId, refMap.b, [x]) is 'conflict'.\n\n## Rules\nThis card is the complete fix: nothing it finds is left for a later card. Fix anything that blocks a criterion inside this card. Run the listed tests, `npm run typecheck`, and `npx oxlint` on the touched files.",
   "createdAt": "2026-11-06T23:36:46.111Z",
   "createdBy": {
     "label": "dm CLI",
@@ -9,12 +22,12 @@
   "expectedArtifacts": [],
   "format": "darkmechanicus.kanban-card",
   "formatVersion": 1,
-  "generation": 1,
+  "generation": 2,
   "id": "kc_01m6skhjrm85hvhfby5qx02t8h",
   "key": "DM-493",
   "priority": "normal",
   "references": [],
-  "size": null,
-  "title": "Release images a later plan revision dropped",
-  "updatedAt": "2026-11-06T23:36:46.111Z"
+  "size": "small",
+  "title": "Pin and document that a ticket keeps images a later revision dropped",
+  "updatedAt": "2026-11-06T23:58:08.777Z"
 }

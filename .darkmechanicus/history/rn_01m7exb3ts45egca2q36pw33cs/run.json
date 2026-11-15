@@ -1,0 +1,445 @@
+{
+  "activeSprintId": "sp_01m794777ktbe6rtp14kwd7dsh",
+  "attempts": [
+    {
+      "createdAt": "2026-11-15T06:14:59.252Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": {
+        "details": "Commit7c69bc4457cfe347bd1bf84d925a9eccd44c5066 on desktop-controls-dm541. Full report docs/reports/desktop-control-contract.md; exact receipts/pins/checks evidence/desktop-dm541/. Native-04 actual guardIpc→real temp Workspace.issueGrant grants0→1, ordinary native card positive. No claim all possible designs impossible. Candidate trusted guardian/service authorization and own/vendor prompt/race coverage remain unproved. All c1/c2/c3 unmet; no production stubs. Final lint/typecheck passed; requested Vitest failed No test files found; prior launch/identity/parser/type failures preserved. Current native permission existed and was not renewed; stopped after material counterexample and measured owned cleanup. Local generated binaries/bundles/synthetic state remain uncommitted in owned worktree, portable receipts/images/source/report committed. Blind retry cannot supply the missing protected architecture; orchestrator must resolve/replan normally.",
+        "reason": "F03 failed: actual owned native semantic invocation crossed current trusted-renderer desktop-role boundary and issued a synthetic grant; no demonstrated replacement protects all required decisions/prompts/routes.",
+        "retryable": false
+      },
+      "fencingToken": 1,
+      "id": "at_01m7exgfxm1qzvafq72nqxd0gb",
+      "kind": "work",
+      "number": 1,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m7975spccs2hjbppqwky0kvm",
+      "state": "failed",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:1beaa02d05bc0cdbf43689ec08d428495ae922d942a0fc19de461011ff1a1f65",
+      "ticketId": "tk_01m794h65mec9hp3m268kbey53",
+      "updatedAt": "2026-11-15T06:37:49.386Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "omp-desktop-controls-20261115",
+        "label": "DM-541 specialist worker",
+        "modelId": "openai-codex/gpt-6.1-sol",
+        "rationale": "Recommended fixed inherited GPT-6.1 model; requested high specialist reasoning in worker instructions because this host has no separate effort selector.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-15T16:31:42.579Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": {
+        "details": "Committed 246883511474426d1d05ca5028c542645b8fb7d7 on desktop-controls-dm541, parent7c69bc4457cfe347bd1bf84d925a9eccd44c5066, assigned worktree only. Implemented real service-context removal of all15 human-only caps; fixed-command immutable one-use transaction enclave; Stop/PTY epoch and exact-byte/order fencing; pinned strict schemas/catalog; native raw-input guardian/sender and actual guardIpc/Electron protected fixture; concrete host hooks and versioned causal MCP reference consumer. Final requested3 Vitest files50/50 passed; npm run lint and all3 npm run typecheck projects passed. Genuine ConPTY and MCP stdio subprocess positives are explicitly functional/non-human. No native helper, Electron fixture, physical input, vendor prompt or production capability was launched/exposed. Prior native authorization expired06:40Z and was never reused. Parent approved prototype direction and is waiting on the person for new consent; this is not a refusal by the person, a new bypass counterexample or proof all architectures infeasible. Complete code/source/helper pins and honest per-case/per-criterion evidence are in evidence/desktop-dm541/retry2-verification.json; initial deterministic failures retained in retry2-checks-initial.json; expanded report docs/reports/desktop-control-contract.md preserves baseline failures. c1 not independently frozen/exhaustively qualified; c2 lacks actual hardware/live-handle/semantic/physical/batch/launch and event-to-PTY native proof; c3 lacks complete native/macOS input-origin proof and actual unavailable Autonomous shim qualification. All3 criteria remain not met; no scope reduction/security waiver/junior TODO or self-acceptance. Native pilots are compiled and purpose/hash/expiry/root gated for a later freshly authorized continuation. Full test/build/deadcode/coverage/Fireguard left to acceptance. No active wait/heartbeat job remains.",
+        "reason": "Blocked: mandatory native protection proof lacks fresh explicit human test authorization; verified replacement prototypes are preserved, not submitted as finished.",
+        "retryable": true
+      },
+      "fencingToken": 2,
+      "id": "at_01m7g0sqzk6na9rmm7cfh263k2",
+      "kind": "work",
+      "number": 2,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m7975spccs2hjbppqwky0kvm",
+      "state": "failed",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:1beaa02d05bc0cdbf43689ec08d428495ae922d942a0fc19de461011ff1a1f65",
+      "ticketId": "tk_01m794h65mec9hp3m268kbey53",
+      "updatedAt": "2026-11-15T17:41:15.770Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "omp-desktop-controls-20261115",
+        "label": "DM-541 protected architecture worker",
+        "modelId": "openai-codex/gpt-6.1-sol",
+        "rationale": "Match recommends same fixed model/high; highest available tier. Previous attempt established baseline bypass but stopped before implementing protection. User explicitly directs completing original in-scope architecture/prototype work.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-15T18:43:09.996Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": null,
+      "fencingToken": 3,
+      "id": "at_01m7g8aehcbxerhb5x4642me01",
+      "kind": "work",
+      "number": 3,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m7975spccs2hjbppqwky0kvm",
+      "state": "running",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:1beaa02d05bc0cdbf43689ec08d428495ae922d942a0fc19de461011ff1a1f65",
+      "ticketId": "tk_01m794h65mec9hp3m268kbey53",
+      "updatedAt": "2026-11-15T18:51:06.084Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "high",
+        "hostId": "omp-desktop-controls-20261115",
+        "label": "DM-541 native integration worker",
+        "modelId": "openai-codex/gpt-6.1-sol",
+        "rationale": "Recommended highest available inherited model/high. Reuse verified implemented protection2468835; native permission now explicitly received after attempt2 closed during form handoff. No retry of unchanged failure; execute newly authorized candidate proof.",
+        "sessionId": null
+      }
+    }
+  ],
+  "checkpoints": [],
+  "createdAt": "2026-11-15T06:12:03.033Z",
+  "endedAt": null,
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.run",
+  "formatVersion": 1,
+  "host": {
+    "label": "OMP orchestrator",
+    "type": "omp"
+  },
+  "hostCatalogId": null,
+  "number": 1,
+  "ownerMachineId": "mc_01m41707wstg1crxjbt3jw2ap5",
+  "pauseReason": null,
+  "reports": [
+    {
+      "content": {
+        "accepted": [],
+        "blocked": [
+          "DM-542 Install and find a verified private agent-desktop runtime — not started: requires the unaccepted DM-541 contract through its prerequisite chain.",
+          "DM-543 Run a bounded private native desktop engine with cancellable lifecycle — not started: requires the unaccepted DM-541 contract through its prerequisite chain.",
+          "DM-544 Authorize expiring full-control sessions and serialize desktop ownership — not started: requires the unaccepted DM-541 contract through its prerequisite chain.",
+          "DM-545 Expose the full supported desktop command inventory through authenticated dm calls — not started: requires the unaccepted DM-541 contract through its prerequisite chain.",
+          "DM-546 Show Full control consent, current controller, expiry and immediate Stop — not started: requires the unaccepted DM-541 contract through its prerequisite chain.",
+          "DM-547 Deliver desktop tools to every hosted agent and consented external session — not started: requires the unaccepted DM-541 contract through its prerequisite chain.",
+          "DM-548 Keep desktop content private while recording actionable control activity — not started: requires the unaccepted DM-541 contract through its prerequisite chain.",
+          "DM-549 Verify full-control behavior in a real packaged Windows app — not started: requires the unaccepted DM-541 contract through its prerequisite chain.",
+          "DM-550 Verify full-control behavior and host permissions in a real packaged macOS app — not started: requires the unaccepted DM-541 contract through its prerequisite chain.",
+          "DM-551 Independently challenge full-control consent and human-only protection — not started: requires the unaccepted DM-541 contract through its prerequisite chain.",
+          "DM-552 Document full desktop control, consent, recovery and verified platform limits — not started: requires the unaccepted DM-541 contract through its prerequisite chain.",
+          "DM-523 acceptance — every required work ticket remains unaccepted; no increment or combined DoD exists."
+        ],
+        "changes": {
+          "commits": [
+            "7c69bc4457cfe347bd1bf84d925a9eccd44c5066"
+          ],
+          "files": [
+            "docs/reports/desktop-control-contract.md",
+            "scripts/native/main/desktopControlBoundary.ts",
+            "evidence/desktop-dm541/artifact-pins.json",
+            "evidence/desktop-dm541/checks.json",
+            "evidence/desktop-dm541/cleanup.json",
+            "evidence/desktop-dm541/invocation-failure.json",
+            "evidence/desktop-dm541/pinned-command-inventory.json",
+            "evidence/desktop-dm541/native-02/manifest.json",
+            "evidence/desktop-dm541/native-02/owned-fixture.png",
+            "evidence/desktop-dm541/native-03/manifest.json",
+            "evidence/desktop-dm541/native-03/owned-fixture.png",
+            "evidence/desktop-dm541/native-04/manifest.json",
+            "evidence/desktop-dm541/native-04/owned-fixture.png"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "Early human-only feasibility gate failed. Exact 75-leaf pinned upstream help/MCP inventory preserved; no incomplete production schemas or placeholder tests introduced.",
+            "name": "F01–F02 executable public schemas/catalog",
+            "status": "skipped"
+          },
+          {
+            "detail": "Empty but present ELECTRON_RUN_AS_NODE caused Node mode before Electron UI; invocation-failure.json preserves diagnosis.",
+            "name": "Owned fixture launcher initial setup",
+            "status": "failed"
+          },
+          {
+            "detail": "Snapshot raw decimal HWND returned WINDOW_NOT_FOUND before input. Correct upstream ID format w-<decimal> was verified in pinned source. No state changed.",
+            "name": "Owned fixture native-02",
+            "status": "failed"
+          },
+          {
+            "detail": "Owned foreground guard and real snapshot succeeded; parser expected ref instead of observed ref_id and stopped before input. No state changed.",
+            "name": "Owned fixture native-03",
+            "status": "failed"
+          },
+          {
+            "detail": "Pinned v1.3 UIA InvokePattern.Invoke reached actual guarded renderer callback and real Workspace.createKanbanCard; native-04 calls.cardId kc_01m7ey91yqq69k0v9czxvczhax. Not human-origin evidence.",
+            "name": "F03 ordinary semantic positive",
+            "status": "passed"
+          },
+          {
+            "detail": "Pinned v1.3 UIA InvokePattern.Invoke passed actual guardIpc, real desktop Workspace.issueGrant changed synthetic grant count0→1; grant gr_01m7ey93br5zjtazx375zg421z. Native-04 manifest and attached screenshot. Baseline composition counterexample only; not production broker or proof all designs impossible.",
+            "name": "F03 protected synthetic grant remains unchanged",
+            "status": "failed"
+          },
+          {
+            "detail": "Stopped native actions after material protected mutation on parent instruction; these routes are not passed and no all-routes protection is claimed.",
+            "name": "F03 remaining physical/key/batch/launch/protected capabilities",
+            "status": "skipped"
+          },
+          {
+            "detail": "No production broker/authority dispatcher was implemented around an unproven protection. Cleanup is not a Stop contract test.",
+            "name": "F04 Stop delivery uncertainty",
+            "status": "skipped"
+          },
+          {
+            "detail": "Current source has no resumed guidance consumption for Codex/Cursor/Autonomous Windows shim; custom without {instructions} has no generic consumer. No accepted replacement or live sentinel proof; report table records exact hooks/limits.",
+            "name": "F05 per-host fresh/resume delivery",
+            "status": "failed"
+          },
+          {
+            "detail": "Ran once; exit1 No test files found. No successful schemas/catalog implementation or placeholder tests were introduced after failing gate.",
+            "name": "npx vitest run src/shared/agents/desktopControl.test.ts src/main/desktopControl/commandCatalog.test.ts src/integration/desktopControlContract.test.ts",
+            "status": "failed"
+          },
+          {
+            "detail": "Exit0.",
+            "name": "npm run lint (initial)",
+            "status": "passed"
+          },
+          {
+            "detail": "Exit2 TS2550 Promise.withResolvers absent from configured library. Preserved failure; corrected actual isolated source to node:events.once.",
+            "name": "npm run typecheck (initial)",
+            "status": "failed"
+          },
+          {
+            "detail": "Exit0; no rules relaxed.",
+            "name": "npm run lint (corrected source)",
+            "status": "passed"
+          },
+          {
+            "detail": "Exit0; node/web/fireguard typechecks. No native rerun after child-close waiting primitive correction.",
+            "name": "npm run typecheck (corrected source)",
+            "status": "passed"
+          },
+          {
+            "detail": "Manifests observed0 owned windows and0 active direct CLI children; cleanup.json separately enumerated0 electron.exe command lines containing exact owned fixture root at06:30:19.5469151Z. Not a descendant-tree or no-late-event guarantee.",
+            "name": "Owned process cleanup observation",
+            "status": "passed"
+          },
+          {
+            "detail": "Left to the acceptance node.",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "Left to the acceptance node; not required in this ticket.",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "Left to the acceptance node.",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "Left to the acceptance node. Only isolated native fixture bundles were built, not production.",
+            "name": "npm run build",
+            "status": "skipped"
+          },
+          {
+            "detail": "Inspected actual native-04 image/source/manifest; retrieved attachment im_01m7eydwyv13bxzbhgsc2c1y9e; all18 artifact hashes and sizes matched. No native rerun.",
+            "name": "Independent artifact review",
+            "status": "passed"
+          },
+          {
+            "detail": "At06:31:00.7918061Z no surviving fixture26104 or recorded CLI32680/14720/23740/20456. Not a full descendant-tree or zero-late-effect guarantee.",
+            "name": "Independent recorded-process observation",
+            "status": "passed"
+          },
+          {
+            "detail": "Combined sprint acceptance blocked: no work ticket accepted, no integration/acceptance node run. Narrow worker static checks above are not a passed combined Definition of Done.",
+            "name": "lint",
+            "status": "skipped"
+          },
+          {
+            "detail": "Combined sprint acceptance blocked: no work ticket accepted, no integration/acceptance node run. Narrow worker static checks above are not a passed combined Definition of Done.",
+            "name": "typecheck",
+            "status": "skipped"
+          },
+          {
+            "detail": "Combined sprint acceptance blocked: no work ticket accepted, no integration/acceptance node run. Narrow worker static checks above are not a passed combined Definition of Done.",
+            "name": "test",
+            "status": "skipped"
+          },
+          {
+            "detail": "Combined sprint acceptance blocked: no work ticket accepted, no integration/acceptance node run. Narrow worker static checks above are not a passed combined Definition of Done.",
+            "name": "coverage",
+            "status": "skipped"
+          },
+          {
+            "detail": "Combined sprint acceptance blocked: no work ticket accepted, no integration/acceptance node run. Narrow worker static checks above are not a passed combined Definition of Done.",
+            "name": "deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "Combined sprint acceptance blocked: no work ticket accepted, no integration/acceptance node run. Narrow worker static checks above are not a passed combined Definition of Done.",
+            "name": "build",
+            "status": "skipped"
+          }
+        ],
+        "epicOutcome": {
+          "successCriteria": [
+            {
+              "criterionId": "s1",
+              "met": false,
+              "note": "No Full control product or supported inventory was delivered."
+            },
+            {
+              "criterionId": "s2",
+              "met": false,
+              "note": "No production consent/ownership/Stop state machine was implemented or verified."
+            },
+            {
+              "criterionId": "s3",
+              "met": false,
+              "note": "Current baseline native semantic invocation issued a synthetic Agent access grant; a protected replacement and own/vendor-prompt coverage remain unproved."
+            },
+            {
+              "criterionId": "s4",
+              "met": false,
+              "note": "Private pinned Windows release bytes/inventory investigated only; installer/Find/all-host/external delivery unimplemented."
+            },
+            {
+              "criterionId": "s5",
+              "met": false,
+              "note": "Privacy requirements preserved in failure report, not implemented end to end."
+            },
+            {
+              "criterionId": "s6",
+              "met": false,
+              "note": "No actual final packaged Windows/macOS integration proof or combined DoD; owned Windows feasibility fixture is not a substitute."
+            }
+          ],
+          "summary": "Not delivered: early security-feasibility gate failed, no production actuation enabled or integrated."
+        },
+        "exitCriteria": [
+          {
+            "criterionId": "x7",
+            "met": false,
+            "note": "No work or acceptance node is accepted; material F03 finding remains unresolved."
+          },
+          {
+            "criterionId": "x8",
+            "met": false,
+            "note": "Owned automated counterexample obtained, but remaining required integration/native/host proof is unperformed; no human UAT requested or synthetic human provenance claimed."
+          },
+          {
+            "criterionId": "x9",
+            "met": false,
+            "note": "Combined Definition of Done and sprint increment were not run/landed because the required security feasibility gate failed."
+          }
+        ],
+        "failed": [
+          "DM-541 — attempt1 at_01m7exgfxm1qzvafq72nqxd0gb failed retryable:false; current human-only boundary admits native semantic synthetic grant issuance. All c1/c2/c3 unmet."
+        ],
+        "followUps": [
+          {
+            "body": "Use docs/reports/desktop-control-contract.md and native-04 counterexample. Freeze a concrete trusted decision-authorization and own/vendor-prompt boundary with exact race/positive-control/native proof requirements, or obtain an explicit human scope decision. Preserve unrestricted ordinary desktop scope, all15 human-only capabilities, both packaged OS proofs, the complete host matrix and the single-sprint requirement. Do not insert unproved stubs, duplicate the existing DM-547 host work, silently waive protection or blindly retry.",
+            "title": "Resolve and replan the DM-541 protected-architecture proof before actuation"
+          }
+        ],
+        "retro": {
+          "actions": [
+            "Do not automatically retry the same unprotected composition or start dependent actuation.",
+            "Resolve the exact trusted authorization/input/prompt/race boundary through a concrete specialist replan; do not weaken criteria or require product UAT as a substitute.",
+            "Keep all work in separate worktrees and preserve the saved one-sprint constraint; do not auto-move leftovers into an extra sprint without a human scope decision.",
+            "Retain raw failed-pilot evidence and distinguish source/bundle/static/native/provenance claims."
+          ],
+          "delivered": [],
+          "discoveries": [],
+          "leftovers": [
+            {
+              "reason": "One failed non-transient feasibility attempt. Concrete protected architecture/own-vendor prompt coverage not demonstrated; all criteria unmet.",
+              "ticket": "tk_01m794h65mec9hp3m268kbey53"
+            },
+            {
+              "reason": "Not started: predecessor DM-541 is not accepted; complete original implementation/tests/native/host/privacy/docs scope retained.",
+              "ticket": "tk_01m794h65mv6syywjvpaemznhe"
+            },
+            {
+              "reason": "Not started: predecessor DM-541 is not accepted; complete original implementation/tests/native/host/privacy/docs scope retained.",
+              "ticket": "tk_01m794h65mt3ye3h81gxznc2e2"
+            },
+            {
+              "reason": "Not started: predecessor DM-541 is not accepted; complete original implementation/tests/native/host/privacy/docs scope retained.",
+              "ticket": "tk_01m794h65mbjby6y4yxsxbmgjr"
+            },
+            {
+              "reason": "Not started: predecessor DM-541 is not accepted; complete original implementation/tests/native/host/privacy/docs scope retained.",
+              "ticket": "tk_01m794h65mxffr34q4rm9g06bh"
+            },
+            {
+              "reason": "Not started: predecessor DM-541 is not accepted; complete original implementation/tests/native/host/privacy/docs scope retained.",
+              "ticket": "tk_01m794h65mxhz3hypdt41mykne"
+            },
+            {
+              "reason": "Not started: predecessor DM-541 is not accepted; complete original implementation/tests/native/host/privacy/docs scope retained.",
+              "ticket": "tk_01m794h65mnx0za6gnda226xmk"
+            },
+            {
+              "reason": "Not started: predecessor DM-541 is not accepted; complete original implementation/tests/native/host/privacy/docs scope retained.",
+              "ticket": "tk_01m794h65myxzbn2z9vyvqzm44"
+            },
+            {
+              "reason": "Not started: predecessor DM-541 is not accepted; complete original implementation/tests/native/host/privacy/docs scope retained.",
+              "ticket": "tk_01m794h65mx52e5jmhjr4vkndm"
+            },
+            {
+              "reason": "Not started: predecessor DM-541 is not accepted; complete original implementation/tests/native/host/privacy/docs scope retained.",
+              "ticket": "tk_01m794h65mvd9ga8atw8h1059e"
+            },
+            {
+              "reason": "Not started: predecessor DM-541 is not accepted; complete original implementation/tests/native/host/privacy/docs scope retained.",
+              "ticket": "tk_01m794h65m1dcfztssqxx573p8"
+            },
+            {
+              "reason": "Not started: predecessor DM-541 is not accepted; complete original implementation/tests/native/host/privacy/docs scope retained.",
+              "ticket": "tk_01m794h65nsytz5t8nhwzc6m9x"
+            }
+          ],
+          "tierFit": [],
+          "wentPoorly": [
+            "DM-541 did not establish the required protected architecture; current renderer/desktop-role provenance was bypassed by real UIA invocation.",
+            "Initial native environment/window-ID/ref-field assumptions failed before input; initial typecheck failed before an actual source compatibility correction. Requested unit tests do not exist and the requested command failed.",
+            "Current resumed Codex/Cursor/Autonomous-shim and custom-without-instructions delivery hooks are incomplete; these remain existing F05/DM-547 obligations, not a new duplicate ticket."
+          ],
+          "wentWell": [
+            "The specialist prerequisite prevented downstream actuation from being implemented around an unproved human-only boundary.",
+            "Explicit fixture-only consent, identity/foreground checks, synthetic records and stop-after-first-mutation limited the native test; exact failure evidence and images retained.",
+            "Independent reviewer verified all18 hashes and actual image/guard/service/readback; no blanket impossibility or genuine-human claim."
+          ]
+        },
+        "risks": [
+          "No demonstrated guardian/transaction authorization protects all15 human-only capabilities and own/vendor permission prompts across semantic, pointer, keyboard, focus, batch and launch-mediated paths. No blanket impossibility claim; no native-dialog/input-origin/isTrusted shortcut accepted.",
+          "The failed protected effect was synthetic fixture grant.issue only; remaining native routes were stopped, not passed. This is not packaged Windows/macOS or final host proof.",
+          "Requested targeted Vitest failed No test files found; initial launcher/window-ID/parser/typecheck failures remain recorded. Corrected-source lint/typechecks do not make native F03 pass. Executed fixture-v3.cjs is frozen; final source events.once compatibility change was not natively rerun.",
+          "Evidence commit is isolated on desktop-controls-dm541, not merged into sprint or epic branches. Generated native executables/bundles/synthetic state remain local in its evidence root; portable receipts/source/images are committed.",
+          "Original shared checkout stays hybrid-chat-workspace with unrelated edits; this epic uses separate worktrees. No other epic was resumed or waived.",
+          "No new sprint/draft is automatically created: the saved explicit single-sprint delivery policy requires preserving scope pending an architecture/safety decision. No automatic retry or human-only checkpoint approval is authorized."
+        ],
+        "summary": "The specialist DM-541 feasibility gate failed after one attempt; no work ticket or sprint acceptance is accepted. In an explicitly consented owned Electron fixture, pinned agent-desktop v1.3 UIA InvokePattern.Invoke passed the current registered-renderer guard and real desktop Workspace.issueGrant changed synthetic grants from 0 to 1; an ordinary card-creation positive succeeded. Independent review inspected source, native receipts, image bytes and all 18 artifact hashes; no real project grants, vendor prompts or global settings were touched. This disproves the current baseline guard/desktop-role composition, not all possible designs, and no production broker or completed interface handoff was shipped. All dependent work and acceptance are blocked pending a concrete protected architecture and normal replanning; the saved single-sprint scope and all original acceptance obligations are preserved."
+      },
+      "contentHash": "sha256:55cc401cb78052fdc0392f9336c77f1da7e09d3a8b66e72e240df9279c7519c3",
+      "createdAt": "2026-11-15T06:41:04.201Z",
+      "id": "rp_01m7ez0869x92jc2erxq2wghw5",
+      "reportRevision": 1,
+      "sprintId": "sp_01m794777ktbe6rtp14kwd7dsh",
+      "submittedBy": "dm CLI"
+    }
+  ],
+  "revisionId": "rv_01m7975spccs2hjbppqwky0kvm",
+  "runId": "rn_01m7exb3ts45egca2q36pw33cs",
+  "skillVersion": "1.9.0",
+  "startedAt": "2026-11-15T06:13:39.622Z",
+  "state": "running",
+  "updatedAt": "2026-11-15T16:31:09.421Z"
+}

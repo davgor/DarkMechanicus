@@ -1,6 +1,19 @@
 {
-  "acceptanceCriteria": [],
-  "body": "The gallery only learns an image file is missing when its thumbnail fails to load; the view could carry a missing flag up front.\n\nFound during the image-attachments epic (sprint 2, DM-434).",
+  "acceptanceCriteria": [
+    {
+      "id": "c1",
+      "text": "Comment, card, card-attempt evidence, epic-attempt evidence and ticket views carry missing: true exactly on images whose bytes are not stored."
+    },
+    {
+      "id": "c2",
+      "text": "Present images have no missing key, and no stored record, bundle or content hash changes."
+    },
+    {
+      "id": "c3",
+      "text": "The listed tests pass, plus npm run typecheck and oxlint on touched files."
+    }
+  ],
+  "body": "The gallery already draws its placeholder from `item.missing` (src/renderer/src/attachments/AttachmentGallery.tsx:10-13,36), but no view sets it: `AttachmentRef` has no such field (src/shared/domain/views.ts:1093-1102). Today a missing image is found only when the <img> fails (onError, line 52).\n\n## Do\n1. src/shared/domain/views.ts:1093-1102: add `missing?: true` to `AttachmentRef`, documented \"Set only by read views when this database holds no bytes for the image; never stored or hashed.\"\n2. src/core/services/attachments.ts, after `listAttachmentRefs` (line 246), export:\n   - `flagMissingAttachments(db: Db, refs: readonly AttachmentRef[]): AttachmentRef[]`: empty input returns a copy; otherwise one query `SELECT id FROM attachments WHERE data IS NOT NULL AND id IN (?,…)`; return each ref unchanged if found, else `{ ...ref, missing: true }` (a missing row and NULL data both count).\n   - `flagMissingEvidence<E extends { attachments?: AttachmentRef[] }>(db: Db, evidence: E | null): E | null`: unchanged when null or without attachments; else with attachments flagged.\n3. Apply them in these read paths only:\n   - src/core/services/comments.ts:30: wrap with flagMissingAttachments(db, …).\n   - src/core/services/kanban/cards.ts:171 (cardAttachments): wrap with flagMissingAttachments(ctx.db, …).\n   - src/core/services/kanban/cards.ts:165: map attempts so each view's evidence goes through flagMissingEvidence(ctx.db, view.evidence).\n   - src/core/services/execution.ts:307 (listAttempts): after .map(attemptView), map each to { ...view, evidence: flagMissingEvidence(ctx.db, view.evidence) }.\n   - src/core/services/tickets.ts:127 (getTicket): when ticket.attachments is defined, return the ticket with flagged attachments.\n4. Leave listAttachmentRefs, attachmentRefOf, claimEvidenceAttachments, portable.ts and every write or export path untouched, so nothing stored or hashed gains the key.\n\n## Out of scope\nRenderer changes (the gallery already honours missing), attemptView callers other than listAttempts, StorageCard, the protocol handler.\n\n## Tests\n- src/core/services/attachments.test.ts, new describe('flagMissingAttachments'): flags a row with NULL data and an id with no row; leaves a stored image without a missing key; returns [] for [].\n- src/core/services/comments.test.ts near line 302: after UPDATE attachments SET data = NULL, missing = 1, listComments returns that ref with missing: true and the other without the key.\n- src/core/services/kanban/cards.test.ts near line 516: getKanbanCard flags a card image whose data was nulled.\n- src/core/services/kanban/attempts.test.ts near line 121: getKanbanCard(...).attempts[0].evidence.attachments[0].missing is true after nulling.\n- src/core/services/attempts.test.ts in describe('submitAttempt — attachments') (line 689): listAttempts flags nulled evidence images.\n- src/core/services/tickets.test.ts: getTicket (saved view) flags a nulled ticket image; the stored plan_revisions.bundle_json still has no missing key.\n\n## Rules\nThis card is the complete fix: nothing it finds is left for a later card. Fix anything that blocks a criterion inside this card. Run the listed tests, `npm run typecheck`, and `npx oxlint` on the touched files.",
   "createdAt": "2026-11-06T23:36:45.432Z",
   "createdBy": {
     "label": "dm CLI",
@@ -9,12 +22,12 @@
   "expectedArtifacts": [],
   "format": "darkmechanicus.kanban-card",
   "formatVersion": 1,
-  "generation": 1,
+  "generation": 2,
   "id": "kc_01m6skhj3e0tcbesdjxek6q5as",
   "key": "DM-491",
   "priority": "normal",
   "references": [],
-  "size": null,
+  "size": "medium",
   "title": "Flag missing images in the gallery before loading them",
-  "updatedAt": "2026-11-06T23:36:45.432Z"
+  "updatedAt": "2026-11-06T23:58:07.008Z"
 }

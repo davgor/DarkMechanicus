@@ -1,0 +1,101 @@
+{
+  "acceptanceCriteria": [
+    {
+      "id": "c1",
+      "text": "Repo startup and shipped instructions enforce verbose question-driven epic planning, autonomous in-scope orchestration and worker-only-to-orchestrator questions while preserving human authority."
+    },
+    {
+      "id": "c2",
+      "text": "Ordinary hosted Skitarii chats receive persistent policy through existing instruction file on initial and restart/resume launches without needing run/card or extra privileges."
+    },
+    {
+      "id": "c3",
+      "text": "Targeted launch/instruction verification and required standalone checks pass; evidence states installed-app and model-compliance limits."
+    }
+  ],
+  "body": "## Goal\nPersist user preferences in repo startup and every hosted Skitarii launch, including ordinary chats and restart/resume. Epic planning is verbose, thorough and question-driven: focused iterative discovery, options/recommendations/tradeoffs, assumptions, risks, explicit scope, acceptance, dependencies and tests. Orchestrators use planning behavior while planning, regardless of grant; during execution autonomously resolve routine implementation/worker questions from approved plan and repository evidence using best maintainable solutions. Escalate to user only genuine authority/safety/scope blockers and required approvals. Summoned workers/reviewers ask only orchestrator, never human. Preserve permissions, saved-plan boundaries and all human-only approvals/retries. Small clearly authorized work skips epic questionnaires.\n\n## Source locations\nAGENTS.md: existing repo startup instruction; add role/phase policy and discovery pointers. skills/planner.md: clarify outcome and verbose planning/questions. skills/orchestrator.md and skills/worker.md: question routing/autonomous in-scope decisions. src/main/terminals/terminalFiles.ts terminalInstructions/writeTerminalFiles currently omit workflow in ordinary chats: append concise single-source collaboration policy every start, before task-specific guidance. src/mcp/skills.ts raw Markdown convention can register new skills/collaboration.md (neighbor pattern skills/planner.md) rather than duplicate strings or append all full guides. src/main/terminals/terminalFiles.test.ts: startup/rewrite/ordinary role cases. src/main/terminals/terminalLaunchSpec.ts ompLaunch already passes instruction file via --append-system-prompt on new/resume; existing terminalLaunchSpec.test.ts tests it; no flag changes needed. docs/runbooks/agents.md: explain delivery and installed-app/relaunch limits.\n\n## Tests\nTDD-first for testable loading behavior: ordinary initial launch gets policy without run/card, role authority remains truthful, restart rewrites stale content. Product prompt behavior matters; avoid incidental wording snapshots/self-echo/bare wiring. Run targeted checks after implementation then standalone required full gate once. No new UI or vendor onboarding.\n\n## Constraints\nOne worker on checked-out branch; preserve unrelated changes. Do not commit or push; push it through means proceed. No delivery-standard changes. Existing file edits via edit. Worker reports evidence to orchestrator, does not submit card. No claim token in files/logs. Do not claim model compliance or update running/installed app automatically.",
+  "createdAt": "2026-11-13T00:22:14.674Z",
+  "createdBy": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "expectedArtifacts": [
+    "Persistent collaboration policy and updated role guides",
+    "Automatic instruction delivery",
+    "Verification evidence"
+  ],
+  "format": "darkmechanicus.kanban-card",
+  "formatVersion": 1,
+  "generation": 1,
+  "id": "kc_01m794h5c2454xpwd0e2rq2h70",
+  "key": "DM-538",
+  "priority": "normal",
+  "references": [
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "AGENTS.md",
+      "location": "AGENTS.md",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "skills/planner.md",
+      "location": "skills/planner.md",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "skills/orchestrator.md",
+      "location": "skills/orchestrator.md",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "skills/worker.md",
+      "location": "skills/worker.md",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "src/main/terminals/terminalFiles.ts",
+      "location": "src/main/terminals/terminalFiles.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "src/mcp/skills.ts",
+      "location": "src/mcp/skills.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "src/main/terminals/terminalFiles.test.ts",
+      "location": "src/main/terminals/terminalFiles.test.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "src/main/terminals/terminalLaunchSpec.test.ts",
+      "location": "src/main/terminals/terminalLaunchSpec.test.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "docs/runbooks/agents.md",
+      "location": "docs/runbooks/agents.md",
+      "remoteOnly": false
+    }
+  ],
+  "size": "small",
+  "title": "Load persistent planning and execution collaboration instructions in every Skitarii chat",
+  "updatedAt": "2026-11-13T00:22:14.674Z"
+}

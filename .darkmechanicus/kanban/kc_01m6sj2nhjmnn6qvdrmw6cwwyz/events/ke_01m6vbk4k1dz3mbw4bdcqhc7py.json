@@ -1,0 +1,26 @@
+{
+  "actor": {
+    "label": "Desktop",
+    "role": "desktop"
+  },
+  "attemptId": "ka_01m6t3zet1x2a18phva21eg4gz",
+  "cardId": "kc_01m6sj2nhjmnn6qvdrmw6cwwyz",
+  "createdAt": "2026-11-07T15:56:17.377Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m6vbk4k1dz3mbw4bdcqhc7py",
+  "kind": "approved",
+  "payload": {
+    "number": 1,
+    "summary": {
+      "approvedBy": "Desktop",
+      "commits": [
+        "e8a3d931130ccab5cb42086c0aea8b5113c67295",
+        "7e64de0cfbbf61860b7dce3c0a87692a9998d861",
+        "81a5287c9899d1f5ef63732b39fe77ff955cf0dc"
+      ],
+      "completedAt": "2026-11-07T15:56:17.377Z",
+      "outcome": "DM-489: hosted chats now select process.execPath and the running appPath/out/main/cli.js in development and packaged builds. The rendered shell invocation explicitly sets ELECTRON_RUN_AS_NODE=1 without exposing the grant or unrelated environment values, including when the termin…"
+    }
+  }
+}

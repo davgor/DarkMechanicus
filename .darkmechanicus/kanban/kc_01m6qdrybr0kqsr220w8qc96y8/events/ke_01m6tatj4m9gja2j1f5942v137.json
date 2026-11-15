@@ -1,0 +1,141 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": "ka_01m6t3zg0yk0t3dw6bwpg103mj",
+  "cardId": "kc_01m6qdrybr0kqsr220w8qc96y8",
+  "createdAt": "2026-11-07T06:23:37.620Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m6tatj4m9gja2j1f5942v137",
+  "kind": "submitted",
+  "payload": {
+    "evidence": {
+      "attachments": [],
+      "checks": [
+        {
+          "detail": "One run under exclusive parent CPU reservation. PR17 c3802f935b3de150a8023ffedf600c34b70f3314 vs2971419. Current CLI at cb1256d075625b4451f474f038933a095b88252f; 133.7777473s including startup, committed snapshots, all gates and cleanup; exit0; Grade A100;11 graded files/11modules;8warm committed lanes. No concurrency, timeout or threshold override; only FIREGUARD_BASE_REF=2971419.",
+          "name": "PR17 performance benchmark",
+          "status": "passed"
+        },
+        {
+          "detail": "Latest full npm test ran Fireguard own suite:25 files,170 passes/1 privilege skip locally; hosted171 passes. Earlier164pass/1EPERM worker run superseded; no test changes to bypass it.",
+          "name": "test:fireguard",
+          "status": "passed"
+        },
+        {
+          "detail": "Final HEAD e427c097: full strict oxlint passed (bg25).",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "Final HEAD e427c097: all three strict TypeScript projects passed (bg25).",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "Final HEAD e427c097: no new dead exports; baseline unchanged (bg25).",
+          "name": "deadcode",
+          "status": "passed"
+        },
+        {
+          "detail": "Final HEAD e427c097: complete main/preload/renderer production build passed (bg25).",
+          "name": "build",
+          "status": "passed"
+        },
+        {
+          "detail": "Final HEAD e427c097: npm test passed. App/scripts605 files passed +2 skipped;10402 tests passed +59 skipped. Fireguard own25 files passed;170 tests passed +1 platform skip. Total10572 tests passed,60 skipped. CI unset locally to preserve configured privilege probes.",
+          "name": "test",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run coverage exited0 and all10402 app tests passed; V8 summary reported Unknown% (0/0) in this local setup, so no percentage/threshold-evaluation claim.",
+          "name": "coverage",
+          "status": "passed"
+        },
+        {
+          "detail": "Committed-tree grade A97 against48506a0;100/100 flake runs,0 failures;120/131 mutants killed (92%),11 survivors;951 assertions,1 mock. No gate thresholds relaxed.",
+          "name": "fireguard",
+          "status": "passed"
+        },
+        {
+          "detail": "All13 checks green on e427c097; all632 native test files present exactly once; two grading shards share merge checkout8c3c1df and base48506a0; raw totals120/131,100/100flake,A97; real jobs overlap and exactly one sticky comment.",
+          "name": "hosted CI and artifact readback",
+          "status": "passed"
+        }
+      ],
+      "criteria": [
+        {
+          "criterionId": "c1",
+          "met": true,
+          "note": "Actual PR17 benchmark finished in2m13.7777473s (within2–2.5min), Grade A100, all320AST assertions/0mocks,100/100flake runs/0failures,15/15changed-line mutants killed/0survivors,166unchanged-line mutants not run. pr17-report.json and pr17-process.json contain observed output. Defaults remain100flake runs/0flake allowance/75%mutation threshold."
+        },
+        {
+          "criterionId": "c2",
+          "met": true,
+          "note": "Original worker run had164 passes and one CI-forced local symlink EPERM, allowed by card. Final full suite now passes: Fireguard170 pass/1 privilege skip locally and171 pass on hosted Windows. No thresholds or tests weakened."
+        },
+        {
+          "criterionId": "c3",
+          "met": true,
+          "note": "Final combined lint,typecheck,deadcode and production build passed on e427c097, then green PR merged to main."
+        }
+      ],
+      "notes": "No code changed, so no red/green implementation cycle or scoped commit was applicable. Existing lane/snapshot/changed-line implementation and README already document the requested architecture. PR17 benchmark worktree was explicitly approved by parent, prepared with shared-dependency junction only, and removed after evidence capture; junction unlinked before removal and shared dependencies never mutated. Assigned branch unchanged. CPU reservation released immediately after completion. Runtime prerequisite: Windows file symlink rights/Developer Mode unavailable (explicit c2 exception). No UI screenshot criteria. No gate relaxation, retries, skips or timing/concurrency overrides introduced.\n\nOrchestrator independently reviewed the worker changes and runtime evidence, requested and re-reviewed corrections, and integrated them on feature/kanban-cleanout. PR #37 merged into remote main as 81a5287c9899d1f5ef63732b39fe77ff955cf0dc after all 13 final-head checks passed. Hosted artifacts prove 632 exhaustive/disjoint test files, overlapping test/grading jobs, one combined A97 report and one sticky comment. Final local suite: 10572 passed,60 platform skips; hosted suite:10577 passed,55 skips. Coverage command exited0 but V8 collected0/0; no meaningful percentage or threshold-evaluation claim. Existing dirty/divergent original checkout was not reset or updated. Human approval remains required."
+    },
+    "number": 1,
+    "outputs": {
+      "artifacts": [
+        {
+          "hash": null,
+          "label": "PR17 actual Fireguard JSON report",
+          "location": "C:/Users/davgo/AppData/Local/Temp/dm484-evidence/pr17-report.json",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "PR17 process output, exact invocation, wall timing and machine",
+          "location": "C:/Users/davgo/AppData/Local/Temp/dm484-evidence/pr17-process.json",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "Fireguard own-suite observed results",
+          "location": "C:/Users/davgo/AppData/Local/Temp/dm484-evidence/fireguard-suite.json",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "Capture-host versus Node runtime and CI environment provenance correction",
+          "location": "C:/Users/davgo/AppData/Local/Temp/dm484-evidence/runtime-provenance.json",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "Inherited implementation source audit",
+          "location": "C:/Users/davgo/AppData/Local/Temp/dm484-evidence/implementation-audit.json",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "Merged integration PR and verified CI",
+          "location": "https://github.com/davgor/DarkMechanicus/pull/37",
+          "remoteOnly": true
+        },
+        {
+          "hash": null,
+          "label": "Final green hosted CI; artifacts and grading",
+          "location": "https://github.com/davgor/DarkMechanicus/actions/runs/42345391534",
+          "remoteOnly": true
+        }
+      ],
+      "branch": "main",
+      "changedFiles": [],
+      "commits": [
+        "81a5287c9899d1f5ef63732b39fe77ff955cf0dc"
+      ],
+      "summary": "DM-484 is already implemented in inherited commit 22f1f78e16804d956dcc1d567df7079f9e8a8c3e. Verified current Fireguard against PR17 c3802f935b3de150a8023ffedf600c34b70f3314/base2971419 during parent's quiet CPU reservation: 133.7777473 seconds wall, Grade A (100), flake100/100 with zero failures, mutation15/15 killed. No implementation or documentation changes justified; no new commit needed. Parent combined gates remain pending.\nFinal integration: reviewed and merged through https://github.com/davgor/DarkMechanicus/pull/37 into main (81a5287c9899d1f5ef63732b39fe77ff955cf0dc)."
+    }
+  }
+}

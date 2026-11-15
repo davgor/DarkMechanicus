@@ -1,0 +1,36 @@
+{
+  "branch": {
+    "name": "agent-human-attention",
+    "repository": "C:/Users/davgo/Documents/GitHub/DarkMechanicus",
+    "startCommit": null
+  },
+  "completedAt": null,
+  "createdAt": "2026-11-15T16:44:48.758Z",
+  "epicId": "ep_01m7g1hqqpj4ywrmtarhbc0drp",
+  "format": "darkmechanicus.epic-state",
+  "formatVersion": 1,
+  "generation": 2,
+  "outcome": null,
+  "provenance": {
+    "note": "Separate follow-up. Must not start until Hybrid final checkpoint closes the epic and its Windows increment is integrated. Provenance is informational, not an enforced dependency.",
+    "sourceEpicId": "ep_01m6q23ddmdxpzw7pqgyc5hyb7"
+  },
+  "status": "backlog",
+  "ticketStatuses": {
+    "tk_01m7g1hqqphx3t5966etb408mr": "backlog",
+    "tk_01m7g1r27xnk03ppr014nn69bs": "backlog",
+    "tk_01m7g1r28jv2r74asn7y4qj8mx": "backlog",
+    "tk_01m7g1r28jxtmxeaf1ah651esj": "backlog",
+    "tk_01m7g1r28jygqrw5f7m2xnefhs": "backlog",
+    "tk_01m7g1r28k3p61wtwe4fcjnc14": "backlog",
+    "tk_01m7g1r28k8y66r1c2zb9shyry": "backlog",
+    "tk_01m7g1r28kbnej0v3b5e6qhctw": "backlog",
+    "tk_01m7g1r28khpmh91fbf2cbw0je": "backlog",
+    "tk_01m7g1r28kn7d5h2f2d4smc685": "backlog",
+    "tk_01m7g1r28kpdkvh94hmq0psr92": "backlog",
+    "tk_01m7g1r28ktmcq7z52zh4g5s69": "backlog",
+    "tk_01m7g1r28kvh389me6mqb1n3g1": "backlog"
+  },
+  "title": "Notifications: human-attention inbox and background alerts for the hybrid GUI/TUI",
+  "updatedAt": "2026-11-15T18:47:19.769Z"
+}

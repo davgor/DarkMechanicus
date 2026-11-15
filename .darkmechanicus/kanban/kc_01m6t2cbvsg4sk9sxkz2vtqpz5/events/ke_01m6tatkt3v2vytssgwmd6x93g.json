@@ -1,0 +1,301 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": "ka_01m6t3zhhng5z69byvmz36tx21",
+  "cardId": "kc_01m6t2cbvsg4sk9sxkz2vtqpz5",
+  "createdAt": "2026-11-07T06:23:39.330Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m6tatkt3v2vytssgwmd6x93g",
+  "kind": "submitted",
+  "payload": {
+    "evidence": {
+      "attachments": [
+        {
+          "bytes": 127757,
+          "height": 1296,
+          "id": "im_01m6t81z948m0gn9k7dqxw92zc",
+          "label": "DM-504 Real Claude automatic sidebar/header title",
+          "mime": "image/png",
+          "purpose": "evidence",
+          "sha256": "f5c2818ba2b7245ce4a48037a24fcd64943e462bdd2fa68a21c45e37a55bbc6c",
+          "width": 2139
+        },
+        {
+          "bytes": 103212,
+          "height": 1296,
+          "id": "im_01m6t81zr1gq2am0fx4yy4dps1",
+          "label": "DM-504 Persisted generated title after actual app restart",
+          "mime": "image/png",
+          "purpose": "evidence",
+          "sha256": "825725feaf89378ad5d15b3b76d6ae926ee4ebdcba03d0d710f75f601ab6bf1b",
+          "width": 2139
+        },
+        {
+          "bytes": 109654,
+          "height": 1296,
+          "id": "im_01m6t82076acbf9mg1r87dhama",
+          "label": "DM-504 Manual title protected after later composer prompt",
+          "mime": "image/png",
+          "purpose": "evidence",
+          "sha256": "e3811e20687a5ca27eaa1aa13bdfd0a790a08d78c8984c549a25a4c7b414220e",
+          "width": 2139
+        },
+        {
+          "bytes": 138682,
+          "height": 1296,
+          "id": "im_01m6t820t1avpehw1772pdhegk",
+          "label": "DM-504 Actual Kanban chat title protected",
+          "mime": "image/png",
+          "purpose": "evidence",
+          "sha256": "b2f621c120918ab7cb8dec22317f91cf47e744f8af431e50a5458644fc9612d1",
+          "width": 2139
+        },
+        {
+          "bytes": 131073,
+          "height": 1296,
+          "id": "im_01m6t9gazwgm355gpw7wssf6ge",
+          "label": "DM-504 actual read-only historical view without composer",
+          "mime": "image/png",
+          "purpose": "evidence",
+          "sha256": "014e6d4e921d45520eb29e482366074f61eb0548576065feeb29e90bfddd8218",
+          "width": 2139
+        },
+        {
+          "bytes": 112336,
+          "height": 1296,
+          "id": "im_01m6t9gbrdfsx4szja21bdh306",
+          "label": "DM-504 composer restored after closing historical view",
+          "mime": "image/png",
+          "purpose": "evidence",
+          "sha256": "5358e6cf71722e398c68029360a3ef274df14f2d313aa35fb3185bbfcc06f469",
+          "width": 2139
+        }
+      ],
+      "checks": [
+        {
+          "detail": "Before implementation, npx.cmd vitest run src/main/agents/chatRecords.test.ts failed 4 new tests because nameFromQuestion did not exist (13 existing passed).",
+          "name": "TDD red: naming policy",
+          "status": "passed"
+        },
+        {
+          "detail": "Before component implementation, PromptComposer.test.tsx failed resolving absent ./PromptComposer module.",
+          "name": "TDD red: prompt composer",
+          "status": "passed"
+        },
+        {
+          "detail": "Initial scoped run: 8 files, 127 tests passed (3.29s). Per parent review, removed redundant fake-title event test and handler method-key inventory test. Reran affected chatHandlers.test.ts and useChats.test.tsx once: 2 files, 44 tests passed (1.17s). Final retained scoped coverage is 125 tests: 44 passed after corrections plus 81 unchanged tests from initial run. Existing useChats coverage remains unchanged from base. Original run printed two jsdom canvas getContext notices. Parent owns combined gates.",
+          "name": "targeted tests",
+          "status": "passed"
+        },
+        {
+          "detail": "Follow-up 1cf579d9fb090edc49085b4736570fc1c93752a5: reference search found SubmitPromptRequest consumed only by its owning ChatsApi and renderer test mock. Unexported internal interface and derived mock argument from ChatsApi signature. npx.cmd oxlint src/shared/agents/chatApi.ts src/renderer/src/__mocks__/fakeChats.ts exited 0. No runtime behavior change; parent reruns final typecheck/deadcode.",
+          "name": "export cleanup file-only lint",
+          "status": "passed"
+        },
+        {
+          "detail": "Actual Electron+native PTY, real Claude first prompt and actual app restart, then disposable custom CLI for blank/raw/startup boundaries, manual title preservation, and actual temporary Kanban chat. Five screenshots available for parent attachment; services exited 0 and ports released. See side-effect warning.",
+          "name": "real desktop smoke",
+          "status": "passed"
+        },
+        {
+          "detail": "Parent full combined npm test observed original TerminalPane.earlier.test.tsx read-only test fail at line90 because new Prompt textarea was visible. Accepted reported red as ground truth; did not rerun merely to confirm. Original no-textbox assertion was retained, not weakened.",
+          "name": "historical read-only regression red",
+          "status": "passed"
+        },
+        {
+          "detail": "npx.cmd vitest run TerminalPane.earlier.test.tsx TerminalPane.title.test.tsx TerminalPane.test.tsx TerminalPane.failures.test.tsx PromptComposer.test.tsx: 5 files, 56 tests passed, 1.77s. Then npx.cmd oxlint EarlierConversation.tsx TerminalPane.tsx TerminalPane.earlier.test.tsx exited0. Existing close-history test now checks composer absent while open and restored after closing.",
+          "name": "historical boundary targeted tests and lint",
+          "status": "passed"
+        },
+        {
+          "detail": "Follow-up source-dev runtime compiled by explicitly authorized electron-vite dev in assigned worktree, not parent's final combined production build. Actual Electron+native PTY with disposable custom CLI only and seeded temporary historical transcript: open => history=true, composer=false, Send=false, no approval answer controls; close => history=false, composer=true, Prompt enabled, Send present. Screenshots06/07 available; service exited0 and ports5173/9504/9505 released. No vendor/model/config actions during this follow-up. Parent must rebuild combined runtime and rerun final gates after integration.",
+          "name": "historical boundary actual desktop smoke",
+          "status": "passed"
+        },
+        {
+          "detail": "Before string-boundary fix, new actual-store regression using 62 CJK characters plus rocket emoji plus further CJK failed: received a lone high surrogate before ellipsis; 17 other chatRecords tests passed.",
+          "name": "Unicode title persistence regression red",
+          "status": "passed"
+        },
+        {
+          "detail": "Commit 6a80dbf5e23442b863f8a890bbe4b9a2d62979dd adjusts only prefix end when it falls on a high surrogate, preserving existing <=64 UTF-16 length and word-boundary semantics. npx.cmd vitest run src/main/agents/chatRecords.test.ts passed18 tests; scoped oxlint of chatRecords.ts and chatRecords.test.ts exited0. Regression asserts exact Unicode title and reopened-store persistence. Existing docs intentionally unchanged: documented title limit/rule is unchanged. No desktop/vendor rerun requested or performed for this pure string-boundary follow-up; parent owns combined verification.",
+          "name": "Unicode title persistence regression green and lint",
+          "status": "passed"
+        },
+        {
+          "detail": "Final HEAD e427c097: full strict oxlint passed (bg25).",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "Final HEAD e427c097: all three strict TypeScript projects passed (bg25).",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "Final HEAD e427c097: no new dead exports; baseline unchanged (bg25).",
+          "name": "deadcode",
+          "status": "passed"
+        },
+        {
+          "detail": "Final HEAD e427c097: complete main/preload/renderer production build passed (bg25).",
+          "name": "build",
+          "status": "passed"
+        },
+        {
+          "detail": "Final HEAD e427c097: npm test passed. App/scripts605 files passed +2 skipped;10402 tests passed +59 skipped. Fireguard own25 files passed;170 tests passed +1 platform skip. Total10572 tests passed,60 skipped. CI unset locally to preserve configured privilege probes.",
+          "name": "test",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run coverage exited0 and all10402 app tests passed; V8 summary reported Unknown% (0/0) in this local setup, so no percentage/threshold-evaluation claim.",
+          "name": "coverage",
+          "status": "passed"
+        },
+        {
+          "detail": "Committed-tree grade A97 against48506a0;100/100 flake runs,0 failures;120/131 mutants killed (92%),11 survivors;951 assertions,1 mock. No gate thresholds relaxed.",
+          "name": "fireguard",
+          "status": "passed"
+        },
+        {
+          "detail": "All13 checks green on e427c097; all632 native test files present exactly once; two grading shards share merge checkout8c3c1df and base48506a0; raw totals120/131,100/100flake,A97; real jobs overlap and exactly one sticky comment.",
+          "name": "hosted CI and artifact readback",
+          "status": "passed"
+        }
+      ],
+      "criteria": [
+        {
+          "criterionId": "c1",
+          "met": true,
+          "note": "Under user-approved composer boundary: first nonempty explicit prompt names generic chat once. chatRecords/IPC/PromptComposer regressions pass; actual Claude and disposable custom CLI sidebar/header screenshots show derived title and PTY log proves bracketed paste plus Enter."
+        },
+        {
+          "criterionId": "c2",
+          "met": true,
+          "note": "Existing chats_changed event reload behavior covered by useChats test; actual app quit/relaunch preserved generated title in sidebar/header (02-restarted-persisted-title.png). Switching chats and reopening retained the manual title."
+        },
+        {
+          "criterionId": "c3",
+          "met": true,
+          "note": "chatRecords tests cover creation-supplied New chat, meaningful title, run/Kanban title and later turns; chatPrompt test manually renames while terminal paste promise is pending and manual title wins. Actual manual rename/later prompt and actual Kanban Play chat smoke screenshots show protection."
+        },
+        {
+          "criterionId": "c4",
+          "met": true,
+          "note": "Only explicit chats:submitPrompt can invoke naming. Strict IPC rejects blank/extra-source payloads. Actual trust/model CLI controls, disposable unrelated terminal input, and startup/system/assistant/tool-labeled output left New chat unchanged; blank composer text disabled Send prompt. Raw terminal UX remains unchanged by approved design."
+        },
+        {
+          "criterionId": "c5",
+          "met": true,
+          "note": "Behavioral naming/persistence/manual-title-race tests pass with full combined suite and hosted CI. Actual Electron naming/restart/manual/Kanban protection and read-only-history/composer boundary screenshots reviewed and attached. Unicode surrogate persistence regression red/green plus actual helper smoke proves valid boundary. App-owned composer scope explicitly approved by user; raw terminal input intentionally does not name. Global Claude model now opus by explicit user choice. Coverage0/0 caveat recorded."
+        }
+      ],
+      "notes": "User expressly approved adding app composer; native vendor-hook investigation stopped. New chats carry optional autoTitlePending; older stored chats with absent metadata are intentionally preserved. Interface changes span chatRecords, ChatsApi/preload/IPC and TerminalPane; potential integration conflicts with other cards touching these files. No terminal lifecycle or cliInstructions changes. External side effect: genuine smoke CLI /model haiku persisted global ~/.claude/settings.json model=haiku. Prior terminal banner observed Opus 5.5, but original model field/value/absence was not captured. Bounded vendor backup/debug inspection found no settings.json backup or exact recovery evidence. The user subsequently explicitly selected Set it to Opus: only the existing model field was surgically changed from haiku to opus, and a model-only JSON read verified model=opus. This is a new user-authorized choice, not a byte-exact rollback. Only unique temp-folder trust project entry was surgically removed from ~/.claude.json after genuine CLI stopped; all other project entries preserved. One short real Haiku response completed before parent stop instruction; no tools requested. Subsequent smoke used disposable custom CLI only. No login/logout or credential edits. Vendor session history/bookkeeping for temporary folder may remain. Runtime details redacted in smoke-evidence.json.\n\nOrchestrator independently reviewed the worker changes and runtime evidence, requested and re-reviewed corrections, and integrated them on feature/kanban-cleanout. PR #37 merged into remote main as 81a5287c9899d1f5ef63732b39fe77ff955cf0dc after all 13 final-head checks passed. Hosted artifacts prove 632 exhaustive/disjoint test files, overlapping test/grading jobs, one combined A97 report and one sticky comment. Final local suite: 10572 passed,60 platform skips; hosted suite:10577 passed,55 skips. Coverage command exited0 but V8 collected0/0; no meaningful percentage or threshold-evaluation claim. Existing dirty/divergent original checkout was not reset or updated. Human approval remains required."
+    },
+    "number": 1,
+    "outputs": {
+      "artifacts": [
+        {
+          "hash": null,
+          "label": "Real Claude automatic sidebar/header title",
+          "location": "C:/Users/davgo/AppData/Local/Temp/dm504-BswqVQ/01-real-claude-auto-title.png",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "Persisted generated title after actual app restart",
+          "location": "C:/Users/davgo/AppData/Local/Temp/dm504-BswqVQ/02-restarted-persisted-title.png",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "Disposable custom CLI explicit prompt naming",
+          "location": "C:/Users/davgo/AppData/Local/Temp/dm504-BswqVQ/03-disposable-composer-title.png",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "Manual title protected after later composer prompt",
+          "location": "C:/Users/davgo/AppData/Local/Temp/dm504-BswqVQ/04-manual-title-protection.png",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "Actual Kanban chat title protected",
+          "location": "C:/Users/davgo/AppData/Local/Temp/dm504-BswqVQ/05-kanban-title-protection.png",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "Actual read-only historical view without composer",
+          "location": "C:/Users/davgo/AppData/Local/Temp/dm504-BswqVQ/06-history-readonly-no-composer.png",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "Active terminal composer restored after closing history",
+          "location": "C:/Users/davgo/AppData/Local/Temp/dm504-BswqVQ/07-terminal-composer-restored.png",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "Redacted runtime evidence and side-effect disclosure",
+          "location": "C:/Users/davgo/AppData/Local/Temp/dm504-BswqVQ/smoke-evidence.json",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "Actual custom CLI PTY input log",
+          "location": "C:/Users/davgo/AppData/Local/Temp/dm504-BswqVQ/prompt-input.jsonl",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "Merged integration PR and verified CI",
+          "location": "https://github.com/davgor/DarkMechanicus/pull/37",
+          "remoteOnly": true
+        },
+        {
+          "hash": null,
+          "label": "Final green hosted CI; artifacts and grading",
+          "location": "https://github.com/davgor/DarkMechanicus/actions/runs/42345391534",
+          "remoteOnly": true
+        }
+      ],
+      "branch": "main",
+      "changedFiles": [
+        "docs/runbooks/agents.md",
+        "src/main/agents/chatRecords.ts",
+        "src/main/agents/chatRecords.test.ts",
+        "src/main/agents/chatStore.ts",
+        "src/main/agents/chatHandlers.ts",
+        "src/main/agents/chatHandlers.test.ts",
+        "src/main/agents/chatIpc.ts",
+        "src/main/agents/chatIpc.test.ts",
+        "src/main/agents/chatPrompt.test.ts",
+        "src/shared/agents/chat.ts",
+        "src/shared/agents/chatApi.ts",
+        "src/preload/index.ts",
+        "src/renderer/src/agents/PromptComposer.tsx",
+        "src/renderer/src/agents/PromptComposer.test.tsx",
+        "src/renderer/src/agents/TerminalPane.tsx",
+        "src/renderer/src/agents/EarlierConversation.tsx",
+        "src/renderer/src/agents/TerminalPane.earlier.test.tsx",
+        "src/renderer/src/agents/terminalPane.css",
+        "src/renderer/src/__mocks__/fakeChats.ts",
+        "src/renderer/src/__mocks__/idleChats.ts"
+      ],
+      "commits": [
+        "218b805dc6440b54a3841d210fe4449d25312bc9",
+        "1cf579d9fb090edc49085b4736570fc1c93752a5",
+        "3220ec9d5e0d176d7d9a424c7c6d700d57ad4b6c",
+        "6a80dbf5e23442b863f8a890bbe4b9a2d62979dd",
+        "81a5287c9899d1f5ef63732b39fe77ff955cf0dc"
+      ],
+      "summary": "Implemented the user-approved app-owned Prompt composer across built-in/custom CLIs. First accepted nonempty composer prompt locally names a new implicit-title chat once; persisted eligibility protects supplied/manual/run/transfer/Kanban titles and manual rename races. Uses existing terminal paste, chat storage, typed guarded IPC and chats_changed refresh. Direct raw terminal input never names chats. Scoped implementation committed; combined delivery gate and screenshot attachments remain parent's responsibility. Smoke changed the external Claude model preference; the user subsequently explicitly chose Opus, and the model field is now verified as opus.\nFinal integration: reviewed and merged through https://github.com/davgor/DarkMechanicus/pull/37 into main (81a5287c9899d1f5ef63732b39fe77ff955cf0dc)."
+    }
+  }
+}

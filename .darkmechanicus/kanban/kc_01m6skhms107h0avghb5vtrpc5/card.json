@@ -1,6 +1,19 @@
 {
-  "acceptanceCriteria": [],
-  "body": "Failed outbox entries keep retrying, and their attempt count keeps growing.\n\nFound during the image-attachments epic (sprint 2, DM-434).",
+  "acceptanceCriteria": [
+    {
+      "id": "c1",
+      "text": "A failed outbox entry is still retried by every flush, and its attempts never exceed 5."
+    },
+    {
+      "id": "c2",
+      "text": "StorageCard says an entry at the cap is retried on every flush."
+    },
+    {
+      "id": "c3",
+      "text": "architecture.md states the cap, and the listed tests pass."
+    }
+  ],
+  "body": "recordFailure (src/core/repo/finalizer.ts:667-678) adds 1 to attempts on every failure and marks the entry failed at MAX_FLUSH_ATTEMPTS (5, :82-83). queuedAfter (:764) still selects failed entries, so every flush retries them; that retry is relied on (docs/architecture.md:186: a comment is exported once the epic's branch is checked out again) and stays. The defect is only the count: StorageCard shows \"failed N times\" (src/renderer/src/home/StorageCard.tsx:101-112) with N growing on every flush (after each mutation and every 15 s heartbeat in repo mode).\n\n## Do\n1. finalizer.ts recordFailure: set attempts = MIN(attempts + 1, MAX_FLUSH_ATTEMPTS); the state rule is unchanged (failed once the capped count reaches the maximum). Update the comment at line 82 to say failed entries are still retried by every flush and their count stays at the maximum.\n2. StorageCard.tsx failed-entry line (101-112): when an entry's attempts equals 5, read \"failed 5 or more times; retried on every flush\" instead of \"failed 5 times\".\n3. docs/architecture.md:236: after \"retried by every flush\", add \"; its attempt count stops at five\".\n\n## Out of scope\nParking or skipping failed entries, backoff, changing MAX_FLUSH_ATTEMPTS, migrations, storage status shape, CLI.\n\n## Tests\n- src/core/repo/finalizer.test.ts near line 227: after the fifth failure, three more failing flushes leave the row { state: 'failed', attempts: 5 }; removing the fault, the next automatic flush writes it (row done). Update the existing test there if it asserted a count above 5.\n- src/renderer/src/home/StorageCard.test.tsx block at line 109: a failed entry with attempts 5 shows \"failed 5 or more times; retried on every flush\"; one with attempts 2 keeps the existing text.\n- Also run src/core/repo/*.test.ts and src/core/repo/storage.test.ts.\n\n## Rules\nThis card is the complete fix: nothing it finds is left for a later card. Fix anything that blocks a criterion inside this card. Run the listed tests, `npm run typecheck`, and `npx oxlint` on the touched files.",
   "createdAt": "2026-11-06T23:36:48.171Z",
   "createdBy": {
     "label": "dm CLI",
@@ -9,12 +22,12 @@
   "expectedArtifacts": [],
   "format": "darkmechanicus.kanban-card",
   "formatVersion": 1,
-  "generation": 1,
+  "generation": 2,
   "id": "kc_01m6skhms107h0avghb5vtrpc5",
   "key": "DM-499",
   "priority": "normal",
   "references": [],
-  "size": null,
-  "title": "Stop retrying failed outbox entries forever",
-  "updatedAt": "2026-11-06T23:36:48.171Z"
+  "size": "small",
+  "title": "Stop the failed-entry attempt count growing without bound",
+  "updatedAt": "2026-11-06T23:58:12.830Z"
 }

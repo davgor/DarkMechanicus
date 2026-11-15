@@ -1,0 +1,26 @@
+{
+  "actor": {
+    "label": "Desktop",
+    "role": "desktop"
+  },
+  "attemptId": "ka_01m6t3zgd0pz5ckhhh2cwgsphc",
+  "cardId": "kc_01m6t1hzx2xcgc9c680v4e9r9s",
+  "createdAt": "2026-11-07T15:56:23.679Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m6vbkaqzxvk4dtaeez0kmmrp",
+  "kind": "approved",
+  "payload": {
+    "number": 1,
+    "summary": {
+      "approvedBy": "Desktop",
+      "commits": [
+        "417a911e88754bfc81d146a5128c8d6eeb840b24",
+        "e26bde8c2d4cf6983359a13116d5adea78c27c2b",
+        "81a5287c9899d1f5ef63732b39fe77ff955cf0dc"
+      ],
+      "completedAt": "2026-11-07T15:56:23.679Z",
+      "outcome": "Implemented four native Windows test shards and two Fireguard grading shards, preserving required test/fireguard aggregate checks, pinned committed HEAD/base, complete workload and grading thresholds. Removed CI coverage execution while retaining local coverage tooling. Added fa…"
+    }
+  }
+}

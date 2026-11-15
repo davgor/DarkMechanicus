@@ -1,0 +1,14 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": null,
+  "cardId": "kc_01m6qdrybr0kqsr220w8qc96y8",
+  "createdAt": "2026-11-07T04:23:06.777Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m6t3xwrsv20pa9ehc5ycm4m3",
+  "kind": "played",
+  "payload": {}
+}

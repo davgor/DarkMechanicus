@@ -1,0 +1,22 @@
+{
+  "actor": {
+    "label": "Desktop",
+    "role": "desktop"
+  },
+  "attemptId": "ka_01m7excmsc12rdfcz7wj8qztq6",
+  "cardId": "kc_01m794h5c2454xpwd0e2rq2h70",
+  "createdAt": "2026-11-15T18:43:59.237Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7g8bym56qazweycvf22q4dd",
+  "kind": "approved",
+  "payload": {
+    "number": 3,
+    "summary": {
+      "approvedBy": "Desktop",
+      "commits": [],
+      "completedAt": "2026-11-15T18:43:59.237Z",
+      "outcome": "Implemented persistent single-source collaboration policy in repo startup, shipped role guides and every generated hosted-chat instruction file. Ordinary Skitarii initial and restarted/resumed launches receive it through the existing prompt file without task binding or elevated …"
+    }
+  }
+}

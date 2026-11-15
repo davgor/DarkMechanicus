@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Accepted retry integrated as4ee73a117eff945f72531eeac1016b022526b345. Combined row2 passed: lint, typecheck,18files166tests/1existing skip. Integration preserves one registered app-webContents identity across files/browser/transport, one geometry owner, image insertion/resize gating, safe window rebind, viewer protocol before window creation, untrack/file/browser teardown. Fresh native screenshot im_01m6xbbzp390dcayc4nkmmcgc6 belongs retry only. Startup harness updated for required registerWindow/closed event; removed incidental icon/style/default/source-text assertions and forwarding-only file-channel echo test rather than re-pin. Retained shutdown and strengthened same-origin unregistered file-op denial behavior.",
+  "createdAt": "2026-11-08T10:39:25.538Z",
+  "epicId": "ep_01m6q23ddmdxpzw7pqgyc5hyb7",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m6xbvnb2x40c5j6ax9mff6fk",
+  "ticketId": "tk_01m6q23dyw76d8rh8zc1ckbvxw"
+}

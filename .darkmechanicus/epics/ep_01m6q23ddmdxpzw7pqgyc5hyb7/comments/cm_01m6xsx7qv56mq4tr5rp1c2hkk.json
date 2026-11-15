@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Accepted DM-466 integrated at4a2ffb2; accepted DM-465 integrated at27ba8c8 on isolated hybrid-s1 (not landed on epic/default branch). Merge preserved source+refinement cleanup and both regression sets. Independent integration review found record workers comparing mutable saved UUID to frozen actual-launch UUID: unrelated record lookup wrongly retired current Codex nodes/transcript generation. Added real-rollout regression, observed failure (2nodes→0 +generationreplacement), reused existing sameSource/source helper, observed passing. Actual production file reader→common tree→record query→inert Viewer projection smoke under Bun1.4.4 retained2nodes/samegeneration/knownsource/report after saved UUID cleared; owned temp tree removed, no vendor startup. Combined88targeted files/1066tests, lint and all typecheck projects passed afterfix. Docs updated. Full DoD/native live-provider/platform matrix NOT run/passed. Source safety uncertainty from prior466sandboxonboarding remains disclosed; no further vendor startup. DM-454 still retry_limit3/3, DM-459 active. No checkpoint waiver, extra retry, selfacceptance or main merge.",
+  "createdAt": "2026-11-08T14:44:57.211Z",
+  "epicId": "ep_01m6q23ddmdxpzw7pqgyc5hyb7",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m6xsx7qv56mq4tr5rp1c2hkk",
+  "ticketId": null
+}

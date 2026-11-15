@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Accepted at_01m6x6jn2msk6jxnaswem7yfr4 after independent HandoffReview and parent 47-test run. Integrated as 713bd2a; resolved layout/handoff shared hooks and APIs, unified duplicated physical Live.generation declarations/initializers so transport and insertion use one PTY epoch. Removed obsolete preload forwarding/mock-echo suite instead of adding more registration echoes, per standing behavior-test policy. Combined integration verification passed lint/typecheck and 7 affected files (81 passed, 1 existing skip). No new runtime/platform/provider parity claimed beyond the recorded Windows fixture smoke.",
+  "createdAt": "2026-11-08T09:56:11.562Z",
+  "epicId": "ep_01m6q23ddmdxpzw7pqgyc5hyb7",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m6x9cg59976mxcxg9ev4jh1y",
+  "ticketId": "tk_01m6q23dywyv8n5rrpm0r28x7j"
+}

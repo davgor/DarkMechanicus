@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Local Windows execution was attempted under user-authorized revision6. Automatic helper focus denied; human handoff expired while user requested no manual handoff. The long dialog wait outlasted the parent2h heartbeat idle watchdog: last heartbeat17:20UTC, expiry18:20; at18:33 public API returned expired_claim. Worker stopped before its newly prepared activation code was launched and preserved source0a09d5f /stop-evidence7cc0c04; no new worker native input occurred. Parent lawfully reconciled preserved output as submitted (w4false), then independently reviewed existing frozen code only. Parent180tests/8files +all3strict typechecks pass. Actual native run dm519-local-Px4oSq exited1: normal main-process BrowserWindow.focus did not establish foreground, then caption activation guard found a foreign window at its point and refused before pointer/key/capture.0leases/caps,ownedWindowDestroyed=true; restoration is guard-refused, not claimed successful. No PNG/native success. Current attempt independently rejected; server confirms retry_limit attempts3 limit3, no ready tickets and no in-flight claims. Run safely paused awaiting a PERSON desktop retry grant. Do not reset limits/adopt a budget-changing replan/create duplicate work to bypass this. Correct native activation/geometry/helper scheduling under existing guards in a legitimate new worker attempt; actual cause beyond the observed foreign hit remains to investigate. Source branchhybrid-local-dm519@7cc0c04 preserved unmerged; parent evidence local://hybrid-local-DM-519-parent-review.json. Mac remains user-deferred/optional; no fullDoD/final acceptance claimed.",
+  "createdAt": "2026-11-11T18:47:20.070Z",
+  "epicId": "ep_01m6q23ddmdxpzw7pqgyc5hyb7",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m75yz6r63j295jt65er4j17x",
+  "ticketId": "tk_01m6y1341fbhyrez9m9fq7760k"
+}

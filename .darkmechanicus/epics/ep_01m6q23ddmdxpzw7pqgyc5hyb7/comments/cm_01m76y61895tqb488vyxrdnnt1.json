@@ -1,0 +1,55 @@
+{
+  "attachments": [
+    {
+      "bytes": 110207,
+      "height": 1137,
+      "id": "im_01m76y47e62n07jky5ez6e83f5",
+      "label": "DM519 historical partial1dee 03-newer-viewer-b-wins.png; NOT same-cell/current-source/OS-pointer proof",
+      "mime": "image/png",
+      "purpose": "evidence",
+      "sha256": "87aa49b285f911a9d92027bda918041fc766fdb0a6aef6a6647ee8180b4e2dc0",
+      "width": 1779
+    },
+    {
+      "bytes": 119872,
+      "height": 1137,
+      "id": "im_01m76y47t6bbpxgr02aw3vj36d",
+      "label": "DM519 historical partial1dee 02-modifier-viewer-a.png; NOT same-cell/current-source/OS-pointer proof",
+      "mime": "image/png",
+      "purpose": "evidence",
+      "sha256": "0074dbe04ead26deac3eaf2c26eb2b94d9b07f9c2c45db2252feee38702a5e5a",
+      "width": 1779
+    },
+    {
+      "bytes": 109638,
+      "height": 1137,
+      "id": "im_01m76y4880wkzx13vp76ej10fj",
+      "label": "DM519 historical partial1dee 04-url-osc8-exclusive.png; NOT same-cell/current-source/OS-pointer proof",
+      "mime": "image/png",
+      "purpose": "evidence",
+      "sha256": "c02946a9f146b50db333fe50cc14afe9ce1f1b0681933299ccdca82863eed3c7",
+      "width": 1779
+    },
+    {
+      "bytes": 124706,
+      "height": 1137,
+      "id": "im_01m76y48rh86bfj86cazyv8r19",
+      "label": "DM519 historical partial1dee 01-hover-inert.png; NOT same-cell/current-source/OS-pointer proof",
+      "mime": "image/png",
+      "purpose": "evidence",
+      "sha256": "307ed553969ef377d545a9f06f3584ca2ef1af64e689c73bc06d99bbe8f3873d",
+      "width": 1779
+    }
+  ],
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Independent blocked-handoff review completed. Frozen branch hybrid-local-dm519-retry at f87711a370aa968e95efaed4d1504a39d0b75694 remains UNMERGED/UNACCEPTED. Lint and all3strict typechecks pass; current13-file suite has329passed/5genuine same-cell failures (334total). Reviewed the failing actual App/Viewer test and initial-OSC8 remove/replace reverse-transition tests; did not rerun failures merely to confirm. Independently checked all6source hashes, all4PNG hashes and the official beta tarball SHA1/SHA256/SHA512; read the shipped beta Linkifier source and confirmed the defect. Attached4visually inspected historical1dee PNGs ONLY as qualified partial evidence: original fixture error toast is retained; they are NOT current frozen-source, exact-cell recovery, physical-pointer, real-PTY/provider or final acceptance proof. Rejected callback/URI prototype was removed; evidence/hybrid-dm519-local/ contains final-blocked-checks.json, final-regression-output.txt, same-cell-regression-diagnosis.json and official-beta-same-cell-comparison.json. Proposed cache+gesture fix is static/unapplied and awaits explicit no-vendor-patch exception. w2/w4 remain unmet. No scope waiver or acceptance.",
+  "createdAt": "2026-11-12T03:52:49.673Z",
+  "epicId": "ep_01m6q23ddmdxpzw7pqgyc5hyb7",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m76y61895tqb488vyxrdnnt1",
+  "ticketId": "tk_01m6y1341fbhyrez9m9fq7760k"
+}

@@ -1,0 +1,25 @@
+{
+  "actor": {
+    "label": "Desktop",
+    "role": "desktop"
+  },
+  "attemptId": "ka_01m6sxqvde8tbc0e2eaqhqpr60",
+  "cardId": "kc_01m6skhms107h0avghb5vtrpc5",
+  "createdAt": "2026-11-07T04:15:42.478Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m6t3gawetxb86gb7nwntztja",
+  "kind": "approved",
+  "payload": {
+    "number": 1,
+    "summary": {
+      "approvedBy": "Desktop",
+      "commits": [
+        "9fa17ccb5b62d99232056c7da0b6f77233bf36e4",
+        "cb1256d075625b4451f474f038933a095b88252f"
+      ],
+      "completedAt": "2026-11-07T04:15:42.478Z",
+      "outcome": "recordFailure stores attempts = MIN(attempts + 1, MAX_FLUSH_ATTEMPTS); failed entries are still retried by every flush and their count stops at 5. StorageCard shows 'failed 5 or more times; retried on every flush' at the cap; architecture.md states the cap."
+    }
+  }
+}

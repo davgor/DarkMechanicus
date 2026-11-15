@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Planning note (2026-11-12): a new draft epic, \"Capabilities: find, install, run and explain third-party agent tools per folder\" (ep_01m798d4xrx42x7zzsrxpk8w2k), builds a shared surface for local agent tools: a lockfile-pinned private install, a managed process service, per-folder on/off and a folder-page card. DM-542 in this epic installs its own agent-desktop runtime separately. This saved plan was not changed. Open decision for the person: leave the two independent, or redraft DM-542 and DM-547 to reuse the Capabilities surface if that epic runs first. Desktop control keeps its own consent, expiry and Stop either way.",
+  "createdAt": "2026-11-13T01:39:01.337Z",
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m798xr2sf0abe8k69k7wvq5f",
+  "ticketId": null
+}

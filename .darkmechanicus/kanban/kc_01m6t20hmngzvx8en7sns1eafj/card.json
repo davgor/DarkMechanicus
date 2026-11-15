@@ -1,0 +1,91 @@
+{
+  "acceptanceCriteria": [
+    {
+      "id": "c1",
+      "text": "The displayed Kanban ticket count includes Backlog, In progress and Ready for review cards and excludes every completed/Done card."
+    },
+    {
+      "id": "c2",
+      "text": "Completing a card updates the displayed open count without requiring an app restart; refresh and deletion retain the correct count."
+    },
+    {
+      "id": "c3",
+      "text": "A board containing only completed cards displays zero open tickets, regardless of Done pagination; completed cards remain accessible in Done/history."
+    },
+    {
+      "id": "c4",
+      "text": "Behavioral regression tests and applicable delivery checks pass, and an actual desktop smoke check verifies the displayed count."
+    }
+  ],
+  "body": "## Source locations\n- `src/renderer/src/kanban/useKanbanCounts.ts`: `useKanbanCounts` fetches boards and sums only the three open lanes (lines 35–37 already exclude Done). Investigate the reported display/refresh behavior; do not replace correct counting blindly.\n- `src/renderer/src/kanban/useKanbanCounts.test.tsx`: existing mixed-lane exclusion regression; extend with completion refresh and all-Done cases.\n- `src/renderer/src/app/useShell.ts`: owns the hook and folder event tokens used to refresh counts.\n- `src/renderer/src/sidebar/Sidebar.tsx`: passes each folder count to the sidebar row.\n- `src/renderer/src/App.sidebar.test.tsx`: existing sidebar integration assertion excludes a Done card.\n- `src/renderer/src/kanban/KanbanBoard.tsx` and `useKanbanBoard.ts`: preserve Done lane totals/pagination; inspect if the reported count is on the board rather than sidebar.\n\n## Outcome\nThe folder's Kanban ticket count represents open work, not historical completed cards. Completed cards must remain available in the Done lane/history but must not increase the displayed count.\n\n## Scope\nLocate the existing Kanban count calculation and its consumers. Count cards in Backlog, In progress and Ready for review; exclude Done. Apply the same rule wherever the Kanban ticket count is displayed. Preserve Done-lane contents and pagination. Update the count after completion, deletion and board refresh using existing state-update patterns. Do not change epic counts or card approval rules.\n\n## Tests\nWrite a failing behavioral regression test before implementation using existing conventions: a mixed-lane board counts only open cards; completing an open card reduces the count; a board containing only completed cards shows zero. Ensure Done pagination does not affect the open count. Test observable counting/state behavior, not source text or incidental wording.\n\n## Verification\nRun targeted tests and the standalone delivery gate (lint, npm test, applicable Fireguard grading, typecheck, deadcode, build). Exercise the actual Kanban count in the desktop with mixed open/completed cards, verify completion updates the count, and confirm completed cards remain accessible. Record evidence and update existing relevant documentation/changelog. No implementation is authorized by this card-creation request.",
+  "createdAt": "2026-11-07T03:49:36.545Z",
+  "createdBy": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "expectedArtifacts": [
+    "Corrected Kanban count calculation and affected display/state consumers",
+    "Behavioral regression tests and desktop verification evidence",
+    "Updated relevant existing documentation/changelog"
+  ],
+  "format": "darkmechanicus.kanban-card",
+  "formatVersion": 1,
+  "generation": 2,
+  "id": "kc_01m6t20hmngzvx8en7sns1eafj",
+  "key": "DM-502",
+  "priority": "normal",
+  "references": [
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "useKanbanCounts.ts",
+      "location": "src/renderer/src/kanban/useKanbanCounts.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "useKanbanCounts.test.tsx",
+      "location": "src/renderer/src/kanban/useKanbanCounts.test.tsx",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "useShell.ts",
+      "location": "src/renderer/src/app/useShell.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Sidebar.tsx",
+      "location": "src/renderer/src/sidebar/Sidebar.tsx",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "App.sidebar.test.tsx",
+      "location": "src/renderer/src/App.sidebar.test.tsx",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "KanbanBoard.tsx",
+      "location": "src/renderer/src/kanban/KanbanBoard.tsx",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "useKanbanBoard.ts",
+      "location": "src/renderer/src/kanban/useKanbanBoard.ts",
+      "remoteOnly": false
+    }
+  ],
+  "size": "small",
+  "title": "Exclude completed cards from the Kanban ticket count",
+  "updatedAt": "2026-11-07T03:51:11.468Z"
+}

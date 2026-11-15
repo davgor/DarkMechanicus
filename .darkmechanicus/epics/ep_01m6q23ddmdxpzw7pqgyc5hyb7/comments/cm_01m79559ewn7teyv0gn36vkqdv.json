@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Investigation worker observed docs/verification/hybrid-workspace.md is NOT present in the assigned hybrid-local-521 tree; older plan references to it were planned, not proof of an existing runbook. Do not invent/recheck absence or claim documentation delivered. Current DM521 creates ONLY requested docs/verification/hybrid-dm521-failure-and-recovery.md and uses actual README/native source pointers. Required final DM460 must deliver/resolve the original promised native runbook and validate every final reference/command. Fifteen pre-existing untracked proposal/envelope JSONs remain retained-local evidence with hashes, not falsely Git-tracked/portable. Current investigation report will distinguish tracked/retained/ephemeral status; no wholesale evidence staging or new native permit replay authorized. Full Windows/final documentary scope remains required.",
+  "createdAt": "2026-11-13T00:33:14.204Z",
+  "epicId": "ep_01m6q23ddmdxpzw7pqgyc5hyb7",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m79559ewn7teyv0gn36vkqdv",
+  "ticketId": "tk_01m6q23eb0jbby3gy3y4nf4eyv"
+}

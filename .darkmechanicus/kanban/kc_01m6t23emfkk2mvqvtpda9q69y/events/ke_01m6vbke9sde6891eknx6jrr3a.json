@@ -1,0 +1,24 @@
+{
+  "actor": {
+    "label": "Desktop",
+    "role": "desktop"
+  },
+  "attemptId": "ka_01m6t3zh5egc3qqjcevpjt0132",
+  "cardId": "kc_01m6t23emfkk2mvqvtpda9q69y",
+  "createdAt": "2026-11-07T15:56:27.320Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m6vbke9sde6891eknx6jrr3a",
+  "kind": "approved",
+  "payload": {
+    "number": 1,
+    "summary": {
+      "approvedBy": "Desktop",
+      "commits": [
+        "81a5287c9899d1f5ef63732b39fe77ff955cf0dc"
+      ],
+      "completedAt": "2026-11-07T15:56:27.320Z",
+      "outcome": "No changes required. Existing upstream commit 9fc9104df3f0dff3f4973af7cf13119f3f94b1ac already implements DM-503 in all four owned files. Independently inspected planning guidance and compared actual mirror bytes; no duplicate commit created. Final integration: reviewed and merg…"
+    }
+  }
+}

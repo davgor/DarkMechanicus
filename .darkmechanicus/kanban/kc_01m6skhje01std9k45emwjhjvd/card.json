@@ -1,6 +1,19 @@
 {
-  "acceptanceCriteria": [],
-  "body": "Kanban card references show as plain text in the card panel.\n\nFound during the image-attachments epic (sprint 2, DM-431).",
+  "acceptanceCriteria": [
+    {
+      "id": "c1",
+      "text": "An http(s) reference on a card or ticket renders as a link that opens through window.dm.openExternal."
+    },
+    {
+      "id": "c2",
+      "text": "Other references render as before, as plain text."
+    },
+    {
+      "id": "c3",
+      "text": "Both panels use the one ReferenceList, and the listed tests pass."
+    }
+  ],
+  "body": "Both the card panel (src/renderer/src/kanban/KanbanCardPanel.tsx:160-171) and the ticket Overview (src/renderer/src/ticket/panelTabs.tsx:109-120) draw references as plain ew-mono text. Only evidence artifacts get links (panelTabs.tsx:186-188 isWebLocation, :203-206 SafeLink).\n\n## Do\n1. New src/renderer/src/ticket/ReferenceList.tsx: move isWebLocation here from panelTabs.tsx:186-188 and export it. Export ReferenceList({ references }: { references: TicketReference[] }): null when empty; else <section className=\"tp-section\" aria-label=\"References\"><h3 className=\"ew-eyebrow\">REFERENCES</h3><ul className=\"tp-files\">. Each <li> keeps key `${kind}:${location}` and text `label === location ? location : \\`${label} (${location})\\``; when isWebLocation(location) the text sits in <SafeLink href={location}>, otherwise <span className=\"ew-mono\">.\n2. src/renderer/src/ticket/panelTabs.tsx: replace lines 109-120 with <ReferenceList references={ticket.references} />; delete the local isWebLocation and import it from ./ReferenceList for ArtifactList.\n3. src/renderer/src/kanban/KanbanCardPanel.tsx: replace lines 160-171 with <ReferenceList references={card.references} />.\n\n## Out of scope\nLinking non-http(s) references; the editors; expected artifacts.\n\n## Tests\n- New src/renderer/src/ticket/ReferenceList.test.tsx (jsdom): an https reference renders a link named \"Design doc (https://example.test/design)\" whose click calls a mocked window.dm.openExternal with the URL; a file reference renders text and no link; an empty list renders nothing.\n- src/renderer/src/kanban/KanbanCardPanel.test.tsx:304: also assert getByRole('link', { name: /Design doc/ }) inside the References region.\n- src/renderer/src/ticket/panelTabs.overview.test.tsx:40-58: add a url reference and assert it is a link; the existing file references have no link role.\n\n## Rules\nThis card is the complete fix: nothing it finds is left for a later card. Fix anything that blocks a criterion inside this card. Run the listed tests, `npm run typecheck`, and `npx oxlint` on the touched files.",
   "createdAt": "2026-11-06T23:36:45.770Z",
   "createdBy": {
     "label": "dm CLI",
@@ -9,12 +22,12 @@
   "expectedArtifacts": [],
   "format": "darkmechanicus.kanban-card",
   "formatVersion": 1,
-  "generation": 1,
+  "generation": 2,
   "id": "kc_01m6skhje01std9k45emwjhjvd",
   "key": "DM-492",
   "priority": "normal",
   "references": [],
-  "size": null,
-  "title": "Render card references as links",
-  "updatedAt": "2026-11-06T23:36:45.770Z"
+  "size": "small",
+  "title": "Render card and ticket references as links",
+  "updatedAt": "2026-11-06T23:58:07.848Z"
 }

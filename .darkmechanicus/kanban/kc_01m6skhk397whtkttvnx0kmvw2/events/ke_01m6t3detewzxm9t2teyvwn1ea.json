@@ -1,0 +1,107 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": "ka_01m6sxqsr4mbghx0xaf26c0w5d",
+  "cardId": "kc_01m6skhk397whtkttvnx0kmvw2",
+  "createdAt": "2026-11-07T04:14:08.206Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m6t3detewzxm9t2teyvwn1ea",
+  "kind": "submitted",
+  "payload": {
+    "evidence": {
+      "checks": [
+        {
+          "detail": "card PR #29 CI https://github.com/davgor/DarkMechanicus/actions/runs/42330640609 green at d1e12fe; integrated PR #35 CI https://github.com/davgor/DarkMechanicus/actions/runs/42336128677 green on its first run at d21359a, merged to main as cb1256d. Local full Definition of Done on the integrated branch (aa0f318, quiet machine): lint, typecheck, test (10,339 passed, 0 failed; Fireguard 164), coverage (branches 95.07%), deadcode and build all passed.",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "card PR #29 CI https://github.com/davgor/DarkMechanicus/actions/runs/42330640609 green at d1e12fe; integrated PR #35 CI https://github.com/davgor/DarkMechanicus/actions/runs/42336128677 green on its first run at d21359a, merged to main as cb1256d. Local full Definition of Done on the integrated branch (aa0f318, quiet machine): lint, typecheck, test (10,339 passed, 0 failed; Fireguard 164), coverage (branches 95.07%), deadcode and build all passed.",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "card PR #29 CI https://github.com/davgor/DarkMechanicus/actions/runs/42330640609 green at d1e12fe; integrated PR #35 CI https://github.com/davgor/DarkMechanicus/actions/runs/42336128677 green on its first run at d21359a, merged to main as cb1256d. Local full Definition of Done on the integrated branch (aa0f318, quiet machine): lint, typecheck, test (10,339 passed, 0 failed; Fireguard 164), coverage (branches 95.07%), deadcode and build all passed.",
+          "name": "test",
+          "status": "passed"
+        },
+        {
+          "detail": "card PR #29 CI https://github.com/davgor/DarkMechanicus/actions/runs/42330640609 green at d1e12fe; integrated PR #35 CI https://github.com/davgor/DarkMechanicus/actions/runs/42336128677 green on its first run at d21359a, merged to main as cb1256d. Local full Definition of Done on the integrated branch (aa0f318, quiet machine): lint, typecheck, test (10,339 passed, 0 failed; Fireguard 164), coverage (branches 95.07%), deadcode and build all passed.",
+          "name": "coverage",
+          "status": "passed"
+        },
+        {
+          "detail": "card PR #29 CI https://github.com/davgor/DarkMechanicus/actions/runs/42330640609 green at d1e12fe; integrated PR #35 CI https://github.com/davgor/DarkMechanicus/actions/runs/42336128677 green on its first run at d21359a, merged to main as cb1256d. Local full Definition of Done on the integrated branch (aa0f318, quiet machine): lint, typecheck, test (10,339 passed, 0 failed; Fireguard 164), coverage (branches 95.07%), deadcode and build all passed.",
+          "name": "deadcode",
+          "status": "passed"
+        },
+        {
+          "detail": "card PR #29 CI https://github.com/davgor/DarkMechanicus/actions/runs/42330640609 green at d1e12fe; integrated PR #35 CI https://github.com/davgor/DarkMechanicus/actions/runs/42336128677 green on its first run at d21359a, merged to main as cb1256d. Local full Definition of Done on the integrated branch (aa0f318, quiet machine): lint, typecheck, test (10,339 passed, 0 failed; Fireguard 164), coverage (branches 95.07%), deadcode and build all passed.",
+          "name": "build",
+          "status": "passed"
+        }
+      ],
+      "criteria": [
+        {
+          "criterionId": "c1",
+          "met": true,
+          "note": "diff.test.ts 'reports two images added...' asserts {kind:'edited', target:'ticket', detail:'images 2 added'}; other cases assert '1 added, 1 removed', '2 removed', 'reordered'."
+        },
+        {
+          "criterionId": "c2",
+          "met": true,
+          "note": "No existing diff test edited; all 30 pass, including the fixed-order test."
+        },
+        {
+          "criterionId": "c3",
+          "met": true,
+          "note": "All 6 new cases pass locally and in the CI test job."
+        }
+      ],
+      "notes": "Card PR CI was green on its first run. Worker's local full npm test: failed: 78 git/gh subprocess tests timed out at 15 s under host contention from 8 parallel worker suites (100% CPU); none touch the plan diff; not rerun.. That run shared the machine with seven other workers' suites; the integrated branch then passed the full suite on a quiet machine (above). Test-infrastructure fixes made during the bundle: #34 (tests opening workspaces directly no longer force disk syncs) and #36 (installer test starts a 45 KB stand-in instead of a copied node.exe)."
+    },
+    "number": 1,
+    "outputs": {
+      "artifacts": [
+        {
+          "hash": null,
+          "label": "Plan diff images phrase",
+          "location": "src/core/plan/diff.ts",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "Ticket images diff tests",
+          "location": "src/core/plan/diff.test.ts",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "PR #29",
+          "location": "https://github.com/davgor/DarkMechanicus/pull/29",
+          "remoteOnly": true
+        },
+        {
+          "hash": null,
+          "label": "Bundle PR #35",
+          "location": "https://github.com/davgor/DarkMechanicus/pull/35",
+          "remoteOnly": true
+        }
+      ],
+      "branch": "main",
+      "changedFiles": [
+        "src/core/plan/diff.ts",
+        "src/core/plan/diff.test.ts"
+      ],
+      "commits": [
+        "d1e12fefa023b90b4bebbab2d5eed66b412decef",
+        "cd0b30d8da4ed838d62bbb34a3e01085c8ce6a24",
+        "cb1256d075625b4451f474f038933a095b88252f"
+      ],
+      "summary": "Added imagesPhrase(before, after) to src/core/plan/diff.ts as the last ticketPhrases entry: compares attachment ids, null when equal, 'images reordered' for a pure reorder, else 'images N added, M removed' with zero counts omitted. Six new cases in describe('computeChanges for ticket images'); no existing test changed."
+    }
+  }
+}

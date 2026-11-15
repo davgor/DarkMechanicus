@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Independent review of repair a91ada: actual backend and hidden CLI smoke passed (8021ms/25355ms; nativeProof=false; unique owned paths). Normal project Vitest targeted run failed 2/55: backend lacked prior independent ownership witness; hidden reported runtime/owned-cleanup failure. Original worker success is not accepted as completion; worker investigating both observed failures without relaxing authority or serializing around isolation failures. Additional POSIX source review found numeric PGID adoption/group signaling after retirement lacked a live identity anchor; worker correcting with deterministic ownership boundary regressions. DM520 attempt2 remains actively leased; no native/full-DoD claim.",
+  "createdAt": "2026-11-09T20:11:25.875Z",
+  "epicId": "ep_01m6q23ddmdxpzw7pqgyc5hyb7",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m70yzr9khrytkyjctxxqcass",
+  "ticketId": "tk_01m70mp7q289yb9px9rsgkvvb4"
+}

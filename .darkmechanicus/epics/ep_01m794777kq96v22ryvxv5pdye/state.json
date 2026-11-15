@@ -1,0 +1,33 @@
+{
+  "branch": {
+    "name": "agent-desktop-controls",
+    "repository": "C:/Users/davgo/Documents/GitHub/DarkMechanicus",
+    "startCommit": null
+  },
+  "completedAt": null,
+  "createdAt": "2026-11-13T00:16:48.883Z",
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.epic-state",
+  "formatVersion": 1,
+  "generation": 3,
+  "outcome": null,
+  "provenance": null,
+  "status": "in_progress",
+  "ticketStatuses": {
+    "tk_01m794777k2412dgyr75chh0dz": "backlog",
+    "tk_01m794h65m1dcfztssqxx573p8": "backlog",
+    "tk_01m794h65mbjby6y4yxsxbmgjr": "backlog",
+    "tk_01m794h65mec9hp3m268kbey53": "in_progress",
+    "tk_01m794h65mnx0za6gnda226xmk": "backlog",
+    "tk_01m794h65mt3ye3h81gxznc2e2": "backlog",
+    "tk_01m794h65mv6syywjvpaemznhe": "backlog",
+    "tk_01m794h65mvd9ga8atw8h1059e": "backlog",
+    "tk_01m794h65mx52e5jmhjr4vkndm": "backlog",
+    "tk_01m794h65mxffr34q4rm9g06bh": "backlog",
+    "tk_01m794h65mxhz3hypdt41mykne": "backlog",
+    "tk_01m794h65myxzbn2z9vyvqzm44": "backlog",
+    "tk_01m794h65nsytz5t8nhwzc6m9x": "backlog"
+  },
+  "title": "Agent desktop controls: full computer use with explicit consent, visible ownership and Stop",
+  "updatedAt": "2026-11-15T06:14:59.265Z"
+}

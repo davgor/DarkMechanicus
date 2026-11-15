@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Resumed after interruption: expired unfinished attempt at_01m7964e4c5j53cgh11zz1aq9x reconciled abandon; new authorized attempt at_01m7exa9bn0empkyjtssc21rch preserves all source/evidence. Private Linux runtime recovered intact (3099 source files, genuine Git38a5bec,34 SDK hashes,ABI137;UID65534/groups[]/caps0/NoNewPrivs1/CI=true). Frozen containment diagnostic:84pass/2fail/7Windows-specific skips; Python14/controller18/bounded7 and original500ms detached-root/8s late-file regression pass with real owned-child reaping. Not a fullgate pass. Remaining actual failures: predispatch deadline incorrectly labelled cancelled; Unix control socket filename containing full UUID exceeds sockaddr_un budget under ordinary long temp isolation, then host-ownership guard correctly refuses. Worker repairs real cause propagation and compact Unix endpoint naming preserving ENTIRE nonce,0700/0600/private randomness/auth/Windows path, with real long-temp ping/cleanup regression. No shorter fixture/temp override, limit inflation, ownership waiver or global fallback. Full6 and increment still pending.",
+  "createdAt": "2026-11-15T06:23:59.610Z",
+  "epicId": "ep_01m6q23ddmdxpzw7pqgyc5hyb7",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7ey0zktvp4ey8jzk7q25rzk",
+  "ticketId": "tk_01m6y09tfb1r9wfm9qmdbveyre"
+}

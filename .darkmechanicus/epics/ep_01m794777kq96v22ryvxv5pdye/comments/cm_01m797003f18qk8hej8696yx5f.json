@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "User workflow clarification: product/manual human acceptance happens AFTER the epic is done and merged, during ordinary use; issues then become bugs. Do not schedule user-performed UAT, manual smoke checks or subjective feature sign-off as implementation-ticket/sprint exit gates. Agents remain responsible for automated tests and agent-executable integration/native verification, with truthful limits. This does not authorize agents to approve Dark Mechanicus checkpoints, synthesize consent or bypass OS permissions; existing human checkpoint controls and explicit physical-input permission are distinct from product UAT. The current unsaved draft still contains manual-positive-control/native-run prerequisites and must be reconciled with this policy before Save/execution; do not silently count those cases as performed.",
+  "createdAt": "2026-11-13T01:05:17.935Z",
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m797003f18qk8hej8696yx5f",
+  "ticketId": null
+}

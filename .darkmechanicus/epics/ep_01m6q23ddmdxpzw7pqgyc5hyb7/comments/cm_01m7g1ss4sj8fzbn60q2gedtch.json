@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "New separate follow-up planned at the person's request: Notifications: human-attention inbox and background alerts for the hybrid GUI/TUI (ep_01m7g1hqqpj4ywrmtarhbc0drp), work DM-594–DM-604, acceptance DM-592/DM-593. Its run must wait until THIS epic closes through its FINAL human checkpoint and its required Windows increment is integrated. It will revalidate against that closing source. This is an informational successor link / explicit orchestrator launch prerequisite, not a server-enforced cross-epic edge or an automatic launch. No current Hybrid plan, tickets, acceptance or run state is changed.",
+  "createdAt": "2026-11-15T16:49:12.345Z",
+  "epicId": "ep_01m6q23ddmdxpzw7pqgyc5hyb7",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7g1ss4sj8fzbn60q2gedtch",
+  "ticketId": null
+}

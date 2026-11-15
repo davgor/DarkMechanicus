@@ -1,0 +1,238 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": "ka_01m6t3zfjdajhvwggqdn0jjyt0",
+  "cardId": "kc_01m6q31vg1yq3fckva13jw4fat",
+  "createdAt": "2026-11-07T06:23:37.160Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m6tathp80bh304azxjfanyn1",
+  "kind": "submitted",
+  "payload": {
+    "evidence": {
+      "attachments": [
+        {
+          "bytes": 249114,
+          "height": 1296,
+          "id": "im_01m6t829ydbgxqkyhr59dzm6ma",
+          "label": "DM-467 Real desktop db-to-repo deletion confirmation",
+          "mime": "image/png",
+          "purpose": "evidence",
+          "sha256": "64d6d5596c6d9a5e6e3cf9d3c8c12f69eb0ce9dc0829b77708d34dff77000c40",
+          "width": 2139
+        },
+        {
+          "bytes": 235331,
+          "height": 1296,
+          "id": "im_01m6t82aeacx6rkmftgy7dzs5w",
+          "label": "DM-467 Real desktop repo-to-db destructive purge confirmation",
+          "mime": "image/png",
+          "purpose": "evidence",
+          "sha256": "972d3d48d9187843585f6ff5890d235b7a6bf764393e983cff4f1da2a040381d",
+          "width": 2139
+        },
+        {
+          "bytes": 191217,
+          "height": 1296,
+          "id": "im_01m6t82ay2hfmgb076znse6cay",
+          "label": "DM-467 Real desktop completed roundtrip database-only state",
+          "mime": "image/png",
+          "purpose": "evidence",
+          "sha256": "c29e06d6df367b254a3ea45ab4c251972215134538f0e65e6468afaf4fe5f3f2",
+          "width": 2139
+        }
+      ],
+      "checks": [
+        {
+          "detail": "Before production implementation, corrected fixture setup then observed all 9 storage migration tests fail with workspace.switchStorageMode is not a function; renderer confirmation suite failed because StorageModeSwitch did not exist.",
+          "name": "TDD red proof",
+          "status": "passed"
+        },
+        {
+          "detail": "npx.cmd vitest run src/core/workspace.storageMigration.test.ts src/core/workspace.dbMode.test.ts src/renderer/src/home/StorageModeSwitch.test.tsx src/renderer/src/home/StorageCard.test.tsx src/main/desktop/handlers.test.ts src/core/commands/capabilities.test.ts src/core/authz.test.ts src/core/repo/layout.test.ts: 8 files, 231 tests passed, 4.66s reported duration.",
+          "name": "Targeted migration/UI/IPC/auth regression set",
+          "status": "passed"
+        },
+        {
+          "detail": "After final command metadata/capability and MCP inventory updates: npx.cmd vitest run src/core/workspace.storageMigration.test.ts src/core/commands/capabilities.test.ts src/mcp/server.test.ts: 3 files, 53 tests passed, 4.54s reported duration. Migration file contains 21 behavioral tests.",
+          "name": "Final migration/capability/MCP contract regressions",
+          "status": "passed"
+        },
+        {
+          "detail": "npx.cmd electron-vite build succeeded for main, preload and renderer to enable the authorized isolated Electron runtime smoke; existing third-party zod PURE-comment annotation warnings only. This is not the parent's combined build gate.",
+          "name": "Runtime prerequisite build",
+          "status": "passed"
+        },
+        {
+          "detail": "Production-build Electron with isolated userData and DARKMECHANICUS_HOME; real Storage-card confirmations performed db -> repo -> db in a populated disposable Git repository. Dirty records were refused before a disposable fixture commit. Final real preload IPC project, epic and Kanban-card responses were byte-equivalent JSON to before; comment retained. Final checkout listing contained only .git. Three final PNG captures and structured smoke artifact retained; services stopped and temporary launcher removed.",
+          "name": "Real Electron desktop roundtrip",
+          "status": "passed"
+        },
+        {
+          "detail": "Before safety production fixes, reproduced direct/junction-ancestor nested-home acceptance, interrupted-private-purge ignore loss, failed/truncated and abrupt-process initial journal publication, and canonical-only active run/claim/queued-card acceptance. A real hardlink at the predictable ignore temp truncated an unrelated disposable victim; a real junction prevented proper cleanup. Regular-file symlink creation itself was denied EPERM on this Windows host; no such test is claimed exercised.",
+          "name": "Independent review TDD red proof",
+          "status": "passed"
+        },
+        {
+          "detail": "npx.cmd vitest run src/core/workspace.storageMigration.safety.test.ts src/core/workspace.storageMigration.test.ts: 2 files, 32 tests passed, 4.68s reported duration. Includes 11 safety cases and 21 original behavioral migration cases, actual abrupt-process initial-write interruption, stale preparation cleanup, and actual git check-ignore after interrupted private purge.",
+          "name": "Reviewed safety and existing migration regressions",
+          "status": "passed"
+        },
+        {
+          "detail": "npx.cmd oxlint over all 21 changed src files/tests exited 0. Initial scoped lint identified only two oversized describe callbacks; test groups were split without disabling or relaxing any lint rule. Whole-tree lint remains a parent gate.",
+          "name": "File-scoped oxlint",
+          "status": "passed"
+        },
+        {
+          "detail": "Parent reported combined typecheck errors for nullable draftRevision in both setup fixtures. Added explicit null guards that throw on an unexpected missing draft, with no assertion cast or fake default. npx.cmd vitest run src/core/workspace.storageMigration.safety.test.ts src/core/workspace.storageMigration.test.ts: 2 files, 32 tests passed, 4.75s duration. Follow-up commit 99ef5935134f93a9e1ededa579d1737e86889171; parent resumes combined typecheck/full gates.",
+          "name": "Nullable fixture follow-up regression check",
+          "status": "passed"
+        },
+        {
+          "detail": "Final HEAD e427c097: full strict oxlint passed (bg25).",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "Final HEAD e427c097: all three strict TypeScript projects passed (bg25).",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "Final HEAD e427c097: no new dead exports; baseline unchanged (bg25).",
+          "name": "deadcode",
+          "status": "passed"
+        },
+        {
+          "detail": "Final HEAD e427c097: complete main/preload/renderer production build passed (bg25).",
+          "name": "build",
+          "status": "passed"
+        },
+        {
+          "detail": "Final HEAD e427c097: npm test passed. App/scripts605 files passed +2 skipped;10402 tests passed +59 skipped. Fireguard own25 files passed;170 tests passed +1 platform skip. Total10572 tests passed,60 skipped. CI unset locally to preserve configured privilege probes.",
+          "name": "test",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run coverage exited0 and all10402 app tests passed; V8 summary reported Unknown% (0/0) in this local setup, so no percentage/threshold-evaluation claim.",
+          "name": "coverage",
+          "status": "passed"
+        },
+        {
+          "detail": "Committed-tree grade A97 against48506a0;100/100 flake runs,0 failures;120/131 mutants killed (92%),11 survivors;951 assertions,1 mock. No gate thresholds relaxed.",
+          "name": "fireguard",
+          "status": "passed"
+        },
+        {
+          "detail": "All13 checks green on e427c097; all632 native test files present exactly once; two grading shards share merge checkout8c3c1df and base48506a0; raw totals120/131,100/100flake,A97; real jobs overlap and exactly one sticky comment.",
+          "name": "hosted CI and artifact readback",
+          "status": "passed"
+        }
+      ],
+      "criteria": [
+        {
+          "criterionId": "c1",
+          "met": true,
+          "note": "Roundtrip regression verifies canonical JSON export, private complete checkpoint rebuild, machine-local source directory removal and repo-mode resolution. Real Electron Storage action reported repo mode with the same project identity and 8 exported canonical files. Final combined gate passed; see checks. Orchestrator final independent review confirmed all five safety corrections; final combined gates/hosted CI passed and all three reviewed desktop PNGs attached."
+        },
+        {
+          "criterionId": "c2",
+          "met": true,
+          "note": "Normal purge/roundtrip and file-only image hydration tests pass. Review follow-up additionally rejects direct and linked-ancestor store/journal overlap before writing, refuses a database source inside its repository destination, preserves an external hardlinked victim, avoids a pre-existing junction temp, and retains both Git-ignore protections during interrupted private cleanup (actual git check-ignore passes). Real desktop normal reverse migration evidence remains unchanged. Independent final review and combined gate passed. Orchestrator final independent review confirmed all five safety corrections; final combined gates/hosted CI passed and all three reviewed desktop PNGs attached."
+        },
+        {
+          "criterionId": "c3",
+          "met": true,
+          "note": "Populated roundtrip compares every database row except derived sync_state and checkout/reconciliation metadata; fixture includes saved revision, reopened and never-saved drafts, ticket state, terminal run history, comments, image BLOB/ownership, profiles, completed Kanban attempt/events and session history. Private grants also survive; later canonical profile edits override no stale checkpoint. Real desktop project/epic/card responses were unchanged. Final combined gate passed; see checks. Orchestrator final independent review confirmed all five safety corrections; final combined gates/hosted CI passed and all three reviewed desktop PNGs attached."
+        },
+        {
+          "criterionId": "c4",
+          "met": true,
+          "note": "32 passing migration regressions: prior run/claim/dirty-status/staging/cutover/crash/session fencing cases plus reviewed path-overlap, link, interrupted private-purge, first journal write failure, abrupt first-write process exit, orphan preparation cleanup, and canonical-only active run/claim/queued-work refusal. Complete journal JSON is synced before atomic no-replace hard-link publication, so no authoritative partial journal exists. Original store remains usable on preparation failure. Independent final review and combined gate passed. Orchestrator final independent review confirmed all five safety corrections; final combined gates/hosted CI passed and all three reviewed desktop PNGs attached."
+        },
+        {
+          "criterionId": "c5",
+          "met": true,
+          "note": "Actual Electron desktop PNGs db-to-repo-confirmation.png and repo-to-db-confirmation.png show explicit confirmations naming the local directory or complete .darkmechanicus/local purge, DM ignore entry, retained MCP/skills, and unchanged Git history. Parent must stage/attach these PNGs when submitting; paths are in outputs.artifacts. Confirmation behavior/cancellation/error display tests pass. Final combined gate passed; see checks. and attachment. Orchestrator final independent review confirmed all five safety corrections; final combined gates/hosted CI passed and all three reviewed desktop PNGs attached."
+        }
+      ],
+      "notes": "No coordinating-repository/user-store migration was exercised; all tests and smoke used disposable populated projects with isolated homes/profiles. No node_modules install or rebuild occurred. Existing portable formats remain canonical; credentials, complete raw rows and unsaved state are in an ignored-local migration checkpoint only, never used by normal open/reconcile, so it cannot replay stale canonical edits. Derived synchronization/reconciliation bookkeeping intentionally changes, while user/domain records and machine-private history survive. File-only attachment bytes may be hydrated from NULL to BLOB without changing image content/ownership. Source mode survives pre-commit failures; after the atomic commit the verified destination wins and recovery completes cleanup. Full lint/typecheck/test/coverage/Fireguard/deadcode/build remain pending parent integration, not reported complete. New shared API surface: switchStorageMode input {mode, confirmed:true}, output {mode, projectDir, cleanupPending}; capability repo.switch_storage is human-only and no MCP tool exposes the destructive operation. README and shared API/auth test files may conflict with other cleanout integrations. No unresolved runtime prerequisites.\n\nOrchestrator independently reviewed the worker changes and runtime evidence, requested and re-reviewed corrections, and integrated them on feature/kanban-cleanout. PR #37 merged into remote main as 81a5287c9899d1f5ef63732b39fe77ff955cf0dc after all 13 final-head checks passed. Hosted artifacts prove 632 exhaustive/disjoint test files, overlapping test/grading jobs, one combined A97 report and one sticky comment. Final local suite: 10572 passed,60 platform skips; hosted suite:10577 passed,55 skips. Coverage command exited0 but V8 collected0/0; no meaningful percentage or threshold-evaluation claim. Existing dirty/divergent original checkout was not reset or updated. Human approval remains required."
+    },
+    "number": 1,
+    "outputs": {
+      "artifacts": [
+        {
+          "hash": null,
+          "label": "Real desktop db-to-repo deletion confirmation",
+          "location": "C:/Users/davgo/AppData/Local/Temp/dm467-desktop-7Uguki/db-to-repo-confirmation.png",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "Real desktop repo-to-db destructive purge confirmation",
+          "location": "C:/Users/davgo/AppData/Local/Temp/dm467-desktop-7Uguki/repo-to-db-confirmation.png",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "Real desktop completed roundtrip database-only state",
+          "location": "C:/Users/davgo/AppData/Local/Temp/dm467-desktop-7Uguki/roundtrip-database-only.png",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "Final real Electron preload/IPC smoke evidence",
+          "location": "local://smoke-DM-467-final.json",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "Merged integration PR and verified CI",
+          "location": "https://github.com/davgor/DarkMechanicus/pull/37",
+          "remoteOnly": true
+        },
+        {
+          "hash": null,
+          "label": "Final green hosted CI; artifacts and grading",
+          "location": "https://github.com/davgor/DarkMechanicus/actions/runs/42345391534",
+          "remoteOnly": true
+        }
+      ],
+      "branch": "main",
+      "changedFiles": [
+        "README.md",
+        "docs/decisions/0002-storage-modes.md",
+        "src/core/authz.ts",
+        "src/core/authz.test.ts",
+        "src/core/commandSchemas.ts",
+        "src/core/commands/capabilities.ts",
+        "src/core/commands/capabilities.test.ts",
+        "src/core/commands/repository.ts",
+        "src/core/commands/types.ts",
+        "src/core/repo/layout.ts",
+        "src/core/repo/migrationCheckpoint.ts",
+        "src/core/repo/migrationExport.ts",
+        "src/core/repo/storageMigration.ts",
+        "src/core/workspace.ts",
+        "src/core/workspace.storageMigration.test.ts",
+        "src/shared/domain/api.ts",
+        "src/core/workspace.storageMigration.safety.test.ts",
+        "src/shared/desktop/api.ts",
+        "src/test/stubApi.ts",
+        "src/renderer/src/home/StorageCard.tsx",
+        "src/renderer/src/home/StorageModeSwitch.tsx",
+        "src/renderer/src/home/StorageModeSwitch.test.tsx",
+        "src/mcp/server.test.ts"
+      ],
+      "commits": [
+        "24a164d7f27ecedf3f78ee23cf837b22f1aca637",
+        "529fc7c3483cdde7aa66f19ac116b0aeb7254727",
+        "99ef5935134f93a9e1ededa579d1737e86889171",
+        "81a5287c9899d1f5ef63732b39fe77ff955cf0dc"
+      ],
+      "summary": "Implemented confirmed desktop-only db <-> repo storage migration and corrected all five independent review findings: canonical overlap rejection, exclusive no-follow temporary publication, private-first purge with retained Git ignores, atomically complete exclusive journal ownership/recovery, and post-canonical-import active-work checks. Added TDD safety regressions and passing file-scoped lint. Combined delivery gates, renewed independent review and screenshot attachment remain parent-owned.\nFinal integration: reviewed and merged through https://github.com/davgor/DarkMechanicus/pull/37 into main (81a5287c9899d1f5ef63732b39fe77ff955cf0dc)."
+    }
+  }
+}

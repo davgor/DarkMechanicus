@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Independent review accepted at_01m6x4cyd9ajm4gcxzd2vbd3pe only through actual attempt returned by claim (see run history for authoritative ID). Verified Claude source records at 521/522/546 with bounded structural projection: Agent spawn background string, async_launched child and producer-tagged completion/report+usage. Reviewed common contracts, sanitized fixtures and provenance/unknown mappings; reran two targeted files, 15 tests passed. Integrated commit 01520d0d38a0ea0ee6f543c94266761d22da349d onto hybrid-s1. Codex terminal parity remains unverified, not unsupported by absence. Final live/provider/UI latency remains DM-449.",
+  "createdAt": "2026-11-08T08:48:22.541Z",
+  "epicId": "ep_01m6q23ddmdxpzw7pqgyc5hyb7",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m6x5gagdw8hg0bmr692r1n8h",
+  "ticketId": "tk_01m6q2eng6npx8pjrttgajj0zp"
+}

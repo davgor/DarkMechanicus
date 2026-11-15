@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Evidence precision for failed attempt1: \"zero input\" in the earlier refusal summary means ZERO protected native pointer/content/capture dispatches and no capture insertion. The real fixture/ConPTY did start; its transport journal recorded startup/focus-control bytes including ESC[O/ESC[I. It is NOT an empty-transport/no-process/no-UI claim, nor a passed ALL-PTY negative horizon. Current investigation report makes this distinction explicit and preserves raw journal/artifact pins. No current native geometry or originalc1 acceptance is inferred.",
+  "createdAt": "2026-11-15T18:41:54.415Z",
+  "epicId": "ep_01m6q23ddmdxpzw7pqgyc5hyb7",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7g884qes3ga3e5y2mgjzz10",
+  "ticketId": "tk_01m79491q098912wqhyngwyj02"
+}

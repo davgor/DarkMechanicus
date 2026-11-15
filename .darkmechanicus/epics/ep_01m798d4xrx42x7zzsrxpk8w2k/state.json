@@ -1,0 +1,26 @@
+{
+  "branch": null,
+  "completedAt": null,
+  "createdAt": "2026-11-13T01:29:57.432Z",
+  "epicId": "ep_01m798d4xrx42x7zzsrxpk8w2k",
+  "format": "darkmechanicus.epic-state",
+  "formatVersion": 1,
+  "generation": 1,
+  "outcome": null,
+  "provenance": null,
+  "status": "backlog",
+  "ticketStatuses": {
+    "tk_01m798d4xr2ekrbsrcc89gkxhq": "backlog",
+    "tk_01m798n0g2m6fssvw1ypkkpb0s": "backlog",
+    "tk_01m798n0gr1h3qy8dm3t26n5en": "backlog",
+    "tk_01m798n0gr3g932mm1thsvwg2f": "backlog",
+    "tk_01m798n0gr5cgqcf40783t2st3": "backlog",
+    "tk_01m798n0gs02nssr6205qr1v8x": "backlog",
+    "tk_01m798n0gs0y26wg9hr07keedq": "backlog",
+    "tk_01m798n0gs17mc8cpqqn1xcja0": "backlog",
+    "tk_01m798n0gsadqnm8mkxnze6zv5": "backlog",
+    "tk_01m798n0gsm0x2vsdkwfg5xka5": "backlog"
+  },
+  "title": "Capabilities: find, install, run and explain third-party agent tools per folder",
+  "updatedAt": "2026-11-13T01:42:13.098Z"
+}

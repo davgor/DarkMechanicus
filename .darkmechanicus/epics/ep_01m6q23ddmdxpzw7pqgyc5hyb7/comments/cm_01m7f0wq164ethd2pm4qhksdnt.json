@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Final d2bb/f16c actual full commands each ran once: lint/typecheck/deadcode/build passed; app test+coverage each ONE backend fixture failure,11532pass/24normal skips. Reachable Fireguard-own165pass including real fourth symlink; npmtest remainsFAILED because app&&shortcircuited. Backend actualCLI3cases passed; no coverage threshold totals emitted after failure. Remaining cause: ordinary nested TMP80bytes; compactfullUUIDhex endpoint125bytes, even minimum fullUUIDbase64+randomness/socket111>107, so prior filename-only shortening cannot solve this supported caller. Parent changes its implementation choice (not user security contract): short private Unix directory/socket and FULL trusted nonce in exclusive0600 ownership receipt inside0700directory, verified bounded/no-follow/nonblocking regularsingle-link exact36bytes under exactcontexttemp before liveownership. Receipt/filename is NOTauthentication or PIDsignal authority; authenticated pipe protocol/windows path unchanged. No shortening test/TMP, aliases, abstractsocket/globalfallback or permission waiver. Source worker owns narrow fix and actual80byte-temp ping/cleanup/foreign-receipt regressions; new fullcombinedpin required before C7.",
+  "createdAt": "2026-11-15T07:14:05.478Z",
+  "epicId": "ep_01m6q23ddmdxpzw7pqgyc5hyb7",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7f0wq164ethd2pm4qhksdnt",
+  "ticketId": "tk_01m6y09tfb1r9wfm9qmdbveyre"
+}

@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "User requested this session take over orchestration. Picked up queued run rn_01m6x48bqt6nb15t9exxxcnzed (no previous attempts), pinned saved revision 3. Coordinating branch hybrid-chat-workspace; sprint integration branch hybrid-s1 at 68c69e3064f830572ad12bedc604fe6357a817e7. User dirty process/board records preserved, no default-branch integration. First workers: DM-450 layout and DM-462 provider evidence, isolated worktrees. Host model selection/effort controls are fixed; no per-call model override is available. No takeover_run needed because the queued run is already owned by this machine. Final required native macOS/live Claude witnesses remain gates, not waived limitations.",
+  "createdAt": "2026-11-08T08:30:20.168Z",
+  "epicId": "ep_01m6q23ddmdxpzw7pqgyc5hyb7",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m6x4f9g8a7s421t0atgqxk5m",
+  "ticketId": null
+}

@@ -1,0 +1,149 @@
+{
+  "acceptanceCriteria": [
+    {
+      "id": "c1",
+      "text": "The folder Agents + opens a first-prompt popup before creating/starting a chat; Cancel/Escape creates nothing, whitespace-only input cannot submit, and existing agent selection/setup behavior remains available."
+    },
+    {
+      "id": "c2",
+      "text": "Submitting a non-empty prompt creates one chat and delivers the full original prompt exactly once as the first user message through a ready agent terminal; repeated submit does not duplicate it and failures are surfaced without losing the prompt."
+    },
+    {
+      "id": "c3",
+      "text": "The title is inferred from the prompt's meaning, is at most five words, and is not a verbatim prompt, truncated prefix or first-N-words extraction; a long conversational request is verified as a concise intent label."
+    },
+    {
+      "id": "c4",
+      "text": "The inferred title appears in sidebar/header and survives reopening/restart; later turns, existing chats and explicit/manual/run/transfer/Kanban titles are not renamed, and manual rename wins races."
+    },
+    {
+      "id": "c5",
+      "text": "The open chat has no persistent app-owned Prompt field or Send prompt control; terminal-native interaction, paste/keys, sign-in/approval surfaces and read-only historical conversations remain functional."
+    },
+    {
+      "id": "c6",
+      "text": "Behavioral regressions and the standalone delivery gate pass; actual desktop screenshots plus first-message delivery/persistence evidence demonstrate the complete popup-to-terminal flow, and existing chat documentation is updated."
+    }
+  ],
+  "body": "## Outcome\nClicking the folder Agents + (the control that creates a new agent chat) opens a popup asking for the first prompt before starting the chat. Submitting that popup sends the full prompt as the first user message and infers a meaningful chat name of only a few words. Remove the persistent app-owned Prompt input/composer from the chat pane; later interaction continues through the agent terminal. This request creates a Backlog card only; it does not authorize execution.\n\n## Behavior and boundaries\n- Use one focused, accessible first-prompt dialog with Start and Cancel. Blank/whitespace-only input cannot start a chat. Cancel/Escape leaves no new chat or agent session. Preserve existing folder/default-agent selection and the no-connected-agent setup path; this is not a redesign of installing/connecting agent CLIs.\n- Infer/summarize the prompt's intent into a concise title, normally 2-5 words and never more than 5. Do not use the full prompt verbatim, take its first N words, truncate it, or merely strip punctuation. A long request such as \"Could you investigate why signing in keeps failing after the session expires and fix the refresh flow?\" should yield an intent label such as \"Fix expired-session sign-in\", not \"Could you investigate why signing\". Inference mechanism is an implementation decision, not permission to add an unrelated provider/account dependency.\n- Preserve the full original prompt for the selected agent; the inferred title must not replace or shorten the actual first message. Deliver it once on the normal startup/ready path, not by blind timed Enter or typing into unknown onboarding/sign-in prompts. Prevent duplicate creation/delivery from repeated submit. If creation/inference/delivery fails, report the real failure without silently substituting a prompt prefix as a successful inferred title or losing the prompt.\n- Persist the generated title and show it in sidebar and header. Later turns do not rename the chat. Preserve explicit/manual names, including manual rename races, and existing meaningful run/transfer/Kanban chat names. Do not retroactively rename existing chats.\n- Remove the app-owned persistent Prompt textarea, Send prompt control and composer-only layout, state, handlers and obsolete tests when no longer used. Keep the terminal CLI's own input and existing paste/key handling, approval/sign-in UI and read-only historical conversation behavior. Do not add a replacement always-visible app composer.\n\n## Related work and checkout caveat\nDM-504 (completed card kc_01m6t2cbvsg4sk9sxkz2vtqpz5) introduced the app-owned Prompt composer and first-question naming. This card intentionally replaces that interaction and requires semantic inference rather than copying/truncating the question. The current inspected checkout has immediate creation in startNewChat and no PromptComposer file or naming implementation; the completed DM-504 record reports those files in merged work. At execution, reconcile the actual checked-out source and remove/replace the existing composer if present; do not invent its current path or restore an obsolete composer merely to delete it. This is standalone follow-on work, not reopening DM-504.\n\n## Source locations\n- src/renderer/src/App.tsx, startNewChat: replace immediate createChat with the first-prompt popup flow; retain newChatAgent/default selection and duplicate-click protection.\n- src/renderer/src/agents/ChatDialogs.tsx, RenameChatDialog/DeleteChatDialog: verified Dialog/Button/Field pattern for the new first-prompt dialog.\n- src/renderer/src/agents/TerminalPane.tsx, TerminalPane: chat surface; remove any app composer on the execution branch while retaining terminal/header/sign-in/history behavior.\n- src/main/agents/chatHandlers.ts, createChat, and src/main/agents/chatRecords.ts, createChatRecords: main-process creation and title persistence boundary; integrate inferred naming/first-message ownership through existing guarded APIs.\n- src/main/agents/chatStore.ts: persisted chat title; reuse existing store rather than a separate title cache.\n- src/main/terminals/terminalLaunchSpec.ts, firstPrompt: verified startup prompt routing entry point; inspect the running terminal submission path before choosing exactly-once delivery. Preserve vendor-specific startup/resume behavior.\n- src/renderer/src/App.chats.test.tsx: existing new-chat/default-agent/rapid-click behavior tests to update for popup creation.\n- src/main/agents/chatRecords.test.ts and src/main/agents/chatHandlers.test.ts: existing creation/title behavior tests to extend for inference integration and title protection.\n- src/renderer/src/agents/TerminalPane.earlier.test.tsx and TerminalPane.title.test.tsx: preserve historical read-only and header title regressions.\n- README.md and docs/runbooks/agents.md: update the existing new-chat/naming instructions after implementation.\n\n## Tests\nWrite failing behavioral tests before testable implementation (standalone Kanban standards). Cover popup submit/cancel/blank input, duplicate submission, unchanged full first prompt delivered once, and failure preserving the user's prompt. Cover a long conversational prompt producing a semantic <=5-word title rather than a prefix, title persistence and manual-title protection. Preserve existing terminal/history coverage; remove obsolete persistent-composer behavior tests rather than repinning them. Do not assert incidental wiring/source text or require exactly one generated phrasing.\n\n## Verification\nRun the standalone delivery gate: npm run lint; npm test; npm run fireguard when unit tests change; npm run typecheck; npm run deadcode; npm run build. Exercise the actual desktop: Agents + -> first-prompt popup -> semantic short title in sidebar/header -> full prompt received once -> continued input in terminal without persistent app composer. Check cancel, reopen/restart title persistence, and unchanged history/explicit-title behavior. Capture screenshots and runtime delivery evidence. Use a disposable custom CLI/isolated app state for UI/delivery proof; genuine vendor inference, if used, must also be exercised with vendor configuration isolated and no guessed onboarding input. Do not change global vendor settings.",
+  "createdAt": "2026-11-08T16:30:58.829Z",
+  "createdBy": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "expectedArtifacts": [
+    "First-prompt popup integrated with new-chat creation, semantic short-title inference and one-time first-message delivery",
+    "Persistent app composer removed with obsolete code/tests cleaned up and terminal interaction preserved",
+    "Behavioral regression tests, full delivery-check results and actual desktop screenshot/runtime evidence",
+    "Updated existing README and agent runbook"
+  ],
+  "format": "darkmechanicus.kanban-card",
+  "formatVersion": 1,
+  "generation": 1,
+  "id": "kc_01m6xzzc818trnvbd2wrn1k2a6",
+  "key": "DM-515",
+  "priority": "normal",
+  "references": [
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "New-chat entry point",
+      "location": "src/renderer/src/App.tsx",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Existing chat dialog pattern",
+      "location": "src/renderer/src/agents/ChatDialogs.tsx",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Terminal chat surface",
+      "location": "src/renderer/src/agents/TerminalPane.tsx",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Main chat handlers",
+      "location": "src/main/agents/chatHandlers.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Chat record and title persistence boundary",
+      "location": "src/main/agents/chatRecords.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Persisted chat store",
+      "location": "src/main/agents/chatStore.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Terminal startup prompt routing",
+      "location": "src/main/terminals/terminalLaunchSpec.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "New-chat behavior tests",
+      "location": "src/renderer/src/App.chats.test.tsx",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Chat record tests",
+      "location": "src/main/agents/chatRecords.test.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Main chat handler tests",
+      "location": "src/main/agents/chatHandlers.test.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Historical conversation regressions",
+      "location": "src/renderer/src/agents/TerminalPane.earlier.test.tsx",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Chat header title regressions",
+      "location": "src/renderer/src/agents/TerminalPane.title.test.tsx",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Product usage documentation",
+      "location": "README.md",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Agent usage runbook",
+      "location": "docs/runbooks/agents.md",
+      "remoteOnly": false
+    }
+  ],
+  "size": "medium",
+  "title": "Ask for the first prompt in a new-chat popup, infer a short title, and remove the persistent composer",
+  "updatedAt": "2026-11-08T16:30:58.829Z"
+}

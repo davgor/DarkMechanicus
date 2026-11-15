@@ -1,0 +1,24 @@
+{
+  "actor": {
+    "label": "Desktop",
+    "role": "desktop"
+  },
+  "attemptId": "ka_01m6t3ze1spwyem26sw78d2bgw",
+  "cardId": "kc_01m6mnnm91c4whwt272xtk5wym",
+  "createdAt": "2026-11-07T15:56:14.494Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m6vbk1ryy3m5a9sj9rgkdp2x",
+  "kind": "approved",
+  "payload": {
+    "number": 1,
+    "summary": {
+      "approvedBy": "Desktop",
+      "commits": [
+        "81a5287c9899d1f5ef63732b39fe77ff955cf0dc"
+      ],
+      "completedAt": "2026-11-07T15:56:14.494Z",
+      "outcome": "Evidence-only review: DM-436 was implemented historically (717559f1e82c0798780f3550ca1e6d980e8028ff) and superseded by fc7aa4aac741976dea8cc5b29d804cdbe42c4e4e (Never idle-stop a chat terminal, and renew its grant while it runs). Current source deliberately has no idle kill or r…"
+    }
+  }
+}

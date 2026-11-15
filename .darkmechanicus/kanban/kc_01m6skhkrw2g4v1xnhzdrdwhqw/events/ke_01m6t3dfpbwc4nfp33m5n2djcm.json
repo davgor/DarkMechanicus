@@ -1,0 +1,120 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": "ka_01m6sxqtjzghm0bb729y23z7sr",
+  "cardId": "kc_01m6skhkrw2g4v1xnhzdrdwhqw",
+  "createdAt": "2026-11-07T04:14:09.099Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m6t3dfpbwc4nfp33m5n2djcm",
+  "kind": "submitted",
+  "payload": {
+    "evidence": {
+      "checks": [
+        {
+          "detail": "card PR #33 CI https://github.com/davgor/DarkMechanicus/actions/runs/42331811138 green at bfa5fee; integrated PR #35 CI https://github.com/davgor/DarkMechanicus/actions/runs/42336128677 green on its first run at d21359a, merged to main as cb1256d. Local full Definition of Done on the integrated branch (aa0f318, quiet machine): lint, typecheck, test (10,339 passed, 0 failed; Fireguard 164), coverage (branches 95.07%), deadcode and build all passed.",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "card PR #33 CI https://github.com/davgor/DarkMechanicus/actions/runs/42331811138 green at bfa5fee; integrated PR #35 CI https://github.com/davgor/DarkMechanicus/actions/runs/42336128677 green on its first run at d21359a, merged to main as cb1256d. Local full Definition of Done on the integrated branch (aa0f318, quiet machine): lint, typecheck, test (10,339 passed, 0 failed; Fireguard 164), coverage (branches 95.07%), deadcode and build all passed.",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "card PR #33 CI https://github.com/davgor/DarkMechanicus/actions/runs/42331811138 green at bfa5fee; integrated PR #35 CI https://github.com/davgor/DarkMechanicus/actions/runs/42336128677 green on its first run at d21359a, merged to main as cb1256d. Local full Definition of Done on the integrated branch (aa0f318, quiet machine): lint, typecheck, test (10,339 passed, 0 failed; Fireguard 164), coverage (branches 95.07%), deadcode and build all passed.",
+          "name": "test",
+          "status": "passed"
+        },
+        {
+          "detail": "card PR #33 CI https://github.com/davgor/DarkMechanicus/actions/runs/42331811138 green at bfa5fee; integrated PR #35 CI https://github.com/davgor/DarkMechanicus/actions/runs/42336128677 green on its first run at d21359a, merged to main as cb1256d. Local full Definition of Done on the integrated branch (aa0f318, quiet machine): lint, typecheck, test (10,339 passed, 0 failed; Fireguard 164), coverage (branches 95.07%), deadcode and build all passed.",
+          "name": "coverage",
+          "status": "passed"
+        },
+        {
+          "detail": "card PR #33 CI https://github.com/davgor/DarkMechanicus/actions/runs/42331811138 green at bfa5fee; integrated PR #35 CI https://github.com/davgor/DarkMechanicus/actions/runs/42336128677 green on its first run at d21359a, merged to main as cb1256d. Local full Definition of Done on the integrated branch (aa0f318, quiet machine): lint, typecheck, test (10,339 passed, 0 failed; Fireguard 164), coverage (branches 95.07%), deadcode and build all passed.",
+          "name": "deadcode",
+          "status": "passed"
+        },
+        {
+          "detail": "card PR #33 CI https://github.com/davgor/DarkMechanicus/actions/runs/42331811138 green at bfa5fee; integrated PR #35 CI https://github.com/davgor/DarkMechanicus/actions/runs/42336128677 green on its first run at d21359a, merged to main as cb1256d. Local full Definition of Done on the integrated branch (aa0f318, quiet machine): lint, typecheck, test (10,339 passed, 0 failed; Fireguard 164), coverage (branches 95.07%), deadcode and build all passed.",
+          "name": "build",
+          "status": "passed"
+        }
+      ],
+      "criteria": [
+        {
+          "criterionId": "c1",
+          "met": true,
+          "note": "CommentsTab.tsx renders ImageAttachField; PendingImages and the attach label are removed."
+        },
+        {
+          "criterionId": "c2",
+          "met": true,
+          "note": "Existing drop-on-textarea test passes unchanged; new 'disables Add comment while an image uploads'."
+        },
+        {
+          "criterionId": "c3",
+          "met": true,
+          "note": "New 'does not bring back a sent image with the next upload'; fails without the key flip; fireguard mutant killed."
+        },
+        {
+          "criterionId": "c4",
+          "met": true,
+          "note": "CommentsTab, CardFormDialog and TicketEditor.attachments tests 10/10 locally and green in CI."
+        }
+      ],
+      "notes": "CI failures before green (fixed at their cause, never rerun): Run 42331002645 on 2376763 failed two checks: fireguard F (the key counter's mutant could not be killed; fixed in bfa5fee by flipping the key 0/1, fireguard now A at 100%), and an epicDrafts.test.ts timeout in a file this card does not touch (cause: that test opened workspaces outside the harness and forced 75 disk syncs; fixed in PR #34). Nothing rerun. Worker's local full npm test: final run passed (10317 passed, Fireguard 164); one earlier run had 26 git/github timeouts under parallel worker load.. That run shared the machine with seven other workers' suites; the integrated branch then passed the full suite on a quiet machine (above). Test-infrastructure fixes made during the bundle: #34 (tests opening workspaces directly no longer force disk syncs) and #36 (installer test starts a 45 KB stand-in instead of a copied node.exe)."
+    },
+    "number": 1,
+    "outputs": {
+      "artifacts": [
+        {
+          "hash": null,
+          "label": "Comment composer",
+          "location": "src/renderer/src/ticket/CommentsTab.tsx",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "ImageAttachField",
+          "location": "src/renderer/src/attachments/ImageAttachField.tsx",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "Tests",
+          "location": "src/renderer/src/ticket/CommentsTab.test.tsx",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "PR #33",
+          "location": "https://github.com/davgor/DarkMechanicus/pull/33",
+          "remoteOnly": true
+        },
+        {
+          "hash": null,
+          "label": "Bundle PR #35",
+          "location": "https://github.com/davgor/DarkMechanicus/pull/35",
+          "remoteOnly": true
+        }
+      ],
+      "branch": "main",
+      "changedFiles": [
+        "src/renderer/src/attachments/ImageAttachField.tsx",
+        "src/renderer/src/attachments/useImageAttach.ts",
+        "src/renderer/src/ticket/CommentsTab.tsx",
+        "src/renderer/src/ticket/CommentsTab.test.tsx"
+      ],
+      "commits": [
+        "2376763eff28aedf73b0509fa50bdeda5eaadf3b",
+        "bfa5feece367fe2f6757b260b32029ffa59872a8",
+        "cb1256d075625b4451f474f038933a095b88252f"
+      ],
+      "summary": "ImageAttachField gains optional children (inside its paste/drop target) and onBusyChange. CommentsTab drops its own pending list and attach button, wraps the textarea in ImageAttachField, disables Add comment while uploading, and remounts the field after a send so a sent image never returns. Gate-forced departures: key flips 0/1 (fireguard), textarea extracted to CommentDraft (max-lines-per-function), PendingImage/ImageAttach no longer exported (deadcode)."
+    }
+  }
+}

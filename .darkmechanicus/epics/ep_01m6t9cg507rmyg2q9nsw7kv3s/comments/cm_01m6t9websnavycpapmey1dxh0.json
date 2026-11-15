@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "## Technical vet completed before Save\nScope: app-hosted Skitarii chats in one canonical folder/logical machine; child workers share parent mailbox. Eight bounded work packets, two human-gated sprints, explicit per-ticket Tests/source locations and per-ticket acceptance-node coverage. No hybrid-workspace prerequisite and no execution started.\n\nRead-only identity/runtime scouts and independent reliability/security reviewers examined actual source. Incorporated findings: grant->stable OMP-only endpoint mapping, HUMAN_ONLY management and desktop inbox/seen/wake, current auth recheck after transaction lock; independent body-free sender receipts survive recipient deletion with separate quota; pinned paging/nonreused sequence, distinct human-seen vs explicit ack; durable deleting tombstones and interrupted cross-store completion; full repo.backup moved desktop-only to avoid supported-API export of mail; local rebuild/restore warns mail is not recoverable from Git; bounded shared poll sessions and no unrelated reconcile/flush/pruning every 2s.\n\nOMP v18.18.0 source verified custom messages become developer-role content and triggerTurn:false is not universally passive while busy. Thus peer body/title only arrive through explicit tool results; passive UI plus a constant before_agent_start reminder is default. Immediate wake needs a human-granted nonaccumulating one-shot credit, consumed once before constant follow-up; no replayable positive claim, no refund/rearm/ping-pong, no model-processed claim from void API. Source feasibility is not live runtime certification: acceptance explicitly requires installed OMP no-model probe then two real scratch-provider chats and Windows/macOS packaged evidence. Missing executor/auth is unmet acceptance.\n\nDraft revision 3 validate_plan returned valid:true, errors:[], warnings:[]. Planning-only verification: actual CLI capabilities/schema/project/history/plan reads, source/release API inspection and graph validation. No implementation tests/builds claimed. Person saw sprint summary before authorized plan.save; no code edits/commits/run/claims.\n",
+  "createdAt": "2026-11-07T06:07:10.713Z",
+  "epicId": "ep_01m6t9cg507rmyg2q9nsw7kv3s",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m6t9websnavycpapmey1dxh0",
+  "ticketId": null
+}

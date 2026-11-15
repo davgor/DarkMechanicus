@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Correction to previous review comment: its manually typed attempt identifier was erroneous and must be ignored. The verified accepted DM-462 attempt is at_01m6x4ckybs1enw6kc6e5se89n (from the actual claim packet). Commit, checks and source-field observations in that comment are unchanged.",
+  "createdAt": "2026-11-08T08:48:33.769Z",
+  "epicId": "ep_01m6q23ddmdxpzw7pqgyc5hyb7",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m6x5gnf9nfsxdg0yygmhvqps",
+  "ticketId": "tk_01m6q2eng6npx8pjrttgajj0zp"
+}

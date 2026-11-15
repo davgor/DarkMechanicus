@@ -1,0 +1,26 @@
+{
+  "branch": null,
+  "completedAt": null,
+  "createdAt": "2026-11-13T01:29:58.307Z",
+  "epicId": "ep_01m798d5s3ppfxbp1q867h52a2",
+  "format": "darkmechanicus.epic-state",
+  "formatVersion": 1,
+  "generation": 1,
+  "outcome": null,
+  "provenance": null,
+  "status": "backlog",
+  "ticketStatuses": {
+    "tk_01m798d5s4dyqptppxyz9cr7zc": "backlog",
+    "tk_01m798qxd14jham7vs9s4rkzxf": "backlog",
+    "tk_01m798qxdk4vhc2frhsqhskqqe": "backlog",
+    "tk_01m798qxdkh8982nj039k9es5a": "backlog",
+    "tk_01m798qxdm935d9nsq2zqj71sy": "backlog",
+    "tk_01m798qxdmad3jfnxszqyyyh6f": "backlog",
+    "tk_01m798qxdmb392w6m4rr26skjg": "backlog",
+    "tk_01m798qxdmk0gyg6bzkaxvpax6": "backlog",
+    "tk_01m798qxdmnqqz2ky0gdtfrw6b": "backlog",
+    "tk_01m798qxdmq14a5vwjwfybjwbf": "backlog"
+  },
+  "title": "portless: named local URLs for dev servers, one per worktree, opened in the browser pane",
+  "updatedAt": "2026-11-13T01:42:15.543Z"
+}

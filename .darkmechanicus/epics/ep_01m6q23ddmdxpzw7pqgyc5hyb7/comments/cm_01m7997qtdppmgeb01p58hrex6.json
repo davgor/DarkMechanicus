@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Strict local Ubuntu CI genuinebootstrap succeeded (34signature/hashverifiedofficialSDKpackages,UID65534caps0/NoNewPrivs1,exactbcd/f6d3099sourcefiles,lockunchanged,npmci/postinstall,realnodeptyABI137output+exit). Current6checks:lint/types/deadcode/buildPASS;test+coverage13FAIL/11480PASS/24SKIP. Ninefailures are our archive-without.git setup defect; nextsourcecopy mustrealexactcommitshallowcheckout, no fabricatedHEAD. Four actualremaining failures: detached-fastroot missingexpectedrejection;32connectiontestECONNRESET;twoWindowsinstaller-consent fixtures incorrectlyassumeplatformonLinux(actualunsupported_platform preserved). These are being investigated byscopedhelpers under SAMEclaimedacceptance, notnewretry; no skip/bounds/security/globalOSwaiver. OriginalWindowsCIpermissions/Gittimeoutfailures remain inimmutablelogs. NativeIPC/Dismiss/finalWindowsnative/package/provider/physicalscale scope still REQUIRED Sprint3; no epiclanding or c7pass claimed.",
+  "createdAt": "2026-11-13T01:44:28.749Z",
+  "epicId": "ep_01m6q23ddmdxpzw7pqgyc5hyb7",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7997qtdppmgeb01p58hrex6",
+  "ticketId": "tk_01m6y09tfb1r9wfm9qmdbveyre"
+}

@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "DM521 evidence correction: cases-v2 returned generic \"Owned process cleanup observation failed: Unproved descendant ownership\" after16.17s. Runtime/output absence is observed, but settleDriver removes delegated roots after either phase; therefore absence/elapsed time do NOT prove preflight-only failure or zero UI/input. Original phase, candidate identities and cleanup outcome are unknown because those receipts were not retained. No unsafe or foreign action is established, and no clean cleanup/product success is claimed. The fixture now preserves bounded actual PID/creation/parent/session observations plus original cause, without relaxing ownership/signaling. A distinct source-pinned, parent-authorized exact-wrapper PREFLIGHT-ONLY invocation at2026-11-12T22:33:19.980Z–22:33:21.767Z passed: current session2, dedicated:false, ownershipVerified:false, input/capture not-yet-exercised, runtime/output absent. This later read-only pass does not explain or reclassify v2. Native cases p2/p3 remain unmet; continue through workers under same lawful claim.",
+  "createdAt": "2026-11-12T22:34:19.757Z",
+  "epicId": "ep_01m6q23ddmdxpzw7pqgyc5hyb7",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m78ybj7de264447mxgy6ww9j",
+  "ticketId": "tk_01m70mp7qh8nkx39x3ex6vaan5"
+}

@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Execution setup: picked up queued run rn_01m7exb3ts45egca2q36pw33cs on saved revision 1. The shared tracked checkout remains hybrid-chat-workspace with unrelated active work and edits; switching it would disrupt that work. Preserve it unchanged. Created isolated epic worktree ../dm-wt/desktop-controls-epic on agent-desktop-controls at observed checkout HEAD 9b16b5a9e01da42c036f0344bca0b1bec851a22f, sprint integration ../dm-wt/desktop-controls-s1, and worker ../dm-wt/desktop-controls-dm541. No Hybrid epic state/criteria changed. All source edits and any eventual sprint landing stay in these worktrees, not the shared checkout. Host exposes inherited GPT-6.1 worker only; no worker-model/effort selector. Catalog records the real fixed model; DM-541 recommends high. Native physical input, actual permission approvals and global configuration changes have not been authorized by the execute request.",
+  "createdAt": "2026-11-15T06:14:58.639Z",
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7exgfafccesh6rm6c432ajy",
+  "ticketId": null
+}

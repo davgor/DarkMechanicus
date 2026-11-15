@@ -1,6 +1,15 @@
 {
-  "acceptanceCriteria": [],
-  "body": "The tool descriptions do not say that tickets accept attachments.\n\nFound during the image-attachments epic (sprint 2, DM-432).",
+  "acceptanceCriteria": [
+    {
+      "id": "c1",
+      "text": "All four tool descriptions and the ticket.attachments schema field mention attachments as listed."
+    },
+    {
+      "id": "c2",
+      "text": "The new tests pass, and src/mcp/skills.test.ts passes unchanged."
+    }
+  ],
+  "body": "The MCP descriptions of create_ticket (src/mcp/tools/authoring.ts:144), update_ticket (:153), get_ticket (:135) and update_plan_draft (src/mcp/tools/planning.ts:28) never mention attachments, and the ticket attachments field has no .describe (src/core/schemas.ts:223), unlike Kanban's (kanban.ts:33,46). Skills (skills/planner.md:78), the CLI runbook (docs/runbooks/cli.md:81-83) and CLI describe (field names only) are already fine. No skill text changes, so SKILLS_VERSION stays 1.8.0.\n\n## Do\n1. src/core/schemas.ts:223: add .describe('Staged image ids (from add_attachment, purpose reference) to show on the ticket as reference images, at most 20. On an update the list replaces the ticket\\'s; [] removes them all.').\n2. authoring.ts:144 (create_ticket), before \"Nothing executes until save_plan.\": \"Optional ticket.attachments lists staged image ids (from add_attachment, purpose reference; at most 20) shown on the ticket as reference images; they are claimed when the plan is saved.\"\n3. authoring.ts:153 (update_ticket), before \"The saved plan is unchanged until save_plan.\": \"patch.attachments replaces the ticket's reference images with the listed ids (staged with add_attachment, purpose reference, or already on this ticket; at most 20); [] removes them all and omitting it keeps them.\"\n4. authoring.ts:135 (get_ticket), after \"capability profile (including reasoning.effort when set),\": \" reference images as attachments (open one with get_attachment),\".\n5. planning.ts:28, after \"and a kind (work, acceptance).\": \" They also take attachments: staged image ids (from add_attachment, purpose reference; at most 20) shown on the ticket as reference images; on update_ticket the list replaces the ticket's, and [] removes them all. The images are claimed when the plan is saved.\"\n\n## Out of scope\nSkills, runbooks, SKILLS_VERSION, CLI describe output, Kanban tools.\n\n## Tests\n- src/mcp/tools/authoring.test.ts: new it('tells planners that tickets take reference images') modelled on line 309: create_ticket and update_ticket descriptions contain 'attachments' and 'add_attachment'; get_ticket contains 'get_attachment'; create_ticket inputSchema properties.ticket.properties.attachments.description contains 'add_attachment'.\n- src/mcp/tools/planning.test.ts block at line 154: update_plan_draft description contains 'attachments' and 'add_attachment'.\n- src/mcp/skills.test.ts passes unchanged.\n\n## Rules\nThis card is the complete fix: nothing it finds is left for a later card. Fix anything that blocks a criterion inside this card. Run the listed tests, `npm run typecheck`, and `npx oxlint` on the touched files.",
   "createdAt": "2026-11-06T23:36:46.793Z",
   "createdBy": {
     "label": "dm CLI",
@@ -9,12 +18,12 @@
   "expectedArtifacts": [],
   "format": "darkmechanicus.kanban-card",
   "formatVersion": 1,
-  "generation": 1,
+  "generation": 2,
   "id": "kc_01m6skhke09sb2s0w0qytrrmq2",
   "key": "DM-495",
   "priority": "normal",
   "references": [],
-  "size": null,
-  "title": "Mention attachments in create_ticket and update_ticket descriptions",
-  "updatedAt": "2026-11-06T23:36:46.793Z"
+  "size": "small",
+  "title": "Mention attachments in the ticket tool descriptions",
+  "updatedAt": "2026-11-06T23:58:10.395Z"
 }

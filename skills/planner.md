@@ -85,6 +85,7 @@ For each ticket provide:
 - `create_ticket` adds one ticket, with `requires` for prerequisites. `update_plan_draft` applies batches atomically: add sprints and tickets with client `ref`s, wire dependencies, set policies and rationale. Its result maps refs to stable ids in `refMap`. `update_ticket` edits one ticket.
 - Pass `expectedDraftRevision` on every edit. On `conflict`, re-read the draft and re-apply your change.
 - Group tickets into sprints and wire dependencies as described in the graph planner skill (`darkmechanicus-graph-planner`).
+- Default a coherent epic to one sprint. A bounded investigation is normally its first required ticket, with implementation depending on its accepted evidence; it does not need a separate sprint just because feasibility is uncertain. Add a sprint only for a distinct demonstrable increment or a consequential human decision needed before further work, and explain the additional acceptance/checkpoint cost.
 
 ## 6. Validate and hand over
 

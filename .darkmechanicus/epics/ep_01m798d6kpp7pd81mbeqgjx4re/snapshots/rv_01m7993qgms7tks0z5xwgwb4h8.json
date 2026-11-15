@@ -1,0 +1,1344 @@
+{
+  "baseRevisionId": null,
+  "bundle": {
+    "edges": [
+      {
+        "from": "tk_01m798vazjadym248qdvcsn5a3",
+        "to": "tk_01m798vazjezg9nf7tq8ga0jkf"
+      },
+      {
+        "from": "tk_01m798vazjezg9nf7tq8ga0jkf",
+        "to": "tk_01m798vazjdr8f7m57tky2x5md"
+      },
+      {
+        "from": "tk_01m798vazjdr8f7m57tky2x5md",
+        "to": "tk_01m798vazj3wyc6q1c2c212w0n"
+      },
+      {
+        "from": "tk_01m798vazjdr8f7m57tky2x5md",
+        "to": "tk_01m798vazj9c5pe3wq9jtga4xx"
+      },
+      {
+        "from": "tk_01m798vazjadym248qdvcsn5a3",
+        "to": "tk_01m798vazjqnbywzydqm4c5rjj"
+      },
+      {
+        "from": "tk_01m798vazjqnbywzydqm4c5rjj",
+        "to": "tk_01m798vazj2rq39afhm30dp7x7"
+      },
+      {
+        "from": "tk_01m798vazjdr8f7m57tky2x5md",
+        "to": "tk_01m798vazkwb45enfptp4ew99f"
+      },
+      {
+        "from": "tk_01m798vazj3wyc6q1c2c212w0n",
+        "to": "tk_01m798vazkf3p24vew5zdb6wcn"
+      },
+      {
+        "from": "tk_01m798vazj9c5pe3wq9jtga4xx",
+        "to": "tk_01m798vazkf3p24vew5zdb6wcn"
+      },
+      {
+        "from": "tk_01m798vazj2rq39afhm30dp7x7",
+        "to": "tk_01m798vazkf3p24vew5zdb6wcn"
+      }
+    ],
+    "epic": {
+      "intent": "## Outcome\nAn agent can record a scripted browser walkthrough of a web app with webreel and attach it as evidence to an attempt or a Kanban card. The person plays the clip in the app next to the screenshots, at the checkpoint or in card review. The person can also launch a recording of a saved webreel script from the folder page.\n\n## Confirmed decisions (person, 2026-11-12)\n- Video is a new evidence attachment kind stored only in the local database. Git-tracked records carry its poster frame (a still image), its SHA-256, size, duration and dimensions. A clone or another machine sees the poster and a \"video not on this machine\" notice, never a broken player.\n- Deep integration: the app can run a recording itself.\n- Acceptance targets: the fixture web app and Dark Mechanicus's own renderer dev server.\n\n## Evidence inspected\n- webreel 0.1.4 (npm, Apache-2.0); last release 2026-03-02, repository still active in November 2026. It drives headless Chrome from a JSON config and encodes with ffmpeg; both are downloaded to `~/.webreel` on first use. Output is MP4, WebM or GIF; it can also write PNG screenshots at chosen steps.\n- `docs/decisions/0006-image-attachments.md`: attachments are PNG or JPEG, 10 MiB, exported into the repository in repo mode. This epic amends that decision for video.\n- Not yet verified: webreel on Windows, which codecs Electron 42 plays, and typical clip sizes. Sprint 1 starts with that investigation.\n\n## Scope\n- Video attachment kind: intake, limits, storage, poster, playback, portable metadata, strict import.\n- Register webreel as a capability (requires the Capabilities epic); its Chrome and ffmpeg downloads are disclosed at install.\n- A `dm` path for an agent to attach a recorded file as evidence, and a run-from-the-app action.\n\n## Non-goals\n- Video as a planner reference on tickets or cards (evidence only).\n- Editing, trimming or re-encoding clips in the app.\n- Recording the desktop or the Electron window itself; webreel records a URL in its own headless Chrome.\n- Carrying video through a Linear transfer.\n- Native verification on macOS or Linux: no such machine is available to this project today. Those code paths are unit-tested and the runbook says the feature is verified on Windows only.\n\n## Standards\nOnly the project Definition of Done gates acceptance. Each ticket writes and runs the tests its Tests section lists.",
+      "ownerRole": null,
+      "successCriteria": [
+        {
+          "id": "s1",
+          "text": "An agent records the fixture web app with webreel and attaches the clip to an attempt as evidence through the dm CLI; the attempt shows a poster frame and plays the clip in the app."
+        },
+        {
+          "id": "s2",
+          "text": "In repo mode the Git-tracked records gain only the poster image and a metadata sidecar for the clip; no video bytes appear anywhere under the repository."
+        },
+        {
+          "id": "s3",
+          "text": "On a fresh reconstruction of the folder from its Git records the attempt shows the poster and a notice that the video is not on this machine, with no error."
+        },
+        {
+          "id": "s4",
+          "text": "A file that is not a supported video, is truncated, or exceeds the size or duration limit is refused before anything is stored."
+        },
+        {
+          "id": "s5",
+          "text": "The person starts a recording of a saved script from the folder page, sees it run and stop, and finds the output file path shown."
+        },
+        {
+          "id": "s6",
+          "text": "A recording of Dark Mechanicus's own renderer dev server is attached to the acceptance node as evidence."
+        }
+      ],
+      "title": "webreel: scripted browser recordings kept as local video evidence"
+    },
+    "formatVersion": 1,
+    "policies": {
+      "leaseSeconds": 900,
+      "maxConcurrency": 2,
+      "onTicketFailure": "continue_independent",
+      "retryLimit": 3
+    },
+    "rationale": "## Approach\nTwo halves. Sprint 1 makes video a first-class evidence kind with no dependency on webreel or on the Capabilities epic: an investigation fixes formats and limits, then intake, storage, portable records and playback. Sprint 2 registers webreel as a capability, adds run-from-the-app, updates the guides and proves the path on Windows.\n\n## Decisions and why\n- **Person's choice: bytes stay in the local database; Git carries a poster and metadata.** Keeps repositories small. Cost: a reviewer on another machine sees only the poster, so the guides tell them to ask for a re-run when the clip matters.\n- **The caller supplies the poster.** `add_attachment` runs in a headless process with no browser engine, so the app cannot decode a frame there. webreel can write a PNG in the same run. Rejected: generating the poster in the renderer (not available to the headless CLI) and bundling ffmpeg in the app (size and licence).\n- **Containers are measured, not decoded.** Intake reads a few header fields with hard bounds. No frame is decoded in the core process.\n- **Evidence only.** A video cannot be a planner reference on a ticket or card in this epic.\n- **Provisional limits: MP4 with H.264 and WebM with VP9, 50 MiB, 5 minutes.** The investigation confirms or changes them with measurements.\n- **Run-from-the-app reads only a JSON script at the folder root**, as untrusted data; the output path must resolve inside the folder.\n\n## Assumptions the investigation must confirm\n- Electron 42 plays what webreel writes, from the app's custom protocol.\n- webreel 0.1.4 works on Windows when installed with lifecycle scripts off. Its last release was in March 2026; if it does not work, Sprint 2 is revisited at the Sprint 1 checkpoint while Sprint 1 still stands by itself.\n\n## Risks\n- Parsing hostile containers: bounded walk, mutation-loop test, deep-review capability on that ticket.\n- Database growth from local video: bounded per clip and per record; the runbook says how to free space. A total cap is not planned.\n- webreel downloads Chrome and ffmpeg outside the app's private folder: disclosed in the install dialog, not prevented.\n- A table rebuild migration: pinned-hash test for existing records and a row-preservation test.\n\n## Sequencing\nSprint 1 is a chain to storage, then export and playback in parallel: investigation, intake, storage, then portable records and playback. Sprint 2: descriptor, then run-from-app; guides in parallel; the smoke joins portable records, playback and run-from-app. Critical path: investigation, intake, storage, portable records, smoke.\n\n## Dependencies on other epics\nSprint 2 requires the Capabilities epic complete. Sprint 1 does not.\n",
+    "relations": [],
+    "sprints": [
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "ADR 0008 fixes formats, limits and the poster model from measurements."
+          },
+          {
+            "id": "x2",
+            "text": "A sample clip attached through the dm CLI plays in an attempt's evidence."
+          },
+          {
+            "id": "x3",
+            "text": "Exported records contain no video bytes, and a reconstruction shows the not-on-this-machine notice."
+          }
+        ],
+        "goal": "Video is an evidence attachment kind end to end: measured at intake, stored locally, represented in Git by a poster and sidecar, and playable in the app.",
+        "id": "sp_01m798d6kp51qskd6qrdhjv3kw",
+        "ordinal": 1,
+        "ticketIds": [
+          "tk_01m798vazjadym248qdvcsn5a3",
+          "tk_01m798vazjezg9nf7tq8ga0jkf",
+          "tk_01m798vazjdr8f7m57tky2x5md",
+          "tk_01m798vazj3wyc6q1c2c212w0n",
+          "tk_01m798vazj9c5pe3wq9jtga4xx",
+          "tk_01m798d6kp9xm781q2sr08mhh9"
+        ]
+      },
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [
+          {
+            "id": "n1",
+            "text": "Sprint 1 increment is on the epic branch."
+          },
+          {
+            "id": "n2",
+            "text": "The Capabilities epic is completed."
+          }
+        ],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "An agent records the fixture app and attaches the clip as evidence."
+          },
+          {
+            "id": "x2",
+            "text": "The person records a saved script from the folder card."
+          },
+          {
+            "id": "x3",
+            "text": "The Windows smoke driver passes."
+          }
+        ],
+        "goal": "webreel is an installable capability, a saved script records from the folder page, guides describe video evidence, and a real Windows run proves the whole path.",
+        "id": "sp_01m798vaxtbee2ppp849h49r02",
+        "ordinal": 2,
+        "ticketIds": [
+          "tk_01m798vazjqnbywzydqm4c5rjj",
+          "tk_01m798vazj2rq39afhm30dp7x7",
+          "tk_01m798vazkwb45enfptp4ew99f",
+          "tk_01m798vazkf3p24vew5zdb6wcn",
+          "tk_01m798vaxv96dd8eg90dw801pp"
+        ]
+      }
+    ],
+    "tickets": [
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m798vazjadym248qdvcsn5a3",
+            "id": "c1",
+            "text": "Play both committed sample clips in an Electron 42 window from the dm-attachment: protocol on the combined branch."
+          },
+          {
+            "covers": "tk_01m798vazjezg9nf7tq8ga0jkf",
+            "id": "c2",
+            "text": "Run the intake tests on the combined branch and measure a freshly recorded 10 second clip: its reported duration is within half a second of 10."
+          },
+          {
+            "covers": "tk_01m798vazjdr8f7m57tky2x5md",
+            "id": "c3",
+            "text": "From the built CLI, add_attachment a clip with its poster and submit it on a scratch card; get_attachment returns the same bytes (digest compared)."
+          },
+          {
+            "covers": "tk_01m798vazj3wyc6q1c2c212w0n",
+            "id": "c4",
+            "text": "List the scratch repository after the submit: the poster and sidecars are present and no file has the clip's size or digest."
+          },
+          {
+            "covers": "tk_01m798vazj9c5pe3wq9jtga4xx",
+            "id": "c5",
+            "text": "Screenshots of the clip playing in the attempt evidence, and of the not-on-this-machine notice after reconstructing from the records."
+          }
+        ],
+        "body": "Run the project Definition of Done on the combined Sprint 1 work, check each covered item by observation on Windows, and land the sprint as one commit on the epic branch. The sample clips in `src/test/videos.ts` are the only video bytes that may be committed.\n",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Runs the Definition of Done on the combined sprint and checks each covered item by observation."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "network"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m798d6kp9xm781q2sr08mhh9",
+        "key": "DM-556",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "size": "medium",
+        "tags": [],
+        "title": "Sprint 1 acceptance"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m798vazjqnbywzydqm4c5rjj",
+            "id": "c1",
+            "text": "Install webreel through the card on the combined branch; the dialog text and the reported version 0.1.4 are captured."
+          },
+          {
+            "covers": "tk_01m798vazj2rq39afhm30dp7x7",
+            "id": "c2",
+            "text": "Screenshot of the folder card after recording the saved fixture script from the app, with the output path shown."
+          },
+          {
+            "covers": "tk_01m798vazkwb45enfptp4ew99f",
+            "id": "c3",
+            "text": "A worker following only the updated worker guide and CLI instructions attaches a clip as evidence without other help; the command transcript is attached."
+          },
+          {
+            "covers": "tk_01m798vazkf3p24vew5zdb6wcn",
+            "id": "c4",
+            "text": "The smoke result JSON from a run on the combined branch with every step passed, and a short clip of this repository's own renderer dev server attached to this node as video evidence."
+          }
+        ],
+        "body": "Run the project Definition of Done on the combined Sprint 2 work, check each covered item by observation on Windows, and land the sprint as one commit on the epic branch. Attach the clip of this repository's own renderer dev server to this submission as video evidence with its poster.\n",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Runs the Definition of Done on the combined sprint and checks each covered item by observation."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "network"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m798vaxv96dd8eg90dw801pp",
+        "key": "DM-576",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "size": "medium",
+        "tags": [],
+        "title": "Sprint 2 acceptance"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`docs/reports/webreel-windows.md` answers the six questions with commands, outputs, dates and versions, including measured clip sizes for both containers at both lengths."
+          },
+          {
+            "id": "c2",
+            "text": "ADR 0008 states the accepted containers and codecs, the byte and duration limits, the poster model, local-only storage, the sidecar fields and the import behaviour, each with the measurement or reason behind it."
+          },
+          {
+            "id": "c3",
+            "text": "`src/test/videos.ts` holds one small valid MP4 and one small valid WebM sample that Electron 42 plays."
+          },
+          {
+            "id": "c4",
+            "text": "Anything not established on Windows is named as unverified in the report."
+          }
+        ],
+        "body": "## Context\nAttachments are PNG or JPEG, at most 10 MiB, exported into the repository in repo mode (ADR 0006). The person decided video evidence stays in the local database, with only a poster frame and metadata in Git. The exact formats and limits depend on what webreel writes and what Electron 42 plays.\n\n## Questions to answer, each with the command, its output, the date and the version\n1. Does `npm ci --ignore-scripts` from a lockfile pinned to `webreel@0.1.4` give a working `webreel`? What do `webreel install` and the first run download to `~/.webreel` (names, sizes, any published checksum)?\n2. Record the fixture web app (`scripts/native/fixtures/webapp/`) as MP4 and as WebM: file sizes for a 10 second and a 60 second clip at the default viewport and at 1280 by 720; container, codec and profile of each.\n3. Does Electron 42 play each file in a `<video>` element served from a custom protocol? Does seeking need range requests, and does the scheme need the `stream` privilege?\n4. Can a webreel `screenshot` step write a PNG usable as the poster in the same run?\n5. What does `webreel record` print while running and on failure, and which exit codes does it use?\n6. Does it run on Windows without a visible desktop session?\n\n## Decision to write\n`docs/decisions/0008-video-evidence.md`, amending 0006: accepted containers and codecs; byte and duration limits; the poster model; local-only storage; the fields of the portable sidecar; what import does when the bytes are absent; evidence only, never a planner reference. Start from these provisional values and change them only with a measured reason: MP4 with H.264 and WebM with VP9; 50 MiB; 5 minutes; a video attachment names one image attachment as its poster, supplied by the caller; 20 attachments per record unchanged.\nAlso commit two tiny sample clips (a few kilobytes each, MP4 and WebM) as base64 in `src/test/videos.ts` for later tests.\n\n## Safety\nRead prompts before answering; no blind key presses. Record only the fixture app. Use a throwaway working folder.\n\n## Source locations (entry points; only the sample file is added)\n- `docs/decisions/0006-image-attachments.md`.\n- `src/main/desktop/protocolSchemes.ts`: `registerDesktopSchemes`; `src/main/desktop/attachmentProtocol.ts`: `handleAttachmentRequest`.\n- `electron.vite.config.ts`: `PROD_CSP`, `DEV_CSP` (there is no `media-src` today).\n- `src/test/images.ts`, `src/test/encodedImages.ts`: how image fixtures are stored.\n\n## Tests\nNone: investigation. The evidence is the report and the decision.\n",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Bounded investigation that ends in a format and storage decision the rest of the epic implements."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "network"
+          ],
+          "workType": "investigation"
+        },
+        "expectedArtifacts": [
+          "docs/reports/webreel-windows.md",
+          "docs/decisions/0008-video-evidence.md",
+          "src/test/videos.ts"
+        ],
+        "id": "tk_01m798vazjadym248qdvcsn5a3",
+        "key": "DM-577",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/decisions/0006-image-attachments.md",
+            "location": "docs/decisions/0006-image-attachments.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/protocolSchemes.ts",
+            "location": "src/main/desktop/protocolSchemes.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/attachmentProtocol.ts",
+            "location": "src/main/desktop/attachmentProtocol.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "electron.vite.config.ts",
+            "location": "electron.vite.config.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/test/images.ts",
+            "location": "src/test/images.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "url",
+            "label": "webreel README",
+            "location": "https://github.com/vercel-labs/webreel",
+            "remoteOnly": true
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Decide the video evidence format from what Electron plays and webreel produces on Windows"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Both sample clips are measured with the width, height and duration the investigation recorded."
+          },
+          {
+            "id": "c2",
+            "text": "Truncated files, oversized declared sizes, over-deep nesting and out-of-limit durations are each refused with a reason; tests cover each."
+          },
+          {
+            "id": "c3",
+            "text": "A mutation loop over the samples produces only domain refusals and completes within its time bound."
+          },
+          {
+            "id": "c4",
+            "text": "A file outside the allowed folders, or reached through a symlink, is refused exactly as images are."
+          }
+        ],
+        "body": "## In scope\n`src/core/attachments/video.ts`:\n- `inspectVideoBytes(bytes)`: return mime, width, height and duration in milliseconds, or a refusal with a reason. Recognise by content, not extension: an MP4 `ftyp` box, or an EBML header whose DocType is `webm`.\n- Read only what is needed. MP4: `moov/mvhd` timescale and duration, and the first video track's `tkhd` width and height. WebM: Segment Info duration and timecode scale, and the first video track's pixel width and height.\n- Bounded walk: a maximum depth, a maximum number of boxes or elements, every declared size checked against the buffer. Refuse a truncated file, a missing `moov`, a zero or absurd duration, and anything over the limits in ADR 0008.\n- No frame is decoded and nothing is executed.\n- `readVideoFile(path, roots, fs)`: the same allowed-folder and no-symlink rules as `readImageFile`.\n\n## Out of scope\nStorage, commands, export, playback.\n\n## Source locations\n- `src/core/attachments/intake.ts`: `inspectImageBytes`, `readImageFile`, `resolveAllowedRoots`, `isInsideImageRoot`, `MAX_IMAGE_BYTES`. Tests: `intake.test.ts`, `intake.branches.test.ts`.\n- `src/test/videos.ts` from the investigation ticket; `src/test/memoryFs.ts`.\n- `docs/decisions/0008-video-evidence.md`: formats and limits.\n\n## Tests\n`src/core/attachments/video.test.ts`: both samples measured correctly; truncated file; a box size larger than the file; nesting deeper than the bound; zero and huge duration; a PNG renamed to `.mp4`; a path outside the allowed folders and a symlink are refused; a loop that mutates sample bytes several thousand times never throws anything but the domain refusal and finishes within a fixed time.\n\n## Verify\nRun the test file, lint, typecheck.\n",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "deep",
+            "rationale": "Parses untrusted binary containers in the core process; a wrong bound is a hang or memory risk and is hard to see in review."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing",
+            "security-review"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/attachments/video.ts"
+        ],
+        "id": "tk_01m798vazjezg9nf7tq8ga0jkf",
+        "key": "DM-578",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/attachments/intake.ts",
+            "location": "src/core/attachments/intake.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/test/memoryFs.ts",
+            "location": "src/test/memoryFs.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Recognise and measure video files at intake"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "`add_attachment` with a video path and a poster path stages both and returns the video's id, mime, size, dimensions and duration."
+          },
+          {
+            "id": "c2",
+            "text": "A video without a poster, or with purpose reference, is refused before anything is stored; tests cover both."
+          },
+          {
+            "id": "c3",
+            "text": "Submitting an attempt with a video id claims the video and its poster; tickets, cards and comments refuse a video id."
+          },
+          {
+            "id": "c4",
+            "text": "Migration 14 to 15 preserves existing attachment rows, and a pinned hash of an existing image-only record is unchanged."
+          }
+        ],
+        "body": "## In scope\n- Migration V15: rebuild `attachments` so its checks admit the video mime types, with a nullable duration column and a nullable poster reference to another attachment row.\n- `attachmentRef` and the view types gain optional duration and poster id, and `AttachmentView` gains an `available` flag (false when the bytes are absent). No defaults are added: existing records must parse unchanged and keep their hashes.\n- `add_attachment` accepts a video file when a `poster` image path is given with it. The poster is staged as an ordinary image and linked. A video without a poster is refused. A video with purpose `reference` is refused.\n- Claiming a video for an attempt or a Kanban attempt claims its poster with it. Pruning an unclaimed staged video prunes its poster.\n- Tickets, cards and comments refuse a video id.\n- `get_attachment` with `as: file` writes a video to a temp file with the right extension.\n- `uploadAttachment` (desktop paste and drop) keeps refusing video in this epic.\n\n## Out of scope\nExport to Git records, import, playback.\n\n## Source locations\n- `src/core/db/migrations.ts`: `SCHEMA_VERSION`, `MIGRATIONS`; V14 created `attachments` and shows the copy, drop, rename pattern for changing a check. Test: `migrations.test.ts`.\n- `src/core/schemas.ts`: `attachmentMime`, `attachmentRef`, `attachmentPurpose`, `attemptEvidenceInput`.\n- `src/shared/domain/views.ts`: `AttachmentMime`, `AttachmentRef`, `AttachmentView`, `AttachmentOwnerKind`.\n- `src/core/attachments/tempFile.ts`: `writeAttachmentTempFile` and its extension map.\n- `src/core/services/attachments.ts`: `stageAttachmentFile`, `createStagedAttachment`, `claimAttachments`, `claimEvidenceAttachments`, `pruneStagedAttachments`, `attachmentRefOf`. Test: `attachments.test.ts`.\n- `src/core/commands/attachments.ts`: `addAttachment`, `uploadAttachment`, `getAttachment`. Tests: `attachments.test.ts`, `uploadAttachment.test.ts`.\n- `src/mcp/tools/attachments.ts`: `registerAttachmentTools`. Test beside it.\n- `src/core/services/attempts.ts` and `src/core/services/kanban/attempts.ts`: the evidence claim sites.\n- `src/core/attachments/video.ts` from the intake ticket.\n\n## Tests\nMigration 14 to 15 keeps existing rows byte for byte; a video without a poster is refused; a video as `reference` is refused; `submit_attempt` with a video id claims the video and its poster; pruning removes both; a ticket, a card and a comment each refuse a video id; the hash of an existing image-only record is unchanged (pin one).\n\n## Verify\nRun the touched test files, lint, typecheck.\n",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "high",
+            "level": "multi_step",
+            "rationale": "Schema migration with a table rebuild plus changes across schemas, services and two command surfaces; existing record hashes must not move."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m798vazjdr8f7m57tky2x5md",
+        "key": "DM-579",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/db/migrations.ts",
+            "location": "src/core/db/migrations.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/schemas.ts",
+            "location": "src/core/schemas.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/views.ts",
+            "location": "src/shared/domain/views.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/attachments/tempFile.ts",
+            "location": "src/core/attachments/tempFile.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/attachments.ts",
+            "location": "src/core/services/attachments.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/commands/attachments.ts",
+            "location": "src/core/commands/attachments.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/tools/attachments.ts",
+            "location": "src/mcp/tools/attachments.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/attempts.ts",
+            "location": "src/core/services/attempts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/kanban/attempts.ts",
+            "location": "src/core/services/kanban/attempts.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Store video evidence locally and accept it through add_attachment"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Exporting an attempt that has a video writes the poster image and the sidecars, and no file containing the video bytes anywhere under the repository; a test lists the folder."
+          },
+          {
+            "id": "c2",
+            "text": "Importing those records on a clean database yields the video with available false and its poster present."
+          },
+          {
+            "id": "c3",
+            "text": "Each hostile sidecar case is rejected and leaves a missing reference without failing the import; tests cover each."
+          },
+          {
+            "id": "c4",
+            "text": "A video file placed by hand in an attachments folder is not imported."
+          }
+        ],
+        "body": "## Context\nToday every owned attachment is exported whole into the repository in repo mode. Video must not be: Git records carry the poster image (exported as any image) and a sidecar describing the video.\n\n## In scope\n- Export: for a video attachment write only its sidecar (id, SHA-256, mime, bytes, width, height, duration, poster id, label, who staged it). Never write the video bytes under the repository.\n- Import: a video sidecar with no bytes creates the row with `available` false. A video file found in an attachments folder is not imported. A hostile sidecar (bad digest, out-of-limit duration or size, a poster id that does not resolve to an image of the same owner) is rejected and leaves a missing reference, as bad images do.\n- Database-only folders are unaffected.\n\n## Source locations\n- `src/core/repo/paths.ts`: `ownedPaths`, `ATTACHMENT_EXTENSIONS`.\n- `src/core/repo/attachmentFiles.ts`: `unexportedAttachments`, `writeAttachmentFile`, `placementOfAttachment`, `ATTACHMENT_FILE_NAME`, `ATTACHMENT_SIDECAR_NAME`. Test: `attachmentFiles.test.ts`.\n- `src/core/repo/finalizer.ts`: `exportAttachmentsOf`, `exportAttachmentFile`, `writeAttachmentSidecar`. Tests: `finalizer.test.ts`, `finalizer.kanban.test.ts`.\n- `src/core/repo/portable.ts`: the `attachmentSidecar` schema.\n- `src/core/repo/attachmentImport.ts`: `registerEvidenceAttachments`, `restoreAttachmentFiles`, and the private folder scan and file verification. Test: `attachmentImport.test.ts`.\n- `src/core/repo/importer.ts`: the call site.\n\n## Tests\n- `finalizer.test.ts`: exporting an attempt with one video writes the poster file and two sidecars and no video file.\n- `attachmentImport.test.ts`: importing those records gives a video row with `available` false and a present poster; each hostile sidecar case leaves a missing reference; a stray `.mp4` in the folder is ignored.\n- A round trip in database-only mode is unchanged.\n\n## Verify\nRun the touched test files, lint, typecheck.\n",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Changes the finalizer and the strict importer, which treat every file as untrusted."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m798vazj3wyc6q1c2c212w0n",
+        "key": "DM-580",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/paths.ts",
+            "location": "src/core/repo/paths.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/attachmentFiles.ts",
+            "location": "src/core/repo/attachmentFiles.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/finalizer.ts",
+            "location": "src/core/repo/finalizer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/portable.ts",
+            "location": "src/core/repo/portable.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/attachmentImport.ts",
+            "location": "src/core/repo/attachmentImport.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/importer.ts",
+            "location": "src/core/repo/importer.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Export only the poster and a sidecar for video, and import it as not on this machine"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A video in an attempt's evidence shows its poster, plays in the lightbox with controls, and can be seeked."
+          },
+          {
+            "id": "c2",
+            "text": "When the bytes are absent the tile shows the poster and the notice \"This video is not on this machine\", with no player and no error."
+          },
+          {
+            "id": "c3",
+            "text": "Out-of-bounds ranges, unknown ids and ids of another workspace are refused by the protocol; tests cover each."
+          },
+          {
+            "id": "c4",
+            "text": "The CSP gains media-src for dm-attachment: only; a test pins both policies."
+          },
+          {
+            "id": "c5",
+            "text": "Screenshots of a playing clip and of the missing notice are attached."
+          }
+        ],
+        "body": "## In scope\n- `dm-attachment:` serves video with range support when the investigation says seeking needs it: `206`, `Content-Range`, `Accept-Ranges`, with every range checked against the stored size. Add the `stream` scheme privilege only if the report says it is required.\n- CSP: add `media-src dm-attachment:` to the production and dev policies. Nothing else is widened.\n- `AttachmentGallery`: a video tile shows the poster with a play mark and the duration. Opening it shows a `<video controls preload=\"none\">` in the lightbox; nothing autoplays. When `available` is false the tile shows the poster and the notice \"This video is not on this machine\", and no player.\n- Keyboard: the tile opens with Enter and Space, and the lightbox closes with Escape, as images do.\nThe gallery's consumers need no change.\n\n## Source locations\n- `src/main/desktop/attachmentProtocol.ts`: `parseAttachmentUrl`, `handleAttachmentRequest`, `createAttachmentLookup`. Tests: `attachmentProtocol.test.ts`, `attachmentProtocol.integration.test.ts`.\n- `src/main/desktop/protocolSchemes.ts`: `registerDesktopSchemes`.\n- `electron.vite.config.ts`: `PROD_CSP`, `DEV_CSP`, `cspPlugin`; injected into `src/renderer/index.html`.\n- `src/renderer/src/attachments/AttachmentGallery.tsx`, `attachments.css`. Test: `AttachmentGallery.test.tsx`.\n- Consumers, for a visual check only: `src/renderer/src/ticket/panelTabs.tsx`, `src/renderer/src/kanban/CardActivity.tsx`.\n- `docs/reports/webreel-windows.md`: answer to question 3.\n\n## Tests\n- `attachmentProtocol.test.ts`: a valid range, a suffix range, an out-of-bounds range, an unknown id, and an id of another workspace.\n- `attachmentProtocol.integration.test.ts`: a sample clip is served and its bytes match.\n- `AttachmentGallery.test.tsx`: video tile, lightbox player without autoplay, the missing notice, keyboard.\n- A test of the CSP strings: `media-src` allows `dm-attachment:` only.\n\n## Verify\nRun the touched tests, lint, typechecks. Attach a screenshot of a playing clip in an attempt's evidence and one of the missing notice.\n",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Protocol range handling in main, a CSP change and a new gallery tile with a missing state."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m798vazj9c5pe3wq9jtga4xx",
+        "key": "DM-581",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/attachmentProtocol.ts",
+            "location": "src/main/desktop/attachmentProtocol.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/protocolSchemes.ts",
+            "location": "src/main/desktop/protocolSchemes.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "electron.vite.config.ts",
+            "location": "electron.vite.config.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/attachments/AttachmentGallery.tsx",
+            "location": "src/renderer/src/attachments/AttachmentGallery.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/attachments/attachments.css",
+            "location": "src/renderer/src/attachments/attachments.css",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/ticket/panelTabs.tsx",
+            "location": "src/renderer/src/ticket/panelTabs.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/kanban/CardActivity.tsx",
+            "location": "src/renderer/src/kanban/CardActivity.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Play video evidence in the app with its poster"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The production registry lists webreel pinned to 0.1.4 with a fully integrity-pinned lockfile; a test checks it."
+          },
+          {
+            "id": "c2",
+            "text": "The install dialog names the Chrome and ffmpeg downloads, their location and that removal leaves them in place."
+          },
+          {
+            "id": "c3",
+            "text": "The agent paragraph tells agents how to produce a poster and attach the clip as evidence, and states the limits."
+          }
+        ],
+        "body": "## In scope\n- `resources/capabilities/webreel/package.json` and `package-lock.json` pinning `webreel@0.1.4` with integrity for every package.\n- A `webreel` descriptor in the production registry with its version probe.\n- Disclosure lines for the install dialog, with the names and sizes the report measured: on first use webreel downloads Chrome and ffmpeg to `~/.webreel`, outside the app's private folder, and removing the capability does not remove them.\n- Instruction paragraph (constant text): write a webreel config for the page under test; include a `screenshot` step to produce the poster; run `webreel record`; attach with `add_attachment` giving `path`, `poster`, a `label` and `purpose: \"evidence\"`; keep clips within the limits; record only local development addresses or addresses the person named.\n\n## Source locations\n- `src/main/capabilities/registry.ts`, `src/shared/desktop/capabilities.ts`, `src/main/capabilities/lockfiles.test.ts` (Capabilities and portless epics; create the lockfile test here if it does not exist yet).\n- `docs/reports/webreel-windows.md`; `docs/decisions/0008-video-evidence.md` for the limits to quote.\n\n## Tests\n`registry.test.ts`: the descriptor is in the production list and its disclosure names `~/.webreel`. The lockfile test: root dependency exactly `webreel@0.1.4`, integrity on every package.\n\n## Verify\nRun the tests, lint, typecheck. Install once through the card in a dev build and confirm the probe reports 0.1.4.\n",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "One descriptor, one lockfile and one constant paragraph following the Capabilities pattern."
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "network"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "resources/capabilities/webreel/package.json",
+          "resources/capabilities/webreel/package-lock.json"
+        ],
+        "id": "tk_01m798vazjqnbywzydqm4c5rjj",
+        "key": "DM-582",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/capabilities/registry.ts",
+            "location": "src/main/capabilities/registry.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/desktop/capabilities.ts",
+            "location": "src/shared/desktop/capabilities.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/reports/webreel-windows.md",
+            "location": "docs/reports/webreel-windows.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [],
+        "title": "Register webreel as a capability and disclose what it downloads"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "With a saved script in the folder the card lists its videos, and Record runs webreel and ends with the output path shown."
+          },
+          {
+            "id": "c2",
+            "text": "An invalid or oversized config, and an output path that resolves outside the folder, each produce an error state; tests cover them."
+          },
+          {
+            "id": "c3",
+            "text": "Stop ends a running recording and its child processes."
+          },
+          {
+            "id": "c4",
+            "text": "A screenshot of the row after recording the fixture web app is attached."
+          }
+        ],
+        "body": "## In scope\n- `src/main/capabilities/webreel/recordings.ts`: look for `webreel.config.json` at the folder root; read it as untrusted JSON with a size bound, never executing anything from it; list its video names. `record(folder, name)` runs `webreel record <name>` through the managed process service, in the folder. Report progress lines, the exit result, and the output file path, which must resolve inside the folder or it is not shown.\n- IPC for list, record and state, guarded and refused for an untracked folder.\n- The webreel row of the Capabilities card: the videos of the saved script, Record, a running state with Stop, and the last output path with \"Show in folder\". With no config file it says how an agent or the person creates one.\n- A recording is not attached to anything by this action. Attaching is an evidence act done through `add_attachment`.\n\n## Out of scope\nEditing scripts in the app. JavaScript or TypeScript config files: JSON only.\n\n## Source locations\n- `src/main/capabilities/processes.ts`, `registry.ts`; `src/renderer/src/home/CapabilitiesCard.tsx` (Capabilities epic).\n- `src/main/desktop/handlers.ts`, `ipc.ts`, `src/shared/desktop/api.ts`, `src/preload/index.ts`, `src/renderer/src/__mocks__/fakeDm.ts`.\n- `src/main/panes/safeFile.ts`: the existing containment check for folder-relative paths.\n- `docs/reports/webreel-windows.md`: progress output and exit codes.\n\n## Tests\n- `recordings.test.ts`: lists names from a valid config; an oversized or invalid config gives an error state; an output path outside the folder (including through a link) is not returned; a second record while one runs is refused; a non-zero exit is reported with the last lines.\n- `CapabilitiesCard.test.tsx`: the row states, Record, Stop, no-config text.\n- Handler tests: untracked folder refused.\n\n## Verify\nRun the tests, lint, typechecks. Record the fixture web app once from the card in a dev build and attach a screenshot of the finished row.\n",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Main-process discovery and run of a project file treated as untrusted, plus a card row with progress."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/capabilities/webreel/recordings.ts"
+        ],
+        "id": "tk_01m798vazj2rq39afhm30dp7x7",
+        "key": "DM-583",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/handlers.ts",
+            "location": "src/main/desktop/handlers.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/ipc.ts",
+            "location": "src/main/desktop/ipc.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/desktop/api.ts",
+            "location": "src/shared/desktop/api.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/preload/index.ts",
+            "location": "src/preload/index.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/__mocks__/fakeDm.ts",
+            "location": "src/renderer/src/__mocks__/fakeDm.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/panes/safeFile.ts",
+            "location": "src/main/panes/safeFile.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Record a saved webreel script from the folder page"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The worker, reviewer and planner guides and the CLI instructions describe attaching and reviewing video evidence, with the limits from ADR 0008."
+          },
+          {
+            "id": "c2",
+            "text": "The skills version is bumped and the instruction and prompt tests pass."
+          },
+          {
+            "id": "c3",
+            "text": "The runbook states where video bytes live, what Git carries, and what a clone shows."
+          }
+        ],
+        "body": "## In scope\n- `skills/worker.md`, `skills/reviewer.md`, `skills/planner.md`, `skills/graph-planner.md`: a criterion may ask for a clip; how a worker attaches one (video plus poster, evidence only); what a reviewer does when the video is not on their machine (the poster and metadata are the record; ask for a re-run when the clip itself is needed).\n- The CLI instructions paragraph about attachments: add video and its poster, and the limits.\n- Bump `SKILLS_VERSION`.\n- `docs/runbooks/video-evidence.md`: formats, limits, where the bytes live, what travels in Git, what a clone sees, how to free space. Cross-link ADR 0006 and 0008.\n- `docs/runbooks/linear-transfer.md`: one sentence that video, like images, is not carried.\n\n## Source locations\n- `skills/*.md`; `src/mcp/skills.ts` (`SKILLS`, `skillBody`), test `skills.test.ts`; `src/mcp/prompts.ts`, test `prompts.test.ts`.\n- `src/main/agents/cliInstructions.ts`: `cliInstructions`. Test: `cliInstructions.test.ts`.\n- `src/core/version.ts`: `SKILLS_VERSION`.\n- `docs/decisions/0006-image-attachments.md`, `docs/decisions/0008-video-evidence.md`.\n\n## Tests\nUpdate `cliInstructions.test.ts`, `skills.test.ts` and `prompts.test.ts` for the new text and version.\n\n## Verify\nRun those tests, lint, typecheck.\n",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "Guide and instruction text changes with their snapshot tests."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "documentation"
+        },
+        "expectedArtifacts": [
+          "docs/runbooks/video-evidence.md"
+        ],
+        "id": "tk_01m798vazkwb45enfptp4ew99f",
+        "key": "DM-584",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/worker.md",
+            "location": "skills/worker.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/reviewer.md",
+            "location": "skills/reviewer.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/planner.md",
+            "location": "skills/planner.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/graph-planner.md",
+            "location": "skills/graph-planner.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/skills.ts",
+            "location": "src/mcp/skills.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/prompts.ts",
+            "location": "src/mcp/prompts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/cliInstructions.ts",
+            "location": "src/main/agents/cliInstructions.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/version.ts",
+            "location": "src/core/version.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/runbooks/linear-transfer.md",
+            "location": "docs/runbooks/linear-transfer.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [],
+        "title": "Tell agents and people how video evidence works"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The result JSON records a real webreel recording of the fixture app attached and submitted as evidence through the dm CLI."
+          },
+          {
+            "id": "c2",
+            "text": "Screenshots show the poster tile and the clip playing in the app."
+          },
+          {
+            "id": "c3",
+            "text": "A listing of the scratch repository shows the poster and sidecars and no file with the clip's size or digest."
+          },
+          {
+            "id": "c4",
+            "text": "A screenshot of the reconstructed folder shows the not-on-this-machine notice."
+          },
+          {
+            "id": "c5",
+            "text": "A screenshot shows the folder card after recording the saved script from the app."
+          }
+        ],
+        "body": "## In scope\n`scripts/native/main/webreel.smoke.ts`:\n1. Dev build, isolated user data, a scratch repository in repo mode holding the fixture web app and a webreel script with a `screenshot` step.\n2. Install webreel through the card (real download of the pinned package and its Chrome and ffmpeg), turn it on.\n3. Agent path: from a disposable custom CLI chat, run `webreel record`, then `add_attachment` with the clip and poster, then submit them as evidence on a scratch Kanban card through the sanctioned `dm` commands.\n4. In the app, open the card's attempt, capture the poster tile and the playing clip.\n5. List `.darkmechanicus/` and show it holds the poster and sidecars and no video bytes (search by the clip's size and digest).\n6. Reconstruct the folder from its Git records in a second directory with a clean database; capture the \"not on this machine\" notice.\n7. Person path: Record the same script from the folder card; capture the finished row.\n8. Record this repository's own renderer dev server (`npm run dev`, `http://localhost:5173`) for a few seconds and keep the clip for the acceptance node.\nWrite JSON and PNGs under `docs/verification/webreel/`. Do not commit the clips.\n\n## Source locations\n- `scripts/native/main/capabilities.smoke.ts` (Capabilities epic), `browserPane.smoke.ts`: driver structure.\n- `scripts/mcp-smoke.mjs` (the `smoke:mcp` script in `package.json`): how a driver calls the built CLI against a scratch repository.\n- `scripts/native/fixtures/webapp/`.\n\n## Tests\nNone beyond the driver: it is the test, typechecked and linted with the other native drivers.\n\n## Verify\nRun on Windows and attach the JSON and PNGs.\n",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "A native driver across a real recording, the dm CLI, the app UI and a reconstruction from Git records."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "network"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "scripts/native/main/webreel.smoke.ts",
+          "docs/verification/webreel/"
+        ],
+        "id": "tk_01m798vazkf3p24vew5zdb6wcn",
+        "key": "DM-585",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "scripts/native/main/browserPane.smoke.ts",
+            "location": "scripts/native/main/browserPane.smoke.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "package.json",
+            "location": "package.json",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "scripts/mcp-smoke.mjs",
+            "location": "scripts/mcp-smoke.mjs",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Prove record, attach, play and export in a real Windows app run"
+      }
+    ]
+  },
+  "contentHash": "sha256:fd2a7e24f29ef3ae593c301516d6496d19d70e411576887a88e1b8a1d010c8e7",
+  "createdAt": "2026-11-13T01:42:17.364Z",
+  "epicId": "ep_01m798d6kpp7pd81mbeqgjx4re",
+  "format": "darkmechanicus.plan-snapshot",
+  "formatVersion": 1,
+  "number": 1,
+  "revisionId": "rv_01m7993qgms7tks0z5xwgwb4h8",
+  "savedAt": "2026-11-13T01:42:17.364Z"
+}

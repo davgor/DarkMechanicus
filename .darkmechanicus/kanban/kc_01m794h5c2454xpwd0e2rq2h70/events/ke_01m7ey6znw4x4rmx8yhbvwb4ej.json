@@ -1,0 +1,224 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": "ka_01m7excmsc12rdfcz7wj8qztq6",
+  "cardId": "kc_01m794h5c2454xpwd0e2rq2h70",
+  "createdAt": "2026-11-15T06:27:16.284Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7ey6znw4x4rmx8yhbvwb4ej",
+  "kind": "submitted",
+  "payload": {
+    "evidence": {
+      "checks": [
+        {
+          "detail": "npm run lint: Exit 0. evidence/dm538-lint.log; no rule changes.",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run typecheck: Exit 0; main/preload, renderer and Fireguard strict projects. evidence/dm538-typecheck.log.",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "env -u CI npm test: Exit 0; app: 646 passed files/2 skipped, 11218 passed tests/59 skipped; Fireguard suite: 24 passed files,164 passed tests/1 skipped. Existing local capability probe skips unsupported Windows file symlinks (3 app cases +1 Fireguard case). Original inherited CI=true strict failures retained; unsupported cases not fixed or verified. evidence/dm538-test-local.log.",
+          "name": "test",
+          "status": "passed"
+        },
+        {
+          "detail": "env -u CI npm run coverage: Exit 0; 646 passed files/2 skipped,11218 passed tests/59 skipped. V8: statements97.51%,branches95.04%,functions96.11%,lines98.03%. Same 3 unsupported local file-symlink cases skipped by existing probe. evidence/dm538-coverage-local.log.",
+          "name": "coverage",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run deadcode: Exit 0; no new dead exports; baseline unchanged. evidence/dm538-deadcode.log.",
+          "name": "deadcode",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run build: Exit 0; main,preload,renderer production bundles. Existing zod PURE-comment annotation warnings retained. No installed-app mutation. evidence/dm538-build.log.",
+          "name": "build",
+          "status": "passed"
+        },
+        {
+          "detail": "node --import tsx evidence/dm538-grade-worktree.mts (disposable adapter; exact recipe preserved): Unchanged Fireguard APIs/config/gates grade base9b16b5a-to-current-worktree source in 8 immutable private snapshots. A100; AST140 assertions/0 mocks/0 tautologies;100/100 isolated runs,0 flakes;1/1 changed-line mutant killed (18 unchanged-line mutants excluded by standard scope). Test files: terminalFiles.test.ts,skills.test.ts,prompts.test.ts,server.test.ts. Production modules: version.ts,terminalFiles.ts,skills.ts. No production tool/config/test weakening; snapshots cleaned; executable adapter deleted. evidence/dm538-fireguard-worktree.json and dm538-fireguard-recipe.json.",
+          "name": "fireguard",
+          "status": "passed"
+        },
+        {
+          "detail": "FIREGUARD_BASE_REF=9b16b5a npm run fireguard -- --json: Command exited0 with empty committed-range A100/skipped=true because no commits were authorized. This CLI result does NOT grade edits; genuine worktree API grade is recorded separately. evidence/dm538-fireguard-cli.log.",
+          "name": "fireguard_cli",
+          "status": "skipped"
+        },
+        {
+          "detail": "npx vitest run src/main/terminals/terminalFiles.test.ts src/main/terminals/terminalLaunchSpec.test.ts src/mcp/skills.test.ts src/mcp/prompts.test.ts src/mcp/server.test.ts: 165 passed/1 expected POSIX-permission skip before adding the version-only regression; final version regression also green in full suite and100 Fireguard runs. Parent independently reported final166 passed/1 skip. evidence/dm538-targeted.log.",
+          "name": "targeted",
+          "status": "passed"
+        },
+        {
+          "detail": "npx vitest run src/main/terminals/terminalFiles.test.ts src/mcp/skills.test.ts src/mcp/prompts.test.ts src/mcp/server.test.ts; then npx vitest run src/mcp/skills.test.ts: Before implementation:9 genuine failures/70passes/1skip for policy delivery/registry. Before version bump:1 genuine new-version failure/30passes. Red logs dm538-red.log and dm538-version-red.log.",
+          "name": "TDD",
+          "status": "passed"
+        },
+        {
+          "detail": "Parent reran terminalFiles/terminalLaunchSpec/skills/prompts/server tests:166 passed,1 expected Windows POSIX-permission skip. Independently inspected instruction delivery, policy/authority boundaries, real Fireguard snapshot adapter, graded code/test hashes, final local-suite+coverage logs.",
+          "name": "independent_review",
+          "status": "passed"
+        }
+      ],
+      "criteria": [
+        {
+          "criterionId": "c1",
+          "met": true,
+          "note": "AGENTS.md plus skills/collaboration.md and planner/orchestrator/worker/reviewer guides specify iterative detailed question-driven planning, autonomous in-scope decisions, orchestrator-only delegated questions, and preserved human/save/adoption authority. Registry ships collaboration as provider-neutral MCP prompt; skills version1.9.0. This establishes delivered instructions, not a guarantee of future model obedience."
+        },
+        {
+          "criterionId": "c2",
+          "met": true,
+          "note": "terminalInstructions inserts skillBody(collaboration) after truthful CLI grants and before task-specific sections for every chat. writeTerminalFiles already rewrites before every start. Actual file/launch-spec regressions cover ordinary planner/orchestrator/worker/reviewer without run/card/save privileges and initial+resumed Skitarii on Windows/macOS, including overwritten stale instructions and unchanged resume/kickoff behavior."
+        },
+        {
+          "criterionId": "c3",
+          "met": true,
+          "note": "All required local standalone gates pass, including packet coverage; Fireguard current-worktree A100 and targeted behavior tests pass. Original inherited-CI Windows-symlink failures and exact local capability skips are preserved/disclosed, not hidden or fixed. Runbook and evidence state no installed/running-app update, no live CLI hot reload, no future model-compliance guarantee."
+        }
+      ],
+      "notes": "No DM tools/credentials used; parent owns lease/submission/review. No commit or push. All changes isolated to assigned worktree; prior root and dm538-publish implementations were read-only intent/reference material, not blindly cherry-picked. Delivery-standard files untouched. Private npm ci dependencies used. No new UI, vendor onboarding/settings change or installed-app mutation; no screenshots claimed. Source/unit/launch/build proof is not installed-app or future model-compliance proof. Other CLIs retain existing delivery routes; resumed Codex/Cursor instruction replay was not added. The only post-Fireguard snapshot change is docs/runbooks/agents.md clarification of that preexisting limit; final doc/source hashes are in dm538-source-pins.json. Original CI=true npm test and coverage each failed3 unsupported file-symlink cases; separately running the short-circuited Fireguard self-suite failed1 analogous case. Parent authorized env -u CI local-mode runs, which use the repository documented existing capability probe and do not change process/global privileges, test selection, tests or thresholds. CI file-symlink cases remain unverified on this workstation. Parent independent review verified c1-c3; implementation/test/policy hashes match Fireguard receipt. Only documented post-grade runbook clarification differs. This submission leaves all code in the isolated worktree uncommitted per card constraints; approval and integration remain separate human-controlled actions."
+    },
+    "number": 3,
+    "outputs": {
+      "artifacts": [
+        {
+          "hash": "534668bda1c41ef568583d7f1c35a3a4cae5ea27a4ade305082612ac2a4bcb6c",
+          "label": "dm538-source-pins.json",
+          "location": "evidence/dm538-source-pins.json",
+          "remoteOnly": false
+        },
+        {
+          "hash": "31dcc09a13421e5371b46c0f62a0f3c075cabbc7037881b1ed651c93bb0ff6a4",
+          "label": "dm538-red.log",
+          "location": "evidence/dm538-red.log",
+          "remoteOnly": false
+        },
+        {
+          "hash": "feaaa1911af3cc2c199ddeee91991a6f14151709e76a14cb32c6b9f4f837cb43",
+          "label": "dm538-version-red.log",
+          "location": "evidence/dm538-version-red.log",
+          "remoteOnly": false
+        },
+        {
+          "hash": "3a3b878cae0ed63056c9f2519ab4c9ff57596f8c51599ef18fe932f113507235",
+          "label": "dm538-targeted.log",
+          "location": "evidence/dm538-targeted.log",
+          "remoteOnly": false
+        },
+        {
+          "hash": "e1fc1fb061132e71990dccced53dc40245fb8d38443c869610550c9bf1184d04",
+          "label": "dm538-npm-ci.log",
+          "location": "evidence/dm538-npm-ci.log",
+          "remoteOnly": false
+        },
+        {
+          "hash": "8d43defda259573b5559c94e73fd142c2a0c3440fc867c3723f2d08b59be0853",
+          "label": "dm538-lint.log",
+          "location": "evidence/dm538-lint.log",
+          "remoteOnly": false
+        },
+        {
+          "hash": "7156ca0ffa9219dd40789b302b607af53b71c4b39e5bbabfbea439944d97c37a",
+          "label": "dm538-typecheck.log",
+          "location": "evidence/dm538-typecheck.log",
+          "remoteOnly": false
+        },
+        {
+          "hash": "c26bc22d1e10d0943e98428f7399d74898c0e3e50f13b63cb1c6c6ca73ee753d",
+          "label": "dm538-deadcode.log",
+          "location": "evidence/dm538-deadcode.log",
+          "remoteOnly": false
+        },
+        {
+          "hash": "c95297f3fe9a13127ec5f0c2c81a1f8d755b571d303cabc52d0371311cc16029",
+          "label": "dm538-build.log",
+          "location": "evidence/dm538-build.log",
+          "remoteOnly": false
+        },
+        {
+          "hash": "dcf90da315136a864d9b2b4a59d0a313f494e15a916c5ccee2eea4a325a8df6f",
+          "label": "dm538-test.log",
+          "location": "evidence/dm538-test.log",
+          "remoteOnly": false
+        },
+        {
+          "hash": "d39a5b7fa9da195200ad296662043f5f279f9951ca540c0152cd1f7d821c9bc3",
+          "label": "dm538-coverage.log",
+          "location": "evidence/dm538-coverage.log",
+          "remoteOnly": false
+        },
+        {
+          "hash": "3952d56cb02eb8f586464d711df6ed00eae506c72cf9861fdca10d50591c92bd",
+          "label": "dm538-fireguard-suite.log",
+          "location": "evidence/dm538-fireguard-suite.log",
+          "remoteOnly": false
+        },
+        {
+          "hash": "6c3ec95149c3cb9f427650b9c82490687037cd510a12956af38c3525e0b5eee7",
+          "label": "dm538-test-local.log",
+          "location": "evidence/dm538-test-local.log",
+          "remoteOnly": false
+        },
+        {
+          "hash": "3d232f608f594ffb2eb45d46d9f7dfda90e1662bc3e7076d9b82e6cb688936f0",
+          "label": "dm538-coverage-local.log",
+          "location": "evidence/dm538-coverage-local.log",
+          "remoteOnly": false
+        },
+        {
+          "hash": "bc8242ecce7dae39ab7faa517fc5c4884c9c4b819657ad76353404a9221f80df",
+          "label": "dm538-fireguard-cli.log",
+          "location": "evidence/dm538-fireguard-cli.log",
+          "remoteOnly": false
+        },
+        {
+          "hash": "79bfddbb8b7c45042bc07d8e9f064c467546c67d1a64c3a2d70093b817f67d15",
+          "label": "dm538-fireguard-worktree.json",
+          "location": "evidence/dm538-fireguard-worktree.json",
+          "remoteOnly": false
+        },
+        {
+          "hash": "79bfddbb8b7c45042bc07d8e9f064c467546c67d1a64c3a2d70093b817f67d15",
+          "label": "dm538-fireguard-worktree.log",
+          "location": "evidence/dm538-fireguard-worktree.log",
+          "remoteOnly": false
+        },
+        {
+          "hash": "858af3ac5780970d9880fa1049f128b33efe2a89f1fb6d2e1c7637cca0b203ae",
+          "label": "dm538-fireguard-recipe.json",
+          "location": "evidence/dm538-fireguard-recipe.json",
+          "remoteOnly": false
+        }
+      ],
+      "branch": "kanban/dm538-isolated-20261115",
+      "changedFiles": [
+        "AGENTS.md",
+        "docs/runbooks/agents.md",
+        "skills/collaboration.md",
+        "skills/planner.md",
+        "skills/orchestrator.md",
+        "skills/worker.md",
+        "skills/reviewer.md",
+        "src/core/version.ts",
+        "src/main/terminals/terminalFiles.ts",
+        "src/main/terminals/terminalFiles.test.ts",
+        "src/mcp/skills.ts",
+        "src/mcp/skills.test.ts",
+        "src/mcp/prompts.test.ts",
+        "src/mcp/server.test.ts"
+      ],
+      "commits": [],
+      "summary": "Implemented persistent single-source collaboration policy in repo startup, shipped role guides and every generated hosted-chat instruction file. Ordinary Skitarii initial and restarted/resumed launches receive it through the existing prompt file without task binding or elevated grants. Skills version is 1.9.0. Isolated worktree only; no commit, push, coordinating-checkout integration or installed-app update."
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "actor": {
+    "label": "Desktop",
+    "role": "desktop"
+  },
+  "attemptId": "ka_01m6t3zf626etc62kd9mjpfy0x",
+  "cardId": "kc_01m6pfeq5y6s5mzpc2rhkdjrrd",
+  "createdAt": "2026-11-07T15:56:19.086Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m6vbk68eajjgsfytzysa1m8j",
+  "kind": "approved",
+  "payload": {
+    "number": 1,
+    "summary": {
+      "approvedBy": "Desktop",
+      "commits": [
+        "c84ffdda3ee5154165793bf10280d07a4d15bce0",
+        "81a5287c9899d1f5ef63732b39fe77ff955cf0dc"
+      ],
+      "completedAt": "2026-11-07T15:56:19.086Z",
+      "outcome": "Recorded five current real signed-in OMP usage samples, refreshed redacted regression fixture, documented measured timeout margin and real desktop sign-in evidence; existing classifier and 10s timeout remain correct. Final integration: reviewed and merged through https://github.…"
+    }
+  }
+}
