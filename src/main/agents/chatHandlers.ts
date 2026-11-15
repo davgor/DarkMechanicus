@@ -66,13 +66,17 @@ const summonSchema = z.strictObject({
   title: z.string().max(LIMITS.title).optional(),
   firstPrompt: firstPromptSchema
 })
-/** Only an epic, an agent and its model, for an orchestrator or a transfer chat: the role, Allow save, title, kickoff message and what the chat records are decided in main. */
-const startOrchestratorSchema = z.strictObject({
+/** Only an epic, an agent and its model, for a transfer chat: the role, Allow save, title, kickoff message and what the chat records are decided in main. */
+const startTransferSchema = z.strictObject({
   folder: folderSchema,
   epicId: stableId,
   agent: agentIdSchema,
   model: modelSchema.nullable().optional()
 })
+/** The person's additional instructions from Play or Start run, appended to the kickoff: as long as a first prompt, and not blank. */
+const instructionsSchema = z.string().max(32_000).refine((text) => text.trim().length > 0, 'Additional instructions must not be blank').optional()
+/** A transfer chat's request and the person's instructions, for an orchestrator. */
+const startOrchestratorSchema = startTransferSchema.extend({ instructions: instructionsSchema })
 const transferChatSchema = z.strictObject({ folder: folderSchema, epicId: stableId })
 const refSchema = z.strictObject(refShape)
 /** A whole id of the kind: a claim token (`<attempt id>.<secret>`) or any other text is not one. */
@@ -81,8 +85,14 @@ const runIdSchema = stableId.regex(/^rn_/)
 const cardIdSchema = stableId.regex(/^kc_/)
 /** An attempt or a run, never both and never anything else. */
 const boundThreadsSchema = z.union([z.strictObject({ folder: folderSchema, attemptId: attemptIdSchema }), z.strictObject({ folder: folderSchema, runId: runIdSchema })])
-/** Only a card, an agent and its model: the role, Allow save, title, kickoff and what the chat records are decided in main. */
-const startKanbanCardSchema = z.strictObject({ folder: folderSchema, cardId: cardIdSchema, agent: agentIdSchema, model: modelSchema.nullable().optional() })
+/** Only a card, an agent, its model and the person's instructions: the role, Allow save, title, kickoff and what the chat records are decided in main. */
+const startKanbanCardSchema = z.strictObject({
+  folder: folderSchema,
+  cardId: cardIdSchema,
+  agent: agentIdSchema,
+  model: modelSchema.nullable().optional(),
+  instructions: instructionsSchema
+})
 const kickBackKanbanCardSchema = z.strictObject({ folder: folderSchema, cardId: cardIdSchema, comment: commentBody })
 const renameSchema = z.strictObject({ ...refShape, title: z.string().trim().min(1).max(LIMITS.title) })
 
@@ -196,7 +206,7 @@ async function startOrchestrator(deps: ChatHandlerDeps, input: unknown): Promise
 
 /** Validates the request and the folder before the transfer is read; see `startTransferChat` for what happens after. */
 async function startTransfer(deps: ChatHandlerDeps, input: unknown): Promise<StartTransferChatResult> {
-  const request = parseInput(startOrchestratorSchema, input, 'transfer chat request')
+  const request = parseInput(startTransferSchema, input, 'transfer chat request')
   connectedAgent(deps.agents, request.agent)
   const folder = chatFolder(deps, request.folder)
   const { transfers, chats, terminals, onUnexpectedError } = deps

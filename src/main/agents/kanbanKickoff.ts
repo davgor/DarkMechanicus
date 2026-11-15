@@ -3,8 +3,10 @@
  * (`docs/design/chat-shells.md`, "The card chat Play opens"): the title of its chat, the kickoff, and the guidance.
  *
  * - **The kickoff** is the chat's first input, sent with its first start only: fixed text, the card's id, key and
- *   title, the checked-out branch and the first step. It is short enough for any command line, since Claude Code
- *   takes it as its positional prompt, and every other CLI has it as its first paste.
+ *   title, the checked-out branch and the first step, then any additional instructions the person typed in Play
+ *   (`kickoffInstructions.ts`). Claude Code takes it as its positional prompt, and every other CLI has it as its
+ *   first paste. Without instructions it is short enough for any command line; with them it is also recorded as the
+ *   chat's first input (`firstPrompt`), so a start that ends before it went delivers it once, later.
  * - **The guidance** is for the whole session, so it goes in the chat's instructions (`terminalFiles.ts`, for a chat
  *   with a `cardId`), after the `dm` instructions: the steps (claim, one worker that reports back, review, submit,
  *   stop, claim again after a kick-back) and the orchestrator and worker guides read from the same skill sources the
@@ -18,6 +20,7 @@
 import { LIMITS } from '../../core/schemas'
 import { skillBody } from '../../mcp/skills'
 import { maskClaimTokens } from './claimTokenMask'
+import { instructionsSection } from './kickoffInstructions'
 
 export interface KanbanKickoffInput {
   cardId: string
@@ -26,6 +29,8 @@ export interface KanbanKickoffInput {
   title: string
   /** The checkout's current branch, which a card works on directly; null when it cannot be read. */
   branch: string | null
+  /** What the person typed in the Play dialog: non-blank, appended as a section of its own. */
+  instructions?: string
 }
 
 const TITLE_PREFIX = 'Kanban · '
@@ -40,7 +45,7 @@ export function kanbanTitle(key: string, title: string): string {
   return `${TITLE_PREFIX}${oneLine(key)} ${oneLine(title)}`.slice(0, LIMITS.title)
 }
 
-/** The chat's first input: fixed text, the card lines and the first step. */
+/** The chat's first input: fixed text, the card lines and the first step, then any instructions the person added. */
 export function kanbanKickoff(input: KanbanKickoffInput): string {
   const cardId = oneLine(input.cardId)
   return [
@@ -49,7 +54,10 @@ export function kanbanKickoff(input: KanbanKickoffInput): string {
     `Card: ${oneLine(input.key)} ${oneLine(input.title)} (${cardId})`,
     input.branch === null ? 'Branch: the checked-out branch could not be read; cards work on whatever branch is checked out' : `Branch: ${oneLine(input.branch)}`,
     '',
-    `First step: call get_capabilities and confirm your role is orchestrator, then call claim_kanban_card with cardId ${cardId}.`
+    `First step: call get_capabilities and confirm your role is orchestrator, then call claim_kanban_card with cardId ${cardId}.`,
+    ...(input.instructions === undefined
+      ? []
+      : ['', instructionsSection(input.instructions, 'this card', 'your role, your grants, Allow save or the card’s acceptance criteria')])
   ].join('\n')
 }
 

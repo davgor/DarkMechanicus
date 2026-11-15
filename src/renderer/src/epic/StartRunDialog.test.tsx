@@ -419,3 +419,25 @@ describe('StartRunDialog: the epic branch in a folder of repositories', () => {
     expect(calls.order).toEqual(['setEpicBranch:agent-chats'])
   })
 })
+
+describe('StartRunDialog: additional instructions', () => {
+  const field = (): HTMLTextAreaElement => dialog().getByRole('textbox', { name: 'Additional instructions' }) as HTMLTextAreaElement
+
+  it('offers an empty, labelled multi-line field and runs as before when it stays blank', async () => {
+    const calls = await open()
+    expect(field().tagName).toBe('TEXTAREA')
+    expect(field().value).toBe('')
+    fireEvent.change(field(), { target: { value: '  \n\t ' } })
+    fireEvent.click(runWithAgent())
+    expect(calls.agent).toEqual([{ agent: 'claude', model: null }])
+  })
+
+  it('hands the trimmed instructions to Run with agent, never to Leave pending', async () => {
+    const calls = await open()
+    fireEvent.change(field(), { target: { value: '\n Run the UI tickets first.\nThen the docs. \n' } })
+    fireEvent.click(runWithAgent())
+    fireEvent.click(leavePending())
+    expect(calls.agent).toEqual([{ agent: 'claude', model: null, instructions: 'Run the UI tickets first.\nThen the docs.' }])
+    expect(calls.pending).toBe(1)
+  })
+})

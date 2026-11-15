@@ -153,6 +153,19 @@ describe('Start run with an agent: the guidance and the kickoff', () => {
     expect(chats()[0]?.kickoffSent).toBe(true)
   })
 
+  it('gives Claude Code the run lines with the person’s instructions appended once, recorded as the chat’s first input', async () => {
+    const { records, runs } = rig()
+
+    const result = await startOrchestratorRun({ runs, chats: records, terminals: terminals.sessions }, { ...request(), instructions: 'Run the UI tickets first.' })
+
+    const kickoff = argsOf().at(-1) ?? ''
+    expect(kickoff).toContain('Run: rn_2')
+    expect(kickoff).toContain('Additional instructions from the person')
+    expect(kickoff.split('Run the UI tickets first.')).toHaveLength(2)
+    expect(result.chat).toMatchObject({ role: 'orchestrator', allowSave: false, runId: 'rn_2', title: 'Orchestrator · Agent chats' })
+    expect(chats()[0]).toMatchObject({ firstPrompt: kickoff, firstPromptDelivery: 'submitted', kickoffSent: true })
+  })
+
   it('puts the orchestrator and worker guidance in the chat\'s instructions file, with an orchestrator grant that may not save', async () => {
     const { records, runs } = rig()
 

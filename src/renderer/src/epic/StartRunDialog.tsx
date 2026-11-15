@@ -8,6 +8,7 @@ import type { AgentModelChoice } from '../agents/useAgentModelChoice'
 import { useFolderDefaultAgent } from '../agents/useFolderDefaultAgent'
 import { Button } from '../components/Button'
 import { Dialog } from '../components/Dialog'
+import { Field } from '../components/Field'
 import type { StartRunChoice } from './orchestration'
 
 interface StartRunDialogProps {
@@ -102,6 +103,18 @@ interface RunWithAgentSectionProps {
   choice: AgentModelChoice
   onAddAgent(): void
   onAgentStatus(id: AgentId, status: AgentAuthStatus): void
+  /** The Additional instructions field: optional, sent with the start when not blank. */
+  instructions: string
+  onInstructionsChange(value: string): void
+}
+
+/** As long as a first prompt: what main accepts for the person's instructions. */
+const INSTRUCTIONS_MAX = 32_000
+
+/** The `instructions` of a start: the field's text trimmed, or nothing when it is blank. */
+export function instructionsOf(text: string): { instructions?: string } {
+  const trimmed = text.trim()
+  return trimmed === '' ? {} : { instructions: trimmed }
 }
 
 /** The agent choice (only connected, signed-in ones; a signed-out one has Sign in in the list, the rest say where to fix that) and its model. */
@@ -122,6 +135,14 @@ export function RunWithAgentSection(props: RunWithAgentSectionProps): JSX.Elemen
         emptyText="No agent is connected and signed in."
       />
       {agent === null ? null : <ModelChoice models={choice.models} value={choice.value} valid={choice.valid} onChange={choice.chooseModel} />}
+      <Field
+        label="Additional instructions"
+        value={props.instructions}
+        onChange={props.onInstructionsChange}
+        rows={4}
+        maxLength={INSTRUCTIONS_MAX}
+        hint="Optional. Sent once with the agent’s first message, as guidance within this scope; they do not change its role or the acceptance criteria."
+      />
     </section>
   )
 }
@@ -144,18 +165,32 @@ function useBranchStart(props: DialogProps): {
   return { branch, setBranch, problem, start }
 }
 
+/** What Leave pending does. */
+function LeavePendingSection(): JSX.Element {
+  return (
+    <section className="chat-field start-run-section" aria-label="Leave pending">
+      <h3 className="field-label">Leave pending</h3>
+      <p className="field-hint">
+        Queues the run and waits. It starts when an external orchestrator, such as Claude Code connected to this folder, picks it up.
+      </p>
+    </section>
+  )
+}
+
 /**
  * Start run, two ways. Run with an agent: pick a connected, signed-in agent and its model; Dark
  * Mechanicus queues the run and starts that agent as the orchestrator in a chat of this folder.
  * Leave pending: queue the run and wait for an external orchestrator. A signed-out agent has Sign in
  * in the list and can be chosen once it is signed in, without leaving the dialog; without a usable
- * agent the first choice links to where one is added, and Leave pending still works.
+ * agent the first choice links to where one is added, and Leave pending still works. Additional instructions typed
+ * here go to the agent Run with agent starts, after its run lines; Leave pending queues the run without them.
  */
 export function StartRunDialog(props: StartRunDialogProps): JSX.Element {
   const preferred = useFolderDefaultAgent(props.folderPath)
   const choice = useAgentModelChoice(props.agents, props.statuses, preferred.agentId)
   const { agent } = choice
   const { branch, setBranch, problem, start } = useBranchStart(props)
+  const [instructions, setInstructions] = useState('')
   const blocked = props.busy || problem !== null
   const canRun = agent !== null && preferred.loaded && choice.valid && !blocked
   return (
@@ -174,7 +209,7 @@ export function StartRunDialog(props: StartRunDialogProps): JSX.Element {
             disabled={!canRun}
             busy={props.busy}
             onClick={() => {
-              if (agent !== null) void start(() => props.onRunWithAgent({ agent, model: choice.model }))
+              if (agent !== null) void start(() => props.onRunWithAgent({ agent, model: choice.model, ...instructionsOf(instructions) }))
             }}
           >
             Run with agent
@@ -190,13 +225,10 @@ export function StartRunDialog(props: StartRunDialogProps): JSX.Element {
           {...props}
           hint={`Dark Mechanicus starts the agent as the orchestrator of “${props.epicTitle}” and sends it the run. It cannot save plans.`}
           choice={choice}
+          instructions={instructions}
+          onInstructionsChange={setInstructions}
         />
-        <section className="chat-field start-run-section" aria-label="Leave pending">
-          <h3 className="field-label">Leave pending</h3>
-          <p className="field-hint">
-            Queues the run and waits. It starts when an external orchestrator, such as Claude Code connected to this folder, picks it up.
-          </p>
-        </section>
+        <LeavePendingSection />
       </div>
     </Dialog>
   )

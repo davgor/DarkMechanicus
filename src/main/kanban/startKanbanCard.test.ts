@@ -18,7 +18,7 @@ import { createChatRecords, type ChatRecords } from '../agents/chatRecords'
 import { CLAIM_TOKEN_MASK, maskClaimTokens } from '../agents/claimTokenMask'
 import { kanbanGuidance, kanbanKickoff } from '../agents/kanbanKickoff'
 import type { FakePty } from '../terminals/__mocks__/fakePtyHost'
-import { claudeSessionFile, CUSTOM_AGENT, settle, terminalRig, type TerminalRig } from '../terminals/__mocks__/terminalSessionsRig'
+import { claudeSessionFile, CUSTOM_AGENT, settle, startTerminal, terminalRig, type TerminalRig } from '../terminals/__mocks__/terminalSessionsRig'
 import { endingTerminals } from '../terminals/terminalSessions'
 import { kickBackKanbanCard, startKanbanCard, type KanbanCards } from './startKanbanCard'
 
@@ -155,6 +155,51 @@ describe('play a Kanban card', () => {
     expect(argsOf(pty).join('\n')).not.toContain('Carry this Dark Mechanicus Kanban card')
     expect(pty.written).toEqual(pasteOf(kanbanKickoff({ cardId: card.id, key: card.key, title: TITLE, branch: 'feature/cards' })))
     expect(chats()[0]).toMatchObject({ kickoffSent: true })
+  })
+})
+
+describe('play a Kanban card with additional instructions', () => {
+  it('gives Claude Code the kickoff with the person’s instructions once, recorded as the chat’s first input, and never again on a restart', async () => {
+    const state = rig()
+    const card = newCard(state)
+    const kickoff = kanbanKickoff({ cardId: card.id, key: card.key, title: TITLE, branch: 'feature/cards', instructions: 'Keep the fix small.' })
+
+    const result = await startKanbanCard(deps(state), { folder: terminals.repo, cardId: card.id, agent: 'claude', instructions: 'Keep the fix small.' })
+
+    expect(result.problem).toBeNull()
+    expect(argsOf(terminals.host.last()).at(-1)).toBe(kickoff)
+    expect(chats()[0]).toMatchObject({ firstPrompt: kickoff, firstPromptDelivery: 'submitted', kickoffSent: true, title: `Kanban · ${card.key} ${TITLE}` })
+    expect(chats()[0]?.titleStatus).toBeUndefined()
+    terminals.host.last().exit({ exitCode: 0, signal: null })
+    await settle()
+    const { pty: restarted } = await startTerminal(terminals, chats()[0] as ChatRecord)
+    expect(terminals.host.spawns).toHaveLength(2)
+    expect(argsOf(restarted).join('\n')).not.toContain('Keep the fix small.')
+  })
+
+  it('keeps instructions whose first start ended before their paste, and delivers them once when the chat starts again', async () => {
+    const state = rig()
+    const card = newCard(state)
+    const kickoff = kanbanKickoff({ cardId: card.id, key: card.key, title: TITLE, branch: 'feature/cards', instructions: 'Keep the fix small.' })
+    await startKanbanCard(deps(state), { folder: terminals.repo, cardId: card.id, agent: 'autonomous', instructions: 'Keep the fix small.' })
+    // Autonomous exited before its first screen settled, so the kickoff was never pasted.
+    terminals.host.last().exit({ exitCode: 1, signal: null })
+    await settle()
+    expect(chats()[0]).toMatchObject({ firstPrompt: kickoff, firstPromptDelivery: 'pending' })
+
+    const { pty: again } = await startTerminal(terminals, chats()[0] as ChatRecord)
+    await drawSettled(again, 'Autonomous')
+    terminals.clock.advance(ENTER_DELAY + 10 * SECOND)
+    expect(again.written).toEqual(pasteOf(kickoff))
+    expect(chats()[0]).toMatchObject({ kickoffSent: true, firstPromptDelivery: 'submitted' })
+
+    again.exit({ exitCode: 0, signal: null })
+    await settle()
+    const { pty: third } = await startTerminal(terminals, chats()[0] as ChatRecord)
+    await drawSettled(third, 'Autonomous')
+    terminals.clock.advance(ENTER_DELAY + 10 * SECOND)
+    expect(terminals.host.spawns).toHaveLength(3)
+    expect(third.written).toEqual([])
   })
 
 })

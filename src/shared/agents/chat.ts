@@ -52,8 +52,12 @@ export const chatRecordSchema = z.object({
   role: z.enum(CHAT_ROLES),
   allowSave: z.boolean(),
   title: z.string(),
-  /** Original popup message, retained for recovery; never used as a generated title. */
-  firstPrompt: z.string().max(32_000).optional(),
+  /**
+   * Original popup message (at most 32,000 characters), or the kickoff of a Play or Start run that carries the person's
+   * additional instructions (up to 32,000 characters of them, plus the kickoff lines); retained for recovery and never
+   * used as a generated title.
+   */
+  firstPrompt: z.string().max(48_000).optional(),
   /** Uncertain insertion is never automatically replayed after a crash/exit. */
   firstPromptDelivery: z.enum(['pending', 'submitted', 'uncertain']).optional(),
   titleStatus: z.enum(['pending', 'generated', 'manual', 'failed']).optional(),

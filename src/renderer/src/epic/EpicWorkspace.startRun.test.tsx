@@ -141,6 +141,21 @@ describe('Start run: run with an agent', () => {
     })
     expect(chats.callsOf('create')).toEqual([])
   })
+})
+
+describe('Start run: run with an agent and additional instructions', () => {
+  it('sends the additional instructions typed in the dialog with the start', async () => {
+    const { backend, chats } = idleBackend()
+    renderWorkspace(backend, { orchestration: withClaude() })
+
+    const dialog = await openDialog()
+    await waitFor(() => expect(dialog.getByLabelText('Model')).toBeTruthy())
+    fireEvent.change(dialog.getByRole('textbox', { name: 'Additional instructions' }), { target: { value: ' Run the UI tickets first. ' } })
+    fireEvent.click(dialog.getByRole('button', { name: 'Run with agent' }))
+
+    expect(await screen.findByText('Run queued. Claude Code is orchestrating it.')).toBeTruthy()
+    expect(chats.callsOf('startOrchestrator')).toEqual([[{ folder: FOLDER, epicId: 'ep_1', agent: 'claude', model: null, instructions: 'Run the UI tickets first.' }]])
+  })
 
   it('opens the orchestrator chat, whose terminal main has started, once the shell has listed it', async () => {
     const { backend, chats } = idleBackend()

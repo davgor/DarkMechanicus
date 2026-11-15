@@ -52,6 +52,8 @@ export interface StartOrchestratorRequest {
   agent: AgentId
   /** Null (or left out) lets the agent use its default model. */
   model?: string | null
+  /** The person's additional instructions from the Start run dialog: non-blank, at most 32,000 characters; appended to the kickoff. */
+  instructions?: string
 }
 
 /** What starting an orchestrator left behind. The run is queued either way; the chat exists only when its agent was started. */
@@ -88,6 +90,8 @@ export interface StartKanbanCardRequest {
   agent: AgentId
   /** Null (or left out) lets the agent use its default model. */
   model?: string | null
+  /** The person's additional instructions from the Play dialog: non-blank, at most 32,000 characters; appended to the kickoff. */
+  instructions?: string
 }
 
 /** What pressing Play left behind. The play is marked either way; the chat exists only when its agent was started. */
