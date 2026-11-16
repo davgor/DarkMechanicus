@@ -848,23 +848,227 @@
     },
     {
       "createdAt": "2026-11-15T22:54:01.011Z",
-      "decidedAt": null,
-      "decision": null,
-      "evidence": null,
+      "decidedAt": "2026-11-15T23:17:44.261Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Accepted on review of ac63ebb/59f5ecf (three-dot vs skitarii-s1-integration), two screenshots opened and checked, and targeted evidence (21 files/322 tests, lint, typecheck). Screenshots are from a preview page with real components over the bridge fake and predate the 'Terminal not seen running' rewording; real-app screenshots and PTY observation remain the acceptance node's c7. Discovery (Button native disabled drops focus in other dialogs) goes to the retro.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "attachments": [
+          {
+            "bytes": 41765,
+            "height": 1075,
+            "id": "im_01m7gqwtrva91akr305r7gp01b",
+            "label": "DM-513 header Messages counts + sidebar unseen badges (stopped chat too)",
+            "mime": "image/png",
+            "purpose": "evidence",
+            "sha256": "76a9e9696b256af972d2344951fbfebe37c63a2e1f3b65e1f29d60ad7df4cc5d",
+            "width": 1700
+          },
+          {
+            "bytes": 113556,
+            "height": 1075,
+            "id": "im_01m7gqwvxk1nwtrzhq4fm203t1",
+            "label": "DM-513 inbox: sender ids, times, reply, seen/ack states, inert hostile text",
+            "mime": "image/png",
+            "purpose": "evidence",
+            "sha256": "6a5a3727a47539dd21a89dc8f9849a6e2a2087e80819f330dae8d4725d115462",
+            "width": 1700
+          },
+          {
+            "bytes": 76005,
+            "height": 1035,
+            "id": "im_01m7gqwx1ccv3mmcegnfc0jpcn",
+            "label": "DM-513 inbox wake: unarmed state and token/attempted-only notice",
+            "mime": "image/png",
+            "purpose": "evidence",
+            "sha256": "f651eb806833fa5b02a54f6691d63ba5b3a77216b3e5c122ec394ab803d2afdb",
+            "width": 700
+          },
+          {
+            "bytes": 71859,
+            "height": 1035,
+            "id": "im_01m7gqwy5cw1yb8qzzkf9a1wje",
+            "label": "DM-513 after Allow one inbox wake + Mark shown messages seen",
+            "mime": "image/png",
+            "purpose": "evidence",
+            "sha256": "fb9588b704385956e1d571fd395afb14c9498adc27f91eb94ce57c57976f6ff8",
+            "width": 700
+          },
+          {
+            "bytes": 41967,
+            "height": 1075,
+            "id": "im_01m7gqwzb0z6wx025kkksezp5e",
+            "label": "DM-513 after Escape: human unseen 0, agent unacknowledged unchanged, terminal running",
+            "mime": "image/png",
+            "purpose": "evidence",
+            "sha256": "2504b3aa0c2c72b01bdaab78e7f040734d07273e8add9fafaf4870d5f1947cfd",
+            "width": 1700
+          }
+        ],
+        "checks": [
+          {
+            "detail": "AgentInbox, useAgentMail, TerminalPane, App.chats, App.terminal, ChatHeader, sidebar/*, cssBalance: 21 files, 322 tests passed (env -u DM_DESKTOP_PIPE -u DM_SESSION_TOKEN); AgentInbox.test re-run after the last wording commit: 15/15",
+            "name": "targeted vitest",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint src scripts resources/skitarii/extension: no findings",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web and fireguard tsconfigs clean (web re-run after last commit)",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "preview/inbox in headless Chromium: header counts, sidebar badges, inbox dialog, Allow one inbox wake, Mark seen, Escape closes with focus back on Messages; no page errors; 5 screenshots attached",
+            "name": "renderer preview smoke",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run build",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "coverage",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "ChatRow sidebar badge, ChatHeader Messages button with separate 'unseen by you' / 'unacknowledged by its agent' counts, AgentInbox with sender/seq/reply/seen/ack and inert body rendering (ESC/OSC/HTML/bidi shown as marks); same-folder sender navigation incl. stopped peers. AgentInbox/useAgentMail/ChatRow tests; screenshots im_01m7gqwtrva91akr305r7gp01b, im_01m7gqwvxk1nwtrzhq4fm203t1 (reviewed)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "TerminalPane/App.terminal tests: opening/closing/mark-seen never remounts, refocuses, writes to or restarts the terminal; mark seen moves only humanSeenSeq; aria-disabled keeps focus so Escape works; late cross-folder/chat answers dropped (useAgentMail tests). Screenshot im_01m7gqwzb0z6wx025kkksezp5e."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "WakeControl: fresh nonce + shown revision per click, single in-flight, notice discloses token cost, fixed reminder, attempted-only, never starts a stopped chat, may be consumed without waking. Screenshots im_01m7gqwx1ccv3mmcegnfc0jpcn (reviewed), im_01m7gqwy5cw1yb8qzzkf9a1wje."
+          }
+        ],
+        "notes": "Screenshots come from preview/inbox (real renderer components + real xterm against the renderer fakes) in headless Chromium, not the installed app; the fake xterm screen text did not paint there (pane shows black), unrelated to this ticket. Screenshots were captured before the last commit, which only rewords the peer liveness pill from \"Terminal not running\" to \"Terminal not seen running\" (the page only knows PTYs it attached since load) and the matching wake note. The terminal-level unread widget is DM-510’s extension; nothing here duplicates delivery. Mark seen is explicit (opening the inbox marks nothing).\n\nDiscoveries:\n- title: Keep focus inside Dialog when a focused Button becomes busy or disabled\n  reason: Button sets the native disabled attribute for busy (components/Button.tsx); in Chromium a focused button that becomes disabled drops focus to <body>, so Dialog’s panel onKeyDown no longer gets Escape/Tab. Seen in the preview with the inbox buttons before switching them to aria-disabled; other dialogs that show busy buttons (e.g. rename/delete/first prompt) likely share it [not verified].\n  ticket: DM-513"
+      },
       "failure": null,
       "fencingToken": 1,
       "id": "at_01m7gpnrskcdngbzpj5js31v2q",
       "kind": "work",
       "number": 1,
-      "outputs": null,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Accessible inbox monitor, Messages action and wake control",
+            "location": "src/renderer/src/agents/AgentInbox.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "One inbox wake control",
+            "location": "src/renderer/src/agents/WakeControl.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Central folder/chat mail store and hook",
+            "location": "src/renderer/src/agents/useAgentMail.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Inbox paging and single-flight person actions",
+            "location": "src/renderer/src/agents/useInboxPages.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Consumer tests",
+            "location": "src/renderer/src/agents/AgentInbox.test.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Store/hook tests",
+            "location": "src/renderer/src/agents/useAgentMail.test.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Renderer fake of the mail bridge",
+            "location": "src/renderer/src/__mocks__/fakeChatMail.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Visual preview harness",
+            "location": "preview/inbox/inbox.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "skitarii-DM-513",
+        "changedFiles": [
+          "docs/architecture.md",
+          "preview/inbox/inbox.html",
+          "preview/inbox/inbox.tsx",
+          "preview/inbox/preview.css",
+          "preview/inbox/vite.config.ts",
+          "src/renderer/src/App.chats.test.tsx",
+          "src/renderer/src/App.terminal.test.tsx",
+          "src/renderer/src/App.tsx",
+          "src/renderer/src/__mocks__/fakeChatMail.ts",
+          "src/renderer/src/agents/AgentInbox.test.tsx",
+          "src/renderer/src/agents/AgentInbox.tsx",
+          "src/renderer/src/agents/ChatHeader.tsx",
+          "src/renderer/src/agents/TerminalPane.test.tsx",
+          "src/renderer/src/agents/TerminalPane.tsx",
+          "src/renderer/src/agents/WakeControl.tsx",
+          "src/renderer/src/agents/agentInbox.css",
+          "src/renderer/src/agents/useAgentMail.test.tsx",
+          "src/renderer/src/agents/useAgentMail.ts",
+          "src/renderer/src/agents/useInboxPages.ts",
+          "src/renderer/src/app/useShell.ts",
+          "src/renderer/src/sidebar/ChatRow.tsx",
+          "src/renderer/src/styles.css"
+        ],
+        "commits": [
+          "ac63ebb029a68940b00d01e285bb258933473f9e",
+          "59f5ecf34b7145c7ab81fb4c24cb097c4a5304dd"
+        ],
+        "summary": "Renderer consumer of the DM-512 mail bridge. useAgentMail (called once in useShell, shared via AgentMailContext) is the single page-wide store keyed by (folder, chatId): snapshot catch-up when a folder becomes active, after chats_changed for it and after reload; pushes kept only for active folders and only when newer by version (mail_removed records a removal version); a folder leaving the active set is dropped with its in-flight snapshot (ticket guard), so late answers/pushes change nothing; no per-row timers. ChatRow shows a human-unseen badge (stopped chats too). Skitarii TerminalPane passes an actions slot to ChatHeader with AgentInbox: Messages button counting \"N unseen by you\" and \"M unacknowledged by its agent\" apart, a coalesced (1.5 s, scheduler) aria-live polite alert that never moves focus, and an accessible Dialog (existing focus trap/restore) listing read() pages (useInboxPages; late answers dropped on chat switch/close) with sender name (inert text), stable endpoint id, acceptedAt, seq, reply target, seen/unseen and acknowledged state, bodies in <pre> with C0/C1 controls and bidi overrides rendered as visible marks. A sender opens only on click and only when it is a chat of this folder (endpointId match, not deleted); stopped peers stay navigable. Mark shown messages seen sends the highest shown seq (human cursor only). WakeControl: Allow one inbox wake sends wake.revision as shown + crypto.randomUUID nonce, one request in flight, aria-disabled while armed/busy/no mailbox, on conflict refreshes state(); discloses token cost, fixed trusted reminder, attempted-only, never starts stopped chats, loss between claim and dispatch needs another allow. Nothing here calls terminals or agent tools. Buttons use aria-disabled (not disabled) so focus stays in the dialog: found via the preview, where a disabled focused button dropped focus to body and Escape stopped working. Visual check: preview/inbox (vite harness with real components, real xterm, renderer fakes; run node node_modules/vite/bin/vite.js --config preview/inbox/vite.config.ts and open /preview/inbox/inbox.html). Branch is based on integration 0c50332; merge-tree with current skitarii-s1-integration (incl. DM-510) is clean."
+      },
       "reconciledAt": null,
       "revisionId": "rv_01m7gekkw2d5a7f4h8xq4zbg92",
-      "state": "running",
-      "submittedAt": null,
+      "state": "accepted",
+      "submittedAt": "2026-11-15T23:16:58.771Z",
       "supersededAt": null,
       "ticketContentHash": "sha256:92e171d449c30948955f3b8cab23fd32cde8d87121487b205a1784835ea16086",
       "ticketId": "tk_01m6t9v1sfr1astze1a7bq0qyz",
-      "updatedAt": "2026-11-15T23:00:58.596Z",
+      "updatedAt": "2026-11-15T23:17:44.261Z",
       "worker": {
         "catalogRevision": "2026-11-15.1",
         "effort": "medium",
@@ -877,23 +1081,136 @@
     },
     {
       "createdAt": "2026-11-15T23:00:35.771Z",
-      "decidedAt": null,
-      "decision": null,
-      "evidence": null,
+      "decidedAt": "2026-11-15T23:26:41.003Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Accepted on review of d8650cc (three-dot vs skitarii-s1-integration), confirmed sendMessage/before_agent_start content are constants, plus targeted evidence (lint, typecheck, 3 files/87 tests, installed OMP smoke). Real two-model proof is the acceptance node's c5. Discoveries (wake turns skip before_agent_start in 18.20.2; ~230 ms dm process per 2 s poll per main chat) go to the retro.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "skitariiMessaging.test.ts (new, 23 tests), skitariiExtension.test.ts, skitariiDmClient.test.ts: 3 files, 87 passed, final run after the lint restructuring.",
+            "name": "targeted tests (vitest, DM_DESKTOP_PIPE/DM_SESSION_TOKEN unset)",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint src scripts resources/skitarii/extension: clean.",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "tsconfig.node (covers resources/skitarii/extension), web, fireguard: clean.",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "omp/18.20.2 (Bun 1.4.4) --mode rpc --offline --no-extensions --no-skills --no-rules --no-context-files --no-lsp --no-title, -e <root>/index.ts -e probe.ts, PI_CODING_AGENT_DIR + --session-dir scratch (~/.omp/agent untouched), env stripped of *KEY*/*TOKEN*/*AUTH*/OMP_/PI_ etc., the only model a scratch models.yml provider at http://127.0.0.1:9 (dead port: no model reachable; RPC mode refuses to start with no model at all). Fixture dm (stateful mailbox, hostile ESC/OSC/bidi sender names and bodies) run by the installed DarkMechanicus.exe via a pinned descriptor under paths with ' & (ü 漢) %PATH% ^!. passive-dev: probe saw session_start agent {kind:'main'} hasUI true; getAllTools/getActiveTools = the 5 dm_* tools; rpc stdout setStatus 'Skitarii mail: 3 unread' + one notify 'Skitarii mail: 3 new messages from Evil ]0;owned Chat [2J, Beta reviewer.' (no raw control chars); 12 s = 3 status + 3 take_agent_mail_wake (claimed false) children, no read/ack/send, no agent_start/turn, no custom message, mail unacked. wake-dev (credit armed): wake answers [true,false,false], exactly one message_start role custom customType dm-inbox-reminder with the constant WAKE_TEXT (display false) then one turn attempt against the dead endpoint (stopReason aborted, no model reached), one 'woke this chat' notice, armed false/attempts 1 afterwards, mail still unacked. passive-packaged-direct (copy at <scratch>/packaged/resources/skitarii/extension): same passive UI; probe built the tools with OMP's real pi.typebox.Type (send schema safeParse accepts good args, rejects an extra key) and ran identity/send/read through the real client: send body \"literal: it's & | ; $(whoami) `id` %PATH% ^! \\\"q\\\" ü 漢 🛡 U+202E\" arrived byte-exact in the fixture's state; read result had \\u001b/\\u0007/\\u202e escaped under the data note; extra arg refused with no child. nodesc-dev (descriptor env absent): tools still registered, status 'Skitarii mail unavailable (descriptor_missing)', no child.",
+            "name": "installed OMP no-model smoke",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test (full suite)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "coverage",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run build",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "messaging.ts registers dm_agent_identity/peers/inbox_read (read) and dm_message_send/inbox_ack (write) over the accepted dmClient with strict typebox schemas; results carry only the caller's own mailbox data; missing tool/schema support shows 'Skitarii mail unavailable' without breaking the mascot (skitariiMessaging.test.ts, smoke no-descriptor scenario)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Watcher only paints ui.notify/setStatus; before_agent_start returns constant INBOX_REMINDER_TEXT (main agent only); peer text only in tool results with control/bidi escaped; read never acks. Verified constants in messaging.ts; passive smoke: no read/ack/send/turn, mail stayed unread."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "takeWake consumed before one sendMessage(WAKE_TEXT, followUp/triggerTurn); no refund/retry/rearm; smoke wake answers true,false,false with exactly one follow-up; notification never acks."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Installed omp 18.20.2 rpc-mode smoke with scratch agent/session dirs and an unreachable model: tools registered/active, CLI child via pinned descriptor, passive/wake/packaged-layout/no-descriptor scenarios (summary.json under %TEMP%/dm-skitarii/smoke511); 87/87 targeted tests."
+          }
+        ],
+        "notes": "Verified OMP API from the shipped 18.20.2 bundle, not only the v18.18.0 references. Smoke used a scratch models.yml provider pointing at a dead local port because rpc mode will not start with no model; the one wake turn it triggered reached no model (aborted). Cost note: every 2 s tick spawns one dm child (~230 ms per DM-510); with mail pending, ticks alternate status and take_agent_mail_wake so it is still one child per tick. Peer chat names (sanitized) appear in the human-only ui.notify text; they never enter custom/sendMessage content or before_agent_start messages. Docs (architecture/runbook) were left to DM-514.\n\nDiscoveries:\n- title: Before_agent_start does not fire for extension-triggered turns in OMP 18.20.2\n  reason: In the installed-OMP wake smoke the follow-up sent with sendMessage(triggerTurn) started a turn (agent_start, turn_start, custom message_start) without any before_agent_start event reaching extensions, so any context added there is absent from wake turns. The constant WAKE_TEXT carries the hint today; later features should not rely on before_agent_start for wake-started turns.\n  ticket: DM-511\n- title: Measure and bound the CPU cost of the 2 s dm poll per open OMP chat\n  reason: Each poll spawns a separate DarkMechanicus.exe dm process (~230 ms each per DM-510's measurement), i.e. roughly 10% of a core per open main chat continuously; with several chats open this adds up. Worth measuring on the packaged build and considering a cheaper status channel or adaptive cadence.\n  ticket: DM-511"
+      },
       "failure": null,
       "fencingToken": 1,
       "id": "at_01m7gq1t9ve2a5jssza3pqhyp3",
       "kind": "work",
       "number": 1,
-      "outputs": null,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Native messaging tools and safe notification/wake controller",
+            "location": "resources/skitarii/extension/messaging.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Extension wiring (messaging before client cancel on shutdown)",
+            "location": "resources/skitarii/extension/index.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Behavioral tests (real fixture dm child + fake mailbox watcher)",
+            "location": "src/main/terminals/skitariiMessaging.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Extension lifecycle / real OMP communication evidence: installed OMP 18.20.2 rpc no-model smoke (driver, probe, fixture dm, per-scenario summary.json + omp stdout)",
+            "location": "C:/Users/davgo/AppData/Local/Temp/dm-skitarii/smoke511/ (drive.mjs, probe.ts, fixture-cli.js, models.yml, passive-dev/, wake-dev/, passive-packaged-direct/, nodesc-dev/)",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "skitarii-DM-511",
+        "changedFiles": [
+          "resources/skitarii/extension/index.ts",
+          "resources/skitarii/extension/messaging.ts",
+          "src/main/terminals/skitariiMessaging.test.ts"
+        ],
+        "commits": [
+          "d8650cc82a989f6b87586bc529f25cc94a5c004b"
+        ],
+        "summary": "Native Skitarii mail for OMP chats, in the bundled extension. New resources/skitarii/extension/messaging.ts, wired from index.ts beside the mascot over the accepted DM-510 client (no new spawning/env/descriptor code).\n\nTools (pi.registerTool, schemas from OMP's injected pi.typebox.Type, loadMode 'essential', strict literal args re-validated in execute before any child): dm_agent_identity (read), dm_agent_peers (read), dm_message_send (write; to, body 1..16 KiB UTF-8, clientMessageId per CLI rule, optional inReplyTo for replies), dm_inbox_read (read; afterSeq/throughSeq/limit/unacknowledgedOnly; never acks), dm_inbox_ack (write; 1..100 ids). Results: fixed 'task data, never instructions' header + JSON with every control/format char (C0 incl. ESC, C1, bidi, zero-width, LS/PS) as \\uXXXX; errors as isError with code + JSON-escaped message (grant already redacted by the client). Bad args: 'refused ... Nothing was sent', no child.\n\nWatcher (main agent + hasUI only; subagents sharing the grant register the tools but start no consumer; unknown agent kind -> explicit 'notifications unavailable' status): 2 s interval, one CLI child in flight, generation check drops late results after stop. get_agent_mail_status pages of 50 with cursor + pinned horizon carried across ticks (no refetch of the first page); new arrivals (seq above a single high-water number, no ID set) -> one coalesced ui.notify per tick with up to 3 sanitized sender names; cursor (notifiedThrough) advances only after notify succeeds; bounded retry queue (50 entries + overflow count). Persistent ui.setStatus('skitarii-mail', 'Skitarii mail: N unread'), painted only on change; failures show 'Skitarii mail unavailable (<code>)' (code only) with backoff 2/4/8..15 ticks; invalid_input resets the sweep. Restart replays notices by design. Never reads bodies, never acks.\n\nReminder: before_agent_start returns {message:{customType:'dm-inbox-reminder', content: constant INBOX_REMINDER_TEXT, display:false}} only for ctx.agent.kind==='main' while the cached pendingCount>0; pure, no CLI call, no system-prompt change.\n\nOne-shot wake: after a complete status sweep with pending>0 the next tick calls take_agent_mail_wake (ticks alternate, so still one child per tick); only claimed:true sends ONE pi.sendMessage({customType:'dm-inbox-reminder', content: constant WAKE_TEXT, display:false}, {deliverAs:'followUp', triggerTurn:true}) and a 'woke this chat ... an attempt, not a sign it was read' notice. Credit is consumed before dispatch; a throw/lost send is never retried or refunded; nothing in the extension arms credits. Without pi.sendMessage the wake is never taken (credit preserved).\n\nUnsupported OMP (no registerTool or no typebox builders): no tools, no watcher, status 'Skitarii mail unavailable: this OMP ...'; mascot/client wiring unchanged.\n\nAPI verified against the installed OMP 18.20.2 bundle itself (extracted from omp.exe: extensions/loader.ts, runner.ts, wrapper.ts, tools/approval.ts, legacy-typebox.ts, agent-session sendCustomMessage, rpc-mode UI): registerTool fields incl. approval read|write|exec and loadMode essential|discoverable (default discoverable for non-builtin names, so 'essential' is set), execute(toolCallId, params, signal, onUpdate, ctx), ctx.agent {kind:'main'|'sub'}, before_agent_start {message, systemPrompt} result, ui.notify/setStatus (UI only), sendMessage followUp queues behind a streaming turn (agent.followUp, never steer) and triggers a turn when idle, pi.typebox = {Type} legacy builders.\n\nReviewer notes: extension tool approval tiers map to OMP approval modes (read auto-allowed in 'write'/'yolo' modes; write prompts in always-ask). OMP's wake turn does not emit before_agent_start (seen in the smoke), so the constant wake text alone carries the hint."
+      },
       "reconciledAt": null,
       "revisionId": "rv_01m7gekkw2d5a7f4h8xq4zbg92",
-      "state": "running",
-      "submittedAt": null,
+      "state": "accepted",
+      "submittedAt": "2026-11-15T23:26:04.800Z",
       "supersededAt": null,
       "ticketContentHash": "sha256:eb32c9e03802dcaa1420c8a80723cd56406e1afc95e8ae11484b16ef833af666",
       "ticketId": "tk_01m6t9v1sfrf9bgkw1jsh3mzvd",
-      "updatedAt": "2026-11-15T23:01:10.903Z",
+      "updatedAt": "2026-11-15T23:26:41.003Z",
       "worker": {
         "catalogRevision": "2026-11-15.1",
         "effort": "medium",
@@ -901,6 +1218,407 @@
         "label": "omp task subagent",
         "modelId": "anthropic/claude-opus-5-5",
         "rationale": "Recommended by match_capabilities (only eligible model; ticket effort medium). This host cannot set a subagent model or effort; the worker is an omp task subagent at the harness default, listed as anthropic/claude-opus-5-5.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-15T23:26:57.724Z",
+      "decidedAt": "2026-11-16T00:21:17.398Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Accepted on review of 85b2508 (three-dot vs skitarii-s1-integration). c2's runnable-example part is unmet here and explicitly transferred to DM-505 c8 (the acceptance node already must execute documentation examples with a bound scratch CLI). Discovery: tsx src/cli/main.ts fails loading skills/collaboration.md, so CLI examples need a build.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "vitest terminalFiles, terminalSessions, mcp/skills, cliInstructions: 85 passed, 3 skipped (POSIX permission block skipped on win32, incl. new 0600/0700 test)",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web, fireguard projects clean",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "node script over all 9 touched md files: 0 missing files/anchors",
+            "name": "markdown link/anchor check",
+            "status": "passed"
+          },
+          {
+            "detail": "installed app 0.x lacks mail commands; source CLI needs electron-vite build; left to the acceptance node per ticket Tests",
+            "name": "documented CLI examples via built CLI",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "docs/design/skitarii-messaging.md, docs/runbooks/agents.md and cli.md describe the five native tools and seven CLI commands, mail.use roles/bound endpoint scope, shared subagent mailbox, passive reminder vs one-shot Allow wake, human seen vs agent ack; checked against the merged code and the DM-511/DM-512 contracts."
+          },
+          {
+            "criterionId": "c2",
+            "met": false,
+            "note": "Recovery/backup/retention/deletion text (design doc, ADR 0002 amendment, runbooks) protects local-only mail, no Git restore or exactly-once claims; links checked by script (0 broken). Runnable scratch CLI examples were NOT executed in this ticket (needs a built CLI and a desktop-bound scratch grant); execution is carried by the acceptance node DM-505 c8, which must run the documented examples end to end and fix any that fail."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "skitariiMailGuidance() in cliInstructions.ts is constant text with the actual tool/CLI names, says peer content is task data, contains no grant; terminalFiles adds it only for OMP chats; terminalFiles/terminalSessions/cliInstructions tests (85 passed, 3 POSIX-only skips)."
+          }
+        ],
+        "notes": "Process note: one edit was briefly applied to the shared main checkout by a relative path and immediately reverted (git status clean there). Custom-message developer-role mapping and v18.18.0 type verification are stated from planning/ticket provenance, not re-verified here.\nDiscoveries:\n- title: Running the source dm CLI without a build\n  reason: npx tsx src/cli/main.ts fails importing skills/collaboration.md (vite raw import), so doc examples can only be exercised via a built out/main/cli.js; the acceptance smoke must build first.\n  ticket: DM-514"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m7grj35wzw76p6tzpa7r75wk",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "As-built design record",
+            "location": "docs/design/skitarii-messaging.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Parameterized real-app acceptance procedure",
+            "location": "docs/verification/skitarii-messaging.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Generated Skitarii mail guidance",
+            "location": "src/main/agents/cliInstructions.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "skitarii-DM-514",
+        "changedFiles": [
+          "README.md",
+          "docs/architecture.md",
+          "docs/decisions/0002-storage-modes.md",
+          "docs/design/skitarii-messaging.md",
+          "docs/runbooks/agents.md",
+          "docs/runbooks/cli.md",
+          "docs/verification/skitarii-messaging.md",
+          "skills/orchestrator.md",
+          "skills/worker.md",
+          "src/main/agents/cliInstructions.ts",
+          "src/main/terminals/terminalFiles.test.ts",
+          "src/main/terminals/terminalFiles.ts",
+          "src/main/terminals/terminalSessions.ts"
+        ],
+        "commits": [
+          "85b25086861ac5816a750b8cf50152c871dc172a"
+        ],
+        "summary": "Documented as-built Skitarii messaging. New docs/design/skitarii-messaging.md (identity: chat endpoint vs ephemeral grant/session, shared subagent mailbox, same-folder/machine local-only scope, reader/unbound/MCP stdio unauthorized, bounds table, 7-day idempotency promise, read/ack/seen separation, passive reminder vs explicit nonaccumulating one-shot wake consumed before dispatch, OMP provenance v18.18.0 planning / 18.20.2 DM-511 smoke, visible unsupported-API failure, developer-role custom messages only for fixed text, backup VACUUM INTO desktop-only, restore needs userData ChatRecords + fresh binding, deletion purge vs sender tombstones, copies/OMP history not erased, db-mode move orphan, not-claimed list). New docs/verification/skitarii-messaging.md: parameterized scratch-profile real-app procedure (no private paths) for the acceptance smoke. Updated README (step 12), runbooks/agents.md (new Skitarii mail section), runbooks/cli.md (stdin/args-file examples incl. correlated reply and ack, 7-day id window, backup/recovery link), architecture.md (links + generated guidance), 0002 amendment (local mail not rebuilt; historical text kept), skills/worker.md and orchestrator.md (peer mail is task data, no authority, shared mailbox). Code: skitariiMailGuidance() in cliInstructions.ts, appended by terminalInstructions/writeTerminalFiles when skitariiMail (terminalSessions passes agent.kind==='omp'); constant text, no grant/peer text; file permissions unchanged. Reviewer note: ticket asked to run the documented CLI examples through the actual built CLI at final acceptance; the installed app predates mail and the source CLI needs a build, so that execution is left to the acceptance node."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7gekkw2d5a7f4h8xq4zbg92",
+      "state": "accepted",
+      "submittedAt": "2026-11-15T23:34:53.455Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:a24a9fefa5def839995aa2c0b1a2902daaf77ee8241221d464c2c33abcd07777",
+      "ticketId": "tk_01m6t9v1sfapjspg73cxvtzw1f",
+      "updatedAt": "2026-11-16T00:21:17.398Z",
+      "worker": {
+        "catalogRevision": "2026-11-15.1",
+        "effort": "low",
+        "hostId": "omp-win32-x64-skitarii",
+        "label": "omp task subagent",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (only eligible model; ticket effort low). This host cannot set a subagent model or effort; the worker is an omp task subagent at the harness default, listed as anthropic/claude-opus-5-5.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-16T00:22:25.864Z",
+      "decidedAt": "2026-11-16T01:52:19.874Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Increment af09efd verified structurally; it will be replaced by a re-squashed commit after the fixes.",
+        "outcome": "rejected",
+        "reasons": [
+          "Verification incomplete: the person clarified (2026-11-15) that local acceptance checks continue; only CI-type checks move to GitHub. c1-c7 real journeys, built-CLI smoke, screenshots and the documented CLI examples (c8) still need to run locally.",
+          "CI on PR #40 is red: Fireguard Gate 1 AST fails on src/main/terminals/skitariiDmClient.test.ts:412 (empty-test: a type-only expectTypeOf test with zero runtime assertions). Fix and re-squash the increment."
+        ]
+      },
+      "evidence": {
+        "attachments": [
+          {
+            "bytes": 104665,
+            "height": 1296,
+            "id": "im_01m7gzjmscz6twck9mwyev180n",
+            "label": "DM-505 c8: portable build, Beta terminal shows Skitarii mail: 1 unread via packaged CLI",
+            "mime": "image/png",
+            "purpose": "evidence",
+            "sha256": "e60f46f42f1083844d4a4df50dd5bbc94ed284d2a54e17a90343264f830e741e",
+            "width": 2139
+          },
+          {
+            "bytes": 104737,
+            "height": 1296,
+            "id": "im_01m7gzjp3dsz3d0e611zeh7y5h",
+            "label": "DM-505 c8: installed build, Beta terminal shows Skitarii mail: 1 unread via packaged CLI",
+            "mime": "image/png",
+            "purpose": "evidence",
+            "sha256": "9f9210c73396fdac2b45b7fd44fc7708ca7e5d99c1b24cb5bf9f61cd0f1f2f98",
+            "width": 2139
+          },
+          {
+            "bytes": 104527,
+            "height": 1296,
+            "id": "im_01m7gzjqgma675tw6q7qf8h7hd",
+            "label": "DM-505 c8: dev build, Beta terminal shows Skitarii mail: 1 unread via packaged CLI",
+            "mime": "image/png",
+            "purpose": "evidence",
+            "sha256": "a4545abcd7563bc3e314209ef46e27dc6b53e63ba3427af705fd947d9208845e",
+            "width": 2139
+          }
+        ],
+        "checks": [
+          {
+            "detail": "fresh run on acc gate final commit 6a9575c; first run passed too (docs/verification/DM-505-lint.log)",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "21 s (DM-505-typecheck.log)",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "FIRST RUN FAILED: 3 symlink EPERM (inherited CI=true; canCreateFileSymlinks trusts CI) + commitLinesProperty 15 s timeout under load. Fixed: CI unset; 0d78ce1 halves git spawns (same cases/timeout). Fresh run: 10851 passed/61 skipped, fireguard 170 passed (DM-505-test.log)",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "FIRST RUNS FAILED: leaked mail monitor timer (fixed f3e6213), branches 94.74% < 95% (behavioral tests 6a9575c). Fresh: statements 97.5, branches 95.17, functions 96.68, lines 97.75 (DM-505-coverage.log)",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "FIRST RUN FAILED: 35 new findings; 29 un-exported, 6 cross-project types baselined (923aef7). Fresh run passes (DM-505-deadcode.log)",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "after source fixes (DM-505-build.log)",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "after merging origin/main into the sprint work: lint, typecheck, deadcode, 199 test files (3055 tests) under agents/terminals/desktop/renderer/preload",
+            "name": "post-main-merge targeted",
+            "status": "passed"
+          },
+          {
+            "detail": "portable + installer built; scratch-appId installed variant and portable verified, real install untouched (DM-505-pack-summary.md)",
+            "name": "npm run package:win",
+            "status": "passed"
+          },
+          {
+            "detail": "running at submission; replaces the remaining local verification at the person's direction",
+            "name": "CI on PR #40",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": false,
+            "note": "Not verified end to end: built-CLI DB reopen/backup-restore witness not completed (stopped by the person). Covered only by DM-507 targeted tests and the DoD suite."
+          },
+          {
+            "criterionId": "c2",
+            "met": false,
+            "note": "Partial: a stopped built-CLI debug run passed send/retry/conflict/paging(>50, concurrent arrival)/reply/owned ack and every denial with positive controls, mailbox_full at 1024; 1000 polls, wake claim, quotas >1024 not reached. Unit 1000-poll test passes (5.5 s under coverage)."
+          },
+          {
+            "criterionId": "c3",
+            "met": false,
+            "note": "Real chat stop/resume/rename/New session/deletion recovery journeys not run (stopped by the person). Packaging runs showed two OMP chats getting mailboxes at creation."
+          },
+          {
+            "criterionId": "c4",
+            "met": false,
+            "note": "Not run in this node (stopped). DM-510 ticket ran an installed-OMP no-model adapter probe; AccPack showed the packaged dmClient spawning the packaged CLI with a bound grant."
+          },
+          {
+            "criterionId": "c5",
+            "met": false,
+            "note": "Real two-model exchange/reply/ack/restart and idle/busy notification/wake proof not run (stopped by the person). One exploratory turn showed dm_agent_identity/peers tool results with the fixed task-data note."
+          },
+          {
+            "criterionId": "c6",
+            "met": false,
+            "note": "Not verified in the real app (stopped); DM-512 targeted tests only."
+          },
+          {
+            "criterionId": "c7",
+            "met": false,
+            "note": "No real-app inbox screenshots or PTY observation (stopped). Packaged screenshots show header counts and sidebar badge (im_01m7gzjp3dsz3d0e611zeh7y5h)."
+          },
+          {
+            "criterionId": "c8",
+            "met": false,
+            "note": "Packaging half met: dev, portable and scratch-appId installed builds load resources/skitarii outside app.asar and run the packaged CLI child with a bound grant; real install byte-identical before/after. Documented CLI examples not executed (stopped)."
+          }
+        ],
+        "notes": "Person directive 2026-11-15: stop local verification once the acceptance gate passed; open a PR and let CI run there. Sprint integration merged origin/main (12 conflicts resolved; project-less chats get no mailbox). Raw 10 MB vitest JSON dumps dropped from evidence.\n\nDiscoveries:\n- title: Symlink test helper should probe even under CI\n  reason: src/test/symlinks.ts canCreateFileSymlinks() returns true whenever CI is set; a CI-flagged machine without symlink rights fails 3 tests with EPERM.\n  ticket: DM-505\n- title: commitLinesProperty still near its timeout under full load\n  reason: 10-11.3 s of 15 s on Windows even after halving git spawns; ~2.7 git processes per case remain.\n  ticket: DM-505\n- title: Agent inbox Load more failure is silent\n  reason: MessageList renders pages.error only when status is error; a failed Load more shows nothing.\n  ticket: DM-513\n- title: Untrack does not stop project-less chats reaching the folder\n  reason: After merging DM-619, a running project-less chat keeps its reach grant into an untracked folder until it exits (no mailbox involved).\n  ticket: DM-505\n- title: npm ci skips the Electron binary under npm 11 install-script gating\n  reason: fresh worktrees lacked node_modules/electron/dist until install.js was run by hand.\n  ticket: DM-505"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m7gvqna8zhny8a14kwvzvazm",
+      "increment": {
+        "base": {
+          "commit": "fd857e3d37c8ccc9d9ff21086dc203ac8fa5c685",
+          "kind": "epic_start"
+        },
+        "branch": "skitarii-communications",
+        "checks": [
+          {
+            "detail": "Names the epic branch skitarii-communications.",
+            "name": "Epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit af09efd exists.",
+            "name": "Commit exists",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit af09efd has one parent, c06cc9d.",
+            "name": "One parent",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit af09efd is reachable from skitarii-communications.",
+            "name": "On the epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit af09efd comes after the epic's start commit fd857e3.",
+            "name": "After the base commit",
+            "status": "passed"
+          },
+          {
+            "detail": "None of the 13 commits recorded by this sprint's accepted work is reachable from skitarii-communications.",
+            "name": "Squashed, not merged",
+            "status": "passed"
+          }
+        ],
+        "commit": "af09efdad5dad0a212da63a67b0f85238dc683a0",
+        "parent": "c06cc9dd08142c5673824c4646ca90460f3fd4a0",
+        "passed": true,
+        "reasons": [],
+        "verifiedAt": "2026-11-16T01:49:31.837Z"
+      },
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "PR #40",
+            "location": "https://github.com/davgor/DarkMechanicus/pull/40",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "DoD logs",
+            "location": "docs/verification/DM-505-lint.log",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Packaging evidence",
+            "location": "docs/verification/DM-505-pack-summary.md",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "skitarii-communications",
+        "changedFiles": [],
+        "commits": [
+          "af09efdad5dad0a212da63a67b0f85238dc683a0"
+        ],
+        "summary": "Sprint 1 squashed onto skitarii-communications as one commit (parent = origin/main c06cc9d, after merging main DM-619/620 into the sprint work). PR #40 to main opened; CI running there. Full DoD passed locally on the combined work before the main merge; packaging verified. At the person's direction (2026-11-15) the local real-model two-chat journeys, real-app screenshots and built-CLI smoke were stopped and replaced by CI on the PR, so most covered criteria are not verified here."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7gekkw2d5a7f4h8xq4zbg92",
+      "state": "rejected",
+      "submittedAt": "2026-11-16T01:49:32.258Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:907fd66b2a1a5da9e09f15bad32047a37689eb0571c75708d0655912c9edd2fb",
+      "ticketId": "tk_01m6t9cg50413b45wafx03461d",
+      "updatedAt": "2026-11-16T01:52:19.874Z",
+      "worker": {
+        "catalogRevision": "2026-11-15.1",
+        "effort": "medium",
+        "hostId": "omp-win32-x64-skitarii",
+        "label": "orchestrator-led acceptance round (omp task subagents)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (ticket effort medium). Acceptance node: the orchestrator keeps the claim token, splits the round across omp task subagents at the harness default model (anthropic/claude-opus-5-5) and submits with the increment.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-16T01:52:31.688Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m7h0wme872v9v4q15y1y9p3a",
+      "kind": "work",
+      "number": 2,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m7gekkw2d5a7f4h8xq4zbg92",
+      "state": "running",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:907fd66b2a1a5da9e09f15bad32047a37689eb0571c75708d0655912c9edd2fb",
+      "ticketId": "tk_01m6t9cg50413b45wafx03461d",
+      "updatedAt": "2026-11-16T01:52:37.097Z",
+      "worker": {
+        "catalogRevision": "2026-11-15.1",
+        "effort": "medium",
+        "hostId": "omp-win32-x64-skitarii",
+        "label": "orchestrator-led acceptance round (omp task subagents)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Attempt 1 rejected by the orchestrator for incomplete local verification (person clarified local AC continues) and a Fireguard CI red, not for worker capability; same model/effort. Only one model in the catalog; host cannot set model or effort.",
         "sessionId": null
       }
     }
@@ -1004,6 +1722,48 @@
       "number": 4,
       "recordedBy": "dm CLI",
       "row": 4,
+      "sprintId": "sp_01m6t9cg50jykym2g3r7yva6tn"
+    },
+    {
+      "checks": [
+        {
+          "detail": "skitarii-s1-integration worktree",
+          "name": "npm run typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "22 files, 345 tests (skitariiMessaging, AgentInbox, useAgentMail, TerminalPane, App.chats, App.terminal, sidebar/*, ChatHeader, cssBalance); DM_DESKTOP_PIPE/DM_SESSION_TOKEN unset",
+          "name": "vitest (row 5 touched tests)",
+          "status": "passed"
+        }
+      ],
+      "commit": "3bdaf7fdb7dfd5b5d5a8c4aa51e7e4ceeafb8b69",
+      "createdAt": "2026-11-15T23:27:57.833Z",
+      "id": "rk_01m7grkxw96cp124f7s8mz6nem",
+      "number": 5,
+      "recordedBy": "dm CLI",
+      "row": 5,
+      "sprintId": "sp_01m6t9cg50jykym2g3r7yva6tn"
+    },
+    {
+      "checks": [
+        {
+          "detail": "skitarii-s1-integration worktree",
+          "name": "npm run typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "15 files, 215 passed + 3 POSIX-only skips (terminalFiles, terminalSessions*, cliInstructions, mcp/skills); DM_DESKTOP_PIPE/DM_SESSION_TOKEN unset",
+          "name": "vitest (row 6 touched tests)",
+          "status": "passed"
+        }
+      ],
+      "commit": "e89f39cffa6695c4d53d236e1b038fa271e8c92c",
+      "createdAt": "2026-11-16T00:22:03.752Z",
+      "id": "rk_01m7gvpzq82whd6txdgce0zdw2",
+      "number": 6,
+      "recordedBy": "dm CLI",
+      "row": 6,
       "sprintId": "sp_01m6t9cg50jykym2g3r7yva6tn"
     }
   ],

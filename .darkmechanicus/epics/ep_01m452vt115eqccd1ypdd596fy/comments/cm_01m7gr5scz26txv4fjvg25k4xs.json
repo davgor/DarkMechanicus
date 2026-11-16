@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-172 review (orchestrator, this run) — MUST FIX in this ticket before reading timing segments: fractional milliseconds produce malformed timestamps. `src/core/space/timingIntervals.ts:35-47` (`intervalOf`/`iso`) does not truncate and `timingActivity.ts:65` computes `end - value`; `active_ms` 600000.5 with no spanStart gives `2026-11-01T10:19:59.999.5Z` (Date.parse NaN). Add `Math.trunc` and show it in your scratch script. Also note: sprint totals under the `current_plan` rule are not confined to the sprint window (never divide sprint effort/in-flight by its `elapsed`), and 'host wins' dedupe matches by identity not overlap, so host 10:00-10:10 + agent 10:20-11:00 leaves 50m unknown (timingActivity.ts:146-159) — treat as unknown, never as zero overhead.",
+  "createdAt": "2026-11-15T23:20:14.495Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7gr5scz26txv4fjvg25k4xs",
+  "ticketId": "tk_01m453gpadahyzv2h66bwjwxmf"
+}

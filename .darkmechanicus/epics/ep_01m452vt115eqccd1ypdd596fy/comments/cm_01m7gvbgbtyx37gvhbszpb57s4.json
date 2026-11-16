@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-174 review (orchestrator, this run): a handoff-check refusal swallowed during submission leaves no log or event; the only trace is `uncheckedSubmissions` / C `not_reported` on read. Surface the reason (an event or a diagnostic in the scorecard read model).",
+  "createdAt": "2026-11-16T00:15:47.578Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7gvbgbtyx37gvhbszpb57s4",
+  "ticketId": "tk_01m453gpadp6xxdy96bhmqnqyq"
+}

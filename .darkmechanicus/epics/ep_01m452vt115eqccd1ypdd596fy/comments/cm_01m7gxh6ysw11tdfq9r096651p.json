@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-175 review (orchestrator, this run): fix and pin — (1) withdrawing the base report of a duplicate-joined defect group falls back to the earliest report rather than a live one sharing its judgement, dropping a still-valid charge (src/core/space/defects.ts `defectOf`); (2) a late `reconcileAttempt` resubmit changes the attempt state read at an older cutoff between the lease deadline and the resubmit (verification.ts `stateAt`; verdict unchanged). Pin the defect judgement-group cases (3-report, alternating, duplicate citing a later report) and the same-cutoff reproducibility repros in %TEMP%/dm175-review/adv*.ts.",
+  "createdAt": "2026-11-16T00:53:51.705Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7gxh6ysw11tdfq9r096651p",
+  "ticketId": "tk_01m65yenctwcrwzkdqz21e6e3j"
+}

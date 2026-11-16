@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-172 review (orchestrator, this run): wire `projectRunTiming` (src/core/services/timing.ts). Under the one `current_plan` sprint rule a past sprint's numbers change retroactively after an adoption moves a ticket, and a sprint can show effort before it is activated (`elapsed` missing); frozen report snapshots must capture timing at the cutoff rather than recompute later. A ticket moved to a later sprint loses readiness and later raises `event_out_of_place` (services/timing.ts:288-294, space/timing.ts:564-567): take readiness from the sprint that held the ticket at first claim. The heartbeat fallback for imported resubmitted expired attempts is reported as plain `observed` (services/timing.ts:179-181): mark it estimated or anomalous.",
+  "createdAt": "2026-11-15T23:20:15.570Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7gr5tejmpfwmm4qmcpbc59c",
+  "ticketId": "tk_01m453gpads5cm5ah9pyqk7qtw"
+}

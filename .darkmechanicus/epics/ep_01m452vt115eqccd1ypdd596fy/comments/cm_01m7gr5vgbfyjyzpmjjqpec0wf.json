@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-172 review (orchestrator, this run): pin in tests the timing fixtures in src/core/space/fixtures/timing/ and scratch/DM-172 scenarios, plus: fractional-ms `active_ms` gives a valid ISO timestamp; host+agent spans on one attempt that do not overlap (host 10:00-10:10, agent 10:20-11:00); inclusive worker with an unscoped sub-agent (timingActivity.ts:203-209 leaves a hole: active 60m of 80m); performance stays linear at 20k spans.",
+  "createdAt": "2026-11-15T23:20:16.651Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7gr5vgbfyjyzpmjjqpec0wf",
+  "ticketId": "tk_01m65yenctwcrwzkdqz21e6e3j"
+}

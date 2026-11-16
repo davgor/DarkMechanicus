@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-174 review (orchestrator, this run): observation import (src/core/repo/observationImport.ts) applies schema, ledger and reference checks but no source check, so a human-sourced rating file written by an agent into .darkmechanicus is imported as human feedback. Core and MCP paths refuse agents. When you expose measurement controls, decide and document the trust boundary (portable records are not authenticated; review decisions are equally editable) and at least surface imported human feedback with its recording session/machine so a forged entry is visible.",
+  "createdAt": "2026-11-15T23:54:04.259Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7gt3qk3h5rh0pfwr3q6rnxt",
+  "ticketId": "tk_01m453gpadp6xxdy96bhmqnqyq"
+}

@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Orchestrator decision (person confirmed, 2026-11-15): the installed-Windows proof uses a scratch variant of the NSIS installer that differs only in appId/productName, installed silently to a temp folder, verified, then uninstalled, because the real one-click installer (same appId com.davgor.darkmechanicus) would replace the running desktop app that hosts this run. Portable exe is run from a scratch folder as built. Also: DM-514 c2 runnable CLI examples are carried here (c8) and must be executed with a desktop-bound scratch grant.",
+  "createdAt": "2026-11-16T00:21:25.543Z",
+  "epicId": "ep_01m6t9cg507rmyg2q9nsw7kv3s",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7gvntd72w6e87qk5fnm5myt",
+  "ticketId": "tk_01m6t9cg50413b45wafx03461d"
+}
