@@ -163,8 +163,6 @@ const REQUIRED: [string, string[]][] = [
       'Give every ticket a `size`',
       'one obvious change in one or two files',
       'one coherent change inside one module',
-      'several modules, or one real design choice',
-      'should usually be split',
       'Call out micro tasks',
       '`reasoning.effort`',
       'Leave `quality` unset unless the person asked',

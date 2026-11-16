@@ -51,12 +51,18 @@ When the goal is one isolated change, create a card instead of an epic. Follow-u
 
 One ticket is one coherent change that a single worker can finish and a reviewer can verify in one attempt. Split tickets that mix unrelated concerns. Merge fragments that are too small to verify alone.
 
+**Dispatch-sized outcomes (cards too).** Default to one small, independently verifiable outcome that fits a 5–10 minute active worker window, including analysis, coordination and targeted verification: typically 1–2 owned modules and 2–3 acceptance criteria. Name exact source/symbol ownership, existing tests to extend, targeted commands, prerequisites and expected evidence. Decompose anything larger BEFORE dispatch; a `medium` or `large` label is not permission to leave it open-ended. Do not hide schema design, all hosts, two operating systems and a full security proof inside one architecture ticket. The orchestrator owns parallel tickets; one worker must not turn a ticket into a nested delegated mini-epic.
+
+Unknown native, provider or security feasibility gets a separate bounded question before dependent implementation: state the candidate approach, smallest safe discriminating observation, finite time/probe budget and explicit GO/NO-GO evidence. Preserve the full eventual acceptance scope; an inconclusive gate is not GO. Complete source/revision, capability/profile, OS/runtime, fixture and required consent prerequisites before a run-only ticket may be claimed. Missing authority or an accepted cost cap that cannot be metered requires a prerequisite decision, not an optimistic claim.
+
+Declare unavoidable noninterruptible automated verification exceptions in the saved plan BEFORE claim: exact command/scope, why it cannot fit, finite deadline and safe completion/cleanup behavior. This permits only that verification, not extra implementation or retroactive timeout growth. Keep targeted ticket checks and the full Definition of Done at sprint acceptance; splitting work must not weaken tests, safety, consent or checkpoint/retry authority.
+
 Give every ticket a `size`, the smallest that fits. Size is how the orchestrator finds the cheapest worker that can do the ticket: sizing too big spends a costly worker on easy work, and sizing too small gets the ticket rejected and escalated.
 
 - **micro**: one obvious change in one or two files, one targeted test, no design choice. Example: add one validation rule to a field and test it.
 - **small**: one coherent change inside one module. Example: add a `--json` flag to one command and test it.
-- **medium**: several modules, or one real design choice. Example: add refunds across the API, the ledger, and the receipt view.
-- **large**: should usually be split into smaller tickets wired as dependencies. Example: "Rewrite the cache layer" becomes one ticket each for the index, the expiry rules, and the state migration. Keep a ticket large only when it cannot be split, and say why in its body.
+- **medium**: one real design choice or tightly coupled modules, still within the dispatch window. Split cross-layer outcomes into independently verifiable tickets rather than using this label to absorb them.
+- **large**: decompose before dispatch. If an indivisible automated verification is longer than the worker window, document the bounded verification exception above; do not use `large` to exempt implementation.
 
 Call out micro tasks: size them `micro` rather than rounding up to small. A micro ticket is the one a low-cost worker can finish, and rounding it up sends it to a costlier one.
 
