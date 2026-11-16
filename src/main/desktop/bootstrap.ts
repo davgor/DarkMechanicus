@@ -25,6 +25,7 @@ import {
 import { join } from 'node:path'
 import type { Db } from '../../core/db/database'
 import { DomainError } from '../../core/errors'
+import { nodeFs } from '../../core/repo/nodeFs'
 import { resolveHomeDir } from '../../core/repo/storageMode'
 import { openWorkspace, type Workspace } from '../../core/workspace'
 import type { AgentDownloadProgress, BuiltInAgentKind, McpConfigView } from '../../shared/desktop/api'
@@ -89,7 +90,8 @@ import {
   type CustomAgentConfirmation,
   type CustomAgents
 } from './customAgent'
-import { registerDesktopIpc } from './ipc'
+import { registerDesktopIpc, registerKnowledgeIpc } from './ipc'
+import { createKnowledgeHandlers } from './knowledgeHandlers'
 import { createAttachmentLookup, registerAttachmentProtocol } from './attachmentProtocol'
 import { buildCliConfig, type CliLaunch } from './cliConfig'
 import { buildMcpConfig } from './mcpConfig'
@@ -109,6 +111,11 @@ const FOLDER_DIALOG: OpenDialogOptions = {
 const CLONE_PARENT_DIALOG: OpenDialogOptions = {
   title: 'Choose the folder to clone repositories into',
   properties: ['openDirectory', 'createDirectory']
+}
+
+const KNOWLEDGE_DIALOG: OpenDialogOptions = {
+  title: 'Choose the overall knowledge repository',
+  properties: ['openDirectory']
 }
 
 function showOpenDialog(options: OpenDialogOptions): Promise<string | null> {
@@ -685,17 +692,36 @@ function stoppingMailFirst(mail: AgentMailDesktop, chats: DesktopBridge['chats']
   }
 }
 
-/**
- * Registers the `dm:*`, `agents:*`, `chats:*`, `chatMail:*`, `terminals:*`, `git:*` and `github:*` IPC handlers on `ipc`
- * (the sender-guarded registrar from `guardIpc`) and the background heartbeat/shutdown for open workspaces.
- */
-export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick<IpcMain, 'handle'>): DesktopBridge {
-  const appDb = openAppDatabase(app.getPath('userData'))
-  const registry = createFolderRegistry({
+/** Serves the `knowledge:*` channels: layer status for a tracked folder, and the overall repository chosen only with the native picker. */
+function startKnowledge(ipc: Pick<IpcMain, 'handle'>, registry: Pick<FolderRegistry, 'resolve' | 'storageMode'>): void {
+  registerKnowledgeIpc(
+    ipc,
+    createKnowledgeHandlers({
+      registry,
+      dmHome: darkMechanicusHome(),
+      fs: nodeFs,
+      gitRunner: createGitRunner(),
+      pickKnowledgeRepository: () => showOpenDialog(KNOWLEDGE_DIALOG)
+    })
+  )
+}
+
+/** The tracked folders, kept in `userData/folders.json`. */
+function openFolderRegistry(): FolderRegistry {
+  return createFolderRegistry({
     file: join(app.getPath('userData'), 'folders.json'),
     homeDir: app.getPath('home'),
     dmHome: darkMechanicusHome()
   })
+}
+
+/**
+ * Registers the `dm:*`, `agents:*`, `knowledge:*`, `chats:*`, `chatMail:*`, `terminals:*`, `git:*` and `github:*` IPC handlers on `ipc`
+ * (the sender-guarded registrar from `guardIpc`) and the background heartbeat/shutdown for open workspaces.
+ */
+export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick<IpcMain, 'handle'>): DesktopBridge {
+  const appDb = openAppDatabase(app.getPath('userData'))
+  const registry = openFolderRegistry()
   const agents = openAgentRegistry(appDb)
   const installer = createInstaller(agents)
   const pool = openDesktopPool()
@@ -732,6 +758,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
     }
   })
   registerDesktopIpc(ipc, handlers)
+  startKnowledge(ipc, registry)
   startAttachmentProtocol(registry, pool)
   refreshClaudeCodeEntries(registry)
   const close = runLifecycle(pool, appDb)

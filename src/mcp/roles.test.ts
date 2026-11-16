@@ -15,6 +15,7 @@ const READ_TOOLS = [
   'get_project',
   'list_projects',
   'get_storage_status',
+  'get_context',
   'search_history',
   'list_branch_epics',
   'list_sessions',

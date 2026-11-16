@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { nameChatArgsSchema } from '../shared/agents/chatNaming'
 import { REASONING_EFFORTS, TICKET_SIZES } from '../shared/domain/bundle'
+import { KNOWLEDGE_EVENTS, type KnowledgeEvent } from './knowledge/events'
 import { repositoryName } from './repo/portable'
 import { STORAGE_MODES } from './repo/storageMode'
 import { AGENT_MAIL_LIMITS } from './services/agentMailStore'
@@ -332,6 +333,15 @@ export const COMMAND_SCHEMAS = {
   }),
   getAttemptTimeline: z.strictObject({ attemptId: stableId, ...timelineWindow }),
   getRunTimeline: z.strictObject({ runId: stableId, ...timelineWindow }),
+  getContext: z
+    .strictObject({
+      event: z.enum(KNOWLEDGE_EVENTS.map((event) => event.id) as [KnowledgeEvent, ...KnowledgeEvent[]]).optional(),
+      topics: z.array(z.string().min(1).max(80)).max(10).optional(),
+      paths: z.array(z.string().min(1).max(1000)).max(50).optional(),
+      ticketId: stableId.optional(),
+      budgetTokens: z.number().int().min(200).max(8000).optional()
+    })
+    .refine((input) => input.event !== undefined || (input.topics?.length ?? 0) > 0, 'Give event or topics'),
   queueTransfer: transferAction,
   cancelTransfer: transferAction,
   startTransfer: transferAction,

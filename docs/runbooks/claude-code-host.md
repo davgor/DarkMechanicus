@@ -97,7 +97,7 @@ The Agent tool call takes `subagent_type` and an optional `model` alias (`haiku`
 1. `match_capabilities` for the ticket. Read `recommended`: a `modelId`, an `effort`, and `reasons`.
 2. Use it unless you have a stated reason not to. The matching agent is `worker-<model>-<effort>`.
 3. `claim_ticket` with a `worker` that holds `label`, `modelId`, `hostId`, `catalogRevision`, `effort`, and `rationale`.
-4. Call the Agent tool with that `subagent_type` and a prompt that holds the packet. Follow step 4 of [`skills/orchestrator.md`](../../skills/orchestrator.md): the definitions above list the reporting tools, so hand the worker the packet with its claim token and it heartbeats and submits itself. For a definition without those tools, keep the token, give the worker only the ticket content, and make the calls yourself. Never write the token to a file or a commit.
+4. Call the Agent tool with that `subagent_type` and a prompt that holds the packet. Follow the orchestrator's [`dispatch-worker`](../../skills/knowledge/orchestrator/dispatch-worker.md) fact: the definitions above list the reporting tools, so hand the worker the packet with its claim token and it heartbeats and submits itself. For a definition without those tools, keep the token, give the worker only the ticket content, and make the calls yourself. Never write the token to a file or a commit.
 5. Review the result and accept or reject it.
 
 ### Example: a routine micro ticket
@@ -148,7 +148,7 @@ The reviewer rejects the attempt. `match_capabilities` now recommends one step u
 }
 ```
 
-Then `Agent(subagent_type: "worker-sonnet-low", ...)`, with the rejection reasons added to the prompt. With this catalog, repeated rejections of a routine micro ticket step through Haiku at low, Sonnet at low, Opus at low, and then Opus at medium, because nothing sits above Opus. Report repeated escalations as a profile proposal (see [`skills/orchestrator.md`](../../skills/orchestrator.md)).
+Then `Agent(subagent_type: "worker-sonnet-low", ...)`, with the rejection reasons added to the prompt. With this catalog, repeated rejections of a routine micro ticket step through Haiku at low, Sonnet at low, Opus at low, and then Opus at medium, because nothing sits above Opus. Report repeated escalations as a profile proposal (see the orchestrator's [`repeated-escalations`](../../skills/knowledge/orchestrator/repeated-escalations.md) fact).
 
 ## If the effort cannot be set
 

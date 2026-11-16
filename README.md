@@ -12,6 +12,7 @@ An agent helps you shape an epic, decomposes it into tickets with acceptance cri
 - Handing a saved epic to Linear: [`docs/runbooks/linear-transfer.md`](docs/runbooks/linear-transfer.md)
 - Working across a folder of Git repositories: [`docs/runbooks/multi-repo-folders.md`](docs/runbooks/multi-repo-folders.md)
 - Signing in to GitHub for Source control: [`docs/runbooks/github-sign-in.md`](docs/runbooks/github-sign-in.md)
+- Orchestrator knowledge layers and authoring facts: [`docs/runbooks/knowledge.md`](docs/runbooks/knowledge.md)
 - Agent skills (provider-neutral, also served as MCP prompts): [`skills/`](skills/)
 
 ## Using it

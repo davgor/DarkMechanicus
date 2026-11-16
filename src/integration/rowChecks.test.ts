@@ -137,7 +137,9 @@ describe('holding back the dependents of a failed row', () => {
       const ticket = held.blocked.find((item) => item.ticketId === id)
       expect(ticket?.blockers).toEqual([{ kind: 'row_check_failed', sprintId: sprintOne, row: 1, checkId: failed.id }])
     }
-    expect(held.rows[0]?.latestCheck).toEqual(failed)
+    // The command result also carries the orchestrator's pushed knowledge `context`; the stored check does not.
+    const { context: _failedContext, ...failedCheck } = failed
+    expect(held.rows[0]?.latestCheck).toEqual(failedCheck)
     expect(await codeOf(agent.claimTicket({ runId: run.id, ticketId: ids.b, worker: { label: 'w' } }))).toBe('unmet_prerequisite')
     await agent.recordRowCheck(passing(run.id, sprintOne))
     const cleared = await agent.getReadyTickets({ runId: run.id })
@@ -183,7 +185,8 @@ describe('row checks in the run history', () => {
     const reopened = harness().open('orchestrator', { root: harness().cloneTracked() })
     const history = (await reopened.getRun({ runId: run.id })) as RunView
     expect(history.ownedByThisMachine).toBe(false)
-    expect(history.rows[0]?.latestCheck).toEqual(last)
+    const { context: _lastContext, ...lastCheck } = last
+    expect(history.rows[0]?.latestCheck).toEqual(lastCheck)
     expect(history.tickets.find((ticket) => ticket.ticketId === ids.b)?.blockers).toEqual([
       { kind: 'row_check_failed', sprintId: sprintOne, row: 1, checkId: last.id }
     ])

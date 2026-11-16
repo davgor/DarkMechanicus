@@ -9,6 +9,7 @@ import { commentCommands } from './comments'
 import { deletionCommands } from './deletion'
 import { executionCommands } from './execution'
 import { kanbanCommands } from './kanban'
+import { knowledgeCommands } from './knowledge'
 import { profileCommands } from './profiles'
 import { repositoryCommands } from './repository'
 import { transferCommands } from './transfers'
@@ -27,6 +28,7 @@ export const COMMANDS: CommandTable = {
   ...attachmentCommands,
   ...kanbanCommands,
   ...activityCommands,
+  ...knowledgeCommands,
   ...deletionCommands,
   ...transferCommands,
   ...agentMailCommands

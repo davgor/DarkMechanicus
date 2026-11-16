@@ -4,6 +4,7 @@ import { requireCapability } from '../authz'
 import { COMMAND_SCHEMAS } from '../commandSchemas'
 import type { Ctx } from '../context'
 import { fail } from '../errors'
+import { filePaths, withKnowledgeContext } from '../knowledge/push'
 import { adoptRevision } from '../services/adoption'
 import {
   acceptAttempt,
@@ -120,7 +121,7 @@ const executionCommands = {
     mutates: true,
     run: (core, input) => {
       const run = startRun(core.ctx(), input)
-      return requireRunView(core.ctx(), run.id)
+      return withKnowledgeContext(core, requireRunView(core.ctx(), run.id), 'run.started')
     }
   },
   getRun: {
@@ -136,7 +137,12 @@ const executionCommands = {
   claimTicket: {
     schema: COMMAND_SCHEMAS.claimTicket,
     mutates: true,
-    run: (core, input) => claimTicket(core.ctx(), input)
+    run: (core, input) => {
+      const claim = claimTicket(core.ctx(), input)
+      const ticket = claim.packet.ticket
+      const event = ticket.kind === 'acceptance' ? 'acceptance.claimed' : 'ticket.claimed'
+      return withKnowledgeContext(core, claim, event, filePaths(ticket.references))
+    }
   },
   heartbeatAttempt: {
     schema: COMMAND_SCHEMAS.heartbeatAttempt,
@@ -154,17 +160,17 @@ const executionCommands = {
   acceptAttempt: {
     schema: COMMAND_SCHEMAS.acceptAttempt,
     mutates: true,
-    run: (core, input) => acceptAttempt(core.ctx(), input)
+    run: (core, input) => withKnowledgeContext(core, acceptAttempt(core.ctx(), input), 'attempt.accepted')
   },
   rejectAttempt: {
     schema: COMMAND_SCHEMAS.rejectAttempt,
     mutates: true,
-    run: (core, input) => rejectAttempt(core.ctx(), input)
+    run: (core, input) => withKnowledgeContext(core, rejectAttempt(core.ctx(), input), 'attempt.rejected')
   },
   failAttempt: {
     schema: COMMAND_SCHEMAS.failAttempt,
     mutates: true,
-    run: (core, input) => failAttempt(core.ctx(), input)
+    run: (core, input) => withKnowledgeContext(core, failAttempt(core.ctx(), input), 'attempt.failed')
   },
   reconcileAttempt: {
     schema: COMMAND_SCHEMAS.reconcileAttempt,
@@ -179,7 +185,10 @@ const executionCommands = {
   recordRowCheck: {
     schema: COMMAND_SCHEMAS.recordRowCheck,
     mutates: true,
-    run: (core, input) => recordRowCheck(core.ctx(), input)
+    run: async (core, input) => {
+      const check = recordRowCheck(core.ctx(), input)
+      return check.passed ? check : withKnowledgeContext(core, check, 'row_check.failed')
+    }
   },
   pauseRun: {
     schema: COMMAND_SCHEMAS.pauseRun,
@@ -210,7 +219,7 @@ const executionCommands = {
     mutates: true,
     run: (core, input) => {
       takeoverRun(core.ctx(), input)
-      return requireRunView(core.ctx(), input.runId)
+      return withKnowledgeContext(core, requireRunView(core.ctx(), input.runId), 'run.recovery')
     }
   },
   adoptRevision: {
@@ -218,7 +227,7 @@ const executionCommands = {
     mutates: true,
     run: (core, input) => {
       adoptRevision(core.ctx(), input)
-      return requireRunView(core.ctx(), input.runId)
+      return withKnowledgeContext(core, requireRunView(core.ctx(), input.runId), 'run.recovery')
     }
   }
 } satisfies Partial<CommandTable>

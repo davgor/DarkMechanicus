@@ -324,7 +324,7 @@ describe('checkoutPullRequest: overlapping checkouts of a fork pull request', ()
 })
 
 describe('checkoutPullRequest: uncommitted changes and sign-in', () => {
-  it('stashes the changes as dm-stash:<branch> with stash, and brings them along with bring', async () => {
+  it('stashes the changes as dm-stash:<branch> with stash', async () => {
     const { local, bare, http, prs } = setup()
     pushCommit(bare, 'refs/pull/2/head', { from: 'main', file: 'fork.txt', content: 'one\n' })
     http.answer(jsonResponse(200, [apiPull(2, 'patch', 'fork/repo')]))
@@ -333,8 +333,16 @@ describe('checkoutPullRequest: uncommitted changes and sign-in', () => {
     await prs.checkout(local.root, { number: 2, uncommitted: 'stash' })
     expect(local.git('status', '--porcelain')).toBe('')
     expect(local.git('stash', 'list', '--format=%s')).toContain('dm-stash:main')
+  })
 
-    local.switchTo('main')
+  it('brings the changes along with bring, to the pr/<n> an earlier checkout made', async () => {
+    const { local, bare, http, prs } = setup()
+    const tip = pushCommit(bare, 'refs/pull/2/head', { from: 'main', file: 'fork.txt', content: 'one\n' })
+    // pr/2 as the checkout in the test above leaves it, made by git directly instead of a second checkout's thirty
+    // git processes.
+    local.git('fetch', '-q', 'origin', 'refs/pull/2/head')
+    local.git('branch', '--no-track', 'pr/2', tip)
+    http.answer(jsonResponse(200, [apiPull(2, 'patch', 'fork/repo')]))
     put(local.root, 'mine2.txt', 'more\n')
     await prs.checkout(local.root, { number: 2, uncommitted: 'bring' })
     expect(local.git('branch', '--show-current')).toBe('pr/2')

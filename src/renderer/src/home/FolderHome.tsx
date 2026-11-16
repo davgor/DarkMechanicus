@@ -10,6 +10,7 @@ import { BranchEpics } from './BranchEpics'
 import { EpicBuckets } from './EpicBuckets'
 import { HistorySearch } from './HistorySearch'
 import { GrantsCard } from './GrantsCard'
+import { KnowledgeCard } from './KnowledgeCard'
 import { McpCard } from './McpCard'
 import { NewEpicDialog } from './NewEpicDialog'
 import { RepositoriesCard } from './RepositoriesCard'
@@ -59,6 +60,7 @@ function SecondaryColumn(props: FolderHomeProps & { titles: Readonly<Record<stri
       />
       <McpCard folder={folder} status={props.status} />
       <DefaultAgentCard folder={folder} agents={props.agents} />
+      <KnowledgeCard folder={folder} />
       <GrantsCard folder={folder} />
       <BranchEpics folder={folder} />
     </div>

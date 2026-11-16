@@ -196,7 +196,7 @@ It never does a ticket itself. For each ready ticket it:
 3. Keeps the claim token and heartbeats while the subagent works, unless the subagent can make the reporting calls itself. Then it submits the subagent's outputs and evidence.
 4. Reviews the result against the ticket's own criteria and the worker's targeted evidence, with no full sweep, and accepts or rejects it. It merges accepted work into a separate worktree on the sprint integration branch, so the coordinating checkout stays on the epic branch, and records a row check (`record_row_check`) when a row is fully accepted.
 
-When the sprint's acceptance node is ready, it runs the project's Definition of Done on the combined work, verifies each item the node's criteria cover, squashes the sprint into one commit on the epic branch, and submits that commit as the node's increment. Then it files the sprint report and waits until you approve the checkpoint in the desktop app (the rules behind this are under [the sprint cadence](../architecture.md#runs-readiness-and-attempts)). The full loop is in [`skills/orchestrator.md`](../../skills/orchestrator.md).
+When the sprint's acceptance node is ready, it runs the project's Definition of Done on the combined work, verifies each item the node's criteria cover, squashes the sprint into one commit on the epic branch, and submits that commit as the node's increment. Then it files the sprint report and waits until you approve the checkpoint in the desktop app (the rules behind this are under [the sprint cadence](../architecture.md#runs-readiness-and-attempts)). The full loop is in the kernel guide [`skills/orchestrator.md`](../../skills/orchestrator.md) and its built-in knowledge facts in [`skills/knowledge/orchestrator/`](../../skills/knowledge/orchestrator/), which reach the orchestrator as pushed `context` and through `get_context` (see [Knowledge layers](knowledge.md)).
 
 A session's role is fixed when it starts. If its `get_capabilities` says `planner`, change the entry to `--role orchestrator` and start a new session. A running session doesn't pick up the change.
 
@@ -206,7 +206,7 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 
 | Tools | planner | orchestrator | worker | reviewer |
 |-------|:-------:|:------------:|:------:|:--------:|
-| Read-only (27): `get_capabilities`, `get_project`, `list_projects`, `get_storage_status`, `search_history`, `list_branch_epics`, `list_sessions`, `list_epics`, `get_epic`, `list_tickets`, `get_ticket`, `get_plan`, `validate_plan`, `list_revisions`, `match_capabilities`, `get_run`, `get_ready_tickets`, `get_sprint_report`, `get_checkpoint`, `get_run_events`, `list_comments`, `list_profiles`, `get_profile`, `preview_board_import`, `get_transfer`, `list_kanban_cards`, `get_kanban_card` | yes | yes | yes | yes |
+| Read-only (28): `get_capabilities`, `get_project`, `list_projects`, `get_storage_status`, `get_context`, `search_history`, `list_branch_epics`, `list_sessions`, `list_epics`, `get_epic`, `list_tickets`, `get_ticket`, `get_plan`, `validate_plan`, `list_revisions`, `match_capabilities`, `get_run`, `get_ready_tickets`, `get_sprint_report`, `get_checkpoint`, `get_run_events`, `list_comments`, `list_profiles`, `get_profile`, `preview_board_import`, `get_transfer`, `list_kanban_cards`, `get_kanban_card` | yes | yes | yes | yes |
 | Comments: `add_comment` | yes | yes | yes | yes |
 | Profiles: `save_profile` | yes | yes | | |
 | Definition of Done: `set_definition_of_done` | yes | | | |

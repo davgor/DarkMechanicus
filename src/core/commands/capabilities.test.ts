@@ -112,6 +112,7 @@ const PROBES: Record<CommandName, unknown> = {
   listEvents: {},
   getAttemptTimeline: { attemptId: ATTEMPT },
   getRunTimeline: { runId: RUN },
+  getContext: { event: 'run.started' },
   addAttachment: { path: '/no/such/probe.png', label: 'probe', purpose: 'evidence' },
   uploadAttachment: { data: 'AAAA' },
   getAttachment: { attachmentId: probeId('attachment'), as: 'metadata' },

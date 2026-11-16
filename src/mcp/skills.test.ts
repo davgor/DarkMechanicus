@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import architecture from '../../docs/architecture.md?raw'
 import linearTransferSource from '../../skills/linear-transfer.md?raw'
 import linearRunbook from '../../docs/runbooks/linear-transfer.md?raw'
+import { BUILTIN_KNOWLEDGE } from '../core/knowledge/builtin'
+import { parseFact } from '../core/knowledge/fact'
 import { SKILLS_VERSION } from '../core/version'
 import { LINEAR_SETUP_LINES } from '../shared/domain/linearSetup'
 import { SKILLS, skillBody, splitSkillSource } from './skills'
@@ -141,7 +143,20 @@ describe('SKILLS_VERSION', () => {
     const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
     expect(major > 1 || (major === 1 && minor >= 10)).toBe(true)
   })
+
+  it('moved past 1.10.0 when the orchestrator guide split into a kernel and built-in knowledge facts', () => {
+    const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
+    expect(major > 1 || (major === 1 && minor >= 11)).toBe(true)
+  })
 })
+
+/** The orchestrator's rules live in its kernel guide plus the built-in orchestrator knowledge facts. */
+function orchestratorFactBodies(): string[] {
+  return BUILTIN_KNOWLEDGE.flatMap(({ path, source }) => {
+    const result = parseFact(source, { layer: 'builtin', path })
+    return result.ok && result.fact.scope.roles.includes('orchestrator') ? [result.fact.body] : []
+  })
+}
 
 /** Phrases each skill must keep; a guard against accidentally dropping a rule during edits. */
 const REQUIRED: [string, string[]][] = [
@@ -218,6 +233,9 @@ const REQUIRED: [string, string[]][] = [
   [
     'orchestrator',
     [
+      '## Rules that always apply',
+      'returns `context`',
+      '`get_context`',
       '`get_capabilities`',
       '`register_host`',
       '`start_run`',
@@ -254,7 +272,7 @@ const REQUIRED: [string, string[]][] = [
       "against its own criteria and the worker's targeted evidence",
       'Do not run the full sweep',
       'no per-ticket merge commit on the epic branch',
-      '## 3. Integration and the acceptance round',
+      "The sprint's combined work lives on a sprint integration branch in a separate worktree",
       'sprint integration branch',
       'separate worktree',
       'Keep the coordinating checkout on the epic branch',
@@ -276,7 +294,7 @@ const REQUIRED: [string, string[]][] = [
       'Claim the acceptance node before you submit the sprint report',
       '`pause_run`',
       '`resume_run`',
-      '### The retro and the redraft',
+      "The retro turns a sprint's leftovers and discoveries into the next sprint's plan",
       '`get_sprint_report`',
       '`redraft_next_sprint`',
       'Size every new ticket',
@@ -286,7 +304,7 @@ const REQUIRED: [string, string[]][] = [
       'Approve retro & redraft',
       'Never edit a sprint the run has passed',
       'Do not add tickets to a running plan yourself, except in the redraft loop',
-      '### When the sprint has a required leftover',
+      'a required ticket that is not accepted',
       'can never be accepted',
       'rolls the adoption back',
       'Adoption is allowed at a checkpoint with no open attempts',
@@ -299,7 +317,7 @@ const REQUIRED: [string, string[]][] = [
       'no `claimToken`, and a reason such as "claim response lost"',
       'claim it again with a new `idempotencyKey`; the old key keeps replaying the lost claim',
       'fails with `already_claimed` while its lease is live, `needs_reconciliation` once it has expired, and `run_not_active` while the run is paused',
-      '### Folders of repositories',
+      'When the project is a folder of Git repositories',
       "create it at that repository's `startCommit`: `git -C <path> branch <name> <startCommit>`",
       "Never switch the branch of a child repository's own checkout",
       'has no branch guard',
@@ -449,7 +467,7 @@ const REQUIRED: [string, string[]][] = [
 
 describe('skill content requirements', () => {
   it.each(REQUIRED)('%s keeps its required rules', (name, phrases) => {
-    const body = skill(name).body
+    const body = name === 'orchestrator' ? [skill(name).body, ...orchestratorFactBodies()].join('\n') : skill(name).body
     const missing = phrases.filter((phrase) => !body.includes(phrase))
     expect(missing).toEqual([])
   })

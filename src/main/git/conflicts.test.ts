@@ -6,7 +6,7 @@ import { copyGitRepo, createGitRepo, type GitRepo } from '../../test/gitRepo'
 import { isolateGitConfig, teammatePushes, useRemoteRepos } from '../../test/gitRemotes'
 import { useTemplate } from '../../test/gitTemplate'
 import { put } from '../../test/gitScratch'
-import { mergeIntoCurrent, switchBranch } from './branches'
+import { mergeIntoCurrent } from './branches'
 import { abortMerge, abortOperation, commitMerge, getConflicts, markResolved, resolveWith } from './conflicts'
 import { readWorkingDiff } from './diff'
 import { createGitRunner } from './runner'
@@ -316,10 +316,10 @@ describe('conflicts from a pull, a merge or a stash restore', () => {
 
   it('shows a conflicting stash restore, without a label, with the stashed work as mine, and Use mine keeps it', async () => {
     const r = repo()
-    r.git('branch', 'other')
     put(r.root, 'file-1.txt', 'stashed\n')
-    await switchBranch(runner, r.root, { name: 'other', uncommitted: 'stash' })
-    await switchBranch(runner, r.root, { name: 'main', uncommitted: 'bring' })
+    // The stash switching away with `stash` leaves on main (see stashChanges), made by git directly: the restore is
+    // what this tests, and a round trip through two switches would add some thirty git processes before it.
+    r.git('stash', 'push', '--include-untracked', '-m', 'dm-stash:main')
     put(r.root, 'file-1.txt', 'committed meanwhile\n')
     commitAll(r, 'meanwhile')
     await expect(restoreStash(runner, r.root, 'stash@{0}')).rejects.toMatchObject({ code: 'merge_conflicts' })

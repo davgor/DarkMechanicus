@@ -78,7 +78,7 @@ const chats: ChatsApi = {
 }
 
 /**
- * The narrow desktop bridge: every method is one `dm:*` or `agents:*` IPC invoke; main validates each payload.
+ * The narrow desktop bridge: every method is one `dm:*`, `agents:*` or `knowledge:*` IPC invoke; main validates each payload.
  * `terminals` adds `terminals:attach`, `agents:signIn` and the port main posts for a running chat or sign-in terminal.
  */
 const dm: DmApi = {
@@ -111,7 +111,10 @@ const dm: DmApi = {
   agentStatus: (id) => ipcRenderer.invoke('agents:status', id),
   folderDefaultAgent: (folder) => ipcRenderer.invoke('agents:folderDefault', folder),
   ompTerminalTheme: () => ipcRenderer.invoke('agents:ompTerminalTheme'),
-  setFolderDefaultAgent: (request) => ipcRenderer.invoke('agents:setFolderDefault', request)
+  setFolderDefaultAgent: (request) => ipcRenderer.invoke('agents:setFolderDefault', request),
+  knowledgeStatus: (folder) => ipcRenderer.invoke('knowledge:status', folder),
+  chooseKnowledgeRepository: () => ipcRenderer.invoke('knowledge:choose-repository'),
+  clearKnowledgeRepository: () => ipcRenderer.invoke('knowledge:clear-repository')
 }
 
 contextBridge.exposeInMainWorld('dm', dm)

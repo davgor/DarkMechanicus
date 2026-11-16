@@ -4,7 +4,7 @@
  */
 import type { ChatRecord } from '../../../shared/agents/chat'
 import { AGENT_DEFINITIONS } from '../../../shared/desktop/agentKinds'
-import type { AgentView, TrackedFolderView } from '../../../shared/desktop/api'
+import type { AgentView, KnowledgeStatusView, TrackedFolderView } from '../../../shared/desktop/api'
 import type {
   BoardImportView,
   BoardOpenEpicView,
@@ -224,6 +224,20 @@ export function chatRecord(patch: Partial<ChatRecord> = {}): ChatRecord {
     createdAt: '2026-03-01T10:00:00.000Z',
     updatedAt: '2026-03-01T10:00:00.000Z',
     sessionId: null,
+    ...patch
+  }
+}
+
+/** No overall repository set, nothing in the folder's own layer and no diagnostics; patch the rest as needed. */
+export function knowledgeStatus(patch: Partial<KnowledgeStatusView> = {}): KnowledgeStatusView {
+  return {
+    layers: {
+      builtin: { count: 3 },
+      overall: { configured: false, path: null, count: 0 },
+      repo: { path: '/a/.darkmechanicus/knowledge', count: 0 }
+    },
+    diagnostics: [],
+    git: null,
     ...patch
   }
 }
