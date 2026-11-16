@@ -164,6 +164,8 @@ Skitarii's existing `--append-system-prompt <instructions file>` loads that file
 
 Repository startup guidance in [`AGENTS.md`](../../AGENTS.md) points coding sessions to the common policy and detailed [`planner`](../../skills/planner.md), [`orchestrator`](../../skills/orchestrator.md), [`worker`](../../skills/worker.md) and [`reviewer`](../../skills/reviewer.md) guides. These are instructions, not an enforcement mechanism or a guarantee of model obedience.
 
+The orchestrator guide is a short kernel; the rest of the orchestrator's guidance arrives as knowledge facts, pushed as `context` by the commands that change run state and pulled with `get_context`. Layers, authoring and the measured context sizes are in [`knowledge.md`](knowledge.md).
+
 **Updating and reloading:** changing repository Markdown does not patch an already installed or running app. Rebuild and relaunch the development app, or install an updated packaged build, then stop/start the chat terminal (**Start again**, or **New session** if a resume is refused) to regenerate and reload its instructions. A currently running CLI is not hot-updated; resuming can retain older conversational context even though the current policy is appended again. This loading contract does not establish that any model will follow the prose, and does not claim a live installed-app or paid-model test.
 
 ### Panels that follow a chat

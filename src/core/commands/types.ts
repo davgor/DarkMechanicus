@@ -21,6 +21,8 @@ import type { z } from 'zod'
 export interface WorkspaceCore {
   readonly desktopClient: DesktopClient
   readonly repoRoot: string
+  /** The Dark Mechanicus home directory (overall knowledge pointer, db-mode projects). */
+  readonly homeDir: string
   readonly layout: RepoLayout
   readonly fs: FsAdapter
   readonly git: GitAdapter

@@ -1,7 +1,7 @@
 # Baseline ignore for ts-prune: one `file - export` per line (line numbers are not matched)
 # Generated from tsconfig.node.json + tsconfig.web.json
 # Refresh after export moves/deletes: npm run deadcode:refresh
-# Refreshed 2026-11-16 (159 entries)
+# Refreshed 2026-11-16 (162 entries)
 
 electron.vite.config.ts - default
 src/core/canonical.ts - canonicalJson
@@ -81,6 +81,8 @@ src/shared/desktop/api.ts - CommandInput
 src/shared/desktop/api.ts - CommandOutput
 src/shared/desktop/api.ts - DESKTOP_COMMANDS
 src/shared/desktop/api.ts - DesktopCommandName
+src/shared/desktop/api.ts - KnowledgeDiagnosticView
+src/shared/desktop/api.ts - KnowledgeLayerName
 src/shared/desktop/attachmentUrl.ts - ATTACHMENT_SCHEME
 src/shared/domain/agentMail.ts - AgentMailMessageView
 src/shared/domain/agentMail.ts - AgentMailWakeState
@@ -162,3 +164,4 @@ src/shared/domain/views.ts - RedraftSkipCode
 src/shared/domain/views.ts - RedraftSkippedView
 src/shared/domain/views.ts - StorageLocationView
 src/shared/domain/views.ts - WorkerInfo
+src/test/realGit.ts - default

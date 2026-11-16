@@ -84,6 +84,8 @@ export interface RepoLayout {
   profilesDir: string
   /** Kanban cards: `kanban/<cardId>/card.json` and one immutable `events/<eventId>.json` per transition. */
   kanbanDir: string
+  /** Repository-layer knowledge facts (`**\/*.md`); tracked by Git in `repo` mode (`.gitignore` ignores only `local/`). */
+  knowledgeDir: string
   localDir: string
   dbFile: string
   machineFile: string

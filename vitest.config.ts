@@ -8,6 +8,8 @@ export default defineConfig({
   test: {
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'scripts/**/*.test.mjs'],
     environment: 'node',
+    // On Windows, git without Git for Windows' launcher process in front of each call (see src/test/realGit.ts).
+    globalSetup: ['src/test/realGit.ts'],
     testTimeout: 15_000,
     // A hook gets the same bound as the test it sets up: on a stalled Windows runner a one-second setup has run past
     // vitest's 10 s default.

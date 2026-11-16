@@ -17,6 +17,7 @@ import type {
   TicketSize
 } from './bundle'
 import type { AttemptTimelineView, RunTimelineView, TimelineWindow } from './activity'
+import type { ContextView, GetContextInput, PushedContext } from './knowledge'
 import type { SprintRetroInput } from './retro'
 import type {
   RecordTransferItemInput,
@@ -545,7 +546,7 @@ export interface CommandApi {
    * Claims a card with a pending Play (`play_required` without one, `already_claimed` while an attempt is open) and
    * moves it to In progress. The packet's claim token is returned once. Orchestrator only.
    */
-  claimKanbanCard(input: ClaimKanbanCardInput): Promise<KanbanPacket>
+  claimKanbanCard(input: ClaimKanbanCardInput): Promise<KanbanPacket & PushedContext>
   heartbeatKanbanCard(input: HeartbeatKanbanCardInput): Promise<KanbanAttemptView>
   /** Moves the card to Ready for review. */
   submitKanbanCard(input: SubmitKanbanCardInput): Promise<KanbanAttemptView>
@@ -577,10 +578,10 @@ export interface CommandApi {
   registerHost(input: HostCatalog): Promise<HostCatalogView>
   matchCapabilities(input: { ticketId: string; runId: string }): Promise<CapabilityMatchView>
   queueRun(input: { epicId: string }): Promise<RunView>
-  startRun(input: StartRunInput): Promise<RunView>
+  startRun(input: StartRunInput): Promise<RunView & PushedContext>
   getRun(input: { runId?: string; epicId?: string }): Promise<RunView | null>
   getReadyTickets(input: { runId: string }): Promise<ReadinessView>
-  claimTicket(input: ClaimTicketInput): Promise<ClaimResultView>
+  claimTicket(input: ClaimTicketInput): Promise<ClaimResultView & PushedContext>
   heartbeatAttempt(input: HeartbeatAttemptInput): Promise<AttemptView>
   submitAttempt(input: SubmitAttemptInput): Promise<AttemptView>
   acceptAttempt(input: {
@@ -588,19 +589,19 @@ export interface CommandApi {
     notes?: string
     criteria?: CriterionResult[]
     idempotencyKey?: string
-  }): Promise<AttemptView>
+  }): Promise<AttemptView & PushedContext>
   rejectAttempt(input: {
     attemptId: string
     reasons: string[]
     notes?: string
     idempotencyKey?: string
-  }): Promise<AttemptView>
+  }): Promise<AttemptView & PushedContext>
   failAttempt(input: {
     attemptId: string
     claimToken?: string
     failure: Partial<AttemptFailure> & { reason: string }
     idempotencyKey?: string
-  }): Promise<AttemptView>
+  }): Promise<AttemptView & PushedContext>
   reconcileAttempt(input: {
     attemptId: string
     resolution: 'abandon' | 'resubmit'
@@ -609,16 +610,17 @@ export interface CommandApi {
     notes?: string
   }): Promise<AttemptView>
   carryForwardTicket(input: { runId: string; ticketId: string; note: string }): Promise<AttemptView>
-  recordRowCheck(input: RecordRowCheckInput): Promise<RowCheckView>
+  /** Carries `context` (for an orchestrator) only when the check did not pass. */
+  recordRowCheck(input: RecordRowCheckInput): Promise<RowCheckView & PushedContext>
   pauseRun(input: { runId: string; reason?: string }): Promise<RunView>
   resumeRun(input: { runId: string }): Promise<RunView>
   cancelRun(input: { runId: string; reason?: string }): Promise<RunView>
-  takeoverRun(input: { runId: string }): Promise<RunView>
+  takeoverRun(input: { runId: string }): Promise<RunView & PushedContext>
   adoptRevision(input: {
     runId: string
     revisionId: string
     carryForward?: string[]
-  }): Promise<RunView>
+  }): Promise<RunView & PushedContext>
 
   // Checkpoints
   /**
@@ -633,11 +635,11 @@ export interface CommandApi {
     sprintId: string
     report: SprintReportInput
     idempotencyKey?: string
-  }): Promise<SprintReportView>
+  }): Promise<SprintReportView & PushedContext>
   getSprintReport(input: { runId: string; sprintId?: string }): Promise<SprintReportView | null>
   getCheckpoint(input: { runId: string }): Promise<CheckpointView>
   approveCheckpoint(input: { runId: string; reportId: string }): Promise<ApprovalView>
-  advanceSprint(input: { runId: string; idempotencyKey?: string }): Promise<RunView>
+  advanceSprint(input: { runId: string; idempotencyKey?: string }): Promise<RunView & PushedContext>
   approveAndAdvance(input: {
     runId: string
     reportId: string
@@ -676,6 +678,11 @@ export interface CommandApi {
   getAttemptTimeline(input: { attemptId: string } & TimelineWindow): Promise<AttemptTimelineView>
   /** A run's story grouped by the session that did each thing; paged with `sinceSeq` like an attempt timeline. */
   getRunTimeline(input: { runId: string } & TimelineWindow): Promise<RunTimelineView>
+  /**
+   * The knowledge facts scoped to the session's role and the given event or topics, ranked and trimmed to a token
+   * budget, from the built-in, overall and repository layers. A ticket's `file` references join the path boost.
+   */
+  getContext(input: GetContextInput): Promise<ContextView>
 
   // Linear transfer of a saved epic
   /**

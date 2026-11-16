@@ -167,6 +167,10 @@ granting it to yourself.
 **A `dm` session is a reader until a person grants it a role.** A reader may read: list epics, read
 plans and tickets, search history. Everything else is refused with `unauthorized`.
 
+The orchestrator's knowledge (the `context` a command pushes, and `get_context`) is scoped to the
+`orchestrator` role, so a reader gets no built-in facts; see [`knowledge.md`](knowledge.md) for the
+layers, authoring facts and how to measure the context with an orchestrator session.
+
 To give an agent more, issue a grant in the desktop app: the folder's **Agent access** card →
 **Authorize an agent** → pick a role and how long it lasts. The token is shown once and never
 again; the database keeps only its hash.

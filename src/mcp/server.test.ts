@@ -1,6 +1,8 @@
 import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
 import { describe, expect, it } from 'vitest'
 import { DomainError } from '../core/errors'
+import { BUILTIN_KNOWLEDGE } from '../core/knowledge/builtin'
+import { parseFact } from '../core/knowledge/fact'
 import { draftOp } from '../core/schemas'
 import { DOMAIN_ERROR_CODES } from '../shared/domain/errors'
 import type { CommandName } from '../shared/domain/api'
@@ -28,6 +30,7 @@ const TOOLS: Record<string, { method: CommandName; kind: Kind }> = {
   list_projects: { method: 'getProject', kind: 'read' },
   initialize_repository: { method: 'initializeRepository', kind: 'idempotent' },
   get_storage_status: { method: 'getStorageStatus', kind: 'read' },
+  get_context: { method: 'getContext', kind: 'read' },
   flush_portable_state: { method: 'flushPortableState', kind: 'idempotent' },
   reconcile_repository: { method: 'reconcileRepository', kind: 'idempotent' },
   search_history: { method: 'searchHistory', kind: 'read' },
@@ -376,10 +379,18 @@ const VOCABULARY = new Set<string>([
   ...DRAFT_OPS
 ])
 
+const BUILTIN_FACT_BODIES = BUILTIN_KNOWLEDGE.map(({ path, source }) => {
+  const result = parseFact(source, { layer: 'builtin', path })
+  return [path, result.ok ? result.fact.body : ''] as const
+})
+
 describe('skills only name real tools', () => {
-  it.each(SKILLS.map((skill) => [skill.name, skill.body]))('%s uses known tools and vocabulary', (_name, body) => {
-    const tokens = new Set(body.match(/`[a-z][a-z0-9]*(?:_[a-z0-9]+)+`/g)?.map((token) => token.slice(1, -1)))
-    const unknown = [...tokens].filter((token) => !Object.hasOwn(TOOLS, token) && !VOCABULARY.has(token))
-    expect(unknown).toEqual([])
-  })
+  it.each([...SKILLS.map((skill) => [skill.name, skill.body] as const), ...BUILTIN_FACT_BODIES])(
+    '%s uses known tools and vocabulary',
+    (_name, body) => {
+      const tokens = new Set(body.match(/`[a-z][a-z0-9]*(?:_[a-z0-9]+)+`/g)?.map((token) => token.slice(1, -1)))
+      const unknown = [...tokens].filter((token) => !Object.hasOwn(TOOLS, token) && !VOCABULARY.has(token))
+      expect(unknown).toEqual([])
+    }
+  )
 })

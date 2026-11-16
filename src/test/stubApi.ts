@@ -110,6 +110,7 @@ const COMMAND_FLAGS: Record<CommandName, true> = {
   listEvents: true,
   getAttemptTimeline: true,
   getRunTimeline: true,
+  getContext: true,
   queueTransfer: true,
   cancelTransfer: true,
   startTransfer: true,

@@ -149,7 +149,9 @@ describe('orchestrator kickoff: no credential', () => {
 describe('orchestrator guidance, for the instructions file', () => {
   it('carries the orchestrator guidance exactly as the MCP prompt serves it', async () => {
     const served = await servedPrompt('orchestrator')
-    expect(served.length).toBeGreaterThan(10_000)
+    // The served guide is the kernel: the always-apply rules plus how to fetch the scoped knowledge facts.
+    expect(served).toContain('## Rules that always apply')
+    expect(served).toContain('`get_context`')
     expect(orchestratorGuidance()).toContain(served.trimEnd())
   })
 

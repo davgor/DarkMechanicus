@@ -6,7 +6,7 @@ import { copyGitRepo, createGitRepo, type GitRepo } from '../../test/gitRepo'
 import { isolateGitConfig, teammatePushes, useRemoteRepos } from '../../test/gitRemotes'
 import { gitIn, put, scratchDir } from '../../test/gitScratch'
 import { useTemplate } from '../../test/gitTemplate'
-import { createBranch, deleteBranch, switchBranch } from './branches'
+import { deleteBranch, switchBranch } from './branches'
 import { GitInputError } from './errors'
 import { createGitRunner } from './runner'
 import { discardStash, listStashes, restoreStash } from './stash'
@@ -73,12 +73,12 @@ describe('switching during an operation and with hooks', () => {
 describe('stashes beside a branch named stash', () => {
   it('lists, restores and discards them', async () => {
     const r = repo()
-    await createBranch(runner, r.root, { name: 'stash', startPoint: 'current' })
-    r.switchTo('main')
+    // The branch and both DM stashes are made by git directly, each stash as switching away with `stash` makes it on
+    // main (see stashChanges): listing, restoring and discarding them beside the branch is what this tests, and the
+    // app's create and switch round trips would add some fifty git processes before it.
+    r.git('branch', 'stash')
     put(r.root, 'file-1.txt', 'one\n')
-    await switchBranch(runner, r.root, { name: 'other', uncommitted: 'stash' })
-    await switchBranch(runner, r.root, { name: 'main', uncommitted: 'bring' })
-    // The second DM stash is made the way switchBranch makes it, without another round trip through both branches.
+    r.git('stash', 'push', '--include-untracked', '-m', 'dm-stash:main')
     put(r.root, 'file-1.txt', 'two\n')
     r.git('stash', 'push', '--include-untracked', '-m', 'dm-stash:main')
     expect((await listStashes(runner, r.root)).map((stash) => stash.files)).toEqual([
@@ -94,8 +94,8 @@ describe('stashes beside a branch named stash', () => {
   it('reports a restore blocked by an existing untracked file as local changes, keeping the stash', async () => {
     const r = repo()
     put(r.root, 'u.txt', 'stashed\n')
-    await switchBranch(runner, r.root, { name: 'other', uncommitted: 'stash' })
-    await switchBranch(runner, r.root, { name: 'main', uncommitted: 'bring' })
+    // The DM stash switching away with `stash` leaves on main, made by git directly (see the test above).
+    r.git('stash', 'push', '--include-untracked', '-m', 'dm-stash:main')
     put(r.root, 'u.txt', 'in the way\n')
     await expect(restoreStash(runner, r.root, 'stash@{0}')).rejects.toMatchObject({ code: 'local_changes_would_be_overwritten' })
     expect(stashSubjects(r)).toEqual(['On main: dm-stash:main'])

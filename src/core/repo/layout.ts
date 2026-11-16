@@ -26,6 +26,7 @@ export function layoutUnder(root: string, mode: StorageMode, base: string): Repo
     historyDir: join(base, 'history'),
     profilesDir: join(base, 'profiles'),
     kanbanDir: join(base, 'kanban'),
+    knowledgeDir: join(base, 'knowledge'),
     localDir,
     dbFile: join(localDir, 'state.sqlite'),
     machineFile: join(localDir, 'machine.json')

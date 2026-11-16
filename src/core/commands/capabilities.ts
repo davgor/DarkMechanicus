@@ -34,6 +34,7 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   listEvents: 'read',
   getAttemptTimeline: 'read',
   getRunTimeline: 'read',
+  getContext: 'read',
   listEpics: 'read',
   createEpic: 'epic.create',
   getEpic: 'read',

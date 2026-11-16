@@ -13,8 +13,9 @@ import { registerChatIpc, registerChatMailIpc } from '../main/agents/chatIpc'
 import type { ChatHandlers } from '../main/agents/chatHandlers'
 import type { ChatMailHandlers } from '../main/agents/agentMailDesktop'
 import { registerAutoUpdateHandlers } from '../main/autoUpdate'
-import { registerDesktopIpc } from '../main/desktop/ipc'
+import { registerDesktopIpc, registerKnowledgeIpc } from '../main/desktop/ipc'
 import type { DesktopHandlers } from '../main/desktop/handlers'
+import type { KnowledgeHandlers } from '../main/desktop/knowledgeHandlers'
 import { registerGitIpc } from '../main/git/ipc'
 import type { GitHandlers } from '../main/git/handlers'
 import { registerGithubIpc } from '../main/github/ipc'
@@ -85,6 +86,7 @@ beforeAll(() => {
   registerGitIpc(recorder(true), recordingHandlers<GitHandlers>())
   registerGithubIpc(recorder(true), recordingHandlers<GithubHandlers>())
   registerDesktopIpc(recorder(true), recordingHandlers<DesktopHandlers>())
+  registerKnowledgeIpc(recorder(true), recordingHandlers<KnowledgeHandlers>())
   registerChatIpc(recorder(true), recordingHandlers<ChatHandlers>())
   registerChatMailIpc(recorder(true), recordingHandlers<ChatMailHandlers>())
   registerAutoUpdateHandlers(recorder(false))
