@@ -95,7 +95,7 @@ export const COMMAND_SCHEMAS = {
   }),
   issueGrant: z.strictObject({
     role: z.enum(['planner', 'orchestrator', 'worker', 'reviewer', 'reader']),
-    label: z.string().min(1).max(120),
+    label: z.string().min(1).max(LIMITS.grantLabel),
     minutes: z.number().int().min(MIN_GRANT_MINUTES).max(MAX_GRANT_MINUTES).optional(),
     allowSave: z.boolean().optional()
   }),
