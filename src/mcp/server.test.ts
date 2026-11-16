@@ -96,7 +96,15 @@ const TOOLS: Record<string, { method: CommandName; kind: Kind }> = {
   claim_kanban_card: { method: 'claimKanbanCard', kind: 'write' },
   heartbeat_kanban_card: { method: 'heartbeatKanbanCard', kind: 'idempotent' },
   submit_kanban_card: { method: 'submitKanbanCard', kind: 'write' },
-  fail_kanban_card: { method: 'failKanbanCard', kind: 'write' }
+  fail_kanban_card: { method: 'failKanbanCard', kind: 'write' },
+  // Listed to every hosted role; over MCP the service refuses each call, since no stdio session has a bound grant.
+  get_agent_identity: { method: 'getAgentIdentity', kind: 'read' },
+  list_agent_peers: { method: 'listAgentPeers', kind: 'read' },
+  send_agent_message: { method: 'sendAgentMessage', kind: 'write' },
+  read_agent_inbox: { method: 'readAgentInbox', kind: 'read' },
+  acknowledge_agent_messages: { method: 'acknowledgeAgentMessages', kind: 'idempotent' },
+  get_agent_mail_status: { method: 'getAgentMailStatus', kind: 'read' },
+  take_agent_mail_wake: { method: 'takeAgentMailWake', kind: 'write' }
 }
 
 /** Tools only a planner (or the desktop) holds the capability for: an orchestrator session does not list them. */

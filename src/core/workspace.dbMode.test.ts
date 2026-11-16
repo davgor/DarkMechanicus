@@ -2,13 +2,26 @@
  * A database-only workspace: everything lives in the Dark Mechanicus home directory, the repository
  * folder gains no file at all, and planning and running an epic work exactly as in `repo` mode.
  */
-import { existsSync, mkdirSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { defaultCapabilityProfile } from '../shared/domain/bundle'
 import { dropAcceptanceNodes } from '../test/acceptanceNodes'
+import { createTestCtx } from '../test/testContext'
 import { createHarness, type Harness } from '../test/workspaceHarness'
-import { dbProjectDir } from './repo/storageMode'
+import { openDatabase, type Db } from './db/database'
+import { DomainError } from './errors'
+import { dbProjectDir, type StorageMode } from './repo/storageMode'
+import {
+  acceptMessage,
+  acknowledgeMessages,
+  type AgentMailDeps,
+  getEndpoint,
+  markHumanSeen,
+  provisionEndpoint,
+  readHumanMailState,
+  readInbox
+} from './services/agentMailStore'
 import type { Workspace } from './workspace'
 
 let harness: Harness
@@ -182,9 +195,10 @@ describe('repository-shaped commands in a database-only project', () => {
     expect(await agent.listBranchEpics()).toEqual([])
   })
 
-  it('backs the database up inside the project directory, never into the repository', async () => {
+  it('backs the database up inside the project directory, never into the repository, for the desktop only', async () => {
     const agent = await initialized()
-    const backup = await agent.backupDatabase({})
+    await expect(agent.backupDatabase({})).rejects.toMatchObject({ code: 'unauthorized' })
+    const backup = await harness.open('desktop').backupDatabase({})
     expect(backup.path.startsWith(projectDir())).toBe(true)
     expect(repoEntries()).toEqual([])
   })
@@ -332,5 +346,129 @@ describe('a session that opened before the folder was set up', () => {
 
     // It was opened for repo mode explicitly, so it must not silently adopt the db project.
     expect(waiting.isInitialized()).toBe(false)
+  })
+})
+
+/** Where a mode keeps its records: the repository's `.darkmechanicus/`, or the project directory in the home directory. */
+function recordsDir(mode: StorageMode): string {
+  return mode === 'repo' ? join(harness.root, '.darkmechanicus') : projectDir()
+}
+
+/** Every row of every table that is not agent mail, as text: where message data must never appear. */
+function otherTablesText(db: Db): string {
+  const tables = db
+    .all<{ name: string }>("SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'agent_mail_%' AND name NOT LIKE 'search_index_%'")
+    .map((row) => row.name)
+  return JSON.stringify(tables.map((name) => db.all(`SELECT * FROM "${name}"`)), (_key, value: unknown) =>
+    value instanceof Uint8Array ? Buffer.from(value).toString('latin1') : value
+  )
+}
+
+interface Mail {
+  a: string
+  b: string
+  acked: string
+  pending: string
+  body: string
+}
+
+function sendMail(deps: AgentMailDeps, mode: StorageMode): Mail {
+  const machineId = 'mc_00000000000000000000000001'
+  const a = provisionEndpoint(deps, { machineId, chatId: 'chat-a', name: 'Planner chat' })
+  const b = provisionEndpoint(deps, { machineId, chatId: 'chat-b', name: 'Worker chat' })
+  const body = `private-mail-body-${mode}`
+  const acked = acceptMessage(deps, { senderEndpointId: a.id, to: b.id, clientMessageId: 'm-1', body: `${body}-acked` })
+  const pending = acceptMessage(deps, { senderEndpointId: a.id, to: b.id, clientMessageId: 'm-2', body: `${body}-pending` })
+  acknowledgeMessages(deps, { endpointId: b.id, messageIds: [acked.messageId] })
+  markHumanSeen(deps, { endpointId: b.id, throughSeq: 1 })
+  return { a: a.id, b: b.id, acked: acked.messageId, pending: pending.messageId, body }
+}
+
+function expectMailKept(deps: AgentMailDeps, mail: Mail): void {
+  expect(getEndpoint(deps, mail.b)).toMatchObject({ state: 'open', lastSeq: 2, humanSeenSeq: 1 })
+  expect(readInbox(deps, { endpointId: mail.b }).messages.map((message) => [message.id, message.body, message.acknowledgedAt !== null])).toEqual([
+    [mail.acked, `${mail.body}-acked`, true],
+    [mail.pending, `${mail.body}-pending`, false]
+  ])
+  expect(readHumanMailState(deps, mail.b)).toMatchObject({ humanSeenSeq: 1, unseenCount: 1, pendingCount: 1 })
+}
+
+/** A project in `mode` with portable records of its own, and mail between two of its chats. */
+async function setUpMail(mode: StorageMode): Promise<{ agent: Workspace; mail: Mail }> {
+  const agent = harness.open('orchestrator', { mode })
+  await agent.initializeRepository({ name: 'mail-project' })
+  const epic = await agent.createEpic({ title: 'Portable work' })
+  await agent.addComment({ epicId: epic.id, body: 'A portable note.' })
+  return { agent, mail: sendMail(agent.ctx(), mode) }
+}
+
+describe.each(['repo', 'db'] as const)('local agent mail in %s mode', (mode) => {
+  it('keeps mail through flush, reconcile, a branch change and a reopen, in the local database only', async () => {
+    const { agent, mail } = await setUpMail(mode)
+    await agent.flushPortableState()
+    await agent.reconcileRepository()
+    harness.git.setHead({ branch: 'feature/elsewhere', commit: 'c'.repeat(40), detached: false })
+    await agent.reconcileRepository()
+    expectMailKept(agent.ctx(), mail)
+    expect(otherTablesText(agent.ctx().db)).not.toContain(mail.body)
+    expect(otherTablesText(agent.ctx().db)).not.toContain(mail.pending)
+    agent.close()
+
+    const reopened = harness.open('orchestrator')
+    expectMailKept(reopened.ctx(), mail)
+    const tracked = tree(recordsDir(mode)).filter((path) => !path.startsWith('local'))
+    expect(tracked.length).toBeGreaterThan(0)
+    for (const path of tracked.filter((entry) => statSync(join(recordsDir(mode), entry)).isFile())) {
+      expect(readFileSync(join(recordsDir(mode), path), 'latin1')).not.toContain(mail.body)
+    }
+    if (mode === 'db') {
+      expect(repoEntries()).toEqual([])
+    }
+  })
+
+  it('lets the desktop back the mail up and restore it from the copy', async () => {
+    const { agent, mail } = await setUpMail(mode)
+    await expect(agent.backupDatabase({})).rejects.toMatchObject({ code: 'unauthorized' })
+    const backup = await harness.open('desktop').backupDatabase({})
+    const copy = openDatabase(backup.path)
+    try {
+      expectMailKept(createTestCtx({ db: copy, clock: harness.clock }), mail)
+    } finally {
+      copy.close()
+    }
+  })
+})
+
+describe.each(['repo', 'db'] as const)('a project mismatch in %s mode', (mode) => {
+  it('refuses a database of another project with advice that keeps the only copy of its mail', async () => {
+    const { agent, mail } = await setUpMail(mode)
+    agent.close()
+    const projectFile = join(recordsDir(mode), 'project.json')
+    const project = JSON.parse(readFileSync(projectFile, 'utf8')) as { projectId: string }
+    writeFileSync(projectFile, `${JSON.stringify({ ...project, projectId: 'pj_0000000000zzzzzzzzzzzzzzzz' }, null, 2)}\n`)
+    let refused: unknown
+    try {
+      harness.open('orchestrator')
+    } catch (error: unknown) {
+      refused = error
+    }
+    expect(refused).toBeInstanceOf(DomainError)
+    const error = refused as DomainError
+    expect(error.code).toBe('project_mismatch')
+    expect(error.details).toMatchObject({ localDir: join(recordsDir(mode), 'local') })
+    expect(error.message).toContain('do not delete it')
+    expect(existsSync(join(recordsDir(mode), 'local', 'state.sqlite'))).toBe(true)
+    if (mode === 'repo') {
+      // Following the advice: the old database moved aside keeps its mail while tracked records rebuild a new one.
+      const aside = join(harness.root, 'local-aside')
+      renameSync(join(recordsDir(mode), 'local'), aside)
+      expect((await harness.open('orchestrator').getProject()).projectId).toBe('pj_0000000000zzzzzzzzzzzzzzzz')
+      const kept = openDatabase(join(aside, 'state.sqlite'))
+      try {
+        expectMailKept(createTestCtx({ db: kept, clock: harness.clock }), mail)
+      } finally {
+        kept.close()
+      }
+    }
   })
 })

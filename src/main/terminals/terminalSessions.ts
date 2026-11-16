@@ -11,11 +11,14 @@
  * 2. for a built-in agent, the CLI's own sign-in status: `signed_out` starts nothing. The check can take 30 s
  *    (Autonomous), so an attach made while it runs answers `checking`, and its listener hears how the start ended;
  * 3. `writeStartFiles`, the named pre-start step that writes the files the CLI is started with;
- * 4. the grant, issued through `chatGrants`;
- * 5. the grant's id, stored on the chat record (`grantIds` in `index.jsonl`), then the spawn.
+ * 4. the grant, issued through `chatGrants` for the chat's trusted identity: an OMP chat's grant comes back already
+ *    bound to the chat's mailbox (`chatMailboxes.ts`), so no Skitarii CLI ever runs on an unbound grant;
+ * 5. the grant's id and the mailbox's id, stored on the chat record (`grantIds`, `endpointId` in `index.jsonl`), then
+ *    the spawn.
  *
  * The folder check runs again before the grant and right before the spawn, since the folder can go away during
- * the sign-in check; a start cancelled (a deleted chat, a removed agent, quit) stops at its next step.
+ * the sign-in check; a start cancelled (a deleted chat, a removed agent, an untracked folder, quit) stops at its next
+ * step, and a grant that arrives after the cancel is revoked, its mailbox binding closed with it, and never spawned.
  *
  * The grant is revoked on every way out: the PTY exits, it is killed (a deleted chat, a removed agent, a folder
  * that moved, quit), the spawn fails, or the start is cancelled after the grant was issued (also when the grant
@@ -27,6 +30,7 @@
  * tracked, set-up folder (`reachFolders`, read at the start; `chatReach.ts`), issued together (`issueReachCli`) and
  * stored, renewed, bound for naming and revoked together on every way out above. With no such folder it starts with no
  * grant at all, and its instructions say no folder is tracked yet; a folder tracked later is reached from its next start.
+ * A project-less chat has no mailbox: none of its grants is bound to one, and it gets no mail client descriptor.
  *
  * **Screen.** Each PTY's output goes through a headless terminal of the same size (`terminalScreen.ts`). An
  * attach answers with its serialized snapshot and subscribes its listener at that same point in the output, so
@@ -62,9 +66,13 @@
  * it marks the session started). A kickoff pasted stores `kickoffSent` once its Enter has gone. A PTY that exits or
  * is stopped first gets nothing more: what still waits in it is dropped.
  *
+ * **Untrack.** `releaseFolder` refuses every start in the folder, stops its PTYs and cancels its starts, waits for
+ * their kills and revokes, and only then runs the untrack itself (suspending the mailboxes, forgetting the folder and
+ * closing its workspace), so nothing of the folder runs or binds after it is forgotten. Its mailboxes keep their mail.
+ *
  * **Quit.** `busy` and `dispose` go to `disposeBeforeQuit`: `dispose` stops new starts, cancels the ones under
  * way, kills every PTY tree and resolves once every PTY has reported its exit and every revoke and kill has
- * settled; the quit's own bound (5 s) holds.
+ * settled; the quit's own bound (5 s) holds. Mailboxes keep their mail: only deleting a chat deletes its mailbox.
  *
  * **Signed out.** When an orchestrator chat's CLI exits on its own (not a quit, a deleted chat, a removed agent or a
  * folder stop, which all set the stop message first), main runs the agent's status command, and only when
@@ -76,6 +84,7 @@ import { homedir, tmpdir } from 'node:os'
 import type { ChatRecord, ChatRole, DarkMechanicusCli } from '../../shared/agents/chat'
 import type { AgentAuthStatus, AgentId, AgentView, BuiltInAgentKind } from '../../shared/desktop/api'
 import { SIGNED_OUT_PAUSE_REASON, type RunState } from '../../shared/domain/status'
+import type { GrantChat, IssuedChatCli } from '../agents/chatGrants'
 import { reachTargets, type ReachTarget } from '../agents/chatReach'
 import type { ChatRef, ChatStore } from '../agents/chatStore'
 import { resolveLaunchFolder, type LaunchFolderDeps } from '../agents/launchFolder'
@@ -88,7 +97,7 @@ import { ompSessionId, writeOmpFiles } from './ompSession'
 import { writeClaudeSettings } from './claudeSettingsFile'
 import type { PtyExit, PtyHost, PtyProcess } from './ptyHost'
 import { terminalLaunchSpec, type TerminalLaunchSpec } from './terminalLaunchSpec'
-import { writeTerminalFiles, type TerminalFiles } from './terminalFiles'
+import { removeDmClientDescriptor, writeDmClientDescriptor, writeTerminalFiles, type TerminalFiles } from './terminalFiles'
 import { createTerminalScreen, type TerminalScreen } from './terminalScreen'
 
 /** How often a running PTY's folder is checked again. */
@@ -112,6 +121,7 @@ const BRACKETED_PASTE_ON = '\x1b[?2004h'
 const QUITTING = 'The app is quitting, so the terminal was stopped.'
 const DELETED = 'The chat was deleted, so its terminal was stopped.'
 const AGENT_REMOVED = "The chat's agent was removed, so its terminal was stopped."
+const UNTRACKED = "The chat's folder was untracked, so its terminal was stopped."
 
 /** Why a chat named by `ref` cannot be found. */
 function noChat(ref: ChatRef): string {
@@ -180,6 +190,11 @@ export interface TerminalSessions {
    * delete) once the kill has settled, refusing every start of the chat until `remove` has settled.
    */
   deleteChat(ref: ChatRef, remove: () => Promise<void>): Promise<void>
+  /**
+   * Untrack: refuses every start of the folder's chats, stops their PTYs and cancels their starts, waits until their
+   * kills and revokes have settled, then runs `forget` (the untrack itself) before starts are let through again.
+   */
+  releaseFolder(folder: string, forget: () => void): Promise<void>
   /** Kills the PTYs of every chat of a removed agent, and cancels their starts. */
   endAgent(id: AgentId): Promise<void>
   /** True while a PTY runs, a start is under way, or a revoke or kill has not settled. */
@@ -220,8 +235,9 @@ export interface TerminalSessionsDeps {
   /** The `dm` invocation pinned to `folder` (to none for null: a project-less chat's), without a grant: what the start files name. */
   cliFor: (folder: string | null) => DarkMechanicusCli
   runs: OrchestratorRuns
-  issueChatCli: (folder: string, grant: GrantOptions) => Promise<{ cli: DarkMechanicusCli; grantId: string }>
-  /** A project-less chat's grants, one per target folder, each token written to its file (`chatGrants.ts`). */
+  /** Issues the chat's grant, bound to its mailbox when it has one, before anything is spawned (`chatGrants.ts`). */
+  issueChatCli: (folder: string, grant: GrantOptions, chat: GrantChat) => Promise<IssuedChatCli>
+  /** A project-less chat's grants, one per target folder, each token written to its file, bound to no mailbox (`chatGrants.ts`). */
   issueReachCli: (targets: readonly ReachTarget[], grant: GrantOptions) => Promise<{ cli: DarkMechanicusCli; grantIds: string[] }>
   /** The canonical paths of the tracked folders set up for Dark Mechanicus: what a project-less chat reaches. */
   reachFolders: () => string[]
@@ -281,6 +297,8 @@ interface PasteQueue {
 /** A chat whose PTY is running (or has just exited and is still putting its last output on the screen). */
 interface Live {
   readonly generation: string
+  /** The launch's mail client descriptor (`writeDmClientDescriptor`), removed when it ends; null when it has none. */
+  readonly dmClient: string | null
   kind: 'live'
   chat: ChatRecord
   pty: PtyProcess
@@ -314,6 +332,8 @@ type StartOutcome = { state: 'running'; live: Live } | { state: NotStartedState;
 interface Starting {
   kind: 'starting'
   agentId: AgentId
+  /** The chat's canonical folder, for `releaseFolder`; null for a project-less chat, which no untrack releases. */
+  folder: string | null
   /** `checking` until the sign-in check has answered. */
   phase: 'checking' | 'preparing'
   done: Promise<StartOutcome>
@@ -329,6 +349,8 @@ interface Manager {
   pending: Set<Promise<unknown>>
   /** Chats being deleted, which nothing may start. */
   deleting: Set<string>
+  /** Folders being untracked, in which nothing may start. */
+  releasing: Set<string>
   closing: boolean
 }
 
@@ -443,6 +465,8 @@ async function writeStartFiles(context: StartContext): Promise<TerminalFiles> {
     allowSave: chat.allowSave,
     orchestratesRun: chat.runId !== undefined,
     nameFirstPrompt: chat.titleStatus === 'pending',
+    // A project-less chat has no mailbox, so no mail guidance.
+    skitariiMail: agent.kind === 'omp' && reach === undefined,
     ...(chat.transferEpicId === undefined ? {} : { transferEpicId: chat.transferEpicId }),
     ...(chat.cardId === undefined ? {} : { cardId: chat.cardId }),
     ...(reach === undefined ? {} : { reach })
@@ -648,6 +672,9 @@ interface Started {
   marksStarted: boolean
   /** The launch's `pasteFirst`, and whether the kickoff is in it; null when there is none. */
   firstPaste: Paste | null
+  /** The launch's generation, which its grant binding and mail client descriptor name. */
+  generation: string
+  dmClient: string | null
 }
 
 /** Output the screen has taken: told to listeners, and the pastes' wait goes on. */
@@ -670,7 +697,8 @@ function startLive(manager: Manager, chat: ChatRecord, started: Started): Live {
   let revoked: Promise<void> | null = null
   const live: Live = {
     kind: 'live',
-    generation: randomUUID(),
+    generation: started.generation,
+    dmClient: started.dmClient,
     chat,
     pty,
     screen,
@@ -717,6 +745,7 @@ function wireLive(manager: Manager, live: Live, reportEnded: () => void, reportC
     }
     live.stopWatch()
     void live.revoke()
+    if (live.dmClient !== null) void dropDmClient(manager, live.dmClient)
     // Asked now, while the group's id can only be the CLI's: ends what it left running in its process group.
     void killTree(manager, live)
     if (live.stopMessage === null) {
@@ -764,6 +793,16 @@ function writeInput(manager: Manager, live: Live, data: string): void {
       manager.onError(error)
     }
   }
+}
+
+/**
+ * What a start issued: the chat's `dm` invocation, its grants (one for a folder chat, one per reached folder for a
+ * project-less chat) and the mailbox a folder OMP chat's grant was bound to (null for every other chat).
+ */
+interface IssuedGrants {
+  cli: DarkMechanicusCli
+  grantIds: readonly string[]
+  endpointId: string | null
 }
 
 /** What a cancelled step answers, and the error a cancelled start is thrown out with. */
@@ -818,11 +857,19 @@ function cancellableSteps(starting: Starting): { step: Step; cancelled: () => st
   return { step, cancelled: () => cancelled }
 }
 
+/** Whether the chat's folder is being untracked; a project-less chat belongs to none. */
+function releasing(manager: Manager, chat: ChatRecord): boolean {
+  return chat.folder !== null && manager.releasing.has(chat.folder)
+}
+
 /**
  * The launch check again, at a later step of a start: the folder can be moved, swapped or untracked while the
  * sign-in check runs (up to 30 s), and nothing may then be issued or started for it.
  */
 function recheckFolder(context: StartContext): void {
+  if (releasing(context.manager, context.chat)) {
+    throw new FolderRefused(UNTRACKED)
+  }
   try {
     launchFolder(context.manager, context.chat)
   } catch (error) {
@@ -848,13 +895,14 @@ async function runStart(context: StartContext, step: Step): Promise<StartOutcome
       void revokeGrant(manager, grantId)
     }
   }
-  // A project-less chat with no folder to reach starts with no grant: its instructions say so.
-  const issuing =
+  const identity = { id: chat.id, agent: chat.agent, title: chat.title, kind: agent.kind }
+  // A project-less chat with no folder to reach starts with no grant: its instructions say so. It has no mailbox.
+  const issuing: Promise<IssuedGrants> =
     context.reach === undefined
-      ? manager.deps.issueChatCli(folder, grant).then(({ cli, grantId }) => ({ cli, grantIds: [grantId] }))
+      ? manager.deps.issueChatCli(folder, grant, identity).then(({ cli, grantId, endpointId }) => ({ cli, grantIds: [grantId], endpointId }))
       : context.reach.length === 0
-        ? Promise.resolve({ cli: manager.deps.cliFor(null), grantIds: [] })
-        : manager.deps.issueReachCli(context.reach, grant)
+        ? Promise.resolve({ cli: manager.deps.cliFor(null), grantIds: [], endpointId: null })
+        : manager.deps.issueReachCli(context.reach, grant).then(({ cli, grantIds }) => ({ cli, grantIds, endpointId: null }))
   const issued = await step(issuing, ({ grantIds }) => {
     revokeAll(grantIds)
   })
@@ -913,14 +961,54 @@ function finishArgumentPrompt(manager: Manager, chat: ChatRecord, live: Live): v
 }
 
 /** Record launch authority and ambiguous argument delivery atomically before starting the process. */
-function recordLaunch({ manager, chat }: StartContext, spec: TerminalLaunchSpec, grantIds: readonly string[], firstArgument: boolean): void {
+function recordLaunch({ manager, chat }: StartContext, spec: TerminalLaunchSpec, issued: IssuedGrants, firstArgument: boolean): void {
   const stored = manager.deps.store.getChat(chat)?.grantIds ?? []
   manager.deps.store.updateChat(chat, {
-    grantIds: [...stored, ...grantIds],
+    grantIds: [...stored, ...issued.grantIds],
+    ...(issued.endpointId === null ? {} : { endpointId: issued.endpointId }),
     ...(spec.sessionId === null ? {} : { sessionId: spec.sessionId }),
     ...(spec.kickoffIn === 'args' ? { kickoffSent: true } : {}),
     ...(firstArgument ? { firstPromptDelivery: 'uncertain' as const } : {})
   })
+}
+
+/** Removes a launch's mail client descriptor; never rejects. */
+function dropDmClient(manager: Manager, path: string): Promise<void> {
+  return track(
+    manager,
+    removeDmClientDescriptor(path).catch((error: unknown) => {
+      manager.onError(error)
+    })
+  )
+}
+
+/**
+ * The files with the launch's mail client descriptor, for an OMP chat whose grant was bound to its mailbox
+ * (`issued.endpointId`): written once the grant is issued and before the spawn, so it names this launch's generation.
+ */
+async function withDmClient(context: StartContext, files: TerminalFiles, issued: IssuedGrants, generation: string): Promise<TerminalFiles> {
+  const { manager, chat, agent, folder } = context
+  if (agent.kind !== 'omp' || files.omp === undefined || issued.endpointId === null) {
+    return files
+  }
+  const { userData, platform } = manager.deps
+  const dmClient = await writeDmClientDescriptor({ userData, chatId: chat.id, generation, folder, cli: issued.cli, platform })
+  return { ...files, omp: { ...files.omp, dmClient } }
+}
+
+/** Spawns the launch with its mail client descriptor, if it gets one; the descriptor goes again when the start fails. */
+async function spawnWithGrant(context: StartContext, files: TerminalFiles, issued: IssuedGrants, step: Step): Promise<Live> {
+  const generation = randomUUID()
+  const drop = (launched: TerminalFiles): void => {
+    if (launched.omp?.dmClient !== undefined) void dropDmClient(context.manager, launched.omp.dmClient)
+  }
+  const launched = await step(withDmClient(context, files, issued, generation), drop)
+  try {
+    return await spawnLaunch(context, launched, issued, { step, generation, dmClient: launched.omp?.dmClient ?? null })
+  } catch (error) {
+    drop(launched)
+    throw error
+  }
 }
 
 /** Binds each of the PTY's grants to it for naming; a binding that fails stops the PTY, and the failure is thrown. */
@@ -937,11 +1025,12 @@ function bindGrants(manager: Manager, live: Live, grantIds: readonly string[]): 
 }
 
 /**
- * Builds the launch, stores the grants' ids, the session id the CLI runs under and a kickoff on its command line
- * (`kickoffSent`) on the chat, then spawns; throws on any failure (the caller revokes).
+ * Builds the launch, stores the grants' ids (and the mailbox's id), the session id the CLI runs under and a kickoff
+ * on its command line (`kickoffSent`) on the chat, then spawns; throws on any failure (the caller revokes).
  */
-async function spawnWithGrant(context: StartContext, files: TerminalFiles, issued: { cli: DarkMechanicusCli; grantIds: readonly string[] }, step: Step): Promise<Live> {
+async function spawnLaunch(context: StartContext, files: TerminalFiles, issued: IssuedGrants, launch: { step: Step; generation: string; dmClient: string | null }): Promise<Live> {
   const { manager, chat, agent, folder, reach } = context
+  const { step, generation, dmClient } = launch
   const spec = terminalLaunchSpec({
     chat: { ...launchChat(context, files), kickoffSent: chat.kickoffSent === true },
     kickoff: context.kickoff,
@@ -958,7 +1047,7 @@ async function spawnWithGrant(context: StartContext, files: TerminalFiles, issue
   // The last await is behind: from this check to the spawn nothing else runs.
   recheckFolder(context)
   const firstArgument = spec.kickoffIn === 'args' && chat.firstPrompt !== undefined
-  recordLaunch(context, spec, issued.grantIds, firstArgument)
+  recordLaunch(context, spec, issued, firstArgument)
   const screen = createTerminalScreen(START_COLS, START_ROWS)
   let pty: PtyProcess
   try {
@@ -970,7 +1059,7 @@ async function spawnWithGrant(context: StartContext, files: TerminalFiles, issue
   }
   const marksStarted = marksSessionStarted(agent, chat)
   const firstPaste = spec.pasteFirst === null ? null : { text: spec.pasteFirst, kickoff: spec.kickoffIn === 'paste' }
-  const live = startLive(manager, chat, { pty, screen, grantIds: issued.grantIds, resumed: spec.resumed, marksStarted, firstPaste })
+  const live = startLive(manager, chat, { pty, screen, grantIds: issued.grantIds, resumed: spec.resumed, marksStarted, firstPaste, generation, dmClient })
   bindGrants(manager, live, issued.grantIds)
   if (firstArgument) finishArgumentPrompt(manager, chat, live)
   return live
@@ -993,6 +1082,9 @@ function beginStart(manager: Manager, found: ChatRecord, options: AttachOptions 
   if (manager.deleting.has(chat.id)) {
     return { state: 'refused', message: DELETED }
   }
+  if (releasing(manager, chat)) {
+    return { state: 'refused', message: UNTRACKED }
+  }
   let folder: string
   try {
     folder = launchFolder(manager, chat)
@@ -1013,6 +1105,7 @@ function beginStart(manager: Manager, found: ChatRecord, options: AttachOptions 
   const starting: Starting = {
     kind: 'starting',
     agentId: agent.id,
+    folder: chat.folder,
     phase: agent.kind === 'custom' ? 'preparing' : 'checking',
     done: Promise.resolve({ state: 'failed', message: QUITTING }),
     cancel: () => {}
@@ -1207,6 +1300,25 @@ async function endAgent(manager: Manager, id: AgentId): Promise<void> {
   await Promise.all(chats.map(([chatId]) => endTerminal(manager, chatId, AGENT_REMOVED)))
 }
 
+/** `TerminalSessions.releaseFolder`. */
+async function releaseFolder(manager: Manager, folder: string, forget: () => void): Promise<void> {
+  manager.releasing.add(folder)
+  try {
+    const inFolder = [...manager.entries.values()].filter((entry) => (entry.kind === 'live' ? entry.chat.folder : entry.folder) === folder)
+    await Promise.all(
+      inFolder.map(async (entry) => {
+        const ended = await endEntry(manager, entry, UNTRACKED)
+        if (ended !== null) {
+          await Promise.all([ended.kill, ended.live.revoke()])
+        }
+      })
+    )
+    forget()
+  } finally {
+    manager.releasing.delete(folder)
+  }
+}
+
 async function dispose(manager: Manager): Promise<void> {
   manager.closing = true
   const ending = [...manager.entries.values()].map(async (entry) => {
@@ -1231,6 +1343,7 @@ export function createTerminalSessions(deps: TerminalSessionsDeps): TerminalSess
     listeners: new Map(),
     pending: new Set(),
     deleting: new Set(),
+    releasing: new Set(),
     closing: false
   }
   const running = (chatId: string): Live | null => {
@@ -1258,6 +1371,7 @@ export function createTerminalSessions(deps: TerminalSessionsDeps): TerminalSess
       }
     },
     deleteChat: (ref, remove) => deleteChat(manager, ref, remove),
+    releaseFolder: (folder, forget) => releaseFolder(manager, folder, forget),
     endAgent: (id) => endAgent(manager, id),
     busy: () => manager.entries.size > 0 || manager.pending.size > 0,
     dispose: () => dispose(manager)

@@ -10,10 +10,13 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { DarkMechanicusCli } from '../../shared/agents/chat'
 import { removeScratch } from '../../test/removeScratch'
 import { transferGuidance } from '../../mcp/transferKickoff'
-import { cliCommandLine } from '../agents/cliInstructions'
+import { cliCommandLine, skitariiMailGuidance } from '../agents/cliInstructions'
 import { kanbanGuidance } from '../agents/kanbanKickoff'
 import { orchestratorGuidance, orchestratorKickoff } from '../agents/orchestratorKickoff'
-import { terminalFilePaths, terminalInstructions, writeTerminalFiles } from './terminalFiles'
+import { dmClientDescriptorPath, removeDmClientDescriptor, terminalFilePaths, terminalInstructions, writeDmClientDescriptor, writeTerminalFiles } from './terminalFiles'
+import { parseDmClientDescriptor } from '../../../resources/skitarii/extension/dmClient'
+import { MAIL_TOOL_NAMES } from '../../../resources/skitarii/extension/messaging'
+import { ompFilePaths } from './ompSession'
 import { terminalLaunchSpec } from './terminalLaunchSpec'
 
 const FOLDER = '/Users/me/My Repo'
@@ -162,6 +165,35 @@ describe('writeTerminalFiles: collaboration policy', () => {
   })
 })
 
+describe('writeTerminalFiles: Skitarii mail guidance', () => {
+  let userData: string
+  let folder: string
+
+  beforeEach(() => {
+    userData = mkdtempSync(join(tmpdir(), 'dm-terminal-files-'))
+    folder = join(userData, 'repo')
+  })
+
+  afterEach(() => {
+    removeScratch(userData)
+  })
+
+  it('follows the policy, before task guidance, only in a Skitarii chat, and keeps the file token-free', async () => {
+    const start = { userData, chatId: 'ch_omp', platform: 'darwin' as const, folder, cli: cliFor(folder), role: 'orchestrator' as const, allowSave: false, orchestratesRun: true }
+    const plain = readFileSync((await writeTerminalFiles(start)).instructions, 'utf8')
+    const text = readFileSync((await writeTerminalFiles({ ...start, skitariiMail: true })).instructions, 'utf8')
+
+    expect(text).toBe(plain.replace(`\n\n${orchestratorGuidance()}`, `\n\n${skitariiMailGuidance()}\n\n${orchestratorGuidance()}`))
+    expect(plain).not.toContain('## Skitarii mail')
+    expect(text).not.toContain('grant-token')
+  })
+
+  it('names every native mail tool OMP registers', () => {
+    const text = skitariiMailGuidance()
+    for (const tool of MAIL_TOOL_NAMES) expect(text).toContain(`\`${tool}\``)
+  })
+})
+
 describe('writeTerminalFiles', () => {
   let userData: string
   let folder: string
@@ -239,6 +271,98 @@ describe.skipIf(process.platform === 'win32')('writeTerminalFiles: permissions',
     const files = await writeTerminalFiles({ userData, chatId: 'ch_1', platform: 'darwin', folder, cli: cliFor(folder), role: 'planner', allowSave: false, orchestratesRun: false })
 
     expect([statSync(join(files.launcherDir as string, 'dm')).mode & 0o777, statSync(files.instructions).mode & 0o777]).toEqual([0o700, 0o600])
+  })
+
+  it('keeps a Skitarii chat’s launcher 0700 and its instructions with the mail guidance 0600', async () => {
+    const folder = join(userData, 'repo')
+    const files = await writeTerminalFiles({ userData, chatId: 'ch_omp', platform: 'darwin', folder, cli: cliFor(folder), role: 'worker', allowSave: false, orchestratesRun: false, skitariiMail: true })
+
+    expect([statSync(join(files.launcherDir as string, 'dm')).mode & 0o777, statSync(files.instructions).mode & 0o777]).toEqual([0o700, 0o600])
+  })
+
+  it('makes the mail client descriptor 0600 in a 0700 folder', async () => {
+    const folder = join(userData, 'repo')
+    const path = await writeDmClientDescriptor({ userData, chatId: 'ch_1', generation: 'gen-1', folder, cli: cliFor(folder), platform: 'darwin' })
+
+    expect([statSync(join(path, '..')).mode & 0o777, statSync(path).mode & 0o777]).toEqual([0o700, 0o600])
+  })
+})
+
+describe('writeDmClientDescriptor: the private file a launch’s mail client reads', () => {
+  let userData: string
+  let folder: string
+  const write = (generation: string, platform: NodeJS.Platform = 'win32', cli = cliFor(folder)): Promise<string> =>
+    writeDmClientDescriptor({ userData, chatId: 'ch_1', generation, folder, cli: { ...cli, env: { ...cli.env, DARKMECHANICUS_HOME: join(userData, 'home'), DM_DESKTOP_PIPE: '\\\\.\\pipe\\naming' } }, platform })
+
+  beforeEach(() => {
+    userData = mkdtempSync(join(tmpdir(), 'dm-terminal-files-'))
+    folder = join(userData, 'repo')
+  })
+
+  afterEach(() => {
+    removeScratch(userData)
+  })
+
+  it('puts it in the chat’s own OMP folder, named by the launch, and pins the runtime, script and folder', async () => {
+    const path = await write('gen-1')
+
+    expect(path).toBe(join(ompFilePaths(userData, 'ch_1').sessionDir, '..', 'dm-client', 'gen-1.json'))
+    expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual({
+      version: 1,
+      chatId: 'ch_1',
+      generation: 'gen-1',
+      folder,
+      command: cliFor(folder).command,
+      args: [cliFor(folder).args[0], '--repo', folder],
+      cwd: folder,
+      env: { ELECTRON_RUN_AS_NODE: '1', DARKMECHANICUS_HOME: join(userData, 'home') },
+      inherit: ['PATH', 'HOME', 'USER', 'LOGNAME', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TZ', 'TMPDIR', 'TEMP', 'TMP', 'PATHEXT', 'SystemRoot', 'windir', 'SystemDrive', 'USERPROFILE', 'USERNAME', 'APPDATA', 'LOCALAPPDATA', 'ProgramData', 'HOMEDRIVE', 'HOMEPATH']
+    })
+  })
+
+  it('never writes the grant, the naming address or a shell command, and the extension accepts what it writes', async () => {
+    for (const platform of ['win32', 'darwin'] as const) {
+      const path = await write(`gen-${platform}`, platform)
+      const text = readFileSync(path, 'utf8')
+      expect(text).not.toContain('grant-token')
+      expect(text).not.toMatch(/DM_SESSION_TOKEN|DM_DESKTOP_PIPE|pipe|cmd\.exe|\/bin\/sh/)
+      expect(parseDmClientDescriptor(path, text)).toMatchObject({ ok: true, value: { generation: `gen-${platform}` } })
+    }
+  })
+
+  it('leaves only the newest launch’s descriptor, and removes it when that launch ends', async () => {
+    const first = await write('gen-1')
+    const second = await write('gen-2')
+
+    expect(existsSync(first)).toBe(false)
+    expect(readdirSync(join(second, '..'))).toEqual(['gen-2.json'])
+    await removeDmClientDescriptor(second)
+    await removeDmClientDescriptor(second)
+    expect(readdirSync(join(second, '..'))).toEqual([])
+  })
+})
+
+describe('writeDmClientDescriptor: what it refuses', () => {
+  let userData: string
+
+  beforeEach(() => {
+    userData = mkdtempSync(join(tmpdir(), 'dm-terminal-files-'))
+  })
+
+  afterEach(() => {
+    removeScratch(userData)
+  })
+
+  it('refuses a launch generation that is not a plain id, a chat id that is not one, and an unpinned dm command, writing nothing', async () => {
+    const folder = join(userData, 'repo')
+    const write = (cli: DarkMechanicusCli): Promise<string> => writeDmClientDescriptor({ userData, chatId: 'ch_1', generation: 'gen-1', folder, cli, platform: 'win32' })
+    for (const generation of ['', '../gen', 'a/b', 'x'.repeat(129)]) {
+      expect(() => dmClientDescriptorPath(userData, 'ch_1', generation)).toThrow(/launch generation/)
+    }
+    expect(() => dmClientDescriptorPath(userData, '../ch_1', 'gen')).toThrow(/chat id/)
+    await expect(write(cliFor('/elsewhere'))).rejects.toThrow(/pinned/)
+    await expect(write({ ...cliFor(folder), command: 'electron' })).rejects.toThrow(/absolute runtime/)
+    expect(existsSync(join(userData, 'agents'))).toBe(false)
   })
 })
 

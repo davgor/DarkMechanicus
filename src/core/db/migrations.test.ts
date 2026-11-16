@@ -37,8 +37,8 @@ afterEach(() => {
 })
 
 describe('migrate on a fresh database', () => {
-  it('starts at schema version 0 and targets SCHEMA_VERSION 14', () => {
-    expect(SCHEMA_VERSION).toBe(14)
+  it('starts at schema version 0 and targets SCHEMA_VERSION 16', () => {
+    expect(SCHEMA_VERSION).toBe(16)
     expect(readSchemaVersion(freshDb())).toBe(0)
   })
 
@@ -46,13 +46,19 @@ describe('migrate on a fresh database', () => {
     const db = freshDb()
     expect(migrate(db)).toEqual({ from: 0, to: SCHEMA_VERSION })
     expect(readSchemaVersion(db)).toBe(SCHEMA_VERSION)
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(14)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(16)
   })
 })
 
 describe('the schema a fresh database ends up with', () => {
   it('creates every table of the schema', () => {
     expect(objectNames(migratedDb(), 'table')).toEqual([
+      'agent_mail_bindings',
+      'agent_mail_endpoints',
+      'agent_mail_messages',
+      'agent_mail_poll_sessions',
+      'agent_mail_receipts',
+      'agent_mail_wakes',
       'approvals',
       'attachments',
       'attempts',
@@ -89,6 +95,12 @@ describe('the schema a fresh database ends up with', () => {
 describe('the indexes a fresh database ends up with', () => {
   it('creates every index of the schema', () => {
     expect(objectNames(migratedDb(), 'index')).toEqual([
+      'agent_mail_bindings_one_open',
+      'agent_mail_messages_expiry',
+      'agent_mail_messages_pending',
+      'agent_mail_messages_retained',
+      'agent_mail_receipts_expiry',
+      'agent_mail_receipts_sender_expiry',
       'attachments_owner',
       'attempts_one_open_per_ticket',
       'attempts_run_state',
@@ -110,8 +122,31 @@ describe('the indexes a fresh database ends up with', () => {
 describe('migrate when already current', () => {
   it('is a no-op the second time', () => {
     const db = migratedDb()
-    expect(migrate(db)).toEqual({ from: 14, to: 14 })
-    expect(readSchemaVersion(db)).toBe(14)
+    expect(migrate(db)).toEqual({ from: 16, to: 16 })
+    expect(readSchemaVersion(db)).toBe(16)
+  })
+
+  it('checks a current database without taking the write lock, which every open and mailbox poll would wait on', () => {
+    const db = migratedDb()
+    let transactions = 0
+    const watched = new Proxy(db, {
+      get(target, name, receiver) {
+        const member: unknown = Reflect.get(target, name, receiver)
+        if (typeof member !== 'function') {
+          return member
+        }
+        return (...args: unknown[]) => {
+          transactions += name === 'tx' ? 1 : 0
+          return Reflect.apply(member, target, args)
+        }
+      }
+    })
+    expect(migrate(watched)).toEqual({ from: 16, to: 16 })
+    expect(transactions).toBe(0)
+    // Positive control: a database behind the target still migrates under the lock.
+    watched.exec('PRAGMA user_version = 15')
+    expect(migrate(watched, MIGRATIONS.filter((migration) => migration.version !== 16).concat({ version: 16, sql: '' }))).toEqual({ from: 15, to: 16 })
+    expect(transactions).toBe(1)
   })
 
   it('keeps existing data', () => {
@@ -130,19 +165,19 @@ describe('migrate refuses newer databases', () => {
     expect(error).toBeInstanceOf(DomainError)
     expect((error as DomainError).code).toBe('incompatible_schema')
     expect((error as DomainError).message).toBe(
-      'Database schema v15 is newer than this build supports (v14). Update Dark Mechanicus.'
+      'Database schema v17 is newer than this build supports (v16). Update Dark Mechanicus.'
     )
-    expect((error as DomainError).details).toEqual({ found: 15, supported: 14 })
-    expect(readSchemaVersion(db)).toBe(15)
+    expect((error as DomainError).details).toEqual({ found: 17, supported: 16 })
+    expect(readSchemaVersion(db)).toBe(17)
     expect(objectNames(db, 'table')).toEqual([])
   })
 
   it('refuses a migrated database that a newer build has upgraded', () => {
     const db = migratedDb()
-    db.exec('PRAGMA user_version = 15')
+    db.exec('PRAGMA user_version = 17')
     const error = thrownBy(() => migrate(db))
     expect((error as DomainError).code).toBe('incompatible_schema')
-    expect((error as DomainError).details).toEqual({ found: 15, supported: 14 })
+    expect((error as DomainError).details).toEqual({ found: 17, supported: 16 })
     expect(objectNames(db, 'table')).toContain('epics')
   })
 
@@ -169,7 +204,7 @@ describe('migrate a v1 database to v2', () => {
       `INSERT INTO outbox (kind, epic_id, run_id, revision_id, state, attempts, last_error, created_at)
        VALUES ('snapshot', 'ep1', NULL, 'rv1', 'done', 1, NULL, 't'), ('run_history', 'ep1', 'rn1', NULL, 'failed', 3, 'disk full', 't')`
     )
-    expect(migrate(db)).toEqual({ from: 1, to: 14 })
+    expect(migrate(db)).toEqual({ from: 1, to: SCHEMA_VERSION })
     expect(outboxRows(db)).toEqual([
       { id: 1, kind: 'snapshot', epic_id: 'ep1', run_id: null, revision_id: 'rv1', entity_id: null, state: 'done', attempts: 1, last_error: null },
       { id: 2, kind: 'run_history', epic_id: 'ep1', run_id: 'rn1', revision_id: null, entity_id: null, state: 'failed', attempts: 3, last_error: 'disk full' }
@@ -296,7 +331,7 @@ describe('schema v4 named profiles', () => {
   it('upgrades a v2 database to the latest version, keeping its rows and adding an empty profiles table', () => {
     const db = v2Db()
     db.run("INSERT INTO outbox (kind, entity_id, state, created_at) VALUES ('profile', 'deep-review', 'pending', 't')")
-    expect(migrate(db)).toEqual({ from: 2, to: 14 })
+    expect(migrate(db)).toEqual({ from: 2, to: SCHEMA_VERSION })
     expect(db.all('SELECT kind, entity_id, state FROM outbox')).toEqual([{ kind: 'profile', entity_id: 'deep-review', state: 'pending' }])
     expect(db.all('SELECT * FROM profiles')).toEqual([])
   })
@@ -391,7 +426,7 @@ describe('migrate failure handling', () => {
     const db = freshDb()
     thrownBy(() => migrate(db, [{ version: 1, sql: 'NOT SQL' }]))
     expect(db.inTransaction()).toBe(false)
-    expect(migrate(db)).toEqual({ from: 0, to: 14 })
+    expect(migrate(db)).toEqual({ from: 0, to: 16 })
   })
 })
 
@@ -667,7 +702,7 @@ describe('schema v5 row checks', () => {
     insertEpic(db, 'ep1')
     insertRevision(db, 'rv1', 'ep1')
     insertRun(db, { id: 'rn1', state: 'running' })
-    expect(migrate(db)).toEqual({ from: 4, to: 14 })
+    expect(migrate(db)).toEqual({ from: 4, to: SCHEMA_VERSION })
     expect(db.all('SELECT id FROM runs')).toEqual([{ id: 'rn1' }])
     expect(db.all('SELECT * FROM row_checks')).toEqual([])
   })
@@ -718,7 +753,7 @@ describe('schema v6 sprint increments', () => {
     insertRevision(db, 'rv1', 'ep1')
     insertRun(db, { id: 'rn1', state: 'running' })
     insertAttempt(db, { id: 'at1', state: 'accepted', number: 1 })
-    expect(migrate(db)).toEqual({ from: 5, to: 14 })
+    expect(migrate(db)).toEqual({ from: 5, to: SCHEMA_VERSION })
     expect(db.all('SELECT id, state, increment_json FROM attempts')).toEqual([{ id: 'at1', state: 'accepted', increment_json: null }])
   })
 
@@ -745,7 +780,7 @@ describe('schema v7 report plan revisions', () => {
       `INSERT INTO sprint_reports (id, run_id, sprint_id, report_revision, content_json, content_hash, created_at)
        VALUES ('rp1', 'rn1', 'sp1', 1, '{}', 'h', 't')`
     )
-    expect(migrate(db)).toEqual({ from: 6, to: 14 })
+    expect(migrate(db)).toEqual({ from: 6, to: SCHEMA_VERSION })
     expect(db.all('SELECT id, revision_id FROM sprint_reports')).toEqual([{ id: 'rp1', revision_id: null }])
   })
 
@@ -766,7 +801,7 @@ describe('schema v8 run pause time', () => {
     insertEpic(db, 'ep1')
     insertRevision(db, 'rv1', 'ep1')
     insertRun(db, { id: 'rn1', state: 'paused' })
-    expect(migrate(db)).toEqual({ from: 7, to: 14 })
+    expect(migrate(db)).toEqual({ from: 7, to: SCHEMA_VERSION })
     expect(db.all('SELECT id, state, paused_at FROM runs')).toEqual([{ id: 'rn1', state: 'paused', paused_at: null }])
   })
 
@@ -792,7 +827,7 @@ describe('schema v11 Linear transfers', () => {
     insertEpic(db, 'ep1')
     insertRevision(db, 'rv1', 'ep1')
     db.run("INSERT INTO idempotency (command, key, request_hash, response_json, created_at) VALUES ('claimTicket', 'claim-1', 'h', ?, 't')", '{"packet":{"claimToken":"at_1.secret-1"}}')
-    expect(migrate(db)).toEqual({ from: 9, to: 14 })
+    expect(migrate(db)).toEqual({ from: 9, to: SCHEMA_VERSION })
     expect(db.get('SELECT response_json FROM idempotency')).toEqual({ response_json: '{"packet":{"claimToken":null}}' })
     expect(db.all('SELECT id FROM epics')).toEqual([{ id: 'ep1' }])
     expect(db.all('SELECT * FROM transfers')).toEqual([])
@@ -824,16 +859,15 @@ describe('schema v11 on top of the v10 scrub', () => {
     expect(objectNames(db, 'table')).not.toContain('transfers')
     const stored = '{ "packet": {"claimToken": "at_1.secret-1"} }'
     db.run("INSERT INTO idempotency (command, key, request_hash, response_json, created_at) VALUES ('claimTicket', 'claim-1', 'h', ?, 't')", stored)
-    expect(migrate(db)).toEqual({ from: 10, to: 14 })
+    expect(migrate(db)).toEqual({ from: 10, to: SCHEMA_VERSION })
     expect(objectNames(db, 'table')).toEqual(expect.arrayContaining(['transfers', 'transfer_items']))
     expect(db.get('SELECT response_json FROM idempotency')).toEqual({ response_json: stored })
   })
 
   it('brings a fresh database straight to the latest version with the transfer tables', () => {
     const db = freshDb()
-    expect(migrate(db)).toEqual({ from: 0, to: 14 })
-    expect(SCHEMA_VERSION).toBe(14)
-    expect(readSchemaVersion(db)).toBe(14)
+    expect(migrate(db)).toEqual({ from: 0, to: SCHEMA_VERSION })
+    expect(readSchemaVersion(db)).toBe(SCHEMA_VERSION)
     expect(objectNames(db, 'table')).toEqual(expect.arrayContaining(['transfers', 'transfer_items']))
   })
 })
@@ -861,7 +895,7 @@ describe('schema v10 scrubs secrets from stored responses', () => {
       ['claimTicket', 'claim-1', claim],
       ['submitAttempt', 'submit-1', JSON.stringify({ outputs: { summary: `token ${token}` } })]
     ])
-    expect(migrate(db)).toEqual({ from: 9, to: 14 })
+    expect(migrate(db)).toEqual({ from: 9, to: SCHEMA_VERSION })
     expect(storedResponses(db)).toEqual({
       'claim-1': '{"attempt":{"id":"at_1","fencingToken":1},"packet":{"claimToken":null,"fencingToken":1}}',
       'submit-1': '{"outputs":{"summary":"token [claim token masked]"}}'
@@ -947,7 +981,7 @@ describe('schema v13 kanban', () => {
        VALUES ('epic', 'ep1', 'sha256:a', 4, 'sha256:b', 'diverged', 't1'), ('profile', 'fast', NULL, 0, NULL, NULL, 't2')`
     )
     expect(objectNames(db, 'table')).not.toContain('kanban_cards')
-    expect(migrate(db)).toEqual({ from: 12, to: 14 })
+    expect(migrate(db)).toEqual({ from: 12, to: SCHEMA_VERSION })
     expect(readSchemaVersion(db)).toBe(SCHEMA_VERSION)
     expect(outboxRows(db)).toEqual([
       { id: 1, kind: 'snapshot', epic_id: 'ep1', run_id: null, revision_id: 'rv1', entity_id: null, state: 'pending', attempts: 0, last_error: null },
@@ -1075,7 +1109,7 @@ describe('schema v14 attachments', () => {
        VALUES ('epic', 'ep1', 'sha256:a', 4, 'sha256:b', 'diverged', 't1'), ('kanban_event', 'ke1', NULL, 0, NULL, NULL, 't2')`
     )
     expect(objectNames(db, 'table')).not.toContain('attachments')
-    expect(migrate(db)).toEqual({ from: 13, to: 14 })
+    expect(migrate(db)).toEqual({ from: 13, to: SCHEMA_VERSION })
     expect(readSchemaVersion(db)).toBe(SCHEMA_VERSION)
     expect(outboxRows(db)).toEqual([
       { id: 1, kind: 'snapshot', epic_id: 'ep1', run_id: null, revision_id: 'rv1', entity_id: null, state: 'pending', attempts: 0, last_error: null },
@@ -1117,5 +1151,125 @@ describe('schema v14 attachment records', () => {
     insertAttachment(db, 'im1', { kind: 'attempt', id: 'at1' })
     const plan = db.all<{ detail: string }>("EXPLAIN QUERY PLAN SELECT id FROM attachments WHERE owner_kind = 'attempt' AND owner_id = 'at1'")
     expect(plan.map((row) => row.detail).join(' ')).toContain('attachments_owner')
+  })
+})
+
+function v14Db(): Db {
+  const db = freshDb()
+  migrate(db, MIGRATIONS.filter((migration) => migration.version <= 14))
+  return db
+}
+
+/** A v14 project with records of several kinds, as a build before agent mail left it. */
+function v14Project(): Db {
+  const db = v14Db()
+  insertEpic(db, 'ep1')
+  insertComment(db, { id: 'cm1' })
+  insertAttachment(db, 'im1', { kind: 'comment', id: 'cm1' })
+  db.run("INSERT INTO meta (key, value) VALUES ('projectId', 'pj1')")
+  db.run("INSERT INTO outbox (kind, epic_id, entity_id, state, created_at) VALUES ('comment', 'ep1', 'cm1', 'pending', 't')")
+  return db
+}
+
+function projectRecords(db: Db): unknown {
+  return {
+    epics: db.all('SELECT id, title FROM epics'),
+    comments: db.all('SELECT id, body FROM comments'),
+    attachments: db.all('SELECT id, owner_kind, owner_id, data FROM attachments'),
+    meta: db.all("SELECT key, value FROM meta WHERE key = 'projectId'"),
+    outbox: outboxRows(db)
+  }
+}
+
+const ENDPOINT_COLUMNS = 'id, machine_id, chat_id, name, state, created_at, updated_at'
+
+function insertMailEndpoint(db: Db, id: string, chatId = id): void {
+  db.run(`INSERT INTO agent_mail_endpoints (${ENDPOINT_COLUMNS}) VALUES (?, 'mc1', ?, 'Chat', 'open', 't', 't')`, id, chatId)
+}
+
+function insertMailMessage(db: Db, spec: { id: string; to: string; from: string; seq: number; inReplyTo?: string }): void {
+  db.run(
+    `INSERT INTO agent_mail_messages (id, recipient_endpoint_id, recipient_seq, sender_endpoint_id, client_message_id, in_reply_to,
+       body, body_bytes, accepted_at)
+     VALUES (?, ?, ?, ?, ?, ?, 'hi', 2, 't')`,
+    spec.id,
+    spec.to,
+    spec.seq,
+    spec.from,
+    `client-${spec.id}`,
+    spec.inReplyTo ?? null
+  )
+}
+
+describe('schema v15 agent mail', () => {
+  it('upgrades a v14 project, keeping every record and adding empty mail tables', () => {
+    const db = v14Project()
+    const before = projectRecords(db)
+    expect(objectNames(db, 'table')).not.toContain('agent_mail_messages')
+    expect(migrate(db)).toEqual({ from: 14, to: SCHEMA_VERSION })
+    expect(projectRecords(db)).toEqual(before)
+    for (const table of ['agent_mail_endpoints', 'agent_mail_bindings', 'agent_mail_messages', 'agent_mail_receipts']) {
+      expect(db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM ${table}`)?.n).toBe(0)
+    }
+  })
+
+  it('rolls the whole upgrade back when a later migration of the same run fails, leaving the v14 project as it was', () => {
+    const db = v14Project()
+    const before = projectRecords(db)
+    const broken = { version: SCHEMA_VERSION + 1, sql: 'INSERT INTO missing VALUES (1)' }
+    expect(() => migrate(db, [...MIGRATIONS, broken])).toThrow(/no such table/)
+    expect(readSchemaVersion(db)).toBe(14)
+    expect(objectNames(db, 'table').filter((name) => name.startsWith('agent_mail_'))).toEqual([])
+    expect(projectRecords(db)).toEqual(before)
+    expect(migrate(db)).toEqual({ from: 14, to: SCHEMA_VERSION })
+  })
+})
+
+describe('schema v15 agent mail constraints', () => {
+  it('gives no outbox or sync state kind to mail, so no row can ever be exported', () => {
+    const db = migratedDb()
+    for (const kind of ['agent_mail', 'mail_message', 'message']) {
+      expect(() => db.run("INSERT INTO outbox (kind, entity_id, state, created_at) VALUES (?, 'x', 'pending', 't')", kind)).toThrow(/CHECK constraint failed/)
+      expect(() => db.run("INSERT INTO sync_state (kind, entity_id, updated_at) VALUES (?, 'x', 't')", kind)).toThrow(/CHECK constraint failed/)
+    }
+  })
+
+  it('keeps endpoint identity, recipient sequence and sender-scoped client ids unique', () => {
+    const db = migratedDb()
+    insertMailEndpoint(db, 'me1')
+    insertMailEndpoint(db, 'me2')
+    expect(() => insertMailEndpoint(db, 'me3', 'me1')).toThrow(/UNIQUE constraint failed/)
+    insertMailMessage(db, { id: 'mm1', to: 'me2', from: 'me1', seq: 1 })
+    expect(() => insertMailMessage(db, { id: 'mm2', to: 'me2', from: 'me1', seq: 1 })).toThrow(/UNIQUE constraint failed/)
+    insertMailMessage(db, { id: 'mm3', to: 'me1', from: 'me2', seq: 1 })
+    const receipt = `INSERT INTO agent_mail_receipts (sender_endpoint_id, client_message_id, payload_hash, result_json, accepted_at, expires_at)
+      VALUES (?, 'same', 'h', '{}', 't', 'u')`
+    db.run(receipt, 'me1')
+    db.run(receipt, 'me2')
+    expect(() => db.run(receipt, 'me1')).toThrow(/UNIQUE constraint failed/)
+  })
+
+  it('allows one open binding per endpoint and one binding per grant', () => {
+    const db = migratedDb()
+    insertMailEndpoint(db, 'me1')
+    const bind = `INSERT INTO agent_mail_bindings (grant_id, endpoint_id, machine_id, canonical_folder, bound_at) VALUES (?, 'me1', 'mc1', '/p', 't')`
+    db.run(bind, 'gr1')
+    expect(() => db.run(bind, 'gr2')).toThrow(/UNIQUE constraint failed/)
+    db.run("UPDATE agent_mail_bindings SET closed_at = 't', close_reason = 'replaced' WHERE grant_id = 'gr1'")
+    db.run(bind, 'gr2')
+    expect(() => db.run(bind, 'gr1')).toThrow(/UNIQUE constraint failed/)
+    expect(() => db.run("UPDATE agent_mail_bindings SET closed_at = 't' WHERE grant_id = 'gr2'")).toThrow(/CHECK constraint failed/)
+  })
+
+  it('never cascades a purge across mailboxes, and sets an expiry only with an acknowledgement', () => {
+    const db = migratedDb()
+    insertMailEndpoint(db, 'me1')
+    insertMailEndpoint(db, 'me2')
+    insertMailMessage(db, { id: 'mm1', to: 'me2', from: 'me1', seq: 1 })
+    insertMailMessage(db, { id: 'mm2', to: 'me1', from: 'me2', seq: 1, inReplyTo: 'mm1' })
+    db.run("DELETE FROM agent_mail_messages WHERE recipient_endpoint_id = 'me2'")
+    expect(db.all('SELECT id, in_reply_to FROM agent_mail_messages')).toEqual([{ id: 'mm2', in_reply_to: 'mm1' }])
+    expect(() => db.run("UPDATE agent_mail_messages SET expires_at = 't' WHERE id = 'mm2'")).toThrow(/CHECK constraint failed/)
+    expect(() => db.run("DELETE FROM agent_mail_endpoints WHERE id = 'me2'")).toThrow(/FOREIGN KEY constraint failed/)
   })
 })

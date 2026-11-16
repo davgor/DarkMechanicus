@@ -1,0 +1,24 @@
+{
+  "test": "src/main/git/commitLinesProperty.test.ts > commitFiles with random line selections > commits exactly the selected content and never changes the working file",
+  "cases": 80,
+  "method": "throwaway instrumented copy of the test (runner wrapper counting git spawns by subcommand, phase timers summed across the 4 concurrent batches), run alone with env -u CI -u DM_DESKTOP_PIPE -u DM_SESSION_TOKEN; copy deleted",
+  "failingRun": { "where": "npm test (DM-505-test.log), full suite", "result": "timed out at 15000 ms" },
+  "before": {
+    "testMsAlone": 6483,
+    "batchesWallMs": 6138,
+    "phasesSummedMs": { "writeCases": 1788, "status": 2065, "readDiffs": 4361, "commitFiles": 14526, "observe": 221 },
+    "gitSpawnsByCommand": { "rev-parse": 158, "diff (tracked, --literal-pathspecs)": 138, "diff --no-index": 22, "apply": 80, "status": 8, "remote": 8, "for-each-ref": 8, "reset": 4, "commit": 4 },
+    "gitSpawnsTotal": 430,
+    "gitSpawnsPerCase": 5.4,
+    "cause": "per case: 1 rev-parse HEAD probe + 1 diff in the test's read, again 1 rev-parse probe + 1 diff in commitFiles' re-read, and 1 git apply per file; ~430 git processes, which on Windows cost tens of ms each alone and far more under the full suite's parallel load"
+  },
+  "after": {
+    "testMsAlone": [4187, 3891],
+    "batchesWallMs": [3825, 3560],
+    "phasesSummedMs": { "writeCases": 1854, "status": 2203, "readDiffs": 2214, "commitFiles": 7152, "observe": 244 },
+    "gitSpawnsByCommand": { "rev-parse": 20, "diff (tracked, --literal-pathspecs)": 138, "diff --no-index": 22, "apply": 4, "status": 8, "remote": 8, "for-each-ref": 8, "reset": 4, "commit": 4 },
+    "gitSpawnsTotal": 216,
+    "gitSpawnsPerCase": 2.7,
+    "fix": "readWorkingDiff takes headExists (from the status) and skips its rev-parse probe; commitFiles passes it and stages all line patches with one multi-file git apply; the property test passes headExists from its status. Same 80 cases, same seeds, same assertions, same timeout."
+  }
+}

@@ -31,10 +31,12 @@ import type { AgentDownloadProgress, BuiltInAgentKind, McpConfigView } from '../
 import { createActivityBindings, type ActivityBindings } from '../agents/activityBindings'
 import { createChatGrants } from '../agents/chatGrants'
 import { createChatHandlers } from '../agents/chatHandlers'
-import { createChatPush, registerChatIpc } from '../agents/chatIpc'
+import { createAgentMailDesktop, type AgentMailDesktop } from '../agents/agentMailDesktop'
+import { createChatMailPush, createChatPush, registerChatIpc, registerChatMailIpc } from '../agents/chatIpc'
 import { createChatRecords, type ChatRecords } from '../agents/chatRecords'
+import { createChatMailboxes, type ChatMailboxes } from '../agents/chatMailboxes'
 import { removeScratchFolder } from '../agents/scratchFolder'
-import { createChatStore, type ChatStore } from '../agents/chatStore'
+import { createChatStore, nodeChatStoreFs, type ChatStore } from '../agents/chatStore'
 import { listBoundThreads } from '../agents/boundThreads'
 import { findBoundTerminal, type GrantBindingReads } from '../agents/grantBindings'
 import { createCloneParentStore, createCloner, type Cloner } from '../git/clone'
@@ -294,6 +296,10 @@ interface ChatProcesses {
   terminals: TerminalSessions
   /** The agents' sign-in terminals, for `agents:signIn`. */
   logins: LoginTerminals
+  /** Untrack's first step (`DesktopHandlerDeps.releaseFolder`): the folder's terminals stopped, its chat mailboxes suspended. */
+  releaseFolder: (folder: string, forget: () => void) => Promise<void>
+  /** The person's side of the chats' mailboxes and its per-folder monitors (`chatMail:*`). */
+  mail: AgentMailDesktop
 }
 
 /** What the chat terminals run over besides the store: the grants and runs of the chats, the tracked folders, the agents. */
@@ -337,18 +343,6 @@ function createTerminalProcesses(store: ChatStore, deps: TerminalDeps): Pick<Cha
   return { terminals, logins }
 }
 
-/** The chat records over the store; deleting an OMP chat removes its own folder, and a project-less chat its scratch folder. */
-function chatRecordsOver(store: ChatStore, activity: ActivityBindings, agents: Pick<AgentRegistry, 'get'>): ChatRecords {
-  const userData = app.getPath('userData')
-  return createChatRecords({
-    store,
-    activity,
-    agentFor: (id) => agents.get(id),
-    removeOmpFolder: (id) => removeOmpFolder(userData, id),
-    removeScratch: (id) => removeScratchFolder(userData, id)
-  })
-}
-
 /**
  * The agent chats (`userData/agents/chats`) with the connected agents, each run in its terminal. When an
  * orchestrator chat's agent turns out to be signed out, the run it orchestrates is paused with the reason
@@ -364,6 +358,7 @@ function createChatProcesses(
 ): ChatProcesses {
   // One store for all: it keeps each folder's index in memory, so two would write over each other's records.
   const store = createChatStore({ root: join(app.getPath('userData'), 'agents', 'chats') })
+  const { records, mailboxes } = createMailboxRecords(store, { folders, workspaces, agents, activity })
   const push = createChatPush(() => BrowserWindow.getAllWindows())
   let namingPipe: ControlPipe | null = null
   let namingReady: Promise<void>
@@ -397,8 +392,66 @@ function createChatProcesses(
       await Promise.all([terminals.dispose(), logins.dispose()])
     }
   }
-  const chats = endingTerminals(chatRecordsOver(store, activity, agents), terminals)
-  return { chats, quit, store, terminals, logins }
+  const chats = endingTerminals(records, terminals)
+  recoverChats(folders, chats)
+  const mail = createChatMail({ folders, store, workspaces })
+  return { chats, quit, store, terminals, logins, mail, releaseFolder: releasingFolders(terminals, mailboxes, store) }
+}
+
+/**
+ * The chat records over `store` with their mailboxes, provisioned, bound, suspended and deleted as the person through
+ * each folder's own desktop workspace; deleting an OMP chat removes its own folder, and a project-less chat its scratch folder.
+ */
+function createMailboxRecords(
+  store: ChatStore,
+  deps: { folders: Pick<FolderRegistry, 'resolve'>; workspaces: Pick<WorkspacePool, 'get'>; agents: Pick<AgentRegistry, 'get'>; activity: ActivityBindings }
+): { records: ChatRecords; mailboxes: ChatMailboxes } {
+  const userData = app.getPath('userData')
+  const mailboxes = createChatMailboxes({
+    contextFor: (folder) => desktopWorkspace(deps.folders, deps.workspaces, folder).ctx(),
+    store,
+    ledger: { file: join(userData, 'agents', 'mailboxes.jsonl'), fs: nodeChatStoreFs },
+    log: (line) => {
+      logger.warn(line)
+    }
+  })
+  const records = createChatRecords({
+    store,
+    activity: deps.activity,
+    agentFor: (id) => deps.agents.get(id),
+    removeOmpFolder: (id) => removeOmpFolder(userData, id),
+    removeScratch: (id) => removeScratchFolder(userData, id),
+    mailboxes,
+    onError: (error) => {
+      logger.error('Finishing a chat deletion failed:', error)
+    }
+  })
+  return { records, mailboxes }
+}
+
+/** Untrack's first step: the folder's terminals stopped and starts refused, then its chat mailboxes suspended, then `forget`. */
+function releasingFolders(terminals: TerminalSessions, mailboxes: ChatMailboxes, store: ChatStore): ChatProcesses['releaseFolder'] {
+  return (folder, forget) =>
+    terminals.releaseFolder(folder, () => {
+      mailboxes.suspendFolder(folder, store.listChats(folder))
+      forget()
+    })
+}
+
+/** The desktop's own workspaces, one per tracked folder, opened on first use; an error in one is logged with its folder. */
+function openDesktopPool(): WorkspacePool {
+  return createWorkspacePool(openDesktopWorkspace, (path, error) => {
+    logger.error(`Workspace error for ${path}:`, error)
+  })
+}
+
+/** Startup: each tracked folder's chat mailboxes provisioned, and every chat deletion a crash cut short finished. */
+function recoverChats(registry: Pick<FolderRegistry, 'list'>, chats: Pick<ChatRecords, 'recoverFolder'>): void {
+  for (const { path } of registry.list()) {
+    chats.recoverFolder(path).catch((error: unknown) => {
+      logger.error(`Recovering the chats of ${path} failed:`, error)
+    })
+  }
 }
 
 /** The command layer's timelines through the desktop's own workspace, for finding the chat an attempt or a run is bound to by grant. */
@@ -418,9 +471,10 @@ interface ChatServices {
   terminals: TerminalSessions
   workspaces: Pick<WorkspacePool, 'get'>
   activity: ActivityBindings
+  mail: AgentMailDesktop
 }
 
-/** Serves the `chats:*` channels over the chat records; Start run starts the orchestrator chat's terminal. */
+/** Serves the `chats:*` and `chatMail:*` channels over the chat records; Start run starts the orchestrator chat's terminal. */
 function startChats(ipc: Pick<IpcMain, 'handle'>, services: ChatServices): void {
   const { folders, agents, chats, store, terminals, workspaces, activity } = services
   const handlers = createChatHandlers({
@@ -453,6 +507,7 @@ function startChats(ipc: Pick<IpcMain, 'handle'>, services: ChatServices): void 
     }
   })
   registerChatIpc(ipc, handlers)
+  registerChatMailIpc(ipc, services.mail.handlers)
 }
 
 /** What `terminals:attach` and `agents:signIn` run over. */
@@ -598,7 +653,40 @@ function startAttachmentProtocol(registry: FolderRegistry, pool: WorkspacePool):
 }
 
 /**
- * Registers the `dm:*`, `agents:*`, `chats:*`, `terminals:*`, `git:*` and `github:*` IPC handlers on `ipc`
+ * The person's inbox, seen cursor and wake credit of OMP chats, as the person through each folder's held desktop
+ * workspace, and the per-folder metadata monitor that pushes to the app window.
+ */
+function createChatMail(services: { folders: Pick<FolderRegistry, 'resolve'>; store: ChatStore; workspaces: Pick<WorkspacePool, 'get'> }): AgentMailDesktop {
+  return createAgentMailDesktop({
+    registry: services.folders,
+    store: services.store,
+    contextFor: (folder) => desktopWorkspace(services.folders, services.workspaces, folder).ctx(),
+    push: createChatMailPush(() => BrowserWindow.getAllWindows()),
+    onUnexpectedError: (error) => {
+      logger.error('Chat mail request failed:', error)
+    }
+  })
+}
+
+/** The bridge's quit and close with the mail monitors stopped first: before the chats are disposed and before any workspace closes. */
+function stoppingMailFirst(mail: AgentMailDesktop, chats: DesktopBridge['chats'], close: () => void): Pick<DesktopBridge, 'chats' | 'close'> {
+  return {
+    chats: {
+      busy: chats.busy,
+      dispose: () => {
+        mail.dispose()
+        return chats.dispose()
+      }
+    },
+    close: () => {
+      mail.dispose()
+      close()
+    }
+  }
+}
+
+/**
+ * Registers the `dm:*`, `agents:*`, `chats:*`, `chatMail:*`, `terminals:*`, `git:*` and `github:*` IPC handlers on `ipc`
  * (the sender-guarded registrar from `guardIpc`) and the background heartbeat/shutdown for open workspaces.
  */
 export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick<IpcMain, 'handle'>): DesktopBridge {
@@ -610,15 +698,15 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   })
   const agents = openAgentRegistry(appDb)
   const installer = createInstaller(agents)
-  const pool = createWorkspacePool(openDesktopWorkspace, (path, error) => {
-    logger.error(`Workspace error for ${path}:`, error)
-  })
+  const pool = openDesktopPool()
   // Which threads of old chats acted on which runs and attempts, as they stored it next to the chats.
   const activity = createActivityBindings({ file: join(app.getPath('userData'), 'agents', 'activity-bindings.jsonl') })
-  const { chats, quit, store, terminals, logins } = createChatProcesses(registry, agents, pool, activity)
+  const { chats, quit, store, terminals, logins, mail, releaseFolder } = createChatProcesses(registry, agents, pool, activity)
   const handlers = createDesktopHandlers({
     registry,
     pool,
+    releaseFolder,
+    stopMailMonitor: (folder) => mail.stopFolder(folder),
     agents,
     folderDefaults: createFolderAgentDefaults({ db: appDb }),
     pickDirectory,
@@ -647,7 +735,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   startAttachmentProtocol(registry, pool)
   refreshClaudeCodeEntries(registry)
   const close = runLifecycle(pool, appDb)
-  startChats(ipc, { folders: registry, agents, chats, store, terminals, workspaces: pool, activity })
+  startChats(ipc, { folders: registry, agents, chats, store, terminals, workspaces: pool, activity, mail })
   startTerminals(ipc, { folders: registry, agents, store, terminals, logins })
-  return { chats: quit, close, github: startSourceControl(ipc, registry) }
+  return { ...stoppingMailFirst(mail, quit, close), github: startSourceControl(ipc, registry) }
 }

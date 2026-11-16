@@ -55,6 +55,8 @@ interface OpenOptions {
   /** Defaults to in-process; stdio sessions search upward for the repository root. */
   transport?: OpenWorkspaceOptions['transport']
   autoReconcile?: boolean
+  /** Opens the restricted mailbox-poll mode, as the CLI does for status and wake polls. */
+  mailPoll?: boolean
 }
 
 interface HarnessEnv {
@@ -94,6 +96,7 @@ function openOptions(env: HarnessEnv, role: SessionRole, options: OpenOptions): 
     ...TEST_STORAGE,
     ...(options.fs ? { fs: options.fs } : {}),
     ...(options.autoReconcile === undefined ? {} : { autoReconcile: options.autoReconcile }),
+    ...(options.mailPoll === undefined ? {} : { mailPoll: options.mailPoll }),
     serverInfo: { name: 'darkmechanicus-test', version: '0.0.0-test' }
   }
 }

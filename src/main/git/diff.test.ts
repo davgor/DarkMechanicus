@@ -6,7 +6,7 @@ import type { FileChange } from '../../shared/git/status'
 import { createGitRepo, type GitRepo } from '../../test/gitRepo'
 import { gitIn, put, scratchDir } from '../../test/gitScratch'
 import { readWorkingDiff } from './diff'
-import { createGitRunner } from './runner'
+import { createGitRunner, type GitRunner } from './runner'
 import { readRepoState } from './status'
 
 const runner = createGitRunner()
@@ -86,6 +86,37 @@ describe('readWorkingDiff', () => {
     const deleted = textOf(await diffOf(r.root, 'file-1.txt'))
     expect(deleted.hunks[0].lines.every((l) => l.kind === 'delete')).toBe(true)
     expect(deleted.hunks[0].lines[0]).toMatchObject({ oldNumber: 1, newNumber: null })
+  })
+})
+
+describe('readWorkingDiff with a known HEAD', () => {
+  it('reads in one git process, without probing HEAD, when the caller says whether HEAD exists', async () => {
+    const r = repo()
+    commitFile(r, 'm.txt', '1\n2\n')
+    put(r.root, 'm.txt', '1\ntwo\n')
+    put(r.root, 'u.txt', 'u\n')
+    const runs: string[][] = []
+    const counting: GitRunner = { run: (request) => (runs.push([...request.args]), runner.run(request)) }
+    for (const path of ['m.txt', 'u.txt']) {
+      const change = await changeOf(r.root, path)
+      runs.length = 0
+      expect(await readWorkingDiff(counting, r.root, change, { headExists: true })).toEqual(await readWorkingDiff(runner, r.root, change))
+      expect(runs.map((args) => args.find((arg) => !arg.startsWith('-')))).toEqual(['diff'])
+    }
+  })
+
+  it('diffs against nothing, without probing HEAD, when the caller says HEAD does not exist', async () => {
+    const dir = scratchDir()
+    cleanups.push(dir.cleanup)
+    gitIn(dir.path, 'init', '-q', '-b', 'main')
+    put(dir.path, 'f.txt', 'a\n')
+    gitIn(dir.path, 'add', 'f.txt')
+    const root = dir.path
+    const change = await changeOf(root, 'f.txt')
+    const runs: string[][] = []
+    const counting: GitRunner = { run: (request) => (runs.push([...request.args]), runner.run(request)) }
+    expect(await readWorkingDiff(counting, root, change, { headExists: false })).toEqual(await readWorkingDiff(runner, root, change))
+    expect(runs).toHaveLength(1)
   })
 })
 

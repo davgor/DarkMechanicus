@@ -109,3 +109,11 @@ export function storeItems(fs: ChatStoreFs, chat: ChatRef, items: readonly ChatI
     items.map((item) => `${JSON.stringify(item)}\n`).join('')
   )
 }
+
+/** The tracked folder of a chat a test made in one; throws for a project-less chat. */
+export function folderOf(chat: ChatRef): string {
+  if (chat.folder === null) {
+    throw new Error(`Chat ${chat.id} belongs to no folder.`)
+  }
+  return chat.folder
+}

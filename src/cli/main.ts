@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs'
 import { maskClaimTokens } from '../core/claimTokenMask'
 import { COMMAND_CAPABILITIES } from '../core/commands/capabilities'
 import { COMMANDS } from '../core/commands/index'
+import { MAIL_POLL_COMMANDS } from '../core/services/agentMail'
 import { DomainError, toErrorShape } from '../core/errors'
 import type { CommandName } from '../shared/domain/api'
 import type { DomainErrorShape } from '../shared/domain/errors'
@@ -189,7 +190,10 @@ async function runCommand(host: CliHost, options: CliOptions, requested: string,
       label: 'dm CLI',
       transport: 'cli',
       pid: process.pid,
-      ...(token === null ? {} : { grantToken: token })
+      ...(token === null ? {} : { grantToken: token }),
+      // Status and wake polls run every few seconds: they open the restricted poll mode, which reuses one session
+      // per binding and does no record maintenance. No other command can select it.
+      ...(MAIL_POLL_COMMANDS.includes(name) ? { mailPoll: true } : {})
     })
     ok(host, await workspace.execute(name, parseInputJson(readInput(host, source))))
     return EXIT_OK

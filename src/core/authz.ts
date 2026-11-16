@@ -55,7 +55,12 @@ export const CAPABILITIES = [
   'kanban.review',
   'kanban.delete',
   'grant.issue',
-  'grant.revoke'
+  'grant.revoke',
+  // An agent's own desktop-bound mailbox. Holding it is necessary, never sufficient: every mail operation also needs
+  // the session's current grant to be bound to an open endpoint on this machine and folder (services/agentMail.ts).
+  'mail.use',
+  // Provisioning, binding, renaming and closing mailboxes, and the person's own inbox, seen cursor and wake credit.
+  'mail.manage'
 ] as const
 
 export type Capability = (typeof CAPABILITIES)[number]
@@ -78,11 +83,17 @@ export const HUMAN_ONLY_CAPABILITIES: readonly Capability[] = [
   // Settling an epic records conflict drops one side's changes: which survive is the person's call.
   'repo.resolve_conflict',
   'repo.switch_storage',
+  // A full SQLite backup copies every private local mailbox (agent mail exists only in the database), so only the
+  // person at the desktop takes one. No agent role, grant or MCP tool may: that would be an export-all-mail bypass.
+  'repo.backup',
   // Desktop Play starts a chat; external orchestrators queue named cards with the separate launch capability.
   'kanban.play',
   'kanban.review',
   // Removing a card from the board is the person's call; agents create and edit cards but never delete them.
-  'kanban.delete'
+  'kanban.delete',
+  // Mailboxes are the person's to create, bind and close: an agent that could would register or rebind itself, or
+  // close a peer's. The person's inbox view and the one-shot wake credit it grants are theirs too.
+  'mail.manage'
 ]
 
 /** What a planner and an orchestrator both hold. */
@@ -101,7 +112,9 @@ const PLANNER_SHARED: Capability[] = [
   'kanban.write',
   'profile.write',
   // Re-detecting a folder's repositories only records what is on disk, so both planning roles may do it.
-  'project.repositories'
+  'project.repositories',
+  // Direct messages between Skitarii chats; usable only through a desktop-bound grant.
+  'mail.use'
 ]
 
 /**
@@ -115,7 +128,6 @@ const PLANNER: Capability[] = [...PLANNER_SHARED, ...PLANNER_ONLY]
 
 const ORCHESTRATOR: Capability[] = [
   ...PLANNER_SHARED,
-  'repo.backup',
   'epic.status',
   'epic.branch',
   'epic.transfer',
@@ -154,7 +166,9 @@ const AGENT_ONLY: readonly Capability[] = [
   'host.register',
   'kanban.launch',
   'kanban.claim',
-  'kanban.report'
+  'kanban.report',
+  // A mailbox speaks for an agent's chat; the person reads and manages mail through `mail.manage` instead.
+  'mail.use'
 ]
 
 const DESKTOP: Capability[] = CAPABILITIES.filter((capability) => !AGENT_ONLY.includes(capability))
@@ -164,8 +178,8 @@ const ROLE_CAPABILITIES: Record<SessionRole, Capability[]> = {
   reader: ['read'],
   planner: PLANNER,
   orchestrator: ORCHESTRATOR,
-  worker: ['read', 'chat.name', 'attempt.heartbeat', 'attempt.submit', 'attempt.fail', 'comment.write', 'attachment.write', 'kanban.report'],
-  reviewer: ['read', 'chat.name', 'attempt.review', 'comment.write', 'attachment.write']
+  worker: ['read', 'chat.name', 'attempt.heartbeat', 'attempt.submit', 'attempt.fail', 'comment.write', 'attachment.write', 'kanban.report', 'mail.use'],
+  reviewer: ['read', 'chat.name', 'attempt.review', 'comment.write', 'attachment.write', 'mail.use']
 }
 
 interface RoleOptions {

@@ -89,6 +89,12 @@ export const chatRecordSchema = z.object({
    */
   sessionStarted: z.boolean().optional(),
   /**
+   * The opaque id of the chat's agent mailbox in its folder's database (`chatMailboxes.ts`), once provisioned: only
+   * OMP (Skitarii) chats have one. The mailbox is keyed by this machine and the chat's id, so a crash before this field
+   * was written finds the same endpoint again; absent on chats stored before mailboxes and on every other CLI's chats.
+   */
+  endpointId: z.string().min(1).optional(),
+  /**
    * Whether the kickoff went with the terminal of the chat Start run (or Transfer with agent) opened: set when it went on the
    * command line (Claude Code's prompt, stored before the spawn) or was pasted; absent until then. A start of a
    * chat that has it set never sends the kickoff again.

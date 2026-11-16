@@ -45,6 +45,10 @@ function createDesktop(): Desktop {
   const handlers = createDesktopHandlers({
     registry,
     pool,
+    releaseFolder: async (_folder, forget) => {
+      forget()
+    },
+    stopMailMonitor: () => undefined,
     pickDirectory: async () => null,
     writeClipboard: () => undefined,
     openExternal: async () => undefined,

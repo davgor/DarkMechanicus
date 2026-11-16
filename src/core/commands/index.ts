@@ -1,3 +1,4 @@
+import { agentMailCommands } from './agentMail'
 import { chatNamingCommands } from './chatNaming'
 import { activityCommands } from './activity'
 import { attachmentCommands } from './attachments'
@@ -27,5 +28,6 @@ export const COMMANDS: CommandTable = {
   ...kanbanCommands,
   ...activityCommands,
   ...deletionCommands,
-  ...transferCommands
+  ...transferCommands,
+  ...agentMailCommands
 }

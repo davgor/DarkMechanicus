@@ -46,6 +46,7 @@ function recordingChats(): { chats: ChatRecords; calls: unknown[][] } {
     deleteChat: async (...args) => {
       calls.push(['deleteChat', ...args])
     },
+    recoverFolder: async () => {},
     readChat: (...args) => (calls.push(['readChat', ...args]), { chat: CHAT, items: [] }),
     agentName: (id) => id
   }

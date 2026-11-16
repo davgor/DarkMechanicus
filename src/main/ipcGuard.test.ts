@@ -196,6 +196,10 @@ function trustingDesktop() {
       },
       close: () => undefined
     },
+    releaseFolder: async (_folder, forget) => {
+      forget()
+    },
+    stopMailMonitor: () => undefined,
     pickDirectory: async () => null,
     writeClipboard: () => undefined,
     openExternal: async () => undefined,

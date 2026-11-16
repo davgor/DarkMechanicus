@@ -1,0 +1,92 @@
+    0.1 versions {"os":"win32 10.0.26200","arch":"x64","node":"v24.22.3","electron":"42.11.18","app":"0.37.0","omp":"omp/18.20.2","model":"anthropic/claude-haiku-4-5","sourceCommit":"74b68aa6b1592e517bf12a726f50e99ad53b3c38"}
+    0.2 PASS auth-export {"status":0}
+    1.0 PASS auth-import-scratch {"status":0,"providers":["anthropic:oauth"],"agentDir":"<scratch>/home/.omp/agent","refreshToken":"replaced in the copy"}
+    1.1 PASS git-init-repo {}
+    1.2 PASS git-init-repo2 {}
+    1.8 launched first pid=33680
+    3.5 PASS track-repo {}
+    3.6 PASS find-omp {"version":"18.20.2"}
+    3.6 PASS add-fixture-cli {"outcome":"connected"}
+    5.1 PASS create-chats {}
+    5.1 PASS endpoint-only-omp {"a":"me_01m7h1qy510j686etaaq4afv2p","b":"me_01m7h1qy5e0kjg6qb0z31dh0ap","fixture":null}
+   16.4 PASS guidance-omp-has-mail-section {}
+   16.4 PASS guidance-unsupported-has-none {}
+   16.4 PASS unsupported-chat-unbound {"grant":true,"descriptor":false,"mailbox":{"bound":false,"reason":"unbound"},"identity":"unauthorized"}
+   16.4 PASS unsupported-chat-no-app-mailbox {}
+   16.4 PASS projectless-omp-chat-unbound {"ok":true,"endpointId":null}
+   16.7 screenshot DM-505-app-01-two-chats-running.png: Alpha and Beta running in one scratch folder; Messages header 0/0; Fixture CLI chat has no Messages action
+   16.7 prompt A-discovery: Call dm_agent_identity, then dm_agent_peers, and show both results verbatim. Do nothing else.
+   25.6 turn A-discovery: assistant=2 side=[] calls=["dm_agent_identity({\"i\":\"Getting agent identity\"})","dm_agent_peers({\"i\":\"Listing agent peers\"})"]
+   25.6 PASS discovery-identity {"identity":{"endpointId":"me_01m7h1qy510j686etaaq4afv2p","name":"Alpha","role":"worker","boundAt":"2026-11-16T02:07:26.778Z"}}
+   25.6 PASS discovery-peers {"peerIds":["me_01m7h1qy5e0kjg6qb0z31dh0ap"]}
+   25.6 prompt A-send-M1: Call dm_message_send exactly once with to="me_01m7h1qy5e0kjg6qb0z31dh0ap", clientMessageId="accept-1", body="DM505-PING-0c48cab3". Then call it again unchanged and show both results. Do nothing else.
+   37.3 turn A-send-M1: assistant=3 side=["title"] calls=["dm_message_send({\"to\":\"me_01m7h1qy5e0kjg6qb0z31dh0ap\",\"clientMessageId\":\"accept-1\",\"body\":\"DM505-PING-0c48cab3\",\"i\":\"Sending message first time\"})","dm_message_send({\"to\":\"me_01m7h1qy5e0kjg6qb0z31dh0ap\",\"clientMessageId\":\"accept-1\",\"body\":\"DM505-PING-0c48cab3\",\"i\":\"Sending message second time\"})"]
+   37.3 PASS send-M1-accepted-and-replayed {"sends":[{"messageId":"mm_01m7h1rmt76c3xbv9g5yvws3gv","to":"me_01m7h1qy5e0kjg6qb0z31dh0ap","clientMessageId":"accept-1","inReplyTo":null,"acceptedAt":"2026-11-16T02:07:49.574Z","duplicate":false},{"acceptedAt":"2026-11-16T02:07:49.574Z","clientMessageId":"accept-1","inReplyTo":null,"messageId":"mm_01m7h1rmt76c3xbv9g5yvws3gv","to":"me_01m7h1qy5e0kjg6qb0z31dh0ap","duplicate":true}]}
+   37.3 PASS idle-status-line-count {}
+   37.3 PASS idle-notice-names-sender {}
+   37.3 PASS human-and-agent-counts-apart {"unseen":1,"pending":1}
+   37.5 screenshot DM-505-app-02-idle-notice-header-sidebar.png: Beta idle: OMP status line "Skitarii mail: 1 unread" and notice naming Alpha; header Messages 1 unseen / 1 unacknowledged; sidebar unseen badge
+   68.0 PASS idle-no-turn-no-request-no-input {"newEntries":[],"waitedMs":30000}
+   68.0 PASS hostile-title-accepted-as-data {"code":"ok"}
+   68.0 PASS dm-line-present {"line":"ELECTRON_RUN_AS_NODE=1 'C:\\Users\\davgo\\dmwt\\acc-app\\node_modules\\electron\\dist\\electron.exe' 'C:\\Users\\davgo\\dmwt\\acc-app\\out\\main\\cli.js' --repo '<scratch>\\repo'"}
+   68.0 prompt A-send-hostile: Use your bash tool (not async) to run this exact command once, unchanged, and show its raw stdout: ELECTRON_RUN_AS_NODE=1 'C:\Users\davgo\dmwt\acc-app\node_modules\electron\dist\electron.exe' 'C:\Users\davgo\dmwt\acc-app\out\main\cli.js' --
+   79.0 turn A-send-hostile: assistant=2 side=[] calls=["bash({\"command\":\"ELECTRON_RUN_AS_NODE=1 'C:\\\\Users\\\\davgo\\\\dmwt\\\\acc-app\\\\node_modules\\\\electron\\\\dist\\\\electron.exe' 'C:\\\\Users\\\\davgo\\\\dmwt\\\\acc-app\\\\out\\\\main\\\\cl)"]
+   79.0 PASS hostile-sent-by-real-grant {"tail":"{\n  \"ok\": true,\n  \"data\": {\n    \"messageId\": \"mm_01m7h1szyw04wnnwa5h9vvwak6\",\n    \"to\": \"me_01m7h1qy5e0kjg6qb0z31dh0ap\",\n    \"clientMessageId\": \"hostile-1\",\n    \"inReplyTo\": null,\n    \"acceptedAt\": \"2026-11-16T02:08:33.756Z\",\n    \"duplicate\": false\n  }\n}\n"}
+   84.0 prompt B-read-reply-ack: Check your Skitarii inbox with dm_inbox_read. Reply to the message whose body starts with DM505-PING using dm_message_send with inReplyTo set to its messageId, clientMessageId "reply-1", and a body that quotes its text exactly after "Review
+  100.9 turn B-read-reply-ack: assistant=3 side=["title"] calls=["dm_inbox_read({\"i\":\"Reading Skitarii inbox\"})","dm_message_send({\"to\":\"me_01m7h1qy510j686etaaq4afv2p\",\"inReplyTo\":\"mm_01m7h1rmt76c3xbv9g5yvws3gv\",\"clientMessageId\":\"reply-1\",\"body\":\"Reviewed: DM505-PING-0c48cab3\",\"i\":\"Replyi)","dm_inbox_ack({\"messageIds\":[\"mm_01m7h1rmt76c3xbv9g5yvws3gv\",\"mm_01m7h1szyw04wnnwa5h9vvwak6\"],\"i\":\"Acknowledging all inbox messages\"})"]
+  100.9 PASS B-read-via-native-tool {"toolNames":["dm_inbox_read","dm_message_send","dm_inbox_ack"]}
+  100.9 PASS B-reply-references-original {"to":"me_01m7h1qy510j686etaaq4afv2p","inReplyTo":"mm_01m7h1rmt76c3xbv9g5yvws3gv","result":{"messageId":"mm_01m7h1tksgnt2yfj0qxkrvtwzg","to":"me_01m7h1qy510j686etaaq4afv2p","clientMessageId":"reply-1","inReplyTo":"mm_01m7h1rmt76c3xbv9g5yvws3gv","acceptedAt":"2026-11-16T02:08:54.064Z","duplicate":false}}
+  100.9 PASS natural-turn-carries-constant-reminder {"reminders":1}
+  100.9 PASS B-acked-but-human-unseen-remains {"pending":0,"unseen":2}
+  100.9 PASS hostile-marker-only-tool-result-data {"carriers":["toolResult","assistant"],"bad":[]}
+  100.9 PASS hostile-escapes-escaped-in-tool-result {"rawEscInToolResult":false}
+  100.9 prompt A-read-ack: Read your Skitarii inbox with dm_inbox_read, show the reply you received, then acknowledge it with dm_inbox_ack. Do nothing else.
+  114.7 turn A-read-ack: assistant=4 side=[] calls=["dm_inbox_read({\"i\":\"Reading Skitarii inbox\"})","dm_inbox_ack({\"messageIds\":[\"mm_01m7h1tksgnt2yfj0qxkrvtwzg\"],\"i\":\"Acknowledging message\"})"]
+  114.7 PASS A-reads-reply-from-B {"from":"me_01m7h1qy5e0kjg6qb0z31dh0ap","inReplyTo":"mm_01m7h1rmt76c3xbv9g5yvws3gv"}
+  114.7 PASS A-final-ack {"ack":{"acknowledged":[{"messageId":"mm_01m7h1tksgnt2yfj0qxkrvtwzg","acknowledgedAt":"2026-11-16T02:09:07.430Z","expiresAt":"2026-11-23T02:09:07.430Z"}]}}
+  114.7 PASS A-pending-zero-after-ack {"pending":0,"unseen":1}
+  118.5 prompt A-send-busy: Call dm_message_send once with to="me_01m7h1qy5e0kjg6qb0z31dh0ap", clientMessageId="busy-1", body="DM505-BUSY-af3affa5". Do nothing else.
+  129.4 turn A-send-busy: assistant=3 side=[] calls=["dm_message_send({\"to\":\"me_01m7h1qy5e0kjg6qb0z31dh0ap\",\"clientMessageId\":\"busy-1\",\"body\":\"DM505-BUSY-af3affa5\",\"i\":\"Sending message\"})"]
+  129.5 PASS busy-status-line-count {"statusSeen":true,"stillBusy":true}
+  129.7 screenshot DM-505-app-03-busy-notice.png: Beta busy in a foreground bash turn: unread status line and notice paint; nothing is typed into the running turn
+  174.1 turn B-busy-turn: assistant=2 side=[] calls=["bash({\"command\":\"sleep 50\",\"i\":\"Running sleep\"})"]
+  174.1 PASS busy-no-steer-no-injection {"roles":["toolResult","assistant"]}
+  204.2 PASS busy-end-no-extra-turn {"entries":[],"sideRequests":[]}
+  206.6 screenshot DM-505-app-04-inbox-seen-unacked-hostile-inert.png: Beta inbox opened from the keyboard: per message "Unseen by you" apart from "Acknowledged/Unacknowledged by its agent"; hostile sender name and body shown as inert text with visible control marks
+  206.6 PASS inbox-hostile-inert {"injectedElements":0,"hostileSenderNameShownAsText":true}
+  206.6 PASS inbox-labels-separate {}
+  206.6 PASS inbox-keyboard-focus-restored {"focusInDialog":true,"focusBackOnMessages":true}
+  206.8 screenshot DM-505-app-05-focus-restored.png: After Escape the focus ring is back on the header Messages button; the unsent terminal draft is untouched
+  211.9 PASS inbox-open-close-no-restart-no-submit {"pidSame":true,"newTranscriptEntries":0,"draftStillInEditor":true}
+  212.4 PASS draft-cleared-unsent {}
+  212.4 PASS mark-seen-keeps-agent-pending {"unseen":0,"pending":1}
+  212.4 PASS double-click-one-credit {"before":0,"after":1,"armed":true}
+  212.6 screenshot DM-505-app-06-wake-allowed.png: Beta inbox right after a double click on Allow one inbox wake: one wake allowed (or already being taken)
+  227.9 turn B-wake-turn: assistant=3 side=[] calls=["dm_inbox_read({\"i\":\"Reading Skitarii inbox for task-relevant messages\"})","dm_inbox_ack({\"messageIds\":[\"mm_01m7h1vfnghq58wtyxpttns6jc\"],\"i\":\"Acknowledging new message\"})"]
+  227.9 PASS one-wake-one-followup {"wakeEntries":1,"userMessages":0}
+  227.9 PASS wake-attempted-not-armed {"wake":{"revision":2,"armed":false,"armedAt":null,"lastAttempt":{"id":"mw_01m7h1ycbsz7fb3g71jpz91a8k","at":"2026-11-16T02:10:57.529Z","outcome":"attempted"}}}
+  229.6 screenshot DM-505-app-07-wake-attempted.png: Wake attempted: "its reminder was queued. That does not show its agent read or processed anything. No wake is allowed now."
+  229.6 PASS delayed-duplicate-allow-refused {"code":"conflict","armed":false}
+  229.6 prompt A-send-after-wake: Call dm_message_send once with to="me_01m7h1qy5e0kjg6qb0z31dh0ap", clientMessageId="after-wake-1", body="DM505-AFTERWAKE-02d115d1". Do nothing else.
+  239.5 turn A-send-after-wake: assistant=2 side=[] calls=["dm_message_send({\"to\":\"me_01m7h1qy5e0kjg6qb0z31dh0ap\",\"clientMessageId\":\"after-wake-1\",\"body\":\"DM505-AFTERWAKE-02d115d1\",\"i\":\"Sending message\"})"]
+  259.5 PASS send-reply-agent-end-do-not-rearm {"armed":false,"newBetaEntries":0}
+  262.3 PASS dispatch-failure-precondition-pending {"pending":1}
+  262.3 PASS allow-while-busy {"code":"ok"}
+  266.1 killed Beta omp 37192 after the credit was consumed (attempt mw_01m7h1zv8rmrtdnb1681qbrtrc), before the queued follow-up ran
+  266.5 screenshot DM-505-app-08-wake-attempted-agent-stopped.png: Credit consumed, then Beta stopped before its queued follow-up ran: the inbox says attempted, no wake allowed; the pane offers Start again
+  293.2 PASS dispatch-failure-no-replay-no-refund {"followUpEntriesBeforeKill":0,"armed":false,"newWakes":0,"newRequests":0}
+  294.5 prompt A-send-to-stopped: Call dm_message_send once with to="me_01m7h1qy5e0kjg6qb0z31dh0ap", clientMessageId="stopped-1", body="DM505-STOPPED-b286f524". Do nothing else.
+  304.4 turn A-send-to-stopped: assistant=2 side=[] calls=["dm_message_send({\"to\":\"me_01m7h1qy5e0kjg6qb0z31dh0ap\",\"clientMessageId\":\"stopped-1\",\"body\":\"DM505-STOPPED-b286f524\",\"i\":\"Sending message\"})"]
+  304.4 PASS send-to-stopped-peer-accepted {"pending":2,"unseen":2}
+  304.4 FAIL stopped-peer-shown {}
+  304.7 screenshot DM-505-app-09-stopped-peer.png: Alpha's inbox: Beta's reply, with Beta's terminal shown as not seen running (stopped)
+  305.8 screenshot DM-505-app-10-wake-armed-stopped-chat.png: Beta stopped: one wake allowed and waiting; nothing starts the chat
+  306.4 FAIL wake-armed-while-stopped {"revision":5}
+  336.6 ERROR Error: Timed out waiting for dialog closed
+    at waitFor (file:///C:/Users/davgo/dmwt/acc-app/scripts/smoke-skitarii-messaging.mjs:242:9)
+    at async closeDialog (file:///C:/Users/davgo/dmwt/acc-app/scripts/smoke-skitarii-messaging.mjs:485:3)
+    at async armWhileStopped (file:///C:/Users/davgo/dmwt/acc-app/scripts/smoke-skitarii-messaging.mjs:822:3)
+    at async PHASES (file:///C:/Users/davgo/dmwt/acc-app/scripts/smoke-skitarii-messaging.mjs:996:26)
+    at async file:///C:/Users/davgo/dmwt/acc-app/scripts/smoke-skitarii-messaging.mjs:1031:31
+  336.9 screenshot DM-505-app-failure.png: state at failure
+  337.9 PASS quit-after-failure-clean {"code":0,"quitMs":634,"leftover":[]}

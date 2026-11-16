@@ -5,12 +5,13 @@
  */
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import type { IpcMain } from 'electron'
-import { CHAT_EVENT_CHANNEL } from '../shared/agents/chatApi'
+import { CHAT_EVENT_CHANNEL, CHAT_MAIL_EVENT_CHANNEL } from '../shared/agents/chatApi'
 import { AUTO_UPDATE_EVENT_CHANNEL } from '../shared/autoUpdate/types'
 import { GIT_PROGRESS_CHANNEL } from '../shared/git/api'
 import { GITHUB_ACCOUNT_CHANGED_CHANNEL } from '../shared/github/api'
-import { registerChatIpc } from '../main/agents/chatIpc'
+import { registerChatIpc, registerChatMailIpc } from '../main/agents/chatIpc'
 import type { ChatHandlers } from '../main/agents/chatHandlers'
+import type { ChatMailHandlers } from '../main/agents/agentMailDesktop'
 import { registerAutoUpdateHandlers } from '../main/autoUpdate'
 import { registerDesktopIpc } from '../main/desktop/ipc'
 import type { DesktopHandlers } from '../main/desktop/handlers'
@@ -85,6 +86,7 @@ beforeAll(() => {
   registerGithubIpc(recorder(true), recordingHandlers<GithubHandlers>())
   registerDesktopIpc(recorder(true), recordingHandlers<DesktopHandlers>())
   registerChatIpc(recorder(true), recordingHandlers<ChatHandlers>())
+  registerChatMailIpc(recorder(true), recordingHandlers<ChatMailHandlers>())
   registerAutoUpdateHandlers(recorder(false))
   // Terminal handlers take the sender's frame, not the event, so these are checked by channel and payload only.
   registerTerminalIpc(recorder(false), recordingHandlers<TerminalHandlers>())
@@ -129,6 +131,7 @@ describe('preload bridge subscriptions', () => {
     const expected: Record<string, string> = {
       'autoUpdate.onEvent': AUTO_UPDATE_EVENT_CHANNEL,
       'dm.chats.onEvent': CHAT_EVENT_CHANNEL,
+      'dm.chats.mail.onEvent': CHAT_MAIL_EVENT_CHANNEL,
       'dm.onAgentDownloadProgress': 'agents:downloadProgress',
       'git.onProgress': GIT_PROGRESS_CHANNEL,
       'github.onAccountChanged': GITHUB_ACCOUNT_CHANGED_CHANNEL

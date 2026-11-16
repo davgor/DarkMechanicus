@@ -278,3 +278,63 @@ describe('advertised input schemas', () => {
     })
   })
 })
+
+const MESSAGE = sampleId('mailMessage')
+const PEER = sampleId('mailEndpoint')
+const SEND = { to: PEER, clientMessageId: 'retry-1', body: 'Ready?' }
+
+/** Mail arguments the schemas refuse: a smuggled sender or mailbox, bounds, and unknown properties. */
+const REFUSED_MAIL_ARGUMENTS = [
+  ['send_agent_message', { ...SEND, from: sampleId('mailEndpoint', 2) }],
+  ['send_agent_message', { ...SEND, senderEndpointId: sampleId('mailEndpoint', 2) }],
+  ['send_agent_message', { ...SEND, body: '' }],
+  ['send_agent_message', { ...SEND, clientMessageId: ' leading space' }],
+  ['send_agent_message', { ...SEND, idempotencyKey: 'k' }],
+  ['get_agent_identity', { endpointId: PEER }],
+  ['take_agent_mail_wake', { endpointId: PEER }],
+  ['read_agent_inbox', { endpointId: PEER }],
+  ['read_agent_inbox', { afterSeq: -1 }],
+  ['get_agent_mail_status', { limit: 51 }],
+  ['list_agent_peers', { limit: 0 }],
+  ['acknowledge_agent_messages', { messageIds: [] }],
+  ['acknowledge_agent_messages', { messageIds: Array.from({ length: 101 }, (_, index) => sampleId('mailMessage', index + 1)) }],
+  ['acknowledge_agent_messages', { messageIds: [MESSAGE], endpointId: PEER }]
+] as const
+
+describe('agent mail arguments', () => {
+  it.each(REFUSED_MAIL_ARGUMENTS)('refuse %s with %j as invalid_input before any command runs', async (tool, args) => {
+    const api = createStubApi()
+    await withRig(build, api, async (rig) => {
+      const outcome = await callTool(rig, tool, args)
+      expect(outcome.isError).toBe(true)
+      expect(outcome.payload).toMatchObject({ ok: false, error: { code: 'invalid_input', details: { tool } } })
+      expect(api.calls).toEqual([])
+    })
+  })
+
+  it('pass well-formed arguments through unchanged (positive control)', async () => {
+    const api = createCannedApi({ sendAgentMessage: { marker: 'sent' }, acknowledgeAgentMessages: { marker: 'acked' }, takeAgentMailWake: { marker: 'woke' } })
+    await withRig(build, api, async (rig) => {
+      expect((await callTool(rig, 'send_agent_message', { ...SEND, inReplyTo: MESSAGE })).payload).toEqual({ ok: true, data: { marker: 'sent' } })
+      expect((await callTool(rig, 'acknowledge_agent_messages', { messageIds: [MESSAGE] })).payload).toEqual({ ok: true, data: { marker: 'acked' } })
+      expect((await callTool(rig, 'take_agent_mail_wake', {})).payload).toEqual({ ok: true, data: { marker: 'woke' } })
+      expect(api.calls).toEqual([
+        { name: 'sendAgentMessage', input: { ...SEND, inReplyTo: MESSAGE } },
+        { name: 'acknowledgeAgentMessages', input: { messageIds: [MESSAGE] } },
+        { name: 'takeAgentMailWake', input: {} }
+      ])
+    })
+  })
+
+  it('advertise closed input schemas that name no mailbox of the caller', async () => {
+    await withRig(build, createStubApi(), async (rig) => {
+      const { tools } = await rig.client.listTools()
+      const mail = tools.filter((tool) => /agent_(identity|peers|message|inbox|messages|mail)/.test(tool.name))
+      expect(mail.map((tool) => tool.name).sort()).toHaveLength(7)
+      for (const tool of mail) {
+        expect(tool.inputSchema.additionalProperties).toBe(false)
+        expect(Object.keys(tool.inputSchema.properties ?? {}).filter((key) => /from|sender|endpoint|grant|session/i.test(key))).toEqual([])
+      }
+    })
+  })
+})

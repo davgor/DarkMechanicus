@@ -9,7 +9,7 @@ import type {
   ReconcileResultView,
   SessionRole
 } from '../shared/domain/views'
-import { capabilitiesForRole, type Capability } from './authz'
+import { capabilitiesForRole, type Capability, type SessionContext } from './authz'
 import { createSystemClock, type Clock } from './clock'
 import { COMMANDS } from './commands/index'
 import type { WorkspaceCore } from './commands/types'
@@ -31,6 +31,7 @@ import type { ProjectRecord } from './repo/portable'
 import { resolveHomeDir, resolveStorageMode, type StorageMode } from './repo/storageMode'
 import { assertStorageMigrationIdle, recoverStorageMigration, switchStorage } from './repo/storageMigration'
 import { pruneStagedAttachments } from './services/attachments'
+import { MAIL_POLL_COMMANDS, openMailPollSession, touchMailPollSession } from './services/agentMail'
 import { assertGrantUsable, redeemGrant, type RedeemedGrant } from './services/grants'
 import type { FsAdapter, GitAdapter, RepoLayout } from './repo/types'
 import { parseInput } from './schemas'
@@ -76,6 +77,14 @@ export interface OpenWorkspaceOptions {
   /** Reconcile tracked records on open and on heartbeat (default true). */
   autoReconcile?: boolean
   serverInfo?: { name: string; version: string }
+  /**
+   * Internal: the restricted mailbox-poll mode the `dm` CLI selects for `get_agent_mail_status` and
+   * `take_agent_mail_wake` only. It needs the `cli` transport and a grant bound to an open mailbox here; it reuses
+   * the binding's one dedicated poll session instead of registering a session per call, skips record reconcile,
+   * portable flush and staged-image pruning, and refuses every other command before dispatching it. Migration and
+   * the current grant and binding are still checked on every call.
+   */
+  mailPoll?: boolean
 }
 
 /** One repository opened by one session. Implements the full command contract. */
@@ -112,13 +121,13 @@ function canonicalRoot(path: string, fs: FsAdapter): string {
 }
 
 /**
- * How to recover from a database that belongs to another project. In `repo` mode the database is a
- * cache of the tracked records and can simply be rebuilt. In `db` mode it is the only copy of the
- * project, so the advice must never be to delete it.
+ * How to recover from a database that belongs to another project. In either mode the database holds data nothing else
+ * can rebuild: in `db` mode the whole project, in `repo` mode the local agent mail (and unsaved local state) that the
+ * tracked records never carry. So the advice is never to delete it: back it up or move it aside first.
  */
 function mismatchAdvice(layout: RepoLayout): string {
   if (layout.mode === 'repo') {
-    return 'The local database belongs to a different project than .darkmechanicus/project.json. Remove .darkmechanicus/local/ to rebuild it from tracked records.'
+    return `The local database in ${layout.localDir} belongs to a different project than ${layout.projectFile}. It holds local-only data, such as agent mail, that tracked records cannot rebuild, so do not delete it: move ${layout.localDir} aside (or copy it somewhere safe) before reopening the project to rebuild it from tracked records, or restore the project.json that belongs to it.`
   }
   return `The database in ${layout.localDir} belongs to a different project than ${layout.projectFile}. It is the only copy of that project's work, so do not delete it: move the whole project directory aside, or restore the project.json that belongs to it.`
 }
@@ -129,7 +138,11 @@ const UNGRANTED_CLI_CAPABILITIES: readonly Capability[] = ['read']
 function bindProject(db: Db, layout: RepoLayout, project: ProjectRecord): void {
   const known = getMeta(db, META_KEYS.projectId)
   if (known !== null && known !== project.projectId) {
-    fail('project_mismatch', mismatchAdvice(layout), { databaseProjectId: known, projectId: project.projectId })
+    fail('project_mismatch', mismatchAdvice(layout), { databaseProjectId: known, projectId: project.projectId, localDir: layout.localDir })
+  }
+  if (known === project.projectId && getMeta(db, META_KEYS.projectName) === project.name && getMeta(db, META_KEYS.keyPrefix) === project.keyPrefix) {
+    // Already bound and current: no write transaction on every open.
+    return
   }
   db.tx(() => {
     setMeta(db, META_KEYS.projectId, project.projectId)
@@ -145,8 +158,29 @@ function workspaceDesktopClient(options: OpenWorkspaceOptions): DesktopClient {
   })
 }
 
+/**
+ * The desktop client a workspace starts with. A mailbox poll needs the `dm` CLI and a grant, and never names a chat,
+ * so it starts with none (built on first use, which a poll never makes).
+ */
+function initialDesktopClient(options: OpenWorkspaceOptions): DesktopClient | null {
+  if (options.mailPoll !== true) {
+    return workspaceDesktopClient(options)
+  }
+  if (options.transport !== 'cli' || options.grantToken === undefined) {
+    fail('unauthorized', 'Mailbox polling needs the dm CLI and a grant bound to this chat’s mailbox.')
+  }
+  return null
+}
+
 export class RepositoryWorkspace implements WorkspaceCore {
-  readonly desktopClient: DesktopClient
+  /** Built at construction, except for a mailbox poll, which never names a chat and so never needs one. */
+  private builtDesktopClient: DesktopClient | null
+
+  get desktopClient(): DesktopClient {
+    this.builtDesktopClient ??= workspaceDesktopClient(this.options)
+    return this.builtDesktopClient
+  }
+
   readonly repoRoot: string
   readonly homeDir: string
   /** Re-resolved when `initialize` sets the folder up in a mode other than the one it resolved to. */
@@ -170,7 +204,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
 
   constructor(options: OpenWorkspaceOptions) {
     this.options = options
-    this.desktopClient = workspaceDesktopClient(options)
+    this.builtDesktopClient = initialDesktopClient(options)
     this.fs = options.fs ?? nodeFs
     this.homeDir = options.homeDir ?? resolveHomeDir(process.env, homedir())
     // Always canonical: a database-only project is keyed by this path, so two spellings of one
@@ -296,15 +330,24 @@ export class RepositoryWorkspace implements WorkspaceCore {
     if (!project) {
       fail('not_initialized', `${this.repoRoot} has no valid project record at ${this.layout.projectFile}.`)
     }
-    this.fs.mkdirp(this.layout.localDir)
+    // A poll only ever opens the existing database its grant was bound in, so it never creates the local directory.
+    if (this.options.mailPoll !== true) {
+      this.fs.mkdirp(this.layout.localDir)
+    }
     const db = openDatabase(this.layout.dbFile, { synchronous: this.options.databaseSynchronous ?? 'full' })
     try {
       this.store = this.createStore(db, project)
-      // Staged images nobody claimed within the retention window are dropped each time a workspace opens.
-      pruneStagedAttachments(this.store.ctx)
+      // Staged images nobody claimed within the retention window are dropped each time a workspace opens; a mailbox
+      // poll, which runs every few seconds and touches nothing else, leaves that to ordinary sessions.
+      if (this.options.mailPoll !== true) {
+        pruneStagedAttachments(this.store.ctx)
+      }
     } catch (error: unknown) {
       db.close()
       throw error
+    }
+    if (this.options.mailPoll === true) {
+      return
     }
     // A branch that moved while closed is never acknowledged silently: reconcile stays explicit.
     // A db project has nothing tracked to reconcile at all.
@@ -330,20 +373,12 @@ export class RepositoryWorkspace implements WorkspaceCore {
   private createStore(db: Db, project: ProjectRecord): Store {
     migrate(db)
     bindProject(db, this.layout, project)
-    const machineId = ensureMachineId({ layout: this.layout, fs: this.fs, ids: this.ids, clock: this.clock })
-    db.tx(() => setMeta(db, META_KEYS.machineId, machineId))
-    this.redeem(db, machineId)
-    const session = registerSession(
-      { db, clock: this.clock, ids: this.ids },
-      {
-        role: this.role,
-        label: this.options.label,
-        transport: this.options.transport,
-        pid: this.options.pid ?? null,
-        capabilities: this.roleCapabilities(),
-        grantId: this.granted?.grantId ?? null
-      }
-    )
+    const machineId = this.machineIdFor(db)
+    if (getMeta(db, META_KEYS.machineId) !== machineId) {
+      db.tx(() => setMeta(db, META_KEYS.machineId, machineId))
+    }
+    // A poll redeems its grant and maps its dedicated session under one write lock.
+    const session = this.options.mailPoll === true ? db.tx(() => this.openSession(db, machineId)) : this.openSession(db, machineId)
     const ctx: Ctx = {
       db,
       clock: this.clock,
@@ -360,6 +395,40 @@ export class RepositoryWorkspace implements WorkspaceCore {
       repositoryEntries: () => readProject(this.layout, this.fs)?.repositories ?? null
     }
     return { db, project, ctx }
+  }
+
+  /**
+   * This machine's id. An ordinary open reads (and on first use creates) `local/machine.json`; a mailbox poll takes
+   * the copy every ordinary open records in the database beside it, and reads the file only when there is none.
+   */
+  private machineIdFor(db: Db): string {
+    const recorded = this.options.mailPoll === true ? getMeta(db, META_KEYS.machineId) : null
+    return recorded ?? ensureMachineId({ layout: this.layout, fs: this.fs, ids: this.ids, clock: this.clock })
+  }
+
+  /**
+   * Redeems the grant, then registers a fresh session row for an ordinary open; for a mailbox poll, maps the binding's
+   * one dedicated poll session, re-checked under the write lock so concurrent polls never create a second one.
+   */
+  private openSession(db: Db, machineId: string): SessionContext {
+    this.redeem(db, machineId)
+    if (this.options.mailPoll === true) {
+      if (this.granted === null) {
+        fail('unauthorized', 'Mailbox polling needs a grant bound to this chat’s mailbox.')
+      }
+      return openMailPollSession({ db, clock: this.clock, ids: this.ids, machineId, projectRoot: this.repoRoot }, this.granted)
+    }
+    return registerSession(
+      { db, clock: this.clock, ids: this.ids },
+      {
+        role: this.role,
+        label: this.options.label,
+        transport: this.options.transport,
+        pid: this.options.pid ?? null,
+        capabilities: this.roleCapabilities(),
+        grantId: this.granted?.grantId ?? null
+      }
+    )
   }
 
   /** The checks `project.json` holds now: read from the file each time, never from the copy read at open. */
@@ -545,6 +614,9 @@ export class RepositoryWorkspace implements WorkspaceCore {
   }
 
   heartbeat(): void {
+    if (this.options.mailPoll === true) {
+      fail('unauthorized', 'A mailbox poll session has no heartbeat: it only answers status and wake polls.')
+    }
     this.assertCurrentStorage()
     if (!this.store) {
       this.openIfReady()
@@ -580,6 +652,9 @@ export class RepositoryWorkspace implements WorkspaceCore {
   }
 
   async execute(name: CommandName, rawInput: unknown): Promise<unknown> {
+    if (this.options.mailPoll === true) {
+      return this.executePoll(name, rawInput)
+    }
     const spec = COMMANDS[name]
     // Untrusted input is validated before anything else, whatever state the repository is in.
     const input = spec.schema ? parseInput(spec.schema, rawInput ?? {}, `${name} input`) : undefined
@@ -596,6 +671,27 @@ export class RepositoryWorkspace implements WorkspaceCore {
     return result
   }
 
+  /**
+   * A poll session runs its two commands and nothing else, refused before any input is even read. Both are
+   * synchronous service calls on the store (`requireStore` checks the storage): the poll and the session's last-seen
+   * mark commit together, and nothing is flushed.
+   */
+  private executePoll(name: CommandName, rawInput: unknown): unknown {
+    if (!MAIL_POLL_COMMANDS.includes(name)) {
+      fail('unauthorized', 'A mailbox poll session may only run get_agent_mail_status and take_agent_mail_wake.', { command: name })
+    }
+    const spec = COMMANDS[name]
+    const input = spec.schema ? parseInput(spec.schema, rawInput ?? {}, `${name} input`) : undefined
+    const store = this.requireStore()
+    this.assertStillGranted()
+    const run = spec.run as (core: WorkspaceCore, input: unknown) => unknown
+    return store.db.tx(() => {
+      const result = run(this, input)
+      touchMailPollSession({ db: store.db, clock: this.clock }, store.ctx.session.id)
+      return result
+    })
+  }
+
   close(): void {
     const store = this.store
     if (!store) {
@@ -603,7 +699,10 @@ export class RepositoryWorkspace implements WorkspaceCore {
     }
     this.store = null
     try {
-      if (this.resolvedMode() === this.layout.mode) endSession({ db: store.db, clock: this.clock }, store.ctx.session.id)
+      // A poll session is shared by every poll of its binding: closing one poll never ends it.
+      if (this.options.mailPoll !== true && this.resolvedMode() === this.layout.mode) {
+        endSession({ db: store.db, clock: this.clock }, store.ctx.session.id)
+      }
     } finally {
       store.db.close()
     }

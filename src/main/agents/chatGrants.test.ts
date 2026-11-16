@@ -131,6 +131,28 @@ describe('chat grants: revoked through the workspace they were issued in', () =>
     expect(openSessionsIn(repo)).toBe(0)
     expect(state.logged).toEqual([])
   })
+
+  it('binds an OMP chat’s grant to its mailbox at issue, and closes that binding with the revoke after an untrack', async () => {
+    const state = await rig()
+    const issued = await state.grants.issueChatCli(repo, { role: 'worker', allowSave: false, label: 'OMP · Scout' }, { id: 'chat_scout', agent: 'omp', title: 'Scout', kind: 'omp' })
+    expect(issued.endpointId).toMatch(/^me_/)
+    state.tracked.delete(repo)
+    state.pool.close(repo)
+
+    await state.grants.revokeChatGrant(issued.grantId)
+
+    const db = new DatabaseSync(join(repo, '.darkmechanicus', 'local', 'state.sqlite'))
+    try {
+      expect(db.prepare('SELECT grant_id, endpoint_id, close_reason FROM agent_mail_bindings').all()).toEqual([
+        { grant_id: issued.grantId, endpoint_id: issued.endpointId, close_reason: 'grant_ended' }
+      ])
+    } finally {
+      db.close()
+    }
+    expect(grantsIn(repo)).toEqual([expect.objectContaining({ id: issued.grantId, revoked_at: expect.any(String) })])
+    expect(openSessionsIn(repo)).toBe(0)
+    expect(state.logged).toEqual([])
+  })
 })
 
 describe('chat grants: a workspace that cannot be reached', () => {

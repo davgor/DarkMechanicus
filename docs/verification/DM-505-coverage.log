@@ -1,0 +1,1801 @@
+
+> dark-mechanicus@0.34.0 coverage
+> vitest run --coverage --reporter=default --reporter=json --outputFile.json=docs/verification/DM-505-coverage-tests.json
+
+
+ RUN  v4.1.12 C:/Users/davgo/dmwt/acc-gate
+      Coverage enabled with v8
+
+ ✓ src/main/github/pullRequests.test.ts (13 tests) 25200ms
+     ✓ lists the open pull requests of the origin GitHub repository, 100 a page, with summaries built in main  1438ms
+     ✓ reads further pages while a page is full, up to 3 pages  1871ms
+     ✓ uses the upstream remote before origin, and a deleted fork is a fork with no head repository  1611ms
+     ✓ returns none, without asking GitHub, for a repository whose remote is not on GitHub or that has no remote  2549ms
+     ✓ names the GitHub repository a rewritten (insteadOf) remote stands for  1500ms
+     ✓ fails github_failed on an answer that is not a list of pull requests  1215ms
+     ✓ is the pull request whose head is the current branch in this repository  1360ms
+     ✓ matches the upstream's branch name too  1523ms
+     ✓ is null for a fork head of the same name, and on a detached HEAD  1968ms
+     ✓ returns auth_required without a request when signed out  1410ms
+     ✓ returns auth_required on a 401 and signs the account out  1255ms
+     ✓ answers from a 60 s cache per folder unless a refresh is asked, recomputing the current branch each time  5137ms
+     ✓ never answers from the cache when signed out, nor for another repository behind the same folder  2359ms
+ ✓ src/main/git/handlersBranches.test.ts (6 tests) 25245ms
+     ✓ checks branch names  682ms
+     ✓ creates a branch, switches away leaving a stash, comes back and restores it  9024ms
+     ✓ renames, merges and deletes a branch in a tracked repository  7293ms
+     ✓ discards a stash  6245ms
+     ✓ maps git refusals to their codes and bad names to invalid_input  1649ms
+     ✓ refuses untracked folders and malformed requests  348ms
+ ✓ src/main/git/handlersWorkingDiff.test.ts (14 tests | 1 skipped) 27189ms
+     ✓ refuses l/etc/hosts when l -> / and returns no file content  2258ms
+     ✓ refuses a file under a symlink to a folder outside the repository  1018ms
+     ✓ refuses an untracked path whose parent folder really lies outside the repository, even if status reports it  1715ms
+     ✓ refuses an untracked file under a linked folder that holds no such subfolder, even if status reports it  1003ms
+     ✓ refuses a path git does not report before any diff runs  2810ms
+     ✓ uses a renamed file's oldPath from status, whatever the request says  2129ms
+     ✓ uses the kind from status, whatever the request says  2080ms
+     ✓ returns the modified diff of file-1.txt as before  2591ms
+     ✓ returns the added diff of added.txt as before  2538ms
+     ✓ returns the deleted diff of gone.txt as before  2349ms
+     ✓ returns the renamed diff of new-name.txt as before  2965ms
+     ✓ returns the untracked diff of sub/new.txt as before  2054ms
+     ✓ keeps force raising the size limit  1673ms
+ ✓ src/main/git/stash.test.ts (5 tests) 30682ms
+     ✓ lists only the current branch's DM stashes, with their files  8106ms
+     ✓ restores the changes and drops the stash  6251ms
+     ✓ returns merge_conflicts on a conflict and keeps the stash  5829ms
+     ✓ refuses a stash that is not one of the current branch's DM stashes  5868ms
+     ✓ drops the stash and leaves the working tree alone  4624ms
+ ✓ src/main/git/operationInProgress.test.ts (9 tests) 31624ms
+     ✓ is reported as a rebase although MERGE_HEAD exists, and Abort ends the rebase  2742ms
+     ✓ reports a stopped apply-backend rebase (rebase-apply without `applying`) as a rebase  2445ms
+     ✓ at a rebase-merges merge step: the rewritten branch is mine and the merged-in side theirs (no swap)  5001ms
+     ✓ while a rebase replays a commit: the replayed commit is mine and the upstream theirs (swapped)  4621ms
+     ✓ in a merge, a cherry-pick and a git am: the current branch is mine  4692ms
+     ✓ is reported as its own kind, and Abort runs `git am --abort`  2416ms
+     ✓ reports a plain conflicting merge as a merge  2740ms
+     ✓ reports a conflicting cherry-pick and revert as such  2299ms
+     ✓ reports nothing in progress on a clean repository  588ms
+ ✓ src/main/git/branchesSafety.test.ts (9 tests) 31825ms
+     ✓ refuses to switch, even with stash, while a merge is in progress  1516ms
+     ✓ keeps the stash when a post-checkout hook fails after the switch  2436ms
+     ✓ lists, restores and discards them  9379ms
+     ✓ reports a restore blocked by an existing untracked file as local changes, keeping the stash  5159ms
+     ✓ refuses a branch another worktree is rebasing, before touching the remote  3221ms
+     ✓ refuses a branch this worktree is rebasing (HEAD detached), before touching the remote  2169ms
+     ✓ refuses a branch checked out in another worktree before touching the remote  1548ms
+     ✓ refuses a name that is only a prefix of other branches, deleting nothing  1390ms
+     ✓ leaves a remote branch that moved since the last fetch, even when forced  3115ms
+ ✓ src/main/git/conflictsOpen.test.ts (14 tests | 3 skipped) 35368ms
+     ✓ opens a conflicted file by its absolute path  2015ms
+     ✓ refuses `..`, absolute paths and files that are not conflicted, opening nothing  3434ms
+     ✓ refuses a conflicted path that a symlink leads out of the repository  2823ms
+     ✓ refuses a conflicted file that is missing  2069ms
+     ✓ reports what the default app could not do  1923ms
+     ✓ leaves the repository alone when Mark resolved is asked through a symlinked folder  2080ms
+     ✓ stages the deletion of a conflicted file whose whole folder is gone, since no link leads to it  2856ms
+     ✓ refuses names the OS opens by running them  5733ms
+     ✓ on Windows also refuses Python and the other script types, and every extension PATHEXT lists  8711ms
+     ✓ honours PATHEXT only on Windows  1750ms
+     ✓ refuses a conflicted path that is a folder (a submodule)  1972ms
+ ✓ src/main/git/commit.test.ts (22 tests | 2 skipped) 38554ms
+     ✓ commits only the chosen files, even when another file was staged earlier  1892ms
+     ✓ commits a rename with both paths  1772ms
+     ✓ commits a deletion  1825ms
+     ✓ makes the first commit of an unborn repository  1771ms
+     ✓ writes a summary-only message  1733ms
+     ✓ writes the summary, a blank line and the description  1643ms
+     ✓ refuses an empty summary and an empty file list with invalid_input  629ms
+     ✓ refuses paths that are not in the current status, or that leave the repository  2037ms
+     ✓ refuses while a merge is in progress with operation_in_progress  1777ms
+     ✓ returns git_failed with the hook output when pre-commit fails  1833ms
+     ✓ refuses with merge_conflicts, keeping the unmerged entries (a stash restore that conflicted)  1648ms
+     ✓ commits only the chosen lines and leaves the working file as it was  2602ms
+     ✓ refuses a stale diff hash, a line past the last change and a file chosen whole and by lines  3706ms
+     ✓ puts the changes back and returns the message  2395ms
+     ✓ undoes the root commit  2119ms
+     ✓ is refused once the commit is on a remote branch  1484ms
+     ✓ is refused for a merge commit  1749ms
+     ✓ is refused when there are no commits  693ms
+     ✓ refuses with head_moved and leaves the new commit in place  1946ms
+     ✓ refuses with head_moved instead of deleting a root commit that is no longer HEAD  3296ms
+ ✓ src/main/git/sync.test.ts (11 tests) 43147ms
+     ✓ updates behind and the last-fetched time, with progress percentages  5649ms
+     ✓ merges, even when the repository is configured to rebase  5163ms
+     ✓ returns merge_conflicts for a conflicting change, and the state shows the merge  4744ms
+     ✓ pushes to the upstream, with progress  4160ms
+     ✓ publishes a branch without an upstream and sets it  4429ms
+     ✓ rejects a non-fast-forward push, and never forces it  3473ms
+     ✓ refuses to push or pull a detached HEAD  2428ms
+     ✓ fails remote_not_found with neither an upstream nor origin  897ms
+     ✓ publishes a branch that tracks a differently named branch under its own name, leaving that branch alone  3757ms
+     ✓ pushes to git's push remote (remote.pushDefault) and pulls from the upstream  5122ms
+     ✓ refuses a remote whose name starts with "-", which git pull would read as an option  3321ms
+ ✓ src/main/git/branchesGuard.test.ts (43 tests) 48560ms
+     ✓ refuses "-D" before any branch command runs  651ms
+     ✓ refuses "--force" before any branch command runs  708ms
+     ✓ refuses "-" before any branch command runs  701ms
+     ✓ refuses "" before any branch command runs  631ms
+     ✓ refuses "a..b" before any branch command runs  1578ms
+     ✓ refuses ".." before any branch command runs  1398ms
+     ✓ refuses "@{-1}" before any branch command runs  676ms
+     ✓ refuses "main@{u}" before any branch command runs  698ms
+     ✓ refuses "@" before any branch command runs  660ms
+     ✓ refuses "a\u0001b" before any branch command runs  688ms
+     ✓ refuses "ab" before any branch command runs  725ms
+     ✓ refuses "a\nb" before any branch command runs  649ms
+     ✓ refuses "a b" before any branch command runs  709ms
+     ✓ refuses "a\u0000b" before any branch command runs  662ms
+     ✓ refuses "a~1" before any branch command runs  1319ms
+     ✓ refuses "a^" before any branch command runs  1484ms
+     ✓ refuses "a:b" before any branch command runs  1448ms
+     ✓ refuses "a?b" before any branch command runs  1585ms
+     ✓ refuses "a*" before any branch command runs  1319ms
+     ✓ refuses "a[b" before any branch command runs  1261ms
+     ✓ refuses "a\\b" before any branch command runs  1369ms
+     ✓ refuses "x.lock" before any branch command runs  2027ms
+     ✓ refuses "a/.hidden" before any branch command runs  1226ms
+     ✓ refuses "trailing/" before any branch command runs  1198ms
+     ✓ refuses "/leading" before any branch command runs  1178ms
+     ✓ refuses "a//b" before any branch command runs  1166ms
+     ✓ refuses "dot." before any branch command runs  1279ms
+     ✓ refuses "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx before any branch command runs  524ms
+     ✓ accepts ordinary names with slashes, dots, dashes and non-ASCII letters  682ms
+     ✓ refuses stash@{-1} before git runs  384ms
+     ✓ refuses stash@{0}^ before git runs  398ms
+     ✓ refuses stash@{0} x before git runs  437ms
+     ✓ refuses refs/stash before git runs  402ms
+     ✓ refuses -p before git runs  397ms
+     ✓ refuses --all before git runs  448ms
+     ✓ refuses stash@{1.day.ago} before git runs  419ms
+     ✓ refuses main before git runs  395ms
+     ✓ refuses stash@{99999999} before git runs  382ms
+     ✓ refuses  before git runs  435ms
+     ✓ pushes the deletion to the upstream's remote with the account's credentials for its push URL, guarded by a lease  4184ms
+     ✓ sends no token to a remote that is not GitHub HTTPS  3971ms
+     ✓ reports a rejected token as auth_failed  3171ms
+     ✓ refuses an upstream remote whose name starts with "-", deleting nothing  2931ms
+ ✓ src/main/git/handlersLock.test.ts (5 tests) 24415ms
+     ✓ waits for the pull, then is refused with the merge left intact  3452ms
+     ✓ reads the state and lists branches without waiting  3250ms
+     ✓ cancels a running pull while a commit waits behind it, and the commit then runs  3611ms
+     ✓ waits for the push, then is refused because the commit is now pushed  4099ms
+     ✓ switches and fast-forwards without a concurrent write in between  8785ms
+ ✓ src/main/git/syncAuth.test.ts (12 tests | 1 skipped) 18652ms
+     ✓ signed out, an HTTPS remote that needs auth fails auth_required promptly, and no askpass program runs  1889ms
+     ✓ a non-GitHub remote uses the machine's own helper even when signed in, and its rejection is auth_failed  1895ms
+     ✓ runs ssh in batch mode for an SSH remote and passes no GitHub credentials  2296ms
+     ✓ signed in: the token goes through the environment only, and a rejection is auth_failed with the token scrubbed  1605ms
+     ✓ signed out: no credentials are passed, and any auth failure is auth_required  1546ms
+     ✓ signed in: another host's rejection (a submodule's) keeps git's own code and does not blame the account  1454ms
+     ✓ returns network_unreachable when the server cannot be reached  1747ms
+     ✓ cancel stops a running operation with cancelled; an unknown or finished id cancels nothing  1481ms
+     ✓ cancel right after start, before git is spawned, still returns cancelled  1175ms
+     ✓ refuses a second operation with the id of one still running  1907ms
+     ✓ cancel after git has finished reports that nothing was cancelled  1654ms
+ ✓ src/main/git/diff.test.ts (17 tests | 4 skipped) 23514ms
+     ✓ reads a modified file with old and new line numbers  1201ms
+     ✓ reads a staged added file and a deleted file  1598ms
+     ✓ reads in one git process, without probing HEAD, when the caller says whether HEAD exists  2674ms
+     ✓ diffs against nothing, without probing HEAD, when the caller says HEAD does not exist  1333ms
+     ✓ reads an untracked file, including a non-ASCII name  995ms
+     ✓ reads a rename with an edit  1510ms
+     ✓ reports a pure rename as empty  1839ms
+     ✓ reports binary files, tracked and untracked  2535ms
+     ✓ keeps the no-newline marker  1578ms
+     ✓ keeps carriage returns on CRLF lines  1485ms
+     ✓ diffs every file on an unborn branch against nothing  1801ms
+     ✓ reports too_large above 2 MiB and reads it with force  1766ms
+     ✓ never runs a configured external diff, textconv driver or fsmonitor  3193ms
+ ✓ src/core/services/incrementVerify.test.ts (27 tests) 55944ms
+     ✓ passes, and records the full commit, its parent, and the epic start it came after  2123ms
+     ✓ accepts an abbreviated commit and stores the full id  1950ms
+     ✓ measures a later sprint against the previous increment  2735ms
+     ✓ fails a merge commit for having two parents, and names the worker commits that are still reachable  2417ms
+     ✓ fails a fast-forward, where the epic branch now holds the worker commits themselves  2220ms
+     ✓ fails a commit that is not on the epic branch  1525ms
+     ✓ fails a commit the repository does not have, and skips the checks that need it  880ms
+     ✓ fails a root commit, which has no parent  1611ms
+     ✓ fails when the submission names a branch other than the epic branch  2128ms
+     ✓ fails when the epic has no branch at all  1378ms
+     ✓ fails when the epic branch is not in the repository  997ms
+     ✓ fails the epic start commit itself for sprint 1  1028ms
+     ✓ fails the previous increment named again for a later sprint  2320ms
+     ✓ fails a commit older than the epic start  1325ms
+     ✓ fails when the epic's start commit is not in the repository, and names it  1636ms
+     ✓ fails when the previous sprint's increment is not in the repository, instead of passing it  1569ms
+     ✓ fails the reachability check when git cannot answer, rather than passing it  1364ms
+     ✓ skips the base check, says why, and still passes a squashed commit  1379ms
+     ✓ still measures a later sprint against the previous increment  2057ms
+     ✓ skips the squash check when no accepted work recorded a commit hash  1464ms
+     ✓ does not count recorded commits the repository no longer has, but says so  2255ms
+     ✓ counts several recorded commits the repository does not have in the plural  1992ms
+     ✓ lists the first five merged commits and counts the rest  3601ms
+     ✓ looks at each recorded commit once and finds one anywhere in the list  2528ms
+     ✓ passes both squashed increments, each verified in its own repository and named by it  4450ms
+     ✓ fails a merge commit in beta, naming beta, while alpha's squashed increment still passes  4018ms
+     ✓ asks each repository's own Git: alpha's commit named for beta is not found there  2991ms
+ ✓ src/core/commands/agentMail.test.ts (14 tests) 22949ms
+     ✓ answers a thousand status polls on one dedicated session, with no record reconcile, flush or pruning  5504ms
+     ✓ accepts two processes’ concurrent sends into one gap-free sequence, and one shared retry once  5434ms
+     ✓ maps concurrent polls from two processes to one dedicated session, and lets one of them take the wake credit  5057ms
+     ✓ stops a sending process at the revocation that commits mid-stream, while another keeps acknowledging  5256ms
+ ✓ src/integration/incrementMerged.test.ts (10 tests) 25775ms
+     ✓ verifies, shows the increment everywhere, and lets the sprint advance and the epic complete  2871ms
+     ✓ is exported with the run history and comes back in a clone  3038ms
+     ✓ stores the failed verdict with its reasons, keeps the gate unmet, and does not reject the submission  2961ms
+     ✓ lets the orchestrator reject a commit that is not on the epic branch and accept the node's retry  3987ms
+     ✓ fails a commit the repository does not have, as a verdict and not as an error  2093ms
+     ✓ is refused on a work ticket, which keeps its claim  1128ms
+     ✓ is refused for a malformed commit or branch before git is asked anything  980ms
+     ✓ is left out on a node: the gate says how to name one and the node can still be accepted  1683ms
+     ✓ fails when it names a branch other than the epic branch, whatever the commit  2360ms
+     ✓ measures the second increment against the first, and refuses it named again  4670ms
+ ✓ src/main/git/status.test.ts (14 tests | 1 skipped) 18395ms
+     ✓ reports git_missing when git cannot be started  374ms
+     ✓ reports root, branch and a clean tree  1113ms
+     ✓ reports the sync remote and whether it is HTTPS github.com  2107ms
+     ✓ names the upstream remote when it is not origin, and none when there is neither  2124ms
+     ✓ reports every kind of change with paths and old paths, sorted  1576ms
+     ✓ reports a non-ASCII tracked file  1329ms
+     ✓ reports an unborn branch  708ms
+     ✓ reports a detached HEAD  1092ms
+     ✓ reports a merge in progress with conflicted files  1770ms
+     ✓ reports a cherry-pick in progress  1754ms
+     ✓ reports the repository root for a subfolder  859ms
+     ✓ counts commits ahead of and behind the upstream  3466ms
+ ✓ src/main/git/branches.test.ts (19 tests) 57813ms
+     ✓ lists local and remote branches with upstream, ahead/behind, last commit time, current and default  3463ms
+     ✓ falls back to main or master without a remote HEAD, and reports a detached HEAD as no current branch  2534ms
+     ✓ keeps remote names that hold a slash whole  1126ms
+     ✓ creates a branch at HEAD and brings uncommitted changes along  1451ms
+     ✓ creates a branch at the default branch, without tracking it  2143ms
+     ✓ starts at the remote's default branch when there is no local one  2082ms
+     ✓ returns branch_exists for a name in use and stays put  934ms
+     ✓ stashes the changes, untracked files included, as dm-stash:<branch>, then switches  4442ms
+     ✓ brings changes along when git can  2386ms
+     ✓ returns local_changes_would_be_overwritten and changes nothing when git refuses to bring them  1148ms
+     ✓ puts the changes back from its own stash and leaves the person’s stashes alone  2847ms
+     ✓ checks out a remote-only branch as a tracking branch, by its own name or its remote name  6148ms
+     ✓ renames a branch, the current one included, and refuses a name in use  3179ms
+     ✓ deletes a merged branch, refuses an unmerged one unless forced, and refuses the current branch  5851ms
+     ✓ deletes the branch's upstream on its own remote, and refuses one under another name  5679ms
+     ✓ keeps everything when the remote branch has work HEAD lacks, unless forced  5079ms
+     ✓ refuses to delete a remote branch the local one does not track, deleting nothing  1195ms
+     ✓ merges a branch into the current one  2217ms
+     ✓ returns merge_conflicts for a conflicting branch, leaving the merge in progress  1530ms
+ ✓ src/core/workspace.gitFor.test.ts (22 tests) 27599ms
+     ✓ opens an adapter rooted at the child repository that reports that repository's head  1254ms
+     ✓ runs Git commands in the child repository  1284ms
+     ✓ returns the root adapter for null  1034ms
+     ✓ caches the adapter per name  1208ms
+     ✓ is offered to services on the command context  1356ms
+     ✓ refuses "gamma", which is not a listed repository, before opening anything  1240ms
+     ✓ refuses "..", which is not a listed repository, before opening anything  1244ms
+     ✓ refuses ".", which is not a listed repository, before opening anything  1257ms
+     ✓ refuses "alpha/../beta", which is not a listed repository, before opening anything  1418ms
+     ✓ refuses "alpha/", which is not a listed repository, before opening anything  1259ms
+     ✓ refuses "./alpha", which is not a listed repository, before opening anything  1334ms
+     ✓ refuses "", which is not a listed repository, before opening anything  1271ms
+     ✓ refuses "ALPHA", which is not a listed repository, before opening anything  1393ms
+     ✓ refuses a repository the project records as missing  1258ms
+     ✓ refuses a listed repository whose folder has gone since the last rescan  1326ms
+     ✓ refuses a listed name that is a file rather than a directory  1189ms
+     ✓ refuses a listed folder that no longer holds a Git repository  1179ms
+     ✓ refuses a listed repository that has been replaced by a link to a repository outside the folder  1421ms
+     ✓ refuses a listed repository linked to a sibling inside the folder  1121ms
+     ✓ refuses a cached repository once it has been replaced by a link  1128ms
+     ✓ refuses every name: the project lists no repositories  1235ms
+     ✓ reads a checkout without a head and never reports the branch as moved  1187ms
+ ✓ src/main/git/handlers.test.ts (46 tests) 26202ms
+     ✓ returns the state of a tracked repository  782ms
+     ✓ refuses an untracked folder as unauthorized  321ms
+     ✓ returns the diff of a changed file in a tracked repository  1317ms
+     ✓ refuses an untracked folder as unauthorized  388ms
+     ✓ refuses an absolute posix path as invalid_input  715ms
+     ✓ refuses a drive path as invalid_input  359ms
+     ✓ refuses a path leaving the repository as invalid_input  370ms
+     ✓ refuses a nested escape as invalid_input  529ms
+     ✓ refuses an empty path as invalid_input  366ms
+     ✓ refuses a NUL path as invalid_input  408ms
+     ✓ refuses a bad oldPath as invalid_input  366ms
+     ✓ refuses malformed request undefined as invalid_input  354ms
+     ✓ refuses malformed request {} as invalid_input  357ms
+     ✓ refuses malformed request {"path":"a","oldPath":null,"kind":"bogus"} as invalid_input  332ms
+     ✓ refuses malformed request {"path":"a","oldPath":null,"kind":"modified","extra":1} as invalid_input  377ms
+     ✓ initializes a tracked plain folder and returns the new state  1120ms
+     ✓ refuses a folder already inside a repository, and a subfolder of one  1755ms
+     ✓ returns history, the files of a commit and a file diff for a tracked repository  3542ms
+     ✓ refuses an untracked folder as unauthorized  530ms
+     ✓ refuses oid "an option" as invalid_input  345ms
+     ✓ refuses oid "--output=x" as invalid_input  369ms
+     ✓ refuses oid "HEAD" as invalid_input  382ms
+     ✓ refuses oid "abc" as invalid_input  377ms
+     ✓ refuses oid "" as invalid_input  421ms
+     ✓ refuses oid "gggggggggggggggggggggggggggggggggggggggg" as invalid_input  420ms
+     ✓ refuses oid "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as invalid_input  381ms
+     ✓ refuses history request {"skip":0,"limit":201} as invalid_input  322ms
+     ✓ refuses history request {"skip":-1,"limit":10} as invalid_input  301ms
+     ✓ refuses history request {"skip":0} as invalid_input  353ms
+     ✓ refuses history request {"skip":0,"limit":10,"extra":1} as invalid_input  319ms
+     ✓ refuses history request undefined as invalid_input  362ms
+     ✓ refuses paths that leave the repository, and reports a plain folder as not_repository  563ms
+     ✓ publishes, fetches and pulls a tracked repository by operation id, with progress  5632ms
+     ✓ refuses untracked folders and malformed requests  539ms
+     ✓ reports whether cancel found a running operation  590ms
+ ✓ src/main/git/commitLines.test.ts (19 tests | 2 skipped) 61261ms
+     ✓ commits selected additions only, and selected deletions only  4879ms
+     ✓ commits mixed lines of one hunk  2736ms
+     ✓ shifts later hunks by the selection in earlier ones  2803ms
+     ✓ applies the patch when diff.context is 0  2705ms
+     ✓ creates a partly selected new file with only the selected lines, in an unborn repository too  4933ms
+     ✓ keeps the unselected lines of a partly selected deleted file, and deletes a fully selected one  5065ms
+     ✓ handles a missing final newline on either side  3948ms
+     ✓ keeps CRLF lines byte-exact  2322ms
+     ✓ commits a rename with part of its edit  2295ms
+     ✓ commits the same tree as committing the whole file  5669ms
+     ✓ commits nothing for a file with no line selected  2496ms
+     ✓ commits whole files and selected lines together  3840ms
+     ✓ reads each file once, without probing HEAD, and stages every selection with one git apply  5293ms
+     ✓ returns stale_selection and commits nothing when the file changed after the diff was read  2426ms
+     ✓ refuses lines without a diff hash, out-of-range lines and lines of a file that is not UTF-8  4682ms
+     ✓ refuses lines of a binary file and of a file that is also chosen whole  3024ms
+     ✓ refuses lines of a submodule  2141ms
+ ✓ src/core/services/attemptsIncrement.test.ts (22 tests) 17647ms
+     ✓ verifies both squashed increments, each in its own repository, and stores the verdicts with their repositories  1645ms
+     ✓ fails the node's increment when beta's is a merge commit, and names beta  1514ms
+     ✓ checks a second sprint's increment against that repository's previous increment, and an untouched one against its start  4309ms
+     ✓ measures against the start commit when the earlier sprint failed in any one repository  1572ms
+     ✓ refuses a touched repository left out with invalid_input, before git is asked, leaving the claim open  321ms
+     ✓ refuses an untouched repository with invalid_input, before git is asked, leaving the claim open  330ms
+     ✓ refuses an unknown repository with invalid_input, before git is asked, leaving the claim open  343ms
+     ✓ refuses a duplicate repository with invalid_input, before git is asked, leaving the claim open  302ms
+     ✓ refuses an increment without its repository with invalid_input, before git is asked, leaving the claim open  411ms
+     ✓ refuses a singular increment with invalid_input  329ms
+     ✓ refuses to store verdicts that do not cover every named repository  319ms
+ ✓ src/main/git/conflictsEdge.test.ts (8 tests) 17570ms
+     ✓ orders files by their UTF-16 path, not by the UTF-8 byte order git reports them in  2274ms
+     ✓ names no other side when git left an empty merge message  2166ms
+     ✓ refuses with the plural count and stages nothing  1998ms
+     ✓ refuses a description without a summary and leaves the merge in progress  2002ms
+     ✓ keeps git's subject and drops its # Conflicts: lines  2306ms
+     ✓ keeps the summary and description the person typed, # lines included  2363ms
+     ✓ drops the lines starting with core.commentChar  2204ms
+     ✓ strips the comment lines with core.commentChar auto  2253ms
+ ✓ src/main/git/history.test.ts (19 tests | 3 skipped) 16089ms
+     ✓ lists commits newest first with their fields  1204ms
+     ✓ pages past 100 commits  1010ms
+     ✓ marks commits no remote has as unpushed  1589ms
+     ✓ marks no commit unpushed when the repository has no remote  831ms
+     ✓ refuses a limit above 200, a limit below 1 or a negative skip  363ms
+     ✓ lists the files of the root commit  674ms
+     ✓ lists a merge commit against its first parent  1595ms
+     ✓ reports a rename with its old path, and a deletion  1354ms
+     ✓ refuses an invalid oid  418ms
+     ✓ shows a root commit file through git show  783ms
+     ✓ shows a modification against the parent  1004ms
+     ✓ shows a renamed file with its edits  1256ms
+     ✓ shows a merge commit file against the first parent  1579ms
+     ✓ answers too_large past the limit, and shows it when forced  1219ms
+     ✓ refuses an invalid oid and escaping paths  966ms
+ ✓ src/main/git/handlersWrite.test.ts (6 tests) 13096ms
+     ✓ commits the chosen files, then undoes the commit and returns its message  2515ms
+     ✓ maps an empty summary, an empty list and a malformed request to invalid_input  594ms
+     ✓ commits selected lines of the diff the renderer read, and maps a stale or malformed selection  2925ms
+     ✓ refuses paths outside the repository and paths that are not changed, trashing nothing  5253ms
+     ✓ discards through the injected trash  1795ms
+ ✓ src/main/git/handlersConflicts.test.ts (4 tests) 13525ms
+     ✓ lists, resolves, refuses, marks resolved and commits the merge  6572ms
+     ✓ opens a conflicted file through the injected openPath, and nothing outside the repository  1745ms
+     ✓ aborts the merge  3686ms
+     ✓ validates every request and refuses untracked folders  1518ms
+ ✓ src/main/git/syncEdge.test.ts (4 tests) 7788ms
+     ✓ pulls the branch of the same name from the sync remote  1553ms
+     ✓ returns remote_not_found without running anything on the network  1057ms
+     ✓ keeps a GitHub SSH rejection as is when signed out, since signing in would not help  995ms
+     ✓ is left alone when core.sshCommand is set, and batch mode applies when it is empty  4178ms
+ ✓ src/main/git/branchesEdge.test.ts (8 tests) 15680ms
+     ✓ owns remote refs by the longest remote name, keeps an unknown remote whole, and tolerates odd refs  1589ms
+     ✓ refuses when there is no default branch to start from, creating nothing  965ms
+     ✓ refuses a name no branch has, and one more than one remote has  2453ms
+     ✓ treats switching to the current branch as nothing to do, stashing nothing  1649ms
+     ✓ refuses to stash changes made on a detached HEAD, leaving them in place  1403ms
+     ✓ refuses while a merge is in progress, which a switch or stash would end  1771ms
+     ✓ returns remote_not_found and keeps the local branch when the remote-tracking ref is gone  1552ms
+     ✓ refuses a branch that does not exist, and names a remote-tracking branch as one in the message  4294ms
+ ✓ src/main/git/stashEdge.test.ts (4 tests) 13680ms
+     ✓ returns null when there is nothing to stash, with or without an older stash on top  1389ms
+     ✓ pops nothing when no stash has that commit id  1006ms
+     ✓ lists no stash, since none belongs to a branch  4548ms
+     ✓ returns operation_in_progress and keeps the stash  6733ms
+ ✓ src/main/git/discard.test.ts (11 tests | 4 skipped) 12241ms
+     ✓ trashes a copy of a modified file and restores HEAD  1465ms
+     ✓ restores a deleted file without trashing anything  1742ms
+     ✓ trashes an untracked file  1307ms
+     ✓ un-stages an added file and trashes it  1618ms
+     ✓ trashes the new file of a rename and restores the old path  2054ms
+     ✓ leaves files that were not chosen alone  1989ms
+     ✓ refuses paths that are not in the status or that leave the repository, trashing nothing  2062ms
+ ✓ src/core/workspace.grants.test.ts (106 tests) 15965ms
+ ✓ src/core/services/transfers.test.ts (77 tests) 13860ms
+     ✓ refuses a part that takes the merged relations past the limit, naming it, and keeps the parts sent before  434ms
+     ✓ refuses a part that takes the merged JSON past totalChars, naming the limit, and keeps the parts sent before  2555ms
+     ✓ compares a final part that brings the merged JSON to exactly totalChars, and refuses one past it after ending the read-back  2967ms
+     ✓ verifies a read-back sent in pages and completes the epic with every issue in its outcome  5505ms
+ ✓ src/integration/multiRepo.test.ts (2 tests) 14673ms
+     ✓ hands out packets per repository, verifies both increments, and passes both gates  4661ms
+     ✓ fails the increment gate naming beta, and passes alpha  7500ms
+ ✓ src/core/workspace.storageMigration.test.ts (21 tests) 17764ms
+     ✓ round trips every database row through JSON and removes the original store only after verification  1034ms
+     ✓ purges only its own ignore entry and leaves MCP and installed skills alone  785ms
+     ✓ refuses an active awaiting_checkpoint run without touching either store  312ms
+     ✓ refuses dirty tracked records and unknown Git status  683ms
+     ✓ leaves the source unchanged when staging write fails  308ms
+     ✓ rolls back a failed cutover after publishing the export, keeping the original usable  829ms
+     ✓ resumes a partially purged committed switch on the next open  725ms
+     ✓ fences a stale connection after the storage mode moves  947ms
+     ✓ does not put private credentials in portable records or reuse the checkpoint after canonical edits  723ms
+     ✓ keeps image bytes after purging a repo source whose cache held metadata only  800ms
+     ✓ recovers a db process interruption before_commit without losing records  2038ms
+     ✓ recovers a db process interruption after_commit without losing records  1901ms
+     ✓ recovers a repo process interruption before_commit without losing records  2392ms
+     ✓ recovers a repo process interruption after_commit without losing records  2241ms
+     ✓ fences commands on an existing connection while the source is being copied  805ms
+ ✓ src/main/naming/controlPipe.test.ts (38 tests) 13381ms
+   ✓ authenticates a real per-instance naming reply with a live usable worker grant  354ms
+   ✓ bounds responses and sanitizes thrown token/raw-request text  324ms
+   ✓ bounds 32 total open connections and the 2s incomplete-frame deadline  360ms
+   ✓ expires blocked-active plus eight queued metadata operations at admission deadlines, not dequeue  2547ms
+   ✓ passes only remaining queue-inclusive budget to a dequeued handler   944ms
+   ✓ treats a caller half-close as cancellation rather than authorizing detached work  334ms
+   ✓ removes disconnected queued work immediately and never invokes it  441ms
+     ✓ denies manual revoke while the PTY binding exists and blocks final publication  350ms
+     ✓ rejects unbound/historical, wrong-instance, wrong-repo and replaced-generation authority  644ms
+   ✓ retires cooperative active work and queued mutations while shutdown also closes an incomplete caller  309ms
+   ✓ contains a non-Error handler rejection and keeps subsequent requests usable ("private foreign rejection")  328ms
+ ✓ src/main/git/conflicts.test.ts (27 tests | 1 skipped) 78548ms
+     ✓ lists each conflicted file with its kind and marker count, and names both sides  1102ms
+     ✓ reports both_deleted, added_by_us and added_by_them from a rename/rename conflict  2894ms
+     ✓ counts markers again as the working file changes, and 0 once the file is gone  959ms
+     ✓ is empty, with no label, when nothing conflicts  1040ms
+     ✓ shows the working file, markers and all, as the diff of a conflicted file  321ms
+     ✓ takes our or their version of a file and stages it  4130ms
+     ✓ deletes the file when the chosen side deleted it, and keeps it when the other side did  4433ms
+     ✓ deletes for a side without the file in a rename/rename conflict  6950ms
+     ✓ refuses a path that is not conflicted, or leaves the repository  1213ms
+     ✓ is refused while markers remain, then stages the file  3110ms
+     ✓ stages a deletion when the file is gone  1150ms
+     ✓ puts back the state from before the merge  1296ms
+     ✓ is refused when no merge is in progress  724ms
+     ✓ is refused while any file is unresolved  7464ms
+     ✓ makes the merge commit with git's message once every file is resolved  4671ms
+     ✓ takes a summary and description when given  3035ms
+     ✓ is refused when no merge is in progress  1009ms
+     ✓ aborts a rebase started from the command line  3183ms
+     ✓ aborts a cherry-pick and a revert  3736ms
+     ✓ is refused when no rebase, cherry-pick or revert is in progress  552ms
+     ✓ shows a conflicting pull  3012ms
+     ✓ shows a conflicting stash restore, without a label, with the stashed work as mine, and Use mine keeps it  7274ms
+     ✓ counts a marker that straddles two read chunks, and only at the start of a line  1793ms
+     ✓ counts markers of any size git writes (conflict-marker-size), not lines that only look alike  1857ms
+     ✓ stages the chosen side's commit of a conflicted submodule  7013ms
+     ✓ counts an unreadable conflicted file as still conflicted instead of failing every file  1040ms
+ ✓ src/main/git/commitLinesProperty.test.ts (1 test) 11285ms
+     ✓ commits exactly the selected content and never changes the working file  11282ms
+ ✓ src/main/agents/chatMailboxes.test.ts (23 tests) 7149ms
+     ✓ provisions a legacy OMP chat on the trusted list, so a never-started chat receives, and no other CLI gets one  461ms
+     ✓ keeps one mailbox and its unread mail through stop, restart and rename; old grants stay unbound  414ms
+     ✓ isolates the same chat id in two folders: two mailboxes, and deleting one leaves the other  311ms
+     ✓ finds the same endpoint after a crash between the SQLite commit and the index line  309ms
+     ✓ closes the mailbox first, purges its received mail and leaves its sent mail with a deleted sender  392ms
+     ✓ never reopens a deleted mailbox for a start whose grant arrives after the deletion, and revokes that grant  364ms
+     ✓ deletes at startup the open mailbox this installation provisioned for a chat whose record is gone, and leaves one it never did  307ms
+     ✓ suspends on untrack and binds only a fresh grant after the folder is tracked again  452ms
+     ✓ binds nothing for a grant issued while its folder was being untracked, revokes it, and leaves the mailbox suspended  337ms
+     ✓ lists, renames, deletes and recovers its OMP chats without a mailbox, silently  407ms
+ ✓ src/core/repo/importer.test.ts (71 tests) 8801ms
+     ✓ reconstructs a clone copied without local/  351ms
+ ✓ src/main/git/remotes.test.ts (31 tests) 8585ms
+     ✓ lists each remote once with its fetch and push URLs  1470ms
+     ✓ returns nothing for a repository without remotes  622ms
+     ✓ uses the upstream's remote and branch  2080ms
+     ✓ pushes to git's own push remote (remote.pushDefault, branch.<name>.pushRemote) when one is set  2324ms
+     ✓ falls back to origin without an upstream, and on a detached HEAD  1019ms
+     ✓ fails remote_not_found with neither an upstream nor origin  1056ms
+ ✓ src/test/gitTemplate.test.ts (2 tests) 7402ms
+     ✓ gives each call its own origin: a copy's pushes, and its teammate's, never reach the template or another copy  3500ms
+     ✓ copies history, branches and the working tree, and its commits carry on from the template  1081ms
+ ✓ src/core/repo/git.test.ts (32 tests) 14802ms
+     ✓ reads HEAD, branches, files, contents, and uncommitted counts from a real repository  1679ms
+     ✓ answers yes for commits on a branch and no for the commits a squash left behind  5885ms
+     ✓ reads the parents of a squash commit, a merge commit and a root commit  1940ms
+     ✓ answers null for a commit that does not exist, an unknown name and a range  437ms
+     ✓ leave every file under .git, the working tree status and the refs exactly as they were  1488ms
+     ✓ answers the commit an existing local branch points at, not HEAD  1624ms
+     ✓ answers null for a branch the repository does not have, a tag or a commit id  1276ms
+ ✓ src/main/git/handlersPullRequests.test.ts (4 tests) 10821ms
+     ✓ returns the pull requests of a tracked folder, with the current branch one  3704ms
+     ✓ reports a GitHub failure with its code and fixed message, never as unexpected  3335ms
+     ✓ validates every request and refuses an untracked folder  616ms
+     ✓ builds the URLs of a GitHub repository  3163ms
+ ✓ src/main/git/errors.test.ts (14 tests) 11406ms
+     ✓ nothing_to_commit  624ms
+     ✓ branch_exists  941ms
+     ✓ branch_not_fully_merged  1663ms
+     ✓ local_changes_would_be_overwritten  1241ms
+     ✓ merge_conflicts and operation_in_progress  1874ms
+     ✓ index_locked  494ms
+     ✓ remote_not_found  1105ms
+     ✓ network_unreachable (connection refused on a local port)  620ms
+     ✓ rejected_non_fast_forward (push to a local bare repository)  2735ms
+ ✓ src/main/terminals/terminalSessions.lifecycle.test.ts (27 tests) 10778ms
+     ✓ starts again on the same --session-id while Claude has not written the session, and with --resume once it has  474ms
+     ✓ keeps a PTY with no input and no output running for 10 days, renewing its grant every hour  5956ms
+     ✓ renews nothing once the PTY has exited, and leaves no timer behind  365ms
+     ✓ holds the computer awake while each PTY runs, and lets it sleep once every one has exited  605ms
+     ✓ asks for each OMP grant with the chat’s trusted identity, stores its mailbox before the spawn, and keeps it through restart, rename and New session  870ms
+ ✓ src/integration/redraft.test.ts (13 tests) 13389ms
+     ✓ starts from a leftover at its retry limit and a ticket waiting on it  1174ms
+     ✓ moves the leftover and what waits on it to a new sprint after the final one, adds the discovery, and keeps the draft valid  1020ms
+     ✓ leaves the saved plan and the run where they were until the draft is saved and adopted  833ms
+     ✓ changes nothing when called twice  943ms
+     ✓ refuses until a report with a retro is submitted  826ms
+     ✓ refuses a worker session  837ms
+     ✓ refuses a reviewer session  797ms
+     ✓ refuses a planner session  833ms
+     ✓ lets the desktop do it  782ms
+     ✓ gives the leftover a fresh budget in the sprint it moved to, and keeps the old attempts in history  999ms
+     ✓ lets the leftover be claimed and tried again, and holds what waits on it until it is accepted  1432ms
+     ✓ warns about an edit to the passed sprint and about a sprint inserted before the active one, and stays valid  1506ms
+     ✓ is quiet about an edit to the sprint the run is on  1403ms
+ ✓ src/core/commands/definitionOfDone.test.ts (29 tests) 7976ms
+     ✓ reports an empty Definition of Done for a project that has none  376ms
+     ✓ reports the checks stored in project.json, in order, to every role  383ms
+     ✓ sets the named repository's checks only, and the folder has no list of its own  487ms
+     ✓ clears a repository's checks with an empty list  479ms
+     ✓ records which repository changed and the checks it now names  315ms
+     ✓ keeps each repository's checks through a rescan  596ms
+     ✓ is refused without repo, and nothing changes  408ms
+     ✓ is refused for a repository the folder does not hold, and nothing changes  371ms
+     ✓ is refused for a repo that is not one folder name, and nothing changes  373ms
+     ✓ is unauthorized for a worker  450ms
+ ✓ src/main/git/clone.test.ts (12 tests | 1 skipped) 7413ms
+     ✓ clones into <chosen folder>/<name> with progress events, then tracks the new folder and returns it  1315ms
+     ✓ clones into an empty folder that was already there  1335ms
+     ✓ removes the folder it created, and leaves a folder that was there before  1318ms
+     ✓ removes the folder it created when tracking it fails  1350ms
+ ✓ src/main/agents/agentMailDesktop.test.ts (16 tests) 5990ms
+     ✓ reads bodies and moves the seen cursor while the agent’s pending mail stays pending, and counts follow seven-day retention  471ms
+     ✓ arms one credit that never accumulates, is used once, and is never re-armed by a delayed duplicate  401ms
+     ✓ arms with mail pending and leaves the stopped chat alone: monitoring never takes the credit or acknowledges  522ms
+     ✓ catches up on mail that arrived before it started, then pushes only changed metadata and never a body  424ms
+     ✓ keeps two folders’ chats with the same id apart  493ms
+     ✓ reads in bounded pages with one sweep in flight, and discards a sweep’s late results once its folder stops  408ms
+     ✓ answers a snapshot whose folder stopped meanwhile with unauthorized, not the old folder’s data  316ms
+     ✓ leaves no timer after a stop or quit, and a quit app starts no monitor  397ms
+     ✓ leaves the deleted chat out and reports it removed, while the rest of the sweep still lands  443ms
+     ✓ reports a failure that is not a DomainError for logging, and keeps polling  399ms
+     ✓ pages with a pinned horizon so a later page skips no arrival  423ms
+ ✓ src/core/workspace.storageMigration.safety.test.ts (11 tests) 7675ms
+     ✓ refuses a home inside the source local subtree, linked ancestor false  487ms
+     ✓ refuses a home inside the source local subtree, linked ancestor true  380ms
+     ✓ does not follow a pre-existing root-ignore temporary hardlink  644ms
+     ✓ does not follow a pre-existing root-ignore temporary junction  653ms
+     ✓ keeps both Git ignores while a private-file purge is interrupted  1021ms
+     ✓ a failed first journal write leaves the source usable and a later switch possible  505ms
+     ✓ an abrupt exit during initial journal writing leaves no unreadable authoritative journal  1489ms
+     ✓ refuses active run work arriving only from canonical JSON  628ms
+     ✓ refuses active claim work arriving only from canonical JSON  992ms
+     ✓ refuses active queued_card work arriving only from canonical JSON  675ms
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ✓ src/core/commands/transfers.test.ts (16 tests) 7341ms
+     ✓ carry a queued transfer through start, record and read-back to a completed epic  705ms
+     ✓ let the desktop cancel a queued transfer, and refuse queueing and canceling to every agent role  666ms
+     ✓ refuse start, record and read-back to a worker and a reviewer, which may still read the transfer  475ms
+     ✓ replays queue, start and record with the same idempotency key instead of acting twice  354ms
+     ✓ leaves no stored parts behind, so a later read-back cannot borrow the consumed ones  592ms
+     ✓ rejects a read-back issue without its stateType before anything is stored  400ms
+     ✓ rejects more issues than a plan holds  459ms
+     ✓ rejects more milestones than a plan holds  410ms
+     ✓ rejects more labels than a ticket holds  387ms
+     ✓ rejects an over-long project URL  523ms
+     ✓ rejects an empty Linear id  418ms
+     ✓ rejects an unknown field  470ms
+     ✓ rejects a missing milestoneId  338ms
+     ✓ rejects a read-back part over the size limit before anything is merged, final or not, and keeps the parts sent before  607ms
+ ✓ src/core/repo/importer.hostile.test.ts (52 tests) 6529ms
+     ✓ reads a profiles directory of exactly the entry limit  633ms
+ ✓ src/integration/approveWithRedraft.test.ts (6 tests) 6463ms
+     ✓ holds the checkpoint while the redraft is unsaved, so the plain approval is refused  1352ms
+     ✓ saves, adopts, approves and advances in one step, and ends with the next sprint running  1120ms
+     ✓ refuses a orchestrator session and leaves the draft unsaved  1173ms
+     ✓ refuses a planner session and leaves the draft unsaved  901ms
+     ✓ refuses a worker session and leaves the draft unsaved  1023ms
+     ✓ refuses a reviewer session and leaves the draft unsaved  880ms
+ ✓ src/test/gitRepo.test.ts (16 tests) 5873ms
+     ✓ is retried in a fresh folder after a short wait, and the repository it returns works  898ms
+     ✓ is retried when git says could not lock  801ms
+     ✓ is retried when git says Device or resource busy  590ms
+     ✓ is retried when git says Permission denied  631ms
+     ✓ is not retried after the repository was created  466ms
+     ✓ is reported with its arguments and duration, and a fast one is not  663ms
+     ✓ is retried when the temp folder answers EBUSY  679ms
+     ✓ is retried when the temp folder answers EPERM  587ms
+     ✓ is retried when the temp folder answers EACCES  491ms
+ ✓ src/integration/definitionOfDone.test.ts (6 tests) 4802ms
+     ✓ gives the sprint no definition_of_done gate and an acceptance packet without one  817ms
+     ✓ shows the orchestrator the checks, and puts them in the acceptance node packet but not in a work packet  713ms
+     ✓ stays unmet while the node awaits review, even when it reports every check as passed  809ms
+     ✓ names the checks the accepted node did not report as passed, and blocks the sprint on them  801ms
+     ✓ is met once the accepted node reports every named check as passed, whatever the case of the names  884ms
+     ✓ applies a Definition of Done changed after the run started, without restarting any session  774ms
+ ✓ src/integration/sprintRetro.test.ts (6 tests) 5595ms
+     ✓ stores the retro with its tickets resolved to ids and returns it from get_sprint_report  1282ms
+     ✓ refuses a retro that names a ticket the plan does not have  380ms
+     ✓ adds the tier facts the server computes from the attempts: sizes, planned levels, models, efforts, counts, escalation  868ms
+     ✓ stays unmet until a report with a retro is submitted, and is unmet again when a revision leaves it out  1065ms
+     ✓ names the missing retro when it refuses to approve the sprint  893ms
+     ✓ survives a flush and a clone, with its tier facts read from the cloned attempts, and is found by search  1104ms
+ ✓ src/main/github/pullRequestsCheckout.test.ts (17 tests) 92452ms
+     ✓ fetches the head branch and switches to a new local branch tracking it, then to the existing one  7466ms
+     ✓ refuses a head branch name git would not accept, before fetching  1213ms
+     ✓ checks out refs/pull/<n>/head as pr/<n> without an upstream  3911ms
+     ✓ fast-forwards pr/<n> on a later checkout from another branch, asking GitHub once  8692ms
+     ✓ fast-forwards pr/<n> while it is the current branch  6757ms
+     ✓ returns rejected_non_fast_forward when the fork rewrote its branch, leaving pr/<n> and the current branch alone  5683ms
+     ✓ checks out pr/<n> for a remote not on GitHub, without asking GitHub  4162ms
+     ✓ checks out pr/<n> for a deleted fork, and for a pull request no longer open after asking GitHub again  9045ms
+     ✓ checks out the fetched commit even when a background fetch rewrites FETCH_HEAD meanwhile, leaving no ref behind  3930ms
+     ✓ lets two overlapping checkouts of the same fork pull request both succeed, leaving no ref behind  6659ms
+     ✓ stashes the changes as dm-stash:<branch> with stash, and brings them along with bring  8185ms
+     ✓ changes nothing when git refuses to bring the changes, and leaves no pr/<n> behind  6905ms
+     ✓ returns auth_required for a GitHub repository while signed out  1594ms
+     ✓ builds the compare URL against the default branch for a pushed branch, encoding the branch's name  3264ms
+     ✓ returns needs_push for an unpublished branch, a branch ahead of its upstream, or one tracking another name  6686ms
+     ✓ builds the commit URL, and refuses both URLs for a repository not on GitHub  4675ms
+     ✓ refuses the compare URL on a detached HEAD  1306ms
+ ✓ src/core/commands/kanban.test.ts (13 tests) 5558ms
+     ✓ creates, edits, lists and reads a card across sessions  522ms
+     ✓ carries a card across sessions: the person plays and approves, the orchestrator claims, the worker reports  537ms
+     ✓ kicks a card back to the same orchestrator, whose next claim lists the comment  466ms
+     ✓ replays the claim without its secret, releases it and reclaims without another Play  471ms
+     ✓ requires orchestrator authority for tokenless release, while a worker still proves its token  775ms
+     ✓ does not tokenlessly release expired or submitted work or bypass a supplied invalid token  651ms
+     ✓ refuses Play, approve and kick back to agent sessions, and the claim and every report to the desktop  614ms
+     ✓ expires a lapsed lease when the board is read, so the card shows In progress with no open attempt  315ms
+     ✓ refuses a blank or oversized kick-back comment, an oversized progress note and a lease under 30 seconds  528ms
+ ✓ src/renderer/src/epic/EpicWorkspace.draft.test.tsx (13 tests) 8230ms
+     ✓ asks for confirmation, then discards with the expected draft revision  1916ms
+     ✓ reopens an edited draft in the Draft view after visiting another epic  1170ms
+     ✓ remembers the view the person picked for the epic, over the default  1050ms
+     ✓ shows the server's concrete reason when a dependency edit is rejected  1023ms
+     ✓ adds tickets and sprints from the draft bar and sprint labels  678ms
+     ✓ adds the sprint node from its label, as a draft op for that sprint  496ms
+     ✓ warns about a stale draft and links back to the run revision  501ms
+     ✓ links to the saved revision when no run is pinned to it  438ms
+     ✓ reloads when the refresh token changes and keeps data when a refresh fails  308ms
+ ✓ src/integration/epicDrafts.test.ts (5 tests) 4523ms
+     ✓ after saving its draft  1109ms
+     ✓ after discarding its draft  835ms
+     ✓ after moving it to in progress  795ms
+     ✓ after queueing a run  884ms
+     ✓ after saving, then opening a fresh draft (Edit draft)  896ms
+ ✓ src/renderer/src/epic/EpicWorkspace.test.tsx (21 tests) 10500ms
+     ✓ shows the breadcrumb, title, saved badge, run bar and graph  1253ms
+     ✓ lists open attempts and the sync time in the attempts strip  315ms
+     ✓ hides the attempts strip down to its bar, keeps it hidden on the next visit, and shows it again  338ms
+     ✓ switches to the list view grouped by sprint  969ms
+     ✓ offers Start run when there is no active run, and Leave pending queues the run  574ms
+     ✓ opens a draft and shows the unsaved badge, draft bar and validation panel  508ms
+     ✓ saves the draft as a new revision and returns to the Saved view  814ms
+     ✓ keeps the draft and says so when the save is pending  494ms
+     ✓ marks the selected row in the list view  614ms
+     ✓ lists changes since the base revision without an empty-state line  358ms
+     ✓ blocks Save while validation reports errors  354ms
+     ✓ shows a rejected save inline as an alert  454ms
+     ✓ keeps the epic when the person picks Keep  354ms
+     ✓ shows why the delete was refused and stays on the epic  365ms
+     ✓ saves the plan without the ticket, closes its panel and says so  691ms
+     ✓ says when the delete is saved but its snapshot is still pending  557ms
+     ✓ shows a refusal inside the panel and keeps the ticket open  590ms
+ ✓ src/core/commands/kanbanLaunch.test.ts (15 tests) 4495ms
+     ✓ queues a named card and uses the existing claim, token report and human review workflow  531ms
+     ✓ deduplicates a batch and repeated pending requests without duplicate events or attempts  416ms
+     ✓ reports every unknown or ineligible card and leaves the entire mixed batch unchanged  354ms
+     ✓ never requeues active, submitted or completed work when launch is retried  402ms
+     ✓ denies launch to reviewer without mutating cards  336ms
+     ✓ denies an already open CLI session with a revoked grant  319ms
+     ✓ denies an already open CLI session with a expired grant  324ms
+ ✓ src/renderer/src/ticket/TicketEditor.profiles.test.tsx (12 tests) 10194ms
+     ✓ lists the profiles and fills the capability fields from the chosen one without writing anything  1554ms
+     ✓ applies the chosen profile to the draft as one capability patch  976ms
+     ✓ ignores the placeholder and forgets the profile on revert  827ms
+     ✓ shows a hint instead of the picker when the repository has no profiles  527ms
+     ✓ says when profiles are still loading or could not be loaded  513ms
+     ✓ saves the current requirements as a new profile and then offers it  810ms
+     ✓ replaces a saved profile of the same name at its revision  749ms
+     ✓ shows why a profile could not be saved and keeps the entry open  930ms
+     ✓ closes the entry on cancel without saving  709ms
+     ✓ reloads the profiles on a conflict, shows the refreshed revision, and replaces it on retry  926ms
+     ✓ offers to replace a profile someone else created meanwhile  912ms
+     ✓ keeps the list as it is after a failure that is not a conflict  747ms
+ ✓ src/core/repo/attachmentFiles.test.ts (45 tests) 5227ms
+ ✓ src/renderer/src/ticket/TicketEditor.test.tsx (13 tests) 11877ms
+     ✓ applies local edits as one update_ticket patch with the expected draft revision  2014ms
+     ✓ keeps unsaved text across a conflict and applies it again on the reloaded draft  1279ms
+     ✓ surfaces a rejected edit and validates the form before sending  1261ms
+     ✓ edits criteria, prerequisites and the capability profile  1459ms
+     ✓ previews Markdown, reverts local edits and removes the ticket after confirmation  1108ms
+     ✓ shows the size, effort, quality and cost the ticket has, including an inherited quality  475ms
+     ✓ offers None for each, and a ticket without them starts on None  556ms
+     ✓ applies each cleared to None as a patch the saved draft can carry  734ms
+     ✓ applies a new size, effort, quality and cost  739ms
+     ✓ shows the draft change badge of the ticket being edited  406ms
+     ✓ edits the description beside the prefix and applies a new repository with update_ticket  705ms
+     ✓ refuses to apply a work ticket without a repository  726ms
+     ✓ shows no repository select for a single-repository project  407ms
+ ✓ scripts/installer-nsh.test.mjs (3 tests) 5126ms
+     ✓ finds the app when exactly one of its processes is left  1728ms
+     ✓ finds the app while several of its processes run  1693ms
+     ✓ finds nothing once every process from the install folder has exited  1695ms
+ ✓ src/core/workspace.dbMode.test.ts (26 tests) 4330ms
+     ✓ lets the desktop back the mail up and restore it from the copy  338ms
+ ✓ src/integration/linearTransfer.test.ts (6 tests) 4323ms
+     ✓ creates nothing twice after a crash between a create and its record  654ms
+     ✓ lays the epic out in execution order: rising identifiers, a milestone per sprint, acceptance issues last and blocked, the related link  480ms
+     ✓ reports an injected wrong milestone and unexpected issue, fixes them without deleting, and only then completes the epic  608ms
+     ✓ adopts every existing item by its marker after the person cancels and queues the transfer again  607ms
+     ✓ creates its issue in a completed state, and the read-back verifies and completes the epic  1217ms
+     ✓ rejects its issue left open with a state mismatch naming its key, and verifies once the driver sets the state  752ms
+ ✓ src/core/commands/deletion.test.ts (8 tests) 5015ms
+     ✓ removes every row and tracked file of the epic, leaves other epics alone, and stays gone after a reconcile  1567ms
+     ✓ deletes an epic with an in-progress transfer and its recorded items  539ms
+     ✓ deletes a completed epic and one that was never saved  980ms
+     ✓ refuses while a run is active and changes nothing  688ms
+     ✓ keeps every row when removing the files fails  377ms
+     ✓ saves the plan without the ticket and writes the new snapshot  483ms
+ ✓ src/integration/lifecycle.test.ts (7 tests) 4285ms
+     ✓ saves a fork/join plan as an immutable snapshot and rejects a later-sprint prerequisite  384ms
+     ✓ surfaces stale draft edits as conflicts between the desktop and an agent  304ms
+     ✓ runs parallel branches, blocks the join, rejects stale workers, and gates sprints on human approval  1863ms
+     ✓ reconstructs saved state and history in a clone without the local database  840ms
+     ✓ saves the sprint acceptance node with its covers and brings both back in a clone  541ms
+ ✓ src/core/commands/board.test.ts (18 tests) 4760ms
+     ✓ is open to every role, while only roles that create epics may import  500ms
+     ✓ recognizes an import recorded only by an earlier saved revision  647ms
+     ✓ is available to planner and orchestrator sessions  396ms
+ ✓ src/main/git/statusEdge.test.ts (7 tests) 5109ms
+     ✓ passes on a failure finding the repository root other than "not a repository"  566ms
+     ✓ passes on a failure reading the remotes instead of reporting no remote  924ms
+     ✓ reports no operation and no fetch when git prints no state paths  3399ms
+ ✓ src/renderer/src/epic/EpicWorkspace.startRun.test.tsx (17 tests) 6504ms
+     ✓ opens a dialog instead of queueing, and queues nothing until a choice is made  912ms
+     ✓ queues the run exactly as the Start run button did, and closes the dialog  749ms
+     ✓ says in the run bar that the queued run is waiting for an orchestrator  554ms
+     ✓ shows the refusal in the banner, with the dialog closed, when the run cannot be queued  397ms
+     ✓ queues the run, then creates the orchestrator chat in this folder with that agent and model, the run id recorded and Allow save off  418ms
+     ✓ opens the orchestrator chat, whose terminal main has started, once the shell has listed it  327ms
+     ✓ keeps the run queued, shows why no chat was started, and stays on the epic  485ms
+     ✓ shows the error and queues nothing when the run cannot be queued at all  395ms
+     ✓ links the agent choice to the add-agent pane, and Leave pending still queues the run  555ms
+     ✓ lists a connected agent that is signed out with Sign in, in the dialog, which stays open  305ms
+     ✓ opens the dialog in a single repository even when the project cannot be read  346ms
+ ✓ src/main/naming/naming.test.ts (12 tests) 3906ms
+   ✓ persists selected-agent semantic naming only for the live bound first-message chat  373ms
+   ✓ never derives binding from historical grants and rejects foreign tokens  308ms
+   ✓ rechecks current DB grant capability, revocation, expiry and machine binding  332ms
+   ✓ invalidates an older exact chat generation synchronously before database revocation  305ms
+   ✓ protects manual rename races, old chats and every system identity  602ms
+   ✓ routes real CLI token-file and MCP calls through the same authenticated metadata pipe  510ms
+   ✓ refuses pending-name metadata on system chats and rejects direct prompt-prefix titles without consuming inference  530ms
+ ✓ src/renderer/src/epic/EpicWorkspace.run.test.tsx (12 tests) 6919ms
+     ✓ pauses and resumes the run  1562ms
+     ✓ cancels the run only after confirmation  684ms
+     ✓ announces a newer saved revision and adopts it at the checkpoint  364ms
+     ✓ opens the sprint report instead of the graph and returns to it  310ms
+     ✓ approves and advances, retries failed tickets and toggles auto-continue  710ms
+     ✓ adds a proposed follow-up to a newly opened draft and retries a failed ticket  716ms
+     ✓ keeps the overview open after the final checkpoint is approved  602ms
+     ✓ opens the ticket panel from the graph and accepts a submitted attempt  1025ms
+ ✓ src/core/commands/kanbanDeletion.test.ts (9 tests) 4852ms
+     ✓ removes the card from its lane, the board and its tracked folder, and leaves other cards alone  494ms
+     ✓ stays gone after a restart, a reconcile of the portable files and a clone made afterwards  474ms
+     ✓ deletes a finished card from Done, with its attempts and events  515ms
+     ✓ refuses a card that does not exist  312ms
+     ✓ refuses a claimed, a running and a submitted attempt, naming it, and keeps the card and its files  521ms
+     ✓ allows deleting once the lease has lapsed, and after the attempt failed  695ms
+     ✓ is the desktop only: every agent role is refused and the card stays  678ms
+     ✓ deletes the card image and its attempt evidence image with their exports, and leaves a staged image  899ms
+ ✓ src/renderer/src/App.sidebar.test.tsx (16 tests) 9986ms
+     ✓ shows In progress, Backlog, Kanban and Completed in order with counts  402ms
+     ✓ opens the folder's Kanban board from the sidebar, and reopens it after a reload  1007ms
+     ✓ updates the displayed open count immediately after approval and deletion, without an event poll  2658ms
+     ✓ opens an epic from the sidebar and highlights its row  356ms
+     ✓ opens another epic requested by the epic view  373ms
+     ✓ returns to the folder home with a refreshed list once the epic view reports the epic deleted  577ms
+     ✓ reveals the completed bucket when a completed epic is opened from the folder home  621ms
+     ✓ remembers collapsed buckets and folders across reloads  814ms
+     ✓ remembers a collapsed folder  560ms
+     ✓ restores the last selected epic  301ms
+     ✓ selects a folder to show its home  524ms
+     ✓ confirms, then stops tracking and selects what remains  771ms
+     ✓ leaves the folder tracked when canceled  530ms
+ ✓ src/renderer/src/epic/EpicWorkspace.retro.test.tsx (8 tests) 6050ms
+     ✓ adds a discovery to the next sprint of a draft it opens, and says so  1199ms
+     ✓ moves a leftover, with what requires it, to the next sprint of the existing draft  691ms
+     ✓ says why a move was rejected and keeps the checkpoint open  679ms
+     ✓ does not touch the draft for an item it already holds  380ms
+     ✓ shows the redraft, approves it with the report and the draft revision, and moves on to the next sprint  889ms
+     ✓ approves a checkpoint without a redraft as it always did  722ms
+     ✓ shows the step that refused, and that the draft was saved but adoption is still needed, and stays on the checkpoint  653ms
+     ✓ keeps the overview open when the approval completes the epic  831ms
+ ✓ src/renderer/src/App.chats.test.tsx (19 tests) 10496ms
+     ✓ lists the initialized folder's chats newest first, and none under a folder that is not initialized  1015ms
+     ✓ opens a chat in the main area, marked in the sidebar, and keeps it open across a reload  824ms
+     ✓ goes back to the folder when the folder is chosen in the sidebar  522ms
+     ✓ asks before creating, then preserves the full first prompt and folder default settings  526ms
+     ✓ uses a signed-out folder default all the same  402ms
+     ✓ uses the first agent that can chat when the folder default is not connected  404ms
+     ✓ uses the first agent that can chat when the folder has no default  341ms
+     ✓ opens the add-agent pane and creates no chat when no agent is connected  305ms
+     ✓ opens one popup for rapid clicks and creates once for repeated submission  429ms
+     ✓ disallows blank input and cancels without creating on Cancel or Escape  664ms
+     ✓ keeps the original prompt editable when creation fails, then retries with the edited text  667ms
+     ✓ shows the waiting badge in the Agents block and on the collapsed folder, and clears it once signed in  712ms
+     ✓ renames a chat from its row menu, in the sidebar and in the open chat  753ms
+     ✓ asks before deleting, and an open chat that is deleted falls back to the folder home  778ms
+     ✓ keeps the chat that is open when another chat is deleted  629ms
+     ✓ shows each folder’s unseen count on its own row, for a stopped chat too, and none for a chat without mail  384ms
+     ✓ drops a late push for a folder it stopped showing, and shows the stored count again once caught up  853ms
+ ✓ src/renderer/src/epic/OrchestratorFeed.test.tsx (13 tests) 5640ms
+     ✓ appears while the run is active, named for the orchestrator session  1421ms
+     ✓ is absent when the run has ended and when there is no run  355ms
+     ✓ has a hourglass that turns, and holds still when the person prefers reduced motion  456ms
+     ✓ opens from the chip and shows the run, with a claim’s model and rationale as plain text  517ms
+     ✓ opens the ticket panel from an entry about a ticket  480ms
+     ✓ closes with Escape and with its Close button  319ms
+     ✓ says so while there is nothing to show, and when the feed cannot be read  612ms
+     ✓ updates without a reload, then stops polling once the run has ended  513ms
+ ✓ src/renderer/src/epic/OrchestratorFeed.thread.test.tsx (12 tests) 5853ms
+     ✓ lists the main thread of the chat among the run entries, newest first  1374ms
+     ✓ reads the chat once and follows nothing: an old transcript no longer changes  498ms
+     ✓ shows a subagent the chat started as one row, not what happens inside it  425ms
+     ✓ shows what the agent wrote as text and Markdown, never as markup  368ms
+     ✓ opens the chat that orchestrates the run  425ms
+     ✓ reads nothing until the feed is opened, and stops showing the chat once it is closed  596ms
+     ✓ keeps the run entries when the chat cannot be read, and says so  387ms
+     ✓ shows a request the chat stored as a record with its stored decision, with nothing to answer  327ms
+     ✓ shows a request no decision was stored for as not answered, with nothing to answer  344ms
+     ✓ is the run entries alone: no chat is opened and there is no Open chat link  395ms
+     ✓ treats a run only a subagent thread is bound to as no orchestrating chat  359ms
+     ✓ is just as plain when the lookup fails  346ms
+ ✓ src/renderer/src/agents/AgentInbox.test.tsx (23 tests) 6108ms
+     ✓ shows unseen-by-you and unacknowledged-by-its-agent apart, and nothing for a chat without a mailbox  382ms
+     ✓ reads messages as data: sender, stable id, time, reply, seen and acknowledged states; reading changes nothing  314ms
+     ✓ reads the next page after the last one, up to the first page’s horizon, so a new arrival waits for Refresh  1605ms
+     ✓ keeps the shown pages when the next page fails, and reads it again on another click  1235ms
+ ✓ src/core/db/migrations.test.ts (150 tests) 4146ms
+ ✓ src/main/terminals/skitariiMessaging.test.ts (23 tests) 4947ms
+     ✓ sends the body literally through the real dm child and returns the acceptance it answered  424ms
+     ✓ returns identity, peers, inbox pages and acknowledgements as inert data, never acknowledging on read  1267ms
+     ✓ reports a revoked grant as the CLI refused it, without the grant  349ms
+     ✓ reports malformed and oversized output, a timeout, an abort and the session ending as failures, no child left  1883ms
+ ✓ src/main/git/credentials.test.ts (17 tests) 4745ms
+     ✓ answers with the account login and token, and no other helper runs  2038ms
+     ✓ never hands the GitHub token to another host, whose own helpers still answer  1386ms
+     ✓ without our arguments (signed out) the machine helper answers  1307ms
+ ✓ src/renderer/src/source/DiffView.test.tsx (12 tests) 5844ms
+     ✓ renders each hunk header and every line with its old and new numbers  516ms
+     ✓ renders only the first 2,000 lines and shows the rest on request  3490ms
+     ✓ shows no button at exactly 2,000 lines  1720ms
+ ✓ src/renderer/src/source/LineSelection.test.tsx (11 tests) 6014ms
+     ✓ is indeterminate when only some lines are included, with the header too  876ms
+     ✓ toggles all, then none, from the indeterminate state  789ms
+     ✓ becomes unchecked when the last line is left out and checked when every line is back  624ms
+     ✓ sends the chosen lines with the diff hash, keeps the commit button enabled, and whole files as before  616ms
+     ✓ can commit when the only included file is partly included  459ms
+     ✓ starts over from all lines after a commit, without the reset toast  458ms
+     ✓ keeps the chosen lines while the diff hash stays the same  357ms
+     ✓ resets the shown file to all lines with a toast when its hash changes  438ms
+     ✓ resets a file that is not shown when its hash changes  489ms
+     ✓ refreshes the diff and resets the file with the same toast, committing nothing  518ms
+     ✓ shows the refusal inline when no chosen file turns out to have changed  385ms
+ ✓ src/core/repo/finalizer.test.ts (57 tests) 4051ms
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ✓ src/core/workspace.test.ts (16 tests) 4118ms
+     ✓ holds portable exports after the checkout moved until the repository is reconciled  500ms
+     ✓ does not silently acknowledge a branch switch that happened while closed  473ms
+     ✓ keeps a running run on its pinned revision after a newer save  448ms
+     ✓ reads a tracked comment or profile file once, not again on every heartbeat while it is unchanged  404ms
+     ✓ opens and reports a file in place of epics, and a link in place of history, instead of failing  368ms
+ ✓ src/main/git/runner.test.ts (28 tests | 1 skipped) 3929ms
+     ✓ does not leak an inherited GIT_DIR  719ms
+     ✓ round-trips a non-ASCII file name  1112ms
+     ✓ a bogus gitPath is git_not_found  494ms
+     ✓ too much real output is output_too_large  647ms
+     ✓ classifies a real failure  857ms
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ✓ src/renderer/src/source/ChangesPanel.test.tsx (23 tests) 5845ms
+     ✓ includes every file by default, new files too, and counts them in the header  565ms
+     ✓ is disabled without a summary or without an included file  514ms
+     ✓ commits only the included files with the message, then clears the box, refreshes and toasts  319ms
+     ✓ is busy while committing  440ms
+     ✓ undoes, refills the summary and description and refreshes  445ms
+     ✓ shows a refusal from Undo and keeps the strip  405ms
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ✓ src/core/repo/kanbanImport.test.ts (31 tests) 3818ms
+ ✓ src/main/terminals/skitariiDmClient.test.ts (38 tests) 3993ms
+     ✓ passes the CLI’s own refusal through with its code, the grant redacted  312ms
+     ✓ kills a child that runs past the time limit and settles once it is gone  406ms
+     ✓ kills a child that prints more than 2 MiB  315ms
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ✓ src/main/kanban/startKanbanCard.test.ts (21 tests) 4600ms
+     ✓ still starts the agent when the branch cannot be read, saying so in the kickoff and reporting the failure  369ms
+     ✓ removes the chat again and keeps the pending play, naming the agent and why, for a spawn that fails  478ms
+     ✓ takes every control character out of the comment, so nothing in it ends the paste early or acts as a key  464ms
+     ✓ masks it whole: the control character the paste drops is taken out before the mask, not after  389ms
+     ✓ resumes the chat with no kickoff and pastes the message once the screen has settled  459ms
+     ✓ pastes into the newest chat Play started for the card, and none of an older one  396ms
+ ✓ src/integration/rowChecks.test.ts (5 tests) 3063ms
+     ✓ reports the row of every ticket and the tickets and latest check of every row  580ms
+     ✓ holds the dependents, leaves other tickets alone, and lets a passing check clear the hold  684ms
+     ✓ refuses malformed input before running anything  393ms
+     ✓ are exported with the run history and come back in a clone  838ms
+     ✓ lists a node in no row and holds it while a row of its sprint has a failed check  564ms
+ ✓ src/integration/mcp.test.ts (10 tests) 3644ms
+     ✓ lets an agent plan, save, and read back an epic headlessly  404ms
+     ✓ lets a worker comment on a ticket and an orchestrator read it back  426ms
+     ✓ fails with unauthorized naming the desktop app, and only the desktop resumes the run  586ms
+     ✓ still resumes a run paused for any other reason  570ms
+     ✓ refuses it as well after the desktop marked a run paused for another reason as signed out  566ms
+ ✓ src/renderer/src/ticket/TicketPanel.test.tsx (37 tests) 4878ms
+     ✓ shows the key, state, title, meta line, Markdown body and criteria progress  465ms
+     ✓ adds a comment, clears the form and shows the refreshed list  304ms
+     ✓ offers Add comment only for text and not while the comment is being added  330ms
+ ✓ src/main/desktop/agentInstallerNode.test.ts (20 tests) 2984ms
+     ✓ stops an installer that runs past the timeout and keeps what it said  1898ms
+ ✓ src/renderer/src/epic/StartRunDialog.test.tsx (35 tests) 5197ms
+     ✓ opens with the folder’s default agent chosen when it can chat, and runs it  752ms
+ ✓ src/renderer/src/epic/TransferDialog.test.tsx (11 tests) 4702ms
+     ✓ offers only connected, signed-in agents with their models, and transfers with the one picked  727ms
+     ✓ Transfer with agent queues, only then starts the transfer chat with that agent and model, and opens it  592ms
+     ✓ Copy prompt queues, only then copies the transfer prompt, and starts no chat  533ms
+     ✓ reaches no agent and copies nothing when the transfer cannot be queued  725ms
+     ✓ keeps the transfer authorized when the chat cannot be started, and says Resume recovers  666ms
+     ✓ keeps the transfer authorized when the prompt cannot be read, and the strip copies it again  599ms
+ ✓ src/renderer/src/epic/EpicWorkspace.transfer.test.tsx (14 tests) 5378ms
+     ✓ shows the status, how many items are created, and the last mismatches by DM key and field  792ms
+     ✓ without a transfer chat, asks for an agent and starts a new transfer chat without queueing again  500ms
+     ✓ copies the prompt of the open transfer without queueing again  335ms
+     ✓ cancels only after the confirmation, then unlocks Start run and Transfer to Linear  473ms
+     ✓ hides Save and names the open transfer in its place while it is queued, keeping Discard draft and edits  525ms
+     ✓ hides Save and names the open transfer in its place while it is in_progress, keeping Discard draft and edits  461ms
+     ✓ offers Save again once the transfer is canceled  989ms
+ ✓ src/renderer/src/App.footer.test.tsx (14 tests) 5455ms
+     ✓ shows MCP sessions and export state from the storage status  831ms
+     ✓ shows a pending save and a failed export  335ms
+     ✓ shows the status of the selected folder only  588ms
+     ✓ flushes the selected folder and confirms  313ms
+     ✓ is busy while flushing and refreshes the status afterwards  430ms
+     ✓ creates an epic from the folder home and opens it  730ms
+     ✓ keeps the dialog open and shows the reason when creation fails  584ms
+     ✓ keeps the update banner mounted and offers a restart once downloaded  565ms
+ ✓ src/core/services/runs.test.ts (91 tests) 3110ms
+ ✓ src/renderer/src/App.terminal.test.tsx (8 tests) 4563ms
+     ✓ shows the chat’s terminal in the main area in place of its transcript, in this window  921ms
+     ✓ keeps one terminal mounted: switching disposes the shown one, and showing a chat again paints main’s snapshot of it  760ms
+     ✓ paints the shown chat from main’s snapshot after a reload  347ms
+     ✓ marks the sidebar rows of chats whose terminal runs, also while another is shown, until the CLI exits  755ms
+     ✓ marks no row for a chat whose CLI did not start  344ms
+     ✓ flags nothing: the request is a record of an agent that is gone, and no approval waits in the app  400ms
+     ✓ opens the inbox over the running terminal, and a sender’s chat only when the person clicks it  490ms
+     ✓ drops a late inbox answer once another chat is shown, and keeps that chat’s terminal  542ms
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ✓ src/renderer/src/checkpoint/CheckpointScreen.retro.test.tsx (23 tests) 4030ms
+     ✓ shows each delivered item with its ticket, what to look at and its evidence links  486ms
+     ✓ blocks approving while another gate is unmet, and while the screen is busy  339ms
+     ✓ clears an earlier refusal when the next attempt goes through  381ms
+ ✓ src/renderer/src/source/HistoryPanel.test.tsx (13 tests) 4522ms
+     ✓ opens on Changes, switches to History, and remembers the choice per folder  697ms
+     ✓ loads 100 commits, and 100 more when scrolled near the end, once  1144ms
+     ✓ shows the diff of a selected file, renamed files included  474ms
+     ✓ clears the file when another commit is selected  478ms
+     ✓ shows a commit diff read-only: no line checkboxes and nothing dimmed  327ms
+ ✓ src/renderer/src/App.agents.test.tsx (12 tests) 4426ms
+     ✓ shows the empty note above the folders when no agent is connected  705ms
+     ✓ lists connected agents with their version and sign-in state  349ms
+     ✓ replaces the folder home with the five built-in agent cards, Skitarii first, and the Custom CLI card when + is pressed  416ms
+     ✓ goes back to the folder when the folder is chosen in the sidebar  385ms
+     ✓ lists an agent in the sidebar once Find connects it, and shows it connected on its card  503ms
+     ✓ keeps a download running while the person looks at another page  523ms
+     ✓ opens from the sidebar and marks its row  320ms
+     ✓ is still open after a reload  322ms
+     ✓ removes the agent after a confirmation and falls back to the folder view  486ms
+ ✓ src/core/commands/kanbanRecords.test.ts (4 tests) 3898ms
+     ✓ writes card.json and one event file per transition, and no file holds the claim secret  665ms
+     ✓ writes nothing under the repository, and the board still lists the card in Done  301ms
+     ✓ rebuilds the same board and the same cards from the records  1670ms
+     ✓ keeps an open attempt from another computer, which this computer refuses to report on  1258ms
+ ✓ src/integration/acceptanceGate.test.ts (3 tests) 2696ms
+     ✓ keeps the node blocked behind both work tickets and names them as prerequisites  532ms
+     ✓ opens the node after the second work ticket is accepted, not after the first  847ms
+     ✓ cannot be approved until the node is accepted, and acceptance alone leaves the increment gate unmet  1314ms
+ ✓ src/core/commands/repositories.test.ts (10 tests) 1952ms
+ ✓ src/core/commands/capabilities.test.ts (11 tests) 3077ms
+     ✓ a 'desktop' session (allowSave false) is refused exactly the commands it lacks  501ms
+     ✓ a 'planner' session (allowSave false) is refused exactly the commands it lacks  340ms
+     ✓ a 'planner' session (allowSave true) is refused exactly the commands it lacks  326ms
+     ✓ a 'orchestrator' session (allowSave false) is refused exactly the commands it lacks  405ms
+     ✓ a 'orchestrator' session (allowSave true) is refused exactly the commands it lacks  417ms
+     ✓ a 'reviewer' session (allowSave false) is refused exactly the commands it lacks  307ms
+ ✓ src/core/commands/comments.test.ts (7 tests) 2336ms
+     ✓ adds ticket and epic comments and lists them  495ms
+     ✓ rebuilds comments from the tracked records after the local database is deleted  432ms
+     ✓ keeps a comment out of a checkout without its epic, and exports it once the epic is checked out again  631ms
+ ✓ src/renderer/src/kanban/KanbanBoard.test.tsx (18 tests) 4406ms
+     ✓ shows the four lanes in order with their counts, Done counting every Done card  470ms
+     ✓ loads the next 20 with Show more, then the rest, and then offers no more  1521ms
+     ✓ keeps the Done rows already shown when an event refreshes the board  376ms
+ ✓ src/main/desktop/agentProbeNode.test.ts (18 tests | 3 skipped) 2423ms
+     ✓ stops a program that runs past the timeout  716ms
+     ✓ does not let a command hidden in the path run  391ms
+ ✓ src/renderer/src/source/ConflictsPanel.test.tsx (17 tests) 4739ms
+     ✓ names both sides and the number of conflicted files, and lists them first with their counts  802ms
+     ✓ replaces the commit box with Commit merge, enabled only once nothing is unresolved  614ms
+     ✓ asks before aborting the merge, and Cancel keeps it  602ms
+     ✓ uses mine or theirs, naming the sides, and refreshes  300ms
+     ✓ shows a banner with Abort for a rebase, cherry-pick or revert in progress  564ms
+ ✓ src/core/commands/profiles.test.ts (16 tests) 2446ms
+     ✓ rebuilds profiles from tracked records when a clone is first opened  311ms
+ ✓ src/renderer/src/source/PullRequests.test.tsx (17 tests) 3618ms
+     ✓ shows #N and the title of the branch pull request, with a draft badge, and opens it  469ms
+     ✓ filters with the same input, by number or title  331ms
+     ✓ asks GitHub again with Refresh  338ms
+     ✓ with changes, asks the same stash or bring question as a branch switch  312ms
+ ✓ src/renderer/src/graph/PlanGraph.test.tsx (37 tests) 3728ms
+     ✓ renders the epic, sprint labels, checkpoints and labeled ticket cards  491ms
+     ✓ keeps the decorative mascot controls out of ticket selection  422ms
+ ✓ src/renderer/src/App.start.test.tsx (14 tests) 4514ms
+     ✓ shows a loading state, then invites tracking a folder  577ms
+     ✓ tracks a folder from the welcome view  313ms
+     ✓ selects a picked folder and shows its setup flow  353ms
+     ✓ initializing reveals the buckets and the folder home  625ms
+     ✓ stays on the setup flow and reports why initialization failed  322ms
+     ✓ writes .mcp.json for Claude Code while initializing, unless the option is turned off  325ms
+     ✓ previews the board, imports it after initializing when chosen, and lands on the folder home  366ms
+     ✓ selects an already tracked folder instead of duplicating it  515ms
+     ✓ shows progress while initializing and blocks a second press  602ms
+ ✓ src/renderer/src/App.events.test.tsx (14 tests) 4313ms
+     ✓ polls the selected folder every 1.5 seconds and refreshes the footer every 10  868ms
+     ✓ does not replay history when it starts  310ms
+     ✓ bumps only the refresh token of the epic named by an event  317ms
+     ✓ keeps the epic view mounted, and its state, while tokens change  312ms
+     ✓ refetches the epic list and shows new epics in the sidebar  409ms
+     ✓ refreshes the sidebar right after a local change reported by the epic view  389ms
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ✓ src/renderer/src/agents/AddAgentPane.test.tsx (28 tests) 3935ms
+     ✓ shows a titled pane with Skitarii first, then Claude Code, Codex, Cursor and Autonomous, then the Custom CLI card  570ms
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ✓ src/core/commands/uploadAttachment.test.ts (11 tests) 1847ms
+ ✓ src/core/services/attempts.test.ts (58 tests) 2256ms
+ ✓ src/core/commands/activity.test.ts (4 tests) 1960ms
+     ✓ lets the desktop read an attempt timeline and a run timeline of work an agent did  721ms
+     ✓ polls with the cursor each timeline returned  508ms
+     ✓ lets every role read, and answers not_found for an id it does not know  606ms
+ ✓ src/core/commands/attachments.test.ts (11 tests) 1969ms
+ ✓ src/core/services/agentMailStore.test.ts (46 tests) 2200ms
+     ✓ refuses the 1025th unacknowledged message with mailbox_full, evicting nothing and using no sequence  492ms
+ ✓ src/renderer/src/home/FolderHome.test.tsx (18 tests) 3609ms
+     ✓ leaves the folder header to the folder page  619ms
+     ✓ opens the dialog from the header button  302ms
+     ✓ creates the epic and closes the dialog  357ms
+     ✓ keeps the dialog open when creation fails  336ms
+     ✓ closes the dialog without creating on cancel  384ms
+ ✓ src/main/git/cloneAuth.test.ts (5 tests) 1786ms
+     ✓ signed in, an HTTPS GitHub URL (owner/repo too) uses the account, with git limited to https and ssh  343ms
+     ✓ uses no account for ssh, scp-like or other hosts, or while signed out  613ms
+     ✓ reports a GitHub rejection as auth_required signed out and auth_failed signed in  304ms
+     ✓ refuses another clone into the same parent while one runs, so none waits unseen behind it  305ms
+ ✓ src/main/desktop/ompTheme.test.ts (41 tests) 2207ms
+     ✓ parses every bundled theme  1523ms
+ ✓ src/renderer/src/kanban/KanbanCardPanel.test.tsx (17 tests) 3296ms
+     ✓ offers Play on a Backlog card: { lane: 'backlog' }  539ms
+     ✓ starts the card with the chosen agent and model, then opens the new chat  346ms
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ✓ src/core/services/kanban/attempts.test.ts (55 tests) 1912ms
+ ✓ src/renderer/src/sidebar/FolderRow.test.tsx (39 tests) 3814ms
+     ✓ selects the folder from its name  453ms
+ ✓ src/renderer/src/epic/EpicWorkspace.activity.test.tsx (6 tests) 3289ms
+     ✓ opens the Activity tab for the attempt when the hourglass on a graph node is clicked  1192ms
+     ✓ opens it from the hourglass in the list view too  576ms
+     ✓ shows new entries as they arrive without a reload and stops polling when the attempt closes  335ms
+     ✓ brings the Activity tab back when the hourglass is clicked again  639ms
+ ✓ src/renderer/src/App.folderPage.test.tsx (8 tests) 3490ms
+     ✓ opens on Source control, with the header and both tabs  951ms
+     ✓ shows the folder home on the Epics tab of an initialized folder  705ms
+     ✓ remembers the Epics tab for the folder across a reload, and only for that folder  511ms
+     ✓ opens the folder on its remembered tab when its row is clicked  484ms
+ ✓ src/renderer/src/onboarding/OnboardingView.test.tsx (34 tests) 3050ms
+     ✓ shows the three setup steps with initialize as the current one  450ms
+ ✓ src/renderer/src/clone/CloneDialog.test.tsx (17 tests) 2605ms
+     ✓ opens on GitHub.com and asks to sign in while signed out  485ms
+ ✓ src/core/commands/ticketSizing.test.ts (5 tests) 1745ms
+     ✓ returns the size and effort from get_ticket and list_tickets  406ms
+     ✓ records the effort on the attempt, hands it over in the packet, and exports it in run history  469ms
+     ✓ refuses an effort the model does not declare  389ms
+ ✓ src/mcp/roles.test.ts (37 tests) 2325ms
+     ✓ refuses every mail tool to a planner stdio session, even one holding a bound grant token, and changes no mail  409ms
+     ✓ refuses every mail tool to a worker stdio session, even one holding a bound grant token, and changes no mail  309ms
+     ✓ refuses every mail tool to a reviewer stdio session, even one holding a bound grant token, and changes no mail  311ms
+ ✓ src/renderer/src/source/BranchMenu.test.tsx (18 tests) 3080ms
+     ✓ shows the current branch and opens a grouped list with the filter focused  655ms
+ ✓ src/main/terminals/terminalSessions.signedOut.test.ts (9 tests) 871ms
+ ✓ src/main/desktop/boardRemovalFiles.test.ts (25 tests) 1638ms
+ ✓ src/main/agents/processTreeReal.test.ts (4 tests | 1 skipped) 1633ms
+     ✓ resolves only after the process and the process it started have exited  744ms
+     ✓ has nothing to do for a process that already exited  307ms
+     ✓ can be asked twice while the first request is still running  579ms
+ ✓ src/renderer/src/App.signIn.test.tsx (4 tests) 2581ms
+     ✓ opens from the agent page in app-main, in this window, running the agent's login, with the page hidden behind it  986ms
+     ✓ goes Back to the agent page as it was, and closes the login terminal  462ms
+     ✓ closes when the person goes to another screen, and does not come back with that screen  695ms
+     ✓ shows the agent signed in everywhere once the login ends and the status says so  435ms
+ ✓ src/renderer/src/ticket/TicketEditor.attachments.test.tsx (2 tests) 2791ms
+     ✓ renders the existing images by folder key and shows an uploaded one beside them  1708ms
+     ✓ applies the full list with an upload added and one image removed, in the update_ticket patch  1076ms
+ ✓ src/renderer/src/agents/CustomAgentForm.test.tsx (10 tests) 2632ms
+     ✓ asks for a name and arguments only: no protocol choice, and no arguments to start with  591ms
+     ✓ adds and removes argument rows  440ms
+     ✓ sends exactly the name and arguments, and nothing else  385ms
+ ✓ src/renderer/src/sidebar/AgentsBlock.test.tsx (20 tests) 2425ms
+     ✓ lists the chats newest first, each with its title, agent and model  559ms
+ ✓ src/renderer/src/epic/EpicWorkspace.signedOut.test.tsx (10 tests) 2566ms
+     ✓ reads Paused: <Agent> signed out and links to the orchestrator chat  740ms
+     ✓ turns Resume on when the agent’s state changes to signed in while the bar is shown  306ms
+ ✓ src/main/terminals/terminalSessions.kickoff.test.ts (14 tests) 1333ms
+ ✓ src/main/terminals/terminalSessions.test.ts (18 tests) 1322ms
+ ✓ src/main/terminals/privateFile.test.ts (5 tests) 1570ms
+     ✓ gives up after ten tries on a rename that stays refused, leaving no staged file behind  767ms
+ ✓ src/renderer/src/epic/EpicWorkspace.landing.test.tsx (5 tests) 1998ms
+     ✓ opens the ticket on its Activity tab for the attempt once the epic has loaded, and tells the shell it took the request  874ms
+     ✓ shows the saved plan, where the Activity tab is, when the epic opens on a draft with changes  378ms
+     ✓ takes the request once: closing the panel is not undone, and a ticket the epic does not have opens nothing  336ms
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ✓ src/core/services/agentMail.test.ts (30 tests) 1733ms
+     ✓ accepts the 1024th pending message, refuses the next, and admits one again after an acknowledgement  650ms
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ✓ src/renderer/src/epic/OrchestratorFeed.terminal.test.tsx (3 tests) 2091ms
+     ✓ shows the run timeline and an Open terminal link to the chat bound by grant, which opens it  1195ms
+     ✓ still shows an old chat’s binding beside it  497ms
+     ✓ shows no Open terminal link for a run no chat started, and asks nothing until the feed is opened  392ms
+ ✓ src/renderer/src/agents/AgentPage.test.tsx (18 tests) 2020ms
+     ✓ names the agent and shows its executable path and version  389ms
+ ✓ src/renderer/src/agents/TerminalPane.test.tsx (38 tests) 2151ms
+     ✓ attaches to the chat once it is shown, says checking while the attach waits, then shows its terminal focused  432ms
+ ✓ src/core/services/activity.test.ts (40 tests) 1707ms
+ ✓ src/core/commands/execution.test.ts (3 tests) 1468ms
+     ✓ attaches the gate while a run executes, and not while it is paused  589ms
+     ✓ splits tickets into ready, blocked, and in flight from claim to acceptance  631ms
+ ✓ src/main/terminals/terminalSessions.edges.test.ts (19 tests) 1444ms
+ ✓ src/renderer/src/source/BranchMenu.edge.test.tsx (11 tests) 1867ms
+     ✓ closes on a press outside the menu but not on one inside, and when its button is pressed again  505ms
+     ✓ keeps the selection inside the list at both ends  315ms
+ ✓ src/renderer/src/sidebar/Sidebar.test.tsx (18 tests) 1639ms
+     ✓ is a labeled region with the brand and version  346ms
+ ✓ src/renderer/src/ticket/ActivityTab.thread.test.tsx (20 tests) 1948ms
+     ✓ shows the thread's items among the timeline entries, in time order  569ms
+ ✓ src/renderer/src/kanban/KanbanCardPanel.states.test.tsx (14 tests) 1338ms
+     ✓ says why the card could not be read, instead of a loading note  357ms
+ ✓ scripts/mascotFrames.test.mjs (8 tests) 8049ms
+     ✓ is exactly what the script makes from the atlases  8005ms
+ ✓ src/renderer/src/App.clone.test.tsx (3 tests) 2581ms
+     ✓ clones from the sidebar +, then selects the new folder on Source control  1591ms
+     ✓ offers cloning on the welcome view  400ms
+     ✓ leaves the selection alone when the dialog is closed  586ms
+ ✓ src/main/agents/orchestratorStart.test.ts (14 tests) 633ms
+ ✓ src/renderer/src/checkpoint/CheckpointScreen.test.tsx (20 tests) 1654ms
+     ✓ shows the report header, summary, accepted and failed work, and checks  523ms
+ ✓ src/main/git/cloneTransport.test.ts (2 tests | 1 skipped) 947ms
+     ✓ stops an insteadOf rewrite to ext:: or to a local path, even with protocol.ext.allow=always  943ms
+ ✓ src/renderer/src/source/SourceControlView.test.tsx (17 tests) 1995ms
+     ✓ shows loading until Git answers  322ms
+     ✓ shows the diff of the selected file and keeps the selection across a refresh while it is listed  344ms
+ ✓ src/renderer/src/ticket/ActivityTab.test.tsx (15 tests) 1487ms
+     ✓ shows the claim, the alive span as one line and the notes, oldest first  592ms
+ ✓ src/core/services/grants.test.ts (70 tests) 1291ms
+ ✓ src/main/terminals/terminalHandlers.port.test.ts (15 tests) 1409ms
+ ✓ src/renderer/src/agents/AgentPage.custom.test.tsx (12 tests) 1985ms
+     ✓ shows its name, executable, arguments and how it was connected, and no protocol  381ms
+ ✓ src/core/repo/portable.test.ts (119 tests) 1253ms
+ ✓ src/renderer/src/source/ConflictsPanel.edge.test.tsx (6 tests) 1487ms
+     ✓ shows why the conflicts could not be read, and clears it once a read succeeds  461ms
+     ✓ says git did not answer when an action rejects with something other than an Error  324ms
+     ✓ keeps the dialog open with main’s reason, ready to try again or cancel  382ms
+ ✓ src/renderer/src/home/BoardImportCard.test.tsx (12 tests) 1589ms
+     ✓ previews the board and offers to import its new epics, saying what an import does  503ms
+ ✓ src/main/terminals/terminalSessions.quit.test.ts (9 tests) 1371ms
+     ✓ holds the quit until every PTY has reported its exit, even when the tree kills settle first  325ms
+     ✓ revokes a running OMP chat’s grant and a late one at quit, spawns nothing more, and keeps the chat’s mailbox  517ms
+ ✓ src/renderer/src/github/SignInDialog.test.tsx (12 tests) 1736ms
+     ✓ explains the GitHub CLI login and waits for the button before signing in  511ms
+ ✓ src/renderer/src/board/BoardRemoval.test.tsx (10 tests) 1544ms
+     ✓ explains what can go and reads nothing until asked  335ms
+ ✓ src/renderer/src/kanban/KanbanCardPanel.delete.test.tsx (7 tests) 1661ms
+     ✓ asks for confirmation, and Keep leaves the card alone  717ms
+ ✓ src/renderer/src/home/NewEpicDialog.test.tsx (10 tests) 1062ms
+     ✓ is a labelled dialog that starts on the title  431ms
+ ✓ src/renderer/src/home/HistorySearch.test.tsx (12 tests) 1439ms
+     ✓ cannot search until something is typed  553ms
+ ✓ src/renderer/src/source/SyncButton.test.tsx (18 tests) 1273ms
+     ✓ offers Fetch, Pull and Push at any time, each refreshing afterwards  483ms
+ ✓ src/main/agents/chatGrants.test.ts (8 tests | 1 skipped) 1129ms
+ ✓ src/core/services/epics.test.ts (35 tests) 1217ms
+ ✓ src/main/terminals/terminalHandlers.test.ts (20 tests) 824ms
+     ✓ spawns, for every accepted spelling of the folder, exactly what main builds from its own records  495ms
+ ✓ src/main/terminals/terminalSessions.transfer.test.ts (11 tests) 1578ms
+     ✓ gives a Codex transfer chat on a new session its task again: the epic id, the start_transfer step and the guide, without the kickoff  353ms
+   ✓ hands a full ordinary first popup message to the native startup contract once, without typing into a screen  410ms
+ ✓ src/renderer/src/app/toasts.test.tsx (13 tests) 1351ms
+     ✓ announces command errors as alerts using the error message  538ms
+ ✓ src/renderer/src/epic/ListView.test.tsx (4 tests) 1391ms
+     ✓ shows an hourglass beside the state of the ticket whose latest attempt is open, and no other  664ms
+     ✓ shows none in the Draft view or once the attempt has closed  350ms
+ ✓ src/main/terminals/terminalSessions.firstPrompt.test.ts (8 tests) 954ms
+   ✓ restores an undelivered native startup prompt after spawn fails and retries it only once  441ms
+ ✓ src/main/terminals/terminalSessions.paste.test.ts (12 tests) 1022ms
+ ✓ src/main/github/ghCli.test.ts (26 tests | 2 skipped) 710ms
+ ✓ src/main/git/args.test.ts (21 tests) 749ms
+     ✓ reports git's verdict  731ms
+ ✓ src/integration/desktop.test.ts (7 tests) 1060ms
+ ✓ src/main/git/cloneCancel.test.ts (4 tests) 1013ms
+     ✓ removes the half-made folder the clone created, once git is gone  316ms
+ ✓ src/renderer/src/kanban/CardFormDialog.test.tsx (3 tests) 1142ms
+     ✓ sends an uploaded image and drops a removed existing one in the full attachments list  816ms
+ ✓ src/main/desktop/appDatabase.test.ts (18 tests) 554ms
+ ✓ src/core/services/plans.test.ts (31 tests) 1183ms
+ ✓ src/integration/completedEpic.test.ts (3 tests) 869ms
+     ✓ serves the recorded outcome, the completed run and its sprint report to a fresh clone  394ms
+ ✓ src/main/agents/transferStart.test.ts (16 tests) 986ms
+ ✓ src/core/services/kanban/cards.test.ts (34 tests) 1091ms
+ ✓ src/renderer/src/home/ClaudeCodeConnect.test.tsx (12 tests) 1450ms
+     ✓ shows the target file, the role and whether saving is allowed  624ms
+ ✓ src/main/agents/shimLaunch.test.ts (50 tests) 791ms
+     ✓ does not run a command hidden in a path that has a caret, parentheses and an exclamation mark  455ms
+ ✓ src/renderer/src/source/StashedChanges.test.tsx (5 tests) 1485ms
+     ✓ has no row when the branch has no stash  500ms
+ ✓ src/core/services/attempts.review.test.ts (24 tests) 865ms
+ ✓ src/renderer/src/ticket/TicketPanel.activity.test.tsx (5 tests) 1043ms
+     ✓ is a tab the person can open, showing the latest attempt of the ticket  545ms
+ ✓ scripts/xtermGraphemesPatch.test.mjs (5 tests) 589ms
+ ✓ src/renderer/src/ticket/CommentsTab.test.tsx (5 tests) 1129ms
+     ✓ shows the comment's images under its body, addressed by folder key  451ms
+ ✓ src/renderer/src/home/GrantsCard.form.test.tsx (7 tests) 1118ms
+     ✓ issues what the person chose: label, expiry and the save option  560ms
+ ✓ src/core/services/checkpoints.test.ts (25 tests) 846ms
+ ✓ src/renderer/src/source/DiffView.selection.test.tsx (9 tests) 1380ms
+     ✓ shows each changed line checked or not and dims the excluded ones  566ms
+ ✓ src/renderer/src/source/BranchDialogs.test.tsx (6 tests) 1137ms
+     ✓ shows nothing while empty or checking, and drops an answer for an older name  622ms
+ ✓ src/core/repo/profileImport.test.ts (12 tests) 963ms
+ ✓ src/renderer/src/home/McpCard.test.tsx (8 tests) 1135ms
+     ✓ shows the config snippet and the headless note  432ms
+ ✓ src/renderer/src/agents/TerminalPane.earlier.test.tsx (8 tests) 1086ms
+     ✓ opens as a terminal, with Earlier conversation above it  488ms
+ ✓ src/main/terminals/terminalFiles.test.ts (30 tests | 3 skipped) 1075ms
+     ✓ leaves only the newest launch’s descriptor, and removes it when that launch ends  339ms
+ ✓ src/cli/main.test.ts (38 tests) 702ms
+     ✓ sends from stdin JSON under either spelling, replaying a retry, and reads it back  355ms
+ ✓ src/core/services/comments.test.ts (24 tests) 907ms
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ✓ src/core/repo/finalizer.kanban.test.ts (12 tests) 837ms
+ ✓ src/renderer/src/attachments/useImageAttach.test.tsx (14 tests) 956ms
+     ✓ uploads a pasted image as plain base64 and lists it  427ms
+ ✓ src/main/quitDisposal.test.ts (8 tests) 677ms
+     ✓ lets the quit through only after the agent and the tool it started have exited  657ms
+ ✓ src/core/services/tickets.test.ts (22 tests) 811ms
+ ✓ src/core/services/redraft.test.ts (26 tests) 833ms
+ ✓ src/core/services/checkpoints.grants.test.ts (23 tests) 821ms
+ ✓ src/main/desktop/customAgent.test.ts (83 tests | 1 skipped) 826ms
+     ✓ has no protocolHandshake module, and no source file imports one  415ms
+ ✓ src/renderer/src/home/StorageCard.test.tsx (30 tests) 1183ms
+     ✓ flushes and reconciles on request  391ms
+ ✓ src/renderer/src/checkpoint/EpicOverview.test.tsx (10 tests) 898ms
+     ✓ shows the recorded outcome summary and every success criterion with its result and note  399ms
+ ✓ src/main/terminals/terminalSessions.folder.test.ts (8 tests) 519ms
+ ✓ src/core/services/sessions.test.ts (26 tests) 614ms
+ ✓ src/renderer/src/App.links.test.tsx (1 test) 775ms
+     ✓ shows the chat’s terminal, which is all of the chat there is to show  771ms
+ ✓ src/core/services/idempotencySecrets.test.ts (7 tests) 765ms
+ ✓ src/core/services/events.test.ts (25 tests) 690ms
+ ✓ src/core/services/drafts.test.ts (20 tests) 673ms
+ ✓ src/core/services/approveRedraft.test.ts (17 tests) 746ms
+ ✓ src/renderer/src/attachments/AttachmentGallery.test.tsx (10 tests) 980ms
+     ✓ shows each image as a thumbnail with its label and purpose, addressed by folder key and id  424ms
+ ✓ src/renderer/src/checkpoint/EpicOverview.retro.test.tsx (3 tests) 925ms
+     ✓ shows each sprint's retro inside its own report: delivered, retro notes, tier fit, discoveries and leftovers  498ms
+     ✓ is read-only: no add, move or approve control, only links to tickets and evidence  362ms
+ ✓ src/core/services/increments.test.ts (23 tests) 806ms
+ ✓ src/renderer/src/sidebar/SidebarFooter.test.tsx (16 tests) 1078ms
+     ✓ shows uncommitted exported files with a Flush button  386ms
+ ✓ src/core/services/ticketAttachments.test.ts (14 tests) 764ms
+ ✓ src/core/schemas.test.ts (502 tests) 827ms
+     ✓ accepts a part of exactly the limit in characters of JSON, escapes counted, and refuses one character more  416ms
+ ✓ src/main/terminals/loginTerminals.test.ts (14 tests) 659ms
+ ✓ src/renderer/src/components/Menu.test.tsx (10 tests) 786ms
+     ✓ starts closed with a popup-aware trigger  411ms
+ ✓ src/renderer/src/agents/AgentChoice.test.tsx (7 tests) 907ms
+     ✓ offers each ready agent as a radio with its version, checked for the chosen one, and reports a pick  436ms
+ ✓ src/core/services/ticketDeletion.test.ts (15 tests) 611ms
+ ✓ src/core/services/checkpointsDefinitionOfDone.test.ts (23 tests) 791ms
+ ✓ src/renderer/src/home/StorageModeSwitch.test.tsx (4 tests) 615ms
+     ✓ warns about the repo purge, and cancellation issues no command  434ms
+ ✓ src/main/terminals/terminalSessions.screen.test.ts (7 tests) 1232ms
+     ✓ stops giving a detached listener anything  308ms
+ ✓ src/renderer/src/sidebar/AgentsSection.test.tsx (11 tests) 994ms
+     ✓ has an AGENTS eyebrow and a ghost + button labelled Add an agent  373ms
+ ✓ src/renderer/src/home/GrantsCard.test.tsx (8 tests) 959ms
+     ✓ says so when the folder has delegated nothing  337ms
+ ✓ src/main/desktop/skillInstall.test.ts (26 tests) 664ms
+ ✓ src/main/desktop/folderRegistry.test.ts (40 tests) 769ms
+ ✓ src/renderer/src/mascot/motion.test.ts (36 tests) 721ms
+ ✓ src/core/services/rowChecks.test.ts (19 tests) 685ms
+ ✓ src/main/index.test.ts (7 tests) 708ms
+     ✓ waits for Electron readiness and uses the bundled icon for the window and macOS Dock  482ms
+ ✓ src/core/db/database.test.ts (63 tests) 593ms
+ ✓ src/renderer/src/sidebar/BucketGroup.test.tsx (8 tests) 796ms
+     ✓ shows the bucket label and count, and names both for assistive tech  435ms
+ ✓ src/core/services/adoptionFreshBudget.test.ts (18 tests) 602ms
+ ✓ src/renderer/src/agents/SignInView.test.tsx (8 tests) 644ms
+     ✓ asks main for the agent's sign-in naming only its id, and shows its terminal, focused, with Back  381ms
+ ✓ src/renderer/src/mascot/GraphMascot.test.tsx (9 tests) 712ms
+     ✓ pauses, preserves pose, resumes without a time jump, and cleans up on unmount  499ms
+ ✓ src/core/repo/legacyRecords.test.ts (20 tests) 739ms
+ ✓ src/core/commands/checkpoints.test.ts (1 test) 623ms
+     ✓ reports an expired claim as released instead of still holding a lease  619ms
+ ✓ src/main/desktop/attachmentProtocol.integration.test.ts (3 tests) 666ms
+ ✓ src/renderer/src/board/BoardPreview.test.tsx (10 tests) 713ms
+     ✓ lists each open epic with its open tickets, the sub-tickets done on the board, its file and what an import does  457ms
+ ✓ src/renderer/src/components/Button.test.tsx (16 tests) 602ms
+     ✓ is a plain button that does not submit forms by default  303ms
+ ✓ src/renderer/src/source/StashedChanges.edge.test.tsx (5 tests) 661ms
+ ✓ src/core/services/profiles.test.ts (19 tests) 543ms
+ ✓ src/preload/terminals.test.ts (19 tests) 618ms
+ ✓ src/renderer/src/agents/ApprovalRecord.test.tsx (9 tests) 745ms
+     ✓ shows the command and the folder it ran in, the chat folder when the request named none  440ms
+ ✓ src/core/services/reports.test.ts (16 tests) 523ms
+ ✓ src/mcp/tools/transfers.test.ts (39 tests) 582ms
+ ✓ src/renderer/src/home/EpicBuckets.test.tsx (7 tests) 688ms
+     ✓ explains how to create the first epic when there are none  326ms
+ ✓ src/renderer/src/agents/SignInPrompt.test.tsx (7 tests) 665ms
+     ✓ offers Sign in for the agent and opens its sign-in view naming only the agent id and its name  394ms
+ ✓ src/main/terminals/terminalSessions.oldChats.test.ts (6 tests) 588ms
+ ✓ src/core/services/idempotency.test.ts (23 tests) 568ms
+ ✓ src/renderer/src/agents/ChatDialogs.firstPrompt.test.tsx (2 tests) 629ms
+   ✓ ignores Escape while creation is pending, then allows cancellation without losing a rejected prompt  553ms
+ ✓ src/core/services/reportsRetro.test.ts (17 tests) 585ms
+ ✓ src/renderer/src/home/DefaultAgentCard.test.tsx (6 tests) 584ms
+     ✓ offers None and the connected agents, showing None when no default is stored  339ms
+ ✓ src/renderer/src/agents/TerminalPane.title.test.tsx (11 tests) 732ms
+     ✓ shows nothing until the CLI sets a title  316ms
+ ✓ src/renderer/src/agents/ChatTranscript.test.tsx (9 tests) 818ms
+     ✓ shows what the person wrote as plain text and what the agent wrote as Markdown, never as markup  469ms
+ ✓ src/mcp/tools/execution.test.ts (71 tests) 602ms
+ ✓ src/core/services/attachments.test.ts (16 tests) 516ms
+ ✓ src/renderer/src/ticket/editorFields.test.tsx (3 tests) 631ms
+     ✓ edits the tags and marks the ticket optional  462ms
+ ✓ src/core/services/runWarnings.test.ts (15 tests) 518ms
+ ✓ src/renderer/src/folder/FolderPage.test.tsx (5 tests) 523ms
+     ✓ shows the folder header and the panel  398ms
+ ✓ src/renderer/src/components/Dialog.test.tsx (15 tests) 690ms
+     ✓ is a modal dialog named by its title and described by its description  415ms
+ ✓ src/mcp/validation.test.ts (27 tests) 650ms
+ ✓ src/core/services/checkpointsIncrement.test.ts (16 tests) 571ms
+ ✓ src/mcp/transport.test.ts (7 tests) 437ms
+ ✓ src/renderer/src/agents/ChatDialogs.recovery.test.tsx (2 tests) 635ms
+   ✓ does not duplicate a pending manual rename and preserves the edited title after a failed write for retry  581ms
+ ✓ src/core/services/execution.test.ts (15 tests) 436ms
+ ✓ src/renderer/src/components/McpSnippet.test.tsx (5 tests) 624ms
+     ✓ shows the heading and waits for the config before allowing a copy  411ms
+ ✓ src/renderer/src/ticket/ActivityTab.terminal.test.tsx (4 tests) 635ms
+     ✓ shows the command layer’s timeline and an Open terminal link to the chat bound by grant, which opens it  477ms
+ ✓ src/core/services/checkpointsAcceptance.test.ts (14 tests) 467ms
+ ✓ src/core/services/outbox.test.ts (16 tests) 403ms
+ ✓ src/core/services/hosts.test.ts (12 tests) 487ms
+ ✓ src/renderer/src/sidebar/UntrackDialog.test.tsx (5 tests) 591ms
+     ✓ names the folder and explains that repository data is untouched  403ms
+ ✓ src/renderer/src/home/BranchEpics.test.tsx (5 tests) 499ms
+     ✓ is titled as read-only information about other branches  401ms
+ ✓ src/renderer/src/app/MainViews.test.tsx (8 tests) 539ms
+     ✓ invites the person to track a folder  392ms
+ ✓ src/renderer/src/agents/ToolCallRow.test.tsx (3 tests) 530ms
+     ✓ opens to its input, field by field, and its result as plain text, and folds again  443ms
+ ✓ src/core/services/adoption.test.ts (13 tests) 466ms
+ ✓ src/renderer/src/graph/WorkingHourglass.test.tsx (3 tests) 412ms
+     ✓ is a button named for the ticket that opens the live attempt  358ms
+ ✓ src/renderer/src/github/GithubAccount.test.tsx (3 tests) 473ms
+     ✓ names the purpose and opens the sign-in dialog  382ms
+Error: useGithub must be used inside a GithubAccountProvider
+    at useGithub (C:/Users/davgo/dmwt/acc-gate/src/renderer/src/github/GithubAccount.tsx:23:11)
+    at Who (C:/Users/davgo/dmwt/acc-gate/src/renderer/src/github/useGithubAccount.test.tsx:88:32)
+    at renderWithHooks (C:\Users\davgo\dmwt\acc-gate\node_modules\react-dom\cjs\react-dom.development.js:15486:18)
+    at mountIndeterminateComponent (C:\Users\davgo\dmwt\acc-gate\node_modules\react-dom\cjs\react-dom.development.js:20103:13)
+    at beginWork (C:\Users\davgo\dmwt\acc-gate\node_modules\react-dom\cjs\react-dom.development.js:21626:16)
+    at HTMLUnknownElement.callCallback (C:\Users\davgo\dmwt\acc-gate\node_modules\react-dom\cjs\react-dom.development.js:4164:14)
+    at HTMLUnknownElement.callTheUserObjectsOperation (C:\Users\davgo\dmwt\acc-gate\node_modules\jsdom\lib\generated\idl\EventListener.js:26:30)
+    at innerInvokeEventListeners (C:\Users\davgo\dmwt\acc-gate\node_modules\jsdom\lib\jsdom\living\events\EventTarget-impl.js:378:16)
+    at invokeEventListeners (C:\Users\davgo\dmwt\acc-gate\node_modules\jsdom\lib\jsdom\living\events\EventTarget-impl.js:320:3)
+    at HTMLUnknownElementImpl._dispatch (C:\Users\davgo\dmwt\acc-gate\node_modules\jsdom\lib\jsdom\living\events\EventTarget-impl.js:269:9)
+Error: useGithub must be used inside a GithubAccountProvider
+    at useGithub (C:/Users/davgo/dmwt/acc-gate/src/renderer/src/github/GithubAccount.tsx:23:11)
+    at Who (C:/Users/davgo/dmwt/acc-gate/src/renderer/src/github/useGithubAccount.test.tsx:88:32)
+    at renderWithHooks (C:\Users\davgo\dmwt\acc-gate\node_modules\react-dom\cjs\react-dom.development.js:15486:18)
+    at mountIndeterminateComponent (C:\Users\davgo\dmwt\acc-gate\node_modules\react-dom\cjs\react-dom.development.js:20103:13)
+    at beginWork (C:\Users\davgo\dmwt\acc-gate\node_modules\react-dom\cjs\react-dom.development.js:21626:16)
+    at HTMLUnknownElement.callCallback (C:\Users\davgo\dmwt\acc-gate\node_modules\react-dom\cjs\react-dom.development.js:4164:14)
+    at HTMLUnknownElement.callTheUserObjectsOperation (C:\Users\davgo\dmwt\acc-gate\node_modules\jsdom\lib\generated\idl\EventListener.js:26:30)
+    at innerInvokeEventListeners (C:\Users\davgo\dmwt\acc-gate\node_modules\jsdom\lib\jsdom\living\events\EventTarget-impl.js:378:16)
+    at invokeEventListeners (C:\Users\davgo\dmwt\acc-gate\node_modules\jsdom\lib\jsdom\living\events\EventTarget-impl.js:320:3)
+    at HTMLUnknownElementImpl._dispatch (C:\Users\davgo\dmwt\acc-gate\node_modules\jsdom\lib\jsdom\living\events\EventTarget-impl.js:269:9)
+ ✓ src/core/repo/initialize.test.ts (37 tests) 339ms
+ ✓ src/renderer/src/github/useGithubAccount.test.tsx (8 tests) 452ms
+     ✓ signs out through main, and the consumer sees the account cleared  304ms
+ ✓ src/core/desktop/desktopClient.test.ts (16 tests) 416ms
+ ✓ src/core/services/checkpoints.control.test.ts (13 tests) 443ms
+ ✓ src/core/services/checkpointsRetro.test.ts (11 tests) 373ms
+ ✓ src/renderer/src/agents/SignInView.edges.test.tsx (6 tests) 506ms
+     ✓ says why a sign-in request failed outright, with Sign in again  379ms
+ ✓ src/mcp/server.test.ts (22 tests) 451ms
+ ✓ src/renderer/src/components/EmptyState.test.tsx (7 tests) 528ms
+     ✓ shows a heading and explanatory text  368ms
+ ✓ src/renderer/src/components/Toast.test.tsx (5 tests) 533ms
+     ✓ announces errors as alerts and the rest as polite status messages  380ms
+ ✓ src/core/services/transferGuard.test.ts (11 tests) 384ms
+ ✓ src/renderer/src/ticket/panelTabs.overview.test.tsx (2 tests) 538ms
+     ✓ shows the ticket images, references and expected artifacts  496ms
+ ✓ src/core/services/searchIndex.test.ts (13 tests) 364ms
+ ✓ src/renderer/src/agents/StreamRow.test.tsx (5 tests) 400ms
+ ✓ src/renderer/src/agents/ChatHeader.test.tsx (3 tests) 437ms
+     ✓ renders the terminal title beside the chat title, not instead of it  323ms
+ ✓ src/core/repo/branchEpics.test.ts (6 tests) 356ms
+ ✓ src/main/terminals/ompSession.test.ts (11 tests) 281ms
+ ✓ src/renderer/src/sidebar/EpicRow.test.tsx (11 tests) 501ms
+ ✓ src/renderer/src/ticket/panelTabs.evidence.test.tsx (4 tests) 508ms
+     ✓ shows the gallery with thumbnails addressed by folder key when the attempt attached images  422ms
+ ✓ src/core/services/ticketSizing.test.ts (9 tests) 378ms
+ ✓ src/renderer/src/agents/ActivityNote.test.tsx (8 tests) 496ms
+     ✓ asks the person to use the file dialog while Find is open  303ms
+ ✓ src/core/services/attemptsDefinitionOfDone.test.ts (8 tests) 350ms
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+Not implemented: HTMLCanvasElement's getContext() method: without installing the canvas npm package
+ ✓ src/core/repo/backup.test.ts (5 tests) 311ms
+ ✓ src/mcp/tools/authoring.test.ts (51 tests) 427ms
+ ✓ src/main/desktop/mcpJsonFile.test.ts (21 tests) 296ms
+ ✓ src/renderer/src/agents/ActionMarker.test.tsx (3 tests) 484ms
+     ✓ shows a completed call as what was done, with a check, and the ticket it named  404ms
+ ✓ src/main/desktop/agentHandlers.test.ts (57 tests) 268ms
+ ✓ src/renderer/src/agents/xtermKit.test.ts (15 tests) 416ms
+     ✓ observes the host itself and refits the grid as it grows and shrinks in width and height, sending each new size to the PTY  307ms
+ ✓ src/core/services/reportsTierFacts.test.ts (7 tests) 277ms
+ ✓ src/renderer/src/ticket/ReferenceList.test.tsx (3 tests) 422ms
+     ✓ renders an https reference as a link that opens through window.dm.openExternal  372ms
+ ✓ src/core/repo/dbFlush.test.ts (8 tests) 266ms
+ ✓ src/mcp/tools/planning.test.ts (36 tests) 363ms
+ ✓ src/core/services/history.test.ts (8 tests) 259ms
+ ✓ src/core/repo/portable.kanban.test.ts (3 tests) 354ms
+ ✓ src/mcp/tools/chatNaming.test.ts (1 test) 291ms
+ ✓ src/core/repo/storage.test.ts (13 tests) 251ms
+ ✓ src/core/services/checkpointsPlanCurrent.test.ts (7 tests) 272ms
+ ✓ src/mcp/main.test.ts (38 tests) 403ms
+ ✓ src/renderer/src/agents/TerminalPane.failures.test.tsx (3 tests) 445ms
+     ✓ says the terminal could not be shown when main answers running with no terminal  379ms
+ ✓ src/mcp/tools/checkpoints.test.ts (31 tests) 253ms
+ ✓ src/core/repo/attachmentImport.test.ts (5 tests) 227ms
+ ✓ src/mcp/tools/kanban.test.ts (15 tests) 232ms
+ ✓ src/core/services/attemptsFallback.test.ts (6 tests) 206ms
+ ✓ src/core/services/checkpointsReportStale.test.ts (4 tests) 199ms
+ ✓ src/mcp/tools/discovery.test.ts (29 tests) 187ms
+ ✓ src/main/terminals/terminalLaunchSpec.test.ts (86 tests) 146ms
+ ✓ src/renderer/src/epic/clock.test.tsx (2 tests) 439ms
+     ✓ starts at the current time and moves on once a second  412ms
+ ✓ src/main/desktop/agentInstaller.test.ts (32 tests) 215ms
+ ✓ src/main/desktop/agentAuth.test.ts (72 tests) 168ms
+ ✓ src/main/terminals/terminalHandlers.signIn.test.ts (8 tests) 251ms
+ ✓ src/core/plan/draftOps.test.ts (132 tests) 161ms
+ ✓ src/main/agents/chatStore.test.ts (31 tests) 161ms
+ ✓ src/main/terminals/skitariiExtension.test.ts (26 tests) 140ms
+ ✓ src/main/github/accountStore.test.ts (10 tests) 96ms
+ ✓ src/core/meta.test.ts (7 tests) 178ms
+ ✓ src/main/terminals/loginTerminals.edges.test.ts (3 tests) 199ms
+ ✓ src/renderer/src/agents/terminalTheme.test.ts (6 tests) 305ms
+ ✓ src/core/services/checkpointsCarryForward.test.ts (4 tests) 163ms
+ ✓ src/core/attachments/intake.test.ts (14 tests | 1 skipped) 122ms
+ ✓ src/mcp/tools/comments.test.ts (11 tests) 103ms
+ ✓ src/main/desktop/folderAgentDefaults.test.ts (7 tests) 143ms
+ ✓ src/renderer/src/cssBalance.test.ts (25 tests) 140ms
+ ✓ src/main/agents/chatStoreDelete.test.ts (7 tests) 119ms
+ ✓ src/main/github/handlers.test.ts (21 tests) 134ms
+ ✓ src/renderer/src/agents/SkitariiMascot.test.tsx (5 tests) 182ms
+ ✓ src/renderer/src/markdown/Markdown.test.tsx (7 tests) 261ms
+ ✓ src/main/agents/chatHandlers.folder.test.ts (4 tests) 156ms
+ ✓ src/core/board/parse.test.ts (20 tests) 149ms
+ ✓ src/main/ipcGuard.test.ts (17 tests) 88ms
+ ✓ src/main/desktop/attachmentProtocol.test.ts (23 tests) 152ms
+ ✓ src/main/agents/chatRecords.test.ts (17 tests) 92ms
+ ✓ src/main/agents/chatIpc.test.ts (27 tests) 173ms
+ ✓ src/renderer/src/components/Icon.test.tsx (4 tests) 126ms
+ ✓ src/renderer/src/source/SyncButton.edge.test.tsx (10 tests) 272ms
+ ✓ src/mcp/tools/profiles.test.ts (15 tests) 145ms
+ ✓ src/core/board/purity.test.ts (3 tests) 347ms
+ ✓ src/main/terminals/claudeMemoryGuard.test.ts (55 tests) 101ms
+ ✓ src/mcp/tools/define.test.ts (15 tests) 126ms
+ ✓ src/main/desktop/handlers.test.ts (57 tests) 103ms
+ ✓ src/main/autoUpdate.test.ts (9 tests) 84ms
+ ✓ src/core/repo/nodeFs.test.ts (11 tests) 108ms
+ ✓ src/renderer/src/components/Field.test.tsx (5 tests) 242ms
+ ✓ src/core/repo/projectConfig.test.ts (17 tests) 119ms
+ ✓ src/renderer/src/agents/useAgents.test.tsx (25 tests) 164ms
+ ✓ src/renderer/src/kanban/useKanbanBoard.test.tsx (8 tests) 104ms
+ ✓ src/main/desktop/agentRegistryImport.test.ts (10 tests) 82ms
+ ✓ src/main/agents/launchFolder.test.ts (7 tests) 81ms
+ ✓ src/core/plan/redraft.test.ts (39 tests) 149ms
+ ✓ src/renderer/src/epic/workspaceActions.test.ts (30 tests) 149ms
+ ✓ src/core/plan/graph.test.ts (116 tests) 122ms
+ ✓ src/core/board/plan.test.ts (11 tests) 103ms
+ ✓ src/renderer/src/markdown/parse.test.ts (39 tests) 172ms
+ ✓ src/renderer/src/mascot/MascotSprite.test.tsx (4 tests) 134ms
+ ✓ src/main/terminals/claudeSettingsFile.test.ts (12 tests | 4 skipped) 85ms
+ ✓ src/renderer/src/agents/useChats.test.tsx (14 tests) 157ms
+ ✓ src/core/board/imports.test.ts (12 tests) 114ms
+ ✓ src/main/agents/chatHandlers.test.ts (31 tests) 96ms
+ ✓ src/mcp/tools/attachments.test.ts (8 tests) 88ms
+ ✓ src/mcp/tools/board.test.ts (5 tests) 79ms
+ ✓ src/renderer/src/epic/workspaceLoad.test.ts (12 tests) 59ms
+ ✓ src/main/desktop/agentRegistry.test.ts (17 tests) 77ms
+ ✓ src/main/windows.test.ts (1 test) 74ms
+ ✓ src/main/terminals/ompSkitariiTheme.test.ts (3 tests) 86ms
+ ✓ src/core/repo/paths.test.ts (39 tests) 62ms
+ ✓ src/main/terminals/claudeSession.test.ts (7 tests) 82ms
+ ✓ src/main/agents/orchestratorKickoff.test.ts (26 tests) 86ms
+ ✓ src/renderer/src/app/useEventFeed.test.tsx (10 tests) 93ms
+ ✓ src/renderer/src/app/useFolders.test.tsx (11 tests) 79ms
+ ✓ src/core/repo/childRepos.test.ts (5 tests) 51ms
+ ✓ src/renderer/src/app/useActivityTimeline.test.tsx (11 tests) 91ms
+ ✓ src/mcp/prompts.test.ts (6 tests) 83ms
+ ✓ src/renderer/src/ticket/activityView.test.ts (31 tests) 85ms
+ ✓ src/renderer/src/components/StatePill.test.tsx (19 tests) 98ms
+ ✓ src/core/plan/capabilities.test.ts (65 tests) 76ms
+ ✓ src/renderer/src/graph/graphModel.test.ts (77 tests) 74ms
+ ✓ src/renderer/src/workspace.palette.test.ts (16 tests) 55ms
+ ✓ src/core/plan/diff.test.ts (36 tests) 46ms
+ ✓ src/core/plan/normalize.test.ts (102 tests) 72ms
+ ✓ scripts/bump-minor-version.test.mjs (2 tests) 58ms
+ ✓ src/test/symlinks.test.ts (4 tests) 52ms
+ ✓ src/core/repo/epicRemoval.test.ts (8 tests) 89ms
+ ✓ src/core/repo/boardFiles.test.ts (10 tests) 80ms
+ ✓ src/renderer/src/app/usePersistentState.test.tsx (7 tests) 67ms
+ ✓ src/renderer/src/ticket/panelTabs.history.test.tsx (2 tests) 87ms
+ ✓ src/renderer/src/app/useEpicLists.test.tsx (11 tests) 212ms
+ ✓ src/shared/agents/chat.test.ts (33 tests) 83ms
+ ✓ src/core/repo/discovery.test.ts (13 tests) 49ms
+ ✓ src/core/board/parse.fixtures.test.ts (10 tests) 79ms
+ ✓ src/renderer/src/epic/workspaceActions.redraft.test.ts (9 tests) 42ms
+ ✓ src/renderer/src/app/useStorageStatus.test.tsx (9 tests) 73ms
+ ✓ src/renderer/src/source/useSync.test.tsx (8 tests) 74ms
+ ✓ src/main/agents/grantBindings.test.ts (9 tests) 65ms
+ ✓ src/main/github/client.test.ts (8 tests) 50ms
+ ✓ src/renderer/src/components/Mascot.test.tsx (2 tests) 92ms
+ ✓ src/renderer/src/sidebar/useExpansion.test.tsx (9 tests) 94ms
+ ✓ src/core/plan/draftOpsAcceptance.test.ts (33 tests) 72ms
+ ✓ src/renderer/src/source/useGitRun.test.tsx (4 tests) 78ms
+ ✓ src/main/agents/processTree.test.ts (36 tests) 48ms
+ ✓ src/preload/index.test.ts (3 tests) 50ms
+ ✓ src/main/git/runnerStall.test.ts (8 tests) 55ms
+ ✓ src/core/plan/runWarnings.test.ts (17 tests) 67ms
+ ✓ src/renderer/src/ticket/ticketForm.test.ts (56 tests) 52ms
+ ✓ src/renderer/src/app/useResource.test.tsx (7 tests) 82ms
+ ✓ scripts/skitarii-theme.test.mjs (143 tests) 43ms
+ ✓ src/renderer/src/kanban/useKanbanCounts.test.tsx (6 tests) 85ms
+ ✓ src/mcp/skills.test.ts (31 tests) 33ms
+ ✓ src/renderer/src/epic/orchestratorFeedView.test.ts (35 tests) 44ms
+ ✓ src/main/git/operationLock.test.ts (4 tests) 47ms
+ ✓ src/core/ids.test.ts (82 tests) 74ms
+ ✓ src/main/desktop/agentRunnersTimeout.test.ts (10 tests) 42ms
+ ✓ src/core/transfer/linearPacket.test.ts (16 tests) 44ms
+ ✓ src/main/github/clientRepositories.test.ts (7 tests) 49ms
+ ✓ src/main/git/cloneInput.test.ts (123 tests) 62ms
+ ✓ src/renderer/src/app/useRefreshTick.test.tsx (5 tests) 83ms
+ ✓ src/renderer/src/mascot/graphReach.test.ts (1 test) 42ms
+ ✓ src/main/terminals/claudeExecutable.test.ts (5 tests) 43ms
+ ✓ src/renderer/src/agents/liveTerminals.test.tsx (6 tests) 67ms
+ ✓ src/renderer/src/styles.test.ts (10 tests) 42ms
+ ✓ src/core/plan/readiness.rows.test.ts (22 tests) 32ms
+ ✓ src/renderer/src/agents/useAgentMail.test.tsx (14 tests) 59ms
+ ✓ src/core/authz.test.ts (87 tests) 38ms
+ ✓ src/main/desktop/agentInstallRecipes.test.ts (57 tests) 37ms
+ ✓ src/core/plan/acceptanceRules.test.ts (28 tests) 45ms
+ ✓ src/renderer/src/agents/inertStyles.test.ts (6 tests) 47ms
+ ✓ src/core/plan/readiness.test.ts (37 tests) 34ms
+ ✓ src/renderer/src/theme.contrast.test.ts (13 tests) 29ms
+ ✓ src/main/desktop/agentProbe.test.ts (67 tests) 35ms
+ ✓ src/renderer/src/app/eventPoller.test.ts (23 tests) 42ms
+ ✓ src/renderer/src/agents/chatList.test.ts (10 tests) 30ms
+ ✓ src/renderer/src/epic/attemptsStripView.test.ts (5 tests) 30ms
+ ✓ src/renderer/src/epic/workspaceState.test.ts (25 tests) 29ms
+ ✓ src/renderer/src/app/selection.test.ts (35 tests) 24ms
+ ✓ src/renderer/src/app/useMcpConfig.test.tsx (3 tests) 51ms
+ ✓ src/main/git/runnerEdge.test.ts (7 tests) 31ms
+ ✓ src/renderer/src/checkpoint/gateView.test.ts (27 tests) 29ms
+ ✓ src/core/repo/repoProfiles.test.ts (9 tests) 35ms
+ ✓ src/renderer/src/source/branchGroups.test.ts (4 tests) 27ms
+ ✓ src/renderer/src/agents/useInboxPages.test.tsx (1 test) 49ms
+ ✓ src/cli/args.test.ts (37 tests) 26ms
+ ✓ src/main/agents/processTreePty.test.ts (15 tests) 29ms
+ ✓ src/renderer/src/checkpoint/redraftView.test.ts (15 tests) 17ms
+ ✓ src/main/git/diffParser.test.ts (20 tests) 23ms
+ ✓ src/core/board/removal.test.ts (22 tests) 20ms
+ ✓ scripts/ptyHelperMode.test.mjs (8 tests | 5 skipped) 26ms
+ ✓ src/main/desktop/mcpJson.test.ts (36 tests) 27ms
+ ✓ src/renderer/src/__mocks__/fakeGit.test.ts (13 tests) 49ms
+ ✓ src/renderer/src/app/shellActions.test.ts (49 tests) 41ms
+ ✓ src/renderer/src/agents/threadStream.test.ts (28 tests) 27ms
+ ✓ src/main/agents/chatRecords.firstPrompt.test.ts (3 tests) 23ms
+ ✓ src/renderer/src/graph/graphModel.working.test.ts (7 tests) 20ms
+ ✓ src/core/clock.test.ts (14 tests) 22ms
+ ✓ src/renderer/src/app/useBranchEpics.test.tsx (2 tests) 42ms
+ ✓ src/core/plan/readinessAcceptance.test.ts (14 tests) 22ms
+ ✓ src/renderer/src/mascot/sprite.test.ts (5 tests) 24ms
+ ✓ src/renderer/src/checkpoint/gateRedraft.test.ts (10 tests) 47ms
+ ✓ src/mcp/args.test.ts (22 tests) 19ms
+ ✓ src/renderer/src/epic/runBarView.test.ts (22 tests) 22ms
+ ✓ src/renderer/src/ticket/ticketView.test.ts (18 tests) 23ms
+ ✓ src/core/repo/storageMode.test.ts (18 tests) 22ms
+ ✓ src/renderer/src/ticket/ticketData.test.ts (2 tests) 22ms
+ ✓ src/main/git/handlersClone.test.ts (7 tests) 24ms
+ ✓ src/main/terminals/terminalScreen.test.ts (1 test) 43ms
+ ✓ src/core/plan/tierFacts.test.ts (25 tests) 21ms
+ ✓ src/main/agents/kanbanKickoff.test.ts (17 tests) 22ms
+ ✓ src/core/services/activityEntries.test.ts (32 tests) 21ms
+ ✓ src/renderer/src/theme.roles.test.ts (15 tests) 24ms
+ ✓ src/core/claimTokenMask.test.ts (25 tests) 21ms
+ ✓ src/renderer/src/app/activityPoller.test.ts (16 tests) 21ms
+ ✓ src/renderer/src/agents/approvalModel.test.ts (17 tests) 20ms
+ ✓ src/renderer/src/agents/terminalInput.test.ts (8 tests) 49ms
+ ✓ src/core/canonical.test.ts (23 tests) 21ms
+ ✓ src/main/agents/activityBindings.test.ts (8 tests) 22ms
+ ✓ src/renderer/src/agents/actionMarkers.test.ts (17 tests) 20ms
+ ✓ src/core/plan/repositoryRules.test.ts (8 tests) 28ms
+ ✓ src/main/terminals/ptyHost.test.ts (9 tests) 20ms
+ ✓ src/mcp/result.test.ts (15 tests) 19ms
+ ✓ src/renderer/src/epic/headerView.test.ts (16 tests) 19ms
+ ✓ src/main/git/partialPatch.test.ts (18 tests) 17ms
+ ✓ src/main/desktop/ipc.test.ts (14 tests) 21ms
+ ✓ src/main/terminals/terminalEnv.test.ts (19 tests) 16ms
+ ✓ src/renderer/src/checkpoint/nextSprintItems.test.ts (14 tests) 15ms
+ ✓ src/core/plan/rows.test.ts (17 tests) 17ms
+ ✓ src/main/git/runnerExit.test.ts (2 tests) 16ms
+ ✓ src/main/terminals/ptyHelperCheck.test.ts (14 tests | 3 skipped) 20ms
+ ✓ src/main/desktop/cliConfig.test.ts (16 tests) 18ms
+ ✓ src/renderer/src/ticket/acceptanceView.test.ts (14 tests) 20ms
+ ✓ src/core/plan/acceptance.test.ts (11 tests) 17ms
+ ✓ src/main/desktop/navigation.test.ts (21 tests) 19ms
+ ✓ src/core/plan/retro.test.ts (22 tests) 18ms
+ ✓ src/main/desktop/workspacePool.test.ts (9 tests) 18ms
+ ✓ src/core/repo/fileHashes.test.ts (6 tests) 19ms
+ ✓ src/test/stubApi.test.ts (8 tests) 19ms
+ ✓ src/renderer/src/agents/threadModel.test.ts (9 tests) 17ms
+ ✓ src/renderer/src/home/newEpic.test.ts (11 tests) 13ms
+ ✓ src/renderer/src/checkpoint/overviewView.test.ts (4 tests) 12ms
+ ✓ src/renderer/src/sidebar/epicStatusLine.test.ts (25 tests) 16ms
+ ✓ src/main/github/errors.test.ts (4 tests) 18ms
+ ✓ src/shared/desktop/agentKinds.test.ts (7 tests) 25ms
+ ✓ src/renderer/src/checkpoint/retroView.test.ts (13 tests) 16ms
+ ✓ src/core/profileNames.test.ts (31 tests) 17ms
+ ✓ src/renderer/src/app/shellMessages.test.ts (17 tests) 16ms
+ ✓ src/main/terminals/terminalLoginSpec.test.ts (10 tests) 18ms
+ ✓ src/renderer/src/sidebar/footerStatus.test.ts (20 tests) 18ms
+ ✓ src/core/storedSecrets.test.ts (10 tests) 15ms
+ ✓ src/renderer/src/graph/flowElements.test.ts (9 tests) 16ms
+ ✓ src/main/git/ipc.test.ts (6 tests) 16ms
+ ✓ src/renderer/src/agents/chatViewModel.test.ts (10 tests) 17ms
+ ✓ src/core/errors.test.ts (15 tests) 15ms
+ ✓ src/renderer/src/clone/cloneTarget.test.ts (12 tests) 13ms
+ ✓ src/renderer/src/epic/listSections.test.ts (4 tests) 14ms
+ ✓ src/core/plan/sprintScope.test.ts (8 tests) 16ms
+ ✓ src/renderer/src/agents/agentText.test.ts (13 tests) 16ms
+ ✓ src/main/github/repositories.test.ts (6 tests) 17ms
+ ✓ src/renderer/src/app/chooseView.test.ts (26 tests) 14ms
+ ✓ src/renderer/src/epic/landingActions.test.ts (5 tests) 13ms
+ ✓ src/core/repo/layout.test.ts (8 tests) 16ms
+ ✓ src/renderer/src/graph/sprintLabel.test.ts (9 tests) 11ms
+ ✓ src/renderer/src/mascot/shake.test.ts (9 tests) 15ms
+ ✓ scripts/deploy-workflow.test.mjs (8 tests) 11ms
+ ✓ src/renderer/src/__mocks__/fakeGithub.test.ts (5 tests) 13ms
+ ✓ src/core/attachments/intake.branches.test.ts (7 tests) 17ms
+ ✓ src/renderer/src/app/eventRouting.test.ts (12 tests) 14ms
+ ✓ src/core/definitionOfDone.test.ts (9 tests) 12ms
+ ✓ src/renderer/src/epic/validationView.test.ts (8 tests) 14ms
+ ✓ src/core/repo/repoProject.test.ts (5 tests) 15ms
+ ✓ src/renderer/src/app/folderList.test.ts (13 tests) 13ms
+ ✓ src/renderer/src/sidebar/buckets.test.ts (12 tests) 14ms
+ ✓ src/renderer/src/sidebar/expansion.test.ts (8 tests) 11ms
+ ✓ src/main/desktop/mcpConfig.test.ts (7 tests) 12ms
+ ✓ src/main/git/progress.test.ts (19 tests) 13ms
+ ✓ src/renderer/src/checkpoint/overviewRetro.test.ts (2 tests) 14ms
+ ✓ scripts/deadcode-check.test.mjs (8 tests) 11ms
+ ✓ src/main/windowPolicy.test.ts (7 tests) 13ms
+ ✓ src/renderer/src/app/toastState.test.ts (8 tests) 13ms
+ ✓ src/renderer/src/api/git.test.ts (2 tests) 12ms
+ ✓ src/renderer/src/sidebar/brandStyles.test.ts (4 tests) 12ms
+ ✓ src/main/agents/cliInstructions.test.ts (9 tests) 10ms
+ ✓ src/renderer/src/ticket/commentsView.test.ts (5 tests) 11ms
+ ✓ src/renderer/src/agents/agentOutcomes.test.ts (8 tests) 12ms
+ ✓ src/mcp/transferKickoff.test.ts (7 tests) 12ms
+ ✓ src/renderer/src/app/storage.test.ts (8 tests) 11ms
+ ✓ src/main/git/statusParse.test.ts (4 tests) 12ms
+ ✓ src/main/github/ipc.test.ts (3 tests) 11ms
+ ✓ src/main/terminals/windowsCommandLine.test.ts (3 tests) 13ms
+ ✓ src/renderer/src/autoUpdate/updateBannerView.test.ts (7 tests) 11ms
+ ✓ src/renderer/src/home/snippet.test.ts (7 tests) 10ms
+ ✓ src/shared/agents/models.test.ts (4 tests) 12ms
+ ✓ src/renderer/src/app/scheduler.test.ts (4 tests) 16ms
+ ✓ src/renderer/src/epic/runner.test.ts (3 tests) 11ms
+ ✓ src/shared/git/paths.test.ts (8 tests) 10ms
+ ✓ src/renderer/src/board/removalText.test.ts (6 tests) 11ms
+ ✓ scripts/release-paths.test.mjs (6 tests) 11ms
+ ✓ src/renderer/src/mascot/geometry.test.ts (4 tests) 12ms
+ ✓ src/renderer/src/checkpoint/checkpointStyles.test.ts (5 tests) 10ms
+ ✓ src/renderer/src/graph/legend.test.ts (4 tests) 9ms
+ ✓ src/renderer/src/api/github.test.ts (2 tests) 12ms
+ ✓ src/main/terminals/keepAwake.test.ts (4 tests) 9ms
+ ✓ scripts/mac-packaging.test.mjs (5 tests) 9ms
+ ✓ src/main/logger.test.ts (4 tests) 9ms
+ ✓ src/main/agents/launchSpec.test.ts (2 tests) 10ms
+ ✓ src/renderer/src/graph/workingAttempts.test.ts (3 tests) 9ms
+ ✓ src/renderer/src/autoUpdate/AppVersionLabel.test.tsx (3 tests) 10ms
+ ✓ src/renderer/src/autoUpdate/CheckForUpdatesButton.test.tsx (2 tests) 10ms
+ ✓ src/renderer/src/graph/hourglassStyles.test.ts (1 test) 9ms
+ ✓ src/renderer/src/app/activePaths.test.ts (5 tests) 10ms
+ ✓ src/core/plan/repoTitles.test.ts (8 tests) 10ms
+ ✓ src/renderer/src/agents/NewChatFields.test.ts (6 tests) 10ms
+ ✓ src/renderer/src/agents/terminalKeys.test.ts (6 tests) 11ms
+ ✓ src/main/agents/boundThreads.test.ts (5 tests) 10ms
+ ✓ src/renderer/src/epic/time.test.ts (3 tests) 10ms
+ ✓ src/shared/domain/kanban.test.ts (2 tests) 8ms
+ ✓ src/main/terminals/dmLauncher.test.ts (9 tests | 8 skipped) 9ms
+ ✓ src/renderer/src/app/folderTabs.test.ts (4 tests) 12ms
+ ✓ src/renderer/src/epic/viewMemory.test.ts (1 test) 12ms
+ ✓ src/renderer/src/agents/terminalPaneStyles.test.ts (2 tests) 6ms
+ ✓ src/renderer/src/autoUpdate/checkForUpdates.test.ts (1 test) 7ms
+ ✓ src/renderer/src/components/classNames.test.ts (3 tests) 7ms
+ ✓ src/renderer/src/app/plural.test.ts (2 tests) 5ms
+ ✓ src/renderer/src/graph/graphPan.test.ts (1 test) 6ms
+ ✓ src/renderer/src/app/landing.test.ts (2 tests) 6ms
+ ↓ src/main/git/syncStall.test.ts (1 test | 1 skipped)
+ ↓ src/main/terminals/ptyHost.real.test.ts (3 tests | 3 skipped)
+ ✓ src/renderer/src/jitlessZod.test.ts (2 tests) 4ms
+
+ Test Files  621 passed | 2 skipped (623)
+      Tests  10851 passed | 61 skipped (10912)
+   Start at  19:09:34
+   Duration  192.02s (transform 61.88s, setup 0ms, import 318.66s, tests 1815.33s, environment 309.44s)
+
+JSON report written to C:/Users/davgo/dmwt/acc-gate/docs/verification/DM-505-coverage-tests.json
+ % Coverage report from v8
+
+=============================== Coverage summary ===============================
+Statements   : 97.5% ( 24466/25092 )
+Branches     : 95.17% ( 14846/15599 )
+Functions    : 96.68% ( 8018/8293 )
+Lines        : 97.75% ( 22519/23035 )
+================================================================================

@@ -401,10 +401,22 @@ function instructionsTextFor(input: TerminalLaunchInput, launcherDir: string | n
   })
 }
 
-/** The terminal's environment (`terminalEnv.ts`); a project-less chat that reaches no folder starts with no grant. */
+/**
+ * The terminal's environment (`terminalEnv.ts`), with the launch's mail client descriptor when it has one (an OMP chat
+ * with a mailbox); a project-less chat that reaches no folder starts with no grant.
+ */
 function envFor(input: TerminalLaunchInput, launcherDir: string | null): Record<string, string> {
   const { platform, agent } = input
-  return terminalEnv({ base: input.env, platform, kind: agent.kind, cli: input.cli, launcherDir, ...(input.reach?.length === 0 ? { grantless: true as const } : {}) })
+  const dmClient = input.files.omp?.dmClient
+  return terminalEnv({
+    base: input.env,
+    platform,
+    kind: agent.kind,
+    cli: input.cli,
+    launcherDir,
+    ...(dmClient === undefined ? {} : { dmClient }),
+    ...(input.reach?.length === 0 ? { grantless: true as const } : {})
+  })
 }
 
 export function terminalLaunchSpec(input: TerminalLaunchInput): TerminalLaunchSpec {

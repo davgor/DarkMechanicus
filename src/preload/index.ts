@@ -1,5 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { CHAT_EVENT_CHANNEL, type ChatPushEvent, type ChatsApi } from '../shared/agents/chatApi'
+import {
+  CHAT_EVENT_CHANNEL,
+  CHAT_MAIL_EVENT_CHANNEL,
+  type ChatMailApi,
+  type ChatMailPushEvent,
+  type ChatPushEvent,
+  type ChatsApi
+} from '../shared/agents/chatApi'
 import type { AutoUpdateState } from '../shared/autoUpdate/types'
 import type { AgentDownloadProgress, DmApi } from '../shared/desktop/api'
 import { GIT_PROGRESS_CHANNEL, type GitApi, type GitProgressEvent } from '../shared/git/api'
@@ -28,7 +35,23 @@ contextBridge.exposeInMainWorld('appInfo', appInfo)
 export type AutoUpdateApi = typeof autoUpdate
 export type AppInfoApi = typeof appInfo
 
-/** Agent chats: one `chats:*` invoke per request (main validates each payload), plus the pushed list changes. */
+/** Chat mailboxes as the person sees them: one `chatMail:*` invoke per method, plus metadata-only pushes. */
+const mail: ChatMailApi = {
+  snapshot: (folder) => ipcRenderer.invoke('chatMail:snapshot', folder),
+  state: (request) => ipcRenderer.invoke('chatMail:state', request),
+  read: (request) => ipcRenderer.invoke('chatMail:read', request),
+  markSeen: (request) => ipcRenderer.invoke('chatMail:markSeen', request),
+  allowWake: (request) => ipcRenderer.invoke('chatMail:allowWake', request),
+  onEvent: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, event: ChatMailPushEvent): void => {
+      listener(event)
+    }
+    ipcRenderer.on(CHAT_MAIL_EVENT_CHANNEL, handler)
+    return () => ipcRenderer.removeListener(CHAT_MAIL_EVENT_CHANNEL, handler)
+  }
+}
+
+/** Agent chats: one `chats:*` invoke per request (main validates each payload), plus the pushed list changes and `mail`. */
 const chats: ChatsApi = {
   list: (folder) => ipcRenderer.invoke('chats:list', folder),
   listAll: () => ipcRenderer.invoke('chats:listAll'),
@@ -50,7 +73,8 @@ const chats: ChatsApi = {
     }
     ipcRenderer.on(CHAT_EVENT_CHANNEL, handler)
     return () => ipcRenderer.removeListener(CHAT_EVENT_CHANNEL, handler)
-  }
+  },
+  mail
 }
 
 /**

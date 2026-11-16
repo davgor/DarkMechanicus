@@ -115,7 +115,14 @@ const COMMAND_FLAGS: Record<CommandName, true> = {
   startTransfer: true,
   recordTransferItem: true,
   getTransfer: true,
-  submitTransferReadback: true
+  submitTransferReadback: true,
+  getAgentIdentity: true,
+  listAgentPeers: true,
+  sendAgentMessage: true,
+  readAgentInbox: true,
+  acknowledgeAgentMessages: true,
+  getAgentMailStatus: true,
+  takeAgentMailWake: true
 }
 
 export const COMMAND_NAMES = Object.keys(COMMAND_FLAGS) as CommandName[]

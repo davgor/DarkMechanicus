@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { AppHarness } from './__mocks__/appHarness'
 import { agentView, chatRecord, folderView } from './__mocks__/fixtures'
 import { settle } from './__mocks__/settle'
+import { FakeChatMail } from './__mocks__/fakeChatMail'
 
 let h: AppHarness
 
@@ -300,5 +301,49 @@ describe('App rename and delete', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Delete chat' }))
     await settle()
     expect(openChatTitle()).toBe('Old plan')
+  })
+})
+
+describe('App Skitarii mail in the sidebar', () => {
+  const SK_A = chatRecord({ id: 'chat_s', folder: '/a', title: 'Skitarii alpha', agent: 'omp', updatedAt: '2026-03-03T10:00:00.000Z' })
+  const SK_B = chatRecord({ id: 'chat_s', folder: '/b', title: 'Skitarii beta', agent: 'omp', updatedAt: '2026-03-03T10:00:00.000Z' })
+  let mail: FakeChatMail
+
+  beforeEach(() => {
+    h.dm.folders = [folderView({ path: '/a', name: 'alpha', displayPath: '~/code/alpha' }), folderView({ path: '/b', name: 'beta', displayPath: '~/code/beta' })]
+    h.dm.chats.chats = [OLD, SK_A, SK_B]
+    mail = new FakeChatMail()
+    h.dm.chats.mail = mail
+    mail.put({ folder: '/a', chatId: 'chat_s', unseenCount: 2, pendingCount: 4 })
+    mail.put({ folder: '/b', chatId: 'chat_s', unseenCount: 5 })
+  })
+
+  const unseenBadge = (title: RegExp): string | null =>
+    within(sidebar().getByRole('button', { name: title })).queryByRole('img', { name: /unseen by you$/ })?.getAttribute('aria-label') ?? null
+
+  it('shows each folder’s unseen count on its own row, for a stopped chat too, and none for a chat without mail', async () => {
+    await mount()
+    expect(unseenBadge(/^Skitarii alpha/)).toBe('2 messages unseen by you')
+    expect(unseenBadge(/^Skitarii beta/)).toBe('5 messages unseen by you')
+    expect(unseenBadge(/^Old plan/)).toBeNull()
+    expect(within(sidebar().getByRole('button', { name: /^Skitarii alpha/ })).queryByRole('img', { name: 'terminal running' })).toBeNull()
+    expect(mail.calls.filter((call) => call.method === 'snapshot').map((call) => call.args[0]).sort()).toEqual(['/a', '/b'])
+  })
+
+  it('drops a late push for a folder it stopped showing, and shows the stored count again once caught up', async () => {
+    await mount()
+    fireEvent.click(sidebar().getByRole('button', { name: 'Collapse beta' }))
+    await settle()
+    act(() => {
+      mail.put({ folder: '/b', chatId: 'chat_s', unseenCount: 6 }, true)
+    })
+    mail.hold('snapshot')
+    fireEvent.click(sidebar().getByRole('button', { name: 'Expand beta' }))
+    await settle()
+    expect(unseenBadge(/^Skitarii beta/)).toBeNull()
+    await act(async () => mail.release('snapshot', true))
+    await settle()
+    expect(unseenBadge(/^Skitarii beta/)).toBe('6 messages unseen by you')
+    expect(unseenBadge(/^Skitarii alpha/)).toBe('2 messages unseen by you')
   })
 })

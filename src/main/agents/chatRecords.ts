@@ -7,8 +7,16 @@
  * decision is shown cancelled, a call still running is shown cancelled and a thread still running failed, in the
  * returned items only.
  *
- * Deleting a chat forgets its item-based activity bindings (`activityBindings.ts`, kept for old chats) before the
- * chat itself is removed.
+ * Mailboxes (`chatMailboxes.ts`). Listing a folder's chats provisions the OMP chats' mailboxes and stores their ids;
+ * creating an OMP chat provisions its mailbox at once; renaming one renames its mailbox, never its id. A project-less
+ * chat has no mailbox: none is provisioned, renamed or deleted for it.
+ *
+ * Deleting a chat first deletes its mailbox durably (closed, its received mail purged, its sent mail showing a deleted
+ * sender), then forgets its item-based activity bindings (`activityBindings.ts`, kept for old chats), removes OMP's own
+ * folder of it (and a project-less chat's scratch folder), and only then the chat itself. When storage cannot record
+ * the mailbox deletion the chat stays and the error is thrown, so the person sees it and can delete again. A chat whose
+ * mailbox is already deleting (a deletion a crash or a failure cut short) is never provisioned again: listing leaves it
+ * out and finishes its deletion, and `recoverFolder` does the same for every such chat of a folder at startup.
  */
 import { DomainError } from '../../core/errors'
 import type { ChatItem, ChatRecord } from '../../shared/agents/chat'
@@ -16,7 +24,8 @@ import type { ChatReadView, CreateChatRequest } from '../../shared/agents/chatAp
 import { AGENT_DEFINITIONS, isBuiltInAgentKind } from '../../shared/desktop/agentKinds'
 import type { AgentId, AgentView } from '../../shared/desktop/api'
 import type { ActivityBindings } from './activityBindings'
-import type { ChatRef, ChatStore } from './chatStore'
+import type { ChatRef, ChatStore, NewChat } from './chatStore'
+import type { ChatMailboxes } from './chatMailboxes'
 
 interface ChatRecordsDeps {
   store: ChatStore
@@ -26,6 +35,10 @@ interface ChatRecordsDeps {
   activity?: Pick<ActivityBindings, 'forgetChat'>
   /** Removes an OMP chat's own folder when the chat is deleted (`ompSession.ts`); without it nothing is removed. */
   removeOmpFolder?: (chatId: string) => Promise<void>
+  /** The chats' mailboxes; without it no chat has one. A project-less chat never has one. */
+  mailboxes?: ChatMailboxes
+  /** Told of a deletion listing found unfinished and could not finish; it is tried again at the next list. */
+  onError?: (error: unknown) => void
   /** Removes a project-less chat's scratch folder when the chat is deleted (`scratchFolder.ts`); without it nothing is removed. */
   removeScratch?: (chatId: string) => Promise<void>
 }
@@ -46,8 +59,13 @@ export interface ChatRecords {
   createChat(request: NewChatRequest): ChatRecord
   /** Changes the chat's title. */
   renameChat(ref: ChatRef, title: string): ChatRecord
-  /** Removes the chat's activity bindings (and a project-less chat's scratch folder), then the chat and its transcript; throws `not_found` for an unknown chat. */
+  /**
+   * Deletes the chat's mailbox, removes its activity bindings (and a project-less chat's scratch folder), then the chat
+   * and its transcript; throws `not_found` for an unknown chat.
+   */
   deleteChat(ref: ChatRef): Promise<void>
+  /** Startup: provisions the folder's OMP chats' mailboxes and finishes every deletion a crash cut short (see the module comment). */
+  recoverFolder(folder: string): Promise<void>
   /** The chat and its stored transcript, settled as described above; writes nothing. Throws `not_found` for an unknown chat. */
   readChat(ref: ChatRef): ChatReadView
   /** The agent's display name: the connected agent's, else the built-in kind's, else a generic one. */
@@ -80,25 +98,16 @@ function settledItems(items: readonly ChatItem[]): ChatItem[] {
   })
 }
 
-export function createChatRecords(deps: ChatRecordsDeps): ChatRecords {
-  const { store } = deps
-  return {
-    listChats: (folder) => store.listChats(folder),
-    createChat: (request) => {
-      const input = {
-        ...request,
-        model: request.model ?? null,
-        allowSave: request.allowSave ?? true,
-        ...(request.firstPrompt === undefined ? {} : { firstPromptDelivery: 'pending' as const })
-      }
-      if (request.title === undefined && request.firstPrompt !== undefined && request.runId === undefined && request.transferEpicId === undefined && request.cardId === undefined) {
-        return store.createChat({ ...input, title: 'Naming chat…', titleStatus: 'pending' })
-      }
-      return store.createChat(input)
-    },
-    renameChat: (ref, title) => store.updateChat(requireChat(store, ref), { title, titleStatus: 'manual' }),
-    deleteChat: async (ref) => {
-      const chat = requireChat(store, ref)
+/** Deletes chats (see the module comment); a second delete, or a list, of a chat being deleted joins the deletion under way. */
+function createDeletions(deps: ChatRecordsDeps): (chat: ChatRecord) => Promise<void> {
+  const finishing = new Map<string, Promise<void>>()
+  return (chat) => {
+    const key = JSON.stringify([chat.folder, chat.id])
+    const under = finishing.get(key)
+    if (under !== undefined) return under
+    const deletion = (async () => {
+      // First, and durably: a crash from here on finishes the deletion instead of provisioning the chat again.
+      deps.mailboxes?.delete(chat)
       deps.activity?.forgetChat(chat)
       if (chat.agent === 'omp') {
         await deps.removeOmpFolder?.(chat.id)
@@ -106,7 +115,53 @@ export function createChatRecords(deps: ChatRecordsDeps): ChatRecords {
       if (chat.folder === null) {
         await deps.removeScratch?.(chat.id)
       }
-      store.deleteChat(chat)
+      deps.store.deleteChat(chat)
+    })().finally(() => finishing.delete(key))
+    finishing.set(key, deletion)
+    return deletion
+  }
+}
+
+/** What the store creates for a request: the defaults filled in, and a pending title for a chat named from its first prompt. */
+function newChat(request: NewChatRequest): NewChat {
+  const input = {
+    ...request,
+    model: request.model ?? null,
+    allowSave: request.allowSave ?? true,
+    ...(request.firstPrompt === undefined ? {} : { firstPromptDelivery: 'pending' as const })
+  }
+  const naming = request.title === undefined && request.firstPrompt !== undefined && request.runId === undefined && request.transferEpicId === undefined && request.cardId === undefined
+  return naming ? { ...input, title: 'Naming chat…', titleStatus: 'pending' } : input
+}
+
+export function createChatRecords(deps: ChatRecordsDeps): ChatRecords {
+  const { store, mailboxes } = deps
+  const finishDeletion = createDeletions(deps)
+  return {
+    listChats: (folder) => {
+      const chats = store.listChats(folder)
+      // Mailboxes live in a tracked folder's database: the project-less chats have none.
+      if (mailboxes === undefined || folder === null) return chats
+      const reconciled = mailboxes.reconcile(folder, chats)
+      for (const chat of reconciled.deleting) {
+        finishDeletion(chat).catch((error: unknown) => deps.onError?.(error))
+      }
+      return reconciled.chats
+    },
+    createChat: (request) => {
+      const chat = store.createChat(newChat(request))
+      return mailboxes === undefined || chat.folder === null ? chat : mailboxes.reconcile(chat.folder, [chat]).chats[0] ?? chat
+    },
+    renameChat: (ref, title) => {
+      const renamed = store.updateChat(requireChat(store, ref), { title, titleStatus: 'manual' })
+      mailboxes?.rename(renamed)
+      return renamed
+    },
+    deleteChat: async (ref) => finishDeletion(requireChat(store, ref)),
+    recoverFolder: async (folder) => {
+      if (mailboxes === undefined) return
+      const { deleting } = mailboxes.recover(folder, store.listChats(folder))
+      await Promise.all(deleting.map(finishDeletion))
     },
     readChat: (ref) => {
       const chat = requireChat(store, ref)
