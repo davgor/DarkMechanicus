@@ -3,7 +3,7 @@ import { redactedJson } from '../storedSecrets'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 14
+export const SCHEMA_VERSION = 16
 
 export interface Migration {
   version: number
@@ -658,6 +658,115 @@ DROP TABLE sync_state;
 ALTER TABLE sync_state_v14 RENAME TO sync_state;
 `
 
+/**
+ * v15 adds local agent mail between Skitarii chats (`services/agentMailStore.ts`). Every table is local-only: no
+ * outbox kind, sync state, portable record, event body or search index ever carries a row, so in `repo` mode too the
+ * database holds the only copy.
+ *
+ * - `agent_mail_endpoints`: one opaque mailbox per (machine, trusted chat id) of this project's database. Rows are never
+ *   deleted: a deleted chat leaves a `deleted` tombstone that keeps its sequence high-water (`last_seq`), so a
+ *   recipient sequence is never handed out twice, and delivered copies elsewhere keep a valid sender. `human_seen_seq`
+ *   is the person's own cursor, separate from agent acknowledgement.
+ * - `agent_mail_bindings`: which grant speaks for which endpoint, with the trusted canonical folder and logical
+ *   machine id it was bound in. A grant binds once; a closed binding is never reopened; an endpoint has at most one
+ *   open binding.
+ * - `agent_mail_messages`: received direct messages and replies. `in_reply_to` deliberately has no foreign key, so
+ *   purging one mailbox never cascades into another. `expires_at` is set only by acknowledgement.
+ * - `agent_mail_receipts`: body-free sender receipts keyed by (sender, client message id), with no link to message
+ *   rows, so a retry replays its original acceptance after the recipient or the message is gone.
+ */
+const V15 = `
+CREATE TABLE agent_mail_endpoints (
+  id TEXT PRIMARY KEY,
+  machine_id TEXT NOT NULL,
+  chat_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  state TEXT NOT NULL CHECK (state IN ('open','suspended','deleting','deleted')),
+  last_seq INTEGER NOT NULL DEFAULT 0 CHECK (last_seq >= 0),
+  human_seen_seq INTEGER NOT NULL DEFAULT 0 CHECK (human_seen_seq >= 0 AND human_seen_seq <= last_seq),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  deleting_at TEXT,
+  deleted_at TEXT,
+  UNIQUE (machine_id, chat_id)
+);
+
+CREATE TABLE agent_mail_bindings (
+  grant_id TEXT PRIMARY KEY,
+  endpoint_id TEXT NOT NULL REFERENCES agent_mail_endpoints(id),
+  machine_id TEXT NOT NULL,
+  canonical_folder TEXT NOT NULL,
+  bound_at TEXT NOT NULL,
+  closed_at TEXT,
+  close_reason TEXT CHECK (close_reason IN ('replaced','suspended','deleted','grant_ended')),
+  CHECK ((closed_at IS NULL) = (close_reason IS NULL))
+);
+CREATE UNIQUE INDEX agent_mail_bindings_one_open ON agent_mail_bindings(endpoint_id) WHERE closed_at IS NULL;
+
+CREATE TABLE agent_mail_messages (
+  id TEXT PRIMARY KEY,
+  recipient_endpoint_id TEXT NOT NULL REFERENCES agent_mail_endpoints(id),
+  recipient_seq INTEGER NOT NULL CHECK (recipient_seq >= 1),
+  sender_endpoint_id TEXT NOT NULL REFERENCES agent_mail_endpoints(id),
+  client_message_id TEXT NOT NULL,
+  in_reply_to TEXT,
+  body TEXT NOT NULL,
+  body_bytes INTEGER NOT NULL CHECK (body_bytes BETWEEN 1 AND 16384),
+  accepted_at TEXT NOT NULL,
+  acked_at TEXT,
+  expires_at TEXT,
+  CHECK ((acked_at IS NULL) = (expires_at IS NULL)),
+  UNIQUE (recipient_endpoint_id, recipient_seq)
+);
+CREATE INDEX agent_mail_messages_pending ON agent_mail_messages(recipient_endpoint_id, recipient_seq) WHERE acked_at IS NULL;
+CREATE INDEX agent_mail_messages_expiry ON agent_mail_messages(expires_at) WHERE expires_at IS NOT NULL;
+CREATE INDEX agent_mail_messages_retained ON agent_mail_messages(recipient_endpoint_id, expires_at, acked_at);
+
+CREATE TABLE agent_mail_receipts (
+  sender_endpoint_id TEXT NOT NULL REFERENCES agent_mail_endpoints(id),
+  client_message_id TEXT NOT NULL,
+  payload_hash TEXT NOT NULL,
+  result_json TEXT NOT NULL,
+  accepted_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  PRIMARY KEY (sender_endpoint_id, client_message_id)
+);
+CREATE INDEX agent_mail_receipts_sender_expiry ON agent_mail_receipts(sender_endpoint_id, expires_at);
+CREATE INDEX agent_mail_receipts_expiry ON agent_mail_receipts(expires_at);
+`
+
+/**
+ * v16 adds what authorized agent mail (`services/agentMail.ts`) keeps beside the v15 store, local-only like it:
+ *
+ * - `agent_mail_wakes`: one row per endpoint holding its one-shot, non-accumulating wake credit. Only the person's
+ *   desktop arms it (`armed`, with the endpoint-scoped `request_nonce` of the arming request); an agent can only
+ *   consume it. `revision` moves on every arm and every consumption, so a delayed arming request that names an old
+ *   revision never mints a second credit. `attempt_id`/`attempted_at` record the last consumption: an attempt to
+ *   wake the chat, never a delivery or read receipt.
+ * - `agent_mail_poll_sessions`: the one dedicated `sessions` row each (endpoint, grant) reuses for its restricted
+ *   status/wake polls, so polling never grows the sessions table. Such a session is never referenced by activity.
+ */
+const V16 = `
+CREATE TABLE agent_mail_wakes (
+  endpoint_id TEXT PRIMARY KEY REFERENCES agent_mail_endpoints(id),
+  revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
+  armed INTEGER NOT NULL DEFAULT 0 CHECK (armed IN (0, 1)),
+  request_nonce TEXT,
+  armed_at TEXT,
+  attempt_id TEXT,
+  attempted_at TEXT,
+  CHECK (armed = 0 OR (request_nonce IS NOT NULL AND armed_at IS NOT NULL)),
+  CHECK ((attempt_id IS NULL) = (attempted_at IS NULL))
+);
+
+CREATE TABLE agent_mail_poll_sessions (
+  endpoint_id TEXT NOT NULL REFERENCES agent_mail_endpoints(id),
+  grant_id TEXT NOT NULL,
+  session_id TEXT NOT NULL UNIQUE,
+  PRIMARY KEY (endpoint_id, grant_id)
+);
+`
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, sql: V1 },
   { version: 2, sql: V2 },
@@ -672,7 +781,9 @@ export const MIGRATIONS: Migration[] = [
   { version: 11, sql: V11 },
   { version: 12, sql: V12 },
   { version: 13, sql: V13 },
-  { version: 14, sql: V14 }
+  { version: 14, sql: V14 },
+  { version: 15, sql: V15 },
+  { version: 16, sql: V16 }
 ]
 
 export function readSchemaVersion(db: Db): number {
@@ -681,10 +792,14 @@ export function readSchemaVersion(db: Db): number {
 
 /**
  * Applies pending migrations under the write lock (BEGIN IMMEDIATE doubles as the migration lock).
- * A database written by a newer build is refused rather than migrated by competing clients.
+ * A database written by a newer build is refused rather than migrated by competing clients. A database already at
+ * the target version is only checked, without taking the write lock: every open, each mailbox poll included, does it.
  */
 export function migrate(db: Db, migrations: Migration[] = MIGRATIONS): { from: number; to: number } {
   const target = migrations.reduce((max, migration) => Math.max(max, migration.version), 0)
+  if (readSchemaVersion(db) === target) {
+    return { from: target, to: target }
+  }
   return db.tx(() => {
     const from = readSchemaVersion(db)
     if (from > target) {

@@ -1,11 +1,13 @@
 /**
  * A project-less chat's terminal: it starts in its own scratch folder under userData, holds one grant per tracked,
  * set-up folder (stored on the chat before the spawn), and every way out revokes all of them: its exit, deleting the
- * chat, removing its agent. With no folder to reach, nothing starts.
+ * chat, removing its agent. With no folder to reach, nothing starts. It has no mailbox, even when it runs OMP.
  */
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { DM_CLIENT_DESCRIPTOR_ENV } from '../../../resources/skitarii/extension/dmClient'
+import { builtInAgent } from '../agents/__mocks__/chatFixtures'
 import { claudeProjectName } from './claudeSession'
 import { eventually, settle, startTerminal, terminalRig, type TerminalRig } from './__mocks__/terminalSessionsRig'
 
@@ -170,5 +172,23 @@ describe('terminal sessions: folder chats beside project-less ones', () => {
 
     await eventually(() => rig.runs.calls.some((call) => call.startsWith('pauseRun')), 'the run to be paused')
     expect(rig.runs.calls).toEqual(['getRun rn_1', expect.stringMatching(/^pauseRun rn_1 /)])
+  })
+})
+
+describe('terminal sessions: a project-less OMP chat has no mailbox', () => {
+  it('binds none of its grants to a mailbox, stores none, and gives its launch no mail client descriptor or Skitarii mail guidance', async () => {
+    rig.cleanup()
+    rig = terminalRig({ agents: [builtInAgent('omp')] })
+    rig.reach = [rig.repo]
+    const chat = rig.newProjectless('omp')
+
+    const { pty } = await startTerminal(rig, chat)
+
+    expect(rig.reachIssued).toHaveLength(1)
+    expect(rig.grantChats).toEqual([])
+    expect(rig.host.endpointStoredAtSpawn).toEqual([null])
+    expect(rig.reopenedStore().getChat({ folder: null, id: chat.id })?.endpointId).toBeUndefined()
+    expect(pty.spec.env[DM_CLIENT_DESCRIPTOR_ENV]).toBeUndefined()
+    expect(readFileSync(join(rig.userData, 'agents', 'instructions', `${chat.id}.md`), 'utf8')).not.toContain('## Skitarii mail')
   })
 })

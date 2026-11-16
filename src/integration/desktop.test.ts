@@ -41,6 +41,10 @@ function createDesktop(): Desktop {
   const handlers = createDesktopHandlers({
     registry: createFolderRegistry({ dmHome: join(config, 'dm-home'), file: join(config, 'folders.json'), homeDir: config }),
     pool,
+    releaseFolder: async (_folder, forget) => {
+      forget()
+    },
+    stopMailMonitor: () => undefined,
     pickDirectory: async () => repo,
     writeClipboard: () => undefined,
     openExternal: async () => undefined,

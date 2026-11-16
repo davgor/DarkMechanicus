@@ -4,6 +4,7 @@
  * kills its PTY.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { builtInAgent } from '../agents/__mocks__/chatFixtures'
 import type { ChatRef } from '../agents/chatStore'
 import { disposeBeforeQuit, type QuitApp } from '../quitDisposal'
 import { CUSTOM_AGENT, eventually, gate, recorder, settle, startTerminal, terminalRig, type TerminalRig } from './__mocks__/terminalSessionsRig'
@@ -122,6 +123,29 @@ describe('terminal sessions: quit', () => {
     expect(heard.events).toEqual([{ kind: 'not_started', state: 'failed', message: quitting }])
     expect(await rig.sessions.attach(chat)).toEqual({ state: 'failed', message: quitting })
     expect([rig.steps, rig.host.spawns, rig.sessions.busy()]).toEqual([['auth'], [], false])
+  })
+})
+
+describe('terminal sessions: quit with an OMP chat', () => {
+  it('revokes a running OMP chat’s grant and a late one at quit, spawns nothing more, and keeps the chat’s mailbox', async () => {
+    rig.cleanup()
+    rig = terminalRig({ agents: [builtInAgent('omp')], killSettlesAtOnce: true })
+    const running = rig.newChat('omp')
+    const { pty } = await startTerminal(rig, running)
+    const held = rig.holdGrant()
+    const starting = rig.newChat('omp')
+    void rig.sessions.attach(starting)
+    await eventually(() => rig.grantsAsked === 2, 'the second grant to be asked for')
+
+    const disposing = rig.sessions.dispose()
+    pty.exit({ exitCode: 0, signal: 9 })
+    await disposing
+    held.open()
+    await eventually(() => rig.revoked.length === 2 && !rig.sessions.busy(), 'both grants to be revoked')
+
+    expect([rig.revoked, rig.host.spawns.length]).toEqual([['gr_1', 'gr_2'], 1])
+    // Quitting ends grants, never mailboxes: the running chat keeps the one its record names.
+    expect(rig.reopenedStore().getChat(running)?.endpointId).toBe(`me_${running.id}`)
   })
 })
 

@@ -55,7 +55,11 @@ type Output<K extends CommandName> = Awaited<ReturnType<CommandApi[K]>>
 interface CommandSpec<K extends CommandName> {
   /** Parses the raw payload; omitted for commands without input. */
   schema?: z.ZodType
-  /** Mutating commands flush portable records after they commit. */
+  /**
+   * Commands that change portable records flush them after they commit (and so meet the branch guard). A command
+   * whose writes are local-only, such as agent mail, declares false and runs its own transactions: the flag only
+   * decides the flush, and never authorizes or skips any check.
+   */
   mutates: boolean
   /** Allowed before the repository is initialized. */
   beforeInit?: boolean

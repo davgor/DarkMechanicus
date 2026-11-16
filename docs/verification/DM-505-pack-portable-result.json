@@ -1,0 +1,253 @@
+{
+  "label": "portable",
+  "exe": "C:\\Users\\davgo\\dmwt\\acc-pack\\release\\DarkMechanicus-0.34.0-Portable.exe",
+  "startedAt": "2026-11-16T01:25:08.586Z",
+  "checks": [
+    {
+      "name": "omp-auth-copied-to-scratch",
+      "passed": true,
+      "detail": {
+        "export": 0,
+        "import": 0,
+        "scratchAgentDir": "<scratch>/home/.omp/agent"
+      }
+    },
+    {
+      "name": "scratch-stores-seeded",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "packaged-app-renderer-loaded",
+      "passed": true,
+      "detail": {
+        "url": "file:///C:/Users/davgo/AppData/Local/Temp/3MAT39UsmBV5d0Fb6GhJeo1yt4l/resources/app.asar/out/renderer/index.html"
+      }
+    },
+    {
+      "name": "chats-started-with-mailboxes",
+      "passed": true,
+      "detail": {
+        "alpha": "me_01m7gzawbasasc7mwgsxa2bym1",
+        "beta": "me_01m7gzawd6ekyj6xtpa4rgvhjv"
+      }
+    },
+    {
+      "name": "native-pty-runs-omp",
+      "passed": true,
+      "detail": {
+        "omp": [
+          {
+            "pid": 34128,
+            "parent": 20800,
+            "commandLine": "C:\\Users\\davgo\\AppData\\Local\\omp\\omp.exe --cwd <scratch>\\repo --append-system-prompt <scratch>\\userData\\agents\\instructions\\chat_05440622-f08b-4bb7-bf36-5722985f388c.md --config <scratch>\\userData\\agents\\omp\\chat_05440622-f08b-4bb7-bf36-5722985f388c\\config.yml -e C:\\Users\\davgo\\AppData\\Local\\Temp\\3MAT39UsmBV5d0Fb6GhJeo1yt4l\\resources\\skitarii\\extension\\index.ts --session-dir <scratch>\\userData\\agents\\omp\\chat_05440622-f08b-4bb7-bf36-5722985f388c\\sessions"
+          },
+          {
+            "pid": 30592,
+            "parent": 20800,
+            "commandLine": "C:\\Users\\davgo\\AppData\\Local\\omp\\omp.exe --cwd <scratch>\\repo --append-system-prompt <scratch>\\userData\\agents\\instructions\\chat_402b204e-af8a-4ced-b019-d90ab0076f9b.md --config <scratch>\\userData\\agents\\omp\\chat_402b204e-af8a-4ced-b019-d90ab0076f9b\\config.yml -e C:\\Users\\davgo\\AppData\\Local\\Temp\\3MAT39UsmBV5d0Fb6GhJeo1yt4l\\resources\\skitarii\\extension\\index.ts --session-dir <scratch>\\userData\\agents\\omp\\chat_402b204e-af8a-4ced-b019-d90ab0076f9b\\sessions"
+          }
+        ],
+        "ptyHosts": [
+          {
+            "pid": 25940,
+            "name": "OpenConsole.exe"
+          },
+          {
+            "pid": 31080,
+            "name": "OpenConsole.exe"
+          }
+        ]
+      }
+    },
+    {
+      "name": "extension-outside-asar",
+      "passed": true,
+      "detail": {
+        "extensionArg": "C:\\Users\\davgo\\AppData\\Local\\Temp\\3MAT39UsmBV5d0Fb6GhJeo1yt4l\\resources\\skitarii\\extension\\index.ts",
+        "resourcesPath": "C:\\Users\\davgo\\AppData\\Local\\Temp\\3MAT39UsmBV5d0Fb6GhJeo1yt4l\\resources",
+        "files": [
+          {
+            "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\3MAT39UsmBV5d0Fb6GhJeo1yt4l\\resources\\skitarii\\extension\\index.ts",
+            "exists": true,
+            "sha256": "675536ed976022190b41c56e4f940f5c1e075e50de4e8c4018d4c129d0170fc1",
+            "sameAsRepo": true
+          },
+          {
+            "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\3MAT39UsmBV5d0Fb6GhJeo1yt4l\\resources\\skitarii\\extension\\dmClient.ts",
+            "exists": true,
+            "sha256": "a272892068487699682b5fac77f9668c83ce4a4784da872571b8687eb94a347b",
+            "sameAsRepo": true
+          },
+          {
+            "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\3MAT39UsmBV5d0Fb6GhJeo1yt4l\\resources\\skitarii\\extension\\messaging.ts",
+            "exists": true,
+            "sha256": "b7814e16ef4fb9f63266f0390a52bf38c3c2938225a9e99eeee8dbb79a34113a",
+            "sameAsRepo": true
+          }
+        ],
+        "asarHasCliJs": true,
+        "asarHasExtension": false
+      }
+    },
+    {
+      "name": "descriptor-pins-packaged-runtime-and-cli",
+      "passed": true,
+      "detail": [
+        {
+          "path": "<scratch>\\userData\\agents\\omp\\chat_05440622-f08b-4bb7-bf36-5722985f388c\\dm-client\\87171799-017f-4264-8def-b4486a3cebd8.json",
+          "descriptor": {
+            "version": 1,
+            "chatId": "chat_05440622-f08b-4bb7-bf36-5722985f388c",
+            "generation": "87171799-017f-4264-8def-b4486a3cebd8",
+            "folder": "<scratch>\\repo",
+            "command": "C:\\Users\\davgo\\AppData\\Local\\Temp\\3MAT39UsmBV5d0Fb6GhJeo1yt4l\\DarkMechanicus.exe",
+            "args": [
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\3MAT39UsmBV5d0Fb6GhJeo1yt4l\\resources\\app.asar\\out\\main\\cli.js",
+              "--repo",
+              "<scratch>\\repo"
+            ],
+            "cwd": "<scratch>\\repo",
+            "env": {
+              "ELECTRON_RUN_AS_NODE": "1",
+              "DARKMECHANICUS_HOME": "<scratch>\\dm-home"
+            },
+            "inherit": [
+              "PATH",
+              "HOME",
+              "USER",
+              "LOGNAME",
+              "LANG",
+              "LC_ALL",
+              "LC_CTYPE",
+              "TZ",
+              "TMPDIR",
+              "TEMP",
+              "TMP",
+              "PATHEXT",
+              "SystemRoot",
+              "windir",
+              "SystemDrive",
+              "USERPROFILE",
+              "USERNAME",
+              "APPDATA",
+              "LOCALAPPDATA",
+              "ProgramData",
+              "HOMEDRIVE",
+              "HOMEPATH"
+            ]
+          },
+          "hasToken": false
+        },
+        {
+          "path": "<scratch>\\userData\\agents\\omp\\chat_402b204e-af8a-4ced-b019-d90ab0076f9b\\dm-client\\4d48ebb2-fed1-43c4-ac82-9ae8d1412946.json",
+          "descriptor": {
+            "version": 1,
+            "chatId": "chat_402b204e-af8a-4ced-b019-d90ab0076f9b",
+            "generation": "4d48ebb2-fed1-43c4-ac82-9ae8d1412946",
+            "folder": "<scratch>\\repo",
+            "command": "C:\\Users\\davgo\\AppData\\Local\\Temp\\3MAT39UsmBV5d0Fb6GhJeo1yt4l\\DarkMechanicus.exe",
+            "args": [
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\3MAT39UsmBV5d0Fb6GhJeo1yt4l\\resources\\app.asar\\out\\main\\cli.js",
+              "--repo",
+              "<scratch>\\repo"
+            ],
+            "cwd": "<scratch>\\repo",
+            "env": {
+              "ELECTRON_RUN_AS_NODE": "1",
+              "DARKMECHANICUS_HOME": "<scratch>\\dm-home"
+            },
+            "inherit": [
+              "PATH",
+              "HOME",
+              "USER",
+              "LOGNAME",
+              "LANG",
+              "LC_ALL",
+              "LC_CTYPE",
+              "TZ",
+              "TMPDIR",
+              "TEMP",
+              "TMP",
+              "PATHEXT",
+              "SystemRoot",
+              "windir",
+              "SystemDrive",
+              "USERPROFILE",
+              "USERNAME",
+              "APPDATA",
+              "LOCALAPPDATA",
+              "ProgramData",
+              "HOMEDRIVE",
+              "HOMEPATH"
+            ]
+          },
+          "hasToken": false
+        }
+      ]
+    },
+    {
+      "name": "fixture-mail-alpha-to-beta",
+      "passed": true,
+      "detail": "{\"messageId\":\"mm_01m7gzaz8ajqf4wy3h8ypv9bz1\",\"to\":\"me_01m7gzawd6ekyj6xtpa4rgvhjv\",\"clientMessageId\":\"dm505-pack-1\",\"inReplyTo\":null,\"acceptedAt\":\"2026-11-16T01:25:24.361Z\",\"duplicate\":false}"
+    },
+    {
+      "name": "dmclient-spawns-packaged-cli-child",
+      "passed": true,
+      "detail": [
+        {
+          "pid": 34544,
+          "parent": 34128,
+          "parentIsOmp": true,
+          "exe": "C:\\Users\\davgo\\AppData\\Local\\Temp\\3MAT39UsmBV5d0Fb6GhJeo1yt4l\\DarkMechanicus.exe",
+          "commandLine": "C:\\Users\\davgo\\AppData\\Local\\Temp\\3MAT39UsmBV5d0Fb6GhJeo1yt4l\\DarkMechanicus.exe C:\\Users\\davgo\\AppData\\Local\\Temp\\3MAT39UsmBV5d0Fb6GhJeo1yt4l\\resources\\app.asar\\out\\main\\cli.js --repo <scratch>\\repo call get_agent_mail_status -"
+        },
+        {
+          "pid": 33948,
+          "parent": 34128,
+          "parentIsOmp": true,
+          "exe": "C:\\Users\\davgo\\AppData\\Local\\Temp\\3MAT39UsmBV5d0Fb6GhJeo1yt4l\\DarkMechanicus.exe",
+          "commandLine": "C:\\Users\\davgo\\AppData\\Local\\Temp\\3MAT39UsmBV5d0Fb6GhJeo1yt4l\\DarkMechanicus.exe C:\\Users\\davgo\\AppData\\Local\\Temp\\3MAT39UsmBV5d0Fb6GhJeo1yt4l\\resources\\app.asar\\out\\main\\cli.js --repo <scratch>\\repo call get_agent_mail_status -"
+        },
+        {
+          "pid": 5920,
+          "parent": 30592,
+          "parentIsOmp": true,
+          "exe": "C:\\Users\\davgo\\AppData\\Local\\Temp\\3MAT39UsmBV5d0Fb6GhJeo1yt4l\\DarkMechanicus.exe",
+          "commandLine": "C:\\Users\\davgo\\AppData\\Local\\Temp\\3MAT39UsmBV5d0Fb6GhJeo1yt4l\\DarkMechanicus.exe C:\\Users\\davgo\\AppData\\Local\\Temp\\3MAT39UsmBV5d0Fb6GhJeo1yt4l\\resources\\app.asar\\out\\main\\cli.js --repo <scratch>\\repo call get_agent_mail_status -"
+        },
+        {
+          "pid": 28016,
+          "parent": 34128,
+          "parentIsOmp": true,
+          "exe": "C:\\Users\\davgo\\AppData\\Local\\Temp\\3MAT39UsmBV5d0Fb6GhJeo1yt4l\\DarkMechanicus.exe",
+          "commandLine": "C:\\Users\\davgo\\AppData\\Local\\Temp\\3MAT39UsmBV5d0Fb6GhJeo1yt4l\\DarkMechanicus.exe C:\\Users\\davgo\\AppData\\Local\\Temp\\3MAT39UsmBV5d0Fb6GhJeo1yt4l\\resources\\app.asar\\out\\main\\cli.js --repo <scratch>\\repo call get_agent_mail_status -"
+        }
+      ]
+    },
+    {
+      "name": "beta-mail-state",
+      "passed": true,
+      "detail": {
+        "pendingCount": 1,
+        "unseenCount": 1
+      }
+    },
+    {
+      "name": "processes-gone-after-window-close",
+      "passed": true,
+      "detail": {
+        "owned": 9,
+        "left": []
+      }
+    }
+  ],
+  "versions": {
+    "node": "v24.22.3",
+    "omp": "omp/18.20.2",
+    "exeSha256": "b10f13ed701be7442863278fb989e6a97b5c51f90576f53fde5af40179dfb0c7",
+    "os": "win32 x64"
+  },
+  "appLog": "",
+  "finishedAt": "2026-11-16T01:25:59.525Z"
+}

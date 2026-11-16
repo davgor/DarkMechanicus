@@ -1,0 +1,33 @@
+{
+  "node": "DM-505 Definition of Done gate",
+  "branch": "acc-DM-505-gate",
+  "base": "skitarii-s1-integration e89f39c",
+  "finalCommitChecked": "6a9575cbaf0be199e85276a3b0c412acaba3a615",
+  "environment": {
+    "os": "Windows 10.0.26200.9711",
+    "arch": "x64",
+    "node": "v24.22.3 (portable, C:/Users/davgo/dmwt/tools/node)",
+    "electronRepo": "42.11.18",
+    "appVersionRepo": "0.34.0",
+    "installedAppVersion": "0.34.0.0 (not used)",
+    "omp": "18.20.2",
+    "cpus": 16,
+    "testEnv": "env -u CI -u DM_DESKTOP_PIPE -u DM_SESSION_TOKEN (CI=true, DM_DESKTOP_PIPE, DM_SESSION_TOKEN and ELECTRON_RUN_AS_NODE=1 are inherited from the desktop harness)"
+  },
+  "final": {
+    "lint": { "result": "passed", "seconds": 0, "log": "DM-505-lint.log" },
+    "typecheck": { "result": "passed", "seconds": 21, "log": "DM-505-typecheck.log" },
+    "test": { "result": "passed", "seconds": 196, "detail": "vitest 621 files / 10851 passed, 61 skipped; fireguard 25 files / 170 passed, 1 skipped", "log": "DM-505-test.log", "load": "DM-505-load-test.log" },
+    "coverage": { "result": "passed", "seconds": 193, "detail": "statements 97.5, branches 95.17 (14846/15599), functions 96.68, lines 97.75", "log": "DM-505-coverage.log", "perTest": "DM-505-coverage-tests.json", "load": "DM-505-load-coverage.log" },
+    "deadcode": { "result": "passed", "seconds": 17, "log": "DM-505-deadcode.log" },
+    "build": { "result": "passed", "seconds": 6, "log": "DM-505-build.log" }
+  },
+  "thousandPollTestMs": { "underCoverage": 5503, "underTestConfigSupplementaryRun": 6092, "note": "npm test's default reporter prints no per-test time for passing tests; the test-config figure is from a supplementary `vitest run` with a JSON reporter (DM-505-test-durations.supplementary.*)" },
+  "commitLinesPropertyTestMs": { "underCoverage": 11281, "underTestConfigSupplementaryRun": 9998, "timeoutMs": 15000 },
+  "earlierFailures": [
+    { "check": "test", "run": 1, "log": "DM-505-test.run1-failed.log", "cause": "3 EPERM symlink tests: inherited CI=true makes canCreateFileSymlinks() skip its probe; 1 timeout: commitLinesProperty 15 s under suite load (~430 git spawns)", "fix": "CI unset per orchestrator; 0d78ce1 (fewer git processes)" },
+    { "check": "coverage", "run": 1, "log": "DM-505-coverage.run1-failed.log", "cause": "agentMailDesktop bounded-pages test counted a leaked monitor timer from earlier tests", "fix": "f3e6213" },
+    { "check": "coverage", "run": 3, "log": "DM-505-coverage.run3.log", "cause": "branches 94.74% < 95%", "fix": "6a9575c" },
+    { "check": "deadcode", "run": 3, "log": "DM-505-deadcode.run3.log", "cause": "35 new dead exports from the epic", "fix": "923aef7" }
+  ]
+}

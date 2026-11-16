@@ -1,0 +1,253 @@
+{
+  "label": "dev",
+  "exe": "C:\\Users\\davgo\\dmwt\\acc-pack\\node_modules\\electron\\dist\\electron.exe",
+  "startedAt": "2026-11-16T01:28:34.257Z",
+  "checks": [
+    {
+      "name": "omp-auth-copied-to-scratch",
+      "passed": true,
+      "detail": {
+        "export": 0,
+        "import": 0,
+        "scratchAgentDir": "<scratch>/home/.omp/agent"
+      }
+    },
+    {
+      "name": "scratch-stores-seeded",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "name": "packaged-app-renderer-loaded",
+      "passed": true,
+      "detail": {
+        "url": "file:///C:/Users/davgo/dmwt/acc-pack/out/renderer/index.html"
+      }
+    },
+    {
+      "name": "chats-started-with-mailboxes",
+      "passed": true,
+      "detail": {
+        "alpha": "me_01m7gzgv9r6508vsg53aedqwn1",
+        "beta": "me_01m7gzgvb6zkhczb5b5cww181k"
+      }
+    },
+    {
+      "name": "native-pty-runs-omp",
+      "passed": true,
+      "detail": {
+        "omp": [
+          {
+            "pid": 41328,
+            "parent": 30680,
+            "commandLine": "C:\\Users\\davgo\\AppData\\Local\\omp\\omp.exe --cwd <scratch>\\repo --append-system-prompt <scratch>\\userData\\agents\\instructions\\chat_39471b4e-18cc-4543-a235-8bc0da5cd4b8.md --config <scratch>\\userData\\agents\\omp\\chat_39471b4e-18cc-4543-a235-8bc0da5cd4b8\\config.yml -e C:\\Users\\davgo\\dmwt\\acc-pack\\resources\\skitarii\\extension\\index.ts --session-dir <scratch>\\userData\\agents\\omp\\chat_39471b4e-18cc-4543-a235-8bc0da5cd4b8\\sessions"
+          },
+          {
+            "pid": 24308,
+            "parent": 30680,
+            "commandLine": "C:\\Users\\davgo\\AppData\\Local\\omp\\omp.exe --cwd <scratch>\\repo --append-system-prompt <scratch>\\userData\\agents\\instructions\\chat_0f65d2e2-439c-4eac-955f-ba397a1b0c83.md --config <scratch>\\userData\\agents\\omp\\chat_0f65d2e2-439c-4eac-955f-ba397a1b0c83\\config.yml -e C:\\Users\\davgo\\dmwt\\acc-pack\\resources\\skitarii\\extension\\index.ts --session-dir <scratch>\\userData\\agents\\omp\\chat_0f65d2e2-439c-4eac-955f-ba397a1b0c83\\sessions"
+          }
+        ],
+        "ptyHosts": [
+          {
+            "pid": 37340,
+            "name": "OpenConsole.exe"
+          },
+          {
+            "pid": 38508,
+            "name": "OpenConsole.exe"
+          }
+        ]
+      }
+    },
+    {
+      "name": "extension-from-project-resources",
+      "passed": true,
+      "detail": {
+        "extensionArg": "C:\\Users\\davgo\\dmwt\\acc-pack\\resources\\skitarii\\extension\\index.ts",
+        "resourcesPath": "C:\\Users\\davgo\\dmwt\\acc-pack\\resources",
+        "files": [
+          {
+            "path": "C:\\Users\\davgo\\dmwt\\acc-pack\\resources\\skitarii\\extension\\index.ts",
+            "exists": true,
+            "sha256": "675536ed976022190b41c56e4f940f5c1e075e50de4e8c4018d4c129d0170fc1",
+            "sameAsRepo": true
+          },
+          {
+            "path": "C:\\Users\\davgo\\dmwt\\acc-pack\\resources\\skitarii\\extension\\dmClient.ts",
+            "exists": true,
+            "sha256": "a272892068487699682b5fac77f9668c83ce4a4784da872571b8687eb94a347b",
+            "sameAsRepo": true
+          },
+          {
+            "path": "C:\\Users\\davgo\\dmwt\\acc-pack\\resources\\skitarii\\extension\\messaging.ts",
+            "exists": true,
+            "sha256": "b7814e16ef4fb9f63266f0390a52bf38c3c2938225a9e99eeee8dbb79a34113a",
+            "sameAsRepo": true
+          }
+        ],
+        "asarHasCliJs": false,
+        "asarHasExtension": false
+      }
+    },
+    {
+      "name": "descriptor-pins-packaged-runtime-and-cli",
+      "passed": true,
+      "detail": [
+        {
+          "path": "<scratch>\\userData\\agents\\omp\\chat_0f65d2e2-439c-4eac-955f-ba397a1b0c83\\dm-client\\17b4d25a-de0d-4204-8f81-e872259a935b.json",
+          "descriptor": {
+            "version": 1,
+            "chatId": "chat_0f65d2e2-439c-4eac-955f-ba397a1b0c83",
+            "generation": "17b4d25a-de0d-4204-8f81-e872259a935b",
+            "folder": "<scratch>\\repo",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-pack\\node_modules\\electron\\dist\\electron.exe",
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-pack\\out\\main\\cli.js",
+              "--repo",
+              "<scratch>\\repo"
+            ],
+            "cwd": "<scratch>\\repo",
+            "env": {
+              "ELECTRON_RUN_AS_NODE": "1",
+              "DARKMECHANICUS_HOME": "<scratch>\\dm-home"
+            },
+            "inherit": [
+              "PATH",
+              "HOME",
+              "USER",
+              "LOGNAME",
+              "LANG",
+              "LC_ALL",
+              "LC_CTYPE",
+              "TZ",
+              "TMPDIR",
+              "TEMP",
+              "TMP",
+              "PATHEXT",
+              "SystemRoot",
+              "windir",
+              "SystemDrive",
+              "USERPROFILE",
+              "USERNAME",
+              "APPDATA",
+              "LOCALAPPDATA",
+              "ProgramData",
+              "HOMEDRIVE",
+              "HOMEPATH"
+            ]
+          },
+          "hasToken": false
+        },
+        {
+          "path": "<scratch>\\userData\\agents\\omp\\chat_39471b4e-18cc-4543-a235-8bc0da5cd4b8\\dm-client\\2dd080f5-9a7c-49d5-a620-584b78eeafd7.json",
+          "descriptor": {
+            "version": 1,
+            "chatId": "chat_39471b4e-18cc-4543-a235-8bc0da5cd4b8",
+            "generation": "2dd080f5-9a7c-49d5-a620-584b78eeafd7",
+            "folder": "<scratch>\\repo",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-pack\\node_modules\\electron\\dist\\electron.exe",
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-pack\\out\\main\\cli.js",
+              "--repo",
+              "<scratch>\\repo"
+            ],
+            "cwd": "<scratch>\\repo",
+            "env": {
+              "ELECTRON_RUN_AS_NODE": "1",
+              "DARKMECHANICUS_HOME": "<scratch>\\dm-home"
+            },
+            "inherit": [
+              "PATH",
+              "HOME",
+              "USER",
+              "LOGNAME",
+              "LANG",
+              "LC_ALL",
+              "LC_CTYPE",
+              "TZ",
+              "TMPDIR",
+              "TEMP",
+              "TMP",
+              "PATHEXT",
+              "SystemRoot",
+              "windir",
+              "SystemDrive",
+              "USERPROFILE",
+              "USERNAME",
+              "APPDATA",
+              "LOCALAPPDATA",
+              "ProgramData",
+              "HOMEDRIVE",
+              "HOMEPATH"
+            ]
+          },
+          "hasToken": false
+        }
+      ]
+    },
+    {
+      "name": "fixture-mail-alpha-to-beta",
+      "passed": true,
+      "detail": "{\"messageId\":\"mm_01m7gzgxzby65e7z3t4fs6012z\",\"to\":\"me_01m7gzgvb6zkhczb5b5cww181k\",\"clientMessageId\":\"dm505-pack-1\",\"inReplyTo\":null,\"acceptedAt\":\"2026-11-16T01:28:39.658Z\",\"duplicate\":false}"
+    },
+    {
+      "name": "dmclient-spawns-packaged-cli-child",
+      "passed": true,
+      "detail": [
+        {
+          "pid": 5168,
+          "parent": 24308,
+          "parentIsOmp": true,
+          "exe": "C:\\Users\\davgo\\dmwt\\acc-pack\\node_modules\\electron\\dist\\electron.exe",
+          "commandLine": "C:\\Users\\davgo\\dmwt\\acc-pack\\node_modules\\electron\\dist\\electron.exe C:\\Users\\davgo\\dmwt\\acc-pack\\out\\main\\cli.js --repo <scratch>\\repo call get_agent_mail_status -"
+        },
+        {
+          "pid": 26380,
+          "parent": 41328,
+          "parentIsOmp": true,
+          "exe": "C:\\Users\\davgo\\dmwt\\acc-pack\\node_modules\\electron\\dist\\electron.exe",
+          "commandLine": "C:\\Users\\davgo\\dmwt\\acc-pack\\node_modules\\electron\\dist\\electron.exe C:\\Users\\davgo\\dmwt\\acc-pack\\out\\main\\cli.js --repo <scratch>\\repo call get_agent_mail_status -"
+        },
+        {
+          "pid": 32780,
+          "parent": 24308,
+          "parentIsOmp": true,
+          "exe": "C:\\Users\\davgo\\dmwt\\acc-pack\\node_modules\\electron\\dist\\electron.exe",
+          "commandLine": "C:\\Users\\davgo\\dmwt\\acc-pack\\node_modules\\electron\\dist\\electron.exe C:\\Users\\davgo\\dmwt\\acc-pack\\out\\main\\cli.js --repo <scratch>\\repo call get_agent_mail_status -"
+        },
+        {
+          "pid": 23500,
+          "parent": 41328,
+          "parentIsOmp": true,
+          "exe": "C:\\Users\\davgo\\dmwt\\acc-pack\\node_modules\\electron\\dist\\electron.exe",
+          "commandLine": "C:\\Users\\davgo\\dmwt\\acc-pack\\node_modules\\electron\\dist\\electron.exe C:\\Users\\davgo\\dmwt\\acc-pack\\out\\main\\cli.js --repo <scratch>\\repo call take_agent_mail_wake -"
+        }
+      ]
+    },
+    {
+      "name": "beta-mail-state",
+      "passed": true,
+      "detail": {
+        "pendingCount": 1,
+        "unseenCount": 1
+      }
+    },
+    {
+      "name": "processes-gone-after-window-close",
+      "passed": true,
+      "detail": {
+        "owned": 8,
+        "left": []
+      }
+    }
+  ],
+  "versions": {
+    "node": "v24.22.3",
+    "omp": "omp/18.20.2",
+    "exeSha256": "d91b374ab299b88d406e7e2b6865445a3d795d141a8a36cf2c05b4ec02d0ca4d",
+    "os": "win32 x64"
+  },
+  "appLog": "\r\n\r\nDevTools listening on ws://127.0.0.1:62480/devtools/browser/e218017b-8359-4da1-b86d-0c2a05d052d7\r\n19:28:36.517 > Auto-update disabled (dev build or DISABLE_AUTO_UPDATE=1)\n",
+  "finishedAt": "2026-11-16T01:29:22.235Z"
+}

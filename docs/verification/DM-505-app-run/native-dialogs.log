@@ -1,0 +1,6 @@
+2026-11-16T02:26:11.359Z open-dialog {"title":"Choose a repository folder","picked":"<scratch>\\repo"}
+2026-11-16T02:26:12.991Z open-dialog {"title":"Locate the Skitarii CLI (omp.exe or omp.cmd)","picked":"C:\\Users\\davgo\\AppData\\Local\\omp\\omp.exe"}
+2026-11-16T02:26:13.052Z open-dialog {"title":"Choose the program of the custom CLI","picked":"C:\\Users\\davgo\\dmwt\\tools\\node\\node.exe"}
+2026-11-16T02:26:13.053Z message-box {"title":"Add a custom CLI","message":"Run this command and save it as \"Fixture CLI\"?","answered":"button 0, box ticked"}
+2026-11-16T02:33:19.236Z open-dialog {"title":"Choose a repository folder","picked":"<scratch>\\repo2"}
+2026-11-16T02:33:38.919Z open-dialog {"title":"Choose a repository folder","picked":"<scratch>\\repo2"}

@@ -7,6 +7,9 @@ import type { FsAdapter, RepoLayout } from './types'
 /**
  * Consistent backup of the live database with `VACUUM INTO` (never a raw copy of a WAL database).
  * Defaults to `.darkmechanicus/local/backups/state-<timestamp>.sqlite`; never overwrites a file.
+ *
+ * The copy is the whole private database, local agent mail included, so the `backupDatabase` command that reaches this
+ * is desktop-only (`repo.backup` is a human-only capability): no agent role, grant or MCP tool can take one.
  */
 export function backupDatabase(
   deps: { db: Db; layout: RepoLayout; fs: FsAdapter; clock: Clock },

@@ -1,0 +1,1404 @@
+{
+  "ticket": "DM-505",
+  "criteria": [
+    "c8 (documented CLI examples)"
+  ],
+  "ranAt": "2026-11-16T02:00:02.857Z",
+  "shell": "GNU bash, version 5.3.15(2)-release (x86_64-pc-cygwin)",
+  "node": "v24.22.3",
+  "commit": "6e2050ff18bd97f238b322ece4549f9dca59ccfd",
+  "steps": [
+    {
+      "doc": "docs/runbooks/cli.md:13",
+      "documented": "node out/main/cli.js --help",
+      "ran": "node out/main/cli.js --help",
+      "as": "no grant",
+      "exitCode": 0,
+      "out": "Usage: dm [--repo <path>] [--token-file <path>] <command> [arguments]\n\nRuns one Dark Mechanicus command against a repository and prints JSON.\n\nCommands:\n  --list                   Every command, with the capability it needs\n  --describe <command>     One command: what it needs and its input schema\n  call <command> [json|-]  Run <command> with a JSON object of arguments (default {}); - reads stdin\n  call <command> --args-file <path>\n                           Run <command> with the JSON object read from a file (a BOM is ignored)\n  transfer linear --epic <id> [--json]\n                           The Linear transfer kickoff for an epic, as text; --json prints its packet\n  --help                   Show this help\n\nOptions:\n  --repo <path>            Repository root (default: $DARKMECHANICUS_REPO, else the current directory)\n  --token-file <path>      File holding a grant token, instead of $DM_SESSION_TOKEN\n\nAuthority:\n  A session runs as a reader — it may only read — until it presents a grant. Issue one in the\n  desktop app (Storage → Authorize an agent), then pass it through $DM_SESSION_TOKEN or\n  --token-file. A grant expires, can be revoked, and never carries a capability reserved to a\n  person, so approving a checkpoint or deleting an epic stays in the app.\n",
+      "pass": true
+    },
+    {
+      "doc": "docs/runbooks/cli.md:19",
+      "documented": "node out/main/cli.js --list",
+      "ran": "node out/main/cli.js --list",
+      "as": "no grant",
+      "exitCode": 0,
+      "out": {
+        "ok": true,
+        "data": [
+          {
+            "command": "accept_attempt",
+            "alias": "acceptAttempt",
+            "capability": "attempt.review",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "acknowledge_agent_messages",
+            "alias": "acknowledgeAgentMessages",
+            "capability": "mail.use",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "add_attachment",
+            "alias": "addAttachment",
+            "capability": "attachment.write",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "add_comment",
+            "alias": "addComment",
+            "capability": "comment.write",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "adopt_revision",
+            "alias": "adoptRevision",
+            "capability": "run.adopt",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "advance_sprint",
+            "alias": "advanceSprint",
+            "capability": "checkpoint.advance",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "approve_and_advance",
+            "alias": "approveAndAdvance",
+            "capability": "checkpoint.approve",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "approve_checkpoint",
+            "alias": "approveCheckpoint",
+            "capability": "checkpoint.approve",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "approve_kanban_card",
+            "alias": "approveKanbanCard",
+            "capability": "kanban.review",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "approve_with_redraft",
+            "alias": "approveWithRedraft",
+            "capability": "checkpoint.approve",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "authorize_auto_continue",
+            "alias": "authorizeAutoContinue",
+            "capability": "run.authorize_auto",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "backup_database",
+            "alias": "backupDatabase",
+            "capability": "repo.backup",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "cancel_run",
+            "alias": "cancelRun",
+            "capability": "run.control",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "cancel_transfer",
+            "alias": "cancelTransfer",
+            "capability": "transfer.queue",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "carry_forward_ticket",
+            "alias": "carryForwardTicket",
+            "capability": "attempt.carry_forward",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "claim_kanban_card",
+            "alias": "claimKanbanCard",
+            "capability": "kanban.claim",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "claim_ticket",
+            "alias": "claimTicket",
+            "capability": "attempt.claim",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "create_epic",
+            "alias": "createEpic",
+            "capability": "epic.create",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "create_kanban_card",
+            "alias": "createKanbanCard",
+            "capability": "kanban.write",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "delete_epic",
+            "alias": "deleteEpic",
+            "capability": "epic.delete",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "delete_kanban_card",
+            "alias": "deleteKanbanCard",
+            "capability": "kanban.delete",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "delete_ticket",
+            "alias": "deleteTicket",
+            "capability": "ticket.delete",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "discard_plan_draft",
+            "alias": "discardPlanDraft",
+            "capability": "draft.edit",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "fail_attempt",
+            "alias": "failAttempt",
+            "capability": "attempt.fail",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "fail_kanban_card",
+            "alias": "failKanbanCard",
+            "capability": "kanban.report",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "flush_portable_state",
+            "alias": "flushPortableState",
+            "capability": "repo.flush",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "get_agent_identity",
+            "alias": "getAgentIdentity",
+            "capability": "mail.use",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "get_agent_mail_status",
+            "alias": "getAgentMailStatus",
+            "capability": "mail.use",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "get_attachment",
+            "alias": "getAttachment",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "get_attempt_timeline",
+            "alias": "getAttemptTimeline",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "get_capabilities",
+            "alias": "getCapabilities",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": true
+          },
+          {
+            "command": "get_checkpoint",
+            "alias": "getCheckpoint",
+            "capability": "read",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "get_epic",
+            "alias": "getEpic",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "get_kanban_card",
+            "alias": "getKanbanCard",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "get_plan",
+            "alias": "getPlan",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "get_profile",
+            "alias": "getProfile",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "get_project",
+            "alias": "getProject",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "get_ready_tickets",
+            "alias": "getReadyTickets",
+            "capability": "read",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "get_run",
+            "alias": "getRun",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "get_run_timeline",
+            "alias": "getRunTimeline",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "get_sprint_report",
+            "alias": "getSprintReport",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "get_storage_status",
+            "alias": "getStorageStatus",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": true
+          },
+          {
+            "command": "get_ticket",
+            "alias": "getTicket",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "get_transfer",
+            "alias": "getTransfer",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "grant_retry",
+            "alias": "grantRetry",
+            "capability": "ticket.retry_grant",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "heartbeat_attempt",
+            "alias": "heartbeatAttempt",
+            "capability": "attempt.heartbeat",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "heartbeat_kanban_card",
+            "alias": "heartbeatKanbanCard",
+            "capability": "kanban.report",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "import_board",
+            "alias": "importBoard",
+            "capability": "epic.create",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "initialize_repository",
+            "alias": "initializeRepository",
+            "capability": "repo.init",
+            "mutates": true,
+            "beforeInitialize": true
+          },
+          {
+            "command": "issue_grant",
+            "alias": "issueGrant",
+            "capability": "grant.issue",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "kick_back_kanban_card",
+            "alias": "kickBackKanbanCard",
+            "capability": "kanban.review",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "launch_kanban_cards",
+            "alias": "launchKanbanCards",
+            "capability": "kanban.launch",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "list_agent_peers",
+            "alias": "listAgentPeers",
+            "capability": "mail.use",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "list_branch_epics",
+            "alias": "listBranchEpics",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "list_comments",
+            "alias": "listComments",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "list_epics",
+            "alias": "listEpics",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "list_events",
+            "alias": "listEvents",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "list_grants",
+            "alias": "listGrants",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "list_kanban_cards",
+            "alias": "listKanbanCards",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "list_profiles",
+            "alias": "listProfiles",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "list_revisions",
+            "alias": "listRevisions",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "list_sessions",
+            "alias": "listSessions",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "list_tickets",
+            "alias": "listTickets",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "match_capabilities",
+            "alias": "matchCapabilities",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "name_chat",
+            "alias": "nameChat",
+            "capability": "chat.name",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "open_draft",
+            "alias": "openDraft",
+            "capability": "draft.edit",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "pause_run",
+            "alias": "pauseRun",
+            "capability": "run.control",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "play_kanban_card",
+            "alias": "playKanbanCard",
+            "capability": "kanban.play",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "preview_board_import",
+            "alias": "previewBoardImport",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": true
+          },
+          {
+            "command": "queue_run",
+            "alias": "queueRun",
+            "capability": "run.queue",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "queue_transfer",
+            "alias": "queueTransfer",
+            "capability": "transfer.queue",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "read_agent_inbox",
+            "alias": "readAgentInbox",
+            "capability": "mail.use",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "reconcile_attempt",
+            "alias": "reconcileAttempt",
+            "capability": "attempt.reconcile",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "reconcile_repository",
+            "alias": "reconcileRepository",
+            "capability": "repo.reconcile",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "record_row_check",
+            "alias": "recordRowCheck",
+            "capability": "run.row_check",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "record_transfer_item",
+            "alias": "recordTransferItem",
+            "capability": "epic.transfer",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "redraft_next_sprint",
+            "alias": "redraftNextSprint",
+            "capability": "run.redraft",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "register_host",
+            "alias": "registerHost",
+            "capability": "host.register",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "reject_attempt",
+            "alias": "rejectAttempt",
+            "capability": "attempt.review",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "renew_grant",
+            "alias": "renewGrant",
+            "capability": "grant.issue",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "rescan_repositories",
+            "alias": "rescanRepositories",
+            "capability": "project.repositories",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "resolve_epic_conflict",
+            "alias": "resolveEpicConflict",
+            "capability": "repo.resolve_conflict",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "resume_run",
+            "alias": "resumeRun",
+            "capability": "run.control",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "revoke_grant",
+            "alias": "revokeGrant",
+            "capability": "grant.revoke",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "save_plan",
+            "alias": "savePlan",
+            "capability": "plan.save",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "save_profile",
+            "alias": "saveProfile",
+            "capability": "profile.write",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "search_history",
+            "alias": "searchHistory",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "send_agent_message",
+            "alias": "sendAgentMessage",
+            "capability": "mail.use",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "set_definition_of_done",
+            "alias": "setDefinitionOfDone",
+            "capability": "project.definition_of_done",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "set_epic_branch",
+            "alias": "setEpicBranch",
+            "capability": "epic.branch",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "set_epic_status",
+            "alias": "setEpicStatus",
+            "capability": "epic.status",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "set_ticket_status",
+            "alias": "setTicketStatus",
+            "capability": "ticket.status",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "start_run",
+            "alias": "startRun",
+            "capability": "run.start",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "start_transfer",
+            "alias": "startTransfer",
+            "capability": "epic.transfer",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "submit_attempt",
+            "alias": "submitAttempt",
+            "capability": "attempt.submit",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "submit_kanban_card",
+            "alias": "submitKanbanCard",
+            "capability": "kanban.report",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "submit_sprint_report",
+            "alias": "submitSprintReport",
+            "capability": "report.submit",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "submit_transfer_readback",
+            "alias": "submitTransferReadback",
+            "capability": "epic.transfer",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "switch_storage_mode",
+            "alias": "switchStorageMode",
+            "capability": "repo.switch_storage",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "take_agent_mail_wake",
+            "alias": "takeAgentMailWake",
+            "capability": "mail.use",
+            "mutates": false,
+            "beforeInitialize": false
+          },
+          {
+            "command": "takeover_run",
+            "alias": "takeoverRun",
+            "capability": "run.takeover",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "update_kanban_card",
+            "alias": "updateKanbanCard",
+            "capability": "kanban.write",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "update_plan_draft",
+            "alias": "updatePlanDraft",
+            "capability": "draft.edit",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "upload_attachment",
+            "alias": "uploadAttachment",
+            "capability": "attachment.write",
+            "mutates": true,
+            "beforeInitialize": false
+          },
+          {
+            "command": "validate_plan",
+            "alias": "validatePlan",
+            "capability": "read",
+            "mutates": false,
+            "beforeInitialize": false
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "doc": "docs/runbooks/cli.md:20",
+      "documented": "node out/main/cli.js --describe claim_ticket",
+      "ran": "node out/main/cli.js --describe claim_ticket",
+      "as": "no grant",
+      "exitCode": 0,
+      "out": {
+        "ok": true,
+        "data": {
+          "command": "claim_ticket",
+          "alias": "claimTicket",
+          "capability": "attempt.claim",
+          "mutates": true,
+          "beforeInitialize": false,
+          "input": {
+            "fields": [
+              "idempotencyKey",
+              "leaseSeconds",
+              "runId",
+              "ticketId",
+              "worker"
+            ]
+          }
+        }
+      },
+      "pass": true
+    },
+    {
+      "doc": "docs/runbooks/cli.md:21",
+      "documented": "node out/main/cli.js call list_epics '{}'",
+      "ran": "node out/main/cli.js call list_epics '{}'",
+      "as": "no grant",
+      "exitCode": 0,
+      "out": {
+        "ok": true,
+        "data": [
+          {
+            "id": "ep_01m7h1a6a6fqkzj4d26ew5gvz9",
+            "title": "Docs example epic",
+            "status": "backlog",
+            "revision": 1,
+            "currentRevisionId": null,
+            "currentRevisionNumber": null,
+            "hasDraft": true,
+            "draftRevision": 1,
+            "draftChanged": true,
+            "ticketCount": 1,
+            "sprintCount": 1,
+            "run": null,
+            "branch": null,
+            "pendingSave": false,
+            "conflict": null,
+            "createdAt": "2026-11-16T01:59:55.974Z",
+            "updatedAt": "2026-11-16T01:59:55.974Z",
+            "completedAt": null
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "doc": "docs/runbooks/cli.md:22",
+      "documented": "node out/main/cli.js call get_epic '{\"epicId\":\"ep_…\"}'",
+      "ran": "node out/main/cli.js call get_epic '{\"epicId\":\"ep_01m7h1a6a6fqkzj4d26ew5gvz9\"}'",
+      "as": "no grant",
+      "exitCode": 0,
+      "out": {
+        "ok": true,
+        "data": {
+          "id": "ep_01m7h1a6a6fqkzj4d26ew5gvz9",
+          "title": "Docs example epic",
+          "status": "backlog",
+          "revision": 1,
+          "currentRevisionId": null,
+          "currentRevisionNumber": null,
+          "hasDraft": true,
+          "draftRevision": 1,
+          "draftChanged": true,
+          "ticketCount": 1,
+          "sprintCount": 1,
+          "run": null,
+          "branch": null,
+          "pendingSave": false,
+          "conflict": null,
+          "createdAt": "2026-11-16T01:59:55.974Z",
+          "updatedAt": "2026-11-16T01:59:55.974Z",
+          "completedAt": null,
+          "intent": "",
+          "successCriteria": [],
+          "ownerRole": null,
+          "provenance": null,
+          "outcome": null
+        }
+      },
+      "pass": true
+    },
+    {
+      "doc": "docs/runbooks/cli.md:179",
+      "documented": "umask 077 && printf '%s' 'dmg_…' > ~/.config/dm-token",
+      "ran": "mkdir -p ~/.config && umask 077 && printf '%s' '[token]' > ~/.config/dm-token",
+      "as": "orchestrator (token written to a scratch HOME)",
+      "exitCode": 0,
+      "out": "",
+      "pass": true
+    },
+    {
+      "doc": "docs/runbooks/cli.md:180",
+      "documented": "node out/main/cli.js --token-file ~/.config/dm-token call create_epic '{\"title\":\"…\"}'",
+      "ran": "node out/main/cli.js --token-file ~/.config/dm-token call create_epic '{\"title\":\"Docs token-file epic\"}'",
+      "as": "orchestrator via --token-file",
+      "exitCode": 0,
+      "out": {
+        "ok": true,
+        "data": {
+          "id": "ep_01m7h1a7t9cwez6nkbn5c7msth",
+          "title": "Docs token-file epic",
+          "status": "backlog",
+          "revision": 1,
+          "currentRevisionId": null,
+          "currentRevisionNumber": null,
+          "hasDraft": true,
+          "draftRevision": 1,
+          "draftChanged": true,
+          "ticketCount": 1,
+          "sprintCount": 1,
+          "run": null,
+          "branch": null,
+          "pendingSave": false,
+          "conflict": null,
+          "createdAt": "2026-11-16T01:59:57.513Z",
+          "updatedAt": "2026-11-16T01:59:57.513Z",
+          "completedAt": null,
+          "intent": "",
+          "successCriteria": [],
+          "ownerRole": null,
+          "provenance": null,
+          "outcome": null
+        }
+      },
+      "pass": true
+    },
+    {
+      "doc": "docs/runbooks/cli.md:197",
+      "documented": "export DM_SESSION_TOKEN='dmg_…'",
+      "ran": "export DM_SESSION_TOKEN='[token]'",
+      "as": "orchestrator via env",
+      "exitCode": 0,
+      "out": "",
+      "pass": true
+    },
+    {
+      "doc": "docs/runbooks/cli.md:198",
+      "documented": "node out/main/cli.js call create_epic '{\"title\":\"…\"}'",
+      "ran": "export DM_SESSION_TOKEN='[token]' && node out/main/cli.js call create_epic '{\"title\":\"Docs env epic\"}'",
+      "as": "orchestrator via env",
+      "exitCode": 0,
+      "out": {
+        "ok": true,
+        "data": {
+          "id": "ep_01m7h1a83bffk4489tv7x20bqq",
+          "title": "Docs env epic",
+          "status": "backlog",
+          "revision": 1,
+          "currentRevisionId": null,
+          "currentRevisionNumber": null,
+          "hasDraft": true,
+          "draftRevision": 1,
+          "draftChanged": true,
+          "ticketCount": 1,
+          "sprintCount": 1,
+          "run": null,
+          "branch": null,
+          "pendingSave": false,
+          "conflict": null,
+          "createdAt": "2026-11-16T01:59:57.803Z",
+          "updatedAt": "2026-11-16T01:59:57.803Z",
+          "completedAt": null,
+          "intent": "",
+          "successCriteria": [],
+          "ownerRole": null,
+          "provenance": null,
+          "outcome": null
+        }
+      },
+      "pass": true
+    },
+    {
+      "doc": "docs/runbooks/cli.md:275",
+      "documented": "printf '%s' '{\"limit\":10}' | dm call list_agent_peers -",
+      "ran": "printf '%s' '{\"limit\":10}' | dm call list_agent_peers -",
+      "as": "alpha (bound worker)",
+      "exitCode": 0,
+      "out": {
+        "ok": true,
+        "data": {
+          "peers": [
+            {
+              "endpointId": "me_01m7h1a69ph6dg4eatwza4ee87",
+              "name": "Beta"
+            }
+          ],
+          "nextAfterId": "me_01m7h1a69ph6dg4eatwza4ee87",
+          "hasMore": false
+        }
+      },
+      "pass": true
+    },
+    {
+      "doc": "docs/runbooks/cli.md:276",
+      "documented": "printf '%s' '{\"to\":\"me_…\",\"clientMessageId\":\"review-1\",\"body\":\"Ready for review?\"}' | dm call send_agent_message -",
+      "ran": "printf '%s' '{\"to\":\"me_01m7h1a69ph6dg4eatwza4ee87\",\"clientMessageId\":\"review-1\",\"body\":\"Ready for review?\"}' | dm call send_agent_message -",
+      "as": "alpha (bound worker)",
+      "exitCode": 0,
+      "out": {
+        "ok": true,
+        "data": {
+          "messageId": "mm_01m7h1a8kk0rg3tva6yyf933w2",
+          "to": "me_01m7h1a69ph6dg4eatwza4ee87",
+          "clientMessageId": "review-1",
+          "inReplyTo": null,
+          "acceptedAt": "2026-11-16T01:59:58.322Z",
+          "duplicate": false
+        }
+      },
+      "pass": true
+    },
+    {
+      "doc": "docs/runbooks/cli.md:277",
+      "documented": "dm call get_agent_mail_status",
+      "ran": "dm call get_agent_mail_status",
+      "as": "beta (bound reviewer)",
+      "exitCode": 0,
+      "out": {
+        "ok": true,
+        "data": {
+          "pendingCount": 1,
+          "messages": [
+            {
+              "id": "mm_01m7h1a8kk0rg3tva6yyf933w2",
+              "seq": 1,
+              "from": {
+                "endpointId": "me_01m7h1a69c877nc0gnwf3k6hha",
+                "name": "Alpha",
+                "deleted": false
+              },
+              "inReplyTo": null,
+              "bodyBytes": 17,
+              "acceptedAt": "2026-11-16T01:59:58.322Z",
+              "acknowledgedAt": null,
+              "expiresAt": null
+            }
+          ],
+          "snapshotHighWater": 1,
+          "nextCursor": 1,
+          "hasMore": false
+        }
+      },
+      "pass": true
+    },
+    {
+      "doc": "docs/runbooks/cli.md:278",
+      "documented": "printf '%s' '{\"unacknowledgedOnly\":true}' | dm call read_agent_inbox -",
+      "ran": "printf '%s' '{\"unacknowledgedOnly\":true}' | dm call read_agent_inbox -",
+      "as": "beta (bound reviewer)",
+      "exitCode": 0,
+      "out": {
+        "ok": true,
+        "data": {
+          "messages": [
+            {
+              "id": "mm_01m7h1a8kk0rg3tva6yyf933w2",
+              "seq": 1,
+              "from": {
+                "endpointId": "me_01m7h1a69c877nc0gnwf3k6hha",
+                "name": "Alpha",
+                "deleted": false
+              },
+              "inReplyTo": null,
+              "bodyBytes": 17,
+              "acceptedAt": "2026-11-16T01:59:58.322Z",
+              "acknowledgedAt": null,
+              "expiresAt": null,
+              "body": "Ready for review?"
+            }
+          ],
+          "snapshotHighWater": 1,
+          "nextCursor": 1,
+          "hasMore": false
+        }
+      },
+      "pass": true
+    },
+    {
+      "doc": "docs/runbooks/cli.md:279",
+      "documented": "printf '%s' '{\"to\":\"me_…\",\"clientMessageId\":\"review-1-reply\",\"body\":\"Reviewed.\",\"inReplyTo\":\"mm_…\"}' > \"$TMP/reply.json\"",
+      "ran": "printf '%s' '{\"to\":\"me_01m7h1a69c877nc0gnwf3k6hha\",\"clientMessageId\":\"review-1-reply\",\"body\":\"Reviewed.\",\"inReplyTo\":\"mm_01m7h1a8kk0rg3tva6yyf933w2\"}' > \"$TMP/reply.json\"",
+      "as": "beta (bound reviewer)",
+      "exitCode": 0,
+      "out": "",
+      "pass": true
+    },
+    {
+      "doc": "docs/runbooks/cli.md:280",
+      "documented": "dm call send_agent_message --args-file \"$TMP/reply.json\"",
+      "ran": "dm call send_agent_message --args-file \"$TMP/reply.json\"",
+      "as": "beta (bound reviewer)",
+      "exitCode": 0,
+      "out": {
+        "ok": true,
+        "data": {
+          "messageId": "mm_01m7h1a9bv2tm262c9n6r62czf",
+          "to": "me_01m7h1a69c877nc0gnwf3k6hha",
+          "clientMessageId": "review-1-reply",
+          "inReplyTo": "mm_01m7h1a8kk0rg3tva6yyf933w2",
+          "acceptedAt": "2026-11-16T01:59:59.099Z",
+          "duplicate": false
+        }
+      },
+      "pass": true
+    },
+    {
+      "doc": "docs/runbooks/cli.md:281",
+      "documented": "printf '%s' '{\"messageIds\":[\"mm_…\"]}' > \"$TMP/ack.json\"",
+      "ran": "printf '%s' '{\"messageIds\":[\"mm_01m7h1a8kk0rg3tva6yyf933w2\"]}' > \"$TMP/ack.json\"",
+      "as": "beta (bound reviewer)",
+      "exitCode": 0,
+      "out": "",
+      "pass": true
+    },
+    {
+      "doc": "docs/runbooks/cli.md:282",
+      "documented": "dm call acknowledge_agent_messages --args-file \"$TMP/ack.json\"",
+      "ran": "dm call acknowledge_agent_messages --args-file \"$TMP/ack.json\"",
+      "as": "beta (bound reviewer)",
+      "exitCode": 0,
+      "out": {
+        "ok": true,
+        "data": {
+          "acknowledged": [
+            {
+              "messageId": "mm_01m7h1a8kk0rg3tva6yyf933w2",
+              "acknowledgedAt": "2026-11-16T01:59:59.374Z",
+              "expiresAt": "2026-11-23T01:59:59.374Z"
+            }
+          ]
+        }
+      },
+      "pass": true
+    },
+    {
+      "doc": "docs/verification/skitarii-messaging.md:90",
+      "documented": "$DM call get_capabilities                       # \"mailbox\":{\"bound\":true,\"endpointId\":\"<B>\"}",
+      "ran": "$DM call get_capabilities",
+      "as": "alpha (bound worker)",
+      "exitCode": 0,
+      "out": {
+        "ok": true,
+        "data": {
+          "server": {
+            "name": "darkmechanicus",
+            "version": "0.0.0"
+          },
+          "apiVersion": 1,
+          "schemaVersion": 16,
+          "skillsVersion": "1.10.0",
+          "role": "worker",
+          "sessionId": "ss_01m7h1aa323f9w070gmcmsexa7",
+          "capabilities": [
+            "read",
+            "chat.name",
+            "attempt.heartbeat",
+            "attempt.submit",
+            "attempt.fail",
+            "comment.write",
+            "attachment.write",
+            "kanban.report",
+            "mail.use"
+          ],
+          "repoRoot": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-docs-gPg0Iz\\repo",
+          "initialized": true,
+          "mailbox": {
+            "bound": true,
+            "endpointId": "me_01m7h1a69c877nc0gnwf3k6hha"
+          }
+        }
+      },
+      "pass": true
+    },
+    {
+      "doc": "docs/verification/skitarii-messaging.md:91",
+      "documented": "printf '%s' '{\"limit\":10}' | $DM call list_agent_peers -",
+      "ran": "printf '%s' '{\"limit\":10}' | $DM call list_agent_peers -",
+      "as": "alpha (bound worker)",
+      "exitCode": 0,
+      "out": {
+        "ok": true,
+        "data": {
+          "peers": [
+            {
+              "endpointId": "me_01m7h1a69ph6dg4eatwza4ee87",
+              "name": "Beta"
+            }
+          ],
+          "nextAfterId": "me_01m7h1a69ph6dg4eatwza4ee87",
+          "hasMore": false
+        }
+      },
+      "pass": true
+    },
+    {
+      "doc": "docs/verification/skitarii-messaging.md:92",
+      "documented": "printf '%s' '{\"unacknowledgedOnly\":true}' | $DM call read_agent_inbox -",
+      "ran": "printf '%s' '{\"unacknowledgedOnly\":true}' | $DM call read_agent_inbox -",
+      "as": "alpha (bound worker)",
+      "exitCode": 0,
+      "out": {
+        "ok": true,
+        "data": {
+          "messages": [
+            {
+              "id": "mm_01m7h1a9bv2tm262c9n6r62czf",
+              "seq": 1,
+              "from": {
+                "endpointId": "me_01m7h1a69ph6dg4eatwza4ee87",
+                "name": "Beta",
+                "deleted": false
+              },
+              "inReplyTo": "mm_01m7h1a8kk0rg3tva6yyf933w2",
+              "bodyBytes": 9,
+              "acceptedAt": "2026-11-16T01:59:59.099Z",
+              "acknowledgedAt": null,
+              "expiresAt": null,
+              "body": "Reviewed."
+            }
+          ],
+          "snapshotHighWater": 1,
+          "nextCursor": 1,
+          "hasMore": false
+        }
+      },
+      "pass": true
+    },
+    {
+      "doc": "docs/verification/skitarii-messaging.md:99",
+      "documented": "printf '%s' '{\"to\":\"<A>\",\"clientMessageId\":\"reply-1\",\"body\":\"Reviewed: ship it.\",\"inReplyTo\":\"<M1>\"}' > \"$TMP/reply.json\"",
+      "ran": "printf '%s' '{\"to\":\"me_01m7h1a69ph6dg4eatwza4ee87\",\"clientMessageId\":\"reply-1\",\"body\":\"Reviewed: ship it.\",\"inReplyTo\":\"mm_01m7h1a9bv2tm262c9n6r62czf\"}' > \"$TMP/reply.json\"",
+      "as": "alpha (bound worker)",
+      "exitCode": 0,
+      "out": "",
+      "pass": true
+    },
+    {
+      "doc": "docs/verification/skitarii-messaging.md:100",
+      "documented": "$DM call send_agent_message --args-file \"$TMP/reply.json\"",
+      "ran": "$DM call send_agent_message --args-file \"$TMP/reply.json\"",
+      "as": "alpha (bound worker)",
+      "exitCode": 0,
+      "out": {
+        "ok": true,
+        "data": {
+          "messageId": "mm_01m7h1aavnk6pp8rwx6cmvjqh3",
+          "to": "me_01m7h1a69ph6dg4eatwza4ee87",
+          "clientMessageId": "reply-1",
+          "inReplyTo": "mm_01m7h1a9bv2tm262c9n6r62czf",
+          "acceptedAt": "2026-11-16T02:00:00.629Z",
+          "duplicate": false
+        }
+      },
+      "pass": true
+    },
+    {
+      "doc": "docs/verification/skitarii-messaging.md:101",
+      "documented": "printf '%s' '{\"messageIds\":[\"<M1>\"]}' > \"$TMP/ack.json\"",
+      "ran": "printf '%s' '{\"messageIds\":[\"mm_01m7h1a9bv2tm262c9n6r62czf\"]}' > \"$TMP/ack.json\"",
+      "as": "alpha (bound worker)",
+      "exitCode": 0,
+      "out": "",
+      "pass": true
+    },
+    {
+      "doc": "docs/verification/skitarii-messaging.md:102",
+      "documented": "$DM call acknowledge_agent_messages --args-file \"$TMP/ack.json\"",
+      "ran": "$DM call acknowledge_agent_messages --args-file \"$TMP/ack.json\"",
+      "as": "alpha (bound worker)",
+      "exitCode": 0,
+      "out": {
+        "ok": true,
+        "data": {
+          "acknowledged": [
+            {
+              "messageId": "mm_01m7h1a9bv2tm262c9n6r62czf",
+              "acknowledgedAt": "2026-11-16T02:00:00.910Z",
+              "expiresAt": "2026-11-23T02:00:00.910Z"
+            }
+          ]
+        }
+      },
+      "pass": true
+    },
+    {
+      "doc": "docs/verification/skitarii-messaging.md (second identical acknowledge line)",
+      "as": "alpha (bound worker)",
+      "out": {
+        "ok": true,
+        "data": {
+          "acknowledged": [
+            {
+              "messageId": "mm_01m7h1a9bv2tm262c9n6r62czf",
+              "acknowledgedAt": "2026-11-16T02:00:00.910Z",
+              "expiresAt": "2026-11-23T02:00:00.910Z"
+            }
+          ]
+        }
+      },
+      "pass": true
+    },
+    {
+      "doc": "docs/verification/skitarii-messaging.md:104",
+      "documented": "$DM call get_agent_mail_status                                   # pendingCount: 0",
+      "ran": "$DM call get_agent_mail_status",
+      "as": "alpha (bound worker)",
+      "exitCode": 0,
+      "out": {
+        "ok": true,
+        "data": {
+          "pendingCount": 0,
+          "messages": [],
+          "snapshotHighWater": 1,
+          "nextCursor": 0,
+          "hasMore": false
+        }
+      },
+      "pass": true
+    },
+    {
+      "doc": "docs/verification/skitarii-messaging.md:108 (\"inReplyTo\":\"mm_unknown\" is refused)",
+      "as": "alpha (bound worker)",
+      "out": {
+        "ok": false,
+        "error": {
+          "code": "invalid_input",
+          "message": "Invalid sendAgentMessage input at inReplyTo: Expected a stable id such as tk_…"
+        }
+      },
+      "pass": true,
+      "expectedDenial": true
+    },
+    {
+      "doc": "docs/verification/skitarii-messaging.md:123",
+      "documented": "cd \"$REPO\" && DARKMECHANICUS_HOME=\"$HOME_DIR\" node \"$APP/out/main/cli.js\" --repo \"$REPO\" call get_agent_identity",
+      "ran": "cd \"$REPO\" && DARKMECHANICUS_HOME=\"$HOME_DIR\" node \"$APP/out/main/cli.js\" --repo \"$REPO\" call get_agent_identity",
+      "as": "no grant (expected denial)",
+      "exitCode": 1,
+      "out": {
+        "ok": false,
+        "error": {
+          "code": "unauthorized",
+          "message": "This reader session is not permitted to perform \"mail.use\".",
+          "details": {
+            "role": "reader",
+            "capability": "mail.use"
+          }
+        }
+      },
+      "stderr": "dm: this session presented no grant, so it may only read. Issue one in the desktop app (the folder's Agent access card) and pass it as $DM_SESSION_TOKEN or --token-file.",
+      "pass": true
+    },
+    {
+      "doc": "docs/runbooks/cli.md:249 (a reader grant gets unauthorized)",
+      "as": "reader (expected denial)",
+      "out": {
+        "ok": false,
+        "error": {
+          "code": "unauthorized",
+          "message": "This reader session is not permitted to perform \"mail.use\".",
+          "details": {
+            "role": "reader",
+            "capability": "mail.use"
+          }
+        }
+      },
+      "pass": true,
+      "expectedDenial": true
+    },
+    {
+      "doc": "docs/verification/skitarii-messaging.md:127 / cli.md:310 (backup_database is desktop-only)",
+      "as": "alpha (expected denial)",
+      "out": {
+        "ok": false,
+        "error": {
+          "code": "unauthorized",
+          "message": "Only the person in the Dark Mechanicus desktop app can back up the whole database: the copy includes private local agent mail.",
+          "details": {
+            "role": "worker",
+            "capability": "repo.backup"
+          }
+        }
+      },
+      "pass": true,
+      "expectedDenial": true
+    },
+    {
+      "doc": "docs/runbooks/cli.md:310 (unbound orchestrator full backup)",
+      "as": "orchestrator (expected denial)",
+      "out": {
+        "ok": false,
+        "error": {
+          "code": "unauthorized",
+          "message": "Only the person in the Dark Mechanicus desktop app can back up the whole database: the copy includes private local agent mail.",
+          "details": {
+            "role": "orchestrator",
+            "capability": "repo.backup"
+          }
+        }
+      },
+      "pass": true,
+      "expectedDenial": true
+    },
+    {
+      "doc": "docs/runbooks/cli.md:239-241 / verification:126 (MCP stdio session, even with an inherited bound DM_SESSION_TOKEN)",
+      "as": "MCP stdio worker (expected denial)",
+      "out": {
+        "ok": false,
+        "error": {
+          "code": "unauthorized",
+          "message": "This session has no usable mailbox. A mailbox belongs to a dm CLI grant the desktop bound to this chat, used on this machine in this folder while the grant is current."
+        }
+      },
+      "pass": true,
+      "expectedDenial": true
+    }
+  ],
+  "summary": {
+    "steps": 32,
+    "failed": []
+  }
+}

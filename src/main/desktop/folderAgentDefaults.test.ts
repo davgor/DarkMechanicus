@@ -51,6 +51,10 @@ function createWorld(): World {
     folderDefaults: defaults,
     registry: folders,
     pool: { get: () => Promise.reject(new Error('no workspace')) as never, close: () => undefined },
+    releaseFolder: async (_folder, forget) => {
+      forget()
+    },
+    stopMailMonitor: () => undefined,
     pickDirectory: async () => null,
     writeClipboard: () => undefined,
     openExternal: async () => undefined,

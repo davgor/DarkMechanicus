@@ -83,14 +83,14 @@ function chosenPaths(status: RepoStatus, files: readonly CommitEntry[]): string[
  * The patch committing the chosen lines of one file, or null when none is chosen. It is built from the file's
  * diff as it is now, so a diff whose hash differs from the one the lines were chosen in fails `stale_selection`.
  */
-async function linePatch(runner: GitRunner, root: string, change: FileChange, file: CommitEntry): Promise<string | null> {
+async function linePatch(runner: GitRunner, status: RepoStatus, change: FileChange, file: CommitEntry): Promise<string | null> {
   if (file.diffHash === undefined) {
     throw new GitInputError(`Lines of ${file.path} need the hash of the diff they were chosen in.`)
   }
   if (change.kind === 'typechange') {
     throw new GitInputError(`Lines cannot be chosen in ${file.path}: its type changed.`)
   }
-  const diff = await readWorkingDiff(runner, root, change, { force: true })
+  const diff = await readWorkingDiff(runner, status.root, change, { force: true, headExists: status.branch.headOid !== null })
   if (diff.hash !== file.diffHash) {
     throw new GitError('stale_selection', '', `${file.path} changed after its lines were chosen. Choose them again.`)
   }
@@ -134,7 +134,7 @@ async function linePatches(runner: GitRunner, status: RepoStatus, files: readonl
       }
       taken.add(path)
     }
-    const patch = await linePatch(runner, status.root, change, file)
+    const patch = await linePatch(runner, status, change, file)
     patches.push(...(patch === null ? [] : [patch]))
   }
   return patches
@@ -153,9 +153,10 @@ async function stageChosen(runner: GitRunner, status: RepoStatus, paths: readonl
   if (paths.length > 0) {
     await runner.run({ cwd: root, args: literalPathArgs(['add', '-A'], paths), kind: 'write' })
   }
-  for (const patch of patches) {
-    // The patch keeps HEAD's line numbers exactly; `--unidiff-zero` lets it apply when `diff.context` is 0.
-    await runner.run({ cwd: root, args: ['apply', '--cached', '--unidiff-zero', '--whitespace=nowarn', '-'], kind: 'write', stdin: patch })
+  if (patches.length > 0) {
+    // One multi-file patch, so one process for every selection. It keeps HEAD's line numbers exactly; `--unidiff-zero`
+    // lets it apply when `diff.context` is 0.
+    await runner.run({ cwd: root, args: ['apply', '--cached', '--unidiff-zero', '--whitespace=nowarn', '-'], kind: 'write', stdin: patches.join('') })
   }
 }
 

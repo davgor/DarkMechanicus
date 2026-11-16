@@ -51,6 +51,16 @@ const claudeCodeRequestSchema = z.strictObject({
 export interface DesktopHandlerDeps extends AgentHandlerDeps, AgentAuthHooks, FolderDefaultHandlerDeps {
   registry: Pick<FolderRegistry, 'list' | 'track' | 'untrack' | 'resolve' | 'storageMode'>
   pool: Pick<WorkspacePool, 'get' | 'close'>
+  /**
+   * Untrack's first step: stops the folder's chat terminals and starts, suspends its chat mailboxes, and only then runs
+   * `forget` (the untrack itself), with nothing of the folder allowed to start meanwhile (`terminalSessions.ts`).
+   */
+  releaseFolder: (folder: string, forget: () => void) => Promise<void>
+  /**
+   * Stops the folder's chat mail monitor (`agentMailDesktop.ts`) and forgets what it served. Untrack calls it before the
+   * release starts and again right before the registry forgets the folder, so no poll reaches a closing workspace.
+   */
+  stopMailMonitor: (folder: string) => void
   /** Native folder picker; null when the person cancels. */
   pickDirectory: () => Promise<string | null>
   writeClipboard: (text: string) => void
@@ -163,9 +173,15 @@ async function untrackFolder(deps: DesktopHandlerDeps, path: unknown): Promise<T
   if (tracked === null) {
     return deps.registry.list()
   }
-  const remaining = deps.registry.untrack(tracked)
-  deps.folderDefaults.set(tracked, null)
-  deps.pool.close(tracked)
+  let remaining: TrackedFolderView[] = []
+  deps.stopMailMonitor(tracked)
+  await deps.releaseFolder(tracked, () => {
+    // A snapshot during the release may have started it again; nothing can between here and the close.
+    deps.stopMailMonitor(tracked)
+    remaining = deps.registry.untrack(tracked)
+    deps.folderDefaults.set(tracked, null)
+    deps.pool.close(tracked)
+  })
   return remaining
 }
 

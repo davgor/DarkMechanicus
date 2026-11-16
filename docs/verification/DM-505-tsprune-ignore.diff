@@ -1,0 +1,43 @@
+diff --git a/.tsprune-ignore b/.tsprune-ignore
+index ef9dda1..5c8be00 100644
+--- a/.tsprune-ignore
++++ b/.tsprune-ignore
+@@ -1,7 +1,7 @@
+ # Baseline ignore for ts-prune: one `file - export` per line (line numbers are not matched)
+ # Generated from tsconfig.node.json + tsconfig.web.json
+ # Refresh after export moves/deletes: npm run deadcode:refresh
+-# Refreshed 2026-11-15 (153 entries)
++# Refreshed 2026-11-16 (158 entries)
+ 
+ electron.vite.config.ts - default
+ src/core/canonical.ts - canonicalJson
+@@ -27,7 +27,6 @@ src/core/transfer/linearPacket.ts - LinearPacketInput
+ src/main/desktop/cliConfig.ts - CliConfigOptions
+ src/main/terminals/__mocks__/terminalPorts.ts - PortPair
+ src/main/terminals/__mocks__/terminalPorts.ts - Posted
+-src/main/terminals/__mocks__/terminalSessionsRig.ts - Gate
+ src/main/terminals/ptyHelperCheck.ts - PtyHelperCheckOptions
+ src/main/terminals/ptyHost.ts - NodePtyHostOptions
+ src/mcp/transferKickoff.ts - TransferKickoffInput
+@@ -44,8 +43,11 @@ src/shared/agents/chat.ts - DarkMechanicusCli
+ src/shared/agents/chat.ts - ErrorProblem
+ src/shared/agents/chat.ts - IDLE_STOP_CODE
+ src/shared/agents/chat.ts - chatIdSchema
++src/shared/agents/chatApi.ts - AllowChatMailWakeRequest
+ src/shared/agents/chatApi.ts - BoundThreadsRequest
+ src/shared/agents/chatApi.ts - ChatRequestRef
++src/shared/agents/chatApi.ts - MarkChatMailSeenRequest
++src/shared/agents/chatApi.ts - ReadChatMailRequest
+ src/shared/agents/chatApi.ts - TransferChatRequest
+ src/shared/agents/chatNaming.ts - NAMING_CONTROL
+ src/shared/agents/chatNaming.ts - NamingControlError
+@@ -79,6 +81,9 @@ src/shared/desktop/api.ts - CommandOutput
+ src/shared/desktop/api.ts - DESKTOP_COMMANDS
+ src/shared/desktop/api.ts - DesktopCommandName
+ src/shared/desktop/attachmentUrl.ts - ATTACHMENT_SCHEME
++src/shared/domain/agentMail.ts - AgentMailMessageView
++src/shared/domain/agentMail.ts - AgentMailWakeState
++src/shared/domain/agentMail.ts - HumanAgentMailStateView
+ src/shared/domain/api.ts - API_VERSION
+ src/shared/domain/api.ts - AddCommentInput
+ src/shared/domain/api.ts - ClaimKanbanCardInput

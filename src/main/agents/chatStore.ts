@@ -47,7 +47,7 @@ export type NewChat = Pick<ChatRecord, 'folder' | 'agent' | 'model' | 'role' | '
 /** Identifies a chat: its folder (any spelling; null for a project-less chat) and id. Every `ChatRecord` is one. */
 export type ChatRef = Pick<ChatRecord, 'folder' | 'id'>
 
-type ChatPatch = Partial<Pick<ChatRecord, 'title' | 'firstPromptDelivery' | 'titleStatus' | 'titleError' | 'model' | 'role' | 'allowSave' | 'sessionId' | 'cutShortMessageId' | 'grantIds' | 'sessionStarted' | 'kickoffSent'>>
+type ChatPatch = Partial<Pick<ChatRecord, 'title' | 'firstPromptDelivery' | 'titleStatus' | 'titleError' | 'model' | 'role' | 'allowSave' | 'sessionId' | 'cutShortMessageId' | 'grantIds' | 'endpointId' | 'sessionStarted' | 'kickoffSent'>>
 
 interface ChatTranscript {
   chat: ChatRecord
@@ -64,6 +64,11 @@ export interface ChatStore {
   getChat(ref: ChatRef): ChatRecord | null
   /** Changes chat fields and stamps `updatedAt`; throws `not_found` for an unknown chat. */
   updateChat(ref: ChatRef, patch: ChatPatch): ChatRecord
+  /**
+   * Stores the id of the chat's agent mailbox (`chatMailboxes.ts`) without moving `updatedAt`: provisioning a mailbox is
+   * bookkeeping, not activity, so it never reorders the list. Throws `not_found` for an unknown chat.
+   */
+  recordEndpoint(ref: ChatRef, endpointId: string): ChatRecord
   /** The chat and its transcript; null for an unknown chat. */
   readTranscript(ref: ChatRef): ChatTranscript | null
   /** Removes the chat, its transcript and every stored version of its record; throws `not_found` for an unknown chat. */
@@ -311,6 +316,10 @@ export function createChatStore(options: {
     listChats: (folder) => [...loadIndex(context, locate(context, folder)).values()].sort(byRecency),
     getChat: (ref) => loadIndex(context, locate(context, ref.folder)).get(ref.id) ?? null,
     updateChat: (ref, patch) => updateChat(context, ref, patch),
+    recordEndpoint: (ref, endpointId) => {
+      const { location, chat } = requireChat(context, ref)
+      return saveRecord(context, location, { ...chat, endpointId })
+    },
     readTranscript: (ref) => readTranscript(context, ref),
     deleteChat: (ref) => {
       deleteChat(context, ref)

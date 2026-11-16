@@ -43,3 +43,27 @@ it('gives only chat terminals their own naming address and never inherits one fr
   const login = terminalLoginEnv(base)
   expect(Object.keys(login).some(key => /^DM_(?:SESSION_TOKEN|DESKTOP_PIPE)$/iu.test(key))).toBe(false)
 })
+
+describe('terminalEnv: the Skitarii mail client descriptor', () => {
+  const DESCRIPTOR = 'C:\\data\\agents\\omp\\ch_1\\dm-client\\gen.json'
+  const stale = { DM_SKITARII_CLIENT_DESCRIPTOR: 'stale-upper', dm_skitarii_client_descriptor: 'stale-lower', Dm_Skitarii_Client_Descriptor: 'stale-mixed' }
+  const descriptorKeys = (env: Record<string, string>): string[] => Object.keys(env).filter((key) => key.toUpperCase() === 'DM_SKITARII_CLIENT_DESCRIPTOR')
+
+  it.each(['win32', 'darwin'] as const)('gives an OMP launch its own descriptor path, once, over any inherited variant (%s)', (platform) => {
+    const env = terminalEnv({ base: stale, platform, kind: 'omp', cli: CLI, launcherDir: '/data/agents/bin/ch_1', dmClient: DESCRIPTOR })
+    expect(descriptorKeys(env)).toEqual(['DM_SKITARII_CLIENT_DESCRIPTOR'])
+    expect(env['DM_SKITARII_CLIENT_DESCRIPTOR']).toBe(DESCRIPTOR)
+  })
+
+  it.each(['omp', 'claude', 'codex', 'custom'] as const)('passes no inherited descriptor to a %s launch that has none', (kind) => {
+    expect(descriptorKeys(envFor(kind, stale))).toEqual([])
+  })
+
+  it.each(['claude', 'codex', 'cursor', 'autonomous', 'custom'] as const)('refuses a descriptor for a %s launch', (kind) => {
+    expect(() => terminalEnv({ base: {}, platform: 'win32', kind, cli: CLI, launcherDir: null, dmClient: DESCRIPTOR })).toThrow(/Only an OMP chat/)
+  })
+
+  it('gives a sign-in terminal no descriptor in any letter case', () => {
+    expect(descriptorKeys(terminalLoginEnv(stale))).toEqual([])
+  })
+})
