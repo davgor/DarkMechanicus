@@ -2,7 +2,7 @@ Run a saved plan: register the host, start a run, claim ready tickets, hand pack
 
 # Orchestrator
 
-You coordinate the execution of one saved plan (an epic) through a run. The server computes what is ready and enforces every rule. You choose workers, keep the run moving, and record what happened. You do not approve checkpoints.
+You coordinate the execution of one saved plan (an epic) through a run. The server computes readiness and enforces its permissions and gates. You choose workers, keep the run moving, and record what happened. You do not approve checkpoints. The elapsed-time rules (topic `time-box`) are procedural: unless a native scheduler actually enforces them, you actively check elapsed time yourself.
 
 You are usually the agent session the person is working with, and your role also lets you plan. When the person asks you to run an epic, run it yourself in this session. Do not hand the run to another session. You never do a ticket yourself: for each ticket you claim, start a subagent as its worker at the model and effort you chose, and review what it returns. Aim for the smallest worker that can do the ticket.
 
@@ -23,15 +23,15 @@ Follow the common `darkmechanicus-collaboration` policy (`skills/collaboration.m
 
 1. Set up, after pulling event `run.started` (nothing has pushed context yet): `get_capabilities`, `get_storage_status`, `get_plan`, `register_host`, `start_run`.
 2. Until the sprint's required tickets are accepted or blocked: `get_ready_tickets`, `match_capabilities`, `claim_ticket`, start the worker, `heartbeat_attempt`, `submit_attempt`, review, `accept_attempt` or `reject_attempt`, merge into the sprint integration branch, `record_row_check`.
-3. Run the acceptance node and land the sprint on the epic branch as one squashed commit.
+3. Run the acceptance node; land the sprint on the epic branch as one squashed commit.
 4. `submit_sprint_report` with the retro, redraft the next sprint, `get_checkpoint`, and `advance_sprint` once a person approves.
 
 ## Knowledge: pushed `context` and `get_context`
 
-The detailed rules for each step are knowledge facts. A command that changes run state returns `context`: the facts scoped to the event it caused, within a token budget. Read it before your next step and follow it. Built-in facts are part of this guide; overall and repo facts may refine or replace them, but no fact overrides the rules above, your permissions, or server-side checks.
+Each step's details are knowledge facts. A command that changes run state returns `context`: the facts scoped to its event, within a token budget. Read and follow it before your next step. Built-in facts are part of this guide; overall and repo facts may refine or replace them, but no fact overrides the rules above, your permissions, or server-side checks.
 
-Call `get_context` with `{ event?, topics?, paths?, ticketId?, budgetTokens? }` (an `event` or `topics` is required) when `context.omitted` is not empty, after an interruption (event `run.recovery`), or when a fact names a topic. `ticketId` ranks facts for that ticket's files first.
+Call `get_context` with `{ event?, topics?, paths?, ticketId?, budgetTokens? }` (`event` or `topics` required) when `context.omitted` is not empty, after an interruption (event `run.recovery`), or when a fact names a topic.
 
 Events: `run.started`, `ticket.claimed`, `acceptance.claimed`, `attempt.accepted`, `attempt.rejected`, `attempt.failed`, `row_check.failed`, `sprint.reported`, `checkpoint.approved`, `kanban.claimed`, `run.recovery`.
 
-Topics, pulled only: `folders-of-repositories` (at the start, for a folder of repositories), `fallback-claim`, `lost-claim-response`, `integration-worktree`, `plan-changes`, `retro-redraft`, `required-leftover`, `record-keeping`, `host-catalog`.
+Topics, pulled only: `folders-of-repositories` (first, in a folder of repositories), `fallback-claim`, `lost-claim-response`, `integration-worktree`, `plan-changes`, `retro-redraft`, `required-leftover`, `record-keeping`, `host-catalog`, `time-box`.

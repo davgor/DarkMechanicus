@@ -3,7 +3,7 @@ id: orchestrator.decisions
 type: convention
 title: "Own the decisions; escalate only scope, authority, safety or required approval"
 scope.roles: [orchestrator]
-scope.events: [run.started]
+scope.events: [attempt.rejected, attempt.failed, checkpoint.approved]
 scope.topics: [plan-changes]
 priority: 90
 ---

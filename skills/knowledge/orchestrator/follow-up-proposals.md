@@ -3,7 +3,7 @@ id: orchestrator.follow-up-proposals
 type: convention
 title: "Follow-up ideas are proposals, not tickets you add"
 scope.roles: [orchestrator]
-scope.events: [ticket.claimed]
+scope.events: [attempt.accepted, attempt.rejected]
 scope.topics: [plan-changes, retro-redraft]
 priority: 60
 ---

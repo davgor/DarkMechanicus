@@ -95,6 +95,7 @@ Topics hold pull-only material. The built-in facts use these, and the kernel lis
 | `required-leftover` | A sprint with a required leftover |
 | `record-keeping` | Claim records, comments, attachments |
 | `host-catalog` | Registering the host and its models |
+| `time-box` | Prerequisites before a claim, the five-minute check and the ten-minute stop-and-split for tickets and cards |
 
 Overall and repo facts may use these topics or their own. A topic of your own is reached only by an orchestrator that asks for it, so name it where the orchestrator will see it (for example in a fact scoped to `run.started`).
 
@@ -175,20 +176,20 @@ Token estimates are characters divided by 4. For a guide that is the file's size
 | What | Characters | Words | Estimated tokens | Facts |
 |------|-----------:|------:|-----------------:|------:|
 | Old `skills/orchestrator.md` (skills 1.10.0) | 34,058 | 5,513 | 8,515 | |
-| New kernel `skills/orchestrator.md` | 5,252 | 798 | 1,313 | |
-| `run.started` | | | 1,371 | 7 |
-| `ticket.claimed` | | | 813 | 6 |
-| `acceptance.claimed` | | | 704 | 4 |
-| `attempt.accepted` | | | 1,136 | 6 |
-| `attempt.rejected` | | | 693 | 4 |
-| `attempt.failed` | | | 804 | 5 |
+| New kernel `skills/orchestrator.md` | 5,328 | 800 | 1,332 | |
+| `run.started` | | | 1,212 | 7 |
+| `ticket.claimed` | | | 1,393 | 7 |
+| `acceptance.claimed` | | | 1,339 | 6 |
+| `attempt.accepted` | | | 1,341 | 8 |
+| `attempt.rejected` | | | 1,184 | 7 |
+| `attempt.failed` | | | 1,216 | 7 |
 | `row_check.failed` | | | 249 | 1 |
 | `sprint.reported` | | | 318 | 2 |
-| `checkpoint.approved` | | | 735 | 4 |
-| `kanban.claimed` | | | 695 | 4 |
-| `run.recovery` | | | 879 | 5 |
+| `checkpoint.approved` | | | 1,146 | 6 |
+| `kanban.claimed` | | | 1,421 | 6 |
+| `run.recovery` | | | 1,229 | 6 |
 
-No event omitted a fact. The orchestrator starts from the kernel (1,313 tokens) instead of the old guide (8,515); with the largest push, `run.started`, that is 2,684, and each later push adds 249 to 1,136.
+No event omitted a fact. The orchestrator starts from the kernel (1,332 tokens) instead of the old guide (8,515); with the first push, `run.started`, that is 2,544, and each later push adds 249 to 1,421.
 
 **Method.** Sizes of the guides, from the repository root in Git Bash (`f1590fa` is the last commit with the single guide):
 
@@ -256,9 +257,10 @@ Skills version 1.11.0 split the single orchestrator guide (skills version 1.10.0
 | Old heading | Now carried by |
 |-------------|----------------|
 | Description line | Kernel description line (unchanged) |
-| `# Orchestrator` | Kernel `# Orchestrator` (identity, role, subagent workers, collaboration policy, planning guides; unchanged) |
+| `# Orchestrator` | Kernel `# Orchestrator` (identity, role, subagent workers, collaboration policy, planning guides; unchanged except that the elapsed-time sentence names topic `time-box` where the old guide said "below") |
 | `## Decision ownership and questions` | `orchestrator.decisions` (own decisions, escalation, limits of autonomy), `orchestrator.worker-questions` (workers and reviewers ask you) |
 | `## Sprint boundaries and investigation gates` | `orchestrator.sprint-shape` (planning: one sprint, investigation first, when to propose another), `orchestrator.investigation-gate` (continue after an accepted investigation), `orchestrator.saved-sprint-boundaries` (honor saved boundaries, Definition of Done once per sprint acceptance) |
+| `### Five-minute check, ten-minute stop-and-split (cards too)` | `orchestrator.claim-prerequisites` (bullet 1: prerequisites before a claim, one worker in 5 to 10 minutes; pushed with the events after which the next claim happens and with `kanban.claimed`), `orchestrator.time-box` (bullets 2, 3 and 7: clock and ledger, 5-minute check, 10-minute stop, checkpoint reports; pushed with `ticket.claimed`, `acceptance.claimed`, `kanban.claimed` and `run.recovery`), `orchestrator.time-box-limits` (bullets 4 to 6: diagnostic rounds, safe stops, the declared verification exception; pushed with `ticket.claimed`, `acceptance.claimed` and `kanban.claimed`); all three under topic `time-box` |
 | `## Rules that always apply` | Kernel `## Rules that always apply` (verbatim) |
 | `## 1. Set up` | `orchestrator.setup` (steps 1 to 3), `orchestrator.register-host` (step 4), `orchestrator.start-run` (step 5), `orchestrator.branch-model` (the epic and sprint integration branches); kernel `## The loop` step 1 |
 | `## 2. The execution loop` | `orchestrator.ready-tickets` (steps 1 and 2), `orchestrator.fallback-claim` (nothing eligible), `orchestrator.claim-ticket` (step 3), `orchestrator.dispatch-worker` (step 4), `orchestrator.heartbeat` (step 5), `orchestrator.review-attempt` (steps 6 and 7, the acceptance node exception), `orchestrator.merge-accepted` (step 8), `orchestrator.retry-escalation` (rejected tickets become retryable); kernel `## The loop` step 2 |
@@ -270,7 +272,7 @@ Skills version 1.11.0 split the single orchestrator guide (skills version 1.10.0
 | `### When the sprint has a required leftover` | `orchestrator.required-leftover` (the case, steps 1 to 3), `orchestrator.required-leftover-finish` (steps 4 to 6, a leftover in the final sprint) |
 | `## 6. Plan changes and recovery` | `orchestrator.adopt-revision` (pinned revision, adoption, carry forward), `orchestrator.follow-up-proposals` (follow-ups are proposals), `orchestrator.repeated-escalations` (profile corrections), `orchestrator.takeover-and-truth` (imported runs, source of truth after an interruption) |
 | `## 7. Record keeping` | `orchestrator.record-keeping` (claim records, decisions, `add_comment`, `list_comments`), `orchestrator.attachments` (reference images) |
-| `## 8. Running a Kanban card` | `orchestrator.kanban-launch` (Play and `launch_kanban_cards`), `orchestrator.kanban-run` (steps 1 to 6) |
+| `## 8. Running a Kanban card` | `orchestrator.kanban-launch` (Play and `launch_kanban_cards`), `orchestrator.kanban-run` (applying the prerequisite, single-worker and 5-minute/10-minute rules, steps 1 to 6) |
 
 Cross-references in the old guide ("see section 3", "above", "below") now name the fact id, the `get_context` topic or the event that carries the rule. The kernel's `## The loop` and `## Knowledge: pushed context and get_context` sections are new: the loop is a skeleton of the steps above, and the knowledge section tells the orchestrator to pull `run.started` before setup (nothing has pushed context yet), to pull `run.recovery` after an interruption, and which topics exist.
 

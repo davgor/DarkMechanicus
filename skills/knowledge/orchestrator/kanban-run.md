@@ -7,6 +7,8 @@ scope.events: [kanban.claimed]
 priority: 90
 ---
 
+Apply the prerequisite, single-worker and 5-minute/10-minute rules (`get_context` topic `time-box`) before claiming and throughout a card attempt.
+
 1. Call `claim_kanban_card` with the card id. It needs pending desktop Play or authorized external launch (`play_required` otherwise) and returns the packet: the card, the checked-out branch, every earlier kick-back comment and a claim token. Launch is not claim or approval; claim creates the leased attempt.
 2. Hand the packet to one worker subagent, with the worker guidance and the rule that it reports back to you instead of calling `submit_kanban_card` or `fail_kanban_card`. The claim token is a secret, as for tickets.
 3. The worker works on the checked-out branch and commits there. Keep calling `heartbeat_kanban_card` until you submit, so the claim does not expire.

@@ -3,7 +3,7 @@ id: orchestrator.attachments
 type: convention
 title: "Pass reference images on to the worker"
 scope.roles: [orchestrator]
-scope.events: [ticket.claimed, kanban.claimed]
+scope.events: [ticket.claimed]
 scope.topics: [record-keeping]
 priority: 70
 ---
