@@ -122,9 +122,10 @@ function writeCases(r: GitRepo, cases: ReadonlyArray<{ path: string; item: Case 
   }
 }
 
-/** Every case's diff, read at once: the reads are independent, and they take no random numbers. */
+/** Every case's diff, read at once: the reads are independent, and they take no random numbers. The status says HEAD exists. */
 async function readDiffs(r: GitRepo, status: RepoStatus, cases: ReadonlyArray<{ path: string; item: Case }>): Promise<TextDiff[]> {
-  const diffs = await Promise.all(cases.map(({ path }) => readWorkingDiff(runner, r.root, findInStatus(status, path))))
+  const headExists = status.branch.headOid !== null
+  const diffs = await Promise.all(cases.map(({ path }) => readWorkingDiff(runner, r.root, findInStatus(status, path), { headExists })))
   return diffs.map((diff, at) => {
     if (diff.kind !== 'text') {
       throw new Error(`expected a text diff for ${JSON.stringify(cases[at]?.item)}`)

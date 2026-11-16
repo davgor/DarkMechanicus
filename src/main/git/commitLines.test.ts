@@ -7,7 +7,7 @@ import { gitIn, put, scratchDir } from '../../test/gitScratch'
 import { commitFiles, findInStatus, requireStatus } from './commit'
 import { readWorkingDiff } from './diff'
 import { GitError, GitInputError } from './errors'
-import { createGitRunner } from './runner'
+import { createGitRunner, type GitRunner } from './runner'
 
 type TextDiff = Extract<FileDiff, { kind: 'text' }>
 
@@ -223,6 +223,33 @@ describe('commitFiles with every line or no line selected', () => {
     // Changes: -a 0, -b 1, +A 2, +B 3; b stays and A follows it.
     expect(show(r, 'f.txt')).toBe('b\nA\n')
     expect(show(r, 'whole.txt')).toBe('w\n')
+  })
+})
+
+describe('commitFiles with selected lines in several files', () => {
+  it('reads each file once, without probing HEAD, and stages every selection with one git apply', async () => {
+    const r = repo()
+    base(r, 'f.txt', 'a\nb\n')
+    base(r, 'g.txt', 'c\n')
+    put(r.root, 'f.txt', 'A\nB\n')
+    put(r.root, 'g.txt', 'C\n')
+    put(r.root, 'n.txt', 'n\nm\n')
+    const files = []
+    for (const path of ['f.txt', 'g.txt', 'n.txt']) {
+      const diff = await workingDiff(r.root, path)
+      files.push({ path, oldPath: null, lines: [0], diffHash: diff.hash })
+    }
+    const runs: string[][] = []
+    const counting: GitRunner = { run: (request) => (runs.push([...request.args]), runner.run(request)) }
+    await commitFiles(counting, r.root, { summary: 'Three', description: '', files })
+    const command = (args: string[]): string | undefined => args.find((arg) => !arg.startsWith('-'))
+    expect(runs.filter((args) => command(args) === 'diff')).toHaveLength(3)
+    expect(runs.filter((args) => command(args) === 'apply')).toHaveLength(1)
+    expect(runs.filter((args) => args.join(' ') === 'rev-parse --verify --quiet HEAD')).toEqual([])
+    // Changes: f -a 0; g -c 0; n +n 0.
+    expect(show(r, 'f.txt')).toBe('b\n')
+    expect(show(r, 'g.txt')).toBe('')
+    expect(show(r, 'n.txt')).toBe('n\n')
   })
 })
 

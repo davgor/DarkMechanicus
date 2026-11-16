@@ -1,0 +1,6 @@
+
+
+DevTools listening on ws://127.0.0.1:59831/devtools/browser/a1d9c3cd-188f-48af-9061-8c06f2f752c9
+20:31:23.503 > Auto-update disabled (dev build or DISABLE_AUTO_UPDATE=1)
+20:33:51.097 > Chat request failed: Error: EBUSY: resource busy or locked, unlink '<scratch>\profile\agents\omp\chat_915d9739-fd69-44e5-b6dd-01541a5d1bea\config.yml'
+20:33:53.109 > Finishing a chat deletion failed: Error: EBUSY: resource busy or locked, unlink '<scratch>\profile\agents\omp\chat_915d9739-fd69-44e5-b6dd-01541a5d1bea\config.yml'

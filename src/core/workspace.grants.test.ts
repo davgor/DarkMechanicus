@@ -4,6 +4,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createHarness, type Harness } from '../test/workspaceHarness'
+import { bindAgentMailEndpoint, provisionAgentMailEndpoint } from './services/agentMail'
 import type { CommandName } from '../shared/domain/api'
 import { COMMAND_CAPABILITIES } from './commands/capabilities'
 import { COMMANDS } from './commands/index'
@@ -88,7 +89,7 @@ describe('a CLI session with a grant', () => {
       grantToken: await tokenFor(desktop, 'orchestrator', { allowSave: true })
     })
     const { capabilities } = await cli.getCapabilities()
-    for (const human of ['checkpoint.approve', 'epic.delete', 'run.queue', 'grant.issue', 'grant.revoke']) {
+    for (const human of ['checkpoint.approve', 'epic.delete', 'run.queue', 'grant.issue', 'grant.revoke', 'mail.manage']) {
       expect(capabilities).not.toContain(human)
     }
   })
@@ -114,6 +115,7 @@ describe('a grant decides what a CLI session may do', () => {
       'chat.name',
       'comment.write',
       'kanban.report',
+      'mail.use',
       'read'
     ])
     await expect(cli.createEpic({ title: 'No' })).rejects.toMatchObject({ code: 'unauthorized' })
@@ -140,6 +142,49 @@ describe('a grant decides what a CLI session may do', () => {
     harness.open('reader', { transport: 'cli' })
     const session = (await harness.open('desktop').listSessions()).find((item) => item.transport === 'cli')
     expect(session?.grantId).toBeNull()
+  })
+})
+
+describe('a grant and the mailbox it may be bound to', () => {
+  it.each(['planner', 'orchestrator', 'worker', 'reviewer'] as const)(
+    'gives a %s grant mail.use, but no mailbox until the desktop binds that very grant',
+    async (role) => {
+      const desktop = await withDesktop()
+      const { grant, token } = await desktop.issueGrant({ role, label: 'dm CLI' })
+      const cli = harness.open('reader', { transport: 'cli', grantToken: token })
+      const before = await cli.getCapabilities()
+      expect(before.capabilities).toContain('mail.use')
+      expect(before.mailbox).toEqual({ bound: false, reason: 'unbound' })
+      await expect(cli.getAgentIdentity({})).rejects.toMatchObject({ code: 'unauthorized' })
+      const endpoint = provisionAgentMailEndpoint(desktop.ctx(), { chatId: `chat-${role}`, name: 'Bound chat' })
+      bindAgentMailEndpoint(desktop.ctx(), { endpointId: endpoint.id, grantId: grant.id })
+      expect((await cli.getCapabilities()).mailbox).toEqual({ bound: true, endpointId: endpoint.id })
+      await expect(cli.getAgentIdentity({})).resolves.toMatchObject({ endpointId: endpoint.id, role })
+    }
+  )
+
+  it('gives a reader grant, and a CLI session without a grant, no mail capability at all', async () => {
+    const desktop = await withDesktop()
+    const granted = harness.open('reader', { transport: 'cli', grantToken: await tokenFor(desktop, 'reader') })
+    const bare = harness.open('orchestrator', { transport: 'cli', allowSave: true })
+    for (const cli of [granted, bare]) {
+      const capabilities = await cli.getCapabilities()
+      expect(capabilities.capabilities).not.toContain('mail.use')
+      expect(capabilities.mailbox).toEqual({ bound: false, reason: 'no_mail_capability' })
+      await expect(cli.getAgentMailStatus({})).rejects.toMatchObject({ code: 'unauthorized' })
+    }
+  })
+
+  it('never lends a bound grant’s mailbox to an MCP session that inherited its token', async () => {
+    const desktop = await withDesktop()
+    const { grant, token } = await desktop.issueGrant({ role: 'worker', label: 'dm CLI' })
+    const endpoint = provisionAgentMailEndpoint(desktop.ctx(), { chatId: 'chat', name: 'Bound chat' })
+    bindAgentMailEndpoint(desktop.ctx(), { endpointId: endpoint.id, grantId: grant.id })
+    const mcp = harness.open('worker', { transport: 'stdio', grantToken: token })
+    expect((await mcp.getCapabilities()).mailbox).toEqual({ bound: false, reason: 'no_grant' })
+    await expect(mcp.getAgentIdentity({})).rejects.toMatchObject({ code: 'unauthorized' })
+    // Positive control: the CLI session on the same token is the mailbox.
+    await expect(harness.open('reader', { transport: 'cli', grantToken: token }).getAgentIdentity({})).resolves.toMatchObject({ endpointId: endpoint.id })
   })
 })
 

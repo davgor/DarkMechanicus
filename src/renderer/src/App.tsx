@@ -22,6 +22,7 @@ import { FirstPromptDialog } from './agents/ChatDialogs'
 import { SignInContext, type SignInRequest } from './agents/signInContext'
 import { SignInView } from './agents/SignInView'
 import { chatsFor } from './agents/useChats'
+import { AgentMailContext } from './agents/useAgentMail'
 import { TerminalPane } from './agents/TerminalPane'
 import type { TerminalKit } from './agents/terminalView'
 import { xtermKit } from './agents/xtermKit'
@@ -138,6 +139,8 @@ function ChatPane({ shell, folder, chat, scheduler, terminalKit }: ChatPaneProps
       kit={terminalKit}
       scheduler={scheduler}
       onAgentStatus={(status) => shell.agents.recordStatus(chat.agent, status)}
+      peers={folder === null ? undefined : chatsFor(shell.chats.lists, folder).chats}
+      onOpenChat={folder === null ? undefined : (chatId) => shell.actions.selectChat(folder, chatId)}
     />
   )
 }
@@ -377,33 +380,35 @@ function Shell({ scheduler, EpicView, terminalKit }: { scheduler: Scheduler; Epi
   const { actions } = shell
   return (
     <SignInContext.Provider value={signIn.open}>
-      <div className="app-shell">
-        <ShellSidebar shell={shell} version={update.currentVersion} onNewChat={(folder) => {
-            if (folder !== null && firstPrompt === null) void startNewChat(shell, folder, startingChats.current, (agent) => setFirstPrompt({ folder, agent }))
-          }} onSummon={(agent) => {
-            if (firstPrompt === null) setFirstPrompt({ folder: null, agent })
-          }} onClone={() => setCloning(true)} onRequestUntrack={setPending} />
-        <main className="app-main" aria-label="Workspace">
-          {signIn.request === null ? null : <SignInView request={signIn.request} kit={terminalKit} scheduler={scheduler} onBack={signIn.close} />}
-          {/* Kept while the sign-in view shows, hidden, so Back returns to the screen (and any dialog on it) as it was. */}
-          <div className="main-view" hidden={signingIn}>
-            <MainPane shell={shell} EpicView={EpicView} scheduler={scheduler} terminalKit={terminalKit} onRequestUntrack={setPending} onClone={() => setCloning(true)} />
-          </div>
-        </main>
-        <UpdateBanner />
-        {cloning ? <CloneHost shell={shell} onClose={() => setCloning(false)} /> : null}
-        {firstPrompt === null ? null : <FirstPromptHost shell={shell} request={firstPrompt} onClose={() => setFirstPrompt(null)} />}
-        {pending === null ? null : (
-          <UntrackDialog
-            folder={pending}
-            onCancel={() => setPending(null)}
-            onConfirm={() => {
-              void actions.untrack(pending.path)
-              setPending(null)
-            }}
-          />
-        )}
-      </div>
+      <AgentMailContext.Provider value={shell.mail}>
+        <div className="app-shell">
+          <ShellSidebar shell={shell} version={update.currentVersion} onNewChat={(folder) => {
+              if (folder !== null && firstPrompt === null) void startNewChat(shell, folder, startingChats.current, (agent) => setFirstPrompt({ folder, agent }))
+            }} onSummon={(agent) => {
+              if (firstPrompt === null) setFirstPrompt({ folder: null, agent })
+            }} onClone={() => setCloning(true)} onRequestUntrack={setPending} />
+          <main className="app-main" aria-label="Workspace">
+            {signIn.request === null ? null : <SignInView request={signIn.request} kit={terminalKit} scheduler={scheduler} onBack={signIn.close} />}
+            {/* Kept while the sign-in view shows, hidden, so Back returns to the screen (and any dialog on it) as it was. */}
+            <div className="main-view" hidden={signingIn}>
+              <MainPane shell={shell} EpicView={EpicView} scheduler={scheduler} terminalKit={terminalKit} onRequestUntrack={setPending} onClone={() => setCloning(true)} />
+            </div>
+          </main>
+          <UpdateBanner />
+          {cloning ? <CloneHost shell={shell} onClose={() => setCloning(false)} /> : null}
+          {firstPrompt === null ? null : <FirstPromptHost shell={shell} request={firstPrompt} onClose={() => setFirstPrompt(null)} />}
+          {pending === null ? null : (
+            <UntrackDialog
+              folder={pending}
+              onCancel={() => setPending(null)}
+              onConfirm={() => {
+                void actions.untrack(pending.path)
+                setPending(null)
+              }}
+            />
+          )}
+        </div>
+      </AgentMailContext.Provider>
     </SignInContext.Provider>
   )
 }

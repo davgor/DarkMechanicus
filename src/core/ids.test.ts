@@ -128,7 +128,7 @@ describe('createIdGenerator time handling', () => {
   })
 })
 
-describe('createIdGenerator kinds and secrets', () => {
+describe('createIdGenerator kinds', () => {
   it.each(ID_KINDS)('generates a valid 29-char %s id with its own prefix', (kind) => {
     const id = createIdGenerator(() => 1_700_000_000_000, fixedRandom((i) => i * 7).random).next(kind)
     expect(id.startsWith(`${ID_PREFIXES[kind]}_`)).toBe(true)
@@ -157,7 +157,10 @@ describe('createIdGenerator kinds and secrets', () => {
       kanbanCard: 'kc',
       kanbanAttempt: 'ka',
       kanbanEvent: 'ke',
-      attachment: 'im'
+      attachment: 'im',
+      mailEndpoint: 'me',
+      mailMessage: 'mm',
+      mailWake: 'mw'
     })
   })
 
@@ -169,7 +172,9 @@ describe('createIdGenerator kinds and secrets', () => {
     expect(isStableId(card, 'ticket')).toBe(false)
     expect(isStableId(card, 'kanbanAttempt')).toBe(false)
   })
+})
 
+describe('createIdGenerator secrets', () => {
   it('encodes 24 random bytes as unpadded base64url secrets', () => {
     const sequence = fixedRandom((index) => index)
     const ids = createIdGenerator(() => 0, sequence.random)

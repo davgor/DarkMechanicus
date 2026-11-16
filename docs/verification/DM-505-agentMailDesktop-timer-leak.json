@@ -1,0 +1,11 @@
+{
+  "test": "src/main/agents/agentMailDesktop.test.ts > the central mail monitor: pages, generations and timers > reads in bounded pages with one sweep in flight, and discards a sweep's late results once its folder stops",
+  "failingRun": { "where": "npm run coverage (DM-505-coverage.run1-failed.log)", "assertion": "expect(vi.getTimerCount()).toBe(0) received 1 (line 393)" },
+  "diagnosis": "Temporary log in ChatMailDesk.poll's catch (removed) showed, inside this test, repeated polls failing with '<previous test's temp root>\\a is not initialized': monitors created by earlier tests (via snapshot) were never disposed. Their 2 s poll ran on the real clock after their test removed its folder; when one fired during this test, which fakes setTimeout, ChatMailDesk.schedule re-armed it on the fake clock, so the test counted a timer it did not create. Only happens when enough real time passes between tests (load).",
+  "fix": "The test file records every service watchedMail creates and disposes them all in afterEach, before vi.useRealTimers().",
+  "stress": {
+    "method": "16 concurrent `npx vitest run <file>` processes x 3 rounds, env -u CI -u DM_DESKTOP_PIPE -u DM_SESSION_TOKEN",
+    "beforeFix": "1 of 48 runs failed this test (an earlier 16-run round with diagnostic logging: 2 of 16)",
+    "afterFix": "0 of 48 runs failed; all 48 runs 12/12 passed"
+  }
+}

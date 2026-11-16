@@ -172,7 +172,7 @@ function createWorld(options: WorldOptions = {}): World {
     removals: [],
     deps: {
       registry: createRegistryFake(tracked, options.aliases ?? {}),
-      pool: createPoolFake(log, options),
+      ...folderDeps(log, options),
       onUnexpectedError: (error) => {
         world.unexpected.push(error instanceof Error ? error.message : String(error))
       },
@@ -203,6 +203,17 @@ function createWorld(options: WorldOptions = {}): World {
     }
   }
   return world
+}
+
+/** The pool fake, and an untrack release that runs the untrack at once: the terminals, mailboxes and mail monitor it waits for are not under test here. */
+function folderDeps(log: { opened: string[]; closed: string[] }, options: WorldOptions): Pick<DesktopHandlerDeps, 'pool' | 'releaseFolder' | 'stopMailMonitor'> {
+  return {
+    pool: createPoolFake(log, options),
+    releaseFolder: async (_folder, forget) => {
+      forget()
+    },
+    stopMailMonitor: () => {}
+  }
 }
 
 /** Board removal that records each call on the world and answers with the canned plan and result. */
@@ -313,12 +324,47 @@ describe('untrackFolder', () => {
     expect(world.closed).toEqual([])
   })
 
+  it('stops the folder’s mail monitor, then releases its chat terminals and mailboxes, before the registry forgets it and its workspace closes', async () => {
+    const world = createWorld({ tracked: ['/repos/a'] })
+    const seen: string[] = []
+    const handlers = createDesktopHandlers({
+      ...world.deps,
+      stopMailMonitor: (folder) => {
+        seen.push(`stop mail ${folder}: tracked [${world.tracked.join()}], closed [${world.closed.join()}]`)
+      },
+      releaseFolder: async (folder, forget) => {
+        seen.push(`release ${folder}: tracked [${world.tracked.join()}], closed [${world.closed.join()}]`)
+        forget()
+        seen.push(`forgotten: tracked [${world.tracked.join()}], closed [${world.closed.join()}]`)
+      }
+    })
+
+    expect(await handlers.untrackFolder('/repos/a')).toEqual([])
+    expect(seen).toEqual([
+      'stop mail /repos/a: tracked [/repos/a], closed []',
+      'release /repos/a: tracked [/repos/a], closed []',
+      'stop mail /repos/a: tracked [/repos/a], closed []',
+      'forgotten: tracked [], closed [/repos/a]'
+    ])
+  })
+
   it('rejects malformed input', async () => {
     const handlers = createDesktopHandlers(createWorld({ tracked: ['/repos/a'] }).deps)
 
     expect((await rejectionOf(handlers.untrackFolder(42))).code).toBe('invalid_input')
     expect((await rejectionOf(handlers.untrackFolder(undefined))).code).toBe('invalid_input')
     expect((await rejectionOf(handlers.untrackFolder(''))).code).toBe('invalid_input')
+  })
+})
+
+describe('untrackFolder and the mail monitor', () => {
+  it('stops no mail monitor for a folder that is not tracked', async () => {
+    const world = createWorld({ tracked: ['/repos/a'] })
+    const stopped: string[] = []
+    const handlers = createDesktopHandlers({ ...world.deps, stopMailMonitor: (folder) => void stopped.push(folder) })
+
+    await handlers.untrackFolder('/repos/stranger')
+    expect(stopped).toEqual([])
   })
 })
 

@@ -1,0 +1,27 @@
+PASS cli:13 node out/main/cli.js --help
+PASS cli:19 node out/main/cli.js --list
+PASS cli:20 node out/main/cli.js --describe claim_ticket
+PASS cli:21 node out/main/cli.js call list_epics '{}'
+PASS cli:22 node out/main/cli.js call get_epic '{"epicId":"ep_…"}'
+PASS cli:179 umask 077 && printf '%s' 'dmg_…' > ~/.config/dm-token
+PASS cli:180 node out/main/cli.js --token-file ~/.config/dm-token call create_epic '{"title":"…"}'
+PASS cli:197 export DM_SESSION_TOKEN='dmg_…'
+PASS cli:198 node out/main/cli.js call create_epic '{"title":"…"}'
+PASS cli:275 printf '%s' '{"limit":10}' | dm call list_agent_peers -
+PASS cli:276 printf '%s' '{"to":"me_…","clientMessageId":"review-1","body":"Ready for review?"}' | dm c
+PASS cli:277 dm call get_agent_mail_status
+PASS cli:278 printf '%s' '{"unacknowledgedOnly":true}' | dm call read_agent_inbox -
+PASS cli:279 printf '%s' '{"to":"me_…","clientMessageId":"review-1-reply","body":"Reviewed.","inReplyTo
+PASS cli:280 dm call send_agent_message --args-file "$TMP/reply.json"
+PASS cli:281 printf '%s' '{"messageIds":["mm_…"]}' > "$TMP/ack.json"
+PASS cli:282 dm call acknowledge_agent_messages --args-file "$TMP/ack.json"
+PASS verification:90 $DM call get_capabilities                       # "mailbox":{"bound":true,"endpointId":"<B
+PASS verification:91 printf '%s' '{"limit":10}' | $DM call list_agent_peers -
+PASS verification:92 printf '%s' '{"unacknowledgedOnly":true}' | $DM call read_agent_inbox -
+PASS verification:99 printf '%s' '{"to":"<A>","clientMessageId":"reply-1","body":"Reviewed: ship it.","inReplyT
+PASS verification:100 $DM call send_agent_message --args-file "$TMP/reply.json"
+PASS verification:101 printf '%s' '{"messageIds":["<M1>"]}' > "$TMP/ack.json"
+PASS verification:102 $DM call acknowledge_agent_messages --args-file "$TMP/ack.json"
+PASS verification:104 $DM call get_agent_mail_status                                   # pendingCount: 0
+PASS verification:123 cd "$REPO" && DARKMECHANICUS_HOME="$HOME_DIR" node "$APP/out/main/cli.js" --repo "$REPO" c
+32 steps, 0 failed

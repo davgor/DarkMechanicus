@@ -11,6 +11,7 @@ import type { RepositoryEntry } from '../repo/portable'
 import { rescanRepositories, writeDefinitionOfDone } from '../repo/projectConfig'
 import { getStorageStatus } from '../repo/storage'
 import { COMMAND_SCHEMAS } from '../commandSchemas'
+import { agentMailboxStatus } from '../services/agentMail'
 import { resolveEpicConflict } from '../services/epicConflict'
 import { appendEvent, listEvents } from '../services/events'
 import { issueGrant, listGrants, renewGrant, revokeGrant } from '../services/grants'
@@ -20,6 +21,7 @@ import { SKILLS_VERSION } from '../version'
 import type { CommandTable, WorkspaceCore } from './types'
 
 function capabilitiesView(core: WorkspaceCore): CapabilitiesView {
+  const initialized = core.isInitialized()
   return {
     server: core.options.serverInfo ?? { name: 'darkmechanicus', version: '0.0.0' },
     apiVersion: API_VERSION,
@@ -27,9 +29,13 @@ function capabilitiesView(core: WorkspaceCore): CapabilitiesView {
     skillsVersion: SKILLS_VERSION,
     role: core.role,
     sessionId: core.sessionId(),
-    capabilities: core.isInitialized() ? [...core.ctx().session.capabilities] : core.roleCapabilities(),
+    capabilities: initialized ? [...core.ctx().session.capabilities] : core.roleCapabilities(),
     repoRoot: core.repoRoot,
-    initialized: core.isInitialized()
+    initialized,
+    // Never a promise the role alone could make: an uninitialized folder has no mailbox to be bound to.
+    mailbox: initialized
+      ? agentMailboxStatus(core.ctx())
+      : { bound: false, reason: core.roleCapabilities().includes('mail.use') ? 'unbound' : 'no_mail_capability' }
   }
 }
 
@@ -175,7 +181,12 @@ const repositoryCommands = {
     mutates: false,
     run: (core, input) => {
       const ctx = core.ctx()
-      requireCapability(ctx.session, 'repo.backup')
+      // Supported-API restriction: the copy holds every local mailbox, so only the desktop backs the database up.
+      requireCapability(
+        ctx.session,
+        'repo.backup',
+        'Only the person in the Dark Mechanicus desktop app can back up the whole database: the copy includes private local agent mail.'
+      )
       const target = input.targetPath ? join(core.layout.localDir, 'backups', input.targetPath) : undefined
       return backupDatabase({ db: ctx.db, layout: core.layout, fs: core.fs, clock: core.clock }, target)
     }

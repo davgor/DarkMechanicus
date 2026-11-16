@@ -1,0 +1,44 @@
+
+> dark-mechanicus@0.34.0 deadcode
+> node scripts/deadcode-check.mjs
+
+New dead exports detected:
+resources/skitarii/extension/dmClient.ts:33 - DmClientLimits
+resources/skitarii/extension/dmClient.ts:45 - DM_MAIL_COMMANDS
+resources/skitarii/extension/dmClient.ts:59 - DmMailWindow
+resources/skitarii/extension/dmClient.ts:78 - DmMailReadInput
+resources/skitarii/extension/dmClient.ts:82 - DmMailSendInput
+resources/skitarii/extension/dmClient.ts:154 - DmClientErrorCode
+resources/skitarii/extension/messaging.ts:118 - mailSupport
+resources/skitarii/extension/messaging.ts:312 - mailTools
+resources/skitarii/extension/messaging.ts:499 - inboxReminder
+resources/skitarii/extension/messaging.ts:65 - MailUi
+resources/skitarii/extension/messaging.ts:333 - MailWatcherDeps
+src/core/services/agentMail.ts:67 - MAILBOX_ROLES
+src/core/services/agentMailStore.ts:219 - mailBodyBytes
+src/core/services/agentMailStore.ts:56 - MailEndpointState
+src/core/services/agentMailStore.ts:58 - MailBindingCloseReason
+src/core/services/agentMailStore.ts:88 - MailMessageMeta
+src/core/services/agentMailStore.ts:100 - MailMessage
+src/core/services/agentMailStore.ts:105 - MailAcceptance
+src/core/services/agentMailStore.ts:127 - MailStatusPage
+src/core/services/agentMailStore.ts:134 - HumanMailState
+src/core/services/agentMailStore.ts:549 - SendMailInput
+src/main/agents/agentMailDesktop.ts:40 - MAIL_POLL_MS
+src/main/agents/agentMailDesktop.ts:42 - MAIL_PAGE_SIZE
+src/main/agents/chatMailboxes.ts:139 - ReconciledChats
+src/main/desktop/cliConfig.ts:46 - DmClientRuntime
+src/shared/agents/chatApi.ts:151 - ChatMailWakeView
+src/shared/agents/chatApi.ts:185 - ReadChatMailRequest
+src/shared/agents/chatApi.ts:198 - MarkChatMailSeenRequest
+src/shared/agents/chatApi.ts:207 - AllowChatMailWakeRequest
+src/shared/domain/agentMail.ts:26 - AgentPeerView
+src/shared/domain/agentMail.ts:62 - AgentMailSenderView
+src/shared/domain/agentMail.ts:70 - AgentMailMessageMetaView
+src/shared/domain/agentMail.ts:85 - AgentMailMessageView
+src/shared/agents/chatApi.ts:151 - ChatMailWakeView
+src/shared/domain/agentMail.ts:26 - AgentPeerView
+src/shared/domain/agentMail.ts:62 - AgentMailSenderView
+src/shared/domain/agentMail.ts:70 - AgentMailMessageMetaView
+src/shared/domain/agentMail.ts:143 - AgentMailWakeState
+src/shared/domain/agentMail.ts:152 - HumanAgentMailStateView

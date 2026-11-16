@@ -1,0 +1,1786 @@
+{
+  "ticket": "DM-505",
+  "criteria": [
+    "c1",
+    "c2"
+  ],
+  "run": "mwim1zjx",
+  "startedAt": "2026-11-16T01:54:40.319Z",
+  "environment": {
+    "os": "win32 10.0.26200",
+    "arch": "x64",
+    "harnessNode": "v24.22.3",
+    "cliRuntime": {
+      "executable": "node_modules\\electron\\dist\\electron.exe",
+      "electron": "42.11.18",
+      "node": "24.19.0",
+      "sqlite": "3.53.3"
+    },
+    "appVersion": "0.37.0",
+    "commit": "6e2050ff18bd97f238b322ece4549f9dca59ccfd",
+    "branch": "acc-DM-505-cli",
+    "installedOmp": "omp/18.20.2",
+    "scratch": "mkdtemp under the system temp folder (repo path with a space, apostrophe and Unicode); removed at the end",
+    "cli": "out/main/cli.js built by npm run build in this worktree"
+  },
+  "checks": [
+    {
+      "id": "discovery.capabilities-bound",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "bound": true,
+        "endpointId": "me_01m7h10k3tddtb17enbxv7p5t0"
+      }
+    },
+    {
+      "id": "discovery.identity",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "endpointId": "me_01m7h10k3tddtb17enbxv7p5t0",
+        "name": "Alpha",
+        "role": "worker",
+        "boundAt": "2026-11-16T01:54:41.415Z"
+      }
+    },
+    {
+      "id": "discovery.peers-paged",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "pages": 3,
+        "seen": [
+          "me_01m7h10k4a971qjmc4tmqm22sy",
+          "me_01m7h10k4kfdg64aqs19wjv0pc",
+          "me_01m7h10k4wpj8274bfk8xvg7w0"
+        ],
+        "self": "me_01m7h10k3tddtb17enbxv7p5t0"
+      }
+    },
+    {
+      "id": "send.accepted",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "messageId": "mm_01m7h10m9chmhczk5gwh9130tm",
+        "to": "me_01m7h10k4a971qjmc4tmqm22sy",
+        "clientMessageId": "j-1",
+        "inReplyTo": null,
+        "acceptedAt": "2026-11-16T01:54:42.603Z",
+        "duplicate": false
+      }
+    },
+    {
+      "id": "send.retry-same-client-id-replays",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "acceptedAt": "2026-11-16T01:54:42.603Z",
+        "clientMessageId": "j-1",
+        "inReplyTo": null,
+        "messageId": "mm_01m7h10m9chmhczk5gwh9130tm",
+        "to": "me_01m7h10k4a971qjmc4tmqm22sy",
+        "duplicate": true
+      }
+    },
+    {
+      "id": "send.changed-payload-conflict",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "ok": false,
+        "error": {
+          "code": "idempotency_mismatch",
+          "message": "This clientMessageId was already used for a different message.",
+          "details": {
+            "clientMessageId": "j-1"
+          }
+        }
+      }
+    },
+    {
+      "id": "send.one-row",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "one stored message for (alpha, j-1)"
+    },
+    {
+      "id": "paging.bulk-sent",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "sent": 60,
+        "failed": []
+      }
+    },
+    {
+      "id": "paging.status-over-50",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "pendingCount": 61,
+        "page": 50,
+        "hasMore": true,
+        "snapshotHighWater": 61
+      }
+    },
+    {
+      "id": "paging.status-page-2",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "page": 11,
+        "hasMore": false
+      }
+    },
+    {
+      "id": "paging.inbox-pages-gap-free",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "pages": 9,
+        "seqs": "1..61 (61)"
+      }
+    },
+    {
+      "id": "paging.arrivals-during-paging",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "arrivalsAcceptedWhilePaging": 8,
+        "of": 10,
+        "pagingStarted": "2026-11-16T01:54:47.307Z",
+        "pagingEnded": "2026-11-16T01:54:49.152Z"
+      }
+    },
+    {
+      "id": "paging.next-sweep-gets-arrivals",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "seqs": [
+          62,
+          63,
+          64,
+          65,
+          66,
+          67,
+          68,
+          69,
+          70,
+          71
+        ]
+      }
+    },
+    {
+      "id": "paging.reading-never-acks",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "pendingCount 71 after reading every message"
+    },
+    {
+      "id": "reply.body-exact",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "from": {
+          "endpointId": "me_01m7h10k3tddtb17enbxv7p5t0",
+          "name": "Alpha",
+          "deleted": false
+        },
+        "exact": true
+      }
+    },
+    {
+      "id": "reply.accepted",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "messageId": "mm_01m7h10vhr8yry4avx09w6ag6j",
+        "to": "me_01m7h10k3tddtb17enbxv7p5t0",
+        "clientMessageId": "j-1-reply",
+        "inReplyTo": "mm_01m7h10m9chmhczk5gwh9130tm",
+        "acceptedAt": "2026-11-16T01:54:50.039Z",
+        "duplicate": false
+      }
+    },
+    {
+      "id": "reply.read-by-alpha",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "inReplyTo": "mm_01m7h10m9chmhczk5gwh9130tm",
+        "from": {
+          "endpointId": "me_01m7h10k4a971qjmc4tmqm22sy",
+          "name": "Beta",
+          "deleted": false
+        }
+      }
+    },
+    {
+      "id": "ack.owned",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "messageId": "mm_01m7h10m9chmhczk5gwh9130tm",
+        "acknowledgedAt": "2026-11-16T01:54:50.702Z",
+        "expiresAt": "2026-11-23T01:54:50.702Z"
+      }
+    },
+    {
+      "id": "ack.idempotent-first-time",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "acknowledged": [
+          {
+            "messageId": "mm_01m7h10m9chmhczk5gwh9130tm",
+            "acknowledgedAt": "2026-11-16T01:54:50.702Z",
+            "expiresAt": "2026-11-23T01:54:50.702Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ack.pending-drops",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "before": 71,
+        "after": 70
+      }
+    },
+    {
+      "id": "ack.alpha-acks-reply",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "acknowledged": [
+          {
+            "messageId": "mm_01m7h10vhr8yry4avx09w6ag6j",
+            "acknowledgedAt": "2026-11-16T01:54:51.359Z",
+            "expiresAt": "2026-11-23T01:54:51.359Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "deny.zero-grant.identity",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "error": {
+          "code": "unauthorized",
+          "message": "This reader session is not permitted to perform \"mail.use\".",
+          "details": {
+            "role": "reader",
+            "capability": "mail.use"
+          }
+        },
+        "hint": "dm: this session presented no grant, so it may only read. Issue one in the desktop app (the folder's Agent access card) and pass it as $DM_SESSION_TOKEN or --token-file."
+      }
+    },
+    {
+      "id": "deny.zero-grant.capabilities",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "bound": false,
+        "reason": "no_mail_capability"
+      }
+    },
+    {
+      "id": "deny.zero-grant.status-poll",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "restricted poll without a grant"
+    },
+    {
+      "id": "deny.zero-grant.send",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "send without a grant"
+    },
+    {
+      "id": "deny.zero-grant.positive-control",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "an ungranted reader may still read"
+    },
+    {
+      "id": "deny.stdio-agent.capabilities-no-grant",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "bound": false,
+        "reason": "no_grant"
+      }
+    },
+    {
+      "id": "deny.stdio-agent.mail-tools-unauthorized",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": [
+        {
+          "tool": "get_agent_identity",
+          "code": "unauthorized"
+        },
+        {
+          "tool": "send_agent_message",
+          "code": "unauthorized"
+        },
+        {
+          "tool": "get_agent_mail_status",
+          "code": "unauthorized"
+        }
+      ]
+    },
+    {
+      "id": "deny.stdio-agent.positive-control",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "the same stdio worker session lists epics"
+    },
+    {
+      "id": "deny.reader.capabilities",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "bound": false,
+        "reason": "no_mail_capability"
+      }
+    },
+    {
+      "id": "deny.reader.identity",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "reader identity"
+    },
+    {
+      "id": "deny.reader.status-poll",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "reader poll"
+    },
+    {
+      "id": "deny.reader.desktop-will-not-bind",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "readerBind": "invalid_input"
+      }
+    },
+    {
+      "id": "deny.reader.positive-control",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "reader grant reads"
+    },
+    {
+      "id": "deny.unbound.capabilities",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "bound": false,
+        "reason": "unbound"
+      }
+    },
+    {
+      "id": "deny.unbound.identity",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "unbound identity"
+    },
+    {
+      "id": "deny.unbound.send",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "unbound send"
+    },
+    {
+      "id": "deny.unbound.status-poll",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "unbound poll"
+    },
+    {
+      "id": "deny.unbound.wake-poll",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "unbound wake"
+    },
+    {
+      "id": "deny.unbound.positive-control-after-bind",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "endpointId": "me_01m7h10zrxkh6ecb2nmas5evez",
+        "name": "Epsilon",
+        "role": "worker",
+        "boundAt": "2026-11-16T01:54:54.367Z"
+      }
+    },
+    {
+      "id": "deny.expired.identity",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "expiresAt": "2026-11-15T23:59:54.591Z",
+        "note": "grant issued/bound through the services with a clock 2 h back; CLI on the real clock"
+      }
+    },
+    {
+      "id": "deny.expired.status-poll",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "expired poll"
+    },
+    {
+      "id": "deny.expired.send",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "expired send"
+    },
+    {
+      "id": "deny.expired.positive-control-twin",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "endpointId": "me_01m7gt58r52w13barwqgpg2eh3",
+        "name": "Eta",
+        "role": "worker",
+        "boundAt": "2026-11-15T23:54:54.603Z"
+      }
+    },
+    {
+      "id": "deny.revoked.positive-control-before",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "identity": true,
+        "poll": true
+      }
+    },
+    {
+      "id": "deny.revoked.identity",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "revoked identity"
+    },
+    {
+      "id": "deny.revoked.status-poll",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "revoked poll on its existing dedicated session"
+    },
+    {
+      "id": "deny.revoked.wake-poll",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "revoked wake"
+    },
+    {
+      "id": "deny.revoked.send",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "revoked send"
+    },
+    {
+      "id": "deny.revoked.read",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "revoked read"
+    },
+    {
+      "id": "deny.foreign-folder.identity",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "repo": "repo-copy (same DB copy and machine.json)",
+        "error": {
+          "code": "unauthorized",
+          "message": "This session has no usable mailbox. A mailbox belongs to a dm CLI grant the desktop bound to this chat, used on this machine in this folder while the grant is current."
+        }
+      }
+    },
+    {
+      "id": "deny.foreign-folder.status-poll",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "foreign-folder poll"
+    },
+    {
+      "id": "deny.foreign-folder.positive-control",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "same grant in its own folder"
+    },
+    {
+      "id": "deny.foreign-machine.identity",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "code": "unauthorized",
+        "message": "That grant is not usable: it is unknown, expired, revoked, or was issued on another machine."
+      }
+    },
+    {
+      "id": "deny.foreign-machine.status-poll",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "poll after an ordinary open recorded the other machine id"
+    },
+    {
+      "id": "deny.foreign-machine.positive-control-restored",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "identity": true,
+        "poll": true
+      }
+    },
+    {
+      "id": "deny.mixed-foreign-ack-rolls-back",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "error": {
+          "code": "not_found",
+          "message": "Some of those messages are not in this inbox; none was acknowledged.",
+          "details": {
+            "field": "messageIds"
+          }
+        },
+        "ownAckedAt": null,
+        "pendingBefore": 70,
+        "pendingAfter": 70
+      }
+    },
+    {
+      "id": "deny.mixed-foreign-ack.positive-control",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "acknowledged": [
+          {
+            "messageId": "mm_01m7h10my8k4kj64zyntt80eg3",
+            "acknowledgedAt": "2026-11-16T01:54:59.124Z",
+            "expiresAt": "2026-11-23T01:54:59.124Z"
+          }
+        ]
+      }
+    },
+    {
+      "id": "deny.reply-to-message-from-another-sender",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "code": "invalid_input",
+        "message": "A reply goes to the sender of the message it answers.",
+        "details": {
+          "field": "to"
+        }
+      }
+    },
+    {
+      "id": "deny.reply-to-message-not-in-own-inbox",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "code": "reply_unavailable",
+        "message": "The message being replied to is no longer in this inbox.",
+        "details": {
+          "inReplyTo": "mm_01m7h10vhr8yry4avx09w6ag6j"
+        }
+      }
+    },
+    {
+      "id": "deny.reply-to-unknown-id",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "code": "invalid_input",
+        "message": "Invalid sendAgentMessage input at inReplyTo: Expected a stable id such as tk_…"
+      }
+    },
+    {
+      "id": "deny.refused-replies-stored-nothing",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "no message or receipt"
+    },
+    {
+      "id": "deny.unrelated-reply.positive-control",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "the correlated reply in reply-ack was accepted"
+    },
+    {
+      "id": "deny.backup.unbound-orchestrator",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": "orchestrator grant, never bound"
+    },
+    {
+      "id": "deny.backup.bound-worker",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": "bound worker grant"
+    },
+    {
+      "id": "deny.backup.no-grant",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": "no grant"
+    },
+    {
+      "id": "deny.backup.no-file-written",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": "no backups folder"
+    },
+    {
+      "id": "stopped.old-grant-refused",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "the stopped chat’s grant no longer reaches the mailbox"
+    },
+    {
+      "id": "stopped.still-discoverable",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "endpoint open while its chat is stopped"
+    },
+    {
+      "id": "stopped.send-accepted",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "messageId": "mm_01m7h116fg89f312hmx83txbxb",
+        "to": "me_01m7h10k4wpj8274bfk8xvg7w0",
+        "clientMessageId": "stopped-1",
+        "inReplyTo": null,
+        "acceptedAt": "2026-11-16T01:55:01.231Z",
+        "duplicate": false
+      }
+    },
+    {
+      "id": "reopen.database-keeps-mail",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": {
+        "before": {
+          "messages": 73,
+          "receipts": 73
+        },
+        "after": {
+          "messages": 73,
+          "receipts": 73
+        }
+      }
+    },
+    {
+      "id": "stopped.reads-after-restart",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "pendingCount": 1,
+        "read": 1
+      }
+    },
+    {
+      "id": "stopped.same-endpoint-after-restart",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "endpointId": "me_01m7h10k4wpj8274bfk8xvg7w0",
+        "name": "Delta",
+        "role": "orchestrator",
+        "boundAt": "2026-11-16T01:55:01.292Z"
+      }
+    },
+    {
+      "id": "stopped.acks",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "ack after restart"
+    },
+    {
+      "id": "reopen.beta-pending-unchanged",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": "beta still has its 69 unacknowledged messages after the reopen"
+    },
+    {
+      "id": "seen.moves-only-human-cursor",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "s0": {
+          "unseen": 71,
+          "pending": 69
+        },
+        "s1": {
+          "unseen": 61,
+          "pending": 69,
+          "humanSeenSeq": 10
+        },
+        "agentPending": 69
+      }
+    },
+    {
+      "id": "seen.monotonic",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "backwards": {
+          "humanSeenSeq": 10
+        },
+        "humanSeenSeq": 10
+      }
+    },
+    {
+      "id": "seen.not-beyond-served",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "beyond": {
+          "error": "invalid_input"
+        }
+      }
+    },
+    {
+      "id": "seen.agent-ack-leaves-human-unseen",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "unseen": [
+          61,
+          61
+        ],
+        "pending": [
+          69,
+          68
+        ]
+      }
+    },
+    {
+      "id": "quota.unacked-1024-then-mailbox-full",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": {
+        "last": true,
+        "over": {
+          "code": "mailbox_full",
+          "message": "The recipient’s mailbox is full; try again after it reads its mail.",
+          "details": {
+            "to": "me_01m7h118arwkq150sqnqw6temc",
+            "pendingLimit": 1024,
+            "retainedLimit": 4096
+          }
+        }
+      }
+    },
+    {
+      "id": "quota.recipient-bound-applies-to-every-sender",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": "alpha → full iota"
+    },
+    {
+      "id": "quota.other-mailboxes-unaffected",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": "kappa → beta while iota is full"
+    },
+    {
+      "id": "quota.receipt-replays-while-full",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": {
+        "acceptedAt": "2026-11-16T01:55:07.450Z",
+        "clientMessageId": "fill-1023",
+        "inReplyTo": null,
+        "messageId": "mm_01m7h11chv27g12zd0hpmqsg04",
+        "to": "me_01m7h118arwkq150sqnqw6temc",
+        "duplicate": true
+      }
+    },
+    {
+      "id": "quota.ack-frees-room",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": {
+        "pendingCount": 1024,
+        "room": true
+      }
+    },
+    {
+      "id": "quota.retained-4096-mailbox-full",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": {
+        "code": "mailbox_full",
+        "message": "The recipient’s mailbox is full; try again after it reads its mail.",
+        "details": {
+          "to": "me_01m7h11ec197en8k9cf53s945h",
+          "pendingLimit": 1024,
+          "retainedLimit": 4096
+        }
+      }
+    },
+    {
+      "id": "quota.receipts-8192-then-receipt-quota-full",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": {
+        "receipts": 8192,
+        "error": {
+          "code": "receipt_quota_full",
+          "message": "This mailbox has sent as many messages as it may within seven days; try again later.",
+          "details": {
+            "limit": 8192
+          }
+        }
+      }
+    },
+    {
+      "id": "quota.receipt-replay-at-quota",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": {
+        "acceptedAt": "2026-11-16T01:55:09.382Z",
+        "clientMessageId": "q-rho1-0-0",
+        "inReplyTo": null,
+        "messageId": "mm_01m7h11ee6c3kasjemp7smfppf",
+        "to": "me_01m7h11ec197en8k9cf53s945h",
+        "duplicate": true
+      }
+    },
+    {
+      "id": "quota.receipts-independent-per-sender",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": "alpha sends while lambda is at its receipt quota"
+    },
+    {
+      "id": "quota.sequences-independent-per-recipient",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": [
+        {
+          "lo": 1,
+          "hi": 1,
+          "n": 1
+        },
+        {
+          "lo": 1,
+          "hi": 72,
+          "n": 72
+        },
+        {
+          "lo": 1,
+          "hi": 1,
+          "n": 1
+        },
+        {
+          "lo": 1,
+          "hi": 1025,
+          "n": 1025
+        },
+        {
+          "lo": 1,
+          "hi": 4096,
+          "n": 4096
+        },
+        {
+          "lo": 1,
+          "hi": 4096,
+          "n": 4096
+        },
+        {
+          "lo": 1,
+          "hi": 1,
+          "n": 1
+        }
+      ]
+    },
+    {
+      "id": "deleting.crashed-mid-deletion",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "first": {
+          "state": "deleting",
+          "purged": 100,
+          "done": false
+        },
+        "exitCode": 1
+      }
+    },
+    {
+      "id": "deleting.intent-survives-crash",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "state": "deleting",
+        "remaining": 51
+      }
+    },
+    {
+      "id": "deleting.grant-refused",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "grant of a deleting mailbox"
+    },
+    {
+      "id": "deleting.new-send-not-found",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "code": "not_found",
+        "message": "No open mailbox has that id.",
+        "details": {
+          "to": "me_01m7h12jpp2ffpk6asp2yefxrr"
+        }
+      }
+    },
+    {
+      "id": "deleting.never-reprovisioned",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "reprovision": "invalid_state"
+      }
+    },
+    {
+      "id": "deleting.not-a-peer",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "peers exclude a deleting endpoint"
+    },
+    {
+      "id": "deleting.finished-after-recovery",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "calls": 1,
+        "state": "deleted"
+      }
+    },
+    {
+      "id": "deleting.sent-mail-stays-with-tombstoned-sender",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "endpointId": "me_01m7h12jpp2ffpk6asp2yefxrr",
+        "name": "Nu",
+        "deleted": true
+      }
+    },
+    {
+      "id": "deleting.reply-to-deleted-refused",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "code": "not_found",
+        "message": "No open mailbox has that id.",
+        "details": {
+          "to": "me_01m7h12jpp2ffpk6asp2yefxrr"
+        }
+      }
+    },
+    {
+      "id": "receipt.after-recipient-delete-witness",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": {
+        "receiptsBefore": 1,
+        "replayed": {
+          "acceptedAt": "2026-11-16T01:55:47.262Z",
+          "clientMessageId": "to-nu-cli",
+          "inReplyTo": null,
+          "messageId": "mm_01m7h12kdz8yd0hb1tc7q9c5fh",
+          "to": "me_01m7h12jpp2ffpk6asp2yefxrr",
+          "duplicate": true
+        }
+      }
+    },
+    {
+      "id": "receipt.new-id-to-deleted-not-found",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": "fresh id to a deleted mailbox"
+    },
+    {
+      "id": "polls.competing-first-opens.round-1",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "claimed": 1,
+        "mapped": 1,
+        "sessionsDelta": 1,
+        "calls": 6
+      }
+    },
+    {
+      "id": "wake.attempted-not-rearmed.round-1",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "endpointId": "me_01m7h12newm4qrakvhx4w8vdb3",
+        "revision": 2,
+        "armed": false,
+        "armedAt": null,
+        "lastAttempt": {
+          "id": "mw_01m7h12npv41294vhnqrpagd9t",
+          "at": "2026-11-16T01:55:49.595Z",
+          "outcome": "attempted"
+        }
+      }
+    },
+    {
+      "id": "wake.delayed-duplicate-arm-conflicts",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "error": "conflict"
+      }
+    },
+    {
+      "id": "wake.arm-while-armed-does-not-accumulate",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "rearm": 3,
+        "twice": 3
+      }
+    },
+    {
+      "id": "wake.no-claim-without-pending-mail",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "claimed": false,
+        "wakeAttemptId": null,
+        "pendingCount": 0
+      }
+    },
+    {
+      "id": "polls.competing-first-opens.round-2",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "claimed": 1,
+        "mapped": 1,
+        "sessionsDelta": 1,
+        "calls": 6
+      }
+    },
+    {
+      "id": "wake.attempted-not-rearmed.round-2",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "endpointId": "me_01m7h12phtegp2ay74962kevv3",
+        "revision": 2,
+        "armed": false,
+        "armedAt": null,
+        "lastAttempt": {
+          "id": "mw_01m7h12ps7jtdtxn5mymsp87v2",
+          "at": "2026-11-16T01:55:50.695Z",
+          "outcome": "attempted"
+        }
+      }
+    },
+    {
+      "id": "polls.competing-first-opens.round-3",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "claimed": 1,
+        "mapped": 1,
+        "sessionsDelta": 1,
+        "calls": 6
+      }
+    },
+    {
+      "id": "wake.attempted-not-rearmed.round-3",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "endpointId": "me_01m7h12q0rxacqyekeq5zgwq1x",
+        "revision": 2,
+        "armed": false,
+        "armedAt": null,
+        "lastAttempt": {
+          "id": "mw_01m7h12q9cv0pr6gnwan76z0y8",
+          "at": "2026-11-16T01:55:51.212Z",
+          "outcome": "attempted"
+        }
+      }
+    },
+    {
+      "id": "cleanup.120-poll-sessions-created",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "polled": 120
+      }
+    },
+    {
+      "id": "cleanup.bounded-batches",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "mappedBefore": 127,
+        "batches": [
+          {
+            "removed": 100,
+            "ended": 0
+          },
+          {
+            "removed": 20,
+            "ended": 0
+          },
+          {
+            "removed": 0,
+            "ended": 0
+          },
+          {
+            "removed": 0,
+            "ended": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "cleanup.ordinary-sessions-untouched",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "ordinarySessions": 159,
+        "note": "every non-poll session row unchanged (id, ended_at, last_seen_at)"
+      }
+    },
+    {
+      "id": "cleanup.live-bindings-keep-their-session",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": "beta’s poll session survives cleanup"
+    },
+    {
+      "id": "polls.thousand-all-answered",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "polls": 1000,
+        "failures": 0,
+        "pendingCounts": [
+          1
+        ]
+      }
+    },
+    {
+      "id": "polls.one-dedicated-session",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "before": 169,
+        "sampled": [
+          169,
+          169,
+          169,
+          169
+        ],
+        "after": 169,
+        "pollSession": {
+          "ended_at": null,
+          "pid": null,
+          "transport": "cli",
+          "label": "dm mailbox poll"
+        }
+      }
+    },
+    {
+      "id": "polls.no-flush",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "outbox": [
+          0,
+          0
+        ],
+        "trackedTreeUnchanged": true
+      }
+    },
+    {
+      "id": "polls.no-staged-image-prune",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "before": 1,
+        "after": 1
+      }
+    },
+    {
+      "id": "polls.no-reconcile-git-or-file-writes",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "processes": 1000,
+        "totals": {},
+        "method": "NODE_OPTIONS=--require DM-505-cli-fsprobe.cjs counting fs readdir/write/rename/rm/mkdir and child_process calls"
+      }
+    },
+    {
+      "id": "polls.positive-control-ordinary-open",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "counts": {
+          "fs.mkdirSync": 2,
+          "fs.readdirSync": 4
+        },
+        "imageAfter": 0
+      }
+    },
+    {
+      "id": "polls.ordinary-session-lifecycle-unchanged",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "ended_at": "2026-11-16T01:58:48.764Z",
+        "pid": 29636,
+        "transport": "cli"
+      }
+    },
+    {
+      "id": "backup.desktop-vacuum-consistent",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": {
+        "path": ".darkmechanicus\\local\\backups\\dm505-acceptance.sqlite",
+        "integrity": {
+          "integrity_check": "ok"
+        },
+        "live": {
+          "messages": 9297,
+          "unacked": 1098,
+          "receipts": 9448,
+          "endpoints": 139,
+          "betaLastSeq": 72
+        },
+        "inCopy": {
+          "messages": 9297,
+          "receipts": 9448
+        }
+      }
+    },
+    {
+      "id": "backup.not-tracked-by-git",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": {
+        "gitStatus": []
+      }
+    },
+    {
+      "id": "restore.mail-preserved",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": {
+        "live": {
+          "messages": 9297,
+          "unacked": 1098,
+          "receipts": 9448,
+          "endpoints": 139,
+          "betaLastSeq": 72
+        },
+        "restored": {
+          "messages": 9297,
+          "unacked": 1098,
+          "receipts": 9448,
+          "endpoints": 139,
+          "betaLastSeq": 72
+        }
+      }
+    },
+    {
+      "id": "restore.cli-reads-restored-mailbox",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": {
+        "pendingCount": 69
+      }
+    },
+    {
+      "id": "restore.receipts-preserved",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": {
+        "acceptedAt": "2026-11-16T01:54:42.603Z",
+        "clientMessageId": "j-1",
+        "inReplyTo": null,
+        "messageId": "mm_01m7h10m9chmhczk5gwh9130tm",
+        "to": "me_01m7h10k4a971qjmc4tmqm22sy",
+        "duplicate": true
+      }
+    },
+    {
+      "id": "restore.sequence-continues",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": {
+        "seq": 73,
+        "betaLastSeq": 72
+      }
+    },
+    {
+      "id": "restore.quota-preserved",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": "iota is still full after the restore"
+    },
+    {
+      "id": "restore.receipt-quota-preserved",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": "lambda is still at its receipt quota"
+    },
+    {
+      "id": "no-bodies.files",
+      "criteria": [
+        "c1",
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "scanned": "repo (tracked records, local/ except the database and its backups), DARKMECHANICUS_HOME",
+        "hits": []
+      }
+    },
+    {
+      "id": "no-bodies.git-history",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": "git log -p of the scratch repository"
+    },
+    {
+      "id": "no-bodies.no-message-export",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": "tracked records name no message or endpoint"
+    },
+    {
+      "id": "no-bodies.database-outside-message-body",
+      "criteria": [
+        "c1",
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "tables": 40,
+        "tableHits": [],
+        "eventsRows": 263
+      }
+    },
+    {
+      "id": "no-bodies.cli-errors-and-stderr",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "calls": 1323,
+        "stderrHits": 0,
+        "errorHits": 0
+      }
+    },
+    {
+      "id": "no-bodies.history-search",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": {
+        "results": 0
+      }
+    },
+    {
+      "id": "secrets.no-token-in-cli-output",
+      "criteria": [
+        "c2"
+      ],
+      "pass": true,
+      "detail": {
+        "tokenHits": 0,
+        "leakedTokens": 0
+      }
+    },
+    {
+      "id": "cleanup7.nothing-before-seven-days",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": {
+        "clock": "one second before the earliest expiry",
+        "early": {
+          "messages": 0,
+          "receipts": 0,
+          "batches": 1
+        }
+      }
+    },
+    {
+      "id": "cleanup7.acked-and-receipts-expire-unacked-kept",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": {
+        "removed": {
+          "messages": 8199,
+          "receipts": 9449,
+          "batches": 96
+        },
+        "before": {
+          "acked": 8199,
+          "receipts": 9449,
+          "unacked": 1099
+        },
+        "left": {
+          "acked": 0,
+          "unacked": 1099,
+          "receipts": 0
+        },
+        "batchesBoundedAt": 100
+      }
+    },
+    {
+      "id": "cleanup7.client-id-free-after-seven-days",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": {
+        "reused": "mm_01m83217hkyj54tvqztvqt7mk8",
+        "original": "mm_01m7h10m9chmhczk5gwh9130tm",
+        "note": "services with a controlled clock; the CLI cannot move time"
+      }
+    },
+    {
+      "id": "cleanup7.receipt-quota-recovers",
+      "criteria": [
+        "c1"
+      ],
+      "pass": true,
+      "detail": "mm_01m83217hkwvm5nvn1gbhpecyh"
+    }
+  ],
+  "timings": {
+    "discovery": 986,
+    "send": 602,
+    "paging": 6785,
+    "reply-ack": 1562,
+    "denials": 9127,
+    "stopped-peer": 2160,
+    "human-seen": 461,
+    "quotas": 43390,
+    "deleting-crash": 2822,
+    "competing-polls": 2143,
+    "poll-session-cleanup": 6138,
+    "pollMs": {
+      "n": 1000,
+      "min": 146,
+      "median": 164,
+      "p95": 205,
+      "max": 292,
+      "mean": 170
+    },
+    "thousand-polls": 171159,
+    "backup-restore": 1236,
+    "no-bodies": 295,
+    "seven-day-cleanup": 452
+  },
+  "notes": [
+    "Filled iota with 1023 unacknowledged messages through the CLI grant code path in-process (3960 ms); the boundary calls are built-CLI processes.",
+    "Filled rho1 and rho2 to 4096 retained (acknowledged) messages each, 8192 lambda receipts, in-process through the CLI grant code path (36599 ms)."
+  ],
+  "pollProbe": {
+    "processes": 1000,
+    "totals": {},
+    "controlCounts": {
+      "fs.mkdirSync": 2,
+      "fs.readdirSync": 4
+    }
+  },
+  "finishedAt": "2026-11-16T01:58:50.768Z",
+  "summary": {
+    "checks": 139,
+    "failed": [],
+    "cliCalls": 1324
+  }
+}

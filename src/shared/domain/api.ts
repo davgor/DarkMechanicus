@@ -30,6 +30,18 @@ import type {
 import type { DeleteKanbanCardResultView, KanbanAttemptView, KanbanBoardView, KanbanCardView, KanbanPacket } from './kanban'
 import type { WorkStatus } from './status'
 import type {
+  AcknowledgeAgentMessagesResult,
+  AgentIdentityView,
+  AgentInboxPage,
+  AgentMailStatusPage,
+  AgentMailWakeResult,
+  AgentMailWindow,
+  AgentMessageAcceptanceView,
+  AgentPeersPage,
+  ReadAgentInboxInput,
+  SendAgentMessageInput
+} from './agentMail'
+import type {
   ApprovalView,
   ApproveWithRedraftResultView,
   AttachmentFileView,
@@ -684,6 +696,24 @@ export interface CommandApi {
    * completes the epic on a full match or stores and returns the mismatches.
    */
   submitTransferReadback(input: SubmitTransferReadbackInput): Promise<TransferReadbackResult>
+
+  // Agent mail (src/shared/domain/agentMail.ts). The mailbox is always the one the session's own desktop-bound grant
+  // speaks for: a session without one (an ungranted reader, an MCP stdio session, an unbound grant) is refused with
+  // `unauthorized`. Run them through the `dm` CLI; over MCP they are listed but never usable.
+  /** This session's own mailbox. */
+  getAgentIdentity(input?: Record<string, never>): Promise<AgentIdentityView>
+  /** Other open mailboxes of this project, a page of at most 50 at a time. */
+  listAgentPeers(input: { afterId?: string; limit?: number }): Promise<AgentPeersPage>
+  /** Durably accepts a direct message or reply into the recipient's mailbox; retries replay by clientMessageId. */
+  sendAgentMessage(input: SendAgentMessageInput): Promise<AgentMessageAcceptanceView>
+  /** One ascending page of the caller's inbox with bodies. Reading never acknowledges. */
+  readAgentInbox(input: ReadAgentInboxInput): Promise<AgentInboxPage>
+  /** Acknowledges 1 to 100 of the caller's own messages, all or none; acknowledging again keeps the first time. */
+  acknowledgeAgentMessages(input: { messageIds: string[] }): Promise<AcknowledgeAgentMessagesResult>
+  /** The pending count and one ascending page of unacknowledged message metadata, without bodies. */
+  getAgentMailStatus(input: AgentMailWindow): Promise<AgentMailStatusPage>
+  /** Consumes the desktop-armed one-shot wake credit when mail is pending; never mints or rearms one. */
+  takeAgentMailWake(input?: Record<string, never>): Promise<AgentMailWakeResult>
 }
 
 export type CommandName = keyof CommandApi

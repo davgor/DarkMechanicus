@@ -12,18 +12,24 @@ export const FORCED_DIFF_LIMIT_BYTES = 16 * 1024 * 1024
 interface ReadDiffOptions {
   /** Raises the size limit from 2 MiB to 16 MiB. */
   force?: boolean
+  /** Whether HEAD names a commit, when the caller already knows it (from the status); saves one `git rev-parse`. */
+  headExists?: boolean
 }
 
 const SAFE_FLAGS = ['--no-ext-diff', '--no-textconv', '--no-color']
 
-async function hasCommit(runner: GitRunner, root: string): Promise<boolean> {
+/** Whether HEAD names a commit: as the caller says, else from `git rev-parse`. */
+async function hasCommit(runner: GitRunner, root: string, known: boolean | undefined): Promise<boolean> {
+  if (known !== undefined) {
+    return known
+  }
   const result = await runner.run({ cwd: root, args: ['rev-parse', '--verify', '--quiet', 'HEAD'], kind: 'read', acceptExitCodes: [0, 1] })
   return result.code === 0
 }
 
 export async function readWorkingDiff(runner: GitRunner, root: string, change: FileChange, options: ReadDiffOptions = {}): Promise<FileDiff> {
   const limit = options.force === true ? FORCED_DIFF_LIMIT_BYTES : DIFF_LIMIT_BYTES
-  const againstNothing = change.kind === 'untracked' || !(await hasCommit(runner, root))
+  const againstNothing = change.kind === 'untracked' || !(await hasCommit(runner, root, options.headExists))
   const paths = change.oldPath === null ? [change.path] : [change.oldPath, change.path]
   const args = againstNothing
     ? ['diff', '--no-index', ...SAFE_FLAGS, '--', '/dev/null', change.path]

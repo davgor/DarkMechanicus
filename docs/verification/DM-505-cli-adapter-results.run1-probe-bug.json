@@ -1,0 +1,2588 @@
+{
+  "ticket": "DM-505",
+  "criteria": [
+    "c4"
+  ],
+  "startedAt": "2026-11-16T01:59:04.737Z",
+  "environment": {
+    "os": "win32",
+    "installedOmp": "omp/18.20.2",
+    "ompPath": "%LOCALAPPDATA%\\omp\\omp.exe",
+    "cliRuntime": "repository node_modules/electron/dist/electron.exe with ELECTRON_RUN_AS_NODE=1",
+    "commit": "6e2050ff18bd97f238b322ece4549f9dca59ccfd"
+  },
+  "descriptorSource": "buildCliConfig + dmClientRuntime (src/main/desktop/cliConfig.ts), shape of writeDmClientDescriptor",
+  "runs": {
+    "development": {
+      "report": {
+        "bun": "1.4.4",
+        "ompExecPath": "C:\\Users\\davgo\\AppData\\Local\\omp\\omp.exe",
+        "platform": "win32",
+        "root": "C:\\Users\\davgo\\dmwt\\acc-cli\\resources\\skitarii\\extension",
+        "descriptor": {
+          "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\userData\\agents\\omp\\ch_dm505_alpha\\dm-client\\5f0c1d2e-dm50-4505-a505-000000000505.json",
+          "holdsSecret": false,
+          "parsed": {
+            "version": 1,
+            "chatId": "ch_dm505_alpha",
+            "generation": "5f0c1d2e-dm50-4505-a505-000000000505",
+            "folder": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!"
+            ],
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "env": {
+              "ELECTRON_RUN_AS_NODE": "1",
+              "DARKMECHANICUS_HOME": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\dm home"
+            },
+            "inherit": [
+              "PATH",
+              "HOME",
+              "USER",
+              "LOGNAME",
+              "LANG",
+              "LC_ALL",
+              "LC_CTYPE",
+              "TZ",
+              "TMPDIR",
+              "TEMP",
+              "TMP",
+              "PATHEXT",
+              "SystemRoot",
+              "windir",
+              "SystemDrive",
+              "USERPROFILE",
+              "USERNAME",
+              "APPDATA",
+              "LOCALAPPDATA",
+              "ProgramData",
+              "HOMEDRIVE",
+              "HOMEPATH"
+            ]
+          }
+        },
+        "identity": {
+          "ok": true,
+          "data": {
+            "endpointId": "me_01m7h18m823mmftvq2fes8e791",
+            "name": "Alpha",
+            "role": "worker",
+            "boundAt": "2026-11-16T01:59:04.714Z"
+          }
+        },
+        "peers": {
+          "ok": true,
+          "data": {
+            "peers": [
+              {
+                "endpointId": "me_01m7h18m8chwv86d7yrs7v6969",
+                "name": "Beta"
+              }
+            ],
+            "nextAfterId": "me_01m7h18m8chwv86d7yrs7v6969",
+            "hasMore": false
+          }
+        },
+        "betaIdentity": {
+          "ok": true,
+          "data": {
+            "endpointId": "me_01m7h18m8chwv86d7yrs7v6969",
+            "name": "Beta",
+            "role": "reviewer",
+            "boundAt": "2026-11-16T01:59:04.722Z"
+          }
+        },
+        "send": {
+          "ok": true,
+          "data": {
+            "messageId": "mm_01m7h18ndk80hgm4fkkj8j6xsa",
+            "to": "me_01m7h18m8chwv86d7yrs7v6969",
+            "clientMessageId": "adapter-1",
+            "inReplyTo": null,
+            "acceptedAt": "2026-11-16T01:59:05.907Z",
+            "duplicate": false
+          }
+        },
+        "sendRetry": {
+          "ok": true,
+          "data": {
+            "acceptedAt": "2026-11-16T01:59:05.907Z",
+            "clientMessageId": "adapter-1",
+            "inReplyTo": null,
+            "messageId": "mm_01m7h18ndk80hgm4fkkj8j6xsa",
+            "to": "me_01m7h18m8chwv86d7yrs7v6969",
+            "duplicate": true
+          }
+        },
+        "readBack": {
+          "ok": true,
+          "found": true,
+          "bodyExact": true,
+          "from": {
+            "endpointId": "me_01m7h18m823mmftvq2fes8e791",
+            "name": "Alpha",
+            "deleted": false
+          }
+        },
+        "docReply": {
+          "ok": true,
+          "data": {
+            "messageId": "mm_01m7h18nwy17wqm249wqtb333h",
+            "to": "me_01m7h18m823mmftvq2fes8e791",
+            "clientMessageId": "reply-1",
+            "inReplyTo": "mm_01m7h18ndk80hgm4fkkj8j6xsa",
+            "acceptedAt": "2026-11-16T01:59:06.397Z",
+            "duplicate": false
+          }
+        },
+        "docAck": {
+          "ok": true,
+          "data": {
+            "acknowledged": [
+              {
+                "messageId": "mm_01m7h18ndk80hgm4fkkj8j6xsa",
+                "acknowledgedAt": "2026-11-16T01:59:06.564Z",
+                "expiresAt": "2026-11-23T01:59:06.564Z"
+              }
+            ]
+          }
+        },
+        "alphaStatus": {
+          "ok": true,
+          "data": {
+            "pendingCount": 1,
+            "messages": [
+              {
+                "id": "mm_01m7h18nwy17wqm249wqtb333h",
+                "seq": 1,
+                "from": {
+                  "endpointId": "me_01m7h18m8chwv86d7yrs7v6969",
+                  "name": "Beta",
+                  "deleted": false
+                },
+                "inReplyTo": "mm_01m7h18ndk80hgm4fkkj8j6xsa",
+                "bodyBytes": 5,
+                "acceptedAt": "2026-11-16T01:59:06.397Z",
+                "acknowledgedAt": null,
+                "expiresAt": null
+              }
+            ],
+            "snapshotHighWater": 1,
+            "nextCursor": 1,
+            "hasMore": false
+          }
+        },
+        "alphaWake": {
+          "ok": true,
+          "data": {
+            "claimed": false,
+            "wakeAttemptId": null,
+            "pendingCount": 1
+          }
+        },
+        "peersSawBeta": true,
+        "aborted": {
+          "ok": false,
+          "error": {
+            "source": "client",
+            "code": "aborted",
+            "message": "The call was aborted and the dm CLI was stopped."
+          }
+        },
+        "abortMs": 44,
+        "cancelled": {
+          "ok": false,
+          "error": {
+            "source": "client",
+            "code": "cancelled",
+            "message": "The session ended and the dm CLI was stopped."
+          }
+        },
+        "usableAfterCancelAll": {
+          "ok": false,
+          "error": {
+            "source": "client",
+            "code": "cancelled",
+            "message": "The session ended and the dm CLI was stopped."
+          }
+        },
+        "badToken": {
+          "ok": false,
+          "error": {
+            "source": "dm",
+            "code": "unauthorized",
+            "message": "That grant is not usable: it is unknown, expired, revoked, or was issued on another machine."
+          }
+        },
+        "notAllowed": {
+          "ok": false,
+          "error": {
+            "source": "client",
+            "code": "command_not_allowed",
+            "message": "Only the mailbox commands can be called."
+          }
+        },
+        "noGrant": {
+          "ok": false,
+          "error": {
+            "source": "client",
+            "code": "no_grant",
+            "message": "This chat holds no Dark Mechanicus grant."
+          }
+        },
+        "missingDescriptor": {
+          "ok": false,
+          "error": {
+            "source": "client",
+            "code": "descriptor_missing",
+            "message": "The DM client descriptor is gone; restart the chat from the app."
+          }
+        },
+        "secretInErrors": false,
+        "secretInArgs": false,
+        "pids": [
+          29516,
+          27308,
+          24252,
+          33240,
+          28764,
+          36568,
+          37260,
+          32624,
+          20484,
+          34752,
+          37040,
+          29340,
+          24620,
+          31568
+        ],
+        "pidsAliveAfter": [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "spawns": [
+          {
+            "label": "alpha",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "get_agent_identity",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 29516
+          },
+          {
+            "label": "alpha",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "list_agent_peers",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 27308
+          },
+          {
+            "label": "beta",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "get_agent_identity",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 24252
+          },
+          {
+            "label": "alpha",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "send_agent_message",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 33240
+          },
+          {
+            "label": "alpha",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "send_agent_message",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 28764
+          },
+          {
+            "label": "beta",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "read_agent_inbox",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 36568
+          },
+          {
+            "label": "beta",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "send_agent_message",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 37260
+          },
+          {
+            "label": "beta",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "acknowledge_agent_messages",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 32624
+          },
+          {
+            "label": "alpha",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "get_agent_mail_status",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 20484
+          },
+          {
+            "label": "alpha",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "take_agent_mail_wake",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 34752
+          },
+          {
+            "label": "abort",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "get_agent_mail_status",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 37040
+          },
+          {
+            "label": "cancelAll",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "list_agent_peers",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 29340
+          },
+          {
+            "label": "cancelAll",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "get_agent_identity",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 24620
+          },
+          {
+            "label": "badToken",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "get_agent_identity",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 31568
+          }
+        ]
+      },
+      "exited": {
+        "code": 1
+      },
+      "stderrHasSecret": false,
+      "processesWhileOmpRunning": [],
+      "processesAfterOmpExit": [],
+      "ms": 7180
+    },
+    "packaged-layout": {
+      "report": {
+        "bun": "1.4.4",
+        "ompExecPath": "C:\\Users\\davgo\\AppData\\Local\\omp\\omp.exe",
+        "platform": "win32",
+        "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\packaged\\resources\\skitarii\\extension",
+        "descriptor": {
+          "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\userData\\agents\\omp\\ch_dm505_alpha\\dm-client\\5f0c1d2e-dm50-4505-a505-000000000505.json",
+          "holdsSecret": false,
+          "parsed": {
+            "version": 1,
+            "chatId": "ch_dm505_alpha",
+            "generation": "5f0c1d2e-dm50-4505-a505-000000000505",
+            "folder": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!"
+            ],
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "env": {
+              "ELECTRON_RUN_AS_NODE": "1",
+              "DARKMECHANICUS_HOME": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\dm home"
+            },
+            "inherit": [
+              "PATH",
+              "HOME",
+              "USER",
+              "LOGNAME",
+              "LANG",
+              "LC_ALL",
+              "LC_CTYPE",
+              "TZ",
+              "TMPDIR",
+              "TEMP",
+              "TMP",
+              "PATHEXT",
+              "SystemRoot",
+              "windir",
+              "SystemDrive",
+              "USERPROFILE",
+              "USERNAME",
+              "APPDATA",
+              "LOCALAPPDATA",
+              "ProgramData",
+              "HOMEDRIVE",
+              "HOMEPATH"
+            ]
+          }
+        },
+        "identity": {
+          "ok": true,
+          "data": {
+            "endpointId": "me_01m7h18m823mmftvq2fes8e791",
+            "name": "Alpha",
+            "role": "worker",
+            "boundAt": "2026-11-16T01:59:04.714Z"
+          }
+        },
+        "peers": {
+          "ok": true,
+          "data": {
+            "peers": [
+              {
+                "endpointId": "me_01m7h18m8chwv86d7yrs7v6969",
+                "name": "Beta"
+              }
+            ],
+            "nextAfterId": "me_01m7h18m8chwv86d7yrs7v6969",
+            "hasMore": false
+          }
+        },
+        "betaIdentity": {
+          "ok": true,
+          "data": {
+            "endpointId": "me_01m7h18m8chwv86d7yrs7v6969",
+            "name": "Beta",
+            "role": "reviewer",
+            "boundAt": "2026-11-16T01:59:04.722Z"
+          }
+        },
+        "send": {
+          "ok": true,
+          "data": {
+            "messageId": "mm_01m7h18wa7s8gh7yaa6p98342r",
+            "to": "me_01m7h18m8chwv86d7yrs7v6969",
+            "clientMessageId": "adapter-1-packaged-layout",
+            "inReplyTo": null,
+            "acceptedAt": "2026-11-16T01:59:12.967Z",
+            "duplicate": false
+          }
+        },
+        "sendRetry": {
+          "ok": true,
+          "data": {
+            "acceptedAt": "2026-11-16T01:59:12.967Z",
+            "clientMessageId": "adapter-1-packaged-layout",
+            "inReplyTo": null,
+            "messageId": "mm_01m7h18wa7s8gh7yaa6p98342r",
+            "to": "me_01m7h18m8chwv86d7yrs7v6969",
+            "duplicate": true
+          }
+        },
+        "readBack": {
+          "ok": true,
+          "found": true,
+          "bodyExact": true,
+          "from": {
+            "endpointId": "me_01m7h18m823mmftvq2fes8e791",
+            "name": "Alpha",
+            "deleted": false
+          }
+        },
+        "docReply": {
+          "ok": true,
+          "data": {
+            "messageId": "mm_01m7h18wsssmg2p3vpjzv5pp1t",
+            "to": "me_01m7h18m823mmftvq2fes8e791",
+            "clientMessageId": "reply-1-packaged-layout",
+            "inReplyTo": "mm_01m7h18wa7s8gh7yaa6p98342r",
+            "acceptedAt": "2026-11-16T01:59:13.465Z",
+            "duplicate": false
+          }
+        },
+        "docAck": {
+          "ok": true,
+          "data": {
+            "acknowledged": [
+              {
+                "messageId": "mm_01m7h18wa7s8gh7yaa6p98342r",
+                "acknowledgedAt": "2026-11-16T01:59:13.634Z",
+                "expiresAt": "2026-11-23T01:59:13.634Z"
+              }
+            ]
+          }
+        },
+        "alphaStatus": {
+          "ok": true,
+          "data": {
+            "pendingCount": 2,
+            "messages": [
+              {
+                "id": "mm_01m7h18nwy17wqm249wqtb333h",
+                "seq": 1,
+                "from": {
+                  "endpointId": "me_01m7h18m8chwv86d7yrs7v6969",
+                  "name": "Beta",
+                  "deleted": false
+                },
+                "inReplyTo": "mm_01m7h18ndk80hgm4fkkj8j6xsa",
+                "bodyBytes": 5,
+                "acceptedAt": "2026-11-16T01:59:06.397Z",
+                "acknowledgedAt": null,
+                "expiresAt": null
+              },
+              {
+                "id": "mm_01m7h18wsssmg2p3vpjzv5pp1t",
+                "seq": 2,
+                "from": {
+                  "endpointId": "me_01m7h18m8chwv86d7yrs7v6969",
+                  "name": "Beta",
+                  "deleted": false
+                },
+                "inReplyTo": "mm_01m7h18wa7s8gh7yaa6p98342r",
+                "bodyBytes": 5,
+                "acceptedAt": "2026-11-16T01:59:13.465Z",
+                "acknowledgedAt": null,
+                "expiresAt": null
+              }
+            ],
+            "snapshotHighWater": 2,
+            "nextCursor": 2,
+            "hasMore": false
+          }
+        },
+        "alphaWake": {
+          "ok": true,
+          "data": {
+            "claimed": false,
+            "wakeAttemptId": null,
+            "pendingCount": 2
+          }
+        },
+        "peersSawBeta": true,
+        "aborted": {
+          "ok": false,
+          "error": {
+            "source": "client",
+            "code": "aborted",
+            "message": "The call was aborted and the dm CLI was stopped."
+          }
+        },
+        "abortMs": 44,
+        "cancelled": {
+          "ok": false,
+          "error": {
+            "source": "client",
+            "code": "cancelled",
+            "message": "The session ended and the dm CLI was stopped."
+          }
+        },
+        "usableAfterCancelAll": {
+          "ok": false,
+          "error": {
+            "source": "client",
+            "code": "cancelled",
+            "message": "The session ended and the dm CLI was stopped."
+          }
+        },
+        "badToken": {
+          "ok": false,
+          "error": {
+            "source": "dm",
+            "code": "unauthorized",
+            "message": "That grant is not usable: it is unknown, expired, revoked, or was issued on another machine."
+          }
+        },
+        "notAllowed": {
+          "ok": false,
+          "error": {
+            "source": "client",
+            "code": "command_not_allowed",
+            "message": "Only the mailbox commands can be called."
+          }
+        },
+        "noGrant": {
+          "ok": false,
+          "error": {
+            "source": "client",
+            "code": "no_grant",
+            "message": "This chat holds no Dark Mechanicus grant."
+          }
+        },
+        "missingDescriptor": {
+          "ok": false,
+          "error": {
+            "source": "client",
+            "code": "descriptor_missing",
+            "message": "The DM client descriptor is gone; restart the chat from the app."
+          }
+        },
+        "secretInErrors": false,
+        "secretInArgs": false,
+        "pids": [
+          34772,
+          34252,
+          32536,
+          37224,
+          38036,
+          32096,
+          36112,
+          41608,
+          24624,
+          19984,
+          30124,
+          40772,
+          34960,
+          28840
+        ],
+        "pidsAliveAfter": [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "spawns": [
+          {
+            "label": "alpha",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "get_agent_identity",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 34772
+          },
+          {
+            "label": "alpha",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "list_agent_peers",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 34252
+          },
+          {
+            "label": "beta",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "get_agent_identity",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 32536
+          },
+          {
+            "label": "alpha",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "send_agent_message",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 37224
+          },
+          {
+            "label": "alpha",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "send_agent_message",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 38036
+          },
+          {
+            "label": "beta",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "read_agent_inbox",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 32096
+          },
+          {
+            "label": "beta",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "send_agent_message",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 36112
+          },
+          {
+            "label": "beta",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "acknowledge_agent_messages",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 41608
+          },
+          {
+            "label": "alpha",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "get_agent_mail_status",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 24624
+          },
+          {
+            "label": "alpha",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "take_agent_mail_wake",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 19984
+          },
+          {
+            "label": "abort",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "get_agent_mail_status",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 30124
+          },
+          {
+            "label": "cancelAll",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "list_agent_peers",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 40772
+          },
+          {
+            "label": "cancelAll",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "get_agent_identity",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 34960
+          },
+          {
+            "label": "badToken",
+            "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe",
+            "commandAbsolute": true,
+            "args": [
+              "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+              "--repo",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+              "call",
+              "get_agent_identity",
+              "-"
+            ],
+            "shell": false,
+            "windowsHide": true,
+            "cwd": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "envNames": [
+              "APPDATA",
+              "DARKMECHANICUS_HOME",
+              "DM_SESSION_TOKEN",
+              "ELECTRON_RUN_AS_NODE",
+              "HOMEDRIVE",
+              "HOMEPATH",
+              "LANG",
+              "LC_ALL",
+              "LOCALAPPDATA",
+              "PATH",
+              "PATHEXT",
+              "ProgramData",
+              "SystemDrive",
+              "SystemRoot",
+              "TEMP",
+              "TMP",
+              "USERNAME",
+              "USERPROFILE",
+              "windir"
+            ],
+            "tokenInArgs": false,
+            "tokenInEnvAsGrant": true,
+            "pid": 28840
+          }
+        ]
+      },
+      "exited": {
+        "code": 1
+      },
+      "stderrHasSecret": false,
+      "processesWhileOmpRunning": [],
+      "processesAfterOmpExit": [],
+      "ms": 6689
+    }
+  },
+  "checks": [
+    {
+      "id": "development.probe-ran-in-installed-omp-bun",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": {
+        "bun": "1.4.4"
+      }
+    },
+    {
+      "id": "development.descriptor-no-secret-absolute-runtime",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": {
+        "holdsSecret": false,
+        "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe"
+      }
+    },
+    {
+      "id": "development.shell-free-pinned-spawn",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": [
+        {
+          "label": "alpha",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "get_agent_identity",
+            "-"
+          ]
+        },
+        {
+          "label": "alpha",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "list_agent_peers",
+            "-"
+          ]
+        },
+        {
+          "label": "beta",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "get_agent_identity",
+            "-"
+          ]
+        },
+        {
+          "label": "alpha",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "send_agent_message",
+            "-"
+          ]
+        },
+        {
+          "label": "alpha",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "send_agent_message",
+            "-"
+          ]
+        },
+        {
+          "label": "beta",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "read_agent_inbox",
+            "-"
+          ]
+        },
+        {
+          "label": "beta",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "send_agent_message",
+            "-"
+          ]
+        },
+        {
+          "label": "beta",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "acknowledge_agent_messages",
+            "-"
+          ]
+        },
+        {
+          "label": "alpha",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "get_agent_mail_status",
+            "-"
+          ]
+        },
+        {
+          "label": "alpha",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "take_agent_mail_wake",
+            "-"
+          ]
+        },
+        {
+          "label": "abort",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "get_agent_mail_status",
+            "-"
+          ]
+        },
+        {
+          "label": "cancelAll",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "list_agent_peers",
+            "-"
+          ]
+        },
+        {
+          "label": "cancelAll",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "get_agent_identity",
+            "-"
+          ]
+        },
+        {
+          "label": "badToken",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "get_agent_identity",
+            "-"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "development.child-env-allowlisted",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": [
+        "APPDATA",
+        "DARKMECHANICUS_HOME",
+        "DM_SESSION_TOKEN",
+        "ELECTRON_RUN_AS_NODE",
+        "HOMEDRIVE",
+        "HOMEPATH",
+        "LANG",
+        "LC_ALL",
+        "LOCALAPPDATA",
+        "PATH",
+        "PATHEXT",
+        "ProgramData",
+        "SystemDrive",
+        "SystemRoot",
+        "TEMP",
+        "TMP",
+        "USERNAME",
+        "USERPROFILE",
+        "windir"
+      ]
+    },
+    {
+      "id": "development.no-path-runtime-lookup",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": {
+        "decoyUsed": false,
+        "pathStartsWithDecoys": true
+      }
+    },
+    {
+      "id": "development.identity-and-peers",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": {
+        "ok": true,
+        "data": {
+          "endpointId": "me_01m7h18m823mmftvq2fes8e791",
+          "name": "Alpha",
+          "role": "worker",
+          "boundAt": "2026-11-16T01:59:04.714Z"
+        }
+      }
+    },
+    {
+      "id": "development.literal-stdin-json-unicode",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": {
+        "send": {
+          "ok": true,
+          "data": {
+            "messageId": "mm_01m7h18ndk80hgm4fkkj8j6xsa",
+            "to": "me_01m7h18m8chwv86d7yrs7v6969",
+            "clientMessageId": "adapter-1",
+            "inReplyTo": null,
+            "acceptedAt": "2026-11-16T01:59:05.907Z",
+            "duplicate": false
+          }
+        },
+        "readBack": {
+          "ok": true,
+          "found": true,
+          "bodyExact": true,
+          "from": {
+            "endpointId": "me_01m7h18m823mmftvq2fes8e791",
+            "name": "Alpha",
+            "deleted": false
+          }
+        },
+        "retryDuplicate": true
+      }
+    },
+    {
+      "id": "development.agents-md-native-example-reply-ack",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": {
+        "reply": {
+          "ok": true,
+          "data": {
+            "messageId": "mm_01m7h18nwy17wqm249wqtb333h",
+            "to": "me_01m7h18m823mmftvq2fes8e791",
+            "clientMessageId": "reply-1",
+            "inReplyTo": "mm_01m7h18ndk80hgm4fkkj8j6xsa",
+            "acceptedAt": "2026-11-16T01:59:06.397Z",
+            "duplicate": false
+          }
+        },
+        "ack": {
+          "ok": true,
+          "data": {
+            "acknowledged": [
+              {
+                "messageId": "mm_01m7h18ndk80hgm4fkkj8j6xsa",
+                "acknowledgedAt": "2026-11-16T01:59:06.564Z",
+                "expiresAt": "2026-11-23T01:59:06.564Z"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "development.status-and-wake-polls",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": {
+        "status": 1,
+        "wake": {
+          "claimed": false,
+          "wakeAttemptId": null,
+          "pendingCount": 1
+        }
+      }
+    },
+    {
+      "id": "development.abort-kills-live-child",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": {
+        "aborted": {
+          "ok": false,
+          "error": {
+            "source": "client",
+            "code": "aborted",
+            "message": "The call was aborted and the dm CLI was stopped."
+          }
+        },
+        "ms": 44
+      }
+    },
+    {
+      "id": "development.cancelAll-kills-live-child-client-stays-usable",
+      "criteria": [
+        "c4"
+      ],
+      "pass": false,
+      "detail": {
+        "cancelled": {
+          "ok": false,
+          "error": {
+            "source": "client",
+            "code": "cancelled",
+            "message": "The session ended and the dm CLI was stopped."
+          }
+        },
+        "after": false
+      }
+    },
+    {
+      "id": "development.no-leftover-child",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": {
+        "pidsAliveAfter": [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "scratchProcessesAfterExit": []
+      }
+    },
+    {
+      "id": "development.refusals",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": {
+        "badToken": {
+          "source": "dm",
+          "code": "unauthorized",
+          "message": "That grant is not usable: it is unknown, expired, revoked, or was issued on another machine."
+        },
+        "notAllowed": {
+          "source": "client",
+          "code": "command_not_allowed",
+          "message": "Only the mailbox commands can be called."
+        },
+        "noGrant": {
+          "source": "client",
+          "code": "no_grant",
+          "message": "This chat holds no Dark Mechanicus grant."
+        },
+        "missing": {
+          "source": "client",
+          "code": "descriptor_missing",
+          "message": "The DM client descriptor is gone; restart the chat from the app."
+        }
+      }
+    },
+    {
+      "id": "development.credentials-never-in-descriptor-argv-errors",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": {
+        "secretInErrors": false,
+        "secretInArgs": false,
+        "stderrHasSecret": false
+      }
+    },
+    {
+      "id": "development.omp-exited-cleanly",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": {
+        "code": 1
+      }
+    },
+    {
+      "id": "packaged-layout.probe-ran-in-installed-omp-bun",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": {
+        "bun": "1.4.4"
+      }
+    },
+    {
+      "id": "packaged-layout.descriptor-no-secret-absolute-runtime",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": {
+        "holdsSecret": false,
+        "command": "C:\\Users\\davgo\\dmwt\\acc-cli\\node_modules\\electron\\dist\\electron.exe"
+      }
+    },
+    {
+      "id": "packaged-layout.shell-free-pinned-spawn",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": [
+        {
+          "label": "alpha",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "get_agent_identity",
+            "-"
+          ]
+        },
+        {
+          "label": "alpha",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "list_agent_peers",
+            "-"
+          ]
+        },
+        {
+          "label": "beta",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "get_agent_identity",
+            "-"
+          ]
+        },
+        {
+          "label": "alpha",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "send_agent_message",
+            "-"
+          ]
+        },
+        {
+          "label": "alpha",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "send_agent_message",
+            "-"
+          ]
+        },
+        {
+          "label": "beta",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "read_agent_inbox",
+            "-"
+          ]
+        },
+        {
+          "label": "beta",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "send_agent_message",
+            "-"
+          ]
+        },
+        {
+          "label": "beta",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "acknowledge_agent_messages",
+            "-"
+          ]
+        },
+        {
+          "label": "alpha",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "get_agent_mail_status",
+            "-"
+          ]
+        },
+        {
+          "label": "alpha",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "take_agent_mail_wake",
+            "-"
+          ]
+        },
+        {
+          "label": "abort",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "get_agent_mail_status",
+            "-"
+          ]
+        },
+        {
+          "label": "cancelAll",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "list_agent_peers",
+            "-"
+          ]
+        },
+        {
+          "label": "cancelAll",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "get_agent_identity",
+            "-"
+          ]
+        },
+        {
+          "label": "badToken",
+          "shell": false,
+          "args": [
+            "C:\\Users\\davgo\\dmwt\\acc-cli\\out\\main\\cli.js",
+            "--repo",
+            "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm505-adapter-DKye10\\repo it's & (ü 漢) %PATH% ^!",
+            "call",
+            "get_agent_identity",
+            "-"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "packaged-layout.child-env-allowlisted",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": [
+        "APPDATA",
+        "DARKMECHANICUS_HOME",
+        "DM_SESSION_TOKEN",
+        "ELECTRON_RUN_AS_NODE",
+        "HOMEDRIVE",
+        "HOMEPATH",
+        "LANG",
+        "LC_ALL",
+        "LOCALAPPDATA",
+        "PATH",
+        "PATHEXT",
+        "ProgramData",
+        "SystemDrive",
+        "SystemRoot",
+        "TEMP",
+        "TMP",
+        "USERNAME",
+        "USERPROFILE",
+        "windir"
+      ]
+    },
+    {
+      "id": "packaged-layout.no-path-runtime-lookup",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": {
+        "decoyUsed": false,
+        "pathStartsWithDecoys": true
+      }
+    },
+    {
+      "id": "packaged-layout.identity-and-peers",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": {
+        "ok": true,
+        "data": {
+          "endpointId": "me_01m7h18m823mmftvq2fes8e791",
+          "name": "Alpha",
+          "role": "worker",
+          "boundAt": "2026-11-16T01:59:04.714Z"
+        }
+      }
+    },
+    {
+      "id": "packaged-layout.literal-stdin-json-unicode",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": {
+        "send": {
+          "ok": true,
+          "data": {
+            "messageId": "mm_01m7h18wa7s8gh7yaa6p98342r",
+            "to": "me_01m7h18m8chwv86d7yrs7v6969",
+            "clientMessageId": "adapter-1-packaged-layout",
+            "inReplyTo": null,
+            "acceptedAt": "2026-11-16T01:59:12.967Z",
+            "duplicate": false
+          }
+        },
+        "readBack": {
+          "ok": true,
+          "found": true,
+          "bodyExact": true,
+          "from": {
+            "endpointId": "me_01m7h18m823mmftvq2fes8e791",
+            "name": "Alpha",
+            "deleted": false
+          }
+        },
+        "retryDuplicate": true
+      }
+    },
+    {
+      "id": "packaged-layout.agents-md-native-example-reply-ack",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": {
+        "reply": {
+          "ok": true,
+          "data": {
+            "messageId": "mm_01m7h18wsssmg2p3vpjzv5pp1t",
+            "to": "me_01m7h18m823mmftvq2fes8e791",
+            "clientMessageId": "reply-1-packaged-layout",
+            "inReplyTo": "mm_01m7h18wa7s8gh7yaa6p98342r",
+            "acceptedAt": "2026-11-16T01:59:13.465Z",
+            "duplicate": false
+          }
+        },
+        "ack": {
+          "ok": true,
+          "data": {
+            "acknowledged": [
+              {
+                "messageId": "mm_01m7h18wa7s8gh7yaa6p98342r",
+                "acknowledgedAt": "2026-11-16T01:59:13.634Z",
+                "expiresAt": "2026-11-23T01:59:13.634Z"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "packaged-layout.status-and-wake-polls",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": {
+        "status": 2,
+        "wake": {
+          "claimed": false,
+          "wakeAttemptId": null,
+          "pendingCount": 2
+        }
+      }
+    },
+    {
+      "id": "packaged-layout.abort-kills-live-child",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": {
+        "aborted": {
+          "ok": false,
+          "error": {
+            "source": "client",
+            "code": "aborted",
+            "message": "The call was aborted and the dm CLI was stopped."
+          }
+        },
+        "ms": 44
+      }
+    },
+    {
+      "id": "packaged-layout.cancelAll-kills-live-child-client-stays-usable",
+      "criteria": [
+        "c4"
+      ],
+      "pass": false,
+      "detail": {
+        "cancelled": {
+          "ok": false,
+          "error": {
+            "source": "client",
+            "code": "cancelled",
+            "message": "The session ended and the dm CLI was stopped."
+          }
+        },
+        "after": false
+      }
+    },
+    {
+      "id": "packaged-layout.no-leftover-child",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": {
+        "pidsAliveAfter": [
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "scratchProcessesAfterExit": []
+      }
+    },
+    {
+      "id": "packaged-layout.refusals",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": {
+        "badToken": {
+          "source": "dm",
+          "code": "unauthorized",
+          "message": "That grant is not usable: it is unknown, expired, revoked, or was issued on another machine."
+        },
+        "notAllowed": {
+          "source": "client",
+          "code": "command_not_allowed",
+          "message": "Only the mailbox commands can be called."
+        },
+        "noGrant": {
+          "source": "client",
+          "code": "no_grant",
+          "message": "This chat holds no Dark Mechanicus grant."
+        },
+        "missing": {
+          "source": "client",
+          "code": "descriptor_missing",
+          "message": "The DM client descriptor is gone; restart the chat from the app."
+        }
+      }
+    },
+    {
+      "id": "packaged-layout.credentials-never-in-descriptor-argv-errors",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": {
+        "secretInErrors": false,
+        "secretInArgs": false,
+        "stderrHasSecret": false
+      }
+    },
+    {
+      "id": "packaged-layout.omp-exited-cleanly",
+      "criteria": [
+        "c4"
+      ],
+      "pass": true,
+      "detail": {
+        "code": 1
+      }
+    }
+  ],
+  "finishedAt": "2026-11-16T01:59:18.704Z"
+}

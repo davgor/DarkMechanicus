@@ -49,6 +49,7 @@ import type { RunView } from '../../../shared/domain/views'
 import { chatRecord } from './fixtures'
 import { deferred } from './deferred'
 import type { Deferred } from './deferred'
+import { idleChatMail } from './idleChats'
 
 type Method =
   | 'list'
@@ -91,6 +92,8 @@ const NOT_FOUND: DomainErrorShape = { code: 'not_found', message: 'Chat not foun
 export class FakeChats implements ChatsApi {
   /** Every stored chat, across folders. */
   chats: ChatRecord[] = []
+  /** The person's mailbox side; no chat has mail unless a test replaces it. */
+  mail = idleChatMail()
   /** A method listed here answers with this error instead of doing its work. */
   failures: Partial<Record<Method, DomainErrorShape>> = {}
   /** How `startOrchestrator` queues the run; without it the call is refused as unavailable. */

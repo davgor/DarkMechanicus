@@ -25,7 +25,11 @@ export const ID_PREFIXES = {
   kanbanCard: 'kc',
   kanbanAttempt: 'ka',
   kanbanEvent: 'ke',
-  attachment: 'im'
+  attachment: 'im',
+  mailEndpoint: 'me',
+  mailMessage: 'mm',
+  /** One consumed wake credit: an attempt to wake a chat, never a delivery or read receipt. */
+  mailWake: 'mw'
 } as const
 
 export type IdKind = keyof typeof ID_PREFIXES

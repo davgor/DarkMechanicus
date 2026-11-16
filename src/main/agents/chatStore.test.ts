@@ -355,6 +355,39 @@ describe('chat store reads chats stored before terminals', () => {
   })
 })
 
+describe('chat store mailbox ids', () => {
+  it('loads a record stored before mailboxes with none, and stores one without moving updatedAt or the list order', () => {
+    const fs = memoryFs()
+    const store = openStore(fs)
+    const older = store.createChat(NEW_CHAT)
+    const newer = store.createChat({ ...NEW_CHAT, agent: 'omp' })
+    expect(newer.endpointId).toBeUndefined()
+
+    const recorded = store.recordEndpoint(older, 'me_00000000000000000000000001')
+
+    expect(recorded).toEqual({ ...older, endpointId: 'me_00000000000000000000000001' })
+    const reopened = openStore(fs)
+    expect(reopened.getChat(older)).toEqual(recorded)
+    expect(chatIds(reopened, REPO)).toEqual([newer.id, older.id])
+  })
+
+  it('keeps the mailbox id through a rename, a new session and a later grant', () => {
+    const fs = memoryFs()
+    const store = openStore(fs)
+    const chat = store.recordEndpoint(store.createChat({ ...NEW_CHAT, agent: 'omp' }), 'me_00000000000000000000000002')
+
+    store.updateChat(chat, { title: 'Renamed', titleStatus: 'manual' })
+    store.updateChat(chat, { sessionId: null, sessionStarted: false })
+    store.updateChat(chat, { grantIds: ['gr_1'], endpointId: 'me_00000000000000000000000002' })
+
+    expect(openStore(fs).getChat(chat)).toMatchObject({ title: 'Renamed', grantIds: ['gr_1'], endpointId: 'me_00000000000000000000000002' })
+  })
+
+  it('refuses to record a mailbox for a chat it does not know', () => {
+    expect(errorCode(() => openStore(memoryFs()).recordEndpoint({ folder: REPO, id: 'chat_missing' }, 'me_1'))).toBe('not_found')
+  })
+})
+
 describe('chat store updates and errors', () => {
   it('updates the title, model and vendor session id, and keeps them across a reopen', () => {
     const fs = memoryFs()

@@ -12,6 +12,8 @@ import type { AgentAuthStatus, AgentView } from '../../../shared/desktop/api'
 import type { RunState } from '../../../shared/domain/status'
 import { removeScratch } from '../../../test/removeScratch'
 import { builtInAgent, connectedAgents, memoryChatFs, memoryChatStore, type MemoryChatFs } from '../../agents/__mocks__/chatFixtures'
+import { hasMailbox } from '../../agents/chatMailboxes'
+import type { GrantChat } from '../../agents/chatGrants'
 import type { ChatStore } from '../../agents/chatStore'
 import type { PtyTree } from '../../agents/processTree'
 import { buildCliConfig, type CliLaunch } from '../../desktop/cliConfig'
@@ -102,6 +104,8 @@ class RecordingHost extends FakePtyHost {
   readonly sessionStoredAtSpawn: (string | null)[] = []
   /** For each spawn, in order: whether that record already said the kickoff was sent. */
   readonly kickoffSentAtSpawn: boolean[] = []
+  /** For each spawn, in order: the mailbox id on that record (null for none). */
+  readonly endpointStoredAtSpawn: (string | null)[] = []
   /** Runs right after each spawn, as the program starting; a test plays a CLI that exits at once with it. */
   onSpawn: (pty: FakePty) => void = () => {}
 
@@ -118,6 +122,7 @@ class RecordingHost extends FakePtyHost {
     this.grantStoredAtSpawn.push(stored !== undefined)
     this.sessionStoredAtSpawn.push(stored?.sessionId ?? null)
     this.kickoffSentAtSpawn.push(stored?.kickoffSent === true)
+    this.endpointStoredAtSpawn.push(stored?.endpointId ?? null)
     const pty = super.spawn(spec)
     this.onSpawn(pty)
     return pty
@@ -160,6 +165,8 @@ export interface TerminalRig {
   grantGate: Gate<void> | null
   /** How many grants were asked for, counted as each request arrives (before any gate). */
   grantsAsked: number
+  /** The trusted chat each grant was asked for, in order; an OMP chat's comes back bound to `me_<chat id>`. */
+  grantChats: GrantChat[]
   /**
    * Every PTY tree the manager asked to kill, once per tree as `killPtyTree` shares a kill: a running tree is
    * killed (node-pty's kill, and the kill settles when it exits); one that has exited is only checked for leftovers.
@@ -233,14 +240,15 @@ function rigKillTree(rig: RigBase, options: RigOptions): TerminalSessionsDeps['k
 function rigGrants(rig: RigBase): Pick<TerminalSessionsDeps, 'issueChatCli' | 'issueReachCli' | 'reachFolders' | 'revokeChatGrant' | 'renewChatGrant'> {
   let grants = 0
   return {
-    issueChatCli: async (folder) => {
+    issueChatCli: async (folder, _grant, chat) => {
       rig.grantsAsked += 1
+      rig.grantChats.push(chat)
       grants += 1
       const grantId = `gr_${grants}`
       await rig.grantGate?.promise
       rig.steps.push(`grant:${grantId}`)
       const launch = cliFor(folder)
-      return { cli: { ...launch, env: { ...launch.env, DM_SESSION_TOKEN: `token-${grantId}` } }, grantId }
+      return { cli: { ...launch, env: { ...launch.env, DM_SESSION_TOKEN: `token-${grantId}` } }, grantId, endpointId: hasMailbox(chat, chat.kind) ? `me_${chat.id}` : null }
     },
     issueReachCli: async (targets) => {
       rig.grantsAsked += 1
@@ -328,6 +336,7 @@ export function terminalRig(options: RigOptions = {}): TerminalRig {
     holdGrant: () => (rig.grantGate = gate<void>()),
     grantGate: null,
     grantsAsked: 0,
+    grantChats: [],
     killed: [],
     errors: [],
     runs: { states: {}, calls: [] },

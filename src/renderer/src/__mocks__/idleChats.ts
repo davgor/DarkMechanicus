@@ -2,7 +2,7 @@
  * `window.dm.chats` for renderer tests that are not about chats: no folder has chats, nothing is
  * bound, nothing is pushed, and every other request is refused as unavailable.
  */
-import type { ChatsApi } from '../../../shared/agents/chatApi'
+import type { ChatMailApi, ChatsApi } from '../../../shared/agents/chatApi'
 import type { CommandResult } from '../../../shared/desktop/api'
 
 function refused(): Promise<CommandResult<never>> {
@@ -25,6 +25,19 @@ export function idleChats(): ChatsApi {
     boundTerminal: () => Promise.resolve({ ok: true, data: null }),
     rename: refused,
     delete: refused,
+    onEvent: () => () => {},
+    mail: idleChatMail()
+  }
+}
+
+/** `window.dm.chats.mail` with no mailbox anywhere: every folder's snapshot is empty and nothing is pushed. */
+export function idleChatMail(): ChatMailApi {
+  return {
+    snapshot: (folder) => Promise.resolve({ ok: true, data: { folder, chats: [] } }),
+    state: refused,
+    read: refused,
+    markSeen: refused,
+    allowWake: refused,
     onEvent: () => () => {}
   }
 }
