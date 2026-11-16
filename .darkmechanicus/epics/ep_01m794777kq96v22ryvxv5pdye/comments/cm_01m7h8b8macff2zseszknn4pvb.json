@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "G3 bounded source reassessment: current Windows raw-handle-alone candidate rejected as attestation (source accepts reused handles, no event-age/epoch join), NOT reproduced native replay or universal impossibility. Independent platform reviews corrected stronger unasked assumptions: trustworthy authorization of exact IME/paste bytes is required, not human authorship; no universal process-memory attestation imposed. macOS retained-device timestamped interrupt-REPORT callback is a credible narrower candidate: pinned IOHIDFamily777ccd9698845aadf711e32d843c8c9b777431d9/IOHIDFamily/IOHIDElementPrivate.cpp1121-1124 excludes kIOHIDReportOptionNotInterrupt before handler enqueue; parent read this and IOHIDDevice.cpp1493-1507 kernel uptime source. IOHIDLibUserClient software report paths require exact trace qualification; virtual-HID creation is entitlement-gated, mere existence is not in-scope exploit. IOKitUser323ead896d04424f87184d8f6ff0cce811aab106/hid.subproj/IOHIDDevice.h documents timestamped interrupt-report callback. Published source support is NOT deployed Mac/native proof. Windows next proposed discriminator is genuine owned event envelope vs sent/posted SAME-live-handle replay/stale epoch at actual final consumer, source plan only before implementation/consent; fabricated pointers/software input cannot substitute genuine event. No new native/input/credential/permission authority. G3 remainsOPEN, accepted0.",
+  "createdAt": "2026-11-16T04:02:51.146Z",
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7h8b8macff2zseszknn4pvb",
+  "ticketId": "tk_01m794h65mec9hp3m268kbey53"
+}

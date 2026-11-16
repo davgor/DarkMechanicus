@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Source/evidence handoff at commit 230fc21f82368bc61d6b35af400a853110bb3b9a (desktop-controls-dm541). Both authorized native runs remain failed/consumed; actual final image stays attached as im_01m7gdgg1y5ep8bgztst0aesgh. No additional native launch. Corrected source removes Electron stdin, uses bounded atomic finish-only file/event installed before READY, and separately freezes dm541-protected-semantic-invoke-only (showInactive/no focus/key/pointer; exact HWND/PID/birth/snapshot/case button/ref; fixed no-headed argv; pinned source has semantic-only Click chain; observed receipt must be sole Invoke, retaining delivered_unverified). Build6 source-only pins: protected-pilot 4551ec2e3e8436137cd16c95221f94b9275f7989438ddd230e45c22652a8a8c5; fixture 499704d1ab936fea01de324028c7715008600d1a31be154e35b4fe3140a7de75; guard 1baa6065cff81ca8d71f3008967eec5d88f89bdd8bc1d910ba37222fa0c16d68. Maximum120000ms; fresh purpose-bound native permission still required. Changed targeted19passed/32skipped, lint and three type projects passed after actual regex/narrowing fixes; initial failures retained. Full sweep left acceptance. Detailed native receipts/pins/criteria: evidence/desktop-dm541/retry3-native-session-and-build6.json. Gate still incomplete: normalized owned sandbox exec/Clap serializer and real adversarial raw-byte/nonzero consumer tests, exact registry/birth/supervisor receipt/two-process handoff, and native protected-vs-ordinary proof remain. Parent F11 correction is documented. No success submission, selfacceptance or premature attempt failure.",
+  "createdAt": "2026-11-15T20:38:03.526Z",
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7gewtg6dgszmwrvdfp55tv0",
+  "ticketId": "tk_01m794h65mec9hp3m268kbey53"
+}

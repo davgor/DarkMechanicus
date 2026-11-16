@@ -1,0 +1,92 @@
+{
+  "activeSprintId": "sp_01m794777ktbe6rtp14kwd7dsh",
+  "attempts": [
+    {
+      "createdAt": "2026-11-16T17:17:34.116Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": {
+        "details": "Static installed PATH candidate C:/Users/davgo/AppData/Local/omp/omp.exe is SHA256 753c705d43c502f24751efd2b4b0c6c2fffc05db65c7b8b7771dca87146c2c19, 252522496 bytes; embedded @oh-my-pi/pi-coding-agent version18.20.3. Normal wrapper tool_call blocking is distinct from native delegation and direct-file policy refusal; no all-route supported seam established. Registered image UNKNOWN; MCP/subagent coverage unproved. Stopped source expansion without another candidate or runtime launch. Report docs/reports/desktop-controls-dm-613-source.json, commit46b710a2ec5b8494de51ef70591fdb5f8c258934, branch desktop-redo-dm613-s1, only changed file. c1 unmet; c2 met. No source/tests/config changes. Full checks skipped per source-only packet/acceptance node. Requires authoritative registered-image metadata and an established supported all-route approval seam before downstream production; this failure must not unblock it.",
+        "reason": "DM-613 source prerequisite NO-GO: actual registered image and universal supported pre-execution decision seam unproved",
+        "retryable": false
+      },
+      "fencingToken": 1,
+      "id": "at_01m7jnte14tc4vp4pthznf8me1",
+      "kind": "work",
+      "number": 1,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m7jnee3ptzsvtrf824zhef2x",
+      "state": "failed",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:74d282059e52312741d60922ea97b8d710e7f322cdf9711e50a8513ddcac28e7",
+      "ticketId": "tk_01m7jhyy8vcmmp6an83162f18x",
+      "updatedAt": "2026-11-16T17:23:10.882Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "medium",
+        "hostId": "omp-desktop-redo-20261116",
+        "label": "DM-613 bounded source-prerequisite worker",
+        "modelId": "openai-codex/gpt-6.1-sol",
+        "rationale": "Recommended fixed inherited model/medium guidance; no runtime model/effort selector. Windows uncertainty resolved by direct win32/10.0.26300/x64 observation. Source-only10minute outcome, no native authority.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-16T17:17:34.719Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": {
+        "details": "Source-only inspection found installed Framework64 csc.exe/System.Web.Extensions.dll and SDK directory labels 10.0.26100.0/NETFXSDK4.8.1, not executable capability proof. Exact historical guard 4f99122b12f852d53308e483c322d6dbeb7307e2 contains HWND/PID/start/foreground observation and WM_CLOSE, no compile/run containment or Hello verifier. Integration scripts contain no scoped compiler/bootstrap match; backendHost.mjs and src/main/desktopControl absent. Hello availability UNKNOWN; no compile/probe/credential/config/runtime action performed. Sanitized report docs/reports/desktop-controls-dm-614-source.json committed 8a8f9916c07d36adcf3d9a0eb6887e4b6c6e5ced on desktop-redo-dm614-v0. c1 inspection recorded; c2 enforced by NO-GO. No downstream preparation authorized.",
+        "reason": "NO-GO: safe compiler/bootstrap and bounded compile/run containment prerequisite not established",
+        "retryable": false
+      },
+      "fencingToken": 1,
+      "id": "at_01m7jntekzxj24eq6j5mmx5ttw",
+      "kind": "work",
+      "number": 1,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m7jnee3ptzsvtrf824zhef2x",
+      "state": "failed",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:9cda72159469bf9983ffe2256e598b7c76fadd67cf56d211f7b381077cf44697",
+      "ticketId": "tk_01m7jhyy9c6eg56fk8szrzkc7p",
+      "updatedAt": "2026-11-16T17:20:33.994Z",
+      "worker": {
+        "catalogRevision": "1",
+        "effort": "medium",
+        "hostId": "omp-desktop-redo-20261116",
+        "label": "DM-614 bounded source-prerequisite worker",
+        "modelId": "openai-codex/gpt-6.1-sol",
+        "rationale": "Recommended fixed inherited model/medium guidance; no runtime model/effort selector. Windows uncertainty resolved by direct win32/10.0.26300/x64 observation. Source-only10minute outcome, no native authority.",
+        "sessionId": null
+      }
+    }
+  ],
+  "checkpoints": [],
+  "createdAt": "2026-11-16T17:15:21.162Z",
+  "endedAt": null,
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.run",
+  "formatVersion": 1,
+  "host": {
+    "label": "OMP bounded desktop-controls redo",
+    "type": "omp"
+  },
+  "hostCatalogId": "hc_01m7jnnbbk0ge84hxmm51nz0g5",
+  "number": 2,
+  "ownerMachineId": "mc_01m41707wstg1crxjbt3jw2ap5",
+  "pauseReason": null,
+  "reports": [],
+  "revisionId": "rv_01m7jnee3ptzsvtrf824zhef2x",
+  "runId": "rn_01m7jnpc6ave4nwerp72q1sppg",
+  "skillVersion": "1.10.0",
+  "startedAt": "2026-11-16T17:15:21.163Z",
+  "state": "running",
+  "updatedAt": "2026-11-16T18:53:52.595Z"
+}

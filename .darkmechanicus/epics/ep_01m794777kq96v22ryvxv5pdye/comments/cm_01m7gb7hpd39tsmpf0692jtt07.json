@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Attempt3 intermediate evidence, NOT submission/acceptance: isolated commit38b12073260025df50d8ffc4e5ed3e113066d3c0 preserves the single explicitly authorized failed pilot. Manifest evidence/desktop-dm541/raw-pilot-20261115T1845/manifest.json SHA2564806001da2f35d8f31d46e2670608cd274a16929f3a76324f3708e34dde3eddc: first owned foreground guard exited2 before snapshot/input; guarded close observed direct children gone and raw registration removed at255.9996ms. No image/input/human-origin claim. Source-proven premature OnHandleCreated readiness corrected to one OnShown exact foreground check; no wait/retry/workaround. Spent consent not reused. Parent-reviewed build4 corrected raw and separate real guardIpc/service comparison are compile-only pending NEW purpose-bound permission. Native source/bundle pins, retained compiler/lint/preflight/red regression failures and checks live in retry3-verification.json. Targeted70/70, then changed MCP8/8 and wire13/13, final lint+3types passed; no fictitious71combinedrun/full sweep. New exact official6-target archive/member metadata and per-OS support, target-specific transaction projections and actual fresh/resume reference hook consumers are functional/static contract evidence, not live provider/native origin proof. Parent decisions requested for exact cross-instance lock/chord/stale recovery and reconciliation of public broker-owned sandbox policy with downstream DM545 guest-passthrough requirement. All criteria remain unsubmitted/unaccepted; claim kept leased while parent handles native permission/decisions.",
+  "createdAt": "2026-11-15T19:34:00.653Z",
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7gb7hpd39tsmpf0692jtt07",
+  "ticketId": "tk_01m794h65mec9hp3m268kbey53"
+}

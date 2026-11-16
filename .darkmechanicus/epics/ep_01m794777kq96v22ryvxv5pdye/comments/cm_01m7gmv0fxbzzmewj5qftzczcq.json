@@ -1,0 +1,25 @@
+{
+  "attachments": [
+    {
+      "bytes": 48852,
+      "height": 881,
+      "id": "im_01m7gmppnxc23rgh38rcxvt408",
+      "label": "DM541 single semantic-only run final owned fixture state",
+      "mime": "image/png",
+      "purpose": "evidence",
+      "sha256": "c0fc2d3fa75fd58d8afa75412dfc20721cbd8e4443e5c1d873db57855faa6ff5",
+      "width": 1479
+    }
+  ],
+  "author": {
+    "label": "Codex Orchestrator",
+    "role": "orchestrator"
+  },
+  "body": "Consumed exactly ONE reviewed build9 background semantic-only run under cm_01m7gmfs6n6dbccz3g6yzetjev; no rerun. Root evidence/desktop-dm541/semantic-pilot-20261115T221811680Z. Controller manifest SHA256 f0413876c3aaf1dca856a1d3ea0b4fae5a3a7cd613cd59eadcb7cbdb69cf8801; fixture manifest6649605987a8bb0ce4c4edcbfcb6e93ffb0677347cc2d9c733a5522c1221fdf3. Ordinary createKanbanCard succeeded through real guardIpc/service: backlog1→2, grants1 unchanged, private decision receipts3 unchanged. Native sole InvokePattern.Invoke/semantic_api succeeded with delivered_unverified/unsafe and verified=false; application readback is separate. Exact owned PID6920/HWND4196440/birth639303779143366260; foregroundOwned false before Invoke, true in later guard readbacks, cause not established and no explicit focus/key/pointer command. The NEXT snapshot exited1;276stdout bytes were withheld and hashed, code-only child_failed retained. No protected grant/all15 native case was exercised, so paired comparison and fullF03 remain NOT PROVED. Total3973.3207ms; cleanup110.2665ms; fixture exit0, observed owned direct children closed/survivors[], descendant-tree/OSqueue quiescence not independently proved. Final owned capturePage PNG SHA c0fc2d3fa75fd58d8afa75412dfc20721cbd8e4443e5c1d873db57855faa6ff5 attached and actually inspected; it shows ordinary success and all remaining fixture controls. No human-origin approval, raw guardian, vendor or production capability claim.",
+  "createdAt": "2026-11-15T22:21:55.581Z",
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7gmv0fxbzzmewj5qftzczcq",
+  "ticketId": "tk_01m794h65mec9hp3m268kbey53"
+}

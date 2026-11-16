@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Bounded G1 reassessment: source review confirmed quiescent checkpoint/commit holds project ctx.db only; fixture ownership shares that DB, production per-user registry is separate. This is a composition qualification gap, not an observed autonomous bypass. Approved one correction: registry-owned retained-reservation fence, fixed registry->project synchronous lock ordering, exact original row/epoch/coverage revalidation; no release/reacquire, no distributed crash-atomicity claim. Required discriminator uses separate owned SQLite files/concurrent contender at deterministic boundaries, stale/rebound refusal before mutation, valid once-only service and explicit commit/uncertainty failure cases. No new native/input authority or G3 prototype expansion. Existing166 targeted passes/4 unauthorized ConPTY skips remain partial; actual31 lint and4 ES2022 errors preserved, source corrections reported passing41 affected tests/lint/3types. No ticket accepted yet.",
+  "createdAt": "2026-11-16T02:37:10.699Z",
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7h3ecnb2ya9b4nnmg8xmc3v",
+  "ticketId": "tk_01m794h65mec9hp3m268kbey53"
+}

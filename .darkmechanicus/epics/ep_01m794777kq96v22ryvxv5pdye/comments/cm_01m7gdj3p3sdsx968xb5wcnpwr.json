@@ -1,0 +1,25 @@
+{
+  "attachments": [
+    {
+      "bytes": 47300,
+      "height": 881,
+      "id": "im_01m7gdgg1y5ep8bgztst0aesgh",
+      "label": "DM541 protected build5 final owned fixture before input refusal cleanup",
+      "mime": "image/png",
+      "purpose": "evidence",
+      "sha256": "7cee9f798f5a11734cd4204538e393a117e6d466cda396f9bd10dec200977e2c",
+      "width": 1479
+    }
+  ],
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Fresh consent cm_01m7gd3rfjy3b7gtxkz4s5pqvq was consumed by exactly two reviewed build5 runs, no retry/substitution. Corrected raw pilot manifest evidence/desktop-dm541/raw-pilot-20261115T2011/manifest.json SHA25665530a8fde0f8932e94a0609ce44f4d2a9cd31a4b076b36fb21773b58114adde: OnShown blocked shown_without_owned_foreground52ms, registration removed66ms, exit0/inputReadyObserved:false286.56ms; direct children closed291.5873ms. No sender/runtime invocation or image/input. Protected comparison manifest evidence/desktop-dm541/protected-pilot-20261115T2012/manifest.json SHA256617e0e69328a8621981049c946de0796db217b00317d279a520e6edf78715457: exact owned PID24056/HWND5571214/birth639303703745412526, foregroundOwned:false, identity helper exit2 before snapshot/click. Fixture also recorded actual EOF-before-complete-private-finish-frame, exit1; source cause not established by rerun. Owned direct children closed, survivors[],35.4837ms cleanup/523.5551ms total; descendant/OS-queue certainty not established. Fixture manifest SHA2569baa5f498806539cf2d876a2c85f8537148315699d3b91e6bedd0ef7b63fabb3. Actual final owned capture SHA2567cee9f798f5a11734cd4204538e393a117e6d466cda396f9bd10dec200977e2c is attached. Main seed queue/pause/grant are automated functional positives ONLY; every requested native ordinary/protected negative remains unexercised. No human provenance, native protection success, blanket-disable pass or retry-to-green claimed. Both cases retain failure, F03 remains not proved. Continuing required safe sandbox/ownership handoff while parent reviews; no fail/submission/acceptance or further native authority inferred.",
+  "createdAt": "2026-11-15T20:14:43.907Z",
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7gdj3p3sdsx968xb5wcnpwr",
+  "ticketId": "tk_01m794h65mec9hp3m268kbey53"
+}

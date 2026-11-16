@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "## Fresh-run mandatory preflight NO-GO; paused without production expansion\nRun rn_01m7jnpc6ave4nwerp72q1sppg savedrev2. DM614 claim17:17:34.719Z closed failed17:20:33.994Z (~3minutes); DM613 claim17:17:34.116Z closed failed17:23:10.882Z (~5m37s), both before original17:27:34stop. Zero accepted/submitted, no active claims, no native/model/compiler launches or production changes. Parent explicitly paused at prerequisite gate; no retries/new candidates/framework expansion authorized.\n\nDM613 report docs/reports/desktop-controls-dm-613-source.json at46b710a2ec5b8494de51ef70591fdb5f8c258934 (desktop-redo-dm613-s1): PATH candidate omp18.20.3/hash pinned, actual registered image UNKNOWN. Normal wrapper hook blocking, native resolver and direct-file policy are distinct; MCP/subagent coverage unproved. This is INCOMPLETE QUALIFICATION, not demonstrated bypass or proof no supported design exists. Parent clarified nonsecret DM runtime-selection metadata is allowed, credentials/vendor settings are not.\n\nDM614 report docs/reports/desktop-controls-dm-614-source.json at8a8f9916c07d36adcf3d9a0eb6887e4b6c6e5ced (desktop-redo-dm614-v0): compiler/SDK files found, compatibility/Hello UNKNOWN; named historical guard does not establish safe compiler bootstrap/retained containment. No such primitive established in scoped epic base. This is missing readiness evidence, not native API infeasibility.\n\nNeither report is accepted or merged into integration as product success. No row/full gate/increment/checkpoint completion claimed. Required before resume: authoritative managed runtime pin + complete supported approval-requiring route map, and reviewed bounded owned compiler/run boundary. Recommend a narrowly scoped prerequisite correction, not another broad native experiment or silent weakening. Saved plan disallows inventing that bootstrap under these read-only tickets.\n\nReporting incident: DM614 helper printed details.trace.script/nested arguments containing its claim token. Attempt is already failed/inactive; token was not placed in committed report. No DM_SESSION_TOKEN exposure is asserted. Remaining worker used stdout-only reporting; QA issue filed. Future helpers print parsed public stdout fields only, never entire tool return/trace.",
+  "createdAt": "2026-11-16T17:27:01.633Z",
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7jpbr815c2vv98d1mfkadqr",
+  "ticketId": null
+}
