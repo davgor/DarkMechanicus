@@ -5,7 +5,7 @@
   "epicId": "ep_01m7gnwzbth5hqr5jjf9vf48v9",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 1,
+  "generation": 2,
   "outcome": null,
   "provenance": null,
   "status": "backlog",
@@ -23,8 +23,15 @@
     "tk_01m7gp4cenzna8sn9hmnv1j7jf": "backlog",
     "tk_01m7gp4cep30x481pqw2bdya5s": "backlog",
     "tk_01m7gp4cepn2ye10s0efpaccy6": "backlog",
-    "tk_01m7gq08z10k1eaf4hxx4d0r3x": "backlog"
+    "tk_01m7gq08z10k1eaf4hxx4d0r3x": "backlog",
+    "tk_01m7h7b8metmbwww08eyk3x9q4": "backlog",
+    "tk_01m7h7b8nabebk1hzqvgfv1j29": "backlog",
+    "tk_01m7h7b8nahwr58zhg4eg9vz5w": "backlog",
+    "tk_01m7h7b8naph0bde2sv3rftyxs": "backlog",
+    "tk_01m7h7b8nb6yep282nman4twmk": "backlog",
+    "tk_01m7h7b8nb7azg12kxa84kh609": "backlog",
+    "tk_01m7h7b8nbspvkfs1varp82rr4": "backlog"
   },
   "title": "Cults: a Magos leads a timed swarm of acolyte agents you can pause, stop and watch",
-  "updatedAt": "2026-11-15T22:59:56.932Z"
+  "updatedAt": "2026-11-16T03:52:47.153Z"
 }

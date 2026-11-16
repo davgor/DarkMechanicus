@@ -3688,23 +3688,191 @@
     },
     {
       "createdAt": "2026-11-16T01:58:46.245Z",
-      "decidedAt": null,
-      "decision": null,
-      "evidence": null,
+      "decidedAt": "2026-11-16T02:32:01.258Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Accepted on first review. Orchestrator decision routed to DM-178: C counts a rejected submission as a failed handoff (review reliability), so extra rejected attempts can never raise a grade. Explanation-length truncation routed to DM-178.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "exit 0 (node, web and fireguard projects) on the final source",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "rubric.ts, contract.ts, spaceSignals.ts, spaceGrades.ts (core+shared), space.ts, spaceSignals.ts (shared), scratch/DM-177/*.ts: no findings",
+            "name": "npx oxlint <touched src files> scratch/DM-177/*.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "58/58; the only existing test file exercising a touched module (submit path into spaceSignals). No test imports rubric/contract/spaceGrades directly.",
+            "name": "npx vitest run src/core/services/attempts.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "ALL CHECKS PASSED in each",
+            "name": "npx tsx scratch/DM-177/{c1-boundaries,c2-cap-ungraded,c3-provisional,c4-explanations,criterion-key}.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "all ALL CHECKS PASSED after the change (DM-169 c2-rubric regrades the regenerated fixtures byte-for-byte)",
+            "name": "predecessor demos: npx tsx scratch/DM-169/*.ts, scratch/DM-174/*.ts, scratch/DM-175/*.ts, scratch/DM-176/*.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the testing tail",
+            "name": "npm test (full suite)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the testing tail",
+            "name": "npm run lint (whole tree)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the testing tail",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the testing tail (getTicketGrade has no caller until DM-179/DM-266 wire it)",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the testing tail; no criterion needs the built app",
+            "name": "npm run build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Exact banding in canonical units, equal 1/7 weights, byte-identical regrading incl. key-order permutations; boundaries.json 8 cases (scratch/DM-177/c1-boundaries.ts; reviewer)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Confirmed failure caps F 59 regardless of cost; pending/missing verification ungraded; holds from real records incl. retry-limit failure (c2-cap-ungraded.ts; reviewer)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Missing components weight 0, listed with reasons, provisional/ungraded; withholding data never yields a better final grade (c3-provisional.ts; reviewer)."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Per-component and result explanations with evidence, cutoff, rule, baseline, caps; activity volume diagnostic only (c4-explanations.ts; reviewer)."
+          }
+        ],
+        "notes": "Orchestrator decision (DM-174 review) implemented: criterionKey folds case and collapses whitespace; undelivered reasons carried (npx tsx scratch/DM-177/criterion-key.ts → ALL CHECKS PASSED: alpha accepted after a casing/spacing-only edit ('Parses input' → '  parses   INPUT') reads delivered at sprint level, beta reworded reads criteria_unverified c1 changed, gamma reviewer-unmet reads not_met, delta not_accepted; ticket alpha 2/2 with added 0/removed 0). Fixture regeneration: npx tsx scratch/DM-177/make-fixtures.ts (rewrites only `expected` of the five worked examples and writes boundaries.json); the diff of the five removes no value, only adds fields. The policy hash means a grade's bytes now depend on the policy content: any later policy-constant edit changes policy.hash (intended). Scope limits: getTicketGrade is ticket-level only; run/sprint/epic assembly, roll-up of T/K and the aggregate baseline rule are DM-178's per the earlier comments (gradeSpace still accepts a cohort at aggregate levels, refusing only budgets there via other_ticket). getTicketGrade has no MCP/IPC caller yet (DM-179/DM-266), so ts-prune may list it until then. Scratch scripts of predecessors (e.g. scratch/DM-174) fail oxlint's complexity/length rules; scratch is outside `npm run lint` (src scripts resources/...), mine pass.\n\nDiscoveries:\n- title: Decide whether resubmitted handoffs may dilute earlier failed handoff checks in C\n  reason: C.handoff-pass-rate.v1 counts the checks of every submission in scope (spaceSignals.ts collaboration()), so a ticket whose first handoff failed checks and whose retry passes reads e.g. 4 of 6 rather than the latest handoff's quality; more submissions with passing checks raise C. Not demonstrated as a defect, only read from the rule; relevant to the 'activity volume never raises a grade' principle.\n  ticket: DM-178"
+      },
       "failure": null,
       "fencingToken": 1,
       "id": "at_01m7h18275dmdmb02s3k20s2zv",
       "kind": "work",
       "number": 1,
-      "outputs": null,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Grader: explanations, input/policy hashes, contains_subject",
+            "location": "src/core/space/rubric.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Grade schema with explanation consistency rules",
+            "location": "src/core/space/contract.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Grade explanation types",
+            "location": "src/shared/domain/space.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Ticket grade from records (getTicketGrade)",
+            "location": "src/core/services/spaceGrades.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "TicketGradeView type",
+            "location": "src/shared/domain/spaceGrades.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "criterionKey normalization and undelivered reasons",
+            "location": "src/core/services/spaceSignals.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Rubric fixtures (regraded) and band-boundary fixture",
+            "location": "src/core/space/fixtures/rubric",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Demonstration scripts (c1-c4, criterion-key, make-fixtures)",
+            "location": "scratch/DM-177",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Docs",
+            "location": "docs/space-grading.md",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "space-DM-177",
+        "changedFiles": [
+          "docs/architecture.md",
+          "docs/space-grading.md",
+          "scratch/DM-177/c1-boundaries.ts",
+          "scratch/DM-177/c2-cap-ungraded.ts",
+          "scratch/DM-177/c3-provisional.ts",
+          "scratch/DM-177/c4-explanations.ts",
+          "scratch/DM-177/criterion-key.ts",
+          "scratch/DM-177/make-fixtures.ts",
+          "scratch/DM-177/shared.ts",
+          "scratch/DM-177/world.ts",
+          "src/core/services/spaceGrades.ts",
+          "src/core/services/spaceSignals.ts",
+          "src/core/space/contract.ts",
+          "src/core/space/fixtures/rubric/boundaries.json",
+          "src/core/space/fixtures/rubric/complete.json",
+          "src/core/space/fixtures/rubric/failure.json",
+          "src/core/space/fixtures/rubric/sparse.json",
+          "src/core/space/fixtures/rubric/too-sparse.json",
+          "src/core/space/fixtures/rubric/unverified.json",
+          "src/core/space/rubric.ts",
+          "src/shared/domain/space.ts",
+          "src/shared/domain/spaceGrades.ts",
+          "src/shared/domain/spaceSignals.ts"
+        ],
+        "commits": [
+          "7bffd3fcd1ef02e7e631995a5a472b9eddfb44fd"
+        ],
+        "summary": "Extends the reference grader gradeSpace (src/core/space/rubric.ts); no second calculator. (1) Explanations: every component carries explanation {normalization (the rule written out with this grade's numbers and result, or why no score), cutoff, baseline (T/K: id, kind, value, version, frozenAt, sampleSize, the grader's refusedReason), caps (P: mandatory_failure)}; the grade carries explanation {composite '(S 75 + P 95 + …) ÷ 7 = 85.357143', cap 'min(79.166667, 59) = 59', letter '85.357143 ≥ 80 → B', status lines, missing factors with reasons, rounding (6 decimals half up / 1 decimal floor), every cited record once}. (2) Reproducibility: grade.inputHash (sha256 of the validated input's canonical JSON) and policy.hash; same input+policy give the same grade byte for byte. (3) The grade schema (contract.ts) validates the new fields and refuses explanations that disagree with the grade. (4) gradeSpace refuses a ticket-level cohort baseline whose members include the ticket (contains_subject). (5) New read service getTicketGrade (src/core/services/spaceGrades.ts, types src/shared/domain/spaceGrades.ts): one transaction, one cutoff, S/A/C from getSpaceSignals, P from getTicketPerformance, E/T/K from getTicketEfficiency (budget/cohort baselines only at ticket level), dispatchedAt from those reads' lifecycle records (earlier of the two if they disagree, listed as dispatch_mismatch anomaly); returns input, grade and source views. Unreported attempts keep T/K missing (partial_telemetry), per the DM-171 comment. (6) Orchestrator decision from the DM-174 review: criterionKey (spaceSignals.ts) folds case and collapses inner whitespace; every ScopeItem carries undelivered {reason not_accepted|criteria_unverified, criteria [{criterionId, cause not_met|changed}]} (null exactly when delivered), at sprint/run/epic level too. (7) The five checked-in rubric fixtures are regraded (only additive JSON changes; scores unchanged) and boundaries.json adds 8 band-boundary cases from real component inputs (exactly 90/80/70/60 and 0.000001 below each). Docs: space-grading.md (explanations, reproducibility, contains_subject, A normalization and reasons, boundaries fixture, pieces table) and architecture.md (getTicketGrade, criterion comparison, undelivered reasons). Run/sprint/epic grade assembly and the aggregate baseline rule are left to DM-178 as the earlier comments direct."
+      },
       "reconciledAt": null,
       "revisionId": "rv_01m65yene3p1dwngx9apevkpn4",
-      "state": "running",
-      "submittedAt": null,
+      "state": "accepted",
+      "submittedAt": "2026-11-16T02:23:33.372Z",
       "supersededAt": null,
       "ticketContentHash": "sha256:4ae3705bcffc4e4ddd1caab1110fc592b55e04381ef1a2703152fb216e62668a",
       "ticketId": "tk_01m453gpadvwpdnfr0d818n39p",
-      "updatedAt": "2026-11-16T01:59:05.248Z",
+      "updatedAt": "2026-11-16T02:32:01.258Z",
       "worker": {
         "catalogRevision": "2026-11-15.1",
         "effort": "medium",
@@ -3712,6 +3880,373 @@
         "label": "omp task subagent",
         "modelId": "anthropic/claude-opus-5-5",
         "rationale": "Recommended by match_capabilities (Top-ranked of 1 eligible model.; Highest reasoning level \"deep\" is 1 rank above the ticket's \"multi_step\" need (-20).; Lists skills \"typescript\", \"node\", \"testing\" (+10, capped at 10).; Cost tier \"high\": cheaper tiers sort first on equal scores.; Uses the ticket's \"medium\" effort.). This host cannot set a subagent's model or effort; the worker is an omp task subagent at the harness default, listed in the catalog as anthropic/claude-opus-5-5.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-16T02:33:07.712Z",
+      "decidedAt": "2026-11-16T03:17:28.807Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Partial submission (worker out of budget); c3 met at demo scale, c1/c2/c4 not met. Decisions accepted: overhead tags fireguard/administrative/overhead (document them); migration v16; a rejected submission fails all its checks.",
+        "outcome": "rejected",
+        "reasons": [
+          "Unfinished: c4 has no demonstration; oxlint fails (8 errors: complexity rollupOf/compareSubject/leaseDeadline/collaboration/capped, max-depth scorecards.ts:109, max-params attemptEvents, unused tid import in scratch/DM-178/world.ts); docs still describe policy v1 and omit scorecards, roll-ups, migration v16 (docs/space-grading.md:15,313, docs/architecture.md:183; remove the scratch-script pointer at space-grading.md:452); no from-records demonstration that more rejected attempts never raise a grade.",
+          "c1/c2 BLOCKING B1: a later run that ended without work erases the epic's outcomes and measures (spaceGrades.ts:148 NOT_HERE omits run_ended; :161-170 outcomesOf; :199-206 sumMeasurements): a failed node in run 1 then a canceled run 2 removes the F cap; a ticket failed at its retry limit then a canceled run 2 reads P 100; starting a run with no executed attempts makes the epic ungraded. Treat a run_ended outcome with no attempt as not-here, and leave runs with no executed attempts out of measure sums.",
+          "c2 BLOCKING B2: a failed required ticket loses its cap when a later adopted revision marks it optional (spaceGrades.ts:110-119 plannedContent lets the current plan win; :139-142 roleOf): 59.0 F -> 88.8 B final at sprint/run/epic, and the orchestrator holds run.adopt. Freeze each ticket's role (required/optional/overhead) at first dispatch like A's scope. Also a failure superseded by moving the ticket to a later sprint must stay visible and counted in the sprint that incurred it (decision).",
+          "c3 BLOCKING B3: snapshot size breaches the 8 MiB run-history limit on real sprints (36 tickets ~1.0-1.3 MB per report revision pretty-printed; ~6 revisions reach the limit; over it finalizer.ts:497 refuses to write the run record so the run stops exporting); submit time grows quadratically inside the submission transaction (150 tickets x 3 attempts: 5.8 s). Decision: store the sealed snapshot as its own portable record per report revision (not inside run.json), store grade inputs + compact results (explanations are deterministic from input + policy and are re-derived on read), de-duplicate identical aggregates (run == epic in a single-run epic), and grade tickets without full per-ticket reloads. Show a 36-ticket sprint with 3 report revisions exporting within limits and submit time well under 1 s.",
+          "c1 BLOCKING B4: the epic roll-up counts a ticket's budget once per run it executed in (spaceGrades.ts:228-269 rollupOf; contract.ts rollupProblems): restarting a run buys a fresh allowance (ticket 3 at 2x budget reads T 100). A ticket's baseline counts once per epic.",
+          "Decisions for the rest: (N1) an incomplete roll-up must not raise the letter: roll up T/K over covered tickets (their actuals vs their baselines), mark it provisional/partial and list uncovered tickets, instead of dropping T/K for the whole scope; (N2) import must also check run, epic, report revision number, plan revision id and grade-subject identity of a re-sealed snapshot (portable.ts:359-364, snapshot.ts:146-154); (N3) keep policies in a registry by id/hash: restore SPACE_POLICY_V1 and policy-v1.json, pin the C v2 behaviour to the policy's rule id so the policy hash determines behaviour, and make v1 inputs reproduce; (N4) fix scratch/DM-170/c1-migration.ts to pin the ledger migration to v15 and copy only columns that exist there; (N7) a reassessment must show a frozen ticket that has since left the sprint (e.g. as removed), not drop it, and demonstrate the timing changes you made (readiness sprint, estimated_time anomaly)."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "no errors; web/fireguard configs not run",
+            "name": "npm run typecheck (tsc -p tsconfig.node.json)",
+            "status": "passed"
+          },
+          {
+            "detail": "8 errors: complexity in scorecards.ts compareSubject, spaceGrades.ts rollupOf, spaceSignals.ts collaboration, timing.ts leaseDeadline; max-depth scorecards.ts:109; max-params timing.ts attemptEvents; scratch complexity + unused import",
+            "name": "npx oxlint <touched files>",
+            "status": "failed"
+          },
+          {
+            "detail": "2594 passed, 1 skipped; migrations.test.ts and reports.test.ts updated for v16/scorecard",
+            "name": "npx vitest run (84 files touching reports/checkpoints/importer/portable/migrations/adoption/signals/efficiency)",
+            "status": "passed"
+          },
+          {
+            "detail": "ALL CHECKS PASSED",
+            "name": "npx tsx scratch/DM-178/c1-aggregate.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "ALL CHECKS PASSED",
+            "name": "npx tsx scratch/DM-178/c2-integrated-failure.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "ALL CHECKS PASSED (restart, export/import byte-identical record, tamper refused, later metrics/adoption/policy, stale report, new revision own snapshot)",
+            "name": "npx tsx scratch/DM-178/c3-snapshot.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "all pass after v2 renames except DM-170/c1-migration (assumes ledger migration is newest) and DM-172/c2-types (type-only script, ReferenceError at runtime, unrelated)",
+            "name": "earlier scratch demos (DM-169..DM-177)",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the testing tail",
+            "name": "full npm test, build, fireguard, deadcode",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "scratch/DM-178/c1-aggregate.ts: A 3/3 excludes acceptance+fireguard; T actual 115 min incl. overhead vs 90 min rollup; sprint grade = gradeSpace(sprint input) != ticket mean; level_mismatch and incomplete_rollup refusals; 170-regression P text truncated and parses."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "scratch/DM-178/c2-integrated-failure.ts: failed acceptance node caps sprint and epic at 59 F (uncapped 83.33) while tickets grade A; failed Fireguard ticket caps sprint; control uncapped."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "scratch/DM-178/c3-snapshot.ts: stored bytes identical after VACUUM INTO restart, export+import (re-export byte-identical), adoption, later ratings/overhead, other policy; tampered record refused; stale report after adoption gate_blocked; revision 2 gets own snapshot, old approval refused (conflict)."
+          },
+          {
+            "criterionId": "c4",
+            "met": false,
+            "note": "Implemented (legacy reports: scorecard_json NULL, no view scorecard, getReportScorecard null, reassessReportScorecard legacy:true; dated reassessment with approved/sameWindow/current and causes) but NOT demonstrated: no c4 script was written or run."
+          }
+        ],
+        "notes": "Decisions: aggregate baseline = rollup of ticket-accepted baselines only (budget/cohort refused at aggregate, rollup refused at ticket); overhead tickets = acceptance nodes + tags administrative/fireguard/overhead (ask orchestrator to confirm the tag convention); C v2 counts ALL checks of a rejected submission failed (counting one failed check per rejection would not guarantee monotonicity: 2/3 -> 5/7). Snapshot stored in a new column (migration v16): coordinate with other tickets adding migrations. Snapshot size ~70 KB for a 3-ticket sprint (canonical); large sprints may approach the 8 MB run history record limit over many revisions - risk. Remaining work: oxlint fixes, c4 demo, more-attempts demo, docs.\nDiscoveries:\n- title: DM-170 c1-migration scratch demo assumes the ledger migration is the newest\n  reason: scratch/DM-170/c1-migration.ts migrates to SCHEMA_VERSION-1 and copies current rows; with v16 it fails (no scorecard_json column)\n  ticket: DM-170"
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m7h36zc0zrvjh3vefyhvqkh3",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Aggregates",
+            "location": "src/core/services/spaceGrades.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Snapshots and reassessment",
+            "location": "src/core/services/scorecards.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Snapshot schema",
+            "location": "src/core/space/snapshot.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Demos",
+            "location": "scratch/DM-178",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "space-DM-178",
+        "changedFiles": [
+          "scratch/DM-169/c1-contracts.ts",
+          "scratch/DM-169/c2-rubric.ts",
+          "scratch/DM-169/c4-baselines.ts",
+          "scratch/DM-176/shared.ts",
+          "scratch/DM-177/c1-boundaries.ts",
+          "scratch/DM-177/make-fixtures.ts",
+          "scratch/DM-178/c1-aggregate.ts",
+          "scratch/DM-178/c2-integrated-failure.ts",
+          "scratch/DM-178/c3-snapshot.ts",
+          "scratch/DM-178/make-fixtures.ts",
+          "scratch/DM-178/world.ts",
+          "src/core/db/migrations.test.ts",
+          "src/core/db/migrations.ts",
+          "src/core/repo/importer.ts",
+          "src/core/repo/portable.ts",
+          "src/core/services/efficiency.ts",
+          "src/core/services/reports.test.ts",
+          "src/core/services/reports.ts",
+          "src/core/services/scorecards.ts",
+          "src/core/services/spaceGrades.ts",
+          "src/core/services/spaceSignals.ts",
+          "src/core/services/timing.ts",
+          "src/core/space/baselines.ts",
+          "src/core/space/contract.ts",
+          "src/core/space/fixtures/policy-v2.json",
+          "src/core/space/fixtures/rubric/boundaries.json",
+          "src/core/space/fixtures/rubric/complete.json",
+          "src/core/space/fixtures/rubric/failure.json",
+          "src/core/space/fixtures/rubric/sparse.json",
+          "src/core/space/fixtures/rubric/too-sparse.json",
+          "src/core/space/fixtures/rubric/unverified.json",
+          "src/core/space/rubric.ts",
+          "src/core/space/snapshot.ts",
+          "src/core/space/timing.ts",
+          "src/shared/domain/space.ts",
+          "src/shared/domain/spaceGrades.ts",
+          "src/shared/domain/spaceSignals.ts",
+          "src/shared/domain/timing.ts",
+          "src/shared/domain/views.ts"
+        ],
+        "commits": [
+          "78073c5ef327250653860cf1657b7a634f1e14ea"
+        ],
+        "summary": "PARTIAL (run hit its request budget). Implemented: (1) run/sprint/epic grades recomputed from scope measures with gradeSpace (getSprintGrade/getRunGrade/getEpicGrade in src/core/services/spaceGrades.ts; ticket grades via the same assembly as getTicketGrade, run efficiency read once). A commits feature tickets only: acceptance nodes and tickets tagged fireguard/administrative/overhead (OVERHEAD_TICKET_TAGS, spaceSignals.ts) are excluded. Aggregate P: any counted failed integrated/required outcome fails P and caps F; outcomes listed. E/T/K from scope efficiency incl. overhead; T/K compare against a new rollup baseline (sum of the baselines the scope tickets own grades accepted); grader refuses budget/cohort at aggregate and rollup at ticket (level_mismatch) and incomplete rollups (incomplete_rollup). (2) Policy v2: C.handoff-pass-rate.v2 counts every check of a rejected submission failed (rejectedSubmissions in C input, rejected_submission deduction); fixtures regraded (scores unchanged), policy-v1.json -> policy-v2.json. (3) Explanation term lists truncated (... and N more). (4) Scorecard snapshot frozen at report submission (src/core/services/scorecards.ts, schema+seal src/core/space/snapshot.ts): sprint/run/(final) epic + ticket grades with assessment ids, policy, plan revision, report hash, cutoff, baselines, frozen timing (projectRunTiming) and efficiency inputs, source ids, snapshotHash; stored canonical in sprint_reports.scorecard_json (migration v16), exported/imported byte for byte (importer never overwrites a stored snapshot), report view shows a summary. reassessReportScorecard implemented (approved vs same-window vs current, causes). (5) Timing feed: readiness from the sprint holding the ticket at first claim; heartbeat lease-end fallback listed as estimated_time anomaly. NOT DONE: oxlint errors (complexity/max-depth/max-params in scorecards.ts, spaceGrades.ts rollupOf, spaceSignals.ts collaboration, timing.ts leaseDeadline/attemptEvents); c4 demo script (legacy + reassessment) not written/run; from-records more-attempts-never-raise-grade demo not written; docs (space-grading.md, architecture.md, scratch-pointer nit) not updated."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m65yene3p1dwngx9apevkpn4",
+      "state": "rejected",
+      "submittedAt": "2026-11-16T03:05:43.877Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:e0ebe3e5cf8e3c5d9d8a1b9c1293ba07c1ced320f16da4ec57fab331cc3084fa",
+      "ticketId": "tk_01m453gpads5cm5ah9pyqk7qtw",
+      "updatedAt": "2026-11-16T03:17:28.807Z",
+      "worker": {
+        "catalogRevision": "2026-11-15.1",
+        "effort": "medium",
+        "hostId": "omp-win32-x64-space",
+        "label": "omp task subagent",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (Top-ranked of 1 eligible model.; Highest reasoning level \"deep\" is 1 rank above the ticket's \"multi_step\" need (-20).; Lists skills \"typescript\", \"node\", \"testing\" (+10, capped at 10).; Cost tier \"high\": cheaper tiers sort first on equal scores.; Uses the ticket's \"medium\" effort.). This host cannot set a subagent's model or effort; the worker is an omp task subagent at the harness default, listed in the catalog as anthropic/claude-opus-5-5.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-16T03:17:30.838Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": {
+        "checks": [
+          {
+            "detail": "node, web, fireguard projects clean",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "exit 0, 0 errors (attempt 1 had 8)",
+            "name": "npx oxlint <changed src and scratch files>",
+            "status": "passed"
+          },
+          {
+            "detail": "12 files, 549 tests passed",
+            "name": "npx vitest run migrations, reports, checkpointsReportStale, finalizer(+kanban), importer(+hostile), paths, portable(+kanban), legacyRecords, storage tests",
+            "status": "passed"
+          },
+          {
+            "detail": "all ALL CHECKS PASSED except scratch/DM-172/c2-types.ts (type-only file with declare const, not runnable; unchanged, pre-existing)",
+            "name": "scratch DM-169..DM-178 demonstrations",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the testing tail",
+            "name": "npm test (full)",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the testing tail",
+            "name": "npm run build",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the testing tail",
+            "name": "fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the testing tail",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "npx tsx scratch/DM-178/c1-aggregate.ts: ALL CHECKS PASSED. Sprint T/K from raw totals incl. overhead (115 min vs 84 feature), roll-up of feature budgets, A commits 3 features only (acceptance/fireguard integrated), not a mean; level_mismatch both ways; N1 partial roll-up 83.333333 estimated, provisional, uncovered listed, never above T-dropped; B4 epic roll-up 3 members once (90 min), actual 180 -> T 50; 170-regression explanation truncated. c5-more-attempts.ts: more rejected attempts never raise ticket/sprint/run grades (100>=91.7>=86.1>=80.3), v1 would dilute (C 66.7->83.3), v2 lowers (66.7->33.3)."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "npx tsx scratch/DM-178/c2-integrated-failure.ts: ALL CHECKS PASSED. Failed acceptance node caps sprint/epic 59 F (uncapped 83.3); B1: two canceled runs later still capped, later readings not counted, measures from run 1 only; ticket at retry limit + canceled run 2 keeps P 0; B2: adoption marking it optional keeps role work and F at sprint/run/epic; move to later sprint keeps failure (movedOut) at sprint 1, run and epic; Fireguard failure caps; control not capped."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "npx tsx scratch/DM-178/c3-snapshot.ts and c3-size.ts: ALL CHECKS PASSED. Snapshot carries policy hash, plan revision, report hash, cutoff, inputs/baselines, sources; restart byte-identical; export as own record, import on machine B stores same bytes, re-export identical; 8 tamper/re-seal cases refused (seal, regrade mismatch, report revision, epic, run, foreign plan revision, subject); later rating/overhead/adoption leave bytes; v1 snapshot reads under v1 (C 100) vs v2 (C 50); stale-approval: gate_blocked, revision 2 own snapshot, conflict on old grant. Size: 36 tickets x 3 revisions 436 KiB each, run.json 92 KiB, submit 89-154 ms; 150x3 attempts 781 ms."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "npx tsx scratch/DM-178/c4-reassess.ts: ALL CHECKS PASSED. Legacy records import, report reads without scorecard, getReportScorecard null, reassessment legacy and writes nothing; dated reassessment returns approved bytes untouched, ticket S later_records with comparable windows, moved ticket listed as left, added ticket joined, sprint T explained by inputs; v1-frozen snapshot reassessed: C policy_changed only (100->50); readiness kept from sprint 1 after move (no event_out_of_place); estimated_time anomaly for unlogged lease expiry, carried in frozen timing. scratch/DM-170/c1-migration.ts pinned to v15 passes."
+          }
+        ],
+        "notes": "Design notes: (1) Partial roll-up actual = scope actual minus uncovered tickets own cost (overhead kept), compared with covered baselines; an uncovered tickets own overrun is out of T but listed, and the grade is provisional. (2) Sprint/run outcomes are read per sprint from attempts the sprint held; for moved-out tickets supersession by the move is ignored and only retry grants up to the last in-sprint attempt count. (3) gradeRunTickets grades only tickets in the plan held at the cutoff or that ran by then. (4) Scorecard export writes missing scorecard files only (existence check) before run.json; storage migration export writes them too. (5) A scorecard is parsed (schema, seal, identity, pools, regrade) at write time too; 150-ticket submit 781 ms includes it. (6) scratch DM-169/c2-rubric.ts and DM-177/c1-boundaries.ts now grade the restored v1 fixtures with SPACE_POLICY_V1 explicitly (default is the current v2).\nDiscoveries:\n- title: scratch/DM-172/c2-types.ts is a type-only check that throws when run with tsx\n  reason: it uses declare const attemptElapsed and fails with ReferenceError under npx tsx; the testing tail should run it with tsc or convert it.\n  ticket: DM-172"
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m7h5r82pyz6vkr5by35x4t8j",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Aggregate grades",
+            "location": "src/core/services/spaceGrades.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Scorecard freeze/read/reassess",
+            "location": "src/core/services/scorecards.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Snapshot schema, seal, regrade",
+            "location": "src/core/space/snapshot.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Policy registry and C rule",
+            "location": "src/core/space/rubric.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Scorecard record export/import",
+            "location": "src/core/repo/importer.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Demonstrations",
+            "location": "scratch/DM-178",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Docs",
+            "location": "docs/space-grading.md",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "space-DM-178",
+        "changedFiles": [
+          "docs/architecture.md",
+          "docs/space-grading.md",
+          "scratch/DM-169/c2-rubric.ts",
+          "scratch/DM-170/c1-migration.ts",
+          "scratch/DM-177/c1-boundaries.ts",
+          "scratch/DM-178/c1-aggregate.ts",
+          "scratch/DM-178/c2-integrated-failure.ts",
+          "scratch/DM-178/c3-size.ts",
+          "scratch/DM-178/c3-snapshot.ts",
+          "scratch/DM-178/c4-reassess.ts",
+          "scratch/DM-178/c5-more-attempts.ts",
+          "scratch/DM-178/world.ts",
+          "src/core/db/migrations.test.ts",
+          "src/core/db/migrations.ts",
+          "src/core/repo/finalizer.ts",
+          "src/core/repo/importer.ts",
+          "src/core/repo/migrationExport.ts",
+          "src/core/repo/paths.ts",
+          "src/core/repo/portable.ts",
+          "src/core/services/efficiency.ts",
+          "src/core/services/performance.ts",
+          "src/core/services/reports.test.ts",
+          "src/core/services/reports.ts",
+          "src/core/services/scorecards.ts",
+          "src/core/services/spaceGrades.ts",
+          "src/core/services/spaceSignals.ts",
+          "src/core/services/timing.ts",
+          "src/core/space/baselines.ts",
+          "src/core/space/contract.ts",
+          "src/core/space/fixtures/policy-v2.json",
+          "src/core/space/rubric.ts",
+          "src/core/space/snapshot.ts",
+          "src/core/space/timing.ts",
+          "src/shared/domain/space.ts",
+          "src/shared/domain/spaceGrades.ts",
+          "src/shared/domain/spaceSignals.ts",
+          "src/shared/domain/timing.ts",
+          "src/shared/domain/views.ts"
+        ],
+        "commits": [
+          "78073c5ef327250653860cf1657b7a634f1e14ea",
+          "a68b2a2cec5c04858d84451034ede65d18a1b758",
+          "97554b3bd44e8f2399730a144c5251368ba967bd"
+        ],
+        "summary": "Attempt 2 on top of attempt 1 (78073c5). Fixes every rejection item. Policies: SPACE_POLICY_V1 restored (policy-v1.json, v1 rubric fixtures restored and regrade byte for byte under v1), SPACE_POLICY_V2 differs only in C rule; registry by content hash (spacePolicyByHash, CURRENT_SPACE_POLICY); C behaviour switches on the policy rule id; grade input C carries raw tally + optional rejected {submissions, passedChecks}. Aggregates (spaceGrades.ts): roles frozen at first dispatch in the epic (B2); sprint outcomes read from the attempts the sprint held, moved-out tickets keep their failure (supersession ignored, later retry grants excluded) at sprint/run/epic (B2 decision); epic standing never superseded by a run without an own attempt (B1); runs with no executed attempts add no measures (B1); roll-up counts each ticket baseline once per scope (B4); partial roll-up = covered tickets vs their baselines, overhead kept, estimated -> provisional, uncovered listed, grader refuses partial vs observed (N1); readings at past cutoffs grade only tickets held then. Snapshots (B3): own record history/<run>/scorecards/<report>.json, run.json carries only {snapshotId, snapshotHash}; inputs pooled by content hash + compact results, explanations re-derived by regrading under the stored policy (must match stored result); identical aggregates stored once; one load per run (SignalsCache, ticketPerformanceReader). 36 tickets x 3 revisions: 436 KiB per scorecard, run.json 92 KiB, submit 89-154 ms; 150 tickets x 450 attempts: submit 781 ms, 2.2 MiB. Import (N2) checks seal, regrade, run, epic, sprint, report id/revision/hash, plan revision (revision of the epic), subjects. Reassessment (N7): membership kept/left/joined/legacy, policy_changed via regrading approved input under current policy. Timing: readiness from the sprint at first claim, estimated_time anomaly (attempt 1, now lint-clean). N4: scratch/DM-170/c1-migration.ts pinned to v15 copying only existing columns. Docs updated (space-grading.md, architecture.md; scratch pointer removed)."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m65yene3p1dwngx9apevkpn4",
+      "state": "submitted",
+      "submittedAt": "2026-11-16T03:51:53.888Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:e0ebe3e5cf8e3c5d9d8a1b9c1293ba07c1ced320f16da4ec57fab331cc3084fa",
+      "ticketId": "tk_01m453gpads5cm5ah9pyqk7qtw",
+      "updatedAt": "2026-11-16T03:51:53.888Z",
+      "worker": {
+        "catalogRevision": "2026-11-15.1",
+        "effort": "high",
+        "hostId": "omp-win32-x64-space",
+        "label": "omp task subagent",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (Last attempt on \"anthropic/claude-opus-5-5\" was rejected; nothing eligible sits above it, so the same model runs at higher effort.; Highest reasoning level \"deep\" is 1 rank above the ticket's \"multi_step\" need (-20).; Lists skills \"typescript\", \"node\", \"testing\" (+10, capped at 10).; Cost tier \"high\": cheaper tiers sort first on equal scores.; Effort raised from \"medium\" to \"high\".). This host cannot set a subagent's model or effort; the worker is an omp task subagent at the harness default, listed in the catalog as anthropic/claude-opus-5-5.",
         "sessionId": null
       }
     }
@@ -3861,6 +4396,32 @@
       "number": 5,
       "recordedBy": "dm CLI",
       "row": 5,
+      "sprintId": "sp_01m452vt12bqj228djrvnak4m9"
+    },
+    {
+      "checks": [
+        {
+          "detail": "node, web, fireguard on space-sprint-1 after merging DM-177",
+          "name": "npm run typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "58 tests; the only existing test file reaching DM-177 modules",
+          "name": "npx vitest run src/core/services/attempts.test.ts",
+          "status": "passed"
+        },
+        {
+          "detail": "all ALL CHECKS PASSED on the merged head",
+          "name": "npx tsx scratch/DM-177/* + DM-169/174/176 regression scripts",
+          "status": "passed"
+        }
+      ],
+      "commit": "a4695f9c9cad1055b48a2fbd0ba150eec775fdee",
+      "createdAt": "2026-11-16T02:32:59.934Z",
+      "id": "rk_01m7h36qryvw8yx77f7c5z287x",
+      "number": 6,
+      "recordedBy": "dm CLI",
+      "row": 6,
       "sprintId": "sp_01m452vt12bqj228djrvnak4m9"
     }
   ],

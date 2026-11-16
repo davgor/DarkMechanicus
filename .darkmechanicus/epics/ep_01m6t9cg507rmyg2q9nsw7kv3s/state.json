@@ -4,17 +4,53 @@
     "repository": "C:/Users/davgo/OneDrive/Documents/Github/DarkMechanicus",
     "startCommit": "fd857e3d37c8ccc9d9ff21086dc203ac8fa5c685"
   },
-  "completedAt": null,
+  "completedAt": "2026-11-16T03:36:07.243Z",
   "createdAt": "2026-11-07T05:58:28.256Z",
   "epicId": "ep_01m6t9cg507rmyg2q9nsw7kv3s",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 20,
-  "outcome": null,
+  "generation": 22,
+  "outcome": {
+    "recordedAt": "2026-11-16T03:36:07.243Z",
+    "runId": "rn_01m7gemb6sahzxzem7zbr3k31m",
+    "successCriteria": [
+      {
+        "criterionId": "s1",
+        "met": true,
+        "note": "Two app-hosted real OMP chats discovered stable peer ids, exchanged a message and correlated reply via native tools, including a stopped recipient read after restart (DM-505-app-run/result.json)."
+      },
+      {
+        "criterionId": "s2",
+        "met": true,
+        "note": "Mail and acks survived app/terminal restart and DB reopen/restore; sender-scoped retries deduped; human seen never consumed agent mail (DM-505-cli-results.json, app run)."
+      },
+      {
+        "criterionId": "s3",
+        "met": true,
+        "note": "Terminal status/notice and desktop counts recovered after restart; hostile peer text only in tool results; passive notices made no model request or steering (app run c5)."
+      },
+      {
+        "criterionId": "s7",
+        "met": true,
+        "note": "Allow one wake consumed once before one fixed follow-up; no rearm from traffic/restart/duplicate click; failed dispatch shows attempted, no refund (app run c5/c6)."
+      },
+      {
+        "criterionId": "s5",
+        "met": true,
+        "note": "Core services enforce bound grant, folder/machine scope and current revocation; spoofed/unbound/stdio/foreign requests refused with positive controls and no body leakage (DM-505-cli-results.json)."
+      },
+      {
+        "criterionId": "s6",
+        "met": true,
+        "note": "Built, portable and installed (scratch-appId variant, person-approved) Windows builds load the bundled extension; DoD and real journeys recorded; macOS/Linux unit-tested only."
+      }
+    ],
+    "summary": "Native same-folder Skitarii messaging shipped and was proven on Windows with real OMP chats, real models, the built CLI and packaged builds; macOS/Linux unit-tested only."
+  },
   "provenance": null,
-  "status": "in_progress",
+  "status": "completed",
   "ticketStatuses": {
-    "tk_01m6t9cg50413b45wafx03461d": "in_progress",
+    "tk_01m6t9cg50413b45wafx03461d": "completed",
     "tk_01m6t9s4np95kgyaybsczx6h5t": "backlog",
     "tk_01m6t9v1s3a46yxszxgmntvmgn": "completed",
     "tk_01m6t9v1sf7e7b4wwtm69nh0kn": "completed",
@@ -26,5 +62,5 @@
     "tk_01m6t9v1sfz3nk1a2d0cbh89f1": "completed"
   },
   "title": "Skitarii communications: durable direct messages, replies and safe agent notifications",
-  "updatedAt": "2026-11-16T00:22:25.880Z"
+  "updatedAt": "2026-11-16T03:36:07.272Z"
 }
