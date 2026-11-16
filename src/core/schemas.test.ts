@@ -85,7 +85,8 @@ describe('LIMITS', () => {
       profileDescription: 500,
       definitionOfDone: 50,
       progressNote: 280,
-      progressStep: 64
+      progressStep: 64,
+      grantLabel: 120
     })
   })
 })

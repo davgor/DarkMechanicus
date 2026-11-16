@@ -81,6 +81,7 @@
  */
 import { randomUUID } from 'node:crypto'
 import { homedir, tmpdir } from 'node:os'
+import { LIMITS } from '../../core/schemas'
 import type { ChatRecord, ChatRole, DarkMechanicusCli } from '../../shared/agents/chat'
 import type { AgentAuthStatus, AgentId, AgentView, BuiltInAgentKind } from '../../shared/desktop/api'
 import { SIGNED_OUT_PAUSE_REASON, type RunState } from '../../shared/domain/status'
@@ -223,6 +224,19 @@ interface GrantOptions {
   role: ChatRole
   allowSave: boolean
   label: string
+}
+
+/**
+ * A chat grant's label: `<display name> · <title>`, the title cut so the label stays within the grant label
+ * limit, and never cut between the halves of a surrogate pair.
+ */
+function grantLabel(displayName: string, title: string): string {
+  const label = `${displayName} · ${title}`
+  if (label.length <= LIMITS.grantLabel) {
+    return label
+  }
+  const cut = label.slice(0, LIMITS.grantLabel)
+  return /[\uD800-\uDBFF]$/.test(cut) ? cut.slice(0, -1) : cut
 }
 
 export interface TerminalSessionsDeps {
@@ -889,7 +903,7 @@ async function runStart(context: StartContext, step: Step): Promise<StartOutcome
   }
   const files = await step(writeStartFiles(context))
   recheckFolder(context)
-  const grant = { role: chat.role, allowSave: chat.allowSave, label: `${agent.displayName} · ${chat.title}` }
+  const grant = { role: chat.role, allowSave: chat.allowSave, label: grantLabel(agent.displayName, chat.title) }
   const revokeAll = (grantIds: readonly string[]): void => {
     for (const grantId of grantIds) {
       void revokeGrant(manager, grantId)

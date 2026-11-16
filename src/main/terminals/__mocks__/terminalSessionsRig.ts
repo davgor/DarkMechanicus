@@ -7,6 +7,7 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { COMMAND_SCHEMAS } from '../../../core/commandSchemas'
 import type { ChatRecord } from '../../../shared/agents/chat'
 import type { AgentAuthStatus, AgentView } from '../../../shared/desktop/api'
 import type { RunState } from '../../../shared/domain/status'
@@ -167,6 +168,8 @@ export interface TerminalRig {
   grantsAsked: number
   /** The trusted chat each grant was asked for, in order; an OMP chat's comes back bound to `me_<chat id>`. */
   grantChats: GrantChat[]
+  /** The label each chat grant was asked for, in order, each checked against the real `issueGrant` input schema. */
+  grantLabels: string[]
   /**
    * Every PTY tree the manager asked to kill, once per tree as `killPtyTree` shares a kill: a running tree is
    * killed (node-pty's kill, and the kill settles when it exits); one that has exited is only checked for leftovers.
@@ -176,7 +179,7 @@ export interface TerminalRig {
   errors: unknown[]
   /** The runs the desktop's session knows, by id, and every run call the manager made, as `getRun <id>` and `pauseRun <id> <reason>`. */
   runs: { states: Record<string, RunState>; calls: string[] }
-  newChat: (agent?: string) => ChatRecord
+  newChat: (agent?: string, title?: string) => ChatRecord
   /** A chat summoned with no project: an orchestrator that may save, with no folder. */
   newProjectless: (agent?: string) => ChatRecord
   /** A chat Start run opened: an orchestrator of `runId`. */
@@ -240,9 +243,10 @@ function rigKillTree(rig: RigBase, options: RigOptions): TerminalSessionsDeps['k
 function rigGrants(rig: RigBase): Pick<TerminalSessionsDeps, 'issueChatCli' | 'issueReachCli' | 'reachFolders' | 'revokeChatGrant' | 'renewChatGrant'> {
   let grants = 0
   return {
-    issueChatCli: async (folder, _grant, chat) => {
+    issueChatCli: async (folder, grant, chat) => {
       rig.grantsAsked += 1
       rig.grantChats.push(chat)
+      rig.grantLabels.push(COMMAND_SCHEMAS.issueGrant.parse({ role: grant.role, label: grant.label, allowSave: grant.allowSave }).label)
       grants += 1
       const grantId = `gr_${grants}`
       await rig.grantGate?.promise
@@ -337,10 +341,11 @@ export function terminalRig(options: RigOptions = {}): TerminalRig {
     grantGate: null,
     grantsAsked: 0,
     grantChats: [],
+    grantLabels: [],
     killed: [],
     errors: [],
     runs: { states: {}, calls: [] },
-    newChat: (agent = 'claude') => store.createChat({ folder: repo, agent, model: null, role: 'worker', allowSave: false, title: 'Fix the build' }),
+    newChat: (agent = 'claude', title = 'Fix the build') => store.createChat({ folder: repo, agent, model: null, role: 'worker', allowSave: false, title }),
     newProjectless: (agent = 'claude') => store.createChat({ folder: null, agent, model: null, role: 'orchestrator', allowSave: true, title: 'Tidy every board' }),
     newOrchestrator: (runId, agent = 'claude') =>
       store.createChat({ folder: repo, agent, model: null, role: 'orchestrator', allowSave: false, title: 'Orchestrator · Terminal chats', runId }),
