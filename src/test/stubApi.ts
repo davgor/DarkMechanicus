@@ -65,6 +65,8 @@ const COMMAND_FLAGS: Record<CommandName, true> = {
   updateKanbanCard: true,
   listKanbanCards: true,
   getKanbanCard: true,
+  addKanbanMessage: true,
+  listKanbanMessages: true,
   playKanbanCard: true,
   launchKanbanCards: true,
   claimKanbanCard: true,

@@ -28,7 +28,7 @@ import { plannedAttachmentIds } from './ticketAttachments'
 /** A staged image older than this many days is pruned when a workspace opens. */
 const STAGED_ATTACHMENT_MAX_AGE_DAYS = 7
 
-const OWNER_KINDS: readonly AttachmentOwnerKind[] = ['attempt', 'kanban_attempt', 'comment', 'kanban_card', 'ticket']
+const OWNER_KINDS: readonly AttachmentOwnerKind[] = ['attempt', 'kanban_attempt', 'kanban_message', 'comment', 'kanban_card', 'ticket']
 
 export interface StagedAttachmentInput {
   /** The image file's bytes. Its hash, type and size are read from them. */

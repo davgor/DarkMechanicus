@@ -37,6 +37,13 @@ import {
 import { listAttachmentRefs } from '../services/attachments'
 import { assertContained, displayPath } from './paths'
 import type { FsAdapter, RepoLayout } from './types'
+  cardEvent(
+    'message',
+    z.strictObject({
+      body: commentBody,
+      attachments: z.array(attachmentRef).max(LIMITS.attachmentsPerRecord)
+    })
+  ),
 
 export const MAX_RECORD_BYTES = 8 * 1024 * 1024
 /** A comment file holds at most 20,000 characters of Markdown; anything far larger is not a comment. */

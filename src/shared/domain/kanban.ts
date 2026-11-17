@@ -1,5 +1,17 @@
 import type { TicketCriterion, TicketPriority, TicketReference, TicketSize } from './bundle'
 import type { AttachmentRef, AttemptEvidence, AttemptOutputs, DefinitionOfDoneCheck, SessionRole } from './views'
+/** One append-only conversation message on a card. */
+export interface KanbanMessageView {
+  id: string
+  body: string
+  /** The writing session, never caller-supplied. */
+  authorRole: SessionRole
+  authorLabel: string
+  createdAt: string
+  /** The images attached to the message; absent when it has none. */
+  attachments?: AttachmentRef[]
+}
+
 
 /** The board's lanes, left to right. A card moves between them only through its transitions, never by hand. */
 export const KANBAN_LANES = ['backlog', 'in_progress', 'ready_for_review', 'done'] as const

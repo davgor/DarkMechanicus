@@ -10,7 +10,12 @@ import {
   type TicketReference,
   type TicketSize
 } from '../../../shared/domain/bundle'
-import type { CreateKanbanCardInput, ListKanbanCardsInput, UpdateKanbanCardInput } from '../../../shared/domain/api'
+import type {
+  AddKanbanMessageInput,
+  CreateKanbanCardInput,
+  ListKanbanCardsInput,
+  UpdateKanbanCardInput
+} from '../../../shared/domain/api'
 import {
   KANBAN_EDITABLE_FIELDS,
   KANBAN_LANE_LABELS,
@@ -21,7 +26,8 @@ import {
   type KanbanCardSummaryView,
   type KanbanCardView,
   type KanbanDoneSummary,
-  type KanbanLane
+  type KanbanLane,
+  type KanbanMessageView
 } from '../../../shared/domain/kanban'
 import type { AttachmentRef, AttemptEvidence, AttemptOutputs, SessionRole } from '../../../shared/domain/views'
 import { requireCapability } from '../../authz'
@@ -33,7 +39,7 @@ import { normalizeCriteria } from '../../plan/normalize'
 import { LIMITS } from '../../schemas'
 import { nextProjectKey } from '../draftDeps'
 import { appendEvent } from '../events'
-import { claimAttachments, flagMissingAttachments, flagMissingEvidence, listAttachmentRefs } from '../attachments'
+import { attachmentRefOf, claimAttachments, flagMissingAttachments, flagMissingEvidence, listAttachmentRefs } from '../attachments'
 import { requestWithoutKey, withIdempotency } from '../idempotency'
 import { enqueueOutbox } from '../outbox'
 
@@ -85,6 +91,14 @@ export interface AttemptRow {
   created_at: string
   submitted_at: string | null
   decided_at: string | null
+}
+
+interface MessageEventRow {
+  id: string
+  payload_json: string
+  actor_role: SessionRole
+  actor_label: string
+  created_at: string
 }
 
 const OPEN_STATES_SQL = KANBAN_OPEN_ATTEMPT_STATES.map((state) => `'${state}'`).join(', ')
@@ -220,6 +234,8 @@ interface CardEvent {
   payload: Record<string, unknown>
   attemptId?: string
   at?: string
+  /** Message-only staged images, claimed by the event before its portable record is queued. */
+  attachments?: readonly string[]
 }
 
 /**
@@ -227,9 +243,10 @@ interface CardEvent {
  * Every event is exported as an immutable file of its own; `card.json` holds the definition, so only a create or an
  * edit rewrites it. In `db` mode the finalizer settles both entries without a file.
  */
-export function recordCardEvent(ctx: Ctx, card: { id: string; key: string }, event: CardEvent): void {
+export function recordCardEvent(ctx: Ctx, card: { id: string; key: string }, event: CardEvent): string {
   const eventId = ctx.ids.next('kanbanEvent')
   const attemptId = event.attemptId ?? null
+  const createdAt = event.at ?? ctx.clock.nowIso()
   ctx.db.run(
     `INSERT INTO kanban_events (id, card_id, kind, attempt_id, actor_role, actor_label, payload_json, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -240,14 +257,19 @@ export function recordCardEvent(ctx: Ctx, card: { id: string; key: string }, eve
     ctx.session.role,
     ctx.session.label.slice(0, LIMITS.label),
     toJson(event.payload),
-    event.at ?? ctx.clock.nowIso()
+    createdAt
   )
+  if (event.attachments !== undefined) {
+    const attachments = claimAttachments(ctx, event.attachments, { kind: 'kanban_message', id: eventId }).map(attachmentRefOf)
+    ctx.db.run('UPDATE kanban_events SET payload_json = ? WHERE id = ?', toJson({ ...event.payload, attachments }), eventId)
+  }
   if (event.kind === 'created' || event.kind === 'updated') {
     enqueueOutbox(ctx, { kind: 'kanban_card', entityId: card.id })
   }
   enqueueOutbox(ctx, { kind: 'kanban_event', entityId: eventId })
   const payload = { cardId: card.id, key: card.key, ...(attemptId === null ? {} : { attemptId }) }
   appendEvent(ctx, { kind: `kanban.${event.kind}`, payload })
+  return eventId
 }
 
 function insertCard(ctx: Ctx, input: CreateKanbanCardInput): KanbanCardView {
@@ -416,4 +438,51 @@ export function listKanbanCards(ctx: Ctx, input: ListKanbanCardsInput): KanbanBo
 export function getKanbanCard(ctx: Ctx, input: { cardId: string }): KanbanCardView {
   requireCapability(ctx.session, 'read')
   return cardView(ctx, input.cardId)
+}
+
+function messageView(ctx: Ctx, row: MessageEventRow): KanbanMessageView {
+  const payload = parseJson<{ body: string; attachments: AttachmentRef[] }>(row.payload_json, { body: '', attachments: [] })
+  const attachments = flagMissingAttachments(ctx.db, payload.attachments)
+  return {
+    id: row.id,
+    body: payload.body,
+    authorRole: row.actor_role,
+    authorLabel: row.actor_label,
+    createdAt: row.created_at,
+    ...(attachments.length > 0 ? { attachments } : {})
+  }
+}
+
+function insertKanbanMessage(ctx: Ctx, input: AddKanbanMessageInput): KanbanMessageView {
+  const card = loadSummaryRow(ctx, input.cardId)
+  const eventId = recordCardEvent(
+    ctx,
+    { id: card.id, key: card.key },
+    { kind: 'message', payload: { body: input.body }, attachments: input.attachments ?? [] }
+  )
+  const row = ctx.db.get<MessageEventRow>('SELECT id, payload_json, actor_role, actor_label, created_at FROM kanban_events WHERE id = ?', eventId)
+  if (row === undefined) {
+    fail('internal', `Kanban message ${eventId} was not recorded.`)
+  }
+  return messageView(ctx, row)
+}
+
+/** Adds an append-only card message in any lane, authored by the calling session. */
+export function addKanbanMessage(ctx: Ctx, input: AddKanbanMessageInput): KanbanMessageView {
+  requireCapability(ctx.session, 'comment.write')
+  ctx.assertBranch()
+  const scope = { command: 'addKanbanMessage', key: input.idempotencyKey, request: requestWithoutKey(input) }
+  return withIdempotency(ctx, scope, () => insertKanbanMessage(ctx, input))
+}
+
+/** The card's messages oldest first. */
+export function listKanbanMessages(ctx: Ctx, input: { cardId: string }): KanbanMessageView[] {
+  requireCapability(ctx.session, 'read')
+  loadSummaryRow(ctx, input.cardId)
+  return ctx.db
+    .all<MessageEventRow>(
+      "SELECT id, payload_json, actor_role, actor_label, created_at FROM kanban_events WHERE card_id = ? AND kind = 'message' ORDER BY created_at, id",
+      input.cardId
+    )
+    .map((row) => messageView(ctx, row))
 }
