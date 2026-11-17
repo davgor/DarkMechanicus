@@ -37,8 +37,8 @@ afterEach(() => {
 })
 
 describe('migrate on a fresh database', () => {
-  it('starts at schema version 0 and targets SCHEMA_VERSION 16', () => {
-    expect(SCHEMA_VERSION).toBe(16)
+  it('starts at schema version 0 and targets SCHEMA_VERSION 17', () => {
+    expect(SCHEMA_VERSION).toBe(17)
     expect(readSchemaVersion(freshDb())).toBe(0)
   })
 
@@ -46,7 +46,7 @@ describe('migrate on a fresh database', () => {
     const db = freshDb()
     expect(migrate(db)).toEqual({ from: 0, to: SCHEMA_VERSION })
     expect(readSchemaVersion(db)).toBe(SCHEMA_VERSION)
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(16)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(17)
   })
 })
 
@@ -122,8 +122,8 @@ describe('the indexes a fresh database ends up with', () => {
 describe('migrate when already current', () => {
   it('is a no-op the second time', () => {
     const db = migratedDb()
-    expect(migrate(db)).toEqual({ from: 16, to: 16 })
-    expect(readSchemaVersion(db)).toBe(16)
+    expect(migrate(db)).toEqual({ from: 17, to: 17 })
+    expect(readSchemaVersion(db)).toBe(17)
   })
 
   it('checks a current database without taking the write lock, which every open and mailbox poll would wait on', () => {
@@ -141,11 +141,11 @@ describe('migrate when already current', () => {
         }
       }
     })
-    expect(migrate(watched)).toEqual({ from: 16, to: 16 })
+    expect(migrate(watched)).toEqual({ from: 17, to: 17 })
     expect(transactions).toBe(0)
     // Positive control: a database behind the target still migrates under the lock.
     watched.exec('PRAGMA user_version = 15')
-    expect(migrate(watched, MIGRATIONS.filter((migration) => migration.version !== 16).concat({ version: 16, sql: '' }))).toEqual({ from: 15, to: 16 })
+    expect(migrate(watched, MIGRATIONS.filter((migration) => migration.version !== 16).concat({ version: 16, sql: '' }))).toEqual({ from: 15, to: 17 })
     expect(transactions).toBe(1)
   })
 
@@ -165,19 +165,19 @@ describe('migrate refuses newer databases', () => {
     expect(error).toBeInstanceOf(DomainError)
     expect((error as DomainError).code).toBe('incompatible_schema')
     expect((error as DomainError).message).toBe(
-      'Database schema v17 is newer than this build supports (v16). Update Dark Mechanicus.'
+      'Database schema v18 is newer than this build supports (v17). Update Dark Mechanicus.'
     )
-    expect((error as DomainError).details).toEqual({ found: 17, supported: 16 })
-    expect(readSchemaVersion(db)).toBe(17)
+    expect((error as DomainError).details).toEqual({ found: 18, supported: 17 })
+    expect(readSchemaVersion(db)).toBe(18)
     expect(objectNames(db, 'table')).toEqual([])
   })
 
   it('refuses a migrated database that a newer build has upgraded', () => {
     const db = migratedDb()
-    db.exec('PRAGMA user_version = 17')
+    db.exec('PRAGMA user_version = 18')
     const error = thrownBy(() => migrate(db))
     expect((error as DomainError).code).toBe('incompatible_schema')
-    expect((error as DomainError).details).toEqual({ found: 17, supported: 16 })
+    expect((error as DomainError).details).toEqual({ found: 18, supported: 17 })
     expect(objectNames(db, 'table')).toContain('epics')
   })
 
@@ -426,7 +426,7 @@ describe('migrate failure handling', () => {
     const db = freshDb()
     thrownBy(() => migrate(db, [{ version: 1, sql: 'NOT SQL' }]))
     expect(db.inTransaction()).toBe(false)
-    expect(migrate(db)).toEqual({ from: 0, to: 16 })
+    expect(migrate(db)).toEqual({ from: 0, to: 17 })
   })
 })
 

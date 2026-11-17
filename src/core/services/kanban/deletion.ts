@@ -14,9 +14,10 @@ import { loadSummaryRow } from './cards'
 type CardFilesRemover = (cardId: string) => string[]
 
 const CARD_EVENTS = 'SELECT id FROM kanban_events WHERE card_id = ?'
-/** Images the card or one of its attempts owns; staged images (no owner) are not the card's and stay. */
+/** Images the card, one of its attempts or one of its messages owns; staged images stay. */
 const CARD_IMAGES = `SELECT id FROM attachments WHERE (owner_kind = 'kanban_card' AND owner_id = ?)
-  OR (owner_kind = 'kanban_attempt' AND owner_id IN (SELECT id FROM kanban_attempts WHERE card_id = ?))`
+  OR (owner_kind = 'kanban_attempt' AND owner_id IN (SELECT id FROM kanban_attempts WHERE card_id = ?))
+  OR (owner_kind = 'kanban_message' AND owner_id IN (${CARD_EVENTS}))`
 
 /** Children before parents, since foreign keys are enforced. Every `?` binds the card id. */
 const DELETE_STATEMENTS = [

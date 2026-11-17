@@ -12,7 +12,14 @@ import {
   playKanbanCard,
   submitKanbanCard
 } from '../services/kanban/attempts'
-import { createKanbanCard, getKanbanCard, listKanbanCards, updateKanbanCard } from '../services/kanban/cards'
+import {
+  addKanbanMessage,
+  createKanbanCard,
+  getKanbanCard,
+  listKanbanCards,
+  listKanbanMessages,
+  updateKanbanCard
+} from '../services/kanban/cards'
 import { removeKanbanCardFiles } from '../repo/epicRemoval'
 import { deleteKanbanCard } from '../services/kanban/deletion'
 import type { CommandTable } from './types'
@@ -43,6 +50,16 @@ const kanbanCommands = {
     schema: COMMAND_SCHEMAS.getKanbanCard,
     mutates: false,
     run: (core, input) => getKanbanCard(swept(core.ctx()), input)
+  },
+  addKanbanMessage: {
+    schema: COMMAND_SCHEMAS.addKanbanMessage,
+    mutates: true,
+    run: (core, input) => addKanbanMessage(core.ctx(), input)
+  },
+  listKanbanMessages: {
+    schema: COMMAND_SCHEMAS.listKanbanMessages,
+    mutates: false,
+    run: (core, input) => listKanbanMessages(core.ctx(), input)
   },
   playKanbanCard: {
     schema: COMMAND_SCHEMAS.playKanbanCard,

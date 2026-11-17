@@ -3,7 +3,7 @@ import { redactedJson } from '../storedSecrets'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 16
+export const SCHEMA_VERSION = 17
 
 export interface Migration {
   version: number
@@ -767,6 +767,38 @@ CREATE TABLE agent_mail_poll_sessions (
 );
 `
 
+/**
+ * v17 lets a Kanban message event own its attached images independently of the card definition and card attempts.
+ * SQLite cannot alter the owner-kind CHECK constraint, so the table is rebuilt without changing any row.
+ */
+const V17 = `
+CREATE TABLE attachments_v17 (
+  id TEXT PRIMARY KEY,
+  sha256 TEXT NOT NULL,
+  mime TEXT NOT NULL CHECK (mime IN ('image/png','image/jpeg')),
+  bytes INTEGER NOT NULL CHECK (bytes >= 1),
+  width INTEGER NOT NULL CHECK (width >= 1),
+  height INTEGER NOT NULL CHECK (height >= 1),
+  label TEXT NOT NULL,
+  purpose TEXT NOT NULL CHECK (purpose IN ('evidence','reference')),
+  owner_kind TEXT CHECK (owner_kind IN ('attempt','kanban_attempt','kanban_message','comment','kanban_card','ticket')),
+  owner_id TEXT,
+  missing INTEGER NOT NULL DEFAULT 0 CHECK (missing IN (0,1)),
+  data BLOB,
+  created_by_role TEXT NOT NULL,
+  created_by_label TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  CHECK ((owner_kind IS NULL) = (owner_id IS NULL))
+);
+INSERT INTO attachments_v17
+  SELECT id, sha256, mime, bytes, width, height, label, purpose, owner_kind, owner_id, missing, data,
+    created_by_role, created_by_label, created_at
+  FROM attachments;
+DROP TABLE attachments;
+ALTER TABLE attachments_v17 RENAME TO attachments;
+CREATE INDEX attachments_owner ON attachments(owner_kind, owner_id);
+`
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, sql: V1 },
   { version: 2, sql: V2 },
@@ -783,7 +815,8 @@ export const MIGRATIONS: Migration[] = [
   { version: 13, sql: V13 },
   { version: 14, sql: V14 },
   { version: 15, sql: V15 },
-  { version: 16, sql: V16 }
+  { version: 16, sql: V16 },
+  { version: 17, sql: V17 }
 ]
 
 export function readSchemaVersion(db: Db): number {
