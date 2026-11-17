@@ -176,6 +176,16 @@ function effortText(ticket: TicketContent): string {
   return ticket.capability.reasoning.effort ?? 'unset'
 }
 
+/** The budget changes between two versions of a ticket, each amount with its unit or `unset`, and its stated basis. */
+function budgetPhrases(before: TicketContent, after: TicketContent): Phrase[] {
+  const text = (value: number | undefined, unit: string): string => (value === undefined ? 'unset' : `${value} ${unit}`)
+  return [
+    arrow('token budget', text(before.budget?.tokens, 'tokens'), text(after.budget?.tokens, 'tokens')),
+    arrow('active-time budget', text(before.budget?.activeMs, 'ms'), text(after.budget?.activeMs, 'ms')),
+    arrow('budget basis', before.budget?.basis ?? 'unstated', after.budget?.basis ?? 'unstated')
+  ]
+}
+
 /** A profile compared without its reasoning effort, which the diff reports on its own. */
 function ignoringEffort(capability: CapabilityProfile): CapabilityProfile {
   return { ...capability, reasoning: { ...capability.reasoning, effort: undefined } }
@@ -213,7 +223,8 @@ function ticketPhrases(before: TicketContent, after: TicketContent): Phrase[] {
     optionalPhrase(before, after),
     changed(before.references, after.references, 'references changed'),
     changed(before.expectedArtifacts, after.expectedArtifacts, 'expected artifacts changed'),
-    imagesPhrase(before, after)
+    imagesPhrase(before, after),
+    ...budgetPhrases(before, after)
   ]
 }
 

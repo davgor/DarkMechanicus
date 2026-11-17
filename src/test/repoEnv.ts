@@ -130,7 +130,7 @@ export function importerDeps(env: RepoEnv, git: GitAdapter, machineId = 'mc_0000
   return { db: env.db, layout: env.layout, fs: env.fs, clock: env.clock, machineId, git, sessionId, fileHashes: createFileHashCache() }
 }
 
-const DOMAIN_TABLES = ['epics', 'plan_revisions', 'drafts', 'ticket_status', 'runs', 'attempts', 'sprint_reports', 'checkpoints', 'row_checks', 'comments']
+const DOMAIN_TABLES = ['epics', 'plan_revisions', 'drafts', 'ticket_status', 'runs', 'attempts', 'sprint_reports', 'experiment_events', 'checkpoints', 'row_checks', 'comments']
 
 /** Every row of the durable domain tables, for "nothing changed" assertions. */
 export function dumpDomain(db: Db): Record<string, unknown[]> {

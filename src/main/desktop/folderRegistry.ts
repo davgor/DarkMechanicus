@@ -66,7 +66,8 @@ const folderEntrySchema = z.object({ path: z.string().min(1), addedAt: z.string(
 
 type FolderEntry = z.infer<typeof folderEntrySchema>
 
-const nodeRegistryFs: RegistryFs = {
+/** The real filesystem, for the registry and for modules that validate folders the same way. */
+export const nodeRegistryFs: RegistryFs = {
   readFile: (path) => readFileSync(path, 'utf8'),
   writeFile: (path, data) => {
     writeFileSync(path, data, 'utf8')
@@ -144,7 +145,7 @@ function commit(context: RegistryContext, state: RegistryState, next: FolderEntr
   state.entries = next
 }
 
-function abbreviateHome(path: string, homeDir: string): string {
+export function abbreviateHome(path: string, homeDir: string): string {
   if (homeDir === '') {
     return path
   }

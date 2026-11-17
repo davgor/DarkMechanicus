@@ -127,6 +127,27 @@ export interface TicketReference {
   remoteOnly: boolean
 }
 
+/**
+ * Where a planned budget's numbers came from: a person's own estimate (`person_estimate`), the planner's estimate
+ * (`planner_estimate`), or the actuals of similar earlier tickets (`prior_tickets`). Stated by whoever sets the budget;
+ * it labels the estimate and never changes how a budget is graded.
+ */
+export const BUDGET_BASES = ['person_estimate', 'planner_estimate', 'prior_tickets'] as const
+export type BudgetBasis = (typeof BUDGET_BASES)[number]
+
+/**
+ * A ticket's planned pre-dispatch resource budget, each in its named unit: `tokens` in tokens, `activeMs` in
+ * milliseconds of active execution. At least one is set; `basis`, when given, says where the numbers came from. Saving
+ * the plan freezes it as a new budget version at the server's save time; a run uses the version of the revision the
+ * ticket was first dispatched under, so a later edit applies only prospectively.
+ */
+export interface TicketBudget {
+  tokens?: number
+  activeMs?: number
+  /** Absent when not stated; never defaulted, so budgets saved without it keep their content hash. */
+  basis?: BudgetBasis
+}
+
 export interface TicketContent {
   id: string
   /** Display key such as `DM-12`. Display only — identity is `id`. */
@@ -156,6 +177,11 @@ export interface TicketContent {
    * their content hash. The images are claimed by the ticket when the revision naming them is saved.
    */
   attachments?: AttachmentRef[]
+  /**
+   * The planned token and active-time budget (see `TicketBudget`). Absent when none is planned; never defaulted, so
+   * older plans keep their content hash.
+   */
+  budget?: TicketBudget
 }
 
 export const CHECKPOINT_MODES = ['human', 'auto'] as const
@@ -262,7 +288,43 @@ export interface EpicBranch {
   startCommit: string | null
 }
 
-export interface EpicProvenance {
+/** An epic that extends an earlier epic of this project (a follow-up, a split): `sourceEpicId` is an epic here. */
+interface EarlierEpicProvenance {
   sourceEpicId: string
   note: string
 }
+
+/**
+ * An epic another project asked of this one: the corrective work of an experiment in a sprint retro of that project
+ * (the source), created here (the target) by the person at the desktop. Identities and hashes only, never a machine
+ * path: the record means the same on every machine, and which local checkouts served the request is not recorded.
+ * The source's epic, run and report live in the source project's records, not here, so nothing here links to them.
+ */
+export interface CorrectionProvenance {
+  kind: 'cross_repo_correction'
+  /**
+   * The stable idempotency key: `<assessment report>/<experiment>/from:<source project>/to:<target project>`. One epic
+   * per experiment of a source project and target project; a repeat finds it by this key, never by title.
+   */
+  key: string
+  /** The content hash of what was asked when the epic was created (the experiment, title, edits, Fireguard choice). */
+  payloadHash: string
+  source: {
+    projectId: string
+    projectName: string
+    epicId: string
+    runId: string
+    sprintId: string
+    /** The sprint report revision the experiment was read from, its revision number and its content hash. */
+    reportId: string
+    reportRevision: number
+    reportHash: string
+    experimentId: string
+    /** The frozen grade the experiment was drawn from: its report revision, its snapshot, and the policy it was graded under. */
+    assessment: { reportId: string; assessmentId: string; snapshotId: string; policyHash: string }
+  }
+  target: { projectId: string }
+  note: string
+}
+
+export type EpicProvenance = EarlierEpicProvenance | CorrectionProvenance

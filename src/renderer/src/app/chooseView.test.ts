@@ -130,3 +130,24 @@ describe('chooseView with the Kanban board', () => {
     expect(chooseView({ loaded: true, folder: ready, epicId: null, kanban: true, agentPane: { kind: 'add' }, agents: [] }).kind).toBe('add-agent')
   })
 })
+
+describe('DM-267 c1: the Metrics dashboard view', () => {
+  it('shows the dashboard for an available, initialized folder', () => {
+    expect(chooseView({ loaded: true, folder: ready, epicId: null, metrics: true })).toEqual({ kind: 'metrics', folder: ready })
+  })
+
+  it('lets the unavailable and onboarding views win', () => {
+    expect(chooseView({ loaded: true, folder: missing, epicId: null, metrics: true }).kind).toBe('unavailable')
+    expect(chooseView({ loaded: true, folder: setup, epicId: null, metrics: true })).toEqual({ kind: 'folder', folder: setup, tab: 'source' })
+  })
+
+  it('lets an epic, the board or an agents screen take over the dashboard', () => {
+    expect(chooseView({ loaded: true, folder: ready, epicId: 'ep_1', metrics: true }).kind).toBe('epic')
+    expect(chooseView({ loaded: true, folder: ready, epicId: null, kanban: true, metrics: true }).kind).toBe('kanban')
+    expect(chooseView({ loaded: true, folder: ready, epicId: null, metrics: true, agentPane: { kind: 'add' } }).kind).toBe('add-agent')
+  })
+
+  it('shows the folder home without the flag', () => {
+    expect(chooseView({ loaded: true, folder: ready, epicId: null, metrics: false }).kind).toBe('folder')
+  })
+})

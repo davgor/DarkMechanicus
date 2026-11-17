@@ -180,3 +180,11 @@ describe('both kinds together', () => {
     expect(warningsFor(draft).map((warning) => warning.code).sort()).toEqual(['edits_passed_sprint', 'sprint_before_active'])
   })
 })
+
+describe('a run whose active sprint is not in its plan', () => {
+  it('gives no warnings, even for a draft that edits and inserts sprints', () => {
+    const draft = drafted({ op: 'update_ticket', ticket: 'DM-1', patch: { title: 'Changed' } }, { op: 'add_sprint', sprint: { goal: 'Squeezed in' }, position: 1 })
+    expect(warningsFor(draft, { active: 9 })).toEqual([])
+    expect(warningsFor(draft).map((warning) => warning.code)).toEqual(['edits_passed_sprint', 'sprint_before_active'])
+  })
+})

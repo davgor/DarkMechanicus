@@ -6,22 +6,28 @@
  * and cross-file references are checked before anything is applied. All staged changes are applied
  * in one transaction (per-item savepoints), so a rejected epic or run never changes what the
  * database already holds, and drafts are never touched. Named profiles are scanned and applied by
- * `profileImport.ts`, and Kanban cards by `kanbanImport.ts`, inside the same transaction. Comment and profile files
- * whose stamp is unchanged since this workspace last read them with a synced hash are not read again (`fileHashes.ts`).
+ * `profileImport.ts`, Kanban cards by `kanbanImport.ts` and metric observations by `observationImport.ts`, inside the
+ * same transaction. Comment and profile files whose stamp is unchanged since this workspace last read them with a
+ * synced hash are not read again (`fileHashes.ts`).
  * An epic whose local Linear transfer is open takes no other saved revision and no run from the files (`planTransferHolds`).
  */
 import { join } from 'node:path'
-import type { PlanBundle } from '../../shared/domain/bundle'
+import type { EpicProvenance, PlanBundle } from '../../shared/domain/bundle'
+import type { ExperimentEvent, RetroExperiment } from '../../shared/domain/experiments'
+import type { ScorecardSnapshot } from '../../shared/domain/spaceGrades'
 import { LEASED_ATTEMPT_STATES, OPEN_ATTEMPT_STATES } from '../../shared/domain/status'
 import type { ReconcileResultView } from '../../shared/domain/views'
-import { contentHash } from '../canonical'
+import { canonicalJson, contentHash } from '../canonical'
 import type { Clock } from '../clock'
 import { type Db, parseJson, toJson } from '../db/database'
 import { fail } from '../errors'
 import { getMeta, META_KEYS, setMeta } from '../meta'
+import { correctionHolderProblem, type CorrectionHolder, crossRepoEvidenceProblem } from '../plan/corrections'
+import { resultProblem, type ScorecardLookup, sourceProblem } from '../plan/experiments'
 import { validatePlan } from '../plan/graph'
 import { retroSearchParts } from '../plan/retro'
 import { LIMITS } from '../schemas'
+import { enqueueOutbox } from '../services/outbox'
 import { indexComment, indexDocument } from '../services/searchIndex'
 import { findOpenTransfer, type OpenTransfer, TRANSFER_HOLD_PREFIX } from '../services/transferGuard'
 import { type FileHashCache, readUnlessSynced } from './fileHashes'
@@ -29,10 +35,13 @@ import { readProject } from './initialize'
 import { assertContained, displayPath, ownedPaths } from './paths'
 import { insertOwnedRow, registerEvidenceAttachments, registerTicketAttachments, restoreAttachmentFiles } from './attachmentImport'
 import { applyKanban, type KanbanScan, scanKanban } from './kanbanImport'
+import { importObservations } from './observationImport'
 import { applyProfiles, type ProfileScan, scanProfiles } from './profileImport'
 import {
+  buildRunHistoryRecord,
   type CommentRecord,
   commentRecord,
+  eventProblem,
   type EpicPointerRecord,
   epicPointerRecord,
   type EpicStateRecord,
@@ -44,6 +53,7 @@ import {
   readOwnedText,
   type RunHistoryRecord,
   runHistoryRecord,
+  scorecardRecord,
   type SnapshotRecord,
   snapshotRecord,
   trackedCommentHash,
@@ -78,6 +88,8 @@ interface EpicFiles {
   pointer: EpicPointerRecord
   state: EpicStateRecord
   snapshots: SnapshotRecord[]
+  /** The snapshot the pointer names; `checkEpicFiles` refused the epic when it is not among `snapshots`. */
+  current: SnapshotRecord
   trackedHash: string
 }
 
@@ -85,6 +97,10 @@ interface RunFiles {
   runId: string
   path: string
   record: RunHistoryRecord
+  /** Each report's frozen scorecard, by report id, read from the record the report names. */
+  scorecards: Map<string, ScorecardSnapshot>
+  /** Each report's content exactly as written in the file (what its contentHash binds), by report id: what is stored. */
+  written: Map<string, unknown>
   trackedHash: string
 }
 
@@ -118,6 +134,8 @@ interface Conflict {
 interface Plan {
   epics: EpicFiles[]
   runs: RunFiles[]
+  /** Runs this machine owns whose changes wait to be exported: only the experiment events other machines appended are added. */
+  eventMerges: RunFiles[]
   /** New comments to insert. */
   comments: CommentFiles[]
   /** Files identical to comments already here: only their sync record is written. */
@@ -229,7 +247,7 @@ function readSnapshots(deps: ImporterDeps, epicId: string): SnapshotRecord[] {
   return names.map((name) => readSnapshot(deps, epicId, name))
 }
 
-function checkEpicFiles(files: Omit<EpicFiles, 'path' | 'trackedHash'>, shown: { pointer: string; state: string }): void {
+function checkEpicFiles(files: Omit<EpicFiles, 'path' | 'trackedHash' | 'current'>, shown: { pointer: string; state: string }): SnapshotRecord {
   const { epicId, pointer, state, snapshots } = files
   if (pointer.epicId !== epicId) {
     reject(shown.pointer, 'belongs to a different epic')
@@ -249,6 +267,7 @@ function checkEpicFiles(files: Omit<EpicFiles, 'path' | 'trackedHash'>, shown: {
   if (unknown !== undefined) {
     reject(shown.state, `names ticket ${unknown}, which no snapshot contains`)
   }
+  return current
 }
 
 interface EpicTexts {
@@ -268,8 +287,8 @@ function parseEpicFiles(deps: ImporterDeps, texts: EpicTexts): EpicFiles {
   const pointer = parseRecord(epicPointerRecord, texts.pointerText, shown.pointer)
   const state = parseRecord(epicStateRecord, texts.stateText, shown.state)
   const snapshots = readSnapshots(deps, texts.epicId)
-  checkEpicFiles({ epicId: texts.epicId, pointer, state, snapshots }, shown)
-  return { epicId: texts.epicId, path: displayPath(deps.layout, texts.dir), pointer, state, snapshots, trackedHash: texts.trackedHash }
+  const current = checkEpicFiles({ epicId: texts.epicId, pointer, state, snapshots }, shown)
+  return { epicId: texts.epicId, path: displayPath(deps.layout, texts.dir), pointer, state, snapshots, current, trackedHash: texts.trackedHash }
 }
 
 /**
@@ -292,6 +311,59 @@ function readEpicFiles(deps: ImporterDeps, epicId: string): EpicFiles | null {
   return parseEpicFiles(deps, { epicId, dir, pointerText, stateText, trackedHash })
 }
 
+/**
+ * What a scorecard must agree on with the run history that names it: its seal, its run and epic, its sprint and
+ * report revision (id, number, content hash), and the subjects it grades. A re-sealed snapshot of another report,
+ * run or epic is refused. Its plan revision is checked against the epic's revisions with the rest of the run.
+ */
+function scorecardMismatch(snapshot: ScorecardSnapshot, record: RunHistoryRecord, report: RunHistoryRecord['reports'][number]): string | null {
+  const checks: [boolean, string][] = [
+    [snapshot.snapshotId === report.scorecard?.snapshotId && snapshot.snapshotHash === report.scorecard.snapshotHash, 'is not the scorecard the run history names'],
+    [snapshot.runId === record.runId && snapshot.sprint.subject.id === report.sprintId, 'belongs to another run or sprint'],
+    [snapshot.epicId === record.epicId, 'belongs to another epic'],
+    [
+      snapshot.report.reportId === report.id && snapshot.report.reportRevision === report.reportRevision && snapshot.report.contentHash === report.contentHash,
+      'belongs to another report revision'
+    ],
+    [snapshot.run.subject.id === record.runId && (snapshot.epic === null || snapshot.epic.subject.id === record.epicId), 'grades another run or epic'],
+    [snapshot.sources.runIds.includes(record.runId), 'does not name its own run among its sources']
+  ]
+  return checks.find(([ok]) => !ok)?.[1] ?? null
+}
+
+function readScorecards(deps: ImporterDeps, record: RunHistoryRecord): Map<string, ScorecardSnapshot> {
+  const scorecards = new Map<string, ScorecardSnapshot>()
+  for (const report of record.reports) {
+    if (report.scorecard === undefined) continue
+    const file = ownedPaths(deps.layout).scorecardFile(record.runId, report.id)
+    const shown = displayPath(deps.layout, file)
+    const text = readOwnedText(deps, file) ?? reject(shown, 'is missing: the run history names it')
+    const snapshot = parseRecord(scorecardRecord, text, shown)
+    const mismatch = scorecardMismatch(snapshot, record, report)
+    if (mismatch !== null) reject(shown, mismatch)
+    scorecards.set(report.id, snapshot)
+  }
+  return scorecards
+}
+
+/** A report as written in a run history file, before the schema fills any default. */
+interface WrittenReport {
+  id?: unknown
+  contentHash?: unknown
+  content?: unknown
+}
+
+/**
+ * A report revision is immutable and approvals bind its content hash, so each report's content, as written in the file
+ * (before the schema fills any default), must hash to the contentHash it carries: a hand-edited retro, a swapped
+ * baseline or an injected experiment does not. That written content is what is stored and exported again
+ * (`upsertReportsAndCheckpoints`, `buildRunHistoryRecord`); readers fill the defaults (`filledReportContent`).
+ */
+function editedReport(reports: WrittenReport[]): string | null {
+  const edited = reports.find((report) => contentHash(report.content) !== report.contentHash)
+  return edited === undefined ? null : `holds report ${String(edited.id)}, whose content does not hash to its contentHash; a report's content is never edited`
+}
+
 function readRunFiles(deps: ImporterDeps, runId: string): RunFiles | null {
   const file = ownedPaths(deps.layout).runHistoryFile(runId)
   const text = requireText(deps, file)
@@ -304,7 +376,14 @@ function readRunFiles(deps: ImporterDeps, runId: string): RunFiles | null {
   if (record.runId !== runId) {
     reject(shown, 'belongs to a different run')
   }
-  return { runId, path: shown, record, trackedHash }
+  // `parseRecord` just validated this text, so it holds the reports; read raw, they are as written (no default filled).
+  const raw: { reports: WrittenReport[] } = JSON.parse(text)
+  const edited = editedReport(raw.reports)
+  if (edited !== null) {
+    reject(shown, edited)
+  }
+  const written = new Map(raw.reports.map((report) => [String(report.id), report.content]))
+  return { runId, path: shown, record, scorecards: readScorecards(deps, record), written, trackedHash }
 }
 
 interface ScanSink<T> {
@@ -480,7 +559,12 @@ const RUN_CHILD_TABLES = [
   { table: 'attempts', what: 'Attempt', ids: (record: RunHistoryRecord) => record.attempts.map((item) => item.id) },
   { table: 'sprint_reports', what: 'Report', ids: (record: RunHistoryRecord) => record.reports.map((item) => item.id) },
   { table: 'checkpoints', what: 'Checkpoint', ids: (record: RunHistoryRecord) => record.checkpoints.map((item) => item.id) },
-  { table: 'row_checks', what: 'Row check', ids: (record: RunHistoryRecord) => (record.rowChecks ?? []).map((item) => item.id) }
+  { table: 'row_checks', what: 'Row check', ids: (record: RunHistoryRecord) => (record.rowChecks ?? []).map((item) => item.id) },
+  {
+    table: 'experiment_events',
+    what: 'Experiment event',
+    ids: (record: RunHistoryRecord) => (record.experimentEvents ?? []).map((item) => item.id)
+  }
 ] as const
 
 function foreignChild(db: Db, record: RunHistoryRecord): string | null {
@@ -496,23 +580,284 @@ function foreignChild(db: Db, record: RunHistoryRecord): string | null {
   return null
 }
 
-/** A run must reference a known epic and a revision of that epic, and must not claim others' rows. */
-function runClash(db: Db, record: RunHistoryRecord, staged: Map<string, EpicFiles>): string | null {
-  const stagedEpic = staged.get(record.epicId)
+/**
+ * A report id already stored here must arrive with the content hash stored for it (its content was checked against
+ * that hash when the file was read, `editedReport`): changed content for an existing report is refused, and this
+ * machine's copy is kept. So is a report naming another scorecard than the one frozen here for it: a scorecard is
+ * never replaced. A record that names none (written before scorecards) leaves the stored one as it is.
+ */
+function changedReport(db: Db, record: RunHistoryRecord): string | null {
+  for (const report of record.reports) {
+    const stored = db.get<{ content_hash: string; scorecard_hash: string | null }>(
+      "SELECT content_hash, json_extract(scorecard_json, '$.snapshotHash') AS scorecard_hash FROM sprint_reports WHERE id = ?",
+      report.id
+    )
+    if (stored !== undefined && stored.content_hash !== report.contentHash) {
+      return `Report ${report.id} differs from the revision stored here (content hash ${stored.content_hash}); a report revision is never replaced, so the local one is kept.`
+    }
+    if (stored?.scorecard_hash != null && report.scorecard !== undefined && report.scorecard.snapshotHash !== stored.scorecard_hash) {
+      return `Report ${report.id} names scorecard ${report.scorecard.snapshotHash}, not the one frozen here for it (${stored.scorecard_hash}); a scorecard is never replaced, so the local one is kept.`
+    }
+  }
+  return null
+}
+
+/**
+ * Experiment events are append-only: an event already stored must arrive exactly as stored, apart from its number, and
+ * no other event may take its place in its experiment's order. Two machines may append to one run's history (the owner
+ * of a follow-up run records results on the source run): an incoming event taking the number of an event stored here
+ * that the incoming history does not hold is a fork, resolved by numbering this machine's event after the incoming ones
+ * (`insertExperimentEvents`), unless both sides recorded statuses of one experiment (`forkedStatuses`). The machine
+ * that resolved a fork exports that event under its new number, so a stored event arriving with nothing but another
+ * number (in a sequence numbered 1 to n, `runHistoryRecord`) takes that number here too, and every machine that
+ * imported the old number follows; the stored statuses keep their order (`reorderedEvents`), while a result may move
+ * past a status, since another machine's fork resolution numbers it after statuses this machine already holds.
+ */
+function rewrittenEvent(db: Db, record: RunHistoryRecord): string | null {
+  const incoming = new Map((record.experimentEvents ?? []).map((event) => [event.id, event]))
+  for (const event of incoming.values()) {
+    const stored = storedEvent(db, event.id)
+    if (stored !== undefined && !renumberedOnly(stored, event)) {
+      return `Experiment event ${event.id} differs from the one stored here; experiment events are never rewritten.`
+    }
+    const byNumber = db.get<{ id: string }>('SELECT id FROM experiment_events WHERE experiment_id = ? AND number = ?', event.experimentId, event.number)
+    const holder = byNumber === undefined || byNumber.id === event.id ? undefined : incoming.get(byNumber.id)
+    if (holder !== undefined && !renumberedOnly(storedEvent(db, holder.id), holder)) {
+      return `Experiment event ${event.id} takes number ${event.number} of experiment ${event.experimentId}, which event ${holder.id} already holds here.`
+    }
+  }
+  return reorderedEvents(db, record) ?? forkedStatuses(db, record)
+}
+
+/**
+ * A resolved fork only numbers events after the ones both sides already hold, so the statuses of an experiment stored
+ * here must arrive in the order they are stored: a renumbering that moves one status past another changes what the
+ * experiment's status is, and is refused. Results are left out of the check: only a run's owner records statuses (a
+ * status fork is refused, `forkedStatuses`), so a result recorded elsewhere legitimately moves past a status when
+ * forks resolve on several machines in turn (a third machine that numbered a result after two statuses follows the
+ * history that numbered it between them).
+ */
+function reorderedEvents(db: Db, record: RunHistoryRecord): string | null {
+  const incoming = record.experimentEvents ?? []
+  for (const experimentId of new Set(incoming.map((event) => event.experimentId))) {
+    const stored = db.all<{ id: string }>('SELECT id FROM experiment_events WHERE experiment_id = ? ORDER BY number', experimentId).map((row) => row.id)
+    const arriving = incoming
+      .filter((event) => event.kind === 'status' && event.experimentId === experimentId && stored.includes(event.id))
+      .sort((a, b) => a.number - b.number)
+    const kept = stored.filter((id) => arriving.some((event) => event.id === id))
+    if (arriving.some((event, index) => event.id !== kept[index])) {
+      return `Experiment ${experimentId}'s statuses arrive in another order than stored here; a stored status never moves past another stored status, since that changes what the experiment's status is.`
+    }
+  }
+  return null
+}
+
+function storedEvent(db: Db, eventId: string): ExperimentEvent | undefined {
+  const row = db.get<{ event_json: string }>('SELECT event_json FROM experiment_events WHERE id = ?', eventId)
+  return row === undefined ? undefined : (JSON.parse(row.event_json) as ExperimentEvent)
+}
+
+/** Whether `incoming` is the stored event exactly, or with another number only. */
+function renumberedOnly(stored: ExperimentEvent | undefined, incoming: ExperimentEvent): boolean {
+  return stored !== undefined && canonicalJson({ ...stored, number: 0 }) === canonicalJson({ ...incoming, number: 0 })
+}
+
+/** Events of the incoming run history this machine does not store yet. */
+function arrivingEvents(db: Db, record: RunHistoryRecord): ExperimentEvent[] {
+  return (record.experimentEvents ?? []).filter((event) => db.get('SELECT id FROM experiment_events WHERE id = ?', event.id) === undefined)
+}
+
+/** Events of the run stored here that the incoming run history does not hold (this machine's, not in the tracked file), in order. */
+function localOnlyEvents(db: Db, record: RunHistoryRecord): ExperimentEvent[] {
+  const incoming = new Set((record.experimentEvents ?? []).map((event) => event.id))
+  return db
+    .all<{ id: string; event_json: string }>('SELECT id, event_json FROM experiment_events WHERE run_id = ? ORDER BY experiment_id, number', record.runId)
+    .filter((row) => !incoming.has(row.id))
+    .map((row) => JSON.parse(row.event_json) as ExperimentEvent)
+}
+
+/**
+ * A fork renumbers only when one side recorded results alone (only a run's owner records statuses): statuses of one
+ * experiment recorded on two machines cannot be put in order, so the run history is refused.
+ */
+function forkedStatuses(db: Db, record: RunHistoryRecord): string | null {
+  const arriving = arrivingEvents(db, record).filter((event) => event.kind === 'status')
+  const local = localOnlyEvents(db, record).find((event) => event.kind === 'status' && arriving.some((item) => item.experimentId === event.experimentId))
+  const other = arriving.find((event) => event.experimentId === local?.experimentId)
+  return local === undefined || other === undefined
+    ? null
+    : `Experiment ${local.experimentId}'s statuses were recorded on two machines (event ${local.id} here, event ${other.id} in the tracked history), so they cannot be put in order; record statuses only on the machine that owns run ${record.runId}.`
+}
+
+/**
+ * An event stored here but missing from the record is kept (it waits to be exported), so it must still fit the incoming
+ * reports: the definition it cites must be there, by content hash. A run history that redefines an experiment under
+ * stored events is refused rather than left unexportable.
+ */
+function redefinedUnderEvents(db: Db, record: RunHistoryRecord): string | null {
+  const incoming = new Set((record.experimentEvents ?? []).map((event) => event.id))
+  const reports = new Map(record.reports.map((report) => [report.id, report]))
+  const stored = db.all<{ id: string; event_json: string }>('SELECT id, event_json FROM experiment_events WHERE run_id = ? ORDER BY experiment_id, number', record.runId)
+  for (const row of stored.filter((item) => !incoming.has(item.id))) {
+    const problem = eventProblem(JSON.parse(row.event_json) as ExperimentEvent, record.runId, reports)
+    if (problem !== null) {
+      return `Experiment event ${row.id} stored here ${problem} in the incoming run history; an experiment that has events is never redefined.`
+    }
+  }
+  return null
+}
+
+/**
+ * Every experiment's provenance is checked against the frozen scorecard it cites (arriving now or stored here): its
+ * source must be exactly the reference the cited grade gives and its baseline exactly the value read from that grade.
+ * A hand-edited baseline, seal, report or epic is refused.
+ */
+function forgedSource(record: RunHistoryRecord, scorecardFor: ScorecardLookup): string | null {
+  for (const report of record.reports) {
+    for (const experiment of report.content.retro?.experiments ?? []) {
+      const problem = experiment.source.epicId === record.epicId ? sourceProblem(experiment, report, scorecardFor) : `cites epic ${experiment.source.epicId}`
+      if (problem !== null) return `Experiment ${experiment.id} of report ${report.id} ${problem}.`
+    }
+  }
+  return null
+}
+
+/**
+ * An epic as a cross-epic result check reads it: arriving now (its snapshots), else stored here (its saved
+ * revisions); undefined when this machine has neither.
+ */
+type HolderLookup = (epicId: string) => CorrectionHolder | undefined
+
+function holderLookup(db: Db, staged: Map<string, EpicFiles>): HolderLookup {
+  return (epicId) => {
+    const arriving = staged.get(epicId)
+    if (arriving !== undefined) return { epicId, provenance: arriving.state.provenance, bundles: arriving.snapshots.map((snapshot) => snapshot.bundle) }
+    const epic = db.get<{ provenance_json: string | null }>('SELECT provenance_json FROM epics WHERE id = ?', epicId)
+    if (epic === undefined) return undefined
+    const bundles = db.all<{ bundle_json: string }>('SELECT bundle_json FROM plan_revisions WHERE epic_id = ? ORDER BY number', epicId).map((row) => JSON.parse(row.bundle_json) as PlanBundle)
+    return { epicId, provenance: parseJson<EpicProvenance | null>(epic.provenance_json, null), bundles }
+  }
+}
+
+/**
+ * A result read from another epic's grade must cite an epic of this project holding the experiment's corrective work:
+ * a follow-up whose provenance names the experiment's epic, or this project's own cross-repository correction epic for
+ * it (the active repository chosen as its own target), whose saved revision carries the experiment's correction
+ * markers under its key with one payload hash (`correctionHolderProblem`). An epic that is not here (deleted, or never
+ * shared) cannot be checked: the event is imported and reads as citing a scorecard that is not here, and once that
+ * epic's records arrive the outcome checks the result against its grade (`experimentOutcome`).
+ */
+function foreignResultProblem(
+  event: Extract<ExperimentEvent, { kind: 'result' }>,
+  experiment: RetroExperiment,
+  record: RunHistoryRecord,
+  checks: { holderFor: HolderLookup; projectId: string }
+): string | null {
+  const cited = event.result.assessment
+  if (cited === null || cited.epicId === record.epicId) return null
+  const holder = checks.holderFor(cited.epicId)
+  if (holder === undefined) return null
+  const problem = correctionHolderProblem(holder, experiment, checks.projectId)
+  return problem === null ? null : `cites a grade of epic ${cited.epicId}, which holds no corrective work of experiment ${experiment.id} (${problem})`
+}
+
+/**
+ * Where a result's cited scorecard is read, and what is wrong with where it comes from. A result carrying the grade of
+ * another project's correction epic (the Dark Mechanicus source, `crossRepo`) is checked first and whole
+ * (`crossRepoEvidenceProblem`: bound to this project's request, sealed, regraded), and only then read from what it
+ * carries; it never stands in for a grade of this project. Any other result reads this project's scorecards.
+ */
+function citedSource(
+  event: Extract<ExperimentEvent, { kind: 'result' }>,
+  experiment: RetroExperiment,
+  record: RunHistoryRecord,
+  checks: { scorecardFor: ScorecardLookup; holderFor: HolderLookup; projectId: string }
+): { problem: string | null; lookup: ScorecardLookup } {
+  const carried = event.result.crossRepo
+  if (carried === undefined) return { problem: foreignResultProblem(event, experiment, record, checks), lookup: checks.scorecardFor }
+  const cited = event.result.assessment
+  const own = [record.epicId, ...(cited !== null && checks.holderFor(cited.epicId) !== undefined ? [cited.epicId] : [])]
+  const problem = crossRepoEvidenceProblem(carried, experiment, { projectId: checks.projectId, own, regrade: true }, cited)
+  return { problem, lookup: (reportId) => (reportId === carried.scorecard.report.reportId ? carried.scorecard : undefined) }
+}
+
+/**
+ * Every result read from an assessment must cite the experiment's epic or a follow-up epic holding its corrective
+ * work (`foreignResultProblem`), or carry a checked grade of another project's correction epic (`citedSource`), and
+ * be exactly what that frozen assessment holds for the baseline's measure. A cited scorecard that is not here (arriving
+ * or stored) does not hold the run history back forever: the event is imported, its outcome reads the scorecard as not
+ * here, and the outcome checks the result against it once it arrives.
+ */
+function forgedResult(record: RunHistoryRecord, scorecardFor: ScorecardLookup, holderFor: HolderLookup, projectId: string): string | null {
+  const definitions = new Map<string, RetroExperiment>(record.reports.flatMap((report) => (report.content.retro?.experiments ?? []).map((item) => [item.id, item] as const)))
+  for (const event of record.experimentEvents ?? []) {
+    const experiment = definitions.get(event.experimentId)
+    if (event.kind !== 'result' || experiment === undefined) continue
+    const { problem, lookup } = citedSource(event, experiment, record, { scorecardFor, holderFor, projectId })
+    const absent = event.result.assessment !== null && lookup(event.result.assessment.reportId) === undefined
+    const found = problem ?? (absent ? null : resultProblem(event.result, experiment.baseline.measure, lookup))
+    if (found !== null) return `Experiment event ${event.id} ${found}.`
+  }
+  return null
+}
+
+/** What an incoming run history is checked against: the epics arriving now, the scorecards here, and this project. */
+interface RunChecks {
+  staged: Map<string, EpicFiles>
+  scorecardFor: ScorecardLookup
+  projectId: string
+}
+
+/** The experiment checks of an incoming run history, in order: append-only events, no redefinition, provenance. */
+function experimentClash(db: Db, record: RunHistoryRecord, against: RunChecks): string | null {
+  return (
+    rewrittenEvent(db, record) ??
+    redefinedUnderEvents(db, record) ??
+    forgedSource(record, against.scorecardFor) ??
+    forgedResult(record, against.scorecardFor, holderLookup(db, against.staged), against.projectId)
+  )
+}
+
+/**
+ * A run must reference a known epic and a revision of that epic, its scorecards must have been graded under revisions
+ * of that epic, it must not claim others' rows or rewrite (or redefine under) an experiment event stored here, and its
+ * experiments must follow from the scorecards they cite.
+ */
+function runClash(db: Db, run: Pick<RunFiles, 'record' | 'scorecards'>, against: RunChecks): string | null {
+  const { record } = run
+  const stagedEpic = against.staged.get(record.epicId)
   const epicKnown = stagedEpic !== undefined || db.get('SELECT id FROM epics WHERE id = ?', record.epicId) !== undefined
   if (!epicKnown) {
     return `Run ${record.runId} belongs to unknown epic ${record.epicId}.`
   }
-  const stagedRevision = stagedEpic?.snapshots.some((snapshot) => snapshot.revisionId === record.revisionId) === true
-  const localRevision = db.get<{ epic_id: string }>('SELECT epic_id FROM plan_revisions WHERE id = ?', record.revisionId)
-  if (!stagedRevision && localRevision?.epic_id !== record.epicId) {
+  const knownRevision = (revisionId: string): boolean =>
+    stagedEpic?.snapshots.some((snapshot) => snapshot.revisionId === revisionId) === true ||
+    db.get<{ epic_id: string }>('SELECT epic_id FROM plan_revisions WHERE id = ?', revisionId)?.epic_id === record.epicId
+  if (!knownRevision(record.revisionId)) {
     return `Run ${record.runId} is pinned to unknown revision ${record.revisionId}.`
+  }
+  // A scorecard is graded under the plan the run held at its report: it must be a revision of the same epic.
+  const graded = [...run.scorecards.values()].find((snapshot) => !knownRevision(snapshot.planRevisionId))
+  if (graded !== undefined) {
+    return `The scorecard of report ${graded.report.reportId} names plan revision ${graded.planRevisionId}, which is not a revision of epic ${record.epicId}.`
   }
   const existing = db.get<{ epic_id: string }>('SELECT epic_id FROM runs WHERE id = ?', record.runId)
   if (existing !== undefined && existing.epic_id !== record.epicId) {
     return `Run ${record.runId} already exists locally for another epic.`
   }
-  return foreignChild(db, record)
+  return foreignChild(db, record) ?? changedReport(db, record) ?? experimentClash(db, record, against)
+}
+
+/**
+ * The sealed scorecard of a report as an import sees it: one arriving now (checked against its seal and regraded when
+ * read), else the one stored here (checked when it was written or imported).
+ */
+function scorecardLookup(db: Db, scan: Scan): ScorecardLookup {
+  const arriving = new Map(scan.runs.flatMap((run) => [...run.scorecards]))
+  return (reportId) => {
+    const stored = arriving.has(reportId) ? null : db.get<{ scorecard_json: string | null }>('SELECT scorecard_json FROM sprint_reports WHERE id = ?', reportId)?.scorecard_json
+    return arriving.get(reportId) ?? (stored == null ? undefined : (JSON.parse(stored) as ScorecardSnapshot))
+  }
 }
 
 /** Starts the conflict of an epic whose tracked records changed while its local changes wait to be exported. */
@@ -617,21 +962,66 @@ function planEpics(db: Db, scan: Scan, plan: Plan, held: Set<string>): Set<strin
   return skipped
 }
 
-function planRuns(db: Db, scan: Scan, plan: Plan, skippedEpics: Set<string>): void {
+/**
+ * A run whose changes wait to be exported here is not applied from the tracked history over them: that is a
+ * conflict that waits, unless the changes on either side are experiment events another machine may append (results
+ * read from a follow-up run it owns). On a run this machine owns, the events other machines appended are merged in
+ * (`planOwnMerge`), and the waiting export writes both. On a run it does not own, holding events the tracked history
+ * lacks (its own results), the tracked history applies as usual and those events are numbered after its own
+ * (`insertExperimentEvents`).
+ */
+function planRuns(db: Db, scan: Scan, plan: Plan, from: { skippedEpics: Set<string>; projectId: string; machineId: string }): void {
   const staged = new Map(plan.epics.map((files) => [files.epicId, files]))
-  for (const run of scan.runs.filter((item) => !skippedEpics.has(item.record.epicId))) {
+  const checks: RunChecks = { staged, scorecardFor: scorecardLookup(db, scan), projectId: from.projectId }
+  for (const run of scan.runs.filter((item) => !from.skippedEpics.has(item.record.epicId))) {
     if (hasPendingRunChanges(db, run.runId)) {
-      const message = `Tracked history for run ${run.runId} changed while local run changes are waiting to be exported.`
-      plan.conflicts.push({ kind: 'run', entityId: run.runId, epicId: run.record.epicId, message })
-      continue
+      const owned = db.get<{ owner_machine_id: string }>('SELECT owner_machine_id FROM runs WHERE id = ?', run.runId)?.owner_machine_id === from.machineId
+      const appended = owned ? arrivingEvents(db, run.record) : localOnlyEvents(db, run.record)
+      if (appended.length === 0) {
+        const message = `Tracked history for run ${run.runId} changed while local run changes are waiting to be exported.`
+        plan.conflicts.push({ kind: 'run', entityId: run.runId, epicId: run.record.epicId, message })
+        continue
+      }
+      if (owned) {
+        planOwnMerge(db, run, plan, checks)
+        continue
+      }
     }
-    const clash = runClash(db, run.record, staged)
+    const clash = runClash(db, run, checks)
     if (clash === null) {
       plan.runs.push(run)
     } else {
       plan.rejected.push({ path: run.path, message: clash })
     }
   }
+}
+
+/**
+ * Experiment events another machine appended to a run this machine owns while its own changes wait to be exported:
+ * merged in when they fit the reports stored here and pass every event check of an import (`mergeClash`).
+ */
+function planOwnMerge(db: Db, run: RunFiles, plan: Plan, checks: RunChecks): void {
+  const clash = mergeClash(db, run.record, checks)
+  if (clash === null) {
+    plan.eventMerges.push(run)
+  } else {
+    plan.rejected.push({ path: run.path, message: clash })
+  }
+}
+
+/**
+ * Arriving events must cite definitions the reports stored here hold, and pass the event checks of any import, judged
+ * against the reports stored here: they are the owner's, and the tracked ones may predate a revision it has not
+ * exported yet (a restatement whose events wait to be exported with it).
+ */
+function mergeClash(db: Db, record: RunHistoryRecord, against: RunChecks): string | null {
+  const { reports } = buildRunHistoryRecord(db, record.runId)
+  const byId = new Map(reports.map((report) => [report.id, report]))
+  for (const event of arrivingEvents(db, record)) {
+    const problem = eventProblem(event, record.runId, byId)
+    if (problem !== null) return `Experiment event ${event.id} ${problem} here, so it is not merged into run ${record.runId}.`
+  }
+  return changedReport(db, record) ?? experimentClash(db, { ...record, reports }, against)
 }
 
 function planKnownComment(plan: Plan, file: CommentFiles, known: Record<string, unknown>): void {
@@ -662,17 +1052,18 @@ function planComments(db: Db, scan: Scan, plan: Plan): void {
   }
 }
 
-function planImport(db: Db, scan: Scan): Plan {
+function planImport(db: Db, scan: Scan, from: { projectId: string; machineId: string }): Plan {
   const plan: Plan = {
     epics: [],
     runs: [],
+    eventMerges: [],
     comments: [],
     syncedComments: [],
     unchanged: [...scan.unchanged],
     conflicts: [],
     rejected: [...scan.rejected]
   }
-  planRuns(db, scan, plan, planEpics(db, scan, plan, planTransferHolds(db, scan, plan)))
+  planRuns(db, scan, plan, { skippedEpics: planEpics(db, scan, plan, planTransferHolds(db, scan, plan)), ...from })
   planComments(db, scan, plan)
   return plan
 }
@@ -751,17 +1142,13 @@ function upsertTicketStatuses(db: Db, files: EpicFiles): void {
   }
 }
 
-function currentBundle(files: EpicFiles): PlanBundle | undefined {
-  return files.snapshots.find((snapshot) => snapshot.revisionId === files.pointer.revisionId)?.bundle
-}
-
 function indexEpic(db: Db, files: EpicFiles): void {
-  const bundle = currentBundle(files)
-  const intent = bundle === undefined ? [] : [bundle.epic.intent, ...bundle.epic.successCriteria.map((item) => item.text)]
+  const { bundle } = files.current
+  const intent = [bundle.epic.intent, ...bundle.epic.successCriteria.map((item) => item.text)]
   const body = [...intent, files.state.outcome?.summary ?? ''].filter((part) => part !== '').join('\n')
   indexDocument(db, { docType: 'epic', docId: files.epicId, epicId: files.epicId, title: files.state.title, body })
   db.run("DELETE FROM search_index WHERE doc_type = 'ticket' AND epic_id = ?", files.epicId)
-  for (const ticket of bundle?.tickets ?? []) {
+  for (const ticket of bundle.tickets) {
     indexDocument(db, {
       docType: 'ticket',
       docId: ticket.id,
@@ -867,23 +1254,32 @@ function upsertAttempt(db: Db, runId: string, attempt: AttemptRecord): void {
   )
 }
 
-function upsertReportsAndCheckpoints(db: Db, record: RunHistoryRecord): void {
+/**
+ * Reports are upserted from the record, each with its content as written in the file (`RunFiles.written`, which
+ * hashes to its contentHash), so the export writes back exactly what was hashed. A report's scorecard is stored as
+ * canonical JSON (the bytes it was exported with) and, once stored, is never replaced or cleared: a record written by an
+ * app that predates scorecards leaves the frozen one as it is (one naming another snapshot for the same revision was
+ * refused, `changedReport`).
+ */
+function upsertReportsAndCheckpoints(db: Db, record: RunHistoryRecord, scorecards: ReadonlyMap<string, ScorecardSnapshot>, written: ReadonlyMap<string, unknown>): void {
   for (const report of record.reports) {
+    const scorecard = scorecards.get(report.id)
     db.run(
       `INSERT INTO sprint_reports (id, run_id, sprint_id, report_revision, content_json, content_hash, submitted_by,
-         created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         created_at, scorecard_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET sprint_id = excluded.sprint_id, report_revision = excluded.report_revision,
          content_json = excluded.content_json, content_hash = excluded.content_hash,
-         submitted_by = excluded.submitted_by`,
+         submitted_by = excluded.submitted_by, scorecard_json = COALESCE(sprint_reports.scorecard_json, excluded.scorecard_json)`,
       report.id,
       record.runId,
       report.sprintId,
       report.reportRevision,
-      toJson(report.content),
+      toJson(written.get(report.id) ?? report.content),
       report.contentHash,
       report.submittedBy,
-      report.createdAt
+      report.createdAt,
+      scorecard === undefined ? null : canonicalJson(scorecard)
     )
   }
   for (const checkpoint of record.checkpoints) {
@@ -922,6 +1318,50 @@ function upsertRowChecks(db: Db, record: RunHistoryRecord): void {
       check.createdAt
     )
   }
+}
+
+/** Added to an event's number while it moves, so no move lands on a number another moving event has not left yet. */
+const MOVING = 1_000_000
+
+/**
+ * New experiment events are added; a stored one is never replaced (`rewrittenEvent` refused any that differ but in
+ * number), and one arriving under another number (a fork another machine resolved) takes it. This machine's events
+ * of the run that the incoming history does not hold (not exported yet, or written over by another machine's export)
+ * are numbered after the incoming events of their experiment, in their order, and the run history is queued for
+ * export so they reach the tracked file.
+ */
+function insertExperimentEvents(db: Db, record: RunHistoryRecord, clock: Clock): void {
+  const incoming = record.experimentEvents ?? []
+  const local = localOnlyEvents(db, record)
+  const last = new Map<string, number>()
+  for (const event of incoming) last.set(event.experimentId, Math.max(last.get(event.experimentId) ?? 0, event.number))
+  const renumbered = local.map((event) => {
+    const number = (last.get(event.experimentId) ?? 0) + 1
+    last.set(event.experimentId, number)
+    return { before: event.number, event: { ...event, number } }
+  })
+  const adopted = incoming.flatMap((event) => {
+    const stored = storedEvent(db, event.id)
+    return stored === undefined ? [] : [{ before: stored.number, event }]
+  })
+  const moves = [...renumbered, ...adopted].filter((item) => item.before !== item.event.number)
+  for (const { event } of moves) db.run('UPDATE experiment_events SET number = number + ? WHERE id = ?', MOVING, event.id)
+  for (const { event } of moves) {
+    db.run('UPDATE experiment_events SET number = ?, event_json = ? WHERE id = ?', event.number, toJson(event), event.id)
+  }
+  for (const event of incoming) {
+    db.run(
+      `INSERT INTO experiment_events (id, run_id, number, experiment_id, recorded_at, event_json)
+       VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`,
+      event.id,
+      record.runId,
+      event.number,
+      event.experimentId,
+      event.recordedAt,
+      toJson(event)
+    )
+  }
+  if (local.length > 0) enqueueOutbox({ db, clock }, { kind: 'run_history', epicId: record.epicId, runId: record.runId })
 }
 
 function ticketKeys(db: Db, revisionId: string): Map<string, string> {
@@ -969,7 +1409,7 @@ function indexRun(db: Db, record: RunHistoryRecord): void {
   }
 }
 
-function applyRun(db: Db, run: RunFiles, now: string): void {
+function applyRun(db: Db, run: RunFiles, at: { now: string; clock: Clock }): void {
   const { record } = run
   upsertRun(db, record)
   // Closed attempts first, so an attempt that closes never collides with the one-open-attempt index.
@@ -977,9 +1417,10 @@ function applyRun(db: Db, run: RunFiles, now: string): void {
   for (const attempt of [...record.attempts.filter((item) => !isOpen(item)), ...record.attempts.filter(isOpen)]) {
     upsertAttempt(db, record.runId, attempt)
   }
-  upsertReportsAndCheckpoints(db, record)
+  upsertReportsAndCheckpoints(db, record, run.scorecards, run.written)
   upsertRowChecks(db, record)
-  markSynced(db, { kind: 'run', entityId: run.runId, hash: run.trackedHash, generation: null, now })
+  insertExperimentEvents(db, record, at.clock)
+  markSynced(db, { kind: 'run', entityId: run.runId, hash: run.trackedHash, generation: null, now: at.now })
   indexRun(db, record)
 }
 
@@ -1081,7 +1522,12 @@ function applyStaged(deps: ImporterDeps, plan: Plan, now: string): { imported: s
     }
   }
   for (const run of plan.runs.filter((item) => !failedEpics.has(item.record.epicId))) {
-    if (applyItem(deps.db, run.path, () => applyRun(deps.db, run, now), rejected)) {
+    if (applyItem(deps.db, run.path, () => applyRun(deps.db, run, { now, clock: deps.clock }), rejected)) {
+      imported.push(run.runId)
+    }
+  }
+  for (const run of plan.eventMerges) {
+    if (applyItem(deps.db, run.path, () => insertExperimentEvents(deps.db, run.record, deps.clock), rejected)) {
       imported.push(run.runId)
     }
   }
@@ -1157,18 +1603,26 @@ function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultVi
   const staged = applyStaged(deps, plan, now)
   const profileOutcome = applyProfiles(deps.db, profiles, now)
   const kanbanOutcome = applyKanban(deps.db, kanban, now)
+  // After epics and runs, so an observation of a run imported now resolves.
+  const observationOutcome = importObservations(deps, now)
   registerEvidenceAttachments(deps.db, now)
   registerTicketAttachments(deps.db, now)
   const attachmentOutcome = restoreAttachmentFiles(deps)
   storeConflicts(deps.db, plan.conflicts, now)
   const pausedRuns = branchChanged ? pauseActiveRuns(deps, now) : []
   const result: ReconcileResultView = {
-    imported: [...staged.imported, ...profileOutcome.imported, ...kanbanOutcome.imported],
+    imported: [...staged.imported, ...profileOutcome.imported, ...kanbanOutcome.imported, ...observationOutcome.imported],
     unchanged: [...plan.unchanged, ...profiles.unchanged, ...kanban.unchanged],
     conflicts: plan.conflicts.map((conflict) => ({ epicId: conflict.epicId, message: conflict.message })),
     profileConflicts: profiles.conflicts,
     kanbanConflicts: kanban.conflicts.map((conflict) => ({ cardId: conflict.cardId, message: conflict.message })),
-    rejected: [...staged.rejected, ...profileOutcome.rejected, ...kanbanOutcome.rejected, ...attachmentOutcome.rejected],
+    rejected: [
+      ...staged.rejected,
+      ...profileOutcome.rejected,
+      ...kanbanOutcome.rejected,
+      ...observationOutcome.rejected,
+      ...attachmentOutcome.rejected
+    ],
     branchChanged,
     pausedRuns
   }
@@ -1215,7 +1669,7 @@ export function reconcileRepository(deps: ImporterDeps): ReconcileResultView {
     const current = deps.git.head()?.branch ?? null
     const branchChanged = branchState(deps.db, current).changed
     const project = requireProject(deps)
-    const plan = planImport(deps.db, scanRepository(deps))
+    const plan = planImport(deps.db, scanRepository(deps), { projectId: project.projectId, machineId: deps.machineId })
     const profiles = scanProfiles(deps)
     const kanban = scanKanban(deps)
     return applyPlan(deps, { project, plan, profiles, kanban, current, branchChanged })

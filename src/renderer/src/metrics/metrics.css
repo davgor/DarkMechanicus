@@ -1,0 +1,305 @@
+/* The Metrics dashboard: a folder's measured performance. Cards and theme tokens come from styles.css, links and the
+   freshness line from scorecard.css. */
+.metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  max-width: 1280px;
+  min-width: 0;
+  padding: 28px 32px 48px;
+  container: metrics / inline-size;
+}
+
+.metrics-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.metrics-title {
+  margin: 0;
+  color: var(--ink-display);
+  font-family: var(--font-serif);
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.metrics-folder {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.metrics-freshness {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.metrics-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.metrics-heading {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.metrics-note {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.metrics-empty {
+  max-width: 760px;
+}
+
+.metrics-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.metrics-tile {
+  gap: 8px;
+  padding: 16px;
+  min-width: 0;
+}
+
+.metrics-value {
+  margin: 0;
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.metrics-distribution {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metrics-distribution li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.metrics-count {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.metrics-pairs {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12.5px;
+}
+
+.metrics-pairs div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 10px;
+}
+
+.metrics-pairs dt {
+  color: var(--ink-2);
+}
+
+.metrics-pairs dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.metrics-table-wrap {
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.metrics-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.metrics-table th,
+.metrics-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line-soft);
+  text-align: left;
+  vertical-align: top;
+}
+
+.metrics-table td {
+  min-width: 8em;
+}
+
+.metrics-cell {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.metrics-table thead th {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.metrics-table tbody th {
+  min-width: 11em;
+  font-weight: 400;
+}
+
+.metrics-table tbody tr:last-child th,
+.metrics-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.metrics-table tr.is-incomparable td:last-child {
+  color: var(--ink-2);
+  font-style: italic;
+}
+
+.metrics-grade {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.metrics-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.metrics-gap-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+}
+
+.metrics-gap-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.metrics-gaps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.metrics-gaps li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.metrics-tickets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+}
+
+.metrics-removed {
+  color: var(--ink-2);
+  font-size: 12.5px;
+}
+
+/* Too narrow for the columns (the 1024 px window minimum leaves about 690 px): each row stacks into labelled lines, so
+   no cell is clipped and nothing scrolls sideways. */
+@container metrics (max-width: 979px) {
+  .metrics-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .metrics-table,
+  .metrics-table tbody,
+  .metrics-table tr,
+  .metrics-table th,
+  .metrics-table td {
+    display: block;
+    min-width: 0;
+  }
+
+  .metrics-table tr {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  .metrics-table tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .metrics-table th,
+  .metrics-table td {
+    padding: 3px 14px;
+    border-bottom: 0;
+  }
+
+  .metrics-table td {
+    display: flex;
+    gap: 12px;
+  }
+
+  .metrics-table td::before {
+    content: attr(data-label);
+    flex: 0 0 9.5em;
+    padding-top: 2px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .metrics-cell {
+    flex: 1 1 0;
+  }
+}

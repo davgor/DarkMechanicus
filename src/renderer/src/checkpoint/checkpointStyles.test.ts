@@ -50,3 +50,12 @@ describe('checkpoint check row styles', () => {
     expect(rule('.cp-icon').width).toBe('16px')
   })
 })
+
+describe('DM-187 review: improvement field rows at 1024 px', () => {
+  it('breaks a long report id ("Frozen with") inside its column instead of running under the gate card', () => {
+    const value = rule('.cp-experiment-fields dd')
+    expect(value['min-width']).toBe('0')
+    expect(value['overflow-wrap']).toBe('anywhere')
+    expect(rule('.cp-experiment-fields')['grid-template-columns']).toBe('minmax(96px, max-content) minmax(0, 1fr)')
+  })
+})

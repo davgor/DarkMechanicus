@@ -2,6 +2,9 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { DmApi } from '../../../shared/desktop/api'
+import { FakeDm } from '../__mocks__/fakeDm'
+import { improvementReport } from '../__mocks__/improvementFixtures'
+import { settle } from '../__mocks__/settle'
 import {
   NOW,
   bundle,
@@ -13,7 +16,8 @@ import {
   mcpTestReport,
   mcpTestRun,
   reportView,
-  runView
+  runView,
+  SCORES
 } from '../epic/__mocks__/fixtures'
 import { allowSlowRendering } from '../epic/__mocks__/testTiming'
 import { EpicOverview } from './EpicOverview'
@@ -37,6 +41,7 @@ function renderMcpTest(): string[] {
       overview={{ bundle: mcpTestPlan().bundle, reports: [mcpTestReport()] }}
       now={NOW}
       onSelectTicket={(ticketId) => selected.push(ticketId)}
+      scores={SCORES}
     />
   )
   return selected
@@ -98,7 +103,7 @@ describe('completed epic overview report sections', () => {
   }
 
   function renderOverview(reports: (typeof report)[], epic = mcpTestEpic()): void {
-    render(<EpicOverview epic={epic} run={mcpTestRun()} overview={{ bundle: mcpTestPlan().bundle, reports }} now={NOW} onSelectTicket={() => undefined} />)
+    render(<EpicOverview epic={epic} run={mcpTestRun()} overview={{ bundle: mcpTestPlan().bundle, reports }} now={NOW} scores={SCORES} onSelectTicket={() => undefined} />)
   }
 
   it('shows the increment a sprint landed on the epic branch, in the report of a completed epic', () => {
@@ -160,6 +165,7 @@ describe('completed epic overview controls', () => {
         overview={{ bundle: bundle(), reports }}
         now={NOW}
         onSelectTicket={(ticketId) => selected.push(ticketId)}
+        scores={SCORES}
       />
     )
     expect(screen.getAllByRole('article').map((item) => item.getAttribute('aria-label'))).toEqual(['Sprint 1 report', 'Sprint 2 report'])
@@ -171,8 +177,50 @@ describe('completed epic overview controls', () => {
   })
 
   it('explains when the run left no sprint reports', () => {
-    render(<EpicOverview epic={mcpTestEpic()} run={mcpTestRun()} overview={{ bundle: null, reports: [] }} now={NOW} onSelectTicket={() => undefined} />)
+    render(<EpicOverview epic={mcpTestEpic()} run={mcpTestRun()} overview={{ bundle: null, reports: [] }} now={NOW} scores={SCORES} onSelectTicket={() => undefined} />)
     expect(screen.getByText('No sprint reports were recorded for this run.').tagName).toBe('P')
     expect(within(screen.getByLabelText('Success criteria')).getAllByRole('listitem').length).toBe(2)
+  })
+
+  it('marks a success criterion the outcome did not meet as not met', () => {
+    const epic = mcpTestEpic()
+    const outcome = epic.outcome
+    if (outcome === null) throw new Error('the MCP test epic recorded an outcome')
+    const missed = { ...outcome, successCriteria: [{ criterionId: 's2', met: false, note: 'The draft was discarded instead.' }] }
+    render(<EpicOverview epic={{ ...epic, outcome: missed }} run={mcpTestRun()} overview={{ bundle: null, reports: [] }} now={NOW} scores={SCORES} onSelectTicket={() => undefined} />)
+    const [line] = within(screen.getByLabelText('Success criteria')).getAllByRole('listitem')
+    expect(line?.className).toBe('is-failed')
+    expect(line?.textContent).toBe('✗A person can Save or discard the draftThe draft was discarded instead.')
+    expect(within(screen.getByLabelText('Epic outcome')).getAllByLabelText('not met').length).toBe(1)
+  })
+})
+
+describe('completed epic overview tabs per report', () => {
+  it('gives each of two reports its own pinned scorecard and, only where it has one, its Improvement tab', async () => {
+    const dm = new FakeDm()
+    dm.failures.getReportScorecard = { code: 'internal', message: 'main process busy' }
+    window.dm = dm
+    const reports = [improvementReport([], { id: 'sr_a', sprintId: 'sp_1', reportRevision: 2 }), reportView({ id: 'sr_b', reportRevision: 3 })]
+    render(
+      <EpicOverview
+        epic={epicDetail({ status: 'completed' })}
+        run={runView({ state: 'completed' })}
+        overview={{ bundle: bundle(), reports }}
+        now={NOW}
+        onSelectTicket={() => undefined}
+        scores={SCORES}
+      />
+    )
+    const tabsOf = (label: string): string[] => within(screen.getByLabelText(label)).getAllByRole('tab').map((tab) => tab.textContent ?? '')
+    expect(tabsOf('Sprint 1 report')).toEqual(['Report', 'Scorecard', 'Improvement'])
+    expect(tabsOf('Sprint 2 report')).toEqual(['Report', 'Scorecard'])
+    for (const label of ['Sprint 1 report', 'Sprint 2 report']) {
+      fireEvent.click(within(screen.getByLabelText(label)).getByRole('tab', { name: 'Scorecard' }))
+      await settle()
+    }
+    expect(dm.callsOf('getReportScorecard').map((call) => call.input)).toEqual([
+      { reportId: 'sr_a', reportRevision: 2 },
+      { reportId: 'sr_b', reportRevision: 3 }
+    ])
   })
 })

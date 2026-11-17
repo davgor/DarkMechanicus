@@ -15,6 +15,7 @@ import {
   reportWithRetro,
   retroView,
   runView,
+  SCORES,
   ticket
 } from '../epic/__mocks__/fixtures'
 import { allowSlowRendering } from '../epic/__mocks__/testTiming'
@@ -82,6 +83,7 @@ function screenFor(recorded: Recorded, patch: Partial<CheckpointScreenProps>, re
       }}
       onEditDraft={() => undefined}
       onSelectTicket={(id) => recorded.selected.push(id)}
+      scores={SCORES}
       {...patch}
     />
   )

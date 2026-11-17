@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'node:module';
-import { mkdir, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { DEFAULT_CONFIG } from '../src/config.js';
 import { createLane, vitestArgs, type Lane } from '../src/lanes.js';
@@ -60,6 +60,22 @@ const ODD = [
   '',
 ].join('\n');
 const HANG = "import { it } from 'vitest';\nit('hangs', () => {\n  for (;;) {}\n});\n";
+/**
+ * Tests of `inc` that take a real moment each (they run in the lane's own worker processes, out of
+ * reach of fake timers), so the workers running them fail at about the same time.
+ */
+const SLOW = [
+  "import { expect, it } from 'vitest';",
+  "import { inc } from './m';",
+  'for (let i = 0; i < 6; i += 1) {',
+  "  it('adds one ' + i, async () => {",
+  '    await new Promise((resolve) => setTimeout(resolve, 40));',
+  '    expect(inc(1)).toBe(2);',
+  '  });',
+  '}',
+  '',
+].join('\n');
+const SLOW_FILES = [0, 1, 2, 3, 4, 5].map((n) => `src/slow${n}.test.ts`);
 
 /** A tiny vitest project using this repository's vitest. */
 async function fixture(dir: string): Promise<string> {
@@ -71,6 +87,7 @@ async function fixture(dir: string): Promise<string> {
   await writeFile(join(root, 'src/hang.test.ts'), HANG);
   await writeFile(join(root, 'src/odd.test.ts'), ODD);
   await writeFile(join(root, 'src/notATest.ts'), 'export {};\n');
+  for (const file of SLOW_FILES) await writeFile(join(root, file), SLOW);
   // A junction needs no privileges on Windows; elsewhere it is a plain symlink.
   await symlink(NODE_MODULES, join(root, 'node_modules'), 'junction');
   return root;
@@ -78,12 +95,13 @@ async function fixture(dir: string): Promise<string> {
 
 async function withLane(
   testTimeoutMs: number,
-  run: (lane: Lane, root: string) => Promise<void>
+  run: (lane: Lane, root: string) => Promise<void>,
+  maxWorkers = 1
 ): Promise<void> {
   await withTempDir(async (dir) => {
     const root = await fixture(dir);
     const config = { ...DEFAULT_CONFIG, testCommand: 'npx vitest run', testTimeoutMs };
-    const lane = createLane({ dir: root, config, maxWorkers: 1 });
+    const lane = createLane({ dir: root, config, maxWorkers });
     try {
       await run(lane, root);
     } finally {
@@ -140,4 +158,34 @@ describe('warm vitest lanes', () => {
       await lane.close();
     });
   }, 60_000);
+});
+
+describe('warm vitest lanes stopping runs', () => {
+  it('fail every run of a mutant that fails tests in several workers at once', async () => {
+    await withLane(
+      60_000,
+      async (lane, root) => {
+        await writeFile(join(root, 'src/m.ts'), ORIGINAL.replace('n + 1', 'n - 1'));
+        lane.changed('src/m.ts');
+        for (let run = 0; run < 5; run += 1) {
+          const killed = await lane.run(SLOW_FILES, { mutant: true });
+          expect(killed.ok).toBe(false);
+          expect(killed.error).toMatch(/FAIL src\/slow\d\.test\.ts > adds one \d: expected \+0 to be 2/);
+        }
+      },
+      3
+    );
+  }, 120_000);
+
+  it('close a lane killed by a timeout once it has ended, so its directory can be removed', async () => {
+    await withTempDir(async (dir) => {
+      const root = await fixture(dir);
+      const config = { ...DEFAULT_CONFIG, testCommand: 'npx vitest run', testTimeoutMs: 3_000 };
+      const lane = createLane({ dir: root, config, maxWorkers: 1 });
+      expect((await lane.run(['src/hang.test.ts'])).ok).toBe(false);
+      await lane.close();
+      // Windows refuses to remove a directory a live process runs in (EBUSY).
+      await expect(rm(root, { recursive: true })).resolves.toBeUndefined();
+    });
+  }, 120_000);
 });

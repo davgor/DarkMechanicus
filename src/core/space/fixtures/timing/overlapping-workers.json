@@ -1,0 +1,472 @@
+{
+  "description": "Two workers whose host adapter has the same name work in parallel (10:00-11:00 and 10:30-11:30). Summed effort, the union of their attempt windows and the sprint window are three different numbers; reviewer and orchestrator overhead stay visible, and an orchestrator span reported under both attempts counts once in run totals.",
+  "input": {
+    "runId": "rn_01m7gdve7p0000000000000001",
+    "asOf": "2026-11-01T13:00:00.000Z",
+    "events": [
+      {
+        "kind": "run_started",
+        "at": "2026-11-01T09:50:00.000Z"
+      },
+      {
+        "kind": "sprint_activated",
+        "at": "2026-11-01T09:50:00.000Z",
+        "sprintId": "sp_01m452vt120000000000000001"
+      },
+      {
+        "kind": "ticket_ready",
+        "at": "2026-11-01T09:50:00.000Z",
+        "ticketId": "tk_01m453gpad0000000000000001"
+      },
+      {
+        "kind": "ticket_ready",
+        "at": "2026-11-01T09:50:00.000Z",
+        "ticketId": "tk_01m453gpad0000000000000002"
+      },
+      {
+        "kind": "attempt_claimed",
+        "at": "2026-11-01T10:00:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000001",
+        "ticketId": "tk_01m453gpad0000000000000001",
+        "sprintId": "sp_01m452vt120000000000000001",
+        "number": 1,
+        "carriedForward": false
+      },
+      {
+        "kind": "attempt_submitted",
+        "at": "2026-11-01T11:00:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000001"
+      },
+      {
+        "kind": "attempt_accepted",
+        "at": "2026-11-01T11:15:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000001"
+      },
+      {
+        "kind": "attempt_claimed",
+        "at": "2026-11-01T10:30:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000002",
+        "ticketId": "tk_01m453gpad0000000000000002",
+        "sprintId": "sp_01m452vt120000000000000001",
+        "number": 1,
+        "carriedForward": false
+      },
+      {
+        "kind": "attempt_submitted",
+        "at": "2026-11-01T11:30:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000002"
+      },
+      {
+        "kind": "attempt_accepted",
+        "at": "2026-11-01T11:45:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000002"
+      },
+      {
+        "kind": "sprint_report_submitted",
+        "at": "2026-11-01T11:55:00.000Z",
+        "sprintId": "sp_01m452vt120000000000000001"
+      },
+      {
+        "kind": "checkpoint_approved",
+        "at": "2026-11-01T12:25:00.000Z",
+        "sprintId": "sp_01m452vt120000000000000001"
+      },
+      {
+        "kind": "sprint_activated",
+        "at": "2026-11-01T12:30:00.000Z",
+        "sprintId": "sp_01m452vt120000000000000002"
+      }
+    ],
+    "activity": [
+      {
+        "observationId": "mo_01m7gf00000000000000000501",
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000001",
+          "attemptId": "at_01m7ge55kx0000000000000001"
+        },
+        "source": {
+          "kind": "host",
+          "actor": "claude-code-adapter"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 3600000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T11:00:00.000Z",
+        "recordedAt": "2026-11-01T11:00:00.100Z",
+        "attributes": {
+          "spanStart": "2026-11-01T10:00:00.000Z"
+        },
+        "evidence": []
+      },
+      {
+        "observationId": "mo_01m7gf00000000000000000502",
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000002",
+          "attemptId": "at_01m7ge55kx0000000000000002"
+        },
+        "source": {
+          "kind": "host",
+          "actor": "claude-code-adapter"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 3600000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T11:30:00.000Z",
+        "recordedAt": "2026-11-01T11:30:00.100Z",
+        "attributes": {
+          "spanStart": "2026-11-01T10:30:00.000Z"
+        },
+        "evidence": []
+      },
+      {
+        "observationId": "mo_01m7gf00000000000000000503",
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000001",
+          "attemptId": "at_01m7ge55kx0000000000000001"
+        },
+        "source": {
+          "kind": "host",
+          "actor": "reviewer-chat"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 600000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T11:10:00.000Z",
+        "recordedAt": "2026-11-01T11:10:00.100Z",
+        "attributes": {
+          "spanStart": "2026-11-01T11:00:00.000Z",
+          "role": "reviewer",
+          "handle": "rv-1"
+        },
+        "evidence": []
+      },
+      {
+        "observationId": "mo_01m7gf00000000000000000504",
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000002",
+          "attemptId": "at_01m7ge55kx0000000000000002"
+        },
+        "source": {
+          "kind": "host",
+          "actor": "reviewer-chat"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 600000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T11:40:00.000Z",
+        "recordedAt": "2026-11-01T11:40:00.100Z",
+        "attributes": {
+          "spanStart": "2026-11-01T11:30:00.000Z",
+          "role": "reviewer",
+          "handle": "rv-1"
+        },
+        "evidence": []
+      },
+      {
+        "observationId": "mo_01m7gf00000000000000000505",
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "run",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": null,
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": null,
+          "attemptId": null
+        },
+        "source": {
+          "kind": "host",
+          "actor": "orchestrator-chat"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 600000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T10:00:00.000Z",
+        "recordedAt": "2026-11-01T10:00:00.100Z",
+        "attributes": {
+          "spanStart": "2026-11-01T09:50:00.000Z",
+          "role": "orchestrator"
+        },
+        "evidence": []
+      },
+      {
+        "observationId": "mo_01m7gf00000000000000000506",
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000001",
+          "attemptId": "at_01m7ge55kx0000000000000001"
+        },
+        "source": {
+          "kind": "host",
+          "actor": "orchestrator-chat"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 300000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T10:35:00.000Z",
+        "recordedAt": "2026-11-01T10:35:00.100Z",
+        "attributes": {
+          "spanStart": "2026-11-01T10:30:00.000Z",
+          "role": "orchestrator"
+        },
+        "evidence": []
+      },
+      {
+        "observationId": "mo_01m7gf00000000000000000507",
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000002",
+          "attemptId": "at_01m7ge55kx0000000000000002"
+        },
+        "source": {
+          "kind": "host",
+          "actor": "orchestrator-chat"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 300000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T10:35:00.000Z",
+        "recordedAt": "2026-11-01T10:35:00.100Z",
+        "attributes": {
+          "spanStart": "2026-11-01T10:30:00.000Z",
+          "role": "orchestrator"
+        },
+        "evidence": []
+      },
+      {
+        "observationId": "mo_01m7gf00000000000000000508",
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "run",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": null,
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": null,
+          "attemptId": null
+        },
+        "source": {
+          "kind": "host",
+          "actor": "orchestrator-chat"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 600000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T11:55:00.000Z",
+        "recordedAt": "2026-11-01T11:55:00.100Z",
+        "attributes": {
+          "spanStart": "2026-11-01T11:45:00.000Z",
+          "role": "orchestrator"
+        },
+        "evidence": []
+      }
+    ],
+    "tickets": [
+      {
+        "ticketId": "tk_01m453gpad0000000000000001",
+        "sprintId": "sp_01m452vt120000000000000001"
+      },
+      {
+        "ticketId": "tk_01m453gpad0000000000000002",
+        "sprintId": "sp_01m452vt120000000000000001"
+      }
+    ]
+  },
+  "expect": [
+    {
+      "path": "effort.byRole",
+      "equals": {
+        "worker": 7200000,
+        "orchestrator": 1500000,
+        "reviewer": 1200000,
+        "other": 0
+      }
+    },
+    {
+      "path": "effort.total.ms",
+      "equals": 9900000
+    },
+    {
+      "path": "effort.total.aggregation",
+      "equals": "sum"
+    },
+    {
+      "path": "effort.overhead.ms",
+      "equals": 2700000
+    },
+    {
+      "path": "inFlight.ms",
+      "equals": 5400000,
+      "note": "when any attempt was open: 10:00-11:30"
+    },
+    {
+      "path": "inFlight.aggregation",
+      "equals": "union"
+    },
+    {
+      "path": "attemptElapsedSum.ms",
+      "equals": 7200000
+    },
+    {
+      "path": "activeWallClock.ms",
+      "equals": 7200000,
+      "note": "09:50-11:40 and 11:45-11:55"
+    },
+    {
+      "path": "sprints[0].sprintId",
+      "equals": "sp_01m452vt120000000000000001"
+    },
+    {
+      "path": "sprints[0].elapsed.ms",
+      "equals": 9600000,
+      "note": "activated 09:50, next sprint 12:30"
+    },
+    {
+      "path": "sprints[0].endedBy",
+      "equals": "next_sprint"
+    },
+    {
+      "path": "sprints[0].effort.total.ms",
+      "equals": 8700000,
+      "note": "workers 120 + reviewer 20 + the attempt-scoped orchestrator span 5"
+    },
+    {
+      "path": "sprints[0].inFlight.ms",
+      "equals": 5400000
+    },
+    {
+      "path": "sprints[0].checkpointWait.ms",
+      "equals": 1800000
+    },
+    {
+      "path": "sprints[0].waits.human_approval.ms",
+      "equals": 1800000
+    },
+    {
+      "path": "sprints[1].elapsed.open",
+      "equals": true
+    },
+    {
+      "path": "tickets[0].attempts[0].effort.byRole",
+      "equals": {
+        "worker": 3600000,
+        "orchestrator": 300000,
+        "reviewer": 600000,
+        "other": 0
+      }
+    },
+    {
+      "path": "tickets[0].attempts[0].active.ms",
+      "equals": 3600000
+    },
+    {
+      "path": "tickets[1].attempts[0].active.ms",
+      "equals": 3600000
+    },
+    {
+      "path": "effortByOutcome",
+      "equals": {
+        "accepted": {
+          "attempts": 2,
+          "elapsedMs": 7200000,
+          "effortMs": 8700000,
+          "unreported": 0,
+          "unknownMs": 0
+        },
+        "unscoped": {
+          "attempts": 0,
+          "elapsedMs": 0,
+          "effortMs": 1200000,
+          "unreported": 0,
+          "unknownMs": 0
+        }
+      },
+      "note": "buckets add up to effort.total (165): the orchestrator span reported under both attempts counts once"
+    },
+    {
+      "path": "sprints[0].effortByOutcome.accepted.effortMs",
+      "equals": 8700000,
+      "note": "equals sprints[0].effort.total"
+    },
+    {
+      "path": "effort.overhead.coverage",
+      "equals": {
+        "covered": 2,
+        "of": 2,
+        "unit": "attempts"
+      },
+      "note": "both reviewed attempts have an overhead span"
+    },
+    {
+      "path": "sprints[0].membership",
+      "equals": "current_plan"
+    },
+    {
+      "path": "sprints[0].unattributedOverhead.ms",
+      "equals": 1200000,
+      "note": "run-scoped orchestration 09:50-10:00 and 11:45-11:55, inside the sprint window, not in its effort"
+    },
+    {
+      "path": "unattributedEffort.total.ms",
+      "equals": 1200000
+    }
+  ]
+}

@@ -254,7 +254,8 @@ export function FolderRow(props: FolderRowProps): JSX.Element {
     selection.folderPath === folder.path &&
     selection.epicId === null &&
     selection.chatId === undefined &&
-    selection.kanban !== true
+    selection.kanban !== true &&
+    selection.metrics !== true
   return (
     <div className="folder">
       <FolderHeader

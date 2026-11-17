@@ -1,7 +1,8 @@
 /**
- * Wires the desktop bridge to Electron: the tracked-folder and agent registries, one Workspace per
- * folder, native dialogs, clipboard, external links, the agent chats and their terminals, GitHub sign-in,
- * and the `dm:*`, `agents:*`, `chats:*`, `terminals:*`, `git:*` and `github:*` IPC channels. All logic
+ * Wires the desktop bridge to Electron: the tracked-folder and agent registries, the Dark Mechanicus source
+ * checkout and the cross-repository correction broker, one Workspace per folder, native dialogs, clipboard,
+ * external links, the agent chats and their terminals, GitHub sign-in, and the `dm:*`, `sourceCheckout:*`,
+ * `corrections:*CrossRepo`, `agents:*`, `chats:*`, `terminals:*`, `git:*` and `github:*` IPC channels. All logic
  * lives in the pure modules beside this file and in `../agents`, `../terminals`, `../git` and `../github`;
  * this one is composition only, so it has no unit tests of its own.
  */
@@ -22,7 +23,7 @@ import {
   type IpcMain,
   type OpenDialogOptions
 } from 'electron'
-import { join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import type { Db } from '../../core/db/database'
 import { DomainError } from '../../core/errors'
 import { resolveHomeDir } from '../../core/repo/storageMode'
@@ -75,6 +76,7 @@ import { openAppDatabase } from './appDatabase'
 import { createAgentRegistry, type AgentRegistry } from './agentRegistry'
 import { importLegacyAgents } from './agentRegistryImport'
 import { previewBoardRemoval, removeBoardFiles } from './boardRemovalFiles'
+import { createCrossRepoCorrectionHandlers, registerCrossRepoCorrectionIpc } from './crossRepoCorrections'
 import { createFolderAgentDefaults } from './folderAgentDefaults'
 import { createFolderRegistry, type FolderRegistry } from './folderRegistry'
 import { createDesktopHandlers, firstPickedDirectory } from './handlers'
@@ -93,6 +95,8 @@ import { buildMcpConfig } from './mcpConfig'
 import { claudeCodeServer } from './mcpJson'
 import { refreshMcpServer, writeMcpServer } from './mcpJsonFile'
 import { installClaudeSkills, type SkillDefinition } from './skillInstall'
+import { createSourceCheckouts, type SourceCheckouts } from './sourceCheckout'
+import { createSourceCheckoutHandlers, registerSourceCheckoutIpc } from './sourceCheckoutIpc'
 import { createWorkspacePool, type WorkspacePool } from './workspacePool'
 
 /** How often each open desktop session is marked alive. */
@@ -106,6 +110,11 @@ const FOLDER_DIALOG: OpenDialogOptions = {
 const CLONE_PARENT_DIALOG: OpenDialogOptions = {
   title: 'Choose the folder to clone repositories into',
   properties: ['openDirectory', 'createDirectory']
+}
+
+const SOURCE_CHECKOUT_DIALOG: OpenDialogOptions = {
+  title: 'Choose your Dark Mechanicus source checkout (a Git clone of Dark Mechanicus)',
+  properties: ['openDirectory']
 }
 
 function showOpenDialog(options: OpenDialogOptions): Promise<string | null> {
@@ -585,16 +594,66 @@ function startAttachmentProtocol(registry: FolderRegistry, pool: WorkspacePool):
 }
 
 /**
- * Registers the `dm:*`, `agents:*`, `chats:*`, `terminals:*`, `git:*` and `github:*` IPC handlers on `ipc`
- * (the sender-guarded registrar from `guardIpc`) and the background heartbeat/shutdown for open workspaces.
+ * The installed app's own folders: the one holding the executable and `resources/`, and on macOS the `.app` bundle.
+ * None in development, where the app runs from a source checkout that may well be the one chosen.
  */
-export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick<IpcMain, 'handle'>): DesktopBridge {
-  const appDb = openAppDatabase(app.getPath('userData'))
-  const registry = createFolderRegistry({
+function installedAppDirs(): string[] {
+  if (!app.isPackaged) {
+    return []
+  }
+  const bundle = process.platform === 'darwin' ? resolve(process.resourcesPath, '..', '..') : dirname(process.resourcesPath)
+  return [dirname(process.execPath), bundle]
+}
+
+/**
+ * Serves the `sourceCheckout:*` channels over `userData/source-checkout.json` (the checkout is chosen with the native
+ * dialog) and returns the store, whose `requireAvailable` gates every write to the checkout.
+ */
+function startSourceCheckout(ipc: Pick<IpcMain, 'handle'>, registry: FolderRegistry): SourceCheckouts {
+  const checkouts = createSourceCheckouts({
+    file: join(app.getPath('userData'), 'source-checkout.json'),
+    homeDir: app.getPath('home'),
+    dmHome: darkMechanicusHome(),
+    registry,
+    installedAppDirs
+  })
+  registerSourceCheckoutIpc(
+    ipc,
+    createSourceCheckoutHandlers({ checkouts, registry, pickDirectory: () => showOpenDialog(SOURCE_CHECKOUT_DIALOG) })
+  )
+  return checkouts
+}
+
+/** Serves the `corrections:*CrossRepo` channels: corrective work a tracked folder's retro asks of the chosen checkout. */
+function startCrossRepoCorrections(ipc: Pick<IpcMain, 'handle'>, registry: FolderRegistry, pool: WorkspacePool, checkouts: SourceCheckouts): void {
+  const handlers = createCrossRepoCorrectionHandlers({
+    registry,
+    pool,
+    checkouts,
+    onUnexpectedError: (error) => {
+      logger.error('Cross-repository correction failed:', error)
+    }
+  })
+  registerCrossRepoCorrectionIpc(ipc, handlers)
+}
+
+/** The tracked folders of this machine, `userData/folders.json`. */
+function openFolderRegistry(): FolderRegistry {
+  return createFolderRegistry({
     file: join(app.getPath('userData'), 'folders.json'),
     homeDir: app.getPath('home'),
     dmHome: darkMechanicusHome()
   })
+}
+
+/**
+ * Registers the `dm:*`, `sourceCheckout:*`, `corrections:*CrossRepo`, `agents:*`, `chats:*`, `terminals:*`, `git:*` and
+ * `github:*` IPC handlers on `ipc` (the sender-guarded registrar from `guardIpc`) and the background heartbeat/shutdown
+ * for open workspaces.
+ */
+export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick<IpcMain, 'handle'>): DesktopBridge {
+  const appDb = openAppDatabase(app.getPath('userData'))
+  const registry = openFolderRegistry()
   const agents = openAgentRegistry(appDb)
   const installer = createInstaller(agents)
   const pool = createWorkspacePool(openDesktopWorkspace, (path, error) => {
@@ -631,6 +690,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
     }
   })
   registerDesktopIpc(ipc, handlers)
+  startCrossRepoCorrections(ipc, registry, pool, startSourceCheckout(ipc, registry))
   startAttachmentProtocol(registry, pool)
   refreshClaudeCodeEntries(registry)
   const close = runLifecycle(pool, appDb)

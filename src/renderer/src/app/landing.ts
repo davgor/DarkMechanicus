@@ -13,6 +13,25 @@ export interface TicketLanding {
   attemptId: string | null
 }
 
+/** Open a ticket in its epic's workspace on its Scorecard tab, reading `runId`'s grade (null: the newest attempt's run). */
+export interface TicketScorecardLanding {
+  kind: 'ticketScorecard'
+  epicId: string
+  ticketId: string
+  runId: string | null
+  /** The ticket's key as the link showed it, for the message when the plan shown no longer holds the ticket. */
+  ticketKey: string | null
+}
+
+/** Open an epic's workspace on its Scorecard. */
+interface EpicScorecardLanding {
+  kind: 'epicScorecard'
+  epicId: string
+}
+
+/** What an epic's workspace can be asked to open. */
+export type EpicLanding = TicketLanding | TicketScorecardLanding | EpicScorecardLanding
+
 /** Open a chat with one of its threads (a `thread` item's id) expanded and scrolled into view. */
 interface ThreadLandingRequest {
   kind: 'thread'
@@ -20,11 +39,11 @@ interface ThreadLandingRequest {
   threadId: string
 }
 
-export type Landing = TicketLanding | ThreadLandingRequest
+export type Landing = EpicLanding | ThreadLandingRequest
 
-/** The request for the epic that is shown: only a ticket request that names that epic. The same object, so views tell requests apart by identity. */
-export function ticketLandingFor(landing: Landing | null, epicId: string): TicketLanding | null {
-  return landing?.kind === 'ticket' && landing.epicId === epicId ? landing : null
+/** The request for the epic that is shown: only an epic request that names that epic. The same object, so views tell requests apart by identity. */
+export function epicLandingFor(landing: Landing | null, epicId: string): EpicLanding | null {
+  return landing !== null && landing.kind !== 'thread' && landing.epicId === epicId ? landing : null
 }
 
 /** The request for the chat that is shown: only a thread request that names that chat. */

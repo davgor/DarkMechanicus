@@ -1,5 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
+import { metricReports } from '../../core/commandSchemas'
 import { DomainError } from '../../core/errors'
 import {
   attemptEvidenceInput,
@@ -18,6 +19,7 @@ import {
 import { SKILLS_VERSION } from '../../core/version'
 import type { CommandApi } from '../../shared/domain/api'
 import { REASONING_EFFORTS, TOOL_CAPABILITIES } from '../../shared/domain/bundle'
+import { OVERHEAD_KINDS } from '../../shared/domain/metrics'
 import { defineTool, registerTools } from './define'
 import {
   attemptId,
@@ -310,6 +312,54 @@ const ATTEMPT_TOOLS = [
   })
 ]
 
+const METRIC_TOOLS = [
+  defineTool({
+    name: 'record_attempt_metrics',
+    description:
+      'Records measured usage of one attempt: tokens (tokens_input, tokens_cached_input, tokens_output, tokens_reasoning, tokens_total, in tokens), active_ms (milliseconds of active execution, never elapsed or waiting time), corrective_effort_ms, wait_ms, activity_volume, escaped_defect or coordination_defect. A worker passes its claimToken and may report only its own live attempt (another attempt\'s id fails with `stale_claim`, an expired lease with `expired_claim`); report before submitting. An orchestrator or the MCP host it runs may omit the token for any attempt of a run it owns, so a host without a built-in chat adapter can supply actual usage. Each report states its unit and source (agent or host); human ratings, rescue time, planned review or playtesting time (human_review_minutes: a person\'s, human-only) and server-derived measures such as verification and handoff_check fail with `unauthorized`. Delivery is retry-safe: a cumulative report carries its stream sequence (the stream is source.actor), a delta or event its source eventId; resending the same identity changes nothing (listed as unchanged), and the same identity with another value fails with `conflict`. When the agent and its host both report the same delivery (same actor and eventId or sequence), it is counted once and the host\'s report wins. A stream never mixes delta and cumulative, and a cumulative total never goes down. When your host cannot measure a metric, report measurement {state: missing, reason: host_unavailable}; never send 0 for unknown. A coordination_defect must cite a run record in its evidence (an attempt, run, check, report, comment or observation), and one marked as a clarification (attribute kind: clarification) fails with `invalid_input`: a purposeful clarification is not a coordination failure. An escaped_defect record (a defect found after its origin was accepted) names attributes defectEvent (report, duplicate, reassessment, fix, withdrawal), and a report also severity, attribution (attributed, candidate, unassigned) and discoveryPhase, with evidence detail "source build" on the commit it was found in and "origin" on the origin ticket (and, when attributed, its accepted attempt); a later record cites a report with detail "defect". Anything else fails with `invalid_input`. A worker may only add candidate or unassigned reports: an attributed report and every later record change what is charged, so they fail with `unauthorized` unless the session holds attempt.review (an orchestrator), and the attribute authority is set by the server. All reports are stored or none.',
+    kind: 'idempotent',
+    input: {
+      attemptId,
+      claimToken: claimToken.optional().describe('The attempt\'s claim token. Required for workers; an orchestrator of the run may omit it.'),
+      reports: metricReports.describe('One to 500 reports, stored atomically.')
+    },
+    run: (api, input) => api.recordAttemptMetrics(input)
+  }),
+  defineTool({
+    name: 'record_run_metrics',
+    description:
+      'Orchestrator and reviewer only. Records overhead no single attempt owns (orchestration, review or verification tokens and active time, or unattributed usage your host read but could not tie to one attempt through a session link) in the run\'s own bucket, or the bucket of one sprint of the run when sprintId is given, so it is counted once in run totals and never charged to a worker\'s attempt. Each overhead kind is its own bucket: the same actor and eventId under another kind is another delivery. Reports follow the rules of record_attempt_metrics: explicit unit, source agent or host, a sequence for cumulative and an eventId for delta or event reports, retry-safe and atomic; usage nested under an inclusive report elsewhere in the run counts once. Human feedback and server-derived measures fail with `unauthorized`; the run must belong to this machine (`run_not_owned` otherwise).',
+    kind: 'idempotent',
+    input: {
+      runId,
+      sprintId: sprintId.optional().describe('A sprint of the run, to keep its overhead in that sprint\'s bucket.'),
+      overhead: z.enum(OVERHEAD_KINDS).describe('What the overhead was spent on: orchestration, review, verification, or unattributed (no session link to one attempt).'),
+      reports: metricReports.describe('One to 500 reports, stored atomically.')
+    },
+    run: (api, input) => api.recordRunMetrics(input)
+  }),
+  defineTool({
+    name: 'get_run_metrics',
+    description:
+      'Reads a run\'s reported usage with its coverage. For each executing attempt (every claimed work attempt, whatever became of it; carry-forward attempts are listed apart and carry none) and for the run overhead bucket (also per overhead kind in overheadByKind, so unattributed usage is shown apart): each token metric in tokens and active_ms in milliseconds, with coverage observed, estimated, partial (some of it reported missing, so the value is a lower bound, or null when a stream still growing has reported no number yet), unavailable (the host said it cannot report it) or unreported, and the value (null when nothing numeric was reported; unknown is never zero). Totals are observed or estimated only when every executing attempt reported fully and the overhead bucket holds no gap; otherwise they are missing (partial_coverage, host_unavailable or not_reported) and reportedValue is only a lower bound. overheadCoverage unreported means the total counts no overhead because none was reported. Cumulative streams count their latest report, deltas add up, a delivery sent by both an agent and its host counts once (the host\'s), and usage nested under an inclusive parent anywhere in the run counts once. includeObservations adds the stored observations with their provenance (source, actor, sourceEvent or sequence, observedAt, recordedAt, evidence), at most 2,000.',
+    kind: 'read',
+    input: {
+      runId,
+      attemptId: attemptId.optional().describe('Lists only this attempt\'s observations; the usage tables always cover the whole run.'),
+      includeObservations: z.boolean().optional()
+    },
+    run: (api, input) => api.getRunMetrics(input)
+  }),
+  defineTool({
+    name: 'get_planned_baselines',
+    description:
+      'Reads each ticket\'s planned budget (tokens in tokens, active time in milliseconds) as frozen baseline versions. A ticket\'s budget is edited in the draft (update_ticket budget) and frozen as a new version, with a bl_ baseline id, when the plan is saved, at the server\'s save time. With runId, budgets are pinned to the run: a dispatched ticket uses the version of the revision it was first claimed under (state frozen), an undispatched one the version of the run\'s revision (state planned). Later saves are listed as prospective versions and never change a dispatched ticket\'s baseline; draft shows an unsaved change against the epic\'s current saved revision. Without runId, the epic\'s current saved revision is used.',
+    kind: 'read',
+    input: { epicId, runId: runId.optional().describe('Pins the budgets to this run\'s dispatches and revision.') },
+    run: (api, input) => api.getPlannedBaselines(input)
+  })
+]
+
 export function registerExecutionTools(server: McpServer, api: CommandApi): void {
-  registerTools(server, api, [...SETUP_TOOLS, ...ATTEMPT_TOOLS, ...RUN_CONTROL_TOOLS])
+  registerTools(server, api, [...SETUP_TOOLS, ...ATTEMPT_TOOLS, ...RUN_CONTROL_TOOLS, ...METRIC_TOOLS])
 }

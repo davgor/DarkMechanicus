@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { CHAT_EVENT_CHANNEL, type ChatPushEvent, type ChatsApi } from '../shared/agents/chatApi'
 import type { AutoUpdateState } from '../shared/autoUpdate/types'
 import type { AgentDownloadProgress, DmApi } from '../shared/desktop/api'
+import type { CrossRepoCorrectionsApi } from '../shared/desktop/crossRepoCorrections'
+import type { SourceCheckoutApi } from '../shared/desktop/sourceCheckout'
 import { GIT_PROGRESS_CHANNEL, type GitApi, type GitProgressEvent } from '../shared/git/api'
 import { GITHUB_ACCOUNT_CHANGED_CHANNEL, type GithubAccountView, type GithubApi } from '../shared/github/api'
 import { createTerminalsApi } from './terminals'
@@ -52,13 +54,34 @@ const chats: ChatsApi = {
   }
 }
 
+/** The local Dark Mechanicus source checkout: `pick` takes nothing (main shows the dialog), `associate` a tracked folder. */
+const sourceCheckout: SourceCheckoutApi = {
+  get: () => ipcRenderer.invoke('sourceCheckout:get'),
+  pick: () => ipcRenderer.invoke('sourceCheckout:pick'),
+  associate: (folder) => ipcRenderer.invoke('sourceCheckout:associate', folder),
+  clear: () => ipcRenderer.invoke('sourceCheckout:clear')
+}
+
+/** Corrective work a folder's retro asks of the chosen Dark Mechanicus checkout; the renderer never names the target. */
+const crossRepoCorrections: CrossRepoCorrectionsApi = {
+  preview: (folder, input) => ipcRenderer.invoke('corrections:previewCrossRepo', folder, input),
+  create: (folder, input) => ipcRenderer.invoke('corrections:createCrossRepo', folder, input),
+  retry: (folder, key) => ipcRenderer.invoke('corrections:retryCrossRepo', folder, key),
+  withdraw: (folder, input) => ipcRenderer.invoke('corrections:withdrawCrossRepo', folder, input),
+  list: (folder, filter) => ipcRenderer.invoke('corrections:listCrossRepo', folder, filter),
+  collectResults: (folder, key) => ipcRenderer.invoke('corrections:collectCrossRepo', folder, key)
+}
+
 /**
  * The narrow desktop bridge: every method is one `dm:*` or `agents:*` IPC invoke; main validates each payload.
- * `terminals` adds `terminals:attach`, `agents:signIn` and the port main posts for a running chat or sign-in terminal.
+ * `terminals` adds `terminals:attach`, `agents:signIn` and the port main posts for a running chat or sign-in terminal;
+ * `sourceCheckout` the `sourceCheckout:*` channels; `crossRepoCorrections` the `corrections:*CrossRepo` channels.
  */
 const dm: DmApi = {
   chats,
   terminals: createTerminalsApi(ipcRenderer),
+  sourceCheckout,
+  crossRepoCorrections,
   listFolders: () => ipcRenderer.invoke('dm:listFolders'),
   pickFolder: () => ipcRenderer.invoke('dm:pickFolder'),
   untrackFolder: (path) => ipcRenderer.invoke('dm:untrackFolder', path),

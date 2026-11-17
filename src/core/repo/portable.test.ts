@@ -426,7 +426,25 @@ describe('buildRunHistoryRecord exclusions', () => {
       expect(text).not.toContain(secret)
     }
     expect(record).toMatchObject({ runId: RUN, epicId: EPIC, state: 'running', host: { label: 'Host', type: 'test' }, activeSprintId: sid(1) })
-    expect(parseRecord(runHistoryRecord, text, 'run.json')).toEqual(record)
+    // The report was stored as written ({ summary } only) and hashed over that, so the file keeps that form (an import
+    // checks the hash over the content as written); parsing fills the defaults back in, everything else round-trips.
+    const parsed = parseRecord(runHistoryRecord, text, 'run.json')
+    expect({ ...parsed, reports: [] }).toEqual({ ...record, reports: [] })
+    expect(parsed.reports[0]).toEqual({
+      ...record.reports[0],
+      content: {
+        summary: 'Sprint done',
+        accepted: [],
+        failed: [],
+        blocked: [],
+        changes: { files: [], commits: [] },
+        checks: [],
+        risks: [],
+        followUps: [],
+        exitCriteria: [],
+        epicOutcome: null
+      }
+    })
   })
 
   it('refuses to export a missing run or one with malformed stored JSON', () => {
@@ -458,7 +476,9 @@ describe('buildRunHistoryRecord contents', () => {
     expect(record.attempts[0]?.evidence?.notes).toBe('')
     expect(record.attempts[0]?.failure).toEqual({ reason: 'flaky', details: '', retryable: false })
     expect(record.attempts[1]?.outputs).toBeNull()
-    expect(record.reports[0]?.content.risks).toEqual([])
+    // Report content is the exception: its content hash binds it as written, so it is exported unfilled.
+    expect(record.reports[0]?.content).toEqual({ summary: 'Sprint done' })
+    expect(contentHash(record.reports[0]?.content)).toBe(record.reports[0]?.contentHash)
     expect(record.checkpoints).toEqual([
       { id: idOf('checkpoint', 1), sprintId: sid(1), reportId: idOf('report', 1), outcome: 'advanced', policy: 'human', decidedBy: 'desktop', decidedAt: T0 }
     ])

@@ -32,6 +32,8 @@ export interface WorkspaceHandle {
   dispatch: Dispatch<WorkspaceAction>
   actions: WorkspaceActions
   runner: Runner
+  /** Reads the epic again. */
+  reload(): void
   now: number
   /** Timers for what the workspace polls (the run feed). */
   scheduler: Scheduler
@@ -40,6 +42,10 @@ export interface WorkspaceHandle {
   /** Agents, chats and navigation for starting a run with an agent and linking the chat that runs it. */
   orchestration: OrchestrationHost
   onOpenEpic(epicId: string): void
+  /** Opens an epic of another tracked folder in its own workspace; null where the shell offers no such navigation. */
+  onOpenFolderEpic: ((folderPath: string, epicId: string) => void) | null
+  /** Tells the shell another tracked folder changed from here (its sidebar lists its epics again); null where it cannot. */
+  onFolderChanged: ((folderPath: string) => void) | null
   /** Leaves the epic once it has been deleted. */
   onDeleted(): void
 }

@@ -6,8 +6,9 @@ import { writeFileSafely } from './finalizer'
 import { ownedPaths } from './paths'
 import {
   buildCommentRecord, buildEpicPointerRecord, buildEpicStateRecord, buildKanbanCardRecord,
-  buildKanbanEventRecord, buildProfileRecord, buildRunHistoryRecord, buildSnapshotRecord,
-  trackedCommentHash, trackedEpicHash, trackedKanbanCardHash, trackedKanbanEventHash, trackedProfileHash, trackedRunHash
+  buildKanbanEventRecord, buildObservationRecord, buildProfileRecord, buildRunHistoryRecord, buildSnapshotRecord,
+  trackedCommentHash, trackedEpicHash, trackedKanbanCardHash, trackedKanbanEventHash, trackedObservationHash, trackedProfileHash,
+  trackedRunHash, scorecardRecordTexts
 } from './portable'
 import type { FsAdapter, RepoLayout } from './types'
 
@@ -51,14 +52,28 @@ function exportEpics(writer: MigrationExporter): Set<string> {
   return savedEpics
 }
 
-function exportOtherRecords(writer: MigrationExporter, savedEpics: ReadonlySet<string>): void {
+/** Each run's history, after the scorecards of its report revisions (the run history names them). */
+function exportRuns(writer: MigrationExporter): void {
   const { db } = writer.deps
   const { paths } = writer
   for (const row of db.all<{ id: string }>('SELECT id FROM runs ORDER BY id')) {
+    for (const { reportId, text } of scorecardRecordTexts(db, row.id)) writeFileSafely(writer.deps, paths.scorecardFile(row.id, reportId), text)
     writer.synced('run', row.id, trackedRunHash(writer.write(paths.runHistoryFile(row.id), buildRunHistoryRecord(db, row.id))))
   }
+}
+
+function exportOtherRecords(writer: MigrationExporter, savedEpics: ReadonlySet<string>): void {
+  const { db } = writer.deps
+  const { paths } = writer
+  exportRuns(writer)
   for (const row of db.all<{ id: string; epic_id: string }>('SELECT id, epic_id FROM comments ORDER BY id')) {
     if (savedEpics.has(row.epic_id)) writer.synced('comment', row.id, trackedCommentHash(writer.write(paths.commentFile(row.epic_id, row.id), buildCommentRecord(db, row.id))))
+  }
+  for (const row of db.all<{ id: string; epic_id: string | null }>('SELECT id, epic_id FROM metric_observations ORDER BY id')) {
+    if (row.epic_id === null || savedEpics.has(row.epic_id)) {
+      const text = writer.write(paths.observationFile(row.epic_id, row.id), buildObservationRecord(db, row.id))
+      writer.synced('metric_observation', row.id, trackedObservationHash(text))
+    }
   }
   for (const row of db.all<{ name: string }>('SELECT name FROM profiles ORDER BY name')) {
     writer.synced('profile', row.name, trackedProfileHash(writer.write(paths.profileFile(row.name), buildProfileRecord(db, row.name))))

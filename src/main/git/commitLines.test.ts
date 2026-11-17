@@ -7,7 +7,7 @@ import { gitIn, put, scratchDir } from '../../test/gitScratch'
 import { commitFiles, findInStatus, requireStatus } from './commit'
 import { readWorkingDiff } from './diff'
 import { GitError, GitInputError } from './errors'
-import { createGitRunner } from './runner'
+import { createGitRunner, type GitRunner } from './runner'
 
 type TextDiff = Extract<FileDiff, { kind: 'text' }>
 
@@ -226,6 +226,45 @@ describe('commitFiles with every line or no line selected', () => {
   })
 })
 
+type LineEntries = Parameters<typeof commitFiles>[2]['files']
+
+/** Commits `files` and returns the arguments of every git process commitFiles started. */
+async function countedCommit(root: string, files: LineEntries): Promise<Array<readonly string[]>> {
+  const started: Array<readonly string[]> = []
+  const counting: GitRunner = {
+    run: (request) => {
+      started.push(request.args)
+      return runner.run(request)
+    }
+  }
+  await commitFiles(counting, root, { summary: 'Lines', description: '', files })
+  return started
+}
+
+describe('commitFiles with selected lines of several files', () => {
+  it('starts one more git process per further file, its diff read, and applies every patch with one git apply', async () => {
+    const r = repo()
+    const paths = ['f0.txt', 'f1.txt', 'f2.txt', 'f3.txt']
+    for (const path of paths) {
+      put(r.root, path, 'a\n')
+    }
+    r.git('add', '--', ...paths)
+    r.git('commit', '-q', '-m', 'base')
+    for (const path of paths) {
+      put(r.root, path, 'b\n')
+    }
+    // Changes: -a 0, +b 1. Committing f0.txt first leaves the other files' diffs, and so their hashes, as they are.
+    const status = await requireStatus(runner, r.root)
+    const read = (path: string): Promise<FileDiff> => readWorkingDiff(runner, r.root, findInStatus(status, path), { hasCommit: true })
+    const files = await Promise.all(paths.map(async (path) => ({ path, oldPath: null, lines: [1], diffHash: (await read(path)).hash })))
+    const one = await countedCommit(r.root, files.slice(0, 1))
+    const three = await countedCommit(r.root, files.slice(1))
+    expect(three.length - one.length).toBe(2)
+    expect(three.filter((args) => args.includes('apply'))).toHaveLength(1)
+    expect(gitIn(r.root, 'show', ...paths.map((path) => `HEAD:${path}`))).toBe('a\nb\n'.repeat(paths.length))
+  })
+})
+
 async function rejection(promise: Promise<unknown>): Promise<unknown> {
   try {
     await promise
@@ -274,6 +313,37 @@ describe('commitFiles refuses a selection it cannot apply exactly', () => {
       expect(error).toBeInstanceOf(GitInputError)
     }
     expect(r.rev('HEAD')).toBe(head)
+  })
+})
+
+describe('commitFiles when HEAD moves after it read the status', () => {
+  it('returns stale_selection and keeps the first commit when it is made after commitFiles read the status', async () => {
+    const dir = scratchDir()
+    cleanups.push(dir.cleanup)
+    gitIn(dir.path, 'init', '-q', '-b', 'main')
+    put(dir.path, 'a.txt', 'a\nb\n')
+    put(dir.path, 'other.txt', 'o\n')
+    gitIn(dir.path, 'add', '--', 'a.txt', 'other.txt')
+    // Changes on the unborn branch: +a 0, +b 1.
+    const diff = await workingDiff(dir.path, 'a.txt')
+    let committed = false
+    // Another git makes the branch's first commit, holding other.txt, just after commitFiles has read the status.
+    const racing: GitRunner = {
+      run: async (request) => {
+        const result = await runner.run(request)
+        if (!committed && request.args[0] === 'status') {
+          committed = true
+          gitIn(dir.path, 'commit', '-q', '-m', 'first', '--', 'other.txt')
+        }
+        return result
+      }
+    }
+    const files = [{ path: 'a.txt', oldPath: null, lines: [0], diffHash: diff.hash }]
+    const error = await rejection(commitFiles(racing, dir.path, { summary: 'Race', description: '', files }))
+    expect(committed).toBe(true)
+    expect(error).toMatchObject({ code: 'stale_selection' })
+    expect(gitIn(dir.path, 'log', '--format=%s')).toBe('first\n')
+    expect(gitIn(dir.path, 'ls-tree', '--name-only', 'HEAD')).toBe('other.txt\n')
   })
 })
 

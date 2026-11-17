@@ -1,0 +1,2206 @@
+{
+  "ids": {
+    "epicId": "ep_00000000000000000000000001",
+    "runId": "rn_00000000000000000000000003",
+    "sprintId": "sp_000000000000000000000001yh",
+    "report": null
+  },
+  "calls": [
+    {
+      "name": "getSprintGrade",
+      "input": {
+        "runId": "rn_00000000000000000000000003",
+        "sprintId": "sp_000000000000000000000001yh"
+      },
+      "output": {
+        "subject": {
+          "level": "sprint",
+          "id": "sp_000000000000000000000001yh"
+        },
+        "runIds": [
+          "rn_00000000000000000000000003"
+        ],
+        "measuredRunIds": [
+          "rn_00000000000000000000000003"
+        ],
+        "cutoff": "2026-11-15T09:01:00.000Z",
+        "input": {
+          "subject": {
+            "level": "sprint",
+            "id": "sp_000000000000000000000001yh"
+          },
+          "cutoff": "2026-11-15T09:01:00.000Z",
+          "dispatchedAt": null,
+          "components": {
+            "S": {
+              "ticketRating": null,
+              "sprintRating": null
+            },
+            "P": {
+              "verification": {
+                "state": "missing",
+                "evidence": []
+              },
+              "regressions": []
+            },
+            "A": {
+              "committed": null,
+              "delivered": 0,
+              "added": 0,
+              "removed": 0,
+              "activity": {
+                "attempts": 0,
+                "commits": 0,
+                "changedLines": null
+              },
+              "evidence": []
+            },
+            "C": {
+              "handoffChecks": {
+                "passed": 0,
+                "failed": 0
+              },
+              "coordinationDefects": 0,
+              "evidence": []
+            },
+            "E": {
+              "correctiveMs": {
+                "state": "observed",
+                "value": 0
+              },
+              "productiveMs": {
+                "state": "observed",
+                "value": 0
+              },
+              "unclassifiedMs": {
+                "state": "missing",
+                "reason": "not_reported"
+              },
+              "retries": null,
+              "evidence": []
+            },
+            "T": {
+              "actual": {
+                "state": "missing",
+                "reason": "not_reported"
+              },
+              "unreportedAttempts": 0,
+              "baseline": {
+                "state": "missing",
+                "reason": "no_eligible_baseline",
+                "rejected": []
+              },
+              "evidence": []
+            },
+            "K": {
+              "actual": {
+                "state": "missing",
+                "reason": "not_reported"
+              },
+              "unreportedAttempts": 0,
+              "baseline": {
+                "state": "missing",
+                "reason": "no_eligible_baseline",
+                "rejected": []
+              },
+              "evidence": []
+            }
+          }
+        },
+        "grade": {
+          "assessmentId": null,
+          "policy": {
+            "policyId": "dm-space",
+            "version": 2,
+            "hash": "sha256:f50d32f4eb4e2d45dd56fedf66ecf75bb55409cf79cc542729cb503f42281712"
+          },
+          "subject": {
+            "level": "sprint",
+            "id": "sp_000000000000000000000001yh"
+          },
+          "cutoff": "2026-11-15T09:01:00.000Z",
+          "dispatchedAt": null,
+          "inputHash": "sha256:e397502f4fcd0312453165a1ed2afb70d471b54e9acff6702b7bff107c1a097b",
+          "status": "ungraded",
+          "outcome": "unverified",
+          "statusReasons": [
+            "verification_missing",
+            "required_component_missing"
+          ],
+          "score": null,
+          "uncappedScore": null,
+          "displayScore": null,
+          "letter": null,
+          "coverage": 0,
+          "scoredComponents": 0,
+          "caps": [],
+          "components": [
+            {
+              "component": "S",
+              "state": "missing",
+              "required": false,
+              "score": null,
+              "baseWeight": 0.14285714285714285,
+              "effectiveWeight": 0,
+              "rule": "S.rating.v1",
+              "missingReason": "no_rating",
+              "inherited": false,
+              "inputs": {
+                "ticketRating": null,
+                "sprintRating": null
+              },
+              "diagnostics": {},
+              "evidence": [],
+              "explanation": {
+                "normalization": "no score: no rating a person gave or shared with this subject",
+                "cutoff": "2026-11-15T09:01:00.000Z",
+                "baseline": null,
+                "caps": []
+              }
+            },
+            {
+              "component": "P",
+              "state": "missing",
+              "required": true,
+              "score": null,
+              "baseWeight": 0.14285714285714285,
+              "effectiveWeight": 0,
+              "rule": "P.verified-less-regressions.v1",
+              "missingReason": "verification_missing",
+              "inherited": false,
+              "inputs": {
+                "verification": "missing",
+                "attributedRegressions": 0,
+                "regressionPenalty": 0
+              },
+              "diagnostics": {
+                "unassignedRegressions": 0
+              },
+              "evidence": [],
+              "explanation": {
+                "normalization": "no score: required verification is missing (no reviewed evidence)",
+                "cutoff": "2026-11-15T09:01:00.000Z",
+                "baseline": null,
+                "caps": []
+              }
+            },
+            {
+              "component": "A",
+              "state": "missing",
+              "required": true,
+              "score": null,
+              "baseWeight": 0.14285714285714285,
+              "effectiveWeight": 0,
+              "rule": "A.delivered-over-committed.v1",
+              "missingReason": "scope_not_frozen",
+              "inherited": false,
+              "inputs": {
+                "committed": null,
+                "delivered": 0
+              },
+              "diagnostics": {
+                "added": 0,
+                "removed": 0,
+                "attempts": 0,
+                "commits": 0,
+                "changedLines": null
+              },
+              "evidence": [],
+              "explanation": {
+                "normalization": "no score: no scope was frozen before dispatch",
+                "cutoff": "2026-11-15T09:01:00.000Z",
+                "baseline": null,
+                "caps": []
+              }
+            },
+            {
+              "component": "C",
+              "state": "missing",
+              "required": true,
+              "score": null,
+              "baseWeight": 0.14285714285714285,
+              "effectiveWeight": 0,
+              "rule": "C.handoff-pass-rate.v2",
+              "missingReason": "no_handoffs",
+              "inherited": false,
+              "inputs": {
+                "handoffsPassed": 0,
+                "handoffsFailed": 0,
+                "rejectedSubmissions": 0,
+                "coordinationDefects": 0
+              },
+              "diagnostics": {},
+              "evidence": [],
+              "explanation": {
+                "normalization": "no score: no handoff was checked",
+                "cutoff": "2026-11-15T09:01:00.000Z",
+                "baseline": null,
+                "caps": []
+              }
+            },
+            {
+              "component": "E",
+              "state": "missing",
+              "required": true,
+              "score": null,
+              "baseWeight": 0.14285714285714285,
+              "effectiveWeight": 0,
+              "rule": "E.corrective-share.v1",
+              "missingReason": "not_reported",
+              "inherited": false,
+              "inputs": {
+                "correctiveMs": 0,
+                "productiveMs": 0,
+                "unclassifiedMs": null
+              },
+              "diagnostics": {
+                "retries": null
+              },
+              "evidence": [],
+              "explanation": {
+                "normalization": "no score: not reported (the unclassified effort)",
+                "cutoff": "2026-11-15T09:01:00.000Z",
+                "baseline": null,
+                "caps": []
+              }
+            },
+            {
+              "component": "T",
+              "state": "missing",
+              "required": true,
+              "score": null,
+              "baseWeight": 0.14285714285714285,
+              "effectiveWeight": 0,
+              "rule": "T.baseline-ratio.v1",
+              "missingReason": "not_reported",
+              "inherited": false,
+              "inputs": {
+                "actual": null,
+                "actualState": "missing",
+                "unreportedAttempts": 0,
+                "baselineId": null,
+                "baselineKind": null,
+                "baselineValue": null,
+                "baselineSampleSize": null
+              },
+              "diagnostics": {},
+              "evidence": [],
+              "explanation": {
+                "normalization": "no score: not reported (the actual)",
+                "cutoff": "2026-11-15T09:01:00.000Z",
+                "baseline": null,
+                "caps": []
+              }
+            },
+            {
+              "component": "K",
+              "state": "missing",
+              "required": true,
+              "score": null,
+              "baseWeight": 0.14285714285714285,
+              "effectiveWeight": 0,
+              "rule": "K.baseline-ratio.v1",
+              "missingReason": "not_reported",
+              "inherited": false,
+              "inputs": {
+                "actual": null,
+                "actualState": "missing",
+                "unreportedAttempts": 0,
+                "baselineId": null,
+                "baselineKind": null,
+                "baselineValue": null,
+                "baselineSampleSize": null
+              },
+              "diagnostics": {},
+              "evidence": [],
+              "explanation": {
+                "normalization": "no score: not reported (the actual)",
+                "cutoff": "2026-11-15T09:01:00.000Z",
+                "baseline": null,
+                "caps": []
+              }
+            }
+          ],
+          "baselineIds": [],
+          "explanation": {
+            "composite": null,
+            "cap": null,
+            "letter": null,
+            "status": [
+              "ungraded: no score and no letter",
+              "required verification is missing (no reviewed evidence): ungraded whatever the other components say",
+              "required component(s) A, C, E, T, K missing"
+            ],
+            "missing": [
+              {
+                "component": "S",
+                "reason": "no_rating"
+              },
+              {
+                "component": "P",
+                "reason": "verification_missing"
+              },
+              {
+                "component": "A",
+                "reason": "scope_not_frozen"
+              },
+              {
+                "component": "C",
+                "reason": "no_handoffs"
+              },
+              {
+                "component": "E",
+                "reason": "not_reported"
+              },
+              {
+                "component": "T",
+                "reason": "not_reported"
+              },
+              {
+                "component": "K",
+                "reason": "not_reported"
+              }
+            ],
+            "rounding": {
+              "canonicalDecimals": 6,
+              "canonical": "half_up",
+              "displayDecimals": 1,
+              "display": "floor"
+            },
+            "evidence": []
+          }
+        },
+        "outcomes": [
+          {
+            "runId": "rn_00000000000000000000000003",
+            "ticketId": "tk_000000000000000000000000z9",
+            "role": "work",
+            "state": "missing",
+            "reason": "no_attempt",
+            "attemptId": null,
+            "movedOut": false,
+            "counted": false
+          }
+        ],
+        "rollups": {
+          "T": {
+            "metric": "active_ms",
+            "baseline": null,
+            "uncovered": [],
+            "overhead": [],
+            "partial": false
+          },
+          "K": {
+            "metric": "tokens",
+            "baseline": null,
+            "uncovered": [],
+            "overhead": [],
+            "partial": false
+          }
+        },
+        "tickets": [
+          {
+            "runId": "rn_00000000000000000000000003",
+            "ticketId": "tk_000000000000000000000000z9",
+            "cutoff": "2026-11-15T09:01:00.000Z",
+            "input": {
+              "subject": {
+                "level": "ticket",
+                "id": "tk_000000000000000000000000z9"
+              },
+              "cutoff": "2026-11-15T09:01:00.000Z",
+              "dispatchedAt": null,
+              "components": {
+                "S": {
+                  "ticketRating": null,
+                  "sprintRating": null
+                },
+                "P": {
+                  "verification": {
+                    "state": "missing",
+                    "evidence": []
+                  },
+                  "regressions": []
+                },
+                "A": {
+                  "committed": null,
+                  "delivered": 0,
+                  "added": 0,
+                  "removed": 0,
+                  "activity": {
+                    "attempts": 0,
+                    "commits": 0,
+                    "changedLines": null
+                  },
+                  "evidence": []
+                },
+                "C": {
+                  "handoffChecks": {
+                    "passed": 0,
+                    "failed": 0
+                  },
+                  "coordinationDefects": 0,
+                  "evidence": []
+                },
+                "E": {
+                  "correctiveMs": {
+                    "state": "observed",
+                    "value": 0
+                  },
+                  "productiveMs": {
+                    "state": "observed",
+                    "value": 0
+                  },
+                  "unclassifiedMs": {
+                    "state": "missing",
+                    "reason": "not_reported"
+                  },
+                  "retries": null,
+                  "evidence": []
+                },
+                "T": {
+                  "actual": {
+                    "state": "missing",
+                    "reason": "not_reported"
+                  },
+                  "unreportedAttempts": 0,
+                  "baseline": {
+                    "state": "missing",
+                    "reason": "no_eligible_baseline",
+                    "rejected": [
+                      {
+                        "baselineId": "bl_z5nmp7ybz0pczmtax7m2xwkc4j",
+                        "reason": "invalid_time"
+                      }
+                    ]
+                  },
+                  "evidence": []
+                },
+                "K": {
+                  "actual": {
+                    "state": "missing",
+                    "reason": "not_reported"
+                  },
+                  "unreportedAttempts": 0,
+                  "baseline": {
+                    "state": "missing",
+                    "reason": "no_eligible_baseline",
+                    "rejected": [
+                      {
+                        "baselineId": "bl_s2xk80z5h0k1mgm3b9we93j2t7",
+                        "reason": "invalid_time"
+                      }
+                    ]
+                  },
+                  "evidence": []
+                }
+              }
+            },
+            "grade": {
+              "assessmentId": null,
+              "policy": {
+                "policyId": "dm-space",
+                "version": 2,
+                "hash": "sha256:f50d32f4eb4e2d45dd56fedf66ecf75bb55409cf79cc542729cb503f42281712"
+              },
+              "subject": {
+                "level": "ticket",
+                "id": "tk_000000000000000000000000z9"
+              },
+              "cutoff": "2026-11-15T09:01:00.000Z",
+              "dispatchedAt": null,
+              "inputHash": "sha256:f42f5dd43a94e3f96530c0f7ab7105f5cb48559131f5213300ed0f29b708240d",
+              "status": "ungraded",
+              "outcome": "unverified",
+              "statusReasons": [
+                "verification_missing",
+                "required_component_missing"
+              ],
+              "score": null,
+              "uncappedScore": null,
+              "displayScore": null,
+              "letter": null,
+              "coverage": 0,
+              "scoredComponents": 0,
+              "caps": [],
+              "components": [
+                {
+                  "component": "S",
+                  "state": "missing",
+                  "required": false,
+                  "score": null,
+                  "baseWeight": 0.14285714285714285,
+                  "effectiveWeight": 0,
+                  "rule": "S.rating.v1",
+                  "missingReason": "no_rating",
+                  "inherited": false,
+                  "inputs": {
+                    "ticketRating": null,
+                    "sprintRating": null
+                  },
+                  "diagnostics": {},
+                  "evidence": [],
+                  "explanation": {
+                    "normalization": "no score: no rating a person gave or shared with this subject",
+                    "cutoff": "2026-11-15T09:01:00.000Z",
+                    "baseline": null,
+                    "caps": []
+                  }
+                },
+                {
+                  "component": "P",
+                  "state": "missing",
+                  "required": true,
+                  "score": null,
+                  "baseWeight": 0.14285714285714285,
+                  "effectiveWeight": 0,
+                  "rule": "P.verified-less-regressions.v1",
+                  "missingReason": "verification_missing",
+                  "inherited": false,
+                  "inputs": {
+                    "verification": "missing",
+                    "attributedRegressions": 0,
+                    "regressionPenalty": 0
+                  },
+                  "diagnostics": {
+                    "unassignedRegressions": 0
+                  },
+                  "evidence": [],
+                  "explanation": {
+                    "normalization": "no score: required verification is missing (no reviewed evidence)",
+                    "cutoff": "2026-11-15T09:01:00.000Z",
+                    "baseline": null,
+                    "caps": []
+                  }
+                },
+                {
+                  "component": "A",
+                  "state": "missing",
+                  "required": true,
+                  "score": null,
+                  "baseWeight": 0.14285714285714285,
+                  "effectiveWeight": 0,
+                  "rule": "A.delivered-over-committed.v1",
+                  "missingReason": "scope_not_frozen",
+                  "inherited": false,
+                  "inputs": {
+                    "committed": null,
+                    "delivered": 0
+                  },
+                  "diagnostics": {
+                    "added": 0,
+                    "removed": 0,
+                    "attempts": 0,
+                    "commits": 0,
+                    "changedLines": null
+                  },
+                  "evidence": [],
+                  "explanation": {
+                    "normalization": "no score: no scope was frozen before dispatch",
+                    "cutoff": "2026-11-15T09:01:00.000Z",
+                    "baseline": null,
+                    "caps": []
+                  }
+                },
+                {
+                  "component": "C",
+                  "state": "missing",
+                  "required": true,
+                  "score": null,
+                  "baseWeight": 0.14285714285714285,
+                  "effectiveWeight": 0,
+                  "rule": "C.handoff-pass-rate.v2",
+                  "missingReason": "no_handoffs",
+                  "inherited": false,
+                  "inputs": {
+                    "handoffsPassed": 0,
+                    "handoffsFailed": 0,
+                    "rejectedSubmissions": 0,
+                    "coordinationDefects": 0
+                  },
+                  "diagnostics": {},
+                  "evidence": [],
+                  "explanation": {
+                    "normalization": "no score: no handoff was checked",
+                    "cutoff": "2026-11-15T09:01:00.000Z",
+                    "baseline": null,
+                    "caps": []
+                  }
+                },
+                {
+                  "component": "E",
+                  "state": "missing",
+                  "required": true,
+                  "score": null,
+                  "baseWeight": 0.14285714285714285,
+                  "effectiveWeight": 0,
+                  "rule": "E.corrective-share.v1",
+                  "missingReason": "not_reported",
+                  "inherited": false,
+                  "inputs": {
+                    "correctiveMs": 0,
+                    "productiveMs": 0,
+                    "unclassifiedMs": null
+                  },
+                  "diagnostics": {
+                    "retries": null
+                  },
+                  "evidence": [],
+                  "explanation": {
+                    "normalization": "no score: not reported (the unclassified effort)",
+                    "cutoff": "2026-11-15T09:01:00.000Z",
+                    "baseline": null,
+                    "caps": []
+                  }
+                },
+                {
+                  "component": "T",
+                  "state": "missing",
+                  "required": true,
+                  "score": null,
+                  "baseWeight": 0.14285714285714285,
+                  "effectiveWeight": 0,
+                  "rule": "T.baseline-ratio.v1",
+                  "missingReason": "not_reported",
+                  "inherited": false,
+                  "inputs": {
+                    "actual": null,
+                    "actualState": "missing",
+                    "unreportedAttempts": 0,
+                    "baselineId": null,
+                    "baselineKind": null,
+                    "baselineValue": null,
+                    "baselineSampleSize": null
+                  },
+                  "diagnostics": {},
+                  "evidence": [],
+                  "explanation": {
+                    "normalization": "no score: not reported (the actual)",
+                    "cutoff": "2026-11-15T09:01:00.000Z",
+                    "baseline": null,
+                    "caps": []
+                  }
+                },
+                {
+                  "component": "K",
+                  "state": "missing",
+                  "required": true,
+                  "score": null,
+                  "baseWeight": 0.14285714285714285,
+                  "effectiveWeight": 0,
+                  "rule": "K.baseline-ratio.v1",
+                  "missingReason": "not_reported",
+                  "inherited": false,
+                  "inputs": {
+                    "actual": null,
+                    "actualState": "missing",
+                    "unreportedAttempts": 0,
+                    "baselineId": null,
+                    "baselineKind": null,
+                    "baselineValue": null,
+                    "baselineSampleSize": null
+                  },
+                  "diagnostics": {},
+                  "evidence": [],
+                  "explanation": {
+                    "normalization": "no score: not reported (the actual)",
+                    "cutoff": "2026-11-15T09:01:00.000Z",
+                    "baseline": null,
+                    "caps": []
+                  }
+                }
+              ],
+              "baselineIds": [],
+              "explanation": {
+                "composite": null,
+                "cap": null,
+                "letter": null,
+                "status": [
+                  "ungraded: no score and no letter",
+                  "required verification is missing (no reviewed evidence): ungraded whatever the other components say",
+                  "required component(s) A, C, E, T, K missing"
+                ],
+                "missing": [
+                  {
+                    "component": "S",
+                    "reason": "no_rating"
+                  },
+                  {
+                    "component": "P",
+                    "reason": "verification_missing"
+                  },
+                  {
+                    "component": "A",
+                    "reason": "scope_not_frozen"
+                  },
+                  {
+                    "component": "C",
+                    "reason": "no_handoffs"
+                  },
+                  {
+                    "component": "E",
+                    "reason": "not_reported"
+                  },
+                  {
+                    "component": "T",
+                    "reason": "not_reported"
+                  },
+                  {
+                    "component": "K",
+                    "reason": "not_reported"
+                  }
+                ],
+                "rounding": {
+                  "canonicalDecimals": 6,
+                  "canonical": "half_up",
+                  "displayDecimals": 1,
+                  "display": "floor"
+                },
+                "evidence": []
+              }
+            },
+            "sources": {
+              "signals": {
+                "subject": {
+                  "level": "ticket",
+                  "id": "tk_000000000000000000000000z9"
+                },
+                "runId": "rn_00000000000000000000000003",
+                "epicId": "ep_00000000000000000000000001",
+                "cutoff": "2026-11-15T09:01:00.000Z",
+                "S": {
+                  "input": {
+                    "ticketRating": null,
+                    "sprintRating": null
+                  },
+                  "sprintRatingUse": "none",
+                  "ratings": [],
+                  "rescue": [],
+                  "rescueMinutes": 0,
+                  "plannedReview": [],
+                  "plannedReviewMinutes": 0,
+                  "entriesWithoutMinutes": 0
+                },
+                "A": {
+                  "input": {
+                    "committed": null,
+                    "delivered": 0,
+                    "added": 0,
+                    "removed": 0,
+                    "activity": {
+                      "attempts": 0,
+                      "commits": 0,
+                      "changedLines": null
+                    },
+                    "evidence": []
+                  },
+                  "frozenRevisionId": null,
+                  "frozenAt": null,
+                  "dispatchedAt": null,
+                  "currentRevisionId": "rv_00000000000000000000000002",
+                  "committed": [],
+                  "removed": [],
+                  "added": [],
+                  "carriedForward": []
+                },
+                "C": {
+                  "input": {
+                    "handoffChecks": {
+                      "passed": 0,
+                      "failed": 0
+                    },
+                    "coordinationDefects": 0,
+                    "evidence": []
+                  },
+                  "submissions": 0,
+                  "uncheckedSubmissions": [],
+                  "deductions": [],
+                  "clarifications": 0,
+                  "unchecked": []
+                }
+              },
+              "performance": {
+                "subject": {
+                  "level": "ticket",
+                  "id": "tk_000000000000000000000000z9"
+                },
+                "runId": "rn_00000000000000000000000003",
+                "cutoff": "2026-11-15T09:01:00.000Z",
+                "basisAt": null,
+                "performance": {
+                  "verification": {
+                    "state": "missing",
+                    "evidence": []
+                  },
+                  "regressions": []
+                },
+                "verification": {
+                  "runId": "rn_00000000000000000000000003",
+                  "ticketId": "tk_000000000000000000000000z9",
+                  "state": "missing",
+                  "reason": "no_attempt",
+                  "attemptId": null,
+                  "attemptKind": null,
+                  "attemptState": null,
+                  "decidedAt": null,
+                  "decidedBy": null,
+                  "items": [],
+                  "evidence": []
+                },
+                "regressions": []
+              },
+              "efficiency": {
+                "scope": {
+                  "level": "ticket",
+                  "ticketId": "tk_000000000000000000000000z9",
+                  "sprintId": "sp_000000000000000000000001yh"
+                },
+                "E": {
+                  "correctiveMs": {
+                    "state": "observed",
+                    "value": 0
+                  },
+                  "productiveMs": {
+                    "state": "observed",
+                    "value": 0
+                  },
+                  "unclassifiedMs": {
+                    "state": "missing",
+                    "reason": "not_reported"
+                  },
+                  "retries": null,
+                  "evidence": []
+                },
+                "T": {
+                  "actual": {
+                    "state": "missing",
+                    "reason": "not_reported"
+                  },
+                  "unreportedAttempts": 0,
+                  "baseline": {
+                    "state": "missing",
+                    "reason": "no_eligible_baseline",
+                    "rejected": [
+                      {
+                        "baselineId": "bl_z5nmp7ybz0pczmtax7m2xwkc4j",
+                        "reason": "invalid_time"
+                      }
+                    ]
+                  },
+                  "evidence": []
+                },
+                "K": {
+                  "actual": {
+                    "state": "missing",
+                    "reason": "not_reported"
+                  },
+                  "unreportedAttempts": 0,
+                  "baseline": {
+                    "state": "missing",
+                    "reason": "no_eligible_baseline",
+                    "rejected": [
+                      {
+                        "baselineId": "bl_s2xk80z5h0k1mgm3b9we93j2t7",
+                        "reason": "invalid_time"
+                      }
+                    ]
+                  },
+                  "evidence": []
+                },
+                "classification": {
+                  "denominator": {
+                    "effortMs": null,
+                    "state": "missing",
+                    "coverage": {
+                      "covered": 0,
+                      "of": 0,
+                      "unit": "attempts"
+                    },
+                    "overheadMs": null
+                  },
+                  "correctiveMs": 0,
+                  "productiveMs": 0,
+                  "unclassifiedMs": null,
+                  "classificationCoverage": null,
+                  "correctiveByCause": {},
+                  "productiveByWork": {},
+                  "observationIds": [],
+                  "retries": {
+                    "retries": null,
+                    "attempts": []
+                  }
+                },
+                "time": {
+                  "metric": "active_ms",
+                  "actual": {
+                    "state": "missing",
+                    "reason": "not_reported"
+                  },
+                  "reportedValue": null,
+                  "attempts": 0,
+                  "unreportedAttemptIds": [],
+                  "openAttemptIds": [],
+                  "gaps": [],
+                  "overheadValue": null,
+                  "excludedWaitsMs": {}
+                },
+                "tokens": {
+                  "metric": "tokens",
+                  "actual": {
+                    "state": "missing",
+                    "reason": "not_reported"
+                  },
+                  "reportedValue": null,
+                  "attempts": 0,
+                  "unreportedAttemptIds": [],
+                  "openAttemptIds": [],
+                  "gaps": [],
+                  "overheadValue": null,
+                  "excludedWaitsMs": null
+                },
+                "dispatchedAt": null,
+                "cohortKey": {
+                  "workType": "implementation",
+                  "size": "medium",
+                  "risk": "multi_step"
+                },
+                "cohorts": {
+                  "T": {
+                    "metric": "active_ms",
+                    "key": {
+                      "workType": "implementation",
+                      "size": "medium",
+                      "risk": "multi_step"
+                    },
+                    "baseline": null,
+                    "missingReason": "not_dispatched",
+                    "members": [],
+                    "outlierTicketIds": [],
+                    "excluded": []
+                  },
+                  "K": {
+                    "metric": "tokens",
+                    "key": {
+                      "workType": "implementation",
+                      "size": "medium",
+                      "risk": "multi_step"
+                    },
+                    "baseline": null,
+                    "missingReason": "not_dispatched",
+                    "members": [],
+                    "outlierTicketIds": [],
+                    "excluded": []
+                  }
+                }
+              }
+            },
+            "anomalies": []
+          }
+        ],
+        "sources": {
+          "signals": {
+            "subject": {
+              "level": "sprint",
+              "id": "sp_000000000000000000000001yh"
+            },
+            "runId": "rn_00000000000000000000000003",
+            "epicId": "ep_00000000000000000000000001",
+            "cutoff": "2026-11-15T09:01:00.000Z",
+            "S": {
+              "input": {
+                "ticketRating": null,
+                "sprintRating": null
+              },
+              "sprintRatingUse": "none",
+              "ratings": [],
+              "rescue": [],
+              "rescueMinutes": 0,
+              "plannedReview": [],
+              "plannedReviewMinutes": 0,
+              "entriesWithoutMinutes": 0
+            },
+            "A": {
+              "input": {
+                "committed": null,
+                "delivered": 0,
+                "added": 0,
+                "removed": 0,
+                "activity": {
+                  "attempts": 0,
+                  "commits": 0,
+                  "changedLines": null
+                },
+                "evidence": []
+              },
+              "frozenRevisionId": null,
+              "frozenAt": null,
+              "dispatchedAt": null,
+              "currentRevisionId": "rv_00000000000000000000000002",
+              "committed": [],
+              "removed": [],
+              "added": [],
+              "carriedForward": []
+            },
+            "C": {
+              "input": {
+                "handoffChecks": {
+                  "passed": 0,
+                  "failed": 0
+                },
+                "coordinationDefects": 0,
+                "evidence": []
+              },
+              "submissions": 0,
+              "uncheckedSubmissions": [],
+              "deductions": [],
+              "clarifications": 0,
+              "unchecked": []
+            }
+          },
+          "efficiency": [
+            {
+              "scope": {
+                "level": "sprint",
+                "sprintId": "sp_000000000000000000000001yh"
+              },
+              "E": {
+                "correctiveMs": {
+                  "state": "observed",
+                  "value": 0
+                },
+                "productiveMs": {
+                  "state": "observed",
+                  "value": 0
+                },
+                "unclassifiedMs": {
+                  "state": "missing",
+                  "reason": "not_reported"
+                },
+                "retries": null,
+                "evidence": []
+              },
+              "T": {
+                "actual": {
+                  "state": "missing",
+                  "reason": "not_reported"
+                },
+                "unreportedAttempts": 0,
+                "baseline": {
+                  "state": "missing",
+                  "reason": "no_eligible_baseline",
+                  "rejected": []
+                },
+                "evidence": []
+              },
+              "K": {
+                "actual": {
+                  "state": "missing",
+                  "reason": "not_reported"
+                },
+                "unreportedAttempts": 0,
+                "baseline": {
+                  "state": "missing",
+                  "reason": "no_eligible_baseline",
+                  "rejected": []
+                },
+                "evidence": []
+              },
+              "classification": {
+                "denominator": {
+                  "effortMs": null,
+                  "state": "missing",
+                  "coverage": {
+                    "covered": 0,
+                    "of": 0,
+                    "unit": "attempts"
+                  },
+                  "overheadMs": null
+                },
+                "correctiveMs": 0,
+                "productiveMs": 0,
+                "unclassifiedMs": null,
+                "classificationCoverage": null,
+                "correctiveByCause": {},
+                "productiveByWork": {},
+                "observationIds": [],
+                "retries": {
+                  "retries": null,
+                  "attempts": []
+                }
+              },
+              "time": {
+                "metric": "active_ms",
+                "actual": {
+                  "state": "missing",
+                  "reason": "not_reported"
+                },
+                "reportedValue": null,
+                "attempts": 0,
+                "unreportedAttemptIds": [],
+                "openAttemptIds": [],
+                "gaps": [],
+                "overheadValue": null,
+                "excludedWaitsMs": {
+                  "queue": 60000,
+                  "build_test": 0,
+                  "blocked": 0,
+                  "review": 0,
+                  "human_approval": 0
+                }
+              },
+              "tokens": {
+                "metric": "tokens",
+                "actual": {
+                  "state": "missing",
+                  "reason": "not_reported"
+                },
+                "reportedValue": null,
+                "attempts": 0,
+                "unreportedAttemptIds": [],
+                "openAttemptIds": [],
+                "gaps": [],
+                "overheadValue": null,
+                "excludedWaitsMs": null
+              }
+            }
+          ]
+        },
+        "anomalies": []
+      }
+    },
+    {
+      "name": "getRunTiming",
+      "input": {
+        "runId": "rn_00000000000000000000000003",
+        "cutoff": "2026-11-15T09:01:00.000Z"
+      },
+      "output": {
+        "runId": "rn_00000000000000000000000003",
+        "asOf": "2026-11-15T09:01:00.000Z",
+        "elapsed": {
+          "quantity": "window_elapsed",
+          "unit": "milliseconds",
+          "aggregation": "single",
+          "ms": 60000,
+          "state": "observed",
+          "coverage": {
+            "covered": 60000,
+            "of": 60000,
+            "unit": "milliseconds"
+          },
+          "open": true
+        },
+        "startedAt": "2026-11-15T09:00:00.000Z",
+        "endedAt": null,
+        "endedBy": "cutoff",
+        "inFlight": {
+          "quantity": "in_flight_wall_clock",
+          "unit": "milliseconds",
+          "aggregation": "union",
+          "ms": null,
+          "state": "missing",
+          "coverage": {
+            "covered": 0,
+            "of": 0,
+            "unit": "attempts"
+          },
+          "open": false
+        },
+        "activeWallClock": {
+          "quantity": "active_wall_clock",
+          "unit": "milliseconds",
+          "aggregation": "union",
+          "ms": null,
+          "state": "missing",
+          "coverage": {
+            "covered": 0,
+            "of": 0,
+            "unit": "attempts"
+          },
+          "open": true
+        },
+        "attemptElapsedSum": {
+          "quantity": "attempt_elapsed",
+          "unit": "milliseconds",
+          "aggregation": "sum",
+          "ms": null,
+          "state": "missing",
+          "coverage": {
+            "covered": 0,
+            "of": 0,
+            "unit": "milliseconds"
+          },
+          "open": false
+        },
+        "effort": {
+          "total": {
+            "quantity": "resource_effort",
+            "unit": "milliseconds",
+            "aggregation": "sum",
+            "ms": null,
+            "state": "missing",
+            "coverage": {
+              "covered": 0,
+              "of": 0,
+              "unit": "attempts"
+            },
+            "open": false
+          },
+          "byRole": {
+            "worker": 0,
+            "orchestrator": 0,
+            "reviewer": 0,
+            "other": 0
+          },
+          "overhead": {
+            "quantity": "resource_effort",
+            "unit": "milliseconds",
+            "aggregation": "sum",
+            "ms": null,
+            "state": "missing",
+            "coverage": {
+              "covered": 0,
+              "of": 0,
+              "unit": "attempts"
+            },
+            "open": false
+          },
+          "outsideWindowMs": 0
+        },
+        "waits": {
+          "queue": {
+            "quantity": "classified_wait",
+            "unit": "milliseconds",
+            "aggregation": "sum",
+            "ms": 60000,
+            "state": "observed",
+            "coverage": {
+              "covered": 60000,
+              "of": 60000,
+              "unit": "milliseconds"
+            },
+            "open": true
+          },
+          "build_test": {
+            "quantity": "classified_wait",
+            "unit": "milliseconds",
+            "aggregation": "sum",
+            "ms": 0,
+            "state": "observed",
+            "coverage": {
+              "covered": 60000,
+              "of": 60000,
+              "unit": "milliseconds"
+            },
+            "open": true
+          },
+          "blocked": {
+            "quantity": "classified_wait",
+            "unit": "milliseconds",
+            "aggregation": "sum",
+            "ms": 0,
+            "state": "observed",
+            "coverage": {
+              "covered": 60000,
+              "of": 60000,
+              "unit": "milliseconds"
+            },
+            "open": true
+          },
+          "review": {
+            "quantity": "classified_wait",
+            "unit": "milliseconds",
+            "aggregation": "sum",
+            "ms": 0,
+            "state": "observed",
+            "coverage": {
+              "covered": 60000,
+              "of": 60000,
+              "unit": "milliseconds"
+            },
+            "open": true
+          },
+          "human_approval": {
+            "quantity": "classified_wait",
+            "unit": "milliseconds",
+            "aggregation": "sum",
+            "ms": 0,
+            "state": "observed",
+            "coverage": {
+              "covered": 60000,
+              "of": 60000,
+              "unit": "milliseconds"
+            },
+            "open": true
+          }
+        },
+        "unknown": {
+          "quantity": "unclassified",
+          "unit": "milliseconds",
+          "aggregation": "sum",
+          "ms": 0,
+          "state": "observed",
+          "coverage": {
+            "covered": 60000,
+            "of": 60000,
+            "unit": "milliseconds"
+          },
+          "open": true
+        },
+        "effortByOutcome": {},
+        "sprints": [
+          {
+            "sprintId": "sp_000000000000000000000001yh",
+            "membership": "current_plan",
+            "ticketIds": [
+              "tk_000000000000000000000000z9"
+            ],
+            "checkpointWait": {
+              "quantity": "classified_wait",
+              "unit": "milliseconds",
+              "aggregation": "single",
+              "ms": null,
+              "state": "missing",
+              "coverage": {
+                "covered": 0,
+                "of": 0,
+                "unit": "milliseconds"
+              },
+              "open": false
+            },
+            "unattributedOverhead": {
+              "quantity": "resource_effort",
+              "unit": "milliseconds",
+              "aggregation": "sum",
+              "ms": null,
+              "state": "missing",
+              "coverage": {
+                "covered": 0,
+                "of": 0,
+                "unit": "attempts"
+              },
+              "open": false
+            },
+            "elapsed": {
+              "quantity": "window_elapsed",
+              "unit": "milliseconds",
+              "aggregation": "single",
+              "ms": 60000,
+              "state": "observed",
+              "coverage": {
+                "covered": 60000,
+                "of": 60000,
+                "unit": "milliseconds"
+              },
+              "open": true
+            },
+            "startedAt": "2026-11-15T09:00:00.000Z",
+            "endedAt": null,
+            "endedBy": "cutoff",
+            "inFlight": {
+              "quantity": "in_flight_wall_clock",
+              "unit": "milliseconds",
+              "aggregation": "union",
+              "ms": null,
+              "state": "missing",
+              "coverage": {
+                "covered": 0,
+                "of": 0,
+                "unit": "attempts"
+              },
+              "open": false
+            },
+            "activeWallClock": {
+              "quantity": "active_wall_clock",
+              "unit": "milliseconds",
+              "aggregation": "union",
+              "ms": null,
+              "state": "missing",
+              "coverage": {
+                "covered": 0,
+                "of": 0,
+                "unit": "attempts"
+              },
+              "open": true
+            },
+            "attemptElapsedSum": {
+              "quantity": "attempt_elapsed",
+              "unit": "milliseconds",
+              "aggregation": "sum",
+              "ms": null,
+              "state": "missing",
+              "coverage": {
+                "covered": 0,
+                "of": 0,
+                "unit": "milliseconds"
+              },
+              "open": false
+            },
+            "effort": {
+              "total": {
+                "quantity": "resource_effort",
+                "unit": "milliseconds",
+                "aggregation": "sum",
+                "ms": null,
+                "state": "missing",
+                "coverage": {
+                  "covered": 0,
+                  "of": 0,
+                  "unit": "attempts"
+                },
+                "open": false
+              },
+              "byRole": {
+                "worker": 0,
+                "orchestrator": 0,
+                "reviewer": 0,
+                "other": 0
+              },
+              "overhead": {
+                "quantity": "resource_effort",
+                "unit": "milliseconds",
+                "aggregation": "sum",
+                "ms": null,
+                "state": "missing",
+                "coverage": {
+                  "covered": 0,
+                  "of": 0,
+                  "unit": "attempts"
+                },
+                "open": false
+              },
+              "outsideWindowMs": 0
+            },
+            "waits": {
+              "queue": {
+                "quantity": "classified_wait",
+                "unit": "milliseconds",
+                "aggregation": "sum",
+                "ms": 60000,
+                "state": "observed",
+                "coverage": {
+                  "covered": 60000,
+                  "of": 60000,
+                  "unit": "milliseconds"
+                },
+                "open": true
+              },
+              "build_test": {
+                "quantity": "classified_wait",
+                "unit": "milliseconds",
+                "aggregation": "sum",
+                "ms": 0,
+                "state": "observed",
+                "coverage": {
+                  "covered": 60000,
+                  "of": 60000,
+                  "unit": "milliseconds"
+                },
+                "open": true
+              },
+              "blocked": {
+                "quantity": "classified_wait",
+                "unit": "milliseconds",
+                "aggregation": "sum",
+                "ms": 0,
+                "state": "observed",
+                "coverage": {
+                  "covered": 60000,
+                  "of": 60000,
+                  "unit": "milliseconds"
+                },
+                "open": true
+              },
+              "review": {
+                "quantity": "classified_wait",
+                "unit": "milliseconds",
+                "aggregation": "sum",
+                "ms": 0,
+                "state": "observed",
+                "coverage": {
+                  "covered": 60000,
+                  "of": 60000,
+                  "unit": "milliseconds"
+                },
+                "open": true
+              },
+              "human_approval": {
+                "quantity": "classified_wait",
+                "unit": "milliseconds",
+                "aggregation": "sum",
+                "ms": 0,
+                "state": "observed",
+                "coverage": {
+                  "covered": 60000,
+                  "of": 60000,
+                  "unit": "milliseconds"
+                },
+                "open": true
+              }
+            },
+            "unknown": {
+              "quantity": "unclassified",
+              "unit": "milliseconds",
+              "aggregation": "sum",
+              "ms": 0,
+              "state": "observed",
+              "coverage": {
+                "covered": 60000,
+                "of": 60000,
+                "unit": "milliseconds"
+              },
+              "open": true
+            },
+            "effortByOutcome": {}
+          }
+        ],
+        "tickets": [
+          {
+            "ticketId": "tk_000000000000000000000000z9",
+            "sprintId": "sp_000000000000000000000001yh",
+            "carriedForward": false,
+            "readyAt": "2026-11-15T09:00:00.000Z",
+            "firstClaimAt": null,
+            "acceptedAt": null,
+            "endedBy": "cutoff",
+            "cycleTime": {
+              "quantity": "ticket_cycle_time",
+              "unit": "milliseconds",
+              "aggregation": "single",
+              "ms": null,
+              "state": "missing",
+              "coverage": {
+                "covered": 0,
+                "of": 0,
+                "unit": "milliseconds"
+              },
+              "open": false
+            },
+            "leadTime": {
+              "quantity": "ticket_lead_time",
+              "unit": "milliseconds",
+              "aggregation": "single",
+              "ms": 60000,
+              "state": "observed",
+              "coverage": {
+                "covered": 60000,
+                "of": 60000,
+                "unit": "milliseconds"
+              },
+              "open": true
+            },
+            "waits": {
+              "queue": {
+                "quantity": "classified_wait",
+                "unit": "milliseconds",
+                "aggregation": "single",
+                "ms": null,
+                "state": "missing",
+                "coverage": {
+                  "covered": 0,
+                  "of": 0,
+                  "unit": "milliseconds"
+                },
+                "open": true
+              },
+              "build_test": {
+                "quantity": "classified_wait",
+                "unit": "milliseconds",
+                "aggregation": "single",
+                "ms": null,
+                "state": "missing",
+                "coverage": {
+                  "covered": 0,
+                  "of": 0,
+                  "unit": "milliseconds"
+                },
+                "open": true
+              },
+              "blocked": {
+                "quantity": "classified_wait",
+                "unit": "milliseconds",
+                "aggregation": "single",
+                "ms": null,
+                "state": "missing",
+                "coverage": {
+                  "covered": 0,
+                  "of": 0,
+                  "unit": "milliseconds"
+                },
+                "open": true
+              },
+              "review": {
+                "quantity": "classified_wait",
+                "unit": "milliseconds",
+                "aggregation": "single",
+                "ms": null,
+                "state": "missing",
+                "coverage": {
+                  "covered": 0,
+                  "of": 0,
+                  "unit": "milliseconds"
+                },
+                "open": true
+              },
+              "human_approval": {
+                "quantity": "classified_wait",
+                "unit": "milliseconds",
+                "aggregation": "single",
+                "ms": null,
+                "state": "missing",
+                "coverage": {
+                  "covered": 0,
+                  "of": 0,
+                  "unit": "milliseconds"
+                },
+                "open": true
+              }
+            },
+            "unknown": {
+              "quantity": "unclassified",
+              "unit": "milliseconds",
+              "aggregation": "single",
+              "ms": null,
+              "state": "missing",
+              "coverage": {
+                "covered": 0,
+                "of": 0,
+                "unit": "milliseconds"
+              },
+              "open": true
+            },
+            "active": {
+              "quantity": "measured_active",
+              "unit": "milliseconds",
+              "aggregation": "union",
+              "ms": null,
+              "state": "missing",
+              "coverage": {
+                "covered": 0,
+                "of": 0,
+                "unit": "attempts"
+              },
+              "open": true
+            },
+            "waitBeforeDispatch": {
+              "quantity": "classified_wait",
+              "unit": "milliseconds",
+              "aggregation": "single",
+              "ms": 60000,
+              "state": "observed",
+              "coverage": {
+                "covered": 60000,
+                "of": 60000,
+                "unit": "milliseconds"
+              },
+              "open": true
+            },
+            "effort": {
+              "total": {
+                "quantity": "resource_effort",
+                "unit": "milliseconds",
+                "aggregation": "sum",
+                "ms": null,
+                "state": "missing",
+                "coverage": {
+                  "covered": 0,
+                  "of": 0,
+                  "unit": "attempts"
+                },
+                "open": false
+              },
+              "byRole": {
+                "worker": 0,
+                "orchestrator": 0,
+                "reviewer": 0,
+                "other": 0
+              },
+              "overhead": {
+                "quantity": "resource_effort",
+                "unit": "milliseconds",
+                "aggregation": "sum",
+                "ms": null,
+                "state": "missing",
+                "coverage": {
+                  "covered": 0,
+                  "of": 0,
+                  "unit": "attempts"
+                },
+                "open": false
+              },
+              "outsideWindowMs": 0
+            },
+            "effortByOutcome": {},
+            "attempts": [],
+            "segments": [
+              {
+                "class": "queue",
+                "reason": "ready_unclaimed",
+                "evidence": "lifecycle",
+                "start": "2026-11-15T09:00:00.000Z",
+                "end": "2026-11-15T09:01:00.000Z",
+                "ms": 60000
+              }
+            ]
+          }
+        ],
+        "unattributedEffort": {
+          "total": {
+            "quantity": "resource_effort",
+            "unit": "milliseconds",
+            "aggregation": "sum",
+            "ms": null,
+            "state": "missing",
+            "coverage": {
+              "covered": 0,
+              "of": 0,
+              "unit": "attempts"
+            },
+            "open": false
+          },
+          "byRole": {
+            "worker": 0,
+            "orchestrator": 0,
+            "reviewer": 0,
+            "other": 0
+          },
+          "overhead": {
+            "quantity": "resource_effort",
+            "unit": "milliseconds",
+            "aggregation": "sum",
+            "ms": null,
+            "state": "missing",
+            "coverage": {
+              "covered": 0,
+              "of": 0,
+              "unit": "attempts"
+            },
+            "open": false
+          },
+          "outsideWindowMs": 0
+        },
+        "carriedForwardAttemptIds": [],
+        "anomalies": []
+      }
+    },
+    {
+      "name": "getSpaceSignals",
+      "input": {
+        "level": "sprint",
+        "id": "sp_000000000000000000000001yh",
+        "runId": "rn_00000000000000000000000003"
+      },
+      "output": {
+        "subject": {
+          "level": "sprint",
+          "id": "sp_000000000000000000000001yh"
+        },
+        "runId": "rn_00000000000000000000000003",
+        "epicId": "ep_00000000000000000000000001",
+        "cutoff": "2026-11-15T09:01:00.000Z",
+        "S": {
+          "input": {
+            "ticketRating": null,
+            "sprintRating": null
+          },
+          "sprintRatingUse": "none",
+          "ratings": [],
+          "rescue": [],
+          "rescueMinutes": 0,
+          "plannedReview": [],
+          "plannedReviewMinutes": 0,
+          "entriesWithoutMinutes": 0
+        },
+        "A": {
+          "input": {
+            "committed": null,
+            "delivered": 0,
+            "added": 0,
+            "removed": 0,
+            "activity": {
+              "attempts": 0,
+              "commits": 0,
+              "changedLines": null
+            },
+            "evidence": []
+          },
+          "frozenRevisionId": null,
+          "frozenAt": null,
+          "dispatchedAt": null,
+          "currentRevisionId": "rv_00000000000000000000000002",
+          "committed": [],
+          "removed": [],
+          "added": [],
+          "carriedForward": []
+        },
+        "C": {
+          "input": {
+            "handoffChecks": {
+              "passed": 0,
+              "failed": 0
+            },
+            "coordinationDefects": 0,
+            "evidence": []
+          },
+          "submissions": 0,
+          "uncheckedSubmissions": [],
+          "deductions": [],
+          "clarifications": 0,
+          "unchecked": []
+        }
+      }
+    },
+    {
+      "name": "getGradingPolicy",
+      "input": null,
+      "output": {
+        "policy": {
+          "policyId": "dm-space",
+          "version": 2,
+          "hash": "sha256:f50d32f4eb4e2d45dd56fedf66ecf75bb55409cf79cc542729cb503f42281712"
+        },
+        "components": [
+          {
+            "component": "S",
+            "weight": 1,
+            "baseShare": 0.14285714285714285,
+            "required": false,
+            "signal": "direct",
+            "rule": "S.rating.v1",
+            "formula": "(rating − 1) × 25: a rating of 1 scores 0, 3 scores 50, 5 scores 100",
+            "whenMissing": "no rating given or shared: optional, so its weight drops out and the grade can still be final"
+          },
+          {
+            "component": "P",
+            "weight": 1,
+            "baseShare": 0.14285714285714285,
+            "required": true,
+            "signal": "direct",
+            "rule": "P.verified-less-regressions.v1",
+            "formula": "verified: 100 − Σ penalty over attributed regressions (critical 50, high 30, medium 15, low 5); a confirmed failure scores 0",
+            "whenMissing": "verification pending or missing: the grade is not final"
+          },
+          {
+            "component": "A",
+            "weight": 1,
+            "baseShare": 0.14285714285714285,
+            "required": true,
+            "signal": "direct",
+            "rule": "A.delivered-over-committed.v1",
+            "formula": "100 × delivered ÷ committed, over the scope frozen before dispatch",
+            "whenMissing": "no scope frozen before dispatch, or nothing committed: the grade is not final"
+          },
+          {
+            "component": "C",
+            "weight": 1,
+            "baseShare": 0.14285714285714285,
+            "required": true,
+            "signal": "proxy",
+            "rule": "C.handoff-pass-rate.v2",
+            "formula": "100 × passed ÷ (passed + failed) handoff checks − 10 × coordination defects; every check of a submission the review rejected counts failed",
+            "whenMissing": "no handoff checked: the grade is not final"
+          },
+          {
+            "component": "E",
+            "weight": 1,
+            "baseShare": 0.14285714285714285,
+            "required": true,
+            "signal": "proxy",
+            "rule": "E.corrective-share.v1",
+            "formula": "100 − 150 × corrective ÷ (corrective + productive) effort",
+            "whenMissing": "no effort reported, or under 80% of it classified: the grade is not final"
+          },
+          {
+            "component": "T",
+            "weight": 1,
+            "baseShare": 0.14285714285714285,
+            "required": true,
+            "signal": "direct",
+            "rule": "T.baseline-ratio.v1",
+            "formula": "150 − 50 × active time ÷ baseline, clamped to 0–100",
+            "whenMissing": "no active time reported, or no budget or cohort baseline frozen before dispatch: the grade is not final"
+          },
+          {
+            "component": "K",
+            "weight": 1,
+            "baseShare": 0.14285714285714285,
+            "required": true,
+            "signal": "direct",
+            "rule": "K.baseline-ratio.v1",
+            "formula": "150 − 50 × tokens ÷ baseline, clamped to 0–100",
+            "whenMissing": "no tokens reported, or no budget or cohort baseline frozen before dispatch: the grade is not final"
+          }
+        ],
+        "composite": "Σ weight × score ÷ Σ weight over the scored components only (a missing component's weight drops out, never imputed); a confirmed mandatory failure caps the result at 59 and the letter at F",
+        "bands": [
+          {
+            "letter": "A",
+            "min": 90
+          },
+          {
+            "letter": "B",
+            "min": 80
+          },
+          {
+            "letter": "C",
+            "min": 70
+          },
+          {
+            "letter": "D",
+            "min": 60
+          },
+          {
+            "letter": "F",
+            "min": 0
+          }
+        ],
+        "minScoredComponents": 4,
+        "mandatoryFailureCeiling": 59,
+        "precision": "kept to 6 decimals; shown to 1 decimal, rounded down, so a shown score never reads as a higher band than its letter"
+      }
+    },
+    {
+      "name": "getRun",
+      "input": {
+        "runId": "rn_00000000000000000000000003"
+      },
+      "output": {
+        "id": "rn_00000000000000000000000003",
+        "number": 1,
+        "epicId": "ep_00000000000000000000000001",
+        "revisionId": "rv_00000000000000000000000002",
+        "revisionNumber": 1,
+        "state": "running",
+        "activeSprintId": "sp_000000000000000000000001yh",
+        "activeSprintOrdinal": 1,
+        "sprintCount": 1,
+        "host": null,
+        "skillVersion": "1.10.0",
+        "ownerMachineId": "mc_00000000000000000000000001",
+        "ownedByThisMachine": true,
+        "pauseReason": null,
+        "autoContinue": false,
+        "createdAt": "2026-11-15T09:00:00.000Z",
+        "startedAt": "2026-11-15T09:00:00.000Z",
+        "updatedAt": "2026-11-15T09:00:00.000Z",
+        "endedAt": null,
+        "counts": {
+          "accepted": 0,
+          "submitted": 0,
+          "running": 0,
+          "ready": 1,
+          "waiting": 0,
+          "blocked": 0,
+          "failed": 0,
+          "needsReconciliation": 0
+        },
+        "tickets": [
+          {
+            "ticketId": "tk_000000000000000000000000z9",
+            "key": "DM-1",
+            "sprintId": "sp_000000000000000000000001yh",
+            "row": 1,
+            "state": "ready",
+            "attemptCount": 0,
+            "latestAttemptId": null,
+            "blockers": [],
+            "prerequisites": []
+          }
+        ],
+        "rows": [
+          {
+            "sprintId": "sp_000000000000000000000001yh",
+            "row": 1,
+            "tickets": [
+              {
+                "ticketId": "tk_000000000000000000000000z9",
+                "key": "DM-1"
+              }
+            ],
+            "latestCheck": null
+          }
+        ],
+        "increments": [],
+        "attempts": [],
+        "checkpoint": {
+          "runId": "rn_00000000000000000000000003",
+          "runState": "running",
+          "sprintId": "sp_000000000000000000000001yh",
+          "sprintOrdinal": 1,
+          "sprintCount": 1,
+          "isFinalSprint": true,
+          "policy": "human",
+          "autoContinueAuthorized": false,
+          "report": null,
+          "conditions": [
+            {
+              "id": "report_submitted",
+              "label": "Sprint report submitted",
+              "met": false,
+              "detail": "No report for Sprint 1 yet"
+            },
+            {
+              "id": "no_active_leases",
+              "label": "No worker still holds a lease",
+              "met": true,
+              "detail": "All claims released or expired"
+            },
+            {
+              "id": "required_accepted",
+              "label": "Every required ticket accepted",
+              "met": false,
+              "detail": "DM-1 not started"
+            },
+            {
+              "id": "exit_criteria",
+              "label": "Exit criteria reported met",
+              "met": true,
+              "detail": "This sprint has no exit criteria"
+            },
+            {
+              "id": "epic_outcome",
+              "label": "Epic success criteria met",
+              "met": false,
+              "detail": "The final sprint report must include the epic outcome"
+            },
+            {
+              "id": "plan_current",
+              "label": "Run executes the current plan",
+              "met": true,
+              "detail": "The run executes revision 1, the saved plan, and no draft holds unsaved changes"
+            },
+            {
+              "id": "approval",
+              "label": "Advance authorized",
+              "met": false,
+              "detail": "A person must approve this checkpoint in the desktop app"
+            }
+          ],
+          "gatesMet": false,
+          "canAdvance": false,
+          "approval": null
+        }
+      }
+    },
+    {
+      "name": "getPlan",
+      "input": {
+        "epicId": "ep_00000000000000000000000001",
+        "view": "saved"
+      },
+      "output": {
+        "epicId": "ep_00000000000000000000000001",
+        "view": "saved",
+        "revisionId": "rv_00000000000000000000000002",
+        "revisionNumber": 1,
+        "baseRevisionId": null,
+        "baseRevisionNumber": null,
+        "draftRevision": null,
+        "contentHash": "sha256:f995033aa96e9e3895269110fc1a8d467422c12fe89e34c94c07170eb16cf94a",
+        "bundle": {
+          "formatVersion": 1,
+          "epic": {
+            "title": "Test epic",
+            "intent": "Prove the plan works.",
+            "successCriteria": [
+              {
+                "id": "s1",
+                "text": "Everything works"
+              }
+            ],
+            "ownerRole": null
+          },
+          "tickets": [
+            {
+              "id": "tk_000000000000000000000000z9",
+              "key": "DM-1",
+              "title": "Ticket 1",
+              "body": "",
+              "acceptanceCriteria": [
+                {
+                  "id": "c1",
+                  "text": "It works"
+                },
+                {
+                  "id": "c2",
+                  "text": "It is documented"
+                }
+              ],
+              "tags": [],
+              "priority": "normal",
+              "capability": {
+                "workType": "implementation",
+                "reasoning": {
+                  "level": "multi_step",
+                  "rationale": ""
+                },
+                "skills": [],
+                "modalities": [
+                  "text"
+                ],
+                "tools": [
+                  "repo_read",
+                  "repo_write"
+                ],
+                "context": {
+                  "estimatedInputTokens": null,
+                  "requiredArtifacts": []
+                },
+                "constraints": {
+                  "environments": [],
+                  "dataLocation": null,
+                  "maxDurationMinutes": null,
+                  "maxCostUsd": null
+                },
+                "preferences": {
+                  "quality": null,
+                  "latency": null,
+                  "cost": null,
+                  "autonomy": null,
+                  "modelOverride": null
+                }
+              },
+              "references": [],
+              "expectedArtifacts": [],
+              "optional": false,
+              "size": "medium",
+              "budget": {
+                "activeMs": 1800000,
+                "tokens": 50000
+              }
+            }
+          ],
+          "sprints": [
+            {
+              "id": "sp_000000000000000000000001yh",
+              "ordinal": 1,
+              "goal": "Sprint 1 goal",
+              "ticketIds": [
+                "tk_000000000000000000000000z9"
+              ],
+              "entryCriteria": [],
+              "exitCriteria": [],
+              "concurrencyCap": null,
+              "checkpoint": {
+                "mode": "human"
+              }
+            }
+          ],
+          "edges": [],
+          "relations": [],
+          "policies": {
+            "maxConcurrency": null,
+            "retryLimit": 2,
+            "onTicketFailure": "continue_independent",
+            "leaseSeconds": 900
+          },
+          "rationale": ""
+        },
+        "readOnly": true,
+        "readOnlyReason": "Saved revisions are immutable. Edit a draft to change the plan.",
+        "changes": [],
+        "stale": false
+      }
+    }
+  ]
+}
