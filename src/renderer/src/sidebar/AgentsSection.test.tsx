@@ -175,6 +175,35 @@ describe('AgentsSection board conversations', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }))
     expect(screen.queryByText(/This unbinds it from/)).toBeNull()
   })
+
+  it('labels card and unknown-epic conversations without inventing names', () => {
+    const card = chatRecord({
+      id: 'chat_card',
+      folder: '/workspace/project',
+      agent: 'claude',
+      title: 'Card answer',
+      conversation: { cardId: 'kc_missing' }
+    })
+    const unknownEpic = chatRecord({
+      id: 'chat_unknown',
+      folder: '/workspace/project',
+      agent: 'claude',
+      title: 'Epic answer',
+      conversation: { epicId: 'ep_missing' }
+    })
+    renderSection([claude], {}, null, { chats: [card, unknownEpic], folders: [], epics: {} })
+    fireEvent.click(screen.getByRole('button', { name: 'Chats of Claude Code' }))
+
+    const cardRow = screen.getByRole('button', { name: /^Card answer/ })
+    const epicRow = screen.getByRole('button', { name: /^Epic answer/ })
+    expect(within(cardRow).getByText('project')).toBeTruthy()
+    expect(within(cardRow).getByText('Board conversation')).toBeTruthy()
+    expect(within(epicRow).getByText('Board conversation')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Card answer' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }))
+    expect(screen.getByText('This unbinds it from the card; the conversation history stays on the board.', { exact: false })).toBeTruthy()
+  })
 })
 
 describe('AgentsSection versions', () => {

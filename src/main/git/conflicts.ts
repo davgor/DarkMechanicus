@@ -362,10 +362,15 @@ function pathExtensions({ platform, env }: NonNullable<Opener['system']>): Reado
   return new Set(listed.filter((ext) => ext !== ''))
 }
 
+/** Whether this file name alone makes the OS launch it as a program. */
+function launchedByName(path: string, extra: ReadonlySet<string>): boolean {
+  const ext = extname(path).toLowerCase()
+  return LAUNCHED_EXTENSIONS[ext] === true || extra.has(ext)
+}
+
 /** Whether the default app would run the file rather than show it: an execute bit, or a name the OS launches. */
 function couldRun(path: string, stats: Stats, extra: ReadonlySet<string>): boolean {
-  const ext = extname(path).toLowerCase()
-  return (stats.mode & 0o111) !== 0 || LAUNCHED_EXTENSIONS[ext] === true || extra.has(ext)
+  return (stats.mode & 0o111) !== 0 || launchedByName(path, extra)
 }
 
 /**
@@ -373,6 +378,10 @@ function couldRun(path: string, stats: Stats, extra: ReadonlySet<string>): boole
  * tree that the default app shows rather than runs.
  */
 export async function openInEditor(runner: GitRunner, folder: string, path: string, opener: Opener): Promise<null> {
+  const extra = pathExtensions(opener.system ?? { platform: process.platform, env: process.env })
+  if (launchedByName(path, extra)) {
+    throw new GitInputError(`${path} could run as a program, so it is not opened. Open it from your editor instead.`)
+  }
   const { status } = await findConflict(runner, folder, path)
   const located = locate(status.root, path)
   if (located.kind === 'missing') {
@@ -385,8 +394,7 @@ export async function openInEditor(runner: GitRunner, folder: string, path: stri
   if (!stats.isFile()) {
     throw new GitInputError(`${path} is not a file. Resolve it in a terminal.`)
   }
-  const extra = pathExtensions(opener.system ?? { platform: process.platform, env: process.env })
-  if (couldRun(path, stats, extra) || couldRun(located.path, stats, extra)) {
+  if (couldRun(located.path, stats, extra)) {
     throw new GitInputError(`${path} could run as a program, so it is not opened. Open it from your editor instead.`)
   }
   const failure = await opener.openPath(located.path)

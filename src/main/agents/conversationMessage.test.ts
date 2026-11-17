@@ -43,6 +43,39 @@ describe('conversation board messages', () => {
     expect(withRelay).toContain('A worker subagent of yours may be doing DM-693: pass this to it now and post its answer.')
     expect(withRelay).not.toContain(SYNTHETIC_TOKEN)
   })
+
+  it('falls back to stable target ids when display names are unavailable', () => {
+    const ticket = boardMessage({
+      ...TICKET_MESSAGE,
+      target: { epicId: 'ep_fallback', ticketId: 'tk_fallback' },
+      epicTitle: undefined,
+      ticketKey: undefined,
+      ticketTitle: undefined,
+      relay: true
+    })
+    const epic = boardMessage({
+      ...TICKET_MESSAGE,
+      target: { epicId: 'ep_fallback' },
+      epicTitle: undefined,
+      ticketKey: undefined,
+      ticketTitle: undefined,
+      relay: true
+    })
+    const card = boardMessage({
+      ...TICKET_MESSAGE,
+      target: { cardId: 'kc_fallback' },
+      cardKey: undefined,
+      ticketKey: undefined,
+      relay: true
+    })
+
+    expect(ticket).toContain('on tk_fallback:')
+    expect(ticket).toContain('doing tk_fallback:')
+    expect(epic).toContain('on epic "ep_fallback":')
+    expect(epic).toContain('doing ep_fallback:')
+    expect(card).toContain('on card kc_fallback:')
+    expect(card).toContain('doing kc_fallback:')
+  })
 })
 
 describe('fresh conversation kickoff', () => {
@@ -72,6 +105,14 @@ describe('fresh conversation kickoff', () => {
     expect(kickoff).toContain(CLAIM_TOKEN_MASK)
     expect([...kickoff].some((character) => character === '\u0000' || character === '\u0007')).toBe(false)
     expect(kickoff).toContain('A run of this epic is active under another session.')
+    expect(kickoff.endsWith(ANSWER_ONLY)).toBe(true)
+  })
+
+  it('omits empty history and inactive-run notices from a fresh kickoff', () => {
+    const kickoff = freshKickoff({ ...TICKET_MESSAGE, history: [], runActive: false })
+
+    expect(kickoff).not.toContain('Conversation history:')
+    expect(kickoff).not.toContain('A run of this epic is active')
     expect(kickoff.endsWith(ANSWER_ONLY)).toBe(true)
   })
 })
