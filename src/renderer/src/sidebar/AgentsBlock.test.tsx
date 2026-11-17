@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, describe, expect, it } from 'vitest'
 import type { ChatRecord } from '../../../shared/agents/chat'
 import type { AgentView } from '../../../shared/desktop/api'
-import { agentView, chatRecord, folderView } from '../__mocks__/fixtures'
+import { agentView, chatRecord, epicSummary, folderView } from '../__mocks__/fixtures'
 import type { AgentStatuses } from '../agents/useAgents'
 import type { ChatListState } from '../agents/useChats'
 import { AgentsBlock } from './AgentsBlock'
@@ -36,6 +36,7 @@ function block(setup: Setup, calls: Calls): JSX.Element {
   return (
     <AgentsBlock
       folder={folderView({ path: '/a', name: 'alpha' })}
+      epics={{ status: 'ready', epics: [epicSummary({ id: 'ep_alpha', title: 'Alpha migration' })], error: null }}
       list={setup.list ?? ready([OLD, NEW, MID])}
       statuses={setup.statuses ?? {}}
       agents={setup.agents ?? []}
