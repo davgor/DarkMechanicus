@@ -36,6 +36,7 @@ beforeEach(() => {
     if (card === undefined) throw new Error('no such card')
     return card
   }
+  dm.handlers.listKanbanMessages = () => []
 })
 
 function host(chats: ChatRecord[]): OrchestrationHost {

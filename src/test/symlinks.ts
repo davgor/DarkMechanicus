@@ -7,14 +7,10 @@ import { removeScratch } from './removeScratch'
 let probed: boolean | undefined
 
 /**
- * True when a file symlink can be created here. Windows accounts without symlink rights get EPERM, so tests that
- * need one skip there. CI (GitHub sets CI=true) always runs them, so a missing privilege fails there instead of
- * skipping silently. The probe runs once per process.
+ * True when a file symlink can actually be created here. Windows accounts without symlink rights get EPERM, including
+ * on some CI hosts, so callers use the measured capability instead of an environment label. The probe runs once per process.
  */
 export function canCreateFileSymlinks(): boolean {
-  if (process.env.CI) {
-    return true
-  }
   if (probed === undefined) {
     probed = probeFileSymlink()
   }

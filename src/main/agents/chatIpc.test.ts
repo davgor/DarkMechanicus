@@ -45,6 +45,7 @@ const EVENT = {} as IpcMainInvokeEvent
 const CHAT_CHANNELS = [
   'chats:boundTerminal',
   'chats:boundThreads',
+  'chats:conversationState',
   'chats:create',
   'chats:delete',
   'chats:findTransferChat',
@@ -53,6 +54,7 @@ const CHAT_CHANNELS = [
   'chats:listAll',
   'chats:read',
   'chats:rename',
+  'chats:sendConversationMessage',
   'chats:startKanbanCard',
   'chats:startOrchestrator',
   'chats:startTransferChat',
