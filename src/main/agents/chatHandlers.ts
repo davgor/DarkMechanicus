@@ -127,7 +127,7 @@ export type ConversationWorkspace = Pick<
   'addComment' | 'listComments' | 'getEpic' | 'getTicket' | 'getKanbanCard' | 'addKanbanMessage' | 'listKanbanMessages'
 >
 
-export interface ConversationHandlerDeps {
+interface ConversationHandlerDeps {
   workspace(folder: string): ConversationWorkspace
   reads: ConversationReads
   deliveries: ConversationDeliveries

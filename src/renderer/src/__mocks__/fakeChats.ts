@@ -146,6 +146,8 @@ export class FakeChats implements ChatsApi {
   private clock = 0
   private created = 0
   private conversationMessages: Record<string, { folder: string; result: SendConversationResult }> = {}
+  /** Persists a conversation message in a command fake and returns its durable id; null uses the local generated id. */
+  storeConversationMessage: ((request: SendConversationRequest) => string | null) | null = null
 
   /** Makes the next call of `method` wait until the returned deferred is resolved. */
   hold(method: Method): Deferred {
@@ -304,7 +306,7 @@ export class FakeChats implements ChatsApi {
   sendConversationMessage(request: SendConversationRequest): Promise<CommandResult<SendConversationResult>> {
     return this.call('sendConversationMessage', [request], () => {
       this.created += 1
-      const messageId = `cm_fake_${this.created}`
+      const messageId = this.storeConversationMessage?.(request) ?? `cm_fake_${this.created}`
       const chats = this.inFolder(request.folder)
       const selected = conversationChat(chats, request.target)
       const result: SendConversationResult =

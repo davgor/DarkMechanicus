@@ -74,7 +74,7 @@ interface InstructionOptions {
 }
 
 /** Keeps a board-bound chat answering its named record instead of assuming execution authority. */
-export function conversationGuidance(conversation: ConversationTarget): string {
+function conversationGuidance(conversation: ConversationTarget): string {
   const reply =
     'cardId' in conversation
       ? `add_kanban_message ${JSON.stringify({ cardId: conversation.cardId })}`

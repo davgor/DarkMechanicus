@@ -25,7 +25,7 @@ export interface ConversationHistoryEntry {
   body: string
 }
 
-export interface FreshKickoffInput extends BoardMessageInput {
+interface FreshKickoffInput extends BoardMessageInput {
   history: ConversationHistoryEntry[]
   runActive: boolean
 }

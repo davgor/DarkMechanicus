@@ -3,7 +3,6 @@ import type { ConversationTarget } from '../../shared/agents/chatApi'
 import type { BoundTarget } from './boundThreads'
 import type { ChatStore } from './chatStore'
 
-export type { ConversationTarget } from '../../shared/agents/chatApi'
 
 export interface ConversationReads {
   /** A claimed or running, non-superseded attempt for the ticket. */

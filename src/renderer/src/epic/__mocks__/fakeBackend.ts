@@ -3,7 +3,7 @@
  * (so mutations change what the next load returns) and records every call, letting tests assert
  * on recorded requests and rendered state instead of mock expectations.
  */
-import type { ChatsApi } from '../../../../shared/agents/chatApi'
+import type { ChatsApi, SendConversationRequest } from '../../../../shared/agents/chatApi'
 import type { AttemptTimelineView, RunTimelineView } from '../../../../shared/domain/activity'
 import type { CommandName } from '../../../../shared/domain/api'
 import type { DomainErrorShape } from '../../../../shared/domain/errors'
@@ -43,7 +43,7 @@ import type {
 } from '../../../../shared/domain/views'
 import type { TransferView } from '../../../../shared/domain/transfer'
 import { CommandError } from '../../api/dm'
-import { idleChats } from '../../__mocks__/idleChats'
+import { FakeChats } from '../../__mocks__/fakeChats'
 import { idleTerminals } from '../../__mocks__/idleTerminals'
 import type { Runner } from '../runner'
 import {
@@ -108,8 +108,8 @@ export function scenario(patch: Partial<Scenario> = {}): Scenario {
 }
 
 export class FakeBackend implements DmApi {
-  /** No chats unless a test swaps in a `FakeChats`. */
-  chats: ChatsApi = idleChats()
+  /** Chat calls use the in-memory fake; tests can seed routes or replace it. */
+  chats: ChatsApi
   terminals = idleTerminals()
   readonly calls: RecordedCall[] = []
   readonly opened: string[] = []
@@ -122,6 +122,12 @@ export class FakeBackend implements DmApi {
   readonly handlers: Partial<Record<CommandName, Handler>>
 
   constructor(readonly state: Scenario = scenario()) {
+    const chats = new FakeChats()
+    chats.storeConversationMessage = (request: SendConversationRequest) => {
+      if ('cardId' in request.target) return null
+      return addComment(state, { epicId: request.target.epicId, ticketId: request.target.ticketId, body: request.body }).id
+    }
+    this.chats = chats
     this.handlers = defaultHandlers(state)
   }
 
