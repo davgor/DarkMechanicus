@@ -72,6 +72,8 @@ function machine(): Machine {
     createDesktopHandlers({
       registry,
       pool: { get: (path) => (opened.push(path), never(`opening ${path}`)), close: () => undefined },
+      releaseFolder: () => never('releasing a folder'),
+      stopMailMonitor: () => never('stopping a mail monitor'),
       pickDirectory: () => never('the folder dialog of dm:pickFolder'),
       writeClipboard: () => never('the clipboard'),
       openExternal: () => never('opening a link'),

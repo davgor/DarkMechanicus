@@ -234,6 +234,8 @@ export function bridgeOver(registry: DesktopHandlerDeps['registry'], pool: Deskt
       },
       close: (path) => pool.close(path)
     },
+    releaseFolder: () => never('releasing a folder'),
+    stopMailMonitor: () => never('stopping a mail monitor'),
     pickDirectory: () => never('the folder dialog'),
     writeClipboard: () => never('the clipboard'),
     openExternal: () => never('opening a link'),
