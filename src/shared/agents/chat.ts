@@ -72,6 +72,10 @@ export const chatRecordSchema = z.object({
   transferEpicId: z.string().min(1).optional(),
   /** The Kanban card this chat carries, when Play started it; absent for every other chat and for chats stored before Kanban. */
   cardId: z.string().min(1).optional(),
+  /** The board conversation this chat answers; absent for every unbound chat and for chats stored before board conversations. */
+  conversation: z
+    .union([z.strictObject({ epicId: z.string().min(1) }), z.strictObject({ cardId: z.string().min(1) })])
+    .optional(),
   /**
    * The id of the user message whose turn an expired sign-in cut short, as chats stored it before they became
    * terminals. Null or absent when no turn was waiting to be retried; nothing sets it any more.
