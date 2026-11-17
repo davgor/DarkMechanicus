@@ -9,9 +9,12 @@ import {
   getCheckpoint,
   grantRetry
 } from '../services/checkpoints'
+import { createCorrections, previewCorrections } from '../services/corrections'
 import { expireLeases } from '../services/execution'
+import { getExperiment, recordExperimentEvent } from '../services/experiments'
 import { redraftNextSprint } from '../services/redraft'
 import { getSprintReport, submitSprintReport } from '../services/reports'
+import { getRetroFindings } from '../services/retroFindings'
 import { requireRunView } from './execution'
 import type { CommandTable } from './types'
 
@@ -27,6 +30,16 @@ const checkpointCommands = {
     mutates: true,
     run: (core, input) => redraftNextSprint(core.ctx(), input)
   },
+  previewCorrections: {
+    schema: COMMAND_SCHEMAS.previewCorrections,
+    mutates: false,
+    run: (core, input) => previewCorrections(core.ctx(), input)
+  },
+  createCorrections: {
+    schema: COMMAND_SCHEMAS.createCorrections,
+    mutates: true,
+    run: (core, input) => createCorrections(core.ctx(), input)
+  },
   submitSprintReport: {
     schema: COMMAND_SCHEMAS.submitSprintReport,
     mutates: true,
@@ -36,6 +49,21 @@ const checkpointCommands = {
     schema: COMMAND_SCHEMAS.getSprintReport,
     mutates: false,
     run: (core, input) => getSprintReport(core.ctx(), input)
+  },
+  getRetroFindings: {
+    schema: COMMAND_SCHEMAS.getRetroFindings,
+    mutates: false,
+    run: (core, input) => getRetroFindings(core.ctx(), input)
+  },
+  getExperiment: {
+    schema: COMMAND_SCHEMAS.getExperiment,
+    mutates: false,
+    run: (core, input) => getExperiment(core.ctx(), input)
+  },
+  recordExperimentEvent: {
+    schema: COMMAND_SCHEMAS.recordExperimentEvent,
+    mutates: true,
+    run: (core, input) => recordExperimentEvent(core.ctx(), input)
   },
   getCheckpoint: {
     schema: COMMAND_SCHEMAS.getCheckpoint,

@@ -1,0 +1,98 @@
+{
+  "policyId": "dm-space",
+  "version": 2,
+  "components": [
+    {
+      "component": "S",
+      "weight": 1,
+      "required": false,
+      "signal": "direct",
+      "rule": "S.rating.v1"
+    },
+    {
+      "component": "P",
+      "weight": 1,
+      "required": true,
+      "signal": "direct",
+      "rule": "P.verified-less-regressions.v1"
+    },
+    {
+      "component": "A",
+      "weight": 1,
+      "required": true,
+      "signal": "direct",
+      "rule": "A.delivered-over-committed.v1"
+    },
+    {
+      "component": "C",
+      "weight": 1,
+      "required": true,
+      "signal": "proxy",
+      "rule": "C.handoff-pass-rate.v2"
+    },
+    {
+      "component": "E",
+      "weight": 1,
+      "required": true,
+      "signal": "proxy",
+      "rule": "E.corrective-share.v1"
+    },
+    {
+      "component": "T",
+      "weight": 1,
+      "required": true,
+      "signal": "direct",
+      "rule": "T.baseline-ratio.v1"
+    },
+    {
+      "component": "K",
+      "weight": 1,
+      "required": true,
+      "signal": "direct",
+      "rule": "K.baseline-ratio.v1"
+    }
+  ],
+  "bands": [
+    {
+      "letter": "A",
+      "min": 90
+    },
+    {
+      "letter": "B",
+      "min": 80
+    },
+    {
+      "letter": "C",
+      "min": 70
+    },
+    {
+      "letter": "D",
+      "min": 60
+    },
+    {
+      "letter": "F",
+      "min": 0
+    }
+  ],
+  "precision": {
+    "canonicalDecimals": 6,
+    "displayDecimals": 1,
+    "displayRounding": "floor"
+  },
+  "minScoredComponents": 4,
+  "mandatoryFailureCeiling": 59,
+  "regressionPenalty": {
+    "critical": 50,
+    "high": 30,
+    "medium": 15,
+    "low": 5
+  },
+  "coordinationDefectPenalty": 10,
+  "correctiveShareSlope": 150,
+  "minClassificationCoverage": 0.8,
+  "resourceCurve": {
+    "intercept": 150,
+    "slope": 50
+  },
+  "minCohortSampleSize": 5
+}

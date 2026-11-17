@@ -1,5 +1,5 @@
 import type { CreateEpicInput } from '../../shared/domain/api'
-import type { EpicBranch, EpicContent, EpicProvenance } from '../../shared/domain/bundle'
+import type { CorrectionProvenance, EpicBranch, EpicContent, EpicProvenance } from '../../shared/domain/bundle'
 import type { RunState, WorkStatus } from '../../shared/domain/status'
 import type { EpicDetailView, EpicOutcome, EpicSummaryView, RunSummaryView } from '../../shared/domain/views'
 import { requireCapability } from '../authz'
@@ -261,8 +261,7 @@ function initialContent(input: CreateEpicInput, title: string): EpicContent {
   }
 }
 
-function insertEpic(ctx: Ctx, input: CreateEpicInput, title: string): string {
-  const provenance = resolveProvenance(ctx, input.provenance)
+function insertEpic(ctx: Ctx, content: EpicContent, branch: EpicBranch | null, provenance: EpicProvenance | null): string {
   const id = ctx.ids.next('epic')
   const now = ctx.clock.nowIso()
   ctx.db.run(
@@ -270,13 +269,13 @@ function insertEpic(ctx: Ctx, input: CreateEpicInput, title: string): string {
        created_at, updated_at, completed_at)
      VALUES (?, ?, 'backlog', NULL, ?, ?, NULL, 1, ?, ?, NULL)`,
     id,
-    title,
-    input.branch ? toJson(input.branch) : null,
+    content.title,
+    branch ? toJson(branch) : null,
     provenance ? toJson(provenance) : null,
     now,
     now
   )
-  const bundle = createInitialBundle(initialContent(input, title), initialPlanIds(ctx))
+  const bundle = createInitialBundle(content, initialPlanIds(ctx))
   ctx.db.run(
     `INSERT INTO drafts (epic_id, base_revision_id, draft_revision, bundle_json, created_at, updated_at, updated_by)
      VALUES (?, NULL, 1, ?, ?, ?, ?)`,
@@ -298,10 +297,29 @@ export function createEpic(ctx: Ctx, input: CreateEpicInput): EpicDetailView {
     if (title === '') {
       fail('invalid_input', 'The epic needs a title.')
     }
-    const id = insertEpic(ctx, input, title)
+    const id = insertEpic(ctx, initialContent(input, title), input.branch ?? null, resolveProvenance(ctx, input.provenance))
     appendEvent(ctx, { kind: 'epic.created', epicId: id, payload: { title } })
     return epicDetail(ctx, id)
   })
+}
+
+/**
+ * Creates a `backlog` epic another project asked of this one (`CorrectionProvenance`) with its initial draft (one sprint
+ * holding its acceptance node), for the caller to fill in the same transaction. No command reaches it: only the
+ * desktop's cross-repository correction broker does, under the person's `correction.cross_repo` capability. It has no
+ * branch, saved revision or run: the person binds, saves and starts it here like any other epic.
+ */
+export function createCorrectionEpic(
+  ctx: Ctx,
+  content: { title: string; intent: string; successCriteria: string[] },
+  provenance: CorrectionProvenance
+): string {
+  requireCapability(ctx.session, 'correction.cross_repo')
+  requireCapability(ctx.session, 'epic.create')
+  const epic: EpicContent = { title: content.title, intent: content.intent, successCriteria: normalizeCriteria(content.successCriteria, [], 's'), ownerRole: null }
+  const id = insertEpic(ctx, epic, null, provenance)
+  appendEvent(ctx, { kind: 'epic.created', epicId: id, payload: { title: epic.title, correction: provenance.key } })
+  return id
 }
 
 /** Epics ordered in progress, backlog, completed; most recently updated first within a status. */

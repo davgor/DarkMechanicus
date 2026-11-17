@@ -113,10 +113,14 @@ export function changedDraftRevision(ctx: Ctx, epicId: string): number | null {
   return contentHash(parseBundle(row.bundle_json)) === row.saved_hash ? null : row.draft_revision
 }
 
-/** Optimistic concurrency for drafts: a stale `expected` revision is a `conflict`. */
-export function assertDraftRevision(draft: DraftRow, expected: number | undefined): void {
+/**
+ * Optimistic concurrency for drafts: a stale `expected` revision is a `conflict`; `null` expects no open draft, so any
+ * draft is one.
+ */
+export function assertDraftRevision(draft: DraftRow, expected: number | null | undefined): void {
   if (expected !== undefined && expected !== draft.draft_revision) {
-    fail('conflict', `The draft changed (now revision ${draft.draft_revision}). Reload and reapply your edit.`, {
+    const now = expected === null ? `An open draft now exists (revision ${draft.draft_revision})` : `The draft changed (now revision ${draft.draft_revision})`
+    fail('conflict', `${now}. Reload and reapply your edit.`, {
       currentDraftRevision: draft.draft_revision
     })
   }

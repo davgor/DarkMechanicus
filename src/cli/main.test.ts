@@ -361,14 +361,18 @@ const EPIC = 'ep_01m6772ffwkwr2a91fsqzfz1he'
 const CLAIM_TOKEN = 'at_01m44wa86sxhxz3xv76qnvza2e.gUJvQxJEDk0emfDt1HQ9H3tYGOmsf4IX'
 
 /** A host whose workspace knows one epic (its title carries a claim token) and its transfer in `status`. */
-function transferHost(argv: string[], status: string, options: { unknown?: boolean; env?: Record<string, string> } = {}): Recorded {
+function transferHost(
+  argv: string[],
+  status: string,
+  options: { unknown?: boolean; env?: Record<string, string>; packet?: LinearTransferPacket | null } = {}
+): Recorded {
   const recorded = recorder(argv, { env: options.env })
   recorded.host.open = (open) => {
     recorded.opened.push(open)
     const workspace = createStubWorkspace({
       canned: {
         getEpic: { id: EPIC, title: `Linear handoff ${CLAIM_TOKEN}` },
-        getTransfer: { epicId: EPIC, status, packet: PACKET, recorded: [], lastMismatches: [], next: [] }
+        getTransfer: { epicId: EPIC, status, packet: options.packet === undefined ? PACKET : options.packet, recorded: [], lastMismatches: [], next: [] }
       }
     })
     if (options.unknown === true) {
@@ -429,5 +433,107 @@ describe('dm transfer linear', () => {
     await runCli(recorded.host)
     expect(recorded.exits).toEqual([2])
     expect(recorded.opened).toEqual([])
+  })
+})
+
+describe('dm transfer linear packet summary', () => {
+  const LONG: LinearTransferPacket = {
+    ...PACKET,
+    milestones: [...PACKET.milestones, { ref: 'sp_2', marker: 'dm:ep_1/sp_2', position: 2, name: 'Sprint 2: Ship', description: 'dm:ep_1/sp_2' }],
+    issues: [
+      ...Array.from({ length: 11 }, (_, index): LinearIssueItem => ({ ...issue(index + 1, `DM-${index + 1}`, `Ticket ${index + 1}`), state: index === 0 ? 'completed' : 'default' })),
+      { ...issue(12, 'DM-12', 'Last ticket'), milestoneRef: 'sp_2' }
+    ]
+  }
+
+  it('counts a lone issue, marks completed ones and only counts the issues past the first ten', async () => {
+    const recorded = transferHost(['transfer', 'linear', '--epic', EPIC], 'in_progress', { packet: LONG })
+    await runCli(recorded.host)
+    const text = recorded.stdout.join('')
+    expect(text).toContain('- Sprint 1: Build: 11 issues')
+    expect(text).toContain('- Sprint 2: Ship: 1 issue\n')
+    expect(text).toContain('1. DM-1 Ticket 1 (completed)')
+    expect(text).toContain('2. DM-2 Ticket 2\n')
+    expect(text).toContain('… and 2 more')
+    expect(text).not.toContain('DM-11 ')
+  })
+
+  it('says a verified transfer has nothing left to move', async () => {
+    const recorded = transferHost(['transfer', 'linear', '--epic', EPIC], 'verified')
+    await runCli(recorded.host)
+    expect(recorded.stdout.join('').startsWith('This transfer is already verified; there is nothing left to move.')).toBe(true)
+    expect(recorded.stdout.join('')).not.toContain('… and')
+  })
+
+  it('refuses an epic with no saved plan to transfer', async () => {
+    const recorded = transferHost(['transfer', 'linear', '--epic', EPIC], 'not_started', { packet: null })
+    await runCli(recorded.host)
+    expect(recorded.stdout).toEqual([])
+    expect(recorded.stderr.join('')).toContain('This epic has no saved plan to transfer.')
+    expect(recorded.exits).toEqual([1])
+  })
+})
+
+describe('dm --describe without an object shape', () => {
+  it('says a command with no input takes none', async () => {
+    const recorded = recorder(['--describe', 'get_project'])
+    await runCli(recorded.host)
+    expect(payload(recorded).data).toMatchObject({ command: 'get_project', input: null })
+  })
+
+  it('asks for a JSON object when the input is not one object shape', async () => {
+    const recorded = recorder(['--describe', 'name_chat'])
+    await runCli(recorded.host)
+    expect(payload(recorded).data).toMatchObject({
+      input: { fields: null, note: 'Pass a JSON object; the command validates it and says what is wrong.' }
+    })
+  })
+})
+
+describe('dm call with an unknown command', () => {
+  it('exits 2 and names the command, without opening the repository', async () => {
+    const recorded = recorder(['call', 'frobnicate', '{}'])
+    await runCli(recorded.host)
+    expect(recorded.exits).toEqual([2])
+    expect(recorded.stderr.join('')).toBe('dm: unknown command "frobnicate". Use --list to see them all.\n')
+    expect(recorded.opened).toEqual([])
+  })
+})
+
+describe('dm usage', () => {
+  it('records an unavailable host against the run with the presented grant', async () => {
+    const recorded = recorder(['usage', '--run', 'run_1', '--unavailable', 'codex', '--dry-run'], { env: { DM_SESSION_TOKEN: 'dmg_abc' } })
+    recorded.host.open = (open) => {
+      recorded.opened.push(open)
+      return createStubWorkspace({
+        canned: { getRunMetrics: { runId: 'run_1', attempts: [{ attemptId: 'at_1' }], overheadByKind: [], carriedForward: [] } }
+      })
+    }
+    await runCli(recorded.host)
+    expect(recorded.opened[0]?.grantToken).toBe('dmg_abc')
+    expect(payload(recorded).data).toMatchObject({
+      runId: 'run_1',
+      host: 'codex',
+      dryRun: true,
+      created: 0,
+      notes: ["Recorded as unavailable from codex: the run's orchestration bucket and 1 attempt(s) that reported nothing."]
+    })
+    expect(recorded.exits).toEqual([0])
+  })
+})
+
+describe('dm when writing the answer fails', () => {
+  it('reports the failure as JSON and exits 1', async () => {
+    const recorded = recorder(['--help'])
+    recorded.host.writeStdout = (text) => {
+      if (recorded.stdout.length === 0 && text.startsWith('Usage')) {
+        recorded.stdout.push('<lost>')
+        throw new Error('write EPIPE')
+      }
+      recorded.stdout.push(text)
+    }
+    await runCli(recorded.host)
+    expect(JSON.parse(recorded.stdout[1] ?? '')).toMatchObject({ ok: false, error: { code: 'internal', message: 'write EPIPE' } })
+    expect(recorded.exits).toEqual([1])
   })
 })

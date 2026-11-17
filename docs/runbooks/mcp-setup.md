@@ -7,7 +7,7 @@ Which database that is follows the folder's [storage mode](../decisions/0002-sto
 - **`repo`** (the default): the repository's own `.darkmechanicus/local/state.sqlite`, beside the Git-tracked records.
 - **`db`**: `~/.darkmechanicus/projects/<key>/local/state.sqlite`, and nothing is written into the repository at all. Set `DARKMECHANICUS_HOME` to move that directory — set it for **both** the app and the agent host, or the two will look in different places. The snippet the app gives you already pins it, so copy the snippet rather than writing the entry by hand.
 
-One process is one session with one role. Start one server entry per role you want to give an agent (see [Roles](#roles-and---allow-save)). Every server offers the 6 shipped skills as prompts and lists only the tools its role may call (see [Tools per role](#tools-per-role)).
+One process is one session with one role. Start one server entry per role you want to give an agent (see [Roles](#roles-and---allow-save)). Every server offers the 8 shipped skills as prompts and lists only the tools its role may call (see [Tools per role](#tools-per-role)).
 
 ## Requirements
 
@@ -174,14 +174,14 @@ Roles are fixed at launch. Nothing a tool call says can change them.
 
 | Role | Can do |
 |------|--------|
-| `planner` | Read, create epics, edit drafts, comment, save named capability profiles (`save_profile`), set the project's Definition of Done (`set_definition_of_done`). `save_plan` only with `--allow-save`. |
-| `orchestrator` (default) | Everything a planner can except set the Definition of Done (it reads it with `get_project`, and holds work to it when it accepts), plus register hosts, start and control runs, claim tickets, review attempts, submit sprint reports, redraft the next sprint from a retro (`redraft_next_sprint`), advance sprints, and carry out a Linear transfer the person queued (`epic.transfer`; see [Linear transfer](#linear-transfer)). Never approves. |
-| `worker` | Heartbeat, submit, and fail for the claim it holds; comment. |
-| `reviewer` | Accept or reject submitted attempts; comment. |
+| `planner` | Read, create epics, edit drafts (including corrective DRAFT work from a retro's experiments, `create_corrections`), comment, save named capability profiles (`save_profile`), set the project's Definition of Done (`set_definition_of_done`). `save_plan` only with `--allow-save`. |
+| `orchestrator` (default) | Everything a planner can except set the Definition of Done (it reads it with `get_project`, and holds work to it when it accepts), plus register hosts, start and control runs, claim tickets, review attempts, record usage for any attempt of its run and the run's overhead, submit sprint reports, record experiment statuses and results (`record_experiment_event`), redraft the next sprint from a retro (`redraft_next_sprint`), advance sprints, launch named Kanban cards, and carry out a Linear transfer the person queued (`epic.transfer`; see [Linear transfer](#linear-transfer)). Never approves. |
+| `worker` | Heartbeat, submit, and fail for the claim it holds; report that attempt's usage (`record_attempt_metrics` with its claim token); comment. |
+| `reviewer` | Accept or reject submitted attempts; report review overhead usage (`record_run_metrics`); comment. |
 
-Every role can read and add comments (`list_comments`, `add_comment`): append-only Markdown notes on an epic or one of its tickets, signed with the session's role and label. Completed epics refuse new comments.
+Every role can read and add comments (`list_comments`, `add_comment`): append-only Markdown notes on an epic or one of its tickets, signed with the session's role and label. Completed epics refuse new comments. Every role can also stage an image (`add_attachment`) and name its chat (`name_chat`), and read every scorecard and metric (see [Scorecards and project metrics](#scorecards-and-project-metrics)).
 
-Some actions exist only in the desktop app and are not available over MCP for any role: approving a checkpoint, authorizing auto-continue, granting a retry, queueing a run, and queueing or canceling a Linear transfer.
+Some actions exist only in the desktop app and are not available over MCP for any role: approving a checkpoint, authorizing auto-continue, granting a retry, queueing a run, queueing or canceling a Linear transfer, recording a person's rating, rescue time or planned review time, labelling a budget as a person's estimate, and creating corrective work in another project (the Dark Mechanicus source). A person's escaped-defect records (`recordEscapedDefects`) are desktop-only too, but no desktop control calls that command yet; escaped defects are recorded over MCP with `record_attempt_metrics` instead (see [Scorecards and project metrics](#scorecards-and-project-metrics)).
 
 Suggested setup: connect the agent session you work with as `orchestrator`. Add `--allow-save` when you want it to save plans without you pressing Save. Use `planner` only for a session that must never run anything.
 
@@ -200,17 +200,37 @@ When the sprint's acceptance node is ready, it runs the project's Definition of 
 
 A session's role is fixed when it starts. If its `get_capabilities` says `planner`, change the entry to `--role orchestrator` and start a new session. A running session doesn't pick up the change.
 
+### Reporting token and time usage
+
+Usage is reported by the session that did the work, never estimated. Two routes, both on the orchestrator's grant:
+
+- **Your host writes session files (OMP, Claude Code).** Run `dm usage --run <run id>` from the orchestrating session. It reads the host's session (OMP: `$PI_SESSION_FILE`; Claude Code: pass `--session-file <session>.jsonl`), and records each subagent's tokens and active time to the attempt whose claim token it was spawned with (or was handed later in a message, or presented in an attempt call), the main thread as `orchestration` overhead for the part of the session that orchestrated this run, and any other thread of the run (a reviewer) as `unattributed` overhead. Running it again records only what is new. A thread still working keeps its number so far as a lower bound and reads `partial` until it has been quiet for 15 minutes, so run it after each row. The orchestrating session is always working while it runs the command, so its own orchestration reads `partial` from inside: make the final read from outside the session (a terminal with the same grant, with `--session-file` naming the session's main file) at least 15 minutes after the run's last work. `--billing subscription` (or `api_key`) states how the account pays, so the host's list price is never read as a marginal cost; `--dry-run` shows the attribution without recording.
+- **Your host cannot read its usage (Codex, Cursor Agent, Autonomous, custom agents).** Relay real numbers with `record_attempt_metrics` (per attempt, without the claim token as the orchestrator) and `record_run_metrics`, or run `dm usage --run <run id> --unavailable <host>` after each row: it marks the orchestration bucket and every attempt that holds nothing as `unavailable` instead of unreported, never touches a bucket with real numbers, and can be repeated. `get_run_metrics` shows each attempt, the overhead per kind (`overheadByKind`) and whether the totals are complete. Which agents can be read is `HOST_USAGE_SUPPORT` in `src/shared/domain/hostUsage.ts`; the rules are in [space-grading.md](../space-grading.md#host-usage-tokens-and-active-time-at-the-boundary).
+
+#### Measurement capabilities not verified
+
+The desktop **Metrics** dashboard ends with a **Measurement capabilities** table built from `HOST_USAGE_SUPPORT`: each agent's tokens and active time read either *Read from the host* or *Not readable*. These limits are labelled, not claimed as measured or verified:
+
+| Capability | State |
+|------------|-------|
+| Codex, Cursor Agent, Autonomous and custom agents: tokens and active time | Not readable from the host. Usage reads `unavailable` (never 0, never estimated) unless real numbers are relayed with `record_attempt_metrics` / `record_run_metrics`. |
+| Hosts that report only some token categories | The missing categories read `unavailable` with the reported part as a lower bound (`≥ … tokens reported`); totals are not summed across overlapping categories. |
+| Claude Code and OMP session reading (`dm usage`) | Read from the host, covered by deterministic transcript fixtures; the DM-193 loop relays its usage through MCP, so no live host session was read there. |
+| Packaged macOS app (`npm run package:mac`) | Not exercised by the DM-193 end-to-end verification: that ran the packaged **Windows** app (`npm run package:win`) on a Windows execution host ([DM-193 evidence](../verification/DM-193.md)). macOS packaging is covered only by its contract tests (`scripts/mac-packaging.test.mjs`). |
+
 ## Tools per role
 
-A session lists only the tools its role may call. Each tool adapts one command, and each command declares the capability it needs (`src/core/commands/capabilities.ts`); a tool is listed when the role holds that capability. Calling an unlisted tool anyway gets `unauthorized` and runs nothing.
+A session lists only the tools its role may call. Each tool adapts one command, and each command declares the capability it needs (`src/core/commands/capabilities.ts`); a tool is listed when the role holds that capability. Calling an unlisted tool anyway gets `unauthorized` and runs nothing. The table below was generated from a live `tools/list` of the built server (`out/main/mcp.js`) launched once per role, with and without `--allow-save`; when tools change, regenerate it the same way rather than counting by hand.
 
 | Tools | planner | orchestrator | worker | reviewer |
 |-------|:-------:|:------------:|:------:|:--------:|
-| Read-only (27): `get_capabilities`, `get_project`, `list_projects`, `get_storage_status`, `search_history`, `list_branch_epics`, `list_sessions`, `list_epics`, `get_epic`, `list_tickets`, `get_ticket`, `get_plan`, `validate_plan`, `list_revisions`, `match_capabilities`, `get_run`, `get_ready_tickets`, `get_sprint_report`, `get_checkpoint`, `get_run_events`, `list_comments`, `list_profiles`, `get_profile`, `preview_board_import`, `get_transfer`, `list_kanban_cards`, `get_kanban_card` | yes | yes | yes | yes |
-| Comments: `add_comment` | yes | yes | yes | yes |
+| Read-only (33): `get_capabilities`, `get_project`, `list_projects`, `get_storage_status`, `search_history`, `list_branch_epics`, `list_sessions`, `list_epics`, `get_epic`, `list_tickets`, `get_ticket`, `get_attachment`, `get_plan`, `validate_plan`, `list_revisions`, `match_capabilities`, `get_run`, `get_ready_tickets`, `get_run_events`, `get_run_metrics`, `get_planned_baselines`, `get_sprint_report`, `get_checkpoint`, `get_retro_findings`, `get_experiment`, `preview_corrections`, `list_comments`, `list_profiles`, `get_profile`, `preview_board_import`, `get_transfer`, `list_kanban_cards`, `get_kanban_card` | yes | yes | yes | yes |
+| Scorecards and metrics (12, read-only): `get_ticket_grade`, `get_sprint_grade`, `get_run_grade`, `get_epic_grade`, `get_report_scorecard`, `reassess_report_scorecard`, `get_space_signals`, `get_ticket_performance`, `get_escaped_defects`, `get_run_efficiency`, `get_run_timing`, `get_metrics_summary` | yes | yes | yes | yes |
+| Comments, images and chat names: `add_comment`, `add_attachment`, `name_chat` | yes | yes | yes | yes |
 | Profiles: `save_profile` | yes | yes | | |
 | Definition of Done: `set_definition_of_done` | yes | | | |
 | Repository and drafts: `initialize_repository`, `rescan_repositories`, `flush_portable_state`, `reconcile_repository`, `create_epic`, `import_board`, `create_ticket`, `update_ticket`, `open_plan_draft`, `update_plan_draft`, `discard_plan_draft` | yes | yes | | |
+| Corrective work: `create_corrections` | yes | yes | | |
 | Kanban cards (`kanban.write`): `create_kanban_card`, `update_kanban_card` | yes | yes | | |
 | `save_plan` | with `--allow-save` | with `--allow-save` | | |
 | Epic and ticket status: `set_epic_status`, `set_epic_branch`, `set_ticket_status` | | yes | | |
@@ -218,14 +238,58 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 | Claims and reporting: `claim_ticket`, `reconcile_attempt`, `carry_forward_ticket` | | yes | | |
 | Row checks: `record_row_check` | | yes | | |
 | `heartbeat_attempt`, `submit_attempt`, `fail_attempt` | | yes | yes | |
+| Attempt usage: `record_attempt_metrics` | | yes | yes | |
 | `accept_attempt`, `reject_attempt` | | yes | | yes |
+| Run overhead usage: `record_run_metrics` | | yes | | yes |
 | Checkpoints: `submit_sprint_report`, `redraft_next_sprint`, `advance_sprint` | | yes | | |
+| Experiments: `record_experiment_event` | | yes | | |
 | Linear transfer (`epic.transfer`): `start_transfer`, `record_transfer_item`, `submit_transfer_readback` | | yes | | |
-| Kanban claim (`kanban.claim`): `claim_kanban_card` | | yes | | |
+| Kanban launch and claim: `launch_kanban_cards`, `claim_kanban_card` | | yes | | |
 | Kanban reporting (`kanban.report`): `heartbeat_kanban_card`, `submit_kanban_card`, `fail_kanban_card` | | yes | yes | |
-| **Total** | 43 (44 with `--allow-save`) | 71 (72 with `--allow-save`) | 34 | 30 |
+| **Total** | 64 (65 with `--allow-save`) | 96 (97 with `--allow-save`) | 55 | 51 |
 
 `--allow-save` has no effect for `worker` and `reviewer`. No role lists a tool for the desktop-only actions: no tool presses Play on a Kanban card, approves one or kicks one back (`kanban.play` and `kanban.review` belong to a person in the desktop app).
+
+### Scorecards and project metrics
+
+The scorecard and metrics tools (`src/mcp/tools/metrics.ts`) are read-only (capability `read`, so every role lists them, and a `dm` CLI `reader` session can `dm call` the same commands). Each adapts one score read command and returns its read model unchanged, so it answers the same JSON as the desktop's command channel and `dm call` for the same ids and cutoff. Dark Mechanicus computes every value; agents relay them and never regrade. Scores are in points (0–100), tokens in tokens and time in milliseconds; a missing measure is `null` with its reason, never 0; a grade is `final`, `provisional` (a required component missing or an estimated input) or `ungraded` (verification pending or missing, or fewer than 4 components scored). `get_report_scorecard` takes a sprint report revision id (and optionally its `reportRevision`) and returns the snapshot frozen with that revision, never a live grade; `reassess_report_scorecard` regrades it as of a cutoff without storing anything. Unknown ids fail with `not_found`. The rules are in [space-grading.md](../space-grading.md#reading-scorecards-and-the-desktops-measurement-controls).
+
+Every one of the twelve is listed by every role (planner, orchestrator, worker, reviewer). `cutoff` is an optional ISO 8601 server time (default now; a later time is clamped to now; only records stored by then count).
+
+| Tool | Inputs | Returns |
+|------|--------|---------|
+| `get_ticket_grade` | `runId`, `ticketId`, `cutoff?` | One ticket's grade in a run, its input and the three source reads |
+| `get_sprint_grade` | `runId`, `sprintId`, `cutoff?` | A sprint's grade from its own raw measures, with every ticket grade |
+| `get_run_grade` | `runId`, `cutoff?` | The run's grade from its own raw measures, with every ticket grade it was read from |
+| `get_epic_grade` | `epicId`, `cutoff?` | The epic's grade over every run that executed work |
+| `get_report_scorecard` | `reportId`, `reportRevision?` | The scorecard frozen with that report revision (`frozen`), or `legacy` for a report from before scorecards; never a live grade |
+| `reassess_report_scorecard` | `reportId`, `reportRevision?`, `cutoff?` | The frozen snapshot untouched, regraded at its own cutoff and at the reassessment's, with the cause of each difference; stores nothing |
+| `get_space_signals` | `level` (`ticket`, `sprint`, `run`, `epic`), `id`, `runId` (required for a ticket or sprint), `cutoff?` | The S, A and C inputs with the records behind them |
+| `get_ticket_performance` | `runId`, `ticketId`, `cutoff?` | The P input: verification state, each criterion and check with its basis, charged and unassigned regressions |
+| `get_escaped_defects` | `epicId`, `cutoff?` | The epic's escaped defects resolved from the ledger, with anomalies |
+| `get_run_efficiency` | `runId`, `ticketId?`, `cutoff?` | The E, T and K inputs per ticket, sprint and run, with coverage and baselines |
+| `get_run_timing` | `runId`, `ticketId?`, `cutoff?` | The run's time projection: elapsed, active, waits and effort, each with its coverage |
+| `get_metrics_summary` | `epicIds?`, `since?`, `until?` | The project summary the Metrics dashboard shows: per-epic rows, totals, distribution, sprint trend, gaps and coverage |
+
+The desktop's **Metrics** link, directly below the MCP line in the sidebar footer, opens a dashboard of the same `get_metrics_summary` answer for the selected folder ([space-grading.md](../space-grading.md#the-metrics-dashboard)). Two more reads cover usage and budgets: `get_run_metrics` (`runId`, `attemptId?`, `includeObservations?`) and `get_planned_baselines` (`epicId`, `runId?`).
+
+No tool records a person's rating, rescue time or planned review or playtesting time: `recordHumanFeedback` needs `feedback.record`, which only the desktop session holds (rescue and planned review minutes are optional, and at least 1 and at most 2,400 when given). A person's escaped-defect records (`recordEscapedDefects`, also `feedback.record`) have no desktop control yet, so escaped defects are recorded with `record_attempt_metrics` (metric `escaped_defect`): any reporter may add an unassigned or candidate report, and only a session holding `attempt.review` (the orchestrator) may attribute one or record a later duplicate, reassessment, fix or withdrawal. A ticket's budget is a draft edit (`update_plan_draft`) saved by `save_plan`. An agent may not introduce the `person_estimate` label, or change the amounts of a budget while it keeps that label (`unauthorized`, nothing written); it may leave a person's budget as it is, replace it with a `planner_estimate` or `prior_tickets` budget, or clear it, and the plan diff shows that change to the person before Save.
+
+### Retro findings, experiments and corrective work
+
+A sprint report's retro may carry experiments drawn from its frozen scorecard; the whole flow, for the person and the agents, is in [Scorecards and corrective work](corrective-work.md).
+
+| Tool | Roles | Inputs | What it does |
+|------|-------|--------|--------------|
+| `get_retro_findings` | every role (read) | `reportId`, `reportRevision?` | Ranks the measured gaps of that revision's frozen scorecard, with magnitude, coverage, hypotheses and the records behind each; writes nothing |
+| `get_experiment` | every role (read) | `experimentId` | The experiment's latest definition, status, events, corrective tickets, outcome, and any grades brought back from a correction epic in another project (`crossRepoResults`) |
+| `preview_corrections` | every role (read) | `reportId`, `experimentIds`, `target?` (`new_sprint`, `sprint` with `sprintId`, or `follow_up_epic` with an optional title), `edits?`, `fireguard?` | The DRAFT work creation would write: tickets, criteria, covers, dependencies, destination and the draft's validation, plus the restatement for blocked work; writes nothing |
+| `create_corrections` | planner, orchestrator (`draft.edit`; `epic.create` for a follow-up epic) | as `preview_corrections`, plus `expectedDraftRevision` (the preview's, or null when it found no draft) | Writes the work into the epic's draft, or a follow-up epic for a completed one, with a Fireguard ticket per repository unless `fireguard: false`; idempotent per experiment; saves, adopts and starts nothing |
+| `record_experiment_event` | orchestrator (`report.submit`, on the machine that owns the run) | `experimentId`, `event` (`kind: status` with `status` `selected`, `scheduled`, `in_progress`, `completed` or `abandoned`; or `kind: result` citing a sealed grade by `{ reportId, assessmentId }` or a stated value with evidence), `idempotencyKey?` | Appends one numbered event; the report, its hash and scorecard stay as approved |
+
+A new report revision withdraws every experiment it does not restate. To keep one, restate it by its `id` with its original source `{ reportId, assessmentId }`; resubmitting the same body by its subject mints a new id and leaves the original's events behind.
+
+Corrective work an experiment aims at the Dark Mechanicus source is created, routed and opened only by the person in the desktop app (the Improvement tab's Dark Mechanicus source panel); no MCP tool or grant reaches another project. Its results come back the same way: once the person presses **Bring back its grades**, `get_experiment` lists them under `crossRepoResults` (each grade with the `{ reportId, assessmentId }` to cite), and `record_experiment_event` records a result citing one of them on the machine owning the experiment's run. The recorded event carries that grade's sealed scorecard, scope starts, corrective tickets and planned sizes, bound to this project's request and the epic it links now, so another machine imports and checks it without the other project's records. A report that is neither this project's nor brought back is `invalid_input`, with a hint to bring the grades back first; grades of an epic the request no longer links (it was recreated) cannot be cited.
 
 ### Linear transfer
 
@@ -263,7 +327,7 @@ A message on stdin longer than 32,000,000 bytes (`MCP_MESSAGE_MAX_BYTES`) is not
 
 ## Skills
 
-The six shipped skills are served as MCP prompts: `darkmechanicus-planner`, `darkmechanicus-graph-planner`, `darkmechanicus-orchestrator`, `darkmechanicus-worker`, `darkmechanicus-reviewer`, and `darkmechanicus-sprint-reporter`. Load the one that matches the job before starting. `get_capabilities` reports the skills version, and runs record it.
+The eight shipped skills are served as MCP prompts: `darkmechanicus-planner`, `darkmechanicus-graph-planner`, `darkmechanicus-orchestrator`, `darkmechanicus-worker`, `darkmechanicus-reviewer`, `darkmechanicus-sprint-reporter`, `darkmechanicus-linear-transfer`, and `darkmechanicus-collaboration`. Load the one that matches the job before starting. `get_capabilities` reports the skills version, and runs record it.
 
 `heartbeat_attempt` takes an optional `progress` field: a note (at most 280 characters) and an optional step label (at most 64 characters) showing what work is in progress. The worker and orchestrator skills tell agents to send one with each heartbeat. The server stores the last 200 notes per attempt as local working data, never exports them with run history, and masks anything shaped like a claim token before storing. A refused heartbeat stores no note.
 

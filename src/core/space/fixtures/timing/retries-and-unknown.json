@@ -1,0 +1,273 @@
+{
+  "description": "A failed attempt, a rejected attempt that reported no activity and was later superseded, a retry grant, then an accepted attempt. Every attempt keeps its elapsed time and effort; unreported time stays unknown and the effort total says it is partial.",
+  "input": {
+    "runId": "rn_01m7gdve7p0000000000000001",
+    "asOf": "2026-11-01T13:00:00.000Z",
+    "events": [
+      {
+        "kind": "run_started",
+        "at": "2026-11-01T09:00:00.000Z"
+      },
+      {
+        "kind": "sprint_activated",
+        "at": "2026-11-01T09:00:00.000Z",
+        "sprintId": "sp_01m452vt120000000000000001"
+      },
+      {
+        "kind": "ticket_ready",
+        "at": "2026-11-01T09:30:00.000Z",
+        "ticketId": "tk_01m453gpad0000000000000001"
+      },
+      {
+        "kind": "attempt_claimed",
+        "at": "2026-11-01T10:00:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000001",
+        "ticketId": "tk_01m453gpad0000000000000001",
+        "sprintId": "sp_01m452vt120000000000000001",
+        "number": 1,
+        "carriedForward": false
+      },
+      {
+        "kind": "attempt_failed",
+        "at": "2026-11-01T10:30:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000001"
+      },
+      {
+        "kind": "attempt_claimed",
+        "at": "2026-11-01T10:40:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000002",
+        "ticketId": "tk_01m453gpad0000000000000001",
+        "sprintId": "sp_01m452vt120000000000000001",
+        "number": 2,
+        "carriedForward": false
+      },
+      {
+        "kind": "attempt_signal",
+        "at": "2026-11-01T10:50:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000002"
+      },
+      {
+        "kind": "attempt_submitted",
+        "at": "2026-11-01T11:00:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000002"
+      },
+      {
+        "kind": "attempt_rejected",
+        "at": "2026-11-01T11:10:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000002"
+      },
+      {
+        "kind": "attempt_superseded",
+        "at": "2026-11-01T11:30:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000002"
+      },
+      {
+        "kind": "retry_granted",
+        "at": "2026-11-01T11:40:00.000Z",
+        "ticketId": "tk_01m453gpad0000000000000001"
+      },
+      {
+        "kind": "attempt_claimed",
+        "at": "2026-11-01T11:45:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000003",
+        "ticketId": "tk_01m453gpad0000000000000001",
+        "sprintId": "sp_01m452vt120000000000000001",
+        "number": 3,
+        "carriedForward": false
+      },
+      {
+        "kind": "attempt_submitted",
+        "at": "2026-11-01T12:00:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000003"
+      },
+      {
+        "kind": "attempt_accepted",
+        "at": "2026-11-01T12:05:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000003"
+      }
+    ],
+    "activity": [
+      {
+        "observationId": "mo_01m7gf00000000000000000601",
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000001",
+          "attemptId": "at_01m7ge55kx0000000000000001"
+        },
+        "source": {
+          "kind": "host",
+          "actor": "claude-code-adapter"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 1200000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T10:20:00.000Z",
+        "recordedAt": "2026-11-01T10:20:00.100Z",
+        "attributes": {
+          "spanStart": "2026-11-01T10:00:00.000Z"
+        },
+        "evidence": []
+      },
+      {
+        "observationId": "mo_01m7gf00000000000000000602",
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000001",
+          "attemptId": "at_01m7ge55kx0000000000000003"
+        },
+        "source": {
+          "kind": "host",
+          "actor": "claude-code-adapter"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 900000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T12:00:00.000Z",
+        "recordedAt": "2026-11-01T12:00:00.100Z",
+        "attributes": {
+          "spanStart": "2026-11-01T11:45:00.000Z"
+        },
+        "evidence": []
+      }
+    ],
+    "tickets": [
+      {
+        "ticketId": "tk_01m453gpad0000000000000001",
+        "sprintId": "sp_01m452vt120000000000000001"
+      }
+    ]
+  },
+  "expect": [
+    {
+      "path": "tickets[0].attempts.length",
+      "equals": 3
+    },
+    {
+      "path": "tickets[0].attempts[0].outcome",
+      "equals": "failed"
+    },
+    {
+      "path": "tickets[0].attempts[0].unknown.ms",
+      "equals": 600000
+    },
+    {
+      "path": "tickets[0].attempts[1].outcome",
+      "equals": "rejected"
+    },
+    {
+      "path": "tickets[0].attempts[1].superseded",
+      "equals": true
+    },
+    {
+      "path": "tickets[0].attempts[1].active.state",
+      "equals": "missing"
+    },
+    {
+      "path": "tickets[0].attempts[1].unknown.ms",
+      "equals": 1200000
+    },
+    {
+      "path": "tickets[0].cycleTime.ms",
+      "equals": 7500000
+    },
+    {
+      "path": "tickets[0].leadTime.ms",
+      "equals": 9300000
+    },
+    {
+      "path": "tickets[0].waitBeforeDispatch.ms",
+      "equals": 1800000
+    },
+    {
+      "path": "tickets[0].waits.queue.ms",
+      "equals": 900000
+    },
+    {
+      "path": "tickets[0].waits.review.ms",
+      "equals": 900000
+    },
+    {
+      "path": "tickets[0].waits.human_approval.ms",
+      "equals": 1800000,
+      "note": "rejection 11:10 to the retry grant 11:40"
+    },
+    {
+      "path": "tickets[0].unknown.ms",
+      "equals": 1800000
+    },
+    {
+      "path": "tickets[0].active",
+      "equals": {
+        "quantity": "measured_active",
+        "unit": "milliseconds",
+        "aggregation": "union",
+        "ms": 2100000,
+        "state": "partial",
+        "coverage": {
+          "covered": 2,
+          "of": 3,
+          "unit": "attempts"
+        },
+        "open": false
+      }
+    },
+    {
+      "path": "tickets[0].effort.total.ms",
+      "equals": 2100000
+    },
+    {
+      "path": "tickets[0].effort.total.state",
+      "equals": "partial"
+    },
+    {
+      "path": "tickets[0].effortByOutcome",
+      "equals": {
+        "failed": {
+          "attempts": 1,
+          "elapsedMs": 1800000,
+          "effortMs": 1200000,
+          "unreported": 0,
+          "unknownMs": 600000
+        },
+        "superseded": {
+          "attempts": 1,
+          "elapsedMs": 1200000,
+          "effortMs": 0,
+          "unreported": 1,
+          "unknownMs": 1200000
+        },
+        "accepted": {
+          "attempts": 1,
+          "elapsedMs": 900000,
+          "effortMs": 900000,
+          "unreported": 0,
+          "unknownMs": 0
+        }
+      }
+    },
+    {
+      "path": "unknown.ms",
+      "equals": 1800000
+    },
+    {
+      "path": "effortByOutcome.failed.effortMs",
+      "equals": 1200000
+    }
+  ]
+}

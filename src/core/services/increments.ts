@@ -5,7 +5,7 @@
  */
 import type { IncrementRef, SubmitAttemptInput } from '../../shared/domain/api'
 import type { EpicBranch, PlanBundle, SprintDef } from '../../shared/domain/bundle'
-import type { AttemptOutputs, SprintIncrement, SprintIncrementView } from '../../shared/domain/views'
+import type { AttemptOutputs, DefinitionOfDoneCheck, SprintIncrement, SprintIncrementView } from '../../shared/domain/views'
 import { ACTIVE_RUN_STATES, type AttemptState, type RunState } from '../../shared/domain/status'
 import type { Ctx } from '../context'
 import { parseJson } from '../db/database'
@@ -112,6 +112,21 @@ export function touchedRepositories(ctx: Ctx, sprintId: string): string[] {
     return [...new Set(accepted.flatMap((attempt) => repoOf.get(attempt.ticket_id) ?? []))].sort()
   }
   return []
+}
+
+/**
+ * The checks a sprint's acceptance node must report: the project's Definition of Done, or in a folder of
+ * repositories (which has no list of its own) each touched repository's checks, named `<repo>: <check>`, in
+ * repository name order. A touched repository without a list adds none, and an untouched one is not asked for.
+ */
+export function sprintDefinition(ctx: Ctx, sprintId: string): DefinitionOfDoneCheck[] {
+  const entries = ctx.repositoryEntries()
+  if (entries === null) {
+    return ctx.definitionOfDone()
+  }
+  return touchedRepositories(ctx, sprintId).flatMap((name) =>
+    (entries.find((entry) => entry.name === name)?.definitionOfDone ?? []).map((check) => ({ ...check, name: `${name}: ${check.name}` }))
+  )
 }
 
 /**

@@ -83,14 +83,14 @@ function chosenPaths(status: RepoStatus, files: readonly CommitEntry[]): string[
  * The patch committing the chosen lines of one file, or null when none is chosen. It is built from the file's
  * diff as it is now, so a diff whose hash differs from the one the lines were chosen in fails `stale_selection`.
  */
-async function linePatch(runner: GitRunner, root: string, change: FileChange, file: CommitEntry): Promise<string | null> {
+async function linePatch(read: (change: FileChange) => Promise<FileDiff>, change: FileChange, file: CommitEntry): Promise<string | null> {
   if (file.diffHash === undefined) {
     throw new GitInputError(`Lines of ${file.path} need the hash of the diff they were chosen in.`)
   }
   if (change.kind === 'typechange') {
     throw new GitInputError(`Lines cannot be chosen in ${file.path}: its type changed.`)
   }
-  const diff = await readWorkingDiff(runner, root, change, { force: true })
+  const diff = await read(change)
   if (diff.hash !== file.diffHash) {
     throw new GitError('stale_selection', '', `${file.path} changed after its lines were chosen. Choose them again.`)
   }
@@ -122,8 +122,25 @@ function checkedLines(diff: TextDiff, file: CommitEntry): readonly number[] {
   return lines
 }
 
+/**
+ * Whether HEAD names a commit, from one check that HEAD is still the commit the status found (or still unborn): the
+ * diffs are read against it and the index starts from it, so a HEAD moved since, such as a first commit made in the
+ * meantime, fails `stale_selection` rather than committing a tree built on the old one.
+ */
+async function checkedHead(runner: GitRunner, status: RepoStatus): Promise<boolean> {
+  if ((await headOid(runner, status.root)) !== status.branch.headOid) {
+    throw new GitError('stale_selection', '', 'The branch moved after the lines were chosen. Choose them again.')
+  }
+  return status.branch.headOid !== null
+}
+
 /** The patches for the files committed by line; a file must not also be chosen whole or twice. */
 async function linePatches(runner: GitRunner, status: RepoStatus, files: readonly CommitEntry[], whole: readonly string[]): Promise<string[]> {
+  if (files.length === 0) {
+    return []
+  }
+  const hasCommit = await checkedHead(runner, status)
+  const read = (change: FileChange): Promise<FileDiff> => readWorkingDiff(runner, status.root, change, { force: true, hasCommit })
   const taken = new Set(whole)
   const patches: string[] = []
   for (const file of files) {
@@ -134,7 +151,7 @@ async function linePatches(runner: GitRunner, status: RepoStatus, files: readonl
       }
       taken.add(path)
     }
-    const patch = await linePatch(runner, status.root, change, file)
+    const patch = await linePatch(read, change, file)
     patches.push(...(patch === null ? [] : [patch]))
   }
   return patches
@@ -153,9 +170,10 @@ async function stageChosen(runner: GitRunner, status: RepoStatus, paths: readonl
   if (paths.length > 0) {
     await runner.run({ cwd: root, args: literalPathArgs(['add', '-A'], paths), kind: 'write' })
   }
-  for (const patch of patches) {
-    // The patch keeps HEAD's line numbers exactly; `--unidiff-zero` lets it apply when `diff.context` is 0.
-    await runner.run({ cwd: root, args: ['apply', '--cached', '--unidiff-zero', '--whitespace=nowarn', '-'], kind: 'write', stdin: patch })
+  // One `git apply` for every file's patch: it stages all of them or, when one does not apply, none. The patches keep
+  // HEAD's line numbers exactly; `--unidiff-zero` lets them apply when `diff.context` is 0.
+  if (patches.length > 0) {
+    await runner.run({ cwd: root, args: ['apply', '--cached', '--unidiff-zero', '--whitespace=nowarn', '-'], kind: 'write', stdin: patches.join('') })
   }
 }
 

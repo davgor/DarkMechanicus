@@ -66,10 +66,11 @@ import {
 } from './execution'
 import { isRepositoryFolder } from './epicBranches'
 import { requestWithoutKey, withIdempotency } from './idempotency'
-import { incrementRefusal, touchedRepositories } from './increments'
+import { incrementRefusal, sprintDefinition, touchedRepositories } from './increments'
 import { enqueueOutbox } from './outbox'
 import { failRunRow, leaseTimeGivenBack, PAUSABLE_STATES, pauseRunRow, requireOwnedRun } from './runs'
 import { indexDocument } from './searchIndex'
+import { recordHandoffChecks } from './spaceSignals'
 
 type OutputsInput = SubmitAttemptInput['outputs']
 
@@ -505,7 +506,7 @@ export function verifyClaimToken(claim: HeldClaim, token: string, expired: strin
 }
 
 /** A plan attempt's claim is superseded when it was marked so, or when its ticket has a later attempt in the run. */
-function verifyClaim(ctx: Ctx, row: AttemptRow, token: string): void {
+export function verifyClaim(ctx: Ctx, row: AttemptRow, token: string): void {
   const latest = ctx.db.get<{ number: number }>(
     'SELECT MAX(number) AS number FROM attempts WHERE run_id = ? AND ticket_id = ?',
     row.run_id,
@@ -523,7 +524,7 @@ function verifyClaim(ctx: Ctx, row: AttemptRow, token: string): void {
  * Expires overdue leases of the attempt's run in their own transaction, so an expiry is recorded
  * even when the command that noticed it then fails with `expired_claim`.
  */
-function settleLeases(ctx: Ctx, attemptId: string): void {
+export function settleLeases(ctx: Ctx, attemptId: string): void {
   const row = ctx.db.get<{ run_id: string }>('SELECT run_id FROM attempts WHERE id = ?', attemptId)
   if (row) {
     expireLeases(ctx, row.run_id)
@@ -687,6 +688,8 @@ export function submitAttempt(ctx: Ctx, input: SubmitAttemptInput, verified?: Su
     // Claimed here, in the submission's transaction: a refused image refuses the whole submission.
     const evidence = claimEvidenceAttachments(ctx, input.evidence, { kind: 'attempt', id: row.id })
     storeSubmission(ctx, row, { ...input, evidence, increment })
+    // The handoff checks (SPACE C) depend only on what was handed off, so they are recorded with it.
+    recordHandoffChecks(ctx, row.id)
     const run = requireRun(ctx, row.run_id)
     recordAttempt(ctx, row, run.epic_id, { kind: 'attempt.submitted', payload: submittedPayload(increment) })
     return attemptView(indexAttempt(ctx, run, row.id))
@@ -724,6 +727,17 @@ function mergeCriteria(evidence: AttemptEvidence, criteria: CriterionResult[]): 
   }
 }
 
+/** For an acceptance node, the names of the Definition of Done checks it is accepted against; nothing otherwise. */
+function acceptedDefinition(ctx: Ctx, row: AttemptRow): Pick<AttemptDecision, 'requiredChecks'> {
+  const bundle = loadBundle(ctx, row.revision_id)
+  const ticket = ticketOf(bundle, row.ticket_id)
+  const sprint = bundle.sprints.find((item) => item.ticketIds.includes(ticket.id))
+  if (!isAcceptanceTicket(ticket) || sprint === undefined) {
+    return {}
+  }
+  return { requiredChecks: sprintDefinition(ctx, sprint.id).map((check) => check.name) }
+}
+
 /** Accepts a submission: completes the ticket and unlocks its dependents. */
 export function acceptAttempt(
   ctx: Ctx,
@@ -733,7 +747,18 @@ export function acceptAttempt(
   return withIdempotency(ctx, { command: 'acceptAttempt', key: input.idempotencyKey, request: requestWithoutKey(input) }, () => {
     const { row, run } = reviewable(ctx, input.attemptId)
     const now = ctx.clock.nowIso()
-    const decision: AttemptDecision = { outcome: 'accepted', notes: input.notes ?? '', reasons: [], decidedBy: ctx.session.label }
+    // The reviewer's own per-criterion results are kept on the decision as well as merged into the evidence, so
+    // reviewer-checked criteria stay distinguishable from the worker's claims (`core/space/verification.ts`); the
+    // key is always written ([] when none were passed), so its absence marks a decision recorded before it existed.
+    // An acceptance node's decision also freezes the Definition of Done it was accepted against.
+    const decision: AttemptDecision = {
+      outcome: 'accepted',
+      notes: input.notes ?? '',
+      reasons: [],
+      decidedBy: ctx.session.label,
+      criteria: input.criteria ?? [],
+      ...acceptedDefinition(ctx, row)
+    }
     const evidence = mergeCriteria(parseJson<AttemptEvidence>(row.evidence_json, EMPTY_EVIDENCE), input.criteria ?? [])
     ctx.db.run(
       "UPDATE attempts SET state = 'accepted', decision_json = ?, evidence_json = ?, decided_at = ?, updated_at = ? WHERE id = ?",
@@ -878,6 +903,7 @@ function resubmitAttempt(ctx: Ctx, target: { row: AttemptRow; run: RunRow }, inp
       })
   )
   ctx.db.run('UPDATE attempts SET reconciled_at = ? WHERE id = ?', ctx.clock.nowIso(), target.row.id)
+  recordHandoffChecks(ctx, target.row.id)
   indexAttempt(ctx, target.run, target.row.id)
 }
 

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import {
+  BUDGET_BASES,
   CHECKPOINT_MODES,
   MODALITIES,
   PLAN_FORMAT_VERSION,
@@ -15,7 +16,18 @@ import {
   WORK_TYPES
 } from '../shared/domain/bundle'
 import { epicBranchName } from '../shared/domain/branchName'
+import {
+  EXPERIMENT_CHANGE_UNITS,
+  EXPERIMENT_DIRECTIONS,
+  EXPERIMENT_MEASURE_NAMES,
+  EXPERIMENT_STATUSES,
+  EXPERIMENT_UNITS,
+  EXPERIMENT_WINDOW_BASES,
+  IMPROVEMENT_CONCERNS,
+  GUARDRAIL_COMPARATORS
+} from '../shared/domain/experiments'
 import { TIER_VERDICTS } from '../shared/domain/retro'
+import { EVIDENCE_KINDS, GRADE_SUBJECT_LEVELS } from '../shared/domain/space'
 import { WORK_STATUSES } from '../shared/domain/status'
 import { DomainError } from './errors'
 import { isStableId, STABLE_ID_PATTERN } from './ids'
@@ -202,6 +214,21 @@ export const ticketReference = z.strictObject({
   remoteOnly: z.boolean()
 })
 
+/** One planned budget amount: a whole number of its unit, at least one (a budget below one unit compares as zero). */
+const budgetAmount = z.number().int().min(1).max(1_000_000_000_000)
+
+/** A ticket's planned budget: tokens and/or active milliseconds, at least one of them, and where they came from. */
+export const ticketBudget = z
+  .strictObject({
+    tokens: budgetAmount.optional().describe('Planned tokens for the whole ticket, all attempts and overhead included.'),
+    activeMs: budgetAmount.optional().describe('Planned active execution time in milliseconds (not elapsed or waiting time).'),
+    basis: z
+      .enum(BUDGET_BASES)
+      .optional()
+      .describe('Where the numbers came from: a person’s estimate, the planner’s estimate, or similar earlier tickets. A label only; never graded.')
+  })
+  .refine((budget) => budget.tokens !== undefined || budget.activeMs !== undefined, 'A budget sets tokens, activeMs or both')
+
 export const ticketInput = z.strictObject({
   title: title.min(1),
   // `work` is the default and is never stored; see ticketContent.
@@ -219,6 +246,13 @@ export const ticketInput = z.strictObject({
   references: z.array(ticketReference).max(LIMITS.references).optional(),
   expectedArtifacts: z.array(z.string().max(LIMITS.label)).max(LIMITS.references).optional(),
   optional: z.boolean().optional(),
+  // `null` in a patch clears the budget; a given budget replaces the whole one. Saving freezes it as a new version.
+  budget: ticketBudget
+    .nullable()
+    .optional()
+    .describe(
+      'Planned token and active-time budget, frozen as a new version when the plan is saved. A run applies the version saved before the ticket was first dispatched, so later edits are prospective. null clears it.'
+    ),
   // Staged image ids to show on the ticket as references; the draft stores their refs and `[]` removes them all.
   attachments: z
     .array(attachmentRef.shape.id)
@@ -295,7 +329,9 @@ export const ticketContent = z.strictObject({
   expectedArtifacts: z.array(z.string().max(LIMITS.label)).max(LIMITS.references),
   optional: z.boolean(),
   // No default, like `size`: a ticket without reference images keeps its saved shape and hash.
-  attachments: z.array(attachmentRef).max(LIMITS.attachmentsPerRecord).optional()
+  attachments: z.array(attachmentRef).max(LIMITS.attachmentsPerRecord).optional(),
+  // No default, like `size`: a ticket without a planned budget keeps its saved shape and hash.
+  budget: ticketBudget.optional()
 })
 
 export const sprintDef = z.strictObject({
@@ -436,6 +472,171 @@ export const attemptEvidenceInput = z.strictObject({
   attachments: z.array(attachmentRef.shape.id).max(LIMITS.attachmentsPerRecord).optional()
 })
 
+/** Text an experiment cannot leave blank: whitespace alone says nothing. */
+const statedText = (max: number, what: string) => z.string().max(max).refine((text) => text.trim() !== '', `${what} needs some text`)
+/** No Dark Mechanicus measure nears 10^15 tokens or milliseconds. */
+const experimentQuantity = z.number().min(0).max(1e15)
+
+/** A cited record as written; the server checks the id against the kind (`evidenceRefSchema`). */
+const evidenceInput = z.strictObject({
+  kind: z.enum(EVIDENCE_KINDS),
+  id: z.string().min(1).max(64),
+  detail: z.string().max(LIMITS.label).nullable().optional()
+})
+
+/** A grade of an earlier report revision's frozen scorecard: that revision's id and the grade's assessment id (`as_…`). */
+const sealedAssessmentInput = z.strictObject({ reportId: stableId, assessmentId: stableId })
+
+/**
+ * Where an experiment was drawn from: a grade of the scorecard frozen with the report being submitted, named by its
+ * subject (the sprint, the run, the epic or one of the sprint's tickets), or a grade of an earlier revision's scorecard.
+ */
+const experimentAssessmentInput = z.union(
+  [z.strictObject({ subject: z.strictObject({ level: z.enum(GRADE_SUBJECT_LEVELS), id: stableId }) }), sealedAssessmentInput],
+  {
+    error:
+      "An experiment's source is { subject: { level, id } } (a grade of this report's own scorecard) or { reportId, assessmentId } (a grade of an earlier revision's scorecard)"
+  }
+)
+
+const experimentMeasureFields = { measure: z.enum(EXPERIMENT_MEASURE_NAMES), unit: z.enum(EXPERIMENT_UNITS) }
+
+/**
+ * A structured improvement experiment as a reporter writes it. Every planning field is required: the source assessment,
+ * the observed issue with at least one piece of evidence, the hypothesis, the destination, at least one piece of
+ * proposed work, the baseline measure, the expected change, at least one guardrail and the measurement window. `id` is
+ * only given to restate an experiment of an earlier revision of the same sprint's report; the server mints new ones.
+ */
+export const retroExperimentInput = z.strictObject(
+  {
+    id: stableId.optional(),
+    source: experimentAssessmentInput,
+    concern: z.enum(IMPROVEMENT_CONCERNS),
+    issue: z.strictObject({
+      summary: statedText(LIMITS.shortText, 'The observed issue'),
+      evidence: z.array(evidenceInput).min(1, 'An observed issue cites at least one piece of evidence').max(LIMITS.listItems)
+    }),
+    hypothesis: statedText(LIMITS.markdown, 'The hypothesis'),
+    destination: z.discriminatedUnion('kind', [
+      z.strictObject({ kind: z.literal('source_repository'), repository: z.string().min(1).max(100).nullable().optional() }),
+      z.strictObject({ kind: z.literal('darkmechanicus_source') })
+    ]),
+    proposedWork: z
+      .array(
+        z.strictObject({
+          title: statedText(LIMITS.title, 'A proposed work item'),
+          body: markdown.default(''),
+          size: z.enum(TICKET_SIZES).optional()
+        })
+      )
+      .min(1, 'An experiment proposes at least one piece of work')
+      .max(LIMITS.listItems),
+    baseline: z.strictObject(experimentMeasureFields),
+    expectedChange: z.strictObject({
+      direction: z.enum(EXPERIMENT_DIRECTIONS),
+      amount: experimentQuantity.positive('An expected change is greater than zero'),
+      unit: z.enum(EXPERIMENT_CHANGE_UNITS)
+    }),
+    guardrails: z
+      .array(z.strictObject({ ...experimentMeasureFields, comparator: z.enum(GUARDRAIL_COMPARATORS), threshold: experimentQuantity }))
+      .min(1, 'An experiment holds at least one guardrail')
+      .max(20),
+    window: z.strictObject({ basis: z.enum(EXPERIMENT_WINDOW_BASES), count: z.number().int().min(1).max(100) })
+  },
+  {
+    // An experiment written as a prose line: say where prose goes rather than a bare type error.
+    error: (issue) =>
+      issue.code === 'invalid_type' ? 'An experiment is a structured object (source, concern, issue, hypothesis, …); write a prose proposal in retro.actions instead' : undefined
+  }
+)
+
+/** The experiments of one retro, as written: an empty list is accepted and left out of the stored retro. */
+const retroExperimentInputs = z.array(retroExperimentInput).max(50)
+
+/** A later status or result of an experiment (`recordExperimentEvent`). */
+export const experimentEventInput = z.strictObject({
+  experimentId: stableId,
+  event: z.discriminatedUnion('kind', [
+    z.strictObject({
+      kind: z.literal('status'),
+      status: z.enum(EXPERIMENT_STATUSES).exclude(['proposed']),
+      note: markdown.optional()
+    }),
+    z.strictObject({
+      kind: z.literal('result'),
+      result: z.strictObject({
+        assessment: sealedAssessmentInput.nullable().optional(),
+        value: experimentQuantity.nullable().optional(),
+        unit: z.enum(EXPERIMENT_UNITS),
+        evidence: z.array(evidenceInput).max(LIMITS.listItems).optional()
+      }),
+      note: markdown.optional()
+    })
+  ]),
+  idempotencyKey
+})
+
+/** One proposed work item of a selected experiment. */
+const correctionWorkRef = { experimentId: stableId, index: z.number().int().min(0).max(LIMITS.listItems) }
+
+/** The person's edits to generated corrective tickets, each naming one work item of a selected experiment. */
+const correctionEdits = z
+  .array(
+    z.strictObject({
+      ...correctionWorkRef,
+      title: title.min(1).optional(),
+      body: markdown.optional(),
+      acceptanceCriteria: z.array(shortText.min(1)).min(1).max(LIMITS.criteria).optional(),
+      dependsOn: z
+        .array(z.union([z.strictObject({ work: z.strictObject(correctionWorkRef) }), z.strictObject({ ticket: entityRef })]))
+        .max(LIMITS.listItems)
+        .optional()
+    })
+  )
+  .max(LIMITS.listItems)
+
+/** What corrective work is asked for (`previewCorrections`, and `createCorrections` with its draft revision). */
+export const correctionsInput = z.strictObject({
+  reportId: stableId,
+  experimentIds: z.array(stableId).min(1).max(50),
+  target: z
+    .discriminatedUnion('kind', [
+      z.strictObject({ kind: z.literal('new_sprint') }),
+      z.strictObject({ kind: z.literal('sprint'), sprintId: stableId }),
+      z.strictObject({ kind: z.literal('follow_up_epic'), title: title.min(1).optional() })
+    ])
+    .optional(),
+  edits: correctionEdits.optional(),
+  fireguard: z.boolean().optional()
+})
+
+/** `expectedDraftRevision` is the draft revision the preview read; null (the preview found no draft) expects none. */
+export const createCorrectionsInput = correctionsInput.extend({ expectedDraftRevision: z.number().int().min(1).nullable().optional() })
+
+/** One experiment's corrective work for the Dark Mechanicus source, as the desktop broker previews it. */
+export const crossRepoCorrectionInput = z.strictObject({
+  reportId: stableId,
+  experimentId: stableId,
+  title: title.min(1).optional(),
+  edits: correctionEdits.optional(),
+  fireguard: z.boolean().optional()
+})
+
+/**
+ * Creating it. `expectedTargetProjectId` is the target the preview showed and is required: another chosen checkout now is
+ * a `conflict`. `recreate` makes a new epic when the target no longer holds the one this request reached before.
+ */
+export const createCrossRepoCorrectionInput = crossRepoCorrectionInput.extend({ expectedTargetProjectId: stableId, recreate: z.boolean().optional() })
+
+/** Retrying a pending receipt by its key (`<assessment report>/<experiment>/from:<source project>/to:<target project>`). */
+export const crossRepoCorrectionKeyInput = z.strictObject({ key: z.string().min(1).max(200) })
+
+/** Withdrawing a pending request; `confirmUnverified` withdraws it although its target could not be checked. */
+export const crossRepoWithdrawInput = z.strictObject({ key: z.string().min(1).max(200), confirmUnverified: z.boolean().optional() })
+
+/** Listing receipts, optionally of one report revision's experiments or of one experiment. */
+export const crossRepoCorrectionListInput = z.strictObject({ reportId: stableId.optional(), experimentId: stableId.optional() })
+
 /**
  * The retro of a sprint report as a reporter writes it. A `ticket` is a stable id or a display key; the server
  * resolves it against the run's plan and refuses one the plan does not have. Every list is optional.
@@ -447,7 +648,15 @@ const sprintRetroInput = z.strictObject({
     .optional(),
   wentWell: textList.optional(),
   wentPoorly: textList.optional(),
-  actions: textList.optional(),
+  actions: z
+    .array(
+      z.string({
+        error: (issue) =>
+          issue.code === 'invalid_type' ? 'An action is one line of prose; write a structured experiment in retro.experiments instead' : undefined
+      }).max(LIMITS.shortText)
+    )
+    .max(LIMITS.listItems)
+    .optional(),
   discoveries: z
     .array(z.strictObject({ title: title.min(1), body: markdown.default(''), ticket: entityRef.nullable().optional() }))
     .max(LIMITS.listItems)
@@ -456,7 +665,8 @@ const sprintRetroInput = z.strictObject({
   tierFit: z
     .array(z.strictObject({ ticket: entityRef, verdict: z.enum(TIER_VERDICTS), note: markdown.default('') }))
     .max(LIMITS.listItems)
-    .optional()
+    .optional(),
+  experiments: retroExperimentInputs.optional()
 })
 
 export const sprintReportInput = z.strictObject({

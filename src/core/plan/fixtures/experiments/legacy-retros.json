@@ -1,0 +1,138 @@
+{
+  "description": "Prose-only retros as written (input), as the server stored them before experiments existed (stored), and the content hash of a report { summary: \"Sprint 1 is over.\", every other list empty, epicOutcome null, retro: stored } computed by the code before DM-184 (commit a417096). Tickets: makeBundle([[1, 2, 3]]) from src/test/bundles.ts.",
+  "reports": [
+    {
+      "contentHash": "sha256:920c266f60ef5d063cd17b519b71c4157c9d9c2aa76ac89aee22ebca71df6d11",
+      "input": {},
+      "name": "empty retro",
+      "stored": {
+        "actions": [],
+        "delivered": [],
+        "discoveries": [],
+        "leftovers": [],
+        "tierFit": [],
+        "wentPoorly": [],
+        "wentWell": []
+      }
+    },
+    {
+      "contentHash": "sha256:e1d51dd24a7b0d441c5e913c7459a524dd797c1f51cb211026e774c0a6860e95",
+      "input": {
+        "actions": [
+          "Keep reviews short",
+          "Pair on the importer"
+        ]
+      },
+      "name": "prose actions only",
+      "stored": {
+        "actions": [
+          "Keep reviews short",
+          "Pair on the importer"
+        ],
+        "delivered": [],
+        "discoveries": [],
+        "leftovers": [],
+        "tierFit": [],
+        "wentPoorly": [],
+        "wentWell": []
+      }
+    },
+    {
+      "contentHash": "sha256:9c763cfd3382ade1989ae9720dc0dfe14ee3c03b7aea1cc8bb206efa8b59ff93",
+      "input": {
+        "actions": [
+          "Size importer tickets larger"
+        ],
+        "delivered": [
+          {
+            "demo": "Open the scorecard tab",
+            "evidence": "screenshot attached",
+            "ticket": "DM-1"
+          }
+        ],
+        "discoveries": [
+          {
+            "body": "Search misses grades",
+            "ticket": "DM-2",
+            "title": "Index the scorecard"
+          },
+          {
+            "title": "Untracked idea"
+          }
+        ],
+        "leftovers": [
+          {
+            "reason": "Blocked by the importer",
+            "ticket": "DM-3"
+          }
+        ],
+        "tierFit": [
+          {
+            "ticket": "DM-1",
+            "verdict": "right_sized"
+          },
+          {
+            "note": "needed more effort",
+            "ticket": "DM-2",
+            "verdict": "undersized"
+          }
+        ],
+        "wentPoorly": [
+          "Two retries on DM-2"
+        ],
+        "wentWell": [
+          "Reviews were quick"
+        ]
+      },
+      "name": "full prose retro",
+      "stored": {
+        "actions": [
+          "Size importer tickets larger"
+        ],
+        "delivered": [
+          {
+            "demo": "Open the scorecard tab",
+            "evidence": "screenshot attached",
+            "ticket": "tk_000000000000000000000000z9"
+          }
+        ],
+        "discoveries": [
+          {
+            "body": "Search misses grades",
+            "ticket": "tk_000000000000000000000000za",
+            "title": "Index the scorecard"
+          },
+          {
+            "body": "",
+            "ticket": null,
+            "title": "Untracked idea"
+          }
+        ],
+        "leftovers": [
+          {
+            "reason": "Blocked by the importer",
+            "ticket": "tk_000000000000000000000000zb"
+          }
+        ],
+        "tierFit": [
+          {
+            "note": "",
+            "ticket": "tk_000000000000000000000000z9",
+            "verdict": "right_sized"
+          },
+          {
+            "note": "needed more effort",
+            "ticket": "tk_000000000000000000000000za",
+            "verdict": "undersized"
+          }
+        ],
+        "wentPoorly": [
+          "Two retries on DM-2"
+        ],
+        "wentWell": [
+          "Reviews were quick"
+        ]
+      }
+    }
+  ]
+}

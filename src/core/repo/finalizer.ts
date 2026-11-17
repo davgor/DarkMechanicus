@@ -12,13 +12,14 @@
 import { dirname, join } from 'node:path'
 import { z } from 'zod'
 import type { FlushResultView } from '../../shared/domain/views'
-import { contentHash, prettyJson } from '../canonical'
+import { canonicalJson, contentHash, prettyJson } from '../canonical'
 import type { Clock } from '../clock'
 import type { Db } from '../db/database'
 import { fail } from '../errors'
-import { META_KEYS, setMeta } from '../meta'
+import { getMeta, META_KEYS, setMeta } from '../meta'
 import { KANBAN_OUTBOX_KINDS, type OutboxKind } from '../services/outbox'
 import { hasTransferHold } from '../services/transferGuard'
+import { observationPayloadHash } from '../space/ledger'
 import type { StorageMode } from './storageMode'
 import {
   ATTACHMENT_FILE_NAME,
@@ -37,12 +38,14 @@ import {
   buildEpicStateRecord,
   buildKanbanCardRecord,
   buildKanbanEventRecord,
+  buildObservationRecord,
   buildProfileRecord,
   buildRunHistoryRecord,
   buildSnapshotRecord,
   commentRecord,
   kanbanEventRecord,
   MAX_RECORD_BYTES,
+  metricObservationRecord,
   parseRecord,
   readOwnedText,
   type SnapshotRecord,
@@ -51,8 +54,11 @@ import {
   trackedEpicHash,
   trackedKanbanCardHash,
   trackedKanbanEventHash,
+  trackedObservationHash,
   trackedProfileHash,
-  trackedRunHash
+  trackedRunHash,
+  scorecardRecord,
+  scorecardRecordTexts
 } from './portable'
 import { matchesSync } from './syncState'
 import type { FsAdapter, RepoLayout } from './types'
@@ -167,7 +173,7 @@ function writeSnapshot(env: WriteEnv, record: SnapshotRecord): void {
 }
 
 /** Kinds of `sync_state` rows the finalizer records exports for. */
-type ExportKind = 'epic' | 'run' | 'comment' | 'profile' | 'kanban_card' | 'kanban_event' | 'attachment'
+type ExportKind = 'epic' | 'run' | 'comment' | 'profile' | 'kanban_card' | 'kanban_event' | 'attachment' | 'metric_observation'
 
 function nextGeneration(db: Db, kind: ExportKind, entityId: string): number {
   const row = db.get<{ generation: number }>('SELECT generation FROM sync_state WHERE kind = ? AND entity_id = ?', kind, entityId)
@@ -474,6 +480,8 @@ interface OnceRecord<T> {
   value: T
   /** What the conflict calls these records, as in "comments are never rewritten". */
   plural: string
+  /** Whether the record on disk is the same record (default: identical content). */
+  same?: (onDisk: T, value: T) => boolean
 }
 
 /** Writes an immutable record file once and returns the text on disk; an existing file must hold the same record. */
@@ -481,7 +489,8 @@ function writeOnce<T>(env: WriteEnv, target: string, record: OnceRecord<T>): str
   const shown = displayPath(env.layout, target)
   const existing = readOwnedText(env, target)
   if (existing !== null) {
-    if (contentHash(parseRecord(record.schema, existing, shown)) !== contentHash(record.value)) {
+    const same = record.same ?? ((onDisk: T, value: T) => contentHash(onDisk) === contentHash(value))
+    if (!same(parseRecord(record.schema, existing, shown), record.value)) {
       fail('conflict', `${shown} already exists with different content; ${record.plural} are never rewritten.`)
     }
     return existing
@@ -501,16 +510,16 @@ function writeOnce<T>(env: WriteEnv, target: string, record: OnceRecord<T>): str
 }
 
 /**
- * A checkout of another branch may not hold the epic's records at all: a comment written there would
- * leave an epic folder with only `comments/`, which every reconcile rejects. The entry waits instead.
+ * A checkout of another branch may not hold the epic's records at all: a comment or observation written there would
+ * leave an epic folder with only `comments/` or `observations/`, which every reconcile rejects. The entry waits instead.
  */
-function requireEpicRecords(deps: FinalizerDeps, epicId: string, commentId: string): void {
+function requireEpicRecords(deps: FinalizerDeps, epicId: string, what: string): void {
   const pointer = ownedPaths(deps.layout).epicPointerFile(epicId)
   assertContained(deps.layout, deps.fs, pointer)
   if (!deps.fs.exists(pointer)) {
     fail(
       'not_found',
-      `Comment ${commentId} is not exported: the records of epic ${epicId} are not in this checkout. It is exported once they are, for example after checking out the epic's branch.`
+      `${what} is not exported: the records of epic ${epicId} are not in this checkout. It is exported once they are, for example after checking out the epic's branch.`
     )
   }
 }
@@ -522,10 +531,85 @@ function exportComment(deps: FinalizerDeps, commentId: string): void {
   if ((epic?.current_revision_id ?? null) === null) {
     fail('internal', `Comment ${commentId} belongs to epic ${record.epicId}, which has no saved plan to export it with yet.`)
   }
-  requireEpicRecords(deps, record.epicId, commentId)
+  requireEpicRecords(deps, record.epicId, `Comment ${commentId}`)
   exportAttachmentsOf(deps, { kind: 'comment', id: commentId })
   const text = writeOnce(deps, ownedPaths(deps.layout).commentFile(record.epicId, commentId), { schema: commentRecord, value: record, plural: 'comments' })
   recordExport(deps, { kind: 'comment', entityId: commentId, hash: trackedCommentHash(text), generation: nextGeneration(deps.db, 'comment', commentId) })
+}
+
+/**
+ * Writes an observation once: beside its epic's records (waiting, as a comment does, while they are not in this
+ * checkout), or in the project-level `observations/` folder when it names no epic. A file already there must hold the
+ * same observation, so an export interrupted after its write is completed by the retry and never rewritten. Another
+ * machine's file of the same delivery (same payload, its own `recordedAt`) is that observation too, and is kept.
+ */
+function exportObservation(deps: FinalizerDeps, observationId: string): void {
+  const record = buildObservationRecord(deps.db, observationId)
+  const epicId = record.observation.scope.epicId
+  if (epicId !== null) {
+    requireEpicRecords(deps, epicId, `Metric observation ${observationId}`)
+  }
+  const target = ownedPaths(deps.layout).observationFile(epicId, observationId)
+  const text = writeOnce(deps, target, {
+    schema: metricObservationRecord,
+    value: record,
+    plural: 'metric observations',
+    same: (onDisk, value) => observationPayloadHash(onDisk.observation) === observationPayloadHash(value.observation)
+  })
+  recordExport(deps, {
+    kind: 'metric_observation',
+    entityId: observationId,
+    hash: trackedObservationHash(text),
+    generation: nextGeneration(deps.db, 'metric_observation', observationId)
+  })
+}
+
+/**
+ * Writes each report revision's frozen scorecard beside its run history, once and before the run history that names
+ * it, so a checkout never holds a run history whose scorecard is missing. A scorecard is immutable and every other
+ * machine refuses the whole run over a bad one, so both sides are checked here, as `writeOnce` checks other immutable
+ * records: a file already there must hold this scorecard (a truncated or edited copy is a `conflict`, never rewritten),
+ * and one written now must pass the import's own check (schema, seal, regrade under its policy), else `conflict`.
+ */
+function exportScorecards(deps: FinalizerDeps, runId: string): void {
+  const paths = ownedPaths(deps.layout)
+  for (const { reportId, text } of scorecardRecordTexts(deps.db, runId)) {
+    const target = paths.scorecardFile(runId, reportId)
+    const shown = displayPath(deps.layout, target)
+    assertContained(deps.layout, deps.fs, target)
+    if (deps.fs.exists(target)) {
+      const size = deps.fs.fileSize(target)
+      if (size <= 0 || size > MAX_RECORD_BYTES || !sameScorecard(deps.fs.readFile(target), text)) {
+        fail('conflict', `${shown} already exists with different content; scorecards are never rewritten, so run ${runId} is not exported until it is restored.`)
+      }
+      continue
+    }
+    if (Buffer.byteLength(text, 'utf8') > MAX_RECORD_BYTES) {
+      fail('internal', `${shown} would be larger than the 8 MiB record limit, so it is not written.`)
+    }
+    try {
+      parseRecord(scorecardRecord, text, shown)
+    } catch (error: unknown) {
+      const reason = error instanceof Error ? error.message : String(error)
+      fail('conflict', `The stored scorecard of report ${reportId} is not exported: every other machine would refuse run ${runId} over it. ${reason}`)
+    }
+    try {
+      writeFileSafely(deps, target, text)
+    } catch (error: unknown) {
+      // Nothing existed before this write: drop an unverified copy so the retry writes it again.
+      discard(deps.fs, target)
+      throw error
+    }
+  }
+}
+
+/** Whether a scorecard file holds the same snapshot as `text` (any formatting or line endings); unreadable is not. */
+function sameScorecard(onDisk: string, text: string): boolean {
+  try {
+    return canonicalJson(JSON.parse(onDisk)) === canonicalJson(JSON.parse(text))
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -572,6 +656,47 @@ function exportKanbanEvent(deps: FinalizerDeps, eventId: string): void {
   recordExport(deps, { kind: 'kanban_event', entityId: eventId, hash: trackedKanbanEventHash(text), generation: nextGeneration(deps.db, 'kanban_event', eventId) })
 }
 
+/** The ids of the experiment events a tracked run history holds; none when it does not parse. */
+function trackedEventIds(text: string): string[] {
+  try {
+    const parsed = JSON.parse(text) as { experimentEvents?: unknown }
+    const events = Array.isArray(parsed.experimentEvents) ? (parsed.experimentEvents as ({ id?: unknown } | null)[]) : []
+    return events.flatMap((event) => (typeof event?.id === 'string' ? [event.id] : []))
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Refuses, with `conflict`, to write a run's history over a tracked one holding records this machine has not imported:
+ * any such file for a run another machine owns (this machine only appends experiment events there, from a stale copy of
+ * the rest), and for a run it owns, one holding experiment events it does not store (another machine's results). Writing
+ * would drop them. The entry waits; the reconcile adds them, numbering this machine's unexported events after them
+ * (`insertExperimentEvents`), and the export after it writes both. A database that never learned this machine's id
+ * (no workspace opened it) is held to the event rule only.
+ */
+function requireWritableRunHistory(deps: FinalizerDeps, runId: string): void {
+  const path = ownedPaths(deps.layout).runHistoryFile(runId)
+  const existing = readOwnedText(deps, path)
+  if (existing === null || matchesSync(deps.db, 'run', runId, trackedRunHash(existing))) return
+  const shown = displayPath(deps.layout, path)
+  const machineId = getMeta(deps.db, META_KEYS.machineId)
+  const owner = deps.db.get<{ owner_machine_id: string }>('SELECT owner_machine_id FROM runs WHERE id = ?', runId)?.owner_machine_id
+  if (machineId !== null && owner !== machineId) {
+    fail(
+      'conflict',
+      `${shown} holds records of run ${runId} this machine has not imported, and machine ${owner ?? 'unknown'} owns the run, so this machine's experiment events were not written over them. Reconcile: it takes the tracked history and numbers this machine's unexported events after its own, and the next export writes both.`
+    )
+  }
+  const unknown = trackedEventIds(existing).filter((id) => deps.db.get('SELECT id FROM experiment_events WHERE id = ?', id) === undefined)
+  if (unknown.length > 0) {
+    fail(
+      'conflict',
+      `${shown} holds experiment events this machine has not imported (${unknown.join(', ')}), so the run history was not written over them. Reconcile: it adds them and numbers this machine's unexported events after them, and the next export writes both.`
+    )
+  }
+}
+
 function required(value: string | null, what: string): string {
   if (value === null) {
     fail('internal', `Outbox entry has no ${what}.`)
@@ -594,7 +719,9 @@ const FILE_HANDLERS: Record<OutboxKind, EntryHandler> = {
   epic_state: (deps, _hooks, entry) => exportEpic(deps, required(entry.epic_id, 'epic id'), entry.id),
   run_history: (deps, _hooks, entry) => {
     const runId = required(entry.run_id, 'run id')
+    requireWritableRunHistory(deps, runId)
     exportAttachmentsOf(deps, { kind: 'run', id: runId })
+    exportScorecards(deps, runId)
     const text = prettyJson(buildRunHistoryRecord(deps.db, runId))
     writeFileSafely(deps, ownedPaths(deps.layout).runHistoryFile(runId), text)
     recordExport(deps, { kind: 'run', entityId: runId, hash: trackedRunHash(text), generation: nextGeneration(deps.db, 'run', runId) })
@@ -608,7 +735,8 @@ const FILE_HANDLERS: Record<OutboxKind, EntryHandler> = {
   },
   kanban_card: (deps, _hooks, entry) => exportKanbanCard(deps, required(entry.entity_id, 'card id')),
   kanban_event: (deps, _hooks, entry) => exportKanbanEvent(deps, required(entry.entity_id, 'event id')),
-  attachment: (deps, _hooks, entry) => exportAttachment(deps, required(entry.entity_id, 'attachment id'))
+  attachment: (deps, _hooks, entry) => exportAttachment(deps, required(entry.entity_id, 'attachment id')),
+  metric_observation: (deps, _hooks, entry) => exportObservation(deps, required(entry.entity_id, 'observation id'))
 }
 
 /** A comment with no `sync_state` row is re-queued by every later save (`enqueueUnexportedComments`). */
@@ -641,7 +769,8 @@ const DB_HANDLERS: Record<OutboxKind, EntryHandler> = {
   profile: () => undefined,
   kanban_card: () => undefined,
   kanban_event: () => undefined,
-  attachment: () => undefined
+  attachment: () => undefined,
+  metric_observation: () => undefined
 }
 
 const HANDLERS_BY_MODE: Record<StorageMode, Record<OutboxKind, EntryHandler>> = {
@@ -680,9 +809,9 @@ function recordFailure(deps: FinalizerDeps, entry: OutboxRow, message: string): 
 }
 
 function entityKeys(entry: OutboxRow): string[] {
-  // A comment file stands alone: it never waits for, or holds back, its epic's plan records.
-  if (entry.kind === 'comment') {
-    return [`comment:${entry.entity_id ?? entry.id}`]
+  // A comment or observation file stands alone: it never waits for, or holds back, its epic's plan records.
+  if (entry.kind === 'comment' || entry.kind === 'metric_observation') {
+    return [`${entry.kind}:${entry.entity_id ?? entry.id}`]
   }
   // A card's definition and events are written in order: a failed one holds back the card's later records only.
   if (entry.card_id !== null) {
@@ -799,8 +928,8 @@ export function flushOutbox(deps: FinalizerDeps, hooks: FinalizerHooks, scope?: 
     }
     for (const entry of entries) {
       flushEntry(deps, hooks, entry, state)
+      afterId = entry.id
     }
-    afterId = entries[entries.length - 1]?.id ?? afterId
   }
   return state.outcome
 }

@@ -1,0 +1,847 @@
+{
+  "phases": {
+    "a": {
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge",
+      "buildCommit": "b20d191ab984664eee10d381efe0ec9892891152",
+      "launched": {
+        "out/main/index.js": "3fc4399828d868f0d15a43b3a8fcaa04568fe8162f2936e94fe8a6fdd07d81d8",
+        "out/preload/index.js": "fb82523ed15c1eaec29526fb16a8e70a7394ab6b6044b82d1cc646cf1043f252",
+        "out/renderer/index.html": "739e79b19984e88003f39c0d3e1e89cf983870ffc72f280081af7897eb299883"
+      },
+      "fixture": {
+        "project": {
+          "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\shop",
+          "name": "shop",
+          "epicId": "ep_0000000000000000000001x145",
+          "runId": "rn_0000000000000000000001x14c",
+          "sprintId": "sp_0000000000000000000001x146",
+          "reportId": "rp_0000000000000000000001x14r",
+          "experiments": {
+            "local": "xp_0000000000000000000001x14s",
+            "dm": "xp_0000000000000000000001x14t"
+          }
+        },
+        "dm": {
+          "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout",
+          "projectId": "pj_0000000000000000000002vhp1",
+          "projectName": "DarkMechanicus"
+        },
+        "other": {
+          "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-other",
+          "projectId": "pj_0000000000000000000003t281",
+          "projectName": "Other Mechanicus"
+        }
+      },
+      "failure": null,
+      "shots": [
+        {
+          "phase": "a",
+          "name": "c25-01-not-chosen.png",
+          "note": "Improvement tab of Sprint 1 (shop): the Dark Mechanicus source panel before any checkout is chosen (Not chosen; tracked folders offered)",
+          "values": {
+            "shows": [
+              "Not chosen",
+              "Choose another folder…",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout"
+            ],
+            "sourceCheckoutGet": "none",
+            "trackedFolders": [
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\shop",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout"
+            ]
+          }
+        },
+        {
+          "phase": "a",
+          "name": "c25-02-chosen-available.png",
+          "note": "The real clone C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout chosen through the tracked-folder radio: Available, project DarkMechanicus (pj_0000000000000000000002vhp1)",
+          "values": {
+            "shows": [
+              "Chosen: DarkMechanicus at C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout",
+              "Available",
+              "pj_0000000000000000000002vhp1",
+              "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout"
+            ],
+            "sourceCheckoutGet": {
+              "status": "available",
+              "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout",
+              "projectId": "pj_0000000000000000000002vhp1"
+            },
+            "sourceCheckoutJson": {
+              "target": {
+                "kind": "darkmechanicus_source",
+                "projectId": "pj_0000000000000000000002vhp1",
+                "projectName": "DarkMechanicus"
+              },
+              "local": {
+                "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout",
+                "associatedAt": "2026-11-17T07:31:09.860Z"
+              }
+            },
+            "target": {
+              "equal": true,
+              "differs": [],
+              "localChanged": true,
+              "records": "2 files 914c1ce71df37147",
+              "head": "a531d8f69d89",
+              "commits": 612,
+              "status": "2 lines fc41af16c860ee9b"
+            }
+          }
+        },
+        {
+          "phase": "a",
+          "name": "c25-02n-chosen-available-narrow.png",
+          "note": "Same state at the narrow width (1024x768)",
+          "values": {}
+        },
+        {
+          "phase": "a",
+          "name": "c25-03-alias-junction.png",
+          "note": "\"Choose another folder…\" answered with a directory junction leading to the clone (C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-alias-junction): the outcome names the one canonical checkout C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout; nothing added to the folder list",
+          "values": {
+            "dialogAnswer": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-alias-junction",
+            "shows": [
+              "Chosen: DarkMechanicus at C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout",
+              "Available"
+            ],
+            "addedNote": false,
+            "sourceCheckoutGet": {
+              "status": "available",
+              "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout",
+              "projectId": "pj_0000000000000000000002vhp1"
+            },
+            "sourceCheckoutJsonPath": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout",
+            "trackedFolders": {
+              "before": 2,
+              "after": 2
+            },
+            "target": {
+              "equal": true,
+              "differs": [],
+              "localChanged": false,
+              "records": "2 files 914c1ce71df37147",
+              "head": "a531d8f69d89",
+              "commits": 612,
+              "status": "2 lines fc41af16c860ee9b"
+            }
+          }
+        },
+        {
+          "phase": "a",
+          "name": "c25-03-alias-case.png",
+          "note": "\"Choose another folder…\" answered with the same path in another letter case (C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\DM-CHECKOUT): the outcome names the one canonical checkout C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout; nothing added to the folder list",
+          "values": {
+            "dialogAnswer": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\DM-CHECKOUT",
+            "shows": [
+              "Chosen: DarkMechanicus at C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout",
+              "Available"
+            ],
+            "addedNote": false,
+            "sourceCheckoutGet": {
+              "status": "available",
+              "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout",
+              "projectId": "pj_0000000000000000000002vhp1"
+            },
+            "sourceCheckoutJsonPath": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout",
+            "trackedFolders": {
+              "before": 2,
+              "after": 2
+            },
+            "target": {
+              "equal": true,
+              "differs": [],
+              "localChanged": false,
+              "records": "2 files 914c1ce71df37147",
+              "head": "a531d8f69d89",
+              "commits": 612,
+              "status": "2 lines fc41af16c860ee9b"
+            }
+          }
+        },
+        {
+          "phase": "a",
+          "name": "c25-03-alias-dotdot.png",
+          "note": "\"Choose another folder…\" answered with a '..' detour through shop (C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\shop\\..\\dm-checkout): the outcome names the one canonical checkout C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout; nothing added to the folder list",
+          "values": {
+            "dialogAnswer": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\shop\\..\\dm-checkout",
+            "shows": [
+              "Chosen: DarkMechanicus at C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout",
+              "Available"
+            ],
+            "addedNote": false,
+            "sourceCheckoutGet": {
+              "status": "available",
+              "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout",
+              "projectId": "pj_0000000000000000000002vhp1"
+            },
+            "sourceCheckoutJsonPath": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout",
+            "trackedFolders": {
+              "before": 2,
+              "after": 2
+            },
+            "target": {
+              "equal": true,
+              "differs": [],
+              "localChanged": false,
+              "records": "2 files 914c1ce71df37147",
+              "head": "a531d8f69d89",
+              "commits": 612,
+              "status": "2 lines fc41af16c860ee9b"
+            }
+          }
+        },
+        {
+          "phase": "a",
+          "name": "c25-04-wrong-repo-shop.png",
+          "note": "Choosing C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\shop (another Git repository: the shop project) is refused (not_dm_source); the association stays on the clone",
+          "values": {
+            "shows": [
+              "Not usable as the Dark Mechanicus checkout",
+              "is not a checkout of the Dark Mechanicus source"
+            ],
+            "sourceCheckoutGet": {
+              "status": "available",
+              "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout",
+              "projectId": "pj_0000000000000000000002vhp1"
+            },
+            "target": {
+              "equal": true,
+              "differs": [],
+              "localChanged": false,
+              "records": "2 files 914c1ce71df37147",
+              "head": "a531d8f69d89",
+              "commits": 612,
+              "status": "2 lines fc41af16c860ee9b"
+            },
+            "shop": {
+              "equal": true,
+              "differs": [],
+              "localChanged": false,
+              "records": "45 files 0ce06017aee8e990",
+              "head": "eeeed926eaeb",
+              "commits": 2,
+              "status": "45 lines 5e0b763eb8ab4e88"
+            }
+          }
+        },
+        {
+          "phase": "a",
+          "name": "c25-05-missing.png",
+          "note": "The clone moved away (C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout -> C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout.moved) after the association: Unavailable, missing, with its recovery",
+          "values": {
+            "shows": [
+              "Unavailable",
+              "No folder exists at",
+              "choose it at its new place"
+            ],
+            "sourceCheckoutGet": {
+              "status": "unavailable",
+              "problem": "missing",
+              "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout",
+              "projectId": "pj_0000000000000000000002vhp1"
+            },
+            "target": {
+              "equal": true,
+              "differs": [],
+              "localChanged": false,
+              "records": "2 files 914c1ce71df37147",
+              "head": "a531d8f69d89",
+              "commits": 612,
+              "status": "2 lines fc41af16c860ee9b"
+            }
+          }
+        },
+        {
+          "phase": "a",
+          "name": "c25-06-wrong-project.png",
+          "note": "Another clone whose project.json names a different project (Other Mechanicus, pj_0000000000000000000003t281) now sits at C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout: Unavailable, project_mismatch",
+          "values": {
+            "shows": [
+              "Unavailable",
+              "now holds project pj_0000000000000000000003t281",
+              "pj_0000000000000000000002vhp1"
+            ],
+            "sourceCheckoutGet": {
+              "status": "unavailable",
+              "problem": "project_mismatch",
+              "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout",
+              "projectId": "pj_0000000000000000000002vhp1"
+            },
+            "target": {
+              "equal": true,
+              "differs": [],
+              "localChanged": false,
+              "records": "2 files 914c1ce71df37147",
+              "head": "a531d8f69d89",
+              "commits": 612,
+              "status": "2 lines fc41af16c860ee9b"
+            }
+          }
+        },
+        {
+          "phase": "a",
+          "name": "c25-07-relocated.png",
+          "note": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout replaced by a junction leading to the other clone: Unavailable, relocated",
+          "values": {
+            "shows": [
+              "Unavailable",
+              "a link or junction on the way changed"
+            ],
+            "sourceCheckoutGet": {
+              "status": "unavailable",
+              "problem": "relocated",
+              "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout",
+              "projectId": "pj_0000000000000000000002vhp1"
+            },
+            "target": {
+              "equal": true,
+              "differs": [],
+              "localChanged": false,
+              "records": "2 files 914c1ce71df37147",
+              "head": "a531d8f69d89",
+              "commits": 612,
+              "status": "2 lines fc41af16c860ee9b"
+            }
+          }
+        },
+        {
+          "phase": "a",
+          "name": "c25-08-renamed.png",
+          "note": "The clone renamed in letter case only (dm-checkout -> DM-Checkout): Unavailable, renamed",
+          "values": {
+            "shows": [
+              "Unavailable",
+              "only the letter case changed"
+            ],
+            "sourceCheckoutGet": {
+              "status": "unavailable",
+              "problem": "renamed",
+              "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout",
+              "projectId": "pj_0000000000000000000002vhp1"
+            },
+            "target": {
+              "equal": true,
+              "differs": [],
+              "localChanged": true,
+              "records": "2 files 914c1ce71df37147",
+              "head": "a531d8f69d89",
+              "commits": 612,
+              "status": "2 lines fc41af16c860ee9b"
+            }
+          }
+        },
+        {
+          "phase": "a",
+          "name": "c25-09-restored-available.png",
+          "note": "The clone back at C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout: Available again; the target holds exactly what it held before c25",
+          "values": {
+            "shows": [
+              "Available",
+              "pj_0000000000000000000002vhp1"
+            ],
+            "sourceCheckoutGet": {
+              "status": "available",
+              "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-checkout"
+            },
+            "targetSinceSeed": {
+              "equal": true,
+              "differs": [],
+              "localChanged": true,
+              "records": "2 files 914c1ce71df37147",
+              "head": "a531d8f69d89",
+              "commits": 612,
+              "status": "2 lines fc41af16c860ee9b"
+            },
+            "sourceSinceSeed": {
+              "equal": true,
+              "differs": [],
+              "localChanged": true,
+              "records": "45 files 0ce06017aee8e990",
+              "head": "eeeed926eaeb",
+              "commits": 2,
+              "status": "45 lines 5e0b763eb8ab4e88"
+            }
+          }
+        },
+        {
+          "phase": "a",
+          "name": "c27-01-preview.png",
+          "note": "Preview of the Dark Mechanicus correction for experiment xp_0000000000000000000001x14t: Ready, the new epic owned by DarkMechanicus, its tickets, plan check, who asked and the request key; nothing written",
+          "values": {
+            "shows": [
+              "Ready",
+              "New epic",
+              "owned by DarkMechanicus",
+              "Asked by",
+              "Request key",
+              "xp_0000000000000000000001x14t"
+            ],
+            "planCheck": "Valid in the target project.",
+            "target": {
+              "equal": true,
+              "differs": [],
+              "localChanged": false,
+              "records": "2 files 914c1ce71df37147",
+              "head": "a531d8f69d89",
+              "commits": 612,
+              "status": "2 lines fc41af16c860ee9b"
+            }
+          }
+        },
+        {
+          "phase": "a",
+          "name": "c27-02-created.png",
+          "note": "After Create: \"Created in the Dark Mechanicus source and linked here\"; state Created; Open the new epic",
+          "values": {
+            "shows": [
+              "Created in the Dark Mechanicus source and linked here",
+              "Created",
+              "Open \""
+            ],
+            "links": {
+              "ok": true,
+              "data": [
+                {
+                  "key": "rp_0000000000000000000001x14r/xp_0000000000000000000001x14t/from:pj_0000000000000000000001x141/to:pj_0000000000000000000002vhp1",
+                  "experimentId": "xp_0000000000000000000001x14t",
+                  "reportId": "rp_0000000000000000000001x14r",
+                  "sourceEpicId": "ep_0000000000000000000001x145",
+                  "targetProjectId": "pj_0000000000000000000002vhp1",
+                  "payloadHash": "sha256:ffb7fde52225aa25b937e9d2ad7a655ff434c5deaee0e6ebd761eae8d2bd3a95",
+                  "state": "linked",
+                  "target": {
+                    "projectId": "pj_0000000000000000000002vhp1",
+                    "epicId": "ep_01m7m6qh94ea9xry9nfsdm272c",
+                    "epicTitle": "Correction from shop: Sprint 1 spent 73,000 tokens and 68 active minutes; the page took a rejected attempt and a retry.",
+                    "sprintId": "sp_01m7m6qh95kr76k7vw4s8967ps",
+                    "ticketIds": [
+                      "tk_01m7m6qh96tzwx1pfyshg5544q",
+                      "tk_01m7m6qh96j5jmw5jky1bmn4g9"
+                    ],
+                    "keys": [
+                      "DM-2",
+                      "DM-3"
+                    ],
+                    "draftRevision": 2,
+                    "status": "backlog",
+                    "saved": false,
+                    "created": false
+                  },
+                  "attempts": 1,
+                  "lastError": null,
+                  "createdAt": "2026-11-17T07:32:19.359Z",
+                  "updatedAt": "2026-11-17T07:32:19.371Z",
+                  "linkedAt": "2026-11-17T07:32:19.371Z",
+                  "results": null
+                }
+              ]
+            },
+            "source": {
+              "equal": true,
+              "differs": [],
+              "localChanged": true,
+              "records": "45 files 0ce06017aee8e990",
+              "head": "eeeed926eaeb",
+              "commits": 2,
+              "status": "45 lines 5e0b763eb8ab4e88"
+            }
+          }
+        },
+        {
+          "phase": "a",
+          "name": "c27-03-draft-in-target.png",
+          "note": "\"Open \"Correction from shop: Sprint 1 spent 73,000 tokens and 68 active minutes; the page took a rejected attempt and a retry.\" in DarkMechanicus to review, Save and start it\" opened the correction epic's draft in the dm-checkout folder: its own header (DRAFT, Save rev 1, Discard draft), link back to the asking epic",
+          "values": {
+            "shows": [
+              "DRAFT REV 1",
+              "Save rev 1",
+              "Discard draft",
+              "EDITING DRAFT"
+            ],
+            "header": "dm-checkout / Backlog\nCorrective work from shop · xp_0000000000000000000001x14t · report revision 1: open the epic that asked for it\nCorrection from shop: Sprint 1 spent 73,000 tokens and 68 active minutes; the page took a rejected attempt and a retry.\nDRAFT REV 1 · UNSAVED\nGraph\nList\nScorecard\nDiscard draft\nSave rev 1\nDelete epic…\nEDITING DRAFT\nChanges stay in draft rev 1 until you save.\n+ Sprint\nEPIC · 3 TICKETS · 1 SPRINT\nCorrection from shop: Sprint 1 spent 73,000 tokens and 68 active minutes; the page took a rejected attempt and a retry.\nSPRINT 1\nCorrective work for experiment xp_00000000",
+            "sidebarActive": null
+          }
+        },
+        {
+          "phase": "a",
+          "name": "c27-03n-draft-in-target-narrow.png",
+          "note": "Same draft at the narrow width (1024x768)",
+          "values": {}
+        },
+        {
+          "phase": "a",
+          "name": "c27-04-saved-start-run.png",
+          "note": "The correction epic saved in dm-checkout (REV 1 · SAVED): its own Start run, Edit draft and Transfer controls",
+          "values": {
+            "saveDisabled": false,
+            "saved": true,
+            "shows": [
+              "REV 1 · SAVED",
+              "Start run"
+            ],
+            "header": "dm-checkout / Backlog\nCorrective work from shop · xp_0000000000000000000001x14t · report revision 1: open the epic that asked for it\nCorrection from shop: Sprint 1 spent 73,000 tokens and 68 active minutes; the page took a rejected attempt and a retry.\nREV 1 · SAVED\nGraph\nList\nScorecard\nEdit draft\nTransfer to Linear\nStart run\nDelete epic…\nEPIC · 3 TICKETS · 1 SPRINT\nCorrection from shop: Sprint 1 spent 73,000 tokens and 68 active minutes; the page took a rejected attempt and a retry.\nSPRINT 1\nCorrective work for experiment xp_0000000000000000000001x14t from the Sprint 1 retro of shop.\n3 tickets\nDM-2 · BACKLOG\nCarry review notes into the retry packet\nSMALL\nDM-3 · BACKLOG\nGrade the corrective tests with Fireguard\nSMALL\nDM-1 · BACKLOG\nSprint 1 acceptance\nACCEPTANCE\nEPIC CHECKS · 0 OF 1 MET\nPrerequisite\nⅡ Mascot\nSaved rev 1.\n×"
+          }
+        },
+        {
+          "phase": "a",
+          "name": "c27-05-start-run-dialog.png",
+          "note": "The correction epic's own Start run dialog (dm-checkout); cancelled, no run started",
+          "values": {
+            "dialog": "Start run\n\nChoose who runs this epic. An agent started here runs it in a chat you can follow, or you leave the run pending for an orchestrator you start yourself.\n\nRun with an agent\n\nDark Mechanicus starts the agent as the orchestrator of “Correction from shop: Sprint 1 spent 73,000 tokens and 68 active minutes; the page took a rejected attempt and a retry.” and sends it the run. It cannot save plans.\n\nAgent\n\nNo agent is connected and signed in.\n\nNot available\n\nClaude Code\nNot connected\nAdd Claude Code\nCodex\nNot connected\nAdd Codex\nCursor\nNot connected\nAdd Cursor\nAutonomous\nNot connected\nAdd Autonomous\nSkitarii\nNot connected\nAdd Skitarii\nLeave pending\n\nQueues the run and waits. It starts when an external orchestrator, such as Claude Code connected to this folder, picks it up.\n\nCancel\nLeave"
+          }
+        },
+        {
+          "phase": "a",
+          "name": "c27-06-source-run-unchanged.png",
+          "note": "Back in shop: the source epic's own run bar, unchanged by the correction in dm-checkout",
+          "values": {
+            "runBar": "shop / Completed\nCheckout flow\nREV 1 · SAVED\nGraph\nList\nScorecard\nDelete epic…\n\nCompleted epics are read-only. Create a new epic to extend this work.\n\nCOMPLETED\nRun #1 · pinned to rev 1 · completed 1d ago\n4 accepted\nEpic report\nEPIC · 4 TICKETS · 1 SPRINT\nCheckout flow\nSPRINT 1\nNo goal yet\n4 tickets\nSHOP-2 · ACCEPTED\nBuild the checkout API\nMEDIUM\nSHOP-3 · ACCEPTED\nBuild the checkout page\nMEDIUM\nSHOP-4 · ACCEPTED\nDocument the checkout\nSMALL\nSHOP-1 · ACCEPTED\nSprint 1 acceptance\nACCEPTANCE\nEPIC CHECKS · 1 OF 1 MET\nROW 1\n– NO CHECK\nAccepted\nIn review\nRunning\nReady\nWaiting\nBlocked\nFailed\nPrerequisite met\nWaiting on it\nⅡ Mascot\nAttempts\nSHOP-3 #1 rejected · The page sends an unvalidated card number to the API.\nsynced just now\n▾",
+            "sourceFactsEqual": true,
+            "sourceFacts": {
+              "epicStatus": "completed",
+              "runState": "completed",
+              "scorecardSha256": "d1e87d3262e16f7a"
+            },
+            "source": {
+              "equal": true,
+              "differs": [],
+              "localChanged": true,
+              "records": "45 files 0ce06017aee8e990",
+              "head": "eeeed926eaeb",
+              "commits": 2,
+              "status": "45 lines 5e0b763eb8ab4e88"
+            },
+            "sourceSinceSeed": {
+              "equal": true,
+              "differs": [],
+              "localChanged": true,
+              "records": "45 files 0ce06017aee8e990",
+              "head": "eeeed926eaeb",
+              "commits": 2,
+              "status": "45 lines 5e0b763eb8ab4e88"
+            },
+            "target": {
+              "before": {
+                "records": 2,
+                "sha": "914c1ce71df37147",
+                "commits": 612
+              },
+              "after": {
+                "records": 5,
+                "sha": "d1fde9bf656846ac",
+                "commits": 612,
+                "head": "a531d8f69d89"
+              }
+            }
+          }
+        }
+      ],
+      "dialogLog": [
+        {
+          "patched": "assigned"
+        },
+        {
+          "at": "2026-11-17T07:31:12.095Z",
+          "title": "Choose your Dark Mechanicus source checkout (a Git clone of Dark Mechanicus)",
+          "answer": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\dm-alias-junction"
+        },
+        {
+          "at": "2026-11-17T07:31:13.359Z",
+          "title": "Choose your Dark Mechanicus source checkout (a Git clone of Dark Mechanicus)",
+          "answer": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\DM-CHECKOUT"
+        },
+        {
+          "at": "2026-11-17T07:31:14.587Z",
+          "title": "Choose your Dark Mechanicus source checkout (a Git clone of Dark Mechanicus)",
+          "answer": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-a-pbjDge\\shop\\..\\dm-checkout"
+        },
+        {
+          "patched": "assigned"
+        },
+        {
+          "patched": "assigned"
+        },
+        {
+          "patched": "assigned"
+        },
+        {
+          "patched": "assigned"
+        },
+        {
+          "patched": "assigned"
+        }
+      ]
+    },
+    "b": {
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-b-eFwKR4",
+      "buildCommit": "b20d191ab984664eee10d381efe0ec9892891152",
+      "launched": {
+        "out/main/index.js": "3fc4399828d868f0d15a43b3a8fcaa04568fe8162f2936e94fe8a6fdd07d81d8",
+        "out/preload/index.js": "fb82523ed15c1eaec29526fb16a8e70a7394ab6b6044b82d1cc646cf1043f252",
+        "out/renderer/index.html": "739e79b19984e88003f39c0d3e1e89cf983870ffc72f280081af7897eb299883"
+      },
+      "fixture": {
+        "project": {
+          "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-b-eFwKR4\\shop",
+          "name": "shop",
+          "epicId": "ep_0000000000000000000001x145",
+          "runId": "rn_0000000000000000000001x14c",
+          "sprintId": "sp_0000000000000000000001x146",
+          "reportId": "rp_0000000000000000000001x14r",
+          "experiments": {
+            "local": "xp_0000000000000000000001x14s",
+            "dm": "xp_0000000000000000000001x14t"
+          }
+        },
+        "dm": {
+          "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-b-eFwKR4\\dm-checkout",
+          "projectId": "pj_0000000000000000000002vhp1",
+          "projectName": "DarkMechanicus"
+        },
+        "other": {
+          "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-b-eFwKR4\\dm-other",
+          "projectId": "pj_0000000000000000000003t281",
+          "projectName": "Other Mechanicus"
+        }
+      },
+      "failure": null,
+      "shots": [
+        {
+          "phase": "b",
+          "name": "c28-01-flow1-planner.png",
+          "note": "Flow 1 on the open Sprint 1 checkpoint: experiment xp_0000000000000000000001x14s ticked; destination, where the work goes, Fireguard ticket, Preview",
+          "values": {
+            "shows": [
+              "Destination",
+              "Where the work goes",
+              "Preview corrective work"
+            ],
+            "fireguardChecked": true
+          }
+        },
+        {
+          "phase": "b",
+          "name": "c28-02-flow1-preview.png",
+          "note": "Flow 1 preview: tickets, criteria, destination, validation; Create draft work and Preview again",
+          "values": {
+            "shows": [
+              "Create draft work",
+              "Preview again"
+            ]
+          }
+        },
+        {
+          "phase": "b",
+          "name": "c28-03-flow1-created.png",
+          "note": "Flow 1 created: Draft work created, next steps, Open the draft to review and Save; the gate (Approve retro & redraft) stays the person's",
+          "values": {
+            "shows": [
+              "Draft work created",
+              "Open the draft to review and Save",
+              "Approve retro & redraft"
+            ]
+          }
+        },
+        {
+          "phase": "b",
+          "name": "c28-04-unavailable-ready.png",
+          "note": "Checkout missing: Unavailable with its recovery; the main button keeps the request pending (\"Save the request (pending)\")",
+          "values": {
+            "shows": [
+              "Unavailable",
+              "No folder exists at",
+              "Save the request (pending)"
+            ]
+          }
+        },
+        {
+          "phase": "b",
+          "name": "c28-05-pending.png",
+          "note": "Pending: \"Kept here as a pending request; the Dark Mechanicus source was not written\"; Retry the request and Withdraw the request offered",
+          "values": {
+            "shows": [
+              "Kept here as a pending request",
+              "Pending",
+              "Retry the request",
+              "Withdraw the request"
+            ],
+            "target": {
+              "equal": true,
+              "differs": [],
+              "localChanged": false,
+              "records": "2 files 914c1ce71df37147",
+              "head": "04429ea36516",
+              "commits": 612,
+              "status": "2 lines fc41af16c860ee9b"
+            }
+          }
+        },
+        {
+          "phase": "b",
+          "name": "c28-06-withdraw-anyway.png",
+          "note": "Withdraw while the target cannot be checked asks for confirmation (\"Withdraw anyway, without checking the target\"); not pressed",
+          "values": {
+            "confirmOffered": true,
+            "shows": [
+              "Withdraw anyway, without checking the target"
+            ],
+            "outcome": "Withdrawal refused (conflict)\n\nThe checkout of project pj_0000000000000000000002vhp1 cannot be read now, so nothing shows whether it already holds this request. Choose and make it available to check, or withdraw anyway with confirmUnverified.\nWithdraw anyway, without checking the target\nDismiss"
+          }
+        },
+        {
+          "phase": "b",
+          "name": "c28-07-retried-linked.png",
+          "note": "Checkout back: Retry the request created the epic there and linked it; Created, Open and Bring back its grades",
+          "values": {
+            "shows": [
+              "Created in the Dark Mechanicus source and linked here",
+              "Created",
+              "Open \"",
+              "Bring back its grades"
+            ]
+          }
+        },
+        {
+          "phase": "b",
+          "name": "c28-08-grades-none-yet.png",
+          "note": "Bring back its grades before the correction epic has run: no frozen grade yet",
+          "values": {
+            "shows": [
+              "Its grades",
+              "No frozen"
+            ]
+          }
+        }
+      ],
+      "dialogLog": [
+        {
+          "patched": "assigned"
+        },
+        {
+          "patched": "assigned"
+        },
+        {
+          "patched": "assigned"
+        }
+      ]
+    },
+    "c": {
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-c-yOhcXd",
+      "buildCommit": "b20d191ab984664eee10d381efe0ec9892891152",
+      "launched": {
+        "out/main/index.js": "3fc4399828d868f0d15a43b3a8fcaa04568fe8162f2936e94fe8a6fdd07d81d8",
+        "out/preload/index.js": "fb82523ed15c1eaec29526fb16a8e70a7394ab6b6044b82d1cc646cf1043f252",
+        "out/renderer/index.html": "739e79b19984e88003f39c0d3e1e89cf983870ffc72f280081af7897eb299883"
+      },
+      "fixture": {
+        "project": {
+          "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-c-yOhcXd\\shop",
+          "name": "shop",
+          "epicId": "ep_0000000000000000000001x145",
+          "runId": "rn_0000000000000000000001x14c",
+          "sprintId": "sp_0000000000000000000001x146",
+          "tickets": {
+            "api": "tk_0000000000000000000001x148",
+            "page": "tk_0000000000000000000001x149",
+            "docs": "tk_0000000000000000000001x14a",
+            "node": "tk_0000000000000000000001x147"
+          },
+          "reports": [
+            "rp_0000000000000000000001x14r",
+            "rp_0000000000000000000001x15q",
+            "rp_0000000000000000000001x162"
+          ]
+        },
+        "dm": {
+          "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-c-yOhcXd\\dm-checkout",
+          "epicId": "ep_0000000000000000000002vhp8",
+          "runId": "rn_0000000000000000000002vhpm"
+        }
+      },
+      "failure": null,
+      "shots": [
+        {
+          "phase": "c",
+          "name": "c28-09-endstate-linked.png",
+          "note": "DM-193 end state: the dm experiment's correction Created and linked; Open, Bring back its grades, Check again",
+          "values": {
+            "experimentId": "xp_0000000000000000000001x14t",
+            "shows": [
+              "Created",
+              "Bring back its grades",
+              "Check again",
+              "Open \""
+            ],
+            "beforeAfterShown": false
+          }
+        },
+        {
+          "phase": "c",
+          "name": "c28-10-endstate-grades.png",
+          "note": "Bring back its grades: the correction epic's frozen grades, each to cite by { reportId, assessmentId }; no Before / after until an agent records a result",
+          "values": {
+            "shows": [
+              "Its grades",
+              "cite { reportId:"
+            ],
+            "cites": [
+              {
+                "reportId": "rp_0000000000000000000002vhpv",
+                "assessmentId": "as_h95wv940780zvma5jf253hgprq"
+              },
+              {
+                "reportId": "rp_0000000000000000000002vhq6",
+                "assessmentId": "as_fj90xnntakptcwr3y3t07mr6bp"
+              }
+            ],
+            "beforeAfterShown": false
+          }
+        },
+        {
+          "phase": "c",
+          "name": "c28-11-endstate-before-after.png",
+          "note": "After the orchestrator recorded the result (record_experiment_event citing rp_0000000000000000000002vhq6 / as_fj90xnntakptcwr3y3t07mr6bp): Before / after against the source baseline, Open the correction epic",
+          "values": {
+            "shows": [
+              "Before / after",
+              "Before:",
+              "After:",
+              "Open the correction epic"
+            ],
+            "recordResult": "{\"result\":{\"ok\":true,\"data\":{\"id\":\"xe_01m7m72t1p7fhmvphk64mckg6b\",\"experimentId\":\"xp_0000000000000000000001x14t\",\"runId\":\"rn_0000000000000000000001x14c\",\"number\":5,\"source\":{\"reportId\":\"rp_0000000000000000000001x14r\",\"experimentHash\":\"sha256:5153edbc231aa52b7ed5d575104838f00d25a74ac78150d248987ce1c852d232\"},\"note\":\"checkout Sprint 2 sprint grade\",\"recordedBy\":{\"role\":\"orchestrator\",\"label\":\"orchestrator session (DM-164 c28)\"},\"recordedAt\":\"2026-11-17T07:38:28.791Z\",\"kind\":\"result\",\"result\":{\"value\":32000,\"unit\":\"tokens\",\"state\":\"observed\",\"assessment\":{\"revision\":\"earlier\",\"epicId\":\"ep_0000000000000000000002vhp8\",\"runId\":\"rn_0000000000000000000002vhpm\",\"sprintId\":\"sp_0000000000000000000002vhpe\",\"reportId\":\"rp_0000000000000000000002vhq6\",\"reportRevision\":1,\"snapshotId\":\"as_nx80act8a7bpzdywdgkq11e2zd\",\"policyHash\":\"sha256:f50d32f4eb4e2d45dd56fedf66ecf75bb55409cf79cc542729cb503f42281712\",\"assessmentId\":\"as_fj90xnntakptcwr3y3t07mr6bp\",\"subject\":{\"level\":\"sprint\",\"id\":\"sp_0000000000000000000002vhpe\"},\"inputHash\":\"sha256:ed09c5d6284f3b3bf4326f1261132b1e3ae62ea6ca733019759dd0771e9bd134\",\"reportContentHash\":\"sha256:59e31ae9f8fe453d07a69df4f89856c49e86968975a68b525ff1498cf97e3afd\",\"snapshotHash\":\"sha256:24472ccb0088cf972cdf43048bef4d29374a5e0917173f7d2871cb7079a336f1\"},\"evidence\":[],\"crossRepo\":{\"projectId\":\"pj_0000000000000000000002vhp1\",\"key\":\"rp_0000000000000000000001x14r/xp_0000000000000000000001x14t/from:pj_0000000000000000000001x141/to:pj_0000000000000000000002vhp1\",\"epicId\":\"ep_0000000000000000000002vhp8\",\"epicTitle\":\"Correction from shop: Sprint 1 spent 73,000 tokens and 68 active minutes; the page took a rejected attempt and a retry.\",\"scorecard\":{\"format\":\"darkmechanicus.scorecard\",\"formatVersion\":1,\"snapshotId\":\"as_nx80act8a7bpzdywdgkq11e2zd\",\"epicId\":\"ep_0000000000000000000002vhp8\",\"runId\":\"rn_0000000000000000000002vhpm\",\"sprintId\":\"sp_0000000000000000000002vhpe\",\"report\":{\"reportId\":\"rp_0000000000000000000002vhq6\",\"reportRevision\":1,\"contentHash\":\"sha256:59e31ae9f8fe453d07a69df4f89856c49e86968975a68b525ff1498cf97e3afd\"},\"planRevisionId\":\"rv_0000000000000000000002vhpk\",\"cutoff\":\"2026-11-16T07:13:00.000Z\",\"policy\":{\"policyId\":\"dm-space\",\"version\":2,\"hash\":\"sha256:f50d32f4eb4e2d45dd56fedf66ecf75bb55409cf79cc542729cb503f42281712\"},\"sprint\":{\"subject\":{\"level\":\"sprint\",\"id\":\"sp_0000000000000000000002vhpe\"},\"assessmentId\":\"as_fj90xnntakptcwr3y3t07mr6bp\",\"dispatchedAt\":\"2026-11-16T06:31:00.000Z\",\"inputs\":{\"S\":\"sha256:b47db3eb9dc7d8e7c89f0b7c7bfeb8860f17221854914b1863bbdc71e8425516\",\"P\":\"sha256:790ce4dffde055ef949bfe103efc87161dfac2b4cb62ebb1ba0a6bf09d61e479\",\"A\":\"sha256:09da795b546f2280d6b2bc19e29f064a952e58d8c86e2c94cd7563544c7ef79d\",\"C\":\"sha256:b3dc3a9f77b693e0e92928c418d39a4a2d0dd9418d437814bc9eb48b58c044f8\",\"E\":\"sha256:dfc2e2c4e66bdc75bbb4ab3070b74594efc569d0605fe139ffc1d92c9e822a20\",\"T\":\"sha256:8fad7446386313031174279f447a48d7ef25f8dadbf4bca64d78687f6defabf7\",\"K\":\"sha256:73ae5fcb6a79e1072386c0b7bb70860b6e2d395c7a25477178742d8630db3610\"},\"result\":{\"inputHash\":\"sha256:ed09c5d6284f3b3bf4326f1261132b1e3ae62ea6ca733019759dd0771e9bd134\",\"status\":\"final\",\"outcome\":\"verified\",\"statusReasons\":[],\"score\":100,\"uncappedScore\":100,\"displayScore\":\"100.0\",\"letter\":\"A\",\"coverage\":0.8571428571428571,\"components\":[{\"component\":\"S\",\"state\":\"missing\",\"score\":null,\"missingReason\":\"no_rating\"},{\"component\":\"P\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"A\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"C\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"E\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"T\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"K\",\"state\":\"observed\",\"score\":100,\"missingReason\":null}]},\"detail\":\"sha256:afda80e51f83e798db11d8b65498f6fecd46d8d48237c62e3510f2e3f08147aa\"},\"run\":{\"subject\":{\"level\":\"run\",\"id\":\"rn_0000000000000000000002vhpm\"},\"assessmentId\":\"as_h7efqtvykdx6129aq4en21mkd6\",\"dispatchedAt\":\"2026-11-16T06:00:00.000Z\",\"inputs\":{\"S\":\"sha256:b47db3eb9dc7d8e7c89f0b7c7bfeb8860f17221854914b1863bbdc71e8425516\",\"P\":\"sha256:baac2bca82e21926f978d9bb4554e5a6f04e0dd59f15a946750f55462dafecce\",\"A\":\"sha256:4d4da3fe8a44316647c1fdbaee8342d66c6cb3a5cdda61633c2c531ddae5306e\",\"C\":\"sha256:3bf9e7f41d26191ac434b4cd4401f140904cab369c529370631997c500c70de1\",\"E\":\"sha256:f9cd9031bc93c873a39b02d6766bf05c2292ce1791f26b8a882e7464a7a53cee\",\"T\":\"sha256:1b331073efec6853490ff4f0fef22ec075408f216d77abe12730b66554ac10b8\",\"K\":\"sha256:fd048bbb1d125e32fd72d4a71507cc87a97e8e19f2137c95f6c5a5feecd87d39\"},\"result\":{\"inputHash\":\"sha256:540030caee21f69aacf50482a678502e53404a53d3d36717dfd9f5bc1dfff0bc\",\"status\":\"provisional\",\"outcome\":\"verified\",\"statusReasons\":[\"estimated_input\"],\"score\":100,\"uncappedScore\":100,\"displayScore\":\"100.0\",\"letter\":\"A\",\"coverage\":0.8571428571428571,\"components\":[{\"component\":\"S\",\"state\":\"missing\",\"score\":null,\"missingReason\":\"no_rating\"},{\"component\":\"P\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"A\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"C\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"E\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"T\",\"state\":\"estimated\",\"score\":100,\"missingReason\":null},{\"component\":\"K\",\"state\":\"estimated\",\"score\":100,\"missingReason\":null}]},\"detail\":\"sha256:69b2ed871b11aad8861ba5321f40a33083c6e176190da6c5ef48160085fae9fb\"},\"epic\":{\"subject\":{\"level\":\"epic\",\"id\":\"ep_0000000000000000000002vhp8\"},\"assessmentId\":\"as_hye83x6786ncg620zxywd6gsrh\",\"dispatchedAt\":\"2026-11-16T06:00:00.000Z\",\"inputs\":{\"S\":\"sha256:b47db3eb9dc7d8e7c89f0b7c7bfeb8860f17221854914b1863bbdc71e8425516\",\"P\":\"sha256:baac2bca82e21926f978d9bb4554e5a6f04e0dd59f15a946750f55462dafecce\",\"A\":\"sha256:4d4da3fe8a44316647c1fdbaee8342d66c6cb3a5cdda61633c2c531ddae5306e\",\"C\":\"sha256:3bf9e7f41d26191ac434b4cd4401f140904cab369c529370631997c500c70de1\",\"E\":\"sha256:f9cd9031bc93c873a39b02d6766bf05c2292ce1791f26b8a882e7464a7a53cee\",\"T\":\"sha256:1b331073efec6853490ff4f0fef22ec075408f216d77abe12730b66554ac10b8\",\"K\":\"sha256:fd048bbb1d125e32fd72d4a71507cc87a97e8e19f2137c95f6c5a5feecd87d39\"},\"result\":{\"inputHash\":\"sha256:14c25e2ceb5cc0ed9c68e66377ec41e3dc14ca69c028498ae4ac7d8f6c122a94\",\"status\":\"provisional\",\"outcome\":\"verified\",\"statusReasons\":[\"estimated_input\"],\"score\":100,\"uncappedScore\":100,\"displayScore\":\"100.0\",\"letter\":\"A\",\"coverage\":0.8571428571428571,\"components\":[{\"component\":\"S\",\"state\":\"missing\",\"score\":null,\"missingReason\":\"no_rating\"},{\"component\":\"P\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"A\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"C\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"E\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"T\",\"state\":\"estimated\",\"score\":100,\"missingReason\":null},{\"component\":\"K\",\"state\":\"estimated\",\"score\":100,\"missingReason\":null}]},\"detail\":\"sha256:69b2ed871b11aad8861ba5321f40a33083c6e176190da6c5ef48160085fae9fb\"},\"tickets\":[{\"subject\":{\"level\":\"ticket\",\"id\":\"tk_0000000000000000000002vhpf\"},\"assessmentId\":\"as_6tcbdvtk727ghsh77x9y3ezg10\",\"dispatchedAt\":\"2026-11-16T07:07:00.000Z\",\"inputs\":{\"S\":\"sha256:b47db3eb9dc7d8e7c89f0b7c7bfeb8860f17221854914b1863bbdc71e8425516\",\"P\":\"sha256:6fcce2c13487adfdaa9ca05c5cf6bfc2fed4958f067481b63b5504cb58a232ce\",\"A\":\"sha256:be0e8afcd645859eb50048842c3c4c02adb762a9d915413c154a5bf3086f7b80\",\"C\":\"sha256:82e3b1cff4fd72064f8213f8f69429d37a7064a19e5a0934a325c7dc47a212a6\",\"E\":\"sha256:0ee81cec0ccfd4ddd069f88df5aeacb768833764c85cbe79bc2faf3d5f14e90e\",\"T\":\"sha256:b13818c4514bd352c0830bb21f8a79af1a7988d9413750270709aa5c5a4e6897\",\"K\":\"sha256:9c9ff2cfa664a4c73089aa6bee1cf5c31590988097cf9f8059e3c25ed44117be\"},\"result\":{\"inputHash\":\"sha256:a901b6220f67c3ef9d24048b0edc7320c73f9c7ba56d3a8ff3048e2aabd39357\",\"status\":\"provisional\",\"outcome\":\"verified\",\"statusReasons\":[\"required_component_missing\"],\"score\":100,\"uncappedScore\":100,\"displayScore\":\"100.0\",\"letter\":\"A\",\"coverage\":0.5714285714285714,\"components\":[{\"component\":\"S\",\"state\":\"missing\",\"score\":null,\"missingReason\":\"no_rating\"},{\"component\":\"P\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"A\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"C\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"E\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"T\",\"state\":\"missing\",\"score\":null,\"missingReason\":\"no_eligible_baseline\"},{\"component\":\"K\",\"state\":\"missing\",\"score\":null,\"missingReason\":\"no_eligible_baseline\"}]}},{\"subject\":{\"level\":\"ticket\",\"id\":\"tk_0000000000000000000002vhpg\"},\"assessmentId\":\"as_m24r5e3qtgaqs7cvzad0xemz5b\",\"dispatchedAt\":\"2026-11-16T06:31:00.000Z\",\"inputs\":{\"S\":\"sha256:b47db3eb9dc7d8e7c89f0b7c7bfeb8860f17221854914b1863bbdc71e8425516\",\"P\":\"sha256:480147cb1f592e26b778bc156476d2ea624b7cbbb15c75cff15e6ec628e2b27d\",\"A\":\"sha256:596e52e01cd3e7783c8b46f87cbbdb9b031591088dddc03c18bc3add5c7ce69d\",\"C\":\"sha256:bea31db3eac3bff47802cd0ba0f37834e3d2b318495fe6a8215edd12c6d95124\",\"E\":\"sha256:0c890f3a83113b7967efe65c34c42cf2ac83bb860cefb2ffc1a8c8fd06176958\",\"T\":\"sha256:29ffa27afcded5f8a0f3c0ec3195f383365b5abe52c06b6835748bdee591c7e3\",\"K\":\"sha256:bdd3182baabe99021afe9c23d8921670ea74e34ba199a78b6feb413d210d0ecf\"},\"result\":{\"inputHash\":\"sha256:5270ad488b6ae3474ca36c8f23069e369c8dc475580c5914ca3616240fa25611\",\"status\":\"final\",\"outcome\":\"verified\",\"statusReasons\":[],\"score\":100,\"uncappedScore\":100,\"displayScore\":\"100.0\",\"letter\":\"A\",\"coverage\":0.8571428571428571,\"components\":[{\"component\":\"S\",\"state\":\"missing\",\"score\":null,\"missingReason\":\"no_rating\"},{\"component\":\"P\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"A\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"C\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"E\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"T\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"K\",\"state\":\"observed\",\"score\":100,\"missingReason\":null}]}},{\"subject\":{\"level\":\"ticket\",\"id\":\"tk_0000000000000000000002vhph\"},\"assessmentId\":\"as_atg21z6kk15nma2esvrgxyqpgk\",\"dispatchedAt\":\"2026-11-16T06:45:00.000Z\",\"inputs\":{\"S\":\"sha256:b47db3eb9dc7d8e7c89f0b7c7bfeb8860f17221854914b1863bbdc71e8425516\",\"P\":\"sha256:5f29d6abee9a8399f2c4095e6ea2d6cc053571d4d4f827dd87ffecada69317a0\",\"A\":\"sha256:c0bb9510bfb10cdd339580ba89270d5f50108662eb2ee075b885efe7847528ad\",\"C\":\"sha256:01ae3631e0243a59bd32b9d605353bfcc36d902fbcd82aa029532fe659bf52fa\",\"E\":\"sha256:0ad229d9faf70aeec8312c25e7c0cbed75eb852bc0c1271105f94bf7fbb3297f\",\"T\":\"sha256:c9b429577fbb7f8e54aaf60057dacd4a69fc11f28a8984f95364ba9632e12b0b\",\"K\":\"sha256:c33d2ff77ab2c6ac5004e931a9e20af34eda28bba49a76717ac43918cef539b5\"},\"result\":{\"inputHash\":\"sha256:31818e16e4cd1d4a1a316daf8c6032595e8b5c0062444b198fde8e9a447a1920\",\"status\":\"final\",\"outcome\":\"verified\",\"statusReasons\":[],\"score\":100,\"uncappedScore\":100,\"displayScore\":\"100.0\",\"letter\":\"A\",\"coverage\":0.8571428571428571,\"components\":[{\"component\":\"S\",\"state\":\"missing\",\"score\":null,\"missingReason\":\"no_rating\"},{\"component\":\"P\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"A\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"C\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"E\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"T\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"K\",\"state\":\"observed\",\"score\":100,\"missingReason\":null}]}},{\"subject\":{\"level\":\"ticket\",\"id\":\"tk_0000000000000000000002vhpj\"},\"assessmentId\":\"as_mrzn8cky4m4hbf9v1k4eg0y9bs\",\"dispatchedAt\":\"2026-11-16T06:59:00.000Z\",\"inputs\":{\"S\":\"sha256:b47db3eb9dc7d8e7c89f0b7c7bfeb8860f17221854914b1863bbdc71e8425516\",\"P\":\"sha256:af6fef9050c7f6a27692ded9b4fb8bf16100f52c901e0988e552a1192aad8e7e\",\"A\":\"sha256:90b35a76a42384d0c7b2e055bbadfd5466f8d27a4659bdb18f8796aef90a7d8b\",\"C\":\"sha256:8c787c39add45a727ad777db2baaac41ef7b15c7119fbad462107938c2571826\",\"E\":\"sha256:edb3e38b092022559f11c36e696b19217e6623cf92912ae0cf9f754ba96491ce\",\"T\":\"sha256:d55359b7e468cfd6a57855a61a61daea6662294ea966b980c805d4d85b323d51\",\"K\":\"sha256:6cba7ca38922d7716e7d61ecbf61e26230395d49bbedf0375ad8d876748d59b4\"},\"result\":{\"inputHash\":\"sha256:43847ff7a9df0733f682c3da8c9a2acc4655e7de3b3b6aeb808a588c93005100\",\"status\":\"final\",\"outcome\":\"verified\",\"statusReasons\":[],\"score\":100,\"uncappedScore\":100,\"displayScore\":\"100.0\",\"letter\":\"A\",\"coverage\":0.8571428571428571,\"components\":[{\"component\":\"S\",\"state\":\"missing\",\"score\":null,\"missingReason\":\"no_rating\"},{\"component\":\"P\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"A\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"C\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"E\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"T\",\"state\":\"observed\",\"score\":100,\"missingReason\":null},{\"component\":\"K\",\"state\":\"observed\",\"score\":100,\"missingReason\":null}]}}],\"inputs\":{\"sha256:01ae3631e0243a59bd32b9d605353bfcc36d902fbcd82aa029532fe659bf52fa\":{\"coordinationDefects\":0,\"evidence\":[{\"detail\":\"criteria_evidence\",\"id\":\"mo_r7e4s57jsc18cqekjzwg3dx73z\",\"kind\":\"observation\"},{\"detail\":\"verification_checks\",\"id\":\"mo_31yk2xcqk506qcj0s1020t7y6k\",\"kind\":\"observation\"},{\"detail\":\"outputs_contract\",\"id\":\"mo_y9g5pm4ceqv43mygcmv3678136\",\"kind\":\"observation\"}],\"handoffChecks\":{\"failed\":0,\"passed\":3}},\"sha256:09da795b546f2280d6b2bc19e29f064a952e58d8c86e2c94cd7563544c7ef79d\":{\"activity\":{\"attempts\":4,\"changedLines\":null,\"commits\":1},\"added\":0,\"committed\":3,\"delivered\":3,\"evidence\":[{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhpz\",\"kind\":\"attempt\"},{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq1\",\"kind\":\"attempt\"},{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq3\",\"kind\":\"attempt\"}],\"removed\":0},\"sha256:0ad229d9faf70aeec8312c25e7c0cbed75eb852bc0c1271105f94bf7fbb3297f\":{\"correctiveMs\":{\"state\":\"observed\",\"value\":0},\"evidence\":[{\"detail\":\"productive\",\"id\":\"mo_fx91dpa3cy14ynhdcgaqd6rbgn\",\"kind\":\"observation\"}],\"productiveMs\":{\"state\":\"observed\",\"value\":720000},\"retries\":0,\"unclassifiedMs\":{\"state\":\"observed\",\"value\":0}},\"sha256:0c890f3a83113b7967efe65c34c42cf2ac83bb860cefb2ffc1a8c8fd06176958\":{\"correctiveMs\":{\"state\":\"observed\",\"value\":0},\"evidence\":[{\"detail\":\"productive\",\"id\":\"mo_7ws51pk9m1wqa61169bpcew3cb\",\"kind\":\"observation\"}],\"productiveMs\":{\"state\":\"observed\",\"value\":720000},\"retries\":0,\"unclassifiedMs\":{\"state\":\"observed\",\"value\":0}},\"sha256:0ee81cec0ccfd4ddd069f88df5aeacb768833764c85cbe79bc2faf3d5f14e90e\":{\"correctiveMs\":{\"state\":\"observed\",\"value\":0},\"evidence\":[{\"detail\":\"productive\",\"id\":\"mo_e5tg6x1bb14zv93rk0y3km1kht\",\"kind\":\"observation\"}],\"productiveMs\":{\"state\":\"observed\",\"value\":240000},\"retries\":0,\"unclassifiedMs\":{\"state\":\"observed\",\"value\":0}},\"sha256:1b331073efec6853490ff4f0fef22ec075408f216d77abe12730b66554ac10b8\":{\"actual\":{\"method\":\"partial roll-up: 3 of 4 executed work tickets have a baseline; the 1 without one are left out of the actual\",\"state\":\"estimated\",\"value\":3000000},\"baseline\":{\"baseline\":{\"baselineId\":\"bl_w4y2g3h0r2mt121hg84qbjep7p\",\"frozenAt\":\"2026-11-16T06:00:00.000Z\",\"kind\":\"rollup\",\"members\":[{\"baselineId\":\"bl_q4mbbq1pnjzxkytdt2br1t1qsr\",\"dispatchedAt\":\"2026-11-16T06:31:00.000Z\",\"frozenAt\":\"2026-11-16T06:00:00.000Z\",\"kind\":\"budget\",\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhpg\",\"value\":1800000},{\"baselineId\":\"bl_s64363nrnkggtf5w9raz532kst\",\"dispatchedAt\":\"2026-11-16T06:45:00.000Z\",\"frozenAt\":\"2026-11-16T06:00:00.000Z\",\"kind\":\"budget\",\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhph\",\"value\":1800000},{\"baselineId\":\"bl_mt79addzncnhcb0tvv8q4d2cks\",\"dispatchedAt\":\"2026-11-16T06:59:00.000Z\",\"frozenAt\":\"2026-11-16T06:00:00.000Z\",\"kind\":\"budget\",\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhpj\",\"value\":900000}],\"metric\":\"active_ms\",\"uncovered\":[{\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhpb\"}],\"unit\":\"milliseconds\",\"value\":4500000,\"version\":1},\"rejected\":[],\"state\":\"selected\"},\"evidence\":[{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhpt\",\"kind\":\"attempt\"},{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhpp\",\"kind\":\"attempt\"},{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhpr\",\"kind\":\"attempt\"},{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq5\",\"kind\":\"attempt\"},{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhpz\",\"kind\":\"attempt\"},{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq1\",\"kind\":\"attempt\"},{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq3\",\"kind\":\"attempt\"}],\"unreportedAttempts\":0},\"sha256:29ffa27afcded5f8a0f3c0ec3195f383365b5abe52c06b6835748bdee591c7e3\":{\"actual\":{\"state\":\"observed\",\"value\":720000},\"baseline\":{\"baseline\":{\"baselineId\":\"bl_q4mbbq1pnjzxkytdt2br1t1qsr\",\"frozenAt\":\"2026-11-16T06:00:00.000Z\",\"kind\":\"budget\",\"metric\":\"active_ms\",\"revisionId\":\"rv_0000000000000000000002vhpk\",\"ticketId\":\"tk_0000000000000000000002vhpg\",\"unit\":\"milliseconds\",\"value\":1800000,\"version\":1},\"rejected\":[],\"state\":\"selected\"},\"evidence\":[{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhpz\",\"kind\":\"attempt\"}],\"unreportedAttempts\":0},\"sha256:3bf9e7f41d26191ac434b4cd4401f140904cab369c529370631997c500c70de1\":{\"coordinationDefects\":0,\"evidence\":[{\"detail\":\"criteria_evidence\",\"id\":\"mo_3h55cvqmve4d7tf17rhkptn85f\",\"kind\":\"observation\"},{\"detail\":\"verification_checks\",\"id\":\"mo_jdrnmm57e342schypfb2x4e2y3\",\"kind\":\"observation\"},{\"detail\":\"outputs_contract\",\"id\":\"mo_jg9d2y8yc7848wm76ywpk27pnj\",\"kind\":\"observation\"},{\"detail\":\"criteria_evidence\",\"id\":\"mo_br4cyd1kr3pejanwmscg8tkkq2\",\"kind\":\"observation\"},{\"detail\":\"verification_checks\",\"id\":\"mo_m2gw6ccv8dxn77q0fger06jz6v\",\"kind\":\"observation\"},{\"detail\":\"outputs_contract\",\"id\":\"mo_1de8hpdc1yztzw3f9ce55cqxcj\",\"kind\":\"observation\"},{\"detail\":\"criteria_evidence\",\"id\":\"mo_7mbtqqxn1afa97w2fkzdjc5shn\",\"kind\":\"observation\"},{\"detail\":\"verification_checks\",\"id\":\"mo_382ycntf6qgqf30v87qb6stkx4\",\"kind\":\"observation\"},{\"detail\":\"outputs_contract\",\"id\":\"mo_c3qztmd73861ny774xk953dksc\",\"kind\":\"observation\"},{\"detail\":\"criteria_evidence\",\"id\":\"mo_4hq09gr2br3zfzjw32py09r920\",\"kind\":\"observation\"},{\"detail\":\"verification_checks\",\"id\":\"mo_rztm3b0k2dje4q0nq6na6qrdz9\",\"kind\":\"observation\"},{\"detail\":\"outputs_contract\",\"id\":\"mo_586kwqyb4r19wj0cadgzhna3ks\",\"kind\":\"observation\"},{\"detail\":\"criteria_evidence\",\"id\":\"mo_r7e4s57jsc18cqekjzwg3dx73z\",\"kind\":\"observation\"},{\"detail\":\"verification_checks\",\"id\":\"mo_31yk2xcqk506qcj0s1020t7y6k\",\"kind\":\"observation\"},{\"detail\":\"outputs_contract\",\"id\":\"mo_y9g5pm4ceqv43mygcmv3678136\",\"kind\":\"observation\"},{\"detail\":\"criteria_evidence\",\"id\":\"mo_v6bkb7brvvf10m7s1b5t3hmed1\",\"kind\":\"observation\"},{\"detail\":\"verification_checks\",\"id\":\"mo_qe6swghed9301ptc7cxssvy8rv\",\"kind\":\"observation\"},{\"detail\":\"outputs_contract\",\"id\":\"mo_0sxj6wtgnp0ehggw2d4w4xhk2x\",\"kind\":\"observation\"},{\"detail\":\"criteria_evidence\",\"id\":\"mo_r1q381qjmcf76jtne2mcq21fyr\",\"kind\":\"observation\"},{\"detail\":\"verification_checks\",\"id\":\"mo_v5mtm9dqc0v9tp069vb8rb62b1\",\"kind\":\"observation\"},{\"detail\":\"outputs_contract\",\"id\":\"mo_6989jg84rqn10ky0szn7jn6szp\",\"kind\":\"observation\"}],\"handoffChecks\":{\"failed\":0,\"passed\":21}},\"sha256:480147cb1f592e26b778bc156476d2ea624b7cbbb15c75cff15e6ec628e2b27d\":{\"regressions\":[],\"verification\":{\"evidence\":[{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhpz\",\"kind\":\"attempt\"},{\"detail\":\"c1\",\"id\":\"tk_0000000000000000000002vhpg\",\"kind\":\"criterion\"},{\"detail\":\"unit tests\",\"id\":\"at_0000000000000000000002vhpz\",\"kind\":\"check\"}],\"state\":\"verified\"}},\"sha256:4d4da3fe8a44316647c1fdbaee8342d66c6cb3a5cdda61633c2c531ddae5306e\":{\"activity\":{\"attempts\":7,\"changedLines\":null,\"commits\":1},\"added\":0,\"committed\":4,\"delivered\":4,\"evidence\":[{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhpp\",\"kind\":\"attempt\"},{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhpz\",\"kind\":\"attempt\"},{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq1\",\"kind\":\"attempt\"},{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq3\",\"kind\":\"attempt\"}],\"removed\":0},\"sha256:596e52e01cd3e7783c8b46f87cbbdb9b031591088dddc03c18bc3add5c7ce69d\":{\"activity\":{\"attempts\":1,\"changedLines\":null,\"commits\":1},\"added\":0,\"committed\":1,\"delivered\":1,\"evidence\":[{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhpz\",\"kind\":\"attempt\"}],\"removed\":0},\"sha256:5f29d6abee9a8399f2c4095e6ea2d6cc053571d4d4f827dd87ffecada69317a0\":{\"regressions\":[],\"verification\":{\"evidence\":[{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq1\",\"kind\":\"attempt\"},{\"detail\":\"c1\",\"id\":\"tk_0000000000000000000002vhph\",\"kind\":\"criterion\"},{\"detail\":\"unit tests\",\"id\":\"at_0000000000000000000002vhq1\",\"kind\":\"check\"}],\"state\":\"verified\"}},\"sha256:6cba7ca38922d7716e7d61ecbf61e26230395d49bbedf0375ad8d876748d59b4\":{\"actual\":{\"state\":\"observed\",\"value\":6000},\"baseline\":{\"baseline\":{\"baselineId\":\"bl_c9wknzr3a95d7sdxbhzxzn7sgj\",\"frozenAt\":\"2026-11-16T06:00:00.000Z\",\"kind\":\"budget\",\"metric\":\"tokens\",\"revisionId\":\"rv_0000000000000000000002vhpk\",\"ticketId\":\"tk_0000000000000000000002vhpj\",\"unit\":\"tokens\",\"value\":20000,\"version\":1},\"rejected\":[{\"baselineId\":\"bl_m5s6jn1ngb0mbvb6nx43m9zj80\",\"reason\":\"sample_too_small\"}],\"state\":\"selected\"},\"evidence\":[{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq3\",\"kind\":\"attempt\"}],\"unreportedAttempts\":0},\"sha256:6fcce2c13487adfdaa9ca05c5cf6bfc2fed4958f067481b63b5504cb58a232ce\":{\"regressions\":[],\"verification\":{\"evidence\":[{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq5\",\"kind\":\"attempt\"},{\"detail\":\"c1\",\"id\":\"tk_0000000000000000000002vhpf\",\"kind\":\"criterion\"},{\"detail\":\"c2\",\"id\":\"tk_0000000000000000000002vhpf\",\"kind\":\"criterion\"},{\"detail\":\"c3\",\"id\":\"tk_0000000000000000000002vhpf\",\"kind\":\"criterion\"},{\"detail\":\"unit tests\",\"id\":\"at_0000000000000000000002vhq5\",\"kind\":\"check\"}],\"state\":\"verified\"}},\"sha256:73ae5fcb6a79e1072386c0b7bb70860b6e2d395c7a25477178742d8630db3610\":{\"actual\":{\"state\":\"observed\",\"value\":32000},\"baseline\":{\"baseline\":{\"baselineId\":\"bl_zefnyfzem1mpbqmwfa10qc7bda\",\"frozenAt\":\"2026-11-16T06:00:00.000Z\",\"kind\":\"rollup\",\"members\":[{\"baselineId\":\"bl_y7pybrc6hmt590bbme7hxppfm3\",\"dispatchedAt\":\"2026-11-16T06:31:00.000Z\",\"frozenAt\":\"2026-11-16T06:00:00.000Z\",\"kind\":\"budget\",\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhpg\",\"value\":50000},{\"baselineId\":\"bl_9brxq7gf822b1cez98mk6j8vzj\",\"dispatchedAt\":\"2026-11-16T06:45:00.000Z\",\"frozenAt\":\"2026-11-16T06:00:00.000Z\",\"kind\":\"budget\",\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhph\",\"value\":50000},{\"baselineId\":\"bl_c9wknzr3a95d7sdxbhzxzn7sgj\",\"dispatchedAt\":\"2026-11-16T06:59:00.000Z\",\"frozenAt\":\"2026-11-16T06:00:00.000Z\",\"kind\":\"budget\",\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhpj\",\"value\":20000}],\"metric\":\"tokens\",\"uncovered\":[],\"unit\":\"tokens\",\"value\":120000,\"version\":1},\"rejected\":[],\"state\":\"selected\"},\"evidence\":[{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq5\",\"kind\":\"attempt\"},{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhpz\",\"kind\":\"attempt\"},{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq1\",\"kind\":\"attempt\"},{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq3\",\"kind\":\"attempt\"}],\"unreportedAttempts\":0},\"sha256:790ce4dffde055ef949bfe103efc87161dfac2b4cb62ebb1ba0a6bf09d61e479\":{\"regressions\":[],\"verification\":{\"evidence\":[{\"detail\":\"verified (reviewed)\",\"id\":\"tk_0000000000000000000002vhpf\",\"kind\":\"ticket\"},{\"detail\":\"verified (reviewed)\",\"id\":\"tk_0000000000000000000002vhpg\",\"kind\":\"ticket\"},{\"detail\":\"verified (reviewed)\",\"id\":\"tk_0000000000000000000002vhph\",\"kind\":\"ticket\"},{\"detail\":\"verified (reviewed)\",\"id\":\"tk_0000000000000000000002vhpj\",\"kind\":\"ticket\"}],\"state\":\"verified\"}},\"sha256:82e3b1cff4fd72064f8213f8f69429d37a7064a19e5a0934a325c7dc47a212a6\":{\"coordinationDefects\":0,\"evidence\":[{\"detail\":\"criteria_evidence\",\"id\":\"mo_r1q381qjmcf76jtne2mcq21fyr\",\"kind\":\"observation\"},{\"detail\":\"verification_checks\",\"id\":\"mo_v5mtm9dqc0v9tp069vb8rb62b1\",\"kind\":\"observation\"},{\"detail\":\"outputs_contract\",\"id\":\"mo_6989jg84rqn10ky0szn7jn6szp\",\"kind\":\"observation\"}],\"handoffChecks\":{\"failed\":0,\"passed\":3}},\"sha256:8c787c39add45a727ad777db2baaac41ef7b15c7119fbad462107938c2571826\":{\"coordinationDefects\":0,\"evidence\":[{\"detail\":\"criteria_evidence\",\"id\":\"mo_v6bkb7brvvf10m7s1b5t3hmed1\",\"kind\":\"observation\"},{\"detail\":\"verification_checks\",\"id\":\"mo_qe6swghed9301ptc7cxssvy8rv\",\"kind\":\"observation\"},{\"detail\":\"outputs_contract\",\"id\":\"mo_0sxj6wtgnp0ehggw2d4w4xhk2x\",\"kind\":\"observation\"}],\"handoffChecks\":{\"failed\":0,\"passed\":3}},\"sha256:8fad7446386313031174279f447a48d7ef25f8dadbf4bca64d78687f6defabf7\":{\"actual\":{\"state\":\"observed\",\"value\":2040000},\"baseline\":{\"baseline\":{\"baselineId\":\"bl_fgtm7nr9j10t42km3q35zmpp3p\",\"frozenAt\":\"2026-11-16T06:00:00.000Z\",\"kind\":\"rollup\",\"members\":[{\"baselineId\":\"bl_q4mbbq1pnjzxkytdt2br1t1qsr\",\"dispatchedAt\":\"2026-11-16T06:31:00.000Z\",\"frozenAt\":\"2026-11-16T06:00:00.000Z\",\"kind\":\"budget\",\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhpg\",\"value\":1800000},{\"baselineId\":\"bl_s64363nrnkggtf5w9raz532kst\",\"dispatchedAt\":\"2026-11-16T06:45:00.000Z\",\"frozenAt\":\"2026-11-16T06:00:00.000Z\",\"kind\":\"budget\",\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhph\",\"value\":1800000},{\"baselineId\":\"bl_mt79addzncnhcb0tvv8q4d2cks\",\"dispatchedAt\":\"2026-11-16T06:59:00.000Z\",\"frozenAt\":\"2026-11-16T06:00:00.000Z\",\"kind\":\"budget\",\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhpj\",\"value\":900000}],\"metric\":\"active_ms\",\"uncovered\":[],\"unit\":\"milliseconds\",\"value\":4500000,\"version\":1},\"rejected\":[],\"state\":\"selected\"},\"evidence\":[{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq5\",\"kind\":\"attempt\"},{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhpz\",\"kind\":\"attempt\"},{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq1\",\"kind\":\"attempt\"},{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq3\",\"kind\":\"attempt\"}],\"unreportedAttempts\":0},\"sha256:90b35a76a42384d0c7b2e055bbadfd5466f8d27a4659bdb18f8796aef90a7d8b\":{\"activity\":{\"attempts\":1,\"changedLines\":null,\"commits\":1},\"added\":0,\"committed\":1,\"delivered\":1,\"evidence\":[{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq3\",\"kind\":\"attempt\"}],\"removed\":0},\"sha256:9c9ff2cfa664a4c73089aa6bee1cf5c31590988097cf9f8059e3c25ed44117be\":{\"actual\":{\"state\":\"observed\",\"value\":4000},\"baseline\":{\"reason\":\"no_eligible_baseline\",\"rejected\":[],\"state\":\"missing\"},\"evidence\":[{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq5\",\"kind\":\"attempt\"}],\"unreportedAttempts\":0},\"sha256:af6fef9050c7f6a27692ded9b4fb8bf16100f52c901e0988e552a1192aad8e7e\":{\"regressions\":[],\"verification\":{\"evidence\":[{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq3\",\"kind\":\"attempt\"},{\"detail\":\"c1\",\"id\":\"tk_0000000000000000000002vhpj\",\"kind\":\"criterion\"},{\"detail\":\"unit tests\",\"id\":\"at_0000000000000000000002vhq3\",\"kind\":\"check\"}],\"state\":\"verified\"}},\"sha256:b13818c4514bd352c0830bb21f8a79af1a7988d9413750270709aa5c5a4e6897\":{\"actual\":{\"state\":\"observed\",\"value\":240000},\"baseline\":{\"reason\":\"no_eligible_baseline\",\"rejected\":[],\"state\":\"missing\"},\"evidence\":[{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq5\",\"kind\":\"attempt\"}],\"unreportedAttempts\":0},\"sha256:b3dc3a9f77b693e0e92928c418d39a4a2d0dd9418d437814bc9eb48b58c044f8\":{\"coordinationDefects\":0,\"evidence\":[{\"detail\":\"criteria_evidence\",\"id\":\"mo_4hq09gr2br3zfzjw32py09r920\",\"kind\":\"observation\"},{\"detail\":\"verification_checks\",\"id\":\"mo_rztm3b0k2dje4q0nq6na6qrdz9\",\"kind\":\"observation\"},{\"detail\":\"outputs_contract\",\"id\":\"mo_586kwqyb4r19wj0cadgzhna3ks\",\"kind\":\"observation\"},{\"detail\":\"criteria_evidence\",\"id\":\"mo_r7e4s57jsc18cqekjzwg3dx73z\",\"kind\":\"observation\"},{\"detail\":\"verification_checks\",\"id\":\"mo_31yk2xcqk506qcj0s1020t7y6k\",\"kind\":\"observation\"},{\"detail\":\"outputs_contract\",\"id\":\"mo_y9g5pm4ceqv43mygcmv3678136\",\"kind\":\"observation\"},{\"detail\":\"criteria_evidence\",\"id\":\"mo_v6bkb7brvvf10m7s1b5t3hmed1\",\"kind\":\"observation\"},{\"detail\":\"verification_checks\",\"id\":\"mo_qe6swghed9301ptc7cxssvy8rv\",\"kind\":\"observation\"},{\"detail\":\"outputs_contract\",\"id\":\"mo_0sxj6wtgnp0ehggw2d4w4xhk2x\",\"kind\":\"observation\"},{\"detail\":\"criteria_evidence\",\"id\":\"mo_r1q381qjmcf76jtne2mcq21fyr\",\"kind\":\"observation\"},{\"detail\":\"verification_checks\",\"id\":\"mo_v5mtm9dqc0v9tp069vb8rb62b1\",\"kind\":\"observation\"},{\"detail\":\"outputs_contract\",\"id\":\"mo_6989jg84rqn10ky0szn7jn6szp\",\"kind\":\"observation\"}],\"handoffChecks\":{\"failed\":0,\"passed\":12}},\"sha256:b47db3eb9dc7d8e7c89f0b7c7bfeb8860f17221854914b1863bbdc71e8425516\":{\"sprintRating\":null,\"ticketRating\":null},\"sha256:baac2bca82e21926f978d9bb4554e5a6f04e0dd59f15a946750f55462dafecce\":{\"regressions\":[],\"verification\":{\"evidence\":[{\"detail\":\"verified (reviewed)\",\"id\":\"tk_0000000000000000000002vhpa\",\"kind\":\"ticket\"},{\"detail\":\"verified (reviewed)\",\"id\":\"tk_0000000000000000000002vhpb\",\"kind\":\"ticket\"},{\"detail\":\"verified (reviewed)\",\"id\":\"tk_0000000000000000000002vhpc\",\"kind\":\"ticket\"},{\"detail\":\"verified (reviewed)\",\"id\":\"tk_0000000000000000000002vhpf\",\"kind\":\"ticket\"},{\"detail\":\"verified (reviewed)\",\"id\":\"tk_0000000000000000000002vhpg\",\"kind\":\"ticket\"},{\"detail\":\"verified (reviewed)\",\"id\":\"tk_0000000000000000000002vhph\",\"kind\":\"ticket\"},{\"detail\":\"verified (reviewed)\",\"id\":\"tk_0000000000000000000002vhpj\",\"kind\":\"ticket\"}],\"state\":\"verified\"}},\"sha256:bdd3182baabe99021afe9c23d8921670ea74e34ba199a78b6feb413d210d0ecf\":{\"actual\":{\"state\":\"observed\",\"value\":11000},\"baseline\":{\"baseline\":{\"baselineId\":\"bl_y7pybrc6hmt590bbme7hxppfm3\",\"frozenAt\":\"2026-11-16T06:00:00.000Z\",\"kind\":\"budget\",\"metric\":\"tokens\",\"revisionId\":\"rv_0000000000000000000002vhpk\",\"ticketId\":\"tk_0000000000000000000002vhpg\",\"unit\":\"tokens\",\"value\":50000,\"version\":1},\"rejected\":[],\"state\":\"selected\"},\"evidence\":[{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhpz\",\"kind\":\"attempt\"}],\"unreportedAttempts\":0},\"sha256:be0e8afcd645859eb50048842c3c4c02adb762a9d915413c154a5bf3086f7b80\":{\"activity\":{\"attempts\":1,\"changedLines\":null,\"commits\":1},\"added\":0,\"committed\":3,\"delivered\":3,\"evidence\":[{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq5\",\"kind\":\"attempt\"}],\"removed\":0},\"sha256:bea31db3eac3bff47802cd0ba0f37834e3d2b318495fe6a8215edd12c6d95124\":{\"coordinationDefects\":0,\"evidence\":[{\"detail\":\"criteria_evidence\",\"id\":\"mo_4hq09gr2br3zfzjw32py09r920\",\"kind\":\"observation\"},{\"detail\":\"verification_checks\",\"id\":\"mo_rztm3b0k2dje4q0nq6na6qrdz9\",\"kind\":\"observation\"},{\"detail\":\"outputs_contract\",\"id\":\"mo_586kwqyb4r19wj0cadgzhna3ks\",\"kind\":\"observation\"}],\"handoffChecks\":{\"failed\":0,\"passed\":3}},\"sha256:c0bb9510bfb10cdd339580ba89270d5f50108662eb2ee075b885efe7847528ad\":{\"activity\":{\"attempts\":1,\"changedLines\":null,\"commits\":1},\"added\":0,\"committed\":1,\"delivered\":1,\"evidence\":[{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq1\",\"kind\":\"attempt\"}],\"removed\":0},\"sha256:c33d2ff77ab2c6ac5004e931a9e20af34eda28bba49a76717ac43918cef539b5\":{\"actual\":{\"state\":\"observed\",\"value\":11000},\"baseline\":{\"baseline\":{\"baselineId\":\"bl_9brxq7gf822b1cez98mk6j8vzj\",\"frozenAt\":\"2026-11-16T06:00:00.000Z\",\"kind\":\"budget\",\"metric\":\"tokens\",\"revisionId\":\"rv_0000000000000000000002vhpk\",\"ticketId\":\"tk_0000000000000000000002vhph\",\"unit\":\"tokens\",\"value\":50000,\"version\":1},\"rejected\":[{\"baselineId\":\"bl_bas7kmxhqecfj4mj9ta4sqjezt\",\"reason\":\"sample_too_small\"}],\"state\":\"selected\"},\"evidence\":[{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq1\",\"kind\":\"attempt\"}],\"unreportedAttempts\":0},\"sha256:c9b429577fbb7f8e54aaf60057dacd4a69fc11f28a8984f95364ba9632e12b0b\":{\"actual\":{\"state\":\"observed\",\"value\":720000},\"baseline\":{\"baseline\":{\"baselineId\":\"bl_s64363nrnkggtf5w9raz532kst\",\"frozenAt\":\"2026-11-16T06:00:00.000Z\",\"kind\":\"budget\",\"metric\":\"active_ms\",\"revisionId\":\"rv_0000000000000000000002vhpk\",\"ticketId\":\"tk_0000000000000000000002vhph\",\"unit\":\"milliseconds\",\"value\":1800000,\"version\":1},\"rejected\":[{\"baselineId\":\"bl_pz3sqfzjg3v96d1ekhbn98dryt\",\"reason\":\"sample_too_small\"}],\"state\":\"selected\"},\"evidence\":[{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq1\",\"kind\":\"attempt\"}],\"unreportedAttempts\":0},\"sha256:d55359b7e468cfd6a57855a61a61daea6662294ea966b980c805d4d85b323d51\":{\"actual\":{\"state\":\"observed\",\"value\":360000},\"baseline\":{\"baseline\":{\"baselineId\":\"bl_mt79addzncnhcb0tvv8q4d2cks\",\"frozenAt\":\"2026-11-16T06:00:00.000Z\",\"kind\":\"budget\",\"metric\":\"active_ms\",\"revisionId\":\"rv_0000000000000000000002vhpk\",\"ticketId\":\"tk_0000000000000000000002vhpj\",\"unit\":\"milliseconds\",\"value\":900000,\"version\":1},\"rejected\":[{\"baselineId\":\"bl_kw6kb4rt540etds0mn1r420kds\",\"reason\":\"sample_too_small\"}],\"state\":\"selected\"},\"evidence\":[{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq3\",\"kind\":\"attempt\"}],\"unreportedAttempts\":0},\"sha256:dfc2e2c4e66bdc75bbb4ab3070b74594efc569d0605fe139ffc1d92c9e822a20\":{\"correctiveMs\":{\"state\":\"observed\",\"value\":0},\"evidence\":[{\"detail\":\"productive\",\"id\":\"mo_7ws51pk9m1wqa61169bpcew3cb\",\"kind\":\"observation\"},{\"detail\":\"productive\",\"id\":\"mo_fx91dpa3cy14ynhdcgaqd6rbgn\",\"kind\":\"observation\"},{\"detail\":\"productive\",\"id\":\"mo_0bkb9gw3wyamvxvsjt7hvfqvnq\",\"kind\":\"observation\"},{\"detail\":\"productive\",\"id\":\"mo_e5tg6x1bb14zv93rk0y3km1kht\",\"kind\":\"observation\"}],\"productiveMs\":{\"state\":\"observed\",\"value\":2040000},\"retries\":0,\"unclassifiedMs\":{\"state\":\"observed\",\"value\":0}},\"sha256:edb3e38b092022559f11c36e696b19217e6623cf92912ae0cf9f754ba96491ce\":{\"correctiveMs\":{\"state\":\"observed\",\"value\":0},\"evidence\":[{\"detail\":\"productive\",\"id\":\"mo_0bkb9gw3wyamvxvsjt7hvfqvnq\",\"kind\":\"observation\"}],\"productiveMs\":{\"state\":\"observed\",\"value\":360000},\"retries\":0,\"unclassifiedMs\":{\"state\":\"observed\",\"value\":0}},\"sha256:f9cd9031bc93c873a39b02d6766bf05c2292ce1791f26b8a882e7464a7a53cee\":{\"correctiveMs\":{\"state\":\"observed\",\"value\":0},\"evidence\":[{\"detail\":\"productive\",\"id\":\"mo_xntvqc77yvrsbn9m0xdkzdaavc\",\"kind\":\"observation\"},{\"detail\":\"productive\",\"id\":\"mo_34pn4xyem88q2yw1ys99tejmrn\",\"kind\":\"observation\"},{\"detail\":\"productive\",\"id\":\"mo_1fnznfyc606p5a1abw1z9m9wfx\",\"kind\":\"observation\"},{\"detail\":\"productive\",\"id\":\"mo_7ws51pk9m1wqa61169bpcew3cb\",\"kind\":\"observation\"},{\"detail\":\"productive\",\"id\":\"mo_fx91dpa3cy14ynhdcgaqd6rbgn\",\"kind\":\"observation\"},{\"detail\":\"productive\",\"id\":\"mo_0bkb9gw3wyamvxvsjt7hvfqvnq\",\"kind\":\"observation\"},{\"detail\":\"productive\",\"id\":\"mo_e5tg6x1bb14zv93rk0y3km1kht\",\"kind\":\"observation\"}],\"productiveMs\":{\"state\":\"observed\",\"value\":3480000},\"retries\":0,\"unclassifiedMs\":{\"state\":\"observed\",\"value\":0}},\"sha256:fd048bbb1d125e32fd72d4a71507cc87a97e8e19f2137c95f6c5a5feecd87d39\":{\"actual\":{\"method\":\"partial roll-up: 3 of 4 executed work tickets have a baseline; the 1 without one are left out of the actual\",\"state\":\"estimated\",\"value\":46000},\"baseline\":{\"baseline\":{\"baselineId\":\"bl_rcxyth7xvs0scmc1ay2qxdg48a\",\"frozenAt\":\"2026-11-16T06:00:00.000Z\",\"kind\":\"rollup\",\"members\":[{\"baselineId\":\"bl_y7pybrc6hmt590bbme7hxppfm3\",\"dispatchedAt\":\"2026-11-16T06:31:00.000Z\",\"frozenAt\":\"2026-11-16T06:00:00.000Z\",\"kind\":\"budget\",\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhpg\",\"value\":50000},{\"baselineId\":\"bl_9brxq7gf822b1cez98mk6j8vzj\",\"dispatchedAt\":\"2026-11-16T06:45:00.000Z\",\"frozenAt\":\"2026-11-16T06:00:00.000Z\",\"kind\":\"budget\",\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhph\",\"value\":50000},{\"baselineId\":\"bl_c9wknzr3a95d7sdxbhzxzn7sgj\",\"dispatchedAt\":\"2026-11-16T06:59:00.000Z\",\"frozenAt\":\"2026-11-16T06:00:00.000Z\",\"kind\":\"budget\",\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhpj\",\"value\":20000}],\"metric\":\"tokens\",\"uncovered\":[{\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhpb\"}],\"unit\":\"tokens\",\"value\":120000,\"version\":1},\"rejected\":[],\"state\":\"selected\"},\"evidence\":[{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhpt\",\"kind\":\"attempt\"},{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhpp\",\"kind\":\"attempt\"},{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhpr\",\"kind\":\"attempt\"},{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq5\",\"kind\":\"attempt\"},{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhpz\",\"kind\":\"attempt\"},{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq1\",\"kind\":\"attempt\"},{\"detail\":\"accepted\",\"id\":\"at_0000000000000000000002vhq3\",\"kind\":\"attempt\"}],\"unreportedAttempts\":0}},\"details\":{\"sha256:69b2ed871b11aad8861ba5321f40a33083c6e176190da6c5ef48160085fae9fb\":{\"runIds\":[\"rn_0000000000000000000002vhpm\"],\"measuredRunIds\":[\"rn_0000000000000000000002vhpm\"],\"outcomes\":[{\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhpa\",\"role\":\"integrated\",\"state\":\"verified\",\"reason\":\"reviewed\",\"attemptId\":\"at_0000000000000000000002vhpt\",\"movedOut\":false,\"counted\":true},{\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhpb\",\"role\":\"work\",\"state\":\"verified\",\"reason\":\"reviewed\",\"attemptId\":\"at_0000000000000000000002vhpp\",\"movedOut\":false,\"counted\":true},{\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhpc\",\"role\":\"integrated\",\"state\":\"verified\",\"reason\":\"reviewed\",\"attemptId\":\"at_0000000000000000000002vhpr\",\"movedOut\":false,\"counted\":true},{\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhpf\",\"role\":\"integrated\",\"state\":\"verified\",\"reason\":\"reviewed\",\"attemptId\":\"at_0000000000000000000002vhq5\",\"movedOut\":false,\"counted\":true},{\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhpg\",\"role\":\"work\",\"state\":\"verified\",\"reason\":\"reviewed\",\"attemptId\":\"at_0000000000000000000002vhpz\",\"movedOut\":false,\"counted\":true},{\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhph\",\"role\":\"work\",\"state\":\"verified\",\"reason\":\"reviewed\",\"attemptId\":\"at_0000000000000000000002vhq1\",\"movedOut\":false,\"counted\":true},{\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhpj\",\"role\":\"work\",\"state\":\"verified\",\"reason\":\"reviewed\",\"attemptId\":\"at_0000000000000000000002vhq3\",\"movedOut\":false,\"counted\":true}],\"rollups\":{\"T\":{\"overhead\":[{\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhpa\"},{\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhpc\"},{\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhpf\"}],\"partial\":true},\"K\":{\"overhead\":[{\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhpa\"},{\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhpc\"},{\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhpf\"}],\"partial\":true}},\"efficiency\":[{\"runId\":\"rn_0000000000000000000002vhpm\",\"effort\":{\"effortMs\":3480000,\"state\":\"observed\",\"coverage\":{\"covered\":7,\"of\":7,\"unit\":\"attempts\"},\"overheadMs\":null},\"time\":{\"actual\":{\"state\":\"observed\",\"value\":3480000},\"overheadMs\":null,\"excludedWaitsMs\":{\"blocked\":0,\"build_test\":0,\"human_approval\":0,\"queue\":6180000,\"review\":420000},\"unreportedAttemptIds\":[],\"openAttemptIds\":[]},\"tokens\":{\"actual\":{\"state\":\"observed\",\"value\":53000},\"unreportedAttemptIds\":[],\"openAttemptIds\":[]},\"retries\":0}]},\"sha256:afda80e51f83e798db11d8b65498f6fecd46d8d48237c62e3510f2e3f08147aa\":{\"runIds\":[\"rn_0000000000000000000002vhpm\"],\"measuredRunIds\":[\"rn_0000000000000000000002vhpm\"],\"outcomes\":[{\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhpf\",\"role\":\"integrated\",\"state\":\"verified\",\"reason\":\"reviewed\",\"attemptId\":\"at_0000000000000000000002vhq5\",\"movedOut\":false,\"counted\":true},{\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhpg\",\"role\":\"work\",\"state\":\"verified\",\"reason\":\"reviewed\",\"attemptId\":\"at_0000000000000000000002vhpz\",\"movedOut\":false,\"counted\":true},{\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhph\",\"role\":\"work\",\"state\":\"verified\",\"reason\":\"reviewed\",\"attemptId\":\"at_0000000000000000000002vhq1\",\"movedOut\":false,\"counted\":true},{\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhpj\",\"role\":\"work\",\"state\":\"verified\",\"reason\":\"reviewed\",\"attemptId\":\"at_0000000000000000000002vhq3\",\"movedOut\":false,\"counted\":true}],\"rollups\":{\"T\":{\"overhead\":[{\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhpf\"}],\"partial\":false},\"K\":{\"overhead\":[{\"runId\":\"rn_0000000000000000000002vhpm\",\"ticketId\":\"tk_0000000000000000000002vhpf\"}],\"partial\":false}},\"efficiency\":[{\"runId\":\"rn_0000000000000000000002vhpm\",\"effort\":{\"effortMs\":2040000,\"state\":\"observed\",\"coverage\":{\"covered\":4,\"of\":4,\"unit\":\"attempts\"},\"overheadMs\":null},\"time\":{\"actual\":{\"state\":\"observed\",\"value\":2040000},\"overheadMs\":null,\"excludedWaitsMs\":{\"blocked\":0,\"build_test\":0,\"human_approval\":0,\"queue\":4920000,\"review\":240000},\"unreportedAttemptIds\":[],\"openAttemptIds\":[]},\"tokens\":{\"actual\":{\"state\":\"observed\",\"value\":32000},\"unreportedAttemptIds\":[],\"openAttemptIds\":[]},\"retries\":0}]}},\"timing\":{\"runId\":\"rn_0000000000000000000002vhpm\",\"asOf\":\"2026-11-16T07:13:00.000Z\",\"basis\":{\"window\":\"activation\",\"totals\":\"current_plan\"},\"run\":{\"elapsed\":{\"quantity\":\"window_elapsed\",\"unit\":\"milliseconds\",\"aggregation\":\"single\",\"ms\":4380000,\"state\":\"observed\",\"coverage\":{\"covered\":4380000,\"of\":4380000,\"unit\":\"milliseconds\"},\"open\":true},\"startedAt\":\"2026-11-16T06:00:00.000Z\",\"endedAt\":null,\"inFlight\":{\"quantity\":\"in_flight_wall_clock\",\"unit\":\"milliseconds\",\"aggregation\":\"union\",\"ms\":3480000,\"state\":\"observed\",\"coverage\":{\"covered\":7,\"of\":7,\"unit\":\"attempts\"},\"open\":false},\"activeWallClock\":{\"quantity\":\"active_wall_clock\",\"unit\":\"milliseconds\",\"aggregation\":\"union\",\"ms\":3480000,\"state\":\"observed\",\"coverage\":{\"covered\":7,\"of\":7,\"unit\":\"attempts\"},\"open\":true},\"effort\":{\"quantity\":\"resource_effort\",\"unit\":\"milliseconds\",\"aggregation\":\"sum\",\"ms\":3480000,\"state\":\"observed\",\"coverage\":{\"covered\":7,\"of\":7,\"unit\":\"attempts\"},\"open\":false},\"overhead\":{\"quantity\":\"resource_effort\",\"unit\":\"milliseconds\",\"aggregation\":\"sum\",\"ms\":null,\"state\":\"missing\",\"coverage\":{\"covered\":0,\"of\":7,\"unit\":\"attempts\"},\"open\":false},\"unattributedEffort\":{\"quantity\":\"resource_effort\",\"unit\":\"milliseconds\",\"aggregation\":\"sum\",\"ms\":null,\"state\":\"missing\",\"coverage\":{\"covered\":0,\"of\":0,\"unit\":\"attempts\"},\"open\":false}},\"sprint\":{\"elapsed\":{\"quantity\":\"window_elapsed\",\"unit\":\"milliseconds\",\"aggregation\":\"single\",\"ms\":2580000,\"state\":\"observed\",\"coverage\":{\"covered\":2580000,\"of\":2580000,\"unit\":\"milliseconds\"},\"open\":true},\"startedAt\":\"2026-11-16T06:30:00.000Z\",\"endedAt\":null,\"inFlight\":{\"quantity\":\"in_flight_wall_clock\",\"unit\":\"milliseconds\",\"aggregation\":\"union\",\"ms\":2040000,\"state\":\"observed\",\"coverage\":{\"covered\":4,\"of\":4,\"unit\":\"attempts\"},\"open\":false},\"activeWallClock\":{\"quantity\":\"active_wall_clock\",\"unit\":\"milliseconds\",\"aggregation\":\"union\",\"ms\":2040000,\"state\":\"observed\",\"coverage\":{\"covered\":4,\"of\":4,\"unit\":\"attempts\"},\"open\":true},\"effort\":{\"quantity\":\"resource_effort\",\"unit\":\"milliseconds\",\"aggregation\":\"sum\",\"ms\":2040000,\"state\":\"observed\",\"coverage\":{\"covered\":4,\"of\":4,\"unit\":\"attempts\"},\"open\":false},\"overhead\":{\"quantity\":\"resource_effort\",\"unit\":\"milliseconds\",\"aggregation\":\"sum\",\"ms\":null,\"state\":\"missing\",\"coverage\":{\"covered\":0,\"of\":4,\"unit\":\"attempts\"},\"open\":false},\"sprintId\":\"sp_0000000000000000000002vhpe\",\"ticketIds\":[\"tk_0000000000000000000002vhpf\",\"tk_0000000000000000000002vhpg\",\"tk_0000000000000000000002vhph\",\"tk_0000000000000000000002vhpj\"],\"checkpointWait\":{\"quantity\":\"classified_wait\",\"unit\":\"milliseconds\",\"aggregation\":\"single\",\"ms\":null,\"state\":\"missing\",\"coverage\":{\"covered\":0,\"of\":0,\"unit\":\"milliseconds\"},\"open\":false},\"unattributedOverhead\":{\"quantity\":\"resource_effort\",\"unit\":\"milliseconds\",\"aggregation\":\"sum\",\"ms\":null,\"state\":\"missing\",\"coverage\":{\"covered\":0,\"of\":0,\"unit\":\"attempts\"},\"open\":false}},\"tickets\":[{\"ticketId\":\"tk_0000000000000000000002vhpf\",\"sprintId\":\"sp_0000000000000000000002vhpe\",\"readyAt\":\"2026-11-16T06:30:00.000Z\",\"firstClaimAt\":\"2026-11-16T07:07:00.000Z\",\"acceptedAt\":\"2026-11-16T07:12:00.000Z\",\"endedBy\":\"accepted\",\"cycleTime\":{\"quantity\":\"ticket_cycle_time\",\"unit\":\"milliseconds\",\"aggregation\":\"single\",\"ms\":300000,\"state\":\"observed\",\"coverage\":{\"covered\":300000,\"of\":300000,\"unit\":\"milliseconds\"},\"open\":false},\"leadTime\":{\"quantity\":\"ticket_lead_time\",\"unit\":\"milliseconds\",\"aggregation\":\"single\",\"ms\":2520000,\"state\":\"observed\",\"coverage\":{\"covered\":2520000,\"of\":2520000,\"unit\":\"milliseconds\"},\"open\":false},\"active\":{\"quantity\":\"measured_active\",\"unit\":\"milliseconds\",\"aggregation\":\"union\",\"ms\":240000,\"state\":\"observed\",\"coverage\":{\"covered\":1,\"of\":1,\"unit\":\"attempts\"},\"open\":false},\"effort\":{\"quantity\":\"resource_effort\",\"unit\":\"milliseconds\",\"aggregation\":\"sum\",\"ms\":240000,\"state\":\"observed\",\"coverage\":{\"covered\":1,\"of\":1,\"unit\":\"attempts\"},\"open\":false},\"overhead\":{\"quantity\":\"resource_effort\",\"unit\":\"milliseconds\",\"aggregation\":\"sum\",\"ms\":null,\"state\":\"missing\",\"coverage\":{\"covered\":0,\"of\":1,\"unit\":\"attempts\"},\"open\":false}},{\"ticketId\":\"tk_0000000000000000000002vhpg\",\"sprintId\":\"sp_0000000000000000000002vhpe\",\"readyAt\":\"2026-11-16T06:30:00.000Z\",\"firstClaimAt\":\"2026-11-16T06:31:00.000Z\",\"acceptedAt\":\"2026-11-16T06:44:00.000Z\",\"endedBy\":\"accepted\",\"cycleTime\":{\"quantity\":\"ticket_cycle_time\",\"unit\":\"milliseconds\",\"aggregation\":\"single\",\"ms\":780000,\"state\":\"observed\",\"coverage\":{\"covered\":780000,\"of\":780000,\"unit\":\"milliseconds\"},\"open\":false},\"leadTime\":{\"quantity\":\"ticket_lead_time\",\"unit\":\"milliseconds\",\"aggregation\":\"single\",\"ms\":840000,\"state\":\"observed\",\"coverage\":{\"covered\":840000,\"of\":840000,\"unit\":\"milliseconds\"},\"open\":false},\"active\":{\"quantity\":\"measured_active\",\"unit\":\"milliseconds\",\"aggregation\":\"union\",\"ms\":720000,\"state\":\"observed\",\"coverage\":{\"covered\":1,\"of\":1,\"unit\":\"attempts\"},\"open\":false},\"effort\":{\"quantity\":\"resource_effort\",\"unit\":\"milliseconds\",\"aggregation\":\"sum\",\"ms\":720000,\"state\":\"observed\",\"coverage\":{\"covered\":1,\"of\":1,\"unit\":\"attempts\"},\"open\":false},\"overhead\":{\"quantity\":\"resource_effort\",\"unit\":\"milliseconds\",\"aggregation\":\"sum\",\"ms\":null,\"state\":\"missing\",\"coverage\":{\"covered\":0,\"of\":1,\"unit\":\"attempts\"},\"open\":false}},{\"ticketId\":\"tk_0000000000000000000002vhph\",\"sprintId\":\"sp_0000000000000000000002vhpe\",\"readyAt\":\"2026-11-16T06:30:00.000Z\",\"firstClaimAt\":\"2026-11-16T06:45:00.000Z\",\"acceptedAt\":\"2026-11-16T06:58:00.000Z\",\"endedBy\":\"accepted\",\"cycleTime\":{\"quantity\":\"ticket_cycle_time\",\"unit\":\"milliseconds\",\"aggregation\":\"single\",\"ms\":780000,\"state\":\"observed\",\"coverage\":{\"covered\":780000,\"of\":780000,\"unit\":\"milliseconds\"},\"open\":false},\"leadTime\":{\"quantity\":\"ticket_lead_time\",\"unit\":\"milliseconds\",\"aggregation\":\"single\",\"ms\":1680000,\"state\":\"observed\",\"coverage\":{\"covered\":1680000,\"of\":1680000,\"unit\":\"milliseconds\"},\"open\":false},\"active\":{\"quantity\":\"measured_active\",\"unit\":\"milliseconds\",\"aggregation\":\"union\",\"ms\":720000,\"state\":\"observed\",\"coverage\":{\"covered\":1,\"of\":1,\"unit\":\"attempts\"},\"open\":false},\"effort\":{\"quantity\":\"resource_effort\",\"unit\":\"milliseconds\",\"aggregation\":\"sum\",\"ms\":720000,\"state\":\"observed\",\"coverage\":{\"covered\":1,\"of\":1,\"unit\":\"attempts\"},\"open\":false},\"overhead\":{\"quantity\":\"resource_effort\",\"unit\":\"milliseconds\",\"aggregation\":\"sum\",\"ms\":null,\"state\":\"missing\",\"coverage\":{\"covered\":0,\"of\":1,\"unit\":\"attempts\"},\"open\":false}},{\"ticketId\":\"tk_0000000000000000000002vhpj\",\"sprintId\":\"sp_0000000000000000000002vhpe\",\"readyAt\":\"2026-11-16T06:30:00.000Z\",\"firstClaimAt\":\"2026-11-16T06:59:00.000Z\",\"acceptedAt\":\"2026-11-16T07:06:00.000Z\",\"endedBy\":\"accepted\",\"cycleTime\":{\"quantity\":\"ticket_cycle_time\",\"unit\":\"milliseconds\",\"aggregation\":\"single\",\"ms\":420000,\"state\":\"observed\",\"coverage\":{\"covered\":420000,\"of\":420000,\"unit\":\"milliseconds\"},\"open\":false},\"leadTime\":{\"quantity\":\"ticket_lead_time\",\"unit\":\"milliseconds\",\"aggregation\":\"single\",\"ms\":2160000,\"state\":\"observed\",\"coverage\":{\"covered\":2160000,\"of\":2160000,\"unit\":\"milliseconds\"},\"open\":false},\"active\":{\"quantity\":\"measured_active\",\"unit\":\"milliseconds\",\"aggregation\":\"union\",\"ms\":360000,\"state\":\"observed\",\"coverage\":{\"covered\":1,\"of\":1,\"unit\":\"attempts\"},\"open\":false},\"effort\":{\"quantity\":\"resource_effort\",\"unit\":\"milliseconds\",\"aggregation\":\"sum\",\"ms\":360000,\"state\":\"observed\",\"coverage\":{\"covered\":1,\"of\":1,\"unit\":\"attempts\"},\"open\":false},\"overhead\":{\"quantity\":\"resource_effort\",\"unit\":\"milliseconds\",\"aggregation\":\"sum\",\"ms\":null,\"state\":\"missing\",\"coverage\":{\"covered\":0,\"of\":1,\"unit\":\"attempts\"},\"open\":false}}],\"anomalies\":[]},\"sources\":{\"runIds\":[\"rn_0000000000000000000002vhpm\"],\"ticketIds\":[\"tk_0000000000000000000002vhpa\",\"tk_0000000000000000000002vhpb\",\"tk_0000000000000000000002vhpc\",\"tk_0000000000000000000002vhpf\",\"tk_0000000000000000000002vhpg\",\"tk_0000000000000000000002vhph\",\"tk_0000000000000000000002vhpj\"],\"attemptIds\":[\"at_0000000000000000000002vhpp\",\"at_0000000000000000000002vhpr\",\"at_0000000000000000000002vhpt\",\"at_0000000000000000000002vhpz\",\"at_0000000000000000000002vhq1\",\"at_0000000000000000000002vhq3\",\"at_0000000000000000000002vhq5\"]},\"anomalies\":[],\"snapshotHash\":\"sha256:24472ccb0088cf972cdf43048bef4d29374a5e0917173f7d2871cb7079a336f1\"},\"starts\":[{\"epicId\":\"ep_0000000000000000000002vhp8\",\"runId\":\"rn_0000000000000000000002vhpm\",\"sprintId\":\"sp_0000000000000000000002vhp9\",\"sprint\":\"2026-11-16T06:00:00.000Z\",\"run\":\"2026-11-16T06:00:00.000Z\",\"tickets\":[{\"ticketId\":\"tk_0000000000000000000002vhpa\",\"dispatchedAt\":\"2026-11-16T06:20:00.000Z\"},{\"ticketId\":\"tk_0000000000000000000002vhpb\",\"dispatchedAt\":\"2026-11-16T06:00:00.000Z\"},{\"ticketId\":\"tk_0000000000000000000002vhpc\",\"dispatchedAt\":\"2026-11-16T06:10:00.000Z\"}]},{\"epicId\":\"ep_0000000000000000000002vhp8\",\"runId\":\"rn_0000000000000000000002vhpm\",\"sprintId\":\"sp_0000000000000000000002vhpe\",\"sprint\":\"2026-11-16T06:31:00.000Z\",\"run\":\"2026-11-16T06:00:00.000Z\",\"tickets\":[{\"ticketId\":\"tk_0000000000000000000002vhpf\",\"dispatchedAt\":\"2026-11-16T07:07:00.000Z\"},{\"ticketId\":\"tk_0000000000000000000002vhpg\",\"dispatchedAt\":\"2026-11-16T06:31:00.000Z\"},{\"ticketId\":\"tk_0000000000000000000002vhph\",\"dispatchedAt\":\"2026-11-16T06:45:00.000Z\"},{\"ticketId\":\"tk_0000000000000000000002vhpj\",\"dispatchedAt\":\"2026-11-16T06:59:00.000Z\"}]}],\"corrections\":[{\"epicId\":\"ep_0000000000000000000002vhp8\",\"epicTitle\":\"Correction from shop: Sprint 1 spent 73,000 tokens and 68 active minutes; the page took a rejected attempt and a retry.\",\"ticketId\":\"tk_0000000000000000000002vhpb\",\"key\":\"DM-2\",\"title\":\"Carry review notes into the retry packet\",\"role\":\"work\",\"workIndex\":0,\"revisionNumber\":1,\"accepted\":{\"runId\":\"rn_0000000000000000000002vhpm\",\"attemptId\":\"at_0000000000000000000002vhpp\",\"at\":\"2026-11-16T06:09:00.000Z\"}},{\"epicId\":\"ep_0000000000000000000002vhp8\",\"epicTitle\":\"Correction from shop: Sprint 1 spent 73,000 tokens and 68 active minutes; the page took a rejected attempt and a retry.\",\"ticketId\":\"tk_0000000000000000000002vhpc\",\"key\":\"DM-3\",\"title\":\"Grade the corrective tests with Fireguard\",\"role\":\"fireguard\",\"workIndex\":null,\"revisionNumber\":1,\"accepted\":{\"runId\":\"rn_0000000000000000000002vhpm\",\"attemptId\":\"at_0000000000000000000002vhpr\",\"at\":\"2026-11-16T06:19:00.000Z\"}}],\"sizes\":{\"tk_0000000000000000000002vhpa\":null,\"tk_0000000000000000000002vhpb\":\"small\",\"tk_0000000000000000000002vhpc\":\"small\",\"tk_0000000000000000000002vhpf\":null,\"tk_0000000000000000000002vhpg\":\"medium\",\"tk_0000000000000000000002vhph\":\"medium\",\"tk_0000000000000000000002vhpj\":\"small\"},\"readAt\":\"2026-11-17T07:38:16.600Z\",\"seal\":\"sha256:161ae4207667a2f0ea660e55150cff651d1d8226847ab91d8bb329195e3d021d\"}}}}}"
+          }
+        },
+        {
+          "phase": "c",
+          "name": "c28-12-endstate-reassess-now.png",
+          "note": "Sprint 1 report's Scorecard tab: the frozen scorecard and Reassess now; Metrics link in the sidebar footer",
+          "values": {
+            "button": "Reassess now",
+            "metricsLink": true
+          }
+        },
+        {
+          "phase": "c",
+          "name": "c28-13-correction-epic-links-back.png",
+          "note": "The correction epic in dm-checkout (completed, its own run): its header links back to the epic that asked for it",
+          "values": {
+            "shows": [
+              "dm-checkout",
+              "Corrective work from shop"
+            ],
+            "header": "dm-checkout / Completed\nCorrective work from shop · xp_0000000000000000000001x14t · report revision 1: open the epic that asked for it\nCorrection from shop: Sprint 1 spent 73,000 tokens and 68 active minutes; the page took a rejected attempt and a retry.\nREV 1 · SAVED\nGraph\nList\nScorecard\nDelete epic…\n\nCompleted epics are read-only. Create a new epic to extend this work.\n\nCOMPLETED\nRun #1 · pinned to rev 1 · completed 1d ago\n7 accepted\nEpic report\nEPIC · 7 TICKETS · 2 SPRINTS\nCorrection from shop: Sprint 1 spent 73,000 tokens and 68 active minutes; the page took a rejected attempt and a retry.\nSPRINT 1\nCorrective work for experiment xp_0000000000000000000001x14t from the Sprint 1 retro of shop.\n3 tickets\nCHECKPOINT 1 · HUMAN APPROVAL\nDM-2 · ACCEPTED\nCarry review notes into the retry packet\nSMALL\nDM-3 · ACCEPTED\nGrade the corrective tests with Fireguard\nSMALL\nDM-1 · ACCEPTED\nSprint 1 acce"
+          }
+        }
+      ],
+      "dialogLog": [
+        {
+          "patched": "assigned"
+        },
+        {
+          "patched": "assigned"
+        }
+      ]
+    }
+  }
+}

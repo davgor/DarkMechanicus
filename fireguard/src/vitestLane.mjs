@@ -55,18 +55,32 @@ async function loadVitest() {
   return import(pathToFileURL(require.resolve('vitest/node')).href);
 }
 
-/** How the last run ended, as Vitest reports it: 'passed', 'failed' or 'interrupted'. */
-let lastRunEnd = '';
+/**
+ * The failing tests of the run under way (`FAIL file > test: message`), or undefined between
+ * runs.
+ * @type {string[] | undefined}
+ */
+let runFailures;
 
-/** Reports nothing (results are read from each run) but how each run ended. */
-const runEndReporter = {
-  onTestRunEnd(/** @type {unknown} */ _modules, /** @type {unknown} */ _errors, /** @type {string} */ reason) {
-    lastRunEnd = reason;
+/**
+ * The lane's own bail: it records each failing test of the run under way and cancels the run at
+ * the first. Vitest's `bail` has every worker that fails a test cancel the run, and a second
+ * cancel while the first is settling force-stops the workers, so results they had not sent yet
+ * (the failure that decided the run among them) are lost: a killed mutant read as passing. One
+ * cancel lets the workers under way finish and report.
+ */
+const bailReporter = {
+  onTestCaseResult(/** @type {any} */ testCase) {
+    const result = testCase.result();
+    if (runFailures === undefined || result.state !== 'failed') return;
+    const error = result.errors?.[0];
+    const message = error === undefined ? 'failed' : messageOf(error);
+    runFailures.push(`FAIL ${testCase.module.relativeModuleId} > ${testCase.fullName}: ${message}`);
+    // Not awaited: the cancel waits for the run, which waits for this report. A cancel that fails
+    // only lets the run go on; the failure recorded above already decides it.
+    if (runFailures.length === 1) vitest.cancelCurrentRun('test-failure').catch(() => {});
   },
 };
-
-/** How often a run cancelled from outside, with no failure of its own, is started again. */
-const MAX_RUN_ATTEMPTS = 3;
 
 /** @param {string[]} args */
 async function openVitest(args) {
@@ -76,25 +90,22 @@ async function openVitest(args) {
   process.env.NODE_ENV ??= 'test';
   const { createVitest, parseCLI } = await loadVitest();
   const { options } = parseCLI(['vitest', 'run', ...args]);
-  // bail=1: a run ends at its first failing test, which already decides it (a failed flake run,
-  // a killed mutant).
-  return createVitest('test', { ...options, watch: false, reporters: [runEndReporter], bail: 1 });
+  // A run ends at its first failing test, which already decides it (a failed flake run, a killed
+  // mutant); the bail reporter ends it, so Vitest's own bail is off.
+  return createVitest('test', { ...options, watch: false, reporters: [bailReporter], bail: 0 });
 }
 
 /**
  * @param {any[]} modules failed test modules
+ * @param {string[]} tests failing tests
  * @param {unknown[]} unhandled
  */
-function describeFailure(modules, unhandled) {
+function describeFailure(modules, tests, unhandled) {
   const lines = [];
   for (const mod of modules) {
     for (const error of mod.errors()) lines.push(`FAIL ${mod.relativeModuleId}: ${messageOf(error)}`);
-    for (const test of mod.children.allTests('failed')) {
-      const error = test.result().errors?.[0];
-      const message = error === undefined ? 'failed' : messageOf(error);
-      lines.push(`FAIL ${mod.relativeModuleId} > ${test.fullName}: ${message}`);
-    }
   }
+  lines.push(...tests);
   for (const error of unhandled) lines.push(`Unhandled error: ${messageOf(error)}`);
   return lines.join('\n').slice(-MAX_ERROR);
 }
@@ -133,23 +144,19 @@ async function run(vitest, request) {
     return { ok: false, error: `No test files found: ${request.files.join(' ')}` };
   }
   const ids = new Set(specs.map((/** @type {any} */ spec) => spec.moduleId));
-  for (let attempt = 1; ; attempt += 1) {
-    lastRunEnd = '';
-    const result = await vitest.runTestSpecifications(specs);
-    const failed = result.testModules.filter(
-      (/** @type {any} */ mod) => ids.has(mod.moduleId) && !mod.ok()
-    );
-    if (failed.length > 0 || result.unhandledErrors.length > 0) {
-      return { ok: false, error: describeFailure(failed, result.unhandledErrors) };
-    }
-    if (lastRunEnd !== 'interrupted') return { ok: true };
-    // Cancelled without a failure of its own: a bail from the previous run's workers can arrive
-    // after that run ended. Its skipped files would read as passing, so this run has no verdict
-    // (a mutant would falsely survive, a flake run falsely pass). Run it again.
-    if (attempt === MAX_RUN_ATTEMPTS) {
-      throw new Error(`vitest interrupted ${attempt} runs in a row without a failing test`);
-    }
+  /** @type {string[]} */
+  const failures = [];
+  runFailures = failures;
+  const result = await vitest.runTestSpecifications(specs).finally(() => {
+    runFailures = undefined;
+  });
+  const failed = result.testModules.filter(
+    (/** @type {any} */ mod) => ids.has(mod.moduleId) && !mod.ok()
+  );
+  if (failed.length > 0 || failures.length > 0 || result.unhandledErrors.length > 0) {
+    return { ok: false, error: describeFailure(failed, failures, result.unhandledErrors) };
   }
+  return { ok: true };
 }
 
 /** @type {any} */

@@ -4,6 +4,8 @@ Packaged Windows builds use **electron-updater** with GitHub Releases as the upd
 
 CI builds with `electron-builder --publish never` (artifacts only). The deploy workflow uploads release **files** only (`latest.yml`, installers, blockmaps, `.dmg`) via `gh release create`; unpacked build folders are not uploaded.
 
+`npm run package:win` and `npm run package:mac` first run `scripts/packaging-guard.mjs`, which fails when the checkout's `node_modules` is a symbolic link or a Windows junction (as in a worktree that borrows another checkout's dependencies): electron-builder leaves the hoisted dependencies out of `app.asar` through such a link, and the packaged app does not start. Package from a checkout with its own `node_modules` folder (`npm ci` there).
+
 ## Installers vs portable
 
 | Artifact | Auto-update | GitHub Release |

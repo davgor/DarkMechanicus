@@ -214,14 +214,15 @@ const SCHEMA_FINGERPRINTS: Record<string, string> = {
   list_tickets: '188aa9fa45c88ef2',
   get_ticket: '2e36fb18f2deeaf5',
   // Changed on purpose: ticket input gained the optional `repo` (string, or null to clear it in a patch), then a
-  // description on `attachments`.
-  create_ticket: 'f33e108a91459809',
-  update_ticket: 'ac2dca7720bad0dd',
+  // description on `attachments`, then (DM-171) the optional planned `budget`, then (DM-183) the budget's `basis`.
+  create_ticket: 'f0a405f637e975f8',
+  update_ticket: 'a0034dc7f2a59fa3',
   set_ticket_status: '2f0069162106363a',
   get_plan: '57dd5f19d19a669e',
   open_plan_draft: 'f7874c5f7d17c6c5',
-  // Changed on purpose: the ticket input of add_ticket and update_ticket gained a description on `attachments`.
-  update_plan_draft: 'd70e0dad399b41be',
+  // Changed on purpose: the ticket input of add_ticket and update_ticket gained a description on `attachments`, then
+  // (DM-171) the optional planned `budget`, then (DM-183) the budget's `basis`.
+  update_plan_draft: '9454c397d40813cf',
   validate_plan: '3b52b9b5157a2fba',
   save_plan: 'a77f363be76d0e70',
   discard_plan_draft: 'e242b76040271758',
@@ -245,7 +246,8 @@ const SCHEMA_FINGERPRINTS: Record<string, string> = {
   cancel_run: 'be49650976f9ddba',
   takeover_run: 'd481e0f29f2ca1c1',
   adopt_revision: '18e63e4a9fe69b58',
-  submit_sprint_report: '41258d19ae84bc18',
+  // Changed on purpose: retro experiments state their concern and may size each piece of proposed work (DM-185).
+  submit_sprint_report: '925f676c145f0b42',
   get_sprint_report: '3fe78b4c15e34139',
   get_checkpoint: 'd481e0f29f2ca1c1',
   advance_sprint: 'faf1d60dc4eb197e',

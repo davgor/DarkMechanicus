@@ -1,0 +1,38 @@
+root /c/Users/davgo/AppData/Local/Temp/dm164-mcp-Dcaf
+ok   c18 reader tools/list offers no write: 45 tools, all readOnlyHint, none destructive; writable: []
+ok   c18 named write tools absent: none of record_attempt_metrics, record_run_metrics, submit_attempt, create_ticket, update_plan_draft, create_corrections, record_escaped_defects listed
+ok   c18 a write call is refused: {"ok":false,"error":{"code":"unauthorized","message":"This reader session is not permitted to perform \"metrics.report_run\".","details":{"role":"reader","capability":"metrics.report_run","tool":"reco
+ok   c18 ticket api get_ticket_grade = desktop getTicketGrade: A 96.4 final
+ok   c18 ticket page get_ticket_grade = desktop getTicketGrade: C 76.4 final
+ok   c18 ticket docs get_ticket_grade = desktop getTicketGrade: A 96.4 final
+ok   c18 ticket node get_ticket_grade = desktop getTicketGrade: A 95.0 provisional
+ok   c18 epic get_epic_grade = desktop getEpicGrade: A 96.2 provisional
+ok   c18 sprint report 1 get_report_scorecard = desktop getReportScorecard: B 88.2 final
+ok   c18 sprint report 2 get_report_scorecard = desktop getReportScorecard: A 100.0 provisional
+ok   c18 sprint report 3 get_report_scorecard = desktop getReportScorecard: A 100.0 final
+ok   c18 summary get_metrics_summary = desktop getMetricsSummary: 1 epic rows
+ok   c17 epic row Checkout flow: summary A 96.2 provisional = get_epic_grade A 96.2 provisional; tokens 160000 (observed), active 9420000 ms
+ok   c17 distribution by grade status: {"final":0,"provisional":1,"ungraded":0} = rows {"final":0,"provisional":1,"ungraded":0}; byStatus {"final":0,"provisional":1,"ungraded":0,"in_progress":0,"failed":0}
+ok   c17 totals reconcile with measured epic rows: tokens 160000 = Σ rows 160000; active 9420000 ms = Σ rows 9420000; measured epics 1 of 1
+ok   c17 totals equal the ledger (160,000 tokens, 157 min): 160000 tokens, 9420000 ms
+     legacy reconcile: {"imported":["ep_01m3txy30qavmd5wewct90804g","ep_01m3tyvx2t4scbd6g2fp1z7yxb","ep_01m3w0krtb0p7kvamsz7peq1g5","ep_01m3w0krv7v9mm6g06y3th0v87","ep_01m3xkn4ha934vpfpht42bh6bq","ep_01m418epbg8qkqa2e2krvdkqk5","ep_01m41hpr8r3ncxb6243mpej3rz","ep_01m43retr5mt2hd5b4dhd7c42b","ep_01m43sbb2tbnxtr35fety5vzhs"
+     legacy graded row: ep_01m452vt115eqccd1ypdd596fy "SPACE scorecards: balanced grades, token" in_progress F 10.2 provisional coverage 0.2857142857142857 reasons mandatory_failure,required_component_missing runs 1 measured 1 attempts 14
+       S missing no_rating: no score: no rating a person gave or shared with this subject
+       P observed 0: confirmed mandatory failure: P = 0, and the grade is capped at 59 (F)
+       A observed 20.588235: 100 × 7 delivered ÷ 34 committed = 20.588235; 0 added and 0 removed item(s), attempts, commits and changed lines are shown, never scored
+       C missing not_reported: no score: not reported (a submission has no derived handoff checks)
+       E missing not_reported: no score: not reported (the unclassified effort)
+       T missing not_reported: no score: not reported (the actual)
+       K missing not_reported: no score: not reported (the actual)
+       caps [{"kind":"mandatory_failure","ceiling":59,"letter":"F","evidence":[{"kind":"ticket","id":"tk_01m452vt12q4vp2x5sza0hpckg","detail":"missing (no_attempt)"},{"kind":"ticket","id":"tk_01m453gpad722597bff996emwn","detail":"missing (legacy_review_basis_unknown)"},{"kind":"ticket","id":"tk_01m453gpadq7a63z
+     legacy graded row: ep_01m698z4kqk4a5906hkv6w2ajr "Linear handoff follow-ups: no pulled run" in_progress F 50.0 provisional coverage 0.2857142857142857 reasons mandatory_failure,required_component_missing runs 1 measured 1 attempts 34
+       S missing no_rating: no score: no rating a person gave or shared with this subject
+       P observed 0: confirmed mandatory failure: P = 0, and the grade is capped at 59 (F)
+       A observed 100: 100 × 7 delivered ÷ 7 committed = 100; 11 added and 0 removed item(s), attempts, commits and changed lines are shown, never scored
+       C missing not_reported: no score: not reported (a submission has no derived handoff checks)
+       E missing not_reported: no score: not reported (the unclassified effort)
+       T missing not_reported: no score: not reported (the actual)
+       K missing not_reported: no score: not reported (the actual)
+       caps [{"kind":"mandatory_failure","ceiling":59,"letter":"F","evidence":[{"kind":"ticket","id":"tk_01m698z4krxek4e2sxp8mzdg8s","detail":"missing (legacy_review_basis_unknown)"},{"kind":"ticket","id":"tk_01m6995z1ygn9t104c18qnpfw2","detail":"missing (legacy_review_basis_unknown)"},{"kind":"ticket","id":"tk
+FAIL c17 legacy folder: every epic ungraded: 26 epics at fd857e3, distribution {"final":0,"provisional":2,"ungraded":24}; tokens total null (missing, partial_telemetry)
+1 FAILED

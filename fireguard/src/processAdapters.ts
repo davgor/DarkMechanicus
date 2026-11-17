@@ -24,19 +24,30 @@ const TIMEOUT_EXIT_CODE = 124;
 /**
  * Kills a spawned command together with everything it started (vitest workers, grandchildren).
  * Off Windows the command must have been spawned `detached`, so it leads its own process group.
+ * On Windows it resolves once taskkill has exited; the killed processes may still be releasing
+ * their handles then, which `removeTree` absorbs.
  */
-export function killTree(pid: number | undefined): void {
-  if (pid === undefined) return;
+export function killTree(pid: number | undefined): Promise<void> {
+  if (pid === undefined) return Promise.resolve();
+  if (process.platform === 'win32') {
+    return new Promise((resolve) => {
+      try {
+        const taskkill = spawn('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore' });
+        taskkill.on('exit', () => resolve());
+        taskkill.on('error', () => resolve());
+      } catch {
+        // taskkill could not be started: nothing more to wait for.
+        resolve();
+      }
+    });
+  }
   try {
-    if (process.platform === 'win32') {
-      spawn('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore' });
-    } else {
-      // The child was spawned detached, so it leads its own process group: `-pid` signals all of it.
-      process.kill(-pid, 'SIGKILL');
-    }
+    // The child was spawned detached, so it leads its own process group: `-pid` signals all of it.
+    process.kill(-pid, 'SIGKILL');
   } catch {
     // Already gone.
   }
+  return Promise.resolve();
 }
 
 export function runCommand(
@@ -59,7 +70,7 @@ export function runCommand(
         ? undefined
         : setTimeout(() => {
             timedOut = true;
-            killTree(child.pid);
+            void killTree(child.pid);
           }, options.timeoutMs);
     // Decoded as a stream, so a character split across chunks is not garbled (file contents).
     child.stdout.setEncoding('utf8');

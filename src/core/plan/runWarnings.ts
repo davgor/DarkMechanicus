@@ -36,11 +36,13 @@ function ordinalListing(bundle: PlanBundle, ticketId: string): number {
 
 /**
  * A ticket's content as the comparison sees it. An acceptance node keeps the title its sprint's number gives it
- * (renumbering a sprint retitles it), so that title is left out: only a title the planner wrote counts.
+ * (renumbering a sprint retitles it), so that title is left out: only a title the planner wrote counts. The planned
+ * budget is left out too, as adoption leaves it out: re-budgeting applies prospectively and never changes the work.
  */
 function fingerprint(bundle: PlanBundle, ticket: TicketContent): string {
-  const automatic = isAcceptanceTicket(ticket) && ticket.title === acceptanceTitle(ordinalListing(bundle, ticket.id))
-  return contentHash(automatic ? { ...ticket, title: '' } : ticket)
+  const { budget: _budget, ...work } = ticket
+  const automatic = isAcceptanceTicket(work) && work.title === acceptanceTitle(ordinalListing(bundle, work.id))
+  return contentHash(automatic ? { ...work, title: '' } : work)
 }
 
 function settingsOf(sprint: SprintDef): string {

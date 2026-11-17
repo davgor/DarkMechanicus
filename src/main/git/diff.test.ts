@@ -6,7 +6,7 @@ import type { FileChange } from '../../shared/git/status'
 import { createGitRepo, type GitRepo } from '../../test/gitRepo'
 import { gitIn, put, scratchDir } from '../../test/gitScratch'
 import { readWorkingDiff } from './diff'
-import { createGitRunner } from './runner'
+import { createGitRunner, type GitRunner } from './runner'
 import { readRepoState } from './status'
 
 const runner = createGitRunner()
@@ -176,6 +176,43 @@ describe('readWorkingDiff (modes, newlines, size)', () => {
     expect(await diffOf(r.root, 'big.txt')).toMatchObject({ kind: 'too_large', bytes: 2 * 1024 * 1024, path: 'big.txt' })
     const forced = textOf(await diffOf(r.root, 'big.txt', { force: true }))
     expect(forced.hunks[0].lines).toHaveLength(25_000)
+  })
+})
+
+/**
+ * Reads the diff of `path` with `options` and without them, from one status read: the diff with them, the arguments of
+ * every git process that read started, and the diff without them.
+ */
+async function countedDiff(root: string, path: string, options: { hasCommit: boolean }): Promise<{ diff: FileDiff; started: Array<readonly string[]>; asked: FileDiff }> {
+  const started: Array<readonly string[]> = []
+  const counting: GitRunner = {
+    run: (request) => {
+      started.push(request.args)
+      return runner.run(request)
+    }
+  }
+  const change = await changeOf(root, path)
+  const diff = await readWorkingDiff(counting, root, change, options)
+  return { diff, started, asked: await readWorkingDiff(runner, root, change) }
+}
+
+describe('readWorkingDiff when the caller already knows whether HEAD names a commit', () => {
+  it('reads the same diff with git diff alone, on a branch with commits and on an unborn branch', async () => {
+    const r = repo()
+    commitFile(r, 'm.txt', '1\n2\n')
+    put(r.root, 'm.txt', '1\ntwo\n')
+    const born = await countedDiff(r.root, 'm.txt', { hasCommit: true })
+    expect(born.started).toEqual([expect.arrayContaining(['diff', 'HEAD'])])
+    expect(born.diff).toEqual(born.asked)
+
+    const dir = scratchDir()
+    cleanups.push(dir.cleanup)
+    gitIn(dir.path, 'init', '-q', '-b', 'main')
+    put(dir.path, 'staged.txt', 's\n')
+    gitIn(dir.path, 'add', 'staged.txt')
+    const unborn = await countedDiff(dir.path, 'staged.txt', { hasCommit: false })
+    expect(unborn.started).toEqual([expect.arrayContaining(['diff', '--no-index'])])
+    expect(unborn.diff).toEqual(unborn.asked)
   })
 })
 

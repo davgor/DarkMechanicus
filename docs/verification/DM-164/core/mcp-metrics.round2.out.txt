@@ -1,0 +1,71 @@
+ok   c18 reader tools/list offers no write: 45 tools, all readOnlyHint, none destructive; writable: []
+ok   c18 named write tools absent: none of record_attempt_metrics, record_run_metrics, submit_attempt, create_ticket, update_plan_draft, create_corrections, record_escaped_defects listed
+ok   c18 a write call is refused: {"ok":false,"error":{"code":"unauthorized","message":"This reader session is not permitted to perform \"metrics.report_run\".","details":{"role":"reader","capability":"metrics.report_run","tool":"reco
+ok   c18 ticket api get_ticket_grade = desktop getTicketGrade: A 96.4 final
+ok   c18 ticket page get_ticket_grade = desktop getTicketGrade: C 76.4 final
+ok   c18 ticket docs get_ticket_grade = desktop getTicketGrade: A 96.4 final
+ok   c18 ticket node get_ticket_grade = desktop getTicketGrade: A 95.0 provisional
+ok   c18 epic get_epic_grade = desktop getEpicGrade: A 96.2 provisional
+ok   c18 sprint report 1 get_report_scorecard = desktop getReportScorecard: B 88.2 final
+ok   c18 sprint report 2 get_report_scorecard = desktop getReportScorecard: A 100.0 provisional
+ok   c18 sprint report 3 get_report_scorecard = desktop getReportScorecard: A 100.0 final
+ok   c18 summary get_metrics_summary = desktop getMetricsSummary: 1 epic rows
+ok   c17 epic row Checkout flow: summary A 96.2 provisional = get_epic_grade A 96.2 provisional; tokens 160000 (observed), active 9420000 ms
+ok   c17 distribution by grade status: {"final":0,"provisional":1,"ungraded":0} = rows {"final":0,"provisional":1,"ungraded":0}; byStatus {"final":0,"provisional":1,"ungraded":0,"in_progress":0,"failed":0}
+ok   c17 totals reconcile with measured epic rows: tokens 160000 = Σ rows 160000; active 9420000 ms = Σ rows 9420000; measured epics 1 of 1
+ok   c17 totals equal the ledger (160,000 tokens, 157 min): 160000 tokens, 9420000 ms
+     legacy reconcile: imported 229 record ids, rejected []
+     legacy epic ep_01m3txy30qavmd5wewct90804g [completed] summary ungraded - - reasons verification_missing,required_component_missing; get_epic_grade ungraded -; P missing verification_missing
+       P diagnostics {"unassignedRegressions":0}
+     legacy epic ep_01m3tyvx2t4scbd6g2fp1z7yxb [completed] summary ungraded - - reasons verification_missing,required_component_missing; get_epic_grade ungraded -; P missing verification_missing
+       P diagnostics {"unassignedRegressions":0}
+     legacy epic ep_01m3w0krtb0p7kvamsz7peq1g5 [completed] summary ungraded - - reasons verification_missing,required_component_missing; get_epic_grade ungraded -; P missing verification_missing
+       P diagnostics {"unassignedRegressions":0}
+     legacy epic ep_01m3w0krv7v9mm6g06y3th0v87 [completed] summary ungraded - - reasons verification_missing,required_component_missing; get_epic_grade ungraded -; P missing verification_missing
+       P diagnostics {"unassignedRegressions":0}
+     legacy epic ep_01m3xkn4ha934vpfpht42bh6bq [completed] summary ungraded - - reasons verification_missing,required_component_missing; get_epic_grade ungraded -; P missing verification_missing
+       P diagnostics {"unassignedRegressions":0}
+     legacy epic ep_01m418epbg8qkqa2e2krvdkqk5 [completed] summary ungraded - - reasons verification_missing,required_component_missing; get_epic_grade ungraded -; P missing verification_missing
+       P diagnostics {"unassignedRegressions":0}
+     legacy epic ep_01m41hpr8r3ncxb6243mpej3rz [completed] summary ungraded - - reasons verification_missing,required_component_missing; get_epic_grade ungraded -; P missing verification_missing
+       P diagnostics {"unassignedRegressions":0}
+     legacy epic ep_01m43retr5mt2hd5b4dhd7c42b [completed] summary ungraded - - reasons verification_missing,required_component_missing; get_epic_grade ungraded -; P missing verification_missing
+       P diagnostics {"unassignedRegressions":0}
+     legacy epic ep_01m43sbb2tbnxtr35fety5vzhs [completed] summary ungraded - - reasons verification_missing,required_component_missing; get_epic_grade ungraded -; P missing verification_missing
+       P diagnostics {"unassignedRegressions":0}
+     legacy epic ep_01m44323c45rx5grbfc058tf30 [completed] summary ungraded - - reasons verification_missing,required_component_missing; get_epic_grade ungraded -; P missing verification_missing
+       P diagnostics {"unassignedRegressions":0}
+     legacy epic ep_01m452vt115eqccd1ypdd596fy [in_progress] summary ungraded - - reasons verification_pending,required_component_missing; get_epic_grade ungraded -; P missing verification_pending
+       P diagnostics {"unassignedRegressions":0}
+     legacy epic ep_01m5jz275yaw11nzgr81806jeq [completed] summary ungraded - - reasons verification_missing,required_component_missing; get_epic_grade ungraded -; P missing verification_missing
+       P diagnostics {"unassignedRegressions":0}
+     legacy epic ep_01m61r9qjc28t4x2jpczpwk41a [completed] summary ungraded - - reasons verification_missing,required_component_missing; get_epic_grade ungraded -; P missing verification_missing
+       P diagnostics {"unassignedRegressions":0}
+     legacy epic ep_01m6772ffwkwr2a91fsqzfz1he [completed] summary ungraded - - reasons verification_missing,required_component_missing; get_epic_grade ungraded -; P missing verification_missing
+       P diagnostics {"unassignedRegressions":0}
+     legacy epic ep_01m68w2edvsnjrvj7w56hxrmt8 [completed] summary ungraded - - reasons verification_missing,required_component_missing; get_epic_grade ungraded -; P missing verification_missing
+       P diagnostics {"unassignedRegressions":0}
+     legacy epic ep_01m698z4kqk4a5906hkv6w2ajr [in_progress] summary ungraded - - reasons verification_pending,required_component_missing; get_epic_grade ungraded -; P missing verification_pending
+       P diagnostics {"unassignedRegressions":0}
+     legacy epic ep_01m6a1nv1hfyvw2nf009gnhx8k [completed] summary ungraded - - reasons verification_missing,required_component_missing; get_epic_grade ungraded -; P missing verification_missing
+       P diagnostics {"unassignedRegressions":0}
+     legacy epic ep_01m6fmd1m24pf5nmyke0w4ag6h [completed] summary ungraded - - reasons verification_missing,required_component_missing; get_epic_grade ungraded -; P missing verification_missing
+       P diagnostics {"unassignedRegressions":0}
+     legacy epic ep_01m6q23ddmdxpzw7pqgyc5hyb7 [in_progress] summary ungraded - - reasons verification_pending,required_component_missing; get_epic_grade ungraded -; P missing verification_pending
+       P diagnostics {"unassignedRegressions":0}
+     legacy epic ep_01m6q3h649wpg9wq78f08st4bj [backlog] summary ungraded - - reasons verification_missing,required_component_missing; get_epic_grade ungraded -; P missing verification_missing
+       P diagnostics {"unassignedRegressions":0}
+     legacy epic ep_01m6t9cg507rmyg2q9nsw7kv3s [backlog] summary ungraded - - reasons verification_missing,required_component_missing; get_epic_grade ungraded -; P missing verification_missing
+       P diagnostics {"unassignedRegressions":0}
+     legacy epic ep_01m794777kq96v22ryvxv5pdye [in_progress] summary ungraded - - reasons verification_pending,required_component_missing; get_epic_grade ungraded -; P missing verification_pending
+       P diagnostics {"unassignedRegressions":0}
+     legacy epic ep_01m798d4xrx42x7zzsrxpk8w2k [backlog] summary ungraded - - reasons verification_missing,required_component_missing; get_epic_grade ungraded -; P missing verification_missing
+       P diagnostics {"unassignedRegressions":0}
+     legacy epic ep_01m798d5s3ppfxbp1q867h52a2 [backlog] summary ungraded - - reasons verification_missing,required_component_missing; get_epic_grade ungraded -; P missing verification_missing
+       P diagnostics {"unassignedRegressions":0}
+     legacy epic ep_01m798d6kpp7pd81mbeqgjx4re [backlog] summary ungraded - - reasons verification_missing,required_component_missing; get_epic_grade ungraded -; P missing verification_missing
+       P diagnostics {"unassignedRegressions":0}
+     legacy epic ep_01m798d7ctb7yrt80pwp523ydr [backlog] summary ungraded - - reasons verification_missing,required_component_missing; get_epic_grade ungraded -; P missing verification_missing
+       P diagnostics {"unassignedRegressions":0}
+ok   c17 legacy folder: every epic ungraded: 26 epics at fd857e3, distribution {"final":0,"provisional":0,"ungraded":26}; tokens total null (missing, partial_telemetry)
+ALL CHECKS PASSED

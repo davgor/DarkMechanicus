@@ -13,7 +13,9 @@ import { registerChatIpc } from '../main/agents/chatIpc'
 import type { ChatHandlers } from '../main/agents/chatHandlers'
 import { registerAutoUpdateHandlers } from '../main/autoUpdate'
 import { registerDesktopIpc } from '../main/desktop/ipc'
+import { registerCrossRepoCorrectionIpc, type CrossRepoCorrectionHandlers } from '../main/desktop/crossRepoCorrections'
 import type { DesktopHandlers } from '../main/desktop/handlers'
+import { registerSourceCheckoutIpc, type SourceCheckoutHandlers } from '../main/desktop/sourceCheckoutIpc'
 import { registerGitIpc } from '../main/git/ipc'
 import type { GitHandlers } from '../main/git/handlers'
 import { registerGithubIpc } from '../main/github/ipc'
@@ -84,6 +86,8 @@ beforeAll(() => {
   registerGitIpc(recorder(true), recordingHandlers<GitHandlers>())
   registerGithubIpc(recorder(true), recordingHandlers<GithubHandlers>())
   registerDesktopIpc(recorder(true), recordingHandlers<DesktopHandlers>())
+  registerSourceCheckoutIpc(recorder(true), recordingHandlers<SourceCheckoutHandlers>())
+  registerCrossRepoCorrectionIpc(recorder(true), recordingHandlers<CrossRepoCorrectionHandlers>())
   registerChatIpc(recorder(true), recordingHandlers<ChatHandlers>())
   registerAutoUpdateHandlers(recorder(false))
   // Terminal handlers take the sender's frame, not the event, so these are checked by channel and payload only.

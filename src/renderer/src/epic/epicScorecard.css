@@ -1,0 +1,142 @@
+/* The epic Scorecard: the stage view beside Graph and List. Shared scorecard parts come from scorecard.css. */
+.es {
+  flex: 1;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 1080px;
+  padding: 24px 28px;
+  overflow: auto;
+}
+
+.es-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.es-title {
+  margin: 0;
+  color: var(--ink-display);
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.es-title:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+.es-mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.es-conclusion {
+  margin: 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--line);
+  font-size: 13px;
+}
+
+.es-conclusion.is-failed {
+  border-left-color: var(--st-failed);
+}
+
+.es-conclusion.is-unverified {
+  border-left-color: var(--st-waiting);
+}
+
+.es-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.es-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  overflow-wrap: anywhere;
+}
+
+.es-run {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+}
+
+.es-run h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.es-sprints {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.es-sprint-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.es-sprint-toggle:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.es-sprint-toggle[aria-expanded='true'] {
+  background: var(--panel-2);
+}
+
+.es-sprint-summary {
+  color: var(--ink-2);
+}
+
+.es-sprint-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 4px 4px 14px;
+}
+
+.es-chip.is-comparable {
+  border-color: var(--st-accepted);
+  color: var(--st-accepted);
+}
+
+.es-chip.is-not-compared {
+  border-style: dashed;
+}

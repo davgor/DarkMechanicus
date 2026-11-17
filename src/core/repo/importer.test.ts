@@ -69,7 +69,21 @@ function seedRunHistory(source: RepoEnv): void {
     decision: { outcome: 'accepted', notes: 'Verified by reviewer', reasons: [], decidedBy: 'desktop' }
   })
   insertAttempt(source.db, { id: A2, runId: RUN, ticketId: tid(2), revisionId: R2, state: 'running', claimSecret: 'secret', leaseExpiresAt: T0 })
-  insertReport(source.db, { id: REPORT, runId: RUN, sprintId: sid(1), content: { summary: 'Sprint went well', risks: ['Flaky pipeline'], retro: RETRO } })
+  // Every list the server writes (normalizeReport), so the exported content hashes as stored: import checks the hash.
+  const content = {
+    summary: 'Sprint went well',
+    accepted: [],
+    failed: [],
+    blocked: [],
+    changes: { files: [], commits: [] },
+    checks: [],
+    risks: ['Flaky pipeline'],
+    followUps: [],
+    exitCriteria: [],
+    epicOutcome: null,
+    retro: RETRO
+  }
+  insertReport(source.db, { id: REPORT, runId: RUN, sprintId: sid(1), content })
   insertCheckpoint(source.db, { id: idOf('checkpoint', 1), runId: RUN, sprintId: sid(1), reportId: REPORT })
   insertOutbox(source.db, { kind: 'run_history', epicId: EPIC, runId: RUN })
 }

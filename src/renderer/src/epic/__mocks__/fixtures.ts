@@ -47,6 +47,9 @@ import type {
 } from '../../../../shared/domain/views'
 
 export const NOW = Date.parse('2026-09-30T12:00:00.000Z')
+
+/** Where a report's Scorecard tab would read; the tab is closed by default, so these tests never read it. */
+export const SCORES = { folderPath: 'C:/demo', scheduler: { after: () => () => undefined, every: () => () => undefined }, version: 0 }
 const EPIC_ID = 'ep_1'
 
 export function iso(offsetMs: number): string {
