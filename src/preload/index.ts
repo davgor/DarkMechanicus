@@ -1,5 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import { CHAT_EVENT_CHANNEL, type ChatPushEvent, type ChatsApi } from '../shared/agents/chatApi'
+import {
+  CHAT_EVENT_CHANNEL,
+  CHAT_MAIL_EVENT_CHANNEL,
+  type ChatMailApi,
+  type ChatMailPushEvent,
+  type ChatPushEvent,
+  type ChatsApi
+} from '../shared/agents/chatApi'
 import type { AutoUpdateState } from '../shared/autoUpdate/types'
 import type { AgentDownloadProgress, DmApi } from '../shared/desktop/api'
 import type { CrossRepoCorrectionsApi } from '../shared/desktop/crossRepoCorrections'
@@ -30,9 +37,26 @@ contextBridge.exposeInMainWorld('appInfo', appInfo)
 export type AutoUpdateApi = typeof autoUpdate
 export type AppInfoApi = typeof appInfo
 
-/** Agent chats: one `chats:*` invoke per request (main validates each payload), plus the pushed list changes. */
+/** Chat mailboxes as the person sees them: one `chatMail:*` invoke per method, plus metadata-only pushes. */
+const mail: ChatMailApi = {
+  snapshot: (folder) => ipcRenderer.invoke('chatMail:snapshot', folder),
+  state: (request) => ipcRenderer.invoke('chatMail:state', request),
+  read: (request) => ipcRenderer.invoke('chatMail:read', request),
+  markSeen: (request) => ipcRenderer.invoke('chatMail:markSeen', request),
+  allowWake: (request) => ipcRenderer.invoke('chatMail:allowWake', request),
+  onEvent: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, event: ChatMailPushEvent): void => {
+      listener(event)
+    }
+    ipcRenderer.on(CHAT_MAIL_EVENT_CHANNEL, handler)
+    return () => ipcRenderer.removeListener(CHAT_MAIL_EVENT_CHANNEL, handler)
+  }
+}
+
+/** Agent chats: one `chats:*` invoke per request (main validates each payload), plus the pushed list changes and `mail`. */
 const chats: ChatsApi = {
   list: (folder) => ipcRenderer.invoke('chats:list', folder),
+  listAll: () => ipcRenderer.invoke('chats:listAll'),
   create: (request) => ipcRenderer.invoke('chats:create', request),
   startOrchestrator: (request) => ipcRenderer.invoke('chats:startOrchestrator', request),
   startTransferChat: (request) => ipcRenderer.invoke('chats:startTransferChat', request),
@@ -51,7 +75,8 @@ const chats: ChatsApi = {
     }
     ipcRenderer.on(CHAT_EVENT_CHANNEL, handler)
     return () => ipcRenderer.removeListener(CHAT_EVENT_CHANNEL, handler)
-  }
+  },
+  mail
 }
 
 /** The local Dark Mechanicus source checkout: `pick` takes nothing (main shows the dialog), `associate` a tracked folder. */
@@ -73,7 +98,7 @@ const crossRepoCorrections: CrossRepoCorrectionsApi = {
 }
 
 /**
- * The narrow desktop bridge: every method is one `dm:*` or `agents:*` IPC invoke; main validates each payload.
+ * The narrow desktop bridge: every method is one `dm:*`, `agents:*` or `knowledge:*` IPC invoke; main validates each payload.
  * `terminals` adds `terminals:attach`, `agents:signIn` and the port main posts for a running chat or sign-in terminal;
  * `sourceCheckout` the `sourceCheckout:*` channels; `crossRepoCorrections` the `corrections:*CrossRepo` channels.
  */
@@ -109,7 +134,10 @@ const dm: DmApi = {
   agentStatus: (id) => ipcRenderer.invoke('agents:status', id),
   folderDefaultAgent: (folder) => ipcRenderer.invoke('agents:folderDefault', folder),
   ompTerminalTheme: () => ipcRenderer.invoke('agents:ompTerminalTheme'),
-  setFolderDefaultAgent: (request) => ipcRenderer.invoke('agents:setFolderDefault', request)
+  setFolderDefaultAgent: (request) => ipcRenderer.invoke('agents:setFolderDefault', request),
+  knowledgeStatus: (folder) => ipcRenderer.invoke('knowledge:status', folder),
+  chooseKnowledgeRepository: () => ipcRenderer.invoke('knowledge:choose-repository'),
+  clearKnowledgeRepository: () => ipcRenderer.invoke('knowledge:clear-repository')
 }
 
 contextBridge.exposeInMainWorld('dm', dm)

@@ -151,6 +151,7 @@ const PROBES: Record<CommandName, unknown> = {
   listEvents: {},
   getAttemptTimeline: { attemptId: ATTEMPT },
   getRunTimeline: { runId: RUN },
+  getContext: { event: 'run.started' },
   addAttachment: { path: '/no/such/probe.png', label: 'probe', purpose: 'evidence' },
   uploadAttachment: { data: 'AAAA' },
   getAttachment: { attachmentId: probeId('attachment'), as: 'metadata' },
@@ -176,7 +177,14 @@ const PROBES: Record<CommandName, unknown> = {
   startTransfer: { epicId: EPIC },
   recordTransferItem: { epicId: EPIC, ref: 'project', linearId: 'lin-probe' },
   getTransfer: { epicId: EPIC },
-  submitTransferReadback: { epicId: EPIC, readback: {}, final: false }
+  submitTransferReadback: { epicId: EPIC, readback: {}, final: false },
+  getAgentIdentity: {},
+  listAgentPeers: {},
+  sendAgentMessage: { to: probeId('mailEndpoint'), clientMessageId: 'probe-1', body: 'probe' },
+  readAgentInbox: {},
+  acknowledgeAgentMessages: { messageIds: [probeId('mailMessage')] },
+  getAgentMailStatus: {},
+  takeAgentMailWake: {}
 }
 
 const COMMAND_NAMES = Object.keys(PROBES) as CommandName[]
@@ -231,7 +239,15 @@ describe('declared command capabilities match what the services enforce', () => 
 
     const refused = COMMAND_NAMES.filter((name) => outcomes.get(name) === 'unauthorized')
     // Uploading image bytes is the desktop transport's alone, so a holder on any other transport is refused too.
-    const lacking = COMMAND_NAMES.filter((name) => !held.has(COMMAND_CAPABILITIES[name]) || name === 'uploadAttachment' || name === 'switchStorageMode')
+    // A mailbox command also needs the session's own desktop-bound CLI grant, which no session here has: holding
+    // `mail.use` without one is refused just the same.
+    const lacking = COMMAND_NAMES.filter(
+      (name) =>
+        !held.has(COMMAND_CAPABILITIES[name]) ||
+        name === 'uploadAttachment' ||
+        name === 'switchStorageMode' ||
+        COMMAND_CAPABILITIES[name] === 'mail.use'
+    )
     expect(refused).toEqual(lacking)
     // The probe project is a single repository, which an authorized rescan refuses as having nothing to rescan.
     // The probe image path does not exist, so an authorized add stops at reading the file.
@@ -253,6 +269,7 @@ describe('COMMAND_CAPABILITIES', () => {
       'approveKanbanCard',
       'approveWithRedraft',
       'authorizeAutoContinue',
+      'backupDatabase',
       'cancelTransfer',
       'deleteEpic',
       'deleteKanbanCard',

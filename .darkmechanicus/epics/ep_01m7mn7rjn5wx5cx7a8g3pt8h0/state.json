@@ -1,0 +1,26 @@
+{
+  "branch": null,
+  "completedAt": null,
+  "createdAt": "2026-11-17T11:45:51.189Z",
+  "epicId": "ep_01m7mn7rjn5wx5cx7a8g3pt8h0",
+  "format": "darkmechanicus.epic-state",
+  "formatVersion": 1,
+  "generation": 1,
+  "outcome": null,
+  "provenance": null,
+  "status": "backlog",
+  "ticketStatuses": {
+    "tk_01m7mn7rjpz1emdpm9qyhs0ncn": "backlog",
+    "tk_01m7mncczbq8fmj1r61c9cnhsw": "backlog",
+    "tk_01m7mncd2c2x5jxd6tmdwwpy6k": "backlog",
+    "tk_01m7mncd2c8ebqdmed8bwzrws8": "backlog",
+    "tk_01m7mncd2cd0fsgazb0cb9kmxr": "backlog",
+    "tk_01m7mncd2cemcjde47gbgdvb0g": "backlog",
+    "tk_01m7mncd2cjfjqa5sy6t2xedeh": "backlog",
+    "tk_01m7mncd2cpa2q02kyvvcvt3cm": "backlog",
+    "tk_01m7mncd2cwhhjey0agc8bct08": "backlog",
+    "tk_01m7mncd2czavc23jr918eqf7p": "backlog"
+  },
+  "title": "Board conversations: message the agent behind an epic, ticket or Kanban card",
+  "updatedAt": "2026-11-17T12:18:53.683Z"
+}

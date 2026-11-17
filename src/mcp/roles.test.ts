@@ -1,7 +1,10 @@
-import { describe, expect, it } from 'vitest'
-import type { SessionRole } from '../shared/domain/views'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { bindAgentMailEndpoint, provisionAgentMailEndpoint } from '../core/services/agentMail'
+import type { GrantableRole, SessionRole } from '../shared/domain/views'
 import { callTool, sampleId, withRig } from '../test/mcpHarness'
 import { createCannedApi, createStubApi } from '../test/stubApi'
+import { createHarness, type Harness } from '../test/workspaceHarness'
+import type { Workspace } from '../core/workspace'
 import { createMcpServer } from './server'
 
 const INFO = { name: 'darkmechanicus', version: '1.2.3' }
@@ -12,6 +15,7 @@ const READ_TOOLS = [
   'get_project',
   'list_projects',
   'get_storage_status',
+  'get_context',
   'search_history',
   'list_branch_epics',
   'list_sessions',
@@ -61,11 +65,18 @@ const COMMENT_TOOLS = ['add_comment', 'name_chat']
 /** Every role that writes records may attach an image from a local path (attachment.write); the desktop refuses it. */
 const ATTACHMENT_WRITE_TOOLS = ['add_attachment']
 
+/** Agent mail tools that only read. */
+const MAIL_READ_TOOLS = ['get_agent_identity', 'list_agent_peers', 'read_agent_inbox', 'get_agent_mail_status']
+
+/** Every hosted role holds mail.use and lists these; a call still needs a desktop-bound dm CLI grant (see below). */
+const MAIL_TOOLS = [...MAIL_READ_TOOLS, 'send_agent_message', 'acknowledge_agent_messages', 'take_agent_mail_wake']
+
 /** Tools a planner and an orchestrator both hold. */
 const PLANNER_SHARED_TOOLS = [
   ...READ_TOOLS,
   ...COMMENT_TOOLS,
   ...ATTACHMENT_WRITE_TOOLS,
+  ...MAIL_TOOLS,
   'initialize_repository',
   'flush_portable_state',
   'reconcile_repository',
@@ -135,6 +146,7 @@ const WORKER_TOOLS = [
   ...READ_TOOLS,
   ...COMMENT_TOOLS,
   ...ATTACHMENT_WRITE_TOOLS,
+  ...MAIL_TOOLS,
   'heartbeat_attempt',
   'submit_attempt',
   'fail_attempt',
@@ -143,7 +155,7 @@ const WORKER_TOOLS = [
   'fail_kanban_card',
   'record_attempt_metrics'
 ]
-const REVIEWER_TOOLS = [...READ_TOOLS, ...COMMENT_TOOLS, ...ATTACHMENT_WRITE_TOOLS, 'accept_attempt', 'reject_attempt', 'record_run_metrics']
+const REVIEWER_TOOLS = [...READ_TOOLS, ...COMMENT_TOOLS, ...ATTACHMENT_WRITE_TOOLS, ...MAIL_TOOLS, 'accept_attempt', 'reject_attempt', 'record_run_metrics']
 
 interface ListingCase {
   role: SessionRole
@@ -182,7 +194,7 @@ describe('tools/list per role', () => {
     await withRig(serverFor(role, allowSave), createStubApi(), async (rig) => {
       const { tools } = await rig.client.listTools()
       const readOnly = tools.filter((tool) => tool.annotations?.readOnlyHint === true).map((tool) => tool.name)
-      expect(readOnly.sort()).toEqual([...READ_TOOLS].sort())
+      expect(readOnly.sort()).toEqual([...READ_TOOLS, ...MAIL_READ_TOOLS].sort())
     })
   })
 
@@ -286,6 +298,66 @@ describe('calls to tools that do not exist or that the role lists', () => {
       })
       expect(outcome.payload).toEqual({ ok: true, data: { marker: 'submitted' } })
       expect(api.calls.map((call) => call.name)).toEqual(['submitAttempt'])
+    })
+  })
+})
+
+/** A real repository whose `own` chat has a `role` grant the desktop bound to it, beside a `peer` mailbox. */
+async function boundMailRepo(h: Harness, role: GrantableRole): Promise<{ desktop: Workspace; peerId: string; token: string }> {
+  const desktop = h.open('desktop')
+  await desktop.initializeRepository({ name: 'Mail over MCP' })
+  const own = provisionAgentMailEndpoint(desktop.ctx(), { chatId: 'own', name: 'Own chat' })
+  const peer = provisionAgentMailEndpoint(desktop.ctx(), { chatId: 'peer', name: 'Peer chat' })
+  const { grant, token } = await desktop.issueGrant({ role, label: 'own' })
+  bindAgentMailEndpoint(desktop.ctx(), { endpointId: own.id, grantId: grant.id })
+  return { desktop, peerId: peer.id, token }
+}
+
+describe('agent mail over MCP', () => {
+  let h: Harness
+  beforeEach(() => {
+    h = createHarness()
+  })
+  afterEach(() => {
+    h.cleanup()
+  })
+
+  it.each(['planner', 'orchestrator', 'worker', 'reviewer'] as const satisfies readonly GrantableRole[])(
+    'refuses every mail tool to a %s stdio session, even one holding a bound grant token, and changes no mail',
+    async (role) => {
+      const { desktop, peerId, token } = await boundMailRepo(h, role)
+      const send = { to: peerId, clientMessageId: 'probe', body: 'probe' }
+      const calls = { ...Object.fromEntries(MAIL_TOOLS.map((tool) => [tool, {}])), send_agent_message: send, acknowledge_agent_messages: { messageIds: [sampleId('mailMessage')] } }
+      // An MCP server is a stdio session: a DM_SESSION_TOKEN it inherited never makes the grant its own.
+      const api = h.open(role, { transport: 'stdio', grantToken: token })
+      await withRig((target) => createMcpServer(target, INFO, { role, allowSave: false }), Object.assign(api, { calls: [] }), async (rig) => {
+        const listed = (await rig.client.listTools()).tools.map((tool) => tool.name)
+        for (const [tool, args] of Object.entries(calls)) {
+          expect(listed).toContain(tool)
+          const outcome = await callTool(rig, tool, args)
+          expect(outcome.payload).toMatchObject({ ok: false, error: { code: 'unauthorized', message: expect.stringContaining('This session has no usable mailbox.') } })
+          expect(outcome.text).not.toContain('Peer chat')
+        }
+        expect((await callTool(rig, 'get_capabilities')).payload).toMatchObject({ ok: true, data: { mailbox: { bound: false, reason: 'no_grant' } } })
+      })
+      expect(desktop.ctx().db.get<{ n: number }>('SELECT COUNT(*) AS n FROM agent_mail_messages')?.n).toBe(0)
+      // Positive control: the same grant through the dm CLI is the bound mailbox.
+      await expect(h.open('reader', { transport: 'cli', grantToken: token }).sendAgentMessage(send)).resolves.toMatchObject({ duplicate: false })
+    }
+  )
+
+  it('lists no mail tool to a reader, and refuses a direct call before the command runs', async () => {
+    const api = createStubApi()
+    await withRig(serverFor('reader', false), api, async (rig) => {
+      const listed = (await rig.client.listTools()).tools.map((tool) => tool.name)
+      expect(listed.filter((name) => MAIL_TOOLS.includes(name))).toEqual([])
+      for (const tool of MAIL_TOOLS) {
+        expect((await callTool(rig, tool, {})).payload).toMatchObject({
+          ok: false,
+          error: { code: 'unauthorized', details: { role: 'reader', capability: 'mail.use', tool } }
+        })
+      }
+      expect(api.calls).toEqual([])
     })
   })
 })

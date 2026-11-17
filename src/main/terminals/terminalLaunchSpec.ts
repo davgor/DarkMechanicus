@@ -27,6 +27,7 @@ import type { AgentView } from '../../shared/desktop/api'
 import { windowsProgramKind } from '../desktop/agentProbe'
 import { planShimLaunch } from '../agents/shimLaunch'
 import { readShimFile, resolveClaudeExecutable } from './claudeExecutable'
+import type { ReachTarget } from '../agents/chatReach'
 import { pinnedCliScript } from './dmLauncher'
 import { LOGIN_ARGS } from '../desktop/agentAuth'
 import { terminalEnv, terminalLoginEnv } from './terminalEnv'
@@ -51,10 +52,12 @@ export interface TerminalLaunchInput {
   /** The kickoff, for a chat Start run or Transfer with agent opened; null for every other chat. */
   kickoff: string | null
   agent: Pick<AgentView, 'id' | 'kind' | 'executablePath' | 'args'>
-  /** `resolveLaunchFolder`'s path. */
+  /** `resolveLaunchFolder`'s path; a project-less chat's scratch folder. */
   folder: string
-  /** The chat's `dm` invocation, pinned to `folder`, with its grant in `env` (`issueChatCli`). */
+  /** The chat's `dm` invocation, pinned to `folder` (to none for a project-less chat), with its grant in `env` (`issueChatCli`, `issueReachCli`). */
   cli: DarkMechanicusCli
+  /** A project-less chat's folders and token files (`chatReach.ts`); absent for a chat of a folder. */
+  reach?: readonly ReachTarget[]
   files: TerminalFiles
   platform: NodeJS.Platform
   /** main's `process.env`. */
@@ -358,7 +361,7 @@ function refuseMismatches(input: TerminalLaunchInput): void {
   if (input.kickoff !== null && /^-|^\S*$/.test(input.kickoff) && input.chat.firstPrompt !== input.kickoff) {
     throw new DomainError('invalid_input', 'The kickoff is empty, one word or starts with "-", which a CLI would read as a subcommand or an option.')
   }
-  pinnedCliScript(input.cli, input.folder)
+  pinnedCliScript(input.cli, input.reach === undefined ? input.folder : null)
 }
 
 function commandLineFor(input: ProgramInput, program: Program, args: string[]): LaunchLine {
@@ -382,12 +385,46 @@ function literalPopupPaste(input: TerminalLaunchInput): string | null {
   return /^-|^\S*$/.test(input.kickoff) ? input.kickoff : null
 }
 
+/** The chat's instructions, for a CLI that takes them as text: the same text `writeTerminalFiles` wrote. */
+function instructionsTextFor(input: TerminalLaunchInput, launcherDir: string | null): string {
+  const { chat } = input
+  return terminalInstructions({
+    cli: input.cli,
+    role: chat.role,
+    allowSave: chat.allowSave,
+    launcherDir,
+    orchestratesRun: chat.runId !== undefined,
+    nameFirstPrompt: chat.titleStatus === 'pending',
+    transferEpicId: chat.transferEpicId,
+    cardId: chat.cardId,
+    ...(input.reach === undefined ? {} : { reach: input.reach })
+  })
+}
+
+/**
+ * The terminal's environment (`terminalEnv.ts`), with the launch's mail client descriptor when it has one (an OMP chat
+ * with a mailbox); a project-less chat that reaches no folder starts with no grant.
+ */
+function envFor(input: TerminalLaunchInput, launcherDir: string | null): Record<string, string> {
+  const { platform, agent } = input
+  const dmClient = input.files.omp?.dmClient
+  return terminalEnv({
+    base: input.env,
+    platform,
+    kind: agent.kind,
+    cli: input.cli,
+    launcherDir,
+    ...(dmClient === undefined ? {} : { dmClient }),
+    ...(input.reach?.length === 0 ? { grantless: true as const } : {})
+  })
+}
+
 export function terminalLaunchSpec(input: TerminalLaunchInput): TerminalLaunchSpec {
   refuseMismatches(input)
   const { chat, agent, files, platform } = input
   const literalPaste = literalPopupPaste(input)
   const launcherDir = platform === 'win32' ? null : files.launcherDir
-  const env = terminalEnv({ base: input.env, platform, kind: agent.kind, cli: input.cli, launcherDir })
+  const env = envFor(input, launcherDir)
   const program: Program = platform === 'win32' ? windowsProgram(input) : { file: agent.executablePath, leading: [], viaShim: false }
   const dropped: DroppedValue[] = []
   const model = checkedModel(input, dropped)
@@ -395,16 +432,7 @@ export function terminalLaunchSpec(input: TerminalLaunchInput): TerminalLaunchSp
   const launch = KIND_LAUNCHES[agent.kind]({
     folder: input.folder,
     instructionsPath: files.instructions,
-    instructionsText: terminalInstructions({
-      cli: input.cli,
-      role: chat.role,
-      allowSave: chat.allowSave,
-      launcherDir,
-      orchestratesRun: chat.runId !== undefined,
-      nameFirstPrompt: chat.titleStatus === 'pending',
-      transferEpicId: chat.transferEpicId,
-      cardId: chat.cardId
-    }),
+    instructionsText: instructionsTextFor(input, launcherDir),
     claudeSettings: files.claudeSettings,
     ompSessionDir: files.omp?.sessionDir,
     ompConfig: files.omp?.config,

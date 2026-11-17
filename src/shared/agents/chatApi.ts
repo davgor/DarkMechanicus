@@ -5,6 +5,7 @@
  * arguments are decided in the main process. Each chat runs in its terminal (`terminalApi.ts`).
  */
 import type { AgentId, CommandResult } from '../desktop/api'
+import type { AgentInboxPage } from '../domain/agentMail'
 import type { KanbanCardView } from '../domain/kanban'
 import type { RunView } from '../domain/views'
 import type { ChatItem, ChatRecord, ChatRole } from './chat'
@@ -12,8 +13,14 @@ import type { ChatItem, ChatRecord, ChatRole } from './chat'
 /** Main pushes every `ChatPushEvent` to the window on this channel. */
 export const CHAT_EVENT_CHANNEL = 'chats:event'
 
-/** Names one chat: the tracked folder it belongs to and its id. */
+/** Names one chat: the tracked folder it belongs to (null for a project-less chat) and its id. */
 export interface ChatRequestRef {
+  folder: string | null
+  chatId: string
+}
+
+/** Names one OMP chat's mailbox: the tracked folder whose database holds it (a project-less chat has none) and the chat's id. */
+export interface ChatMailRef {
   folder: string
   chatId: string
 }
@@ -31,6 +38,20 @@ export interface CreateChatRequest {
   firstPrompt?: string
 }
 
+/**
+ * Summons an agent with no project: a project-less chat (`folder` null) that runs in its own scratch folder. Its role
+ * and Allow save are decided in main: an orchestrator that may save, reaching every tracked folder.
+ */
+export interface SummonChatRequest {
+  folder: null
+  agent: AgentId
+  /** Null (or left out) lets the agent use its default model. */
+  model?: string | null
+  title?: string
+  /** Full original first user message: nonblank, at most 32,000 characters, never trimmed. */
+  firstPrompt?: string
+}
+
 /** Starts a connected agent as the orchestrator of a new run of an epic; the role, Allow save and the chat title are decided in main. */
 export interface StartOrchestratorRequest {
   folder: string
@@ -38,6 +59,8 @@ export interface StartOrchestratorRequest {
   agent: AgentId
   /** Null (or left out) lets the agent use its default model. */
   model?: string | null
+  /** The person's additional instructions from the Start run dialog: non-blank, at most 32,000 characters; appended to the kickoff. */
+  instructions?: string
 }
 
 /** What starting an orchestrator left behind. The run is queued either way; the chat exists only when its agent was started. */
@@ -74,6 +97,8 @@ export interface StartKanbanCardRequest {
   agent: AgentId
   /** Null (or left out) lets the agent use its default model. */
   model?: string | null
+  /** The person's additional instructions from the Play dialog: non-blank, at most 32,000 characters; appended to the kickoff. */
+  instructions?: string
 }
 
 /** What pressing Play left behind. The play is marked either way; the chat exists only when its agent was started. */
@@ -136,13 +161,117 @@ export interface BoundThread {
   role: 'orchestrator' | 'worker'
 }
 
-/** A chat was created, renamed or deleted (`chatId` is that chat): every window lists the folder's chats again, so none shows a stale list. */
-export type ChatPushEvent = { type: 'chats_changed'; folder: string; chatId: string }
+/**
+ * A chat was created, renamed or deleted (`chatId` is that chat, `folder` its folder, null for a project-less chat):
+ * every window lists that folder's chats, and every chat, again, so none shows a stale list.
+ */
+export type ChatPushEvent = { type: 'chats_changed'; folder: string | null; chatId: string }
+
+/** Main pushes every `ChatMailPushEvent` to the app window on this channel: mailbox metadata only, never a message body. */
+export const CHAT_MAIL_EVENT_CHANNEL = 'chatMail:event'
+
+/**
+ * The one-shot wake credit of a chat's mailbox ("Allow one inbox wake"). At most one is armed at a time; `revision`
+ * moves on every arm and every consumption. `lastAttempt` is the last consumed credit: the chat was *attempted*, which
+ * says nothing about whether its agent woke, read or processed anything.
+ */
+interface ChatMailWakeView {
+  revision: number
+  armed: boolean
+  armedAt: string | null
+  lastAttempt: { id: string; at: string; outcome: 'attempted' } | null
+}
+
+/**
+ * The person's view of one OMP chat's mailbox, without any message body. Counts cover retained messages only (expired
+ * and deleted ones never count); an acknowledged message is retained `retentionDays` (seven) days after its agent
+ * acknowledged it. The person's seen cursor is separate from the agent's acknowledgements.
+ */
+export interface ChatMailState {
+  folder: string
+  chatId: string
+  humanSeenSeq: number
+  /** Retained messages above the person's seen cursor. */
+  unseenCount: number
+  /** Messages the chat's agent has not acknowledged yet. */
+  pendingCount: number
+  retainedCount: number
+  retentionDays: number
+  wake: ChatMailWakeView
+  /** Orders views of the same chat: keep the one with the highest version (snapshots, answers and pushes share one counter). */
+  version: number
+}
+
+/** Every OMP chat of a tracked folder that has a mailbox, as the person sees it now. */
+export interface ChatMailSnapshot {
+  folder: string
+  chats: ChatMailState[]
+}
+
+/** One page of a chat's inbox with bodies: sequences in (afterSeq, throughSeq], at most `limit` (1 to 50). */
+export interface ReadChatMailRequest extends ChatMailRef {
+  /** The previous page's `nextCursor`; 0 or absent from the start. */
+  afterSeq?: number
+  /** The first page's `snapshotHighWater`, passed back so later pages skip no arrival. */
+  throughSeq?: number
+  limit?: number
+  unacknowledgedOnly?: boolean
+}
+
+/** A page of a chat's inbox with bodies, answered only to the app window that asked; reading acknowledges nothing and marks nothing seen. */
+export type ChatMailPage = AgentInboxPage
+
+/** Moves the person's seen cursor up to the highest sequence the window displayed (never a status head). */
+export interface MarkChatMailSeenRequest extends ChatMailRef {
+  throughSeq: number
+}
+
+/**
+ * Arms the chat's one wake credit. `expectedRevision` is `wake.revision` as the window last showed it and
+ * `requestNonce` is new for every click (1 to 128 of `A-Za-z0-9._:-`), so a delayed duplicate of a click whose credit
+ * was already used is a `conflict`, never a second credit.
+ */
+export interface AllowChatMailWakeRequest extends ChatMailRef {
+  expectedRevision: number
+  requestNonce: string
+}
+
+/** A chat's mailbox state changed, or the chat no longer has a mailbox (deleted). Metadata only. */
+export type ChatMailPushEvent =
+  | { type: 'mail_state'; state: ChatMailState }
+  | { type: 'mail_removed'; folder: string; chatId: string; version: number }
+
+/**
+ * The person's side of OMP chats' mailboxes (`window.dm.chats.mail`): one `chatMail:*` invoke per method. Chats are
+ * named by tracked folder and chat id; main derives the mailbox from the chat record and never takes an endpoint id.
+ * Errors: `unauthorized` (folder not tracked, or not the app window), `invalid_input` (malformed request, or a seen
+ * sequence this window was not shown), `not_found` (no such chat, not an OMP chat, or its mailbox is deleted),
+ * `conflict` (stale wake revision or a reused nonce), `invalid_state` (mailbox not open).
+ */
+export interface ChatMailApi {
+  /** Every mailbox of the folder now (the catch-up at start or after a missed push); keeps the folder's monitor polling until untrack or quit. */
+  snapshot(folder: string): Promise<CommandResult<ChatMailSnapshot>>
+  state(request: ChatMailRef): Promise<CommandResult<ChatMailState>>
+  /** One page with bodies; neither acknowledges for the agent nor marks seen. */
+  read(request: ReadChatMailRequest): Promise<CommandResult<ChatMailPage>>
+  /** Forward only; the state after it. A message arriving meanwhile stays unseen. */
+  markSeen(request: MarkChatMailSeenRequest): Promise<CommandResult<ChatMailState>>
+  /** Arms the one-shot wake credit (repeating while armed returns the armed state); never starts a stopped chat. */
+  allowWake(request: AllowChatMailWakeRequest): Promise<CommandResult<ChatMailState>>
+  /** Subscribes to metadata pushes for monitored folders; returns the unsubscribe function. */
+  onEvent(listener: (event: ChatMailPushEvent) => void): () => void
+}
 
 export interface ChatsApi {
   /** A tracked folder's chats, most recently updated first. */
   list(folder: string): Promise<CommandResult<ChatRecord[]>>
-  create(request: CreateChatRequest): Promise<CommandResult<ChatRecord>>
+  /**
+   * Every chat that is not deleted: each tracked folder's (by its canonical path) and the project-less ones (`folder`
+   * null), most recently updated first. A folder that is no longer tracked contributes none.
+   */
+  listAll(): Promise<CommandResult<ChatRecord[]>>
+  /** Creates a chat in a tracked folder, or a project-less chat (`SummonChatRequest`), which nothing starts yet. */
+  create(request: CreateChatRequest | SummonChatRequest): Promise<CommandResult<ChatRecord>>
   /**
    * Queues a run of the epic, creates an orchestrator chat for it with Allow save off, records the run's
    * id on the chat and starts its terminal. A failure after the run is queued is reported in the
@@ -189,8 +318,10 @@ export interface ChatsApi {
   boundTerminal(request: BoundThreadsRequest): Promise<CommandResult<string | null>>
   /** Changes the chat's title and returns the updated chat. */
   rename(request: RenameChatRequest): Promise<CommandResult<ChatRecord>>
-  /** Ends the chat's terminal and removes the chat and its transcript from the app-wide store. */
+  /** Ends the chat's terminal (revoking its grants) and removes the chat and its transcript from the app-wide store, and a project-less chat's scratch folder. */
   delete(request: ChatRequestRef): Promise<CommandResult<null>>
   /** Subscribes to pushed chat events; returns the unsubscribe function. */
   onEvent(listener: (event: ChatPushEvent) => void): () => void
+  /** The person's view of OMP chats' mailboxes: inbox, seen cursor, wake credit and metadata pushes. */
+  mail: ChatMailApi
 }

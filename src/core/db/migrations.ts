@@ -3,7 +3,7 @@ import { redactedJson } from '../storedSecrets'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 19
+export const SCHEMA_VERSION = 21
 
 export interface Migration {
   version: number
@@ -659,14 +659,123 @@ ALTER TABLE sync_state_v14 RENAME TO sync_state;
 `
 
 /**
- * v15 adds the metric observation ledger: one immutable row per SPACE observation (`observation_json`, the contract
+ * v15 adds local agent mail between Skitarii chats (`services/agentMailStore.ts`). Every table is local-only: no
+ * outbox kind, sync state, portable record, event body or search index ever carries a row, so in `repo` mode too the
+ * database holds the only copy.
+ *
+ * - `agent_mail_endpoints`: one opaque mailbox per (machine, trusted chat id) of this project's database. Rows are never
+ *   deleted: a deleted chat leaves a `deleted` tombstone that keeps its sequence high-water (`last_seq`), so a
+ *   recipient sequence is never handed out twice, and delivered copies elsewhere keep a valid sender. `human_seen_seq`
+ *   is the person's own cursor, separate from agent acknowledgement.
+ * - `agent_mail_bindings`: which grant speaks for which endpoint, with the trusted canonical folder and logical
+ *   machine id it was bound in. A grant binds once; a closed binding is never reopened; an endpoint has at most one
+ *   open binding.
+ * - `agent_mail_messages`: received direct messages and replies. `in_reply_to` deliberately has no foreign key, so
+ *   purging one mailbox never cascades into another. `expires_at` is set only by acknowledgement.
+ * - `agent_mail_receipts`: body-free sender receipts keyed by (sender, client message id), with no link to message
+ *   rows, so a retry replays its original acceptance after the recipient or the message is gone.
+ */
+const V15 = `
+CREATE TABLE agent_mail_endpoints (
+  id TEXT PRIMARY KEY,
+  machine_id TEXT NOT NULL,
+  chat_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  state TEXT NOT NULL CHECK (state IN ('open','suspended','deleting','deleted')),
+  last_seq INTEGER NOT NULL DEFAULT 0 CHECK (last_seq >= 0),
+  human_seen_seq INTEGER NOT NULL DEFAULT 0 CHECK (human_seen_seq >= 0 AND human_seen_seq <= last_seq),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  deleting_at TEXT,
+  deleted_at TEXT,
+  UNIQUE (machine_id, chat_id)
+);
+
+CREATE TABLE agent_mail_bindings (
+  grant_id TEXT PRIMARY KEY,
+  endpoint_id TEXT NOT NULL REFERENCES agent_mail_endpoints(id),
+  machine_id TEXT NOT NULL,
+  canonical_folder TEXT NOT NULL,
+  bound_at TEXT NOT NULL,
+  closed_at TEXT,
+  close_reason TEXT CHECK (close_reason IN ('replaced','suspended','deleted','grant_ended')),
+  CHECK ((closed_at IS NULL) = (close_reason IS NULL))
+);
+CREATE UNIQUE INDEX agent_mail_bindings_one_open ON agent_mail_bindings(endpoint_id) WHERE closed_at IS NULL;
+
+CREATE TABLE agent_mail_messages (
+  id TEXT PRIMARY KEY,
+  recipient_endpoint_id TEXT NOT NULL REFERENCES agent_mail_endpoints(id),
+  recipient_seq INTEGER NOT NULL CHECK (recipient_seq >= 1),
+  sender_endpoint_id TEXT NOT NULL REFERENCES agent_mail_endpoints(id),
+  client_message_id TEXT NOT NULL,
+  in_reply_to TEXT,
+  body TEXT NOT NULL,
+  body_bytes INTEGER NOT NULL CHECK (body_bytes BETWEEN 1 AND 16384),
+  accepted_at TEXT NOT NULL,
+  acked_at TEXT,
+  expires_at TEXT,
+  CHECK ((acked_at IS NULL) = (expires_at IS NULL)),
+  UNIQUE (recipient_endpoint_id, recipient_seq)
+);
+CREATE INDEX agent_mail_messages_pending ON agent_mail_messages(recipient_endpoint_id, recipient_seq) WHERE acked_at IS NULL;
+CREATE INDEX agent_mail_messages_expiry ON agent_mail_messages(expires_at) WHERE expires_at IS NOT NULL;
+CREATE INDEX agent_mail_messages_retained ON agent_mail_messages(recipient_endpoint_id, expires_at, acked_at);
+
+CREATE TABLE agent_mail_receipts (
+  sender_endpoint_id TEXT NOT NULL REFERENCES agent_mail_endpoints(id),
+  client_message_id TEXT NOT NULL,
+  payload_hash TEXT NOT NULL,
+  result_json TEXT NOT NULL,
+  accepted_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  PRIMARY KEY (sender_endpoint_id, client_message_id)
+);
+CREATE INDEX agent_mail_receipts_sender_expiry ON agent_mail_receipts(sender_endpoint_id, expires_at);
+CREATE INDEX agent_mail_receipts_expiry ON agent_mail_receipts(expires_at);
+`
+
+/**
+ * v16 adds what authorized agent mail (`services/agentMail.ts`) keeps beside the v15 store, local-only like it:
+ *
+ * - `agent_mail_wakes`: one row per endpoint holding its one-shot, non-accumulating wake credit. Only the person's
+ *   desktop arms it (`armed`, with the endpoint-scoped `request_nonce` of the arming request); an agent can only
+ *   consume it. `revision` moves on every arm and every consumption, so a delayed arming request that names an old
+ *   revision never mints a second credit. `attempt_id`/`attempted_at` record the last consumption: an attempt to
+ *   wake the chat, never a delivery or read receipt.
+ * - `agent_mail_poll_sessions`: the one dedicated `sessions` row each (endpoint, grant) reuses for its restricted
+ *   status/wake polls, so polling never grows the sessions table. Such a session is never referenced by activity.
+ */
+const V16 = `
+CREATE TABLE agent_mail_wakes (
+  endpoint_id TEXT PRIMARY KEY REFERENCES agent_mail_endpoints(id),
+  revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
+  armed INTEGER NOT NULL DEFAULT 0 CHECK (armed IN (0, 1)),
+  request_nonce TEXT,
+  armed_at TEXT,
+  attempt_id TEXT,
+  attempted_at TEXT,
+  CHECK (armed = 0 OR (request_nonce IS NOT NULL AND armed_at IS NOT NULL)),
+  CHECK ((attempt_id IS NULL) = (attempted_at IS NULL))
+);
+
+CREATE TABLE agent_mail_poll_sessions (
+  endpoint_id TEXT NOT NULL REFERENCES agent_mail_endpoints(id),
+  grant_id TEXT NOT NULL,
+  session_id TEXT NOT NULL UNIQUE,
+  PRIMARY KEY (endpoint_id, grant_id)
+);
+`
+
+/**
+ * v17 adds the metric observation ledger: one immutable row per SPACE observation (`observation_json`, the contract
  * record as stored), with its scope ids, metric, source kind and measurement state copied into columns for lookups.
  * `payload_hash` is the observation's identity without the server's `recorded_at`, so a repeated delivery is
  * recognized and a changed payload under the same id is refused. No existing table or record changes. The outbox
  * and sync state gain the `metric_observation` kind; both tables are rebuilt the way v14 rebuilt them, keeping every
  * row, id and the outbox id sequence.
  */
-const V15 = `
+const V17 = `
 CREATE TABLE metric_observations (
   id TEXT PRIMARY KEY,
   metric TEXT NOT NULL,
@@ -686,7 +795,7 @@ CREATE INDEX metric_observations_epic ON metric_observations(epic_id, recorded_a
 CREATE INDEX metric_observations_run ON metric_observations(run_id, recorded_at, id);
 CREATE INDEX metric_observations_attempt ON metric_observations(attempt_id);
 
-CREATE TABLE outbox_v15 (
+CREATE TABLE outbox_v17 (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   kind TEXT NOT NULL CHECK (kind IN ('snapshot','epic_state','run_history','comment','profile','kanban_card','kanban_event','attachment','metric_observation')),
   epic_id TEXT,
@@ -699,15 +808,15 @@ CREATE TABLE outbox_v15 (
   created_at TEXT NOT NULL,
   done_at TEXT
 );
-INSERT INTO outbox_v15 (id, kind, epic_id, run_id, revision_id, entity_id, state, attempts, last_error, created_at, done_at)
+INSERT INTO outbox_v17 (id, kind, epic_id, run_id, revision_id, entity_id, state, attempts, last_error, created_at, done_at)
   SELECT id, kind, epic_id, run_id, revision_id, entity_id, state, attempts, last_error, created_at, done_at FROM outbox;
-DELETE FROM sqlite_sequence WHERE name = 'outbox_v15';
-INSERT INTO sqlite_sequence (name, seq) SELECT 'outbox_v15', seq FROM sqlite_sequence WHERE name = 'outbox';
+DELETE FROM sqlite_sequence WHERE name = 'outbox_v17';
+INSERT INTO sqlite_sequence (name, seq) SELECT 'outbox_v17', seq FROM sqlite_sequence WHERE name = 'outbox';
 DROP TABLE outbox;
-ALTER TABLE outbox_v15 RENAME TO outbox;
+ALTER TABLE outbox_v17 RENAME TO outbox;
 CREATE INDEX outbox_state ON outbox(state, id);
 
-CREATE TABLE sync_state_v15 (
+CREATE TABLE sync_state_v17 (
   kind TEXT NOT NULL CHECK (kind IN ('epic','run','comment','profile','kanban_card','kanban_event','attachment','metric_observation')),
   entity_id TEXT NOT NULL,
   exported_hash TEXT,
@@ -717,29 +826,29 @@ CREATE TABLE sync_state_v15 (
   updated_at TEXT NOT NULL,
   PRIMARY KEY (kind, entity_id)
 );
-INSERT INTO sync_state_v15 (kind, entity_id, exported_hash, generation, imported_hash, conflict, updated_at)
+INSERT INTO sync_state_v17 (kind, entity_id, exported_hash, generation, imported_hash, conflict, updated_at)
   SELECT kind, entity_id, exported_hash, generation, imported_hash, conflict, updated_at FROM sync_state;
 DROP TABLE sync_state;
-ALTER TABLE sync_state_v15 RENAME TO sync_state;
+ALTER TABLE sync_state_v17 RENAME TO sync_state;
 `
 
 /**
- * v16 freezes a SPACE scorecard with each sprint report revision (`scorecard_json`): the sprint's, run's and epic's
+ * v18 freezes a SPACE scorecard with each sprint report revision (`scorecard_json`): the sprint's, run's and epic's
  * grades and every ticket grade of the sprint, computed once when the report was submitted, as canonical JSON. It is
  * never recomputed or rewritten, and it is exported with the run history (unlike `revision_id`), so a snapshot reads
  * byte for byte the same on every machine. NULL for every report before this version: such a report stays ungraded.
  */
-const V16 = `
+const V18 = `
 ALTER TABLE sprint_reports ADD COLUMN scorecard_json TEXT;
 `
 
 /**
- * v17 stores the later events of retro experiments (`ExperimentEvent`, see `src/shared/domain/experiments.ts`): one
+ * v19 stores the later events of retro experiments (`ExperimentEvent`, see `src/shared/domain/experiments.ts`): one
  * immutable row per status or result, never inside the report whose retro defines the experiment, so recording one
  * never changes an approved report's content, hash or scorecard. `number` counts an experiment's events 1, 2, 3, … as
  * recorded (two in the same millisecond keep their order); `event_json` is the event as exported with the run history.
  */
-const V17 = `
+const V19 = `
 CREATE TABLE experiment_events (
   id TEXT PRIMARY KEY,
   run_id TEXT NOT NULL REFERENCES runs(id),
@@ -753,7 +862,7 @@ CREATE INDEX experiment_events_run ON experiment_events(run_id, experiment_id, n
 `
 
 /**
- * v18 keeps the receipts of corrective work this project's retros asked of another project (the Dark Mechanicus
+ * v20 keeps the receipts of corrective work this project's retros asked of another project (the Dark Mechanicus
  * source; `src/core/services/crossRepoCorrections.ts`): one row per experiment and target project (`key`), written
  * `pending` with the fully specified draft (`packet_json`) before anything is written to the target, and `linked`
  * with the target's epic and tickets (`target_json`) once the target holds them. A pending row is the outbox a retry
@@ -762,7 +871,7 @@ CREATE INDEX experiment_events_run ON experiment_events(run_id, experiment_id, n
  * plan text only, never a machine path. A local fact like the idempotency cache: not exported, and deleted with the
  * source epic.
  */
-const V18 = `
+const V20 = `
 CREATE TABLE correction_links (
   key TEXT PRIMARY KEY,
   experiment_id TEXT NOT NULL,
@@ -785,10 +894,10 @@ CREATE INDEX correction_links_epic ON correction_links(source_epic_id);
 `
 
 /**
- * v19 indexes the metric observation ledger by server time (`recorded_at`, then id): the id allocator looks up the
+ * v21 indexes the metric observation ledger by server time (`recorded_at`, then id): the id allocator looks up the
  * highest id recorded at one instant, and unfiltered observation lists read in that order. No row changes.
  */
-const V19 = `
+const V21 = `
 CREATE INDEX metric_observations_recorded ON metric_observations(recorded_at, id);
 `
 
@@ -811,7 +920,9 @@ export const MIGRATIONS: Migration[] = [
   { version: 16, sql: V16 },
   { version: 17, sql: V17 },
   { version: 18, sql: V18 },
-  { version: 19, sql: V19 }
+  { version: 19, sql: V19 },
+  { version: 20, sql: V20 },
+  { version: 21, sql: V21 }
 ]
 
 export function readSchemaVersion(db: Db): number {
@@ -820,10 +931,14 @@ export function readSchemaVersion(db: Db): number {
 
 /**
  * Applies pending migrations under the write lock (BEGIN IMMEDIATE doubles as the migration lock).
- * A database written by a newer build is refused rather than migrated by competing clients.
+ * A database written by a newer build is refused rather than migrated by competing clients. A database already at
+ * the target version is only checked, without taking the write lock: every open, each mailbox poll included, does it.
  */
 export function migrate(db: Db, migrations: Migration[] = MIGRATIONS): { from: number; to: number } {
   const target = migrations.reduce((max, migration) => Math.max(max, migration.version), 0)
+  if (readSchemaVersion(db) === target) {
+    return { from: target, to: target }
+  }
   return db.tx(() => {
     const from = readSchemaVersion(db)
     if (from > target) {

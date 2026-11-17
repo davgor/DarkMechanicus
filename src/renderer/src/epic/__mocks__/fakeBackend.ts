@@ -19,6 +19,8 @@ import type {
   CommandResult,
   DmApi,
   FolderPickResult,
+  KnowledgeChooseResult,
+  KnowledgeStatusView,
   McpConfigView,
   TrackedFolderView
 } from '../../../../shared/desktop/api'
@@ -251,6 +253,22 @@ export class FakeBackend implements DmApi {
 
   setFolderDefaultAgent(): Promise<AgentId | null> {
     return Promise.resolve(null)
+  }
+
+  knowledgeStatus(): Promise<KnowledgeStatusView> {
+    return Promise.resolve({
+      layers: { builtin: { count: 0 }, overall: { configured: false, path: null, count: 0 }, repo: { path: '', count: 0 } },
+      diagnostics: [],
+      git: null
+    })
+  }
+
+  chooseKnowledgeRepository(): Promise<KnowledgeChooseResult> {
+    return Promise.resolve({ outcome: 'cancelled' })
+  }
+
+  clearKnowledgeRepository(): Promise<void> {
+    return Promise.resolve()
   }
 }
 

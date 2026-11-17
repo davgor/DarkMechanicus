@@ -1,6 +1,8 @@
 import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
 import { describe, expect, it } from 'vitest'
 import { DomainError } from '../core/errors'
+import { BUILTIN_KNOWLEDGE } from '../core/knowledge/builtin'
+import { parseFact } from '../core/knowledge/fact'
 import { draftOp } from '../core/schemas'
 import { DOMAIN_ERROR_CODES } from '../shared/domain/errors'
 import type { CommandName } from '../shared/domain/api'
@@ -28,6 +30,7 @@ const TOOLS: Record<string, { method: CommandName; kind: Kind }> = {
   list_projects: { method: 'getProject', kind: 'read' },
   initialize_repository: { method: 'initializeRepository', kind: 'idempotent' },
   get_storage_status: { method: 'getStorageStatus', kind: 'read' },
+  get_context: { method: 'getContext', kind: 'read' },
   flush_portable_state: { method: 'flushPortableState', kind: 'idempotent' },
   reconcile_repository: { method: 'reconcileRepository', kind: 'idempotent' },
   search_history: { method: 'searchHistory', kind: 'read' },
@@ -117,7 +120,15 @@ const TOOLS: Record<string, { method: CommandName; kind: Kind }> = {
   claim_kanban_card: { method: 'claimKanbanCard', kind: 'write' },
   heartbeat_kanban_card: { method: 'heartbeatKanbanCard', kind: 'idempotent' },
   submit_kanban_card: { method: 'submitKanbanCard', kind: 'write' },
-  fail_kanban_card: { method: 'failKanbanCard', kind: 'write' }
+  fail_kanban_card: { method: 'failKanbanCard', kind: 'write' },
+  // Listed to every hosted role; over MCP the service refuses each call, since no stdio session has a bound grant.
+  get_agent_identity: { method: 'getAgentIdentity', kind: 'read' },
+  list_agent_peers: { method: 'listAgentPeers', kind: 'read' },
+  send_agent_message: { method: 'sendAgentMessage', kind: 'write' },
+  read_agent_inbox: { method: 'readAgentInbox', kind: 'read' },
+  acknowledge_agent_messages: { method: 'acknowledgeAgentMessages', kind: 'idempotent' },
+  get_agent_mail_status: { method: 'getAgentMailStatus', kind: 'read' },
+  take_agent_mail_wake: { method: 'takeAgentMailWake', kind: 'write' }
 }
 
 /** Tools only a planner (or the desktop) holds the capability for: an orchestrator session does not list them. */
@@ -398,10 +409,18 @@ const VOCABULARY = new Set<string>([
   ...DRAFT_OPS
 ])
 
+const BUILTIN_FACT_BODIES = BUILTIN_KNOWLEDGE.map(({ path, source }) => {
+  const result = parseFact(source, { layer: 'builtin', path })
+  return [path, result.ok ? result.fact.body : ''] as const
+})
+
 describe('skills only name real tools', () => {
-  it.each(SKILLS.map((skill) => [skill.name, skill.body]))('%s uses known tools and vocabulary', (_name, body) => {
-    const tokens = new Set(body.match(/`[a-z][a-z0-9]*(?:_[a-z0-9]+)+`/g)?.map((token) => token.slice(1, -1)))
-    const unknown = [...tokens].filter((token) => !Object.hasOwn(TOOLS, token) && !VOCABULARY.has(token))
-    expect(unknown).toEqual([])
-  })
+  it.each([...SKILLS.map((skill) => [skill.name, skill.body] as const), ...BUILTIN_FACT_BODIES])(
+    '%s uses known tools and vocabulary',
+    (_name, body) => {
+      const tokens = new Set(body.match(/`[a-z][a-z0-9]*(?:_[a-z0-9]+)+`/g)?.map((token) => token.slice(1, -1)))
+      const unknown = [...tokens].filter((token) => !Object.hasOwn(TOOLS, token) && !VOCABULARY.has(token))
+      expect(unknown).toEqual([])
+    }
+  )
 })

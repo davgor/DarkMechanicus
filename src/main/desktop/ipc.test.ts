@@ -6,8 +6,9 @@ import type { AgentAuthHandlers } from './agentAuth'
 import type { AgentHandlers } from './agentHandlers'
 import type { FolderDefaultHandlers } from './folderAgentDefaults'
 import type { DesktopHandlers } from './handlers'
+import type { KnowledgeHandlers } from './knowledgeHandlers'
 import type { OmpThemeHandlers } from './ompTheme'
-import { registerDesktopIpc } from './ipc'
+import { registerDesktopIpc, registerKnowledgeIpc } from './ipc'
 
 type Listener = Parameters<IpcMain['handle']>[1]
 
@@ -341,6 +342,60 @@ describe('folder default channels', () => {
       ['folderDefaultAgent', '/repos/a'],
       ['setFolderDefaultAgent', { folder: '/repos/a', agentId: 'codex' }]
     ])
+  })
+})
+
+describe('knowledge channels', () => {
+  const STATUS = {
+    layers: { builtin: { count: 1 }, overall: { configured: false, path: null, count: 0 }, repo: { path: '/k', count: 0 } },
+    diagnostics: [],
+    git: null
+  }
+
+  function recordingKnowledge(calls: unknown[][]): KnowledgeHandlers {
+    return {
+      knowledgeStatus: async (folder) => {
+        calls.push(['knowledgeStatus', folder])
+        return STATUS
+      },
+      chooseKnowledgeRepository: async (...args: unknown[]) => {
+        calls.push(['chooseKnowledgeRepository', ...args])
+        return { outcome: 'cancelled' }
+      },
+      clearKnowledgeRepository: async (...args: unknown[]) => {
+        calls.push(['clearKnowledgeRepository', ...args])
+      }
+    }
+  }
+
+  it('registers exactly the three knowledge channels', () => {
+    const ipc = createFakeIpcMain()
+    registerKnowledgeIpc(ipc, recordingKnowledge([]))
+    expect(ipc.channels()).toEqual(['knowledge:choose-repository', 'knowledge:clear-repository', 'knowledge:status'])
+  })
+
+  it('forwards the folder to status, and never a path to choose or clear', async () => {
+    const ipc = createFakeIpcMain()
+    const calls: unknown[][] = []
+    registerKnowledgeIpc(ipc, recordingKnowledge(calls))
+
+    expect(await ipc.invoke('knowledge:status', '/repos/a', 'stray')).toEqual(STATUS)
+    expect(await ipc.invoke('knowledge:choose-repository', '/evil/folder')).toEqual({ outcome: 'cancelled' })
+    expect(await ipc.invoke('knowledge:clear-repository', { repository: '/evil' })).toBeUndefined()
+
+    expect(calls).toEqual([['knowledgeStatus', '/repos/a'], ['chooseKnowledgeRepository'], ['clearKnowledgeRepository']])
+  })
+
+  it('are what the preload bridge invokes', () => {
+    const ipc = createFakeIpcMain()
+    registerKnowledgeIpc(ipc, recordingKnowledge([]))
+    const preload = readFileSync(fileURLToPath(new URL('../../preload/index.ts', import.meta.url)), 'utf8')
+
+    expect(preload).toContain("knowledgeStatus: (folder) => ipcRenderer.invoke('knowledge:status', folder)")
+    expect(preload).toContain("chooseKnowledgeRepository: () => ipcRenderer.invoke('knowledge:choose-repository')")
+    expect(preload).toContain("clearKnowledgeRepository: () => ipcRenderer.invoke('knowledge:clear-repository')")
+    const invoked = [...preload.matchAll(/ipcRenderer\.invoke\(\s*'(knowledge:[a-z-]+)'/g)].map((match) => match[1]).sort()
+    expect(invoked).toEqual(ipc.channels())
   })
 })
 

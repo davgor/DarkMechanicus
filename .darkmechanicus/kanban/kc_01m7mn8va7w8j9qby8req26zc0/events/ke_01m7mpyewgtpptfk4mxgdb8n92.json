@@ -1,0 +1,115 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": "ka_01m7mnbs1weamesbccqkc9qv96",
+  "cardId": "kc_01m7mn8va7w8j9qby8req26zc0",
+  "createdAt": "2026-11-17T12:15:43.503Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7mpyewgtpptfk4mxgdb8n92",
+  "kind": "submitted",
+  "payload": {
+    "evidence": {
+      "checks": [
+        {
+          "detail": "npm run lint clean; no rule relaxed and no disable comments.",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run typecheck clean.",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "src/main/autoUpdate.test.ts 17/17 pass (orchestrator re-ran it once separately: 17/17). Full vitest stage: 18 failures in 10 files, none in auto-update. 4 also fail at HEAD dabd614 without this change: conflictsOpen x2 and handlersWorkingDiff x1 (no symlink rights on this machine), chatNaming.test.ts. The other 14 git, GitHub-checkout and PTY tests hit the 15 s timeout in that run and passed in the next full run, so they are flaky and count as failed. Fireguard did not run under npm test; run on its own it has 1 failure (snapshots.test.ts, symlink EPERM) that also happens at HEAD.",
+          "name": "test",
+          "status": "failed"
+        },
+        {
+          "detail": "The same 4 failures reproduced at HEAD kept vitest from printing coverage or checking thresholds. autoUpdate.ts line coverage went from 77.35% to 91.93% (statements 78 to 92%, branches 69 to 81%).",
+          "name": "coverage",
+          "status": "failed"
+        },
+        {
+          "detail": "npm run deadcode: no new dead exports.",
+          "name": "deadcode",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run build succeeded.",
+          "name": "build",
+          "status": "passed"
+        }
+      ],
+      "criteria": [
+        {
+          "criterionId": "c1",
+          "met": true,
+          "note": "autoUpdate.test.ts: 'queries the feed again on the scheduled poll' and 'queries the feed again on the manual Check for updates request'; canStartUpdateCheck table test updated to accept downloaded."
+        },
+        {
+          "criterionId": "c2",
+          "met": true,
+          "note": "Test 'moves to a newer version through available, downloading and downloaded': goes from downloaded 9.0.0 to 9.1.0. availableVersion and the message name 9.1.0 at each step."
+        },
+        {
+          "criterionId": "c3",
+          "met": true,
+          "note": "Tests 'keeps the downloaded update ready when the feed has nothing newer' and '...when the feed re-announces the same version': stays downloaded 9.0.0 with 'Version 9.0.0 is ready.'; the banner shows Restart now whenever the phase is downloaded."
+        },
+        {
+          "criterionId": "c4",
+          "met": true,
+          "note": "Chosen behavior: keep the earlier download whenever it still exists. A failure before a newer version is announced (error event or rejected checkForUpdates) keeps downloaded and Restart now and only logs. Once a newer version is announced, electron-updater 6.8.9 deletes the cached installer (cleanCacheDirForPendingUpdate), so a failed newer download becomes error and the next manual check or poll downloads the newest version again. Tests: 'keeps the downloaded update ready when the re-check itself fails' and 'reports an error and allows a fresh check when a newer download fails'."
+        },
+        {
+          "criterionId": "c5",
+          "met": true,
+          "note": "Tests 'does not start a check while checking, available or downloading' and 'skips overlapping re-checks while a downloaded update is ready', plus the existing overlap and disabled-update tests. All 17 pass."
+        },
+        {
+          "criterionId": "c6",
+          "met": true,
+          "note": "autoUpdate tests 17/17, npm run lint and npm run typecheck all pass."
+        }
+      ],
+      "notes": "Limitation: in phase error the banner is hidden, so a failed newer download is not shown to the person. Changing that would change the banner, which the card puts out of scope. Orchestrator review: read the diff of 63e0733; the logic matches the card and the guards are intact. The test and coverage DoD failures are environmental and outside auto-update (see check details); they are reported as failed and were not rerun to get green.\nDiscoveries:\n- title: Fix test suite failures on Windows without symlink rights and in chatNaming\n  reason: On main at dabd614, conflictsOpen (x2), handlersWorkingDiff, fireguard snapshots.test.ts (EPERM symlink) and src/mcp/tools/chatNaming.test.ts ('publishes the exact strict metadata union') fail without any change. That blocks npm test and npm run coverage for every card on this machine.\n  ticket: DM-690\n- title: Find why git, GitHub-checkout and PTY tests time out under the full suite\n  reason: About 14 tests (branches, commitLines, commitLinesProperty, conflicts, handlers, pullRequestsCheckout, terminalSessions.lifecycle) hit the 15 s timeout in one full npm test run and passed in the next. They are nondeterministic under load.\n  ticket: DM-690"
+    },
+    "number": 1,
+    "outputs": {
+      "artifacts": [
+        {
+          "hash": null,
+          "label": "autoUpdate.ts",
+          "location": "src/main/autoUpdate.ts",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "autoUpdate.test.ts",
+          "location": "src/main/autoUpdate.test.ts",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "auto-update runbook",
+          "location": "docs/runbooks/auto-update.md",
+          "remoteOnly": false
+        }
+      ],
+      "branch": "main",
+      "changedFiles": [
+        "src/main/autoUpdate.ts",
+        "src/main/autoUpdate.test.ts",
+        "docs/runbooks/auto-update.md"
+      ],
+      "commits": [
+        "63e0733785eaf9086ad45a38a13c9fa81b034653"
+      ],
+      "summary": "Check for updates and the 4-hour poll now run in phase `downloaded` (canStartUpdateCheck allows downloaded; checkInFlight guard unchanged). While an update is ready, checking-for-update, update-not-available and a re-announced same version leave the state untouched, so Restart now stays. A newer version moves the state through available, downloading and downloaded for that version. Errors go through a new reportUpdateError: a failure while still `downloaded` (before a newer version is announced) keeps the ready update and only logs; a failed newer download becomes `error`, from which the next check recovers. The auto-update runbook was updated to describe the new behavior."
+    }
+  }
+}

@@ -5,6 +5,7 @@ import { AppHarness } from './__mocks__/appHarness'
 import { FakeTerminals } from './__mocks__/fakeTerminals'
 import { agentView, chatRecord, folderView } from './__mocks__/fixtures'
 import { settle } from './__mocks__/settle'
+import { FakeChatMail, mailMessage } from './__mocks__/fakeChatMail'
 
 let h: AppHarness
 let terminals: FakeTerminals
@@ -131,5 +132,60 @@ describe('App old chats with an unanswered request', () => {
     expect(sidebar().queryByText('Needs approval')).toBeNull()
     fireEvent.click(sidebar().getByRole('button', { name: 'Collapse alpha' }))
     expect(within(sidebar().getByRole('button', { name: /^alpha/ })).queryByText(/waiting/)).toBeNull()
+  })
+})
+
+describe('App Skitarii inbox over the chat terminal', () => {
+  const SK = chatRecord({ id: 'chat_sk', folder: '/a', title: 'Skitarii lead', agent: 'omp', endpointId: 'ep_sk', updatedAt: '2026-03-03T10:00:00.000Z' })
+  const PEER = chatRecord({ id: 'chat_peer', folder: '/a', title: 'Skitarii peer', agent: 'omp', endpointId: 'ep_peer', updatedAt: '2026-03-01T09:00:00.000Z' })
+  let mail: FakeChatMail
+
+  beforeEach(() => {
+    h.dm.chats.chats = [CHAT, SK, PEER]
+    mail = new FakeChatMail()
+    h.dm.chats.mail = mail
+    mail.put({ folder: '/a', chatId: 'chat_sk', unseenCount: 1, pendingCount: 1, retainedCount: 1 })
+    mail.setMessages('/a', 'chat_sk', [mailMessage({ seq: 1, from: { endpointId: 'ep_peer', name: 'Skitarii peer', deleted: false }, body: 'ready for review' })])
+  })
+
+  const messages = (): HTMLElement => workspace().getByRole('button', { name: /^Messages:/ })
+
+  it('opens the inbox over the running terminal, and a sender’s chat only when the person clicks it', async () => {
+    h.mount()
+    await settle()
+    await openChat(/^Skitarii lead/)
+    const view = h.terminalKit.latest()
+    fireEvent.click(messages())
+    await settle()
+    expect(view.disposed).toBe(false)
+    expect(terminals.calls).toEqual([['/a', 'chat_sk']])
+    expect(terminals.latest().writes).toEqual([])
+    const inbox = screen.getByRole('dialog', { name: 'Messages to Skitarii lead' })
+    fireEvent.click(within(inbox).getByRole('button', { name: 'Open chat Skitarii peer' }))
+    await settle()
+    expect(workspace().getByRole('heading', { level: 1, name: 'Skitarii peer' })).toBeTruthy()
+    expect(terminals.calls).toEqual([
+      ['/a', 'chat_sk'],
+      ['/a', 'chat_peer']
+    ])
+    expect(h.terminalKit.latest().host).toBe(workspace().getByTestId('terminal-host'))
+    expect(mail.calls.map((call) => call.method)).not.toContain('allowWake')
+  })
+
+  it('drops a late inbox answer once another chat is shown, and keeps that chat’s terminal', async () => {
+    h.mount()
+    await settle()
+    await openChat(/^Skitarii lead/)
+    mail.hold('read')
+    fireEvent.click(messages())
+    await settle()
+    await openChat(/^Fix the build/)
+    await act(async () => mail.release('read', true))
+    await settle()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByText('ready for review')).toBeNull()
+    expect(workspace().getByRole('heading', { level: 1, name: 'Fix the build' })).toBeTruthy()
+    expect(h.terminalKit.latest().disposed).toBe(false)
+    expect(h.terminalKit.latest().host).toBe(workspace().getByTestId('terminal-host'))
   })
 })

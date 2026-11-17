@@ -1,0 +1,1624 @@
+{
+  "baseRevisionId": "rv_01m6t9wfce8xndcvr4hg5z4z02",
+  "bundle": {
+    "edges": [
+      {
+        "from": "tk_01m6t9v1s3a46yxszxgmntvmgn",
+        "to": "tk_01m6t9v1sfz3nk1a2d0cbh89f1"
+      },
+      {
+        "from": "tk_01m6t9v1sfz3nk1a2d0cbh89f1",
+        "to": "tk_01m6t9v1sf7e7b4wwtm69nh0kn"
+      },
+      {
+        "from": "tk_01m6t9v1sf7e7b4wwtm69nh0kn",
+        "to": "tk_01m6t9v1sfwv1514vsyn26382f"
+      },
+      {
+        "from": "tk_01m6t9v1sfwv1514vsyn26382f",
+        "to": "tk_01m6t9v1sfrf9bgkw1jsh3mzvd"
+      },
+      {
+        "from": "tk_01m6t9v1sf7e7b4wwtm69nh0kn",
+        "to": "tk_01m6t9v1sfj9wga1z539n2wsqz"
+      },
+      {
+        "from": "tk_01m6t9v1sfj9wga1z539n2wsqz",
+        "to": "tk_01m6t9v1sfr1astze1a7bq0qyz"
+      },
+      {
+        "from": "tk_01m6t9v1sfrf9bgkw1jsh3mzvd",
+        "to": "tk_01m6t9v1sfapjspg73cxvtzw1f"
+      },
+      {
+        "from": "tk_01m6t9v1sfr1astze1a7bq0qyz",
+        "to": "tk_01m6t9v1sfapjspg73cxvtzw1f"
+      }
+    ],
+    "epic": {
+      "intent": "## Outcome\nLet app-hosted Skitarii (OMP) chats in the same tracked folder discover peers, send direct messages/replies and receive durable mail with visible and agent-aware notifications. Message delivery is separate from model processing: committed, notified, fetched and acknowledged are distinct.\n\n## Scope and trust\nSame canonical folder and machine; stable chat-level mailboxes across terminal restart/rename/vendor New session. Existing child workers share their parent chat mailbox and are not independently addressable. No remote/cross-folder messaging, broker, OS notification, broadcast or attachments. No dependency on the backlog hybrid-workspace epic; use the existing terminal/header/sidebar surfaces. Messages are local-only SQLite records, not portable Git records or history-search documents. An agent cannot choose its sender identity, bind a grant, read another mailbox or acknowledge someone else's message.\n\n## Standards and delivery\nEach ticket owns its named behavioral tests and runs targeted touched tests plus lint/typecheck for code changes. The acceptance node runs the complete current project Definition of Done once on combined work, including coverage. No extra tests-first or Fireguard grading requirement. Preserve Electron isolation and typed guarded IPC. No implementation or run is authorized by this planning request.\n\n## Technical decisions\nUse per-folder core SQLite and a desktop-provisioned grant-to-stable-endpoint binding; existing DM_SESSION_TOKEN authenticates native Skitarii CLI tools. Ordinary stdio MCP/unbound role sessions do not acquire mailbox ownership. Live notifications are recoverable hints over recipient-scoped polling, never the source of truth. Peer bodies are fetched only as tool-result data: OMP custom sendMessage content has developer priority and must never contain peer-authored content. Passive terminal/desktop alerts are default; immediate model wake requires an explicit human one-shot credit, consumed at most once and never automatically rearmed. No typing into PTYs, steering, or restarting a CLI for delivery.\n\n## Verification boundary\nSource vetting establishes feasibility, not shipped support. Execution must demonstrate the installed OMP extension API and real shell-free CLI child invocation, two real isolated Skitarii chats, persistence/replay, security denials and packaged resource loading. Missing live/platform evidence is unmet, not inferred from fakes. Local database recovery/backup guidance must acknowledge messages are not reconstructible from Git.\n\n## Execution\nOne sprint, one acceptance node and one human checkpoint. The deliverable is native two-chat messaging; the mailbox store, grant authorization, chat binding and shell-free client exist only to serve it, and their chain is serial, so an interim checkpoint would only pause it. The chain store → API → lifecycle → transport runs first; the extension and desktop bridge start from its accepted contracts. Real bound CLI and installed OMP no-model adapter probes, then real two-chat communication and packaged Windows proof, are verified at the acceptance node. No ticket requires the hybrid-workspace epic.\n\n## Platforms\nWindows is the verification platform. Native verification on macOS or Linux: no such machine is available to this project today. Those code paths are unit-tested and the documentation says the feature is verified on Windows only.\n",
+      "ownerRole": null,
+      "successCriteria": [
+        {
+          "id": "s1",
+          "text": "In one folder, two app-hosted Skitarii chats discover stable peer IDs, exchange a direct message and correlated reply using native tools, including a stopped recipient that resumes later."
+        },
+        {
+          "id": "s2",
+          "text": "Messages and explicit agent acknowledgements survive app/terminal restart; duplicate sends are sender-scoped and do not duplicate mail within the documented retention window; human reading cannot consume the agent inbox."
+        },
+        {
+          "id": "s3",
+          "text": "Live terminal and desktop unread alerts recover after missed polls; peer text is inert tool-result data, and passive notifications never start or steer a model turn."
+        },
+        {
+          "id": "s7",
+          "text": "A person can authorize one immediate agent inbox wake; the credit is consumed once before a fixed trusted follow-up, cannot accumulate or rearm from peer traffic/restart, and does not falsely claim model processing."
+        },
+        {
+          "id": "s5",
+          "text": "Bound-grant ownership, folder/machine scope and current revocation are enforced in core services; spoofed senders, unbound/stdio callers and foreign read/ack requests are refused without private-body leakage."
+        },
+        {
+          "id": "s6",
+          "text": "The built and packaged Windows app (installed and portable) loads its bundled Skitarii messaging extension; targeted ticket tests, the combined project DoD and real isolated communication/restart journeys have recorded evidence. macOS and Linux paths are unit-tested only."
+        }
+      ],
+      "title": "Skitarii communications: durable direct messages, replies and safe agent notifications"
+    },
+    "formatVersion": 1,
+    "policies": {
+      "leaseSeconds": 900,
+      "maxConcurrency": 2,
+      "onTicketFailure": "continue_independent",
+      "retryLimit": 3
+    },
+    "rationale": "## Evidence and decision record\nInspected current schema v14, shared workspace/grants/sessions, app-local ChatRecords, terminal lifecycle/env/files, CLI/MCP command boundaries, existing terminal/header/sidebar and bundled extension. Related history has no existing messaging epic; backlog hybrid workspace owns unrelated panes/activity/socket work, which is not a prerequisite. Existing four-role chat enum covers planner/orchestrator/worker/reviewer. Planning uses granted CLI orchestrator and args-file inputs; no runs/claims/code changes.\n\nIndependent read-only runtime/identity scouts and security/reliability reviews were completed. Accepted review fixes: independent body-free sender receipts with 8192-per-sender quota and seven-day acceptance expiry; pending quota 1024/retained quota 4096 per recipient, 16KiB UTF-8 bodies, 50-page/100-ack limits; monotonically nonreused message sequences and pinned page horizon; distinct human seen/agent ack (post-ack seven-day body retention can expire human-unseen messages); irreversible durable deletion tombstones vs reversible suspension; OMP-only binding from stored identity; existing repo.backup becomes desktop-only to close full-DB supported-API export; safe local rebuild/restore guidance; canonical-folder/logical-machine limits; restricted mailbox poll mode reusing bounded dedicated sessions and skipping unrelated reconciliation/flush/attachment pruning. These changes are required for correctness, not opportunistic scope.\n\nOMP v18.18.0 release source matches installed updater metadata, but that is not live compatibility proof. Verified API: injected schema builders/registerTool, UI notify, ctx.agent.kind and lifecycle, before_agent_start fixed next-natural-turn reminder. Critical source finding: custom/hook messages convert to developer role, and triggerTurn:false is not universally passive while busy. Therefore peer text only enters explicit inbox tool results. Default terminal/UI alerts are passive; fixed reminder appears on an existing natural turn. Human-only one-shot wake may queue only constant text as followUp/triggerTurn:true; consumption returns positive once, not replayable idempotency. No input.source provenance assumption and no automatic rearming. API void return proves attempt only; crash can consume credit without wake.\n\nSource references: https://github.com/can1357/oh-my-pi/blob/v18.18.0/packages/coding-agent/src/extensibility/extensions/types.ts ; https://github.com/can1357/oh-my-pi/blob/v18.18.0/packages/agent/src/compaction/messages.ts#L219-L238 ; https://github.com/can1357/oh-my-pi/blob/v18.18.0/packages/coding-agent/src/session/agent-session.ts#L10501-L10618 .\n\nAssumptions: local same-folder app-hosted OMP chats are intended peers. Native worker children share parent identity. No remote/cross-folder network, independent child credentials, OS notifications, broadcasts or sent-body history. Durable means local database retained, not recovery after deleting the database. Existing same-user filesystem access is not an OS sandbox. Source vetting does not certify new behavior: runtime/version, a Windows executor and a signed-in scratch provider are prerequisites for execution acceptance; missing evidence remains unmet. No unresolved architecture blocker; implementation compatibility remains deliberately gated by actual runtime smoke.\n\nGraph (one sprint): store->API->lifecycle->transport; the extension and desktop bridge begin from the accepted chain contracts, UI requires bridge, docs joins UI+extension. Shared files isolated/worktrees or serialized by orchestrator. Max concurrency 2; no extra integration/check tickets, full project DoD once at the single acceptance node. The human checkpoint remains mandatory. No tests-first/Fireguard added beyond current DoD. macOS proof dropped (person, 2026-11-15): Windows only, matching the other epics.",
+    "relations": [],
+    "sprints": [
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": 2,
+        "entryCriteria": [
+          {
+            "id": "n1",
+            "text": "No conflicting active execution in shared files; use an epic feature branch and isolated scratch profile."
+          },
+          {
+            "id": "n2",
+            "text": "Installed OMP runtime available for a no-model adapter probe; existing project DoD and native dependency prerequisites are recorded."
+          },
+          {
+            "id": "n3",
+            "text": "A signed-in authorized scratch OMP provider and a Windows execution environment are available for final runtime evidence."
+          }
+        ],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "Bound same-folder CLI peers exchange durable messages/replies with ownership, quota, retry and deletion/restart rules demonstrated."
+          },
+          {
+            "id": "x2",
+            "text": "Restricted polling stays bounded and skips unrelated maintenance; full private backup is desktop-only."
+          },
+          {
+            "id": "x3",
+            "text": "Installed OMP no-model probe loads the native client and executes its literal pinned child command."
+          },
+          {
+            "id": "x4",
+            "text": "Two real Skitarii chats exchange/read/reply/ack and recover unread mail after stop/restart; passive and one-shot notifications have distinct proven semantics."
+          },
+          {
+            "id": "x5",
+            "text": "Desktop inbox/seen/wake UI is accessible, safe and never restarts/submits the terminal; malicious/foreign inputs are denied."
+          },
+          {
+            "id": "x6",
+            "text": "Documentation examples, built and packaged Windows (installed and portable) resource paths and the combined project DoD are verified, with evidence attached."
+          }
+        ],
+        "goal": "Two app-hosted Skitarii chats in one folder message each other natively through durable authorized mailboxes, with safe notifications, a visible inbox and packaged Windows proof.",
+        "id": "sp_01m6t9cg50jykym2g3r7yva6tn",
+        "ordinal": 1,
+        "ticketIds": [
+          "tk_01m6t9v1s3a46yxszxgmntvmgn",
+          "tk_01m6t9v1sfz3nk1a2d0cbh89f1",
+          "tk_01m6t9v1sf7e7b4wwtm69nh0kn",
+          "tk_01m6t9v1sfwv1514vsyn26382f",
+          "tk_01m6t9v1sfrf9bgkw1jsh3mzvd",
+          "tk_01m6t9v1sfj9wga1z539n2wsqz",
+          "tk_01m6t9v1sfr1astze1a7bq0qyz",
+          "tk_01m6t9v1sfapjspg73cxvtzw1f",
+          "tk_01m6t9cg50413b45wafx03461d"
+        ]
+      }
+    ],
+    "tickets": [
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m6t9v1s3a46yxszxgmntvmgn",
+            "id": "c1",
+            "text": "Real reopened/backup-restored scratch database preserves local mail, independent receipts/quotas/sequences and seven-day cleanup; no message export; desktop-only full backup demonstrated."
+          },
+          {
+            "covers": "tk_01m6t9v1sfz3nk1a2d0cbh89f1",
+            "id": "c2",
+            "text": "Built bound CLI exchange/denial/concurrency and 1000 restricted polls prove mailbox ownership, current revocation, at-most-once wake claim and bounded session/maintenance behavior."
+          },
+          {
+            "covers": "tk_01m6t9v1sf7e7b4wwtm69nh0kn",
+            "id": "c3",
+            "text": "Real scratch chat stop/resume/rename/New session and interrupted deleting-intent recovery preserve or remove the right endpoint; unsupported agents remain unbound and untrack cancels owners."
+          },
+          {
+            "covers": "tk_01m6t9v1sfwv1514vsyn26382f",
+            "id": "c4",
+            "text": "Installed OMP no-model adapter probe actually loads private descriptor and invokes/cancels literal shell-free child with pinned runtime/env; credentials never appear in descriptor/argv/errors."
+          },
+          {
+            "covers": "tk_01m6t9v1sfrf9bgkw1jsh3mzvd",
+            "id": "c5",
+            "text": "Two real OMP chats exchange/read/reply/ack and restart-recover; idle/busy passive notifications never initiate/steer, peer bytes remain tool-result data, and one-shot fixed follow-up cannot repeat/rearm."
+          },
+          {
+            "covers": "tk_01m6t9v1sfj9wga1z539n2wsqz",
+            "id": "c6",
+            "text": "Guarded native app inbox/seen/wake commands reject foreign/unsupported/stale requests; human-seen stays distinct, delayed duplicate Allow does not rearm, and central monitor disposes on untrack/quit."
+          },
+          {
+            "covers": "tk_01m6t9v1sfr1astze1a7bq0qyz",
+            "id": "c7",
+            "text": "Actual app screenshots and PTY observations show header/sidebar/inbox states, hostile text inertness, accessible focus, correct chat navigation and no terminal remount/submission."
+          },
+          {
+            "covers": "tk_01m6t9v1sfapjspg73cxvtzw1f",
+            "id": "c8",
+            "text": "Documented built CLI/native-tool workflows run end-to-end and packaged Windows installed/portable Skitarii resources/native client paths pass recorded runtime proof; recovery/retention/support limitations match behavior."
+          }
+        ],
+        "body": "## Responsibility\nThis is the epic's single acceptance node, not an implementation placeholder. It implicitly waits for every required work ticket. Independently verify each covered item, run the entire current project Definition of Done once on combined work (npm run lint, npm run typecheck, npm test, npm run coverage, npm run deadcode, npm run build), fix failures and record actual evidence tied to the integrated revision. No added Fireguard grading or blanket tests-first. Integrate accepted work into the epic feature branch as required by orchestrator/acceptance workflow; report/checkpoint remains human-approved. Do not report passing criteria from mocks or source inspection alone.\n\n## Verified source locations\npackage.json names the actual commands; src/core/db/migrations.test.ts and src/test/testContext.ts provide real SQLite fixtures; src/cli/main.test.ts covers command dispatch; src/main/terminals/__mocks__/terminalSessionsRig.ts is the native-lifecycle seam; src/main/terminals/skitariiExtension.test.ts is the extension harness (not real OMP proof); src/renderer/src/agents/TerminalPane.tsx is the actual surface. Existing package extraResources ships resources/skitarii outside app.asar.\n\n## Evidence rules\nUse isolated temporary userData/home/repos/grants and real encoded fixture content; do not use real user chats/tokens. Record OS, architecture, app/Node/Electron and installed OMP versions and source provenance. Use add_attachment for actual PNG/JPEG screenshots and attach IDs to evidence; never put credentials/private bodies in logs or general comments. Keep test execution targeted during tickets; this is the combined full gate. A missing platform/provider prerequisite is unmet evidence, not permission to shrink scope.\n\n## Tests and smoke: mailboxes and native client\nExercise actual built CLI with two desktop-provisioned scratch OMP chat endpoints and current bound grants: identity/discovery -> send -> retry same client ID -> different-payload conflict -> status/inbox paging -> reply -> owned ack. Close/reopen database/app; send to stopped peer and read after resume. Test zero/unbound/expired/revoked/foreign-folder/machine grants, mixed foreign ack rollback and unrelated reply with positive controls. Run >50 pending messages and concurrent arrival while paging, quota/prune/receipt-after-recipient-delete witness, monotonic seen, human ack separation and deleting-intent crash recovery. Confirm no bodies in tracked exports/events/history/logs.\n\nPerform 1000 status opens/closes and two competing poll opens: one dedicated session per binding, bounded expired poll cleanup, no unrelated record reconcile/flush/staged-image prune; ordinary CLI session lifecycle remains unchanged. Attempt full backup with an unbound orchestrator (denied) and desktop (consistent VACUUM backup/reopen retains mail).\n\nRun a no-model installed OMP scratch extension that imports the accepted dmClient and invokes literal fixture child stdin/JSON, including spaces and Unicode. Verify actual bundled Bun spawn/cancel, no PATH runtime lookup or secret descriptor, no remaining child. This is native adapter/API evidence, not proof of two-model communication, which the journeys below prove.\n\n## Tests and real product journeys\nImplement NEW scripts/smoke-skitarii-messaging.mjs following scripts/mcp-smoke.mjs process/JSON conventions and the accepted docs/verification/skitarii-messaging.md; parameterized scratch paths only, no replacement/injected product source. Exercise actual Electron app and bundled extension, not just fakePi or jsdom.\n\nTwo separate app-hosted real OMP chats in one scratch folder discover each other, A sends unique known text, B reads body only through native inbox tool, B replies referencing original, A reads and acknowledges; verify correct peer/pair/content and final ack. Stop B, send another, restart B and entire app, recover pending mail and distinct human-seen state. Rename and vendor New session retain endpoint; delete/restart race finishes deletion and preserves tombstoned delivered copy. Shared child grant intentionally resolves parent mailbox; no false child-specific routing.\n\nProve notifications in actual OMP idle and busy states: default metadata notice/count and next-natural-turn constant hint; no extra model request, no steering or PTY input. Put a unique hostile peer marker/ESC/OSC/HTML/authority claim in body/title: marker may appear ONLY as inert UI/tool-result data, never developer/system custom context. Explicit Allow one inbox wake consumes one credit before ONE fixed follow-up; sending/reply/agent-end/restart/duplicate click does not rearm. Induce consume-commit/response-loss or dispatch failure: no replay/refund, UI says attempted not processed. Use authorized signed-in scratch provider for actual two-agent reply/wake proof; no paid-provider inference from source.\n\nCapture screenshot evidence of inbox/header/sidebar, separate seen/unacked labels, stopped peer, safe hostile body, wake armed/attempted state and keyboard focus restoration. Opening/closing inbox must not restart/submit terminal; observe real session/PTY/input, not only React calls. Switch folder/chat during pending poll and deletion/untrack; no stale wrong-chat delivery, timers/children disposed.\n\nRun built development plus packaged installed/portable Windows app: extension modules load from resources/skitarii outside app.asar, actual runtime/CLI child env/home and native PTY paths work. Run npm run package:win once in final acceptance (its internal build is expected). macOS and Linux packaging is not verified: no such machine is available to this project; those paths are unit-tested only. Record version matrix and actual runs; unavailable executor/auth remains blocking. Execute documentation examples end-to-end with bound scratch CLI, and record intentionally denied stdio/unbound/reader/full-backup calls.\n",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Verifies real cross-process lifecycle, native OMP behavior and combined security boundaries."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "browser"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Per-criterion independent real-runtime evidence and full DoD results",
+          "Integrated increment and human checkpoint report"
+        ],
+        "id": "tk_01m6t9cg50413b45wafx03461d",
+        "key": "DM-505",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "package.json",
+            "location": "package.json",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/test/testContext.ts",
+            "location": "src/test/testContext.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/cli/main.test.ts",
+            "location": "src/cli/main.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/terminals/skitariiExtension.test.ts",
+            "location": "src/main/terminals/skitariiExtension.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/agents/TerminalPane.tsx",
+            "location": "src/renderer/src/agents/TerminalPane.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "scripts/mcp-smoke.mjs",
+            "location": "scripts/mcp-smoke.mjs",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Verify durable mailboxes, real Skitarii communication, safe notifications and the packaged Windows inbox"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Upgrading a v14 fixture preserves existing project records and a reopened/backup-restored database retains endpoint, message, ack and human-seen state in both storage modes."
+          },
+          {
+            "id": "c2",
+            "text": "Sender-scoped duplicate sends, payload conflicts, byte/page/quota limits and seven-day retention are proven with deterministic clock/transaction tests; pending mail is never evicted."
+          },
+          {
+            "id": "c3",
+            "text": "Local message data never enters portable records/history/outbox, and recovery guidance no longer recommends deleting the only copy without preserving it."
+          },
+          {
+            "id": "c4",
+            "text": "Receipt quota/replay survives recipient deletion, sequences are never reused, and full private SQLite backup is desktop-only rather than an unbound-orchestrator mailbox export."
+          }
+        ],
+        "body": "## Outcome and contract\nAdd next core migration after the checked-out schema (currently v14); never hard-code an obsolete version if another epic lands first. New endpoint IDs are opaque and stable for (project database, machine ID, trusted chat ID); add unique keys/indexes for endpoint identity, grant binding, recipient sequence and sender-scoped clientMessageId. Store direct message/reply metadata, acknowledgement and a separate human-seen cursor. Endpoint names are trusted desktop metadata but still render inertly. Core repository functions perform no public caller-authority inference; the next ticket owns service authorization.\n\n## Persistence semantics\nUse core state.sqlite in both storage modes; no app.sqlite/message JSONL store, portable export, general event bodies, history-search or outbox messages. Ordinary reconciliation/branch changes must not erase mail. Acknowledged retention and dedup window are seven days; unacknowledged mail is never aged out. Enforce body <=16KiB UTF-8, pages <=50, ack batches <=100, recipient unacknowledged quota 1024 and retained message quota 4096; refuse mailbox_full rather than silently deleting pending mail. Store independent BODY-FREE sender/client-ID receipts (canonical payload hash, original acceptance result, acceptance timestamp, expiresAt). They survive recipient/message deletion and body cleanup for seven days from original acceptance; changed payload reuse conflicts. Authenticate the sender then consult its receipt BEFORE recipient availability/quota admission. Receipt quota is 8192 retained receipts per sender endpoint; receipt_quota_full refuses new sends, never drops an unexpired receipt. Message expiration is seven days after acknowledgement; unacknowledged rows never expire. Agent-acked but human-unseen bodies MAY expire after seven days; human counts include only retained rows and UI shows retention policy. Receipts have no body or FK cascade to message rows; reply FK must not cascade across recipients. Reply to an expired/purged parent returns reply_unavailable. Cleanup has bounded batches; no unbounded scan per send. Use a strictly increasing non-reused sequence (explicit AUTOINCREMENT or equivalent durable high-water), not recycled row IDs. Human seen advances only monotonically through the highest retained sequence actually displayed, never an arbitrary future head. Incoming history only is in scope: no sent-body history browser; send returns own acceptance receipt. Keep deletion/tombstone semantics explicit: delete recipient inbox; preserve delivered copies in other mailboxes with a deleted-sender tombstone.\n\nA local SQLite database now contains non-reconstructible mail even in repo mode. Update project-mismatch advice immediately to require backing up/moving the directory before rebuild; do not leave a delete-the-only-copy instruction in an intermediate state. Existing backup_database is callable by unbound orchestrators and VACUUM INTO copies private mail: change full SQLite backup authorization to desktop-only, explicitly documenting the supported-API restriction. Do not silently offer agents an export-all-mail bypass. Move the existing repo.backup capability to HUMAN_ONLY_CAPABILITIES and remove agent-role access; preserve desktop consistent VACUUM INTO; no redacted/export fallback needed.\n\nPersist durable deletion tombstones distinct from reversible suspension; provision/bind cannot reopen deleting/deleted endpoints. Store trusted canonical-folder namespace plus logical machine ID on bindings; project ID alone is insufficient for copied checkouts. Machine ID is a copied logical namespace, not physical-machine attestation.\n\nPreserve existing SQLite transaction/lock behavior; provide atomic primitives needed by services.\n\n## Source locations\n- `src/core/db/migrations.ts`: schema and versioned migration\n- `src/core/db/migrations.test.ts`: extend upgrade/rollback/inventory tests\n- `src/core/db/database.ts`: reuse BEGIN IMMEDIATE and bounded lock handling\n- `src/core/workspace.ts`: mismatchAdvice must protect local mail before rebuild\n- `src/core/workspace.dbMode.test.ts`: storage mode preservation patterns\n- `src/core/repo/backup.ts`: verify existing SQLite backup includes new local tables\n- `src/core/repo/backup.test.ts`: extend real backup/reopen proof\n\n### Intended new files (not existing paths)\n- `src/core/services/agentMailStore.ts`: new local repository module; follow existing services/events.ts SQL/transaction style\n- `src/core/services/agentMailStore.test.ts`: new real SQLite tests following services/grants.test.ts\n\n## Tests\nExtend migrations.test.ts, workspace.dbMode.test.ts and backup.test.ts. NEW src/core/services/agentMailStore.test.ts tests transactional persistence/reopen, same sender retry/changed payload, identical client IDs from different senders, reply relationships, quota boundaries in UTF-8, owned ack primitives, seven-day receipt/body pruning with clock control, deletion tombstones and bounded paging. Real backup reopen must retain endpoints/messages. Test upgrade rollback and both storage modes without writing message bodies to tracked files. No source-text/prose-pinning tests.\n\n## Verification\nWrite and run the listed behavioral tests in this ticket. For changed code run touched test files plus npm run lint and npm run typecheck; full suite/coverage/deadcode/build run once at the sprint acceptance node. No blanket tests-first or Fireguard grading. Exercise the changed path with a targeted smoke; never infer installed OMP/Electron behavior from mocks. Preserve unrelated work. Do not self-accept.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Coordinates durable state, authorization and lifecycle across verified modules."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "New mailbox schema/store and behavioral tests",
+          "Safe local database recovery advice"
+        ],
+        "id": "tk_01m6t9v1s3a46yxszxgmntvmgn",
+        "key": "DM-507",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/db/migrations.ts",
+            "location": "src/core/db/migrations.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/db/migrations.test.ts",
+            "location": "src/core/db/migrations.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/db/database.ts",
+            "location": "src/core/db/database.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/workspace.ts",
+            "location": "src/core/workspace.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/workspace.dbMode.test.ts",
+            "location": "src/core/workspace.dbMode.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/backup.ts",
+            "location": "src/core/repo/backup.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/repo/backup.test.ts",
+            "location": "src/core/repo/backup.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/authz.ts",
+            "location": "src/core/authz.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/commands/repository.ts",
+            "location": "src/core/commands/repository.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "NEW intended: src/core/services/agentMailStore.ts",
+            "location": "src/core/services/agentMailStore.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "NEW intended: src/core/services/agentMailStore.test.ts",
+            "location": "src/core/services/agentMailStore.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "skitarii",
+          "messaging"
+        ],
+        "title": "Persist local-only stable mailboxes and bounded message receipts"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "All seven public commands have strict typed CLI discovery/aliases and enforce same-folder/machine bound-grant ownership even when services are called directly."
+          },
+          {
+            "id": "c2",
+            "text": "All four hosted roles can use their own mailbox; unbound/reader/stdio callers and agent management attempts fail, and spoof/foreign inbox/partial ack cannot disclose or mutate other mail."
+          },
+          {
+            "id": "c3",
+            "text": "Atomic sender-scoped retries, current revocation, correlated replies and cursor/status recovery pass real SQLite and competing-process tests without portable flush or body leakage."
+          },
+          {
+            "id": "c4",
+            "text": "Concurrent wake claims consume one desktop-granted credit at most once; restart/read/ack/peer activity cannot mint credit and lost dispatch is reported as attempted, not processed."
+          },
+          {
+            "id": "c5",
+            "text": "A thousand restricted status polls reuse a bounded dedicated session and skip unrelated reconcile/flush/pruning; ordinary command lifecycle and poll-mode whitelist remain enforced."
+          }
+        ],
+        "body": "## Outcome and public contract\nBuild on the mailbox store. Add typed get_agent_identity({}), list_agent_peers({afterId?,limit?}), send_agent_message({to,clientMessageId,body,inReplyTo?}), read_agent_inbox({afterSeq?,throughSeq?,limit?,unacknowledgedOnly?}), acknowledge_agent_messages({messageIds}), a lightweight get_agent_mail_status({afterSeq?,throughSeq?,limit?}) returning pending count and ascending unacknowledged metadata pages without bodies, with snapshotHighWater, nextCursor and hasMore, and take_agent_mail_wake({}) atomically consuming a desktop-granted nonaccumulating one-shot wake credit. Wake attempts have an opaque ID and are not delivery/read receipts; agent APIs can consume but never mint/rearm credit, including after restart. CamelCase aliases follow the registry. Identity is derived from the persisted sessions.grant_id resolved by ctx.session.id -> desktop-managed endpoint binding (SessionContext currently has no grantId property), never supplied from input; do not use ephemeral core/vendor session IDs, grant labels or PIDs as peers. Peer display shows title and stable ID; no transcript paths or credentials. Replies must refer to a message involving exactly the same two peers; reject unrelated existence probes.\n\n## Authority and transactions\nNew mailbox discovery/send/receive capabilities apply to all four hosted roles planner/orchestrator/worker/reviewer, but every operation ALSO requires a current usable bound grant, same machine and open endpoint. Ungranted reader, role-only configured stdio and unbound grants are denied, not assigned an implicit mailbox. Revalidate grant usability and endpoint binding inside the same transaction as send/ack and private read snapshots (read the clock after acquiring the lock, including duplicate replay), closing the revoke-before-write race. Acknowledge validates all IDs/ownership before any mutation, is idempotent, and reading never acks. Do not reuse global withIdempotency, whose key lacks sender identity. No peer body/title in errors/logs/general events. Provide desktop-only endpoint provision/bind/update/close operations guarded by a dedicated capability in HUMAN_ONLY_CAPABILITIES and available only to desktop; separate human inbox/seen/wake methods also require that human-only authority; agents cannot self-register/rebind or close peers. Binding verifies grant and endpoint same project/machine. Services enforce authority even when called outside MCP discovery.\n\nExpose strict schemas through CommandApi, registry, capabilities and CLI discovery. MCP lists role-appropriate APIs but direct role-only calls still reject without binding; document that native Skitarii tools use CLI. mutates:false for local mailbox writes to avoid portable flush/branch guards, with explicit service transactions; this flag is not an authorization shortcut. Do not regress existing role/grant rules. Inbox responses distinguish durable acceptance, explicit acknowledgement and cursor/high-water; human-seen state is separately desktop-owned.\n\n## Source locations\n- `src/shared/domain/api.ts`: typed command inputs/results\n- `src/core/commandSchemas.ts`: strict bounded payloads\n- `src/core/authz.ts`: separate mailbox and desktop-only management capabilities\n- `src/core/commands/index.ts`: registry composition\n- `src/core/commands/capabilities.ts`: exhaustive capability map\n- `src/core/commands/types.ts`: local-write mutates semantics\n- `src/core/services/grants.ts`: reuse usable-grant/machine checks\n- `src/core/workspace.grants.test.ts`: real token/role/stdio provenance tests\n- `src/core/commands/capabilities.test.ts`: extend exhaustive capability cases\n- `src/cli/main.test.ts`: real CLI listing/aliases/stdin JSON\n- `src/mcp/server.ts`: register mailbox tools\n- `src/mcp/tools/define.ts`: existing MCP adapter convention\n- `src/mcp/roles.test.ts`: role discovery/direct-call denials\n- `src/mcp/validation.test.ts`: strict boundary tests\n\n### Intended new files (not existing paths)\n- `src/core/services/agentMail.ts`: new authorized service following services/grants.ts\n- `src/core/commands/agentMail.ts`: new adapters following commands/comments.ts\n- `src/mcp/tools/agentMail.ts`: new registration following tools/define.ts\n\n## Tests\nNEW src/core/services/agentMail.test.ts and src/core/commands/agentMail.test.ts exercise two endpoints plus foreign folder/machine, same client IDs from different senders, sender spoofing/unknown properties, unauthorized read and mixed owned/foreign ack rollback, missing/expired/revoked/unbound grants, desktop-only self-bind denial, unrelated replies, exact quota edges and concurrent send/ack/revoke with allowed positive controls. Extend workspace.grants, capabilities, CLI and MCP tests named above. Use real services/SQLite, not forwarding mocks. Add a two-process competing send test using existing testContext/workspaceHarness patterns. Run touched tests/lint/typecheck only.\n\n## Verification\nWrite and run the listed behavioral tests in this ticket. For changed code run touched test files plus npm run lint and npm run typecheck; full suite/coverage/deadcode/build run once at the sprint acceptance node. No blanket tests-first or Fireguard grading. Exercise the changed path with a targeted smoke; never infer installed OMP/Electron behavior from mocks. Preserve unrelated work. Do not self-accept.\n\n## Reviewed precision\nWake consumption is a conditional atomic transition requiring pending mail and a usable current binding. Only the winning invocation returns claimed:true; repeat/lost-response retry returns false and MUST NOT replay a positive authorization via generic idempotency. No auto refund. Closed bindings stay invalid forever even if a suspended endpoint later resumes; new trusted bind requires a fresh grant. Ordinary stdio callers cannot gain mailbox ownership from inherited DM_SESSION_TOKEN. Tool discovery/capabilities must make unbound state explicit, not falsely promise a usable mailbox.\n\nFor status paging capture a horizon before page read, never query a new head then advance over unseen concurrent arrivals. Ascending metadata pages carry nextCursor/hasMore and the same snapshot horizon; receive cursor continues across bounded ticks so first 50 older rows cannot starve later mail. Pending count reflects retained unacked state, not a stale notification flag.\n\nPolling performance is part of this ticket: existing CLI creates a persisted session plus reconcile/flush on every command. Add an internal mailbox-poll opening mode selected only by CLI for status/wake commands and hard-enforced at execute; usable bound grant required. Reuse one dedicated polling session per (endpoint,grant), no activity references on that special session. Ordinary command sessions remain unchanged. Skip unrelated record reconcile/flush and staged-image pruning only in the restricted poll mode; preserve migration/current auth validation. A deterministic 1000-poll test must show constant session-row count per binding and zero unrelated filesystem/outbox maintenance. Parallel calls cannot allocate duplicate logical poll sessions; query/insert under transaction.\n\nTests additionally cover nonreplayed wake authorization after lost response, receipt survival through deleted recipient, advancing past >50 old unacked IDs, concurrent arrivals at page horizon, bound canonical-folder rejection and poll-only command whitelist denial with valid positive controls.\n\nPoll-specific shared session lifecycle: do NOT call ordinary endSession on each poll close. Keep started_at stable; touch last_seen on successful polls and use the stale-session window. Atomically map/recheck endpoint+grant under lock. On expiry/revoke/delete, close/invalidate and prune only dedicated poll sessions with no activity references in bounded batches (limit 100), never arbitrary historical activity sessions. Enforce whitelist before dispatch; bypass both open-time and post-mutation flush. A take-wake positive result is never replayed. Test repeated opens/closes, two-process contention and ordinary CLI close unchanged.\n\nPaging requests carry optional throughSeq to pin the initial snapshot horizon across pages. Reject invalid windows; arrivals above throughSeq are caught on the next sweep. Human displayed high-water comes from an actual inbox snapshot, not metadata-status current head.\n\nDesktop one-shot grant service takes endpoint derived by main, expected wake revision and endpoint-scoped request nonce. It returns existing armed state or conflicts on delayed stale duplicate after consumption; never mint another credit from an old request. Persist human-seen separately and validate it against a body snapshot actually served, not arbitrary future metadata head.\n",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Coordinates durable state, authorization and lifecycle across verified modules."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Authorized mailbox services and strict core/CLI/MCP adapters",
+          "Ownership/concurrency regression tests"
+        ],
+        "id": "tk_01m6t9v1sfz3nk1a2d0cbh89f1",
+        "key": "DM-508",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/domain/api.ts",
+            "location": "src/shared/domain/api.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/commandSchemas.ts",
+            "location": "src/core/commandSchemas.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/authz.ts",
+            "location": "src/core/authz.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/commands/index.ts",
+            "location": "src/core/commands/index.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/commands/capabilities.ts",
+            "location": "src/core/commands/capabilities.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/commands/types.ts",
+            "location": "src/core/commands/types.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/grants.ts",
+            "location": "src/core/services/grants.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/workspace.grants.test.ts",
+            "location": "src/core/workspace.grants.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/commands/capabilities.test.ts",
+            "location": "src/core/commands/capabilities.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/cli/main.test.ts",
+            "location": "src/cli/main.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/server.ts",
+            "location": "src/mcp/server.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/tools/define.ts",
+            "location": "src/mcp/tools/define.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/roles.test.ts",
+            "location": "src/mcp/roles.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/mcp/validation.test.ts",
+            "location": "src/mcp/validation.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/cli/main.ts",
+            "location": "src/cli/main.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/workspace.ts",
+            "location": "src/core/workspace.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/sessions.ts",
+            "location": "src/core/services/sessions.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/core/services/sessions.test.ts",
+            "location": "src/core/services/sessions.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "NEW intended: src/core/services/agentMail.ts",
+            "location": "src/core/services/agentMail.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "NEW intended: src/core/services/agentMail.test.ts",
+            "location": "src/core/services/agentMail.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "NEW intended: src/core/commands/agentMail.ts",
+            "location": "src/core/commands/agentMail.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "NEW intended: src/core/commands/agentMail.test.ts",
+            "location": "src/core/commands/agentMail.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "NEW intended: src/mcp/tools/agentMail.ts",
+            "location": "src/mcp/tools/agentMail.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "skitarii",
+          "messaging"
+        ],
+        "title": "Authorize mailbox commands by bound grant and expose strict CLI APIs"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Legacy and newly created OMP chats have stable discoverable mailboxes; every spawned grant is bound before launch, and rename/restart/New session retain unread mail."
+          },
+          {
+            "id": "c2",
+            "text": "Cancellation/deletion/untrack/quit races cannot resurrect an endpoint or leak a child/grant; received-mail deletion and tombstoned outgoing sender behavior are proven."
+          },
+          {
+            "id": "c3",
+            "text": "Durable deleting tombstones complete interrupted SQLite/JSONL deletion, storage failure leaves a retryable visible chat, and unsupported CLI kinds never acquire mailbox bindings."
+          }
+        ],
+        "body": "## Outcome\nIntegrate the authorized mailbox services into real chat lifecycle. Extend ChatRecord/ChatPatch with optional endpointId (legacy records open unchanged). The trusted tuple machine+canonical project+chat ID idempotently provisions the same endpoint even if a crash occurs between SQLite commit and JSONL patch. Provision existing OMP chat peers on trusted list/start so a stopped or never-started Skitarii chat can receive; never advertise unsupported CLI kinds. Titles are display metadata and rename does not change identity. Existing native subagents intentionally share their parent endpoint.\n\n## Grant/lifecycle ordering\nPass trusted chat identity into issueChatCli; provision/bind each new usable grant before spawn and store the grant ID as existing code requires. A start cancelled after an await must revoke its binding/grant and may not recreate a closed endpoint or spawn a late CLI. Terminal stop/resume and vendor New session preserve mail; grant expiry/revocation is still enforced. Chat delete closes endpoint before transcript deletion, purges received mail, tombstones delivered outgoing sender metadata and cancels pending starts. Never reopen a closed/deleted endpoint based on stale asynchronous work. Untrack/removal/app quit stop polling/children consistently and retain mailbox data unless chat explicitly deleted; storage-inaccessible revoke is reported honestly. Use the originating workspace for cleanup, not a newly resolved folder. On next trusted startup reconcile managed endpoint ownership with existing ChatRecords so deletion/crash cannot leave discoverable zombie peers; no guessing across installations.\n\n## Durable cross-store completion\nDeleting is a durable irreversible state recorded before JSONL/file removal. On crash after marking deleting, startup FINISHES deletion instead of lazy-provisioning the still-present ChatRecord. Provision never reopens deleting/deleted tombstones. Suspension/untracked is distinct and may resume only via trusted main with a fresh grant; old bindings remain invalid permanently. If core storage cannot record closure, retain a visible retryable chat deletion failure instead of dropping the sole identity record and claiming success. Filter eligible OMP kind using stored chat+agent identity; generic grant issuance must not bind custom/other CLIs or external grants.\n\nUntrack must explicitly notify/cancel mailbox/terminal owners before desktop handlers forget the folder/close its workspace; minute-based terminal detection is insufficient. Mailbox restoration requires both core backup and app-owned ChatRecord index; do not adopt restored old grants as a fresh live binding.\n\n## Tests\nExtend chatStore, chatRecords, chatGrants and terminal lifecycle/quit tests: restart/New session/rename preserve endpoint; stopped legacy OMP peer receives, unsupported kind stays unbound; same chat ID across folders isolated; crash-before-JSONL insert recovers same endpoint; crash after deleting intent completes deletion; suspended re-track binds fresh grant only. Race grant issue/deletion/untrack with real held workspace and prove no late resurrection/spawn. Storage failure retains retryable deletion UI state.\n\n## Verification\nTargeted touched tests plus lint/typecheck; smoke actual start/stop/delete ordering. Full DoD at sprint acceptance; no tests-first/Fireguard grading.\n",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Coordinates durable state, authorization and lifecycle across verified modules."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Stable OMP-only chat/grant lifecycle and durable deletion recovery",
+          "Lifecycle/cancellation/cross-store regression tests"
+        ],
+        "id": "tk_01m6t9v1sf7e7b4wwtm69nh0kn",
+        "key": "DM-509",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/agents/chat.ts",
+            "location": "src/shared/agents/chat.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/chatStore.ts",
+            "location": "src/main/agents/chatStore.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/chatStore.test.ts",
+            "location": "src/main/agents/chatStore.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/chatRecords.ts",
+            "location": "src/main/agents/chatRecords.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/chatRecords.test.ts",
+            "location": "src/main/agents/chatRecords.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/chatGrants.ts",
+            "location": "src/main/agents/chatGrants.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/chatGrants.test.ts",
+            "location": "src/main/agents/chatGrants.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/terminals/terminalSessions.ts",
+            "location": "src/main/terminals/terminalSessions.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/terminals/terminalSessions.lifecycle.test.ts",
+            "location": "src/main/terminals/terminalSessions.lifecycle.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/terminals/terminalSessions.quit.test.ts",
+            "location": "src/main/terminals/terminalSessions.quit.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/bootstrap.ts",
+            "location": "src/main/desktop/bootstrap.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/handlers.ts",
+            "location": "src/main/desktop/handlers.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "skitarii",
+          "messaging"
+        ],
+        "title": "Bind stable Skitarii mailboxes and recover interrupted chat lifecycle transitions"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Private per-launch descriptor pins absolute executable/script/folder and excludes credentials; only eligible OMP launch receives it, not sign-in/custom/other CLIs."
+          },
+          {
+            "id": "c2",
+            "text": "Shell-free adapter preserves literal stdin/argv, allows only mailbox commands, applies narrow child env and bounded errors/time/output, and reliably cancels children."
+          },
+          {
+            "id": "c3",
+            "text": "Installed OMP no-model smoke proves adapter registration/loading and actual child execution; packaged/development resource paths are exercised without relying on TypeScript declarations."
+          }
+        ],
+        "body": "## Outcome and owned contract\nCreate the runtime adapter and private descriptor consumed by the subsequent extension ticket. Main generates a versioned private file in the existing app-owned per-chat terminal directory before spawn, bound to the trusted folder/chat/launch generation. Descriptor holds absolute runtime command, exact absolute CLI script and repo argv, cwd and an explicit runtime environment allowlist. NEVER persist DM_SESSION_TOKEN, provider credentials or a shell command. Pass only descriptor path via dedicated OMP-only env; login and other CLIs must receive neither descriptor nor stale mixed-case variants.\n\nbuildCliConfig currently uses bare node in development. Resolve/validate an absolute Node runtime in main for this new descriptor; packaged uses app executable and ELECTRON_RUN_AS_NODE=1 only on the DM child. Do not contaminate whole OMP environment on macOS. Implement resources/skitarii/extension/dmClient.ts using node:child_process.spawn shell:false, windowsHide, exact args [...pinnedArgs,call,allowlistedCommand,-], JSON stdin, controlled inherited environment plus current DM_SESSION_TOKEN and pinned DARKMECHANICUS_HOME. Runtime injection switches/provider API keys are NOT forwarded by default. Do not parse Markdown, launch scripts or PATH in the extension; pi.exec lacks per-child env so is unsuitable.\n\nUse 5s timeout, 2MiB stdout and 4KiB stderr caps; cancel child on signal/session shutdown, collect bounded sanitized error, validate exit and JSON envelope. Descriptors are per launch and removed with existing private terminal file lifecycle; reject missing/malformed/stale version/target rather than fallback to another chat. Output may carry private bodies only to requesting tool; never log them. Core token/grant remains ultimate auth; descriptor is routing, not credential authority.\n\nFreeze dependency-injected DM client interface for subsequent tools/poller: call(command,input,signal)->typed result; allowed commands include identity/peers/send/read/ack/status/takeWake only. No new socket/daemon, no direct SQLite in extension, no external runtime dependency. Verify bundled Bun supports spawn and installed OMP loads module; no paid turn required.\n\n## Source locations\n- `src/main/terminals/terminalFiles.ts`: private launch descriptor and cleanup\n- `src/main/terminals/terminalFiles.test.ts`: private file and generation tests\n- `src/main/terminals/terminalEnv.ts`: OMP-only descriptor env and scrub\n- `src/main/terminals/terminalEnv.test.ts`: sign-in/other-kind/mixed-case exclusion\n- `src/main/desktop/cliConfig.ts`: absolute trusted development runtime for descriptor\n- `src/main/desktop/cliConfig.test.ts`: packaged/development path semantics\n- `src/main/terminals/terminalSessions.ts`: install descriptor before eligible OMP spawn; preserve binding ordering\n- `src/main/terminals/ompSkitariiExtension.ts`: existing unpacked/development entry paths\n- `src/main/desktop/agentProbeNode.ts`: existing shell-free spawn pattern\n- `package.json`: resources/skitarii extraResources includes new module\n\n### Intended new files (not existing paths)\n- `resources/skitarii/extension/dmClient.ts`: new bounded spawn adapter; follow existing extension module separation, no extra npm import\n- `src/main/terminals/skitariiDmClient.test.ts`: new subprocess behavior tests; follow terminalFiles and skitariiExtension dependency-injection patterns\n\n## Tests\nNEW src/main/terminals/skitariiDmClient.test.ts runs dependency-injected and real subprocess fixture stdin/stdout: exact executable/argv/cwd/env, spaces/apostrophes/Unicode/shell metacharacters literal, wrong/missing/stale descriptor, token absent from file/argv/error, provider keys/runtime-injection scrub, malformed JSON/nonzero/timeout/overflow/abort and no surviving child. Extend terminalFiles/env/cliConfig and targeted terminal start tests. Run installed OMP no-model scratch-extension probe to load adapter and invoke fixture child using bundled Bun; record installed version, no real user chat/config changes. Targeted tests/lint/typecheck; package/native acceptance later.\n\n## Verification\nWrite and run the listed behavioral tests in this ticket. For changed code run touched test files plus npm run lint and npm run typecheck; full suite/coverage/deadcode/build run once at the sprint acceptance node. No blanket tests-first or Fireguard grading. Exercise the changed path with a targeted smoke; never infer installed OMP/Electron behavior from mocks. Preserve unrelated work. Do not self-accept.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Coordinates durable state, authorization and lifecycle across verified modules."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Private descriptor and typed shell-free DM subprocess client",
+          "Real fixture/installed OMP no-model adapter evidence"
+        ],
+        "id": "tk_01m6t9v1sfwv1514vsyn26382f",
+        "key": "DM-510",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/terminals/terminalFiles.ts",
+            "location": "src/main/terminals/terminalFiles.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/terminals/terminalFiles.test.ts",
+            "location": "src/main/terminals/terminalFiles.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/terminals/terminalEnv.ts",
+            "location": "src/main/terminals/terminalEnv.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/terminals/terminalEnv.test.ts",
+            "location": "src/main/terminals/terminalEnv.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/cliConfig.ts",
+            "location": "src/main/desktop/cliConfig.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/cliConfig.test.ts",
+            "location": "src/main/desktop/cliConfig.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/terminals/terminalSessions.ts",
+            "location": "src/main/terminals/terminalSessions.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/terminals/ompSkitariiExtension.ts",
+            "location": "src/main/terminals/ompSkitariiExtension.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/agentProbeNode.ts",
+            "location": "src/main/desktop/agentProbeNode.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "package.json",
+            "location": "package.json",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "NEW intended: resources/skitarii/extension/dmClient.ts",
+            "location": "resources/skitarii/extension/dmClient.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "NEW intended: src/main/terminals/skitariiDmClient.test.ts",
+            "location": "src/main/terminals/skitariiDmClient.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "skitarii",
+          "messaging"
+        ],
+        "title": "Pin a private shell-free DM client for the bundled Skitarii extension"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Native identity/peer/send/read/ack tools use the accepted DM client and return only owned results; unsupported OMP APIs show explicit messaging-unavailable state without breaking existing mascot/chat."
+          },
+          {
+            "id": "c2",
+            "text": "Default live UI alerts plus fixed next-natural-turn reminder never start/steer a model turn or promote peer content to developer/system context; body fetch/read/ack remain explicit."
+          },
+          {
+            "id": "c3",
+            "text": "One-shot desktop credit permits at most one fixed follow-up attempt, is consumed before dispatch, survives concurrency/restart without rearming, and notification never marks mail consumed."
+          },
+          {
+            "id": "c4",
+            "text": "Installed OMP no-model smoke proves tool registration and CLI child/passive notification behavior; targeted lifecycle/adapter tests pass and bundled packaging paths remain usable."
+          }
+        ],
+        "body": "## Outcome and verified API\nAdd a cohesive messaging module to resources/skitarii/extension loaded from existing index.ts beside the mascot. OMP release v18.18.0 source confirms injected pi.typebox, registerTool parameters/approval/loadMode, ctx.agent.kind, before_agent_start, ui.notify and lifecycle hooks. Current local OmpApi declares only mascot APIs: extend only the API actually verified; declarations alone are not compatibility proof. Use injected builders, no npm imports unavailable in unpacked resources. Native names: dm_agent_identity, dm_agent_peers, dm_message_send, dm_inbox_read, dm_inbox_ack. Expose strict literal arguments backed by core CLI, tool-result bodies inert task data, approval read for identity/peers/read and write for send/ack. Do not override native tool names. Agent can reply via send with inReplyTo; all four hosted roles work through their bound CLI grant. Feature-detect required APIs; unsupported OMP shows explicit messaging-unavailable reason without breaking mascot/chat, never a fake successful send.\n\n## Accepted transport dependency\nUse the accepted typed dmClient/descriptor adapter from the transport ticket. Do not reimplement spawning, environment pinning or descriptor lifecycle in this ticket. Native tools and all polling use the same adapter and bound grant.\n\n## Notification semantics\nOnly main agent starts one metadata poll loop (2s, one child in flight, bounded pages, cancel+generation checks); children sharing token do not start competing consumers. Initial query catches up from zero through retained unacknowledged metadata, carrying cursor/horizon across bounded ticks rather than refetching first 50. Advance notification cursor only after UI notice succeeds; keep a bounded retry queue, no unbounded message-ID Set. A restart may replay notifications by design. Initial query recovers unread status, IDs/high-water; periodic status needs no bodies. Coalesce ui.notify and persistent unread indicator; ESC/OSC/control bytes from all peer metadata are inert. before_agent_start for main prompt returns only a CONSTANT extension-authored inbox reminder when cached pending>0; never peer bodies/titles/IDs and never modifies/replaces normal policy. It is pure/idempotent, does not start a turn or block on a CLI query, and may lag by one poll.\n\nImmediate wake is explicitly one-shot: add take_agent_mail_wake({}) authorized own-bound-grant API in the API ticket, consuming a desktop-granted credit transactionally before any sendMessage. It returns a durable attempt ID/claimed flag, not delivery proof. No credit means no automatic call. A consumed credit may issue ONE constant hint via sendMessage({customType:dm-inbox-reminder,content:FIXED_TEXT,display:false}, {deliverAs:followUp,triggerTurn:true}); busy goes to follow-up, never steering. Do not interpolate peer data. API returns void: never ack mail, never refund/retry credit after throw/crash, show wake-attempted not processed. Credits do not rearm on polling, input.source, peer replies, reads/acks, agent end, session switch or restart. Human must explicitly grant another. This avoids unverifiable human-input provenance and unbounded ping-pong. Notification/injection does not acknowledge; explicit agent inbox ack owns that transition.\n\n## Source locations\n- `resources/skitarii/extension/index.ts`: register messaging with existing extension lifecycle\n- `resources/skitarii/extension/omp-registry.d.ts`: existing narrow host import declaration pattern; no dependency installation\n- `src/main/terminals/skitariiExtension.test.ts`: fakePi/timers/lifecycle neighboring behavioral harness\n- `package.json`: existing extraResources ships extension tree; verify no app.asar import\n\n### Intended new files (not existing paths)\n- `resources/skitarii/extension/messaging.ts`: new cohesive module following existing skitarii.ts separation and injected dependencies\n- `src/main/terminals/skitariiMessaging.test.ts`: new tests following skitariiExtension.test.ts fakePi/timers\n\n## Tests\nNEW src/main/terminals/skitariiMessaging.test.ts behavioral extension tests: actual tools consume owned CLI results, main/sub guard, malformed/oversize/timeout/cancel, literal spaces/apostrophes/Unicode/metacharacters, revoked grant, one-in-flight and late generations, passive notifications never call send APIs, fixed next-turn reminder cannot contain hostile peer text, distinct burst IDs notified without duplicate poll alerts, initial replay, explicit read/ack distinction, one-shot concurrent consumption and no auto rearming/refund. Adapter/env/file tests are owned by the transport predecessor; extend only consumer notification tests here. Use real subprocess fixture stdin/stdout for adapter smoke (not mock echoed paths). Live no-model installed OMP smoke must register tools and passive UI from descriptor; final acceptance verifies real model reply plus one-shot only with authorized scratch provider. No inferred live support from type shims.\n\n## Verification\nWrite and run the listed behavioral tests in this ticket. For changed code run touched test files plus npm run lint and npm run typecheck; full suite/coverage/deadcode/build run once at the sprint acceptance node. No blanket tests-first or Fireguard grading. Exercise the changed path with a targeted smoke; never infer installed OMP/Electron behavior from mocks. Preserve unrelated work. Do not self-accept.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Coordinates durable state, authorization and lifecycle across verified modules."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Native messaging tools and safe notification/wake controller",
+          "Extension lifecycle/real OMP communication evidence"
+        ],
+        "id": "tk_01m6t9v1sfrf9bgkw1jsh3mzvd",
+        "key": "DM-511",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "resources/skitarii/extension/index.ts",
+            "location": "resources/skitarii/extension/index.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "resources/skitarii/extension/omp-registry.d.ts",
+            "location": "resources/skitarii/extension/omp-registry.d.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/terminals/skitariiExtension.test.ts",
+            "location": "src/main/terminals/skitariiExtension.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "package.json",
+            "location": "package.json",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "NEW intended: resources/skitarii/extension/messaging.ts",
+            "location": "resources/skitarii/extension/messaging.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "NEW intended: src/main/terminals/skitariiMessaging.test.ts",
+            "location": "src/main/terminals/skitariiMessaging.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "skitarii",
+          "messaging"
+        ],
+        "title": "Add native Skitarii messaging tools and safe live inbox notifications"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Desktop-only typed guarded mailbox methods derive endpoint from tracked OMP chat and keep human seen independent of agent ack with accurate retained-message counts."
+          },
+          {
+            "id": "c2",
+            "text": "One-shot wake authorization is human-only, revisioned and nonaccumulating even with delayed duplicate requests after consume; stopped chats never auto-start."
+          },
+          {
+            "id": "c3",
+            "text": "Central metadata monitor recovers initial/missed unread state, exposes no bodies in push, discards late cross-folder data and disposes before workspace closure."
+          }
+        ],
+        "body": "## Outcome\nProvide the typed main/preload surface and central metadata monitoring consumed by renderer UI. No terminal lifecycle rewrites or native tool registration in this ticket. Add strict desktop-only per-chat inbox/status, human-seen and Allow one inbox wake operations. Resolve tracked canonical folder and existing eligible OMP ChatRecord before deriving endpoint; never trust renderer-supplied endpoint IDs. Call authorized desktop service paths, not agent methods or a spoofed agent ctx. Management/desktop inbox/seen/wake capabilities are HUMAN_ONLY; grants cannot inherit them. Human body read/seen does not perform agent ack.\n\nOne endpoint has at most one armed wake credit; repeated Allow while armed returns existing state, never accumulates. Include expected current revision/idempotency request so delayed duplicate click after consumption cannot silently mint another credit. take_agent_mail_wake (API ticket) requires pending mail and current bound grant; returns a claimed authorization once, never replays positive response. Display armed/attempted state, not model-processed proof. No terminal auto-start when credits/mail exist. A consumed/lost dispatch needs a new deliberate human request, no automatic retry/refund.\n\nCentral folder-scoped metadata monitor reuses held desktop workspace (no subprocess session churn), 2s polling one in flight and bounded pages, initial snapshot catch-up plus metadata-only push to application windows. Dispose before untrack/workspace close/quit; generation/revision guards discard delayed old-folder/chat results. Never put peer bodies in general core events/logs or unguarded push. Snapshot/read requests supply bodies only to authorized app renderer. Seen cursor advances monotonically only to highest sequence actually displayed; a concurrent new arrival remains unseen. All unread counts exclude expired/deleted rows and label seven-day post-ack retention. Freeze ChatMailApi/push shape before renderer consumes it. Main/sub-OMP notification loops are separate owners and neither consumes agent inbox while monitoring.\n\n## Source locations\n- `src/shared/agents/chatApi.ts`: typed human inbox/status/seen/wake request/results and metadata push\n- `src/main/agents/chatHandlers.ts`: strict folder/chat validation and dedicated human service\n- `src/main/agents/chatIpc.ts`: sender-guarded IPC and app-window metadata pushes\n- `src/main/agents/chatHandlers.test.ts`: existing real tracked-folder handler tests\n- `src/main/agents/chatIpc.test.ts`: guarded channel/event behavior\n- `src/main/desktop/bootstrap.ts`: central monitor lifecycle and cleanup composition\n- `src/main/desktop/handlers.ts`: explicit stop before untrack/workspace close\n- `src/preload/index.ts`: typed narrow bridge; no arbitrary channel passthrough\n- `src/preload/index.test.ts`: existing preload behavioral tests\n- `src/main/ipcGuard.ts`: reuse frame guard, no relaxation\n\n### Intended new files (not existing paths)\n- `src/main/agents/agentMailDesktop.ts`: new dedicated service/monitor alongside chatHandlers; reuse tracked-folder resolution and createChatPush\n- `src/main/agents/agentMailDesktop.test.ts`: new service-backed handler/poll tests following chatHandlers.test.ts\n\n## Tests\nNEW src/main/agents/agentMailDesktop.test.ts tests real service-backed human inbox/seen independence from agent ack, foreign/nontracked/nonOMP/deleted targets, future seen cursor clamp/rejection, concurrently arriving unseen messages, nonaccumulating/revisioned one-shot grant and delayed duplicate after consume. Monitor fake-clock tests cover initial catch-up, two folders identical chat IDs, late old-generation results, one in flight, bounded pages, no body in push, and no timers after untrack/quit. Extend relevant handler/IPC/preload tests. Targeted checks only; actual app visual proof final acceptance.\n\n## Verification\nWrite and run the listed behavioral tests in this ticket. For changed code run touched test files plus npm run lint and npm run typecheck; full suite/coverage/deadcode/build run once at the sprint acceptance node. No blanket tests-first or Fireguard grading. Exercise the changed path with a targeted smoke; never infer installed OMP/Electron behavior from mocks. Preserve unrelated work. Do not self-accept.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Coordinates durable state, authorization and lifecycle across verified modules."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Guarded ChatMailApi/preload handlers and metadata push monitor",
+          "Human-authority/seen/wake/lifecycle regression tests"
+        ],
+        "id": "tk_01m6t9v1sfj9wga1z539n2wsqz",
+        "key": "DM-512",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/shared/agents/chatApi.ts",
+            "location": "src/shared/agents/chatApi.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/chatHandlers.ts",
+            "location": "src/main/agents/chatHandlers.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/chatIpc.ts",
+            "location": "src/main/agents/chatIpc.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/chatHandlers.test.ts",
+            "location": "src/main/agents/chatHandlers.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/chatIpc.test.ts",
+            "location": "src/main/agents/chatIpc.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/bootstrap.ts",
+            "location": "src/main/desktop/bootstrap.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/desktop/handlers.ts",
+            "location": "src/main/desktop/handlers.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/preload/index.ts",
+            "location": "src/preload/index.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/preload/index.test.ts",
+            "location": "src/preload/index.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/ipcGuard.ts",
+            "location": "src/main/ipcGuard.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "NEW intended: src/main/agents/agentMailDesktop.ts",
+            "location": "src/main/agents/agentMailDesktop.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "NEW intended: src/main/agents/agentMailDesktop.test.ts",
+            "location": "src/main/agents/agentMailDesktop.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "skitarii",
+          "messaging"
+        ],
+        "title": "Expose human-authorized inbox state and one-shot wake through the desktop bridge"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Skitarii header/sidebar and inbox display distinct human-unseen and agent-unacknowledged states, safe message/reply details, and correct same-folder navigation including stopped peers."
+          },
+          {
+            "id": "c2",
+            "text": "Opening/closing/mark-seen never consumes agent mail or remounts/submits/restarts its terminal; keyboard focus and late cross-chat responses are safe."
+          },
+          {
+            "id": "c3",
+            "text": "Explicit one-shot wake UI discloses token cost and attempted-only semantics, cannot accumulate/rearm via messages, and never auto-starts a stopped recipient."
+          }
+        ],
+        "body": "## Outcome\nAdd a Messages button/count in the existing Skitarii terminal header and an accessible inbox popover/dialog; do not depend on unbuilt hybrid panes or replace/remount the terminal. Sidebar ChatRow shows human-unseen count (including stopped chats), and terminal inbox shows agent-unacknowledged separately with precise labels. Read incoming messages as safe plain task data, showing stable peer ID/title, timestamp, reply relationship, and actual state. Clicking a peer opens the correct same-folder chat only on explicit action. Human opens/marks-seen update only the human cursor; agent ack remains unchanged. This is a communication monitor, not a human impersonation composer; agent read/send/reply stay native tools.\n\n## Notifications and one-shot wake\nConsume the shared main status/push snapshot with initial catch-up and generation/revision guards. Centralize state by folder/chat, not one poll timer per row; reject stale responses after switch/delete/untrack. Coalesce accessible new-mail alerts without stealing terminal focus. Do not rely on generic event head baselining; missed pushes/reload must recover actual stored counts. Expose explicit human-only Allow one inbox wake action (no recurring toggle), with notice it may spend tokens and only queues a fixed trusted reminder. Display unarmed/armed/wake-attempted states honestly; a click never proves model processing, and duplicate clicks cannot accumulate wake credits. Disallow after deleted/unsupported chat; stopped recipients retain pending credit/mail but never auto-start. Document loss between claim and OMP dispatch may consume one credit without waking and requires another explicit authorization.\n\nUse existing Dialog, Button, StatePill and tokens/styles; keyboard open/close/focus restoration, screen-reader labels, pending/empty/loading/error, no HTML/remote image/shell/OSC link activation from peer text. Include terminal-level unread widget via extension ticket but do not duplicate its delivery logic. No OS notifications, sound, broadcasts or extra transport. Ensure changing inbox/wake state never steals keys, types into PTY, submits prompt or restarts the running session.\n\n## Source locations\n- `src/renderer/src/agents/TerminalPane.tsx`: add inbox action without replacing live terminal host\n- `src/renderer/src/agents/ChatHeader.tsx`: chat-scoped message count/action slot\n- `src/renderer/src/sidebar/ChatRow.tsx`: human-unseen count alongside existing liveness/sign-in badges\n- `src/renderer/src/sidebar/FolderRow.tsx`: pass folder/chat-scoped status without per-row polling\n- `src/renderer/src/agents/useChats.ts`: follow existing race-safe reload/subscription patterns\n- `src/renderer/src/agents/TerminalPane.test.tsx`: running-session and consumer state tests\n- `src/renderer/src/App.terminal.test.tsx`: chat switching keeps intended terminal\n- `src/renderer/src/App.chats.test.tsx`: sidebar/chat lifecycle integration tests\n- `src/renderer/src/components/Dialog.tsx`: existing accessible modal/focus pattern\n- `src/renderer/src/markdown/Markdown.tsx`: safe rendering boundary; prefer plain text for message bodies\n- `src/renderer/src/agents/terminalPane.css`: existing terminal layout; do not reset host\n- `src/renderer/src/styles.css`: sidebar badge and design token conventions\n\n### Intended new files (not existing paths)\n- `src/renderer/src/agents/AgentInbox.tsx`: new accessible monitor following components/Dialog.tsx\n- `src/renderer/src/agents/useAgentMail.ts`: new shared folder/chat state/subscription hook following useChats.ts\n- `src/renderer/src/agents/AgentInbox.test.tsx`: new consumer-facing tests following TerminalPane.test.tsx\n\n## Tests\nNEW src/renderer/src/agents/AgentInbox.test.tsx covers visible pending/seen/acked distinctions, stopped recipient/restart state, same-folder navigation, hostile ESC/OSC/HTML text inertness, keyboard focus and loading/failure. Extend App.chats/terminal and TerminalPane tests above for unchanged running PTY/session when inbox opens and old-folder late pushes rejected. Extend central status hook tests with initial catch-up, dedup, unmount cancellation and two identical chat IDs in distinct folders. Assert one-shot human action cannot rearm via events/restart and shows claim-vs-process truth. Run targeted tests/lint/typecheck. Exercise actual app UI with screenshots at acceptance, not jsdom as visual proof.\n\n## Verification\nWrite and run the listed behavioral tests in this ticket. For changed code run touched test files plus npm run lint and npm run typecheck; full suite/coverage/deadcode/build run once at the sprint acceptance node. No blanket tests-first or Fireguard grading. Exercise the changed path with a targeted smoke; never infer installed OMP/Electron behavior from mocks. Preserve unrelated work. Do not self-accept.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Coordinates accessible unread state and lifecycle without restarting the terminal."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "ui"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution",
+            "browser"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Accessible inbox and unread state hook/UI",
+          "Consumer state/lifecycle tests and UI evidence"
+        ],
+        "id": "tk_01m6t9v1sfr1astze1a7bq0qyz",
+        "key": "DM-513",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/agents/TerminalPane.tsx",
+            "location": "src/renderer/src/agents/TerminalPane.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/agents/ChatHeader.tsx",
+            "location": "src/renderer/src/agents/ChatHeader.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/sidebar/ChatRow.tsx",
+            "location": "src/renderer/src/sidebar/ChatRow.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/sidebar/FolderRow.tsx",
+            "location": "src/renderer/src/sidebar/FolderRow.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/agents/useChats.ts",
+            "location": "src/renderer/src/agents/useChats.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/agents/TerminalPane.test.tsx",
+            "location": "src/renderer/src/agents/TerminalPane.test.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/App.terminal.test.tsx",
+            "location": "src/renderer/src/App.terminal.test.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/App.chats.test.tsx",
+            "location": "src/renderer/src/App.chats.test.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/components/Dialog.tsx",
+            "location": "src/renderer/src/components/Dialog.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/markdown/Markdown.tsx",
+            "location": "src/renderer/src/markdown/Markdown.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/agents/terminalPane.css",
+            "location": "src/renderer/src/agents/terminalPane.css",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/renderer/src/styles.css",
+            "location": "src/renderer/src/styles.css",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "NEW intended: src/renderer/src/agents/AgentInbox.tsx",
+            "location": "src/renderer/src/agents/AgentInbox.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "NEW intended: src/renderer/src/agents/useAgentMail.ts",
+            "location": "src/renderer/src/agents/useAgentMail.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "NEW intended: src/renderer/src/agents/AgentInbox.test.tsx",
+            "location": "src/renderer/src/agents/AgentInbox.test.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "skitarii",
+          "messaging"
+        ],
+        "title": "Show Skitarii inboxes and separate human unread alerts without restarting terminals"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Published guidance accurately describes native tool/CLI calls, role/endpoint scope, shared children, passive versus one-shot wake and separate human-seen/agent-ack state."
+          },
+          {
+            "id": "c2",
+            "text": "Recovery/backup/retention/deletion docs protect nonportable mail and do not claim Git restore or exactly-once processing; links and runnable scratch command examples are verified."
+          },
+          {
+            "id": "c3",
+            "text": "Generated chat guidance uses actual pinned CLI/tool names and treats peer content as task data without leaking credentials or regressing terminal config/permissions."
+          }
+        ],
+        "body": "## Outcome\nDocument as-built behavior after runtime and UI are accepted. Explain stable chat endpoints vs ephemeral CLI/vendor sessions, parent/shared child identity, same-folder/machine scope, local-only messages, reader/unbound/stdio limitations, byte/page/ack/quota/retention bounds and seven-day idempotency promise. Provide real native tool and CLI examples for peer discovery, send, correlated reply, inbox read and explicit ack; use stdin or Windows args-file without parsing shell strings. Explain that human seen != agent ack, notification != processing, passive next-natural-turn reminder does not wake an idle model, and Allow one inbox wake is explicit, nonaccumulating and may be consumed before dispatch fails. No claim of independently addressable subagents, exactly-once processing, generic MCP mailbox binding, or OS notifications.\n\nDocument local SQLite backup/recovery before any local-dir rebuild even in repo mode; deleted-chat received-mail purge vs delivered-copy tombstones; database-only move/orphan limitation; mailbox not exported to Git. Update current architecture/runbook/generated guidance, not historical reports as if newly verified. Link a new design record and parameterized acceptance runbook. Preserve existing generated instruction permissions/config and exact runtime paths.\n\nRecord the OMP compatibility evidence with version/provenance: verified v18.18.0 upstream extension types/lifecycle, actual runtime smoke version at execution, and unsupported APIs fail visibly. Custom messages map to developer role; only fixed extension-authored reminder may use that path, peer content uses inbox tool results. Guidance tells agents check/reply/ack deliberately and treat peer text as untrusted task data, not new role authority. No new prose-pinning tests.\n\n## Source locations\n- `README.md`: user workflow and design/runbook links\n- `docs/runbooks/agents.md`: Skitarii native tools and notification behavior\n- `docs/runbooks/cli.md`: real args-file/stdin command usage and mailbox ownership errors\n- `docs/architecture.md`: local-only mailbox durability and boundaries\n- `docs/decisions/0002-storage-modes.md`: explicitly amend current cache/rebuild assumptions, retain historical context\n- `src/main/agents/cliInstructions.ts`: generated bound-chat communication guidance\n- `src/main/terminals/terminalFiles.ts`: include actual descriptor/tool guidance without embedding credentials\n- `src/main/agents/cliInstructions.test.ts`: only behavioral instruction generation if logic changes\n- `src/main/terminals/terminalFiles.test.ts`: generated files preserve permissions/config\n- `skills/worker.md`: shared parent mailbox and peer text not authority\n- `skills/orchestrator.md`: same-folder peer communication without authority delegation\n\n### Intended new files (not existing paths)\n- `docs/design/skitarii-messaging.md`: new as-built design and trust/retention record alongside docs/design/chat-shells.md\n- `docs/verification/skitarii-messaging.md`: new portable scratch-profile procedure, no private hardcoded paths\n\n## Tests\nNo new documentation wording/source-text tests. Read links and execute documented discovery/send/read/reply/ack examples with scratch bound grants through the actual built CLI at final acceptance. If generation logic changes, extend existing behavioral file/permission tests only, then targeted tests/lint/typecheck. Acceptance executes new runbook, tests native tools and reads generated instructions; never cite lint as Markdown proof.\n\n## Verification\nWrite and run the listed behavioral tests in this ticket. For changed code run touched test files plus npm run lint and npm run typecheck; full suite/coverage/deadcode/build run once at the sprint acceptance node. No blanket tests-first or Fireguard grading. Exercise the changed path with a targeted smoke; never infer installed OMP/Electron behavior from mocks. Preserve unrelated work. Do not self-accept.\n## Reviewed backup/copy limitation\nbackup_database now becomes desktop-only because it snapshots all private mailbox tables. Explain this intentional supported-API compatibility change; direct same-user disk access remains outside the intent boundary. Consistent backup is VACUUM INTO, not live WAL copy. Restoring chat experience needs app userData ChatRecords as well as core database; restore/copy may carry old grants/logical machine identity and requires trusted fresh binding. Do not claim deletion/pruning erases backup copies or tool-fetched bodies already in OMP conversation history. Incoming inbox/history only is shipped; sent body history browser is out of scope, own send acceptance receipts are retained. Reply to purged parent is explicitly unavailable.\n",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "Documents a fixed accepted contract; only minimal existing instruction-generation changes if needed."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "electron",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "As-built design/runbook and updated user/generated guidance",
+          "Parameterized real-app acceptance procedure"
+        ],
+        "id": "tk_01m6t9v1sfapjspg73cxvtzw1f",
+        "key": "DM-514",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "README.md",
+            "location": "README.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/runbooks/agents.md",
+            "location": "docs/runbooks/agents.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/runbooks/cli.md",
+            "location": "docs/runbooks/cli.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/architecture.md",
+            "location": "docs/architecture.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "docs/decisions/0002-storage-modes.md",
+            "location": "docs/decisions/0002-storage-modes.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/cliInstructions.ts",
+            "location": "src/main/agents/cliInstructions.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/terminals/terminalFiles.ts",
+            "location": "src/main/terminals/terminalFiles.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/agents/cliInstructions.test.ts",
+            "location": "src/main/agents/cliInstructions.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "src/main/terminals/terminalFiles.test.ts",
+            "location": "src/main/terminals/terminalFiles.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/worker.md",
+            "location": "skills/worker.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "skills/orchestrator.md",
+            "location": "skills/orchestrator.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "NEW intended: docs/design/skitarii-messaging.md",
+            "location": "docs/design/skitarii-messaging.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "NEW intended: docs/verification/skitarii-messaging.md",
+            "location": "docs/verification/skitarii-messaging.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "skitarii",
+          "messaging"
+        ],
+        "title": "Document native messaging, notification limits and local mailbox recovery"
+      }
+    ]
+  },
+  "contentHash": "sha256:1ab6ed117b49cda7a03f215c99ee8988540def7933c52cb58ba68d8384dd3544",
+  "createdAt": "2026-11-15T20:33:01.826Z",
+  "epicId": "ep_01m6t9cg507rmyg2q9nsw7kv3s",
+  "format": "darkmechanicus.plan-snapshot",
+  "formatVersion": 1,
+  "number": 2,
+  "revisionId": "rv_01m7gekkw2d5a7f4h8xq4zbg92",
+  "savedAt": "2026-11-15T20:33:01.826Z"
+}

@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-176 review (orchestrator, this run): run-scope overhead (DM-173 records orchestration/reviewer threads in run buckets) never reaches a ticket score because only tickets have baselines; decide how run/sprint roll-ups show it. E is only as good as self-classification (a twice-rejected ticket labeled all productive scores E 100); do not assume retries bound E. `getRunEfficiency` re-projects every run per call: freeze the efficiency inputs into report snapshots rather than recompute.",
+  "createdAt": "2026-11-16T01:38:24.085Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7h02rpn0yga90ypashx7d4j",
+  "ticketId": "tk_01m453gpads5cm5ah9pyqk7qtw"
+}

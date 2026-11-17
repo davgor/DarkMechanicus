@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Orchestrator (DM-171 review): recording a 500-observation batch takes 10-19 s on this Windows machine; 91% is the post-commit outbox flush exporting one file per observation (`exportObservation`, src/core/repo/finalizer.ts:544 -> `writeOnce`/`writeFileSafely`: temp write, fsync, rename, read-back, plus `assertContained` checks at ~33%), about 21-28 ms per observation. Introduced by DM-170 (accepted). Candidate for the retro; tests that record large batches pay this per observation.",
+  "createdAt": "2026-11-15T23:08:01.058Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7gqfd52p1cbjw4b6rjexp6r",
+  "ticketId": null
+}

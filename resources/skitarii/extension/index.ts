@@ -1,28 +1,34 @@
 /**
  * The Skitarii OMP extension: the mascot banner, the drill working indicator, the Mechanicus working messages and the
- * Skitarii title. The app loads it for its own OMP chats only, per launch, with `-e <this file>`
+ * Skitarii title, the chat's private mail client (`dmClient.ts`) and Skitarii mail's tools and inbox watcher
+ * (`messaging.ts`). The app loads it for its own OMP chats only, per launch, with `-e <this file>`
  * (`terminalLaunchSpec.ts`); it is never installed into the person's OMP folder. OMP runs it with its bundled Bun, which
- * reads the TypeScript and the JSON import directly. The logic is in `skitarii.ts`; this file only wires OMP's events.
+ * reads the TypeScript and the JSON import directly. The logic is in `skitarii.ts`, `dmClient.ts` and `messaging.ts`;
+ * this file only wires OMP's events.
  */
 import frames from '../mascot/frames.json'
+import { createDmClient, nodeDmClientDeps, type DmClient } from './dmClient'
+import { attachMessaging, type MailApi, type MailContext } from './messaging'
 import { Skitarii, type MascotFrames, type SkitariiUi, type Timers } from './skitarii'
 
 /** The slice of OMP's `ExtensionAPI` this extension uses (`packages/coding-agent/src/extensibility/extensions/types.ts`). */
-interface OmpContext {
-  ui: SkitariiUi
+interface OmpContext extends MailContext {
+  ui: SkitariiUi & MailContext['ui']
   hasUI: boolean
   cwd: string
   /** OMP's read-only session manager; `getEntries()` is the entries loaded so far (`session-manager.ts`). */
   sessionManager?: { getEntries: () => readonly { type?: string; message?: { role?: string } }[] }
 }
 
-type Handler = (event: unknown, ctx: OmpContext) => void
+type Handler = (event: unknown, ctx: OmpContext) => unknown
 
-export interface OmpApi {
+export interface OmpApi extends MailApi {
   on: (event: string, handler: Handler) => void
   /** OMP's package exports; `settings` is the scope its setting handles read. */
   pi?: { settings?: unknown }
 }
+
+const PROCESS_TIMERS: Timers = { setInterval, clearInterval: (handle) => clearInterval(handle as ReturnType<typeof setInterval>) }
 
 /** A setting handle from OMP's registry (`@oh-my-pi/pi-coding-agent/config/registry`, `lookup`). */
 interface SettingHandle {
@@ -67,7 +73,7 @@ function isResumed(ctx: OmpContext): boolean {
 }
 
 /** Registers the extension's handlers; `lookup` and `timers` are OMP's and the process's own unless a test gives them. */
-export function attach(pi: OmpApi, lookup: Lookup | null, timers: Timers = { setInterval, clearInterval: (handle) => clearInterval(handle as ReturnType<typeof setInterval>) }): Skitarii {
+export function attach(pi: OmpApi, lookup: Lookup | null, timers: Timers = PROCESS_TIMERS): Skitarii {
   const skitarii = new Skitarii(frames as MascotFrames, { timers, reducedMotion: reducedMotion(pi, lookup) })
   const withUi = (run: (ctx: OmpContext) => void): Handler => (_event, ctx) => {
     if (ctx.hasUI) run(ctx)
@@ -81,6 +87,18 @@ export function attach(pi: OmpApi, lookup: Lookup | null, timers: Timers = { set
   return skitarii
 }
 
+/** Registers the mail client: the session's end kills whatever `dm` child it still runs. Returns the client for the tools. */
+export function attachDmClient(pi: OmpApi, client: DmClient): DmClient {
+  pi.on('session_shutdown', () => {
+    void client.cancelAll()
+  })
+  return client
+}
+
 export default async function skitariiExtension(pi: OmpApi): Promise<void> {
   attach(pi, await ompLookup())
+  const client = createDmClient(nodeDmClientDeps())
+  // The watcher stops before the client cancels its children, so a cancelled poll is dropped, not shown as a failure.
+  attachMessaging(pi, client, PROCESS_TIMERS)
+  attachDmClient(pi, client)
 }

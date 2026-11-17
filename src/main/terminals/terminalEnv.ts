@@ -8,14 +8,19 @@
  *    turns off its own memory;
  * 3. the chat's `dm` environment: its grant (`DM_SESSION_TOKEN`) and `DARKMECHANICUS_HOME`, nothing else from
  *    the invocation; on Windows a packaged app's `ELECTRON_RUN_AS_NODE=1` stays, as today, because there is no
- *    launcher to hold it (a known limitation);
+ *    launcher to hold it (a known limitation); for an OMP chat with a mailbox, the path of its launch's mail client
+ *    descriptor (`DM_SKITARII_CLIENT_DESCRIPTOR`, `terminalFiles.ts`), and for no other chat;
  * 4. on macOS, the chat's launcher folder first on `PATH`.
  *
  * An agent's sign-in terminal (`terminalLoginEnv`) gets layers 1 and 2 only, the Claude switch aside, and no
- * `DM_SESSION_TOKEN` in any letter case: it runs with no grant.
+ * `DM_SESSION_TOKEN` or descriptor in any letter case: it runs with no grant.
  */
+import { DM_CLIENT_DESCRIPTOR_ENV } from '../../../resources/skitarii/extension/dmClient'
 import type { DarkMechanicusCli } from '../../shared/agents/chat'
 import type { AgentView } from '../../shared/desktop/api'
+
+/** Names main's own environment never passes on, in any letter case, even when the layers above set none. */
+const NEVER_PASSED = ['DM_SESSION_TOKEN', 'DM_DESKTOP_PIPE', DM_CLIENT_DESCRIPTOR_ENV]
 
 const SCRUBBED = /^(?:ELECTRON_.*|NODE_OPTIONS)$/i
 
@@ -37,16 +42,32 @@ interface TerminalEnvOptions {
   cli: DarkMechanicusCli
   /** The chat's launcher folder; needed on macOS, ignored on Windows. */
   launcherDir: string | null
+  /** The launch's mail client descriptor (`writeDmClientDescriptor`): an OMP chat with a mailbox only. */
+  dmClient?: string
+  /** Set only for a project-less chat that reaches no folder: it starts with no grant, so none is required. */
+  grantless?: true
 }
 
-function dmEnv(cli: DarkMechanicusCli, platform: NodeJS.Platform): Record<string, string> {
+/** The descriptor's variable, for an OMP launch that has one; any other kind given one is refused. */
+function dmClientEnv(kind: AgentView['kind'], dmClient: string | undefined): Record<string, string> {
+  if (dmClient === undefined) {
+    return {}
+  }
+  if (kind !== 'omp') {
+    throw new Error('Only an OMP chat is started with a mail client descriptor.')
+  }
+  return { [DM_CLIENT_DESCRIPTOR_ENV]: dmClient }
+}
+
+function dmEnv(cli: DarkMechanicusCli, platform: NodeJS.Platform, grantless: boolean): Record<string, string> {
   const token = cli.env['DM_SESSION_TOKEN']
-  if (token === undefined || token === '') {
+  const granted = token !== undefined && token !== ''
+  if (!granted && !grantless) {
     throw new Error('The chat has no grant: its dm environment holds no DM_SESSION_TOKEN.')
   }
   const home = cli.env['DARKMECHANICUS_HOME']
   return {
-    DM_SESSION_TOKEN: token,
+    ...(granted ? { DM_SESSION_TOKEN: token } : {}),
     ...(cli.env['DM_DESKTOP_PIPE'] === undefined ? {} : { DM_DESKTOP_PIPE: cli.env['DM_DESKTOP_PIPE'] }),
     ...(home === undefined ? {} : { DARKMECHANICUS_HOME: home }),
     ...(platform === 'win32' && cli.env['ELECTRON_RUN_AS_NODE'] === '1' ? { ELECTRON_RUN_AS_NODE: '1' } : {})
@@ -82,9 +103,10 @@ export function terminalEnv(options: TerminalEnvOptions): Record<string, string>
     ...TERMINAL_CONSTANTS,
     ...(options.kind === 'omp' ? OMP_CONSTANTS : {}),
     ...(options.kind === 'claude' ? { CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' } : {}),
-    ...dmEnv(options.cli, options.platform)
+    ...dmEnv(options.cli, options.platform, options.grantless === true),
+    ...dmClientEnv(options.kind, options.dmClient)
   }
-  const env = layered(options.base, own, ['DM_SESSION_TOKEN', 'DM_DESKTOP_PIPE'])
+  const env = layered(options.base, own, NEVER_PASSED)
   if (options.platform !== 'win32') {
     const path = pathWithLauncher(env['PATH'], options.launcherDir)
     if (path !== undefined) {
@@ -94,7 +116,7 @@ export function terminalEnv(options: TerminalEnvOptions): Record<string, string>
   return env
 }
 
-/** The environment of an agent's sign-in terminal: main's own, scrubbed, with the terminal's constants and no grant or naming address. */
+/** The environment of an agent's sign-in terminal: main's own, scrubbed, with the terminal's constants and no grant, naming address or descriptor. */
 export function terminalLoginEnv(base: TerminalEnvOptions['base']): Record<string, string> {
-  return layered(base, TERMINAL_CONSTANTS, ['DM_SESSION_TOKEN', 'DM_DESKTOP_PIPE'])
+  return layered(base, TERMINAL_CONSTANTS, NEVER_PASSED)
 }

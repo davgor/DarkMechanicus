@@ -68,7 +68,9 @@ export const LIMITS = {
   /** Characters in one heartbeat progress note. */
   progressNote: 280,
   /** Characters in the step label of a heartbeat progress note. */
-  progressStep: 64
+  progressStep: 64,
+  /** Characters in a session grant's label, the name the person sees in the folder's grant list. */
+  grantLabel: 120
 } as const
 
 /** Unexpected items a whole read-back may hold beyond the packet's limit for a list, so the comparison can report them. */

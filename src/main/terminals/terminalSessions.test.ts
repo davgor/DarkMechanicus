@@ -253,3 +253,27 @@ describe('terminal sessions: the grant is revoked on every way out', () => {
     expect(rig.host.spawns).toEqual([])
   })
 })
+
+describe('terminal sessions: grant labels', () => {
+  const LONE_HIGH_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])/
+
+  it('starts a chat whose label would pass 120 characters, cutting the title and never splitting a surrogate pair', async () => {
+    const chat = rig.newChat(CUSTOM_AGENT.id, `${'a'.repeat(110)}😀${'b'.repeat(80)}`)
+
+    const answer = await rig.sessions.attach(chat)
+
+    expect(answer.state).toBe('running')
+    expect(rig.grantLabels).toEqual([`My CLI · ${'a'.repeat(110)}`])
+    expect(LONE_HIGH_SURROGATE.test(rig.grantLabels[0] ?? '')).toBe(false)
+  })
+
+  it('keeps a label that fits exactly as display name, separator and title', async () => {
+    const title = 'c'.repeat(111)
+    const chat = rig.newChat(CUSTOM_AGENT.id, title)
+
+    await rig.sessions.attach(chat)
+
+    expect(rig.grantLabels).toEqual([`My CLI · ${title}`])
+    expect(rig.grantLabels[0]).toHaveLength(120)
+  })
+})

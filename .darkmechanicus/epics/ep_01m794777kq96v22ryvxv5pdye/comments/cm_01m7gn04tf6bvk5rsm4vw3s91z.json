@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Independent build9 native review: actual semantic-only first click used sole InvokePattern.Invoke semantic_api/succeeded with native verified=false and delivered_unverified/unsafe preserved. Registered guardIpc handler called real isolated createKanbanCard; actual listKanbanCards.lanes.backlog1→2, new card kc_01m7gmmz9h5kejvk4rkb372rkj; grant count1 unchanged and private decision receipt count3 unchanged. Inspected retrieved final PNG attachment im_01m7gmppnxc23rgh38rcxvt408 SHA c0fc2d3fa75fd58d8afa75412dfc20721cbd8e4443e5c1d873db57855faa6ff5: owned fixture/result ok true, not protected negative proof. Next snapshot child exit1,276stdout bytes withheld+hashed; native protected/all15 attempts UNEXERCISED. Controller retained child_failed but not structured native errorcode, a diagnostic gap to fix for future runs; do not infer cause from size/hash or rerun unchanged. Observed foreground false before Invoke and true later, cause unknown; no explicit focus/key/pointer command in records. Manifest f0413876c3aaf1dca856a1d3ea0b4fae5a3a7cd613cd59eadcb7cbdb69cf8801; real fixture manifest6649605987a8bb0ce4c4edcbfcb6e93ffb0677347cc2d9c733a5522c1221fdf3. Whole3973.3207ms, cleanup110.2665ms/direct survivors0; no independent descendant/no-late-effect claim. One-run permission consumed. F03 remains NOT PROVED; safe contract implementation continues, no acceptance or source integration.",
+  "createdAt": "2026-11-15T22:24:43.855Z",
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7gn04tf6bvk5rsm4vw3s91z",
+  "ticketId": "tk_01m794h65mec9hp3m268kbey53"
+}

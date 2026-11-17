@@ -20,6 +20,7 @@ import type {
 } from './bundle'
 import type { AttemptTimelineView, RunTimelineView, TimelineWindow } from './activity'
 import type { ExperimentEvent, ExperimentEventInput, ExperimentView } from './experiments'
+import type { ContextView, GetContextInput, PushedContext } from './knowledge'
 import type { SprintRetroInput } from './retro'
 import type { RetroFindingsView } from './retroFindings'
 import type {
@@ -33,6 +34,18 @@ import type {
 } from './transfer'
 import type { DeleteKanbanCardResultView, KanbanAttemptView, KanbanBoardView, KanbanCardView, KanbanPacket } from './kanban'
 import type { WorkStatus } from './status'
+import type {
+  AcknowledgeAgentMessagesResult,
+  AgentIdentityView,
+  AgentInboxPage,
+  AgentMailStatusPage,
+  AgentMailWakeResult,
+  AgentMailWindow,
+  AgentMessageAcceptanceView,
+  AgentPeersPage,
+  ReadAgentInboxInput,
+  SendAgentMessageInput
+} from './agentMail'
 import type {
   GetPlannedBaselinesInput,
   GetRunMetricsInput,
@@ -568,7 +581,7 @@ export interface CommandApi {
    * Claims a card with a pending Play (`play_required` without one, `already_claimed` while an attempt is open) and
    * moves it to In progress. The packet's claim token is returned once. Orchestrator only.
    */
-  claimKanbanCard(input: ClaimKanbanCardInput): Promise<KanbanPacket>
+  claimKanbanCard(input: ClaimKanbanCardInput): Promise<KanbanPacket & PushedContext>
   heartbeatKanbanCard(input: HeartbeatKanbanCardInput): Promise<KanbanAttemptView>
   /** Moves the card to Ready for review. */
   submitKanbanCard(input: SubmitKanbanCardInput): Promise<KanbanAttemptView>
@@ -600,10 +613,10 @@ export interface CommandApi {
   registerHost(input: HostCatalog): Promise<HostCatalogView>
   matchCapabilities(input: { ticketId: string; runId: string }): Promise<CapabilityMatchView>
   queueRun(input: { epicId: string }): Promise<RunView>
-  startRun(input: StartRunInput): Promise<RunView>
+  startRun(input: StartRunInput): Promise<RunView & PushedContext>
   getRun(input: { runId?: string; epicId?: string }): Promise<RunView | null>
   getReadyTickets(input: { runId: string }): Promise<ReadinessView>
-  claimTicket(input: ClaimTicketInput): Promise<ClaimResultView>
+  claimTicket(input: ClaimTicketInput): Promise<ClaimResultView & PushedContext>
   heartbeatAttempt(input: HeartbeatAttemptInput): Promise<AttemptView>
   submitAttempt(input: SubmitAttemptInput): Promise<AttemptView>
   acceptAttempt(input: {
@@ -611,19 +624,19 @@ export interface CommandApi {
     notes?: string
     criteria?: CriterionResult[]
     idempotencyKey?: string
-  }): Promise<AttemptView>
+  }): Promise<AttemptView & PushedContext>
   rejectAttempt(input: {
     attemptId: string
     reasons: string[]
     notes?: string
     idempotencyKey?: string
-  }): Promise<AttemptView>
+  }): Promise<AttemptView & PushedContext>
   failAttempt(input: {
     attemptId: string
     claimToken?: string
     failure: Partial<AttemptFailure> & { reason: string }
     idempotencyKey?: string
-  }): Promise<AttemptView>
+  }): Promise<AttemptView & PushedContext>
   reconcileAttempt(input: {
     attemptId: string
     resolution: 'abandon' | 'resubmit'
@@ -632,16 +645,17 @@ export interface CommandApi {
     notes?: string
   }): Promise<AttemptView>
   carryForwardTicket(input: { runId: string; ticketId: string; note: string }): Promise<AttemptView>
-  recordRowCheck(input: RecordRowCheckInput): Promise<RowCheckView>
+  /** Carries `context` (for an orchestrator) only when the check did not pass. */
+  recordRowCheck(input: RecordRowCheckInput): Promise<RowCheckView & PushedContext>
   pauseRun(input: { runId: string; reason?: string }): Promise<RunView>
   resumeRun(input: { runId: string }): Promise<RunView>
   cancelRun(input: { runId: string; reason?: string }): Promise<RunView>
-  takeoverRun(input: { runId: string }): Promise<RunView>
+  takeoverRun(input: { runId: string }): Promise<RunView & PushedContext>
   adoptRevision(input: {
     runId: string
     revisionId: string
     carryForward?: string[]
-  }): Promise<RunView>
+  }): Promise<RunView & PushedContext>
 
   // Metric ingestion and reads (the SPACE observation ledger)
   /**
@@ -724,7 +738,7 @@ export interface CommandApi {
     sprintId: string
     report: SprintReportInput
     idempotencyKey?: string
-  }): Promise<SprintReportView>
+  }): Promise<SprintReportView & PushedContext>
   getSprintReport(input: { runId: string; sprintId?: string }): Promise<SprintReportView | null>
   /**
    * The ranked, measured gaps of the scorecard frozen with a report revision (delivery gaps, failed verification,
@@ -743,7 +757,7 @@ export interface CommandApi {
   recordExperimentEvent(input: { experimentId: string; event: ExperimentEventInput; idempotencyKey?: string }): Promise<ExperimentEvent>
   getCheckpoint(input: { runId: string }): Promise<CheckpointView>
   approveCheckpoint(input: { runId: string; reportId: string }): Promise<ApprovalView>
-  advanceSprint(input: { runId: string; idempotencyKey?: string }): Promise<RunView>
+  advanceSprint(input: { runId: string; idempotencyKey?: string }): Promise<RunView & PushedContext>
   approveAndAdvance(input: {
     runId: string
     reportId: string
@@ -782,6 +796,11 @@ export interface CommandApi {
   getAttemptTimeline(input: { attemptId: string } & TimelineWindow): Promise<AttemptTimelineView>
   /** A run's story grouped by the session that did each thing; paged with `sinceSeq` like an attempt timeline. */
   getRunTimeline(input: { runId: string } & TimelineWindow): Promise<RunTimelineView>
+  /**
+   * The knowledge facts scoped to the session's role and the given event or topics, ranked and trimmed to a token
+   * budget, from the built-in, overall and repository layers. A ticket's `file` references join the path boost.
+   */
+  getContext(input: GetContextInput): Promise<ContextView>
 
   // Linear transfer of a saved epic
   /**
@@ -802,6 +821,24 @@ export interface CommandApi {
    * completes the epic on a full match or stores and returns the mismatches.
    */
   submitTransferReadback(input: SubmitTransferReadbackInput): Promise<TransferReadbackResult>
+
+  // Agent mail (src/shared/domain/agentMail.ts). The mailbox is always the one the session's own desktop-bound grant
+  // speaks for: a session without one (an ungranted reader, an MCP stdio session, an unbound grant) is refused with
+  // `unauthorized`. Run them through the `dm` CLI; over MCP they are listed but never usable.
+  /** This session's own mailbox. */
+  getAgentIdentity(input?: Record<string, never>): Promise<AgentIdentityView>
+  /** Other open mailboxes of this project, a page of at most 50 at a time. */
+  listAgentPeers(input: { afterId?: string; limit?: number }): Promise<AgentPeersPage>
+  /** Durably accepts a direct message or reply into the recipient's mailbox; retries replay by clientMessageId. */
+  sendAgentMessage(input: SendAgentMessageInput): Promise<AgentMessageAcceptanceView>
+  /** One ascending page of the caller's inbox with bodies. Reading never acknowledges. */
+  readAgentInbox(input: ReadAgentInboxInput): Promise<AgentInboxPage>
+  /** Acknowledges 1 to 100 of the caller's own messages, all or none; acknowledging again keeps the first time. */
+  acknowledgeAgentMessages(input: { messageIds: string[] }): Promise<AcknowledgeAgentMessagesResult>
+  /** The pending count and one ascending page of unacknowledged message metadata, without bodies. */
+  getAgentMailStatus(input: AgentMailWindow): Promise<AgentMailStatusPage>
+  /** Consumes the desktop-armed one-shot wake credit when mail is pending; never mints or rearms one. */
+  takeAgentMailWake(input?: Record<string, never>): Promise<AgentMailWakeResult>
 }
 
 export type CommandName = keyof CommandApi

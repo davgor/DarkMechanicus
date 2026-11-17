@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Contract decisions: retain strict saved sandbox exec support (DM545 step5/C06), not blanket denial. Main owns lifecycle/namespaces; caller guest operations must be completely normalized/catalog-authorized recursively before safe pinned serialization and dispatch, with raw child bytes/nonzero/unsupported outcomes preserved. No opaque arbitrary argv or caller globals. Controller registry/chords: per-OS-user cross-userData-root SQLite CAS, native user/login/desktop domain, process-birth ownership; no expiry/PID-only recovery. Quarantine unproved children after owner death; release only via verified native termination/supervisor proof or a genuinely new OS login domain. Ending login is fallback, not the only abstract recovery API. Chords Ctrl+Alt+Shift+F12 Windows / Command+Option+Shift+F12 macOS; registration failure denies physical enable, unregister only after observed cleanup. Functional/two-process evidence and exact owner/API handoff required; native combined proof remains downstream. These are implementation choices under existing scope, not waived acceptance or claims already verified.",
+  "createdAt": "2026-11-15T20:06:54.408Z",
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7gd3s6874r4w2jfr2897kvw",
+  "ticketId": "tk_01m794h65mec9hp3m268kbey53"
+}

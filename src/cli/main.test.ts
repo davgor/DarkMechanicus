@@ -1,8 +1,10 @@
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DomainError } from '../core/errors'
+import { bindAgentMailEndpoint, provisionAgentMailEndpoint } from '../core/services/agentMail'
 import type { LinearIssueItem, LinearTransferPacket } from '../shared/domain/transfer'
 import { createStubWorkspace } from '../test/stubWorkspace'
+import { createHarness, type Harness } from '../test/workspaceHarness'
 import type { OpenWorkspaceOptions } from '../core/workspace'
 import { skillBody } from '../mcp/skills'
 import { type CliHost, resolveCommand, runCli, snakeCase } from './main'
@@ -535,5 +537,107 @@ describe('dm when writing the answer fails', () => {
     await runCli(recorded.host)
     expect(JSON.parse(recorded.stdout[1] ?? '')).toMatchObject({ ok: false, error: { code: 'internal', message: 'write EPIPE' } })
     expect(recorded.exits).toEqual([1])
+  })
+})
+
+/** The seven mail commands, their camelCase aliases and their input fields. */
+const MAIL = [
+  ['get_agent_identity', 'getAgentIdentity', []],
+  ['list_agent_peers', 'listAgentPeers', ['afterId', 'limit']],
+  ['send_agent_message', 'sendAgentMessage', ['body', 'clientMessageId', 'inReplyTo', 'to']],
+  ['read_agent_inbox', 'readAgentInbox', ['afterSeq', 'limit', 'throughSeq', 'unacknowledgedOnly']],
+  ['acknowledge_agent_messages', 'acknowledgeAgentMessages', ['messageIds']],
+  ['get_agent_mail_status', 'getAgentMailStatus', ['afterSeq', 'limit', 'throughSeq']],
+  ['take_agent_mail_wake', 'takeAgentMailWake', []]
+] as const
+
+/** A real repository with two desktop-bound chats; the CLI host opens real workspaces on it. */
+async function mailRepo(): Promise<{ harness: Harness; a: { id: string; token: string }; b: { id: string; token: string } }> {
+  const harness = createHarness()
+  const desktop = harness.open('desktop')
+  await desktop.initializeRepository({ name: 'CLI mail' })
+  const chat = async (chatId: string): Promise<{ id: string; token: string }> => {
+    const endpoint = provisionAgentMailEndpoint(desktop.ctx(), { chatId, name: `Chat ${chatId}` })
+    const { grant, token } = await desktop.issueGrant({ role: 'worker', label: chatId })
+    bindAgentMailEndpoint(desktop.ctx(), { endpointId: endpoint.id, grantId: grant.id })
+    return { id: endpoint.id, token }
+  }
+  return { harness, a: await chat('chat-a'), b: await chat('chat-b') }
+}
+
+/** Runs `dm` against the real repository, presenting `token` as DM_SESSION_TOKEN. */
+async function dm(harness: Harness, token: string | undefined, argv: string[], stdin?: string): Promise<Recorded> {
+  const recorded = recorder(argv, { env: { DM_SESSION_TOKEN: token }, ...(stdin === undefined ? {} : { stdin }) })
+  recorded.host.open = (open) => {
+    recorded.opened.push(open)
+    return harness.open(open.role, {
+      transport: open.transport,
+      ...(open.grantToken === undefined ? {} : { grantToken: open.grantToken }),
+      ...(open.mailPoll === undefined ? {} : { mailPoll: open.mailPoll })
+    })
+  }
+  await runCli(recorded.host)
+  return recorded
+}
+
+describe('dm discovers agent mail', () => {
+  it('lists all seven commands under mail.use and describes each strict input', async () => {
+    const listed = recorder(['--list'])
+    await runCli(listed.host)
+    const entries = payload(listed).data as { command: string; capability: string }[]
+    for (const [command, alias, fields] of MAIL) {
+      expect(entries).toContainEqual(expect.objectContaining({ command, capability: 'mail.use' }))
+      expect(resolveCommand(command)).toBe(alias)
+      expect(resolveCommand(alias)).toBe(alias)
+      const described = recorder(['--describe', alias])
+      await runCli(described.host)
+      expect(payload(described).data).toMatchObject({ command, alias, capability: 'mail.use', mutates: false, input: { fields } })
+    }
+    expect(listed.opened).toEqual([])
+  })
+})
+
+describe('dm and agent mail on a real repository', () => {
+  it('sends from stdin JSON under either spelling, replaying a retry, and reads it back', async () => {
+    const { harness, a, b } = await mailRepo()
+    try {
+      const send = JSON.stringify({ to: b.id, clientMessageId: 'hello-1', body: 'Ready?' })
+      const first = await dm(harness, a.token, ['call', 'send_agent_message', '-'], `\uFEFF${send}`)
+      expect(first.exits).toEqual([0])
+      expect(payload(first).data).toMatchObject({ to: b.id, clientMessageId: 'hello-1', duplicate: false })
+      const retry = await dm(harness, a.token, ['call', 'sendAgentMessage', '-'], send)
+      expect(payload(retry).data).toMatchObject({ messageId: (payload(first).data as { messageId: string }).messageId, duplicate: true })
+      const inbox = await dm(harness, b.token, ['call', 'read_agent_inbox', '{"unacknowledgedOnly":true}'])
+      expect(payload(inbox).data).toMatchObject({ messages: [{ body: 'Ready?', from: { endpointId: a.id, name: 'Chat chat-a' } }], snapshotHighWater: 1, hasMore: false })
+      // Only the status and wake polls select the restricted poll mode.
+      expect(first.opened[0]?.mailPoll).toBeUndefined()
+      expect(inbox.opened[0]?.mailPoll).toBeUndefined()
+      const status = await dm(harness, b.token, ['call', 'get_agent_mail_status'])
+      expect(status.opened[0]?.mailPoll).toBe(true)
+      expect(payload(status)).toMatchObject({ ok: true, data: { pendingCount: 1 } })
+      expect(JSON.stringify(payload(status))).not.toContain('Ready?')
+      const wake = await dm(harness, b.token, ['call', 'takeAgentMailWake'])
+      expect(wake.opened[0]?.mailPoll).toBe(true)
+      expect(payload(wake)).toEqual({ ok: true, data: { claimed: false, wakeAttemptId: null, pendingCount: 1 } })
+    } finally {
+      harness.cleanup()
+    }
+  })
+
+  it('refuses a spoofed sender in stdin JSON, and a caller without a bound grant, storing nothing', async () => {
+    const { harness, a, b } = await mailRepo()
+    try {
+      const spoofed = await dm(harness, a.token, ['call', 'send_agent_message', '-'], JSON.stringify({ to: b.id, clientMessageId: 'x', body: 'x', from: b.id }))
+      expect(spoofed.exits).toEqual([1])
+      expect(payload(spoofed)).toMatchObject({ ok: false, error: { code: 'invalid_input' } })
+      for (const argv of [['call', 'get_agent_identity'], ['call', 'get_agent_mail_status'], ['call', 'read_agent_inbox']]) {
+        const bare = await dm(harness, undefined, argv)
+        expect(bare.exits).toEqual([1])
+        expect(payload(bare)).toMatchObject({ ok: false, error: { code: 'unauthorized' } })
+      }
+      expect(payload(await dm(harness, b.token, ['call', 'get_agent_mail_status'])).data).toMatchObject({ pendingCount: 0 })
+    } finally {
+      harness.cleanup()
+    }
   })
 })

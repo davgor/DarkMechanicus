@@ -3,9 +3,18 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { domainErrorOf, idOf, insertEpic } from '../../test/repoFixtures'
 import { createTempRepo, type TempRepo } from '../../test/tempRepo'
-import { createTestClock, createTestDb } from '../../test/testContext'
+import { createTestClock, createTestCtx, createTestDb } from '../../test/testContext'
 import { openDatabase, type Db } from '../db/database'
 import { readSchemaVersion, SCHEMA_VERSION } from '../db/migrations'
+import {
+  acceptMessage,
+  acknowledgeMessages,
+  getEndpoint,
+  markHumanSeen,
+  provisionEndpoint,
+  readHumanMailState,
+  readInbox
+} from '../services/agentMailStore'
 import { backupDatabase } from './backup'
 import { nodeFs } from './nodeFs'
 
@@ -72,5 +81,30 @@ describe('backupDatabase', () => {
     const error = db.tx(() => domainErrorOf(() => backupDatabase({ db, layout: repo.layout, fs: nodeFs, clock: createTestClock() }, target)))
     expect(error.code).toBe('internal')
     expect(existsSync(target)).toBe(false)
+  })
+})
+
+describe('backupDatabase with local agent mail', () => {
+  it('copies local agent mail, so a restored copy keeps endpoints, messages, acknowledgements and the seen cursor', () => {
+    const db = sourceDb()
+    const ctx = createTestCtx({ db })
+    const a = provisionEndpoint(ctx, { machineId: ctx.machineId, chatId: 'chat-a', name: 'Planner' })
+    const b = provisionEndpoint(ctx, { machineId: ctx.machineId, chatId: 'chat-b', name: 'Worker' })
+    const acked = acceptMessage(ctx, { senderEndpointId: a.id, to: b.id, clientMessageId: 'm-1', body: 'acknowledged' })
+    acceptMessage(ctx, { senderEndpointId: a.id, to: b.id, clientMessageId: 'm-2', body: 'pending' })
+    acknowledgeMessages(ctx, { endpointId: b.id, messageIds: [acked.messageId] })
+    markHumanSeen(ctx, { endpointId: b.id, throughSeq: 1 })
+
+    const target = join(repo.outside, 'with-mail.sqlite')
+    backupDatabase({ db, layout: repo.layout, fs: nodeFs, clock: ctx.clock }, target)
+    const restored = createTestCtx({ db: open(target), clock: ctx.clock })
+    expect(getEndpoint(restored, b.id)).toEqual(getEndpoint(ctx, b.id))
+    expect(readInbox(restored, { endpointId: b.id })).toEqual(readInbox(ctx, { endpointId: b.id }))
+    expect(readHumanMailState(restored, b.id)).toMatchObject({ humanSeenSeq: 1, pendingCount: 1, retainedCount: 2 })
+    // The restored copy carries the sender's receipts too: a retry replays rather than delivering twice.
+    expect(acceptMessage(restored, { senderEndpointId: a.id, to: b.id, clientMessageId: 'm-1', body: 'acknowledged' })).toMatchObject({
+      messageId: acked.messageId,
+      duplicate: true
+    })
   })
 })

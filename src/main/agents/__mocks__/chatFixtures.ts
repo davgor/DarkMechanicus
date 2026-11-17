@@ -95,7 +95,7 @@ export function memoryChatStore(fs: ChatStoreFs = memoryChatFs()): ChatStore {
 
 /** Where the store keeps a chat's transcript: `<root>/<hash of the canonical folder>/<chat id>.jsonl`. */
 function transcriptPath(chat: ChatRef, root: string = CHAT_ROOT): string {
-  const key = createHash('sha256').update(chat.folder).digest('hex').slice(0, 24)
+  const key = chat.folder === null ? 'projectless' : createHash('sha256').update(chat.folder).digest('hex').slice(0, 24)
   return join(root, key, `${chat.id}.jsonl`)
 }
 
@@ -108,4 +108,12 @@ export function storeItems(fs: ChatStoreFs, chat: ChatRef, items: readonly ChatI
     transcriptPath(chat, root),
     items.map((item) => `${JSON.stringify(item)}\n`).join('')
   )
+}
+
+/** The tracked folder of a chat a test made in one; throws for a project-less chat. */
+export function folderOf(chat: ChatRef): string {
+  if (chat.folder === null) {
+    throw new Error(`Chat ${chat.id} belongs to no folder.`)
+  }
+  return chat.folder
 }

@@ -13,6 +13,9 @@
  * is not a valid record or item (a truncated last line, or a kind a newer version wrote) instead of
  * failing the chat.
  *
+ * Project-less chats (`folder` null, summoned from the AGENTS section) live in a directory of their own,
+ * `<root>/projectless/`, laid out the same way; no folder key can name it (keys are hex digests).
+ *
  * A record is masked for claim tokens before it is written.
  */
 import { createHash, randomUUID } from 'node:crypto'
@@ -41,10 +44,10 @@ export interface ChatStoreFs {
 /** What a caller supplies to start a chat; the store assigns the id, timestamps and session id. */
 export type NewChat = Pick<ChatRecord, 'folder' | 'agent' | 'model' | 'role' | 'allowSave'> & Partial<Pick<ChatRecord, 'title' | 'runId' | 'transferEpicId' | 'cardId' | 'firstPrompt' | 'firstPromptDelivery' | 'titleStatus'>>
 
-/** Identifies a chat: its folder (any spelling) and id. Every `ChatRecord` is one. */
+/** Identifies a chat: its folder (any spelling; null for a project-less chat) and id. Every `ChatRecord` is one. */
 export type ChatRef = Pick<ChatRecord, 'folder' | 'id'>
 
-type ChatPatch = Partial<Pick<ChatRecord, 'title' | 'firstPromptDelivery' | 'titleStatus' | 'titleError' | 'model' | 'role' | 'allowSave' | 'sessionId' | 'cutShortMessageId' | 'grantIds' | 'sessionStarted' | 'kickoffSent'>>
+type ChatPatch = Partial<Pick<ChatRecord, 'title' | 'firstPromptDelivery' | 'titleStatus' | 'titleError' | 'model' | 'role' | 'allowSave' | 'sessionId' | 'cutShortMessageId' | 'grantIds' | 'endpointId' | 'sessionStarted' | 'kickoffSent'>>
 
 interface ChatTranscript {
   chat: ChatRecord
@@ -56,11 +59,16 @@ interface ChatTranscript {
 
 export interface ChatStore {
   createChat(input: NewChat): ChatRecord
-  /** A folder's chats, most recently updated first; empty for a folder with none. */
-  listChats(folder: string): ChatRecord[]
+  /** A folder's chats (null: the project-less chats), most recently updated first; empty for a folder with none. */
+  listChats(folder: string | null): ChatRecord[]
   getChat(ref: ChatRef): ChatRecord | null
   /** Changes chat fields and stamps `updatedAt`; throws `not_found` for an unknown chat. */
   updateChat(ref: ChatRef, patch: ChatPatch): ChatRecord
+  /**
+   * Stores the id of the chat's agent mailbox (`chatMailboxes.ts`) without moving `updatedAt`: provisioning a mailbox is
+   * bookkeeping, not activity, so it never reorders the list. Throws `not_found` for an unknown chat.
+   */
+  recordEndpoint(ref: ChatRef, endpointId: string): ChatRecord
   /** The chat and its transcript; null for an unknown chat. */
   readTranscript(ref: ChatRef): ChatTranscript | null
   /** Removes the chat, its transcript and every stored version of its record; throws `not_found` for an unknown chat. */
@@ -103,11 +111,14 @@ interface StoreContext {
 }
 
 interface FolderLocation {
-  /** Canonical folder path. */
-  folder: string
+  /** Canonical folder path; null for the project-less chats. */
+  folder: string | null
   key: string
   dir: string
 }
+
+/** The directory (and index key) of the project-less chats: not a hex digest, so no folder's key can be it. */
+const PROJECTLESS_KEY = 'projectless'
 
 function validated<T>(schema: z.ZodType<T>, value: unknown, what: string): T {
   const result = schema.safeParse(value)
@@ -117,8 +128,11 @@ function validated<T>(schema: z.ZodType<T>, value: unknown, what: string): T {
   return result.data
 }
 
-/** The canonical folder path (as the folder registry computes it) and its on-disk key. */
-function locate(context: StoreContext, folder: string): FolderLocation {
+/** The canonical folder path (as the folder registry computes it) and its on-disk key; the project-less chats' own for null. */
+function locate(context: StoreContext, folder: string | null): FolderLocation {
+  if (folder === null) {
+    return { folder: null, key: PROJECTLESS_KEY, dir: join(context.root, PROJECTLESS_KEY) }
+  }
   if (!isAbsolute(folder)) {
     throw new DomainError('invalid_input', `Folder path must be absolute: ${folder}`)
   }
@@ -224,7 +238,8 @@ function createChat(context: StoreContext, input: NewChat): ChatRecord {
   })
 }
 
-function byRecency(a: ChatRecord, b: ChatRecord): number {
+/** Most recently updated first, then most recently created: the order every chat list is in. */
+export function byRecency(a: ChatRecord, b: ChatRecord): number {
   return b.updatedAt.localeCompare(a.updatedAt) || b.createdAt.localeCompare(a.createdAt)
 }
 
@@ -301,6 +316,10 @@ export function createChatStore(options: {
     listChats: (folder) => [...loadIndex(context, locate(context, folder)).values()].sort(byRecency),
     getChat: (ref) => loadIndex(context, locate(context, ref.folder)).get(ref.id) ?? null,
     updateChat: (ref, patch) => updateChat(context, ref, patch),
+    recordEndpoint: (ref, endpointId) => {
+      const { location, chat } = requireChat(context, ref)
+      return saveRecord(context, location, { ...chat, endpointId })
+    },
     readTranscript: (ref) => readTranscript(context, ref),
     deleteChat: (ref) => {
       deleteChat(context, ref)

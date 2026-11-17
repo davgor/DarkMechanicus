@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Requirement clarification recorded in docs/reports/desktop-control-contract.md, commit 647f689b449804b7d647fd298fac2c36d6e99a07: G3 requires trustworthy qualified user AUTHORIZATION of exact immutable captured bytes/decision under original epoch/recipient, NOT physical/human authorship of each IME/paste byte or universal continuous-memory attestation. Legitimate fresh paste may authorize exact captured software-produced bytes, which remain untrusted data; cannot authorize changed data, different target/generation or future renderer stream. Missing shared eventID alone does not show safe composition impossible. Existing raw assertion stays SOURCE-rejected only, no native exploit/universal impossibility claimed. Broker-mediated modification/delegation stays included; arbitrary outside-broker same-user code excluded. Parent awaits macOS entitlement/device-path clarification. No code/native/frontend changes, tests rerun, credentials/hardware/biometry mandate, permission, claim change, submit/fail/accept.",
+  "createdAt": "2026-11-16T03:55:28.614Z",
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7h7xrf6vd9j495pbpszssw7",
+  "ticketId": "tk_01m794h65mec9hp3m268kbey53"
+}

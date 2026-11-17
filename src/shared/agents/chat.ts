@@ -39,8 +39,12 @@ const timestampSchema = z.string().min(1)
 
 export const chatRecordSchema = z.object({
   id: chatIdSchema,
-  /** Canonical path of the folder the chat belongs to. */
-  folder: z.string().min(1),
+  /**
+   * Canonical path of the tracked folder the chat belongs to; null for a project-less chat, summoned from an agent's
+   * row in the AGENTS section, which runs in its own scratch folder and reaches every tracked folder's records
+   * through one grant per folder. Every chat stored before project-less chats has a folder, so old lines load unchanged.
+   */
+  folder: z.string().min(1).nullable(),
   /** The agent's id. Built-in ids equal the kind names stored before agents had ids, so old lines load unchanged. */
   agent: agentIdSchema,
   /** The model the chat currently runs on; null until one is chosen. */
@@ -48,8 +52,12 @@ export const chatRecordSchema = z.object({
   role: z.enum(CHAT_ROLES),
   allowSave: z.boolean(),
   title: z.string(),
-  /** Original popup message, retained for recovery; never used as a generated title. */
-  firstPrompt: z.string().max(32_000).optional(),
+  /**
+   * Original popup message (at most 32,000 characters), or the kickoff of a Play or Start run that carries the person's
+   * additional instructions (up to 32,000 characters of them, plus the kickoff lines); retained for recovery and never
+   * used as a generated title.
+   */
+  firstPrompt: z.string().max(48_000).optional(),
   /** Uncertain insertion is never automatically replayed after a crash/exit. */
   firstPromptDelivery: z.enum(['pending', 'submitted', 'uncertain']).optional(),
   titleStatus: z.enum(['pending', 'generated', 'manual', 'failed']).optional(),
@@ -80,6 +88,12 @@ export const chatRecordSchema = z.object({
    * for Claude Code, whose session is known to exist by its session file (`claudeSession.ts`).
    */
   sessionStarted: z.boolean().optional(),
+  /**
+   * The opaque id of the chat's agent mailbox in its folder's database (`chatMailboxes.ts`), once provisioned: only
+   * OMP (Skitarii) chats have one. The mailbox is keyed by this machine and the chat's id, so a crash before this field
+   * was written finds the same endpoint again; absent on chats stored before mailboxes and on every other CLI's chats.
+   */
+  endpointId: z.string().min(1).optional(),
   /**
    * Whether the kickoff went with the terminal of the chat Start run (or Transfer with agent) opened: set when it went on the
    * command line (Claude Code's prompt, stored before the spawn) or was pasted; absent until then. A start of a

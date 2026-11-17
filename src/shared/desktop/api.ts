@@ -214,6 +214,40 @@ export interface FolderPickResult {
   added: boolean
 }
 
+/** A knowledge layer, lowest precedence first: built into the app, the overall repository, the folder itself. */
+export type KnowledgeLayerName = 'builtin' | 'overall' | 'repo'
+
+/** A fact file that could not be used, or a merge problem between layers. */
+export interface KnowledgeDiagnosticView {
+  layer: KnowledgeLayerName
+  path: string
+  message: string
+}
+
+/** Where the overall knowledge repository stands in Git; `unavailable` says why it could not be read. */
+export type KnowledgeRepositoryGitView =
+  | { state: 'ok'; branch: string | null; upstream: string | null; ahead: number; behind: number; dirty: boolean }
+  | { state: 'unavailable'; reason: string }
+
+/** What the Knowledge card shows for a tracked folder. */
+export interface KnowledgeStatusView {
+  layers: {
+    builtin: { count: number }
+    /** `path` is the overall repository `<home>/knowledge.json` names, or null when none is set. */
+    overall: { configured: boolean; path: string | null; count: number }
+    repo: { path: string; count: number }
+  }
+  diagnostics: KnowledgeDiagnosticView[]
+  /** The overall repository's Git state, or null when none is set. */
+  git: KnowledgeRepositoryGitView | null
+}
+
+export type KnowledgeChooseResult =
+  | { outcome: 'cancelled' }
+  /** The picked folder is not a Git work tree (or Git is missing); the pointer is unchanged. */
+  | { outcome: 'refused'; reason: string }
+  | { outcome: 'set'; repository: string }
+
 export interface DmApi {
   /** Agent chats run by the main process: the `chats:*` channels and their push channel. */
   chats: ChatsApi
@@ -295,6 +329,15 @@ export interface DmApi {
    * marked `needsReview` waits for: it clears the mark.
    */
   updateCustomAgent(request: CustomAgentUpdate): Promise<AgentFindResult>
+  /** The knowledge layers of a tracked folder and the overall repository's Git state. An untracked folder is refused with `unauthorized`. */
+  knowledgeStatus(folder: string): Promise<KnowledgeStatusView>
+  /**
+   * Opens a native folder picker and points the overall knowledge layer at the picked Git work tree. Takes nothing:
+   * the path comes only from the dialog, so an agent driving the renderer cannot set it to a folder of its choosing.
+   */
+  chooseKnowledgeRepository(): Promise<KnowledgeChooseResult>
+  /** Removes `<home>/knowledge.json`, so no overall repository is set. */
+  clearKnowledgeRepository(): Promise<void>
 }
 
 /** Every CommandApi method the renderer may invoke. Main rejects anything else. */

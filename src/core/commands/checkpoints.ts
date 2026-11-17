@@ -1,5 +1,6 @@
 import { COMMAND_SCHEMAS } from '../commandSchemas'
 import type { Ctx } from '../context'
+import { withKnowledgeContext } from '../knowledge/push'
 import { approveWithRedraft } from '../services/approveRedraft'
 import {
   advanceSprint,
@@ -43,7 +44,7 @@ const checkpointCommands = {
   submitSprintReport: {
     schema: COMMAND_SCHEMAS.submitSprintReport,
     mutates: true,
-    run: (core, input) => submitSprintReport(core.ctx(), input)
+    run: (core, input) => withKnowledgeContext(core, submitSprintReport(core.ctx(), input), 'sprint.reported')
   },
   getSprintReport: {
     schema: COMMAND_SCHEMAS.getSprintReport,
@@ -80,7 +81,7 @@ const checkpointCommands = {
     mutates: true,
     run: (core, input) => {
       advanceSprint(swept(core.ctx(), input.runId), input)
-      return requireRunView(core.ctx(), input.runId)
+      return withKnowledgeContext(core, requireRunView(core.ctx(), input.runId), 'checkpoint.approved')
     }
   },
   approveAndAdvance: {

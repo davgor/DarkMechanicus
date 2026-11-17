@@ -72,20 +72,24 @@
       "decidedAt": null,
       "decision": null,
       "evidence": null,
-      "failure": null,
+      "failure": {
+        "details": "Person requested fresh-run single-sprint redesign. Inspected isolated worker tip4f99122b12f852d53308e483c322d6dbeb7307e2: tracked tree clean, local generated/private artifacts preserved. Native12 semantic comparison completed; G3 complete input/delegation protection still unmet. No completion resubmission, no external actions restarted. Workers instructed stop expired-token writes. Abandon preserves source/evidence and failure history; not acceptance or retry grant.",
+        "reason": "lease expired",
+        "retryable": true
+      },
       "fencingToken": 3,
       "id": "at_01m7g8aehcbxerhb5x4642me01",
       "kind": "work",
       "number": 3,
       "outputs": null,
-      "reconciledAt": null,
+      "reconciledAt": "2026-11-16T07:18:01.196Z",
       "revisionId": "rv_01m7975spccs2hjbppqwky0kvm",
-      "state": "running",
+      "state": "lease_expired",
       "submittedAt": null,
       "supersededAt": null,
       "ticketContentHash": "sha256:1beaa02d05bc0cdbf43689ec08d428495ae922d942a0fc19de461011ff1a1f65",
       "ticketId": "tk_01m794h65mec9hp3m268kbey53",
-      "updatedAt": "2026-11-15T18:51:06.084Z",
+      "updatedAt": "2026-11-16T07:18:01.196Z",
       "worker": {
         "catalogRevision": "1",
         "effort": "high",
@@ -99,7 +103,7 @@
   ],
   "checkpoints": [],
   "createdAt": "2026-11-15T06:12:03.033Z",
-  "endedAt": null,
+  "endedAt": "2026-11-16T07:18:01.773Z",
   "epicId": "ep_01m794777kq96v22ryvxv5pdye",
   "format": "darkmechanicus.run",
   "formatVersion": 1,
@@ -110,7 +114,7 @@
   "hostCatalogId": null,
   "number": 1,
   "ownerMachineId": "mc_01m41707wstg1crxjbt3jw2ap5",
-  "pauseReason": null,
+  "pauseReason": "Person requested sprint redesign after nonconvergent first-ticket investigation; stop execution, preserve evidence, prepare actionable draft.",
   "reports": [
     {
       "content": {
@@ -440,6 +444,6 @@
   "runId": "rn_01m7exb3ts45egca2q36pw33cs",
   "skillVersion": "1.9.0",
   "startedAt": "2026-11-15T06:13:39.622Z",
-  "state": "running",
-  "updatedAt": "2026-11-15T16:31:09.421Z"
+  "state": "canceled",
+  "updatedAt": "2026-11-16T07:18:01.773Z"
 }

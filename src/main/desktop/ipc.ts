@@ -7,6 +7,7 @@
  */
 import type { IpcMain } from 'electron'
 import type { DesktopHandlers } from './handlers'
+import type { KnowledgeHandlers } from './knowledgeHandlers'
 
 export function registerDesktopIpc(ipcMain: Pick<IpcMain, 'handle'>, handlers: DesktopHandlers): void {
   ipcMain.handle('dm:listFolders', () => handlers.listFolders())
@@ -36,4 +37,14 @@ export function registerDesktopIpc(ipcMain: Pick<IpcMain, 'handle'>, handlers: D
   ipcMain.handle('agents:folderDefault', (_event, folder: unknown) => handlers.folderDefaultAgent(folder))
   ipcMain.handle('agents:ompTerminalTheme', () => handlers.ompTerminalTheme())
   ipcMain.handle('agents:setFolderDefault', (_event, request: unknown) => handlers.setFolderDefaultAgent(request))
+}
+
+/**
+ * Registers the `knowledge:*` channels. Status takes a tracked folder; choosing and clearing the overall repository take
+ * nothing, so its path only ever comes from the native folder picker in main.
+ */
+export function registerKnowledgeIpc(ipcMain: Pick<IpcMain, 'handle'>, handlers: KnowledgeHandlers): void {
+  ipcMain.handle('knowledge:status', (_event, folder: unknown) => handlers.knowledgeStatus(folder))
+  ipcMain.handle('knowledge:choose-repository', () => handlers.chooseKnowledgeRepository())
+  ipcMain.handle('knowledge:clear-repository', () => handlers.clearKnowledgeRepository())
 }

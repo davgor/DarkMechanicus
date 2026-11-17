@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Fresh run rn_01m7jnpc6ave4nwerp72q1sppg executes saved revision2. Separate integration/worker worktrees created from agent-desktop-controls9b16b5a9; original checkout unchanged. Matcher reports windows unknown because hostCatalog schema has no environments field; direct host observation node: process.platform=win32, os.release=10.0.26300, os.arch=x64 resolves this prerequisite fact, not a waived requirement. Fixed inherited model only; no model/effort selector exposed, recommended medium is guidance rather than a claimed runtime setting. No native/model/compiler launch authority inferred for source-only S1/V0.",
+  "createdAt": "2026-11-16T17:17:33.281Z",
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7jntd71d9jqrd245zn6wtmh",
+  "ticketId": null
+}

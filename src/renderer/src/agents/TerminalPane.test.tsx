@@ -12,6 +12,8 @@ import { ManualScheduler } from '../__mocks__/manualScheduler'
 import { installRootTokens, tokenSource } from '../__mocks__/rootTokens'
 import { settle } from '../__mocks__/settle'
 import { createLiveTerminals, LiveTerminalsContext, type LiveTerminals } from './liveTerminals'
+import { AgentMailContext, createAgentMailStore } from './useAgentMail'
+import { FakeChatMail, mailMessage } from '../__mocks__/fakeChatMail'
 import { TerminalPane } from './TerminalPane'
 import { OUTPUT_QUIET_MS } from './useTerminal'
 import { rootTokens, terminalTheme } from './terminalTheme'
@@ -547,5 +549,83 @@ describe('TerminalPane sign-in card', () => {
     expect(statuses).toEqual([SIGNED_OUT])
     expect(terminals.calls).toHaveLength(1)
     expect(screen.getByRole('button', { name: 'Sign in again' })).toBeTruthy()
+  })
+})
+
+const OMP_INBOX_CHAT = chatRecord({ id: 'chat_o', folder: '/a', title: 'OMP chat', agent: 'omp', endpointId: 'ep_o' })
+
+/** Shows the chat with a mail store for `/a`, where the OMP chat and CHAT_A each hold mail; returns main's fake mail side. */
+async function showWithMail(chat: ChatRecord = OMP_INBOX_CHAT): Promise<FakeChatMail> {
+  const mail = new FakeChatMail()
+  window.dm.chats.mail = mail
+  const store = createAgentMailStore(mail)
+  mail.onEvent(store.push)
+  mail.put({ folder: '/a', chatId: 'chat_o', unseenCount: 1, pendingCount: 1, retainedCount: 1 })
+  mail.put({ folder: '/a', chatId: 'chat_a', unseenCount: 2 })
+  mail.setMessages('/a', 'chat_o', [mailMessage({ seq: 1, body: 'status?' })])
+  await act(async () => store.track(['/a']))
+  render(<AgentMailContext.Provider value={store}>{pane(chat)}</AgentMailContext.Provider>)
+  await settle()
+  return mail
+}
+
+describe('TerminalPane: a Skitarii chat’s inbox', () => {
+  it('opens, marks seen and closes over the running terminal: same host and session, nothing typed or restarted', async () => {
+    await showWithMail()
+    const view = kit.latest()
+    const handle = terminals.latest()
+    fireEvent.click(screen.getByRole('button', { name: 'Messages: 1 unseen by you, 1 unacknowledged by its agent' }))
+    await settle()
+    const inbox = screen.getByRole('dialog', { name: 'Messages to OMP chat' })
+    fireEvent.click(within(inbox).getByRole('button', { name: 'Mark shown messages seen' }))
+    await settle()
+    fireEvent.keyDown(inbox, { key: 'Escape' })
+    await settle()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(kit.views).toEqual([view])
+    expect(view.disposed).toBe(false)
+    expect(view.host).toBe(host())
+    expect(terminals.calls).toEqual([['/a', 'chat_o']])
+    expect(handle.writes).toEqual([])
+    expect(handle.closed).toBe(false)
+    expect(details().getByText('Running')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Messages: 0 unseen by you, 1 unacknowledged by its agent' })).toBeTruthy()
+  })
+
+  it('takes pushed mail and wake changes into the header without touching the terminal or its focus', async () => {
+    const mail = await showWithMail()
+    const view = kit.latest()
+    const focused = view.focused
+    act(() => {
+      mail.put({ folder: '/a', chatId: 'chat_o', unseenCount: 3, pendingCount: 3 }, true)
+      mail.put({ folder: '/a', chatId: 'chat_o', wake: { revision: 1, armed: true, armedAt: '2026-11-15T11:00:00.000Z', lastAttempt: null } }, true)
+    })
+    expect(screen.getByRole('button', { name: 'Messages: 3 unseen by you, 3 unacknowledged by its agent' })).toBeTruthy()
+    expect(kit.views).toEqual([view])
+    expect(view.focused).toBe(focused)
+    expect(terminals.latest().writes).toEqual([])
+    expect(terminals.calls).toHaveLength(1)
+  })
+
+  it('shows no Messages for a chat that is not Skitarii’s', async () => {
+    await showWithMail(CHAT_A)
+    expect(screen.queryByRole('button', { name: /^Messages/ })).toBeNull()
+  })
+})
+
+describe('TerminalPane: a project-less Skitarii chat', () => {
+  it('shows no Messages for a project-less Skitarii chat, which has no mailbox', async () => {
+    const mail = new FakeChatMail()
+    window.dm.chats.mail = mail
+    const store = createAgentMailStore(mail)
+    const projectless = chatRecord({ id: 'chat_p', folder: null, title: 'Summoned', agent: 'omp' })
+    render(
+      <AgentMailContext.Provider value={store}>
+        <TerminalPane folder={null} chat={projectless} agentName="OMP" kit={kit} scheduler={scheduler} />
+      </AgentMailContext.Provider>
+    )
+    await settle()
+    expect(screen.queryByRole('button', { name: /^Messages/ })).toBeNull()
+    expect(mail.calls).toEqual([])
   })
 })

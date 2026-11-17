@@ -1,0 +1,25 @@
+{
+  "attachments": [
+    {
+      "bytes": 50994,
+      "height": 881,
+      "id": "im_01m7gyxsbmffa41b6r638a9mkh",
+      "label": "DM541 Native12 actual final owned semantic service comparison",
+      "mime": "image/png",
+      "purpose": "evidence",
+      "sha256": "5d5f329812e2f2f9d928ec2fa65275301470bf3163c42a6e1b4daf8a25b3342e",
+      "width": 1479
+    }
+  ],
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Native12 consumed ONCE under cm_01m7gyp5px1019cyc4adr9ym9r: all17 owned background Invoke cases completed,17 sole InvokePattern.Invoke semantic steps with delivered_unverified/unsafe and verified=false unchanged. Ordinary createKanbanCard backlog1→2;16 actual protected service calls covering all15 human capabilities returned unauthorized with exact identical before/after digests, grants1/private decision receipts3 unchanged. Approve missing report and review non-submitted card remain authorization-only qualifications, not valid-state positives. Main-only functional queue/pause/grant positives are NONHUMAN. Exact HWND68144/PID6096/birth639303885925392730 remained foregroundOwned=false; no focus/key/pointer. Whole47390.2846ms incl cleanup168.9700ms; direct children closed/survivors[], descendant-tree/OSqueue unproved. Manifest evidence/desktop-dm541/semantic12-pilot-20261116T011533763Z/manifest.json SHA77c833c616991b3c9576869efcab6873c73bce4cd8b83ddcd3a0c39698d3847c; fixturemanifest SHA3c5c03bf5cd349f90472a6537db6377ec95892b2cfbf05e1866b57026d2d04ec; structured retry3-native12-observed.json SHAf4b1f4b412259b28c3d249bc24f99a3ac8c3df1b37be5326de2f56752fc68f54. Attached actual final owned PNG SHA5d5f329812e2f2f9d928ec2fa65275301470bf3163c42a6e1b4daf8a25b3342e, opened/inspected. Controller exit0; its blocked marker deliberately means fullF03 unproved, not a failed semantic case. Physical, own consent/renewal and hosted PTY native protection remain outstanding; no success submission or further native authority. Main clarified saved final no-manual-UAT permits valid functional positives labeled NONHUMAN, not fabricated human provenance. Previous failed runs retained.",
+  "createdAt": "2026-11-16T01:27:13.360Z",
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7gze9pgw7f8b7537pxkxnm2",
+  "ticketId": "tk_01m794h65mec9hp3m268kbey53"
+}

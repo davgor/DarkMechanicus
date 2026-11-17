@@ -277,7 +277,8 @@ code {
   background: var(--panel-2);
 }
 
-.btn:disabled {
+.btn:disabled,
+.btn[aria-disabled="true"] {
   opacity: 0.5;
   cursor: not-allowed;
 }
@@ -1526,9 +1527,34 @@ textarea.input {
   background: var(--st-running);
 }
 
+/* Messages the person has not seen in a Skitarii chat's inbox (not what its agent has not acknowledged). */
+.unseen-badge {
+  flex-shrink: 0;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--attention) 18%, transparent);
+  color: var(--attention);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+
 .chat-row-meta {
   overflow: hidden;
   color: var(--muted);
+  font-size: 11px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Where a chat in an agent's list belongs: its folder, or no project. */
+.chat-row-place {
+  display: block;
+  overflow: hidden;
+  color: var(--ink-soft);
   font-size: 11px;
   line-height: 16px;
   text-overflow: ellipsis;
@@ -1643,6 +1669,42 @@ textarea.input {
 
 .agent-row .icon {
   color: var(--ink-soft);
+}
+
+/* An agent's row: the chevron that lists its chats, the row itself, and its summon button. */
+.agent-row-line {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.agent-row-line .agent-row {
+  flex: 1;
+  min-width: 0;
+  padding-left: 4px;
+}
+
+.agent-chats-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.agent-chats-toggle:hover {
+  background: rgba(236, 230, 218, 0.06);
+  color: var(--ink);
+}
+
+.agent-chat-list {
+  padding-left: 24px;
 }
 
 .agent-text {

@@ -248,7 +248,7 @@ describe('chat store nested threads', () => {
 })
 
 describe('chat store reads chats stored before threads existed', () => {
-  function storedBeforeThreads(): { fs: MemoryFs; chat: { folder: string; id: string } } {
+  function storedBeforeThreads(): { fs: MemoryFs; chat: ChatRef } {
     const fs = memoryFs()
     const chat = openStore(fs).createChat(NEW_CHAT)
     fs.files.set(indexPath(fs).replace('index.jsonl', `${chat.id}.jsonl`), CHAT_BEFORE_THREADS)
@@ -307,7 +307,7 @@ describe('chat store reads index lines written before agents had ids', () => {
 
 describe('chat store reads chats stored before terminals', () => {
   /** A record and its transcript as the app wrote them before chats were terminals (the epic's start commit, live). */
-  function oldChat(fs: MemoryFs): { line: string; transcript: string; folder: string } {
+  function oldChat(fs: MemoryFs): { line: string; transcript: string; folder: string | null } {
     const created = openStore(fs).createChat(NEW_CHAT)
     const line = JSON.stringify({
       id: 'chat_ddd10bef-7606-4919-9971-3c7f2f61a8a1',
@@ -355,6 +355,39 @@ describe('chat store reads chats stored before terminals', () => {
   })
 })
 
+describe('chat store mailbox ids', () => {
+  it('loads a record stored before mailboxes with none, and stores one without moving updatedAt or the list order', () => {
+    const fs = memoryFs()
+    const store = openStore(fs)
+    const older = store.createChat(NEW_CHAT)
+    const newer = store.createChat({ ...NEW_CHAT, agent: 'omp' })
+    expect(newer.endpointId).toBeUndefined()
+
+    const recorded = store.recordEndpoint(older, 'me_00000000000000000000000001')
+
+    expect(recorded).toEqual({ ...older, endpointId: 'me_00000000000000000000000001' })
+    const reopened = openStore(fs)
+    expect(reopened.getChat(older)).toEqual(recorded)
+    expect(chatIds(reopened, REPO)).toEqual([newer.id, older.id])
+  })
+
+  it('keeps the mailbox id through a rename, a new session and a later grant', () => {
+    const fs = memoryFs()
+    const store = openStore(fs)
+    const chat = store.recordEndpoint(store.createChat({ ...NEW_CHAT, agent: 'omp' }), 'me_00000000000000000000000002')
+
+    store.updateChat(chat, { title: 'Renamed', titleStatus: 'manual' })
+    store.updateChat(chat, { sessionId: null, sessionStarted: false })
+    store.updateChat(chat, { grantIds: ['gr_1'], endpointId: 'me_00000000000000000000000002' })
+
+    expect(openStore(fs).getChat(chat)).toMatchObject({ title: 'Renamed', grantIds: ['gr_1'], endpointId: 'me_00000000000000000000000002' })
+  })
+
+  it('refuses to record a mailbox for a chat it does not know', () => {
+    expect(errorCode(() => openStore(memoryFs()).recordEndpoint({ folder: REPO, id: 'chat_missing' }, 'me_1'))).toBe('not_found')
+  })
+})
+
 describe('chat store updates and errors', () => {
   it('updates the title, model and vendor session id, and keeps them across a reopen', () => {
     const fs = memoryFs()
@@ -398,7 +431,7 @@ describe('chat store updates and errors', () => {
 })
 
 describe('chat store reads', () => {
-  function seeded(): { fs: MemoryFs; chat: { folder: string; id: string }; path: string } {
+  function seeded(): { fs: MemoryFs; chat: ChatRef; path: string } {
     const fs = memoryFs()
     const chat = openStore(fs).createChat(NEW_CHAT)
     stored(fs, chat, [userMessage('one'), userMessage('two')])

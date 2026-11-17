@@ -21,6 +21,7 @@ describe('resolveLayout in repo mode', () => {
       historyDir: join(dmDir, 'history'),
       profilesDir: join(dmDir, 'profiles'),
       kanbanDir: join(dmDir, 'kanban'),
+      knowledgeDir: join(dmDir, 'knowledge'),
       localDir: join(dmDir, 'local'),
       dbFile: join(dmDir, 'local', 'state.sqlite'),
       machineFile: join(dmDir, 'local', 'machine.json')
@@ -61,6 +62,7 @@ describe('resolveLayout in db mode', () => {
     expect(layout.historyDir).toBe(join(projectDir, 'history'))
     expect(layout.profilesDir).toBe(join(projectDir, 'profiles'))
     expect(layout.kanbanDir).toBe(join(projectDir, 'kanban'))
+    expect(layout.knowledgeDir).toBe(join(projectDir, 'knowledge'))
     expect(layout.gitignoreFile).toBe(join(projectDir, '.gitignore'))
   })
 

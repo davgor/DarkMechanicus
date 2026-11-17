@@ -26,15 +26,19 @@ import {
 import { dirname, join, resolve } from 'node:path'
 import type { Db } from '../../core/db/database'
 import { DomainError } from '../../core/errors'
+import { nodeFs } from '../../core/repo/nodeFs'
 import { resolveHomeDir } from '../../core/repo/storageMode'
 import { openWorkspace, type Workspace } from '../../core/workspace'
 import type { AgentDownloadProgress, BuiltInAgentKind, McpConfigView } from '../../shared/desktop/api'
 import { createActivityBindings, type ActivityBindings } from '../agents/activityBindings'
 import { createChatGrants } from '../agents/chatGrants'
 import { createChatHandlers } from '../agents/chatHandlers'
-import { createChatPush, registerChatIpc } from '../agents/chatIpc'
+import { createAgentMailDesktop, type AgentMailDesktop } from '../agents/agentMailDesktop'
+import { createChatMailPush, createChatPush, registerChatIpc, registerChatMailIpc } from '../agents/chatIpc'
 import { createChatRecords, type ChatRecords } from '../agents/chatRecords'
-import { createChatStore, type ChatStore } from '../agents/chatStore'
+import { createChatMailboxes, type ChatMailboxes } from '../agents/chatMailboxes'
+import { removeScratchFolder } from '../agents/scratchFolder'
+import { createChatStore, nodeChatStoreFs, type ChatStore } from '../agents/chatStore'
 import { listBoundThreads } from '../agents/boundThreads'
 import { findBoundTerminal, type GrantBindingReads } from '../agents/grantBindings'
 import { createCloneParentStore, createCloner, type Cloner } from '../git/clone'
@@ -88,7 +92,8 @@ import {
   type CustomAgentConfirmation,
   type CustomAgents
 } from './customAgent'
-import { registerDesktopIpc } from './ipc'
+import { registerDesktopIpc, registerKnowledgeIpc } from './ipc'
+import { createKnowledgeHandlers } from './knowledgeHandlers'
 import { createAttachmentLookup, registerAttachmentProtocol } from './attachmentProtocol'
 import { buildCliConfig, type CliLaunch } from './cliConfig'
 import { buildMcpConfig } from './mcpConfig'
@@ -114,6 +119,11 @@ const CLONE_PARENT_DIALOG: OpenDialogOptions = {
 
 const SOURCE_CHECKOUT_DIALOG: OpenDialogOptions = {
   title: 'Choose your Dark Mechanicus source checkout (a Git clone of Dark Mechanicus)',
+  properties: ['openDirectory']
+}
+
+const KNOWLEDGE_DIALOG: OpenDialogOptions = {
+  title: 'Choose the overall knowledge repository',
   properties: ['openDirectory']
 }
 
@@ -224,8 +234,8 @@ function darkMechanicusHome(): string {
  */
 const CHAT_GRANT_MINUTES = 12 * 60
 
-/** The `dm` invocation a chat may make, pinned to its folder. */
-function cliConfigFor(repoPath: string): CliLaunch {
+/** The `dm` invocation a chat may make, pinned to its folder (to none for a project-less chat). */
+function cliConfigFor(repoPath: string | null): CliLaunch {
   return buildCliConfig({
     execPath: process.execPath,
     appPath: app.getAppPath(),
@@ -302,12 +312,18 @@ interface ChatProcesses {
   terminals: TerminalSessions
   /** The agents' sign-in terminals, for `agents:signIn`. */
   logins: LoginTerminals
+  /** Untrack's first step (`DesktopHandlerDeps.releaseFolder`): the folder's terminals stopped, its chat mailboxes suspended. */
+  releaseFolder: (folder: string, forget: () => void) => Promise<void>
+  /** The person's side of the chats' mailboxes and its per-folder monitors (`chatMail:*`). */
+  mail: AgentMailDesktop
 }
 
 /** What the chat terminals run over besides the store: the grants and runs of the chats, the tracked folders, the agents. */
 interface TerminalDeps {
-  grants: Pick<TerminalSessionsDeps, 'issueChatCli' | 'revokeChatGrant' | 'renewChatGrant' | 'bindChatGrant' | 'onChatChanged' | 'runs'>
+  grants: Pick<TerminalSessionsDeps, 'issueChatCli' | 'issueReachCli' | 'revokeChatGrant' | 'renewChatGrant' | 'bindChatGrant' | 'onChatChanged' | 'runs'>
   folders: TerminalSessionsDeps['folders']
+  /** What a project-less chat reaches: the tracked folders set up for Dark Mechanicus. */
+  reachFolders: TerminalSessionsDeps['reachFolders']
   agents: Pick<AgentRegistry, 'get'>
 }
 
@@ -323,6 +339,7 @@ function createTerminalProcesses(store: ChatStore, deps: TerminalDeps): Pick<Cha
     keepAwake: () => awake.hold(),
     agentFor: (id) => deps.agents.get(id),
     folders: deps.folders,
+    reachFolders: deps.reachFolders,
     checkAuth: (kind, executablePath) => getAgentAuthStatus(kind, executablePath, agentRunDeps()),
     cliFor: cliConfigFor,
     ...deps.grants,
@@ -350,13 +367,14 @@ function createTerminalProcesses(store: ChatStore, deps: TerminalDeps): Pick<Cha
  * Deleting a chat forgets the bindings old chats stored (`activity`).
  */
 function createChatProcesses(
-  folders: Pick<FolderRegistry, 'resolve'>,
+  folders: Pick<FolderRegistry, 'resolve' | 'list'>,
   agents: Pick<AgentRegistry, 'get'>,
   workspaces: Pick<WorkspacePool, 'get'>,
   activity: ActivityBindings
 ): ChatProcesses {
   // One store for all: it keeps each folder's index in memory, so two would write over each other's records.
   const store = createChatStore({ root: join(app.getPath('userData'), 'agents', 'chats') })
+  const { records, mailboxes } = createMailboxRecords(store, { folders, workspaces, agents, activity })
   const push = createChatPush(() => BrowserWindow.getAllWindows())
   let namingPipe: ControlPipe | null = null
   let namingReady: Promise<void>
@@ -379,7 +397,8 @@ function createChatProcesses(
     pauseRun: async (folder: string, input: { runId: string; reason: string }) => desktopWorkspace(folders, workspaces, folder).pauseRun(input)
   }
   const launchFolders = { trackedFolder: (path: string) => folders.resolve(path) }
-  const { terminals, logins } = createTerminalProcesses(store, { grants: { ...grants, runs, onChatChanged: (ref) => push({ type: 'chats_changed', folder: ref.folder, chatId: ref.id }) }, folders: launchFolders, agents })
+  const reachFolders = (): string[] => folders.list().flatMap((folder) => (folder.initialized && folder.available ? [folder.path] : []))
+  const { terminals, logins } = createTerminalProcesses(store, { grants: { ...grants, runs, onChatChanged: (ref) => push({ type: 'chats_changed', folder: ref.folder, chatId: ref.id }) }, folders: launchFolders, reachFolders, agents })
   const quit = {
     busy: () => terminals.busy() || logins.busy(),
     dispose: async () => {
@@ -389,12 +408,66 @@ function createChatProcesses(
       await Promise.all([terminals.dispose(), logins.dispose()])
     }
   }
+  const chats = endingTerminals(records, terminals)
+  recoverChats(folders, chats)
+  const mail = createChatMail({ folders, store, workspaces })
+  return { chats, quit, store, terminals, logins, mail, releaseFolder: releasingFolders(terminals, mailboxes, store) }
+}
+
+/**
+ * The chat records over `store` with their mailboxes, provisioned, bound, suspended and deleted as the person through
+ * each folder's own desktop workspace; deleting an OMP chat removes its own folder, and a project-less chat its scratch folder.
+ */
+function createMailboxRecords(
+  store: ChatStore,
+  deps: { folders: Pick<FolderRegistry, 'resolve'>; workspaces: Pick<WorkspacePool, 'get'>; agents: Pick<AgentRegistry, 'get'>; activity: ActivityBindings }
+): { records: ChatRecords; mailboxes: ChatMailboxes } {
   const userData = app.getPath('userData')
-  const chats = endingTerminals(
-    createChatRecords({ store, activity, agentFor: (id) => agents.get(id), removeOmpFolder: (id) => removeOmpFolder(userData, id) }),
-    terminals
-  )
-  return { chats, quit, store, terminals, logins }
+  const mailboxes = createChatMailboxes({
+    contextFor: (folder) => desktopWorkspace(deps.folders, deps.workspaces, folder).ctx(),
+    store,
+    ledger: { file: join(userData, 'agents', 'mailboxes.jsonl'), fs: nodeChatStoreFs },
+    log: (line) => {
+      logger.warn(line)
+    }
+  })
+  const records = createChatRecords({
+    store,
+    activity: deps.activity,
+    agentFor: (id) => deps.agents.get(id),
+    removeOmpFolder: (id) => removeOmpFolder(userData, id),
+    removeScratch: (id) => removeScratchFolder(userData, id),
+    mailboxes,
+    onError: (error) => {
+      logger.error('Finishing a chat deletion failed:', error)
+    }
+  })
+  return { records, mailboxes }
+}
+
+/** Untrack's first step: the folder's terminals stopped and starts refused, then its chat mailboxes suspended, then `forget`. */
+function releasingFolders(terminals: TerminalSessions, mailboxes: ChatMailboxes, store: ChatStore): ChatProcesses['releaseFolder'] {
+  return (folder, forget) =>
+    terminals.releaseFolder(folder, () => {
+      mailboxes.suspendFolder(folder, store.listChats(folder))
+      forget()
+    })
+}
+
+/** The desktop's own workspaces, one per tracked folder, opened on first use; an error in one is logged with its folder. */
+function openDesktopPool(): WorkspacePool {
+  return createWorkspacePool(openDesktopWorkspace, (path, error) => {
+    logger.error(`Workspace error for ${path}:`, error)
+  })
+}
+
+/** Startup: each tracked folder's chat mailboxes provisioned, and every chat deletion a crash cut short finished. */
+function recoverChats(registry: Pick<FolderRegistry, 'list'>, chats: Pick<ChatRecords, 'recoverFolder'>): void {
+  for (const { path } of registry.list()) {
+    chats.recoverFolder(path).catch((error: unknown) => {
+      logger.error(`Recovering the chats of ${path} failed:`, error)
+    })
+  }
 }
 
 /** The command layer's timelines through the desktop's own workspace, for finding the chat an attempt or a run is bound to by grant. */
@@ -407,16 +480,17 @@ function grantReads(workspaces: Pick<WorkspacePool, 'get'>): GrantBindingReads {
 
 /** What the `chats:*` channels run over: the tracked folders, the connected agents, the chats and their terminals, the workspaces and the bindings old chats stored. */
 interface ChatServices {
-  folders: Pick<FolderRegistry, 'resolve'>
+  folders: Pick<FolderRegistry, 'resolve' | 'list'>
   agents: Pick<AgentRegistry, 'get'>
   chats: ChatRecords
   store: ChatStore
   terminals: TerminalSessions
   workspaces: Pick<WorkspacePool, 'get'>
   activity: ActivityBindings
+  mail: AgentMailDesktop
 }
 
-/** Serves the `chats:*` channels over the chat records; Start run starts the orchestrator chat's terminal. */
+/** Serves the `chats:*` and `chatMail:*` channels over the chat records; Start run starts the orchestrator chat's terminal. */
 function startChats(ipc: Pick<IpcMain, 'handle'>, services: ChatServices): void {
   const { folders, agents, chats, store, terminals, workspaces, activity } = services
   const handlers = createChatHandlers({
@@ -449,6 +523,7 @@ function startChats(ipc: Pick<IpcMain, 'handle'>, services: ChatServices): void 
     }
   })
   registerChatIpc(ipc, handlers)
+  registerChatMailIpc(ipc, services.mail.handlers)
 }
 
 /** What `terminals:attach` and `agents:signIn` run over. */
@@ -637,7 +712,54 @@ function startCrossRepoCorrections(ipc: Pick<IpcMain, 'handle'>, registry: Folde
   registerCrossRepoCorrectionIpc(ipc, handlers)
 }
 
-/** The tracked folders of this machine, `userData/folders.json`. */
+/**
+ * The person's inbox, seen cursor and wake credit of OMP chats, as the person through each folder's held desktop
+ * workspace, and the per-folder metadata monitor that pushes to the app window.
+ */
+function createChatMail(services: { folders: Pick<FolderRegistry, 'resolve'>; store: ChatStore; workspaces: Pick<WorkspacePool, 'get'> }): AgentMailDesktop {
+  return createAgentMailDesktop({
+    registry: services.folders,
+    store: services.store,
+    contextFor: (folder) => desktopWorkspace(services.folders, services.workspaces, folder).ctx(),
+    push: createChatMailPush(() => BrowserWindow.getAllWindows()),
+    onUnexpectedError: (error) => {
+      logger.error('Chat mail request failed:', error)
+    }
+  })
+}
+
+/** The bridge's quit and close with the mail monitors stopped first: before the chats are disposed and before any workspace closes. */
+function stoppingMailFirst(mail: AgentMailDesktop, chats: DesktopBridge['chats'], close: () => void): Pick<DesktopBridge, 'chats' | 'close'> {
+  return {
+    chats: {
+      busy: chats.busy,
+      dispose: () => {
+        mail.dispose()
+        return chats.dispose()
+      }
+    },
+    close: () => {
+      mail.dispose()
+      close()
+    }
+  }
+}
+
+/** Serves the `knowledge:*` channels: layer status for a tracked folder, and the overall repository chosen only with the native picker. */
+function startKnowledge(ipc: Pick<IpcMain, 'handle'>, registry: Pick<FolderRegistry, 'resolve' | 'storageMode'>): void {
+  registerKnowledgeIpc(
+    ipc,
+    createKnowledgeHandlers({
+      registry,
+      dmHome: darkMechanicusHome(),
+      fs: nodeFs,
+      gitRunner: createGitRunner(),
+      pickKnowledgeRepository: () => showOpenDialog(KNOWLEDGE_DIALOG)
+    })
+  )
+}
+
+/** The tracked folders, kept in `userData/folders.json`. */
 function openFolderRegistry(): FolderRegistry {
   return createFolderRegistry({
     file: join(app.getPath('userData'), 'folders.json'),
@@ -647,24 +769,24 @@ function openFolderRegistry(): FolderRegistry {
 }
 
 /**
- * Registers the `dm:*`, `sourceCheckout:*`, `corrections:*CrossRepo`, `agents:*`, `chats:*`, `terminals:*`, `git:*` and
- * `github:*` IPC handlers on `ipc` (the sender-guarded registrar from `guardIpc`) and the background heartbeat/shutdown
- * for open workspaces.
+ * Registers the `dm:*`, `sourceCheckout:*`, `corrections:*CrossRepo`, `agents:*`, `knowledge:*`, `chats:*`, `chatMail:*`,
+ * `terminals:*`, `git:*` and `github:*` IPC handlers on `ipc` (the sender-guarded registrar from `guardIpc`) and the
+ * background heartbeat/shutdown for open workspaces.
  */
 export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick<IpcMain, 'handle'>): DesktopBridge {
   const appDb = openAppDatabase(app.getPath('userData'))
   const registry = openFolderRegistry()
   const agents = openAgentRegistry(appDb)
   const installer = createInstaller(agents)
-  const pool = createWorkspacePool(openDesktopWorkspace, (path, error) => {
-    logger.error(`Workspace error for ${path}:`, error)
-  })
+  const pool = openDesktopPool()
   // Which threads of old chats acted on which runs and attempts, as they stored it next to the chats.
   const activity = createActivityBindings({ file: join(app.getPath('userData'), 'agents', 'activity-bindings.jsonl') })
-  const { chats, quit, store, terminals, logins } = createChatProcesses(registry, agents, pool, activity)
+  const { chats, quit, store, terminals, logins, mail, releaseFolder } = createChatProcesses(registry, agents, pool, activity)
   const handlers = createDesktopHandlers({
     registry,
     pool,
+    releaseFolder,
+    stopMailMonitor: (folder) => mail.stopFolder(folder),
     agents,
     folderDefaults: createFolderAgentDefaults({ db: appDb }),
     pickDirectory,
@@ -691,10 +813,11 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   })
   registerDesktopIpc(ipc, handlers)
   startCrossRepoCorrections(ipc, registry, pool, startSourceCheckout(ipc, registry))
+  startKnowledge(ipc, registry)
   startAttachmentProtocol(registry, pool)
   refreshClaudeCodeEntries(registry)
   const close = runLifecycle(pool, appDb)
-  startChats(ipc, { folders: registry, agents, chats, store, terminals, workspaces: pool, activity })
+  startChats(ipc, { folders: registry, agents, chats, store, terminals, workspaces: pool, activity, mail })
   startTerminals(ipc, { folders: registry, agents, store, terminals, logins })
-  return { chats: quit, close, github: startSourceControl(ipc, registry) }
+  return { ...stoppingMailFirst(mail, quit, close), github: startSourceControl(ipc, registry) }
 }

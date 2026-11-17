@@ -11,6 +11,8 @@ const shared = {
   environment: 'node' as const,
   // No test inherits the desktop app's naming pipe or a grant from the shell that runs it (src/test/hermeticEnv.ts).
   setupFiles: ['src/test/hermeticEnv.ts'],
+  // On Windows, git without Git for Windows' launcher process in front of each call (see src/test/realGit.ts).
+  globalSetup: ['src/test/realGit.ts'],
   testTimeout: 15_000,
   // A hook gets the same bound as the test it sets up: on a stalled Windows runner a one-second setup has run past
   // vitest's 10 s default.

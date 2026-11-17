@@ -6,7 +6,9 @@ import { describe, expect, it } from 'vitest'
 import type { TrackedFolderView } from '../shared/desktop/api'
 import { createStubWorkspace } from '../test/stubWorkspace'
 import { createDesktopHandlers } from './desktop/handlers'
-import { registerDesktopIpc } from './desktop/ipc'
+import { registerDesktopIpc, registerKnowledgeIpc } from './desktop/ipc'
+import { createKnowledgeHandlers } from './desktop/knowledgeHandlers'
+import type { FsAdapter } from '../core/repo/types'
 import { guardIpc, isTrustedSender, type SenderFrame } from './ipcGuard'
 import { idleAgentDeps } from '../test/idleAgents'
 
@@ -196,6 +198,10 @@ function trustingDesktop() {
       },
       close: () => undefined
     },
+    releaseFolder: async (_folder, forget) => {
+      forget()
+    },
+    stopMailMonitor: () => undefined,
     pickDirectory: async () => null,
     writeClipboard: () => undefined,
     openExternal: async () => undefined,
@@ -248,6 +254,43 @@ describe('guarded desktop channels', () => {
     expect(registered.channels().length).toBeGreaterThan(0)
     expect(ipc.channels()).toEqual(registered.channels())
     expect(answers).toEqual(registered.channels().map(() => REFUSED))
+  })
+})
+
+describe('guarded knowledge channels', () => {
+  it('refuses every knowledge channel for an untrusted sender before the picker opens or a file is touched', async () => {
+    const touched: string[] = []
+    const fs = new Proxy({} as FsAdapter, {
+      get: (_target, method: string) => () => {
+        touched.push(method)
+        throw new Error(`fs.${method} called`)
+      }
+    })
+    const ipc = createFakeIpcMain()
+    registerKnowledgeIpc(
+      guardIpc(ipc, { appUrl: PAGE }),
+      createKnowledgeHandlers({
+        registry: { resolve: (path) => path, storageMode: () => 'repo' },
+        dmHome: '/dm-home',
+        fs,
+        gitRunner: {
+          run: async () => {
+            touched.push('git')
+            throw new Error('git called')
+          }
+        },
+        pickKnowledgeRepository: async () => {
+          touched.push('picker')
+          return '/repos/knowledge'
+        }
+      })
+    )
+
+    const answers = await Promise.all(ipc.channels().map((channel) => ipc.invoke(channel, frameAt('https://evil.example/'), FOLDER)))
+
+    expect(ipc.channels()).toEqual(['knowledge:choose-repository', 'knowledge:clear-repository', 'knowledge:status'])
+    expect(answers).toEqual([REFUSED, REFUSED, REFUSED])
+    expect(touched).toEqual([])
   })
 })
 

@@ -4,8 +4,10 @@ import type { StorageStatusView } from '../../../shared/domain/views'
 import type { ChatRecord } from '../../../shared/agents/chat'
 import { useAgents } from '../agents/useAgents'
 import type { AgentsModel } from '../agents/useAgents'
-import { chatsFor, useChats } from '../agents/useChats'
-import type { ChatsModel } from '../agents/useChats'
+import { useAgentMail } from '../agents/useAgentMail'
+import type { AgentMailStore } from '../agents/useAgentMail'
+import { chatsFor, useAllChats, useChats } from '../agents/useChats'
+import type { ChatListState, ChatsModel } from '../agents/useChats'
 import { useKanbanCounts } from '../kanban/useKanbanCounts'
 import type { KanbanCounts } from '../kanban/useKanbanCounts'
 import { bucketOfEpic } from '../sidebar/buckets'
@@ -50,6 +52,10 @@ export interface ShellModel {
   agents: AgentsModel
   /** The chats of every active folder, and rename and delete. */
   chats: ChatsModel
+  /** OMP chats' mailboxes in every active folder, as the person sees them: one store for header and sidebar. */
+  mail: AgentMailStore
+  /** Every chat that is not deleted, of every tracked folder and project-less, for the AGENTS section. */
+  allChats: ChatListState
   busy: Record<BusyKey, boolean>
   actions: ShellActions
   /**
@@ -90,15 +96,15 @@ function knownChats(chats: ChatsModel, folderPath: string | null): readonly Chat
  */
 function useSelection(
   folders: ReturnType<typeof useFolders>,
-  connected: readonly AgentView[] | null,
+  loaded: { agents: readonly AgentView[] | null; projectless: readonly ChatRecord[] | null },
   expansion: Expansion,
   onError: (error: unknown) => void
 ): { selection: Selection; select(selection: Selection): void; paths: string[]; chats: ChatsModel } {
   const [stored, select] = usePersistentState(SELECTION_STORAGE_KEY, EMPTY_SELECTION, isSelection)
-  const folderPath = resolveSelection(stored, folders.folders, folders.loaded, { agents: connected }).folderPath
+  const folderPath = resolveSelection(stored, folders.folders, folders.loaded, loaded).folderPath
   const paths = activeFolderPaths(folders.folders, folderPath, expansion.isFolderExpanded)
   const chats = useChats({ paths, onError })
-  const known = { agents: connected, chats: knownChats(chats, stored.folderPath) }
+  const known = { ...loaded, chats: knownChats(chats, stored.folderPath) }
   return { selection: resolveSelection(stored, folders.folders, folders.loaded, known), select, paths, chats }
 }
 
@@ -108,10 +114,11 @@ function shellView(input: {
   selected: TrackedFolderView | null
   selection: Selection
   chats: readonly ChatRecord[] | null
+  projectless: readonly ChatRecord[] | null
   agents: readonly AgentView[] | null
   folderTabs: FolderTabs
 }): MainView {
-  const { folders, selected, selection, chats, agents, folderTabs } = input
+  const { folders, selected, selection, chats, projectless, agents, folderTabs } = input
   return chooseView({
     loaded: folders.loaded,
     folder: selected,
@@ -122,6 +129,7 @@ function shellView(input: {
     chats,
     agentPane: selection.agentPane,
     agents,
+    projectless,
     folderTab: folderTabOf(folderTabs, selection.folderPath)
   })
 }
@@ -143,6 +151,12 @@ function useFooterStatus(
   return useStorageStatus({ path, token: path === null ? 0 : folderToken(tokens, path), tick, onError })
 }
 
+/** Every chat of every tracked folder and project-less (the AGENTS section), and the project-less ones once loaded. */
+function useEveryChat(folders: readonly TrackedFolderView[], onError: (error: unknown) => void): { allChats: ChatListState; projectless: ChatRecord[] | null } {
+  const allChats = useAllChats({ tracked: folders.map((folder) => folder.path), onError })
+  return { allChats, projectless: allChats.status === 'loading' ? null : allChats.chats.filter((chat) => chat.folder === null) }
+}
+
 /**
  * All shell state in one place: tracked folders, the persisted selection and collapse state, epic
  * lists and storage status kept fresh by the event feed, and the actions the UI can take.
@@ -156,11 +170,13 @@ export function useShell(scheduler: Scheduler): ShellModel {
   const [busy, setBusy] = useState(IDLE)
   const [landing, setLanding] = useState<Landing | null>(null)
   const [folderTabs, setFolderTab] = useFolderTabs()
-  const { selection, select, paths, chats } = useSelection(folders, connected, expansion, toasts.reportError)
+  const { allChats, projectless } = useEveryChat(folders.folders, toasts.reportError)
+  const { selection, select, paths, chats } = useSelection(folders, { agents: connected, projectless }, expansion, toasts.reportError)
   const selected = findFolder(folders.folders, selection.folderPath)
   const feed = useEventFeed({ paths, selectedPath: selection.folderPath, scheduler, onError: toasts.reportError })
   const lists = useEpicLists({ paths, tokens: feed.tokens, onError: toasts.reportError })
   const kanbanCounts = useKanbanCounts({ paths, tokens: feed.tokens, onError: toasts.reportError })
+  const mail = useAgentMail(paths)
   const status = useFooterStatus(statusPathOf(selected), feed.tokens, scheduler, toasts.reportError)
 
   const actions = createShellActions({
@@ -180,13 +196,15 @@ export function useShell(scheduler: Scheduler): ShellModel {
   return {
     folders: folders.folders,
     selection,
-    view: shellView({ folders, selected, selection, chats: knownChats(chats, selection.folderPath), agents: connected, folderTabs }),
+    view: shellView({ folders, selected, selection, chats: knownChats(chats, selection.folderPath), projectless, agents: connected, folderTabs }),
     lists,
     kanbanCounts,
     status,
     expansion,
     agents,
     chats,
+    mail,
+    allChats,
     busy,
     actions,
     landing,

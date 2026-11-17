@@ -196,7 +196,7 @@ It never does a ticket itself. For each ready ticket it:
 3. Keeps the claim token and heartbeats while the subagent works, unless the subagent can make the reporting calls itself. Then it submits the subagent's outputs and evidence.
 4. Reviews the result against the ticket's own criteria and the worker's targeted evidence, with no full sweep, and accepts or rejects it. It merges accepted work into a separate worktree on the sprint integration branch, so the coordinating checkout stays on the epic branch, and records a row check (`record_row_check`) when a row is fully accepted.
 
-When the sprint's acceptance node is ready, it runs the project's Definition of Done on the combined work, verifies each item the node's criteria cover, squashes the sprint into one commit on the epic branch, and submits that commit as the node's increment. Then it files the sprint report and waits until you approve the checkpoint in the desktop app (the rules behind this are under [the sprint cadence](../architecture.md#runs-readiness-and-attempts)). The full loop is in [`skills/orchestrator.md`](../../skills/orchestrator.md).
+When the sprint's acceptance node is ready, it runs the project's Definition of Done on the combined work, verifies each item the node's criteria cover, squashes the sprint into one commit on the epic branch, and submits that commit as the node's increment. Then it files the sprint report and waits until you approve the checkpoint in the desktop app (the rules behind this are under [the sprint cadence](../architecture.md#runs-readiness-and-attempts)). The full loop is in the kernel guide [`skills/orchestrator.md`](../../skills/orchestrator.md) and its built-in knowledge facts in [`skills/knowledge/orchestrator/`](../../skills/knowledge/orchestrator/), which reach the orchestrator as pushed `context` and through `get_context` (see [Knowledge layers](knowledge.md)).
 
 A session's role is fixed when it starts. If its `get_capabilities` says `planner`, change the entry to `--role orchestrator` and start a new session. A running session doesn't pick up the change.
 
@@ -224,7 +224,7 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 
 | Tools | planner | orchestrator | worker | reviewer |
 |-------|:-------:|:------------:|:------:|:--------:|
-| Read-only (33): `get_capabilities`, `get_project`, `list_projects`, `get_storage_status`, `search_history`, `list_branch_epics`, `list_sessions`, `list_epics`, `get_epic`, `list_tickets`, `get_ticket`, `get_attachment`, `get_plan`, `validate_plan`, `list_revisions`, `match_capabilities`, `get_run`, `get_ready_tickets`, `get_run_events`, `get_run_metrics`, `get_planned_baselines`, `get_sprint_report`, `get_checkpoint`, `get_retro_findings`, `get_experiment`, `preview_corrections`, `list_comments`, `list_profiles`, `get_profile`, `preview_board_import`, `get_transfer`, `list_kanban_cards`, `get_kanban_card` | yes | yes | yes | yes |
+| Read-only (34): `get_capabilities`, `get_project`, `list_projects`, `get_storage_status`, `get_context`, `search_history`, `list_branch_epics`, `list_sessions`, `list_epics`, `get_epic`, `list_tickets`, `get_ticket`, `get_attachment`, `get_plan`, `validate_plan`, `list_revisions`, `match_capabilities`, `get_run`, `get_ready_tickets`, `get_run_events`, `get_run_metrics`, `get_planned_baselines`, `get_sprint_report`, `get_checkpoint`, `get_retro_findings`, `get_experiment`, `preview_corrections`, `list_comments`, `list_profiles`, `get_profile`, `preview_board_import`, `get_transfer`, `list_kanban_cards`, `get_kanban_card` | yes | yes | yes | yes |
 | Scorecards and metrics (12, read-only): `get_ticket_grade`, `get_sprint_grade`, `get_run_grade`, `get_epic_grade`, `get_report_scorecard`, `reassess_report_scorecard`, `get_space_signals`, `get_ticket_performance`, `get_escaped_defects`, `get_run_efficiency`, `get_run_timing`, `get_metrics_summary` | yes | yes | yes | yes |
 | Comments, images and chat names: `add_comment`, `add_attachment`, `name_chat` | yes | yes | yes | yes |
 | Profiles: `save_profile` | yes | yes | | |
@@ -246,9 +246,12 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 | Linear transfer (`epic.transfer`): `start_transfer`, `record_transfer_item`, `submit_transfer_readback` | | yes | | |
 | Kanban launch and claim: `launch_kanban_cards`, `claim_kanban_card` | | yes | | |
 | Kanban reporting (`kanban.report`): `heartbeat_kanban_card`, `submit_kanban_card`, `fail_kanban_card` | | yes | yes | |
-| **Total** | 64 (65 with `--allow-save`) | 96 (97 with `--allow-save`) | 55 | 51 |
+| Agent mail (`mail.use`; listed, but always `unauthorized` over MCP): `get_agent_identity`, `list_agent_peers`, `send_agent_message`, `read_agent_inbox`, `acknowledge_agent_messages`, `get_agent_mail_status`, `take_agent_mail_wake` | yes | yes | yes | yes |
+| **Total** | 72 (73 with `--allow-save`) | 104 (105 with `--allow-save`) | 63 | 59 |
 
 `--allow-save` has no effect for `worker` and `reviewer`. No role lists a tool for the desktop-only actions: no tool presses Play on a Kanban card, approves one or kicks one back (`kanban.play` and `kanban.review` belong to a person in the desktop app).
+
+The seven agent mail tools are listed to every hosted role, but a mailbox belongs to a `dm` CLI grant the desktop bound to a chat, which no MCP session has (not even one that inherited `DM_SESSION_TOKEN`): every call over MCP answers `unauthorized` and changes nothing. Native Skitarii chats use them through the `dm` CLI; see [Agent mail between Skitarii chats](cli.md#agent-mail-between-skitarii-chats).
 
 ### Scorecards and project metrics
 

@@ -1,0 +1,25 @@
+{
+  "attachments": [
+    {
+      "bytes": 48852,
+      "height": 881,
+      "id": "im_01m7gr36q0k32d0f62j490hfmk",
+      "label": "DM541 Native10 final owned fixture after consumed run",
+      "mime": "image/png",
+      "purpose": "evidence",
+      "sha256": "c0fc2d3fa75fd58d8afa75412dfc20721cbd8e4443e5c1d873db57855faa6ff5",
+      "width": 1479
+    }
+  ],
+  "author": {
+    "label": "Codex Orchestrator",
+    "role": "orchestrator"
+  },
+  "body": "Consumed exactly ONE reviewed Native10 run under cm_01m7gqx2t367vg3g4rhmzf4478; no rerun/native authority remains. Root evidence/desktop-dm541/semantic10-pilot-20261115T231802273Z. Controller manifest SHA6ee5c86d5529a95c04dc6e3494254375ca8fbb29917272e42291086a40a3f83d; fixture manifest c1a334aa6445bf34920f94a6448eaf7f5b6b50fd6ee872e6251287f9df5c0eb3. Real guardIpc/core ordinary createKanbanCard and generation/action-bound DOM/twoRAF ACK succeeded: backlog1→2, grants1→1, private decision receipts3→3. Native sole semantic_api InvokePattern.Invoke succeeded, verified=false, delivered_unverified/unsafe retained. NEXT snapshot before protected action exited1; safe known-code projection preserves INTERNAL and not_delivered/safe FOR THAT SNAPSHOT ONLY. Every protected/all15 native comparison remains UNEXERCISED. Root cause unknown; no raw error/foreign data disclosed, no inference from276-byte length/hash, no retroactive explanation of Native9. Exact owned PID39912/HWND4393294/birth639303814930805852; foreground false→true observed, incidental transition was disclosed/authorized, no explicit focus/key/pointer. Whole1429.6833ms, cleanup120.5666ms, observed direct children closed/survivors[], descendant-tree/OSqueue not independently proved. Actual final owned PNG SHA c0fc2d3fa75fd58d8afa75412dfc20721cbd8e4443e5c1d873db57855faa6ff5 attached and inspected. Read-only pinned Windows and CLI/session source diagnosis continues without actuation. Test-only final-publication boundary trigger now uses meaningful same-recipient pre-enqueue binding read, not validation-call ordinal;30sandbox tests+lint+3types passed. No fullF03, human-origin positive, native protected pass, success submission or self-acceptance.",
+  "createdAt": "2026-11-15T23:28:59.589Z",
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7grnt656trydvmdmvz7h1vs",
+  "ticketId": "tk_01m794h65mec9hp3m268kbey53"
+}

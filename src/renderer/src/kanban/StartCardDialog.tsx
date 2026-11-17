@@ -6,7 +6,7 @@ import { useAgentModelChoice } from '../agents/useAgentModelChoice'
 import { useFolderDefaultAgent } from '../agents/useFolderDefaultAgent'
 import { Button } from '../components/Button'
 import { Dialog } from '../components/Dialog'
-import { RunWithAgentSection } from '../epic/StartRunDialog'
+import { instructionsOf, RunWithAgentSection } from '../epic/StartRunDialog'
 import type { OrchestrationHost } from '../epic/orchestration'
 
 interface StartCardDialogProps {
@@ -22,21 +22,22 @@ const DESCRIPTION = 'Choose the agent that carries this card. It works in a chat
 
 /**
  * Play: pick a connected, signed-in agent and its model. Dark Mechanicus marks the play and starts that
- * agent in a chat of this folder to carry the card to Ready for review. A refusal keeps the dialog open
- * and says why.
+ * agent in a chat of this folder to carry the card to Ready for review, with any additional instructions typed here
+ * after the card lines of its first message. A refusal keeps the dialog open, with what was typed, and says why.
  */
 export function StartCardDialog({ folderPath, card, host, onStarted, onClose }: StartCardDialogProps): JSX.Element {
   const preferred = useFolderDefaultAgent(folderPath)
   const choice = useAgentModelChoice(host.agents, host.statuses, preferred.agentId)
   const [busy, setBusy] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
+  const [instructions, setInstructions] = useState('')
   const { agent } = choice
   const start = async (): Promise<void> => {
     if (agent === null) return
     setBusy(true)
     setProblem(null)
     try {
-      onStarted(await unwrapChat(window.dm.chats.startKanbanCard({ folder: folderPath, cardId: card.id, agent, model: choice.model })))
+      onStarted(await unwrapChat(window.dm.chats.startKanbanCard({ folder: folderPath, cardId: card.id, agent, model: choice.model, ...instructionsOf(instructions) })))
     } catch (error) {
       setProblem(errorMessage(error))
       setBusy(false)
@@ -57,6 +58,8 @@ export function StartCardDialog({ folderPath, card, host, onStarted, onClose }: 
           {...host}
           hint={`Dark Mechanicus starts the agent on “${card.title}” and sends it the card. It cannot save plans.`}
           choice={choice}
+          instructions={instructions}
+          onInstructionsChange={setInstructions}
           onAddAgent={() => {
             onClose()
             host.onAddAgent()

@@ -255,13 +255,39 @@ describe('commitFiles with selected lines of several files', () => {
     }
     // Changes: -a 0, +b 1. Committing f0.txt first leaves the other files' diffs, and so their hashes, as they are.
     const status = await requireStatus(runner, r.root)
-    const read = (path: string): Promise<FileDiff> => readWorkingDiff(runner, r.root, findInStatus(status, path), { hasCommit: true })
+    const read = (path: string): Promise<FileDiff> => readWorkingDiff(runner, r.root, findInStatus(status, path), { headExists: true })
     const files = await Promise.all(paths.map(async (path) => ({ path, oldPath: null, lines: [1], diffHash: (await read(path)).hash })))
     const one = await countedCommit(r.root, files.slice(0, 1))
     const three = await countedCommit(r.root, files.slice(1))
     expect(three.length - one.length).toBe(2)
     expect(three.filter((args) => args.includes('apply'))).toHaveLength(1)
     expect(gitIn(r.root, 'show', ...paths.map((path) => `HEAD:${path}`))).toBe('a\nb\n'.repeat(paths.length))
+  })
+})
+
+describe('commitFiles with selected lines in several files', () => {
+  it('reads each file once, checks HEAD once for a moved branch, and stages every selection with one git apply', async () => {
+    const r = repo()
+    base(r, 'f.txt', 'a\nb\n')
+    base(r, 'g.txt', 'c\n')
+    put(r.root, 'f.txt', 'A\nB\n')
+    put(r.root, 'g.txt', 'C\n')
+    put(r.root, 'n.txt', 'n\nm\n')
+    const files = []
+    for (const path of ['f.txt', 'g.txt', 'n.txt']) {
+      const diff = await workingDiff(r.root, path)
+      files.push({ path, oldPath: null, lines: [0], diffHash: diff.hash })
+    }
+    const runs = await countedCommit(r.root, files)
+    const command = (args: readonly string[]): string | undefined => args.find((arg) => !arg.startsWith('-'))
+    expect(runs.filter((args) => command(args) === 'diff')).toHaveLength(3)
+    expect(runs.filter((args) => command(args) === 'apply')).toHaveLength(1)
+    // The one HEAD check is the moved-branch check before the diffs are read; no diff read probes HEAD on its own.
+    expect(runs.filter((args) => command(args) === 'rev-parse' && args.includes('--verify'))).toHaveLength(1)
+    // Changes: f -a 0; g -c 0; n +n 0.
+    expect(show(r, 'f.txt')).toBe('b\n')
+    expect(show(r, 'g.txt')).toBe('')
+    expect(show(r, 'n.txt')).toBe('n\n')
   })
 })
 

@@ -139,8 +139,8 @@ async function linePatches(runner: GitRunner, status: RepoStatus, files: readonl
   if (files.length === 0) {
     return []
   }
-  const hasCommit = await checkedHead(runner, status)
-  const read = (change: FileChange): Promise<FileDiff> => readWorkingDiff(runner, status.root, change, { force: true, hasCommit })
+  const headExists = await checkedHead(runner, status)
+  const read = (change: FileChange): Promise<FileDiff> => readWorkingDiff(runner, status.root, change, { force: true, headExists })
   const taken = new Set(whole)
   const patches: string[] = []
   for (const file of files) {

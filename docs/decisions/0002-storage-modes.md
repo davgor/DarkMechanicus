@@ -15,6 +15,13 @@ else's repository, where a `.darkmechanicus/` directory, a `.gitignore` entry, a
 installed skills are all files a person then has to explain, exclude or keep deleting. Exercising
 the Dark Mechanicus workflow against such a checkout should change nothing in it.
 
+> **Amendment (2026-11-15, Skitarii communications, DM-507 and DM-514).** "A derived working database rebuilt from
+> them" no longer holds in either mode. Local agent mail (schema v15) lives only in the database and is neither
+> exported nor rebuilt from records: deleting or rebuilding `local/` loses it, even in `repo` mode. Move `local/`
+> aside or take a desktop backup (`VACUUM INTO`, desktop-only because it copies every mailbox) before any rebuild,
+> and expect no Git restore to bring mail back. The text below is kept as the original decision; see
+> [`design/skitarii-messaging.md`](../design/skitarii-messaging.md#durability-backup-and-recovery).
+
 ## Decision
 
 A repository folder has a **storage mode**, chosen when it is set up and switchable explicitly from the desktop Storage card:

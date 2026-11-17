@@ -34,6 +34,7 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   listEvents: 'read',
   getAttemptTimeline: 'read',
   getRunTimeline: 'read',
+  getContext: 'read',
   listEpics: 'read',
   createEpic: 'epic.create',
   getEpic: 'read',
@@ -135,5 +136,13 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   startTransfer: 'epic.transfer',
   recordTransferItem: 'epic.transfer',
   getTransfer: 'read',
-  submitTransferReadback: 'epic.transfer'
+  submitTransferReadback: 'epic.transfer',
+  // Necessary, not sufficient: the service also requires the session's own desktop-bound grant (services/agentMail.ts).
+  getAgentIdentity: 'mail.use',
+  listAgentPeers: 'mail.use',
+  sendAgentMessage: 'mail.use',
+  readAgentInbox: 'mail.use',
+  acknowledgeAgentMessages: 'mail.use',
+  getAgentMailStatus: 'mail.use',
+  takeAgentMailWake: 'mail.use'
 }

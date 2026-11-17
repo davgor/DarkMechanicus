@@ -1,11 +1,13 @@
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { DomainError } from '../../core/errors'
 import type { ChatItem, ChatRecord } from '../../shared/agents/chat'
 import { AT, builtInAgent, connectedAgents, memoryChatFs, memoryChatStore, REPO, storeItems, type MemoryChatFs } from './__mocks__/chatFixtures'
 import { ATTEMPT_A, ORCHESTRATOR_CHAT_ITEMS, RUN_ID } from './__mocks__/orchestratorChat'
 import { createActivityBindings } from './activityBindings'
 import { createChatRecords, type ChatRecords } from './chatRecords'
 import type { ChatStore } from './chatStore'
+import type { ChatMailboxes } from './chatMailboxes'
 
 const BINDINGS_FILE = resolve('/state/agents/activity-bindings.jsonl')
 
@@ -158,6 +160,78 @@ describe('chat records: deleting a chat', () => {
     const { records } = rig()
 
     await expect(records.deleteChat({ folder: REPO, id: 'chat_nope' })).rejects.toMatchObject({ code: 'not_found' })
+  })
+})
+
+/** Mailboxes that write down each call and play a deletion that storage refuses, or a mailbox already deleting. */
+function recordingMailboxes(steps: string[], options: { refuseDelete?: () => boolean; deleting?: Set<string> } = {}): ChatMailboxes {
+  const split = (chats: readonly ChatRecord[]): { chats: ChatRecord[]; deleting: ChatRecord[] } => ({
+    chats: chats.filter((chat) => options.deleting?.has(chat.id) !== true),
+    deleting: chats.filter((chat) => options.deleting?.has(chat.id) === true)
+  })
+  return {
+    reconcile: (_folder, chats) => {
+      steps.push(`reconcile ${chats.map((chat) => chat.id).join()}`)
+      return split(chats)
+    },
+    recover: (_folder, chats) => split(chats),
+    rename: (chat) => void steps.push(`rename ${chat.id} ${chat.title}`),
+    delete: (chat) => {
+      if (options.refuseDelete?.() === true) throw new DomainError('internal', 'database is locked')
+      steps.push(`mailbox ${chat.id}`)
+    },
+    suspendFolder: () => {}
+  }
+}
+
+describe('chat records: mailboxes', () => {
+  it('deletes the mailbox first, then the bindings, OMP’s folder and the record', async () => {
+    const steps: string[] = []
+    const fs = memoryChatFs()
+    const store = memoryChatStore(fs)
+    const activity = { forgetChat: (chat: ChatRecord) => void steps.push(`forget ${chat.id}`) }
+    const records = createChatRecords({ store, agentFor: connectedAgents(), activity, mailboxes: recordingMailboxes(steps), removeOmpFolder: async (id) => void steps.push(`omp ${id}`) })
+    const chat = records.createChat({ folder: REPO, agent: 'omp', role: 'worker', title: 'Skitarius' })
+    steps.length = 0
+
+    await records.deleteChat(chat)
+
+    expect(steps).toEqual([`mailbox ${chat.id}`, `forget ${chat.id}`, `omp ${chat.id}`])
+    expect(store.getChat(chat)).toBeNull()
+  })
+
+  it('keeps the chat, listed and deletable again, when storage cannot record its mailbox deletion', async () => {
+    let refusing = true
+    const steps: string[] = []
+    const store = memoryChatStore(memoryChatFs())
+    const records = createChatRecords({ store, agentFor: connectedAgents(), mailboxes: recordingMailboxes(steps, { refuseDelete: () => refusing }) })
+    const chat = records.createChat({ folder: REPO, agent: 'omp', role: 'worker', title: 'Stays' })
+
+    await expect(records.deleteChat(chat)).rejects.toThrow('database is locked')
+    expect(records.listChats(REPO).map((listed) => listed.id)).toEqual([chat.id])
+
+    refusing = false
+    await records.deleteChat(chat)
+    expect(records.listChats(REPO)).toEqual([])
+  })
+
+  it('renames the mailbox with the chat, and leaves out and finishes a chat whose mailbox is already deleting', async () => {
+    const steps: string[] = []
+    const deleting = new Set<string>()
+    const store = memoryChatStore(memoryChatFs())
+    const records = createChatRecords({ store, agentFor: connectedAgents(), mailboxes: recordingMailboxes(steps, { deleting }) })
+    const kept = records.createChat({ folder: REPO, agent: 'omp', role: 'worker', title: 'Kept' })
+    const halfDeleted = records.createChat({ folder: REPO, agent: 'omp', role: 'worker', title: 'Half deleted' })
+    records.renameChat(kept, 'Kept, renamed')
+    deleting.add(halfDeleted.id)
+
+    expect(records.listChats(REPO).map((chat) => chat.id)).toEqual([kept.id])
+    await records.recoverFolder(REPO)
+
+    expect(steps).toContain(`rename ${kept.id} Kept, renamed`)
+    expect(steps.filter((step) => step === `mailbox ${halfDeleted.id}`)).toEqual([`mailbox ${halfDeleted.id}`])
+    expect(store.getChat(halfDeleted)).toBeNull()
+    expect(store.getChat(kept)?.title).toBe('Kept, renamed')
   })
 })
 

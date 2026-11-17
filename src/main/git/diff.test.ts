@@ -89,6 +89,37 @@ describe('readWorkingDiff', () => {
   })
 })
 
+describe('readWorkingDiff with a known HEAD', () => {
+  it('reads in one git process, without probing HEAD, when the caller says whether HEAD exists', async () => {
+    const r = repo()
+    commitFile(r, 'm.txt', '1\n2\n')
+    put(r.root, 'm.txt', '1\ntwo\n')
+    put(r.root, 'u.txt', 'u\n')
+    const runs: string[][] = []
+    const counting: GitRunner = { run: (request) => (runs.push([...request.args]), runner.run(request)) }
+    for (const path of ['m.txt', 'u.txt']) {
+      const change = await changeOf(r.root, path)
+      runs.length = 0
+      expect(await readWorkingDiff(counting, r.root, change, { headExists: true })).toEqual(await readWorkingDiff(runner, r.root, change))
+      expect(runs.map((args) => args.find((arg) => !arg.startsWith('-')))).toEqual(['diff'])
+    }
+  })
+
+  it('diffs against nothing, without probing HEAD, when the caller says HEAD does not exist', async () => {
+    const dir = scratchDir()
+    cleanups.push(dir.cleanup)
+    gitIn(dir.path, 'init', '-q', '-b', 'main')
+    put(dir.path, 'f.txt', 'a\n')
+    gitIn(dir.path, 'add', 'f.txt')
+    const root = dir.path
+    const change = await changeOf(root, 'f.txt')
+    const runs: string[][] = []
+    const counting: GitRunner = { run: (request) => (runs.push([...request.args]), runner.run(request)) }
+    expect(await readWorkingDiff(counting, root, change, { headExists: false })).toEqual(await readWorkingDiff(runner, root, change))
+    expect(runs).toHaveLength(1)
+  })
+})
+
 describe('readWorkingDiff (untracked, renamed, binary)', () => {
   it('reads an untracked file, including a non-ASCII name', async () => {
     const r = repo()
@@ -176,43 +207,6 @@ describe('readWorkingDiff (modes, newlines, size)', () => {
     expect(await diffOf(r.root, 'big.txt')).toMatchObject({ kind: 'too_large', bytes: 2 * 1024 * 1024, path: 'big.txt' })
     const forced = textOf(await diffOf(r.root, 'big.txt', { force: true }))
     expect(forced.hunks[0].lines).toHaveLength(25_000)
-  })
-})
-
-/**
- * Reads the diff of `path` with `options` and without them, from one status read: the diff with them, the arguments of
- * every git process that read started, and the diff without them.
- */
-async function countedDiff(root: string, path: string, options: { hasCommit: boolean }): Promise<{ diff: FileDiff; started: Array<readonly string[]>; asked: FileDiff }> {
-  const started: Array<readonly string[]> = []
-  const counting: GitRunner = {
-    run: (request) => {
-      started.push(request.args)
-      return runner.run(request)
-    }
-  }
-  const change = await changeOf(root, path)
-  const diff = await readWorkingDiff(counting, root, change, options)
-  return { diff, started, asked: await readWorkingDiff(runner, root, change) }
-}
-
-describe('readWorkingDiff when the caller already knows whether HEAD names a commit', () => {
-  it('reads the same diff with git diff alone, on a branch with commits and on an unborn branch', async () => {
-    const r = repo()
-    commitFile(r, 'm.txt', '1\n2\n')
-    put(r.root, 'm.txt', '1\ntwo\n')
-    const born = await countedDiff(r.root, 'm.txt', { hasCommit: true })
-    expect(born.started).toEqual([expect.arrayContaining(['diff', 'HEAD'])])
-    expect(born.diff).toEqual(born.asked)
-
-    const dir = scratchDir()
-    cleanups.push(dir.cleanup)
-    gitIn(dir.path, 'init', '-q', '-b', 'main')
-    put(dir.path, 'staged.txt', 's\n')
-    gitIn(dir.path, 'add', 'staged.txt')
-    const unborn = await countedDiff(dir.path, 'staged.txt', { hasCommit: false })
-    expect(unborn.started).toEqual([expect.arrayContaining(['diff', '--no-index'])])
-    expect(unborn.diff).toEqual(unborn.asked)
   })
 })
 

@@ -1,0 +1,24 @@
+{
+  "actor": {
+    "label": "Desktop",
+    "role": "desktop"
+  },
+  "attemptId": "ka_01m7mnbs1weamesbccqkc9qv96",
+  "cardId": "kc_01m7mn8va7w8j9qby8req26zc0",
+  "createdAt": "2026-11-17T13:37:20.518Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7mvkx47a3r18p9ew2xxzq83",
+  "kind": "approved",
+  "payload": {
+    "number": 1,
+    "summary": {
+      "approvedBy": "Desktop",
+      "commits": [
+        "63e0733785eaf9086ad45a38a13c9fa81b034653"
+      ],
+      "completedAt": "2026-11-17T13:37:20.518Z",
+      "outcome": "Check for updates and the 4-hour poll now run in phase `downloaded` (canStartUpdateCheck allows downloaded; checkInFlight guard unchanged). While an update is ready, checking-for-update, update-not-available and a re-announced same version leave the state untouched, so Restart n…"
+    }
+  }
+}

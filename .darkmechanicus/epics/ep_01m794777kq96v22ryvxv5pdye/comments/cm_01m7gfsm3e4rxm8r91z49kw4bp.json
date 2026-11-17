@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Superseding source-only handoff commit f147b9503989801ed9a61c741aa3a53e76f7db24, parent230fc21f82368bc61d6b35af400a853110bb3b9a. Build6 NEVER launched and must not receive consent: its dispatch budget incorrectly added cleanup beyond120s. Build7 captures entry monotonic/UTC before preflight, reserves5s INSIDE the whole<=120s/consent-expiry window, shortens private fixture consent accordingly, aborts command waits while retaining original child handles/listeners, and denies new cleanup dispatch/signals after budget exhaustion. Unknown termination remains incomplete/retained, never Stopped. New injected-clock/lifecycle4passed/51skipped; actual lint complexity failure fixed, final lint and all3 type projects passed. Source-only esbuild generation passed; unchanged fixture/helpers copied byte-identically. No native launch. Next proposed scope ONLY dm541-protected-semantic-invoke-only with fresh explicit background-owned-ref permission; no raw physical run. Build7 controllerSHA8deaa364861be245c5545b0a508ee5beb5648388e4a427a191294f050deb3142; fixtureSHA499704d1ab936fea01de324028c7715008600d1a31be154e35b4fe3140a7de75; guardSHA1baa6065cff81ca8d71f3008967eec5d88f89bdd8bc1d910ba37222fa0c16d68. Detailed source/binary pins and honest per-criterion unmet evidence: evidence/desktop-dm541/retry3-native-build7-deadline.json SHA256f1cbdb72a3979f3c0da0861cfde53433f419e2555211c9c0aca8b2c9b53e3231. Both prior native failures/image preserved, no reclassification. Overlay/trusted-display and persistent broker-delegation concerns are source-derived, NOT reproduced attacks or universal impossibility; a fresh challenge is not accepted proof or arbitrary PTY-byte unlock. Full gate remains incomplete: sandbox normalization/Clap actual consumer tests, exact ownership/supervisor/two-process handoff, final implementable Autonomous shim contract and actual protected-vs-ordinary native proof. No success submission/selfacceptance or premature attempt failure.",
+  "createdAt": "2026-11-15T20:53:47.247Z",
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7gfsm3e4rxm8r91z49kw4bp",
+  "ticketId": "tk_01m794h65mec9hp3m268kbey53"
+}

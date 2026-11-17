@@ -2,6 +2,7 @@ import type { TerminalColors } from '../../../shared/agents/terminalColors'
 import type { CommandName } from '../../../shared/domain/api'
 import { deferred } from './deferred'
 import { FakeChats } from './fakeChats'
+import { knowledgeStatus } from './fixtures'
 import { idleCrossRepoCorrections } from './idleCrossRepoCorrections'
 import { idleSourceCheckout } from './idleSourceCheckout'
 import { idleTerminals } from './idleTerminals'
@@ -25,6 +26,8 @@ import type {
   CommandResult,
   DmApi,
   FolderPickResult,
+  KnowledgeChooseResult,
+  KnowledgeStatusView,
   McpConfigView,
   TrackedFolderView
 } from '../../../shared/desktop/api'
@@ -243,6 +246,34 @@ export class FakeDm implements DmApi {
       }
       return request.agentId
     })
+  }
+
+  /** What knowledgeStatus answers; choosing and clearing the overall repository change it as main would. */
+  knowledge: KnowledgeStatusView = knowledgeStatus()
+  /** Answers to chooseKnowledgeRepository, in order; once used up the picker is cancelled. */
+  knowledgeChooseOutcomes: KnowledgeChooseResult[] = []
+  /** Every knowledge API call with its arguments, oldest first. */
+  knowledgeCalls: { method: string; args: unknown[] }[] = []
+
+  knowledgeStatus(folder: string): Promise<KnowledgeStatusView> {
+    this.knowledgeCalls.push({ method: 'knowledgeStatus', args: [folder] })
+    return Promise.resolve(structuredClone(this.knowledge))
+  }
+
+  chooseKnowledgeRepository(): Promise<KnowledgeChooseResult> {
+    this.knowledgeCalls.push({ method: 'chooseKnowledgeRepository', args: [] })
+    const outcome = this.knowledgeChooseOutcomes.shift() ?? { outcome: 'cancelled' }
+    if (outcome.outcome === 'set') {
+      this.knowledge.layers.overall = { ...this.knowledge.layers.overall, configured: true, path: outcome.repository }
+    }
+    return Promise.resolve(outcome)
+  }
+
+  clearKnowledgeRepository(): Promise<void> {
+    this.knowledgeCalls.push({ method: 'clearKnowledgeRepository', args: [] })
+    this.knowledge.layers.overall = { configured: false, path: null, count: 0 }
+    this.knowledge.git = null
+    return Promise.resolve()
   }
 
   /** Calls recorded for one agent method. */

@@ -30,7 +30,7 @@ const agentPageShown = (): boolean => screen.queryByRole('heading', { level: 1, 
 async function signInFromAgentPage(): Promise<void> {
   h.mount()
   await settle()
-  fireEvent.click(sidebar().getByRole('button', { name: /Claude Code/ }))
+  fireEvent.click(sidebar().getByRole('button', { name: /^Claude Code/ }))
   await settle()
   fireEvent.click(workspace().getByRole('button', { name: 'Sign in' }))
   await settle()
@@ -75,7 +75,7 @@ describe('App sign-in view', () => {
     expect(signInView()).toBeNull()
     expect(terminals.latestSignIn().closed).toBe(true)
 
-    fireEvent.click(sidebar().getByRole('button', { name: /Claude Code/ }))
+    fireEvent.click(sidebar().getByRole('button', { name: /^Claude Code/ }))
     await settle()
     expect(signInView()).toBeNull()
     expect(agentPageShown()).toBe(true)
@@ -89,6 +89,6 @@ describe('App sign-in view', () => {
     await settle()
 
     expect(within(signInView() as HTMLElement).getByText('Signed in to Claude Code.')).toBeTruthy()
-    expect(within(sidebar().getByRole('button', { name: /Claude Code/ })).getByText('Signed in')).toBeTruthy()
+    expect(within(sidebar().getByRole('button', { name: /^Claude Code/ })).getByText('Signed in')).toBeTruthy()
   })
 })

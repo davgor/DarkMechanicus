@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { DomainError } from '../../core/errors'
 import type { ChatItem } from '../../shared/agents/chat'
 import { memoryChatFs, memoryChatStore, REPO, storeItems, type MemoryChatFs } from './__mocks__/chatFixtures'
-import { createChatStore, type NewChat } from './chatStore'
+import { createChatStore, type ChatRef, type NewChat } from './chatStore'
 
 const NEW_CHAT: NewChat = { folder: REPO, agent: 'claude', model: 'opus', role: 'planner', allowSave: true }
 const AT = '2026-02-01T00:00:00.000Z'
@@ -32,7 +32,7 @@ function errorCode(action: () => unknown): string {
   return 'no error'
 }
 
-function seeded(): { fs: MemoryChatFs; doomed: { folder: string; id: string }; kept: { folder: string; id: string } } {
+function seeded(): { fs: MemoryChatFs; doomed: ChatRef; kept: ChatRef } {
   const fs = memoryChatFs()
   const store = memoryChatStore(fs)
   const doomed = store.createChat({ ...NEW_CHAT, title: 'Secret plan' })

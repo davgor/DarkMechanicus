@@ -1,5 +1,6 @@
 import { COMMAND_SCHEMAS } from '../commandSchemas'
 import type { Ctx } from '../context'
+import { filePaths, withKnowledgeContext } from '../knowledge/push'
 import {
   approveKanbanCard,
   claimKanbanCard,
@@ -56,7 +57,10 @@ const kanbanCommands = {
   claimKanbanCard: {
     schema: COMMAND_SCHEMAS.claimKanbanCard,
     mutates: true,
-    run: (core, input) => claimKanbanCard(core.ctx(), input)
+    run: (core, input) => {
+      const packet = claimKanbanCard(core.ctx(), input)
+      return withKnowledgeContext(core, packet, 'kanban.claimed', filePaths(packet.card.references))
+    }
   },
   heartbeatKanbanCard: {
     schema: COMMAND_SCHEMAS.heartbeatKanbanCard,

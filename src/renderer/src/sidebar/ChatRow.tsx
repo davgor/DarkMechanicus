@@ -4,6 +4,8 @@ import type { AgentView } from '../../../shared/desktop/api'
 import { agentName } from '../agents/agentText'
 import { chatMeta } from '../agents/chatList'
 import { useLiveTerminal } from '../agents/liveTerminals'
+import { useChatMail } from '../agents/useAgentMail'
+import { plural } from '../app/plural'
 import { classNames } from '../components/classNames'
 import { Menu } from '../components/Menu'
 
@@ -17,6 +19,8 @@ interface ChatRowProps {
   onOpen(chatId: string): void
   onRename(chat: ChatRecord): void
   onDelete(chat: ChatRecord): void
+  /** Where the chat belongs, for a list that mixes folders (an agent's chats): its folder's name, or "No project". */
+  place?: string
 }
 
 /** The badge of a chat that waits on the person to sign in to its agent. */
@@ -28,11 +32,24 @@ function WaitingBadge({ chat, agents, signInWaiting }: Pick<ChatRowProps, 'chat'
   ) : null
 }
 
+/** Messages the person has not seen, from the page's mail store: a stopped chat's mail counts too. */
+function UnseenBadge({ chat }: { chat: ChatRecord }): JSX.Element | null {
+  const unseen = useChatMail(chat.folder, chat.id).state?.unseenCount ?? 0
+  if (unseen === 0) return null
+  const label = `${plural(unseen, 'message')} unseen by you`
+  return (
+    <span className="unseen-badge" role="img" aria-label={label} title={label}>
+      {unseen}
+    </span>
+  )
+}
+
 /**
- * One chat in the sidebar: its title (with a dot while its terminal runs, and a badge while it waits for a
- * sign-in), then its agent and model; opens the chat, and has a menu to rename or delete it.
+ * One chat in the sidebar: its title (with a dot while its terminal runs, a count of the messages the person has not
+ * seen, and a badge while it waits for a sign-in), then where it belongs when the list mixes folders, and its agent
+ * and model; opens the chat, and has a menu to rename or delete it.
  */
-export function ChatRow({ chat, agents, signInWaiting, selected, onOpen, onRename, onDelete }: ChatRowProps): JSX.Element {
+export function ChatRow({ chat, agents, signInWaiting, selected, onOpen, onRename, onDelete, place }: ChatRowProps): JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false)
   const live = useLiveTerminal(chat.id)
   return (
@@ -54,8 +71,10 @@ export function ChatRow({ chat, agents, signInWaiting, selected, onOpen, onRenam
             {chat.title}
           </span>
           {live ? <span className="chat-live-dot" role="img" aria-label="terminal running" title="Its terminal is running" /> : null}
+          <UnseenBadge chat={chat} />
           <WaitingBadge chat={chat} agents={agents} signInWaiting={signInWaiting} />
         </span>{' '}
+        {place === undefined ? null : <span className="chat-row-place">{place}</span>}
         <span className="chat-row-meta">{chatMeta(chat, agents)}</span>
       </button>
       <Menu

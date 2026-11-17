@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest'
 import type { ChatRecord } from '../../shared/agents/chat'
 import {
   CHAT_EVENT_CHANNEL,
+  CHAT_MAIL_EVENT_CHANNEL,
+  type ChatMailPushEvent,
   type BoundThread,
   type ChatPushEvent,
   type ChatReadView,
@@ -22,7 +24,8 @@ import { AT, connectedAgents, memoryChatFs, memoryChatStore, REPO, storeItems, t
 import { ATTEMPT_A, ATTEMPT_B, RUN_ID, THREAD_A } from './__mocks__/orchestratorChat'
 import { createActivityBindings, type ActivityBinding } from './activityBindings'
 import { createChatHandlers } from './chatHandlers'
-import { createChatPush, registerChatIpc, type ChatWindow } from './chatIpc'
+import { createChatMailPush, createChatPush, registerChatIpc, registerChatMailIpc, type ChatWindow } from './chatIpc'
+import { createAgentMailDesktop } from './agentMailDesktop'
 import { createChatRecords, type ChatRecords } from './chatRecords'
 import { listBoundThreads } from './boundThreads'
 import { findBoundTerminal, type GrantBindingReads } from './grantBindings'
@@ -47,6 +50,7 @@ const CHAT_CHANNELS = [
   'chats:findTransferChat',
   'chats:kickBackKanbanCard',
   'chats:list',
+  'chats:listAll',
   'chats:read',
   'chats:rename',
   'chats:startKanbanCard',
@@ -140,7 +144,7 @@ function ipcRig(options: { bindings?: boolean; windows?: readonly ChatWindow[]; 
   registerChatIpc(
     ipc,
     createChatHandlers({
-      registry: { resolve: (path) => (path === REPO ? REPO : null) },
+      registry: { resolve: (path) => (path === REPO ? REPO : null), list: () => [] },
       agents: { get: connectedAgents() },
       chats: createChatRecords({ store, agentFor: connectedAgents(), ...(activity === undefined ? {} : { activity }) }),
       terminals: recordingTerminals(terminalStarts, terminalPastes),
@@ -186,7 +190,8 @@ describe('chat IPC registration', () => {
   it('passes a missing argument through for the handler to refuse', async () => {
     const state = ipcRig()
 
-    for (const channel of CHAT_CHANNELS) {
+    // `chats:listAll` takes no argument, so nothing is missing from it.
+    for (const channel of CHAT_CHANNELS.filter((name) => name !== 'chats:listAll')) {
       expect(await state.invoke<CommandResult<unknown>>(channel)).toMatchObject({ ok: false, error: { code: 'invalid_input' } })
     }
   })
@@ -419,7 +424,7 @@ describe('chat IPC behind the sender guard', () => {
       throw new Error('a handler was reached')
     }
     const handlers = createChatHandlers({
-      registry: { resolve: reached },
+      registry: { resolve: reached, list: () => [] },
       agents: { get: reached },
       chats: {} as ChatRecords,
       terminals: {} as TerminalSessions,
@@ -575,5 +580,67 @@ describe('chat IPC: the terminal bound by grant', () => {
 
     expect(answers.map((answer) => (answer.ok ? 'ok' : answer.error.code))).toEqual(['unauthorized', 'invalid_input', 'invalid_input'])
     expect(await unwired.invoke('chats:boundTerminal', { folder: REPO, attemptId: ATTEMPT_A })).toEqual({ ok: true, data: null })
+  })
+})
+
+const CHAT_MAIL_CHANNELS = ['chatMail:allowWake', 'chatMail:markSeen', 'chatMail:read', 'chatMail:snapshot', 'chatMail:state']
+
+/** Registers the mail service over dependencies `reached` stands for: nothing a refused request may reach. */
+function chatMailIpc(handle: Pick<IpcMain, 'handle'>['handle'], reached: () => never): void {
+  const mail = createAgentMailDesktop({ registry: { resolve: reached }, store: { getChat: reached, listChats: reached }, contextFor: reached })
+  registerChatMailIpc({ handle }, mail.handlers)
+}
+
+function codeOf(answer: unknown): string {
+  const result = answer as CommandResult<unknown>
+  return result.ok ? 'ok' : result.error.code
+}
+
+describe('chat mail IPC', () => {
+  it('registers exactly the chatMail channels, each refusing a missing payload before any lookup', async () => {
+    const listeners = new Map<string, Listener>()
+    chatMailIpc((channel, listener) => void listeners.set(channel, listener), () => {
+      throw new Error('a lookup was reached')
+    })
+
+    expect([...listeners.keys()].sort()).toEqual(CHAT_MAIL_CHANNELS)
+    for (const [channel, listener] of listeners) {
+      expect(codeOf(await listener(EVENT, undefined)), channel).toBe('invalid_input')
+    }
+  })
+
+  it('answers no chatMail channel for a stranger page or a subframe, and never reaches a handler', async () => {
+    const listeners = new Map<string, Listener>()
+    const reached = (): never => {
+      throw new Error('a handler was reached')
+    }
+    chatMailIpc(guardIpc({ handle: (channel, listener) => void listeners.set(channel, listener) }, { appUrl: 'http://localhost:5173' }).handle, reached)
+    const subframe = { senderFrame: { url: 'http://localhost:5173/', parent: {}, detached: false, isDestroyed: () => false } } as unknown as IpcMainInvokeEvent
+    const stranger = { senderFrame: { url: 'https://example.com/', parent: null, detached: false, isDestroyed: () => false } } as unknown as IpcMainInvokeEvent
+
+    const request = { folder: REPO, chatId: 'chat_1', throughSeq: 1, expectedRevision: 0, requestNonce: 'n1' }
+    const answers = await Promise.all([...listeners.values()].flatMap((listener) => [listener(stranger, request), listener(subframe, request)]))
+
+    expect(answers.map(codeOf)).toEqual(Array(CHAT_MAIL_CHANNELS.length * 2).fill('unauthorized'))
+  })
+
+  it('pushes chat mail events to every open window on the chatMail event channel only', () => {
+    const open = fakeWindow()
+    const closed = fakeWindow(true)
+    const event: ChatMailPushEvent = { type: 'mail_removed', folder: REPO, chatId: 'chat_1', version: 3 }
+
+    createChatMailPush(() => [open, closed])(event)
+
+    expect(open.sent).toEqual([[CHAT_MAIL_EVENT_CHANNEL, event]])
+    expect(closed.sent).toEqual([])
+  })
+
+  it('is bridged by preload as exactly these invokes and the shared push channel name', () => {
+    const preload = readFileSync(fileURLToPath(new URL('../../preload/index.ts', import.meta.url)), 'utf8')
+    const invoked = [...preload.matchAll(/ipcRenderer\.invoke\(\s*'(chatMail:[A-Za-z]+)'/g)].map((match) => match[1]).sort()
+
+    expect(invoked).toEqual(CHAT_MAIL_CHANNELS)
+    expect(preload).toMatch(/ipcRenderer\.on\(CHAT_MAIL_EVENT_CHANNEL, /)
+    expect(preload).toMatch(/ipcRenderer\.removeListener\(CHAT_MAIL_EVENT_CHANNEL, /)
   })
 })

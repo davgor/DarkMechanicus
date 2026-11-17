@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "Codex Orchestrator",
+    "role": "orchestrator"
+  },
+  "body": "Committed source-only recovery c1b32962dc554f01700722c26e29a0b41b661f90 on desktop-controls-dm541 (28 scoped paths; private consent/cache/database files deliberately excluded). Native10 remains UNLAUNCHED and needs independent review plus fresh purpose-bound consent. Candidate controller SHA0cb5f57b909374a8af73f411afbd56a556f5f2366468582e019550164dde5708; fixture3a73c815cae141ca975ab2f5875685c0df0eb3c1bfdecee6cb6087fd5057f0a6; unchanged guard1baa6065cff81ca8d71f3008967eec5d88f89bdd8bc1d910ba37222fa0c16d68. Exact source pins/protocol/evidence: evidence/desktop-dm541/retry3-native-build10-and-sandbox.json SHA b4c414b296957476dd790235f8bd472a4b4a5e58b13c90f5298d9f83d0e95675. Safe fixes preserve KNOWN pinned native errorcode+validated disposition on nonzero without raw/foreign data or success; generation/action-bound renderer DOM/two-RAF completion ACK precedes atomic actions publication, with backgroundThrottling:false scoped to the owned fixture only. Renderer completion is NOT OS/UIA paint or human authority. Existing native exit1 reason stays UNRECOVERABLE; source ordering defect is not claimed as its cause. Managed sandbox now freezes normalized guest operations, exact pinned Clap serializer, inherited ORIGINAL root permit/epoch/expiry/admission clock/AbortSignal, per-leaf fences and Main-private one-shot publication with stale raw bytes null while truthful effect/byte/exit metadata remains. Transport owner must use fixed synchronous sink and close/record uncertainty on any publication throw, never add a generic second/fallback response after possibly queued bytes. Supervisor coverage is a retained actor/receipt ledger, not a claim of killing target apps or undoing/draining effects. Verification is non-additive:149 affected tests; final30sandbox+43ownership=73passed; changed recording-consumer12passed; final lint and3type projects passed. Full sweep/build/coverage/deadcode/Fireguard left to acceptance. Consumed build9 native ordinary positive/failure/image remain in prior comment cm_01m7gmv0fxbzzmewj5qftzczcq. All15 protected native cases still unexercised; fullF03 NOT PROVED; no successful attempt submission or self-acceptance.",
+  "createdAt": "2026-11-15T23:17:19.778Z",
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7gr0es2f4d8xptp5w2prsmp",
+  "ticketId": "tk_01m794h65mec9hp3m268kbey53"
+}

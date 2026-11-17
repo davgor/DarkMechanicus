@@ -4,6 +4,7 @@ import type { AgentAuthStatus } from '../../../shared/desktop/api'
 import type { Scheduler } from '../app/scheduler'
 import { Button } from '../components/Button'
 import { StatePill, type PillState } from '../components/StatePill'
+import { AgentInbox } from './AgentInbox'
 import { ChatHeader } from './ChatHeader'
 import { SkitariiMascot } from './SkitariiMascot'
 import { EarlierConversation } from './EarlierConversation'
@@ -14,8 +15,8 @@ import './chatView.css'
 import './terminalPane.css'
 
 interface TerminalPaneProps {
-  /** The tracked folder the chat belongs to. */
-  folder: string
+  /** The tracked folder the chat belongs to; null for a project-less chat. */
+  folder: string | null
   chat: ChatRecord
   /** What to call the chat's agent: the connected agent's display name, or its fallback. */
   agentName: string
@@ -23,6 +24,10 @@ interface TerminalPaneProps {
   scheduler: Scheduler
   /** The agent's status, as the sign-in card checked it once its login ended. */
   onAgentStatus?(status: AgentAuthStatus): void
+  /** The folder's chats, so a Skitarii chat's inbox can open a sender that is one of them. */
+  peers?: readonly ChatRecord[]
+  /** Opens a chat of this folder, on the person's click in the inbox only. */
+  onOpenChat?(chatId: string): void
 }
 
 interface SignInCardProps {
@@ -161,7 +166,7 @@ function FirstPromptRecovery({ chat }: { chat: ChatRecord }): JSX.Element | null
  * fresh one. A chat that stored a transcript before chats became terminals shows **Earlier conversation** above the
  * terminal, which opens that transcript read-only (`EarlierConversation.tsx`).
  */
-export function TerminalPane({ folder, chat, agentName, kit, scheduler, onAgentStatus }: TerminalPaneProps): JSX.Element {
+export function TerminalPane({ folder, chat, agentName, kit, scheduler, onAgentStatus, peers = [], onOpenChat }: TerminalPaneProps): JSX.Element {
   const { host, phase, background, working, title, focus, startAgain } = useTerminal({ folder, chatId: chat.id, agent: chat.agent, kit, scheduler })
   const [earlierOpen, setEarlierOpen] = useState(false)
   const pill = PHASE_PILLS[phase.state]
@@ -176,6 +181,8 @@ export function TerminalPane({ folder, chat, agentName, kit, scheduler, onAgentS
         agentName={agentName}
         terminalTitle={title}
         mascot={skitarii ? <SkitariiMascot working={working} /> : undefined}
+        // A project-less chat has no mailbox, so no inbox.
+        actions={skitarii && folder !== null ? <AgentInbox folder={folder} chat={chat} peers={peers} scheduler={scheduler} onOpenChat={onOpenChat} /> : undefined}
         fact={
           <>
             <span className="chat-fact-label">Terminal</span>
@@ -183,7 +190,8 @@ export function TerminalPane({ folder, chat, agentName, kit, scheduler, onAgentS
           </>
         }
       />
-      <EarlierConversation folder={folder} chat={chat} agentName={agentName} open={earlierOpen} onOpenChange={setEarlierOpen} />
+      {/* A project-less chat began after chats ran in terminals, so it stored no earlier conversation. */}
+      {folder === null ? null : <EarlierConversation folder={folder} chat={chat} agentName={agentName} open={earlierOpen} onOpenChange={setEarlierOpen} />}
       <PhaseStatus phase={phase} chat={chat} agentName={agentName} notice={notice} kit={kit} scheduler={scheduler} onAgentStatus={onAgentStatus} startAgain={startAgain} />
       <FirstPromptRecovery chat={chat} />
       <div

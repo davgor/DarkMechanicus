@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "IMPLEMENTATION-ONLY handoff commit4f99122b12f852d53308e483c322d6dbeb7307e2;9 scoped source/report/evidence files, original checkout untouched. Current packet evidence/desktop-dm541/retry3-g3-native-envelope-build4.json SHAf67a6e9b7a3ffe6b9ae47df2ffbcc3c989e5b67b16980f2ce27d3827379765de. FINAL42/42 affected tests, lint, all3type projects PASS; compiled native helper and bundled controller, NEITHER executed. Initial39pass+4actual lint errors, structural39pass, receipt41pass, all-actor-cutoff42pass and compile/bundle failures preserved, non-additive. Full sweep/build/coverage/deadcode/Fireguard skipped for acceptance.\n\nFrozen LOCAL UNLAUNCHED build4 absolute assigned worktree evidence/desktop-dm541/envelope-candidate-build4: EXE2fd6f4cc89f542d4355f1e51db325cc2b531e42ec50b1246f5d625788eebc333; MJS6c1fcb64cd777e3095c06ba6fc8a4eff80bca5f2fda92ef67deac91ef5f610bd; unchanged consumer4199d787237fe65f6b8ac8de31791cee10c3b379446b1e2200e277f7ca5f1bf1. Binaries retained locally, not committed; old builds/failures not overwritten. Native source5d1f951b81e1acb829fc6118823c81657456b7b5525299823e6b59746b298dd7 and remaining pins in packet.\n\nPerson activation of exact owned NOACTIVATE window, THEN deliberate nonsecret F9 must be explicit in fresh future consent. This is one limited primitive experiment, not UAT/human byte-authorship requirement. Strict newer unambiguous queued tick; same tick unavailable/no wait/restamp/retry. Source snapshot before nested live replay, cleanup ownership once, uniform predicate excludes test labels/one-use. If qualified: one exact16-byte original-bound action through real manager/final Node consumer, no general stream/service elevation/ConPTY. All-actor bootstrap shared-uptime/UTC/mono deadlines+shared5s cleanup under whole120s; effect ledger preserves uncertain write calls even on later failure and withholds unknown bytes.\n\nOwn held-image file hash BEFORE config/window is controlled-fixture identity, NOT pre-CreateProcess atomicity or full broker-code/native-memory proof; parent decision pending. All new native cases NOT RUN, F03/G3OPEN accepted0; remaining presentation/held-state/IME/paste/ConPTY/delegation/native closure and Mac runtime gaps explicit. No authority to launch and no submit/fail/replan/accept. Parent reviews exact current source/build and owns fresh person permission.",
+  "createdAt": "2026-11-16T05:49:46.388Z",
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7hef1gmbx4mbp8199n75t8v",
+  "ticketId": "tk_01m794h65mec9hp3m268kbey53"
+}

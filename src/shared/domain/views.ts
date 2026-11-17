@@ -14,6 +14,7 @@ import type {
   TicketSize,
   ToolCapability
 } from './bundle'
+import type { AgentMailboxStatus } from './agentMail'
 import type { CorrectiveCause } from './efficiency'
 import type { ExperimentOutcome } from './experiments'
 import type { SprintRetro, TicketTierFacts } from './retro'
@@ -44,6 +45,11 @@ export interface CapabilitiesView {
   capabilities: string[]
   repoRoot: string
   initialized: boolean
+  /**
+   * Whether this session has a usable agent mailbox right now. A role holding `mail.use` is not enough: the mailbox
+   * belongs to a desktop-bound `dm` CLI grant, so an MCP (stdio) session always reads `{ bound: false }`.
+   */
+  mailbox: AgentMailboxStatus
 }
 
 /**

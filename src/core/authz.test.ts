@@ -26,14 +26,14 @@ const PLANNER_SHARED: Capability[] = [
   'attachment.write',
   'kanban.write',
   'profile.write',
-  'project.repositories'
+  'project.repositories',
+  'mail.use'
 ]
 
 const PLANNER: Capability[] = [...PLANNER_SHARED, ...PLANNER_ONLY]
 
 const ORCHESTRATOR: Capability[] = [
   ...PLANNER_SHARED,
-  'repo.backup',
   'epic.status',
   'epic.branch',
   'epic.transfer',
@@ -70,9 +70,10 @@ const WORKER: Capability[] = [
   'comment.write',
   'attachment.write',
   'kanban.report',
-  'metrics.report'
+  'metrics.report',
+  'mail.use'
 ]
-const REVIEWER: Capability[] = ['read', 'chat.name', 'attempt.review', 'comment.write', 'attachment.write', 'metrics.report_run']
+const REVIEWER: Capability[] = ['read', 'chat.name', 'attempt.review', 'comment.write', 'attachment.write', 'metrics.report_run', 'mail.use']
 
 const DESKTOP: Capability[] = [
   'read',
@@ -118,7 +119,8 @@ const DESKTOP: Capability[] = [
   'kanban.review',
   'kanban.delete',
   'feedback.record',
-  'correction.cross_repo'
+  'correction.cross_repo',
+  'mail.manage'
 ]
 
 /** Capabilities the desktop never holds: they belong to the agents that execute work. */
@@ -136,7 +138,8 @@ const AGENT_ONLY = [
   'kanban.claim',
   'kanban.report',
   'metrics.report',
-  'metrics.report_run'
+  'metrics.report_run',
+  'mail.use'
 ] as const
 
 const READER: Capability[] = ['read']
@@ -160,7 +163,7 @@ describe('capability vocabulary', () => {
     expect(sorted(CAPABILITIES)).toEqual(sorted([...DESKTOP, ...AGENT_ONLY]))
   })
 
-  it('marks approval, auto-continue, retry grants, run queueing, deletion, granting roles, the sign-in pause and resume, transfer queueing, epic records conflict choices, Kanban play and review, human feedback and cross-repository corrective work as human-only', () => {
+  it('marks approval, auto-continue, retry grants, run queueing, deletion, granting roles, the sign-in pause and resume, transfer queueing, epic records conflict choices, full database backup, Kanban play and review, mailbox management, human feedback and cross-repository corrective work as human-only', () => {
     expect(sorted(HUMAN_ONLY_CAPABILITIES)).toEqual(
       sorted([
         'checkpoint.approve',
@@ -176,11 +179,13 @@ describe('capability vocabulary', () => {
         'transfer.queue',
         'repo.resolve_conflict',
         'repo.switch_storage',
+        'repo.backup',
         'kanban.play',
         'kanban.review',
         'kanban.delete',
         'feedback.record',
-        'correction.cross_repo'
+        'correction.cross_repo',
+        'mail.manage'
       ])
     )
   })
@@ -239,6 +244,18 @@ describe('capabilitiesForRole exact sets', () => {
   })
 })
 
+describe('mailbox capabilities', () => {
+  it('gives a mailbox capability to exactly the four hosted roles, and its management to the desktop alone', () => {
+    expect(ALL_ROLES.filter((role) => capabilitiesForRole(role, { allowSave: true }).includes('mail.use'))).toEqual([
+      'planner',
+      'orchestrator',
+      'worker',
+      'reviewer'
+    ])
+    expect(ALL_ROLES.filter((role) => capabilitiesForRole(role, { allowSave: true }).includes('mail.manage'))).toEqual(['desktop'])
+  })
+})
+
 describe('desktop and human-only capabilities', () => {
   it.each(HUMAN_ONLY_CAPABILITIES)('gives the desktop %s', (capability) => {
     expect(capabilitiesForRole('desktop')).toContain(capability)
@@ -253,6 +270,13 @@ describe('desktop and human-only capabilities', () => {
 
   it.each(AGENT_ONLY)('keeps %s away from the desktop', (capability) => {
     expect(capabilitiesForRole('desktop')).not.toContain(capability)
+  })
+})
+
+describe('backing up the whole database', () => {
+  it('is held by the desktop alone, because the copy holds every local mailbox', () => {
+    expect(HUMAN_ONLY_CAPABILITIES).toContain('repo.backup')
+    expect(ALL_ROLES.filter((role) => capabilitiesForRole(role, { allowSave: true }).includes('repo.backup'))).toEqual(['desktop'])
   })
 })
 

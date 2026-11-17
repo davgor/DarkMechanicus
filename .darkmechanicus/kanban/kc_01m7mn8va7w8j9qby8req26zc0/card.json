@@ -1,0 +1,84 @@
+{
+  "acceptanceCriteria": [
+    {
+      "id": "c1",
+      "text": "In phase `downloaded`, `checkForUpdatesNow()` calls `autoUpdater.checkForUpdates()` for both the manual IPC trigger and the scheduled poll. A unit test in `src/main/autoUpdate.test.ts` covers this."
+    },
+    {
+      "id": "c2",
+      "text": "When the check finds a newer version than the downloaded one, the state moves through available, downloading and downloaded to the newer version, and `availableVersion` and the banner message name that newer version. A unit test covers this."
+    },
+    {
+      "id": "c3",
+      "text": "When the check from `downloaded` reports no newer update, the state stays `downloaded` with the earlier version and the banner keeps showing \"Restart now\". A unit test covers this."
+    },
+    {
+      "id": "c4",
+      "text": "An error during the re-check does not discard an already-downloaded update without a recovery path. The chosen behavior is stated in the submission and covered by a test."
+    },
+    {
+      "id": "c5",
+      "text": "Checks still do not start while `checking`, `available` or `downloading`, and overlapping checks are still prevented. The existing tests stay green."
+    },
+    {
+      "id": "c6",
+      "text": "Targeted checks pass: the touched autoUpdate tests, `npm run lint` and `npm run typecheck`."
+    }
+  ],
+  "body": "## Bug\nOnce an update has been downloaded (phase `downloaded`), **Check for updates** and the 4-hour poll do nothing. Reported case: 0.0.39 was prepared earlier, 0.0.43 is now published, and the app still offers only 0.0.39. The person has to restart into .39 and then download .43, which means two restarts instead of one.\n\n## Root cause\n`src/main/autoUpdate.ts`:\n- `canStartUpdateCheck(phase)` returns true only for `idle` and `error`.\n- `checkForUpdatesNow()` returns early when that check fails, so both the manual IPC handler (`autoUpdate:checkForUpdates`) and `scheduleUpdateChecks()` stop working for the rest of the session once the phase becomes `downloaded`.\n- The renderer button (`CheckForUpdatesButton`, used in `App.tsx`) is not disabled, so the click silently does nothing.\n\n## Expected\nIn phase `downloaded`, a manual check (and the periodic poll) asks the feed again. If a newer version than the one already downloaded exists, electron-updater (`autoDownload = true`) downloads it, and the banner and \"Restart now\" switch to the newer version. If the downloaded version is still the latest, the downloaded update stays ready and the banner keeps offering it: a later `update-not-available` must not reset the state to `idle` and hide the restart prompt.\n\n## Notes for the worker\n- `update-not-available` currently sets phase `idle` and clears `availableVersion`. Re-checking from `downloaded` must keep the pending update.\n- While the newer version is checking or downloading, a failure must not leave the person with neither update. Either keep the earlier download installable (`autoInstallOnAppQuit` still applies) or show an error that leaves a working path. Pick one, document it in the submission, and test it.\n- Keep the guard against overlapping checks (`checkInFlight`) and against starting a check while `checking`, `available` or `downloading`.\n- Out of scope: changing the update channel or feed, the installer, or the banner layout.",
+  "createdAt": "2026-11-17T11:46:26.831Z",
+  "createdBy": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "expectedArtifacts": [
+    "src/main/autoUpdate.ts",
+    "src/main/autoUpdate.test.ts"
+  ],
+  "format": "darkmechanicus.kanban-card",
+  "formatVersion": 1,
+  "generation": 1,
+  "id": "kc_01m7mn8va7w8j9qby8req26zc0",
+  "key": "DM-690",
+  "priority": "high",
+  "references": [
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "autoUpdate.ts",
+      "location": "src/main/autoUpdate.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "autoUpdate.test.ts",
+      "location": "src/main/autoUpdate.test.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "CheckForUpdatesButton.tsx",
+      "location": "src/renderer/src/autoUpdate/CheckForUpdatesButton.tsx",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "updateBannerView.ts",
+      "location": "src/renderer/src/autoUpdate/updateBannerView.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "types.ts",
+      "location": "src/shared/autoUpdate/types.ts",
+      "remoteOnly": false
+    }
+  ],
+  "size": "small",
+  "title": "Check for updates ignores newer releases once an update is downloaded",
+  "updatedAt": "2026-11-17T11:46:26.831Z"
+}

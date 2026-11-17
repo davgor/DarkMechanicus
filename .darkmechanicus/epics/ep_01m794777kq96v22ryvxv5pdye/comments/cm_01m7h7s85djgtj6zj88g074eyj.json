@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "G3 bounded source-only round committed7420b1ff89fb12cdef32cb5e7b111660b1f5e4dd. Pinned finding evidence/desktop-dm541/retry3-g3-raw-source-discriminator.json SHAb4d55e21ee1a0ffab67173aa42acf99c424b5ffe76b934265fa8db9f036dfbba (6 existing source pins). Main accepted rejection of the CURRENT attestation assertion—not a native exploit or universal impossibility. Guardian127-144 accepts/counts reused handles, has no event creation/arm-epoch attestation, casts raw digit vkeys without text/IME mapping and retains exposed/resettable6digit negative baseline. Genuine HRAWINPUT repeat lookup/live sender replay/post-cleanup failure/legitimate numeric reuse are separate; fabricated pointer refusal proves none of those. RAWINPUTHEADER/WM_INPUT docs do not establish the missing once-only/fresh event guarantee. GetCurrentInputMessageSource is not in baseline; IMO_HARDWARE includesUIAccess injection and SendMessage can report unavailable device type; matching raw conjunction remains unmeasured.\n\nThe matrix is ARCHIVED/non-executable, not a new native consent request or fixture version. Same actual manager final sink is named, and prior NONHUMAN full-TUI positive remains functional only; a missing adapter/unconditional denial is not native protection. No program/helper/ConPTY/input/capture/desktop switch/credential/vendor action or new implementation/framework this round; no passing tests rerun. JSON parsed and byte pins recorded. Existing G1/G2 verification unchanged; accepted0, F03/G3OPEN. Alternatives list exact missing OS guarantees: message metadata freshness; quiescence/delegated closure plus native producer; desktop/token actual broker-denying DACL/token isolation; credential prompt not verified exact-action/continuous-input authority; macOS private transport/TCC not demonstrated input-origin/text binding. No hardware/biometry/credential requirement or scope escalation imposed. Parent owns read-only Windows/macOS reassessment and the next bounded choice; no submit/fail/replan/accept.",
+  "createdAt": "2026-11-16T03:53:00.845Z",
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7h7s85djgtj6zj88g074eyj",
+  "ticketId": "tk_01m794h65mec9hp3m268kbey53"
+}

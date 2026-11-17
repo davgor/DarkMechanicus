@@ -46,7 +46,8 @@ repository is back.
 - The orchestrator creates each missing epic branch at its start commit and works in worktrees, one set per
   touched repository; it never switches a child repository's own checkout, because a folder of repositories
   has no branch guard. Each worker's packet names its repository's path and branch. See
-  [Folders of repositories in the orchestrator guide](../../skills/orchestrator.md#folders-of-repositories).
+  [the orchestrator's folders-of-repositories facts](../../skills/knowledge/orchestrator/repo-folders-branches.md)
+  (`get_context` topic `folders-of-repositories`).
 
 ## Read per-repository results
 

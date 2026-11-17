@@ -17,7 +17,7 @@ let state: AutoUpdateState = {
 let checkInFlight = false
 
 export function canStartUpdateCheck(phase: AutoUpdatePhase): boolean {
-  return phase === 'idle' || phase === 'error'
+  return phase === 'idle' || phase === 'error' || phase === 'downloaded'
 }
 
 export function formatUpdateReadyMessage(version: string): string {
@@ -41,6 +41,20 @@ export function getAutoUpdateState(): AutoUpdateState {
   return state
 }
 
+/**
+ * Records a failed check or download. A re-check from `downloaded` that fails before a newer
+ * version is announced keeps the ready update (and its "Restart now"): electron-updater only
+ * clears its cached installer once it starts downloading a newer version. After that the
+ * earlier installer is gone, so the failure becomes `error`, which lets the next manual or
+ * scheduled check download the newest version again.
+ */
+function reportUpdateError(message: string): void {
+  if (state.phase === 'downloaded') {
+    return
+  }
+  setState({ phase: 'error', message })
+}
+
 export function isAutoUpdateEnabled(): boolean {
   return app.isPackaged && process.env['DISABLE_AUTO_UPDATE'] !== '1'
 }
@@ -62,10 +76,7 @@ export async function checkForUpdatesNow(): Promise<void> {
     await autoUpdater.checkForUpdates()
   } catch (error: unknown) {
     logger.error('Auto-update check failed:', error)
-    setState({
-      phase: 'error',
-      message: error instanceof Error ? error.message : 'Update check failed'
-    })
+    reportUpdateError(error instanceof Error ? error.message : 'Update check failed')
   } finally {
     checkInFlight = false
   }
@@ -81,11 +92,20 @@ export function registerAutoUpdateHandlers(ipc: Pick<IpcMain, 'handle'>): void {
 }
 
 function wireAutoUpdaterEvents(): void {
+  // While a downloaded update is ready, a re-check keeps it (and "Restart now") on screen
+  // until a newer version is actually found.
   autoUpdater.on('checking-for-update', () => {
+    if (state.phase === 'downloaded') {
+      return
+    }
     setState({ phase: 'checking', message: undefined })
   })
 
   autoUpdater.on('update-available', (info) => {
+    // electron-updater re-announces the version it already has cached, then re-emits update-downloaded.
+    if (state.phase === 'downloaded' && info.version === state.availableVersion) {
+      return
+    }
     setState({
       phase: 'available',
       availableVersion: info.version,
@@ -94,6 +114,9 @@ function wireAutoUpdaterEvents(): void {
   })
 
   autoUpdater.on('update-not-available', () => {
+    if (state.phase === 'downloaded') {
+      return
+    }
     setState({
       phase: 'idle',
       availableVersion: undefined,
@@ -120,10 +143,7 @@ function wireAutoUpdaterEvents(): void {
 
   autoUpdater.on('error', (error) => {
     logger.error('Auto-update error:', error)
-    setState({
-      phase: 'error',
-      message: error.message
-    })
+    reportUpdateError(error.message)
   })
 }
 

@@ -48,6 +48,12 @@ export const DOMAIN_ERROR_CODES = [
   'play_required',
   /** A report on a Kanban card attempt that another computer claimed; only that computer reports on it. */
   'card_not_owned',
+  /** A recipient mailbox is at its pending or retained message quota; pending mail is never evicted to make room. */
+  'mailbox_full',
+  /** A sender holds the maximum number of unexpired send receipts; no unexpired receipt is ever dropped to make room. */
+  'receipt_quota_full',
+  /** A reply names a message that is not (or no longer) in the replier's own inbox. */
+  'reply_unavailable',
   'internal'
 ] as const
 

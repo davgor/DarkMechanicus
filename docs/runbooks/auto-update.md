@@ -32,10 +32,17 @@ xattr -cr /Applications/DarkMechanicus.app
 ## How checks run (Setup builds)
 
 1. **Initial check** ~8 seconds after launch
-2. **Polling** every **4 hours** while the app stays open (skips if a check/download is already in flight or an update is ready)
+2. **Polling** every **4 hours** while the app stays open (skips if a check or download is already in flight)
 3. **Manual check** — Updates → “Check for updates” (same guarded path; no-op in dev / when `DISABLE_AUTO_UPDATE=1`)
 
 When an update is ready, the banner offers **Restart now**. Apply uses `quitAndInstall(true, true)`: silent NSIS (`/S`) and relaunch. Users should not see the installer wizard on update — only a brief restart.
+
+A ready update does not stop checks: the poll and the manual check still query the feed.
+
+- **Nothing newer** — the ready update and **Restart now** stay as they are.
+- **Newer version** — the banner switches to downloading it, then offers **Restart now** for the newer version.
+- **Check fails before a newer version is found** (for example offline) — the ready update and **Restart now** stay; the error is only logged.
+- **Newer download fails** — electron-updater has already discarded the earlier installer, so the state becomes `error`. The next manual check or poll downloads the newest version again.
 
 ## Versioning
 

@@ -538,7 +538,7 @@ An aggregate grade is `gradeSpace` on the scope's own raw measures, never an ave
 Submitting a sprint report revision freezes its **scorecard**: the sprint, run and (final sprint) epic grades and
 every ticket grade of the sprint at the submission's server time, with the policy (by content hash), the plan
 revision, the report's content hash, every grade's inputs (baselines included), the timing and efficiency inputs as
-they stood, and the source ids. It is stored with the revision (`sprint_reports.scorecard_json`, schema v16; null for
+they stood, and the source ids. It is stored with the revision (`sprint_reports.scorecard_json`, schema v18; null for
 earlier reports, which stay ungraded) and exported as its own record, `history/<runId>/scorecards/<reportId>.json`,
 which the run history names by id and seal. It keeps inputs (pooled by content hash, so identical aggregates such as
 the run and epic of a single-run epic are stored once) and compact results, not explanations: a read regrades every

@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Orchestrator DECISION from the DM-177 review (this run) — implement here: C (`C.handoff-pass-rate.v1`, rubric.ts:306 fed by spaceSignals.ts:630) is diluted by extra submissions: an extra well-formed but rejected submission plus a retry raises C 5/6 -> 8/9 and the grade 97.22 -> 98.15, and a ticket rejected twice then accepted can grade 100 A with nothing recording the rejections. C is handoff/REVIEW reliability: count each rejected submission as a failed handoff check for C (bump the policy to v2 or version the C rule, regenerate affected fixtures, document it), so more rejected attempts can never raise a grade; add a from-records demonstration that more attempts never raise a grade. Also: `gradeSpace` can return a grade `parseGrade` refuses when the P explanation lists ~170 regressions (>2,000 chars; rubric.ts:251,261 vs contract.ts:411) — truncate term lists ('… and N more') like noBaselineDetail, which matters for aggregated grades. Wire `getTicketGrade` (src/core/services/spaceGrades.ts) as the ticket-grade source for roll-ups. Nit: docs/space-grading.md:452 points at a scratch script.",
+  "createdAt": "2026-11-16T02:32:02.446Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7h34zmexd4y4yz03fbawtq3",
+  "ticketId": "tk_01m453gpads5cm5ah9pyqk7qtw"
+}

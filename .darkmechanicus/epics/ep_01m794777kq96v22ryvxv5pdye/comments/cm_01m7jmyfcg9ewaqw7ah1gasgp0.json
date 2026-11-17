@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "## Priority prevention delivered\nPlanner/orchestrator updates fast-forward pushed to origin/main a23096280c5d9eedc0635b87e229b05f50420fbf:5–10minute outcomes,5minute checkpoint/10minute stop-and-split, no heartbeat/attempt/delegate reset, bounded feasibility and honest cost/gap reporting. Dirty coordinating checkout untouched. Existing role32tests, lint, all3types, deadcode and build passed. Full Windows suite failed4cases outside changed files (3file-symlink EPERM,1chatNaming assertion); Fireguard compared unrelated local main changes and failed8property-test timeouts. No scoped grade or fully green DoD claimed, no unchanged rerun/permissions change. DM618 attempt failed honestly, not self-approved. Pushed source does not hot-update already-running chat prompts.\n\n## Actionable redo\nDRAFT5:86required small work tickets,2criteria and exact source/tests each,10minute constraints; one15minute finite automated-only final gate. Maximum2workers. S1/V0source/readiness first, separate selector builders and native run-only cases, hard native GO before production, Windows/Skitarii only. All original in-scope case text retained with explicit host/OS/mechanism overrides. Independent scope review clear; executability review found registration/production-selector handoffs, fixed T3/T4+H0 and reviewer confirmed. Final validation0errors/0warnings. Person must Save and queue a fresh run; no execution/native launch occurred in replanning.\n\n## Failed-run accounting\nRun2026-11-15T06:13:39.622Z→2026-11-16T07:18:01.773Z:25h04m22s elapsed,0accepted/0submitted. Streamed17own parent/worker logs, deduplicated1704recorded model responses:6178831uncached input +316492160cache-read +1581932output tokens. OMP configured-price cost estimate$59.826198; NOT verified invoice/actual charge. Elapsed is not active compute. Root cause was oversized prerequisite + repeated diagnostics/delegation without elapsed stop; parent owns it. Sanitized accounting receipt retained in this chat local://desktop-run-cost-audit.json; no token/message bodies exported.",
+  "createdAt": "2026-11-16T17:02:18.000Z",
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7jmyfcg9ewaqw7ah1gasgp0",
+  "ticketId": null
+}

@@ -27,6 +27,10 @@ export const ID_PREFIXES = {
   kanbanAttempt: 'ka',
   kanbanEvent: 'ke',
   attachment: 'im',
+  mailEndpoint: 'me',
+  mailMessage: 'mm',
+  /** One consumed wake credit: an attempt to wake a chat, never a delivery or read receipt. */
+  mailWake: 'mw',
   /** A SPACE metric observation in the measurement ledger. */
   metricObservation: 'mo',
   /** A frozen token or execution-time baseline (a ticket budget version or a prior cohort). */

@@ -25,6 +25,8 @@ export type MainView =
   | { kind: 'add-agent' }
   /** One connected agent's page. */
   | { kind: 'agent'; agent: AgentView }
+  /** A project-less chat, summoned from an agent's row: tied to no folder. */
+  | { kind: 'projectless-chat'; chat: ChatRecord }
 
 interface ViewInput {
   loaded: boolean
@@ -42,17 +44,26 @@ interface ViewInput {
   agentPane?: AgentPane
   /** The connected agents, or null until they have loaded. */
   agents?: readonly AgentView[] | null
+  /** The project-less chats, or null until they have loaded. */
+  projectless?: readonly ChatRecord[] | null
   /** The folder's remembered tab; Source control when absent. */
   folderTab?: FolderTab
 }
 
-/** The agents screen the selection asks for, or null when the folder view applies (also for an agent that is gone). */
-function chooseAgentView(pane: AgentPane | undefined, agents: readonly AgentView[] | null): MainView | null {
+/** The agents screen the selection asks for, or null when the folder view applies (also for an agent or a project-less chat that is gone). */
+function chooseAgentView(pane: AgentPane | undefined, agents: readonly AgentView[] | null, projectless: readonly ChatRecord[] | null): MainView | null {
   if (pane === undefined) {
     return null
   }
   if (pane.kind === 'add') {
     return { kind: 'add-agent' }
+  }
+  if (pane.kind === 'chat') {
+    if (projectless === null) {
+      return { kind: 'loading', what: 'chat' }
+    }
+    const chat = projectless.find((candidate) => candidate.id === pane.chatId)
+    return chat ? { kind: 'projectless-chat', chat } : null
   }
   if (agents === null) {
     return { kind: 'loading', what: 'agents' }
@@ -67,7 +78,7 @@ export function chooseView(input: ViewInput): MainView {
   if (!input.loaded) {
     return { kind: 'loading', what: 'folders' }
   }
-  const agentView = chooseAgentView(input.agentPane, input.agents ?? null)
+  const agentView = chooseAgentView(input.agentPane, input.agents ?? null, input.projectless ?? null)
   if (agentView !== null) {
     return agentView
   }

@@ -1,8 +1,10 @@
 import { z } from 'zod'
 import { nameChatArgsSchema } from '../shared/agents/chatNaming'
 import { REASONING_EFFORTS, TICKET_SIZES } from '../shared/domain/bundle'
+import { KNOWLEDGE_EVENTS, type KnowledgeEvent } from './knowledge/events'
 import { repositoryName } from './repo/portable'
 import { STORAGE_MODES } from './repo/storageMode'
+import { AGENT_MAIL_LIMITS } from './services/agentMailStore'
 import { MAX_GRANT_MINUTES, MIN_GRANT_MINUTES } from './services/grants'
 import {
   attachmentPurpose,
@@ -75,6 +77,15 @@ const timelineWindow = {
   sinceSeq: z.number().int().min(0).optional(),
   limit: z.number().int().min(1).max(500).optional()
 }
+
+/** A mail paging window; the service checks it against the mailbox's high-water inside its snapshot. */
+const mailWindow = {
+  afterSeq: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional().describe('Continue after this sequence: the previous page\'s nextCursor.'),
+  throughSeq: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional().describe('The first page\'s snapshotHighWater, so later pages skip no arrival.'),
+  limit: z.number().int().min(1).max(AGENT_MAIL_LIMITS.pageSize).optional()
+}
+/** No input at all: an unknown property is refused, never ignored. */
+const noInput = z.strictObject({})
 
 /**
  * One reported measurement (`MetricReport`). The schema takes every metric and source kind so the service can refuse
@@ -174,7 +185,7 @@ export const COMMAND_SCHEMAS = {
   }),
   issueGrant: z.strictObject({
     role: z.enum(['planner', 'orchestrator', 'worker', 'reviewer', 'reader']),
-    label: z.string().min(1).max(120),
+    label: z.string().min(1).max(LIMITS.grantLabel),
     minutes: z.number().int().min(MIN_GRANT_MINUTES).max(MAX_GRANT_MINUTES).optional(),
     allowSave: z.boolean().optional()
   }),
@@ -499,6 +510,15 @@ export const COMMAND_SCHEMAS = {
   }),
   getAttemptTimeline: z.strictObject({ attemptId: stableId, ...timelineWindow }),
   getRunTimeline: z.strictObject({ runId: stableId, ...timelineWindow }),
+  getContext: z
+    .strictObject({
+      event: z.enum(KNOWLEDGE_EVENTS.map((event) => event.id) as [KnowledgeEvent, ...KnowledgeEvent[]]).optional(),
+      topics: z.array(z.string().min(1).max(80)).max(10).optional(),
+      paths: z.array(z.string().min(1).max(1000)).max(50).optional(),
+      ticketId: stableId.optional(),
+      budgetTokens: z.number().int().min(200).max(8000).optional()
+    })
+    .refine((input) => input.event !== undefined || (input.topics?.length ?? 0) > 0, 'Give event or topics'),
   queueTransfer: transferAction,
   cancelTransfer: transferAction,
   startTransfer: transferAction,
@@ -514,6 +534,30 @@ export const COMMAND_SCHEMAS = {
   getTransfer: epicRef,
   // No idempotencyKey: the service must run its own two transactions, never inside a wrapper's (see the service).
   // The part's size is checked here, before the service merges anything.
-  submitTransferReadback: z.strictObject({ epicId: stableId, readback: linearReadbackPart, final: z.boolean() })
+  submitTransferReadback: z.strictObject({ epicId: stableId, readback: linearReadbackPart, final: z.boolean() }),
+  // Agent mail. No input names the caller's mailbox, and none carries an idempotencyKey: a send retries by its own
+  // sender-scoped clientMessageId, and a wake claim is never replayed.
+  getAgentIdentity: noInput,
+  listAgentPeers: z.strictObject({
+    afterId: stableId.optional().describe('The previous page\'s nextAfterId.'),
+    limit: z.number().int().min(1).max(AGENT_MAIL_LIMITS.endpointPageSize).optional()
+  }),
+  sendAgentMessage: z.strictObject({
+    to: stableId.describe('The recipient mailbox\'s endpoint id (me_…).'),
+    clientMessageId: z
+      .string()
+      .min(1)
+      .max(AGENT_MAIL_LIMITS.clientMessageIdChars)
+      .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/)
+      .describe('Your own retry key for this message: the same id and payload replays the original acceptance.'),
+    body: z.string().min(1).max(AGENT_MAIL_LIMITS.bodyBytes).describe('1 to 16 KiB of UTF-8 text.'),
+    inReplyTo: stableId.optional().describe('A message in your own inbox that the recipient sent; makes this a reply.')
+  }),
+  readAgentInbox: z.strictObject({ ...mailWindow, unacknowledgedOnly: z.boolean().optional() }),
+  acknowledgeAgentMessages: z.strictObject({
+    messageIds: z.array(stableId).min(1).max(AGENT_MAIL_LIMITS.ackBatch).describe('1 to 100 ids of messages in your own inbox; all or none are acknowledged.')
+  }),
+  getAgentMailStatus: z.strictObject(mailWindow),
+  takeAgentMailWake: noInput
 }
 

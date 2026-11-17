@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ComponentProps, ComponentType } from 'react'
 import type { ChatRecord } from '../../shared/agents/chat'
-import type { TrackedFolderView } from '../../shared/desktop/api'
+import type { AgentId, TrackedFolderView } from '../../shared/desktop/api'
 import { epicLandingFor, threadLandingFor } from './app/landing'
 import { findFolder } from './app/selection'
 import type { Selection } from './app/selection'
@@ -22,6 +22,7 @@ import { FirstPromptDialog } from './agents/ChatDialogs'
 import { SignInContext, type SignInRequest } from './agents/signInContext'
 import { SignInView } from './agents/SignInView'
 import { chatsFor } from './agents/useChats'
+import { AgentMailContext } from './agents/useAgentMail'
 import { TerminalPane } from './agents/TerminalPane'
 import type { TerminalKit } from './agents/terminalView'
 import { xtermKit } from './agents/xtermKit'
@@ -118,7 +119,8 @@ function EpicPane({ shell, EpicView, folder, epicId }: EpicPaneProps): JSX.Eleme
 
 interface ChatPaneProps {
   shell: ShellModel
-  folder: TrackedFolderView
+  /** The chat's tracked folder; null for a project-less chat. */
+  folder: string | null
   chat: ChatRecord
   scheduler: Scheduler
   terminalKit: TerminalKit
@@ -136,12 +138,14 @@ function ChatPane({ shell, folder, chat, scheduler, terminalKit }: ChatPaneProps
   }, [actions, landing])
   return (
     <TerminalPane
-      folder={folder.path}
+      folder={folder}
       chat={chat}
       agentName={agentName(chat.agent, shell.agents.agents)}
       kit={terminalKit}
       scheduler={scheduler}
       onAgentStatus={(status) => shell.agents.recordStatus(chat.agent, status)}
+      peers={folder === null ? undefined : chatsFor(shell.chats.lists, folder).chats}
+      onOpenChat={folder === null ? undefined : (chatId) => shell.actions.selectChat(folder, chatId)}
     />
   )
 }
@@ -207,7 +211,9 @@ function MainPane(props: PaneProps): JSX.Element | null {
     case 'agent':
       return <AgentPage key={view.agent.id} agent={view.agent} agents={shell.agents} />
     case 'chat':
-      return <ChatPane key={view.chat.id} shell={shell} folder={view.folder} chat={view.chat} scheduler={props.scheduler} terminalKit={props.terminalKit} />
+      return <ChatPane key={view.chat.id} shell={shell} folder={view.folder.path} chat={view.chat} scheduler={props.scheduler} terminalKit={props.terminalKit} />
+    case 'projectless-chat':
+      return <ChatPane key={view.chat.id} shell={shell} folder={null} chat={view.chat} scheduler={props.scheduler} terminalKit={props.terminalKit} />
     case 'kanban':
       return <KanbanBoard key={view.folder.path} folder={view.folder} refreshToken={shell.folderToken(view.folder.path)} host={orchestrationFor(shell, view.folder)} onChanged={() => actions.changed(view.folder.path)} />
     case 'metrics':
@@ -322,13 +328,15 @@ interface ShellSidebarProps {
   version: string
   /** The new chat's folder, as the sidebar's + names it (null for a path no longer tracked). */
   onNewChat(folder: TrackedFolderView | null): void
+  /** Summon pressed on an agent's row: ask for the first prompt of a project-less chat with it. */
+  onSummon(agent: AgentId): void
   /** Opens the clone dialog. */
   onClone(): void
   onRequestUntrack(folder: TrackedFolderView): void
 }
 
 /** The sidebar, wired to the shell: folders and their epics and chats, the Agents list, and the footer. */
-function ShellSidebar({ shell, version, onNewChat, onClone, onRequestUntrack }: ShellSidebarProps): JSX.Element {
+function ShellSidebar({ shell, version, onNewChat, onSummon, onClone, onRequestUntrack }: ShellSidebarProps): JSX.Element {
   const { actions } = shell
   return (
     <Sidebar
@@ -340,6 +348,7 @@ function ShellSidebar({ shell, version, onNewChat, onClone, onRequestUntrack }: 
       agentStatuses={shell.agents.statuses}
       expansion={shell.expansion}
       chats={sidebarChats(shell, (path) => onNewChat(findFolder(shell.folders, path)))}
+      agentChats={{ list: shell.allChats, onOpen: actions.openChat, onRename: shell.chats.rename, onDelete: shell.chats.remove, onSummon }}
       footer={<ShellFooter shell={shell} />}
       onTrack={() => void actions.track()}
       onClone={onClone}
@@ -355,50 +364,69 @@ function ShellSidebar({ shell, version, onNewChat, onClone, onRequestUntrack }: 
   )
 }
 
+/** Whose first prompt the popup asks for: an agent's, for a chat in a folder or, with `folder` null, a project-less chat summoned from its row. */
+interface FirstPromptRequest {
+  folder: TrackedFolderView | null
+  agent: string
+}
+
+/** The first-prompt popup; Start creates the chat (in its folder, or project-less) and opens it. */
+function FirstPromptHost({ shell, request, onClose }: { shell: ShellModel; request: FirstPromptRequest; onClose(): void }): JSX.Element {
+  const { actions } = shell
+  const { folder, agent } = request
+  return (
+    <FirstPromptDialog
+      onClose={onClose}
+      onSubmit={async (prompt) =>
+        (folder === null
+          ? await actions.summonChat(agent, prompt)
+          : await actions.createChat(folder, { agent, model: null, role: 'orchestrator', allowSave: true, firstPrompt: prompt })) !== null
+      }
+    />
+  )
+}
+
 function Shell({ scheduler, EpicView, terminalKit }: { scheduler: Scheduler; EpicView: EpicView; terminalKit: TerminalKit }): JSX.Element {
   const update = useAppUpdate()
   const shell = useShell(scheduler)
   const [pending, setPending] = useState<TrackedFolderView | null>(null)
   const startingChats = useRef(new Set<string>())
-  const [firstPrompt, setFirstPrompt] = useState<{ folder: TrackedFolderView; agent: string } | null>(null)
+  const [firstPrompt, setFirstPrompt] = useState<FirstPromptRequest | null>(null)
   const signIn = useSignInView(shell.selection)
   const signingIn = signIn.request !== null
   const [cloning, setCloning] = useState(false)
   const { actions } = shell
   return (
     <SignInContext.Provider value={signIn.open}>
-      <div className="app-shell">
-        <ShellSidebar shell={shell} version={update.currentVersion} onNewChat={(folder) => {
-            if (folder !== null && firstPrompt === null) void startNewChat(shell, folder, startingChats.current, (agent) => setFirstPrompt({ folder, agent }))
-          }} onClone={() => setCloning(true)} onRequestUntrack={setPending} />
-        <main className="app-main" aria-label="Workspace">
-          {signIn.request === null ? null : <SignInView request={signIn.request} kit={terminalKit} scheduler={scheduler} onBack={signIn.close} />}
-          {/* Kept while the sign-in view shows, hidden, so Back returns to the screen (and any dialog on it) as it was. */}
-          <div className="main-view" hidden={signingIn}>
-            <MainPane shell={shell} EpicView={EpicView} scheduler={scheduler} terminalKit={terminalKit} onRequestUntrack={setPending} onClone={() => setCloning(true)} />
-          </div>
-        </main>
-        <UpdateBanner />
-        {cloning ? <CloneHost shell={shell} onClose={() => setCloning(false)} /> : null}
-        {firstPrompt === null ? null : (
-          <FirstPromptDialog
-            onClose={() => setFirstPrompt(null)}
-            onSubmit={async (prompt) =>
-              (await actions.createChat(firstPrompt.folder, { agent: firstPrompt.agent, model: null, role: 'orchestrator', allowSave: true, firstPrompt: prompt })) !== null
-            }
-          />
-        )}
-        {pending === null ? null : (
-          <UntrackDialog
-            folder={pending}
-            onCancel={() => setPending(null)}
-            onConfirm={() => {
-              void actions.untrack(pending.path)
-              setPending(null)
-            }}
-          />
-        )}
-      </div>
+      <AgentMailContext.Provider value={shell.mail}>
+        <div className="app-shell">
+          <ShellSidebar shell={shell} version={update.currentVersion} onNewChat={(folder) => {
+              if (folder !== null && firstPrompt === null) void startNewChat(shell, folder, startingChats.current, (agent) => setFirstPrompt({ folder, agent }))
+            }} onSummon={(agent) => {
+              if (firstPrompt === null) setFirstPrompt({ folder: null, agent })
+            }} onClone={() => setCloning(true)} onRequestUntrack={setPending} />
+          <main className="app-main" aria-label="Workspace">
+            {signIn.request === null ? null : <SignInView request={signIn.request} kit={terminalKit} scheduler={scheduler} onBack={signIn.close} />}
+            {/* Kept while the sign-in view shows, hidden, so Back returns to the screen (and any dialog on it) as it was. */}
+            <div className="main-view" hidden={signingIn}>
+              <MainPane shell={shell} EpicView={EpicView} scheduler={scheduler} terminalKit={terminalKit} onRequestUntrack={setPending} onClone={() => setCloning(true)} />
+            </div>
+          </main>
+          <UpdateBanner />
+          {cloning ? <CloneHost shell={shell} onClose={() => setCloning(false)} /> : null}
+          {firstPrompt === null ? null : <FirstPromptHost shell={shell} request={firstPrompt} onClose={() => setFirstPrompt(null)} />}
+          {pending === null ? null : (
+            <UntrackDialog
+              folder={pending}
+              onCancel={() => setPending(null)}
+              onConfirm={() => {
+                void actions.untrack(pending.path)
+                setPending(null)
+              }}
+            />
+          )}
+        </div>
+      </AgentMailContext.Provider>
     </SignInContext.Provider>
   )
 }

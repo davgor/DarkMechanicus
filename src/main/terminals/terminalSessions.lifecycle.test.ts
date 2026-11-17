@@ -5,11 +5,12 @@
  * renewed every hour. On the fake PTY host and the fake clock; Claude's session file is on the real disk, in the
  * rig's scratch home folder.
  */
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { builtInAgent } from '../agents/__mocks__/chatFixtures'
 import { ompFilePaths } from './ompSession'
+import { DM_CLIENT_DESCRIPTOR_ENV, parseDmClientDescriptor } from '../../../resources/skitarii/extension/dmClient'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { FakePty } from './__mocks__/fakePtyHost'
 import { CUSTOM_AGENT, claudeSessionFile, eventually, recorder, sessionIdNumber, settle, startTerminal, terminalRig, type TerminalRig } from './__mocks__/terminalSessionsRig'
@@ -324,6 +325,147 @@ describe('terminal sessions: OMP, whose session id the CLI mints', () => {
     expect(pty.spec.args as string[]).not.toContain('--resume')
     expect(pty.spec.args as string[]).toContain(sessionDir)
     expect(stored(chat)?.sessionId ?? null).toBeNull()
+  })
+})
+
+describe('terminal sessions: mailboxes', () => {
+  it('asks for each OMP grant with the chat’s trusted identity, stores its mailbox before the spawn, and keeps it through restart, rename and New session', async () => {
+    rig.cleanup()
+    rig = terminalRig({ agents: [builtInAgent('omp')] })
+    const chat = rig.newChat('omp')
+    const first = await startTerminal(rig, chat)
+    await exitAndSettle(first.pty)
+    rig.store.updateChat(chat, { title: 'Renamed', titleStatus: 'manual' })
+    const second = await startTerminal(rig, chat)
+    await exitAndSettle(second.pty)
+    await startTerminal(rig, chat, undefined, { newSession: true })
+
+    const identity = { id: chat.id, agent: 'omp', kind: 'omp' }
+    expect(rig.grantChats).toEqual([{ ...identity, title: 'Fix the build' }, { ...identity, title: 'Renamed' }, { ...identity, title: 'Renamed' }])
+    expect(rig.host.endpointStoredAtSpawn).toEqual([`me_${chat.id}`, `me_${chat.id}`, `me_${chat.id}`])
+    expect(stored(chat)).toMatchObject({ endpointId: `me_${chat.id}`, grantIds: ['gr_1', 'gr_2', 'gr_3'] })
+  })
+
+  it('asks for a Claude Code or custom CLI chat’s grant with its own kind, and stores no mailbox', async () => {
+    await startTerminal(rig, rig.newChat())
+    await startTerminal(rig, rig.newChat(CUSTOM_AGENT.id))
+
+    expect(rig.grantChats.map((chat) => [chat.agent, chat.kind])).toEqual([
+      ['claude', 'claude'],
+      [CUSTOM_AGENT.id, 'custom']
+    ])
+    expect(rig.host.endpointStoredAtSpawn).toEqual([null, null])
+  })
+})
+
+let bound: { grantId: string; generation: string }[]
+let atSpawn: { env: Record<string, string>; exists: boolean; text: string | null }[]
+
+/** An OMP rig that writes down each grant binding's generation and, at each spawn, the descriptor as it was then. */
+function descriptorRig(): void {
+  rig.cleanup()
+  bound = []
+  atSpawn = []
+  rig = terminalRig({
+    agents: [builtInAgent('omp')],
+    deps: () => ({ bindChatGrant: (grantId, identity) => bound.push({ grantId, generation: identity.generation }) })
+  })
+  rig.host.onSpawn = (pty) => {
+    const path = pty.spec.env[DM_CLIENT_DESCRIPTOR_ENV]
+    const exists = path !== undefined && existsSync(path)
+    atSpawn.push({ env: pty.spec.env, exists, text: exists ? readFileSync(path as string, 'utf8') : null })
+  }
+}
+
+const dmClientDir = (chat: ChatRecord): string => join(ompFilePaths(rig.userData, chat.id).sessionDir, '..', 'dm-client')
+
+describe('terminal sessions: the Skitarii mail client descriptor of an OMP launch', () => {
+  beforeEach(descriptorRig)
+
+  it('gives an OMP launch with a mailbox its own descriptor, written before the spawn for the generation its grant is bound to', async () => {
+    const chat = rig.newChat('omp')
+    const { pty } = await startTerminal(rig, chat)
+
+    const [spawned] = atSpawn
+    const path = spawned?.env[DM_CLIENT_DESCRIPTOR_ENV] as string
+    expect(spawned?.exists).toBe(true)
+    expect(path).toBe(join(dmClientDir(chat), `${bound[0]?.generation}.json`))
+    expect(parseDmClientDescriptor(path, spawned?.text as string)).toMatchObject({ ok: true, value: { chatId: chat.id, folder: rig.repo, generation: bound[0]?.generation } })
+    expect(spawned?.text).not.toContain(spawned?.env['DM_SESSION_TOKEN'])
+    expect(rig.host.endpointStoredAtSpawn).toEqual([`me_${chat.id}`])
+
+    await exitAndSettle(pty)
+    await eventually(() => !existsSync(path), 'the descriptor to be removed')
+  })
+
+  it('writes a new descriptor for each launch and leaves no earlier one behind', async () => {
+    const chat = rig.newChat('omp')
+    const first = await startTerminal(rig, chat)
+    await exitAndSettle(first.pty)
+    mkdirSync(dmClientDir(chat), { recursive: true })
+    writeFileSync(join(dmClientDir(chat), 'crashed-launch.json'), '{}')
+    await startTerminal(rig, chat)
+
+    const paths = atSpawn.map((spawn) => spawn.env[DM_CLIENT_DESCRIPTOR_ENV])
+    expect(new Set(paths).size).toBe(2)
+    expect(bound.map((binding) => binding.generation)).toHaveLength(2)
+    expect(readdirSync(dmClientDir(chat))).toEqual([`${bound[1]?.generation}.json`])
+  })
+})
+
+describe('terminal sessions: the mail client descriptor of other chats and failed starts', () => {
+  it('gives a Claude Code or custom CLI chat none, and scrubs an inherited one in any letter case', async () => {
+    rig.cleanup()
+    rig = terminalRig({ agents: [builtInAgent('claude'), CUSTOM_AGENT], deps: () => ({ env: { PATH: '/usr/bin', dm_skitarii_client_descriptor: '/stale.json', DM_SKITARII_CLIENT_DESCRIPTOR: '/stale.json' } }) })
+    const claude = await startTerminal(rig, rig.newChat())
+    const custom = await startTerminal(rig, rig.newChat(CUSTOM_AGENT.id))
+
+    for (const { pty } of [claude, custom]) {
+      expect(Object.keys(pty.spec.env).filter((key) => key.toUpperCase() === DM_CLIENT_DESCRIPTOR_ENV)).toEqual([])
+    }
+    expect(existsSync(join(rig.userData, 'agents', 'omp'))).toBe(false)
+  })
+
+  it('removes the descriptor when the start fails after writing it', async () => {
+    rig.cleanup()
+    rig = terminalRig({ agents: [builtInAgent('omp')], deps: () => ({ host: () => Promise.reject(new Error('PTYs cannot run here.')) }) })
+    const chat = rig.newChat('omp')
+    const heard = recorder()
+
+    await rig.sessions.attach(chat, heard.listener)
+    await eventually(() => heard.events.some((event) => event.kind === 'not_started') && !rig.sessions.busy(), 'the start to fail and settle')
+    expect(heard.events).toContainEqual({ kind: 'not_started', state: 'failed', message: 'PTYs cannot run here.' })
+    expect(readdirSync(dmClientDir(chat))).toEqual([])
+    expect(rig.revoked).toEqual(['gr_1'])
+  })
+})
+
+describe('terminal sessions: untracking a folder', () => {
+  const UNTRACKED = "The chat's folder was untracked, so its terminal was stopped."
+
+  it('stops the folder’s PTYs and starts first, runs the untrack only once their kills and revokes settled, and starts nothing meanwhile', async () => {
+    const running = await startTerminal(rig, rig.newChat(CUSTOM_AGENT.id))
+    const held = rig.holdGrant()
+    const lateAttach = rig.sessions.attach(rig.newChat(CUSTOM_AGENT.id))
+    await eventually(() => rig.grantsAsked === 2, 'the second grant to be asked for')
+    const order: string[] = []
+
+    const releasing = rig.sessions.releaseFolder(rig.repo, () => {
+      order.push(`untrack after kills [${rig.killed.map((tree) => tree.pid).join()}], revokes [${rig.revoked.join()}]`)
+      rig.tracked.delete(rig.repo)
+    })
+    const during = await rig.sessions.attach(rig.newChat(CUSTOM_AGENT.id))
+    expect(order).toEqual([])
+    running.pty.exit({ exitCode: 0, signal: 9 })
+    await releasing
+    // The grant the cancelled start asked for arrives after the untrack: it is revoked, and nothing is spawned for it.
+    held.open()
+    await eventually(() => rig.revoked.includes('gr_2') && !rig.sessions.busy(), 'the late grant to be revoked')
+
+    expect(order).toEqual([`untrack after kills [${running.pid}], revokes [gr_1]`])
+    expect(during).toEqual({ state: 'refused', message: UNTRACKED })
+    expect(await lateAttach).toMatchObject({ state: 'failed', message: UNTRACKED })
+    expect([rig.host.spawns.length, rig.revoked]).toEqual([1, ['gr_1', 'gr_2']])
   })
 })
 
