@@ -662,6 +662,51 @@
   flex-shrink: 0;
 }
 
+/* Epic-level orchestrator conversation: its destination remains visible while the thread is collapsed. */
+.ew-orchestrator-messages {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--line);
+  background: var(--surface-1);
+}
+
+.ew-orchestrator-toggle {
+  width: 100%;
+  padding: 10px 16px 4px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ew-orchestrator-toggle::before {
+  display: inline-block;
+  margin-right: 8px;
+  content: '›';
+  transition: transform 120ms ease;
+}
+
+.ew-orchestrator-toggle[aria-expanded='true']::before {
+  transform: rotate(90deg);
+}
+
+.ew-orchestrator-messages .conversation-panel {
+  padding: 0 16px 8px;
+}
+
+.ew-orchestrator-messages:not(.is-open) .conversation-thread,
+.ew-orchestrator-messages:not(.is-open) .conversation-composer,
+.ew-orchestrator-messages:not(.is-open) .conversation-panel > .ew-muted:not(.conversation-agent) {
+  display: none;
+}
+
+.ew-orchestrator-messages.is-open .conversation-panel {
+  max-height: min(42vh, 420px);
+  overflow-y: auto;
+}
+
 /* A disabled primary action must not look actionable (mockup 05: blocked "Advance" button). */
 .ew .btn-primary:disabled {
   background: var(--panel-2);
