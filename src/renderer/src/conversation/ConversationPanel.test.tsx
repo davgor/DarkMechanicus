@@ -178,6 +178,9 @@ describe('ConversationPanel stale loads', () => {
     expect(screen.getByText('Current thread')).toBeTruthy()
   })
 
+})
+
+describe('ConversationPanel stale load errors', () => {
   it('does not show an error from a target that is no longer selected', async () => {
     const { promise: earlier, reject: rejectEarlier } = pendingMessages()
     const backend = new FakeBackend()

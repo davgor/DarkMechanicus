@@ -846,8 +846,7 @@ function conversationChats(
   options: Pick<ConversationHarnessOptions, 'createError' | 'deleteError' | 'disappearAfterFirstList'>
 ): { chats: ChatRecords; records(): ChatRecord[] } {
   let records = [...initial]
-  let created = 0
-  let lists = 0
+  let created = 0, lists = 0
   return {
     records: () => records,
     chats: {
@@ -893,8 +892,7 @@ function conversationChats(
 }
 
 function conversationHarness(options: ConversationHarnessOptions = {}) {
-  const calls: unknown[][] = []
-  const comments = [...(options.comments ?? [])]
+  const calls: unknown[][] = [], comments = [...(options.comments ?? [])]
   const workspace = conversationWorkspace(calls, comments, options.cardMessages)
   const chatState = conversationChats(calls, options.chats ?? [], options)
   const deliveries = new Map<string, ConversationDelivery>()
@@ -1035,6 +1033,9 @@ describe('chat handlers: opening board conversations', () => {
     ])
   })
 
+})
+
+describe('chat handlers: opening epic board conversations', () => {
   it('opens an epic conversation with the active-run warning when no run chat is available', async () => {
     const subject = conversationHarness({ activeRunId: RUN.id })
 
@@ -1054,6 +1055,9 @@ describe('chat handlers: opening board conversations', () => {
     })
   })
 
+})
+
+describe('chat handlers: opening card board conversations', () => {
   it('stores card attachments and includes an earlier reply when it opens a card conversation', async () => {
     const earlier: KanbanMessageView = {
       id: 'km_01m418epbg8qkqa2e2krvdkqk4',
@@ -1127,6 +1131,9 @@ describe('chat handlers: conversation failures and deletion', () => {
     expect(second).toMatchObject({ ok: true, data: { chatId: 'chat_conversation_2', state: 'opened' } })
   })
 
+})
+
+describe('chat handlers: conversation resolution races', () => {
   it('uses a surviving conversation chat without adding claim-relay guidance', async () => {
     const subject = conversationHarness()
     const request = { folder: REPO, target: { epicId: EPIC_ID, ticketId: TICKET_ID }, body: 'First' }
@@ -1134,7 +1141,7 @@ describe('chat handlers: conversation failures and deletion', () => {
     if (!first.ok) throw new Error(first.error.message)
 
     const second = await subject.handlers.sendConversationMessage({ ...request, body: 'Second' })
-    const paste = subject.calls.findLast((call) => call[0] === 'paste')
+    const paste = [...subject.calls].reverse().find((call) => call[0] === 'paste')
 
     expect(second).toMatchObject({ ok: true, data: { chatId: first.data.chatId, state: 'delivered', problem: null } })
     expect(paste?.[2]).toContain('Second')
@@ -1168,6 +1175,9 @@ describe('chat handlers: conversation failures and deletion', () => {
     expect(subject.calls.some((call) => call[0] === 'paste')).toBe(false)
   })
 
+})
+
+describe('chat handlers: conversation terminal start failures', () => {
   it('removes a fresh conversation when its terminal cannot start', async () => {
     const subject = conversationHarness({ startFailure: 'The agent is signed out.' })
 
@@ -1203,6 +1213,9 @@ describe('chat handlers: conversation failures and deletion', () => {
     expect(subject.errors).toEqual([terminalError])
   })
 
+})
+
+describe('chat handlers: conversation creation and cleanup failures', () => {
   it('keeps and identifies a failed chat when cleanup also fails', async () => {
     const cleanupError = new Error('The chat store is read-only.')
     const subject = conversationHarness({ startFailure: 'The CLI exited.', deleteError: cleanupError })
@@ -1248,6 +1261,9 @@ describe('chat handlers: conversation failures and deletion', () => {
     expect(subject.errors).toEqual(['storage offline'])
   })
 
+})
+
+describe('chat handlers: conversation destination failures', () => {
   it('keeps the message when the configured default agent is no longer connected', async () => {
     const subject = conversationHarness({ defaultAgent: UNKNOWN_AGENT })
 
@@ -1293,6 +1309,9 @@ describe('chat handlers: conversation failures and deletion', () => {
     expect(delivery?.at).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/u)
   })
 
+})
+
+describe('chat handlers: conversation state races', () => {
   it('does not expose a chat that disappears between resolution and state assembly', async () => {
     const conversation = {
       ...CHAT,

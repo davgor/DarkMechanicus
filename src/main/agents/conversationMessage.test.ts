@@ -44,6 +44,9 @@ describe('conversation board messages', () => {
     expect(withRelay).not.toContain(SYNTHETIC_TOKEN)
   })
 
+})
+
+describe('conversation board message fallback labels', () => {
   it('falls back to stable target ids when display names are unavailable', () => {
     const ticket = boardMessage({
       ...TICKET_MESSAGE,
