@@ -483,6 +483,7 @@ async function writeStartFiles(context: StartContext): Promise<TerminalFiles> {
     skitariiMail: agent.kind === 'omp' && reach === undefined,
     ...(chat.transferEpicId === undefined ? {} : { transferEpicId: chat.transferEpicId }),
     ...(chat.cardId === undefined ? {} : { cardId: chat.cardId }),
+    conversation: chat.conversation,
     ...(reach === undefined ? {} : { reach })
   })
   if (agent.kind === 'omp') {

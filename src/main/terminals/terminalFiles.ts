@@ -19,6 +19,7 @@ import {
 import { chatIdSchema, type ChatRole, type DarkMechanicusCli } from '../../shared/agents/chat'
 import type { ReachTarget } from '../agents/chatReach'
 import { cliInstructions, skitariiMailGuidance } from '../agents/cliInstructions'
+import type { ConversationTarget } from '../agents/conversationMessage'
 import { transferGuidance } from '../../mcp/transferKickoff'
 import { kanbanGuidance } from '../agents/kanbanKickoff'
 import { orchestratorGuidance } from '../agents/orchestratorKickoff'
@@ -63,11 +64,31 @@ interface InstructionOptions {
   transferEpicId?: string
   /** The Kanban card the chat Play opened carries (the chat's `cardId`): the card guidance follows. Absent for every other chat. */
   cardId?: string
+  /** The board conversation this chat answers; its answer-only guidance follows. Absent for every unbound chat. */
+  conversation?: ConversationTarget
   nameFirstPrompt?: boolean
   /** Whether the chat runs OMP (Skitarii), whose launch may get a mailbox: the Skitarii mail guidance follows the policy. */
   skitariiMail?: boolean
   /** A project-less chat's folders and token files (`chatReach.ts`); absent for a chat of a folder. */
   reach?: readonly ReachTarget[]
+}
+
+/** Keeps a board-bound chat answering its named record instead of assuming execution authority. */
+export function conversationGuidance(conversation: ConversationTarget): string {
+  const reply =
+    'cardId' in conversation
+      ? `add_kanban_message ${JSON.stringify({ cardId: conversation.cardId })}`
+      : `add_comment ${JSON.stringify(
+          conversation.ticketId === undefined
+            ? { epicId: conversation.epicId }
+            : { epicId: conversation.epicId, ticketId: conversation.ticketId }
+        )}`
+  return [
+    '=== Board conversation guidance ===',
+    'This chat is bound to a board conversation and exists to answer the person there.',
+    `Reply on the record with ${reply}.`,
+    'Answer only: do not start or take over a run, claim work or save a plan unless the person explicitly asks.'
+  ].join('\n')
 }
 
 /** The guidance for what the chat is for: Skitarii mail, the run it orchestrates, the epic it transfers, the card it carries. */
@@ -76,7 +97,8 @@ function taskGuidance(options: InstructionOptions): string[] {
     ...(options.skitariiMail === true ? [skitariiMailGuidance()] : []),
     ...(options.orchestratesRun ? [orchestratorGuidance()] : []),
     ...(options.transferEpicId === undefined ? [] : [transferGuidance(options.transferEpicId)]),
-    ...(options.cardId === undefined ? [] : [kanbanGuidance(options.cardId)])
+    ...(options.cardId === undefined ? [] : [kanbanGuidance(options.cardId)]),
+    ...(options.conversation === undefined ? [] : [conversationGuidance(options.conversation)])
   ]
 }
 
@@ -120,6 +142,7 @@ interface WriteOptions {
   orchestratesRun: boolean
   transferEpicId?: string
   cardId?: string
+  conversation?: ConversationTarget
   nameFirstPrompt?: boolean
   skitariiMail?: boolean
   /** A project-less chat's folders and token files (`chatReach.ts`); absent for a chat of a folder. */
@@ -134,7 +157,7 @@ export async function writeTerminalFiles(options: WriteOptions): Promise<Termina
   if (files.launcherDir !== null) {
     await writeDmLauncher(files.launcherDir, dmLauncherScript(options.cli, pin))
   }
-  const { cli, role, allowSave, orchestratesRun, transferEpicId, cardId, nameFirstPrompt, skitariiMail, reach } = options
+  const { cli, role, allowSave, orchestratesRun, transferEpicId, cardId, conversation, nameFirstPrompt, skitariiMail, reach } = options
   const text = terminalInstructions({
     cli,
     role,
@@ -144,6 +167,7 @@ export async function writeTerminalFiles(options: WriteOptions): Promise<Termina
     ...(skitariiMail === undefined ? {} : { skitariiMail }),
     ...(transferEpicId === undefined ? {} : { transferEpicId }),
     ...(cardId === undefined ? {} : { cardId }),
+    ...(conversation === undefined ? {} : { conversation }),
     ...(reach === undefined ? {} : { reach }),
     launcherDir: files.launcherDir
   })
