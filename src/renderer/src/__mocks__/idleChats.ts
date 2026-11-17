@@ -18,6 +18,8 @@ export function idleChats(): ChatsApi {
     startTransferChat: refused,
     startKanbanCard: refused,
     kickBackKanbanCard: refused,
+    sendConversationMessage: refused,
+    conversationState: refused,
     findTransferChat: () => Promise.resolve({ ok: true, data: null }),
     transferPrompt: refused,
     read: refused,

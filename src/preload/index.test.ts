@@ -126,6 +126,18 @@ describe('preload bridge', () => {
     }
     expect([...registered.keys()].filter((channel) => !invoked.has(channel))).toEqual([])
   })
+
+  it('exposes board conversation send and state through their guarded chat channels', async () => {
+    const dm = bridge.exposed.get('dm') as { chats: Record<string, Listener> }
+    const send = { folder: '/repo', target: { epicId: 'ep_1' }, body: 'Can you help?' }
+    const state = { folder: '/repo', target: { epicId: 'ep_1' }, messageIds: ['cm_1'] }
+
+    await dm.chats.sendConversationMessage(send)
+    await dm.chats.conversationState(state)
+
+    expect(bridge.invoke).toHaveBeenCalledWith('chats:sendConversationMessage', send)
+    expect(bridge.invoke).toHaveBeenCalledWith('chats:conversationState', state)
+  })
 })
 
 describe('preload bridge subscriptions', () => {

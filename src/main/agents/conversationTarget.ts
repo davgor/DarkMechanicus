@@ -1,12 +1,13 @@
 import type { ChatRecord } from '../../shared/agents/chat'
+import type { ConversationTarget } from '../../shared/agents/chatApi'
 import type { BoundTarget } from './boundThreads'
 import type { ChatStore } from './chatStore'
 
-export type ConversationTarget = { epicId: string; ticketId?: string } | { cardId: string }
+export type { ConversationTarget } from '../../shared/agents/chatApi'
 
 export interface ConversationReads {
   /** A claimed or running, non-superseded attempt for the ticket. */
-  openAttemptId(folder: string, ticketId: string): Promise<string | null>
+  openAttemptId(folder: string, epicId: string, ticketId: string): Promise<string | null>
   /** Any non-terminal run for the epic. */
   activeRunId(folder: string, epicId: string): Promise<string | null>
 }
@@ -50,7 +51,7 @@ export async function resolveConversationChat(
   }
 
   if (target.ticketId !== undefined) {
-    const attemptId = await deps.reads.openAttemptId(folder, target.ticketId)
+    const attemptId = await deps.reads.openAttemptId(folder, target.epicId, target.ticketId)
     if (attemptId !== null) {
       const chatId = listedChat(chats, await deps.boundTerminal(folder, { attemptId }))
       if (chatId !== null) return { chatId, via: 'attempt' }

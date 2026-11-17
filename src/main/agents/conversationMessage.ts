@@ -1,3 +1,4 @@
+import type { ConversationTarget } from '../../shared/agents/chatApi'
 import { maskClaimTokens } from './claimTokenMask'
 
 const MAX_KICKOFF_LENGTH = 24_000
@@ -5,7 +6,7 @@ const MAX_HISTORY_ENTRIES = 20
 const ANSWER_ONLY =
   'You were opened from the board to answer the person. Answer only: do not start or take over a run, claim work or save a plan unless the person asks.'
 
-export type ConversationTarget = { epicId: string; ticketId?: string } | { cardId: string }
+export type { ConversationTarget } from '../../shared/agents/chatApi'
 
 export interface BoardMessageInput {
   target: ConversationTarget
