@@ -29,9 +29,12 @@ import { nodeFs } from '../../core/repo/nodeFs'
 import { resolveHomeDir } from '../../core/repo/storageMode'
 import { openWorkspace, type Workspace } from '../../core/workspace'
 import type { AgentDownloadProgress, BuiltInAgentKind, McpConfigView } from '../../shared/desktop/api'
+import { isActiveRunState, isLeasedAttemptState } from '../../shared/domain/status'
 import { createActivityBindings, type ActivityBindings } from '../agents/activityBindings'
 import { createChatGrants } from '../agents/chatGrants'
 import { createChatHandlers } from '../agents/chatHandlers'
+import { createConversationDeliveries } from '../agents/conversationDeliveries'
+import type { ConversationReads } from '../agents/conversationTarget'
 import { createAgentMailDesktop, type AgentMailDesktop } from '../agents/agentMailDesktop'
 import { createChatMailPush, createChatPush, registerChatIpc, registerChatMailIpc } from '../agents/chatIpc'
 import { createChatRecords, type ChatRecords } from '../agents/chatRecords'
@@ -79,7 +82,7 @@ import { openAppDatabase } from './appDatabase'
 import { createAgentRegistry, type AgentRegistry } from './agentRegistry'
 import { importLegacyAgents } from './agentRegistryImport'
 import { previewBoardRemoval, removeBoardFiles } from './boardRemovalFiles'
-import { createFolderAgentDefaults } from './folderAgentDefaults'
+import { createFolderAgentDefaults, type FolderAgentDefaults } from './folderAgentDefaults'
 import { createFolderRegistry, type FolderRegistry } from './folderRegistry'
 import { createDesktopHandlers, firstPickedDirectory } from './handlers'
 import {
@@ -469,6 +472,23 @@ function grantReads(workspaces: Pick<WorkspacePool, 'get'>): GrantBindingReads {
   }
 }
 
+/** The command-layer execution state used by board-conversation routing. */
+function conversationReads(workspaces: Pick<WorkspacePool, 'get'>): ConversationReads {
+  return {
+    openAttemptId: async (folder, epicId, ticketId) => {
+      const ticket = await workspaces.get(folder).getTicket({ epicId, ticketId, view: 'saved' })
+      return ticket.attempts.find((attempt) => !attempt.superseded && isLeasedAttemptState(attempt.state))?.id ?? null
+    },
+    activeRunId: async (folder, epicId) => {
+      const workspace = workspaces.get(folder)
+      const summary = (await workspace.getEpic({ epicId })).run
+      if (summary === null || !isActiveRunState(summary.state)) return null
+      const run = await workspace.getRun({ runId: summary.id })
+      return run !== null && isActiveRunState(run.state) ? run.id : null
+    }
+  }
+}
+
 /** What the `chats:*` channels run over: the tracked folders, the connected agents, the chats and their terminals, the workspaces and the bindings old chats stored. */
 interface ChatServices {
   folders: Pick<FolderRegistry, 'resolve' | 'list'>
@@ -479,11 +499,13 @@ interface ChatServices {
   workspaces: Pick<WorkspacePool, 'get'>
   activity: ActivityBindings
   mail: AgentMailDesktop
+  folderDefaults: Pick<FolderAgentDefaults, 'get'>
 }
 
 /** Serves the `chats:*` and `chatMail:*` channels over the chat records; Start run starts the orchestrator chat's terminal. */
 function startChats(ipc: Pick<IpcMain, 'handle'>, services: ChatServices): void {
-  const { folders, agents, chats, store, terminals, workspaces, activity } = services
+  const { folders, agents, chats, store, terminals, workspaces, activity, folderDefaults } = services
+  const reads = conversationReads(workspaces)
   const handlers = createChatHandlers({
     registry: folders,
     agents,
@@ -493,6 +515,12 @@ function startChats(ipc: Pick<IpcMain, 'handle'>, services: ChatServices): void 
     push: createChatPush(() => BrowserWindow.getAllWindows()),
     boundThreads: (folder, target) => listBoundThreads(activity, folder, target),
     boundTerminal: (folder, target) => findBoundTerminal({ reads: grantReads(workspaces), store }, folder, target),
+    conversation: {
+      workspace: (folder) => workspaces.get(folder),
+      reads,
+      deliveries: createConversationDeliveries({ userData: app.getPath('userData') }),
+      defaultAgent: (folder) => folderDefaults.get(folder)
+    },
     // The same desktop commands the Start run button runs, through the folder's own workspace.
     runs: {
       getEpic: (folder, epicId) => workspaces.get(folder).getEpic({ epicId }),
@@ -725,6 +753,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   const agents = openAgentRegistry(appDb)
   const installer = createInstaller(agents)
   const pool = openDesktopPool()
+  const folderDefaults = createFolderAgentDefaults({ db: appDb })
   // Which threads of old chats acted on which runs and attempts, as they stored it next to the chats.
   const activity = createActivityBindings({ file: join(app.getPath('userData'), 'agents', 'activity-bindings.jsonl') })
   const { chats, quit, store, terminals, logins, mail, releaseFolder } = createChatProcesses(registry, agents, pool, activity)
@@ -734,7 +763,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
     releaseFolder,
     stopMailMonitor: (folder) => mail.stopFolder(folder),
     agents,
-    folderDefaults: createFolderAgentDefaults({ db: appDb }),
+    folderDefaults,
     pickDirectory,
     pickExecutable,
     probeAgent: probeExecutable,
@@ -762,7 +791,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   startAttachmentProtocol(registry, pool)
   refreshClaudeCodeEntries(registry)
   const close = runLifecycle(pool, appDb)
-  startChats(ipc, { folders: registry, agents, chats, store, terminals, workspaces: pool, activity, mail })
+  startChats(ipc, { folders: registry, agents, chats, store, terminals, workspaces: pool, activity, mail, folderDefaults })
   startTerminals(ipc, { folders: registry, agents, store, terminals, logins })
   return { ...stoppingMailFirst(mail, quit, close), github: startSourceControl(ipc, registry) }
 }
