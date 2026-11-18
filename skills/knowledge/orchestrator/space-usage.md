@@ -3,7 +3,7 @@ id: orchestrator.space-usage
 type: procedure
 title: "Record each row's usage from the session that did the work"
 scope.roles: [orchestrator]
-scope.topics: [record-keeping]
+scope.topics: [record-keeping, space]
 priority: 70
 ---
 

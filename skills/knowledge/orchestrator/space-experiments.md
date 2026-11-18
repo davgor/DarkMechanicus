@@ -4,6 +4,7 @@ type: procedure
 title: "Restate each kept experiment in a new report revision"
 scope.roles: [orchestrator]
 scope.events: [sprint.reported]
+scope.topics: [space]
 priority: 65
 ---
 
