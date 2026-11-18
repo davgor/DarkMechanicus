@@ -3,7 +3,7 @@ id: orchestrator.space-corrective-work
 type: procedure
 title: "Create corrective work as drafts the person saves and runs"
 scope.roles: [orchestrator]
-scope.events: [sprint.reported]
+scope.events: [sprint.reported, checkpoint.approved]
 scope.topics: [retro-redraft]
 priority: 65
 ---

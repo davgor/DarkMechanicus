@@ -3,7 +3,7 @@ id: orchestrator.space-review-evidence
 type: convention
 title: "Verify only through a review decision"
 scope.roles: [orchestrator]
-scope.events: [ticket.claimed]
+scope.events: [ticket.claimed, acceptance.claimed]
 priority: 70
 ---
 

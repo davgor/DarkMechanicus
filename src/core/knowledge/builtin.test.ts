@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import kernelSource from '../../../skills/orchestrator.md?raw'
 import { BUILTIN_KNOWLEDGE } from './builtin'
-import { KNOWLEDGE_EVENTS } from './events'
+import { KNOWLEDGE_EVENTS, type KnowledgeEvent } from './events'
 import { parseFact, type KnowledgeFact } from './fact'
 import { mergeLayers } from './merge'
 import { DEFAULT_CONTEXT_BUDGET, selectFacts } from './select'
@@ -81,5 +81,45 @@ describe('built-in knowledge selection', () => {
 describe('the orchestrator kernel', () => {
   it('is at most 800 words', () => {
     expect(kernelSource.trim().split(/\s+/).length).toBeLessThanOrEqual(800)
+  })
+})
+
+/**
+ * Each SPACE measurement rule and the moments its trigger can occur: the events whose pushed context carries it, and
+ * the topics that pull it. A person may report an escaped defect, or ask for a grade, at any time, so those rules come
+ * with the run's start and with recovery; usage is recorded after each row, from the topic `orchestrator.row-checks`
+ * names.
+ */
+const SPACE_DELIVERY: [string, { events: KnowledgeEvent[]; topics: string[] }][] = [
+  ['orchestrator.space-usage', { events: [], topics: ['record-keeping'] }],
+  ['orchestrator.space-review-evidence', { events: ['ticket.claimed', 'acceptance.claimed'], topics: [] }],
+  ['orchestrator.space-grades', { events: ['run.started', 'run.recovery', 'sprint.reported'], topics: ['record-keeping'] }],
+  ['orchestrator.space-escaped-defects', { events: ['run.started', 'run.recovery', 'row_check.failed'], topics: ['record-keeping'] }],
+  ['orchestrator.space-experiments', { events: ['sprint.reported'], topics: [] }],
+  ['orchestrator.space-experiment-progress', { events: ['sprint.reported', 'checkpoint.approved', 'attempt.accepted'], topics: [] }],
+  ['orchestrator.space-corrective-work', { events: ['sprint.reported', 'checkpoint.approved'], topics: ['retro-redraft'] }]
+]
+
+describe('built-in SPACE measurement facts', () => {
+  it.each(SPACE_DELIVERY)('delivers %s at every moment its trigger can occur', (id, { events, topics }) => {
+    for (const event of events) {
+      const result = selectFacts(merged.facts, { role: 'orchestrator', event, budgetTokens: DEFAULT_CONTEXT_BUDGET })
+      expect(result.facts.map((fact) => fact.id), event).toContain(id)
+    }
+    for (const topic of topics) {
+      const result = selectFacts(merged.facts, { role: 'orchestrator', topics: [topic], budgetTokens: DEFAULT_CONTEXT_BUDGET })
+      expect(result.facts.map((fact) => fact.id), topic).toContain(id)
+    }
+  })
+
+  it('lists every orchestrator.space-* fact, so a new one states when it is delivered', () => {
+    const ids = merged.facts.map((fact) => fact.id).filter((id) => id.startsWith('orchestrator.space-'))
+    expect(ids.sort()).toEqual(SPACE_DELIVERY.map(([id]) => id).sort())
+  })
+
+  it('names the usage fact from the row checks pushed after each accepted ticket, since no event pushes it', () => {
+    const rowChecks = merged.facts.find((fact) => fact.id === 'orchestrator.row-checks')
+    expect(rowChecks?.scope.events).toContain('attempt.accepted')
+    expect(rowChecks?.body).toContain('`orchestrator.space-usage`')
   })
 })
