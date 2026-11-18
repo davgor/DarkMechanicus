@@ -226,8 +226,47 @@ describe('commitFiles with every line or no line selected', () => {
   })
 })
 
+type LineEntries = Parameters<typeof commitFiles>[2]['files']
+
+/** Commits `files` and returns the arguments of every git process commitFiles started. */
+async function countedCommit(root: string, files: LineEntries): Promise<Array<readonly string[]>> {
+  const started: Array<readonly string[]> = []
+  const counting: GitRunner = {
+    run: (request) => {
+      started.push(request.args)
+      return runner.run(request)
+    }
+  }
+  await commitFiles(counting, root, { summary: 'Lines', description: '', files })
+  return started
+}
+
+describe('commitFiles with selected lines of several files', () => {
+  it('starts one more git process per further file, its diff read, and applies every patch with one git apply', async () => {
+    const r = repo()
+    const paths = ['f0.txt', 'f1.txt', 'f2.txt', 'f3.txt']
+    for (const path of paths) {
+      put(r.root, path, 'a\n')
+    }
+    r.git('add', '--', ...paths)
+    r.git('commit', '-q', '-m', 'base')
+    for (const path of paths) {
+      put(r.root, path, 'b\n')
+    }
+    // Changes: -a 0, +b 1. Committing f0.txt first leaves the other files' diffs, and so their hashes, as they are.
+    const status = await requireStatus(runner, r.root)
+    const read = (path: string): Promise<FileDiff> => readWorkingDiff(runner, r.root, findInStatus(status, path), { headExists: true })
+    const files = await Promise.all(paths.map(async (path) => ({ path, oldPath: null, lines: [1], diffHash: (await read(path)).hash })))
+    const one = await countedCommit(r.root, files.slice(0, 1))
+    const three = await countedCommit(r.root, files.slice(1))
+    expect(three.length - one.length).toBe(2)
+    expect(three.filter((args) => args.includes('apply'))).toHaveLength(1)
+    expect(gitIn(r.root, 'show', ...paths.map((path) => `HEAD:${path}`))).toBe('a\nb\n'.repeat(paths.length))
+  })
+})
+
 describe('commitFiles with selected lines in several files', () => {
-  it('reads each file once, without probing HEAD, and stages every selection with one git apply', async () => {
+  it('reads each file once, checks HEAD once for a moved branch, and stages every selection with one git apply', async () => {
     const r = repo()
     base(r, 'f.txt', 'a\nb\n')
     base(r, 'g.txt', 'c\n')
@@ -239,13 +278,12 @@ describe('commitFiles with selected lines in several files', () => {
       const diff = await workingDiff(r.root, path)
       files.push({ path, oldPath: null, lines: [0], diffHash: diff.hash })
     }
-    const runs: string[][] = []
-    const counting: GitRunner = { run: (request) => (runs.push([...request.args]), runner.run(request)) }
-    await commitFiles(counting, r.root, { summary: 'Three', description: '', files })
-    const command = (args: string[]): string | undefined => args.find((arg) => !arg.startsWith('-'))
+    const runs = await countedCommit(r.root, files)
+    const command = (args: readonly string[]): string | undefined => args.find((arg) => !arg.startsWith('-'))
     expect(runs.filter((args) => command(args) === 'diff')).toHaveLength(3)
     expect(runs.filter((args) => command(args) === 'apply')).toHaveLength(1)
-    expect(runs.filter((args) => args.join(' ') === 'rev-parse --verify --quiet HEAD')).toEqual([])
+    // The one HEAD check is the moved-branch check before the diffs are read; no diff read probes HEAD on its own.
+    expect(runs.filter((args) => command(args) === 'rev-parse' && args.includes('--verify'))).toHaveLength(1)
     // Changes: f -a 0; g -c 0; n +n 0.
     expect(show(r, 'f.txt')).toBe('b\n')
     expect(show(r, 'g.txt')).toBe('')
@@ -301,6 +339,37 @@ describe('commitFiles refuses a selection it cannot apply exactly', () => {
       expect(error).toBeInstanceOf(GitInputError)
     }
     expect(r.rev('HEAD')).toBe(head)
+  })
+})
+
+describe('commitFiles when HEAD moves after it read the status', () => {
+  it('returns stale_selection and keeps the first commit when it is made after commitFiles read the status', async () => {
+    const dir = scratchDir()
+    cleanups.push(dir.cleanup)
+    gitIn(dir.path, 'init', '-q', '-b', 'main')
+    put(dir.path, 'a.txt', 'a\nb\n')
+    put(dir.path, 'other.txt', 'o\n')
+    gitIn(dir.path, 'add', '--', 'a.txt', 'other.txt')
+    // Changes on the unborn branch: +a 0, +b 1.
+    const diff = await workingDiff(dir.path, 'a.txt')
+    let committed = false
+    // Another git makes the branch's first commit, holding other.txt, just after commitFiles has read the status.
+    const racing: GitRunner = {
+      run: async (request) => {
+        const result = await runner.run(request)
+        if (!committed && request.args[0] === 'status') {
+          committed = true
+          gitIn(dir.path, 'commit', '-q', '-m', 'first', '--', 'other.txt')
+        }
+        return result
+      }
+    }
+    const files = [{ path: 'a.txt', oldPath: null, lines: [0], diffHash: diff.hash }]
+    const error = await rejection(commitFiles(racing, dir.path, { summary: 'Race', description: '', files }))
+    expect(committed).toBe(true)
+    expect(error).toMatchObject({ code: 'stale_selection' })
+    expect(gitIn(dir.path, 'log', '--format=%s')).toBe('first\n')
+    expect(gitIn(dir.path, 'ls-tree', '--name-only', 'HEAD')).toBe('other.txt\n')
   })
 })
 

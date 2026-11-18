@@ -1,0 +1,2390 @@
+{
+  "grade": {
+    "letter": "A",
+    "score": 98,
+    "reasons": [
+      "all hard gates passed"
+    ]
+  },
+  "gates": {
+    "ast": {
+      "name": "ast",
+      "pass": true,
+      "assertionCount": 6807,
+      "mockCount": 19,
+      "mockToAssertRatio": 0.002791244307330689,
+      "tautologicalCount": 11,
+      "tautologicalRatio": 0.0016159835463493463,
+      "emptyTests": [],
+      "findings": []
+    },
+    "flake": {
+      "name": "flake",
+      "pass": true,
+      "runs": 100,
+      "configuredRuns": 100,
+      "failures": 0,
+      "flakeRate": 0,
+      "files": [
+        "src/cli/args.test.ts",
+        "src/cli/main.entry.test.ts",
+        "src/cli/main.test.ts",
+        "src/cli/usage.test.ts",
+        "src/cli/usageSessions.test.ts",
+        "src/core/authz.test.ts",
+        "src/core/commands/capabilities.test.ts",
+        "src/core/commands/metrics.test.ts",
+        "src/core/db/ledgerMigration.test.ts",
+        "src/core/db/migrations.test.ts",
+        "src/core/ids.test.ts",
+        "src/core/plan/correctionHolders.test.ts",
+        "src/core/plan/correctionMarkers.test.ts",
+        "src/core/plan/correctiveItems.test.ts",
+        "src/core/plan/experimentOutcome.test.ts",
+        "src/core/plan/experiments.test.ts",
+        "src/core/plan/retroExperiments.test.ts",
+        "src/core/plan/retroFindings.test.ts",
+        "src/core/plan/retroFindingsInputs.test.ts",
+        "src/core/plan/runWarnings.test.ts",
+        "src/core/repo/experimentEvents.test.ts",
+        "src/core/repo/experimentRecords.test.ts",
+        "src/core/repo/finalizer.edges.test.ts",
+        "src/core/repo/importer.crossRepoEvidence.test.ts",
+        "src/core/repo/importer.eventMerge.test.ts",
+        "src/core/repo/importer.hostile.test.ts",
+        "src/core/repo/importer.reportIndex.test.ts",
+        "src/core/repo/importer.scorecard.test.ts",
+        "src/core/repo/importer.test.ts",
+        "src/core/repo/importer.thrownValues.test.ts",
+        "src/core/repo/migrationCheckpoint.test.ts",
+        "src/core/repo/migrationExport.test.ts",
+        "src/core/repo/observationImport.test.ts",
+        "src/core/repo/observationRecords.test.ts",
+        "src/core/repo/portable.experiments.test.ts",
+        "src/core/repo/portable.test.ts",
+        "src/core/repo/scorecardPortability.test.ts",
+        "src/core/services/attempts.test.ts",
+        "src/core/services/correctionRequests.test.ts",
+        "src/core/services/corrections.test.ts",
+        "src/core/services/crossRepoCorrections.test.ts",
+        "src/core/services/drafts.personEstimate.test.ts",
+        "src/core/services/efficiency.test.ts",
+        "src/core/services/experimentEvents.test.ts",
+        "src/core/services/experimentOutcomes.test.ts",
+        "src/core/services/humanFeedback.attribution.test.ts",
+        "src/core/services/humanFeedback.records.test.ts",
+        "src/core/services/metricReports.test.ts",
+        "src/core/services/metricsSummary.test.ts",
+        "src/core/services/observations.test.ts",
+        "src/core/services/observationsHold.test.ts",
+        "src/core/services/performance.test.ts",
+        "src/core/services/plannedBaselines.test.ts",
+        "src/core/services/reports.test.ts",
+        "src/core/services/scorecards.reassess.test.ts",
+        "src/core/services/scorecards.snapshot.test.ts",
+        "src/core/services/spaceGrades.aggregate.test.ts",
+        "src/core/services/spaceGrades.sprints.test.ts",
+        "src/core/services/spaceGrades.ticketGrade.test.ts",
+        "src/core/services/spaceSignals.committedScope.test.ts",
+        "src/core/services/spaceSignals.criterionKey.test.ts",
+        "src/core/services/spaceSignals.handoff.test.ts",
+        "src/core/services/spaceSignals.normalization.test.ts",
+        "src/core/services/spaceSignals.read.test.ts",
+        "src/core/services/ticketBudgets.test.ts",
+        "src/core/services/timing.test.ts",
+        "src/core/space/baselines.test.ts",
+        "src/core/space/contract.refusals.test.ts",
+        "src/core/space/contract.test.ts",
+        "src/core/space/defects.rules.test.ts",
+        "src/core/space/defects.test.ts",
+        "src/core/space/efficiency.cohorts.test.ts",
+        "src/core/space/efficiency.edges.test.ts",
+        "src/core/space/efficiency.reprojection.test.ts",
+        "src/core/space/efficiency.test.ts",
+        "src/core/space/handoff.test.ts",
+        "src/core/space/hostAttribution.test.ts",
+        "src/core/space/hostAttribution.threads.test.ts",
+        "src/core/space/hostTranscripts.edges.test.ts",
+        "src/core/space/hostTranscripts.test.ts",
+        "src/core/space/hostUsage.aggregate.test.ts",
+        "src/core/space/hostUsage.test.ts",
+        "src/core/space/ledger.problems.test.ts",
+        "src/core/space/rubric.docs.test.ts",
+        "src/core/space/rubric.edges.test.ts",
+        "src/core/space/rubric.grades.test.ts",
+        "src/core/space/rubric.test.ts",
+        "src/core/space/snapshot.golden.test.ts",
+        "src/core/space/snapshot.tamper.test.ts",
+        "src/core/space/timing.lifecycle.test.ts",
+        "src/core/space/timing.test.ts",
+        "src/core/space/timingActivity.roles.test.ts",
+        "src/core/space/timingActivity.test.ts",
+        "src/core/space/timingIntervals.test.ts",
+        "src/core/space/verification.facts.test.ts",
+        "src/core/space/verification.test.ts",
+        "src/core/workspace.grants.test.ts",
+        "src/core/workspace.storageMigration.guards.test.ts",
+        "src/integration/scoreReadsBridge.test.ts",
+        "src/integration/spaceCorrections.test.ts",
+        "src/integration/spaceFailureMatrix.test.ts",
+        "src/integration/spaceLoop.test.ts",
+        "src/main/desktop/crossRepoCorrections.test.ts",
+        "src/main/desktop/handlers.scores.test.ts",
+        "src/main/desktop/sourceCheckout.test.ts",
+        "src/main/desktop/sourceCheckoutIpc.test.ts",
+        "src/main/git/commitLinesProperty.test.ts",
+        "src/mcp/crossRepoBoundary.test.ts",
+        "src/mcp/roles.runbook.test.ts",
+        "src/mcp/roles.test.ts",
+        "src/mcp/server.test.ts",
+        "src/mcp/skills.test.ts",
+        "src/mcp/tools/execution.metrics.test.ts",
+        "src/mcp/tools/metrics.test.ts",
+        "src/mcp/validation.test.ts",
+        "src/preload/index.test.ts",
+        "src/renderer/src/app/chooseView.test.ts",
+        "src/renderer/src/app/landing.test.ts",
+        "src/renderer/src/app/selection.test.ts",
+        "src/renderer/src/checkpoint/CheckpointScreen.retro.test.tsx",
+        "src/renderer/src/checkpoint/CheckpointScreen.test.tsx",
+        "src/renderer/src/checkpoint/CorrectivePlanner.editing.test.tsx",
+        "src/renderer/src/checkpoint/CorrectivePlanner.preview.test.tsx",
+        "src/renderer/src/checkpoint/CorrectivePlanner.test.tsx",
+        "src/renderer/src/checkpoint/CrossRepoCorrection.reading.test.tsx",
+        "src/renderer/src/checkpoint/CrossRepoCorrection.requests.test.tsx",
+        "src/renderer/src/checkpoint/CrossRepoCorrection.test.tsx",
+        "src/renderer/src/checkpoint/EpicOverview.retro.test.tsx",
+        "src/renderer/src/checkpoint/EpicOverview.test.tsx",
+        "src/renderer/src/checkpoint/ReportImprovement.chain.test.tsx",
+        "src/renderer/src/checkpoint/ReportImprovement.test.tsx",
+        "src/renderer/src/checkpoint/ReportScorecard.cases.test.tsx",
+        "src/renderer/src/checkpoint/ReportScorecard.test.tsx",
+        "src/renderer/src/checkpoint/ReportTabs.test.tsx",
+        "src/renderer/src/checkpoint/RetroSections.test.tsx",
+        "src/renderer/src/checkpoint/SprintFeedback.test.tsx",
+        "src/renderer/src/checkpoint/checkpointStyles.test.ts",
+        "src/renderer/src/checkpoint/correctionRoute.test.ts",
+        "src/renderer/src/checkpoint/crossRepoView.runbook.test.ts",
+        "src/renderer/src/checkpoint/crossRepoView.test.ts",
+        "src/renderer/src/checkpoint/improvementView.test.ts",
+        "src/renderer/src/checkpoint/improvementView.wording.test.ts",
+        "src/renderer/src/checkpoint/reportScorecardView.cases.test.ts",
+        "src/renderer/src/checkpoint/reportScorecardView.test.ts",
+        "src/renderer/src/checkpoint/retroView.test.ts",
+        "src/renderer/src/epic/EpicScorecard.cases.test.tsx",
+        "src/renderer/src/epic/EpicScorecard.test.tsx",
+        "src/renderer/src/epic/WorkspaceHeader.test.tsx",
+        "src/renderer/src/epic/epicScorecardView.cases.test.ts",
+        "src/renderer/src/epic/epicScorecardView.test.ts",
+        "src/renderer/src/epic/workspaceState.test.ts",
+        "src/renderer/src/metrics/MetricsDashboard.test.tsx",
+        "src/renderer/src/metrics/MetricsSections.test.tsx",
+        "src/renderer/src/metrics/metricsNavigation.test.ts",
+        "src/renderer/src/metrics/metricsView.test.ts",
+        "src/renderer/src/scorecard/FeedbackControls.test.tsx",
+        "src/renderer/src/scorecard/GradingPolicy.test.tsx",
+        "src/renderer/src/scorecard/ScorecardParts.test.tsx",
+        "src/renderer/src/scorecard/epicCardReads.test.ts",
+        "src/renderer/src/scorecard/feedbackForm.test.ts",
+        "src/renderer/src/scorecard/outcomeLabels.test.ts",
+        "src/renderer/src/scorecard/scoreReads.test.ts",
+        "src/renderer/src/scorecard/scorecardFormat.test.ts",
+        "src/renderer/src/scorecard/useScoreRead.test.tsx",
+        "src/renderer/src/sidebar/SidebarFooter.test.tsx",
+        "src/renderer/src/ticket/BudgetFields.test.tsx",
+        "src/renderer/src/ticket/ScorecardTab.test.tsx",
+        "src/renderer/src/ticket/TicketPanel.activity.test.tsx",
+        "src/renderer/src/ticket/TicketPanel.test.tsx",
+        "src/renderer/src/ticket/TicketPanelScorecard.test.tsx",
+        "src/renderer/src/ticket/budgetForm.test.ts",
+        "src/renderer/src/ticket/scorecardSections.test.tsx",
+        "src/test/scorecardWorldRecorder.test.ts",
+        "src/test/symlinks.test.ts"
+      ],
+      "failedRuns": [],
+      "failFast": true
+    },
+    "mutation": {
+      "name": "mutation",
+      "pass": true,
+      "killed": 4748,
+      "survived": 297,
+      "total": 5045,
+      "score": 94,
+      "survivors": [
+        {
+          "file": "src/core/plan/corrections.ts",
+          "line": 269,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/plan/corrections.ts",
+          "line": 413,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/plan/experimentOutcome.ts",
+          "line": 142,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/core/plan/experimentOutcome.ts",
+          "line": 284,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/core/plan/experimentOutcome.ts",
+          "line": 424,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/plan/experiments.ts",
+          "line": 176,
+          "description": "operator-swap: swap operator to /"
+        },
+        {
+          "file": "src/core/plan/experiments.ts",
+          "line": 270,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/plan/experiments.ts",
+          "line": 639,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/plan/retroFindings.ts",
+          "line": 151,
+          "description": "operator-swap: swap operator to *"
+        },
+        {
+          "file": "src/core/plan/retroFindings.ts",
+          "line": 208,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/core/plan/retroFindings.ts",
+          "line": 208,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/core/plan/retroFindings.ts",
+          "line": 226,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/core/plan/retroFindings.ts",
+          "line": 226,
+          "description": "operator-swap: swap operator to *"
+        },
+        {
+          "file": "src/core/plan/retroFindings.ts",
+          "line": 271,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/core/plan/retroFindings.ts",
+          "line": 319,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/core/plan/retroFindings.ts",
+          "line": 319,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/core/plan/retroFindings.ts",
+          "line": 478,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/plan/retroFindings.ts",
+          "line": 478,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/plan/retroFindings.ts",
+          "line": 479,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/plan/retroFindings.ts",
+          "line": 491,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/core/plan/retroFindings.ts",
+          "line": 491,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/plan/retroFindings.ts",
+          "line": 497,
+          "description": "operator-swap: swap operator to *"
+        },
+        {
+          "file": "src/core/plan/retroFindings.ts",
+          "line": 634,
+          "description": "operator-swap: swap operator to *"
+        },
+        {
+          "file": "src/core/plan/retroFindings.ts",
+          "line": 688,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/core/plan/retroFindings.ts",
+          "line": 689,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/repo/finalizer.ts",
+          "line": 492,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/repo/finalizer.ts",
+          "line": 813,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/core/repo/finalizer.ts",
+          "line": 813,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/repo/finalizer.ts",
+          "line": 813,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/repo/importer.ts",
+          "line": 646,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/repo/importer.ts",
+          "line": 779,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/core/repo/importer.ts",
+          "line": 781,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/repo/importer.ts",
+          "line": 1530,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/core/repo/portable.ts",
+          "line": 691,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/repo/storageMigration.ts",
+          "line": 255,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/corrections.ts",
+          "line": 261,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/core/services/corrections.ts",
+          "line": 261,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/core/services/corrections.ts",
+          "line": 309,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/corrections.ts",
+          "line": 381,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/services/corrections.ts",
+          "line": 391,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/core/services/corrections.ts",
+          "line": 416,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/corrections.ts",
+          "line": 460,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/corrections.ts",
+          "line": 472,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/core/services/corrections.ts",
+          "line": 472,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/corrections.ts",
+          "line": 499,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/core/services/corrections.ts",
+          "line": 499,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/core/services/corrections.ts",
+          "line": 500,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/corrections.ts",
+          "line": 500,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/core/services/corrections.ts",
+          "line": 500,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/core/services/corrections.ts",
+          "line": 501,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/corrections.ts",
+          "line": 501,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/corrections.ts",
+          "line": 502,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/core/services/corrections.ts",
+          "line": 502,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/corrections.ts",
+          "line": 543,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/corrections.ts",
+          "line": 551,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/core/services/corrections.ts",
+          "line": 569,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/corrections.ts",
+          "line": 569,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/core/services/corrections.ts",
+          "line": 669,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/corrections.ts",
+          "line": 674,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/crossRepoCorrections.ts",
+          "line": 509,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/efficiency.ts",
+          "line": 142,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/core/services/efficiency.ts",
+          "line": 142,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/core/services/increments.ts",
+          "line": 128,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/metricReports.ts",
+          "line": 76,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/metricReports.ts",
+          "line": 210,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/metricReports.ts",
+          "line": 398,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/core/services/metricReports.ts",
+          "line": 398,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/core/services/metricsSummary.ts",
+          "line": 154,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/metricsSummary.ts",
+          "line": 161,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/core/services/metricsSummary.ts",
+          "line": 161,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/metricsSummary.ts",
+          "line": 162,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/core/services/metricsSummary.ts",
+          "line": 180,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/core/services/metricsSummary.ts",
+          "line": 180,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/core/services/metricsSummary.ts",
+          "line": 180,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/core/services/metricsSummary.ts",
+          "line": 185,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/metricsSummary.ts",
+          "line": 185,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/metricsSummary.ts",
+          "line": 185,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/metricsSummary.ts",
+          "line": 185,
+          "description": "operator-swap: swap operator to *"
+        },
+        {
+          "file": "src/core/services/metricsSummary.ts",
+          "line": 278,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/metricsSummary.ts",
+          "line": 463,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/core/services/metricsSummary.ts",
+          "line": 463,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/core/services/metricsSummary.ts",
+          "line": 493,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/services/metricsSummary.ts",
+          "line": 527,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/services/metricsSummary.ts",
+          "line": 527,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/services/metricsSummary.ts",
+          "line": 671,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/core/services/metricsSummary.ts",
+          "line": 671,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/core/services/metricsSummary.ts",
+          "line": 702,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/core/services/metricsSummary.ts",
+          "line": 703,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/core/services/observations.ts",
+          "line": 74,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/core/services/observations.ts",
+          "line": 252,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/core/services/observations.ts",
+          "line": 252,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/core/services/performance.ts",
+          "line": 87,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/performance.ts",
+          "line": 107,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/performance.ts",
+          "line": 107,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/performance.ts",
+          "line": 109,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/performance.ts",
+          "line": 109,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/performance.ts",
+          "line": 161,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/services/plannedBaselines.ts",
+          "line": 295,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/spaceGrades.ts",
+          "line": 217,
+          "description": "return-value-tweak: tweak numeric return 0 -> 1"
+        },
+        {
+          "file": "src/core/services/spaceGrades.ts",
+          "line": 239,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/spaceGrades.ts",
+          "line": 280,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/core/services/spaceGrades.ts",
+          "line": 280,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/core/services/spaceGrades.ts",
+          "line": 302,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/core/services/spaceGrades.ts",
+          "line": 409,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/core/services/spaceGrades.ts",
+          "line": 548,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/services/spaceSignals.ts",
+          "line": 146,
+          "description": "return-value-tweak: invert boolean return to false"
+        },
+        {
+          "file": "src/core/services/spaceSignals.ts",
+          "line": 158,
+          "description": "return-value-tweak: invert boolean return to true"
+        },
+        {
+          "file": "src/core/services/spaceSignals.ts",
+          "line": 349,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/spaceSignals.ts",
+          "line": 435,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/spaceSignals.ts",
+          "line": 438,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/spaceSignals.ts",
+          "line": 438,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/spaceSignals.ts",
+          "line": 452,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/spaceSignals.ts",
+          "line": 512,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/spaceSignals.ts",
+          "line": 815,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/core/services/timing.ts",
+          "line": 78,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/services/timing.ts",
+          "line": 79,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/timing.ts",
+          "line": 95,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/timing.ts",
+          "line": 103,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/timing.ts",
+          "line": 104,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/core/services/timing.ts",
+          "line": 104,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/core/services/timing.ts",
+          "line": 104,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/timing.ts",
+          "line": 104,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/core/services/timing.ts",
+          "line": 117,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/timing.ts",
+          "line": 117,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/timing.ts",
+          "line": 139,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/timing.ts",
+          "line": 139,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/timing.ts",
+          "line": 180,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/timing.ts",
+          "line": 211,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/timing.ts",
+          "line": 211,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/timing.ts",
+          "line": 305,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/timing.ts",
+          "line": 305,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/timing.ts",
+          "line": 306,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/timing.ts",
+          "line": 308,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/core/services/timing.ts",
+          "line": 308,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/core/services/timing.ts",
+          "line": 308,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/timing.ts",
+          "line": 308,
+          "description": "conditional-inversion: swap operator to >"
+        },
+        {
+          "file": "src/core/services/timing.ts",
+          "line": 327,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/timing.ts",
+          "line": 345,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/services/timing.ts",
+          "line": 348,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/core/services/timing.ts",
+          "line": 375,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/space/baselines.ts",
+          "line": 165,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/core/space/contract.ts",
+          "line": 506,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/core/space/defects.ts",
+          "line": 298,
+          "description": "operator-swap: swap operator to >="
+        },
+        {
+          "file": "src/core/space/defects.ts",
+          "line": 420,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/space/efficiency.ts",
+          "line": 323,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/core/space/efficiency.ts",
+          "line": 323,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/core/space/efficiency.ts",
+          "line": 458,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/core/space/efficiency.ts",
+          "line": 482,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/core/space/efficiency.ts",
+          "line": 482,
+          "description": "conditional-inversion: swap operator to >"
+        },
+        {
+          "file": "src/core/space/efficiency.ts",
+          "line": 482,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/core/space/efficiency.ts",
+          "line": 522,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/space/efficiency.ts",
+          "line": 558,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/core/space/efficiency.ts",
+          "line": 682,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/core/space/efficiency.ts",
+          "line": 695,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/space/hostAttribution.ts",
+          "line": 254,
+          "description": "conditional-inversion: swap operator to >"
+        },
+        {
+          "file": "src/core/space/hostAttribution.ts",
+          "line": 254,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/space/hostAttribution.ts",
+          "line": 254,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/space/hostAttribution.ts",
+          "line": 271,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/space/hostAttribution.ts",
+          "line": 274,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/space/hostAttribution.ts",
+          "line": 309,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/space/hostTranscripts.ts",
+          "line": 189,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/space/hostTranscripts.ts",
+          "line": 190,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/space/hostTranscripts.ts",
+          "line": 191,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/space/hostTranscripts.ts",
+          "line": 192,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/space/hostTranscripts.ts",
+          "line": 339,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/core/space/hostTranscripts.ts",
+          "line": 339,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/core/space/hostTranscripts.ts",
+          "line": 341,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/core/space/hostTranscripts.ts",
+          "line": 341,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/core/space/hostTranscripts.ts",
+          "line": 350,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/core/space/hostTranscripts.ts",
+          "line": 350,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/core/space/hostTranscripts.ts",
+          "line": 367,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/space/hostUsage.ts",
+          "line": 254,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/space/hostUsage.ts",
+          "line": 297,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/space/hostUsage.ts",
+          "line": 297,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/space/hostUsage.ts",
+          "line": 298,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/core/space/hostUsage.ts",
+          "line": 324,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/core/space/hostUsage.ts",
+          "line": 324,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/core/space/hostUsage.ts",
+          "line": 365,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/space/hostUsage.ts",
+          "line": 379,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/space/hostUsage.ts",
+          "line": 379,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/core/space/hostUsage.ts",
+          "line": 380,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/space/timing.ts",
+          "line": 154,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/space/timing.ts",
+          "line": 154,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/space/timing.ts",
+          "line": 565,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/space/timing.ts",
+          "line": 574,
+          "description": "conditional-inversion: swap operator to >"
+        },
+        {
+          "file": "src/core/space/timing.ts",
+          "line": 651,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/space/timing.ts",
+          "line": 651,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/space/timing.ts",
+          "line": 904,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/space/timing.ts",
+          "line": 904,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/space/timingActivity.ts",
+          "line": 77,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/space/timingIntervals.ts",
+          "line": 38,
+          "description": "operator-swap: swap operator to *"
+        },
+        {
+          "file": "src/core/space/timingIntervals.ts",
+          "line": 39,
+          "description": "conditional-inversion: swap operator to >"
+        },
+        {
+          "file": "src/core/space/timingIntervals.ts",
+          "line": 68,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/space/timingIntervals.ts",
+          "line": 178,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/core/space/verification.ts",
+          "line": 176,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/core/space/verification.ts",
+          "line": 176,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/desktop/bootstrap.ts",
+          "line": 604,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/desktop/sourceCheckout.ts",
+          "line": 309,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/desktop/sourceCheckout.ts",
+          "line": 309,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/desktop/sourceCheckoutIpc.ts",
+          "line": 45,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/App.tsx",
+          "line": 231,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/App.tsx",
+          "line": 231,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/App.tsx",
+          "line": 231,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/App.tsx",
+          "line": 231,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/App.tsx",
+          "line": 231,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/App.tsx",
+          "line": 236,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/App.tsx",
+          "line": 238,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/App.tsx",
+          "line": 240,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/App.tsx",
+          "line": 240,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/CheckpointScreen.tsx",
+          "line": 354,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/CorrectivePlanner.tsx",
+          "line": 102,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/CorrectivePlanner.tsx",
+          "line": 162,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/CorrectivePlanner.tsx",
+          "line": 166,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/CorrectivePlanner.tsx",
+          "line": 179,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/CorrectivePlanner.tsx",
+          "line": 484,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/CorrectivePlanner.tsx",
+          "line": 538,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/CorrectivePlanner.tsx",
+          "line": 602,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/CorrectivePlanner.tsx",
+          "line": 628,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/CorrectivePlanner.tsx",
+          "line": 631,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/CorrectivePlanner.tsx",
+          "line": 655,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/CorrectivePlanner.tsx",
+          "line": 728,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/EpicOverview.tsx",
+          "line": 83,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/ReportImprovement.tsx",
+          "line": 86,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/ReportImprovement.tsx",
+          "line": 100,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/checkpoint/ReportImprovement.tsx",
+          "line": 380,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/ReportImprovement.tsx",
+          "line": 380,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/ReportScorecard.tsx",
+          "line": 67,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/ReportScorecard.tsx",
+          "line": 67,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/ReportScorecard.tsx",
+          "line": 67,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/ReportScorecard.tsx",
+          "line": 135,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/ReportScorecard.tsx",
+          "line": 211,
+          "description": "conditional-inversion: swap operator to <"
+        },
+        {
+          "file": "src/renderer/src/checkpoint/ReportScorecard.tsx",
+          "line": 211,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/ReportScorecard.tsx",
+          "line": 214,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/ReportScorecard.tsx",
+          "line": 275,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/checkpoint/ReportScorecard.tsx",
+          "line": 318,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/ReportScorecard.tsx",
+          "line": 327,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/ReportScorecard.tsx",
+          "line": 328,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/ReportScorecard.tsx",
+          "line": 363,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/ReportScorecard.tsx",
+          "line": 365,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/checkpoint/ReportScorecard.tsx",
+          "line": 374,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/RetroSections.tsx",
+          "line": 263,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/SprintFeedback.tsx",
+          "line": 37,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/checkpoint/reportScorecardView.ts",
+          "line": 213,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/reportScorecardView.ts",
+          "line": 237,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/reportScorecardView.ts",
+          "line": 238,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/reportScorecardView.ts",
+          "line": 304,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/reportScorecardView.ts",
+          "line": 305,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/reportScorecardView.ts",
+          "line": 459,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/checkpoint/reportScorecardView.ts",
+          "line": 459,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/reportScorecardView.ts",
+          "line": 459,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/reportScorecardView.ts",
+          "line": 462,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/checkpoint/reportScorecardView.ts",
+          "line": 569,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/EpicScorecard.tsx",
+          "line": 22,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/EpicScorecard.tsx",
+          "line": 31,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/EpicScorecard.tsx",
+          "line": 162,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/epic/EpicScorecardSections.tsx",
+          "line": 230,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/EpicScorecardSections.tsx",
+          "line": 233,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/EpicWorkspace.tsx",
+          "line": 115,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/WorkspaceHeader.tsx",
+          "line": 17,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/WorkspaceHeader.tsx",
+          "line": 24,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/WorkspaceHeader.tsx",
+          "line": 32,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/epicScorecardView.ts",
+          "line": 343,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/epic/epicScorecardView.ts",
+          "line": 411,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/epic/epicScorecardView.ts",
+          "line": 411,
+          "description": "operator-swap: swap operator to +"
+        },
+        {
+          "file": "src/renderer/src/epic/epicScorecardView.ts",
+          "line": 527,
+          "description": "operator-swap: swap operator to /"
+        },
+        {
+          "file": "src/renderer/src/epic/epicScorecardView.ts",
+          "line": 527,
+          "description": "operator-swap: swap operator to *"
+        },
+        {
+          "file": "src/renderer/src/epic/landingActions.ts",
+          "line": 20,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/epic/landingActions.ts",
+          "line": 20,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/landingActions.ts",
+          "line": 21,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/landingActions.ts",
+          "line": 35,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/landingActions.ts",
+          "line": 35,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/epic/landingActions.ts",
+          "line": 36,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/epic/landingActions.ts",
+          "line": 38,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/workspaceActions.ts",
+          "line": 448,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/epic/workspaceActions.ts",
+          "line": 473,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/epic/workspaceActions.ts",
+          "line": 473,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/epic/workspaceActions.ts",
+          "line": 478,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/metrics/MetricsDashboard.tsx",
+          "line": 99,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/metrics/MetricsDashboard.tsx",
+          "line": 100,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/metrics/MetricsSections.tsx",
+          "line": 390,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/metrics/MetricsSections.tsx",
+          "line": 390,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/metrics/MetricsSections.tsx",
+          "line": 390,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/scorecard/GradingPolicy.tsx",
+          "line": 80,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/scorecard/ScorecardParts.tsx",
+          "line": 128,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/scorecard/ScorecardParts.tsx",
+          "line": 159,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/scorecard/ScorecardParts.tsx",
+          "line": 204,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/scorecard/ScorecardParts.tsx",
+          "line": 213,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/scorecard/scorecardFormat.ts",
+          "line": 89,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/sidebar/FolderRow.tsx",
+          "line": 257,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/sidebar/FolderRow.tsx",
+          "line": 258,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/renderer/src/ticket/AttemptList.tsx",
+          "line": 122,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/renderer/src/ticket/ScorecardTab.tsx",
+          "line": 31,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/ticket/ScorecardTab.tsx",
+          "line": 59,
+          "description": "conditional-inversion: swap operator to >"
+        },
+        {
+          "file": "src/renderer/src/ticket/ScorecardTab.tsx",
+          "line": 145,
+          "description": "operator-swap: swap operator to -"
+        },
+        {
+          "file": "src/renderer/src/ticket/TicketEditor.tsx",
+          "line": 177,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/ticket/TicketPanel.tsx",
+          "line": 120,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/ticket/scorecardSections.tsx",
+          "line": 260,
+          "description": "conditional-inversion: swap operator to !=="
+        }
+      ],
+      "modules": [
+        "src/cli/args.ts",
+        "src/cli/main.ts",
+        "src/cli/usage.ts",
+        "src/core/authz.ts",
+        "src/core/commandSchemas.ts",
+        "src/core/commands/capabilities.ts",
+        "src/core/commands/checkpoints.ts",
+        "src/core/commands/index.ts",
+        "src/core/commands/metrics.ts",
+        "src/core/commands/scores.ts",
+        "src/core/db/migrations.ts",
+        "src/core/ids.ts",
+        "src/core/plan/correctionMarker.ts",
+        "src/core/plan/corrections.ts",
+        "src/core/plan/diff.ts",
+        "src/core/plan/draftOps.ts",
+        "src/core/plan/experimentOutcome.ts",
+        "src/core/plan/experiments.ts",
+        "src/core/plan/normalize.ts",
+        "src/core/plan/retro.ts",
+        "src/core/plan/retroFindings.ts",
+        "src/core/plan/runWarnings.ts",
+        "src/core/repo/finalizer.ts",
+        "src/core/repo/importer.ts",
+        "src/core/repo/migrationCheckpoint.ts",
+        "src/core/repo/migrationExport.ts",
+        "src/core/repo/observationImport.ts",
+        "src/core/repo/paths.ts",
+        "src/core/repo/portable.ts",
+        "src/core/repo/storageMigration.ts",
+        "src/core/repo/syncState.ts",
+        "src/core/schemas.ts",
+        "src/core/services/adoption.ts",
+        "src/core/services/attempts.ts",
+        "src/core/services/checkpoints.ts",
+        "src/core/services/corrections.ts",
+        "src/core/services/crossRepoCorrections.ts",
+        "src/core/services/drafts.ts",
+        "src/core/services/efficiency.ts",
+        "src/core/services/epicDeletion.ts",
+        "src/core/services/epics.ts",
+        "src/core/services/experimentOutcomes.ts",
+        "src/core/services/experiments.ts",
+        "src/core/services/gradingPolicy.ts",
+        "src/core/services/humanFeedback.ts",
+        "src/core/services/increments.ts",
+        "src/core/services/metricReports.ts",
+        "src/core/services/metricsSummary.ts",
+        "src/core/services/observations.ts",
+        "src/core/services/outbox.ts",
+        "src/core/services/performance.ts",
+        "src/core/services/plannedBaselines.ts",
+        "src/core/services/plans.ts",
+        "src/core/services/reports.ts",
+        "src/core/services/retroFindings.ts",
+        "src/core/services/scorecards.ts",
+        "src/core/services/spaceGrades.ts",
+        "src/core/services/spaceSignals.ts",
+        "src/core/services/ticketBudgets.ts",
+        "src/core/services/timing.ts",
+        "src/core/space/baselines.ts",
+        "src/core/space/contract.ts",
+        "src/core/space/defects.ts",
+        "src/core/space/efficiency.ts",
+        "src/core/space/handoff.ts",
+        "src/core/space/hostAttribution.ts",
+        "src/core/space/hostTranscripts.ts",
+        "src/core/space/hostUsage.ts",
+        "src/core/space/ledger.ts",
+        "src/core/space/rubric.ts",
+        "src/core/space/snapshot.ts",
+        "src/core/space/timing.ts",
+        "src/core/space/timingActivity.ts",
+        "src/core/space/timingIntervals.ts",
+        "src/core/space/verification.ts",
+        "src/core/storedSecrets.ts",
+        "src/core/version.ts",
+        "src/main/desktop/bootstrap.ts",
+        "src/main/desktop/crossRepoCorrections.ts",
+        "src/main/desktop/folderRegistry.ts",
+        "src/main/desktop/handlers.ts",
+        "src/main/desktop/sourceCheckout.ts",
+        "src/main/desktop/sourceCheckoutIpc.ts",
+        "src/mcp/server.ts",
+        "src/mcp/tools/checkpoints.ts",
+        "src/mcp/tools/execution.ts",
+        "src/mcp/tools/metrics.ts",
+        "src/preload/index.ts",
+        "src/renderer/src/App.tsx",
+        "src/renderer/src/app/chooseView.ts",
+        "src/renderer/src/app/landing.ts",
+        "src/renderer/src/app/selection.ts",
+        "src/renderer/src/app/shellActions.ts",
+        "src/renderer/src/app/useShell.ts",
+        "src/renderer/src/checkpoint/CheckpointScreen.tsx",
+        "src/renderer/src/checkpoint/CorrectivePlanner.tsx",
+        "src/renderer/src/checkpoint/CrossRepoCorrection.tsx",
+        "src/renderer/src/checkpoint/EpicOverview.tsx",
+        "src/renderer/src/checkpoint/ReportImprovement.tsx",
+        "src/renderer/src/checkpoint/ReportScorecard.tsx",
+        "src/renderer/src/checkpoint/ReportTabs.tsx",
+        "src/renderer/src/checkpoint/RetroSections.tsx",
+        "src/renderer/src/checkpoint/SprintFeedback.tsx",
+        "src/renderer/src/checkpoint/correctionRoute.ts",
+        "src/renderer/src/checkpoint/crossRepoView.ts",
+        "src/renderer/src/checkpoint/gateView.ts",
+        "src/renderer/src/checkpoint/improvementView.ts",
+        "src/renderer/src/checkpoint/plannerStore.ts",
+        "src/renderer/src/checkpoint/reportScorecardView.ts",
+        "src/renderer/src/checkpoint/retroView.ts",
+        "src/renderer/src/checkpoint/useCrossRepoCorrection.ts",
+        "src/renderer/src/components/Icon.tsx",
+        "src/renderer/src/epic/EpicScorecard.tsx",
+        "src/renderer/src/epic/EpicScorecardSections.tsx",
+        "src/renderer/src/epic/EpicWorkspace.tsx",
+        "src/renderer/src/epic/WorkspaceHeader.tsx",
+        "src/renderer/src/epic/epicScorecardView.ts",
+        "src/renderer/src/epic/landingActions.ts",
+        "src/renderer/src/epic/useLanding.ts",
+        "src/renderer/src/epic/useWorkspace.ts",
+        "src/renderer/src/epic/workspaceActions.ts",
+        "src/renderer/src/epic/workspaceState.ts",
+        "src/renderer/src/metrics/MetricsDashboard.tsx",
+        "src/renderer/src/metrics/MetricsSections.tsx",
+        "src/renderer/src/metrics/metricsView.ts",
+        "src/renderer/src/metrics/useMetricsRead.ts",
+        "src/renderer/src/scorecard/FeedbackControls.tsx",
+        "src/renderer/src/scorecard/GradingPolicy.tsx",
+        "src/renderer/src/scorecard/ScorecardParts.tsx",
+        "src/renderer/src/scorecard/feedbackForm.ts",
+        "src/renderer/src/scorecard/outcomeLabels.ts",
+        "src/renderer/src/scorecard/scoreReads.ts",
+        "src/renderer/src/scorecard/scorecardFormat.ts",
+        "src/renderer/src/scorecard/useScoreRead.ts",
+        "src/renderer/src/sidebar/FolderRow.tsx",
+        "src/renderer/src/sidebar/SidebarFooter.tsx",
+        "src/renderer/src/ticket/AttemptList.tsx",
+        "src/renderer/src/ticket/BudgetFields.tsx",
+        "src/renderer/src/ticket/ScorecardTab.tsx",
+        "src/renderer/src/ticket/TicketEditor.tsx",
+        "src/renderer/src/ticket/TicketPanel.tsx",
+        "src/renderer/src/ticket/budgetForm.ts",
+        "src/renderer/src/ticket/panelTabs.tsx",
+        "src/renderer/src/ticket/scorecardSections.tsx",
+        "src/renderer/src/ticket/ticketView.ts",
+        "src/shared/desktop/api.ts",
+        "src/shared/desktop/crossRepoCorrections.ts",
+        "src/shared/desktop/sourceCheckout.ts",
+        "src/shared/domain/api.ts",
+        "src/shared/domain/bundle.ts",
+        "src/shared/domain/corrections.ts",
+        "src/shared/domain/crossRepoCorrections.ts",
+        "src/shared/domain/efficiency.ts",
+        "src/shared/domain/experiments.ts",
+        "src/shared/domain/hostUsage.ts",
+        "src/shared/domain/metrics.ts",
+        "src/shared/domain/performance.ts",
+        "src/shared/domain/retro.ts",
+        "src/shared/domain/retroFindings.ts",
+        "src/shared/domain/scoreReads.ts",
+        "src/shared/domain/space.ts",
+        "src/shared/domain/spaceGrades.ts",
+        "src/shared/domain/spaceSignals.ts",
+        "src/shared/domain/timing.ts",
+        "src/shared/domain/views.ts"
+      ],
+      "moduleTests": {
+        "src/cli/args.ts": 6,
+        "src/cli/main.ts": 3,
+        "src/cli/usage.ts": 5,
+        "src/core/authz.ts": 91,
+        "src/core/commandSchemas.ts": 35,
+        "src/core/commands/capabilities.ts": 20,
+        "src/core/commands/checkpoints.ts": 31,
+        "src/core/commands/index.ts": 31,
+        "src/core/commands/metrics.ts": 31,
+        "src/core/commands/scores.ts": 31,
+        "src/core/db/migrations.ts": 80,
+        "src/core/ids.ts": 101,
+        "src/core/plan/correctionMarker.ts": 100,
+        "src/core/plan/corrections.ts": 69,
+        "src/core/plan/diff.ts": 50,
+        "src/core/plan/draftOps.ts": 71,
+        "src/core/plan/experimentOutcome.ts": 62,
+        "src/core/plan/experiments.ts": 91,
+        "src/core/plan/normalize.ts": 100,
+        "src/core/plan/retro.ts": 68,
+        "src/core/plan/retroFindings.ts": 33,
+        "src/core/plan/runWarnings.ts": 51,
+        "src/core/repo/finalizer.ts": 68,
+        "src/core/repo/importer.ts": 63,
+        "src/core/repo/migrationCheckpoint.ts": 31,
+        "src/core/repo/migrationExport.ts": 31,
+        "src/core/repo/observationImport.ts": 63,
+        "src/core/repo/paths.ts": 90,
+        "src/core/repo/portable.ts": 90,
+        "src/core/repo/storageMigration.ts": 30,
+        "src/core/repo/syncState.ts": 68,
+        "src/core/schemas.ts": 100,
+        "src/core/services/adoption.ts": 49,
+        "src/core/services/attempts.ts": 77,
+        "src/core/services/checkpoints.ts": 48,
+        "src/core/services/corrections.ts": 39,
+        "src/core/services/crossRepoCorrections.ts": 14,
+        "src/core/services/drafts.ts": 40,
+        "src/core/services/efficiency.ts": 65,
+        "src/core/services/epicDeletion.ts": 31,
+        "src/core/services/epics.ts": 50,
+        "src/core/services/experimentOutcomes.ts": 62,
+        "src/core/services/experiments.ts": 62,
+        "src/core/services/gradingPolicy.ts": 31,
+        "src/core/services/humanFeedback.ts": 34,
+        "src/core/services/increments.ts": 77,
+        "src/core/services/metricReports.ts": 74,
+        "src/core/services/metricsSummary.ts": 31,
+        "src/core/services/observations.ts": 83,
+        "src/core/services/outbox.ts": 90,
+        "src/core/services/performance.ts": 66,
+        "src/core/services/plannedBaselines.ts": 84,
+        "src/core/services/plans.ts": 50,
+        "src/core/services/reports.ts": 62,
+        "src/core/services/retroFindings.ts": 32,
+        "src/core/services/scorecards.ts": 63,
+        "src/core/services/spaceGrades.ts": 64,
+        "src/core/services/spaceSignals.ts": 77,
+        "src/core/services/ticketBudgets.ts": 32,
+        "src/core/services/timing.ts": 65,
+        "src/core/space/baselines.ts": 99,
+        "src/core/space/contract.ts": 99,
+        "src/core/space/defects.ts": 98,
+        "src/core/space/efficiency.ts": 71,
+        "src/core/space/handoff.ts": 78,
+        "src/core/space/hostAttribution.ts": 7,
+        "src/core/space/hostTranscripts.ts": 10,
+        "src/core/space/hostUsage.ts": 11,
+        "src/core/space/ledger.ts": 98,
+        "src/core/space/rubric.ts": 99,
+        "src/core/space/snapshot.ts": 92,
+        "src/core/space/timing.ts": 72,
+        "src/core/space/timingActivity.ts": 73,
+        "src/core/space/timingIntervals.ts": 74,
+        "src/core/space/verification.ts": 67,
+        "src/core/storedSecrets.ts": 99,
+        "src/core/version.ts": 82,
+        "src/main/desktop/bootstrap.ts": 0,
+        "src/main/desktop/crossRepoCorrections.ts": 8,
+        "src/main/desktop/folderRegistry.ts": 12,
+        "src/main/desktop/handlers.ts": 12,
+        "src/main/desktop/sourceCheckout.ts": 9,
+        "src/main/desktop/sourceCheckoutIpc.ts": 2,
+        "src/mcp/server.ts": 15,
+        "src/mcp/tools/checkpoints.ts": 15,
+        "src/mcp/tools/execution.ts": 15,
+        "src/mcp/tools/metrics.ts": 15,
+        "src/preload/index.ts": 1,
+        "src/renderer/src/App.tsx": 0,
+        "src/renderer/src/app/chooseView.ts": 2,
+        "src/renderer/src/app/landing.ts": 5,
+        "src/renderer/src/app/selection.ts": 3,
+        "src/renderer/src/app/shellActions.ts": 1,
+        "src/renderer/src/app/useShell.ts": 0,
+        "src/renderer/src/checkpoint/CheckpointScreen.tsx": 7,
+        "src/renderer/src/checkpoint/CorrectivePlanner.tsx": 13,
+        "src/renderer/src/checkpoint/CrossRepoCorrection.tsx": 16,
+        "src/renderer/src/checkpoint/EpicOverview.tsx": 5,
+        "src/renderer/src/checkpoint/ReportImprovement.tsx": 13,
+        "src/renderer/src/checkpoint/ReportScorecard.tsx": 16,
+        "src/renderer/src/checkpoint/ReportTabs.tsx": 18,
+        "src/renderer/src/checkpoint/RetroSections.tsx": 17,
+        "src/renderer/src/checkpoint/SprintFeedback.tsx": 16,
+        "src/renderer/src/checkpoint/correctionRoute.ts": 27,
+        "src/renderer/src/checkpoint/crossRepoView.ts": 17,
+        "src/renderer/src/checkpoint/gateView.ts": 23,
+        "src/renderer/src/checkpoint/improvementView.ts": 15,
+        "src/renderer/src/checkpoint/plannerStore.ts": 13,
+        "src/renderer/src/checkpoint/reportScorecardView.ts": 18,
+        "src/renderer/src/checkpoint/retroView.ts": 26,
+        "src/renderer/src/checkpoint/useCrossRepoCorrection.ts": 16,
+        "src/renderer/src/components/Icon.tsx": 8,
+        "src/renderer/src/epic/EpicScorecard.tsx": 3,
+        "src/renderer/src/epic/EpicScorecardSections.tsx": 3,
+        "src/renderer/src/epic/EpicWorkspace.tsx": 3,
+        "src/renderer/src/epic/WorkspaceHeader.tsx": 3,
+        "src/renderer/src/epic/epicScorecardView.ts": 5,
+        "src/renderer/src/epic/landingActions.ts": 4,
+        "src/renderer/src/epic/useLanding.ts": 3,
+        "src/renderer/src/epic/useWorkspace.ts": 3,
+        "src/renderer/src/epic/workspaceActions.ts": 17,
+        "src/renderer/src/epic/workspaceState.ts": 19,
+        "src/renderer/src/metrics/MetricsDashboard.tsx": 1,
+        "src/renderer/src/metrics/MetricsSections.tsx": 2,
+        "src/renderer/src/metrics/metricsView.ts": 3,
+        "src/renderer/src/metrics/useMetricsRead.ts": 1,
+        "src/renderer/src/scorecard/FeedbackControls.tsx": 21,
+        "src/renderer/src/scorecard/GradingPolicy.tsx": 21,
+        "src/renderer/src/scorecard/ScorecardParts.tsx": 27,
+        "src/renderer/src/scorecard/feedbackForm.ts": 25,
+        "src/renderer/src/scorecard/outcomeLabels.ts": 21,
+        "src/renderer/src/scorecard/scoreReads.ts": 36,
+        "src/renderer/src/scorecard/scorecardFormat.ts": 35,
+        "src/renderer/src/scorecard/useScoreRead.ts": 21,
+        "src/renderer/src/sidebar/FolderRow.tsx": 0,
+        "src/renderer/src/sidebar/SidebarFooter.tsx": 1,
+        "src/renderer/src/ticket/AttemptList.tsx": 6,
+        "src/renderer/src/ticket/BudgetFields.tsx": 4,
+        "src/renderer/src/ticket/ScorecardTab.tsx": 7,
+        "src/renderer/src/ticket/TicketEditor.tsx": 3,
+        "src/renderer/src/ticket/TicketPanel.tsx": 6,
+        "src/renderer/src/ticket/budgetForm.ts": 5,
+        "src/renderer/src/ticket/panelTabs.tsx": 6,
+        "src/renderer/src/ticket/scorecardSections.tsx": 8,
+        "src/renderer/src/ticket/ticketView.ts": 27,
+        "src/shared/desktop/api.ts": 74,
+        "src/shared/desktop/crossRepoCorrections.ts": 74,
+        "src/shared/desktop/sourceCheckout.ts": 74,
+        "src/shared/domain/api.ts": 155,
+        "src/shared/domain/bundle.ts": 166,
+        "src/shared/domain/corrections.ts": 166,
+        "src/shared/domain/crossRepoCorrections.ts": 166,
+        "src/shared/domain/efficiency.ts": 166,
+        "src/shared/domain/experiments.ts": 166,
+        "src/shared/domain/hostUsage.ts": 15,
+        "src/shared/domain/metrics.ts": 157,
+        "src/shared/domain/performance.ts": 166,
+        "src/shared/domain/retro.ts": 166,
+        "src/shared/domain/retroFindings.ts": 155,
+        "src/shared/domain/scoreReads.ts": 155,
+        "src/shared/domain/space.ts": 166,
+        "src/shared/domain/spaceGrades.ts": 166,
+        "src/shared/domain/spaceSignals.ts": 166,
+        "src/shared/domain/timing.ts": 167,
+        "src/shared/domain/views.ts": 166
+      },
+      "unchangedLineMutants": 1638
+    }
+  },
+  "scope": {
+    "baseRef": "fd857e3d37c8ccc9d9ff21086dc203ac8fa5c685",
+    "gradedTestFiles": [
+      "src/cli/args.test.ts",
+      "src/cli/main.entry.test.ts",
+      "src/cli/main.test.ts",
+      "src/cli/usage.test.ts",
+      "src/cli/usageSessions.test.ts",
+      "src/core/authz.test.ts",
+      "src/core/commands/capabilities.test.ts",
+      "src/core/commands/metrics.test.ts",
+      "src/core/db/ledgerMigration.test.ts",
+      "src/core/db/migrations.test.ts",
+      "src/core/ids.test.ts",
+      "src/core/plan/correctionHolders.test.ts",
+      "src/core/plan/correctionMarkers.test.ts",
+      "src/core/plan/correctiveItems.test.ts",
+      "src/core/plan/experimentOutcome.test.ts",
+      "src/core/plan/experiments.test.ts",
+      "src/core/plan/retroExperiments.test.ts",
+      "src/core/plan/retroFindings.test.ts",
+      "src/core/plan/retroFindingsInputs.test.ts",
+      "src/core/plan/runWarnings.test.ts",
+      "src/core/repo/experimentEvents.test.ts",
+      "src/core/repo/experimentRecords.test.ts",
+      "src/core/repo/finalizer.edges.test.ts",
+      "src/core/repo/importer.crossRepoEvidence.test.ts",
+      "src/core/repo/importer.eventMerge.test.ts",
+      "src/core/repo/importer.hostile.test.ts",
+      "src/core/repo/importer.reportIndex.test.ts",
+      "src/core/repo/importer.scorecard.test.ts",
+      "src/core/repo/importer.test.ts",
+      "src/core/repo/importer.thrownValues.test.ts",
+      "src/core/repo/migrationCheckpoint.test.ts",
+      "src/core/repo/migrationExport.test.ts",
+      "src/core/repo/observationImport.test.ts",
+      "src/core/repo/observationRecords.test.ts",
+      "src/core/repo/portable.experiments.test.ts",
+      "src/core/repo/portable.test.ts",
+      "src/core/repo/scorecardPortability.test.ts",
+      "src/core/services/attempts.test.ts",
+      "src/core/services/correctionRequests.test.ts",
+      "src/core/services/corrections.test.ts",
+      "src/core/services/crossRepoCorrections.test.ts",
+      "src/core/services/drafts.personEstimate.test.ts",
+      "src/core/services/efficiency.test.ts",
+      "src/core/services/experimentEvents.test.ts",
+      "src/core/services/experimentOutcomes.test.ts",
+      "src/core/services/humanFeedback.attribution.test.ts",
+      "src/core/services/humanFeedback.records.test.ts",
+      "src/core/services/metricReports.test.ts",
+      "src/core/services/metricsSummary.test.ts",
+      "src/core/services/observations.test.ts",
+      "src/core/services/observationsHold.test.ts",
+      "src/core/services/performance.test.ts",
+      "src/core/services/plannedBaselines.test.ts",
+      "src/core/services/reports.test.ts",
+      "src/core/services/scorecards.reassess.test.ts",
+      "src/core/services/scorecards.snapshot.test.ts",
+      "src/core/services/spaceGrades.aggregate.test.ts",
+      "src/core/services/spaceGrades.sprints.test.ts",
+      "src/core/services/spaceGrades.ticketGrade.test.ts",
+      "src/core/services/spaceSignals.committedScope.test.ts",
+      "src/core/services/spaceSignals.criterionKey.test.ts",
+      "src/core/services/spaceSignals.handoff.test.ts",
+      "src/core/services/spaceSignals.normalization.test.ts",
+      "src/core/services/spaceSignals.read.test.ts",
+      "src/core/services/ticketBudgets.test.ts",
+      "src/core/services/timing.test.ts",
+      "src/core/space/baselines.test.ts",
+      "src/core/space/contract.refusals.test.ts",
+      "src/core/space/contract.test.ts",
+      "src/core/space/defects.rules.test.ts",
+      "src/core/space/defects.test.ts",
+      "src/core/space/efficiency.cohorts.test.ts",
+      "src/core/space/efficiency.edges.test.ts",
+      "src/core/space/efficiency.reprojection.test.ts",
+      "src/core/space/efficiency.test.ts",
+      "src/core/space/handoff.test.ts",
+      "src/core/space/hostAttribution.test.ts",
+      "src/core/space/hostAttribution.threads.test.ts",
+      "src/core/space/hostTranscripts.edges.test.ts",
+      "src/core/space/hostTranscripts.test.ts",
+      "src/core/space/hostUsage.aggregate.test.ts",
+      "src/core/space/hostUsage.test.ts",
+      "src/core/space/ledger.problems.test.ts",
+      "src/core/space/rubric.docs.test.ts",
+      "src/core/space/rubric.edges.test.ts",
+      "src/core/space/rubric.grades.test.ts",
+      "src/core/space/rubric.test.ts",
+      "src/core/space/snapshot.golden.test.ts",
+      "src/core/space/snapshot.tamper.test.ts",
+      "src/core/space/timing.lifecycle.test.ts",
+      "src/core/space/timing.test.ts",
+      "src/core/space/timingActivity.roles.test.ts",
+      "src/core/space/timingActivity.test.ts",
+      "src/core/space/timingIntervals.test.ts",
+      "src/core/space/verification.facts.test.ts",
+      "src/core/space/verification.test.ts",
+      "src/core/workspace.grants.test.ts",
+      "src/core/workspace.storageMigration.guards.test.ts",
+      "src/integration/scoreReadsBridge.test.ts",
+      "src/integration/spaceCorrections.test.ts",
+      "src/integration/spaceFailureMatrix.test.ts",
+      "src/integration/spaceLoop.test.ts",
+      "src/main/desktop/crossRepoCorrections.test.ts",
+      "src/main/desktop/handlers.scores.test.ts",
+      "src/main/desktop/sourceCheckout.test.ts",
+      "src/main/desktop/sourceCheckoutIpc.test.ts",
+      "src/main/git/commitLinesProperty.test.ts",
+      "src/mcp/crossRepoBoundary.test.ts",
+      "src/mcp/roles.runbook.test.ts",
+      "src/mcp/roles.test.ts",
+      "src/mcp/server.test.ts",
+      "src/mcp/skills.test.ts",
+      "src/mcp/tools/execution.metrics.test.ts",
+      "src/mcp/tools/metrics.test.ts",
+      "src/mcp/validation.test.ts",
+      "src/preload/index.test.ts",
+      "src/renderer/src/app/chooseView.test.ts",
+      "src/renderer/src/app/landing.test.ts",
+      "src/renderer/src/app/selection.test.ts",
+      "src/renderer/src/checkpoint/CheckpointScreen.retro.test.tsx",
+      "src/renderer/src/checkpoint/CheckpointScreen.test.tsx",
+      "src/renderer/src/checkpoint/CorrectivePlanner.editing.test.tsx",
+      "src/renderer/src/checkpoint/CorrectivePlanner.preview.test.tsx",
+      "src/renderer/src/checkpoint/CorrectivePlanner.test.tsx",
+      "src/renderer/src/checkpoint/CrossRepoCorrection.reading.test.tsx",
+      "src/renderer/src/checkpoint/CrossRepoCorrection.requests.test.tsx",
+      "src/renderer/src/checkpoint/CrossRepoCorrection.test.tsx",
+      "src/renderer/src/checkpoint/EpicOverview.retro.test.tsx",
+      "src/renderer/src/checkpoint/EpicOverview.test.tsx",
+      "src/renderer/src/checkpoint/ReportImprovement.chain.test.tsx",
+      "src/renderer/src/checkpoint/ReportImprovement.test.tsx",
+      "src/renderer/src/checkpoint/ReportScorecard.cases.test.tsx",
+      "src/renderer/src/checkpoint/ReportScorecard.test.tsx",
+      "src/renderer/src/checkpoint/ReportTabs.test.tsx",
+      "src/renderer/src/checkpoint/RetroSections.test.tsx",
+      "src/renderer/src/checkpoint/SprintFeedback.test.tsx",
+      "src/renderer/src/checkpoint/checkpointStyles.test.ts",
+      "src/renderer/src/checkpoint/correctionRoute.test.ts",
+      "src/renderer/src/checkpoint/crossRepoView.runbook.test.ts",
+      "src/renderer/src/checkpoint/crossRepoView.test.ts",
+      "src/renderer/src/checkpoint/improvementView.test.ts",
+      "src/renderer/src/checkpoint/improvementView.wording.test.ts",
+      "src/renderer/src/checkpoint/reportScorecardView.cases.test.ts",
+      "src/renderer/src/checkpoint/reportScorecardView.test.ts",
+      "src/renderer/src/checkpoint/retroView.test.ts",
+      "src/renderer/src/epic/EpicScorecard.cases.test.tsx",
+      "src/renderer/src/epic/EpicScorecard.test.tsx",
+      "src/renderer/src/epic/WorkspaceHeader.test.tsx",
+      "src/renderer/src/epic/epicScorecardView.cases.test.ts",
+      "src/renderer/src/epic/epicScorecardView.test.ts",
+      "src/renderer/src/epic/workspaceState.test.ts",
+      "src/renderer/src/metrics/MetricsDashboard.test.tsx",
+      "src/renderer/src/metrics/MetricsSections.test.tsx",
+      "src/renderer/src/metrics/metricsNavigation.test.ts",
+      "src/renderer/src/metrics/metricsView.test.ts",
+      "src/renderer/src/scorecard/FeedbackControls.test.tsx",
+      "src/renderer/src/scorecard/GradingPolicy.test.tsx",
+      "src/renderer/src/scorecard/ScorecardParts.test.tsx",
+      "src/renderer/src/scorecard/epicCardReads.test.ts",
+      "src/renderer/src/scorecard/feedbackForm.test.ts",
+      "src/renderer/src/scorecard/outcomeLabels.test.ts",
+      "src/renderer/src/scorecard/scoreReads.test.ts",
+      "src/renderer/src/scorecard/scorecardFormat.test.ts",
+      "src/renderer/src/scorecard/useScoreRead.test.tsx",
+      "src/renderer/src/sidebar/SidebarFooter.test.tsx",
+      "src/renderer/src/ticket/BudgetFields.test.tsx",
+      "src/renderer/src/ticket/ScorecardTab.test.tsx",
+      "src/renderer/src/ticket/TicketPanel.activity.test.tsx",
+      "src/renderer/src/ticket/TicketPanel.test.tsx",
+      "src/renderer/src/ticket/TicketPanelScorecard.test.tsx",
+      "src/renderer/src/ticket/budgetForm.test.ts",
+      "src/renderer/src/ticket/scorecardSections.test.tsx",
+      "src/test/scorecardWorldRecorder.test.ts",
+      "src/test/symlinks.test.ts"
+    ],
+    "changedModules": [
+      "src/cli/args.ts",
+      "src/cli/main.ts",
+      "src/cli/usage.ts",
+      "src/core/authz.ts",
+      "src/core/commandSchemas.ts",
+      "src/core/commands/capabilities.ts",
+      "src/core/commands/checkpoints.ts",
+      "src/core/commands/index.ts",
+      "src/core/commands/metrics.ts",
+      "src/core/commands/scores.ts",
+      "src/core/db/migrations.ts",
+      "src/core/ids.ts",
+      "src/core/plan/correctionMarker.ts",
+      "src/core/plan/corrections.ts",
+      "src/core/plan/diff.ts",
+      "src/core/plan/draftOps.ts",
+      "src/core/plan/experimentOutcome.ts",
+      "src/core/plan/experiments.ts",
+      "src/core/plan/normalize.ts",
+      "src/core/plan/retro.ts",
+      "src/core/plan/retroFindings.ts",
+      "src/core/plan/runWarnings.ts",
+      "src/core/repo/finalizer.ts",
+      "src/core/repo/importer.ts",
+      "src/core/repo/migrationCheckpoint.ts",
+      "src/core/repo/migrationExport.ts",
+      "src/core/repo/observationImport.ts",
+      "src/core/repo/paths.ts",
+      "src/core/repo/portable.ts",
+      "src/core/repo/storageMigration.ts",
+      "src/core/repo/syncState.ts",
+      "src/core/schemas.ts",
+      "src/core/services/adoption.ts",
+      "src/core/services/attempts.ts",
+      "src/core/services/checkpoints.ts",
+      "src/core/services/corrections.ts",
+      "src/core/services/crossRepoCorrections.ts",
+      "src/core/services/drafts.ts",
+      "src/core/services/efficiency.ts",
+      "src/core/services/epicDeletion.ts",
+      "src/core/services/epics.ts",
+      "src/core/services/experimentOutcomes.ts",
+      "src/core/services/experiments.ts",
+      "src/core/services/gradingPolicy.ts",
+      "src/core/services/humanFeedback.ts",
+      "src/core/services/increments.ts",
+      "src/core/services/metricReports.ts",
+      "src/core/services/metricsSummary.ts",
+      "src/core/services/observations.ts",
+      "src/core/services/outbox.ts",
+      "src/core/services/performance.ts",
+      "src/core/services/plannedBaselines.ts",
+      "src/core/services/plans.ts",
+      "src/core/services/reports.ts",
+      "src/core/services/retroFindings.ts",
+      "src/core/services/scorecards.ts",
+      "src/core/services/spaceGrades.ts",
+      "src/core/services/spaceSignals.ts",
+      "src/core/services/ticketBudgets.ts",
+      "src/core/services/timing.ts",
+      "src/core/space/baselines.ts",
+      "src/core/space/contract.ts",
+      "src/core/space/defects.ts",
+      "src/core/space/efficiency.ts",
+      "src/core/space/handoff.ts",
+      "src/core/space/hostAttribution.ts",
+      "src/core/space/hostTranscripts.ts",
+      "src/core/space/hostUsage.ts",
+      "src/core/space/ledger.ts",
+      "src/core/space/rubric.ts",
+      "src/core/space/snapshot.ts",
+      "src/core/space/timing.ts",
+      "src/core/space/timingActivity.ts",
+      "src/core/space/timingIntervals.ts",
+      "src/core/space/verification.ts",
+      "src/core/storedSecrets.ts",
+      "src/core/version.ts",
+      "src/main/desktop/bootstrap.ts",
+      "src/main/desktop/crossRepoCorrections.ts",
+      "src/main/desktop/folderRegistry.ts",
+      "src/main/desktop/handlers.ts",
+      "src/main/desktop/sourceCheckout.ts",
+      "src/main/desktop/sourceCheckoutIpc.ts",
+      "src/mcp/server.ts",
+      "src/mcp/tools/checkpoints.ts",
+      "src/mcp/tools/execution.ts",
+      "src/mcp/tools/metrics.ts",
+      "src/preload/index.ts",
+      "src/renderer/src/App.tsx",
+      "src/renderer/src/app/chooseView.ts",
+      "src/renderer/src/app/landing.ts",
+      "src/renderer/src/app/selection.ts",
+      "src/renderer/src/app/shellActions.ts",
+      "src/renderer/src/app/useShell.ts",
+      "src/renderer/src/checkpoint/CheckpointScreen.tsx",
+      "src/renderer/src/checkpoint/CorrectivePlanner.tsx",
+      "src/renderer/src/checkpoint/CrossRepoCorrection.tsx",
+      "src/renderer/src/checkpoint/EpicOverview.tsx",
+      "src/renderer/src/checkpoint/ReportImprovement.tsx",
+      "src/renderer/src/checkpoint/ReportScorecard.tsx",
+      "src/renderer/src/checkpoint/ReportTabs.tsx",
+      "src/renderer/src/checkpoint/RetroSections.tsx",
+      "src/renderer/src/checkpoint/SprintFeedback.tsx",
+      "src/renderer/src/checkpoint/correctionRoute.ts",
+      "src/renderer/src/checkpoint/crossRepoView.ts",
+      "src/renderer/src/checkpoint/gateView.ts",
+      "src/renderer/src/checkpoint/improvementView.ts",
+      "src/renderer/src/checkpoint/plannerStore.ts",
+      "src/renderer/src/checkpoint/reportScorecardView.ts",
+      "src/renderer/src/checkpoint/retroView.ts",
+      "src/renderer/src/checkpoint/useCrossRepoCorrection.ts",
+      "src/renderer/src/components/Icon.tsx",
+      "src/renderer/src/epic/EpicScorecard.tsx",
+      "src/renderer/src/epic/EpicScorecardSections.tsx",
+      "src/renderer/src/epic/EpicWorkspace.tsx",
+      "src/renderer/src/epic/WorkspaceHeader.tsx",
+      "src/renderer/src/epic/epicScorecardView.ts",
+      "src/renderer/src/epic/landingActions.ts",
+      "src/renderer/src/epic/useLanding.ts",
+      "src/renderer/src/epic/useWorkspace.ts",
+      "src/renderer/src/epic/workspaceActions.ts",
+      "src/renderer/src/epic/workspaceState.ts",
+      "src/renderer/src/metrics/MetricsDashboard.tsx",
+      "src/renderer/src/metrics/MetricsSections.tsx",
+      "src/renderer/src/metrics/metricsView.ts",
+      "src/renderer/src/metrics/useMetricsRead.ts",
+      "src/renderer/src/scorecard/FeedbackControls.tsx",
+      "src/renderer/src/scorecard/GradingPolicy.tsx",
+      "src/renderer/src/scorecard/ScorecardParts.tsx",
+      "src/renderer/src/scorecard/feedbackForm.ts",
+      "src/renderer/src/scorecard/outcomeLabels.ts",
+      "src/renderer/src/scorecard/scoreReads.ts",
+      "src/renderer/src/scorecard/scorecardFormat.ts",
+      "src/renderer/src/scorecard/useScoreRead.ts",
+      "src/renderer/src/sidebar/FolderRow.tsx",
+      "src/renderer/src/sidebar/SidebarFooter.tsx",
+      "src/renderer/src/ticket/AttemptList.tsx",
+      "src/renderer/src/ticket/BudgetFields.tsx",
+      "src/renderer/src/ticket/ScorecardTab.tsx",
+      "src/renderer/src/ticket/TicketEditor.tsx",
+      "src/renderer/src/ticket/TicketPanel.tsx",
+      "src/renderer/src/ticket/budgetForm.ts",
+      "src/renderer/src/ticket/panelTabs.tsx",
+      "src/renderer/src/ticket/scorecardSections.tsx",
+      "src/renderer/src/ticket/ticketView.ts",
+      "src/shared/desktop/api.ts",
+      "src/shared/desktop/crossRepoCorrections.ts",
+      "src/shared/desktop/sourceCheckout.ts",
+      "src/shared/domain/api.ts",
+      "src/shared/domain/bundle.ts",
+      "src/shared/domain/corrections.ts",
+      "src/shared/domain/crossRepoCorrections.ts",
+      "src/shared/domain/efficiency.ts",
+      "src/shared/domain/experiments.ts",
+      "src/shared/domain/hostUsage.ts",
+      "src/shared/domain/metrics.ts",
+      "src/shared/domain/performance.ts",
+      "src/shared/domain/retro.ts",
+      "src/shared/domain/retroFindings.ts",
+      "src/shared/domain/scoreReads.ts",
+      "src/shared/domain/space.ts",
+      "src/shared/domain/spaceGrades.ts",
+      "src/shared/domain/spaceSignals.ts",
+      "src/shared/domain/timing.ts",
+      "src/shared/domain/views.ts"
+    ]
+  },
+  "execution": {
+    "lanes": 2,
+    "workspace": "committed",
+    "runner": "warm"
+  },
+  "skipped": false
+}

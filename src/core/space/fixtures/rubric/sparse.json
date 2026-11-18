@@ -1,0 +1,478 @@
+{
+  "name": "sparse",
+  "description": "Sparse: E unclassified, T has no eligible baseline, K host unavailable; 4 of 7 scored, provisional with effective weights 1/4.",
+  "policy": "dm-space v1",
+  "input": {
+    "subject": {
+      "level": "ticket",
+      "id": "tk_01m453gpad0000000000000004"
+    },
+    "cutoff": "2026-11-02T00:00:00.000Z",
+    "dispatchedAt": "2026-11-01T10:00:00.000Z",
+    "components": {
+      "S": {
+        "ticketRating": null,
+        "sprintRating": {
+          "observationId": "mo_01m7gf00000000000000000022",
+          "source": "human",
+          "value": 3,
+          "sharedWithTickets": true
+        }
+      },
+      "P": {
+        "verification": {
+          "state": "verified",
+          "evidence": [
+            {
+              "kind": "observation",
+              "id": "mo_01m7gf00000000000000000023",
+              "detail": "reviewer verified"
+            }
+          ]
+        },
+        "regressions": []
+      },
+      "A": {
+        "committed": 3,
+        "delivered": 2,
+        "added": 0,
+        "removed": 1,
+        "activity": {
+          "attempts": 1,
+          "commits": 3,
+          "changedLines": 2400
+        },
+        "evidence": []
+      },
+      "C": {
+        "handoffChecks": {
+          "passed": 2,
+          "failed": 0
+        },
+        "coordinationDefects": 0,
+        "evidence": []
+      },
+      "E": {
+        "correctiveMs": {
+          "state": "missing",
+          "reason": "not_reported"
+        },
+        "productiveMs": {
+          "state": "missing",
+          "reason": "not_reported"
+        },
+        "unclassifiedMs": {
+          "state": "observed",
+          "value": 1800000
+        },
+        "retries": 0,
+        "evidence": []
+      },
+      "T": {
+        "actual": {
+          "state": "observed",
+          "value": 1800000
+        },
+        "unreportedAttempts": 0,
+        "baseline": {
+          "state": "missing",
+          "reason": "no_eligible_baseline",
+          "rejected": [
+            {
+              "baselineId": "bl_01m7g000000000000000000001",
+              "reason": "metric_mismatch"
+            },
+            {
+              "baselineId": "bl_01m7g000000000000000000002",
+              "reason": "metric_mismatch"
+            },
+            {
+              "baselineId": "bl_01m7g000000000000000000003",
+              "reason": "other_ticket"
+            },
+            {
+              "baselineId": "bl_01m7g000000000000000000004",
+              "reason": "metric_mismatch"
+            },
+            {
+              "baselineId": "bl_01m7g000000000000000000005",
+              "reason": "metric_mismatch"
+            },
+            {
+              "baselineId": "bl_01m7g000000000000000000006",
+              "reason": "sample_too_small"
+            },
+            {
+              "baselineId": "bl_01m7g000000000000000000007",
+              "reason": "metric_mismatch"
+            },
+            {
+              "baselineId": "bl_01m7g000000000000000000008",
+              "reason": "metric_mismatch"
+            }
+          ]
+        },
+        "evidence": []
+      },
+      "K": {
+        "actual": {
+          "state": "missing",
+          "reason": "host_unavailable"
+        },
+        "unreportedAttempts": 0,
+        "baseline": {
+          "state": "selected",
+          "baseline": {
+            "baselineId": "bl_01m7g000000000000000000004",
+            "kind": "cohort",
+            "metric": "tokens",
+            "unit": "tokens",
+            "cohort": {
+              "workType": "architecture",
+              "size": "medium",
+              "risk": "multi_step"
+            },
+            "statistic": "median",
+            "value": 180000,
+            "sampleSize": 8,
+            "spread": {
+              "p25": 120000,
+              "p75": 260000
+            },
+            "memberTicketIds": [
+              "tk_01m453gpad000000000000c001",
+              "tk_01m453gpad000000000000c002",
+              "tk_01m453gpad000000000000c003",
+              "tk_01m453gpad000000000000c004",
+              "tk_01m453gpad000000000000c005",
+              "tk_01m453gpad000000000000c006",
+              "tk_01m453gpad000000000000c007",
+              "tk_01m453gpad000000000000c008"
+            ],
+            "version": 3,
+            "frozenAt": "2026-10-20T08:00:00.000Z"
+          },
+          "rejected": [
+            {
+              "baselineId": "bl_01m7g000000000000000000001",
+              "reason": "other_ticket"
+            },
+            {
+              "baselineId": "bl_01m7g000000000000000000002",
+              "reason": "other_ticket"
+            },
+            {
+              "baselineId": "bl_01m7g000000000000000000003",
+              "reason": "metric_mismatch"
+            },
+            {
+              "baselineId": "bl_01m7g000000000000000000005",
+              "reason": "cohort_mismatch"
+            },
+            {
+              "baselineId": "bl_01m7g000000000000000000006",
+              "reason": "metric_mismatch"
+            },
+            {
+              "baselineId": "bl_01m7g000000000000000000007",
+              "reason": "other_ticket"
+            },
+            {
+              "baselineId": "bl_01m7g000000000000000000008",
+              "reason": "superseded"
+            }
+          ]
+        },
+        "evidence": []
+      }
+    }
+  },
+  "expected": {
+    "assessmentId": null,
+    "policy": {
+      "policyId": "dm-space",
+      "version": 1,
+      "hash": "sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79"
+    },
+    "subject": {
+      "level": "ticket",
+      "id": "tk_01m453gpad0000000000000004"
+    },
+    "cutoff": "2026-11-02T00:00:00.000Z",
+    "dispatchedAt": "2026-11-01T10:00:00.000Z",
+    "inputHash": "sha256:dfef6e953335ce3dae634a7d0f2fd09e5f135959a8ae867db9633a2296d4a1d6",
+    "status": "provisional",
+    "outcome": "verified",
+    "statusReasons": [
+      "required_component_missing"
+    ],
+    "score": 79.166667,
+    "uncappedScore": 79.166667,
+    "displayScore": "79.1",
+    "letter": "C",
+    "coverage": 0.5714285714285714,
+    "scoredComponents": 4,
+    "caps": [],
+    "components": [
+      {
+        "component": "S",
+        "state": "observed",
+        "required": false,
+        "score": 50,
+        "baseWeight": 0.14285714285714285,
+        "effectiveWeight": 0.25,
+        "rule": "S.rating.v1",
+        "missingReason": null,
+        "inherited": true,
+        "inputs": {
+          "rating": 3,
+          "ratingScope": "sprint"
+        },
+        "diagnostics": {},
+        "evidence": [
+          {
+            "kind": "observation",
+            "id": "mo_01m7gf00000000000000000022",
+            "detail": "inherited sprint rating"
+          }
+        ],
+        "explanation": {
+          "normalization": "(3 − 1) × 25 = 50, from the shared sprint rating, inherited",
+          "cutoff": "2026-11-02T00:00:00.000Z",
+          "baseline": null,
+          "caps": []
+        }
+      },
+      {
+        "component": "P",
+        "state": "observed",
+        "required": true,
+        "score": 100,
+        "baseWeight": 0.14285714285714285,
+        "effectiveWeight": 0.25,
+        "rule": "P.verified-less-regressions.v1",
+        "missingReason": null,
+        "inherited": false,
+        "inputs": {
+          "verification": "verified",
+          "attributedRegressions": 0,
+          "regressionPenalty": 0
+        },
+        "diagnostics": {
+          "unassignedRegressions": 0
+        },
+        "evidence": [
+          {
+            "kind": "observation",
+            "id": "mo_01m7gf00000000000000000023",
+            "detail": "reviewer verified"
+          }
+        ],
+        "explanation": {
+          "normalization": "verified: 100 − 0 (no attributed regression) = 100",
+          "cutoff": "2026-11-02T00:00:00.000Z",
+          "baseline": null,
+          "caps": []
+        }
+      },
+      {
+        "component": "A",
+        "state": "observed",
+        "required": true,
+        "score": 66.666667,
+        "baseWeight": 0.14285714285714285,
+        "effectiveWeight": 0.25,
+        "rule": "A.delivered-over-committed.v1",
+        "missingReason": null,
+        "inherited": false,
+        "inputs": {
+          "committed": 3,
+          "delivered": 2
+        },
+        "diagnostics": {
+          "added": 0,
+          "removed": 1,
+          "attempts": 1,
+          "commits": 3,
+          "changedLines": 2400
+        },
+        "evidence": [],
+        "explanation": {
+          "normalization": "100 × 2 delivered ÷ 3 committed = 66.666667; 0 added and 1 removed item(s), attempts, commits and changed lines are shown, never scored",
+          "cutoff": "2026-11-02T00:00:00.000Z",
+          "baseline": null,
+          "caps": []
+        }
+      },
+      {
+        "component": "C",
+        "state": "observed",
+        "required": true,
+        "score": 100,
+        "baseWeight": 0.14285714285714285,
+        "effectiveWeight": 0.25,
+        "rule": "C.handoff-pass-rate.v1",
+        "missingReason": null,
+        "inherited": false,
+        "inputs": {
+          "handoffsPassed": 2,
+          "handoffsFailed": 0,
+          "coordinationDefects": 0
+        },
+        "diagnostics": {},
+        "evidence": [],
+        "explanation": {
+          "normalization": "100 × 2 passed ÷ 2 checked − 10 × 0 coordination defect(s) = 100",
+          "cutoff": "2026-11-02T00:00:00.000Z",
+          "baseline": null,
+          "caps": []
+        }
+      },
+      {
+        "component": "E",
+        "state": "missing",
+        "required": true,
+        "score": null,
+        "baseWeight": 0.14285714285714285,
+        "effectiveWeight": 0,
+        "rule": "E.corrective-share.v1",
+        "missingReason": "not_reported",
+        "inherited": false,
+        "inputs": {
+          "correctiveMs": null,
+          "productiveMs": null,
+          "unclassifiedMs": 1800000
+        },
+        "diagnostics": {
+          "retries": 0
+        },
+        "evidence": [],
+        "explanation": {
+          "normalization": "no score: not reported (the corrective effort)",
+          "cutoff": "2026-11-02T00:00:00.000Z",
+          "baseline": null,
+          "caps": []
+        }
+      },
+      {
+        "component": "T",
+        "state": "missing",
+        "required": true,
+        "score": null,
+        "baseWeight": 0.14285714285714285,
+        "effectiveWeight": 0,
+        "rule": "T.baseline-ratio.v1",
+        "missingReason": "no_eligible_baseline",
+        "inherited": false,
+        "inputs": {
+          "actual": 1800000,
+          "actualState": "observed",
+          "unreportedAttempts": 0,
+          "baselineId": null,
+          "baselineKind": null,
+          "baselineValue": null,
+          "baselineSampleSize": null
+        },
+        "diagnostics": {},
+        "evidence": [],
+        "explanation": {
+          "normalization": "no score: no baseline passed every check (refused bl_01m7g000000000000000000001: metric_mismatch, bl_01m7g000000000000000000002: metric_mismatch, bl_01m7g000000000000000000003: other_ticket, and 5 more)",
+          "cutoff": "2026-11-02T00:00:00.000Z",
+          "baseline": null,
+          "caps": []
+        }
+      },
+      {
+        "component": "K",
+        "state": "missing",
+        "required": true,
+        "score": null,
+        "baseWeight": 0.14285714285714285,
+        "effectiveWeight": 0,
+        "rule": "K.baseline-ratio.v1",
+        "missingReason": "host_unavailable",
+        "inherited": false,
+        "inputs": {
+          "actual": null,
+          "actualState": "missing",
+          "unreportedAttempts": 0,
+          "baselineId": "bl_01m7g000000000000000000004",
+          "baselineKind": "cohort",
+          "baselineValue": 180000,
+          "baselineSampleSize": 8
+        },
+        "diagnostics": {},
+        "evidence": [
+          {
+            "kind": "baseline",
+            "id": "bl_01m7g000000000000000000004",
+            "detail": "cohort"
+          }
+        ],
+        "explanation": {
+          "normalization": "no score: the host cannot report it (the actual)",
+          "cutoff": "2026-11-02T00:00:00.000Z",
+          "baseline": {
+            "baselineId": "bl_01m7g000000000000000000004",
+            "kind": "cohort",
+            "value": 180000,
+            "version": 3,
+            "frozenAt": "2026-10-20T08:00:00.000Z",
+            "sampleSize": 8,
+            "refusedReason": null
+          },
+          "caps": []
+        }
+      }
+    ],
+    "baselineIds": [
+      "bl_01m7g000000000000000000004"
+    ],
+    "explanation": {
+      "composite": "(S 50 + P 100 + A 66.666667 + C 100) ÷ 4 = 79.166667",
+      "cap": null,
+      "letter": "79.166667 ≥ 70 → C",
+      "status": [
+        "provisional: a score and letter, not final until every required component is observed",
+        "required component(s) E, T, K missing"
+      ],
+      "missing": [
+        {
+          "component": "E",
+          "reason": "not_reported"
+        },
+        {
+          "component": "T",
+          "reason": "no_eligible_baseline"
+        },
+        {
+          "component": "K",
+          "reason": "host_unavailable"
+        }
+      ],
+      "rounding": {
+        "canonicalDecimals": 6,
+        "canonical": "half_up",
+        "displayDecimals": 1,
+        "display": "floor"
+      },
+      "evidence": [
+        {
+          "kind": "observation",
+          "id": "mo_01m7gf00000000000000000022",
+          "detail": "inherited sprint rating"
+        },
+        {
+          "kind": "observation",
+          "id": "mo_01m7gf00000000000000000023",
+          "detail": "reviewer verified"
+        },
+        {
+          "kind": "baseline",
+          "id": "bl_01m7g000000000000000000004",
+          "detail": "cohort"
+        }
+      ]
+    }
+  }
+}

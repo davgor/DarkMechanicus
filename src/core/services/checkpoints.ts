@@ -23,7 +23,7 @@ import { retroIsEmpty } from '../plan/retro'
 import { sprintScopeChanges } from '../plan/sprintScope'
 import { appendEvent } from './events'
 import { requestWithoutKey, withIdempotency } from './idempotency'
-import { incrementOf, standingAttempt, storedRepositoryIncrements, touchedRepositories } from './increments'
+import { incrementOf, sprintDefinition, standingAttempt, storedRepositoryIncrements, touchedRepositories } from './increments'
 import { enqueueOutbox } from './outbox'
 import { changedDraftRevision, revisionNumberOf } from './plans'
 import {
@@ -433,21 +433,6 @@ function reportStaleness(
   const name = `The Sprint ${input.sprint.ordinal} report (revision ${report.reportRevision})`
   const revisions = `plan revision ${revisionNumberOf(ctx, written)}, and revision ${revisionNumberOf(ctx, run.revision_id)}`
   return `${name} was written for ${revisions} changed the sprint beyond removing leftovers (${changes.join('; ')}): submit a new report revision`
-}
-
-/**
- * The checks a sprint's acceptance node must report: the project's Definition of Done, or in a folder of
- * repositories (which has no list of its own) each touched repository's checks, named `<repo>: <check>`, in
- * repository name order. A touched repository without a list adds none, and an untouched one is not asked for.
- */
-function sprintDefinition(ctx: Ctx, sprintId: string): DefinitionOfDoneCheck[] {
-  const entries = ctx.repositoryEntries()
-  if (entries === null) {
-    return ctx.definitionOfDone()
-  }
-  return touchedRepositories(ctx, sprintId).flatMap((name) =>
-    (entries.find((entry) => entry.name === name)?.definitionOfDone ?? []).map((check) => ({ ...check, name: `${name}: ${check.name}` }))
-  )
 }
 
 function evaluate(ctx: Ctx, run: RunRow): Evaluation {

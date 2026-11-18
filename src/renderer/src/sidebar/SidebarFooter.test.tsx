@@ -35,6 +35,8 @@ function renderFooter(options: Options): Calls {
       status={options.status}
       folderReady={options.ready ?? true}
       busy={options.busy ?? { flush: false, reconcile: false }}
+      metricsOpen={false}
+      onOpenMetrics={() => undefined}
       onFlush={() => {
         calls.flush += 1
       }}
@@ -167,5 +169,59 @@ describe('SidebarFooter GitHub line', () => {
     await settle()
     act(() => kit.github.changeAccount({ login: 'hubot', name: null }))
     expect(screen.getByText('@hubot')).toBeTruthy()
+  })
+})
+
+function renderMetricsLink(options: { ready: boolean; open: boolean }): { opened: number } {
+  const calls = { opened: 0 }
+  renderWithGithub(
+    kit,
+    <SidebarFooter
+      status={sessions({ desktop: 1, orchestrator: 1 })}
+      folderReady={options.ready}
+      busy={{ flush: false, reconcile: false }}
+      metricsOpen={options.open}
+      onOpenMetrics={() => {
+        calls.opened += 1
+      }}
+      onFlush={() => undefined}
+      onReconcile={() => undefined}
+    />
+  )
+  return calls
+}
+
+const lineOf = (text: string): Element | null => screen.getByText(text).closest('.footer-line')
+
+describe('DM-267 c1: the Metrics link below the MCP line', () => {
+  it('DM-272 c4: sits directly after the MCP line, before the export line, for an initialized folder', () => {
+    renderMetricsLink({ ready: true, open: false })
+    const link = screen.getByRole('button', { name: 'Metrics' })
+    const mcpLine = lineOf('MCP')
+    expect(mcpLine?.nextElementSibling).toBe(link.closest('.footer-line'))
+    expect(link.closest('.footer-line')?.nextElementSibling).toBe(screen.getByRole('button', { name: 'Flush' }).closest('.footer-line'))
+  })
+
+  it('is absent for an uninitialized folder', () => {
+    renderMetricsLink({ ready: false, open: false })
+    expect(screen.queryByRole('button', { name: 'Metrics' })).toBeNull()
+    expect(screen.getByText('MCP')).toBeTruthy()
+  })
+
+  it('opens the dashboard once per press and is keyboard-focusable', () => {
+    const calls = renderMetricsLink({ ready: true, open: false })
+    const link = screen.getByRole('button', { name: 'Metrics' })
+    link.focus()
+    expect(document.activeElement).toBe(link)
+    fireEvent.click(link)
+    expect(calls.opened).toBe(1)
+  })
+
+  it('is the current page only while the dashboard is open', () => {
+    renderMetricsLink({ ready: true, open: true })
+    expect(screen.getByRole('button', { name: 'Metrics' }).getAttribute('aria-current')).toBe('page')
+    cleanup()
+    renderMetricsLink({ ready: true, open: false })
+    expect(screen.getByRole('button', { name: 'Metrics' }).hasAttribute('aria-current')).toBe(false)
   })
 })

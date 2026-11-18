@@ -252,7 +252,7 @@ async function preflight(deps: MigrationDeps, mode: StorageMode): Promise<{ path
 function hydratedCheckpoint(deps: MigrationDeps, source: RepoLayout) {
   const snapshot = checkpointOf(deps.db)
   // Repo imports may keep attachment bytes only on disk. Hydrate before purging their files.
-  for (const row of snapshot.tables.find((table) => table.name === 'attachments')?.rows ?? []) {
+  for (const row of snapshot.tables.filter((table) => table.name === 'attachments').flatMap((table) => table.rows)) {
     if (row.data !== null || typeof row.id !== 'string') continue
     const attachment = loadStoredAttachment(deps.db, row.id)
     const placement = placementOfAttachment(deps.db, attachment)

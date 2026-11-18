@@ -4,6 +4,7 @@ import type { AttachmentRef } from '../../shared/domain/views'
 import { DomainError } from '../errors'
 import { LIMITS } from '../schemas'
 import { acceptanceNodesOf, acceptanceTitle, isAcceptanceTicket } from './acceptance'
+import { CORRECTION_MARKER_PREFIX } from './correctionMarker'
 import { checkEdgeAddition, indexBundle, ticketLabel, validatePlan } from './graph'
 import {
   buildAcceptanceTicket,
@@ -260,6 +261,11 @@ const updateTicket: Handler<'update_ticket'> = (state, op) => {
   }
   const attachments = resolveAttachments(state, op.patch.attachments, ticket.id)
   const patched = patchTicket(ticket, resolveCovers(state, op.patch), attachments)
+  if (patched.references.length > LIMITS.references) {
+    // The ticket keeps its correction markers (plan/correctionMarker.ts); with them it must still fit a saved plan.
+    const markers = ticket.references.filter((reference) => reference.kind === 'doc' && reference.location.startsWith(CORRECTION_MARKER_PREFIX)).length
+    reject(`${ticket.key} would carry ${patched.references.length} references, more than ${LIMITS.references}: it keeps its ${markers} correction marker(s), so give at most ${LIMITS.references - markers} others.`)
+  }
   checkRepo(state, patched, op.patch.repo)
   state.bundle.tickets = state.bundle.tickets.map((item) => (item.id === ticket.id ? patched : item))
 }

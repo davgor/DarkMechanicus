@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest'
+import agentsStandards from '../../.agents/skills/delivery-standards/SKILL.md?raw'
+import claudeStandards from '../../.claude/skills/delivery-standards/SKILL.md?raw'
+import cursorStandards from '../../.cursor/skills/delivery-standards/SKILL.md?raw'
 import architecture from '../../docs/architecture.md?raw'
+import correctiveWork from '../../docs/runbooks/corrective-work.md?raw'
+import mcpSetup from '../../docs/runbooks/mcp-setup.md?raw'
+import spaceGrading from '../../docs/space-grading.md?raw'
 import linearTransferSource from '../../skills/linear-transfer.md?raw'
 import linearRunbook from '../../docs/runbooks/linear-transfer.md?raw'
 import { BUILTIN_KNOWLEDGE } from '../core/knowledge/builtin'
 import { parseFact } from '../core/knowledge/fact'
 import { SKILLS_VERSION } from '../core/version'
 import { LINEAR_SETUP_LINES } from '../shared/domain/linearSetup'
+import { markdownSection, missingPhrases } from '../test/markdownSections'
 import { SKILLS, skillBody, splitSkillSource } from './skills'
 
 const EXPECTED = [
@@ -148,13 +155,18 @@ describe('SKILLS_VERSION', () => {
     const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
     expect(major > 1 || (major === 1 && minor >= 11)).toBe(true)
   })
+
+  it('moved past 1.11.0 when the guides started covering SPACE measurement, grades and corrective work', () => {
+    const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
+    expect(major > 1 || (major === 1 && minor >= 12)).toBe(true)
+  })
 })
 
-/** The orchestrator's rules live in its kernel guide plus the built-in orchestrator knowledge facts. */
-function orchestratorFactBodies(): string[] {
+/** The orchestrator's rules live in its kernel guide plus the built-in orchestrator knowledge facts (those whose id starts with `idPrefix`). */
+function orchestratorFactBodies(idPrefix = 'orchestrator.'): string[] {
   return BUILTIN_KNOWLEDGE.flatMap(({ path, source }) => {
     const result = parseFact(source, { layer: 'builtin', path })
-    return result.ok && result.fact.scope.roles.includes('orchestrator') ? [result.fact.body] : []
+    return result.ok && result.fact.scope.roles.includes('orchestrator') && result.fact.id.startsWith(idPrefix) ? [result.fact.body] : []
   })
 }
 
@@ -492,6 +504,152 @@ describe('architecture doc', () => {
     const text = architecture.replace(/\r\n/g, '\n')
     const missing = ARCHITECTURE_PHRASES.filter((phrase) => !text.includes(phrase))
     expect(missing).toEqual([])
+  })
+})
+
+const worker = skill('worker').body
+const reviewer = skill('reviewer').body
+const orchestrator = [skill('orchestrator').body, ...orchestratorFactBodies()].join('\n')
+const planner = skill('planner').body
+const reporter = skill('sprint-reporter').body
+/** The measurement, grade and corrective-work rules of the orchestrator: its `orchestrator.space-*` knowledge facts. */
+const ORCHESTRATOR_MEASUREMENT = orchestratorFactBodies('orchestrator.space-').join('\n')
+
+/** DM-192 c1: who records usage, checks evidence, reviews grades and creates corrective drafts, each guide's phrases. */
+const ROLE_RULES: [string, string, string[]][] = [
+  [
+    'the worker records only its own attempt, with its claim token, never estimated',
+    markdownSection(worker, 'Measurement'),
+    [
+      'Usage is recorded by the session that did the work, never estimated',
+      '`record_attempt_metrics`, passing your claim token; you may report only your own live attempt',
+      'never send 0 or a guess for unknown',
+      "When your host's session files are read for the run (the orchestrator does that), report nothing yourself"
+    ]
+  ],
+  [
+    'the orchestrator records run usage after each row, relays it or marks it unavailable',
+    ORCHESTRATOR_MEASUREMENT,
+    ['After each row', '`dm usage` command reads', '`record_attempt_metrics`', '`record_run_metrics` for overhead', 'or mark the usage unavailable', 'Never report 0 or a guess']
+  ],
+  ['the reviewer records only its own review overhead', markdownSection(reviewer, 'Evidence and grades'), ['`record_run_metrics` (overhead kind review)']],
+  [
+    "the person's measures stay with the person",
+    worker + reporter + orchestrator,
+    [
+      "Never record a person's rating, rescue time or review time",
+      "Satisfaction ratings, rescue time and planned review time are a person's",
+      'Ratings, rescue time and planned review time belong to a person in the desktop app'
+    ]
+  ],
+  [
+    "the reviewer's per-criterion results are the only verification",
+    markdownSection(reviewer, 'Evidence and grades'),
+    ['Always pass `criteria` to `accept_attempt`', "The grade reads your per-criterion results, never the worker's", 'never mark a criterion met to avoid that']
+  ],
+  ["the worker's evidence is a claim", markdownSection(worker, 'Measurement'), ['Your evidence is a claim, not verification']],
+  ['the orchestrator verifies only through a review decision', orchestrator, ['Verification comes only from a review decision']],
+  ['the reviewer reads grades and never regrades', reviewer, ['never regrade, average letters or fill a missing value']],
+  [
+    'the orchestrator relays grades, and a grade never bypasses a gate',
+    orchestrator,
+    ['relay them as returned: never regrade', 'A grade is never a reason to accept, reject, skip a check or bypass a checkpoint']
+  ],
+  [
+    'the sprint reporter quotes the frozen scorecard and writes no grade',
+    markdownSection(reporter, 'The scorecard and experiments across revisions'),
+    ['`get_report_scorecard`', 'never write a grade, score or letter of your own', '`reassess_report_scorecard`']
+  ],
+  ['the worker states no grade', worker, ['Never state a grade or a score in your report']],
+  [
+    'the planner previews and creates DRAFT work, and nothing saves, adopts, starts or approves it',
+    markdownSection(planner, 'Corrective work from a retro'),
+    [
+      '`preview_corrections`',
+      '`create_corrections`',
+      'writes DRAFT work',
+      'Nothing here saves, adopts, starts or approves',
+      'A low grade never authorizes work by itself',
+      'routed by the person in the desktop app'
+    ]
+  ],
+  [
+    'the planner states Fireguard by default for corrective work as the one exception',
+    planner,
+    ['Never add one by default. The one exception is corrective work created from a retro experiment', 'adds a Fireguard ticket per repository by default']
+  ],
+  [
+    "the planner keeps a person's estimate as the person's",
+    planner,
+    [
+      "Only a person in the desktop app labels a budget as a person's estimate",
+      'You may not introduce that label or change the amounts of a budget that carries it',
+      'you may replace it with a budget of another basis or clear it'
+    ]
+  ],
+  [
+    'the orchestrator writes drafts only, and the person saves, adopts, runs and routes cross-repository work',
+    ORCHESTRATOR_MEASUREMENT,
+    [
+      'turn selected experiments into DRAFT work',
+      'the person saves, adopts and runs it with the normal controls',
+      'created and routed only by the person in the desktop app',
+      '`record_experiment_event`'
+    ]
+  ],
+  [
+    'the orchestrator and the sprint reporter restate each kept experiment on resubmission',
+    orchestrator + reporter,
+    [
+      'restate each experiment you keep by its `id` with its original `{ reportId, assessmentId }`',
+      'restate it with its `id` and its original source as `{ reportId, assessmentId }`',
+      'one resubmitted by its subject gets a new id and leaves its events behind'
+    ]
+  ],
+  ['the worker never accepts', worker, ['never accept or reject work, including your own']],
+  ['the reviewer never accepts its own work', reviewer, ['Never accept your own work']],
+  ['the orchestrator never accepts its own work and never approves', orchestrator, ['Never accept your own work or a ticket you did yourself', 'You cannot approve checkpoints']],
+  ['the sprint reporter cannot approve', reporter, ['You cannot approve a checkpoint']],
+  ['the planner cannot approve', planner, ['You cannot approve checkpoints']],
+  [
+    'the orchestrator records an escaped defect a person tells it of',
+    orchestrator,
+    ['by you or by a person who tells you of it (the desktop has no control for recording one yet)']
+  ],
+  [
+    'the docs give the MCP route for escaped defects, the desktop command having no control yet',
+    spaceGrading + mcpSetup + correctiveWork,
+    [
+      'no desktop control calls it yet',
+      'No desktop control calls `recordEscapedDefects` yet',
+      'no desktop control calls that command yet; escaped defects are recorded over MCP with `record_attempt_metrics`',
+      'No desktop control yet (the `recordEscapedDefects` command exists for a future one)'
+    ]
+  ]
+]
+
+describe('role guides on measurement, grades and corrective work', () => {
+  it.each(ROLE_RULES)('%s', (_rule, text, phrases) => {
+    expect(missingPhrases(text, phrases)).toEqual([])
+  })
+})
+
+const FIREGUARD_EXCEPTION = 'The one exception is corrective work created from a retro experiment'
+
+/** Every guide and delivery-standards copy that tells agents never to add Fireguard by default. */
+const FIREGUARD_RULE_SOURCES: [string, string][] = [
+  ['skills/planner.md', planner],
+  ['skills/graph-planner.md', skill('graph-planner').body],
+  ['.cursor/skills/delivery-standards/SKILL.md', cursorStandards],
+  ['.claude/skills/delivery-standards/SKILL.md', claudeStandards],
+  ['.agents/skills/delivery-standards/SKILL.md', agentsStandards]
+]
+
+describe('the Fireguard default rule', () => {
+  it.each(FIREGUARD_RULE_SOURCES)('%s states the corrective-work exception on every "never by default" line', (_path, text) => {
+    const rules = text.split('\n').filter((line) => /Never add (one|either) by default/.test(line))
+    expect(rules.length).toBeGreaterThan(0)
+    expect(rules.filter((line) => !line.includes(FIREGUARD_EXCEPTION))).toEqual([])
   })
 })
 

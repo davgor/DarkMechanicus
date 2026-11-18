@@ -51,7 +51,7 @@ const TIER_FACTS = (n: number) => ({
   escalated: false
 })
 
-const FULL: SprintReportContent = {
+const FULL: SprintReportContent & { retro: null } = {
   summary: 'Driver selection finished; macOS signing is unproven.',
   accepted: ['DM-1'],
   failed: ['DM-2'],
@@ -80,6 +80,7 @@ describe('submitSprintReport storage', () => {
       contentHash: contentHash(MINIMAL),
       report: MINIMAL,
       tierFacts: [TIER_FACTS(1), TIER_FACTS(2)],
+      scorecard: expect.objectContaining({ cutoff: '2026-01-01T00:00:00.000Z', ticketCount: 2 }),
       submittedBy: ctx.session.label,
       createdAt: '2026-01-01T00:00:00.000Z'
     })

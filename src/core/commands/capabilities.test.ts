@@ -22,6 +22,17 @@ const CARD = probeId('kanbanCard')
 const CARD_ATTEMPT = probeId('kanbanAttempt')
 const CARD_TOKEN = `${CARD_ATTEMPT}.secret`
 
+/** One schema-valid usage report an agent may send. */
+const PROBE_REPORT = {
+  metric: 'tokens_input',
+  unit: 'tokens',
+  source: { kind: 'host', actor: 'probe-host' },
+  measurement: { state: 'observed', value: 1 },
+  accumulation: 'delta',
+  eventId: 'probe-1',
+  observedAt: '2026-03-01T10:00:00.000Z'
+}
+
 /**
  * One schema-valid input per command. Ids point at nothing, so a permitted call stops at a
  * `not_found` (or succeeds harmlessly) right after its authorization check.
@@ -99,9 +110,37 @@ const PROBES: Record<CommandName, unknown> = {
   cancelRun: { runId: RUN },
   takeoverRun: { runId: RUN },
   adoptRevision: { runId: RUN, revisionId: probeId('revision') },
+  recordAttemptMetrics: { attemptId: ATTEMPT, claimToken: TOKEN, reports: [PROBE_REPORT] },
+  recordRunMetrics: { runId: RUN, overhead: 'orchestration', reports: [PROBE_REPORT] },
+  getRunMetrics: { runId: RUN },
+  getPlannedBaselines: { epicId: EPIC },
+  getTicketGrade: { runId: RUN, ticketId: TICKET },
+  getSprintGrade: { runId: RUN, sprintId: probeId('sprint') },
+  getRunGrade: { runId: RUN },
+  getEpicGrade: { epicId: EPIC },
+  getReportScorecard: { reportId: probeId('report') },
+  reassessReportScorecard: { reportId: probeId('report') },
+  getSpaceSignals: { level: 'run', id: RUN },
+  getTicketPerformance: { runId: RUN, ticketId: TICKET },
+  getEscapedDefects: { epicId: EPIC },
+  getRunEfficiency: { runId: RUN },
+  getRunTiming: { runId: RUN },
+  getMetricsSummary: {},
+  getGradingPolicy: undefined,
+  recordHumanFeedback: { target: { epicId: EPIC, ticketId: TICKET }, feedback: { kind: 'rating', value: 4 } },
+  recordEscapedDefects: {
+    target: { epicId: EPIC },
+    records: [{ defectEvent: 'report', severity: 'low', attribution: 'unassigned', discoveryPhase: 'after_epic', evidence: [{ kind: 'commit', id: 'abcdef1', detail: 'source build' }] }]
+  },
+  setTicketBudget: { epicId: EPIC, ticketId: TICKET, budget: { tokens: 1000 }, expectedDraftRevision: 1 },
   redraftNextSprint: { runId: RUN },
+  previewCorrections: { reportId: probeId('report'), experimentIds: [probeId('experiment')] },
+  createCorrections: { reportId: probeId('report'), experimentIds: [probeId('experiment')] },
   submitSprintReport: { runId: RUN, sprintId: probeId('sprint'), report: { summary: 'probe' } },
   getSprintReport: { runId: RUN },
+  getRetroFindings: { reportId: probeId('report') },
+  getExperiment: { experimentId: probeId('experiment') },
+  recordExperimentEvent: { experimentId: probeId('experiment'), event: { kind: 'status', status: 'selected' } },
   getCheckpoint: { runId: RUN },
   approveCheckpoint: { runId: RUN, reportId: probeId('report') },
   advanceSprint: { runId: RUN },
@@ -241,6 +280,8 @@ describe('COMMAND_CAPABILITIES', () => {
       'playKanbanCard',
       'queueRun',
       'queueTransfer',
+      'recordEscapedDefects',
+      'recordHumanFeedback',
       'renewGrant',
       'resolveEpicConflict',
       'revokeGrant',

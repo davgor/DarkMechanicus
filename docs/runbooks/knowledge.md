@@ -93,9 +93,11 @@ Topics hold pull-only material. The built-in facts use these, and the kernel lis
 | `plan-changes` | Plan revisions, follow-ups, investigation gates, decisions |
 | `retro-redraft` | The retro, the redraft and the checkpoint |
 | `required-leftover` | A sprint with a required leftover |
-| `record-keeping` | Claim records, comments, attachments |
+| `record-keeping` | Claim records, comments, attachments, run usage, grades and escaped defects |
 | `host-catalog` | Registering the host and its models |
 | `time-box` | Prerequisites before a claim, the five-minute check and the ten-minute stop-and-split for tickets and cards |
+
+One built-in topic is not in the kernel's list: `space`, the measurement, grade and corrective-work rules in full. The kernel is at its 800-word limit, so the short `orchestrator.space-duties` fact, pushed with `run.started` and `run.recovery`, names it, as do the claim and landing pointers (`orchestrator.space-claim`, `orchestrator.space-landing`).
 
 Overall and repo facts may use these topics or their own. A topic of your own is reached only by an orchestrator that asks for it, so name it where the orchestrator will see it (for example in a fact scoped to `run.started`).
 
@@ -171,25 +173,25 @@ To check a fact, pull it: in the [measurement](#measurement) commands, point `--
 
 ## Measurement
 
-Token estimates are characters divided by 4. For a guide that is the file's size; for pushed context it is `usedTokens` from `get_context`, the sum of each selected fact's `ceil((title + body) / 4)`, which leaves out the JSON around it. Measured on skills version 1.11.0 with the built-in layer only (no overall repository, no repo facts) and the default budget of 1,500 tokens, so each event's figure is the `context` a command pushes for it.
+Token estimates are characters divided by 4. For a guide that is the file's size; for pushed context it is `usedTokens` from `get_context`, the sum of each selected fact's `ceil((title + body) / 4)`, which leaves out the JSON around it. Measured on skills version 1.12.0 with the built-in layer only (no overall repository, no repo facts) and the default budget of 1,500 tokens, so each event's figure is the `context` a command pushes for it.
 
 | What | Characters | Words | Estimated tokens | Facts |
 |------|-----------:|------:|-----------------:|------:|
 | Old `skills/orchestrator.md` (skills 1.10.0) | 34,058 | 5,513 | 8,515 | |
 | New kernel `skills/orchestrator.md` | 5,328 | 800 | 1,332 | |
-| `run.started` | | | 1,212 | 7 |
-| `ticket.claimed` | | | 1,393 | 7 |
-| `acceptance.claimed` | | | 1,339 | 6 |
-| `attempt.accepted` | | | 1,341 | 8 |
+| `run.started` | | | 1,361 | 8 |
+| `ticket.claimed` | | | 1,447 | 8 |
+| `acceptance.claimed` | | | 1,393 | 7 |
+| `attempt.accepted` | | | 1,403 | 9 |
 | `attempt.rejected` | | | 1,184 | 7 |
 | `attempt.failed` | | | 1,216 | 7 |
-| `row_check.failed` | | | 249 | 1 |
-| `sprint.reported` | | | 318 | 2 |
-| `checkpoint.approved` | | | 1,146 | 6 |
+| `row_check.failed` | | | 405 | 2 |
+| `sprint.reported` | | | 858 | 6 |
+| `checkpoint.approved` | | | 1,443 | 8 |
 | `kanban.claimed` | | | 1,421 | 6 |
-| `run.recovery` | | | 1,229 | 6 |
+| `run.recovery` | | | 1,378 | 7 |
 
-No event omitted a fact. The orchestrator starts from the kernel (1,332 tokens) instead of the old guide (8,515); with the first push, `run.started`, that is 2,544, and each later push adds 249 to 1,421.
+No event omitted a fact. The orchestrator starts from the kernel (1,332 tokens) instead of the old guide (8,515); with the first push, `run.started`, that is 2,693, and each later push adds 405 to 1,447. Every event leaves at least 50 tokens of the budget for overall and repo facts (`builtin.test.ts` checks it).
 
 **Method.** Sizes of the guides, from the repository root in Git Bash (`f1590fa` is the last commit with the single guide):
 
@@ -273,6 +275,7 @@ Skills version 1.11.0 split the single orchestrator guide (skills version 1.10.0
 | `## 6. Plan changes and recovery` | `orchestrator.adopt-revision` (pinned revision, adoption, carry forward), `orchestrator.follow-up-proposals` (follow-ups are proposals), `orchestrator.repeated-escalations` (profile corrections), `orchestrator.takeover-and-truth` (imported runs, source of truth after an interruption) |
 | `## 7. Record keeping` | `orchestrator.record-keeping` (claim records, decisions, `add_comment`, `list_comments`), `orchestrator.attachments` (reference images) |
 | `## 8. Running a Kanban card` | `orchestrator.kanban-launch` (Play and `launch_kanban_cards`), `orchestrator.kanban-run` (applying the prerequisite, single-worker and 5-minute/10-minute rules, steps 1 to 6) |
+| `## 9. Measurement, grades and corrective work` (added by the SPACE scorecards epic on the single guide, skills version 1.10.0 on that branch; carried into facts by skills version 1.12.0) | Topic `space` holds every rule in full; short facts push one sentence per obligation with every event after which its trigger can occur (`src/core/knowledge/builtin.test.ts` lists each obligation with its events). `orchestrator.space-duties` (pushed with `run.started` and `run.recovery`: records complete and honest, each row's usage, grades relayed as returned and never deciding, acceptance only on a review decision, escaped defects, `in_progress` when corrective work starts; names topic `space`), `orchestrator.space-claim` (pushed with `ticket.claimed` and `acceptance.claimed`: review decision, corrective ticket starts its experiment), `orchestrator.space-landing` (pushed with `attempt.accepted`: corrective work landed, `completed`). In full: `orchestrator.space-usage` (**Usage**; topics `record-keeping` and `space`, named by `orchestrator.row-checks` after each row), `orchestrator.space-review-evidence` (**Evidence**; topic `space`), `orchestrator.space-grades` (intro and **Grades**; pushed with `sprint.reported`, topics `space` and `record-keeping`), `orchestrator.space-escaped-defects` (**Escaped defects**; pushed with `row_check.failed`, topics `space` and `record-keeping`), `orchestrator.space-experiments` (**Experiments**, restating on a new report revision; pushed with `sprint.reported`, topic `space`), `orchestrator.space-experiment-progress` (**Experiments**, statuses and results; pushed with `sprint.reported` and `checkpoint.approved`, topic `space`), `orchestrator.space-corrective-work` (**Corrective work**; pushed with `sprint.reported` and `checkpoint.approved`, topics `retro-redraft` and `space`) |
 
 Cross-references in the old guide ("see section 3", "above", "below") now name the fact id, the `get_context` topic or the event that carries the rule. The kernel's `## The loop` and `## Knowledge: pushed context and get_context` sections are new: the loop is a skeleton of the steps above, and the knowledge section tells the orchestrator to pull `run.started` before setup (nothing has pushed context yet), to pull `run.recovery` after an interruption, and which topics exist.
 

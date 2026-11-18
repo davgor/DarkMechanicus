@@ -64,4 +64,4 @@ npm run smoke:mcp       # exercise the built MCP server over stdio
 npm run spike:claims    # competing claims across OS processes
 ```
 
-Further reading: [product contract](docs/product-plan.md), [architecture](docs/architecture.md), [agent role guides](skills/), [multi-repository folders](docs/runbooks/multi-repo-folders.md), [knowledge layers](docs/runbooks/knowledge.md).
+Further reading: [product contract](docs/product-plan.md), [architecture](docs/architecture.md), [agent role guides](skills/), [multi-repository folders](docs/runbooks/multi-repo-folders.md), [knowledge layers](docs/runbooks/knowledge.md), [scorecards, the Metrics dashboard and corrective work](docs/space-grading.md) ([corrective work runbook](docs/runbooks/corrective-work.md)).

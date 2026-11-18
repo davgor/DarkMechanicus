@@ -4,6 +4,7 @@ import type { Ctx } from '../context'
 import { fail } from '../errors'
 import { activeRun, loadEpicRow } from './epics'
 import { appendEvent } from './events'
+import { observationsWritten } from './observations'
 
 /**
  * Deletes the epic's tracked files and returns the folders it removed. It runs inside the deletion
@@ -14,14 +15,19 @@ type EpicFilesRemover = (epicId: string, runIds: string[]) => string[]
 
 const RUNS = 'SELECT id FROM runs WHERE epic_id = ?'
 const COMMENTS = 'SELECT id FROM comments WHERE epic_id = ?'
+const OBSERVATIONS = 'SELECT id FROM metric_observations WHERE epic_id = ?'
 
 /** Children before parents, since foreign keys are enforced. Every `?` binds the epic id. */
 const DELETE_STATEMENTS = [
+  // Observations name the epic's runs and attempts, so they go first, with their sync records.
+  `DELETE FROM sync_state WHERE kind = 'metric_observation' AND entity_id IN (${OBSERVATIONS})`,
+  'DELETE FROM metric_observations WHERE epic_id = ?',
   `DELETE FROM attempts WHERE run_id IN (${RUNS})`,
   `DELETE FROM retry_grants WHERE run_id IN (${RUNS})`,
   `DELETE FROM checkpoints WHERE run_id IN (${RUNS})`,
   `DELETE FROM sprint_reports WHERE run_id IN (${RUNS})`,
   `DELETE FROM row_checks WHERE run_id IN (${RUNS})`,
+  `DELETE FROM experiment_events WHERE run_id IN (${RUNS})`,
   'DELETE FROM approvals WHERE epic_id = ?',
   `DELETE FROM sync_state WHERE (kind = 'epic' AND entity_id = ?) OR (kind = 'run' AND entity_id IN (${RUNS}))
      OR (kind = 'comment' AND entity_id IN (${COMMENTS}))`,
@@ -30,6 +36,8 @@ const DELETE_STATEMENTS = [
   `DELETE FROM events WHERE epic_id = ? OR run_id IN (${RUNS})`,
   // Cached replies that name the epic (createEpic, startRun, ...) would otherwise replay a deleted epic.
   'DELETE FROM idempotency WHERE instr(response_json, ?) > 0',
+  // Receipts of corrective work the epic's retros asked of another project (that project keeps its own epics).
+  'DELETE FROM correction_links WHERE source_epic_id = ?',
   'DELETE FROM runs WHERE epic_id = ?',
   'DELETE FROM comments WHERE epic_id = ?',
   'DELETE FROM ticket_status WHERE epic_id = ?',
@@ -54,6 +62,7 @@ export function deleteEpic(ctx: Ctx, input: { epicId: string }, removeFiles: Epi
       fail('active_run_exists', `Run #${run.number} is active. Cancel it before deleting the epic.`, { runId: run.id })
     }
     const runIds = ctx.db.all<{ id: string }>(`${RUNS} ORDER BY number`, epic.id).map((row) => row.id)
+    observationsWritten(ctx.db)
     for (const sql of DELETE_STATEMENTS) {
       ctx.db.run(sql, ...Array.from({ length: sql.split('?').length - 1 }, () => epic.id))
     }

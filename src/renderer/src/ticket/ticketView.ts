@@ -311,8 +311,20 @@ export function attemptCards(attempts: AttemptView[], now: number): AttemptCard[
   return newestFirst(attempts).map((item) => attemptCard(item, now))
 }
 
-export function evidenceView(ticket: Pick<TicketContent, 'acceptanceCriteria'>, attempts: AttemptView[]): EvidenceView | null {
-  const source = latestWithEvidence(attempts)
+/**
+ * The runs a ticket has a scorecard in: every run one of its work attempts ran in, newest first by when its newest
+ * attempt started; `latest` (the default) is the run of the ticket's newest work attempt, null before any. A
+ * carry-forward attempt ran nothing (the ticket was accepted in an earlier run), so its run is not offered.
+ */
+export function scorecardRuns(attempts: AttemptView[]): { runIds: string[]; latest: string | null } {
+  const newest = attempts.filter((item) => item.kind !== 'carry_forward').sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+  const runIds = [...new Set(newest.map((item) => item.runId))]
+  return { runIds, latest: runIds[0] ?? null }
+}
+
+/** The evidence of the newest attempt that has some, or of `attemptId` when given (null when it recorded none). */
+export function evidenceView(ticket: Pick<TicketContent, 'acceptanceCriteria'>, attempts: AttemptView[], attemptId: string | null = null): EvidenceView | null {
+  const source = attemptId === null ? latestWithEvidence(attempts) : (attempts.find((item) => item.id === attemptId) ?? null)
   const evidence = source?.evidence
   if (!source || !evidence) {
     return null

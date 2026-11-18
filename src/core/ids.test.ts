@@ -1,16 +1,51 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { thrownBy } from '../test/thrownBy'
+import { DomainError } from './errors'
 import {
   createIdGenerator,
   encodeBase32,
   ID_PREFIXES,
   type IdKind,
   isStableId,
+  nextStableId,
   STABLE_ID_PATTERN
 } from './ids'
 
 const ALPHABET = '0123456789abcdefghjkmnpqrstvwxyz'
 const BODY = 'a0b1c2d3e4f5g6h7j8k9m0n1p2'
 const ID_KINDS = Object.keys(ID_PREFIXES) as IdKind[]
+
+/** Every id kind's prefix as stored in records: changing one orphans existing ids. */
+const PINNED_PREFIXES = {
+  project: 'pj',
+  machine: 'mc',
+  session: 'ss',
+  epic: 'ep',
+  ticket: 'tk',
+  sprint: 'sp',
+  revision: 'rv',
+  run: 'rn',
+  attempt: 'at',
+  report: 'rp',
+  approval: 'ap',
+  checkpoint: 'ck',
+  hostCatalog: 'hc',
+  comment: 'cm',
+  rowCheck: 'rk',
+  grant: 'gr',
+  kanbanCard: 'kc',
+  kanbanAttempt: 'ka',
+  kanbanEvent: 'ke',
+  attachment: 'im',
+  mailEndpoint: 'me',
+  mailMessage: 'mm',
+  mailWake: 'mw',
+  metricObservation: 'mo',
+  baseline: 'bl',
+  assessment: 'as',
+  experiment: 'xp',
+  experimentEvent: 'xe'
+}
 
 /** A random source that records the sizes it was asked for and fills bytes from `fill`. */
 function fixedRandom(fill: (index: number) => number): {
@@ -137,31 +172,7 @@ describe('createIdGenerator kinds', () => {
   })
 
   it('pins the prefix of every id kind', () => {
-    expect(ID_PREFIXES).toEqual({
-      project: 'pj',
-      machine: 'mc',
-      session: 'ss',
-      epic: 'ep',
-      ticket: 'tk',
-      sprint: 'sp',
-      revision: 'rv',
-      run: 'rn',
-      attempt: 'at',
-      report: 'rp',
-      approval: 'ap',
-      checkpoint: 'ck',
-      hostCatalog: 'hc',
-      comment: 'cm',
-      rowCheck: 'rk',
-      grant: 'gr',
-      kanbanCard: 'kc',
-      kanbanAttempt: 'ka',
-      kanbanEvent: 'ke',
-      attachment: 'im',
-      mailEndpoint: 'me',
-      mailMessage: 'mm',
-      mailWake: 'mw'
-    })
+    expect(ID_PREFIXES).toEqual(PINNED_PREFIXES)
   })
 
   it('gives every id kind a distinct prefix, so a kanban id never passes as another kind', () => {
@@ -253,5 +264,20 @@ describe('isStableId kind filter', () => {
   it('still rejects bad shapes when a kind is given', () => {
     expect(isStableId(`tk_${BODY}0`, 'ticket')).toBe(false)
     expect(isStableId('tk_short', 'ticket')).toBe(false)
+  })
+})
+
+describe('DM-170 nextStableId', () => {
+  it('steps the last body character, carrying over z', () => {
+    expect(nextStableId('mo_0000000000000000000000000y')).toBe('mo_0000000000000000000000000z')
+    expect(nextStableId(`mo_${'0'.repeat(24)}zz`)).toBe(`mo_${'0'.repeat(23)}100`)
+  })
+
+  it('an all-z body has no successor: a conflict DomainError naming the id', () => {
+    const id = `mo_${'z'.repeat(26)}`
+    const error = thrownBy(() => nextStableId(id))
+    expect(error).toBeInstanceOf(DomainError)
+    expect((error as DomainError).code).toBe('conflict')
+    expect((error as DomainError).details).toEqual({ id })
   })
 })

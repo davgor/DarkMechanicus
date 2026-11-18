@@ -15,7 +15,11 @@ import type {
   ToolCapability
 } from './bundle'
 import type { AgentMailboxStatus } from './agentMail'
+import type { CorrectiveCause } from './efficiency'
+import type { ExperimentOutcome } from './experiments'
 import type { SprintRetro, TicketTierFacts } from './retro'
+import type { EvidenceRef, GradeLetter, GradeOutcome, GradeStatus, GradeStatusReason, SpaceComponent } from './space'
+import type { ScorecardSummary } from './spaceGrades'
 import type { EpicTransferOutcome } from './transfer'
 import type {
   AttemptKind,
@@ -354,6 +358,17 @@ export interface AttemptDecision {
   notes: string
   reasons: string[]
   decidedBy: string
+  /**
+   * The reviewer's own per-criterion results, as passed when accepting (also merged into the evidence). Every
+   * acceptance recorded since reviewers' results are kept writes it (empty when none were passed); it is absent on
+   * rejections and on acceptances recorded before, whose criteria cannot be told apart from the worker's.
+   */
+  criteria?: CriterionResult[]
+  /**
+   * A sprint acceptance node's acceptance only: the Definition of Done check names it was accepted against, frozen
+   * at the decision, so a later change to the Definition of Done never rewrites how it was verified.
+   */
+  requiredChecks?: string[]
 }
 
 /** What a sprint increment was measured against: the previous sprint's verified increment, or the epic's start commit. */
@@ -521,6 +536,19 @@ export interface SprintReportView {
    * the report is read (not written by the reporter, not part of `report` or `contentHash`).
    */
   tierFacts: TicketTierFacts[]
+  /**
+   * The scorecard frozen with this revision when it was submitted, at a glance (the whole snapshot is read with
+   * `getReportScorecard`). Stored, never recomputed, so unlike `tierFacts` it never changes after submission. Absent
+   * for a report submitted before scorecards were frozen: it stays ungraded.
+   */
+  scorecard?: ScorecardSummary
+  /**
+   * The outcome of each experiment of the retro, in the retro's order: its corrective work and its measured results
+   * set against the frozen baseline, target and guardrails (`getExperiment`'s `outcome`). Added only by
+   * `getSprintReport` (the checkpoint's and the run's reads leave it out), from later events and the stored frozen
+   * scorecards; never part of `report` or `contentHash`; absent without experiments.
+   */
+  experimentOutcomes?: ExperimentOutcome[]
   submittedBy: string | null
   createdAt: string
 }
@@ -1134,4 +1162,249 @@ export interface ProfileView {
   /** Optimistic-concurrency revision for saveProfile; kept by this repository's local database. */
   revision: number
   updatedAt: string
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Project metrics summary
+
+/**
+ * The project metrics summary (`getMetricsSummary`): one read model for the Metrics dashboard and the MCP metrics
+ * tools, built from the scorecard read models (`epicAggregate`, `sprintAggregate`, frozen report scorecards,
+ * `getRunMetrics`, `projectRunTiming`). Nothing is regraded here and no letter is averaged: each grade is the core's,
+ * and every total is recomputed from raw measures. A number that is not known is null with a reason, never zero.
+ */
+export interface GetMetricsSummaryInput {
+  /** Only these epics (each must exist; one created after the cutoff is left out); every epic existing at the cutoff when absent. */
+  epicIds?: string[]
+  /**
+   * Observation window start (ISO 8601). It filters rows and trend entries only: epics with no run active at or after
+   * it, and sprints that ended before it, are left out. Grades and measures are still read over the whole history up
+   * to the cutoff.
+   */
+  since?: string
+  /** The observation cutoff (ISO 8601; default now, never later): only records stored and epics created by then are read. */
+  until?: string
+}
+
+/**
+ * One summed measure. `observed`/`estimated` carry a value; `missing` carries null and why (`reason`), with
+ * `lowerBound` the part that was reported, if any. A missing measure is never read as zero.
+ */
+export interface SummaryMeasure {
+  state: 'observed' | 'estimated' | 'missing'
+  value: number | null
+  reason: string | null
+  lowerBound: number | null
+}
+
+/**
+ * A row's grade status: the grade's own (`final`, `provisional`, `ungraded`), or `failed` when a confirmed mandatory
+ * failure decided it, or `in_progress` while the subject's work is still running at the cutoff (its live grade can
+ * still change).
+ */
+export type SummaryGradeStatus = 'final' | 'provisional' | 'ungraded' | 'in_progress' | 'failed'
+
+/** A grade at a glance, exactly as the core computed (or froze) it. */
+export interface SummaryGrade {
+  status: SummaryGradeStatus
+  /** The grade's own status, which the distribution counts. */
+  gradeStatus: GradeStatus
+  outcome: GradeOutcome
+  statusReasons: GradeStatusReason[]
+  score: number | null
+  displayScore: string | null
+  letter: GradeLetter | null
+  /** The share of base weight that was scored, 0–1. */
+  coverage: number
+  /** The graded input's hash; null for an epic with no saved plan, which has no input to grade. */
+  inputHash: string | null
+  policy: { policyId: string; version: number; hash: string }
+}
+
+/** A field the summary could not give, and why. */
+export interface UnavailableField {
+  field: string
+  reason: string
+}
+
+/** Token usage by category, as reported. Categories overlap (cached input inside input, reasoning inside output), so they are never summed. */
+export interface SummaryTokens {
+  input: SummaryMeasure
+  cachedInput: SummaryMeasure
+  output: SummaryMeasure
+  reasoning: SummaryMeasure
+  /**
+   * The reported `tokens_total` of the scorecard's measured scopes (what K compares), never derived from the
+   * overlapping categories.
+   */
+  total: SummaryMeasure
+}
+
+export interface SummaryTime {
+  /** Sum of the runs' window elapsed time (runs do not overlap within an epic). */
+  elapsedMs: SummaryMeasure
+  /** Active time (T's actual, overhead included, waits excluded) of the scorecard's measured scopes. */
+  activeMs: SummaryMeasure
+  /**
+   * The waits shown beside active time (never counted in it), summed per wait class over the scope's tickets, as
+   * T's actual reports them: parallel tickets wait at once, so this can exceed the elapsed time.
+   */
+  waitingMs: SummaryMeasure
+  /** Every actor's activity summed (E's denominator). */
+  effortMs: SummaryMeasure
+}
+
+export interface SummaryCoverage {
+  /** Executed attempts in the measured scopes. */
+  attempts: number
+  /** Executed attempts that reported no tokens, and no active time. */
+  unreportedTokenAttempts: number
+  unreportedTimeAttempts: number
+  /** Classified effort over effort, 0–1; null when unknown. */
+  classificationCoverage: number | null
+  unavailable: UnavailableField[]
+}
+
+export interface MetricsSummaryEpicRow {
+  epicId: string
+  title: string
+  /** The epic's status now (lifecycle status is not kept per instant). */
+  status: WorkStatus
+  /** Runs created by the cutoff, and those whose E, T and K the grade summed (and whose token categories are shown). */
+  runIds: string[]
+  measuredRunIds: string[]
+  /** Sprints of the plan revision saved last by the cutoff. */
+  sprintCount: number
+  grade: SummaryGrade
+  tokens: SummaryTokens
+  time: SummaryTime
+  /** Corrective ms over classified (corrective + productive) ms, 0–1, as E reads it. */
+  correctiveShare: SummaryMeasure
+  coverage: SummaryCoverage
+}
+
+/**
+ * Project totals, each recomputed from the raw measures of the epics that executed work (never from their scores or
+ * letters). An epic whose runs executed nothing, or with no run or plan, keeps its row but adds nothing here.
+ */
+export interface MetricsSummaryTotals {
+  /** How many epics were summed, and which. */
+  epics: number
+  measuredEpicIds: string[]
+  tokens: SummaryTokens
+  time: SummaryTime
+  correctiveShare: SummaryMeasure
+  coverage: SummaryCoverage
+}
+
+/**
+ * Why a trend entry is not compared with the one before it (`not_scored`: either grade has no score;
+ * `cohort_unknown`: either sprint has no ticket or a ticket without a size, so no cohort can vouch for it;
+ * `cross_epic`: the entry before is another epic's and the policy or the cohort cannot vouch for comparing them).
+ */
+export type TrendIncomparability =
+  | 'first_entry'
+  | 'policy_changed'
+  | 'cohort_changed'
+  | 'cohort_unknown'
+  | 'cross_epic'
+  | 'window_open'
+  | 'window_basis_changed'
+  | 'not_scored'
+
+/** How a summary names a ticket, so a reader needs no plan read. */
+export interface SummaryTicketRef {
+  ticketId: string
+  /** From the epic's plan saved last by the cutoff, else the newest revision a run was pinned to; null when no plan holds it. */
+  key: string | null
+  title: string | null
+  /** Null while the plan saved last by the cutoff holds the ticket; else the number of the older revision it was named from. */
+  removedAfterRevision: number | null
+}
+
+/**
+ * One sprint's grade in the trend. A sprint with a submitted report reads the scorecard frozen with its latest
+ * revision (`frozen_report`; never regraded); a report from before scorecards stays ungraded (`legacy_report`); a
+ * sprint without a report reads its live grade at the cutoff (`live`), and only when the run executed work in it (a
+ * run that only activated it adds no entry).
+ */
+export interface MetricsSummaryTrendEntry {
+  epicId: string
+  runId: string
+  /** The run's number in its epic (`Run #N`). */
+  runNumber: number
+  sprintId: string
+  ordinal: number | null
+  source: 'frozen_report' | 'legacy_report' | 'live'
+  report: { reportId: string; reportRevision: number } | null
+  /** Null for a legacy report (nothing was frozen). */
+  grade: SummaryGrade | null
+  /**
+   * The planned cohort keys (`workType/size/risk`) of the sprint's work tickets (overhead tickets such as acceptance
+   * nodes left out, by the role the scorecards froze for them), sorted; `unsized` for a ticket without a size.
+   */
+  cohort: string[]
+  /** How many of the sprint's tickets hold each cohort key, by key: two cohorts compare only when these are equal. */
+  cohortTickets: { key: string; tickets: number }[]
+  window: { from: string | null; to: string; closed: boolean; basis: 'report_cutoff' | 'live_cutoff' }
+  /**
+   * Compared only with the entry before it, and only when both were scored and share the policy, a known cohort
+   * (every ticket sized, the same ticket count per key) and a closed window of the same basis; otherwise `comparable`
+   * is false with the reasons and `scoreDelta` is null. `previous.epicId` differs from `epicId` across epics.
+   */
+  comparison: {
+    previous: { epicId: string; runId: string; runNumber: number; sprintId: string } | null
+    comparable: boolean
+    reasons: TrendIncomparability[]
+    scoreDelta: number | null
+  }
+}
+
+/** A component scored below 100 among the lowest of the project, with what it rests on (a full score is no gap). */
+export interface SummaryComponentGap {
+  epicId: string
+  component: SpaceComponent
+  score: number
+  rule: string
+  evidence: EvidenceRef[]
+  ticketIds: string[]
+  /** The tickets of `ticketIds`, named. */
+  tickets: SummaryTicketRef[]
+}
+
+/** A confirmed failure of a counted outcome. */
+export interface SummaryFailureGap {
+  epicId: string
+  runId: string
+  runNumber: number
+  ticketId: string
+  ticket: SummaryTicketRef
+  attemptId: string | null
+  reason: string
+  evidence: EvidenceRef[]
+}
+
+/** Corrective (rework) effort by cause, with the observations it was classified by and the tickets it was spent on. */
+export interface SummaryReworkGap {
+  epicId: string
+  cause: CorrectiveCause
+  ms: number
+  evidence: EvidenceRef[]
+  ticketIds: string[]
+  /** The tickets of `ticketIds`, named. */
+  tickets: SummaryTicketRef[]
+}
+
+export interface MetricsSummaryView {
+  policy: { policyId: string; version: number; hash: string }
+  /** The observation window: `since` as asked (null when absent) and the cutoff every read used (server time). */
+  window: { since: string | null; cutoff: string }
+  epics: MetricsSummaryEpicRow[]
+  totals: MetricsSummaryTotals
+  /** Epic rows by status, and by the grade's own status (final, provisional and ungraded each counted). */
+  distribution: { byStatus: Record<SummaryGradeStatus, number>; byGradeStatus: Record<GradeStatus, number> }
+  /** Sprint grades ordered by end time (sprints still running last). */
+  trend: MetricsSummaryTrendEntry[]
+  gaps: { lowestComponents: SummaryComponentGap[]; failures: SummaryFailureGap[]; rework: SummaryReworkGap[] }
+  coverage: { epics: number; gradedEpics: number; ungradedEpics: number; unavailable: (UnavailableField & { epicId: string | null })[] }
 }

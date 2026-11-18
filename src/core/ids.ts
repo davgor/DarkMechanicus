@@ -1,4 +1,5 @@
-import { randomBytes } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
+import { fail } from './errors'
 
 /** Crockford base32, lowercase (no i, l, o, u). */
 const ALPHABET = '0123456789abcdefghjkmnpqrstvwxyz'
@@ -29,7 +30,17 @@ export const ID_PREFIXES = {
   mailEndpoint: 'me',
   mailMessage: 'mm',
   /** One consumed wake credit: an attempt to wake a chat, never a delivery or read receipt. */
-  mailWake: 'mw'
+  mailWake: 'mw',
+  /** A SPACE metric observation in the measurement ledger. */
+  metricObservation: 'mo',
+  /** A frozen token or execution-time baseline (a ticket budget version or a prior cohort). */
+  baseline: 'bl',
+  /** A frozen SPACE grade snapshot (assessment). */
+  assessment: 'as',
+  /** A structured improvement experiment written into a sprint retro. */
+  experiment: 'xp',
+  /** A later status or result of an experiment, stored beside the run's reports. */
+  experimentEvent: 'xe'
 } as const
 
 export type IdKind = keyof typeof ID_PREFIXES
@@ -86,4 +97,33 @@ export function isStableId(value: unknown, kind?: IdKind): value is string {
     return false
   }
   return kind === undefined || value.startsWith(`${ID_PREFIXES[kind]}_`)
+}
+
+/**
+ * The stable id right after `id` in sort order: the same prefix with its 26-character body plus one. Ids allocated
+ * one after another this way sort in allocation order even within one millisecond. An id whose body is all `z` has
+ * no successor: that is a `conflict` with the record already holding it.
+ */
+export function nextStableId(id: string): string {
+  const prefix = id.slice(0, 3)
+  const body = id.slice(3).split('')
+  for (let index = body.length - 1; index >= 0; index -= 1) {
+    const digit = ALPHABET.indexOf(body[index] ?? '0')
+    if (digit < ALPHABET.length - 1) {
+      body[index] = ALPHABET[digit + 1] ?? '0'
+      return `${prefix}${body.join('')}`
+    }
+    body[index] = '0'
+  }
+  fail('conflict', `No stable id sorts after ${id}.`, { id })
+}
+
+/**
+ * The stable id a record with this identity always has: the same `seed` gives the same id on every machine and every
+ * retry, so a repeated delivery lands on the record it already made. The body is the seed's SHA-256 digest in base32
+ * (time chars included), so such ids order by digest, not by time.
+ */
+export function derivedStableId(kind: IdKind, seed: string): string {
+  const digest = createHash('sha256').update(seed, 'utf8').digest()
+  return `${ID_PREFIXES[kind]}_${randomChars(digest, TIME_CHARS + RANDOM_CHARS)}`
 }

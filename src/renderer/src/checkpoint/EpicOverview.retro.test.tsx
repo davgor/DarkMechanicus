@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { DmApi } from '../../../shared/desktop/api'
-import { NOW, bundle, epicDetail, reportWithRetro, retroView, runView } from '../epic/__mocks__/fixtures'
+import { NOW, bundle, epicDetail, reportWithRetro, retroView, runView, SCORES } from '../epic/__mocks__/fixtures'
 import { allowSlowRendering } from '../epic/__mocks__/testTiming'
 import { EpicOverview } from './EpicOverview'
 
@@ -46,6 +46,7 @@ function renderOverview(): string[] {
       }}
       now={NOW}
       onSelectTicket={(ticketId) => selected.push(ticketId)}
+      scores={SCORES}
     />
   )
   return selected

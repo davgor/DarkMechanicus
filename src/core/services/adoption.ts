@@ -64,8 +64,12 @@ function loadTargetBundle(ctx: Ctx, run: RunRow, revisionId: string): PlanBundle
   return loadBundle(ctx, revisionId)
 }
 
+/**
+ * Each ticket's work content hash. The planned budget is left out: re-budgeting is planning metadata that applies only
+ * to later dispatches (see `plannedBaselines.ts`), so it never supersedes accepted work or blocks a passed sprint.
+ */
 function ticketHashes(bundle: PlanBundle): Map<string, string> {
-  return new Map(bundle.tickets.map((ticket) => [ticket.id, contentHash(ticket)]))
+  return new Map(bundle.tickets.map(({ budget: _budget, ...work }) => [work.id, contentHash(work)]))
 }
 
 function supersede(ctx: Ctx, attempt: { id: string; ticket_id: string }, stillPlanned: boolean): void {

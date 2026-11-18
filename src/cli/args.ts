@@ -7,6 +7,7 @@
  * that presents none is a reader.
  */
 import { resolve } from 'node:path'
+import { USAGE_BILLINGS, type UsageBilling } from '../shared/domain/hostUsage'
 
 /** Where a call's arguments come from: one inline JSON object, a file, or stdin. */
 export type CallInput =
@@ -20,6 +21,19 @@ type CliMode =
   | { kind: 'describe'; command: string }
   | { kind: 'call'; command: string; input: CallInput }
   | { kind: 'transfer'; target: 'linear'; epicId: string; json: boolean }
+  | UsageMode
+
+/** `usage --run <id>`: reads the host's own session files and reports their usage to the run (`cli/usage.ts`). */
+export interface UsageMode {
+  kind: 'usage'
+  runId: string
+  /** The host session file to read (default `$PI_SESSION_FILE`); null with `unavailable`. */
+  sessionFile: string | null
+  billing: UsageBilling
+  dryRun: boolean
+  /** `--unavailable <host>`: the host cannot report usage; its buckets are recorded as unavailable instead. */
+  unavailable: string | null
+}
 
 export interface CliOptions {
   repo: string
@@ -31,6 +45,8 @@ export interface CliOptions {
 const REPO_ENV = 'DARKMECHANICUS_REPO'
 /** The token is read from here unless `--token-file` names a file. */
 export const TOKEN_ENV = 'DM_SESSION_TOKEN'
+/** OMP tells the tools it runs which session file they belong to. */
+const SESSION_FILE_ENV = 'PI_SESSION_FILE'
 
 export const CLI_USAGE = [
   'Usage: dm [--repo <path>] [--token-file <path>] <command> [arguments]',
@@ -45,6 +61,12 @@ export const CLI_USAGE = [
   '                           Run <command> with the JSON object read from a file (a BOM is ignored)',
   '  transfer linear --epic <id> [--json]',
   '                           The Linear transfer kickoff for an epic, as text; --json prints its packet',
+  '  usage --run <id> [--session-file <path>] [--billing api_key|subscription|unknown] [--dry-run]',
+  '                           Reads your host session (default $PI_SESSION_FILE) and records its token and',
+  '                           active-time usage to the run: each subagent to the attempt whose claim it held,',
+  '                           the main thread as orchestration, the rest as unattributed (orchestrator grant)',
+  '  usage --run <id> --unavailable <host>',
+  '                           Records that your host cannot report usage (never an estimate)',
   '  --help                   Show this help',
   '',
   'Options:',
@@ -67,21 +89,38 @@ interface Parsed {
   tokenFile?: string
   epic?: string
   argsFile?: string
+  run?: string
+  sessionFile?: string
+  billing?: string
+  unavailable?: string
   json: boolean
+  dryRun: boolean
   rest: string[]
   help: boolean
 }
 
+type ValueFlag = 'repo' | 'tokenFile' | 'epic' | 'argsFile' | 'run' | 'sessionFile' | 'billing' | 'unavailable'
+
 /** Flags that take a value, and where that value is kept. */
-const VALUE_FLAGS: Readonly<Record<string, 'repo' | 'tokenFile' | 'epic' | 'argsFile'>> = {
+const VALUE_FLAGS: Readonly<Record<string, ValueFlag>> = {
   '--repo': 'repo',
   '--token-file': 'tokenFile',
   '--epic': 'epic',
-  '--args-file': 'argsFile'
+  '--args-file': 'argsFile',
+  '--run': 'run',
+  '--session-file': 'sessionFile',
+  '--billing': 'billing',
+  '--unavailable': 'unavailable'
 }
+
+/** The flags only `usage` takes. */
+const USAGE_FLAGS: readonly ValueFlag[] = ['run', 'sessionFile', 'billing', 'unavailable']
 
 /** Flags that are modes rather than options, so they travel with the positional words. */
 const MODE_FLAGS: readonly string[] = ['--list', '--describe']
+
+/** Flags that take no value, and where they are kept. */
+const SWITCH_FLAGS: Readonly<Record<string, 'json' | 'dryRun'>> = { '--json': 'json', '--dry-run': 'dryRun' }
 
 function takeValue(argv: readonly string[], index: number, name: string): string {
   const value = argv[index + 1]
@@ -92,7 +131,7 @@ function takeValue(argv: readonly string[], index: number, name: string): string
 }
 
 function readFlags(argv: readonly string[]): Parsed {
-  const parsed: Parsed = { rest: [], help: false, json: false }
+  const parsed: Parsed = { rest: [], help: false, json: false, dryRun: false }
   let index = 0
   while (index < argv.length) {
     const token = argv[index] ?? ''
@@ -106,8 +145,9 @@ function readFlags(argv: readonly string[]): Parsed {
       index += 2
       continue
     }
-    if (token === '--json') {
-      parsed.json = true
+    const flag = SWITCH_FLAGS[token]
+    if (flag !== undefined) {
+      parsed[flag] = true
       index += 1
       continue
     }
@@ -133,7 +173,56 @@ function transferMode(flags: Parsed): CliMode {
   return { kind: 'transfer', target: 'linear', epicId: flags.epic, json: flags.json }
 }
 
-function modeOf(flags: Parsed, cwd: string): CliMode {
+/** `--billing`, defaulting to `unknown`: how the account pays for tokens. */
+function billingOf(flags: Parsed): UsageBilling {
+  const billing = flags.billing ?? 'unknown'
+  const known = USAGE_BILLINGS.find((item) => item === billing)
+  if (known === undefined) {
+    throw usageError(`--billing is one of ${USAGE_BILLINGS.join(', ')}.`)
+  }
+  return known
+}
+
+/** The session file to read: `--session-file`, else `$PI_SESSION_FILE`; none with `--unavailable`. */
+function sessionFileOf(flags: Parsed, env: Record<string, string | undefined>, cwd: string): string | null {
+  if (flags.unavailable !== undefined) {
+    if (flags.sessionFile !== undefined) {
+      throw usageError('Give --session-file or --unavailable, not both.')
+    }
+    return null
+  }
+  const path = flags.sessionFile ?? nonBlank(env[SESSION_FILE_ENV])
+  return path === undefined ? null : resolve(cwd, path)
+}
+
+/** `usage --run <id> …`: the only mode that takes the usage flags. */
+function usageMode(flags: Parsed, env: Record<string, string | undefined>, cwd: string): UsageMode {
+  if (flags.rest.length > 1 || flags.argsFile !== undefined) {
+    throw usageError('usage takes only its flags.')
+  }
+  if (flags.run === undefined) {
+    throw usageError('usage requires --run <id>.')
+  }
+  return {
+    kind: 'usage',
+    runId: flags.run,
+    sessionFile: sessionFileOf(flags, env, cwd),
+    billing: billingOf(flags),
+    dryRun: flags.dryRun,
+    unavailable: flags.unavailable ?? null
+  }
+}
+
+function modeOf(flags: Parsed, env: Record<string, string | undefined>, cwd: string): CliMode {
+  if (flags.rest[0] === 'usage') {
+    if (flags.epic !== undefined || flags.json) {
+      throw usageError('--epic and --json belong to transfer linear only.')
+    }
+    return usageMode(flags, env, cwd)
+  }
+  if (USAGE_FLAGS.some((flag) => flags[flag] !== undefined) || flags.dryRun) {
+    throw usageError('--run, --session-file, --billing, --unavailable and --dry-run belong to usage only.')
+  }
   if (flags.rest[0] === 'transfer') {
     if (flags.argsFile !== undefined) {
       throw usageError('--args-file belongs to call only.')
@@ -207,7 +296,7 @@ export function parseCliArgs(
   if (flags.help) {
     return { repo, tokenFile, mode: { kind: 'help' } }
   }
-  return { repo, tokenFile, mode: modeOf(flags, cwd) }
+  return { repo, tokenFile, mode: modeOf(flags, env, cwd) }
 }
 
 function nonBlank(value: string | undefined): string | undefined {

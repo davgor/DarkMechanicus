@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ComponentProps, ComponentType } from 'react'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { AgentId, TrackedFolderView } from '../../shared/desktop/api'
-import { threadLandingFor, ticketLandingFor } from './app/landing'
+import { epicLandingFor, threadLandingFor } from './app/landing'
 import { findFolder } from './app/selection'
 import type { Selection } from './app/selection'
 import { listFor } from './app/useEpicLists'
@@ -36,6 +36,7 @@ import { FolderPage } from './folder/FolderPage'
 import { GithubAccountProvider } from './github/GithubAccount'
 import { FolderHome } from './home/FolderHome'
 import { KanbanBoard } from './kanban/KanbanBoard'
+import { MetricsDashboard } from './metrics/MetricsDashboard'
 import { OnboardingView } from './onboarding/OnboardingView'
 import { SourceControlView } from './source/SourceControlView'
 import { Sidebar } from './sidebar/Sidebar'
@@ -91,6 +92,8 @@ function EpicPane({ shell, EpicView, folder, epicId }: EpicPaneProps): JSX.Eleme
     (id: string) => actions.current.selectEpic(folder.path, id),
     [actions, folder.path]
   )
+  const onOpenFolderEpic = useCallback((path: string, id: string) => actions.current.selectEpic(path, id), [actions])
+  const onFolderChanged = useCallback((path: string) => actions.current.changed(path), [actions])
   const onDeleted = useCallback(() => {
     actions.current.changed(folder.path)
     actions.current.selectFolder(folder.path)
@@ -104,8 +107,10 @@ function EpicPane({ shell, EpicView, folder, epicId }: EpicPaneProps): JSX.Eleme
       refreshToken={shell.epicToken(folder.path, epicId)}
       onChanged={onChanged}
       onOpenEpic={onOpenEpic}
+      onOpenFolderEpic={onOpenFolderEpic}
+      onFolderChanged={onFolderChanged}
       onDeleted={onDeleted}
-      landing={ticketLandingFor(shell.landing, epicId)}
+      landing={epicLandingFor(shell.landing, epicId)}
       onLanded={onLanded}
       orchestration={orchestrationFor(shell, folder)}
     />
@@ -211,6 +216,15 @@ function MainPane(props: PaneProps): JSX.Element | null {
       return <ChatPane key={view.chat.id} shell={shell} folder={null} chat={view.chat} scheduler={props.scheduler} terminalKit={props.terminalKit} />
     case 'kanban':
       return <KanbanBoard key={view.folder.path} folder={view.folder} refreshToken={shell.folderToken(view.folder.path)} host={orchestrationFor(shell, view.folder)} onChanged={() => actions.changed(view.folder.path)} />
+    case 'metrics':
+      return (
+        <MetricsDashboard
+          key={view.folder.path}
+          folder={view.folder}
+          onOpenEpic={(epicId) => actions.openEpicScorecard(view.folder.path, epicId)}
+          onOpenTicket={(link) => actions.openTicketScorecard(view.folder.path, link)}
+        />
+      )
     case 'unavailable':
       return <UnavailableView folder={view.folder} onStopTracking={props.onRequestUntrack} />
     default:
@@ -220,13 +234,17 @@ function MainPane(props: PaneProps): JSX.Element | null {
 
 function ShellFooter({ shell }: { shell: ShellModel }): JSX.Element {
   const { view } = shell
-  const onFolder = view.kind === 'folder' || view.kind === 'epic' || view.kind === 'chat' || view.kind === 'kanban'
-  const folderReady = onFolder && view.folder.initialized
+  const onFolder = view.kind === 'folder' || view.kind === 'epic' || view.kind === 'chat' || view.kind === 'kanban' || view.kind === 'metrics'
+  const folder = onFolder ? view.folder : null
   return (
     <SidebarFooter
       status={shell.status}
-      folderReady={folderReady}
+      folderReady={folder?.initialized === true}
       busy={shell.busy}
+      metricsOpen={view.kind === 'metrics'}
+      onOpenMetrics={() => {
+        if (folder !== null) shell.actions.selectMetrics(folder.path)
+      }}
       onFlush={() => void shell.actions.flush()}
       onReconcile={() => void shell.actions.reconcile()}
     >

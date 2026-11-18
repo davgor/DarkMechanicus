@@ -44,6 +44,8 @@ import type {
 import type { TransferView } from '../../../../shared/domain/transfer'
 import { CommandError } from '../../api/dm'
 import { idleChats } from '../../__mocks__/idleChats'
+import { idleCrossRepoCorrections } from '../../__mocks__/idleCrossRepoCorrections'
+import { idleSourceCheckout } from '../../__mocks__/idleSourceCheckout'
 import { idleTerminals } from '../../__mocks__/idleTerminals'
 import type { Runner } from '../runner'
 import {
@@ -111,6 +113,8 @@ export class FakeBackend implements DmApi {
   /** No chats unless a test swaps in a `FakeChats`. */
   chats: ChatsApi = idleChats()
   terminals = idleTerminals()
+  sourceCheckout = idleSourceCheckout()
+  crossRepoCorrections = idleCrossRepoCorrections()
   readonly calls: RecordedCall[] = []
   readonly opened: string[] = []
   /** Every text put on the clipboard, oldest first. */

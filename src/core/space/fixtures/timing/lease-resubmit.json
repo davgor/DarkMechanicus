@@ -1,0 +1,107 @@
+{
+  "description": "A worker went silent after 10:05; its lease expired at 10:20. At 12:00 the orchestrator reconciled it by resubmitting the outputs, accepted at 12:10. The attempt still ends at its deadline; the gap waits for reconciliation; the recovered submission waits for review.",
+  "input": {
+    "runId": "rn_01m7gdve7p0000000000000001",
+    "asOf": "2026-11-01T12:30:00.000Z",
+    "events": [
+      {
+        "kind": "run_started",
+        "at": "2026-11-01T10:00:00.000Z"
+      },
+      {
+        "kind": "sprint_activated",
+        "at": "2026-11-01T10:00:00.000Z",
+        "sprintId": "sp_01m452vt120000000000000001"
+      },
+      {
+        "kind": "ticket_ready",
+        "at": "2026-11-01T10:00:00.000Z",
+        "ticketId": "tk_01m453gpad0000000000000001"
+      },
+      {
+        "kind": "attempt_claimed",
+        "at": "2026-11-01T10:00:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000001",
+        "ticketId": "tk_01m453gpad0000000000000001",
+        "sprintId": "sp_01m452vt120000000000000001",
+        "number": 1,
+        "carriedForward": false
+      },
+      {
+        "kind": "attempt_signal",
+        "at": "2026-11-01T10:05:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000001"
+      },
+      {
+        "kind": "attempt_lease_expired",
+        "at": "2026-11-01T10:20:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000001"
+      },
+      {
+        "kind": "attempt_submitted",
+        "at": "2026-11-01T12:00:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000001"
+      },
+      {
+        "kind": "attempt_reconciled",
+        "at": "2026-11-01T12:00:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000001"
+      },
+      {
+        "kind": "attempt_accepted",
+        "at": "2026-11-01T12:10:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000001"
+      }
+    ],
+    "activity": [],
+    "tickets": [
+      {
+        "ticketId": "tk_01m453gpad0000000000000001",
+        "sprintId": "sp_01m452vt120000000000000001"
+      }
+    ]
+  },
+  "expect": [
+    {
+      "path": "tickets[0].attempts[0].endedBy",
+      "equals": "lease_expired"
+    },
+    {
+      "path": "tickets[0].attempts[0].endedAt",
+      "equals": "2026-11-01T10:20:00.000Z"
+    },
+    {
+      "path": "tickets[0].attempts[0].elapsed.ms",
+      "equals": 1200000
+    },
+    {
+      "path": "tickets[0].attempts[0].outcome",
+      "equals": "accepted"
+    },
+    {
+      "path": "tickets[0].attempts[0].lastSignalAt",
+      "equals": "2026-11-01T10:05:00.000Z"
+    },
+    {
+      "path": "tickets[0].attempts[0].unknown.ms",
+      "equals": 1200000
+    },
+    {
+      "path": "tickets[0].waits.queue.ms",
+      "equals": 6000000,
+      "note": "awaiting reconciliation 10:20-12:00"
+    },
+    {
+      "path": "tickets[0].waits.review.ms",
+      "equals": 600000
+    },
+    {
+      "path": "tickets[0].cycleTime.ms",
+      "equals": 7800000
+    },
+    {
+      "path": "anomalies.length",
+      "equals": 0
+    }
+  ]
+}

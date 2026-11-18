@@ -46,15 +46,12 @@ function restoreTable(db: Db, table: Checkpoint['tables'][number]): void {
   const columns = db.all<{ name: string }>(`PRAGMA table_info(${quoted(table.name)})`).map((column) => column.name)
   if (table.name === 'sqlite_sequence') db.run('DELETE FROM sqlite_sequence')
   for (const row of table.rows) {
-    const keys = Object.keys(row)
+    const entries = Object.entries(row)
+    const keys = entries.map(([key]) => key)
     if (keys.length !== columns.length || keys.some((key) => !columns.includes(key))) {
       fail('internal', `Migration checkpoint columns do not match ${table.name}.`)
     }
-    const values = keys.map((key): SqlValue => {
-      const value = row[key]
-      if (value === undefined) return fail('internal', 'Missing migration checkpoint value.')
-      return typeof value === 'object' && value !== null ? Buffer.from(value.bytes, 'base64') : value
-    })
+    const values = entries.map(([, value]): SqlValue => (typeof value === 'object' && value !== null ? Buffer.from(value.bytes, 'base64') : value))
     db.run(`INSERT INTO ${quoted(table.name)} (${keys.map(quoted).join(',')}) VALUES (${keys.map(() => '?').join(',')})`, ...values)
   }
 }

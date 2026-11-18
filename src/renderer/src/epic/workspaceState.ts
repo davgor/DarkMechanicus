@@ -61,8 +61,15 @@ export interface WorkspaceState {
    * shows its Activity tab for that attempt. A new object per request, so asking again brings the tab back.
    */
   activity: { attemptId: string } | null
+  /**
+   * Set when another screen asked for a ticket's Scorecard tab (a Metrics dashboard gap): the ticket panel shows it,
+   * on `runId`'s grade (null: the newest attempt's run). A new object per request, so asking again brings the tab back.
+   */
+  ticketScorecard: { runId: string | null } | null
   /** The checkpoint review, or a completed epic's overview, is shown instead of the plan. */
   checkpointOpen: boolean
+  /** The epic's Scorecard is shown instead of the plan (and instead of the checkpoint review or overview). */
+  scorecardOpen: boolean
   /** Rejected edit or failed action, shown over the canvas. */
   banner: string | null
   rejected: { from: string; to: string } | null
@@ -90,8 +97,12 @@ export type WorkspaceAction =
   | { type: 'select_ticket'; ticketId: string | null }
   /** Select the ticket and show the live activity of one of its attempts in its panel. */
   | { type: 'open_activity'; ticketId: string; attemptId: string }
+  /** Select the ticket and show its Scorecard tab, on one run's grade when named. */
+  | { type: 'open_ticket_scorecard'; ticketId: string; runId: string | null }
   | { type: 'open_checkpoint' }
   | { type: 'close_checkpoint' }
+  | { type: 'open_scorecard' }
+  | { type: 'close_scorecard' }
   | { type: 'busy'; value: boolean }
   | { type: 'banner'; text: string | null; rejected?: { from: string; to: string } | null }
   | { type: 'toast'; text: string | null }
@@ -112,7 +123,9 @@ export function initialWorkspaceState(chosenView: PlanViewKind | null = null): W
     layout: 'graph',
     selectedTicketId: null,
     activity: null,
+    ticketScorecard: null,
     checkpointOpen: false,
+    scorecardOpen: false,
     banner: null,
     rejected: null,
     toast: null,
@@ -175,7 +188,7 @@ type Handlers = {
 
 /** Shows a view, clearing feedback that belonged to the previous one. */
 function showView(state: WorkspaceState, view: PlanViewKind, chosenView: PlanViewKind | null): WorkspaceState {
-  return { ...state, view, chosenView, banner: null, rejected: null, checkpointOpen: false, saveNotice: null, confirm: null }
+  return { ...state, view, chosenView, banner: null, rejected: null, checkpointOpen: false, scorecardOpen: false, saveNotice: null, confirm: null }
 }
 
 const HANDLERS: Handlers = {
@@ -184,11 +197,14 @@ const HANDLERS: Handlers = {
   load_failed: (state, action) => ({ ...state, loading: false, loadError: action.message }),
   show_view: (state, action) => showView(state, action.view, action.remember === false ? state.chosenView : action.view),
   draft_closed: (state) => showView(state, 'saved', null),
-  show_layout: (state, action) => ({ ...state, layout: action.layout }),
-  select_ticket: (state, action) => ({ ...state, selectedTicketId: action.ticketId, activity: null }),
-  open_activity: (state, action) => ({ ...state, selectedTicketId: action.ticketId, activity: { attemptId: action.attemptId } }),
-  open_checkpoint: (state) => ({ ...state, checkpointOpen: true }),
+  show_layout: (state, action) => ({ ...state, layout: action.layout, scorecardOpen: false }),
+  select_ticket: (state, action) => ({ ...state, selectedTicketId: action.ticketId, activity: null, ticketScorecard: null }),
+  open_activity: (state, action) => ({ ...state, selectedTicketId: action.ticketId, activity: { attemptId: action.attemptId }, ticketScorecard: null }),
+  open_ticket_scorecard: (state, action) => ({ ...state, selectedTicketId: action.ticketId, activity: null, ticketScorecard: { runId: action.runId } }),
+  open_checkpoint: (state) => ({ ...state, checkpointOpen: true, scorecardOpen: false }),
   close_checkpoint: (state) => ({ ...state, checkpointOpen: false }),
+  open_scorecard: (state) => ({ ...state, scorecardOpen: true, checkpointOpen: false }),
+  close_scorecard: (state) => ({ ...state, scorecardOpen: false }),
   busy: (state, action) => ({ ...state, busy: action.value }),
   banner: (state, action) => ({ ...state, banner: action.text, rejected: action.rejected ?? null }),
   toast: (state, action) => ({ ...state, toast: action.text }),

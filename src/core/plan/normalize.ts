@@ -8,6 +8,7 @@ import {
   type EpicContent,
   type PlanBundle,
   type SprintDef,
+  type TicketBudget,
   type TicketContent,
   type TicketCriterion,
   type TicketKind,
@@ -16,6 +17,7 @@ import {
 import type { CriterionInput, SprintInput, TicketCriterionInput, TicketInput } from '../../shared/domain/api'
 import type { AttachmentRef } from '../../shared/domain/views'
 import { acceptanceTitle } from './acceptance'
+import { editedReferences } from './correctionMarker'
 import { descriptionOf, withRepoPrefix } from './repoTitles'
 
 export const CRITERION_ID_PATTERN = /^[a-z][0-9]{1,4}$/
@@ -154,7 +156,7 @@ export function buildTicket(
   identity: { id: string; key: string },
   attachments?: AttachmentRef[]
 ): TicketContent {
-  return {
+  const ticket: TicketContent = {
     id: identity.id,
     key: identity.key,
     ...kindKey(input.kind),
@@ -165,11 +167,13 @@ export function buildTicket(
     priority: input.priority ?? 'normal',
     ...(input.size === undefined || input.size === null ? {} : { size: input.size }),
     capability: startingCapability(input),
-    references: input.references ?? [],
+    // A correction marker is the work's identity (plan/correctionMarker.ts): a new ticket never brings one of its own.
+    references: editedReferences([], input.references ?? []),
     expectedArtifacts: input.expectedArtifacts ?? [],
     optional: input.optional ?? false,
     ...attachmentsKey(attachments)
   }
+  return budgeted(ticket, input.budget)
 }
 
 /** The `attachments` key of a new ticket: present only when it shows images, so a ticket without keeps its hash. */
@@ -198,6 +202,29 @@ function resized(ticket: TicketContent, size: TicketSize | null | undefined): Ti
     delete next.size
   } else if (size !== undefined) {
     next.size = size
+  }
+  return next
+}
+
+/** A budget with only the fields it sets, in a fixed key order, so equal budgets hash alike. */
+function budgetOf(budget: TicketBudget): TicketBudget {
+  return {
+    ...(budget.tokens === undefined ? {} : { tokens: budget.tokens }),
+    ...(budget.activeMs === undefined ? {} : { activeMs: budget.activeMs }),
+    ...(budget.basis === undefined ? {} : { basis: budget.basis })
+  }
+}
+
+/** Sets the budget of a copy of the ticket: null removes the key (never stored as null), undefined keeps it. */
+function budgeted(ticket: TicketContent, budget: TicketBudget | null | undefined): TicketContent {
+  if (budget === undefined) {
+    return ticket
+  }
+  const next = { ...ticket }
+  if (budget === null) {
+    delete next.budget
+  } else {
+    next.budget = budgetOf(budget)
   }
   return next
 }
@@ -238,9 +265,10 @@ function withKind(ticket: TicketContent, kind: TicketKind | undefined): TicketCo
 }
 
 /**
- * Applies a patch to a ticket; a null `size`, `repo` or `capability.reasoning.effort` removes that key, and
- * a `kind` of `work` removes the kind. The title follows the ticket's repository (see `retargeted`). `attachments` are
- * the refs the draft ops resolved from the patch's ids: they replace the ticket's, and an empty list removes the key.
+ * Applies a patch to a ticket; a null `size`, `repo`, `budget` or `capability.reasoning.effort` removes that key, and
+ * a `kind` of `work` removes the kind. A given `budget` replaces the whole budget. The title follows the ticket's
+ * repository (see `retargeted`). `attachments` are the refs the draft ops resolved from the patch's ids: they replace
+ * the ticket's, and an empty list removes the key.
  */
 export function patchTicket(
   ticket: TicketContent,
@@ -257,11 +285,12 @@ export function patchTicket(
     tags: patch.tags === undefined ? ticket.tags : normalizeTags(patch.tags),
     priority: patch.priority ?? ticket.priority,
     capability: mergeCapability(ticket.capability, patch.capability),
-    references: patch.references ?? ticket.references,
+    // A correction marker is the work's identity (plan/correctionMarker.ts): a references edit keeps it.
+    references: patch.references === undefined ? ticket.references : editedReferences(ticket.references, patch.references),
     expectedArtifacts: patch.expectedArtifacts ?? ticket.expectedArtifacts,
     optional: patch.optional ?? ticket.optional
   }
-  return withAttachments(withKind(resized(retargeted(patched, patch), patch.size), patch.kind), attachments)
+  return budgeted(withAttachments(withKind(resized(retargeted(patched, patch), patch.size), patch.kind), attachments), patch.budget)
 }
 
 /** The acceptance node of a sprint: required, for testing, and with criteria still to fill in. */

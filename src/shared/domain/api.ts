@@ -3,6 +3,7 @@
  * are thin adapters over it, so both entry points enforce identical rules.
  */
 import type { NameChatArgs } from '../agents/chatNaming'
+import type { CorrectionPlanView, CorrectionsInput, CorrectionsResultView, CreateCorrectionsInput } from './corrections'
 import type {
   CapabilityPatch,
   CapabilityProfile,
@@ -11,14 +12,17 @@ import type {
   PlanPolicies,
   ReasoningEffort,
   RelationKind,
+  TicketBudget,
   TicketKind,
   TicketPriority,
   TicketReference,
   TicketSize
 } from './bundle'
 import type { AttemptTimelineView, RunTimelineView, TimelineWindow } from './activity'
+import type { ExperimentEvent, ExperimentEventInput, ExperimentView } from './experiments'
 import type { ContextView, GetContextInput, PushedContext } from './knowledge'
 import type { SprintRetroInput } from './retro'
+import type { RetroFindingsView } from './retroFindings'
 import type {
   RecordTransferItemInput,
   StartedTransferView,
@@ -43,6 +47,30 @@ import type {
   SendAgentMessageInput
 } from './agentMail'
 import type {
+  GetPlannedBaselinesInput,
+  GetRunMetricsInput,
+  PlannedBaselinesView,
+  RecordAttemptMetricsInput,
+  RecordMetricsResultView,
+  RecordRunMetricsInput,
+  RunMetricsView
+} from './metrics'
+import type { RunEfficiencyView } from './efficiency'
+import type { EscapedDefectsView, PerformanceAssessmentInput } from './performance'
+import type {
+  GetReportScorecardInput,
+  GradingPolicyView,
+  RecordEscapedDefectsInput,
+  RecordEscapedDefectsResultView,
+  ReportScorecardView,
+  SetTicketBudgetInput,
+  SetTicketBudgetResultView
+} from './scoreReads'
+import type { MetricObservation } from './space'
+import type { AggregateGradeView, ScorecardReassessment, TicketGradeView } from './spaceGrades'
+import type { GetSpaceSignalsInput, RecordHumanFeedbackInput, SpaceSignalsView } from './spaceSignals'
+import type { RunTiming } from './timing'
+import type {
   ApprovalView,
   ApproveWithRedraftResultView,
   AttachmentFileView,
@@ -65,11 +93,13 @@ import type {
   EpicConflictChoice,
   EpicDetailView,
   EpicSummaryView,
+  GetMetricsSummaryInput,
   EventsPage,
   FlushResultView,
   HostCatalog,
   HostCatalogView,
   InitializeResultView,
+  MetricsSummaryView,
   PlanView,
   ProfileView,
   ProjectView,
@@ -130,6 +160,11 @@ export interface TicketInput {
   references?: TicketReference[]
   expectedArtifacts?: string[]
   optional?: boolean
+  /**
+   * The planned token and active-time budget; a given one replaces the ticket's whole budget and `null` in a patch
+   * clears it. Saving the plan freezes it as a new version; a run applies the version saved before first dispatch.
+   */
+  budget?: TicketBudget | null
   /** Staged image ids (or ones the ticket already owns) to show as references, at most 20; `[]` removes them all. */
   attachments?: string[]
 }
@@ -622,6 +657,63 @@ export interface CommandApi {
     carryForward?: string[]
   }): Promise<RunView & PushedContext>
 
+  // Metric ingestion and reads (the SPACE observation ledger)
+  /**
+   * Records token, time and other agent- or host-reported usage of one attempt. A worker presents its live claim
+   * token and reports only that attempt (`stale_claim`/`expired_claim` otherwise); an orchestrator may report any
+   * attempt of a run it owns. Human and server metrics are refused (`unauthorized`). Repeated deliveries are no-ops.
+   */
+  recordAttemptMetrics(input: RecordAttemptMetricsInput): Promise<RecordMetricsResultView>
+  /** Records orchestration, review or verification overhead in the run's (or one of its sprints') own bucket. */
+  recordRunMetrics(input: RecordRunMetricsInput): Promise<RecordMetricsResultView>
+  /** A run's usage per attempt and overhead bucket, the totals with their coverage, and optionally the observations. */
+  getRunMetrics(input: GetRunMetricsInput): Promise<RunMetricsView>
+  /** Each ticket's planned budget versions, the one pinned for the run, later prospective ones and unsaved draft edits. */
+  getPlannedBaselines(input: GetPlannedBaselinesInput): Promise<PlannedBaselinesView>
+
+  // SPACE scorecards: the core read models, returned unchanged (see `scoreReads.ts`), and the person's measurement controls
+  /** One ticket's grade in a run as of `cutoff` (default now, never later), with its input and the read models behind it. */
+  getTicketGrade(input: { runId: string; ticketId: string; cutoff?: string }): Promise<TicketGradeView>
+  /** A sprint's grade in a run as of `cutoff`, recomputed from the sprint's own measures (never averaged from tickets). */
+  getSprintGrade(input: { runId: string; sprintId: string; cutoff?: string }): Promise<AggregateGradeView>
+  /** A run's grade as of `cutoff`, recomputed from the run's own measures. */
+  getRunGrade(input: { runId: string; cutoff?: string }): Promise<AggregateGradeView>
+  /** An epic's grade across its runs as of `cutoff`, recomputed from the epic's own measures. */
+  getEpicGrade(input: { epicId: string; cutoff?: string }): Promise<AggregateGradeView>
+  /** The scorecard frozen with one sprint report revision (never live data), or `legacy` for a report without one. */
+  getReportScorecard(input: GetReportScorecardInput): Promise<ReportScorecardView>
+  /** A dated reassessment of a report revision's scorecard; the approved snapshot is returned untouched. */
+  reassessReportScorecard(input: GetReportScorecardInput & { cutoff?: string }): Promise<ScorecardReassessment>
+  /** The S, A and C signals of a ticket or sprint (in a run), a run or an epic, with the records behind each number. */
+  getSpaceSignals(input: GetSpaceSignalsInput): Promise<SpaceSignalsView>
+  /** A ticket's P input in a run: its independent review decisions and the escaped defects charged to it. */
+  getTicketPerformance(input: { runId: string; ticketId: string; cutoff?: string }): Promise<PerformanceAssessmentInput>
+  /** An epic's escaped defects as of `cutoff`, with their reports, reassessments, fixes and withdrawals. */
+  getEscapedDefects(input: { epicId: string; cutoff?: string }): Promise<EscapedDefectsView>
+  /** A run's E, T and K inputs as of `cutoff`: per ticket with its baselines, per sprint and for the run. */
+  getRunEfficiency(input: { runId: string; cutoff?: string; ticketId?: string }): Promise<RunEfficiencyView>
+  /**
+   * A run's timing as of `cutoff` (`projectRunTiming`, unchanged): attempt elapsed and classified time, ticket cycle,
+   * lead, active and wait times, sprint and run totals. `ticketId` keeps only that ticket's entry.
+   */
+  getRunTiming(input: { runId: string; ticketId?: string; cutoff?: string }): Promise<RunTiming>
+  /**
+   * The project metrics summary: per-epic grades and raw token and time measures, totals recomputed from raw
+   * measures, the grade-status distribution, the sprint trend with comparability, top gaps and data coverage.
+   */
+  getMetricsSummary(input: GetMetricsSummaryInput): Promise<MetricsSummaryView>
+  /** The balanced policy new grades are computed under, with each rule's formula, the composite and the bands. Read-only. */
+  getGradingPolicy(): Promise<GradingPolicyView>
+  /** Desktop only: a person's rating, rescue time or planned review/playtesting time, recorded as source `human` with the desktop session and machine. */
+  recordHumanFeedback(input: RecordHumanFeedbackInput): Promise<MetricObservation>
+  /** Desktop only: escaped defect records a person entered, stored all or none in call order. */
+  recordEscapedDefects(input: RecordEscapedDefectsInput): Promise<RecordEscapedDefectsResultView>
+  /**
+   * Sets or clears a ticket's prospective budget in the epic's draft (a stale `expectedDraftRevision` is a `conflict`);
+   * `savePlan` freezes it. No MCP tool offers it: agents edit budgets with `update_plan_draft`.
+   */
+  setTicketBudget(input: SetTicketBudgetInput): Promise<SetTicketBudgetResultView>
+
   // Checkpoints
   /**
    * At a checkpoint (the run is awaiting it), rewrites the epic's draft from the retro of the run's latest report
@@ -630,6 +722,17 @@ export interface CommandApi {
    * changes: save it and adopt the revision to put it into the run. A second call over the same retro adds nothing.
    */
   redraftNextSprint(input: { runId: string }): Promise<RedraftResultView>
+  /**
+   * Read only: what creating the corrective work for selected experiments of a report revision would add (each
+   * experiment's state, the target sprint or follow-up epic, the sized tickets with criteria and dependencies, the
+   * Fireguard ticket and the acceptance node's covers, and the draft's validation).
+   */
+  previewCorrections(input: CorrectionsInput): Promise<CorrectionPlanView>
+  /**
+   * Creates that corrective work as DRAFT work: a future (or appended) sprint of an unfinished epic's draft, or a new
+   * follow-up epic of a completed one. A repeat adds nothing; nothing is saved, adopted, started or approved.
+   */
+  createCorrections(input: CreateCorrectionsInput): Promise<CorrectionsResultView>
   submitSprintReport(input: {
     runId: string
     sprintId: string
@@ -637,6 +740,21 @@ export interface CommandApi {
     idempotencyKey?: string
   }): Promise<SprintReportView & PushedContext>
   getSprintReport(input: { runId: string; sprintId?: string }): Promise<SprintReportView | null>
+  /**
+   * The ranked, measured gaps of the scorecard frozen with a report revision (delivery gaps, failed verification,
+   * coordination problems, concentrated corrective effort, budget overruns, missing instrumentation), each with its
+   * magnitude, coverage, originating records and hypotheses; derived on read, never stored. `conflict` for a report
+   * submitted before scorecards.
+   */
+  getRetroFindings(input: GetReportScorecardInput): Promise<RetroFindingsView>
+  /**
+   * An improvement experiment of a sprint retro: its latest definition, status, events, why it cannot be scheduled yet,
+   * and its outcome (corrective tickets and where they landed, each result compared with the frozen baseline, target
+   * and guardrails, classified improved / unchanged / regressed / insufficient_evidence; derived on read).
+   */
+  getExperiment(input: { experimentId: string }): Promise<ExperimentView>
+  /** Records a later status or measured result of an experiment as an append-only event (no report changes). */
+  recordExperimentEvent(input: { experimentId: string; event: ExperimentEventInput; idempotencyKey?: string }): Promise<ExperimentEvent>
   getCheckpoint(input: { runId: string }): Promise<CheckpointView>
   approveCheckpoint(input: { runId: string; reportId: string }): Promise<ApprovalView>
   advanceSprint(input: { runId: string; idempotencyKey?: string }): Promise<RunView & PushedContext>

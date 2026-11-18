@@ -18,6 +18,8 @@ export interface Selection {
   chatId?: string
   /** The folder's Kanban board, shown in place of its home; absent means no board. Only set with `epicId` null and no chat. */
   kanban?: true
+  /** The folder's Metrics dashboard, shown in place of its home; absent means no dashboard. Only set with `epicId` null, no chat and no board. */
+  metrics?: true
 }
 
 export const EMPTY_SELECTION: Selection = { folderPath: null, epicId: null }
@@ -38,19 +40,25 @@ function isAgentPane(value: unknown): value is AgentPane {
   )
 }
 
+type StoredShape = { folderPath?: unknown; epicId?: unknown; agentPane?: unknown; chatId?: unknown; kanban?: unknown; metrics?: unknown }
+
+/** The screens a stored selection may name over its folder are well formed: an agents screen, a chat, the board, the dashboard. */
+function hasValidScreens(candidate: StoredShape): boolean {
+  return (
+    (candidate.agentPane === undefined || isAgentPane(candidate.agentPane)) &&
+    (candidate.chatId === undefined || typeof candidate.chatId === 'string') &&
+    (candidate.kanban === undefined || candidate.kanban === true) &&
+    (candidate.metrics === undefined || candidate.metrics === true)
+  )
+}
+
 /** Guards a selection read back from localStorage. */
 export function isSelection(value: unknown): value is Selection {
   if (typeof value !== 'object' || value === null) {
     return false
   }
-  const candidate = value as { folderPath?: unknown; epicId?: unknown; agentPane?: unknown; chatId?: unknown; kanban?: unknown }
-  return (
-    isNullableString(candidate.folderPath) &&
-    isNullableString(candidate.epicId) &&
-    (candidate.agentPane === undefined || isAgentPane(candidate.agentPane)) &&
-    (candidate.chatId === undefined || typeof candidate.chatId === 'string') &&
-    (candidate.kanban === undefined || candidate.kanban === true)
-  )
+  const candidate = value as StoredShape
+  return isNullableString(candidate.folderPath) && isNullableString(candidate.epicId) && hasValidScreens(candidate)
 }
 
 export function findFolder(
@@ -76,14 +84,16 @@ function resolveFolder(
     const first = folders[0]
     return first ? { folderPath: first.path, epicId: null } : EMPTY_SELECTION
   }
-  const canShowEpics = folder.initialized && folder.available
-  const chatId = canShowEpics ? keptChatId(stored, chats) : undefined
-  const kanban = canShowEpics && stored.kanban === true
+  if (!folder.initialized || !folder.available) {
+    return { folderPath: folder.path, epicId: null }
+  }
+  const chatId = keptChatId(stored, chats)
   return {
     folderPath: folder.path,
-    epicId: canShowEpics ? stored.epicId : null,
+    epicId: stored.epicId,
     ...(chatId === undefined ? {} : { chatId }),
-    ...(kanban ? { kanban: true as const } : {})
+    ...(stored.kanban === true ? { kanban: true as const } : {}),
+    ...(stored.metrics === true ? { metrics: true as const } : {})
   }
 }
 

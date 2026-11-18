@@ -116,6 +116,7 @@ describe('a grant decides what a CLI session may do', () => {
       'comment.write',
       'kanban.report',
       'mail.use',
+      'metrics.report',
       'read'
     ])
     await expect(cli.createEpic({ title: 'No' })).rejects.toMatchObject({ code: 'unauthorized' })

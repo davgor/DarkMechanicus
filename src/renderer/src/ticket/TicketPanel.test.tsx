@@ -32,6 +32,7 @@ function renderPanel(backend: FakeBackend, patch: Partial<TicketPanelProps> = {}
       folderPath="/repo"
       folderKey="00000000000000000000000000000001"
       activity={null}
+      scorecard={null}
       scheduler={new ManualScheduler()}
       epicId="ep_1"
       ticketId="tk_202"
@@ -575,8 +576,10 @@ describe('ticket panel of an acceptance node in a folder of repositories', () =>
     })
     renderPanel(nodeBackend({ project }, [evidence], plan), { ticketId: 'tk_91', plan })
     const dod = await screen.findByLabelText('Definition of Done')
+    // The section shows before the project is read: wait for the loaded checks, never assert on the loading notice.
+    const api = await within(dod).findByRole('group', { name: 'api' })
+    await within(api).findByText('PASSED')
     expect(within(dod).getByText('DEFINITION OF DONE · 2 CHECKS')).toBeTruthy()
-    const api = within(dod).getByRole('group', { name: 'api' })
     expect(within(api).getAllByRole('listitem').map((row) => [row.querySelector('.tp-dod-name')?.textContent, row.querySelector('.tp-dod-state')?.textContent])).toEqual([
       ['Unit tests', 'PASSED'],
       ['Lint', 'NOT REPORTED']
@@ -591,8 +594,8 @@ describe('ticket panel of an acceptance node: Definition of Done', () => {
     const backend = nodeBackend()
     renderNode(backend)
     const dod = await screen.findByLabelText('Definition of Done')
+    const rows = await within(dod).findAllByRole('listitem')
     expect(within(dod).getByText('DEFINITION OF DONE · 2 CHECKS')).toBeTruthy()
-    const rows = within(dod).getAllByRole('listitem')
     expect(rows.map((row) => row.textContent)).toEqual([
       'Unit testsnpm testEvery unit test passes.',
       'Typechecknpm run typecheckNo type errors in any project.'
@@ -606,6 +609,7 @@ describe('ticket panel of an acceptance node: Definition of Done', () => {
     })
     renderNode(nodeBackend({}, [evidence]))
     const dod = await screen.findByLabelText('Definition of Done')
+    await within(dod).findByText('PASSED')
     const states = within(dod).getAllByRole('listitem').map((row) => row.querySelector('.tp-dod-state')?.textContent)
     expect(states).toEqual(['PASSED', 'NOT REPORTED'])
   })
@@ -613,7 +617,7 @@ describe('ticket panel of an acceptance node: Definition of Done', () => {
   it('says so when the project has no Definition of Done', async () => {
     renderNode(nodeBackend({ project: projectView({ definitionOfDone: [] }) }))
     const dod = await screen.findByLabelText('Definition of Done')
-    expect(dod.textContent).toContain('This project has no Definition of Done.')
+    expect(await within(dod).findByText('This project has no Definition of Done.')).toBeTruthy()
     expect(within(dod).queryAllByRole('listitem')).toHaveLength(0)
   })
 

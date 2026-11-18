@@ -1,0 +1,250 @@
+{
+  "description": "Baseline candidates and subjects for DM-169 c4. Every candidate parses against baselineSchema; each subject names the baseline selectBaseline must choose under policy v1 (minimum cohort sample 5).",
+  "candidates": [
+    {
+      "baselineId": "bl_01m7g000000000000000000001",
+      "kind": "budget",
+      "metric": "tokens",
+      "unit": "tokens",
+      "ticketId": "tk_01m453gpad0000000000000001",
+      "revisionId": "rv_01m65yene30000000000000001",
+      "version": 1,
+      "value": 200000,
+      "frozenAt": "2026-10-31T12:00:00.000Z"
+    },
+    {
+      "baselineId": "bl_01m7g000000000000000000002",
+      "kind": "budget",
+      "metric": "tokens",
+      "unit": "tokens",
+      "ticketId": "tk_01m453gpad0000000000000001",
+      "revisionId": "rv_01m65yene30000000000000002",
+      "version": 2,
+      "value": 600000,
+      "frozenAt": "2026-11-01T11:30:00.000Z"
+    },
+    {
+      "baselineId": "bl_01m7g000000000000000000003",
+      "kind": "budget",
+      "metric": "active_ms",
+      "unit": "milliseconds",
+      "ticketId": "tk_01m453gpad0000000000000001",
+      "revisionId": "rv_01m65yene30000000000000001",
+      "version": 1,
+      "value": 3600000,
+      "frozenAt": "2026-10-31T12:00:00.000Z"
+    },
+    {
+      "baselineId": "bl_01m7g000000000000000000004",
+      "kind": "cohort",
+      "metric": "tokens",
+      "unit": "tokens",
+      "cohort": {
+        "workType": "architecture",
+        "size": "medium",
+        "risk": "multi_step"
+      },
+      "statistic": "median",
+      "value": 180000,
+      "sampleSize": 8,
+      "spread": {
+        "p25": 120000,
+        "p75": 260000
+      },
+      "memberTicketIds": [
+        "tk_01m453gpad000000000000c001",
+        "tk_01m453gpad000000000000c002",
+        "tk_01m453gpad000000000000c003",
+        "tk_01m453gpad000000000000c004",
+        "tk_01m453gpad000000000000c005",
+        "tk_01m453gpad000000000000c006",
+        "tk_01m453gpad000000000000c007",
+        "tk_01m453gpad000000000000c008"
+      ],
+      "version": 3,
+      "frozenAt": "2026-10-20T08:00:00.000Z"
+    },
+    {
+      "baselineId": "bl_01m7g000000000000000000005",
+      "kind": "cohort",
+      "metric": "tokens",
+      "unit": "tokens",
+      "cohort": {
+        "workType": "implementation",
+        "size": "medium",
+        "risk": "multi_step"
+      },
+      "statistic": "median",
+      "value": 150000,
+      "sampleSize": 12,
+      "spread": {
+        "p25": 90000,
+        "p75": 210000
+      },
+      "memberTicketIds": [
+        "tk_01m453gpad000000000000c020",
+        "tk_01m453gpad000000000000c021",
+        "tk_01m453gpad000000000000c022",
+        "tk_01m453gpad000000000000c023",
+        "tk_01m453gpad000000000000c024",
+        "tk_01m453gpad000000000000c025",
+        "tk_01m453gpad000000000000c026",
+        "tk_01m453gpad000000000000c027",
+        "tk_01m453gpad000000000000c028",
+        "tk_01m453gpad000000000000c029",
+        "tk_01m453gpad000000000000c030",
+        "tk_01m453gpad000000000000c031"
+      ],
+      "version": 1,
+      "frozenAt": "2026-10-20T08:00:00.000Z"
+    },
+    {
+      "baselineId": "bl_01m7g000000000000000000006",
+      "kind": "cohort",
+      "metric": "active_ms",
+      "unit": "milliseconds",
+      "cohort": {
+        "workType": "architecture",
+        "size": "medium",
+        "risk": "multi_step"
+      },
+      "statistic": "median",
+      "value": 2700000,
+      "sampleSize": 3,
+      "spread": null,
+      "memberTicketIds": [
+        "tk_01m453gpad000000000000c040",
+        "tk_01m453gpad000000000000c041",
+        "tk_01m453gpad000000000000c042"
+      ],
+      "version": 1,
+      "frozenAt": "2026-10-20T08:00:00.000Z"
+    },
+    {
+      "baselineId": "bl_01m7g000000000000000000007",
+      "kind": "budget",
+      "metric": "tokens",
+      "unit": "tokens",
+      "ticketId": "tk_01m453gpad0000000000000002",
+      "revisionId": "rv_01m65yene30000000000000001",
+      "version": 1,
+      "value": 0,
+      "frozenAt": "2026-10-31T12:00:00.000Z"
+    },
+    {
+      "baselineId": "bl_01m7g000000000000000000008",
+      "kind": "cohort",
+      "metric": "tokens",
+      "unit": "tokens",
+      "cohort": {
+        "workType": "architecture",
+        "size": "medium",
+        "risk": "multi_step"
+      },
+      "statistic": "median",
+      "value": 175000,
+      "sampleSize": 6,
+      "spread": {
+        "p25": 110000,
+        "p75": 240000
+      },
+      "memberTicketIds": [
+        "tk_01m453gpad0000000000000003",
+        "tk_01m453gpad000000000000c060",
+        "tk_01m453gpad000000000000c061",
+        "tk_01m453gpad000000000000c062",
+        "tk_01m453gpad000000000000c063",
+        "tk_01m453gpad000000000000c064"
+      ],
+      "version": 2,
+      "frozenAt": "2026-10-10T08:00:00.000Z"
+    }
+  ],
+  "subjects": [
+    {
+      "name": "budget beats cohort; the budget edited after dispatch is ignored",
+      "subject": {
+        "ticketId": "tk_01m453gpad0000000000000001",
+        "metric": "tokens",
+        "cohort": {
+          "workType": "architecture",
+          "size": "medium",
+          "risk": "multi_step"
+        },
+        "dispatchedAt": "2026-11-01T10:00:00.000Z"
+      },
+      "expect": {
+        "state": "selected",
+        "baselineId": "bl_01m7g000000000000000000001"
+      }
+    },
+    {
+      "name": "time budget for the same ticket",
+      "subject": {
+        "ticketId": "tk_01m453gpad0000000000000001",
+        "metric": "active_ms",
+        "cohort": {
+          "workType": "architecture",
+          "size": "medium",
+          "risk": "multi_step"
+        },
+        "dispatchedAt": "2026-11-01T10:00:00.000Z"
+      },
+      "expect": {
+        "state": "selected",
+        "baselineId": "bl_01m7g000000000000000000003"
+      }
+    },
+    {
+      "name": "no budget: the latest frozen eligible cohort; a cohort holding the subject is refused",
+      "subject": {
+        "ticketId": "tk_01m453gpad0000000000000003",
+        "metric": "tokens",
+        "cohort": {
+          "workType": "architecture",
+          "size": "medium",
+          "risk": "multi_step"
+        },
+        "dispatchedAt": "2026-11-01T10:00:00.000Z"
+      },
+      "expect": {
+        "state": "selected",
+        "baselineId": "bl_01m7g000000000000000000004"
+      }
+    },
+    {
+      "name": "zero budget is refused; the matching implementation cohort applies",
+      "subject": {
+        "ticketId": "tk_01m453gpad0000000000000002",
+        "metric": "tokens",
+        "cohort": {
+          "workType": "implementation",
+          "size": "medium",
+          "risk": "multi_step"
+        },
+        "dispatchedAt": "2026-11-01T10:00:00.000Z"
+      },
+      "expect": {
+        "state": "selected",
+        "baselineId": "bl_01m7g000000000000000000005"
+      }
+    },
+    {
+      "name": "only a too-small cohort and another ticket budget: missing",
+      "subject": {
+        "ticketId": "tk_01m453gpad0000000000000004",
+        "metric": "active_ms",
+        "cohort": {
+          "workType": "architecture",
+          "size": "medium",
+          "risk": "multi_step"
+        },
+        "dispatchedAt": "2026-11-01T10:00:00.000Z"
+      },
+      "expect": {
+        "state": "missing",
+        "baselineId": null
+      }
+    }
+  ]
+}
