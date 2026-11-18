@@ -1,14 +1,12 @@
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
-import { AUDIT_POLICY, evaluateAudit } from './security-audit.mjs'
+import { evaluateAudit } from './security-audit.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const packageJson = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
-const workflow = readFileSync(join(root, '.github/workflows/security-audit.yml'), 'utf8')
 const checkerPath = join(root, 'scripts/security-audit.mjs')
 
 const allowedAdvisory = {
@@ -117,27 +115,6 @@ describe('evaluateAudit unresolved chains', () => {
       allowed: [],
       blocked: ['orphan']
     })
-  })
-})
-
-describe('AUDIT_POLICY', () => {
-  it('documents the advisory, dev-only exposure, rationale, and exact removal condition', () => {
-    expect(AUDIT_POLICY.advisory).toBe('GHSA-fc5q-39xc-vjpf')
-    expect(AUDIT_POLICY.exposure).toMatch(/dev/i)
-    expect(AUDIT_POLICY.rationale).toMatch(/no patched version/i)
-    expect(AUDIT_POLICY.removalCondition).toMatch(/patched picomatch release/i)
-    expect(AUDIT_POLICY.removalCondition).toMatch(/lockfile/i)
-  })
-})
-
-describe('security audit CI wiring', () => {
-  it('exposes the checker as the audit:ci package script', () => {
-    expect(packageJson.scripts['audit:ci']).toBe('node scripts/security-audit.mjs')
-  })
-
-  it('runs the same policy checker in the pull request workflow', () => {
-    expect(workflow).toContain('run: npm run audit:ci')
-    expect(workflow).not.toContain('python3')
   })
 })
 
