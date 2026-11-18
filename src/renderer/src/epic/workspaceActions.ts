@@ -8,7 +8,9 @@ import { acceptanceTitle } from '../../../core/plan/acceptance'
 import type { StartOrchestratorResult } from '../../../shared/agents/chatApi'
 import type { AgentView } from '../../../shared/desktop/api'
 import type { DraftOp } from '../../../shared/domain/api'
-import type { PlanBundle } from '../../../shared/domain/bundle'
+import type { CorrectionPlanView, CorrectionsInput, CorrectionsResultView, CreateCorrectionsInput } from '../../../shared/domain/corrections'
+import type { PlanBundle, TicketBudget } from '../../../shared/domain/bundle'
+import type { SetTicketBudgetResultView } from '../../../shared/domain/scoreReads'
 import type { ApproveWithRedraftResultView, DraftUpdateResultView, PlanView, RunView } from '../../../shared/domain/views'
 import { followUpOp, type NextSprintItem } from '../checkpoint/gateView'
 import type { NextSprintPlan } from '../checkpoint/nextSprint'
@@ -52,6 +54,11 @@ export type ReviewInput =
 export interface WorkspaceActions extends TransferActions {
   perform<T>(task: () => Promise<T>): Promise<Result<T>>
   applyOps(ops: DraftOp[]): Promise<Result<DraftUpdateResultView>>
+  /**
+   * Sets or clears a ticket's budget in the draft (`setTicketBudget`) against the draft revision the workspace shows,
+   * placed against the epic's run; a draft that moved meanwhile is a `conflict`, and the workspace reloads either way.
+   */
+  setTicketBudget(ticketId: string, budget: TicketBudget | null): Promise<Result<SetTicketBudgetResultView>>
   editDraft(): Promise<void>
   discardDraft(): Promise<void>
   saveDraft(): Promise<void>
@@ -82,6 +89,14 @@ export interface WorkspaceActions extends TransferActions {
   setAutoContinue(enabled: boolean): Promise<void>
   /** Puts a report follow-up, a retro discovery or a retro leftover into the draft's next sprint; resolves with whether that worked. */
   addFollowUp(item: NextSprintItem, checkpointOrdinal: number): Promise<boolean>
+  /** Reads what creating corrective work would add: read only, so the workspace is neither busy nor reloaded. */
+  previewCorrections(input: CorrectionsInput): Promise<Result<CorrectionPlanView>>
+  /**
+   * Creates the corrective work of a retro's selected experiments as DRAFT work (this epic's draft, or a follow-up
+   * epic's) and reloads so the draft and the gate show it. Nothing is saved, adopted, started or approved; a refusal is
+   * returned for the screen to show beside the request, not as a banner.
+   */
+  createCorrections(input: CreateCorrectionsInput): Promise<Result<CorrectionsResultView>>
   review(input: ReviewInput): Promise<string | null>
 }
 
@@ -420,6 +435,25 @@ async function addFollowUp(deps: ActionDeps, item: NextSprintItem, checkpointOrd
   return result.ok
 }
 
+async function previewCorrections(deps: ActionDeps, input: CorrectionsInput): Promise<Result<CorrectionPlanView>> {
+  try {
+    return { ok: true, value: await deps.runner('previewCorrections', input) }
+  } catch (error: unknown) {
+    return { ok: false, failure: failureOf(error) }
+  }
+}
+
+async function createCorrections(deps: ActionDeps, input: CreateCorrectionsInput): Promise<Result<CorrectionsResultView>> {
+  const result = await perform(deps, () => deps.runner('createCorrections', input))
+  if (result.ok) {
+    const text = result.value.changed
+      ? `Corrective work added to the draft of "${result.value.target.epicTitle}". Review and Save it; nothing was saved, adopted or started.`
+      : 'That corrective work was already created: nothing was added.'
+    deps.dispatch({ type: 'toast', text })
+  }
+  return result
+}
+
 export function createWorkspaceActions(deps: ActionDeps): WorkspaceActions {
   const applyOps: WorkspaceActions['applyOps'] = async (ops) => {
     const expected = draftRevision(deps)
@@ -434,12 +468,23 @@ export function createWorkspaceActions(deps: ActionDeps): WorkspaceActions {
   return {
     perform: (task) => perform(deps, task),
     applyOps,
+    async setTicketBudget(ticketId, budget) {
+      const expected = draftRevision(deps)
+      if (expected === undefined) {
+        return { ok: false, failure: { code: null, message: 'Open the draft to set a budget.' } }
+      }
+      const runId = currentRun(deps)?.id
+      const input = { epicId: deps.epicId, ticketId, budget, expectedDraftRevision: expected }
+      return perform(deps, () => deps.runner('setTicketBudget', runId === undefined ? input : { ...input, runId }))
+    },
     ...draftActions(deps),
     ...runActions(deps),
     ...graphActions(deps, applyOps),
     ...checkpointActions(deps),
     ...createTransferActions({ ...deps, perform: (task) => perform(deps, task) }),
     addFollowUp: (proposal, ordinal) => addFollowUp(deps, proposal, ordinal),
+    previewCorrections: (input) => previewCorrections(deps, input),
+    createCorrections: (input) => createCorrections(deps, input),
     async review(input) {
       const result = await perform(deps, () => reviewCommand(deps, input))
       return result.ok ? null : result.failure.message

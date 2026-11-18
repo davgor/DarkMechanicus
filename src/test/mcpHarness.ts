@@ -55,6 +55,19 @@ export async function withRig<T>(
   }
 }
 
+/** Like `withRig`, for a server built over any `CommandApi` (e.g. a real Workspace) rather than a stub. */
+export async function withServer<T>(server: McpServer, body: (rig: Pick<McpRig, 'client'>) => Promise<T>): Promise<T> {
+  const client = new Client({ name: 'test-client', version: '0.0.0' })
+  const [serverTransport, clientTransport] = InMemoryTransport.createLinkedPair()
+  await Promise.all([server.connect(serverTransport), client.connect(clientTransport)])
+  try {
+    return await body({ client })
+  } finally {
+    await client.close()
+    await server.close()
+  }
+}
+
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -62,7 +75,7 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
 }
 
 export async function callTool(
-  rig: McpRig,
+  rig: Pick<McpRig, 'client'>,
   name: string,
   args: Record<string, unknown> = {}
 ): Promise<ToolOutcome> {

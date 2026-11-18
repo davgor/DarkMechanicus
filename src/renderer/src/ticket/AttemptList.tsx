@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { AttemptView } from '../../../shared/domain/views'
 import type { ReviewInput } from '../epic/workspaceActions'
 import { StatePill } from '../epic/StatePill'
@@ -105,9 +105,24 @@ function Details({ card }: { card: AttemptCard }): JSX.Element {
   )
 }
 
-function AttemptCardView({ card, onReview }: { card: AttemptCard; onReview?: Review }): JSX.Element {
+interface CardProps {
+  card: AttemptCard
+  onReview?: Review
+  /** A scorecard citation opened this attempt: it is marked, and focused (which scrolls it into view). */
+  focused?: boolean
+}
+
+function cardClass(card: AttemptCard, focused: boolean): string {
+  return ['tp-attempt', card.superseded ? 'is-superseded' : '', focused ? 'is-focused' : ''].filter((name) => name !== '').join(' ')
+}
+
+function AttemptCardView({ card, onReview, focused = false }: CardProps): JSX.Element {
+  const item = useRef<HTMLLIElement>(null)
+  useEffect(() => {
+    if (focused) item.current?.focus()
+  }, [focused])
   return (
-    <li className={card.superseded ? 'tp-attempt is-superseded' : 'tp-attempt'} aria-label={`Attempt ${card.heading}`}>
+    <li ref={item} className={cardClass(card, focused)} aria-label={`Attempt ${card.heading}`} tabIndex={focused ? -1 : undefined}>
       <div className="tp-attempt-head">
         <span className="ew-mono">{card.heading}</span>
         <StatePill tone={card.tone} label={card.state} />
@@ -120,8 +135,11 @@ function AttemptCardView({ card, onReview }: { card: AttemptCard; onReview?: Rev
   )
 }
 
-/** The attempts, newest first. Without `onReview` the list is read-only: the caller offers its own review controls. */
-export function AttemptList(props: { attempts: AttemptView[]; now: number; onReview?: Review }): JSX.Element {
+/**
+ * The attempts, newest first. Without `onReview` the list is read-only: the caller offers its own review controls.
+ * `focusAttemptId` marks and focuses one attempt (a scorecard citation of it).
+ */
+export function AttemptList(props: { attempts: AttemptView[]; now: number; onReview?: Review; focusAttemptId?: string | null }): JSX.Element {
   const cards = attemptCards(props.attempts, props.now)
   if (cards.length === 0) {
     return <p className="ew-muted">No attempts yet.</p>
@@ -129,7 +147,7 @@ export function AttemptList(props: { attempts: AttemptView[]; now: number; onRev
   return (
     <ul className="tp-attempts">
       {cards.map((card) => (
-        <AttemptCardView key={card.id} card={card} onReview={props.onReview} />
+        <AttemptCardView key={card.id} card={card} onReview={props.onReview} focused={card.id === props.focusAttemptId} />
       ))}
     </ul>
   )

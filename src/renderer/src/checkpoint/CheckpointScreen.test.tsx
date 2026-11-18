@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DmApi } from '../../../shared/desktop/api'
 import type { FollowUpProposal, SprintReportView } from '../../../shared/domain/views'
-import { NOW, bundle, checkpointView, condition, execution, incrementView, reportView, runView } from '../epic/__mocks__/fixtures'
+import { NOW, bundle, checkpointView, condition, execution, incrementView, reportView, runView, SCORES } from '../epic/__mocks__/fixtures'
 import { allowSlowRendering } from '../epic/__mocks__/testTiming'
 import { CheckpointScreen, type CheckpointScreenProps } from './CheckpointScreen'
 
@@ -53,6 +53,7 @@ function renderScreen(patch: Partial<CheckpointScreenProps> = {}, followUpResult
         recorded.edits += 1
       }}
       onSelectTicket={(id) => recorded.selected.push(id)}
+      scores={SCORES}
       {...patch}
     />
   )

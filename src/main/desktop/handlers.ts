@@ -113,7 +113,7 @@ function assertRepositoryWritable(
 }
 
 /** The canonical path of a tracked folder; anything else is unauthorized. */
-function requireTracked(registry: Pick<FolderRegistry, 'resolve'>, folder: unknown): string {
+export function requireTracked(registry: Pick<FolderRegistry, 'resolve'>, folder: unknown): string {
   const requested = parseInput(folderSchema, folder, 'folder')
   const tracked = registry.resolve(requested)
   if (tracked === null) {

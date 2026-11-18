@@ -1,0 +1,93 @@
+{
+  "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-b-eFwKR4",
+  "steps": [
+    {
+      "move": {
+        "from": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-b-eFwKR4\\dm-checkout",
+        "to": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-b-eFwKR4\\dm-checkout.moved"
+      }
+    },
+    {
+      "snapshot": {
+        "label": "c28 pending: target (moved away)",
+        "equal": true,
+        "differs": [],
+        "localChanged": false,
+        "before": {
+          "dir": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-b-eFwKR4\\dm-checkout",
+          "recordFiles": 2,
+          "recordsSha256": "914c1ce71df37147d2c85efd32e51efffe8f176a07d63226fac26462e04dd9e5",
+          "head": "04429ea365160840b8863c5ef6ad5f737523a015",
+          "branch": "space-sprint-1",
+          "commits": 612,
+          "logSha256": "b4f0976ac6e6a990372f2edec7f71c87321c27bdf91623ce9a1a5e6be599e703",
+          "statusSha256": "fc41af16c860ee9b9e1b83c57107fd48f98f8375cb7cdda7f8b7e86fb50e466e",
+          "statusLines": 2,
+          "local": 4
+        },
+        "after": {
+          "dir": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-b-eFwKR4\\dm-checkout.moved",
+          "recordFiles": 2,
+          "recordsSha256": "914c1ce71df37147d2c85efd32e51efffe8f176a07d63226fac26462e04dd9e5",
+          "head": "04429ea365160840b8863c5ef6ad5f737523a015",
+          "branch": "space-sprint-1",
+          "commits": 612,
+          "logSha256": "b4f0976ac6e6a990372f2edec7f71c87321c27bdf91623ce9a1a5e6be599e703",
+          "statusSha256": "fc41af16c860ee9b9e1b83c57107fd48f98f8375cb7cdda7f8b7e86fb50e466e",
+          "statusLines": 2,
+          "local": 4
+        }
+      },
+      "beforeLocal": [
+        {
+          "file": "local/machine.json",
+          "size": 94,
+          "sha256": "ee807cb2d55db568eaae73aaeb1466962803be8b565d0da2221aef2bc2ae9cf1"
+        },
+        {
+          "file": "local/state.sqlite",
+          "size": 401408,
+          "sha256": "353ec736bbe4e2df43e8252a958fe5ec9171d4d14b7ee294ca0a4ea5b7f04859"
+        },
+        {
+          "file": "local/state.sqlite-shm",
+          "size": 32768,
+          "sha256": "2ad1235f6545c469e5a493b1cb7205eb70a9cefba8a1937bf2cae188ff0b0265"
+        },
+        {
+          "file": "local/state.sqlite-wal",
+          "size": 16512,
+          "sha256": "88ff72bd36b0e293fa728ef27f249b352a681d26853b55ec576a2018fc9383bd"
+        }
+      ],
+      "afterLocal": [
+        {
+          "file": "local/machine.json",
+          "size": 94,
+          "sha256": "ee807cb2d55db568eaae73aaeb1466962803be8b565d0da2221aef2bc2ae9cf1"
+        },
+        {
+          "file": "local/state.sqlite",
+          "size": 401408,
+          "sha256": "353ec736bbe4e2df43e8252a958fe5ec9171d4d14b7ee294ca0a4ea5b7f04859"
+        },
+        {
+          "file": "local/state.sqlite-shm",
+          "size": 32768,
+          "sha256": "2ad1235f6545c469e5a493b1cb7205eb70a9cefba8a1937bf2cae188ff0b0265"
+        },
+        {
+          "file": "local/state.sqlite-wal",
+          "size": 16512,
+          "sha256": "88ff72bd36b0e293fa728ef27f249b352a681d26853b55ec576a2018fc9383bd"
+        }
+      ]
+    },
+    {
+      "move": {
+        "from": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-b-eFwKR4\\dm-checkout.moved",
+        "to": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-xr-b-eFwKR4\\dm-checkout"
+      }
+    }
+  ]
+}

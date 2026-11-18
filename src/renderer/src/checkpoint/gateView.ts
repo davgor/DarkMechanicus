@@ -307,7 +307,7 @@ export function criterionLines(results: CriterionResult[], criteria: Criterion[]
 }
 
 /** How the retro names a ticket (as a report entry does, linked when the plan has it) and which leftovers the run has since accepted. */
-function retroLookup(context: ReportContext): RetroLookup {
+export function retroLookup(context: Pick<ReportContext, 'run' | 'bundle'>): RetroLookup {
   return {
     ref: (ticketId): TicketRef => {
       const { ticketId: id, key, title } = resolveRow(ticketId, context.bundle)

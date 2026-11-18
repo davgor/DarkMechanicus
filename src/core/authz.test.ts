@@ -56,7 +56,9 @@ const ORCHESTRATOR: Capability[] = [
   'checkpoint.advance',
   'kanban.launch',
   'kanban.claim',
-  'kanban.report'
+  'kanban.report',
+  'metrics.report',
+  'metrics.report_run'
 ]
 
 const WORKER: Capability[] = [
@@ -67,9 +69,10 @@ const WORKER: Capability[] = [
   'attempt.fail',
   'comment.write',
   'attachment.write',
-  'kanban.report'
+  'kanban.report',
+  'metrics.report'
 ]
-const REVIEWER: Capability[] = ['read', 'chat.name', 'attempt.review', 'comment.write', 'attachment.write']
+const REVIEWER: Capability[] = ['read', 'chat.name', 'attempt.review', 'comment.write', 'attachment.write', 'metrics.report_run']
 
 const DESKTOP: Capability[] = [
   'read',
@@ -113,7 +116,9 @@ const DESKTOP: Capability[] = [
   'kanban.write',
   'kanban.play',
   'kanban.review',
-  'kanban.delete'
+  'kanban.delete',
+  'feedback.record',
+  'correction.cross_repo'
 ]
 
 /** Capabilities the desktop never holds: they belong to the agents that execute work. */
@@ -129,7 +134,9 @@ const AGENT_ONLY = [
   'host.register',
   'kanban.launch',
   'kanban.claim',
-  'kanban.report'
+  'kanban.report',
+  'metrics.report',
+  'metrics.report_run'
 ] as const
 
 const READER: Capability[] = ['read']
@@ -153,7 +160,7 @@ describe('capability vocabulary', () => {
     expect(sorted(CAPABILITIES)).toEqual(sorted([...DESKTOP, ...AGENT_ONLY]))
   })
 
-  it('marks approval, auto-continue, retry grants, run queueing, deletion, granting roles, the sign-in pause and resume, transfer queueing, epic records conflict choices and Kanban play and review as human-only', () => {
+  it('marks approval, auto-continue, retry grants, run queueing, deletion, granting roles, the sign-in pause and resume, transfer queueing, epic records conflict choices, Kanban play and review, human feedback and cross-repository corrective work as human-only', () => {
     expect(sorted(HUMAN_ONLY_CAPABILITIES)).toEqual(
       sorted([
         'checkpoint.approve',
@@ -171,7 +178,9 @@ describe('capability vocabulary', () => {
         'repo.switch_storage',
         'kanban.play',
         'kanban.review',
-        'kanban.delete'
+        'kanban.delete',
+        'feedback.record',
+        'correction.cross_repo'
       ])
     )
   })

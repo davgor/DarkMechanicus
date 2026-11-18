@@ -1,0 +1,139 @@
+{
+  "description": "Ticket 1 was accepted in an earlier run and carried forward at the start; ticket 2 waits 10 minutes and is done. The carried-forward ticket accrues no queue time and its old acceptance raises no anomaly.",
+  "input": {
+    "runId": "rn_01m7gdve7p0000000000000001",
+    "asOf": "2026-11-01T18:00:00.000Z",
+    "events": [
+      {
+        "kind": "run_started",
+        "at": "2026-11-01T09:00:00.000Z"
+      },
+      {
+        "kind": "sprint_activated",
+        "at": "2026-11-01T09:00:00.000Z",
+        "sprintId": "sp_01m452vt120000000000000001"
+      },
+      {
+        "kind": "ticket_ready",
+        "at": "2026-11-01T09:00:00.000Z",
+        "ticketId": "tk_01m453gpad0000000000000001"
+      },
+      {
+        "kind": "attempt_claimed",
+        "at": "2026-11-01T09:00:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000001",
+        "ticketId": "tk_01m453gpad0000000000000001",
+        "sprintId": "sp_01m452vt120000000000000001",
+        "number": 1,
+        "carriedForward": true
+      },
+      {
+        "kind": "attempt_accepted",
+        "at": "2026-11-01T09:00:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000001"
+      },
+      {
+        "kind": "ticket_ready",
+        "at": "2026-11-01T09:00:00.000Z",
+        "ticketId": "tk_01m453gpad0000000000000002"
+      },
+      {
+        "kind": "attempt_claimed",
+        "at": "2026-11-01T09:10:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000002",
+        "ticketId": "tk_01m453gpad0000000000000002",
+        "sprintId": "sp_01m452vt120000000000000001",
+        "number": 1,
+        "carriedForward": false
+      },
+      {
+        "kind": "attempt_submitted",
+        "at": "2026-11-01T09:40:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000002"
+      },
+      {
+        "kind": "attempt_accepted",
+        "at": "2026-11-01T09:50:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000002"
+      }
+    ],
+    "activity": [
+      {
+        "observationId": "mo_01m7gf00000000000000000801",
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000002",
+          "attemptId": "at_01m7ge55kx0000000000000002"
+        },
+        "source": {
+          "kind": "host",
+          "actor": "claude-code-adapter"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 1800000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T09:40:00.000Z",
+        "recordedAt": "2026-11-01T09:40:00.100Z",
+        "attributes": {
+          "spanStart": "2026-11-01T09:10:00.000Z"
+        },
+        "evidence": []
+      }
+    ],
+    "tickets": [
+      {
+        "ticketId": "tk_01m453gpad0000000000000001",
+        "sprintId": "sp_01m452vt120000000000000001"
+      },
+      {
+        "ticketId": "tk_01m453gpad0000000000000002",
+        "sprintId": "sp_01m452vt120000000000000001"
+      }
+    ]
+  },
+  "expect": [
+    {
+      "path": "carriedForwardAttemptIds",
+      "equals": [
+        "at_01m7ge55kx0000000000000001"
+      ]
+    },
+    {
+      "path": "tickets[0].carriedForward",
+      "equals": true
+    },
+    {
+      "path": "tickets[0].segments",
+      "equals": []
+    },
+    {
+      "path": "tickets[0].waitBeforeDispatch.state",
+      "equals": "missing"
+    },
+    {
+      "path": "tickets[0].leadTime.state",
+      "equals": "missing"
+    },
+    {
+      "path": "waits.queue.ms",
+      "equals": 600000,
+      "note": "only ticket 2 waited (09:00-09:10)"
+    },
+    {
+      "path": "sprints[0].waits.queue.ms",
+      "equals": 600000
+    },
+    {
+      "path": "anomalies.length",
+      "equals": 0
+    }
+  ]
+}

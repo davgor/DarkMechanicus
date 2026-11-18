@@ -43,6 +43,14 @@ export const CAPABILITIES = [
   'attempt.reconcile',
   'attempt.carry_forward',
   'report.submit',
+  // Usage of one attempt: a worker's own claimed attempt, or any attempt of a run an orchestrator owns.
+  'metrics.report',
+  // Run-level overhead (orchestration, review, verification) in the run's own bucket.
+  'metrics.report_run',
+  // A person's satisfaction rating, rescue time or escaped defect record, entered in the desktop app; never an agent's.
+  'feedback.record',
+  // Corrective work a retro asks of another project (the Dark Mechanicus source), created there through the desktop.
+  'correction.cross_repo',
   'checkpoint.approve',
   'checkpoint.advance',
   'comment.write',
@@ -82,7 +90,11 @@ export const HUMAN_ONLY_CAPABILITIES: readonly Capability[] = [
   'kanban.play',
   'kanban.review',
   // Removing a card from the board is the person's call; agents create and edit cards but never delete them.
-  'kanban.delete'
+  'kanban.delete',
+  // Human feedback is what a person said: a session that could record it could speak for them.
+  'feedback.record',
+  // Writing into another project's records is the person's act at the desktop: a repository-bound agent writes only in its own.
+  'correction.cross_repo'
 ]
 
 /** What a planner and an orchestrator both hold. */
@@ -138,7 +150,9 @@ const ORCHESTRATOR: Capability[] = [
   'checkpoint.advance',
   'kanban.launch',
   'kanban.claim',
-  'kanban.report'
+  'kanban.report',
+  'metrics.report',
+  'metrics.report_run'
 ]
 
 /** What the desktop never holds: claiming and reporting on work belong to the agents that execute it. */
@@ -154,7 +168,10 @@ const AGENT_ONLY: readonly Capability[] = [
   'host.register',
   'kanban.launch',
   'kanban.claim',
-  'kanban.report'
+  'kanban.report',
+  // Agent and host usage is reported by the sessions that did the work; human feedback is a separate desktop input.
+  'metrics.report',
+  'metrics.report_run'
 ]
 
 const DESKTOP: Capability[] = CAPABILITIES.filter((capability) => !AGENT_ONLY.includes(capability))
@@ -164,8 +181,18 @@ const ROLE_CAPABILITIES: Record<SessionRole, Capability[]> = {
   reader: ['read'],
   planner: PLANNER,
   orchestrator: ORCHESTRATOR,
-  worker: ['read', 'chat.name', 'attempt.heartbeat', 'attempt.submit', 'attempt.fail', 'comment.write', 'attachment.write', 'kanban.report'],
-  reviewer: ['read', 'chat.name', 'attempt.review', 'comment.write', 'attachment.write']
+  worker: [
+    'read',
+    'chat.name',
+    'attempt.heartbeat',
+    'attempt.submit',
+    'attempt.fail',
+    'comment.write',
+    'attachment.write',
+    'kanban.report',
+    'metrics.report'
+  ],
+  reviewer: ['read', 'chat.name', 'attempt.review', 'comment.write', 'attachment.write', 'metrics.report_run']
 }
 
 interface RoleOptions {

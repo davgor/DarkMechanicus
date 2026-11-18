@@ -1,0 +1,183 @@
+{
+  "description": "One raw usage object per provider format with the categories normalization must read (DM-173 c1). The omp sample is copied from this run's OMP 18.20.2 session; the others are composed from each provider's documented usage shape. expect.unknown lists the fields kept as raw.* attributes.",
+  "samples": [
+    {
+      "name": "anthropic-cache-apart-thinking-inside",
+      "format": "anthropic_messages",
+      "usage": {
+        "input_tokens": 3,
+        "cache_creation_input_tokens": 2048,
+        "cache_read_input_tokens": 12000,
+        "cache_creation": { "ephemeral_5m_input_tokens": 2048, "ephemeral_1h_input_tokens": 0 },
+        "output_tokens": 410,
+        "service_tier": "standard",
+        "server_tool_use": { "web_search_requests": 1 }
+      },
+      "expect": {
+        "input": 3,
+        "cachedInput": 12000,
+        "cacheWrite": 2048,
+        "output": 410,
+        "reasoning": null,
+        "total": 14461,
+        "totalBasis": "derived_disjoint",
+        "includesCachedInput": false,
+        "includesReasoning": true,
+        "unknown": ["cache_creation.ephemeral_1h_input_tokens", "cache_creation.ephemeral_5m_input_tokens", "server_tool_use.web_search_requests", "service_tier"]
+      }
+    },
+    {
+      "name": "anthropic-unknown-token-category-blocks-total",
+      "format": "anthropic_messages",
+      "usage": { "input_tokens": 10, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 500, "output_tokens": 40, "audio_input_tokens": 25 },
+      "expect": {
+        "input": 10,
+        "cachedInput": 500,
+        "cacheWrite": 0,
+        "output": 40,
+        "reasoning": null,
+        "total": null,
+        "totalBasis": null,
+        "includesCachedInput": false,
+        "includesReasoning": true,
+        "unknown": ["audio_input_tokens"]
+      }
+    },
+    {
+      "name": "openai-chat-cached-and-reasoning-subsets",
+      "format": "openai_chat",
+      "usage": {
+        "prompt_tokens": 1200,
+        "completion_tokens": 300,
+        "total_tokens": 1500,
+        "prompt_tokens_details": { "cached_tokens": 1024, "audio_tokens": 0 },
+        "completion_tokens_details": { "reasoning_tokens": 192, "audio_tokens": 0, "accepted_prediction_tokens": 0, "rejected_prediction_tokens": 0 }
+      },
+      "expect": {
+        "input": 1200,
+        "cachedInput": 1024,
+        "cacheWrite": null,
+        "output": 300,
+        "reasoning": 192,
+        "total": 1500,
+        "totalBasis": "reported",
+        "includesCachedInput": true,
+        "includesReasoning": true,
+        "unknown": [
+          "completion_tokens_details.accepted_prediction_tokens",
+          "completion_tokens_details.audio_tokens",
+          "completion_tokens_details.rejected_prediction_tokens",
+          "prompt_tokens_details.audio_tokens"
+        ]
+      }
+    },
+    {
+      "name": "openai-responses-cached-and-reasoning-subsets",
+      "format": "openai_responses",
+      "usage": {
+        "input_tokens": 5000,
+        "input_tokens_details": { "cached_tokens": 4096 },
+        "output_tokens": 900,
+        "output_tokens_details": { "reasoning_tokens": 640 },
+        "total_tokens": 5900
+      },
+      "expect": {
+        "input": 5000,
+        "cachedInput": 4096,
+        "cacheWrite": null,
+        "output": 900,
+        "reasoning": 640,
+        "total": 5900,
+        "totalBasis": "reported",
+        "includesCachedInput": true,
+        "includesReasoning": true,
+        "unknown": []
+      }
+    },
+    {
+      "name": "gemini-thoughts-apart-from-candidates",
+      "format": "gemini",
+      "usage": {
+        "promptTokenCount": 4000,
+        "cachedContentTokenCount": 2048,
+        "candidatesTokenCount": 350,
+        "thoughtsTokenCount": 1200,
+        "toolUsePromptTokenCount": 100,
+        "totalTokenCount": 5650,
+        "promptTokensDetails": [{ "modality": "TEXT", "tokenCount": 4000 }]
+      },
+      "expect": {
+        "input": 4000,
+        "cachedInput": 2048,
+        "cacheWrite": null,
+        "output": 350,
+        "reasoning": 1200,
+        "total": 5650,
+        "totalBasis": "reported",
+        "includesCachedInput": true,
+        "includesReasoning": false,
+        "unknown": ["promptTokensDetails.0.modality", "promptTokensDetails.0.tokenCount", "toolUsePromptTokenCount"]
+      }
+    },
+    {
+      "name": "codex-token-usage",
+      "format": "codex",
+      "usage": { "input_tokens": 25200, "cached_input_tokens": 11904, "output_tokens": 1500, "reasoning_output_tokens": 896, "total_tokens": 26700 },
+      "expect": {
+        "input": 25200,
+        "cachedInput": 11904,
+        "cacheWrite": null,
+        "output": 1500,
+        "reasoning": 896,
+        "total": 26700,
+        "totalBasis": "reported",
+        "includesCachedInput": true,
+        "includesReasoning": true,
+        "unknown": []
+      }
+    },
+    {
+      "name": "omp-recorded",
+      "format": "omp",
+      "usage": {
+        "input": 2,
+        "output": 11998,
+        "cacheRead": 49582,
+        "cacheWrite": 21447,
+        "totalTokens": 83029,
+        "cost": { "input": 0.000016, "output": 0.47992, "cacheRead": 0.0099164, "cacheWrite": 0.34315199999999996, "total": 0.8330044 },
+        "cttl": { "ephemeral1h": 21447 }
+      },
+      "expect": {
+        "input": 2,
+        "cachedInput": 49582,
+        "cacheWrite": 21447,
+        "output": 11998,
+        "reasoning": null,
+        "total": 83029,
+        "totalBasis": "reported",
+        "listPriceUsd": 0.8330044,
+        "includesCachedInput": false,
+        "includesReasoning": true,
+        "unknown": ["cttl.ephemeral1h"]
+      }
+    },
+    {
+      "name": "malformed-count-stays-raw",
+      "format": "openai_chat",
+      "usage": { "prompt_tokens": -5, "completion_tokens": 20.5, "total_tokens": 15 },
+      "expect": {
+        "input": null,
+        "cachedInput": null,
+        "cacheWrite": null,
+        "output": null,
+        "reasoning": null,
+        "total": 15,
+        "totalBasis": "reported",
+        "includesCachedInput": true,
+        "includesReasoning": true,
+        "unknown": ["completion_tokens", "prompt_tokens"]
+      }
+    }
+  ]
+}

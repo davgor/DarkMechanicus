@@ -3,14 +3,15 @@
  *
  * A retro is what the reporter writes about the sprint: what was delivered and how to see it, what went
  * well and poorly, the process changes for the next sprint, the work discovered, the required work left
- * over, and whether each developer was sized right. It is stored inside the report, so it is part of the
- * report's content hash. Its `ticket` fields are written as a ticket id or display key and stored as the
- * stable id.
+ * over, and whether each developer was sized right. It may also carry structured improvement experiments (see
+ * `./experiments`). It is stored inside the report, so it is part of the report's content hash. Its `ticket` fields
+ * are written as a ticket id or display key and stored as the stable id.
  *
  * Tier facts are not written by anyone. The server computes them from the run's attempts whenever a report
  * is read, so they are never stored and never change the content hash.
  */
 import type { ReasoningEffort, ReasoningLevel, TicketSize } from './bundle'
+import type { RetroExperiment, RetroExperimentInput } from './experiments'
 import type { AttemptState } from './status'
 
 /** Whether the model and effort a ticket got matched what it needed, as the reporter judges it. */
@@ -43,16 +44,21 @@ export interface RetroTierFit {
   note: string
 }
 
-/** A retro as stored and read: every list present, every ticket a stable id. */
+/**
+ * A retro as stored and read: every list present, every ticket a stable id. `experiments` is present only when the
+ * retro has at least one, so a retro written before experiments (or without any) keeps its serialized bytes and hash.
+ */
 export interface SprintRetro {
   delivered: RetroDelivered[]
   wentWell: string[]
   wentPoorly: string[]
-  /** Process changes for the next sprint. */
+  /** Process changes for the next sprint, as prose. */
   actions: string[]
   discoveries: RetroDiscovery[]
   leftovers: RetroLeftover[]
   tierFit: RetroTierFit[]
+  /** Structured improvement experiments linked to a frozen scorecard; never an empty list. */
+  experiments?: RetroExperiment[]
 }
 
 /** A retro as a reporter writes it: every list optional, tickets by id or display key. */
@@ -64,6 +70,7 @@ export interface SprintRetroInput {
   discoveries?: { title: string; body?: string; ticket?: string | null }[]
   leftovers?: { ticket: string; reason: string }[]
   tierFit?: { ticket: string; verdict: TierVerdict; note?: string }[]
+  experiments?: RetroExperimentInput[]
 }
 
 /** One work attempt on a ticket: the model and effort its worker recorded. */

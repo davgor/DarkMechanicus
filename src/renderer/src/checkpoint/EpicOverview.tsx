@@ -1,10 +1,13 @@
 import '../epic/tones.css'
 import './checkpoint.css'
-import type { EpicDetailView, RunView } from '../../../shared/domain/views'
+import type { EpicDetailView, RunView, SprintReportView } from '../../../shared/domain/views'
 import type { OverviewData } from '../epic/workspaceState'
 import { Markdown } from '../markdown/Markdown'
-import { SprintReport } from './CheckpointScreen'
+import { hasImprovement, SprintReport } from './CheckpointScreen'
+import type { CorrectionHost } from './CorrectivePlanner'
 import { overviewView, type OverviewView } from './overviewView'
+import type { ReportScoreSource } from './ReportScorecard'
+import type { ScorecardTarget } from './reportScorecardView'
 
 interface EpicOverviewProps {
   epic: EpicDetailView
@@ -12,6 +15,13 @@ interface EpicOverviewProps {
   run: RunView
   overview: OverviewData
   now: number
+  /** Where each report's Scorecard tab reads (the folder, timers and the workspace's reload version). */
+  scores: ReportScoreSource
+  /**
+   * Previews and creates corrective work for a report's experiments, in a follow-up epic of the completed one (never
+   * in it); absent, each Improvement tab is read-only.
+   */
+  corrections?: CorrectionHost
   onSelectTicket(ticketId: string): void
 }
 
@@ -42,9 +52,15 @@ function Outcome({ view }: { view: OverviewView }): JSX.Element {
   )
 }
 
+/** A history report's scorecard: pinned to the revision shown, a snapshot the run has since passed. */
+function historyTarget(report: SprintReportView): ScorecardTarget {
+  return { runId: report.runId, sprintId: report.sprintId, report: { reportId: report.id, reportRevision: report.reportRevision, standing: 'historical' } }
+}
+
 /**
- * A completed epic's overview: every sprint report beside the recorded outcome. Read-only: it takes
- * no approve, retry, follow-up or draft handlers, so it offers none of those controls.
+ * A completed epic's overview: every sprint report, each with its Scorecard and Improvement tabs, beside the recorded
+ * outcome. The epic itself stays read-only: it takes no approve, retry, follow-up or draft handlers, so it offers none of
+ * those controls; corrective work it asks for goes into a follow-up epic's draft.
  */
 export function EpicOverview(props: EpicOverviewProps): JSX.Element {
   const view = overviewView(props)
@@ -52,9 +68,24 @@ export function EpicOverview(props: EpicOverviewProps): JSX.Element {
     <div className="cp" aria-label="Epic overview">
       <div className="cp-report">
         {view.reports.length === 0 ? <p className="ew-muted">No sprint reports were recorded for this run.</p> : null}
-        {view.reports.map((item) => (
-          <SprintReport key={item.id} label={item.label} report={item.sections} onSelectTicket={props.onSelectTicket} />
-        ))}
+        {view.reports.map((item, index) => {
+          // overviewView maps overview.reports one to one, in order: each item's own report is at its index.
+          const source = props.overview.reports[index]
+          return (
+            <SprintReport
+              key={item.id}
+              label={item.label}
+              report={item.sections}
+              scorecard={{ source: props.scores, target: historyTarget(source), run: props.run, bundle: props.overview.bundle }}
+              onSelectTicket={props.onSelectTicket}
+              improvement={
+                hasImprovement(source)
+                  ? { report: source, epicTitle: props.epic.title, epicCompleted: props.epic.status === 'completed', corrections: props.corrections }
+                  : undefined
+              }
+            />
+          )
+        })}
       </div>
       <Outcome view={view} />
     </div>

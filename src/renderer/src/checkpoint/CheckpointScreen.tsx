@@ -2,7 +2,7 @@ import '../epic/tones.css'
 import './checkpoint.css'
 import { useState } from 'react'
 import type { PlanBundle } from '../../../shared/domain/bundle'
-import type { CheckpointView, FollowUpProposal, PlanView, RunView } from '../../../shared/domain/views'
+import type { CheckpointView, FollowUpProposal, PlanView, RunView, SprintReportView } from '../../../shared/domain/views'
 import { Markdown } from '../markdown/Markdown'
 import {
   gateView,
@@ -18,7 +18,12 @@ import {
 } from './gateView'
 import { RedraftSection, RefusalAlert } from './RedraftSection'
 import { redraftPanel, type RedraftRefusal } from './redraftView'
+import { ReportScorecard, type ReportScoreSource } from './ReportScorecard'
+import type { ScorecardTarget } from './reportScorecardView'
+import { ReportImprovement, type ImprovementProps } from './ReportImprovement'
+import { ReportTabs } from './ReportTabs'
 import { Retro, type NextSprintActions } from './RetroSections'
+import type { CorrectionHost } from './CorrectivePlanner'
 import { TicketKey } from './TicketKey'
 
 export interface CheckpointScreenProps {
@@ -38,6 +43,10 @@ export interface CheckpointScreenProps {
   /** Puts a follow-up, a retro discovery or a retro leftover into the draft's next sprint. */
   onAddFollowUp(item: NextSprintItem): Promise<boolean>
   onEditDraft(): void
+  /** Where the report's Scorecard tab reads (the folder, timers and the workspace's reload version). */
+  scores: ReportScoreSource
+  /** Previews and creates the retro's corrective work as draft work; absent, the Improvement tab is read-only. */
+  corrections?: CorrectionHost
   onSelectTicket(ticketId: string): void
 }
 
@@ -254,6 +263,15 @@ interface SprintReportProps {
    */
   followUps?: NextSprintActions
   onSelectTicket(ticketId: string): void
+  /** What the report's Scorecard tab reads: the report revision it is pinned to, in its run and plan. */
+  scorecard: { source: ReportScoreSource; target: ScorecardTarget; run: RunView; bundle: PlanBundle | null }
+  /** The report's Improvement tab (a measured report, or one with a retro): the report it chains and who may plan its corrective work. */
+  improvement?: Pick<ImprovementProps, 'report' | 'epicTitle' | 'epicCompleted' | 'corrections'>
+}
+
+/** A report has an Improvement tab when it was measured (its findings) or carries a retro (its experiments). */
+export function hasImprovement(report: SprintReportView): boolean {
+  return report.scorecard !== undefined || report.report.retro !== null
 }
 
 /** The files and commits the sprint changed, one row each in the same layout as the ticket rows. */
@@ -280,39 +298,61 @@ function Changes(props: { changes: ReportSections['changes'] }): JSX.Element | n
   )
 }
 
-/** One sprint report, shared by the checkpoint review and the completed epic's overview. */
+/** One sprint report, shared by the checkpoint review and the completed epic's overview: the report and its Scorecard. */
 export function SprintReport(props: SprintReportProps): JSX.Element {
-  const { report } = props
+  const { report, scorecard } = props
   return (
     <article className="cp-report" aria-label={props.label}>
       <span className="ew-eyebrow">{report.header}</span>
-      <Markdown source={report.summary} className="cp-summary" />
-      <Retro retro={report.retro} actions={props.followUps} onSelectTicket={props.onSelectTicket} />
-      <Rows title="ACCEPTED" rows={report.accepted} failed={false} onSelect={props.onSelectTicket} />
-      <Rows title="FAILED" rows={report.failed} failed onSelect={props.onSelectTicket} />
-      <Rows title="BLOCKED" rows={report.blocked} failed={false} onSelect={props.onSelectTicket} />
-      {report.increments.map((increment) => (
-        <Increment key={increment.repo ?? ''} increment={increment} />
-      ))}
-      <Changes changes={report.changes} />
-      <Checks report={report} />
-      <Criteria title="EXIT CRITERIA" lines={report.exitCriteria} />
-      <EpicOutcome outcome={report.outcome} />
-      <FollowUps proposals={report.followUps} adder={props.followUps} />
-      <Risks risks={report.risks} />
+      <ReportTabs
+        label={props.label}
+        report={
+          <>
+            <Markdown source={report.summary} className="cp-summary" />
+            <Retro retro={report.retro} actions={props.followUps} onSelectTicket={props.onSelectTicket} />
+            <Rows title="ACCEPTED" rows={report.accepted} failed={false} onSelect={props.onSelectTicket} />
+            <Rows title="FAILED" rows={report.failed} failed onSelect={props.onSelectTicket} />
+            <Rows title="BLOCKED" rows={report.blocked} failed={false} onSelect={props.onSelectTicket} />
+            {report.increments.map((increment) => (
+              <Increment key={increment.repo ?? ''} increment={increment} />
+            ))}
+            <Changes changes={report.changes} />
+            <Checks report={report} />
+            <Criteria title="EXIT CRITERIA" lines={report.exitCriteria} />
+            <EpicOutcome outcome={report.outcome} />
+            <FollowUps proposals={report.followUps} adder={props.followUps} />
+            <Risks risks={report.risks} />
+          </>
+        }
+        scorecard={<ReportScorecard {...scorecard} onSelectTicket={props.onSelectTicket} />}
+        improvement={
+          props.improvement === undefined ? undefined : (
+            <ReportImprovement {...props.improvement} run={scorecard.run} bundle={scorecard.bundle} source={scorecard.source} onSelectTicket={props.onSelectTicket} />
+          )
+        }
+      />
     </article>
   )
 }
 
 function Report(props: CheckpointScreenProps): JSX.Element {
   const source = props.checkpoint.report
+  const scorecard = { source: props.scores, run: props.run, bundle: props.bundle }
   if (source === null) {
+    // Nothing is frozen before the report: its Scorecard is the sprint's live, provisional grade.
+    const target: ScorecardTarget = { runId: props.checkpoint.runId, sprintId: props.checkpoint.sprintId, report: null }
     return (
       <article className="cp-report" aria-label="Sprint report">
-        <p className="ew-muted">No sprint report yet. The orchestrator writes it when the sprint&apos;s required work is done.</p>
+        <ReportTabs
+          label="Sprint report"
+          report={<p className="ew-muted">No sprint report yet. The orchestrator writes it when the sprint&apos;s required work is done.</p>}
+          scorecard={<ReportScorecard {...scorecard} target={target} onSelectTicket={props.onSelectTicket} />}
+        />
       </article>
     )
   }
+  const standing = props.checkpoint.approval?.valid === true ? 'approved' : 'awaiting_approval'
+  const target: ScorecardTarget = { runId: source.runId, sprintId: source.sprintId, report: { reportId: source.id, reportRevision: source.reportRevision, standing } }
   return (
     <SprintReport
       label="Sprint report"
@@ -323,6 +363,8 @@ function Report(props: CheckpointScreenProps): JSX.Element {
         checkpointOrdinal: props.checkpoint.sprintOrdinal,
         onAdd: props.onAddFollowUp
       }}
+      scorecard={{ ...scorecard, target }}
+      improvement={hasImprovement(source) ? { report: source, epicTitle: props.bundle?.epic.title ?? '', epicCompleted: false, corrections: props.corrections } : undefined}
       onSelectTicket={props.onSelectTicket}
     />
   )

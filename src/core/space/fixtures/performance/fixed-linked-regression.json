@@ -1,0 +1,473 @@
+{
+  "name": "fixed-linked-regression",
+  "description": "A verified ticket with one regression reported twice (shared key GH-7), confirmed as attributed and high, then fixed by a later ticket: it counts once and stays charged after the fix. A withdrawn report and a report stored after the cutoff are left out.",
+  "facts": {
+    "runId": "rn_01m7gf00000000000000000001",
+    "ticketId": "tk_01m453gpad0000000000000001",
+    "attempts": [
+      {
+        "attemptId": "at_01m7ge55kx0000000000000001",
+        "number": 1,
+        "kind": "work",
+        "state": "accepted",
+        "createdAt": "2026-11-01T10:00:00.000Z",
+        "reconciledAt": null,
+        "endedAt": null,
+        "retryLimit": 3,
+        "submittedAt": "2026-11-01T10:08:00.000Z",
+        "decidedAt": "2026-11-01T10:20:00.000Z",
+        "supersededAt": null,
+        "evidence": {
+          "checks": [
+            {
+              "name": "typecheck",
+              "status": "passed",
+              "detail": "ok"
+            },
+            {
+              "name": "npm test",
+              "status": "passed",
+              "detail": "412 passed"
+            }
+          ],
+          "criteria": [
+            {
+              "criterionId": "c1",
+              "met": true,
+              "note": "reran"
+            },
+            {
+              "criterionId": "c2",
+              "met": true,
+              "note": "read the docs"
+            }
+          ],
+          "notes": ""
+        },
+        "decision": {
+          "outcome": "accepted",
+          "notes": "reran the checks",
+          "reasons": [],
+          "decidedBy": "reviewer",
+          "criteria": [
+            {
+              "criterionId": "c1",
+              "met": true,
+              "note": "reran"
+            },
+            {
+              "criterionId": "c2",
+              "met": true,
+              "note": "read the docs"
+            }
+          ]
+        },
+        "criteria": [
+          "c1",
+          "c2"
+        ]
+      }
+    ],
+    "retryGrants": [],
+    "grantsKnown": true,
+    "runEnded": null,
+    "cutoff": "2026-11-05T00:00:00.000Z"
+  },
+  "defects": [
+    {
+      "observationId": "mo_01m7gh00000000000000000010",
+      "metric": "escaped_defect",
+      "unit": "count",
+      "scope": {
+        "level": "epic",
+        "epicId": "ep_01m452vt110000000000000001",
+        "sprintId": null,
+        "runId": null,
+        "ticketId": null,
+        "attemptId": null
+      },
+      "source": {
+        "kind": "human",
+        "actor": "desktop"
+      },
+      "measurement": {
+        "state": "observed",
+        "value": 1
+      },
+      "accumulation": "event",
+      "sequence": null,
+      "observedAt": "2026-11-03T09:00:00.000Z",
+      "recordedAt": "2026-11-03T09:00:00.000Z",
+      "attributes": {
+        "defectEvent": "report",
+        "severity": "medium",
+        "attribution": "candidate",
+        "discoveryPhase": "sprint_review",
+        "defectKey": "GH-7"
+      },
+      "evidence": [
+        {
+          "kind": "commit",
+          "id": "0a1b2c3d4e5f60718293a4b5c6d7e8f901234567",
+          "detail": "source build"
+        },
+        {
+          "kind": "ticket",
+          "id": "tk_01m453gpad0000000000000001",
+          "detail": "origin"
+        }
+      ]
+    },
+    {
+      "observationId": "mo_01m7gh00000000000000000011",
+      "metric": "escaped_defect",
+      "unit": "count",
+      "scope": {
+        "level": "attempt",
+        "epicId": "ep_01m452vt110000000000000001",
+        "sprintId": "sp_01m452vt120000000000000001",
+        "runId": "rn_01m7gf00000000000000000001",
+        "ticketId": "tk_01m453gpad0000000000000003",
+        "attemptId": "at_01m7ge55kx0000000000000003"
+      },
+      "source": {
+        "kind": "agent",
+        "actor": "worker-3"
+      },
+      "measurement": {
+        "state": "observed",
+        "value": 1
+      },
+      "accumulation": "event",
+      "sequence": null,
+      "observedAt": "2026-11-03T09:30:00.000Z",
+      "recordedAt": "2026-11-03T09:30:00.000Z",
+      "attributes": {
+        "defectEvent": "report",
+        "severity": "medium",
+        "attribution": "candidate",
+        "discoveryPhase": "integration",
+        "defectKey": "GH-7"
+      },
+      "evidence": [
+        {
+          "kind": "commit",
+          "id": "0a1b2c3d4e5f60718293a4b5c6d7e8f901234567",
+          "detail": "source build"
+        },
+        {
+          "kind": "ticket",
+          "id": "tk_01m453gpad0000000000000001",
+          "detail": "origin"
+        }
+      ]
+    },
+    {
+      "observationId": "mo_01m7gh00000000000000000012",
+      "metric": "escaped_defect",
+      "unit": "count",
+      "scope": {
+        "level": "epic",
+        "epicId": "ep_01m452vt110000000000000001",
+        "sprintId": null,
+        "runId": null,
+        "ticketId": null,
+        "attemptId": null
+      },
+      "source": {
+        "kind": "human",
+        "actor": "desktop"
+      },
+      "measurement": {
+        "state": "observed",
+        "value": 0
+      },
+      "accumulation": "event",
+      "sequence": null,
+      "observedAt": "2026-11-03T12:00:00.000Z",
+      "recordedAt": "2026-11-03T12:00:00.000Z",
+      "attributes": {
+        "defectEvent": "reassessment",
+        "attribution": "attributed",
+        "severity": "high"
+      },
+      "evidence": [
+        {
+          "kind": "observation",
+          "id": "mo_01m7gh00000000000000000011",
+          "detail": "defect"
+        },
+        {
+          "kind": "ticket",
+          "id": "tk_01m453gpad0000000000000001",
+          "detail": "origin"
+        },
+        {
+          "kind": "attempt",
+          "id": "at_01m7ge55kx0000000000000001",
+          "detail": "origin"
+        }
+      ]
+    },
+    {
+      "observationId": "mo_01m7gh00000000000000000013",
+      "metric": "escaped_defect",
+      "unit": "count",
+      "scope": {
+        "level": "epic",
+        "epicId": "ep_01m452vt110000000000000001",
+        "sprintId": null,
+        "runId": null,
+        "ticketId": null,
+        "attemptId": null
+      },
+      "source": {
+        "kind": "human",
+        "actor": "desktop"
+      },
+      "measurement": {
+        "state": "observed",
+        "value": 0
+      },
+      "accumulation": "event",
+      "sequence": null,
+      "observedAt": "2026-11-04T08:00:00.000Z",
+      "recordedAt": "2026-11-04T08:00:00.000Z",
+      "attributes": {
+        "defectEvent": "fix"
+      },
+      "evidence": [
+        {
+          "kind": "observation",
+          "id": "mo_01m7gh00000000000000000010",
+          "detail": "defect"
+        },
+        {
+          "kind": "commit",
+          "id": "1b2c3d4e5f60718293a4b5c6d7e8f9012345678a",
+          "detail": "fixed by"
+        },
+        {
+          "kind": "ticket",
+          "id": "tk_01m453gpad0000000000000003",
+          "detail": "fixed by"
+        }
+      ]
+    },
+    {
+      "observationId": "mo_01m7gh00000000000000000014",
+      "metric": "escaped_defect",
+      "unit": "count",
+      "scope": {
+        "level": "epic",
+        "epicId": "ep_01m452vt110000000000000001",
+        "sprintId": null,
+        "runId": null,
+        "ticketId": null,
+        "attemptId": null
+      },
+      "source": {
+        "kind": "human",
+        "actor": "desktop"
+      },
+      "measurement": {
+        "state": "observed",
+        "value": 1
+      },
+      "accumulation": "event",
+      "sequence": null,
+      "observedAt": "2026-11-04T09:00:00.000Z",
+      "recordedAt": "2026-11-04T09:00:00.000Z",
+      "attributes": {
+        "defectEvent": "report",
+        "severity": "low",
+        "attribution": "attributed",
+        "discoveryPhase": "sprint_review"
+      },
+      "evidence": [
+        {
+          "kind": "commit",
+          "id": "0a1b2c3d4e5f60718293a4b5c6d7e8f901234567",
+          "detail": "source build"
+        },
+        {
+          "kind": "ticket",
+          "id": "tk_01m453gpad0000000000000001",
+          "detail": "origin"
+        },
+        {
+          "kind": "attempt",
+          "id": "at_01m7ge55kx0000000000000001",
+          "detail": "origin"
+        }
+      ]
+    },
+    {
+      "observationId": "mo_01m7gh00000000000000000015",
+      "metric": "escaped_defect",
+      "unit": "count",
+      "scope": {
+        "level": "epic",
+        "epicId": "ep_01m452vt110000000000000001",
+        "sprintId": null,
+        "runId": null,
+        "ticketId": null,
+        "attemptId": null
+      },
+      "source": {
+        "kind": "human",
+        "actor": "desktop"
+      },
+      "measurement": {
+        "state": "observed",
+        "value": 0
+      },
+      "accumulation": "event",
+      "sequence": null,
+      "observedAt": "2026-11-04T09:30:00.000Z",
+      "recordedAt": "2026-11-04T09:30:00.000Z",
+      "attributes": {
+        "defectEvent": "withdrawal"
+      },
+      "evidence": [
+        {
+          "kind": "observation",
+          "id": "mo_01m7gh00000000000000000014",
+          "detail": "defect"
+        }
+      ]
+    },
+    {
+      "observationId": "mo_01m7gh00000000000000000016",
+      "metric": "escaped_defect",
+      "unit": "count",
+      "scope": {
+        "level": "epic",
+        "epicId": "ep_01m452vt110000000000000001",
+        "sprintId": null,
+        "runId": null,
+        "ticketId": null,
+        "attemptId": null
+      },
+      "source": {
+        "kind": "human",
+        "actor": "desktop"
+      },
+      "measurement": {
+        "state": "observed",
+        "value": 1
+      },
+      "accumulation": "event",
+      "sequence": null,
+      "observedAt": "2026-11-06T09:00:00.000Z",
+      "recordedAt": "2026-11-06T09:00:00.000Z",
+      "attributes": {
+        "defectEvent": "report",
+        "severity": "critical",
+        "attribution": "attributed",
+        "discoveryPhase": "after_epic"
+      },
+      "evidence": [
+        {
+          "kind": "commit",
+          "id": "0a1b2c3d4e5f60718293a4b5c6d7e8f901234567",
+          "detail": "source build"
+        },
+        {
+          "kind": "ticket",
+          "id": "tk_01m453gpad0000000000000001",
+          "detail": "origin"
+        },
+        {
+          "kind": "attempt",
+          "id": "at_01m7ge55kx0000000000000001",
+          "detail": "origin"
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "verification": {
+      "state": "verified",
+      "reason": "reviewed",
+      "items": [
+        {
+          "kind": "criterion",
+          "id": "c1",
+          "required": true,
+          "basis": "reviewer_checked",
+          "result": "passed"
+        },
+        {
+          "kind": "criterion",
+          "id": "c2",
+          "required": true,
+          "basis": "reviewer_checked",
+          "result": "passed"
+        },
+        {
+          "kind": "check",
+          "id": "typecheck",
+          "required": false,
+          "basis": "reviewer_checked",
+          "result": "passed"
+        },
+        {
+          "kind": "check",
+          "id": "npm test",
+          "required": false,
+          "basis": "reviewer_checked",
+          "result": "passed"
+        }
+      ]
+    },
+    "performance": {
+      "verification": {
+        "state": "verified",
+        "evidence": [
+          {
+            "kind": "attempt",
+            "id": "at_01m7ge55kx0000000000000001",
+            "detail": "accepted"
+          },
+          {
+            "kind": "criterion",
+            "id": "tk_01m453gpad0000000000000001",
+            "detail": "c1"
+          },
+          {
+            "kind": "criterion",
+            "id": "tk_01m453gpad0000000000000001",
+            "detail": "c2"
+          },
+          {
+            "kind": "check",
+            "id": "at_01m7ge55kx0000000000000001",
+            "detail": "typecheck"
+          },
+          {
+            "kind": "check",
+            "id": "at_01m7ge55kx0000000000000001",
+            "detail": "npm test"
+          }
+        ]
+      },
+      "regressions": [
+        {
+          "observationId": "mo_01m7gh00000000000000000010",
+          "severity": "high",
+          "attribution": "attributed"
+        }
+      ]
+    },
+    "regressions": [
+      {
+        "defectId": "mo_01m7gh00000000000000000010",
+        "severity": "high",
+        "attribution": "attributed",
+        "status": "fixed",
+        "charge": "charged"
+      }
+    ]
+  }
+}

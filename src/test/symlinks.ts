@@ -8,11 +8,13 @@ let probed: boolean | undefined
 
 /**
  * True when a file symlink can be created here. Windows accounts without symlink rights get EPERM, so tests that
- * need one skip there. CI (GitHub sets CI=true) always runs them, so a missing privilege fails there instead of
- * skipping silently. The probe runs once per process.
+ * need one skip there. GitHub Actions (GITHUB_ACTIONS=true) always runs them, so a missing privilege fails there
+ * instead of skipping silently. A bare CI=true is not enough: agent and tool shells export it on machines without
+ * symlink rights, where forcing the cases only turns a missing privilege into EPERM failures. The probe runs once
+ * per process.
  */
 export function canCreateFileSymlinks(): boolean {
-  if (process.env.CI) {
+  if (process.env.GITHUB_ACTIONS === 'true') {
     return true
   }
   if (probed === undefined) {

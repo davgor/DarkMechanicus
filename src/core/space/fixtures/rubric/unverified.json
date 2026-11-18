@@ -1,0 +1,469 @@
+{
+  "name": "unverified",
+  "description": "Unverified: cheap and fast with every criterion claimed, but no reviewed evidence; ungraded, never an A.",
+  "policy": "dm-space v1",
+  "input": {
+    "subject": {
+      "level": "ticket",
+      "id": "tk_01m453gpad0000000000000001"
+    },
+    "cutoff": "2026-11-02T00:00:00.000Z",
+    "dispatchedAt": "2026-11-01T10:00:00.000Z",
+    "components": {
+      "S": {
+        "ticketRating": null,
+        "sprintRating": null
+      },
+      "P": {
+        "verification": {
+          "state": "missing",
+          "evidence": [
+            {
+              "kind": "attempt",
+              "id": "at_01m7ge55kx0000000000000002",
+              "detail": "worker claims only; no review"
+            }
+          ]
+        },
+        "regressions": []
+      },
+      "A": {
+        "committed": 4,
+        "delivered": 4,
+        "added": 0,
+        "removed": 0,
+        "activity": {
+          "attempts": 1,
+          "commits": 1,
+          "changedLines": 35
+        },
+        "evidence": []
+      },
+      "C": {
+        "handoffChecks": {
+          "passed": 1,
+          "failed": 0
+        },
+        "coordinationDefects": 0,
+        "evidence": []
+      },
+      "E": {
+        "correctiveMs": {
+          "state": "observed",
+          "value": 0
+        },
+        "productiveMs": {
+          "state": "observed",
+          "value": 1200000
+        },
+        "unclassifiedMs": {
+          "state": "observed",
+          "value": 0
+        },
+        "retries": 0,
+        "evidence": []
+      },
+      "T": {
+        "actual": {
+          "state": "observed",
+          "value": 1200000
+        },
+        "unreportedAttempts": 0,
+        "baseline": {
+          "state": "selected",
+          "baseline": {
+            "baselineId": "bl_01m7g000000000000000000003",
+            "kind": "budget",
+            "metric": "active_ms",
+            "unit": "milliseconds",
+            "ticketId": "tk_01m453gpad0000000000000001",
+            "revisionId": "rv_01m65yene30000000000000001",
+            "version": 1,
+            "value": 3600000,
+            "frozenAt": "2026-10-31T12:00:00.000Z"
+          },
+          "rejected": [
+            {
+              "baselineId": "bl_01m7g000000000000000000001",
+              "reason": "metric_mismatch"
+            },
+            {
+              "baselineId": "bl_01m7g000000000000000000002",
+              "reason": "metric_mismatch"
+            },
+            {
+              "baselineId": "bl_01m7g000000000000000000004",
+              "reason": "metric_mismatch"
+            },
+            {
+              "baselineId": "bl_01m7g000000000000000000005",
+              "reason": "metric_mismatch"
+            },
+            {
+              "baselineId": "bl_01m7g000000000000000000006",
+              "reason": "sample_too_small"
+            },
+            {
+              "baselineId": "bl_01m7g000000000000000000007",
+              "reason": "metric_mismatch"
+            },
+            {
+              "baselineId": "bl_01m7g000000000000000000008",
+              "reason": "metric_mismatch"
+            }
+          ]
+        },
+        "evidence": []
+      },
+      "K": {
+        "actual": {
+          "state": "observed",
+          "value": 40000
+        },
+        "unreportedAttempts": 0,
+        "baseline": {
+          "state": "selected",
+          "baseline": {
+            "baselineId": "bl_01m7g000000000000000000001",
+            "kind": "budget",
+            "metric": "tokens",
+            "unit": "tokens",
+            "ticketId": "tk_01m453gpad0000000000000001",
+            "revisionId": "rv_01m65yene30000000000000001",
+            "version": 1,
+            "value": 200000,
+            "frozenAt": "2026-10-31T12:00:00.000Z"
+          },
+          "rejected": [
+            {
+              "baselineId": "bl_01m7g000000000000000000002",
+              "reason": "frozen_after_dispatch"
+            },
+            {
+              "baselineId": "bl_01m7g000000000000000000003",
+              "reason": "metric_mismatch"
+            },
+            {
+              "baselineId": "bl_01m7g000000000000000000004",
+              "reason": "superseded"
+            },
+            {
+              "baselineId": "bl_01m7g000000000000000000005",
+              "reason": "cohort_mismatch"
+            },
+            {
+              "baselineId": "bl_01m7g000000000000000000006",
+              "reason": "metric_mismatch"
+            },
+            {
+              "baselineId": "bl_01m7g000000000000000000007",
+              "reason": "other_ticket"
+            },
+            {
+              "baselineId": "bl_01m7g000000000000000000008",
+              "reason": "superseded"
+            }
+          ]
+        },
+        "evidence": []
+      }
+    }
+  },
+  "expected": {
+    "assessmentId": null,
+    "policy": {
+      "policyId": "dm-space",
+      "version": 1,
+      "hash": "sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79"
+    },
+    "subject": {
+      "level": "ticket",
+      "id": "tk_01m453gpad0000000000000001"
+    },
+    "cutoff": "2026-11-02T00:00:00.000Z",
+    "dispatchedAt": "2026-11-01T10:00:00.000Z",
+    "inputHash": "sha256:967f36674d954956b70643156963408e734f31e46b3f5edb1b3f24dc55424c51",
+    "status": "ungraded",
+    "outcome": "unverified",
+    "statusReasons": [
+      "verification_missing"
+    ],
+    "score": null,
+    "uncappedScore": null,
+    "displayScore": null,
+    "letter": null,
+    "coverage": 0.7142857142857143,
+    "scoredComponents": 5,
+    "caps": [],
+    "components": [
+      {
+        "component": "S",
+        "state": "missing",
+        "required": false,
+        "score": null,
+        "baseWeight": 0.14285714285714285,
+        "effectiveWeight": 0,
+        "rule": "S.rating.v1",
+        "missingReason": "no_rating",
+        "inherited": false,
+        "inputs": {
+          "ticketRating": null,
+          "sprintRating": null
+        },
+        "diagnostics": {},
+        "evidence": [],
+        "explanation": {
+          "normalization": "no score: no rating a person gave or shared with this subject",
+          "cutoff": "2026-11-02T00:00:00.000Z",
+          "baseline": null,
+          "caps": []
+        }
+      },
+      {
+        "component": "P",
+        "state": "missing",
+        "required": true,
+        "score": null,
+        "baseWeight": 0.14285714285714285,
+        "effectiveWeight": 0,
+        "rule": "P.verified-less-regressions.v1",
+        "missingReason": "verification_missing",
+        "inherited": false,
+        "inputs": {
+          "verification": "missing",
+          "attributedRegressions": 0,
+          "regressionPenalty": 0
+        },
+        "diagnostics": {
+          "unassignedRegressions": 0
+        },
+        "evidence": [
+          {
+            "kind": "attempt",
+            "id": "at_01m7ge55kx0000000000000002",
+            "detail": "worker claims only; no review"
+          }
+        ],
+        "explanation": {
+          "normalization": "no score: required verification is missing (no reviewed evidence)",
+          "cutoff": "2026-11-02T00:00:00.000Z",
+          "baseline": null,
+          "caps": []
+        }
+      },
+      {
+        "component": "A",
+        "state": "observed",
+        "required": true,
+        "score": 100,
+        "baseWeight": 0.14285714285714285,
+        "effectiveWeight": 0.2,
+        "rule": "A.delivered-over-committed.v1",
+        "missingReason": null,
+        "inherited": false,
+        "inputs": {
+          "committed": 4,
+          "delivered": 4
+        },
+        "diagnostics": {
+          "added": 0,
+          "removed": 0,
+          "attempts": 1,
+          "commits": 1,
+          "changedLines": 35
+        },
+        "evidence": [],
+        "explanation": {
+          "normalization": "100 × 4 delivered ÷ 4 committed = 100; 0 added and 0 removed item(s), attempts, commits and changed lines are shown, never scored",
+          "cutoff": "2026-11-02T00:00:00.000Z",
+          "baseline": null,
+          "caps": []
+        }
+      },
+      {
+        "component": "C",
+        "state": "observed",
+        "required": true,
+        "score": 100,
+        "baseWeight": 0.14285714285714285,
+        "effectiveWeight": 0.2,
+        "rule": "C.handoff-pass-rate.v1",
+        "missingReason": null,
+        "inherited": false,
+        "inputs": {
+          "handoffsPassed": 1,
+          "handoffsFailed": 0,
+          "coordinationDefects": 0
+        },
+        "diagnostics": {},
+        "evidence": [],
+        "explanation": {
+          "normalization": "100 × 1 passed ÷ 1 checked − 10 × 0 coordination defect(s) = 100",
+          "cutoff": "2026-11-02T00:00:00.000Z",
+          "baseline": null,
+          "caps": []
+        }
+      },
+      {
+        "component": "E",
+        "state": "observed",
+        "required": true,
+        "score": 100,
+        "baseWeight": 0.14285714285714285,
+        "effectiveWeight": 0.2,
+        "rule": "E.corrective-share.v1",
+        "missingReason": null,
+        "inherited": false,
+        "inputs": {
+          "correctiveMs": 0,
+          "productiveMs": 1200000,
+          "unclassifiedMs": 0,
+          "classificationCoverage": 1,
+          "correctiveShare": 0
+        },
+        "diagnostics": {
+          "retries": 0
+        },
+        "evidence": [],
+        "explanation": {
+          "normalization": "100 − 150 × 0 corrective ÷ (0 + 1200000 productive) ms = 100; 100% of 1200000 ms classified; retries are shown, never scored",
+          "cutoff": "2026-11-02T00:00:00.000Z",
+          "baseline": null,
+          "caps": []
+        }
+      },
+      {
+        "component": "T",
+        "state": "observed",
+        "required": true,
+        "score": 100,
+        "baseWeight": 0.14285714285714285,
+        "effectiveWeight": 0.2,
+        "rule": "T.baseline-ratio.v1",
+        "missingReason": null,
+        "inherited": false,
+        "inputs": {
+          "actual": 1200000,
+          "actualState": "observed",
+          "unreportedAttempts": 0,
+          "baselineId": "bl_01m7g000000000000000000003",
+          "baselineKind": "budget",
+          "baselineValue": 3600000,
+          "baselineSampleSize": null,
+          "ratio": 0.333333
+        },
+        "diagnostics": {},
+        "evidence": [
+          {
+            "kind": "baseline",
+            "id": "bl_01m7g000000000000000000003",
+            "detail": "budget"
+          }
+        ],
+        "explanation": {
+          "normalization": "150 − 50 × 1200000 ÷ 3600000 ms (ratio 0.333333 against budget v1, frozen 2026-10-31T12:00:00.000Z, before dispatch 2026-11-01T10:00:00.000Z) = 100 (133.333333 clamped to 0–100)",
+          "cutoff": "2026-11-02T00:00:00.000Z",
+          "baseline": {
+            "baselineId": "bl_01m7g000000000000000000003",
+            "kind": "budget",
+            "value": 3600000,
+            "version": 1,
+            "frozenAt": "2026-10-31T12:00:00.000Z",
+            "sampleSize": null,
+            "refusedReason": null
+          },
+          "caps": []
+        }
+      },
+      {
+        "component": "K",
+        "state": "observed",
+        "required": true,
+        "score": 100,
+        "baseWeight": 0.14285714285714285,
+        "effectiveWeight": 0.2,
+        "rule": "K.baseline-ratio.v1",
+        "missingReason": null,
+        "inherited": false,
+        "inputs": {
+          "actual": 40000,
+          "actualState": "observed",
+          "unreportedAttempts": 0,
+          "baselineId": "bl_01m7g000000000000000000001",
+          "baselineKind": "budget",
+          "baselineValue": 200000,
+          "baselineSampleSize": null,
+          "ratio": 0.2
+        },
+        "diagnostics": {},
+        "evidence": [
+          {
+            "kind": "baseline",
+            "id": "bl_01m7g000000000000000000001",
+            "detail": "budget"
+          }
+        ],
+        "explanation": {
+          "normalization": "150 − 50 × 40000 ÷ 200000 tokens (ratio 0.2 against budget v1, frozen 2026-10-31T12:00:00.000Z, before dispatch 2026-11-01T10:00:00.000Z) = 100 (140 clamped to 0–100)",
+          "cutoff": "2026-11-02T00:00:00.000Z",
+          "baseline": {
+            "baselineId": "bl_01m7g000000000000000000001",
+            "kind": "budget",
+            "value": 200000,
+            "version": 1,
+            "frozenAt": "2026-10-31T12:00:00.000Z",
+            "sampleSize": null,
+            "refusedReason": null
+          },
+          "caps": []
+        }
+      }
+    ],
+    "baselineIds": [
+      "bl_01m7g000000000000000000003",
+      "bl_01m7g000000000000000000001"
+    ],
+    "explanation": {
+      "composite": null,
+      "cap": null,
+      "letter": null,
+      "status": [
+        "ungraded: no score and no letter",
+        "required verification is missing (no reviewed evidence): ungraded whatever the other components say"
+      ],
+      "missing": [
+        {
+          "component": "S",
+          "reason": "no_rating"
+        },
+        {
+          "component": "P",
+          "reason": "verification_missing"
+        }
+      ],
+      "rounding": {
+        "canonicalDecimals": 6,
+        "canonical": "half_up",
+        "displayDecimals": 1,
+        "display": "floor"
+      },
+      "evidence": [
+        {
+          "kind": "attempt",
+          "id": "at_01m7ge55kx0000000000000002",
+          "detail": "worker claims only; no review"
+        },
+        {
+          "kind": "baseline",
+          "id": "bl_01m7g000000000000000000003",
+          "detail": "budget"
+        },
+        {
+          "kind": "baseline",
+          "id": "bl_01m7g000000000000000000001",
+          "detail": "budget"
+        }
+      ]
+    }
+  }
+}

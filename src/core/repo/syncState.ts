@@ -6,7 +6,7 @@
 import type { Db } from '../db/database'
 
 /** The tracked hash is the one this machine last exported or imported for the entity. */
-export function matchesSync(db: Db, kind: 'epic' | 'run' | 'kanban_card', entityId: string, hash: string): boolean {
+export function matchesSync(db: Db, kind: 'epic' | 'run' | 'kanban_card' | 'metric_observation', entityId: string, hash: string): boolean {
   const row = db.get<{ exported_hash: string | null; imported_hash: string | null }>(
     'SELECT exported_hash, imported_hash FROM sync_state WHERE kind = ? AND entity_id = ?',
     kind,
@@ -15,10 +15,11 @@ export function matchesSync(db: Db, kind: 'epic' | 'run' | 'kanban_card', entity
   return row !== undefined && (row.exported_hash === hash || row.imported_hash === hash)
 }
 
-/** Unexported plan or state changes; a comment or a Kanban record waiting for export never touches those files. */
+/** Unexported plan or state changes; a comment, observation or Kanban record waiting for export never touches those files. */
 export function hasPendingEpicChanges(db: Db, epicId: string): boolean {
   const row = db.get<{ pending: number }>(
-    `SELECT EXISTS (SELECT 1 FROM outbox WHERE epic_id = ? AND kind NOT IN ('comment', 'kanban_card', 'kanban_event', 'attachment')
+    `SELECT EXISTS (SELECT 1 FROM outbox WHERE epic_id = ?
+           AND kind NOT IN ('comment', 'kanban_card', 'kanban_event', 'attachment', 'metric_observation')
            AND state IN ('pending', 'failed'))
          OR EXISTS (SELECT 1 FROM plan_revisions WHERE epic_id = ? AND state = 'pending') AS pending`,
     epicId,

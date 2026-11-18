@@ -1,6 +1,7 @@
 import type { SprintReportInput } from '../../shared/domain/api'
 import type { PlanBundle, SprintDef } from '../../shared/domain/bundle'
 import type { RunState } from '../../shared/domain/status'
+import type { ScorecardDraft } from '../../shared/domain/spaceGrades'
 import type { SprintReportContent, SprintReportView, WorkerInfo } from '../../shared/domain/views'
 import { requireCapability } from '../authz'
 import { contentHash } from '../canonical'
@@ -8,13 +9,17 @@ import type { Ctx } from '../context'
 import { parseJson, toJson } from '../db/database'
 import { fail } from '../errors'
 import { indexBundle, ticketLabel } from '../plan/graph'
+import type { ExperimentContext } from '../plan/experiments'
 import { normalizeRetro, retroSearchParts } from '../plan/retro'
 import { computeTierFacts, type TierFactsAttempt } from '../plan/tierFacts'
+import { filledReportContent } from '../repo/portable'
 import { type AttemptRow, loadHostCatalog, requireRun } from './execution'
+import { experimentContext, experimentOutcomes } from './experiments'
 import { appendEvent } from './events'
 import { requestWithoutKey, withIdempotency } from './idempotency'
 import { sprintIncrementViews } from './increments'
 import { enqueueOutbox } from './outbox'
+import { draftScorecard, sealScorecard, storedScorecard, storedSummary } from './scorecards'
 import { indexDocument } from './searchIndex'
 
 /** The run columns checkpoint, report, and adoption rules read. */
@@ -36,6 +41,8 @@ interface ReportRow {
   report_revision: number
   content_json: string
   content_hash: string
+  /** The scorecard frozen at submission (canonical JSON); null for a report submitted before scorecards existed. */
+  scorecard_json: string | null
   submitted_by: string | null
   created_at: string
 }
@@ -97,6 +104,7 @@ function factAttempt(row: AttemptRow): TierFactsAttempt {
  * A report as read: its stored content (a report saved before retros reads with `retro: null`), plus what is
  * computed from the run each time it is read and is not part of the content hash: the increment its sprint's
  * acceptance node named (`increment` in a single repository, `increments` per repository in a folder), and the tier facts of the sprint's tickets.
+ * The scorecard is the one frozen at submission, read back as stored and never recomputed.
  */
 function reportView(ctx: Ctx, row: ReportRow): SprintReportView {
   const run = requireRun(ctx, row.run_id)
@@ -104,7 +112,9 @@ function reportView(ctx: Ctx, row: ReportRow): SprintReportView {
   const attempts = ctx.db.all<AttemptRow>('SELECT * FROM attempts WHERE run_id = ? ORDER BY rowid', run.id)
   const views = sprintIncrementViews(bundle, attempts).filter((view) => view.sprintId === row.sprint_id)
   const folder = ctx.repositoryEntries() !== null
-  const stored = JSON.parse(row.content_json) as StoredReportContent
+  // Stored as written (an imported report may lack keys a later build added); read with every default filled.
+  const stored = filledReportContent(JSON.parse(row.content_json)) as StoredReportContent
+  const scorecard = storedSummary(row.scorecard_json)
   return {
     id: row.id,
     runId: row.run_id,
@@ -119,6 +129,7 @@ function reportView(ctx: Ctx, row: ReportRow): SprintReportView {
       attempts: attempts.map(factAttempt),
       catalog: loadHostCatalog(ctx, run.host_catalog_id)?.catalog ?? null
     }),
+    ...(scorecard === null ? {} : { scorecard }),
     submittedBy: row.submitted_by,
     createdAt: row.created_at
   }
@@ -139,7 +150,8 @@ function listOr<T>(items: T[] | undefined): T[] {
   return items ?? []
 }
 
-function normalizeReport(input: SprintReportInput, bundle: PlanBundle): SprintReportContent {
+/** The stored content of a submitted report; `experiments` resolves the retro's experiments (see `experimentContext`). */
+function normalizeReport(input: SprintReportInput, bundle: PlanBundle, experiments: ExperimentContext): SprintReportContent {
   return {
     summary: input.summary,
     accepted: listOr(input.accepted),
@@ -151,7 +163,7 @@ function normalizeReport(input: SprintReportInput, bundle: PlanBundle): SprintRe
     followUps: listOr(input.followUps),
     exitCriteria: listOr(input.exitCriteria),
     epicOutcome: input.epicOutcome ?? null,
-    retro: input.retro == null ? null : normalizeRetro(input.retro, bundle)
+    retro: input.retro == null ? null : normalizeRetro(input.retro, bundle, experiments)
   }
 }
 
@@ -180,26 +192,41 @@ function requireActiveSprint(run: RunRow, bundle: PlanBundle, sprintId: string):
   return active
 }
 
-function insertReport(ctx: Ctx, run: RunRow, sprintId: string, content: SprintReportContent): SprintReportView {
+/**
+ * Stores the next report revision with its content hash and the scorecard frozen at this instant: the sprint's, run's
+ * and (for the final sprint) epic's grades and the sprint's ticket grades, computed once from the records stored by
+ * now and never recomputed. The grades are drafted first (they never read the report's text), so the report's retro
+ * can cite them (`write` builds the content from the draft); then the content is hashed and the scorecard sealed with
+ * that hash.
+ */
+function insertReport(ctx: Ctx, run: RunRow, sprintId: string, write: (draft: ScorecardDraft) => SprintReportContent): SprintReportView {
   const previous = ctx.db.get<{ latest: number | null }>(
     'SELECT MAX(report_revision) AS latest FROM sprint_reports WHERE run_id = ? AND sprint_id = ?',
     run.id,
     sprintId
   )
+  const id = ctx.ids.next('report')
+  const reportRevision = (previous?.latest ?? 0) + 1
+  const createdAt = ctx.clock.nowIso()
+  const draft = draftScorecard(ctx, { runId: run.id, sprintId, report: { reportId: id, reportRevision }, cutoff: createdAt })
+  const content = write(draft)
+  const hash = contentHash(content)
+  const snapshot = sealScorecard(draft, hash)
   const row: ReportRow = {
-    id: ctx.ids.next('report'),
+    id,
     run_id: run.id,
     sprint_id: sprintId,
-    report_revision: (previous?.latest ?? 0) + 1,
+    report_revision: reportRevision,
     content_json: toJson(content),
-    content_hash: contentHash(content),
+    content_hash: hash,
+    scorecard_json: storedScorecard(snapshot),
     submitted_by: ctx.session.label,
-    created_at: ctx.clock.nowIso()
+    created_at: createdAt
   }
   ctx.db.run(
     `INSERT INTO sprint_reports
-       (id, run_id, sprint_id, report_revision, content_json, content_hash, submitted_by, created_at, revision_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, run_id, sprint_id, report_revision, content_json, content_hash, submitted_by, created_at, revision_id, scorecard_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     row.id,
     row.run_id,
     row.sprint_id,
@@ -208,7 +235,8 @@ function insertReport(ctx: Ctx, run: RunRow, sprintId: string, content: SprintRe
     row.content_hash,
     row.submitted_by,
     row.created_at,
-    run.revision_id
+    run.revision_id,
+    row.scorecard_json
   )
   return reportView(ctx, row)
 }
@@ -283,7 +311,7 @@ export function submitSprintReport(ctx: Ctx, input: SubmitSprintReportInput): Sp
     requireReportable(run)
     const bundle = loadBundle(ctx, run.revision_id)
     const sprint = requireActiveSprint(run, bundle, input.sprintId)
-    const view = insertReport(ctx, run, sprint.id, normalizeReport(input.report, bundle))
+    const view = insertReport(ctx, run, sprint.id, (draft) => normalizeReport(input.report, bundle, experimentContext(ctx, run, sprint.id, draft)))
     if (run.state === 'running') {
       setRunState(ctx, run.id, 'awaiting_checkpoint')
     }
@@ -299,10 +327,15 @@ export function submitSprintReport(ctx: Ctx, input: SubmitSprintReportInput): Sp
   })
 }
 
-/** Latest report revision for `sprintId` (default: the run's active sprint), or null. */
+/**
+ * Latest report revision for `sprintId` (default: the run's active sprint), or null. Only this read (not the
+ * checkpoint's or the run's) adds the outcome of each retro experiment, which reads the scorecards its results cite.
+ */
 export function getSprintReport(ctx: Ctx, input: { runId: string; sprintId?: string }): SprintReportView | null {
   requireCapability(ctx.session, 'read')
   const run = loadRun(ctx, input.runId)
   const sprintId = input.sprintId ?? run.active_sprint_id
-  return sprintId === null ? null : latestReport(ctx, run.id, sprintId)
+  const view = sprintId === null ? null : latestReport(ctx, run.id, sprintId)
+  const experimentIds = (view?.report.retro?.experiments ?? []).map((experiment) => experiment.id)
+  return view === null || experimentIds.length === 0 ? view : { ...view, experimentOutcomes: experimentOutcomes(ctx, experimentIds) }
 }

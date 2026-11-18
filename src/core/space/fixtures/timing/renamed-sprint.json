@@ -1,0 +1,204 @@
+{
+  "description": "An adoption at 11:20 replaced sprint 1 with a renamed sprint (same ordinal). Events and the first attempt name the old id; the service maps it (sprintAliases) to the new one, so every ticket, wait and attempt lands in the one current sprint. A span naming a sprint with no counterpart is listed as unattributed.",
+  "input": {
+    "runId": "rn_01m7gdve7p0000000000000001",
+    "asOf": "2026-11-01T14:00:00.000Z",
+    "sprintAliases": {
+      "sp_01m452vt120000000000000001": "sp_01m452vt120000000000000005",
+      "sp_01m452vt120000000000000009": null
+    },
+    "events": [
+      {
+        "kind": "run_started",
+        "at": "2026-11-01T09:00:00.000Z"
+      },
+      {
+        "kind": "sprint_activated",
+        "at": "2026-11-01T09:00:00.000Z",
+        "sprintId": "sp_01m452vt120000000000000001"
+      },
+      {
+        "kind": "ticket_ready",
+        "at": "2026-11-01T09:00:00.000Z",
+        "ticketId": "tk_01m453gpad0000000000000001"
+      },
+      {
+        "kind": "ticket_ready",
+        "at": "2026-11-01T09:00:00.000Z",
+        "ticketId": "tk_01m453gpad0000000000000002"
+      },
+      {
+        "kind": "ticket_ready",
+        "at": "2026-11-01T09:00:00.000Z",
+        "ticketId": "tk_01m453gpad0000000000000003"
+      },
+      {
+        "kind": "attempt_claimed",
+        "at": "2026-11-01T10:00:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000001",
+        "ticketId": "tk_01m453gpad0000000000000001",
+        "sprintId": "sp_01m452vt120000000000000001",
+        "number": 1,
+        "carriedForward": false
+      },
+      {
+        "kind": "attempt_submitted",
+        "at": "2026-11-01T10:30:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000001"
+      },
+      {
+        "kind": "attempt_rejected",
+        "at": "2026-11-01T11:00:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000001"
+      },
+      {
+        "kind": "run_paused",
+        "at": "2026-11-01T11:10:00.000Z"
+      },
+      {
+        "kind": "run_resumed",
+        "at": "2026-11-01T11:30:00.000Z"
+      },
+      {
+        "kind": "attempt_claimed",
+        "at": "2026-11-01T12:00:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000002",
+        "ticketId": "tk_01m453gpad0000000000000001",
+        "sprintId": "sp_01m452vt120000000000000005",
+        "number": 2,
+        "carriedForward": false
+      },
+      {
+        "kind": "attempt_submitted",
+        "at": "2026-11-01T12:30:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000002"
+      },
+      {
+        "kind": "attempt_accepted",
+        "at": "2026-11-01T13:00:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000002"
+      },
+      {
+        "kind": "attempt_claimed",
+        "at": "2026-11-01T13:30:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000003",
+        "ticketId": "tk_01m453gpad0000000000000002",
+        "sprintId": "sp_01m452vt120000000000000005",
+        "number": 1,
+        "carriedForward": false
+      }
+    ],
+    "activity": [
+      {
+        "observationId": "mo_01m7gf000000000000000001201",
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "run",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000009",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": null,
+          "attemptId": null
+        },
+        "source": {
+          "kind": "host",
+          "actor": "orch"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 300000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T09:05:00.000Z",
+        "recordedAt": "2026-11-01T09:05:00.100Z",
+        "attributes": {
+          "spanStart": "2026-11-01T09:00:00.000Z",
+          "role": "orchestrator"
+        },
+        "evidence": []
+      }
+    ],
+    "tickets": [
+      {
+        "ticketId": "tk_01m453gpad0000000000000001",
+        "sprintId": "sp_01m452vt120000000000000005"
+      },
+      {
+        "ticketId": "tk_01m453gpad0000000000000002",
+        "sprintId": "sp_01m452vt120000000000000005"
+      },
+      {
+        "ticketId": "tk_01m453gpad0000000000000003",
+        "sprintId": "sp_01m452vt120000000000000005"
+      },
+      {
+        "ticketId": "tk_01m453gpad0000000000000004",
+        "sprintId": "sp_01m452vt120000000000000002"
+      }
+    ]
+  },
+  "expect": [
+    {
+      "path": "sprints.length",
+      "equals": 2
+    },
+    {
+      "path": "sprints[0].sprintId",
+      "equals": "sp_01m452vt120000000000000005"
+    },
+    {
+      "path": "sprints[0].startedAt",
+      "equals": "2026-11-01T09:00:00.000Z"
+    },
+    {
+      "path": "sprints[0].ticketIds",
+      "equals": [
+        "tk_01m453gpad0000000000000001",
+        "tk_01m453gpad0000000000000002",
+        "tk_01m453gpad0000000000000003"
+      ]
+    },
+    {
+      "path": "sprints[0].attemptElapsedSum.ms",
+      "equals": 5400000,
+      "note": "all three attempts, whichever sprint id they were claimed under"
+    },
+    {
+      "path": "tickets[1].waitBeforeDispatch.ms",
+      "equals": 16200000,
+      "note": "ticket 2: ready 09:00, claimed 13:30 (queue, and blocked during the pause)"
+    },
+    {
+      "path": "tickets[2].waits.queue.state",
+      "equals": "missing",
+      "note": "ticket 3 was never claimed: no cycle"
+    },
+    {
+      "path": "tickets[2].waitBeforeDispatch.ms",
+      "equals": 18000000,
+      "note": "ticket 3: ready 09:00, unclaimed at the 14:00 cutoff"
+    },
+    {
+      "path": "waits.queue.ms",
+      "equals": 37800000,
+      "note": "every ticket-minute of queue, none lost to the rename"
+    },
+    {
+      "path": "sprints[0].waits.queue.ms",
+      "equals": 37800000
+    },
+    {
+      "path": "sprints[1].waits.queue.state",
+      "equals": "missing",
+      "note": "sprint 2 never started"
+    },
+    {
+      "path": "anomalyCounts",
+      "equals": {
+        "unattributed": 1
+      }
+    }
+  ]
+}

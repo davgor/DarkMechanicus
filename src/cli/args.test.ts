@@ -152,3 +152,52 @@ describe('parseCliArgs transfer linear', () => {
     expect(CLI_USAGE).toContain('transfer linear --epic <id> [--json]')
   })
 })
+
+describe('parseCliArgs usage', () => {
+  it('reads the run with the default billing and no session file', () => {
+    expect(parse(['usage', '--run', 'run_1']).mode).toEqual({
+      kind: 'usage',
+      runId: 'run_1',
+      sessionFile: null,
+      billing: 'unknown',
+      dryRun: false,
+      unavailable: null
+    })
+  })
+
+  it('resolves --session-file against the working directory and keeps billing and --dry-run', () => {
+    const argv = ['usage', '--run', 'run_1', '--session-file', 'logs/s.jsonl', '--billing', 'subscription', '--dry-run']
+    expect(parse(argv).mode).toMatchObject({ sessionFile: resolve(CWD, 'logs/s.jsonl'), billing: 'subscription', dryRun: true })
+  })
+
+  it('falls back to $PI_SESSION_FILE, ignoring a blank one', () => {
+    expect(parse(['usage', '--run', 'run_1'], { PI_SESSION_FILE: 'env/s.jsonl' }).mode).toMatchObject({ sessionFile: resolve(CWD, 'env/s.jsonl') })
+    expect(parse(['usage', '--run', 'run_1'], { PI_SESSION_FILE: '  ' }).mode).toMatchObject({ sessionFile: null })
+  })
+
+  it('records an unavailable host without reading any session file', () => {
+    expect(parse(['usage', '--run', 'run_1', '--unavailable', 'codex'], { PI_SESSION_FILE: 'env/s.jsonl' }).mode).toMatchObject({
+      sessionFile: null,
+      unavailable: 'codex'
+    })
+  })
+
+  it.each([
+    ['a missing --run', ['usage'], /usage requires --run <id>/],
+    ['an extra word', ['usage', 'now', '--run', 'run_1'], /usage takes only its flags/],
+    ['--args-file', ['usage', '--run', 'run_1', '--args-file', 'a.json'], /usage takes only its flags/],
+    ['an unknown billing', ['usage', '--run', 'run_1', '--billing', 'free'], /--billing is one of api_key, subscription, unknown/],
+    ['both session sources', ['usage', '--run', 'run_1', '--session-file', 's.jsonl', '--unavailable', 'codex'], /not both/],
+    ['--epic', ['usage', '--run', 'run_1', '--epic', 'ep_1'], /belong to transfer linear only/],
+    ['--json', ['usage', '--run', 'run_1', '--json'], /belong to transfer linear only/]
+  ])('refuses %s', (_label, argv, message) => {
+    expect(() => parse(argv)).toThrow(message)
+  })
+
+  it.each([
+    ['--run', ['--list', '--run', 'run_1']],
+    ['--dry-run', ['--list', '--dry-run']]
+  ])('keeps %s to usage', (_label, argv) => {
+    expect(() => parse(argv)).toThrow(/belong to usage only/)
+  })
+})

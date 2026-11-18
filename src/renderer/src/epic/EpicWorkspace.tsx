@@ -4,11 +4,13 @@ import { useCallback, useMemo } from 'react'
 import type { TrackedFolderView } from '../../../shared/desktop/api'
 import { isActiveRunState } from '../../../shared/domain/status'
 import type { CheckpointView, PlanView, RunView } from '../../../shared/domain/views'
-import type { TicketLanding } from '../app/landing'
+import type { EpicLanding } from '../app/landing'
 import { browserScheduler, type Scheduler } from '../app/scheduler'
 import { useRepositories } from '../app/useRepositories'
 import { CheckpointScreen } from '../checkpoint/CheckpointScreen'
 import { EpicOverview } from '../checkpoint/EpicOverview'
+import type { CorrectionHost } from '../checkpoint/CorrectivePlanner'
+import type { ReportScoreSource } from '../checkpoint/ReportScorecard'
 import { badgeResolver, buildGraphModel, type GraphInput } from '../graph/graphModel'
 import { legendKindFor } from '../graph/legend'
 import { PlanGraph } from '../graph/PlanGraph'
@@ -18,6 +20,7 @@ import { AttemptsStrip } from './AttemptsStrip'
 import { useNow } from './clock'
 import { deleteTicketFromPlan } from './deletion'
 import { DraftBar } from './DraftBar'
+import { EpicScorecard } from './EpicScorecard'
 import { Banner, ConfirmStrip, Notices, Toast } from './Feedback'
 import { headerView } from './headerView'
 import { TransferredPanel, TransferStrip } from './LinearTransfer'
@@ -45,12 +48,16 @@ export interface EpicWorkspaceProps {
   /** Connected agents, the folder's chats and the navigation Start run and the run bar use. */
   orchestration: OrchestrationHost
   onOpenEpic(epicId: string): void
+  /** Opens an epic of another tracked folder (a correction epic in the Dark Mechanicus checkout, or the epic that asked for one). */
+  onOpenFolderEpic?(folderPath: string, epicId: string): void
+  /** Another tracked folder's records changed from here (a correction epic created in it): its sidebar lists it again. */
+  onFolderChanged?(folderPath: string): void
   /** The epic was deleted: leave it (the shell shows the folder home). */
   onDeleted(): void
   /** Timers for polling the run feed; the browser's unless a test brings its own. */
   scheduler?: Scheduler
-  /** A request from another screen (a link in a chat) to open a ticket, taken once the epic has loaded. */
-  landing?: TicketLanding | null
+  /** A request from another screen (a link in a chat, a Metrics dashboard row or gap) to open a ticket or the epic's Scorecard, taken once the epic has loaded. */
+  landing?: EpicLanding | null
   /** The request was taken: the shell forgets it. */
   onLanded?(): void
 }
@@ -87,6 +94,31 @@ function GraphStage({ ws, input }: { ws: WorkspaceHandle; input: GraphInput }): 
   )
 }
 
+/** Where report Scorecard tabs read: this folder, the workspace's timers, and a version that moves on every reload. */
+function scoreSource(ws: WorkspaceHandle): ReportScoreSource {
+  return { folderPath: ws.folder.path, scheduler: ws.scheduler, version: ws.state.loadedAt ?? 0 }
+}
+
+/**
+ * What a report's Improvement tab plans corrective work with: previews and creations through the workspace (draft work
+ * only), the plan's sprints to pick a later one, and the normal draft controls to review and Save it: this epic's draft
+ * view, or another (follow-up) epic.
+ */
+function correctionHost(ws: WorkspaceHandle): CorrectionHost {
+  const plan = ws.data.draft ?? ws.data.saved
+  return {
+    busy: ws.state.busy,
+    sprints: (plan?.bundle.sprints ?? []).map((sprint) => ({ id: sprint.id, ordinal: sprint.ordinal, goal: sprint.goal })),
+    draftRevision: ws.data.draft?.draftRevision ?? null,
+    preview: ws.actions.previewCorrections,
+    create: ws.actions.createCorrections,
+    openDraft: (epicId) => (epicId === ws.epicId ? void ws.actions.editDraft() : ws.onOpenEpic(epicId)),
+    openFolderEpic: ws.onOpenFolderEpic,
+    folderChanged: ws.onFolderChanged,
+    reload: ws.reload
+  }
+}
+
 function CheckpointStage(props: { ws: WorkspaceHandle; checkpoint: CheckpointView; run: RunView }): JSX.Element {
   const { ws, checkpoint } = props
   return (
@@ -103,6 +135,8 @@ function CheckpointStage(props: { ws: WorkspaceHandle; checkpoint: CheckpointVie
       onAutoContinue={(enabled) => void ws.actions.setAutoContinue(enabled)}
       onAddFollowUp={(item) => ws.actions.addFollowUp(item, checkpoint.sprintOrdinal)}
       onEditDraft={() => void ws.actions.editDraft()}
+      scores={scoreSource(ws)}
+      corrections={correctionHost(ws)}
       onSelectTicket={(ticketId) => ws.dispatch({ type: 'select_ticket', ticketId })}
     />
   )
@@ -116,6 +150,8 @@ function OverviewStage(props: { ws: WorkspaceHandle; overview: OverviewData; run
       run={props.run}
       overview={props.overview}
       now={ws.now}
+      scores={scoreSource(ws)}
+      corrections={correctionHost(ws)}
       onSelectTicket={(ticketId) => ws.dispatch({ type: 'select_ticket', ticketId })}
     />
   )
@@ -151,8 +187,14 @@ function PlanContent({ ws, input }: { ws: WorkspaceHandle; input: GraphInput | n
   return <GraphStage ws={ws} input={input} />
 }
 
-/** The checkpoint review or overview while open; otherwise the plan, under the Linear handoff of an epic a transfer completed. */
+/**
+ * The epic's Scorecard, or the checkpoint review or overview, while open; otherwise the plan, under the Linear handoff
+ * of an epic a transfer completed.
+ */
 function StageContent({ ws, input }: { ws: WorkspaceHandle; input: GraphInput | null }): JSX.Element {
+  if (ws.state.scorecardOpen) {
+    return <EpicScorecard ws={ws} />
+  }
   const review = reviewStage(ws)
   if (review !== null) {
     return review
@@ -192,7 +234,12 @@ function DraftEditorPanel(props: { ws: WorkspaceHandle; plan: PlanView; ticketId
       ticketId={ticketId}
       badge={badge}
       busy={ws.state.busy}
+      epicId={ws.epicId}
+      runId={ws.data.run?.id ?? null}
+      runEnded={ws.data.run?.endedAt != null}
+      draftRevision={plan.draftRevision}
       applyOps={ws.actions.applyOps}
+      setBudget={(budget) => ws.actions.setTicketBudget(ticketId, budget)}
       onClose={close}
       onRemoved={close}
     />
@@ -216,6 +263,7 @@ function SidePanel({ ws }: { ws: WorkspaceHandle }): JSX.Element | null {
       folderPath={ws.folder.path}
       folderKey={ws.folder.attachmentKey}
       activity={ws.state.activity}
+      scorecard={ws.state.ticketScorecard}
       scheduler={ws.scheduler}
       epicId={ws.epicId}
       ticketId={ticketId}
@@ -360,12 +408,15 @@ function WorkspaceBody(props: EpicWorkspaceProps): JSX.Element {
     dispatch: controller.dispatch,
     actions: controller.actions,
     runner: controller.runner,
+    reload: controller.reload,
     now,
     scheduler: props.scheduler ?? browserScheduler,
     folder: props.folder,
     epicId: props.epicId,
     orchestration: props.orchestration,
     onOpenEpic: props.onOpenEpic,
+    onOpenFolderEpic: props.onOpenFolderEpic ?? null,
+    onFolderChanged: props.onFolderChanged ?? null,
     onDeleted: props.onDeleted
   }
   return <WorkspaceView ws={ws} />

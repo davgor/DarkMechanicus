@@ -44,18 +44,13 @@ export function ownedPaths(layout: RepoLayout) {
   const snapshotsDir = (epicId: string): string => join(epicDir(epicId), 'snapshots')
   const runDir = (runId: string): string => join(layout.historyDir, checkedId(runId, 'run'))
   const commentsDir = (epicId: string): string => join(epicDir(epicId), 'comments')
+  /** An epic's observations; project-level ones (no epic) sit in `observations/` at the top of the owned folder. */
+  const observationsDir = (epicId: string | null): string =>
+    epicId === null ? join(layout.dmDir, 'observations') : join(epicDir(epicId), 'observations')
   const kanbanCardDir = (cardId: string): string => join(layout.kanbanDir, checkedId(cardId, 'kanbanCard'))
   const kanbanEventsDir = (cardId: string): string => join(kanbanCardDir(cardId), 'events')
-  const attachmentsDir = (folder: AttachmentFolder): string => {
-    switch (folder.kind) {
-      case 'run':
-        return join(runDir(folder.id), 'attachments')
-      case 'kanban_card':
-        return join(kanbanCardDir(folder.id), 'attachments')
-      case 'epic':
-        return join(epicDir(folder.id), 'attachments')
-    }
-  }
+  // The record folder each attachment folder kind sits in: a run's history, a Kanban card, or an epic.
+  const attachmentsDir = (folder: AttachmentFolder): string => join({ run: runDir, kanban_card: kanbanCardDir, epic: epicDir }[folder.kind](folder.id), 'attachments')
   return {
     epicDir,
     attachmentsDir,
@@ -70,10 +65,15 @@ export function ownedPaths(layout: RepoLayout) {
     epicStateFile: (epicId: string): string => join(epicDir(epicId), 'state.json'),
     runDir,
     runHistoryFile: (runId: string): string => join(runDir(runId), 'run.json'),
+    /** A report revision's frozen scorecard, beside its run's history: one immutable file per revision. */
+    scorecardFile: (runId: string, reportId: string): string => join(runDir(runId), 'scorecards', `${checkedId(reportId, 'report')}.json`),
     profileFile: (name: string): string => join(layout.profilesDir, `${checkedProfileName(name)}.json`),
     commentsDir,
     commentFile: (epicId: string, commentId: string): string =>
       join(commentsDir(epicId), `${checkedId(commentId, 'comment')}.json`),
+    observationsDir,
+    observationFile: (epicId: string | null, observationId: string): string =>
+      join(observationsDir(epicId), `${checkedId(observationId, 'metricObservation')}.json`),
     kanbanCardDir,
     kanbanCardFile: (cardId: string): string => join(kanbanCardDir(cardId), 'card.json'),
     kanbanEventsDir,

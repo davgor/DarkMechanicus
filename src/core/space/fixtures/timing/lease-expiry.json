@@ -1,0 +1,224 @@
+{
+  "description": "A worker crashed: its last heartbeat and activity end at 10:10 and its lease expired at 10:25. The 15 minutes after the last signal stay unknown; the wait for reconciliation and the retry is queue; the retry is accepted.",
+  "input": {
+    "runId": "rn_01m7gdve7p0000000000000001",
+    "asOf": "2026-11-01T12:00:00.000Z",
+    "events": [
+      {
+        "kind": "run_started",
+        "at": "2026-11-01T09:00:00.000Z"
+      },
+      {
+        "kind": "sprint_activated",
+        "at": "2026-11-01T09:00:00.000Z",
+        "sprintId": "sp_01m452vt120000000000000001"
+      },
+      {
+        "kind": "ticket_ready",
+        "at": "2026-11-01T09:00:00.000Z",
+        "ticketId": "tk_01m453gpad0000000000000001"
+      },
+      {
+        "kind": "attempt_claimed",
+        "at": "2026-11-01T10:00:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000001",
+        "ticketId": "tk_01m453gpad0000000000000001",
+        "sprintId": "sp_01m452vt120000000000000001",
+        "number": 1,
+        "carriedForward": false
+      },
+      {
+        "kind": "attempt_signal",
+        "at": "2026-11-01T10:10:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000001"
+      },
+      {
+        "kind": "attempt_lease_expired",
+        "at": "2026-11-01T10:25:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000001"
+      },
+      {
+        "kind": "attempt_reconciled",
+        "at": "2026-11-01T10:40:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000001"
+      },
+      {
+        "kind": "attempt_claimed",
+        "at": "2026-11-01T10:50:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000002",
+        "ticketId": "tk_01m453gpad0000000000000001",
+        "sprintId": "sp_01m452vt120000000000000001",
+        "number": 2,
+        "carriedForward": false
+      },
+      {
+        "kind": "attempt_submitted",
+        "at": "2026-11-01T11:20:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000002"
+      },
+      {
+        "kind": "attempt_accepted",
+        "at": "2026-11-01T11:25:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000002"
+      },
+      {
+        "kind": "run_ended",
+        "at": "2026-11-01T11:30:00.000Z"
+      }
+    ],
+    "activity": [
+      {
+        "observationId": "mo_01m7gf00000000000000000101",
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000001",
+          "attemptId": "at_01m7ge55kx0000000000000001"
+        },
+        "source": {
+          "kind": "host",
+          "actor": "claude-code-adapter"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 600000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T10:10:00.000Z",
+        "recordedAt": "2026-11-01T10:10:00.100Z",
+        "attributes": {
+          "spanStart": "2026-11-01T10:00:00.000Z"
+        },
+        "evidence": []
+      },
+      {
+        "observationId": "mo_01m7gf00000000000000000102",
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000001",
+          "attemptId": "at_01m7ge55kx0000000000000002"
+        },
+        "source": {
+          "kind": "host",
+          "actor": "claude-code-adapter"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 1800000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T11:20:00.000Z",
+        "recordedAt": "2026-11-01T11:20:00.100Z",
+        "attributes": {
+          "spanStart": "2026-11-01T10:50:00.000Z"
+        },
+        "evidence": []
+      }
+    ],
+    "tickets": [
+      {
+        "ticketId": "tk_01m453gpad0000000000000001",
+        "sprintId": "sp_01m452vt120000000000000001"
+      }
+    ]
+  },
+  "expect": [
+    {
+      "path": "tickets[0].attempts[0].outcome",
+      "equals": "lease_expired"
+    },
+    {
+      "path": "tickets[0].attempts[0].endedBy",
+      "equals": "lease_expired"
+    },
+    {
+      "path": "tickets[0].attempts[0].elapsed.ms",
+      "equals": 1500000,
+      "note": "claim 10:00 to the lease deadline 10:25, not to when expiry was noticed"
+    },
+    {
+      "path": "tickets[0].attempts[0].active.ms",
+      "equals": 600000
+    },
+    {
+      "path": "tickets[0].attempts[0].unknown.ms",
+      "equals": 900000
+    },
+    {
+      "path": "tickets[0].attempts[0].segments[1].reason",
+      "equals": "after_last_signal"
+    },
+    {
+      "path": "tickets[0].attempts[0].lastSignalAt",
+      "equals": "2026-11-01T10:10:00.000Z"
+    },
+    {
+      "path": "tickets[0].attempts[1].elapsed.ms",
+      "equals": 1800000
+    },
+    {
+      "path": "tickets[0].cycleTime.ms",
+      "equals": 5100000
+    },
+    {
+      "path": "tickets[0].waits.queue.ms",
+      "equals": 1500000,
+      "note": "15 awaiting reconciliation + 10 ready and unclaimed"
+    },
+    {
+      "path": "tickets[0].waits.review.ms",
+      "equals": 300000
+    },
+    {
+      "path": "tickets[0].unknown.ms",
+      "equals": 900000
+    },
+    {
+      "path": "tickets[0].effortByOutcome.lease_expired",
+      "equals": {
+        "attempts": 1,
+        "elapsedMs": 1500000,
+        "effortMs": 600000,
+        "unreported": 0,
+        "unknownMs": 900000
+      }
+    },
+    {
+      "path": "tickets[0].effortByOutcome.accepted",
+      "equals": {
+        "attempts": 1,
+        "elapsedMs": 1800000,
+        "effortMs": 1800000,
+        "unreported": 0,
+        "unknownMs": 0
+      }
+    },
+    {
+      "path": "effort.total.ms",
+      "equals": 2400000
+    },
+    {
+      "path": "elapsed.ms",
+      "equals": 9000000
+    },
+    {
+      "path": "endedBy",
+      "equals": "run_ended"
+    },
+    {
+      "path": "elapsed.open",
+      "equals": false
+    }
+  ]
+}

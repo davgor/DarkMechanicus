@@ -37,8 +37,8 @@ afterEach(() => {
 })
 
 describe('migrate on a fresh database', () => {
-  it('starts at schema version 0 and targets SCHEMA_VERSION 14', () => {
-    expect(SCHEMA_VERSION).toBe(14)
+  it('starts at schema version 0 and targets SCHEMA_VERSION 19', () => {
+    expect(SCHEMA_VERSION).toBe(19)
     expect(readSchemaVersion(freshDb())).toBe(0)
   })
 
@@ -46,7 +46,7 @@ describe('migrate on a fresh database', () => {
     const db = freshDb()
     expect(migrate(db)).toEqual({ from: 0, to: SCHEMA_VERSION })
     expect(readSchemaVersion(db)).toBe(SCHEMA_VERSION)
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(14)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(19)
   })
 })
 
@@ -58,9 +58,11 @@ describe('the schema a fresh database ends up with', () => {
       'attempts',
       'checkpoints',
       'comments',
+      'correction_links',
       'drafts',
       'epics',
       'events',
+      'experiment_events',
       'grants',
       'host_catalogs',
       'idempotency',
@@ -68,6 +70,7 @@ describe('the schema a fresh database ends up with', () => {
       'kanban_cards',
       'kanban_events',
       'meta',
+      'metric_observations',
       'outbox',
       'plan_revisions',
       'profiles',
@@ -93,11 +96,18 @@ describe('the indexes a fresh database ends up with', () => {
       'attempts_one_open_per_ticket',
       'attempts_run_state',
       'comments_epic_ticket',
+      'correction_links_epic',
+      'correction_links_experiment',
       'events_epic',
       'events_run',
+      'experiment_events_run',
       'grants_active',
       'kanban_attempts_one_open_per_card',
       'kanban_events_card',
+      'metric_observations_attempt',
+      'metric_observations_epic',
+      'metric_observations_recorded',
+      'metric_observations_run',
       'outbox_state',
       'plan_revisions_epic',
       'row_checks_run',
@@ -110,8 +120,8 @@ describe('the indexes a fresh database ends up with', () => {
 describe('migrate when already current', () => {
   it('is a no-op the second time', () => {
     const db = migratedDb()
-    expect(migrate(db)).toEqual({ from: 14, to: 14 })
-    expect(readSchemaVersion(db)).toBe(14)
+    expect(migrate(db)).toEqual({ from: 19, to: 19 })
+    expect(readSchemaVersion(db)).toBe(19)
   })
 
   it('keeps existing data', () => {
@@ -130,19 +140,19 @@ describe('migrate refuses newer databases', () => {
     expect(error).toBeInstanceOf(DomainError)
     expect((error as DomainError).code).toBe('incompatible_schema')
     expect((error as DomainError).message).toBe(
-      'Database schema v15 is newer than this build supports (v14). Update Dark Mechanicus.'
+      'Database schema v20 is newer than this build supports (v19). Update Dark Mechanicus.'
     )
-    expect((error as DomainError).details).toEqual({ found: 15, supported: 14 })
-    expect(readSchemaVersion(db)).toBe(15)
+    expect((error as DomainError).details).toEqual({ found: 20, supported: 19 })
+    expect(readSchemaVersion(db)).toBe(20)
     expect(objectNames(db, 'table')).toEqual([])
   })
 
   it('refuses a migrated database that a newer build has upgraded', () => {
     const db = migratedDb()
-    db.exec('PRAGMA user_version = 15')
+    db.exec('PRAGMA user_version = 20')
     const error = thrownBy(() => migrate(db))
     expect((error as DomainError).code).toBe('incompatible_schema')
-    expect((error as DomainError).details).toEqual({ found: 15, supported: 14 })
+    expect((error as DomainError).details).toEqual({ found: 20, supported: 19 })
     expect(objectNames(db, 'table')).toContain('epics')
   })
 
@@ -169,7 +179,7 @@ describe('migrate a v1 database to v2', () => {
       `INSERT INTO outbox (kind, epic_id, run_id, revision_id, state, attempts, last_error, created_at)
        VALUES ('snapshot', 'ep1', NULL, 'rv1', 'done', 1, NULL, 't'), ('run_history', 'ep1', 'rn1', NULL, 'failed', 3, 'disk full', 't')`
     )
-    expect(migrate(db)).toEqual({ from: 1, to: 14 })
+    expect(migrate(db)).toEqual({ from: 1, to: 19 })
     expect(outboxRows(db)).toEqual([
       { id: 1, kind: 'snapshot', epic_id: 'ep1', run_id: null, revision_id: 'rv1', entity_id: null, state: 'done', attempts: 1, last_error: null },
       { id: 2, kind: 'run_history', epic_id: 'ep1', run_id: 'rn1', revision_id: null, entity_id: null, state: 'failed', attempts: 3, last_error: 'disk full' }
@@ -296,7 +306,7 @@ describe('schema v4 named profiles', () => {
   it('upgrades a v2 database to the latest version, keeping its rows and adding an empty profiles table', () => {
     const db = v2Db()
     db.run("INSERT INTO outbox (kind, entity_id, state, created_at) VALUES ('profile', 'deep-review', 'pending', 't')")
-    expect(migrate(db)).toEqual({ from: 2, to: 14 })
+    expect(migrate(db)).toEqual({ from: 2, to: 19 })
     expect(db.all('SELECT kind, entity_id, state FROM outbox')).toEqual([{ kind: 'profile', entity_id: 'deep-review', state: 'pending' }])
     expect(db.all('SELECT * FROM profiles')).toEqual([])
   })
@@ -391,7 +401,7 @@ describe('migrate failure handling', () => {
     const db = freshDb()
     thrownBy(() => migrate(db, [{ version: 1, sql: 'NOT SQL' }]))
     expect(db.inTransaction()).toBe(false)
-    expect(migrate(db)).toEqual({ from: 0, to: 14 })
+    expect(migrate(db)).toEqual({ from: 0, to: 19 })
   })
 })
 
@@ -667,7 +677,7 @@ describe('schema v5 row checks', () => {
     insertEpic(db, 'ep1')
     insertRevision(db, 'rv1', 'ep1')
     insertRun(db, { id: 'rn1', state: 'running' })
-    expect(migrate(db)).toEqual({ from: 4, to: 14 })
+    expect(migrate(db)).toEqual({ from: 4, to: 19 })
     expect(db.all('SELECT id FROM runs')).toEqual([{ id: 'rn1' }])
     expect(db.all('SELECT * FROM row_checks')).toEqual([])
   })
@@ -718,7 +728,7 @@ describe('schema v6 sprint increments', () => {
     insertRevision(db, 'rv1', 'ep1')
     insertRun(db, { id: 'rn1', state: 'running' })
     insertAttempt(db, { id: 'at1', state: 'accepted', number: 1 })
-    expect(migrate(db)).toEqual({ from: 5, to: 14 })
+    expect(migrate(db)).toEqual({ from: 5, to: 19 })
     expect(db.all('SELECT id, state, increment_json FROM attempts')).toEqual([{ id: 'at1', state: 'accepted', increment_json: null }])
   })
 
@@ -745,7 +755,7 @@ describe('schema v7 report plan revisions', () => {
       `INSERT INTO sprint_reports (id, run_id, sprint_id, report_revision, content_json, content_hash, created_at)
        VALUES ('rp1', 'rn1', 'sp1', 1, '{}', 'h', 't')`
     )
-    expect(migrate(db)).toEqual({ from: 6, to: 14 })
+    expect(migrate(db)).toEqual({ from: 6, to: 19 })
     expect(db.all('SELECT id, revision_id FROM sprint_reports')).toEqual([{ id: 'rp1', revision_id: null }])
   })
 
@@ -766,7 +776,7 @@ describe('schema v8 run pause time', () => {
     insertEpic(db, 'ep1')
     insertRevision(db, 'rv1', 'ep1')
     insertRun(db, { id: 'rn1', state: 'paused' })
-    expect(migrate(db)).toEqual({ from: 7, to: 14 })
+    expect(migrate(db)).toEqual({ from: 7, to: 19 })
     expect(db.all('SELECT id, state, paused_at FROM runs')).toEqual([{ id: 'rn1', state: 'paused', paused_at: null }])
   })
 
@@ -792,7 +802,7 @@ describe('schema v11 Linear transfers', () => {
     insertEpic(db, 'ep1')
     insertRevision(db, 'rv1', 'ep1')
     db.run("INSERT INTO idempotency (command, key, request_hash, response_json, created_at) VALUES ('claimTicket', 'claim-1', 'h', ?, 't')", '{"packet":{"claimToken":"at_1.secret-1"}}')
-    expect(migrate(db)).toEqual({ from: 9, to: 14 })
+    expect(migrate(db)).toEqual({ from: 9, to: 19 })
     expect(db.get('SELECT response_json FROM idempotency')).toEqual({ response_json: '{"packet":{"claimToken":null}}' })
     expect(db.all('SELECT id FROM epics')).toEqual([{ id: 'ep1' }])
     expect(db.all('SELECT * FROM transfers')).toEqual([])
@@ -824,16 +834,16 @@ describe('schema v11 on top of the v10 scrub', () => {
     expect(objectNames(db, 'table')).not.toContain('transfers')
     const stored = '{ "packet": {"claimToken": "at_1.secret-1"} }'
     db.run("INSERT INTO idempotency (command, key, request_hash, response_json, created_at) VALUES ('claimTicket', 'claim-1', 'h', ?, 't')", stored)
-    expect(migrate(db)).toEqual({ from: 10, to: 14 })
+    expect(migrate(db)).toEqual({ from: 10, to: 19 })
     expect(objectNames(db, 'table')).toEqual(expect.arrayContaining(['transfers', 'transfer_items']))
     expect(db.get('SELECT response_json FROM idempotency')).toEqual({ response_json: stored })
   })
 
   it('brings a fresh database straight to the latest version with the transfer tables', () => {
     const db = freshDb()
-    expect(migrate(db)).toEqual({ from: 0, to: 14 })
-    expect(SCHEMA_VERSION).toBe(14)
-    expect(readSchemaVersion(db)).toBe(14)
+    expect(migrate(db)).toEqual({ from: 0, to: 19 })
+    expect(SCHEMA_VERSION).toBe(19)
+    expect(readSchemaVersion(db)).toBe(19)
     expect(objectNames(db, 'table')).toEqual(expect.arrayContaining(['transfers', 'transfer_items']))
   })
 })
@@ -861,7 +871,7 @@ describe('schema v10 scrubs secrets from stored responses', () => {
       ['claimTicket', 'claim-1', claim],
       ['submitAttempt', 'submit-1', JSON.stringify({ outputs: { summary: `token ${token}` } })]
     ])
-    expect(migrate(db)).toEqual({ from: 9, to: 14 })
+    expect(migrate(db)).toEqual({ from: 9, to: 19 })
     expect(storedResponses(db)).toEqual({
       'claim-1': '{"attempt":{"id":"at_1","fencingToken":1},"packet":{"claimToken":null,"fencingToken":1}}',
       'submit-1': '{"outputs":{"summary":"token [claim token masked]"}}'
@@ -947,7 +957,7 @@ describe('schema v13 kanban', () => {
        VALUES ('epic', 'ep1', 'sha256:a', 4, 'sha256:b', 'diverged', 't1'), ('profile', 'fast', NULL, 0, NULL, NULL, 't2')`
     )
     expect(objectNames(db, 'table')).not.toContain('kanban_cards')
-    expect(migrate(db)).toEqual({ from: 12, to: 14 })
+    expect(migrate(db)).toEqual({ from: 12, to: 19 })
     expect(readSchemaVersion(db)).toBe(SCHEMA_VERSION)
     expect(outboxRows(db)).toEqual([
       { id: 1, kind: 'snapshot', epic_id: 'ep1', run_id: null, revision_id: 'rv1', entity_id: null, state: 'pending', attempts: 0, last_error: null },
@@ -1075,7 +1085,7 @@ describe('schema v14 attachments', () => {
        VALUES ('epic', 'ep1', 'sha256:a', 4, 'sha256:b', 'diverged', 't1'), ('kanban_event', 'ke1', NULL, 0, NULL, NULL, 't2')`
     )
     expect(objectNames(db, 'table')).not.toContain('attachments')
-    expect(migrate(db)).toEqual({ from: 13, to: 14 })
+    expect(migrate(db)).toEqual({ from: 13, to: 19 })
     expect(readSchemaVersion(db)).toBe(SCHEMA_VERSION)
     expect(outboxRows(db)).toEqual([
       { id: 1, kind: 'snapshot', epic_id: 'ep1', run_id: null, revision_id: 'rv1', entity_id: null, state: 'pending', attempts: 0, last_error: null },

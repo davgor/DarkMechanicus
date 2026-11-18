@@ -1,0 +1,66 @@
+ok   boundaries/at-90 regrade: byte-for-byte equal to the checked-in expected grade
+     policy dm-space v1 sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79 (policy text hash sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79); status final; letter A; score 90 (uncapped 90); display 90.0; coverage 1; caps none
+     components: S=100[observed,w 0.1429] P=100[observed,w 0.1429] A=100[observed,w 0.1429] C=100[observed,w 0.1429] E=100[observed,w 0.1429] T=100[observed,w 0.1429] K=30[observed,w 0.1429]
+ok   boundaries/at-90 seven components: SPACETK
+ok   boundaries/at-90 independent recalculation: uncapped 90 score 90 letter A display 90.0 coverage 1
+ok   boundaries/below-90 regrade: byte-for-byte equal to the checked-in expected grade
+     policy dm-space v1 sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79 (policy text hash sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79); status final; letter B; score 89.999999 (uncapped 89.999999); display 89.9; coverage 1; caps none
+     components: S=100[observed,w 0.1429] P=100[observed,w 0.1429] A=100[observed,w 0.1429] C=100[observed,w 0.1429] E=100[observed,w 0.1429] T=100[observed,w 0.1429] K=29.999993[observed,w 0.1429]
+ok   boundaries/below-90 seven components: SPACETK
+ok   boundaries/below-90 independent recalculation: uncapped 89.999999 score 89.999999 letter B display 89.9 coverage 1
+ok   boundaries/at-80 regrade: byte-for-byte equal to the checked-in expected grade
+     policy dm-space v1 sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79 (policy text hash sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79); status final; letter B; score 80 (uncapped 80); display 80.0; coverage 1; caps none
+     components: S=100[observed,w 0.1429] P=100[observed,w 0.1429] A=100[observed,w 0.1429] C=100[observed,w 0.1429] E=100[observed,w 0.1429] T=30[observed,w 0.1429] K=30[observed,w 0.1429]
+ok   boundaries/at-80 seven components: SPACETK
+ok   boundaries/at-80 independent recalculation: uncapped 80 score 80 letter B display 80.0 coverage 1
+ok   boundaries/below-80 regrade: byte-for-byte equal to the checked-in expected grade
+     policy dm-space v1 sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79 (policy text hash sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79); status final; letter C; score 79.999999 (uncapped 79.999999); display 79.9; coverage 1; caps none
+     components: S=100[observed,w 0.1429] P=100[observed,w 0.1429] A=100[observed,w 0.1429] C=100[observed,w 0.1429] E=100[observed,w 0.1429] T=30[observed,w 0.1429] K=29.999993[observed,w 0.1429]
+ok   boundaries/below-80 seven components: SPACETK
+ok   boundaries/below-80 independent recalculation: uncapped 79.999999 score 79.999999 letter C display 79.9 coverage 1
+ok   boundaries/at-70 regrade: byte-for-byte equal to the checked-in expected grade
+     policy dm-space v1 sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79 (policy text hash sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79); status final; letter C; score 70 (uncapped 70); display 70.0; coverage 1; caps none
+     components: S=100[observed,w 0.1429] P=100[observed,w 0.1429] A=50[observed,w 0.1429] C=50[observed,w 0.1429] E=100[observed,w 0.1429] T=60[observed,w 0.1429] K=30[observed,w 0.1429]
+ok   boundaries/at-70 seven components: SPACETK
+ok   boundaries/at-70 independent recalculation: uncapped 70 score 70 letter C display 70.0 coverage 1
+ok   boundaries/below-70 regrade: byte-for-byte equal to the checked-in expected grade
+     policy dm-space v1 sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79 (policy text hash sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79); status final; letter D; score 69.999999 (uncapped 69.999999); display 69.9; coverage 1; caps none
+     components: S=100[observed,w 0.1429] P=100[observed,w 0.1429] A=50[observed,w 0.1429] C=50[observed,w 0.1429] E=100[observed,w 0.1429] T=60[observed,w 0.1429] K=29.999993[observed,w 0.1429]
+ok   boundaries/below-70 seven components: SPACETK
+ok   boundaries/below-70 independent recalculation: uncapped 69.999999 score 69.999999 letter D display 69.9 coverage 1
+ok   boundaries/at-60 regrade: byte-for-byte equal to the checked-in expected grade
+     policy dm-space v1 sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79 (policy text hash sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79); status final; letter D; score 60 (uncapped 60); display 60.0; coverage 1; caps none
+     components: S=100[observed,w 0.1429] P=100[observed,w 0.1429] A=50[observed,w 0.1429] C=50[observed,w 0.1429] E=100[observed,w 0.1429] T=20[observed,w 0.1429] K=0[observed,w 0.1429]
+ok   boundaries/at-60 seven components: SPACETK
+ok   boundaries/at-60 independent recalculation: uncapped 60 score 60 letter D display 60.0 coverage 1
+ok   boundaries/below-60 regrade: byte-for-byte equal to the checked-in expected grade
+     policy dm-space v1 sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79 (policy text hash sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79); status final; letter F; score 59.999999 (uncapped 59.999999); display 59.9; coverage 1; caps none
+     components: S=100[observed,w 0.1429] P=100[observed,w 0.1429] A=50[observed,w 0.1429] C=50[observed,w 0.1429] E=100[observed,w 0.1429] T=19.999993[observed,w 0.1429] K=0[observed,w 0.1429]
+ok   boundaries/below-60 seven components: SPACETK
+ok   boundaries/below-60 independent recalculation: uncapped 59.999999 score 59.999999 letter F display 59.9 coverage 1
+ok   complete regrade: byte-for-byte equal to the checked-in expected grade
+     policy dm-space v1 sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79 (policy text hash sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79); status final; letter B; score 85.357143 (uncapped 85.357143); display 85.3; coverage 1; caps none
+     components: S=75[observed,w 0.1429] P=95[observed,w 0.1429] A=100[observed,w 0.1429] C=75[observed,w 0.1429] E=70[observed,w 0.1429] T=90[observed,w 0.1429] K=92.5[observed,w 0.1429]
+ok   complete seven components: SPACETK
+ok   complete independent recalculation: uncapped 85.357143 score 85.357143 letter B display 85.3 coverage 1
+ok   failure regrade: byte-for-byte equal to the checked-in expected grade
+     policy dm-space v1 sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79 (policy text hash sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79); status final; letter F; score 59 (uncapped 79.166667); display 59.0; coverage 0.8571428571428571; caps mandatory_failure<=59
+     components: S=missing(no_rating)[missing,w 0.0000] P=0[observed,w 0.1667] A=75[observed,w 0.1667] C=100[observed,w 0.1667] E=100[observed,w 0.1667] T=100[observed,w 0.1667] K=100[observed,w 0.1667]
+ok   failure seven components: SPACETK
+ok   failure independent recalculation: uncapped 79.166667 score 59 letter F display 59.0 coverage 0.8571428571428571
+ok   sparse regrade: byte-for-byte equal to the checked-in expected grade
+     policy dm-space v1 sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79 (policy text hash sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79); status provisional; letter C; score 79.166667 (uncapped 79.166667); display 79.1; coverage 0.5714285714285714; caps none
+     components: S=50[observed,w 0.2500] P=100[observed,w 0.2500] A=66.666667[observed,w 0.2500] C=100[observed,w 0.2500] E=missing(not_reported)[missing,w 0.0000] T=missing(no_eligible_baseline)[missing,w 0.0000] K=missing(host_unavailable)[missing,w 0.0000]
+ok   sparse seven components: SPACETK
+ok   sparse independent recalculation: uncapped 79.166667 score 79.166667 letter C display 79.1 coverage 0.5714285714285714
+ok   too-sparse regrade: byte-for-byte equal to the checked-in expected grade
+     policy dm-space v1 sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79 (policy text hash sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79); status ungraded; letter null; score null (uncapped null); display null; coverage 0.14285714285714285; caps none
+     components: S=missing(no_rating)[missing,w 0.0000] P=100[observed,w 1.0000] A=missing(scope_not_frozen)[missing,w 0.0000] C=missing(no_handoffs)[missing,w 0.0000] E=missing(insufficient_classification)[missing,w 0.0000] T=missing(partial_telemetry)[missing,w 0.0000] K=missing(not_reported)[missing,w 0.0000]
+ok   too-sparse seven components: SPACETK
+ok   too-sparse independent status: ungraded (scored 1, minimum 4 or verification not reviewed)
+ok   unverified regrade: byte-for-byte equal to the checked-in expected grade
+     policy dm-space v1 sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79 (policy text hash sha256:c3879a98c0c463014b01a9b98cd58ea48c3e292dcd7fb38fded6698b0b8a1a79); status ungraded; letter null; score null (uncapped null); display null; coverage 0.7142857142857143; caps none
+     components: S=missing(no_rating)[missing,w 0.0000] P=missing(verification_missing)[missing,w 0.0000] A=100[observed,w 0.2000] C=100[observed,w 0.2000] E=100[observed,w 0.2000] T=100[observed,w 0.2000] K=100[observed,w 0.2000]
+ok   unverified seven components: SPACETK
+ok   unverified independent status: ungraded (scored 5, minimum 4 or verification not reviewed)
+ALL CHECKS PASSED

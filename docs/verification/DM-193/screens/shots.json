@@ -1,0 +1,110 @@
+{
+  "buildCommit": "6b8c14568bd1e91229808f45dac1db22f21331bf",
+  "packaged": false,
+  "launched": {
+    "out/main/index.js": "59b7a7f605ac2432cb9b6f4dd0bba96c44b3f4255d2fd63f474a9b3d6f499510",
+    "out/preload/index.js": "fb82523ed15c1eaec29526fb16a8e70a7394ab6b6044b82d1cc646cf1043f252",
+    "out/renderer/index.html": "0366be2a7d9ce81c2e830920f0cf9767c6a08d6cc1f8e98ec3db6ec2fc0964d1"
+  },
+  "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm193-app-hQ364p",
+  "shots": [
+    {
+      "name": "01-epic-scorecard.png",
+      "note": "Epic tab: the Scorecard of the completed epic Checkout flow (shop), grade equal to get_epic_grade",
+      "values": {
+        "mcp": [
+          "A",
+          "96.2"
+        ]
+      }
+    },
+    {
+      "name": "02-epic-scorecard-outcomes.png",
+      "note": "Epic tab: ticket outcomes and runs below the headline",
+      "values": {}
+    },
+    {
+      "name": "03-sprint-report-scorecard.png",
+      "note": "Sprint report tab: Sprint 1 report Scorecard, the snapshot frozen with report revision 1, equal to get_report_scorecard and get_sprint_grade",
+      "values": {
+        "mcp": [
+          "B",
+          "88.2"
+        ]
+      }
+    },
+    {
+      "name": "04-ticket-scorecard-node.png",
+      "note": "Ticket tab: SHOP-1 (node) Scorecard, grade equal to get_ticket_grade",
+      "values": {
+        "mcp": [
+          "A",
+          "95.0"
+        ]
+      }
+    },
+    {
+      "name": "04-ticket-scorecard-api.png",
+      "note": "Ticket tab: SHOP-2 (api) Scorecard, grade equal to get_ticket_grade",
+      "values": {
+        "mcp": [
+          "A",
+          "96.4"
+        ]
+      }
+    },
+    {
+      "name": "04-ticket-scorecard-page.png",
+      "note": "Ticket tab: SHOP-3 (page) Scorecard, grade equal to get_ticket_grade",
+      "values": {
+        "mcp": [
+          "C",
+          "76.4"
+        ]
+      }
+    },
+    {
+      "name": "04-ticket-scorecard-docs.png",
+      "note": "Ticket tab: SHOP-4 (docs) Scorecard, grade equal to get_ticket_grade",
+      "values": {
+        "mcp": [
+          "A",
+          "96.4"
+        ]
+      }
+    },
+    {
+      "name": "05-metrics-dashboard.png",
+      "note": "Metrics dashboard of shop: summary, per-epic grade and the three-sprint trend, equal to get_metrics_summary",
+      "values": {
+        "mcp": [
+          "A",
+          "96.2",
+          "B",
+          "88.2",
+          "A",
+          "100.0",
+          "A",
+          "100.0"
+        ]
+      }
+    },
+    {
+      "name": "06-metrics-dashboard-trend.png",
+      "note": "Metrics dashboard: the grade trend across the three sprint reports (B final, A provisional +11.8, A final 0.0)",
+      "values": {}
+    },
+    {
+      "name": "07-metrics-measurement-capabilities.png",
+      "note": "Metrics dashboard: Measurement capabilities, the hosts whose usage cannot be read labelled Not readable (c4)",
+      "values": {
+        "labels": [
+          "Codex",
+          "Not readable",
+          "Custom agents",
+          "Read from the host"
+        ]
+      }
+    }
+  ]
+}

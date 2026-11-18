@@ -4,6 +4,7 @@ import type { DraftUpdateResultView, PlanView } from '../../shared/domain/views'
 import { requireCapability } from '../authz'
 import type { Ctx } from '../context'
 import { toJson } from '../db/database'
+import { fail } from '../errors'
 import { applyDraftOps } from '../plan/draftOps'
 import { validatePlan } from '../plan/graph'
 import { createInitialBundle } from '../plan/normalize'
@@ -77,6 +78,25 @@ export function openDraft(ctx: Ctx, input: { epicId: string }): PlanView {
   })
 }
 
+const PERSON_ESTIMATE_ONLY = 'Only a person, in the desktop app, labels a budget as a person’s estimate; use planner_estimate or prior_tickets.'
+
+/**
+ * A budget labelled `person_estimate` is a person's claim: only the desktop session may introduce that label or change a
+ * budget while it keeps the label. Any other session may leave such a budget as it is, replace it with a budget of
+ * another basis, or clear it (both visible in the plan diff); it may not keep the label on changed amounts.
+ */
+function assertPersonEstimates(ctx: Ctx, before: PlanBundle, after: PlanBundle): void {
+  if (ctx.session.role === 'desktop') {
+    return
+  }
+  const previous = new Map(before.tickets.map((ticket) => [ticket.id, ticket.budget]))
+  for (const ticket of after.tickets) {
+    if (ticket.budget?.basis === 'person_estimate' && toJson(ticket.budget) !== toJson(previous.get(ticket.id) ?? null)) {
+      fail('unauthorized', PERSON_ESTIMATE_ONLY, { ticketId: ticket.id, role: ctx.session.role })
+    }
+  }
+}
+
 /**
  * Applies draft ops all-or-nothing (implicitly opening the draft). A stale `expectedDraftRevision`
  * is a `conflict`; a rejected op propagates its reason and op index and nothing is persisted.
@@ -93,6 +113,7 @@ export function updatePlanDraft(
     const draft = ensureDraft(ctx, epic)
     assertDraftRevision(draft, input.expectedDraftRevision)
     const result = applyDraftOps(JSON.parse(draft.bundle_json) as PlanBundle, input.ops, draftDeps(ctx, epic.id))
+    assertPersonEstimates(ctx, JSON.parse(draft.bundle_json) as PlanBundle, result.bundle)
     const draftRevision = writeDraft(ctx, draft, result.bundle)
     appendEvent(ctx, { kind: 'draft.updated', epicId: epic.id, payload: { draftRevision, ops: input.ops.length } })
     const validation = withRunWarnings(ctx, epic.id, result.bundle, validatePlan(result.bundle, { repositories: ctx.repositoryEntries() }))

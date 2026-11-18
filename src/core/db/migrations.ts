@@ -3,7 +3,7 @@ import { redactedJson } from '../storedSecrets'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 14
+export const SCHEMA_VERSION = 19
 
 export interface Migration {
   version: number
@@ -658,6 +658,140 @@ DROP TABLE sync_state;
 ALTER TABLE sync_state_v14 RENAME TO sync_state;
 `
 
+/**
+ * v15 adds the metric observation ledger: one immutable row per SPACE observation (`observation_json`, the contract
+ * record as stored), with its scope ids, metric, source kind and measurement state copied into columns for lookups.
+ * `payload_hash` is the observation's identity without the server's `recorded_at`, so a repeated delivery is
+ * recognized and a changed payload under the same id is refused. No existing table or record changes. The outbox
+ * and sync state gain the `metric_observation` kind; both tables are rebuilt the way v14 rebuilt them, keeping every
+ * row, id and the outbox id sequence.
+ */
+const V15 = `
+CREATE TABLE metric_observations (
+  id TEXT PRIMARY KEY,
+  metric TEXT NOT NULL,
+  scope_level TEXT NOT NULL CHECK (scope_level IN ('project','epic','sprint','run','ticket','attempt')),
+  epic_id TEXT REFERENCES epics(id),
+  sprint_id TEXT,
+  run_id TEXT REFERENCES runs(id),
+  ticket_id TEXT,
+  attempt_id TEXT REFERENCES attempts(id),
+  source_kind TEXT NOT NULL CHECK (source_kind IN ('human','server','host','agent')),
+  measurement_state TEXT NOT NULL CHECK (measurement_state IN ('observed','estimated','missing')),
+  recorded_at TEXT NOT NULL,
+  payload_hash TEXT NOT NULL,
+  observation_json TEXT NOT NULL
+);
+CREATE INDEX metric_observations_epic ON metric_observations(epic_id, recorded_at, id);
+CREATE INDEX metric_observations_run ON metric_observations(run_id, recorded_at, id);
+CREATE INDEX metric_observations_attempt ON metric_observations(attempt_id);
+
+CREATE TABLE outbox_v15 (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL CHECK (kind IN ('snapshot','epic_state','run_history','comment','profile','kanban_card','kanban_event','attachment','metric_observation')),
+  epic_id TEXT,
+  run_id TEXT,
+  revision_id TEXT,
+  entity_id TEXT,
+  state TEXT NOT NULL CHECK (state IN ('pending','done','failed')),
+  attempts INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT,
+  created_at TEXT NOT NULL,
+  done_at TEXT
+);
+INSERT INTO outbox_v15 (id, kind, epic_id, run_id, revision_id, entity_id, state, attempts, last_error, created_at, done_at)
+  SELECT id, kind, epic_id, run_id, revision_id, entity_id, state, attempts, last_error, created_at, done_at FROM outbox;
+DELETE FROM sqlite_sequence WHERE name = 'outbox_v15';
+INSERT INTO sqlite_sequence (name, seq) SELECT 'outbox_v15', seq FROM sqlite_sequence WHERE name = 'outbox';
+DROP TABLE outbox;
+ALTER TABLE outbox_v15 RENAME TO outbox;
+CREATE INDEX outbox_state ON outbox(state, id);
+
+CREATE TABLE sync_state_v15 (
+  kind TEXT NOT NULL CHECK (kind IN ('epic','run','comment','profile','kanban_card','kanban_event','attachment','metric_observation')),
+  entity_id TEXT NOT NULL,
+  exported_hash TEXT,
+  generation INTEGER NOT NULL DEFAULT 0,
+  imported_hash TEXT,
+  conflict TEXT,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (kind, entity_id)
+);
+INSERT INTO sync_state_v15 (kind, entity_id, exported_hash, generation, imported_hash, conflict, updated_at)
+  SELECT kind, entity_id, exported_hash, generation, imported_hash, conflict, updated_at FROM sync_state;
+DROP TABLE sync_state;
+ALTER TABLE sync_state_v15 RENAME TO sync_state;
+`
+
+/**
+ * v16 freezes a SPACE scorecard with each sprint report revision (`scorecard_json`): the sprint's, run's and epic's
+ * grades and every ticket grade of the sprint, computed once when the report was submitted, as canonical JSON. It is
+ * never recomputed or rewritten, and it is exported with the run history (unlike `revision_id`), so a snapshot reads
+ * byte for byte the same on every machine. NULL for every report before this version: such a report stays ungraded.
+ */
+const V16 = `
+ALTER TABLE sprint_reports ADD COLUMN scorecard_json TEXT;
+`
+
+/**
+ * v17 stores the later events of retro experiments (`ExperimentEvent`, see `src/shared/domain/experiments.ts`): one
+ * immutable row per status or result, never inside the report whose retro defines the experiment, so recording one
+ * never changes an approved report's content, hash or scorecard. `number` counts an experiment's events 1, 2, 3, … as
+ * recorded (two in the same millisecond keep their order); `event_json` is the event as exported with the run history.
+ */
+const V17 = `
+CREATE TABLE experiment_events (
+  id TEXT PRIMARY KEY,
+  run_id TEXT NOT NULL REFERENCES runs(id),
+  number INTEGER NOT NULL CHECK (number >= 1),
+  experiment_id TEXT NOT NULL,
+  recorded_at TEXT NOT NULL,
+  event_json TEXT NOT NULL,
+  UNIQUE (experiment_id, number)
+);
+CREATE INDEX experiment_events_run ON experiment_events(run_id, experiment_id, number);
+`
+
+/**
+ * v18 keeps the receipts of corrective work this project's retros asked of another project (the Dark Mechanicus
+ * source; `src/core/services/crossRepoCorrections.ts`): one row per experiment and target project (`key`), written
+ * `pending` with the fully specified draft (`packet_json`) before anything is written to the target, and `linked`
+ * with the target's epic and tickets (`target_json`) once the target holds them. A pending row is the outbox a retry
+ * finishes. A linked row keeps what it last brought back from the target epic for measuring the experiment
+ * (`evidence_json`: its sealed scorecards, scope starts, corrective tickets and planned sizes). Identities, hashes and
+ * plan text only, never a machine path. A local fact like the idempotency cache: not exported, and deleted with the
+ * source epic.
+ */
+const V18 = `
+CREATE TABLE correction_links (
+  key TEXT PRIMARY KEY,
+  experiment_id TEXT NOT NULL,
+  source_epic_id TEXT NOT NULL,
+  report_id TEXT NOT NULL,
+  target_project_id TEXT NOT NULL,
+  payload_hash TEXT NOT NULL,
+  packet_json TEXT NOT NULL,
+  state TEXT NOT NULL CHECK (state IN ('pending','linked')),
+  target_json TEXT,
+  attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+  last_error_json TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  linked_at TEXT,
+  evidence_json TEXT
+);
+CREATE INDEX correction_links_experiment ON correction_links(experiment_id);
+CREATE INDEX correction_links_epic ON correction_links(source_epic_id);
+`
+
+/**
+ * v19 indexes the metric observation ledger by server time (`recorded_at`, then id): the id allocator looks up the
+ * highest id recorded at one instant, and unfiltered observation lists read in that order. No row changes.
+ */
+const V19 = `
+CREATE INDEX metric_observations_recorded ON metric_observations(recorded_at, id);
+`
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, sql: V1 },
   { version: 2, sql: V2 },
@@ -672,7 +806,12 @@ export const MIGRATIONS: Migration[] = [
   { version: 11, sql: V11 },
   { version: 12, sql: V12 },
   { version: 13, sql: V13 },
-  { version: 14, sql: V14 }
+  { version: 14, sql: V14 },
+  { version: 15, sql: V15 },
+  { version: 16, sql: V16 },
+  { version: 17, sql: V17 },
+  { version: 18, sql: V18 },
+  { version: 19, sql: V19 }
 ]
 
 export function readSchemaVersion(db: Db): number {

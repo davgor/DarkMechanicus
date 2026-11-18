@@ -218,3 +218,23 @@ describe('selection of a folder\'s Kanban board', () => {
     expect(resolveSelection({ ...stored, folderPath: '/gone' }, [alpha], true)).toEqual({ folderPath: '/a', epicId: null })
   })
 })
+
+describe('DM-267 c3: the Metrics dashboard selection persists and restores', () => {
+  const dashboard = { folderPath: '/a', epicId: null, metrics: true as const }
+
+  it('accepts metrics: true and refuses any other value', () => {
+    expect(isSelection(JSON.parse(JSON.stringify(dashboard)))).toBe(true)
+    expect(isSelection({ ...dashboard, metrics: false })).toBe(false)
+    expect(isSelection({ ...dashboard, metrics: 'yes' })).toBe(false)
+  })
+
+  it('restores the dashboard for an initialized, available folder', () => {
+    expect(resolveSelection(dashboard, [alpha], true)).toEqual(dashboard)
+  })
+
+  it('drops it for an uninitialized or unavailable folder, and for a vanished one', () => {
+    expect(resolveSelection(dashboard, [folderView({ path: '/a', initialized: false })], true)).toEqual({ folderPath: '/a', epicId: null })
+    expect(resolveSelection(dashboard, [folderView({ path: '/a', available: false })], true)).toEqual({ folderPath: '/a', epicId: null })
+    expect(resolveSelection({ ...dashboard, folderPath: '/gone' }, [beta], true)).toEqual({ folderPath: '/b', epicId: null })
+  })
+})

@@ -9,9 +9,12 @@ import { branchWarning, mcpFooterLine, storageFooterLine } from './footerStatus'
 
 interface SidebarFooterProps {
   status: StorageStatusView | null
-  /** True when the selected folder is initialized, i.e. there is something to flush. */
+  /** True when the selected folder is initialized, i.e. there is something to flush and to measure. */
   folderReady: boolean
   busy: { flush: boolean; reconcile: boolean }
+  /** The selected folder's Metrics dashboard is open: its link is the current page. */
+  metricsOpen: boolean
+  onOpenMetrics(): void
   onFlush(): void
   onReconcile(): void
   children?: ReactNode
@@ -51,7 +54,7 @@ function GithubLine(): JSX.Element | null {
   )
 }
 
-/** MCP connection, export/commit state with Flush, and the branch-changed warning with Reconcile. */
+/** MCP connection, the Metrics dashboard link, export/commit state with Flush, and the branch-changed warning with Reconcile. */
 export function SidebarFooter(props: SidebarFooterProps): JSX.Element {
   const mcp = mcpFooterLine(props.status)
   const storage = storageFooterLine(props.status)
@@ -63,6 +66,14 @@ export function SidebarFooter(props: SidebarFooterProps): JSX.Element {
         <span className="footer-key">MCP</span>
         <span className={`footer-text tone-${mcp.tone}`}>{mcp.text}</span>
       </div>
+      {props.folderReady ? (
+        <div className="footer-line">
+          <Icon name="chart" size={15} />
+          <button type="button" className="footer-link" aria-current={props.metricsOpen ? 'page' : undefined} onClick={props.onOpenMetrics}>
+            Metrics
+          </button>
+        </div>
+      ) : null}
       <div className="footer-line">
         <Icon name="export" size={15} />
         <span className={`footer-text footer-grow tone-${storage.tone}`} title={storage.title}>

@@ -1,0 +1,125 @@
+{
+  "description": "The orchestrator reports 09:50-11:10 inclusive of the worker it started; the worker reports 10:00-11:00 with the orchestrator as its parent. The worker keeps its hour of active time; the orchestrator keeps the 20 minutes the worker was not active.",
+  "input": {
+    "runId": "rn_01m7gdve7p0000000000000001",
+    "asOf": "2026-11-01T12:00:00.000Z",
+    "events": [
+      {
+        "kind": "run_started",
+        "at": "2026-11-01T09:50:00.000Z"
+      },
+      {
+        "kind": "attempt_claimed",
+        "at": "2026-11-01T10:00:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000001",
+        "ticketId": "tk_01m453gpad0000000000000001",
+        "sprintId": "sp_01m452vt120000000000000001",
+        "number": 1,
+        "carriedForward": false
+      },
+      {
+        "kind": "attempt_submitted",
+        "at": "2026-11-01T11:00:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000001"
+      }
+    ],
+    "activity": [
+      {
+        "observationId": "mo_01m7gf00000000000000000901",
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "run",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": null,
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": null,
+          "attemptId": null
+        },
+        "source": {
+          "kind": "host",
+          "actor": "orch"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 4800000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T11:10:00.000Z",
+        "recordedAt": "2026-11-01T11:10:00.100Z",
+        "attributes": {
+          "spanStart": "2026-11-01T09:50:00.000Z",
+          "role": "orchestrator"
+        },
+        "evidence": [],
+        "usage": {
+          "coverage": "inclusive",
+          "parentActor": null
+        }
+      },
+      {
+        "observationId": "mo_01m7gf00000000000000000902",
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000001",
+          "attemptId": "at_01m7ge55kx0000000000000001"
+        },
+        "source": {
+          "kind": "host",
+          "actor": "worker-1"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 3600000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T11:00:00.000Z",
+        "recordedAt": "2026-11-01T11:00:00.100Z",
+        "attributes": {
+          "spanStart": "2026-11-01T10:00:00.000Z"
+        },
+        "evidence": [],
+        "usage": {
+          "coverage": "self",
+          "parentActor": "orch"
+        }
+      }
+    ],
+    "tickets": [
+      {
+        "ticketId": "tk_01m453gpad0000000000000001",
+        "sprintId": "sp_01m452vt120000000000000001"
+      }
+    ]
+  },
+  "expect": [
+    {
+      "path": "tickets[0].attempts[0].active.ms",
+      "equals": 3600000
+    },
+    {
+      "path": "tickets[0].attempts[0].unknown.ms",
+      "equals": 0
+    },
+    {
+      "path": "effort.byRole",
+      "equals": {
+        "worker": 3600000,
+        "orchestrator": 1200000,
+        "reviewer": 0,
+        "other": 0
+      }
+    },
+    {
+      "path": "effort.total.ms",
+      "equals": 4800000
+    }
+  ]
+}

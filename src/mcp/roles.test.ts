@@ -35,7 +35,24 @@ const READ_TOOLS = [
   'preview_board_import',
   'get_transfer',
   'list_kanban_cards',
-  'get_kanban_card'
+  'get_kanban_card',
+  'get_run_metrics',
+  'get_planned_baselines',
+  'get_ticket_grade',
+  'get_sprint_grade',
+  'get_run_grade',
+  'get_epic_grade',
+  'get_report_scorecard',
+  'reassess_report_scorecard',
+  'get_space_signals',
+  'get_ticket_performance',
+  'get_escaped_defects',
+  'get_run_efficiency',
+  'get_run_timing',
+  'get_metrics_summary',
+  'get_retro_findings',
+  'get_experiment',
+  'preview_corrections'
 ]
 
 /** Every role may comment. */
@@ -63,7 +80,9 @@ const PLANNER_SHARED_TOOLS = [
   'rescan_repositories',
   // kanban.write: adding and editing cards; only a person presses Play, approves or kicks back.
   'create_kanban_card',
-  'update_kanban_card'
+  'update_kanban_card',
+  // draft.edit: corrective work from a retro's experiments, created as draft work the person reviews and saves.
+  'create_corrections'
 ]
 
 /** Only a planner (and the desktop) sets the Definition of Done: the orchestrator accepts work against it. */
@@ -104,7 +123,12 @@ const ORCHESTRATOR_TOOLS = [
   'claim_kanban_card',
   'heartbeat_kanban_card',
   'submit_kanban_card',
-  'fail_kanban_card'
+  'fail_kanban_card',
+  // Usage of the run's attempts and the run's own overhead bucket.
+  'record_attempt_metrics',
+  'record_run_metrics',
+  // Later statuses and results of retro experiments (report.submit).
+  'record_experiment_event'
 ]
 
 const WORKER_TOOLS = [
@@ -116,9 +140,10 @@ const WORKER_TOOLS = [
   'fail_attempt',
   'heartbeat_kanban_card',
   'submit_kanban_card',
-  'fail_kanban_card'
+  'fail_kanban_card',
+  'record_attempt_metrics'
 ]
-const REVIEWER_TOOLS = [...READ_TOOLS, ...COMMENT_TOOLS, ...ATTACHMENT_WRITE_TOOLS, 'accept_attempt', 'reject_attempt']
+const REVIEWER_TOOLS = [...READ_TOOLS, ...COMMENT_TOOLS, ...ATTACHMENT_WRITE_TOOLS, 'accept_attempt', 'reject_attempt', 'record_run_metrics']
 
 interface ListingCase {
   role: SessionRole
