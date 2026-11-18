@@ -153,3 +153,4 @@
     "@electron/windows-sign": "^1.2.2"
   }
 }
+    "audit:ci": "node scripts/security-audit.mjs",
