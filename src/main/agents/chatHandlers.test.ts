@@ -845,8 +845,7 @@ function conversationChats(
   initial: readonly ChatRecord[],
   options: Pick<ConversationHarnessOptions, 'createError' | 'deleteError' | 'disappearAfterFirstList'>
 ): { chats: ChatRecords; records(): ChatRecord[] } {
-  let records = [...initial]
-  let created = 0, lists = 0
+  let records = [...initial], created = 0, lists = 0
   return {
     records: () => records,
     chats: {
@@ -868,7 +867,8 @@ function conversationChats(
           createdAt: `2026-01-01T00:00:1${created}.000Z`,
           updatedAt: `2026-01-01T00:00:1${created}.000Z`,
           sessionId: null,
-          ...(request.conversation === undefined ? {} : { conversation: request.conversation })
+          ...(request.conversation === undefined ? {} : { conversation: request.conversation }),
+          ...(request.firstPrompt === undefined ? {} : { firstPrompt: request.firstPrompt, firstPromptDelivery: 'pending' })
         }
         calls.push(['createChat', request])
         records.push(chat)
@@ -1110,7 +1110,7 @@ describe('chat handlers: conversation failures and deletion', () => {
     expect(subject.comments[0]?.body).toBe('Please relay this')
   })
 
-  it('deleting a bound conversation makes its old delivery nonexistent and the next send opens a new chat', async () => {
+  it('persists a replacement chat kickoff with that ticket history and starts it exactly once', async () => {
     const subject = conversationHarness()
     const request = { folder: REPO, target: { epicId: EPIC_ID, ticketId: TICKET_ID }, body: 'First' }
     const first = await subject.handlers.sendConversationMessage(request)
@@ -1123,12 +1123,23 @@ describe('chat handlers: conversation failures and deletion', () => {
       messageIds: [first.data.messageId]
     })
     const second = await subject.handlers.sendConversationMessage({ ...request, body: 'Second' })
+    const replacement = subject.records()[0]
+    const starts = subject.calls.filter((call) => call[0] === 'start')
 
     expect(state).toMatchObject({
       ok: true,
       data: { chat: null, deliveries: { [COMMENT_ID]: { chatId: 'chat_conversation_1', state: 'opened', chatExists: false } } }
     })
     expect(second).toMatchObject({ ok: true, data: { chatId: 'chat_conversation_2', state: 'opened' } })
+    expect(replacement).toMatchObject({
+      id: 'chat_conversation_2',
+      firstPromptDelivery: 'pending'
+    })
+    expect(replacement?.firstPrompt).toContain('First')
+    expect(replacement?.firstPrompt).toContain('Second')
+    expect(starts).toHaveLength(2)
+    expect(starts[1]).toEqual(['start', replacement, { kickoff: replacement?.firstPrompt }])
+    expect(subject.calls.some((call) => call[0] === 'paste')).toBe(false)
   })
 
 })

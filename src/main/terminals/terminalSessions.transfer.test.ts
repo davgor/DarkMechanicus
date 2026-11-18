@@ -124,6 +124,37 @@ describe('terminal sessions: a Kanban card chat started again', () => {
   })
 })
 
+describe('terminal sessions: persisted board-conversation kickoff', () => {
+  const firstPrompt = 'Answer DM-710 with the earlier ticket message.\n\nEarlier message: Preserve this context.'
+
+  it('submits the persisted kickoff once when chat creation starts it with the same text', async () => {
+    const chat = rig.store.createChat({
+      folder: rig.repo,
+      agent: CUSTOM.id,
+      model: null,
+      role: 'orchestrator',
+      allowSave: true,
+      title: 'Conversation · DM-710',
+      conversation: { epicId: EPIC_ID },
+      firstPrompt,
+      firstPromptDelivery: 'pending'
+    })
+
+    expect(await rig.sessions.start(chat, { kickoff: firstPrompt })).toMatchObject({ state: 'running' })
+    const first = rig.host.last()
+    await settleFirstPaste(first)
+    expect(first.written).toEqual([`\x1b[200~${firstPrompt.replace(/\n/g, '\r')}\x1b[201~`, '\r'])
+    expect(rig.store.getChat(chat)).toMatchObject({ firstPrompt, kickoffSent: true, firstPromptDelivery: 'submitted' })
+
+    await rig.sessions.attach(chat)
+    expect(first.written).toHaveLength(2)
+    await exit(first)
+    const again = await startTerminal(rig, chat)
+    await settleFirstPaste(again.pty)
+    expect(again.pty.written).toEqual([])
+  })
+})
+
 describe('terminal sessions: original first popup message', () => {
   const firstPrompt = '  Could you investigate why sign-in fails after expiry?\nPreserve café and 👋 exactly.  '
 
