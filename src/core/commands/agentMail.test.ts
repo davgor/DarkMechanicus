@@ -336,38 +336,98 @@ describe('the restricted mailbox-poll mode’s whitelist', () => {
 const WORKSPACE = new URL('../workspace.ts', import.meta.url).href
 const REPOSITORY = fileURLToPath(new URL('../../../', import.meta.url))
 
-/** Runs one script in its own Node process; resolves with its last stdout line, parsed as JSON. */
-function inProcess(source: string): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', source], { cwd: REPOSITORY })
-    let stdout = ''
-    let stderr = ''
-    child.stdout.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString('utf8')
-    })
-    child.stderr.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString('utf8')
-    })
-    child.on('error', reject)
-    child.on('close', (code) => {
-      if (code === 0) {
-        resolve(JSON.parse(stdout.trim().split('\n').at(-1) ?? 'null'))
-      } else {
-        reject(new Error(`child exited ${String(code)}: ${stderr}`))
-      }
-    })
-  })
+const CHILD_READY = 'DM_AGENT_MAIL_CHILD_READY'
+
+interface WaitingProcess {
+  ready: Promise<void>
+  result: Promise<unknown>
+  start(): void
 }
 
-/** A script that opens a fresh CLI workspace per call, as `dm` does, and runs `body` once `startAt` arrives. */
-function script(token: string, startAt: number, body: string): string {
+/** Starts one script in its own Node process and holds it at the shared start barrier. */
+function waitingProcess(source: string): WaitingProcess {
+  const ready = Promise.withResolvers<void>()
+  const result = Promise.withResolvers<unknown>()
+  const child = spawn(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', source], {
+    cwd: REPOSITORY
+  })
+  let stdout = ''
+  let stderr = ''
+  let announced = false
+  child.stdout.on('data', (chunk: Buffer) => {
+    stdout += chunk.toString('utf8')
+    if (!announced && stdout.split(/\r?\n/).includes(CHILD_READY)) {
+      announced = true
+      ready.resolve()
+    }
+  })
+  child.stderr.on('data', (chunk: Buffer) => {
+    stderr += chunk.toString('utf8')
+  })
+  child.stdin.on('error', (error) => {
+    ready.reject(error)
+    result.reject(error)
+  })
+  child.on('error', (error) => {
+    ready.reject(error)
+    result.reject(error)
+  })
+  child.on('close', (code) => {
+    if (!announced) {
+      ready.reject(new Error(`child exited before the start barrier: ${stderr}`))
+    }
+    if (code !== 0) {
+      result.reject(new Error(`child exited ${String(code)}: ${stderr}`))
+      return
+    }
+    try {
+      result.resolve(JSON.parse(stdout.trim().split(/\r?\n/).at(-1) ?? 'null'))
+    } catch (error: unknown) {
+      result.reject(error)
+    }
+  })
+  return {
+    ready: ready.promise,
+    result: result.promise,
+    start: () => {
+      if (!child.stdin.destroyed) child.stdin.end('\n')
+    }
+  }
+}
+
+/** Releases every child only after all are ready, preserving real cross-process contention without a timed spin. */
+async function inProcesses(sources: string[]): Promise<unknown[]> {
+  const children = sources.map(waitingProcess)
+  const results = children.map((child) => child.result)
+  for (const result of results) void result.catch(() => undefined)
+  try {
+    await Promise.all(children.map((child) => child.ready))
+  } catch (error: unknown) {
+    for (const child of children) child.start()
+    await Promise.allSettled(results)
+    throw error
+  }
+  for (const child of children) child.start()
+  const settled = await Promise.allSettled(results)
+  const values: unknown[] = []
+  for (const result of settled) {
+    if (result.status === 'rejected') throw result.reason
+    values.push(result.value)
+  }
+  return values
+}
+
+/** A script that opens a fresh CLI workspace per call, as `dm` does, after the parent releases its start barrier. */
+function script(token: string, body: string): string {
   return `
+    import { once } from 'node:events';
     import { openWorkspace } from ${JSON.stringify(WORKSPACE)};
     const open = (extra = {}) => openWorkspace({ repoRoot: ${JSON.stringify(harness.root)}, homeDir: ${JSON.stringify(harness.homeDir)},
       role: 'reader', transport: 'cli', label: 'child', grantToken: ${JSON.stringify(token)}, autoReconcile: false,
       databaseSynchronous: 'off', ...extra });
     const call = async (extra, run) => { const ws = open(extra); try { return await run(ws) } finally { ws.close() } };
-    while (Date.now() < ${startAt}) {}
+    console.log(${JSON.stringify(CHILD_READY)});
+    await once(process.stdin, 'data');
     const out = [];
     ${body}
     console.log(JSON.stringify(out));`
@@ -385,17 +445,15 @@ describe('separate processes sending into one mailbox database', () => {
     const a = await boundChat(desktop, 'chat-a')
     const c = await boundChat(desktop, 'chat-c')
     const b = await boundChat(desktop, 'chat-b')
-    const startAt = Date.now() + 4000
     const sends = (sender: Chat, prefix: string) =>
       script(
         sender.token,
-        startAt,
         `for (let i = 0; i < 25; i += 1) {
            out.push(await call({}, (ws) => ws.sendAgentMessage({ to: ${JSON.stringify(b.endpoint.id)}, clientMessageId: '${prefix}-' + i, body: 'body ' + i })));
            if (i === 12) out.push(await call({}, (ws) => ws.sendAgentMessage({ to: ${JSON.stringify(b.endpoint.id)}, clientMessageId: 'shared', body: 'same' })));
          }`
       )
-    const [fromA1, fromA2, fromC] = (await Promise.all([sends(a, 'a1'), sends(a, 'a2'), sends(c, 'c')].map(inProcess))) as { messageId: string; clientMessageId: string; duplicate: boolean }[][]
+    const [fromA1, fromA2, fromC] = (await inProcesses([sends(a, 'a1'), sends(a, 'a2'), sends(c, 'c')])) as { messageId: string; clientMessageId: string; duplicate: boolean }[][]
     const rows = desktop.ctx().db.all<{ recipient_seq: number; client_message_id: string; sender_endpoint_id: string }>(
       'SELECT recipient_seq, client_message_id, sender_endpoint_id FROM agent_mail_messages WHERE recipient_endpoint_id = ? ORDER BY recipient_seq',
       b.endpoint.id
@@ -418,16 +476,14 @@ describe('separate processes polling one mailbox database', () => {
     await a.cli().sendAgentMessage({ to: b.endpoint.id, clientMessageId: 'wake', body: 'x' })
     armAgentMailWake(desktop.ctx(), { endpointId: b.endpoint.id, expectedRevision: 0, requestNonce: 'arm-1' })
     const sessions = count(desktop, 'SELECT COUNT(*) AS n FROM sessions')
-    const startAt = Date.now() + 4000
     const polls = script(
       b.token,
-      startAt,
       `for (let i = 0; i < 15; i += 1) {
          out.push(await call({ mailPoll: true }, async (ws) => ({ status: await ws.getAgentMailStatus({}), session: ws.sessionId() })));
          out.push(await call({ mailPoll: true }, async (ws) => ({ wake: await ws.takeAgentMailWake({}), session: ws.sessionId() })));
        }`
     )
-    const results = ((await Promise.all([polls, polls].map(inProcess))) as { session: string; wake?: { claimed: boolean } }[][]).flat()
+    const results = ((await inProcesses([polls, polls])) as { session: string; wake?: { claimed: boolean } }[][]).flat()
     expect(new Set(results.map((result) => result.session)).size).toBe(1)
     expect(count(desktop, 'SELECT COUNT(*) AS n FROM sessions')).toBe(sessions + 1)
     expect(results.filter((result) => result.wake?.claimed === true)).toHaveLength(1)
@@ -441,11 +497,9 @@ describe('separate processes and a revocation that commits mid-stream', () => {
     const a = await boundChat(desktop, 'chat-a')
     const b = await boundChat(desktop, 'chat-b')
     const fromA = (): number => count(desktop, 'SELECT COUNT(*) AS n FROM agent_mail_messages WHERE sender_endpoint_id = ?', a.endpoint.id)
-    const startAt = Date.now() + 4000
     // The sender keeps going until three refusals in a row; any success after a refusal would show a stale grant.
     const sender = script(
       a.token,
-      startAt,
       `for (let i = 0; i < 400 && out.filter((result) => result !== 'ok').length < 3; i += 1) {
          try { await call({}, (ws) => ws.sendAgentMessage({ to: ${JSON.stringify(b.endpoint.id)}, clientMessageId: 'r-' + i, body: 'body ' + i })); out.push('ok') }
          catch (error) { out.push(error.code ?? 'thrown') }
@@ -454,14 +508,13 @@ describe('separate processes and a revocation that commits mid-stream', () => {
     // The recipient reads and acknowledges throughout; any failure of its own fails the child.
     const acker = script(
       b.token,
-      startAt,
       `for (let i = 0; i < 40; i += 1) {
          const ids = await call({}, async (ws) => (await ws.readAgentInbox({ unacknowledgedOnly: true })).messages.map((message) => message.id));
          if (ids.length > 0) out.push((await call({}, (ws) => ws.acknowledgeAgentMessages({ messageIds: ids }))).acknowledged.length);
        }`
     )
     let settled = false
-    const children = Promise.all([sender, acker].map(inProcess)).finally(() => {
+    const children = inProcesses([sender, acker]).finally(() => {
       settled = true
     })
     // Revoke only once the sender has demonstrably been sending: the positive control for the refusals that follow.
