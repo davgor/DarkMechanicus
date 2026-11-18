@@ -338,6 +338,23 @@ const REPOSITORY = fileURLToPath(new URL('../../../', import.meta.url))
 
 const CHILD_READY = 'DM_AGENT_MAIL_CHILD_READY'
 
+interface Deferred<T> {
+  promise: Promise<T>
+  resolve(value: T | PromiseLike<T>): void
+  reject(reason?: unknown): void
+}
+
+/** Adapts child-process events to promises on the project's ES2022 target. */
+function deferred<T>(): Deferred<T> {
+  let resolve!: Deferred<T>['resolve']
+  let reject!: Deferred<T>['reject']
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
 interface WaitingProcess {
   ready: Promise<void>
   result: Promise<unknown>
@@ -346,8 +363,8 @@ interface WaitingProcess {
 
 /** Starts one script in its own Node process and holds it at the shared start barrier. */
 function waitingProcess(source: string): WaitingProcess {
-  const ready = Promise.withResolvers<void>()
-  const result = Promise.withResolvers<unknown>()
+  const ready = deferred<void>()
+  const result = deferred<unknown>()
   const child = spawn(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', source], {
     cwd: REPOSITORY
   })
