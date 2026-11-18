@@ -1,7 +1,7 @@
 # Baseline ignore for ts-prune: one `file - export` per line (line numbers are not matched)
 # Generated from tsconfig.node.json + tsconfig.web.json
 # Refresh after export moves/deletes: npm run deadcode:refresh
-# Refreshed 2026-11-16 (365 entries)
+# Refreshed 2026-11-18 (371 entries)
 
 electron.vite.config.ts - default
 src/core/canonical.ts - canonicalJson
@@ -27,7 +27,6 @@ src/core/transfer/linearPacket.ts - LinearPacketInput
 src/main/desktop/cliConfig.ts - CliConfigOptions
 src/main/terminals/__mocks__/terminalPorts.ts - PortPair
 src/main/terminals/__mocks__/terminalPorts.ts - Posted
-src/main/terminals/__mocks__/terminalSessionsRig.ts - Gate
 src/main/terminals/ptyHelperCheck.ts - PtyHelperCheckOptions
 src/main/terminals/ptyHost.ts - NodePtyHostOptions
 src/mcp/transferKickoff.ts - TransferKickoffInput
@@ -72,7 +71,6 @@ src/renderer/src/scorecard/scoreReads.ts - SprintAssessment
 src/renderer/src/scorecard/scoreReads.ts - TicketCardView
 src/renderer/src/scorecard/scoreReads.ts - TicketReportRead
 src/renderer/src/scorecard/scoreReads.ts - loadTicketCard
-src/renderer/src/scorecard/scoreReads.ts - scoreReadError
 src/renderer/src/scorecard/scoreReads.ts - shownState
 src/renderer/src/ticket/ticketView.ts - AttemptCard
 src/renderer/src/ticket/ticketView.ts - COST_LABELS
@@ -94,19 +92,10 @@ src/renderer/src/ticket/ticketView.ts - metaLine
 src/renderer/src/ticket/ticketView.ts - scorecardRuns
 src/renderer/src/ticket/ticketView.ts - sizeAndEffortRows
 src/renderer/src/ticket/ticketView.ts - statePill
-src/renderer/src/__mocks__/fakeTerminalKit.ts - FakeTerminalView
-src/renderer/src/agents/terminalTheme.ts - TokenReader
-src/renderer/src/agents/useTerminal.ts - TerminalModel
-src/renderer/src/epic/__mocks__/transferBackend.ts - TransferSetup
-src/renderer/src/epic/transferActions.ts - TransferActionDeps
-src/renderer/src/epic/transferView.ts - TransferStripView
 src/shared/agents/chat.ts - ApprovalRequestItem
 src/shared/agents/chat.ts - DarkMechanicusCli
 src/shared/agents/chat.ts - ErrorProblem
 src/shared/agents/chat.ts - IDLE_STOP_CODE
-src/shared/agents/chat.ts - chatIdSchema
-src/shared/agents/chatApi.ts - BoundThreadsRequest
-src/shared/agents/chatApi.ts - ChatRequestRef
 src/shared/agents/chatApi.ts - AllowChatMailWakeRequest
 src/shared/agents/chatApi.ts - BoundThreadsRequest
 src/shared/agents/chatApi.ts - ChatMailRef
@@ -144,16 +133,11 @@ src/shared/desktop/api.ts - AgentDownloadPhase
 src/shared/desktop/api.ts - AgentRefusalCode
 src/shared/desktop/api.ts - DESKTOP_COMMANDS
 src/shared/desktop/api.ts - DesktopCommandName
-src/shared/desktop/attachmentUrl.ts - ATTACHMENT_SCHEME
-src/shared/desktop/sourceCheckout.ts - SourceCheckoutProblem
-src/shared/desktop/sourceCheckout.ts - SourceCheckoutTarget
-src/shared/desktop/api.ts - CommandInput
-src/shared/desktop/api.ts - CommandOutput
-src/shared/desktop/api.ts - DESKTOP_COMMANDS
-src/shared/desktop/api.ts - DesktopCommandName
 src/shared/desktop/api.ts - KnowledgeDiagnosticView
 src/shared/desktop/api.ts - KnowledgeLayerName
 src/shared/desktop/attachmentUrl.ts - ATTACHMENT_SCHEME
+src/shared/desktop/sourceCheckout.ts - SourceCheckoutProblem
+src/shared/desktop/sourceCheckout.ts - SourceCheckoutTarget
 src/shared/domain/agentMail.ts - AgentMailMessageView
 src/shared/domain/agentMail.ts - AgentMailWakeState
 src/shared/domain/agentMail.ts - HumanAgentMailStateView
@@ -176,7 +160,6 @@ src/shared/domain/api.ts - SubmitKanbanCardInput
 src/shared/domain/api.ts - TicketCriterionInput
 src/shared/domain/bundle.ts - CHECKPOINT_MODES
 src/shared/domain/bundle.ts - EpicContent
-src/shared/domain/bundle.ts - Modality
 src/shared/domain/bundle.ts - REFERENCE_KINDS
 src/shared/domain/bundle.ts - RELATION_KINDS
 src/shared/domain/bundle.ts - Relation
@@ -254,10 +237,6 @@ src/shared/domain/performance.ts - RegressionView
 src/shared/domain/performance.ts - VERIFICATION_REASONS
 src/shared/domain/performance.ts - VerificationItem
 src/shared/domain/performance.ts - VerificationRecord
-src/shared/domain/bundle.ts - WorkType
-src/shared/domain/errors.ts - DOMAIN_ERROR_CODES
-src/shared/domain/kanban.ts - KANBAN_EDITABLE_FIELDS
-src/shared/domain/kanban.ts - KanbanAttemptState
 src/shared/domain/retro.ts - RetroDelivered
 src/shared/domain/retro.ts - RetroDiscovery
 src/shared/domain/retro.ts - RetroLeftover
@@ -269,7 +248,6 @@ src/shared/domain/retroFindings.ts - FindingHypothesis
 src/shared/domain/retroFindings.ts - FindingMagnitude
 src/shared/domain/retroFindings.ts - FindingOrigins
 src/shared/domain/retroFindings.ts - FindingsStatus
-src/shared/domain/retroFindings.ts - ProposalOutline
 src/shared/domain/retroFindings.ts - RetroFindingThresholds
 src/shared/domain/scoreReads.ts - EscapedDefectRecordInput
 src/shared/domain/scoreReads.ts - GradingPolicyComponentView
@@ -311,7 +289,6 @@ src/shared/domain/space.ts - USAGE_COVERAGES
 src/shared/domain/space.ts - UsageCoverage
 src/shared/domain/space.ts - VERIFICATION_STATES
 src/shared/domain/spaceGrades.ts - AggregateDetail
-src/shared/domain/spaceGrades.ts - ComponentDifference
 src/shared/domain/spaceGrades.ts - ComponentReading
 src/shared/domain/spaceGrades.ts - FrozenComponentInput
 src/shared/domain/spaceGrades.ts - FrozenResult
@@ -395,6 +372,5 @@ src/shared/domain/views.ts - SummaryComponentGap
 src/shared/domain/views.ts - SummaryFailureGap
 src/shared/domain/views.ts - SummaryReworkGap
 src/shared/domain/views.ts - UnavailableField
-src/shared/domain/views.ts - WorkerInfo
 src/shared/domain/views.ts - WorkerInfo
 src/test/realGit.ts - default
