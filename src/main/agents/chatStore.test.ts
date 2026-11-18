@@ -10,6 +10,32 @@ import { storeItems } from './__mocks__/chatFixtures'
 import { CHAT_BEFORE_THREADS, CHAT_BEFORE_THREADS_LINES } from './__mocks__/chatBeforeThreads'
 import { CLAIM_TOKEN_MASK } from './claimTokenMask'
 import { createChatStore, type ChatRef, type ChatStore, type ChatStoreFs, type NewChat } from './chatStore'
+  it('loads a legacy line without a conversation and round-trips a conversation binding', () => {
+    const fs = memoryFs()
+    const seeded = openStore(fs).createChat(NEW_CHAT)
+    const legacy = {
+      id: 'chat_legacy',
+      folder: seeded.folder,
+      agent: 'claude',
+      model: 'opus',
+      role: 'orchestrator',
+      allowSave: true,
+      title: 'Legacy chat',
+      createdAt: AT,
+      updatedAt: AT,
+      sessionId: null
+    } as const
+    fs.files.set(indexPath(fs), `${JSON.stringify(legacy)}\n`)
+    const store = openStore(fs)
+    expect(store.listChats(REPO)).toEqual([legacy])
+
+    const bound = store.createChat({ ...NEW_CHAT, conversation: { epicId: 'ep_1' } })
+    const reopened = openStore(fs)
+    expect(reopened.getChat(bound)?.conversation).toEqual({ epicId: 'ep_1' })
+    expect(reopened.getChat(legacy)).toEqual(legacy)
+    expect(reopened.getChat(legacy)).not.toHaveProperty('conversation')
+  })
+
 
 interface MemoryFs extends ChatStoreFs {
   files: Map<string, string>

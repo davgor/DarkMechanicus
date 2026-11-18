@@ -270,7 +270,11 @@ function pruneCardAttachmentFiles(deps: FinalizerDeps, cardId: string): void {
       .all<{ id: string; sha256: string }>(
         `SELECT id, sha256 FROM attachments
          WHERE (owner_kind = 'kanban_card' AND owner_id = ?)
-            OR (owner_kind = 'kanban_attempt' AND owner_id IN (SELECT id FROM kanban_attempts WHERE card_id = ?))`,
+            OR (owner_kind = 'kanban_attempt' AND owner_id IN (SELECT id FROM kanban_attempts WHERE card_id = ?))
+            OR (owner_kind = 'kanban_message' AND owner_id IN (
+              SELECT id FROM kanban_events WHERE card_id = ? AND kind = 'message'
+            ))`,
+        cardId,
         cardId,
         cardId
       )
@@ -761,7 +765,8 @@ function queuedAfter(db: Db, afterId: number, scope: FlushScope | undefined): Ou
        CASE o.kind WHEN 'kanban_card' THEN o.entity_id
          WHEN 'kanban_event' THEN (SELECT e.card_id FROM kanban_events e WHERE e.id = o.entity_id)
          WHEN 'attachment' THEN (SELECT CASE a.owner_kind WHEN 'kanban_card' THEN a.owner_id
-           WHEN 'kanban_attempt' THEN (SELECT k.card_id FROM kanban_attempts k WHERE k.id = a.owner_id) END
+           WHEN 'kanban_attempt' THEN (SELECT k.card_id FROM kanban_attempts k WHERE k.id = a.owner_id)
+           WHEN 'kanban_message' THEN (SELECT e.card_id FROM kanban_events e WHERE e.id = a.owner_id AND e.kind = 'message') END
            FROM attachments a WHERE a.id = o.entity_id) END AS card_id
      FROM outbox o WHERE o.state IN ('pending', 'failed') AND o.id > ? ORDER BY o.id`,
     afterId

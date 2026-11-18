@@ -42,7 +42,8 @@ export interface ChatStoreFs {
 }
 
 /** What a caller supplies to start a chat; the store assigns the id, timestamps and session id. */
-export type NewChat = Pick<ChatRecord, 'folder' | 'agent' | 'model' | 'role' | 'allowSave'> & Partial<Pick<ChatRecord, 'title' | 'runId' | 'transferEpicId' | 'cardId' | 'firstPrompt' | 'firstPromptDelivery' | 'titleStatus'>>
+export type NewChat = Pick<ChatRecord, 'folder' | 'agent' | 'model' | 'role' | 'allowSave'> &
+  Partial<Pick<ChatRecord, 'title' | 'runId' | 'transferEpicId' | 'cardId' | 'conversation' | 'firstPrompt' | 'firstPromptDelivery' | 'titleStatus'>>
 
 /** Identifies a chat: its folder (any spelling; null for a project-less chat) and id. Every `ChatRecord` is one. */
 export type ChatRef = Pick<ChatRecord, 'folder' | 'id'>
@@ -234,7 +235,8 @@ function createChat(context: StoreContext, input: NewChat): ChatRecord {
     sessionId: null,
     ...(input.runId === undefined ? {} : { runId: input.runId }),
     ...(input.transferEpicId === undefined ? {} : { transferEpicId: input.transferEpicId }),
-    ...(input.cardId === undefined ? {} : { cardId: input.cardId })
+    ...(input.cardId === undefined ? {} : { cardId: input.cardId }),
+    ...(input.conversation === undefined ? {} : { conversation: input.conversation })
   })
 }
 

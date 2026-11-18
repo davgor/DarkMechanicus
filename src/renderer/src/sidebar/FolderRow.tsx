@@ -205,6 +205,7 @@ function Agents(props: FolderRowProps): JSX.Element {
     <AgentsBlock
       folder={folder}
       list={props.chats}
+      epics={props.list}
       statuses={props.statuses}
       agents={props.agents}
       expanded={expansion.isAgentsExpanded(folder.path)}

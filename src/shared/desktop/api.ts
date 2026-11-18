@@ -379,6 +379,7 @@ const DESKTOP_COMMANDS = [
   'updateKanbanCard',
   'listKanbanCards',
   'getKanbanCard',
+  'listKanbanMessages',
   'playKanbanCard',
   'approveKanbanCard',
   'kickBackKanbanCard',

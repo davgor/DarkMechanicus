@@ -45,16 +45,17 @@ interface ChatRecordsDeps {
 
 /**
  * A request to create a chat, in a tracked folder or project-less (`folder` null), with the run it orchestrates, the
- * epic it transfers or the Kanban card it carries when there is one.
+ * epic it transfers, the Kanban card it carries or the board conversation it answers when there is one.
  */
-type NewChatRequest = Omit<CreateChatRequest, 'folder'> & Pick<ChatRecord, 'folder' | 'runId' | 'transferEpicId' | 'cardId'>
+type NewChatRequest = Omit<CreateChatRequest, 'folder'> & Pick<ChatRecord, 'folder' | 'runId' | 'transferEpicId' | 'cardId' | 'conversation'>
 
 export interface ChatRecords {
   /** A folder's chats (null: the project-less chats), most recently updated first. */
   listChats(folder: string | null): ChatRecord[]
   /**
    * `runId` links the chat to the run it orchestrates, `transferEpicId` to the epic it moves to Linear, `cardId` to the
-   * Kanban card it carries; only main sets them (the `chats:create` request cannot).
+   * Kanban card it carries, and `conversation` to the board conversation it answers; only main sets them (the
+   * `chats:create` request cannot).
    */
   createChat(request: NewChatRequest): ChatRecord
   /** Changes the chat's title. */
@@ -130,7 +131,13 @@ function newChat(request: NewChatRequest): NewChat {
     allowSave: request.allowSave ?? true,
     ...(request.firstPrompt === undefined ? {} : { firstPromptDelivery: 'pending' as const })
   }
-  const naming = request.title === undefined && request.firstPrompt !== undefined && request.runId === undefined && request.transferEpicId === undefined && request.cardId === undefined
+  const naming =
+    request.title === undefined &&
+    request.firstPrompt !== undefined &&
+    request.runId === undefined &&
+    request.transferEpicId === undefined &&
+    request.cardId === undefined &&
+    request.conversation === undefined
   return naming ? { ...input, title: 'Naming chat…', titleStatus: 'pending' } : input
 }
 

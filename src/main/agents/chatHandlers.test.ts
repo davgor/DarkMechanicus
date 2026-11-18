@@ -3,16 +3,17 @@ import { describe, expect, it } from 'vitest'
 import { DomainError } from '../../core/errors'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { TransferStatus, TransferView } from '../../shared/domain/transfer'
-import type { EpicDetailView, RunView } from '../../shared/domain/views'
+import type { CommentView, EpicDetailView, RunView, TicketDetailView } from '../../shared/domain/views'
 import type { ChatPushEvent } from '../../shared/agents/chatApi'
-import type { CommandResult } from '../../shared/desktop/api'
+import type { AgentId, CommandResult } from '../../shared/desktop/api'
 import { transferKickoff } from '../../mcp/transferKickoff'
 import { AT, connectedAgents, REPO } from './__mocks__/chatFixtures'
-import { createChatHandlers, type ChatHandlers } from './chatHandlers'
+import { createChatHandlers, type ChatHandlers, type ConversationWorkspace } from './chatHandlers'
+import type { ConversationDelivery } from './conversationDeliveries'
 import type { ChatRecords } from './chatRecords'
 import type { OrchestratorRuns } from './orchestratorStart'
 import type { TransferReads } from './transferStart'
-import type { KanbanCardView } from '../../shared/domain/kanban'
+import type { KanbanCardView, KanbanMessageView } from '../../shared/domain/kanban'
 import type { KanbanCards } from '../kanban/startKanbanCard'
 import type { TerminalSessions } from '../terminals/terminalSessions'
 
@@ -765,4 +766,629 @@ it('accepts the full original first prompt at the guarded creation boundary but 
     expect(await handlers.create({ ...request, firstPrompt: blank })).toMatchObject({ ok: false, error: { code: 'invalid_input' } })
   }
   expect(calls).toHaveLength(1)
+})
+
+const TICKET_ID = 'tk_01m418epbg8qkqa2e2krvdkqk5'
+const COMMENT_ID = 'cm_01m418epbg8qkqa2e2krvdkqk5'
+const CARD_MESSAGE_ID = 'km_01m418epbg8qkqa2e2krvdkqk5'
+const ATTEMPT_ID = 'at_01m418epbg8qkqa2e2krvdkqk5'
+const TICKET = {
+  epicId: EPIC_ID,
+  view: 'saved',
+  ticket: { id: TICKET_ID, key: 'DM-8', title: 'Route board messages' },
+  attempts: []
+} as unknown as TicketDetailView
+
+interface ConversationHarnessOptions {
+  chats?: ChatRecord[]
+  attemptId?: string | null
+  activeRunId?: string | null
+  bound?: Record<string, string | null>
+  pasteFailure?: string
+  startFailure?: string
+  startError?: unknown
+  createError?: unknown
+  deleteError?: unknown
+  disappearAfterFirstList?: boolean
+  omitBoundTerminal?: boolean
+  omitNow?: boolean
+  defaultAgent?: AgentId | null
+  comments?: CommentView[]
+  cardMessages?: KanbanMessageView[]
+}
+
+function conversationWorkspace(
+  calls: unknown[][],
+  comments: CommentView[],
+  initialCardMessages: readonly KanbanMessageView[] = []
+): ConversationWorkspace {
+  const cardMessages: KanbanMessageView[] = [...initialCardMessages]
+  return {
+    addComment: async (input) => {
+      calls.push(['addComment', input])
+      const comment: CommentView = {
+        id: comments.length === 0 ? COMMENT_ID : 'cm_01m418epbg8qkqa2e2krvdkqk6',
+        epicId: input.epicId,
+        ticketId: input.ticketId ?? null,
+        body: input.body,
+        author: { role: 'desktop', label: 'Person' },
+        createdAt: `2026-01-01T00:00:0${comments.length}.000Z`
+      }
+      comments.push(comment)
+      return comment
+    },
+    listComments: async (input) => {
+      calls.push(['listComments', input])
+      return comments.filter((comment) => comment.epicId === input.epicId && (input.ticketId === undefined || comment.ticketId === input.ticketId))
+    },
+    getEpic: async () => EPIC,
+    getTicket: async () => TICKET,
+    getKanbanCard: async () => CARD,
+    addKanbanMessage: async (input) => {
+      calls.push(['addKanbanMessage', input])
+      const message: KanbanMessageView = {
+        id: CARD_MESSAGE_ID,
+        body: input.body,
+        authorRole: 'desktop',
+        authorLabel: 'Person',
+        createdAt: AT
+      }
+      cardMessages.push(message)
+      return message
+    },
+    listKanbanMessages: async () => [...cardMessages]
+  }
+}
+
+function conversationChats(
+  calls: unknown[][],
+  initial: readonly ChatRecord[],
+  options: Pick<ConversationHarnessOptions, 'createError' | 'deleteError' | 'disappearAfterFirstList'>
+): { chats: ChatRecords; records(): ChatRecord[] } {
+  let records = [...initial]
+  let created = 0, lists = 0
+  return {
+    records: () => records,
+    chats: {
+      listChats: () => {
+        lists += 1
+        return options.disappearAfterFirstList === true && lists > 1 ? [] : [...records]
+      },
+      createChat: (request) => {
+        if (options.createError !== undefined) throw options.createError
+        created += 1
+        const chat: ChatRecord = {
+          id: `chat_conversation_${created}`,
+          folder: request.folder,
+          agent: request.agent,
+          model: request.model ?? null,
+          role: request.role,
+          allowSave: request.allowSave ?? true,
+          title: request.title ?? 'New chat',
+          createdAt: `2026-01-01T00:00:1${created}.000Z`,
+          updatedAt: `2026-01-01T00:00:1${created}.000Z`,
+          sessionId: null,
+          ...(request.conversation === undefined ? {} : { conversation: request.conversation })
+        }
+        calls.push(['createChat', request])
+        records.push(chat)
+        return chat
+      },
+      renameChat: () => {
+        throw new Error('not used')
+      },
+      deleteChat: async (ref) => {
+        if (options.deleteError !== undefined) throw options.deleteError
+        calls.push(['deleteChat', ref])
+        records = records.filter((chat) => chat.id !== ref.id)
+      },
+      recoverFolder: async () => {},
+      readChat: () => {
+        throw new Error('not used')
+      },
+      agentName: (id) => id
+    }
+  }
+}
+
+function conversationHarness(options: ConversationHarnessOptions = {}) {
+  const calls: unknown[][] = [], comments = [...(options.comments ?? [])]
+  const workspace = conversationWorkspace(calls, comments, options.cardMessages)
+  const chatState = conversationChats(calls, options.chats ?? [], options)
+  const deliveries = new Map<string, ConversationDelivery>()
+  const errors: unknown[] = []
+  const terminals: Terminals = {
+    start: async (...args) => {
+      calls.push(['start', ...args])
+      if (options.startError !== undefined) throw options.startError
+      return options.startFailure === undefined
+        ? { state: 'running', pid: 4242 }
+        : { state: 'failed', message: options.startFailure }
+    },
+    paste: async (...args) => {
+      calls.push(['paste', ...args])
+      return options.pasteFailure === undefined
+        ? { state: 'running', pid: 4242 }
+        : { state: 'failed', message: options.pasteFailure }
+    }
+  }
+  const handlers = createChatHandlers({
+    registry: { resolve: (path) => (path === REPO || path === SPELLING ? REPO : null), list: () => [] },
+    agents: AGENTS,
+    chats: chatState.chats,
+    terminals,
+    runs: recordingRuns(),
+    transfers: recordingTransfers(),
+    kanban: recordingCards(),
+    ...(options.omitBoundTerminal === true
+      ? {}
+      : { boundTerminal: async (_folder: string, target: { attemptId: string } | { runId: string }) =>
+          options.bound?.['attemptId' in target ? target.attemptId : target.runId] ?? null }),
+    conversation: {
+      workspace: () => workspace,
+      reads: {
+        openAttemptId: async () => options.attemptId ?? null,
+        activeRunId: async () => options.activeRunId ?? null
+      },
+      deliveries: {
+        record: (entry) => void deliveries.set(entry.messageId, entry),
+        forMessages: (_folder, ids) => new Map(ids.flatMap((id) => (deliveries.has(id) ? [[id, deliveries.get(id)!]] : [])))
+      },
+      defaultAgent: () => (options.defaultAgent === undefined ? 'claude' : options.defaultAgent),
+      ...(options.omitNow === true ? {} : { now: () => AT })
+    },
+    onUnexpectedError: (error) => errors.push(error)
+  })
+  return { handlers, calls, comments, deliveries, errors, records: chatState.records }
+}
+
+describe('chat handlers: board conversations', () => {
+  it('stores a ticket message before pasting it into the open attempt chat with relay guidance', async () => {
+    const claimChat = { ...CHAT, id: 'chat_claim', role: 'orchestrator' as const }
+    const subject = conversationHarness({ chats: [claimChat], attemptId: ATTEMPT_ID, bound: { [ATTEMPT_ID]: claimChat.id } })
+
+    const result = await subject.handlers.sendConversationMessage({
+      folder: SPELLING,
+      target: { epicId: EPIC_ID, ticketId: TICKET_ID },
+      body: 'Should I keep the compatibility path?'
+    })
+    const state = await subject.handlers.conversationState({
+      folder: REPO,
+      target: { epicId: EPIC_ID, ticketId: TICKET_ID },
+      messageIds: [COMMENT_ID]
+    })
+
+    expect(result).toEqual({ ok: true, data: { messageId: COMMENT_ID, chatId: claimChat.id, state: 'delivered', problem: null } })
+    expect(state).toMatchObject({
+      ok: true,
+      data: {
+        chat: { id: claimChat.id, via: 'attempt' },
+        deliveries: { [COMMENT_ID]: { chatId: claimChat.id, state: 'delivered', chatExists: true } }
+      }
+    })
+    expect(subject.calls[0]).toEqual(['addComment', { epicId: EPIC_ID, ticketId: TICKET_ID, body: 'Should I keep the compatibility path?' }])
+    expect(subject.calls.find((call) => call[0] === 'paste')).toEqual([
+      'paste',
+      claimChat,
+      expect.stringContaining('pass this to it now and post its answer')
+    ])
+  })
+
+  it('relays a ticket message through the active run chat when no claim chat exists', async () => {
+    const runChat = { ...CHAT, id: 'chat_run', role: 'orchestrator' as const }
+    const subject = conversationHarness({
+      chats: [runChat],
+      activeRunId: RUN.id,
+      bound: { [RUN.id]: runChat.id }
+    })
+
+    const result = await subject.handlers.sendConversationMessage({
+      folder: REPO,
+      target: { epicId: EPIC_ID, ticketId: TICKET_ID },
+      body: 'Please ask the active orchestrator'
+    })
+
+    expect(result).toMatchObject({ ok: true, data: { chatId: runChat.id, state: 'delivered', problem: null } })
+    expect(subject.calls.find((call) => call[0] === 'paste')).toEqual([
+      'paste',
+      runChat,
+      expect.stringContaining('pass this to it now and post its answer')
+    ])
+  })
+})
+
+describe('chat handlers: opening board conversations', () => {
+
+  it('opens a bound allow-save orchestrator chat with the earlier ticket conversation in its kickoff', async () => {
+    const earlier: CommentView = {
+      id: 'cm_01m418epbg8qkqa2e2krvdkqk4',
+      epicId: EPIC_ID,
+      ticketId: TICKET_ID,
+      body: 'Earlier context',
+      author: { role: 'desktop', label: 'Person' },
+      createdAt: AT
+    }
+    const subject = conversationHarness({ comments: [earlier] })
+
+    const result = await subject.handlers.sendConversationMessage({
+      folder: REPO,
+      target: { epicId: EPIC_ID, ticketId: TICKET_ID },
+      body: 'New question'
+    })
+
+    expect(result).toMatchObject({ ok: true, data: { chatId: 'chat_conversation_1', state: 'opened', problem: null } })
+    expect(subject.calls.find((call) => call[0] === 'createChat')).toEqual([
+      'createChat',
+      expect.objectContaining({
+        role: 'orchestrator',
+        allowSave: true,
+        conversation: { epicId: EPIC_ID },
+        title: 'Conversation · DM-8'
+      })
+    ])
+    expect(subject.calls.find((call) => call[0] === 'start')).toEqual([
+      'start',
+      expect.objectContaining({ id: 'chat_conversation_1' }),
+      { kickoff: expect.stringContaining('Earlier context') }
+    ])
+  })
+
+})
+
+describe('chat handlers: opening epic board conversations', () => {
+  it('opens an epic conversation with the active-run warning when no run chat is available', async () => {
+    const subject = conversationHarness({ activeRunId: RUN.id })
+
+    const result = await subject.handlers.sendConversationMessage({
+      folder: REPO,
+      target: { epicId: EPIC_ID },
+      body: 'What is the current risk?'
+    })
+
+    expect(result).toMatchObject({ ok: true, data: { chatId: 'chat_conversation_1', state: 'opened', problem: null } })
+    expect(subject.calls.find((call) => call[0] === 'createChat')).toEqual([
+      'createChat',
+      expect.objectContaining({ conversation: { epicId: EPIC_ID }, title: 'Conversation · Agent chats' })
+    ])
+    expect(subject.calls.find((call) => call[0] === 'start')?.[2]).toEqual({
+      kickoff: expect.stringContaining('A run of this epic is active under another session.')
+    })
+  })
+
+})
+
+describe('chat handlers: opening card board conversations', () => {
+  it('stores card attachments and includes an earlier reply when it opens a card conversation', async () => {
+    const earlier: KanbanMessageView = {
+      id: 'km_01m418epbg8qkqa2e2krvdkqk4',
+      body: 'Earlier card reply',
+      authorRole: 'worker',
+      authorLabel: 'worker-a',
+      createdAt: AT
+    }
+    const subject = conversationHarness({ cardMessages: [earlier] })
+    const attachments = ['im_01m418epbg8qkqa2e2krvdkqk5']
+
+    const result = await subject.handlers.sendConversationMessage({
+      folder: REPO,
+      target: { cardId: CARD_ID },
+      body: 'Please review the trace.',
+      attachments
+    })
+
+    expect(result).toMatchObject({ ok: true, data: { chatId: 'chat_conversation_1', state: 'opened', problem: null } })
+    expect(subject.calls[0]).toEqual(['addKanbanMessage', { cardId: CARD_ID, body: 'Please review the trace.', attachments }])
+    expect(subject.calls.find((call) => call[0] === 'createChat')).toEqual([
+      'createChat',
+      expect.objectContaining({ conversation: { cardId: CARD_ID }, title: 'Conversation · DM-7' })
+    ])
+    expect(subject.calls.find((call) => call[0] === 'start')?.[2]).toEqual({
+      kickoff: expect.stringMatching(/Attached images: im_01m418epbg8qkqa2e2krvdkqk5[\s\S]*Earlier card reply/)
+    })
+  })
+})
+
+describe('chat handlers: conversation failures and deletion', () => {
+
+  it('keeps the stored comment and reports the terminal reason when paste fails', async () => {
+    const chat = { ...CHAT, id: 'chat_claim', role: 'orchestrator' as const }
+    const subject = conversationHarness({
+      chats: [chat],
+      attemptId: ATTEMPT_ID,
+      bound: { [ATTEMPT_ID]: chat.id },
+      pasteFailure: 'The CLI exited.'
+    })
+
+    const result = await subject.handlers.sendConversationMessage({
+      folder: REPO,
+      target: { epicId: EPIC_ID, ticketId: TICKET_ID },
+      body: 'Please relay this'
+    })
+
+    expect(result).toEqual({ ok: true, data: { messageId: COMMENT_ID, chatId: chat.id, state: 'failed', problem: 'The CLI exited.' } })
+    expect(subject.comments).toHaveLength(1)
+    expect(subject.comments[0]?.body).toBe('Please relay this')
+  })
+
+  it('deleting a bound conversation makes its old delivery nonexistent and the next send opens a new chat', async () => {
+    const subject = conversationHarness()
+    const request = { folder: REPO, target: { epicId: EPIC_ID, ticketId: TICKET_ID }, body: 'First' }
+    const first = await subject.handlers.sendConversationMessage(request)
+    if (!first.ok) throw new Error(first.error.message)
+
+    await subject.handlers.delete({ folder: REPO, chatId: first.data.chatId })
+    const state = await subject.handlers.conversationState({
+      folder: REPO,
+      target: request.target,
+      messageIds: [first.data.messageId]
+    })
+    const second = await subject.handlers.sendConversationMessage({ ...request, body: 'Second' })
+
+    expect(state).toMatchObject({
+      ok: true,
+      data: { chat: null, deliveries: { [COMMENT_ID]: { chatId: 'chat_conversation_1', state: 'opened', chatExists: false } } }
+    })
+    expect(second).toMatchObject({ ok: true, data: { chatId: 'chat_conversation_2', state: 'opened' } })
+  })
+
+})
+
+describe('chat handlers: conversation resolution races', () => {
+  it('uses a surviving conversation chat without adding claim-relay guidance', async () => {
+    const subject = conversationHarness()
+    const request = { folder: REPO, target: { epicId: EPIC_ID, ticketId: TICKET_ID }, body: 'First' }
+    const first = await subject.handlers.sendConversationMessage(request)
+    if (!first.ok) throw new Error(first.error.message)
+
+    const second = await subject.handlers.sendConversationMessage({ ...request, body: 'Second' })
+    const paste = [...subject.calls].reverse().find((call) => call[0] === 'paste')
+
+    expect(second).toMatchObject({ ok: true, data: { chatId: first.data.chatId, state: 'delivered', problem: null } })
+    expect(paste?.[2]).toContain('Second')
+    expect(paste?.[2]).not.toContain('worker subagent')
+  })
+  it('reports when a resolved chat disappears before delivery without losing the message', async () => {
+    const chat = { ...CHAT, id: 'chat_claim', role: 'orchestrator' as const }
+    const subject = conversationHarness({
+      chats: [chat],
+      attemptId: ATTEMPT_ID,
+      bound: { [ATTEMPT_ID]: chat.id },
+      disappearAfterFirstList: true
+    })
+
+    const result = await subject.handlers.sendConversationMessage({
+      folder: REPO,
+      target: { epicId: EPIC_ID, ticketId: TICKET_ID },
+      body: 'Race-safe delivery'
+    })
+
+    expect(result).toEqual({
+      ok: true,
+      data: {
+        messageId: COMMENT_ID,
+        chatId: chat.id,
+        state: 'failed',
+        problem: 'The selected chat was deleted before the message could be delivered.'
+      }
+    })
+    expect(subject.comments.map((comment) => comment.body)).toEqual(['Race-safe delivery'])
+    expect(subject.calls.some((call) => call[0] === 'paste')).toBe(false)
+  })
+
+})
+
+describe('chat handlers: conversation terminal start failures', () => {
+  it('removes a fresh conversation when its terminal cannot start', async () => {
+    const subject = conversationHarness({ startFailure: 'The agent is signed out.' })
+
+    const result = await subject.handlers.sendConversationMessage({
+      folder: REPO,
+      target: { epicId: EPIC_ID },
+      body: 'Can anyone answer?'
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: { messageId: COMMENT_ID, chatId: null, state: 'failed', problem: 'The agent is signed out.' }
+    })
+    expect(subject.records()).toEqual([])
+    expect(subject.calls.some((call) => call[0] === 'deleteChat')).toBe(true)
+  })
+
+  it('reports a terminal host exception and removes the unusable fresh chat', async () => {
+    const terminalError = new Error('The terminal host disconnected.')
+    const subject = conversationHarness({ startError: terminalError })
+
+    const result = await subject.handlers.sendConversationMessage({
+      folder: REPO,
+      target: { epicId: EPIC_ID },
+      body: 'Please answer after reconnecting'
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: { messageId: COMMENT_ID, chatId: null, state: 'failed', problem: terminalError.message }
+    })
+    expect(subject.records()).toEqual([])
+    expect(subject.errors).toEqual([terminalError])
+  })
+
+})
+
+describe('chat handlers: conversation creation and cleanup failures', () => {
+  it('keeps and identifies a failed chat when cleanup also fails', async () => {
+    const cleanupError = new Error('The chat store is read-only.')
+    const subject = conversationHarness({ startFailure: 'The CLI exited.', deleteError: cleanupError })
+
+    const result = await subject.handlers.sendConversationMessage({
+      folder: REPO,
+      target: { epicId: EPIC_ID },
+      body: 'Please answer'
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        messageId: COMMENT_ID,
+        chatId: 'chat_conversation_1',
+        state: 'failed',
+        problem: 'The CLI exited. The failed chat could not be removed: The chat store is read-only.'
+      }
+    })
+    expect(subject.records()).toHaveLength(1)
+    expect(subject.errors).toEqual([cleanupError])
+  })
+
+  it('keeps a stored message and reports a non-Error chat creation failure', async () => {
+    const subject = conversationHarness({ createError: 'storage offline' })
+
+    const result = await subject.handlers.sendConversationMessage({
+      folder: REPO,
+      target: { epicId: EPIC_ID },
+      body: 'Durable before delivery'
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        messageId: COMMENT_ID,
+        chatId: null,
+        state: 'failed',
+        problem: 'The conversation chat could not be created: storage offline'
+      }
+    })
+    expect(subject.comments.map((comment) => comment.body)).toEqual(['Durable before delivery'])
+    expect(subject.errors).toEqual(['storage offline'])
+  })
+
+})
+
+describe('chat handlers: conversation destination failures', () => {
+  it('keeps the message when the configured default agent is no longer connected', async () => {
+    const subject = conversationHarness({ defaultAgent: UNKNOWN_AGENT })
+
+    const result = await subject.handlers.sendConversationMessage({
+      folder: REPO,
+      target: { epicId: EPIC_ID },
+      body: 'Please find an agent'
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      data: {
+        messageId: COMMENT_ID,
+        chatId: null,
+        state: 'failed',
+        problem: `No connected agent has the id ${UNKNOWN_AGENT}. Connect it under Agents first.`
+      }
+    })
+    expect(subject.comments.map((comment) => comment.body)).toEqual(['Please find an agent'])
+    expect(subject.errors).toEqual([])
+  })
+
+  it('reports a null-chat delivery as nonexistent and uses the default clock', async () => {
+    const subject = conversationHarness({ defaultAgent: null, omitNow: true })
+    const sent = await subject.handlers.sendConversationMessage({
+      folder: REPO,
+      target: { epicId: EPIC_ID },
+      body: 'Store this for later'
+    })
+    if (!sent.ok) throw new Error(sent.error.message)
+
+    const state = await subject.handlers.conversationState({
+      folder: REPO,
+      target: { epicId: EPIC_ID },
+      messageIds: [sent.data.messageId]
+    })
+    const delivery = subject.deliveries.get(sent.data.messageId)
+
+    expect(state).toMatchObject({
+      ok: true,
+      data: { chat: null, deliveries: { [COMMENT_ID]: { chatId: null, state: 'failed', chatExists: false } } }
+    })
+    expect(delivery?.at).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/u)
+  })
+
+})
+
+describe('chat handlers: conversation state races', () => {
+  it('does not expose a chat that disappears between resolution and state assembly', async () => {
+    const conversation = {
+      ...CHAT,
+      id: 'chat_bound',
+      conversation: { epicId: EPIC_ID }
+    }
+    const subject = conversationHarness({ chats: [conversation], disappearAfterFirstList: true })
+
+    const state = await subject.handlers.conversationState({
+      folder: REPO,
+      target: { epicId: EPIC_ID },
+      messageIds: []
+    })
+
+    expect(state).toEqual({ ok: true, data: { chat: null, deliveries: {} } })
+  })
+
+  it('opens safely when claim lookup is not configured', async () => {
+    const subject = conversationHarness({ attemptId: ATTEMPT_ID, omitBoundTerminal: true })
+
+    const sent = await subject.handlers.sendConversationMessage({
+      folder: REPO,
+      target: { epicId: EPIC_ID, ticketId: TICKET_ID },
+      body: 'Use a fresh conversation'
+    })
+    if (!sent.ok) throw new Error(sent.error.message)
+    const state = await subject.handlers.conversationState({
+      folder: REPO,
+      target: { epicId: EPIC_ID, ticketId: TICKET_ID },
+      messageIds: [sent.data.messageId]
+    })
+
+    expect(sent.data).toMatchObject({ chatId: 'chat_conversation_1', state: 'opened', problem: null })
+    expect(state).toMatchObject({ ok: true, data: { chat: { id: 'chat_conversation_1', via: 'conversation' } } })
+  })
+})
+
+describe('chat handlers: card conversations and refusals', () => {
+
+  it('delivers a card message to its Play chat', async () => {
+    const play = { ...CHAT, id: 'chat_play', cardId: CARD_ID, role: 'orchestrator' as const }
+    const subject = conversationHarness({ chats: [play] })
+
+    const result = await subject.handlers.sendConversationMessage({
+      folder: REPO,
+      target: { cardId: CARD_ID },
+
+      body: 'Can this ship?'
+    })
+
+    expect(result).toEqual({ ok: true, data: { messageId: CARD_MESSAGE_ID, chatId: play.id, state: 'delivered', problem: null } })
+    expect(subject.calls[0]).toEqual(['addKanbanMessage', { cardId: CARD_ID, body: 'Can this ship?' }])
+    expect(subject.calls.find((call) => call[0] === 'paste')).toEqual(['paste', play, expect.stringContaining('add_kanban_message')])
+  })
+
+  it('refuses invalid input before writing and keeps a message when no default agent is selected', async () => {
+    const subject = conversationHarness({ defaultAgent: null })
+
+    expect(
+      await subject.handlers.sendConversationMessage({
+        folder: REPO,
+        target: { epicId: EPIC_ID },
+        body: '   ',
+        executablePath: '/bin/evil'
+      })
+    ).toMatchObject({ ok: false, error: { code: 'invalid_input' } })
+    expect(subject.calls).toEqual([])
+
+    const result = await subject.handlers.sendConversationMessage({
+      folder: REPO,
+      target: { epicId: EPIC_ID },
+      body: 'Who can answer?'
+    })
+    expect(result).toMatchObject({
+      ok: true,
+      data: { messageId: COMMENT_ID, chatId: null, state: 'failed', problem: expect.stringContaining('No default agent') }
+    })
+    expect(subject.comments).toHaveLength(1)
+  })
 })

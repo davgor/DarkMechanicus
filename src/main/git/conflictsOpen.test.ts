@@ -186,11 +186,11 @@ describe('openInEditor never launches a program', () => {
 
   it('on Windows also refuses Python and the other script types, and every extension PATHEXT lists', async () => {
     const names = ['tool.py', 'gui.PYW', 'app.pyz', 'run.pl', 'start.jnlp', 'help.chm', 'x.wsc', 'y.sct', 'z.ws', 'e.scf', 'f.xbap', 'job.xyz', 'm.abc']
-    const r = conflictedFiles(names)
     const windows = { platform: 'win32' as const, env: { PATHEXT: '.COM;.EXE;.XYZ; .Abc ;;' } }
+    const unopenedFolder = join('repository', 'not-read')
     for (const name of names) {
       const { openPath, opened } = opener()
-      await expect(openInEditor(runner, r.root, name, { openPath, system: windows })).rejects.toThrow(/could run as a program/)
+      await expect(openInEditor(runner, unopenedFolder, name, { openPath, system: windows })).rejects.toThrow(/could run as a program/)
       expect(opened).toEqual([])
     }
   })

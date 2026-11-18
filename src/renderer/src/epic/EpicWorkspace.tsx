@@ -23,6 +23,7 @@ import { headerView } from './headerView'
 import { TransferredPanel, TransferStrip } from './LinearTransfer'
 import { listSections } from './listSections'
 import { ListView } from './ListView'
+import { OrchestratorMessages } from './OrchestratorMessages'
 import type { OrchestrationHost } from './orchestration'
 import { RunBar } from './RunBar'
 import { failureOf } from './runner'
@@ -314,6 +315,7 @@ function WorkspaceView({ ws }: { ws: WorkspaceHandle }): JSX.Element {
         <SidePanel ws={ws} />
       </div>
       {draft ? <ValidationPanel ws={ws} saveUnavailable={header.actions.saveUnavailable} /> : <AttemptsStrip ws={ws} />}
+      <OrchestratorMessages ws={ws} />
       <Toast ws={ws} />
       <StartRunHost ws={ws} />
       <TransferHost ws={ws} />

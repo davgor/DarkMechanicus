@@ -182,6 +182,13 @@ export const COMMAND_SCHEMAS = {
     doneCursor: z.string().min(1).max(200).optional()
   }),
   getKanbanCard: z.strictObject({ cardId: stableId }),
+  addKanbanMessage: z.strictObject({
+    cardId: stableId,
+    body: commentBody,
+    attachments: z.array(attachmentRef.shape.id).max(LIMITS.attachmentsPerRecord).optional(),
+    idempotencyKey
+  }),
+  listKanbanMessages: z.strictObject({ cardId: stableId }),
   playKanbanCard: z.strictObject({ cardId: stableId }),
   launchKanbanCards: z.strictObject({ cardIds: z.array(stableId).min(1).describe('Explicit nonempty card IDs; one item launches one card. Duplicates are ignored; no launch-all.') }),
   claimKanbanCard: z.strictObject({ cardId: stableId, leaseSeconds: leaseSeconds.optional(), idempotencyKey }),

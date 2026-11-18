@@ -10,6 +10,8 @@ export default defineConfig({
     environment: 'node',
     // On Windows, git without Git for Windows' launcher process in front of each call (see src/test/realGit.ts).
     globalSetup: ['src/test/realGit.ts'],
+    // Git- and process-heavy files otherwise start enough concurrent Windows processes to starve individual tests.
+    maxWorkers: process.platform === 'win32' ? 4 : undefined,
     testTimeout: 15_000,
     // A hook gets the same bound as the test it sets up: on a stalled Windows runner a one-second setup has run past
     // vitest's 10 s default.

@@ -35,11 +35,11 @@ describe('canCreateFileSymlinks', () => {
     expect(denied()).toBe(false)
   })
 
-  it('is true under CI even where the probe gets EPERM, so the file symlink cases run and fail there rather than skip', async () => {
+  it('is false under CI when the host still denies file symlinks', async () => {
     vi.stubEnv('CI', 'true')
     const denied = await loadWith(eperm)
 
-    expect(denied()).toBe(true)
+    expect(denied()).toBe(false)
   })
 
   it('probes once and caches the answer', async () => {

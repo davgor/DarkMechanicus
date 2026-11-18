@@ -160,13 +160,14 @@ const OWNED_BY: Record<OwningRecord['kind'], string> = {
   comment: "a.owner_kind = 'comment' AND a.owner_id = ?",
   run: "a.owner_kind = 'attempt' AND a.owner_id IN (SELECT id FROM attempts WHERE run_id = ?)",
   kanban_card: `((a.owner_kind = 'kanban_card' AND a.owner_id = ?)
-    OR (a.owner_kind = 'kanban_attempt' AND a.owner_id IN (SELECT id FROM kanban_attempts WHERE card_id = ?)))`,
+    OR (a.owner_kind = 'kanban_attempt' AND a.owner_id IN (SELECT id FROM kanban_attempts WHERE card_id = ?))
+    OR (a.owner_kind = 'kanban_message' AND a.owner_id IN (SELECT id FROM kanban_events WHERE card_id = ? AND kind = 'message')))`,
   epic: "a.owner_kind = 'ticket' AND a.owner_id IN (SELECT ticket_id FROM ticket_status WHERE epic_id = ?)"
 }
 
 /** The attachments of a record (and of what it holds) with bytes whose file this machine has not exported yet. */
 export function unexportedAttachments(db: Db, record: OwningRecord): StoredAttachment[] {
-  const params = record.kind === 'kanban_card' ? [record.id, record.id] : [record.id]
+  const params = record.kind === 'kanban_card' ? [record.id, record.id, record.id] : [record.id]
   return db
     .all<StoredRow>(
       `SELECT ${STORED_COLUMNS} FROM attachments a

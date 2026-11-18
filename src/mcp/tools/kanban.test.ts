@@ -23,6 +23,8 @@ const CASES: Case[] = [
   { tool: 'update_kanban_card', args: { cardId: CARD, expectedRevision: 2, size: null }, method: 'updateKanbanCard' },
   { tool: 'list_kanban_cards', args: { doneLimit: 5 }, method: 'listKanbanCards' },
   { tool: 'get_kanban_card', args: { cardId: CARD }, method: 'getKanbanCard' },
+  { tool: 'add_kanban_message', args: { cardId: CARD, body: 'Can this ship?', idempotencyKey: 'message-1' }, method: 'addKanbanMessage' },
+  { tool: 'list_kanban_messages', args: { cardId: CARD }, method: 'listKanbanMessages' },
   { tool: 'launch_kanban_cards', args: { cardIds: [CARD] }, method: 'launchKanbanCards' },
   { tool: 'claim_kanban_card', args: { cardId: CARD, leaseSeconds: 600, idempotencyKey: 'claim-1' }, method: 'claimKanbanCard' },
   {
@@ -54,6 +56,30 @@ describe('Kanban card tools map to the command layer', () => {
       const outcome = await callTool(rig, 'create_kanban_card', { body: 'No title' })
       expect(outcome.payload).toMatchObject({ ok: false, error: { code: 'invalid_input' } })
       expect(api.calls).toEqual([])
+    })
+  })
+})
+
+describe('Kanban message tool schemas', () => {
+  it('registers add and list with strict card-message inputs', async () => {
+    await inRig(createCannedApi({}), async (rig) => {
+      const tools = (await rig.client.listTools()).tools
+      const add = tools.find((tool) => tool.name === 'add_kanban_message')
+      const list = tools.find((tool) => tool.name === 'list_kanban_messages')
+      expect(add?.inputSchema).toMatchObject({
+        type: 'object',
+        required: ['cardId', 'body'],
+        properties: {
+          cardId: { type: 'string', pattern: expect.any(String) },
+          body: { type: 'string', maxLength: 20_000 },
+          attachments: { type: 'array', maxItems: 20 }
+        }
+      })
+      expect(list?.inputSchema).toMatchObject({
+        type: 'object',
+        required: ['cardId'],
+        properties: { cardId: { type: 'string', pattern: expect.any(String) } }
+      })
     })
   })
 })

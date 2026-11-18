@@ -9,7 +9,7 @@ import { StatePill } from '../epic/StatePill'
 import type { ReviewInput } from '../epic/workspaceActions'
 import { ActivityTab } from './ActivityTab'
 import { AttemptList } from './AttemptList'
-import { CommentsTab } from './CommentsTab'
+import { ConversationPanel } from '../conversation/ConversationPanel'
 import { DeleteTicketConfirm } from './DeleteTicket'
 import { EvidenceTab, HistoryTab, OverviewTab } from './panelTabs'
 import { metaLine, statePill } from './ticketView'
@@ -42,7 +42,7 @@ export interface TicketPanelProps {
   onOpenChat(chatId: string, threadId?: string): void
 }
 
-type TabId = 'overview' | 'attempts' | 'activity' | 'evidence' | 'comments' | 'history'
+type TabId = 'overview' | 'attempts' | 'activity' | 'evidence' | 'conversation' | 'history'
 
 interface DetailState {
   detail: TicketDetailView | null
@@ -80,7 +80,7 @@ function Tabs(props: { tab: TabId; attempts: number; onTab(tab: TabId): void }):
     ['attempts', `Attempts (${props.attempts})`],
     ['activity', 'Activity'],
     ['evidence', 'Evidence'],
-    ['comments', 'Comments'],
+    ['conversation', 'Conversation'],
     ['history', 'History']
   ]
   return (
@@ -141,16 +141,16 @@ function TabBody(props: TabBodyProps): JSX.Element {
       )
     case 'evidence':
       return <EvidenceTab detail={detail} folderKey={panel.folderKey} />
-    case 'comments':
+    case 'conversation':
       return (
-        <CommentsTab
-          runner={panel.runner}
-          epicId={panel.epicId}
-          ticketId={detail.ticket.id}
-          now={panel.now}
+        <ConversationPanel
+          folderPath={panel.folderPath}
+          target={{ epicId: panel.epicId, ticketId: detail.ticket.id }}
+          messages={() => panel.runner('listComments', { epicId: panel.epicId, ticketId: detail.ticket.id })}
           reloadKey={panel.reloadKey}
-          canComment={panel.canEdit}
+          canSend={panel.canEdit}
           folderKey={panel.folderKey}
+          onOpenChat={panel.onOpenChat}
         />
       )
     case 'history':
@@ -201,7 +201,7 @@ function PanelHead(props: { panel: TicketPanelProps; detail: TicketDetailView; t
   )
 }
 
-/** Read view of one ticket: Markdown, criteria, capability profile, links, attempts, evidence, comments, history. */
+/** Read view of one ticket: Markdown, criteria, capability profile, links, attempts, evidence, conversation, history. */
 export function TicketPanel(props: TicketPanelProps): JSX.Element {
   const { detail, error } = useTicketDetail(props)
   const [focus, setFocus] = usePanelFocus(props.activity)

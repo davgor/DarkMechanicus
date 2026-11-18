@@ -129,6 +129,47 @@ export interface KickBackKanbanCardResult {
   problem: string | null
 }
 
+/** A durable board conversation, on an epic or one of its tickets, or on a Kanban card. */
+export type ConversationTarget = { epicId: string; ticketId?: string } | { cardId: string }
+
+/** Stores the person's message and delivers it to the agent chat behind its board conversation. */
+export interface SendConversationRequest {
+  folder: string
+  target: ConversationTarget
+  /** Markdown, at most 20,000 characters and not blank. */
+  body: string
+  /** Staged image ids to attach to the durable message. */
+  attachments?: string[]
+}
+
+/** What storing and attempting to deliver one board message left behind. */
+export interface SendConversationResult {
+  messageId: string
+  chatId: string | null
+  state: 'delivered' | 'failed' | 'opened'
+  problem: string | null
+}
+
+/** Reads current routing and machine-local delivery state for durable board messages. */
+export interface ConversationStateRequest {
+  folder: string
+  target: ConversationTarget
+  messageIds: string[]
+}
+
+export interface ConversationStateResult {
+  chat: { id: string; title: string; via: 'attempt' | 'run' | 'card_play' | 'conversation' } | null
+  deliveries: Record<
+    string,
+    {
+      chatId: string | null
+      state: SendConversationResult['state']
+      problem: string | null
+      chatExists: boolean
+    }
+  >
+}
+
 /** Names the epic of a tracked folder whose Linear transfer is asked about. */
 export interface TransferChatRequest {
   folder: string
@@ -296,6 +337,10 @@ export interface ChatsApi {
    * newest chat, starting it again (a resume, with no kickoff) when it is stopped, so its agent claims the card again.
    */
   kickBackKanbanCard(request: KickBackKanbanCardRequest): Promise<CommandResult<KickBackKanbanCardResult>>
+  /** Stores the person's board message first, then delivers it to an existing agent chat or opens a bound conversation chat. */
+  sendConversationMessage(request: SendConversationRequest): Promise<CommandResult<SendConversationResult>>
+  /** Resolves the chat currently behind a board conversation and reads local delivery entries for the requested messages. */
+  conversationState(request: ConversationStateRequest): Promise<CommandResult<ConversationStateResult>>
   /** The most recently updated chat started for the epic's transfer, across app restarts; null when there is none. */
   findTransferChat(request: TransferChatRequest): Promise<CommandResult<ChatRecord | null>>
   /** The transfer kickoff, the same first input a transfer chat's terminal gets, for an agent the person starts elsewhere. */
