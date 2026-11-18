@@ -4720,7 +4720,7 @@
         "activeSprintOrdinal": 1,
         "sprintCount": 1,
         "host": null,
-        "skillVersion": "1.10.0",
+        "skillVersion": "1.12.0",
         "ownerMachineId": "mc_00000000000000000000000001",
         "ownedByThisMachine": true,
         "pauseReason": null,
