@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'node:module';
-import { mkdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdir, symlink, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { DEFAULT_CONFIG } from '../src/config.js';
 import { createLane, vitestArgs, type Lane } from '../src/lanes.js';
+import { removeTree } from '../src/snapshots.js';
 import { withTempDir } from './support.js';
 
 describe('vitestArgs', () => {
@@ -184,8 +186,9 @@ describe('warm vitest lanes stopping runs', () => {
       const lane = createLane({ dir: root, config, maxWorkers: 1 });
       expect((await lane.run(['src/hang.test.ts'])).ok).toBe(false);
       await lane.close();
-      // Windows refuses to remove a directory a live process runs in (EBUSY).
-      await expect(rm(root, { recursive: true })).resolves.toBeUndefined();
+      // Removed as snapshots are: Windows refuses while a live process runs in it (EBUSY).
+      await removeTree(root);
+      expect(existsSync(root)).toBe(false);
     });
   }, 120_000);
 });

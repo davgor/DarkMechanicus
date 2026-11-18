@@ -22,50 +22,23 @@ export interface CommandResult {
 const TIMEOUT_EXIT_CODE = 124;
 
 /**
- * PowerShell that kills the tree under `pid` with taskkill and waits until each of its processes
- * has ended. Neither taskkill exiting nor the top process exiting means the processes under it
- * have: until they have, the directories they run in cannot be removed (EBUSY). Handles to the
- * tree's processes are opened before the kill, so a process can be waited on (and its id is not
- * reused) after it dies.
- */
-function killAndWaitScript(pid: number): string {
-  return [
-    `$ErrorActionPreference = 'SilentlyContinue'`,
-    `$all = Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId`,
-    `$tree = @(${pid})`,
-    `for ($i = 0; $i -lt $tree.Count; $i++) { foreach ($p in $all) { if ($p.ParentProcessId -eq $tree[$i] -and $tree -notcontains $p.ProcessId) { $tree += $p.ProcessId } } }`,
-    `$procs = @(Get-Process -Id $tree)`,
-    `foreach ($p in $procs) { try { $null = $p.Handle } catch {} }`,
-    `taskkill /pid ${pid} /T /F | Out-Null`,
-    `foreach ($p in $procs) { try { $null = $p.WaitForExit(60000) } catch {} }`,
-  ].join('\n');
-}
-
-/** Spawns `command`, settling `done` once it has exited or could not be started. */
-function runToEnd(command: string, args: string[], done: () => void, onFailedStart = done): void {
-  try {
-    const child = spawn(command, args, { stdio: 'ignore' });
-    child.on('exit', () => done());
-    child.on('error', () => onFailedStart());
-  } catch {
-    onFailedStart();
-  }
-}
-
-/**
  * Kills a spawned command together with everything it started (vitest workers, grandchildren).
  * Off Windows the command must have been spawned `detached`, so it leads its own process group.
- * On Windows it resolves once every process of the tree has ended, so the directories they ran
- * in can be removed; if PowerShell cannot be started, once taskkill has killed the tree.
- * `powershell` is a test seam: the PowerShell command.
+ * On Windows it resolves once taskkill has exited; the killed processes may still be releasing
+ * their handles then, which `removeTree` absorbs.
  */
-export function killTree(pid: number | undefined, powershell = 'powershell'): Promise<void> {
+export function killTree(pid: number | undefined): Promise<void> {
   if (pid === undefined) return Promise.resolve();
   if (process.platform === 'win32') {
     return new Promise((resolve) => {
-      const taskkill = (): void => runToEnd('taskkill', ['/pid', String(pid), '/T', '/F'], resolve);
-      const args = ['-NoProfile', '-NonInteractive', '-Command', killAndWaitScript(pid)];
-      runToEnd(powershell, args, resolve, taskkill);
+      try {
+        const taskkill = spawn('taskkill', ['/pid', String(pid), '/T', '/F'], { stdio: 'ignore' });
+        taskkill.on('exit', () => resolve());
+        taskkill.on('error', () => resolve());
+      } catch {
+        // taskkill could not be started: nothing more to wait for.
+        resolve();
+      }
     });
   }
   try {

@@ -1,8 +1,6 @@
-import { spawn } from 'node:child_process';
-import { once } from 'node:events';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CONFIG, loadConfig } from '../src/config.js';
-import { createVitestRunner, killTree, runCommand } from '../src/processAdapters.js';
+import { createVitestRunner, runCommand } from '../src/processAdapters.js';
 
 /** A child that starts a busy grandchild, reports its pid synchronously, then busy-loops itself. */
 const HANG_WITH_GRANDCHILD = [
@@ -47,24 +45,6 @@ describe('runCommand timeout', () => {
       timeoutMs: 30_000,
     });
     expect([result.timedOut, result.code]).toEqual([false, 3]);
-  });
-});
-
-describe('killTree', () => {
-  it('kills a command and everything it started even when PowerShell cannot be started', async () => {
-    const child = spawn(process.execPath, ['-e', HANG_WITH_GRANDCHILD], {
-      stdio: ['ignore', 'pipe', 'ignore'],
-      detached: process.platform !== 'win32',
-    });
-    const [line] = (await once(child.stdout, 'data')) as [Buffer];
-    const grandchild = Number.parseInt(line.toString().trim(), 10);
-    try {
-      await killTree(child.pid, 'fireguard-no-such-powershell');
-      expect(await waitUntilGone(child.pid!)).toBe(true);
-      expect(await waitUntilGone(grandchild)).toBe(true);
-    } finally {
-      await killTree(child.pid);
-    }
   });
 });
 
