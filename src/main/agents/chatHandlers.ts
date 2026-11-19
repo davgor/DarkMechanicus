@@ -496,6 +496,7 @@ async function openConversationChat(
     }
   }
   connectedAgent(deps.agents, agentId)
+  const kickoff = freshKickoff({ ...prompt, relay: false, history: prompt.history, runActive: prompt.runActive })
   let chat: ChatRecord
   try {
     chat = deps.chats.createChat({
@@ -505,13 +506,13 @@ async function openConversationChat(
       model: null,
       allowSave: true,
       title: prompt.title,
-      conversation: isCardTarget(request.target) ? { cardId: request.target.cardId } : { epicId: request.target.epicId }
+      conversation: isCardTarget(request.target) ? { cardId: request.target.cardId } : { epicId: request.target.epicId },
+      firstPrompt: kickoff
     })
   } catch (error) {
     reportUnexpected(deps, error)
     return { chatId: null, state: 'failed', problem: `The conversation chat could not be created: ${errorMessage(error)}` }
   }
-  const kickoff = freshKickoff({ ...prompt, relay: false, history: prompt.history, runActive: prompt.runActive })
   const problem = await terminalFailure(deps, () => deps.terminals.start(chat, { kickoff }))
   return problem === null ? { chatId: chat.id, state: 'opened', problem: null } : removeFailedConversation(deps, chat, problem)
 }
