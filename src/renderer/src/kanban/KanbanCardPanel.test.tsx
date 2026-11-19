@@ -89,29 +89,58 @@ function attempt(patch: Partial<KanbanAttemptView>): KanbanAttemptView {
   }
 }
 
-describe('KanbanCardPanel Play', () => {
+describe('KanbanCardPanel Play and Retry', () => {
   it.each([
-    ['a Backlog card', { lane: 'backlog' }, true],
-    ['an In-progress card whose attempt stopped', { lane: 'in_progress', openAttempt: { number: 1, state: 'lease_expired' } }, true],
-    ['an In-progress card with no attempt yet', { lane: 'in_progress', playPending: true }, true],
-    ['an In-progress card with a running attempt', { lane: 'in_progress', openAttempt: { number: 1, state: 'running' } }, false],
-    ['an In-progress card with a claimed attempt', { lane: 'in_progress', openAttempt: { number: 1, state: 'claimed' } }, false],
-    ['a Ready-for-review card', { lane: 'ready_for_review', openAttempt: { number: 1, state: 'submitted' } }, false]
-  ] as const)('offers Play on %s: %s', async (_name, patch, shown) => {
+    ['a new Backlog card', { lane: 'backlog' }, 'Play'],
+    ['an In-progress card with no attempt yet', { lane: 'in_progress', playPending: true }, 'Play'],
+    ['an In-progress card whose latest attempt failed', { lane: 'in_progress', attempts: [attempt({ state: 'failed' })] }, 'Retry'],
+    ['an In-progress card whose latest attempt expired', { lane: 'in_progress', attempts: [attempt({ state: 'lease_expired' })] }, 'Retry'],
+    ['an In-progress card whose attempt failed after a kick-back', { lane: 'in_progress', attempts: [attempt({ state: 'rejected' }), attempt({ id: 'ka_2', number: 2, state: 'failed' })] }, 'Retry'],
+    ['an In-progress card with an older failure but a later rejected attempt', { lane: 'in_progress', attempts: [attempt({ state: 'failed' }), attempt({ id: 'ka_2', number: 2, state: 'rejected' })] }, 'Play'],
+    ['an In-progress card with a running attempt', { lane: 'in_progress', openAttempt: { number: 1, state: 'running' } }, null],
+    ['an In-progress card with a claimed attempt', { lane: 'in_progress', openAttempt: { number: 1, state: 'claimed' } }, null],
+    ['a Ready-for-review card', { lane: 'ready_for_review', openAttempt: { number: 1, state: 'submitted' }, attempts: [attempt({ state: 'failed' })] }, null]
+  ] satisfies Array<[string, Partial<KanbanCardView>, 'Play' | 'Retry' | null]>)('offers the correct action on %s', async (_name, patch, action) => {
     seed(cardView({ id: 'kc_a', key: 'DM-7', ...patch }))
     await showBoard()
     const panel = await openCard('DM-7')
-    expect(within(panel).queryByRole('button', { name: 'Play' }) !== null).toBe(shown)
+    expect(within(panel).queryByRole('button', { name: 'Play' }) !== null).toBe(action === 'Play')
+    expect(within(panel).queryByRole('button', { name: 'Retry' }) !== null).toBe(action === 'Retry')
   })
 
-  it('hides Play on a Done card', async () => {
+  it('hides Play and Retry on a Done card', async () => {
     seed(cardView({ id: 'kc_a', key: 'DM-7', lane: 'done', summary: { outcome: 'Shipped', commits: [], completedAt: '2026-03-02T10:00:00.000Z', approvedBy: 'Desktop' } }))
     await showBoard()
     fireEvent.click(screen.getByRole('button', { name: /Show Done/ }))
     const panel = await openCard('DM-7')
     expect(within(panel).queryByRole('button', { name: 'Play' })).toBeNull()
+    expect(within(panel).queryByRole('button', { name: 'Retry' })).toBeNull()
   })
+})
 
+describe('KanbanCardPanel Retry flow', () => {
+  it.each(['failed', 'lease_expired'] as const)('retries a %s attempt through the authorized Play flow without losing history', async (state) => {
+    const previous = attempt({ state, progressNote: 'Prior attempt remains visible.' })
+    seed(cardView({ id: 'kc_a', key: 'DM-7', lane: 'in_progress', attempts: [previous] }))
+    dm.chats.kanban = {
+      play: (_folder, cardId) => Promise.resolve({ ...cards[cardId]!, playPending: true }),
+      kickBack: () => Promise.reject(new Error('not here'))
+    }
+    await showBoard()
+    const panel = await openCard('DM-7')
+    fireEvent.click(within(panel).getByRole('button', { name: 'Retry' }))
+    await settle()
+    const dialog = within(screen.getByRole('dialog'))
+    expect(dialog.getByRole('heading', { name: 'Play DM-7' })).toBeTruthy()
+    fireEvent.click(dialog.getByRole('button', { name: 'Start' }))
+    await settle()
+    expect(dm.chats.callsOf('startKanbanCard')).toEqual([[{ folder: '/a', cardId: 'kc_a', agent: 'claude', model: null }]])
+    expect(cards.kc_a?.attempts).toEqual([previous])
+    expect(within(panel).getByText('Prior attempt remains visible.')).toBeTruthy()
+  })
+})
+
+describe('KanbanCardPanel new Play flow', () => {
   it('starts the card with the chosen agent and model, then opens the new chat', async () => {
     seed(cardView({ id: 'kc_a', key: 'DM-7', title: 'Fix login' }))
     dm.chats.kanban = {

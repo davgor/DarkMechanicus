@@ -74,11 +74,18 @@ function asAttemptView(attempt: KanbanAttemptView, summary: KanbanDoneSummary | 
   }
 }
 
-/** Play is offered in Backlog, and In progress while no attempt occupies the card (none yet, or it stopped or failed). */
+/** Play is offered in Backlog, and In progress while no attempt occupies the card. */
 function canPlay(card: KanbanCardView): boolean {
   if (card.lane === 'backlog') return true
   if (card.lane !== 'in_progress') return false
   return card.openAttempt === null || !KANBAN_OPEN_ATTEMPT_STATES.includes(card.openAttempt.state)
+}
+
+/** A stopped attempt keeps its history; restarting it is still the authorized Play operation. */
+function canRetry(card: KanbanCardView): boolean {
+  if (card.lane !== 'in_progress' || !canPlay(card)) return false
+  const latest = card.attempts[card.attempts.length - 1]
+  return latest?.state === 'failed' || latest?.state === 'lease_expired'
 }
 
 /** The open card, read with `getKanbanCard` when it is opened and again when the folder's events move. */
@@ -260,7 +267,7 @@ interface CardBodyProps {
   onDeleted(): void
 }
 
-/** The loaded card: title, Play and the chat link, review controls, the Done summary, then the details. */
+/** The loaded card: title, Play or Retry and the chat link, review controls, the Done summary, then the details. */
 function CardBody({ folderPath, folderKey, card, host, onPlay, onReviewed, onDeleted }: CardBodyProps): JSX.Element {
   // The card's newest chat: the one the last Play started, which a kick-back is pasted into.
   const chat = host.chats
@@ -272,7 +279,7 @@ function CardBody({ folderPath, folderKey, card, host, onPlay, onReviewed, onDel
       <div className="tp-row-actions">
         {canPlay(card) ? (
           <Button variant="primary" onClick={onPlay}>
-            Play
+            {canRetry(card) ? 'Retry' : 'Play'}
           </Button>
         ) : null}
         {chat === null ? null : <Button onClick={() => host.onOpenChat(chat.id)}>Open chat</Button>}
