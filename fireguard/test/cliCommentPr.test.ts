@@ -26,6 +26,7 @@ describe('runCli --comment-pr', () => {
         GITHUB_TOKEN: 't',
         GITHUB_REPOSITORY: 'davgor/davgor.github.io',
         FIREGUARD_PULL_NUMBER: '5',
+        FIREGUARD_BASE_REF: 'HEAD',
         GITHUB_STEP_SUMMARY: 'summary.md',
       },
       stdout: (text) => {
@@ -60,7 +61,7 @@ describe('runCli --comment-pr', () => {
     const code = await runCli({
       cwd: process.cwd(),
       argv: ['--comment-pr'],
-      env: {},
+      env: { FIREGUARD_BASE_REF: 'HEAD' },
       stdout: () => undefined,
       stderr: () => undefined,
       postComment: vi.fn(async () => 'created' as const),
