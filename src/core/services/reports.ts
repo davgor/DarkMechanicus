@@ -2,18 +2,18 @@ import type { SprintReportInput } from '../../shared/domain/api'
 import type { PlanBundle, SprintDef } from '../../shared/domain/bundle'
 import type { RunState } from '../../shared/domain/status'
 import type { ScorecardDraft } from '../../shared/domain/spaceGrades'
-import type { SprintReportContent, SprintReportView, WorkerInfo } from '../../shared/domain/views'
+import type { SprintReportContent, SprintReportView } from '../../shared/domain/views'
 import { requireCapability } from '../authz'
 import { contentHash } from '../canonical'
 import type { Ctx } from '../context'
-import { parseJson, toJson } from '../db/database'
+import { toJson } from '../db/database'
 import { fail } from '../errors'
 import { indexBundle, ticketLabel } from '../plan/graph'
 import type { ExperimentContext } from '../plan/experiments'
 import { normalizeRetro, retroSearchParts } from '../plan/retro'
-import { computeTierFacts, type TierFactsAttempt } from '../plan/tierFacts'
+import { computeTierFacts } from '../plan/tierFacts'
 import { filledReportContent } from '../repo/portable'
-import { type AttemptRow, loadHostCatalog, requireRun } from './execution'
+import { type AttemptRow, loadHostCatalog, requireRun, tierFactsAttempt } from './execution'
 import { experimentContext, experimentOutcomes } from './experiments'
 import { appendEvent } from './events'
 import { requestWithoutKey, withIdempotency } from './idempotency'
@@ -87,19 +87,6 @@ export function setRunState(ctx: Ctx, runId: string, state: RunState): void {
 /** What the content of a stored report may lack: a report saved before retros has no `retro` key. */
 type StoredReportContent = Omit<SprintReportContent, 'retro'> & { retro?: SprintReportContent['retro'] }
 
-/** The attempt columns tier facts read; a worker saved before efforts existed has no `effort`. */
-function factAttempt(row: AttemptRow): TierFactsAttempt {
-  const worker = parseJson<Partial<WorkerInfo>>(row.worker_json, {})
-  return {
-    id: row.id,
-    ticketId: row.ticket_id,
-    number: row.number,
-    kind: row.kind,
-    state: row.state,
-    worker: { label: worker.label ?? '', modelId: worker.modelId ?? null, effort: worker.effort ?? null }
-  }
-}
-
 /**
  * A report as read: its stored content (a report saved before retros reads with `retro: null`), plus what is
  * computed from the run each time it is read and is not part of the content hash: the increment its sprint's
@@ -126,7 +113,7 @@ function reportView(ctx: Ctx, row: ReportRow): SprintReportView {
     tierFacts: computeTierFacts({
       bundle,
       sprintId: row.sprint_id,
-      attempts: attempts.map(factAttempt),
+      attempts: attempts.map(tierFactsAttempt),
       catalog: loadHostCatalog(ctx, run.host_catalog_id)?.catalog ?? null
     }),
     ...(scorecard === null ? {} : { scorecard }),

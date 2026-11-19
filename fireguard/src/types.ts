@@ -122,6 +122,8 @@ export interface ShardIdentity {
 }
 
 export interface FireguardReport {
+  /** Exact resolved commits used to scope and grade this report. */
+  revision: Pick<ShardIdentity, 'base' | 'head'>;
   grade: GradeResult;
   gates: {
     ast?: AstGateResult;

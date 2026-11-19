@@ -6429,7 +6429,7 @@
         "activeSprintOrdinal": 1,
         "sprintCount": 2,
         "host": null,
-        "skillVersion": "1.12.0",
+        "skillVersion": "1.13.0",
         "ownerMachineId": "mc_00000000000000000000000001",
         "ownedByThisMachine": true,
         "pauseReason": null,
@@ -6602,6 +6602,111 @@
           }
         ],
         "increments": [],
+        "activeSprintTierFacts": [
+          {
+            "ticketId": "tk_000000000000000000000000z9",
+            "key": "DM-1",
+            "size": "medium",
+            "plannedLevel": "multi_step",
+            "plannedEffort": null,
+            "attempts": [
+              {
+                "attemptId": "at_00000000000000000000000004",
+                "number": 1,
+                "state": "accepted",
+                "modelId": null,
+                "effort": null,
+                "label": "worker-1",
+                "fallback": false
+              }
+            ],
+            "attemptCount": 1,
+            "rejectionCount": 0,
+            "escalated": false
+          },
+          {
+            "ticketId": "tk_000000000000000000000000za",
+            "key": "DM-2",
+            "size": "medium",
+            "plannedLevel": "multi_step",
+            "plannedEffort": null,
+            "attempts": [
+              {
+                "attemptId": "at_00000000000000000000000005",
+                "number": 1,
+                "state": "rejected",
+                "modelId": null,
+                "effort": null,
+                "label": "worker-1",
+                "fallback": false
+              },
+              {
+                "attemptId": "at_00000000000000000000000006",
+                "number": 2,
+                "state": "accepted",
+                "modelId": null,
+                "effort": null,
+                "label": "worker-1",
+                "fallback": false
+              }
+            ],
+            "attemptCount": 2,
+            "rejectionCount": 1,
+            "escalated": false
+          },
+          {
+            "ticketId": "tk_000000000000000000000000zc",
+            "key": "DM-4",
+            "size": "medium",
+            "plannedLevel": "multi_step",
+            "plannedEffort": null,
+            "attempts": [],
+            "attemptCount": 0,
+            "rejectionCount": 0,
+            "escalated": false
+          },
+          {
+            "ticketId": "tk_000000000000000000000000zd",
+            "key": "DM-5",
+            "size": "small",
+            "plannedLevel": "multi_step",
+            "plannedEffort": null,
+            "attempts": [
+              {
+                "attemptId": "at_00000000000000000000000007",
+                "number": 1,
+                "state": "rejected",
+                "modelId": null,
+                "effort": null,
+                "label": "worker-1",
+                "fallback": false
+              },
+              {
+                "attemptId": "at_00000000000000000000000008",
+                "number": 2,
+                "state": "rejected",
+                "modelId": null,
+                "effort": null,
+                "label": "worker-1",
+                "fallback": false
+              }
+            ],
+            "attemptCount": 2,
+            "rejectionCount": 2,
+            "escalated": false
+          },
+          {
+            "ticketId": "tk_000000000000000000000000zf",
+            "key": "DM-7",
+            "size": "medium",
+            "plannedLevel": "multi_step",
+            "plannedEffort": null,
+            "attempts": [],
+            "attemptCount": 0,
+            "rejectionCount": 0,
+            "escalated": false
+          }
+        ],
         "attempts": [
           {
             "id": "at_00000000000000000000000008",

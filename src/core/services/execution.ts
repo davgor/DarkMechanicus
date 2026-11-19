@@ -27,6 +27,7 @@ import type { Ctx } from '../context'
 import { parseJson, toJson } from '../db/database'
 import { fail } from '../errors'
 import { type AttemptSnapshot, computeExecution, type ExecutionSnapshot } from '../plan/readiness'
+import type { TierFactsAttempt } from '../plan/tierFacts'
 import { flagMissingEvidence } from './attachments'
 import { appendEvent } from './events'
 import { enqueueOutbox } from './outbox'
@@ -121,6 +122,19 @@ const EMPTY_WORKER: WorkerInfo = {
   catalogRevision: null,
   rationale: null,
   effort: null
+}
+
+/** Adapt persisted attempts identically for live run and report reads; older workers may omit effort. */
+export function tierFactsAttempt(row: AttemptRow): TierFactsAttempt {
+  const worker = parseJson<Partial<WorkerInfo>>(row.worker_json, {})
+  return {
+    id: row.id,
+    ticketId: row.ticket_id,
+    number: row.number,
+    kind: row.kind,
+    state: row.state,
+    worker: { label: worker.label ?? '', modelId: worker.modelId ?? null, effort: worker.effort ?? null }
+  }
 }
 
 export function attemptView(row: AttemptRow): AttemptView {

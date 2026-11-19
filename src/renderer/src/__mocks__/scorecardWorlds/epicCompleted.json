@@ -22,7 +22,7 @@
         "activeSprintOrdinal": null,
         "sprintCount": 1,
         "host": null,
-        "skillVersion": "1.12.0",
+        "skillVersion": "1.13.0",
         "ownerMachineId": "mc_00000000000000000000000001",
         "ownedByThisMachine": true,
         "pauseReason": null,
@@ -83,6 +83,7 @@
           }
         ],
         "increments": [],
+        "activeSprintTierFacts": [],
         "attempts": [
           {
             "id": "at_00000000000000000000000007",
@@ -260,7 +261,7 @@
         "activeSprintOrdinal": null,
         "sprintCount": 1,
         "host": null,
-        "skillVersion": "1.12.0",
+        "skillVersion": "1.13.0",
         "ownerMachineId": "mc_00000000000000000000000001",
         "ownedByThisMachine": true,
         "pauseReason": null,
@@ -321,6 +322,7 @@
           }
         ],
         "increments": [],
+        "activeSprintTierFacts": [],
         "attempts": [
           {
             "id": "at_00000000000000000000000007",
@@ -4857,7 +4859,7 @@
         "activeSprintOrdinal": 1,
         "sprintCount": 1,
         "host": null,
-        "skillVersion": "1.12.0",
+        "skillVersion": "1.13.0",
         "ownerMachineId": "mc_00000000000000000000000001",
         "ownedByThisMachine": true,
         "pauseReason": null,
@@ -4928,6 +4930,40 @@
           }
         ],
         "increments": [],
+        "activeSprintTierFacts": [
+          {
+            "ticketId": "tk_000000000000000000000000z9",
+            "key": "DM-1",
+            "size": "medium",
+            "plannedLevel": "multi_step",
+            "plannedEffort": null,
+            "attempts": [
+              {
+                "attemptId": "at_00000000000000000000000004",
+                "number": 1,
+                "state": "canceled",
+                "modelId": null,
+                "effort": null,
+                "label": "worker-1",
+                "fallback": false
+              }
+            ],
+            "attemptCount": 1,
+            "rejectionCount": 0,
+            "escalated": false
+          },
+          {
+            "ticketId": "tk_000000000000000000000000za",
+            "key": "DM-2",
+            "size": "medium",
+            "plannedLevel": "multi_step",
+            "plannedEffort": null,
+            "attempts": [],
+            "attemptCount": 0,
+            "rejectionCount": 0,
+            "escalated": false
+          }
+        ],
         "attempts": [
           {
             "id": "at_00000000000000000000000004",

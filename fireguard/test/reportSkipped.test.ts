@@ -5,6 +5,7 @@ import type { FireguardReport } from '../src/types.js';
 describe('formatHumanReport skipped', () => {
   it('includes skip reason and grade for empty scope runs', () => {
     const report: FireguardReport = {
+      revision: { base: 'base-commit', head: 'head-commit' },
       grade: { letter: 'A', score: 100, reasons: ['no graded unit tests to evaluate'] },
       gates: {},
       scope: { baseRef: 'main', gradedTestFiles: [], changedModules: [] },

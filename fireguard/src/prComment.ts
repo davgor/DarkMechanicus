@@ -9,6 +9,10 @@ export function formatPrMarkdown(report: FireguardReport): string {
     `## Fireguard grade: **${report.grade.letter}** (score ${report.grade.score})`,
     '',
   ];
+  lines.push(`Base ref: \`${report.scope.baseRef}\``);
+  lines.push(`Resolved base commit: \`${report.revision.base}\``);
+  lines.push(`Tested head commit: \`${report.revision.head}\``);
+  lines.push('');
 
   if (report.skipped) {
     lines.push(`_${report.skipReason ?? 'Nothing to grade.'}_`);
@@ -19,7 +23,6 @@ export function formatPrMarkdown(report: FireguardReport): string {
     return `${lines.join('\n')}\n`;
   }
 
-  lines.push(`Base ref: \`${report.scope.baseRef}\``);
   lines.push(
     `Graded tests: ${
       report.scope.gradedTestFiles.length > 0

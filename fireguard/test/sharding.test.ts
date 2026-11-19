@@ -22,6 +22,7 @@ function harness(shard?: { index: number; count: number }, fail = false) {
   const mutants: string[] = [];
   const deps: RunFireguardDeps = {
     config: DEFAULT_CONFIG,
+    revision: identity,
     shard: shard && { ...shard, ...identity },
     getDiffEntries: async () => Object.keys(files).map((path) => ({ status: 'M', path })),
     readFile: async (path) => files[path]!,
@@ -60,7 +61,9 @@ describe('CI workload sharding', () => {
     const expected = await runFireguard(whole.deps);
     const shards = [harness({ index: 1, count: 2 }), harness({ index: 2, count: 2 })];
     const partial = await Promise.all(shards.map(({ deps }) => runFireguard(deps)));
+    expect(partial.map((report) => report.revision)).toEqual([identity, identity]);
     const combined = mergeShards(partial, 2, identity);
+    expect(combined.revision).toEqual(identity);
     expect(shards.map(({ runs }) => runs.length)).toEqual([50, 50]);
     expect(shards.flatMap(({ runs }) => runs)).toEqual(whole.runs);
     expect(shards.flatMap(({ mutants }) => mutants).sort()).toEqual(whole.mutants.sort());
@@ -82,7 +85,9 @@ describe('CI workload sharding', () => {
       deps.getDiffEntries = async () => [];
       return runFireguard(deps);
     }));
+    expect(empty.map((report) => report.revision)).toEqual([identity, identity]);
     expect(mergeShards(empty, 2, identity)).toMatchObject({ skipped: true, grade: { letter: 'A' } });
+    expect(mergeShards(empty, 2, identity).revision).toEqual(identity);
     const sparse = await Promise.all([1, 2, 3, 4].map(async (index) => {
       const { deps } = harness({ index, count: 4 });
       deps.getDiffEntries = async () => ['src/a.ts', 'src/a.test.ts'].map((path) => ({ status: 'M', path }));
@@ -99,6 +104,21 @@ describe('CI workload sharding', () => {
     expect(() => mergeShards([partial[0]!, partial[0]!], 2, identity)).toThrow(/duplicate/i);
     expect(() => mergeShards(partial, 2, { ...identity, head: 'different' })).toThrow(/commit/i);
     expect(() => mergeShards(partial, 2, { ...identity, base: 'different' })).toThrow(/commit/i);
+    const missingShardHead = structuredClone(partial);
+    delete (missingShardHead[1]!.shard as Partial<NonNullable<FireguardReport['shard']>>).head;
+    expect(() => mergeShards(missingShardHead, 2, identity)).toThrow(/commit/i);
+    const missingShardBase = structuredClone(partial);
+    delete (missingShardBase[1]!.shard as Partial<NonNullable<FireguardReport['shard']>>).base;
+    expect(() => mergeShards(missingShardBase, 2, identity)).toThrow(/commit/i);
+    const missingRevision = structuredClone(partial);
+    delete (missingRevision[1] as Partial<FireguardReport>).revision;
+    expect(() => mergeShards(missingRevision, 2, identity)).toThrow(/revision/i);
+    const wrongReportHead = structuredClone(partial);
+    wrongReportHead[1]!.revision.head = 'different';
+    expect(() => mergeShards(wrongReportHead, 2, identity)).toThrow(/revision/i);
+    const wrongReportBase = structuredClone(partial);
+    wrongReportBase[1]!.revision.base = 'different';
+    expect(() => mergeShards(wrongReportBase, 2, identity)).toThrow(/revision/i);
     const differentConfig = partial.map((report) => structuredClone(report));
     differentConfig[1]!.shard!.config.thresholds.minMutationScore = 1;
     expect(() => mergeShards(differentConfig, 2, identity)).toThrow(/config/i);
