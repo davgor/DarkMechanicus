@@ -1,0 +1,253 @@
+{
+  "activeSprintId": "sp_01m7rget6q03n7a08sjxtjjh8t",
+  "attempts": [
+    {
+      "createdAt": "2026-11-19T03:22:25.962Z",
+      "decidedAt": "2026-11-19T03:31:35.061Z",
+      "decision": {
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Inspected final learnings.ts strict versioned validators: bounded rule/prevention/applicability, hashed immutable source references, active/retired discriminant and supersedes link without authority fields."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Inspected additive V22 and migration tests: complete prior run/card rows preserved, sqlite_master clean-install parity, unique run/sprint and card indexes; card/attempt manifest persists with no learning rows."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Inspected focused regression cases for invalid roles/events, unsafe paths, content/list limits, missing evidence/hash, self/missing/active/cyclic replacement links and retirement ordering. Submitted targeted 187 tests, lint and all typecheck projects passed after disclosed causal corrections."
+          }
+        ],
+        "decidedBy": "dm CLI",
+        "notes": "Reviewed semantic diff and final four files against sprint integration base. CRLF-only churn expands migration diff; no unrelated semantic changes observed. Recovery table corrected before final verification. No extra full-suite gate run.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Final run: 2 files, 187 tests passed, 2.53s; executed equivalent direct Vitest CLI under explicit installed Node v24 runtime.",
+            "name": "npx vitest run src/core/db/migrations.test.ts src/shared/domain/learnings.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "Final oxlint run passed after replacing control regex with char-code validation and splitting oversized describe callback.",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "Final node/web/Fireguard TypeScript project checks passed.",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "npm run build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Inspected final learnings.ts strict versioned validators: bounded rule/prevention/applicability, hashed immutable source references, active/retired discriminant and supersedes link without authority fields."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Inspected additive V22 and migration tests: complete prior run/card rows preserved, sqlite_master clean-install parity, unique run/sprint and card indexes; card/attempt manifest persists with no learning rows."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Inspected focused regression cases for invalid roles/events, unsafe paths, content/list limits, missing evidence/hash, self/missing/active/cyclic replacement links and retirement ordering. Submitted targeted 187 tests, lint and all typecheck projects passed after disclosed causal corrections."
+          }
+        ],
+        "notes": "Completed within ten-minute timebox; independently accepted outcomes remain 0 pending reviewer. Five-minute evidence checkpoint heartbeated. Unknown token and active-time usage recorded as missing/host_unavailable; billed cost unknown. No LSP server was exposed, so symbol intelligence used repository text. Initial failures were causal, not flakes: existing migration assertions hardcoded v21, fixed to SCHEMA_VERSION; lint found control regex and oversized callback, fixed; a range edit temporarily removed timestamp, restored before final passing checks. Initial npm launches could not find node; explicit installed runtime and inherited Windows PATH fixed invocation. Orchestrator directed pre-publication operation/card/attempt manifest storage instead of learning-record-bound integration rows; migration and test now verify integration can exist with zero published learning records. Commit tool represented existing migration files as whole-file changes (line-ending attribution); all source edits stayed in the four assigned files. No discoveries."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m7rx7d9a8n2sgsta3rhz9xg1",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Learning contract",
+            "location": "src/shared/domain/learnings.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Learning schema tests",
+            "location": "src/shared/domain/learnings.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Additive v22 migration",
+            "location": "src/core/db/migrations.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Migration invariants tests",
+            "location": "src/core/db/migrations.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "work/learnings-DM720",
+        "changedFiles": [
+          "src/shared/domain/learnings.ts",
+          "src/shared/domain/learnings.test.ts",
+          "src/core/db/migrations.ts",
+          "src/core/db/migrations.test.ts"
+        ],
+        "commits": [
+          "a65f90effcfd20c6c55e4f983c5753ffd3b820d1",
+          "d27e81c395db39a68d882c6bb1d94e2d660ceb21"
+        ],
+        "summary": "Defined strict versioned learning draft/record schemas, immutable hashed source evidence and replacement-graph validation. Added additive schema v22 for learning records, unique generated run/sprint card identity and card/attempt-bound pre-publication integration manifests. Preserves prior run/Kanban content and imported remote provenance. Final targeted checks all pass."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7rwbembtba2hbtg39ch4srh",
+      "state": "accepted",
+      "submittedAt": "2026-11-19T03:30:29.426Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:816417bb39dbc16115f7e85f1b35eeb1b953a637ba9e2bc0ae904878374aa5ac",
+      "ticketId": "tk_01m7rgrfv2xr81m68bjnp1kb7h",
+      "updatedAt": "2026-11-19T03:31:35.061Z",
+      "worker": {
+        "catalogRevision": "2026-11-19-1",
+        "effort": "medium",
+        "hostId": "omp-skitarii",
+        "label": "LearningSchema",
+        "modelId": "task-default",
+        "rationale": "Only available default task agent; recommended eligible model. Host cannot explicitly select model or effort; packet medium is the reasoning requirement.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-19T03:33:57.491Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m7rxwgkk4eaegmch1c9fa8yf",
+      "kind": "work",
+      "number": 1,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m7rwbembtba2hbtg39ch4srh",
+      "state": "claimed",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:8ab3763f72bad384bae8f6c75a53025d18c848544ba1ed0a9e90236bcbb0ea4a",
+      "ticketId": "tk_01m7rgrfw4902evkb6f675qxfw",
+      "updatedAt": "2026-11-19T03:33:57.491Z",
+      "worker": {
+        "catalogRevision": "2026-11-19-1",
+        "effort": "medium",
+        "hostId": "omp-skitarii",
+        "label": "LearningLifecycle",
+        "modelId": "task-default",
+        "rationale": "Recommended only eligible fixed default task worker; host cannot explicitly choose model/effort.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-19T03:34:02.908Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m7rxwnwwzd9h444q55b5n6cq",
+      "kind": "work",
+      "number": 1,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m7rwbembtba2hbtg39ch4srh",
+      "state": "claimed",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:03ce1a114b8e1ba191335b2f16daa5767b975de0adfcb0a5a1925e8eacf6908b",
+      "ticketId": "tk_01m7rgrfw4kh31ra13d3mwyjp7",
+      "updatedAt": "2026-11-19T03:34:02.908Z",
+      "worker": {
+        "catalogRevision": "2026-11-19-1",
+        "effort": "low",
+        "hostId": "omp-skitarii",
+        "label": "LearningEvidence",
+        "modelId": "task-default",
+        "rationale": "Recommended only eligible fixed default task worker; host cannot explicitly choose model/effort.",
+        "sessionId": null
+      }
+    }
+  ],
+  "checkpoints": [],
+  "createdAt": "2026-11-19T03:21:38.552Z",
+  "endedAt": null,
+  "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+  "format": "darkmechanicus.run",
+  "formatVersion": 1,
+  "host": {
+    "label": "OMP Skitarii",
+    "type": "agent-cli"
+  },
+  "hostCatalogId": "hc_01m7rx5tcrge9vqnmndaxmt1db",
+  "number": 2,
+  "ownerMachineId": "mc_01m7gdjzvswj7rwweky9e5fxpe",
+  "pauseReason": null,
+  "reports": [],
+  "revisionId": "rv_01m7rwbembtba2hbtg39ch4srh",
+  "rowChecks": [
+    {
+      "checks": [
+        {
+          "detail": "187 tests passed in integration worktree; 4.92s.",
+          "name": "targeted migrations and learning schema tests",
+          "status": "passed"
+        },
+        {
+          "detail": "All three TypeScript projects passed via direct compiler invocation equivalent to npm run typecheck.",
+          "name": "typecheck",
+          "status": "passed"
+        }
+      ],
+      "commit": "d27e81c395db39a68d882c6bb1d94e2d660ceb21",
+      "createdAt": "2026-11-19T03:33:50.319Z",
+      "id": "rk_01m7rxw9ked742jzfwhacvf3e5",
+      "number": 1,
+      "recordedBy": "dm CLI",
+      "row": 1,
+      "sprintId": "sp_01m7rget6q03n7a08sjxtjjh8t"
+    }
+  ],
+  "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+  "skillVersion": "1.12.0",
+  "startedAt": "2026-11-19T03:21:38.553Z",
+  "state": "running",
+  "updatedAt": "2026-11-19T03:21:38.553Z"
+}

@@ -9,7 +9,7 @@
   "epicId": "ep_01m794777kq96v22ryvxv5pdye",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 199,
+  "generation": 203,
   "outcome": null,
   "provenance": null,
   "status": "in_progress",
@@ -113,10 +113,10 @@
     "tk_01m7nsm6vwv8y4p6yj9c910z0c": "completed",
     "tk_01m7nxszpz7vnk9rkw10wckkch": "completed",
     "tk_01m7rg5tty212r8cdse4zndk1g": "completed",
-    "tk_01m7rhrqs4krc213k95mjfehqv": "in_progress",
-    "tk_01m7rhrqta8ehrwfjxy5n7wd4d": "in_progress",
-    "tk_01m7rhrqtaqpae3sth6tjq2dgv": "backlog"
+    "tk_01m7rhrqs4krc213k95mjfehqv": "completed",
+    "tk_01m7rhrqta8ehrwfjxy5n7wd4d": "completed",
+    "tk_01m7rhrqtaqpae3sth6tjq2dgv": "completed"
   },
   "title": "Windows Skitarii desktop control: bite-sized delivery with explicit consent and Stop",
-  "updatedAt": "2026-11-19T03:10:12.057Z"
+  "updatedAt": "2026-11-19T03:29:52.482Z"
 }

@@ -3347,6 +3347,68 @@
         "rationale": "Final retry after an expired claim and an immediate coverage child-PATH failure. Harness predicates are now corrected, draft PR #49 is fully green, and the exact Windows PATH/Node/npm-cli coverage launcher was preflighted by spawning child node v24.22.3 successfully.",
         "sessionId": null
       }
+    },
+    {
+      "createdAt": "2026-11-19T03:17:28.122Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": {
+        "details": "The only remaining DoD check, coverage, exited 1 on clean candidate 641ff5e2 after one run: 647 files/11174 tests passed, 1 file/3 tests failed in scripts/installer-nsh.test.mjs; 2 files/61 tests skipped. Coverage percentages and thresholds were not produced. The command was not rerun. Live screenshot and all PR #49 jobs remain green. Investigating the deterministic installer test failure before seeking another retry.",
+        "reason": "coverage_failed",
+        "retryable": true
+      },
+      "fencingToken": 4,
+      "id": "at_01m7rwyadtjsgn32zvfttp6bj9",
+      "kind": "work",
+      "number": 4,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m7nw8vxkywad7wpt0d38znye",
+      "state": "failed",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:34b73f1accc3b11d37d65a40aedc80704aee8604e203a3230b0990178037a21b",
+      "ticketId": "tk_01m7nt7jfxp7n85egzvezd93e2",
+      "updatedAt": "2026-11-19T03:25:33.625Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "high",
+        "hostId": "omp-codex",
+        "label": "Sprint 2 granted coverage worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Human granted retry. Live criterion and all PR #49 checks are already green. Run only the remaining coverage command once using the exact preflighted Windows PATH that resolves both Node 24.22.3 and Git 2.56.1.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-19T03:31:28.318Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": null,
+      "fencingToken": 5,
+      "id": "at_01m7rxqyxyjbhhgyr4kavkdevj",
+      "kind": "work",
+      "number": 5,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m7nw8vxkywad7wpt0d38znye",
+      "state": "running",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:34b73f1accc3b11d37d65a40aedc80704aee8604e203a3230b0990178037a21b",
+      "ticketId": "tk_01m7nt7jfxp7n85egzvezd93e2",
+      "updatedAt": "2026-11-19T03:31:47.493Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "high",
+        "hostId": "omp-codex",
+        "label": "Sprint 2 complete-environment coverage worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Human granted another retry after the previous coverage environment omitted powershell.exe. The sole remaining check is coverage on unchanged candidate 641ff5e2. Preflight of the exact child PATH confirms node, git, powershell.exe and PING.EXE all exit 0; existing UI screenshot and all PR #49 checks remain green.",
+        "sessionId": null
+      }
     }
   ],
   "checkpoints": [

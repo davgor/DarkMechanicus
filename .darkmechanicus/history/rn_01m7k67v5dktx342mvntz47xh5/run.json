@@ -10738,23 +10738,105 @@
     },
     {
       "createdAt": "2026-11-19T03:08:05.225Z",
-      "decidedAt": null,
-      "decision": null,
-      "evidence": null,
+      "decidedAt": "2026-11-19T03:13:09.808Z",
+      "decision": {
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "@c7c655e resolveRuntimeStateSiblingDirectory revalidates the full state chain and lstat/realpath-validates the capture sibling before any runtime spawn. Junction and non-directory regressions prove zero specs launched and unchanged external sentinel."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "@c7c655e retains wx/0600 per-call output and finally cleanup on the ordinary path. 47 targeted tests, scoped oxlint, typecheck, diff check and zero-CR blob check passed."
+          }
+        ],
+        "decidedBy": "dm CLI",
+        "notes": "No native launch; Windows-capable Node junction regression. Net diff 66 insertions/12 deletions, LF only.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npx vitest run src/main/desktopControl/desktopControlLeafRunner.test.ts src/main/desktopControl/runtimeStateHome.test.ts — 2 files, 47 tests passed",
+            "name": "Targeted leaf/runtime-state tests",
+            "status": "passed"
+          },
+          {
+            "detail": "npx oxlint on the three changed TypeScript files",
+            "name": "Oxlint changed files",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck",
+            "name": "Typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "git diff --check",
+            "name": "Patch whitespace",
+            "status": "passed"
+          },
+          {
+            "detail": "All three committed blobs contain zero CR bytes",
+            "name": "Committed blob line endings",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "Full acceptance gate",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "@c7c655e resolveRuntimeStateSiblingDirectory revalidates the full state chain and lstat/realpath-validates the capture sibling before any runtime spawn. Junction and non-directory regressions prove zero specs launched and unchanged external sentinel."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "@c7c655e retains wx/0600 per-call output and finally cleanup on the ordinary path. 47 targeted tests, scoped oxlint, typecheck, diff check and zero-CR blob check passed."
+          }
+        ],
+        "notes": "NONHUMAN / NOT NATIVE-PROVEN. Windows-capable filesystem and fake-supervisor regression only; no native executable launched."
+      },
       "failure": null,
       "fencingToken": 1,
       "id": "at_01m7rwd4q9a7s8sxtmb2mcfk6p",
       "kind": "work",
       "number": 1,
-      "outputs": null,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Capture-path containment regression",
+            "location": "src/main/desktopControl/desktopControlLeafRunner.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "desktop-rn3-dm-734",
+        "changedFiles": [
+          "src/main/desktopControl/runtimeStateHome.ts",
+          "src/main/desktopControl/desktopControlLeafRunner.ts",
+          "src/main/desktopControl/desktopControlLeafRunner.test.ts"
+        ],
+        "commits": [
+          "c7c655ea782b95345838d8aca9c38884a89398dd"
+        ],
+        "summary": "Validated broker capture directories through the runtime-state path-chain guard before creating or passing output paths; redirected and non-directory paths refuse before launch while normal exclusive private capture remains cleaned."
+      },
       "reconciledAt": null,
       "revisionId": "rv_01m7rwa6f3r3bje8a6e1p8r1vk",
-      "state": "running",
-      "submittedAt": null,
+      "state": "accepted",
+      "submittedAt": "2026-11-19T03:12:37.177Z",
       "supersededAt": null,
       "ticketContentHash": "sha256:b28c92efb24c28b54a6461bde3681970d989a64e36ffc66798bef6a9b1867547",
       "ticketId": "tk_01m7rhrqs4krc213k95mjfehqv",
-      "updatedAt": "2026-11-19T03:10:56.556Z",
+      "updatedAt": "2026-11-19T03:13:09.808Z",
       "worker": {
         "catalogRevision": "2026-11-16.1",
         "effort": "low",
@@ -10767,23 +10849,97 @@
     },
     {
       "createdAt": "2026-11-19T03:08:09.611Z",
-      "decidedAt": null,
-      "decision": null,
-      "evidence": null,
+      "decidedAt": "2026-11-19T03:18:33.736Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "",
+        "outcome": "rejected",
+        "reasons": [
+          "The behavior and tests are sound, but DesktopArtifactStore.release still declares void while ArtifactStore.release now performs required asynchronous final-expiry deletion. That hides the promise from consumers and permits future callers to release without awaiting the retention guarantee. Change the interface to Promise<void>, update scoped fakes, and rerun targeted typecheck/tests; no other behavior change."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "29 tests passed; injected clock/timer, no real-time waiting.",
+            "name": "npx vitest run src/main/desktopControl/desktopControlArtifacts.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "All five changed TypeScript files passed.",
+            "name": "npx oxlint changed files",
+            "status": "passed"
+          },
+          {
+            "detail": "Node, web, and Fireguard TypeScript projects passed.",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "No whitespace errors.",
+            "name": "git diff --check",
+            "status": "passed"
+          },
+          {
+            "detail": "All five blobs in commit 58be8fc80b81a76b6e42dfc0d8274e1daccdcaec contain no CR bytes.",
+            "name": "zero CR committed blobs",
+            "status": "passed"
+          },
+          {
+            "detail": "Left to the acceptance node.",
+            "name": "full verification gate",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Artifact tests prove active deletion at max-age+1ms with index persistence and startup pruning before the reopened store is exposed."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Artifact tests prove a pre-expiry reference survives the deadline, final release immediately deletes expired bytes/index, and disposal cancels deterministic timers; targeted tests, oxlint, typecheck, diff-check, and CR check passed."
+          }
+        ],
+        "notes": "NONHUMAN / NOT NATIVE-PROVEN. TDD red run failed on the four new lifecycle expectations before implementation; the targeted final run passed 29/29. Existing inclusive boundary remains: valid at exactly 24h, deleted at 24h + 1ms. No native executables or real-time waits were used."
+      },
       "failure": null,
       "fencingToken": 1,
       "id": "at_01m7rwd90bzwg9exgvpzzhac53",
       "kind": "work",
       "number": 1,
-      "outputs": null,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Artifact expiry lifecycle regression and scoped check ledger",
+            "location": "src/main/desktopControl/desktopControlArtifacts.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "desktop-rn3-dm-735",
+        "changedFiles": [
+          "src/main/desktopControl/desktopControlArtifacts.ts",
+          "src/main/desktopControl/desktopControlArtifacts.test.ts",
+          "src/main/desktopControl/desktopControlComposition.ts",
+          "src/main/desktopControl/desktopControlComposition.test.ts",
+          "src/main/desktopControl/desktopControlLeafRunner.test.ts"
+        ],
+        "commits": [
+          "58be8fc80b81a76b6e42dfc0d8274e1daccdcaec"
+        ],
+        "summary": "Implemented active private-artifact retention: deterministic deadline timers delete unreferenced bytes and index entries, startup prunes expired indexed artifacts before return, final release removes expired held artifacts, and desktop-control disposal cancels timers."
+      },
       "reconciledAt": null,
       "revisionId": "rv_01m7rwa6f3r3bje8a6e1p8r1vk",
-      "state": "running",
-      "submittedAt": null,
+      "state": "rejected",
+      "submittedAt": "2026-11-19T03:17:25.494Z",
       "supersededAt": null,
       "ticketContentHash": "sha256:62dbebc401d30b9498cd2b0df14402c7a106eb5a5bb26df684672dee763549f0",
       "ticketId": "tk_01m7rhrqta8ehrwfjxy5n7wd4d",
-      "updatedAt": "2026-11-19T03:09:30.889Z",
+      "updatedAt": "2026-11-19T03:18:33.736Z",
       "worker": {
         "catalogRevision": "2026-11-16.1",
         "effort": "low",
@@ -10791,6 +10947,302 @@
         "label": "DM-735 worker (omp task subagent)",
         "modelId": "anthropic/claude-opus-5-5",
         "rationale": "Recommended by match_capabilities (sole eligible model, effort low). Windows observed directly (win32 x64). Host cannot set subagent effort; conveyed as guidance. P1 retention fix: active deadline/startup deletion.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-19T03:18:39.214Z",
+      "decidedAt": "2026-11-19T03:25:47.028Z",
+      "decision": {
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "@58be8fc8 artifact store schedules deadline deletion of unreferenced bytes and index, prunes expired indexed bytes at startup. Injected-timer regression proves deadline+1ms deletion with no later store/open."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "@58be8fc8 referenced item survives deadline until final release, with Promise<void> release contract exposed at @7d207833 and awaited by exporter; service disposal cancels timer. Worker: 58 targeted tests, scoped oxlint, three-project tsc, diff check and LF blob checks passed."
+          }
+        ],
+        "decidedBy": "dm CLI",
+        "notes": "NONHUMAN / NOT NATIVE-PROVEN. Initial tool invocation failed due PATH/entrypoint setup; corrected before targeted checks. Review contract fix is a second commit, no full-suite or native claim.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "3 files, 58 tests passed, once after review fix.",
+            "name": "targeted artifact/composition/leaf Vitest",
+            "status": "passed"
+          },
+          {
+            "detail": "desktopControlArtifacts.ts and desktopControlLeafRunner.test.ts passed.",
+            "name": "scoped oxlint",
+            "status": "passed"
+          },
+          {
+            "detail": "Equivalent direct tsc --noEmit for tsconfig.node.json, tsconfig.web.json and fireguard/tsconfig.json all passed.",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Passed; git warned LF may be replaced by CRLF if it touches working copies, but modified blobs contain zero CR bytes.",
+            "name": "git diff --check",
+            "status": "passed"
+          },
+          {
+            "detail": "Both modified source/test working-tree blobs have zero CR bytes.",
+            "name": "zero-CR blobs",
+            "status": "passed"
+          },
+          {
+            "detail": "Whole-tree gate left to acceptance node; scoped oxlint passed.",
+            "name": "npm run lint",
+            "status": "skipped"
+          },
+          {
+            "detail": "Full gate left to acceptance node; targeted tests passed.",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "Left to acceptance node if epic plan requires it.",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "Left to acceptance node.",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "Left to acceptance node.",
+            "name": "npm run build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "@58be8fc8 artifact store schedules deadline deletion of unreferenced bytes and index, prunes expired indexed bytes at startup. Injected-timer regression proves deadline+1ms deletion with no later store/open."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "@58be8fc8 referenced item survives deadline until final release, with Promise<void> release contract exposed at @7d207833 and awaited by exporter; service disposal cancels timer. Worker: 58 targeted tests, scoped oxlint, three-project tsc, diff check and LF blob checks passed."
+          }
+        ],
+        "notes": "NONHUMAN / NOT NATIVE-PROVEN. Initial command attempts could not locate npx/Node on PATH and used an incorrect oxlint entry; corrected using portable Node executable, then targeted suite ran once and passed. No native launch; full gate left to acceptance node."
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m7rx0fve3hmd82b6r9vj202d",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Artifact expiry lifecycle regression and scoped check ledger",
+            "location": "src/main/desktopControl/desktopControlArtifacts.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "desktop-rn3-dm-735",
+        "changedFiles": [
+          "src/main/desktopControl/desktopControlArtifacts.ts",
+          "src/main/desktopControl/desktopControlArtifacts.test.ts",
+          "src/main/desktopControl/desktopControlComposition.ts",
+          "src/main/desktopControl/desktopControlComposition.test.ts",
+          "src/main/desktopControl/desktopControlLeafRunner.test.ts"
+        ],
+        "commits": [
+          "58be8fc80b81a76b6e42dfc0d8274e1daccdcaec",
+          "7d207833e7f030c61746943d2deca0a6d12076de"
+        ],
+        "summary": "Active artifact retention lifecycle from prior commit; review fix exposes Promise<void> release contract so expiry deletion can be awaited. NONHUMAN / NOT NATIVE-PROVEN."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7rwa6f3r3bje8a6e1p8r1vk",
+      "state": "accepted",
+      "submittedAt": "2026-11-19T03:25:13.456Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:62dbebc401d30b9498cd2b0df14402c7a106eb5a5bb26df684672dee763549f0",
+      "ticketId": "tk_01m7rhrqta8ehrwfjxy5n7wd4d",
+      "updatedAt": "2026-11-19T03:25:47.028Z",
+      "worker": {
+        "catalogRevision": "2026-11-16.1",
+        "effort": "medium",
+        "hostId": "omp-win32-x64-adc",
+        "label": "DM-735 worker (omp task subagent)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (sole eligible model, effort medium). Windows observed directly (win32 x64). Host cannot set subagent effort; conveyed as guidance. Review fix: expose asynchronous release contract so final expiry deletion must be awaited.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-19T03:26:26.488Z",
+      "decidedAt": "2026-11-19T03:29:52.440Z",
+      "decision": {
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "@a98559e3 N06 test creates a fresh mkdtemp root and removes it in finally when override absent; once-run targeted Vitest passed with DM681_MOCK_OUT unset."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Explicit override path remains unchanged and retained for immutable evidence; only test file changed (18 insertions/9 deletions), targeted oxlint/typecheck and LF diff checks passed."
+          }
+        ],
+        "decidedBy": "dm CLI",
+        "notes": "NONHUMAN / NOT NATIVE-PROVEN. Full npm test left to acceptance; normal-suite failure previously recorded at row 47 and will be checked anew on changed integration commit.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Single run with DM681_MOCK_OUT unset: 1 file, 1 test passed; NONHUMAN / NOT NATIVE-PROVEN.",
+            "name": "npx vitest run src/integration/desktopControlN06Selector.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "Exit 0, no diagnostics.",
+            "name": "npx oxlint src/integration/desktopControlN06Selector.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "All three TypeScript project checks exited 0.",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Index and worktree both LF; scoped diff has no whitespace errors or line-ending churn.",
+            "name": "git ls-files --eol and git diff --check",
+            "status": "passed"
+          },
+          {
+            "detail": "Left to the acceptance node; no full suite, native run or grading on this ticket.",
+            "name": "npm test / full lint / fireguard / deadcode / build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "@a98559e3 N06 test creates a fresh mkdtemp root and removes it in finally when override absent; once-run targeted Vitest passed with DM681_MOCK_OUT unset."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Explicit override path remains unchanged and retained for immutable evidence; only test file changed (18 insertions/9 deletions), targeted oxlint/typecheck and LF diff checks passed."
+          }
+        ],
+        "notes": "No native, packaged-app, Hello, or human proof; mocked evidence only. Explicit override not re-run because ticket requested one targeted test from normal suite environment."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m7rxer5rwden41g11takq8h9",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "N06 selector suite-safety test",
+            "location": "src/integration/desktopControlN06Selector.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "desktop-rn3-dm-736",
+        "changedFiles": [
+          "src/integration/desktopControlN06Selector.test.ts"
+        ],
+        "commits": [
+          "a98559e33d1c81dfd0b2fbab50a42dc0ca0bf191"
+        ],
+        "summary": "N06 selector integration test now creates a fresh per-test temporary parent and cleans it in finally when DM681_MOCK_OUT is absent; an explicit override is unchanged, leaving selector-exclusive immutable records in the caller directory. NONHUMAN / NOT NATIVE-PROVEN."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7rwgzthbm989m4xmjw18g9f",
+      "state": "accepted",
+      "submittedAt": "2026-11-19T03:29:25.867Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:0b7790af90ec6ce2fe4bd9e3c3f8753638cedbb31b7699e6b0671a3107cb7653",
+      "ticketId": "tk_01m7rhrqtaqpae3sth6tjq2dgv",
+      "updatedAt": "2026-11-19T03:29:52.440Z",
+      "worker": {
+        "catalogRevision": "2026-11-16.1",
+        "effort": "low",
+        "hostId": "omp-win32-x64-adc",
+        "label": "DM-736 worker (omp task subagent)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (sole eligible model, effort low). Windows observed directly (win32 x64). Host cannot set subagent effort; conveyed as guidance. Make N06 selector test self-contained with fresh temp output on normal full-suite invocation.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-19T03:32:49.538Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m7rxte82rrcxgn0qx8kwgnzs",
+      "kind": "work",
+      "number": 2,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m7rwgzthbm989m4xmjw18g9f",
+      "state": "claimed",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:2519bd85fcfac36f7469b66f5faf885601c9b28f0ec22abf8f4b8dc58b7b731c",
+      "ticketId": "tk_01m7jmc708z28ae3ba6ccr0yab",
+      "updatedAt": "2026-11-19T03:32:49.538Z",
+      "worker": {
+        "catalogRevision": "2026-11-16.1",
+        "effort": "high",
+        "hostId": "omp-win32-x64-adc",
+        "label": "DM-684 worker (omp task subagent)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (sole eligible model, effort high). Windows observed directly (win32 x64). Host cannot set subagent effort; conveyed as guidance. Final review after prior rejected ownership race and closure fix.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-19T03:33:26.375Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m7rxvj77ad17b32dzct511fq",
+      "kind": "work",
+      "number": 2,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m7rwgzthbm989m4xmjw18g9f",
+      "state": "claimed",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:29612d048daea1d52307bedbf34ef18b642862b79f581d77cde544de574f2b36",
+      "ticketId": "tk_01m7jmc708yyczb5qevjb3v5de",
+      "updatedAt": "2026-11-19T03:33:26.375Z",
+      "worker": {
+        "catalogRevision": "2026-11-16.1",
+        "effort": "high",
+        "hostId": "omp-win32-x64-adc",
+        "label": "DM-685 worker (omp task subagent)",
+        "modelId": "anthropic/claude-opus-5-5",
+        "rationale": "Recommended by match_capabilities (sole eligible model, effort high). Windows observed directly (win32 x64). Host cannot set subagent effort; conveyed as guidance. Final privacy review after prior rejected capture/retention defects and fixes.",
         "sessionId": null
       }
     }
@@ -10810,7 +11262,7 @@
   "ownerMachineId": "mc_01m7gdjzvswj7rwweky9e5fxpe",
   "pauseReason": null,
   "reports": [],
-  "revisionId": "rv_01m7rwa6f3r3bje8a6e1p8r1vk",
+  "revisionId": "rv_01m7rwgzthbm989m4xmjw18g9f",
   "rowChecks": [
     {
       "checks": [
@@ -12024,11 +12476,95 @@
       "recordedBy": "dm CLI",
       "row": 47,
       "sprintId": "sp_01m794777ktbe6rtp14kwd7dsh"
+    },
+    {
+      "checks": [
+        {
+          "detail": "8 files, 121 tests on integration b43681fa, DM_* unset; N06 now self-contained after DM-736. Native and package tests use fake ports, not native-proof.",
+          "name": "vitest merged desktop-control selectors/artifacts/ownership",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run typecheck on integration b43681fa: node/web/fireguard tsconfigs passed.",
+          "name": "typecheck",
+          "status": "passed"
+        }
+      ],
+      "commit": "b43681fa2774d17026d65e85041c7a0fede76b89",
+      "createdAt": "2026-11-19T03:31:44.454Z",
+      "id": "rk_01m7rxrep6zzp4b358k7d75nzr",
+      "number": 59,
+      "recordedBy": "dm CLI",
+      "row": 47,
+      "sprintId": "sp_01m794777ktbe6rtp14kwd7dsh"
+    },
+    {
+      "checks": [
+        {
+          "detail": "8 files, 121 tests on integration b43681fa, DM_* unset; N06 now self-contained after DM-736. Native and package tests use fake ports, not native-proof.",
+          "name": "vitest merged desktop-control selectors/artifacts/ownership",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run typecheck on integration b43681fa: node/web/fireguard tsconfigs passed.",
+          "name": "typecheck",
+          "status": "passed"
+        }
+      ],
+      "commit": "b43681fa2774d17026d65e85041c7a0fede76b89",
+      "createdAt": "2026-11-19T03:31:46.087Z",
+      "id": "rk_01m7rxrg97z1fc5h20rf9rf72s",
+      "number": 60,
+      "recordedBy": "dm CLI",
+      "row": 1,
+      "sprintId": "sp_01m794777ktbe6rtp14kwd7dsh"
+    },
+    {
+      "checks": [
+        {
+          "detail": "8 files, 121 tests on integration b43681fa, DM_* unset; N06 now self-contained after DM-736. Native and package tests use fake ports, not native-proof.",
+          "name": "vitest merged desktop-control selectors/artifacts/ownership",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run typecheck on integration b43681fa: node/web/fireguard tsconfigs passed.",
+          "name": "typecheck",
+          "status": "passed"
+        }
+      ],
+      "commit": "b43681fa2774d17026d65e85041c7a0fede76b89",
+      "createdAt": "2026-11-19T03:31:48.987Z",
+      "id": "rk_01m7rxrk3vkr9x6fsq67ftwkcv",
+      "number": 61,
+      "recordedBy": "dm CLI",
+      "row": 39,
+      "sprintId": "sp_01m794777ktbe6rtp14kwd7dsh"
+    },
+    {
+      "checks": [
+        {
+          "detail": "8 files, 121 tests on integration b43681fa, DM_* unset; N06 now self-contained after DM-736. Native and package tests use fake ports, not native-proof.",
+          "name": "vitest merged desktop-control selectors/artifacts/ownership",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run typecheck on integration b43681fa: node/web/fireguard tsconfigs passed.",
+          "name": "typecheck",
+          "status": "passed"
+        }
+      ],
+      "commit": "b43681fa2774d17026d65e85041c7a0fede76b89",
+      "createdAt": "2026-11-19T03:31:51.711Z",
+      "id": "rk_01m7rxrnrzc5dtckmzdryp9fq8",
+      "number": 62,
+      "recordedBy": "dm CLI",
+      "row": 42,
+      "sprintId": "sp_01m794777ktbe6rtp14kwd7dsh"
     }
   ],
   "runId": "rn_01m7k67v5dktx342mvntz47xh5",
   "skillVersion": "1.9.0",
   "startedAt": "2026-11-16T22:06:47.106Z",
   "state": "running",
-  "updatedAt": "2026-11-19T03:07:43.773Z"
+  "updatedAt": "2026-11-19T03:26:05.636Z"
 }

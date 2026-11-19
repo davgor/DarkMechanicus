@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Setup recovery: the person explicitly authorized cancellation/rebinding/restart after the first queued run bound main. Canceled untouched rn_01m7rwv45pesda6qr0y5gx2szn; replacement rn_01m7rx5yzr8zxkdq1ndzcst1yv targets epic/sprint-learnings at f8d90fddd5135f390da3cbd48eb94148a40eb90e. Coordinator stays on main without source edits; epic and integration/sprint-learnings-1 have isolated worktrees. Registered truthful default-task catalog; host cannot explicitly select model/effort. Initial register_host returned database is locked; later registration succeeded after intervening successful state writes.",
+  "createdAt": "2026-11-19T03:23:17.692Z",
+  "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7rx8zswbe6ae97tnnzvh5ye",
+  "ticketId": null
+}

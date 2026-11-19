@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Revision 4 planning decision from the person: use the standard catalog (General, Plan Forge, Delivery, Audit / Red Team, Research / Creative, Custom); Plan Forge requires six distinct acolytes covering UI/UX, implementation engineering, delivery/Scrum, security, quality, and architecture/team lead; acolytes submit independent findings, while the Magos synthesizes and edits the target draft and may Save only after an approved Allow save petition.",
+  "createdAt": "2026-11-19T03:26:07.192Z",
+  "epicId": "ep_01m7gnwzbth5hqr5jjf9vf48v9",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7rxe5ar1bd9ree7aqtt5vrh",
+  "ticketId": null
+}
