@@ -7,4 +7,4 @@ scope.events: [ticket.claimed, acceptance.claimed, kanban.claimed]
 priority: 85
 ---
 
-Tell every worker and summoned reviewer to direct questions only to you, never to the person, and pass on the common policy and its role guide. Ask them for the facts, constraint, options and recommendation. Resolve their questions yourself from the plan and evidence; record consequential decisions and rationale in the ticket comments or report.
+Workers and reviewers ask you, never the person: pass on role guidance and request evidence, options and recommendations. Hear material dissent once; decide in scope and record reasons. Escalate unresolved safety, authority or acceptance issues instead of overriding them.

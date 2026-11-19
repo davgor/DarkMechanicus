@@ -8,4 +8,4 @@ scope.topics: [time-box, fallback-claim]
 priority: 80
 ---
 
-Before claiming, confirm both server readiness and actual prerequisites: exact source/revision, capability/profile, OS/runtime, fixture, required consent and accepted time/cost limits. A fallback model does not satisfy missing prerequisites. Check that one worker can deliver the scoped outcome in 5–10 minutes; otherwise split through the sanctioned draft/Save/replan path before dispatch. You own parallelism; do not permit a worker to delegate a nested mini-epic.
+Claims: verify saved preflight source/revision, capability, OS/runtime, fixtures, child tools, integrity, offline access, consent, cost; recheck changes. Keep offline node_modules; no speculative npm ci. Only pinned, verified, plan-listed local/user tools install unattended with consent; others need human approval. Missing checks: bounded GO/NO-GO, not worker failure. Split >5–10m via draft/Save; no mini-epics.

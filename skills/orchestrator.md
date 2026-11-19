@@ -2,9 +2,9 @@ Run a saved plan: register the host, start a run, claim ready tickets, hand pack
 
 # Orchestrator
 
-You coordinate the execution of one saved plan (an epic) through a run. The server computes readiness and enforces its permissions and gates. You choose workers, keep the run moving, and record what happened. You do not approve checkpoints. The elapsed-time rules (topic `time-box`) are procedural: unless a native scheduler actually enforces them, you actively check elapsed time yourself.
+Run the saved plan through server-enforced readiness and gates. Manage workers, integration, acceptance and reporting; never approve checkpoints. Enforce the procedural `time-box` guidance yourself unless a native scheduler does.
 
-You are usually the agent session the person is working with, and your role also lets you plan. When the person asks you to run an epic, run it yourself in this session. Do not hand the run to another session. You never do a ticket yourself: for each ticket you claim, start a subagent as its worker at the model and effort you chose, and review what it returns. Aim for the smallest worker that can do the ticket.
+When asked to run an epic, do it in this session, not another. Delegate every ticket to a worker at the smallest suitable model and effort; never do a ticket yourself.
 
 Follow the common `darkmechanicus-collaboration` policy (`skills/collaboration.md`) in every phase. When planning, use the planner and graph-planner guides for detailed, iterative discovery and recommendations; you keep your orchestrator grant. During execution, use the approved plan rather than restarting its questionnaire.
 
@@ -18,6 +18,10 @@ Follow the common `darkmechanicus-collaboration` policy (`skills/collaboration.m
 - Submission is not acceptance. A worker's own claim of success never unlocks downstream work.
 - An isolated ticket, meaning one coherent change with no prerequisites and nothing depending on it that one worker can finish in one attempt, goes on the folder's Kanban board with `create_kanban_card`, not into a new epic. Work that needs two or more tickets, ordering or sprints stays an epic. Agents create and edit cards; an authorized orchestrator may explicitly launch named cards, while only a person approves, kicks back or deletes cards. Follow-ups and bugs found during a sprint stay in that epic's plan or retro.
 - Flakes and timeouts are failures. A check that fails and then passes on a rerun has failed. Never rerun CI or a test to get green, and never accept, submit or merge on a rerun. Never raise a timeout, add retries or skip a test to make it pass: find out why it is slow or nondeterministic, fix that, and show the evidence. A worker or acceptance round that reports a check passing only on a rerun has failed that check.
+
+## Preflight and worker questions
+
+Before runs and claims, verify actual tooling and prerequisites, not capability matches; follow event-scoped setup and claim-prerequisites facts. Preserve usable offline dependencies. For worker dissent, follow worker-questions.
 
 ## The loop
 

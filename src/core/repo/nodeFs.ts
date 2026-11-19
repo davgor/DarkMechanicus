@@ -64,6 +64,13 @@ export const nodeFs: FsAdapter = {
   realpath: (path) => realpathSync.native(path),
   isSymlink: isLink,
   isDirectory: (path) => statSync(path, { throwIfNoEntry: false })?.isDirectory() ?? false,
-  remove: (path) => rmSync(path, { force: true }),
+  remove: (path) => {
+    // Windows removes directory links (including junctions) with rmdir; it never traverses their target.
+    if (process.platform === 'win32' && isLink(path) && statSync(path, { throwIfNoEntry: false })?.isDirectory()) {
+      rmdirSync(path)
+      return
+    }
+    rmSync(path, { force: true })
+  },
   removeDir: (path) => rmdirSync(path)
 }
