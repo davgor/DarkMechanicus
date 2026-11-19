@@ -112,6 +112,25 @@ describe('terminalInstructions', () => {
   })
 })
 
+describe('terminalInstructions: board conversations', () => {
+
+  it('adds answer-only board guidance only for a chat bound to a board conversation', () => {
+    const options = { cli: cliFor(FOLDER), role: 'orchestrator', allowSave: false, launcherDir: '/data/agents/bin/ch_1', orchestratesRun: false } as const
+    const plain = terminalInstructions(options)
+    const epic = terminalInstructions({ ...options, conversation: { epicId: 'ep_1' } })
+    const card = terminalInstructions({ ...options, conversation: { cardId: 'kc_1' } })
+
+    expect(plain).not.toContain('=== Board conversation guidance ===')
+    expect(epic).toContain('Reply on the record with add_comment {"epicId":"ep_1"}')
+    expect(card).toContain('Reply on the record with add_kanban_message {"cardId":"kc_1"}')
+    for (const bound of [epic, card]) {
+      expect(bound).toContain('Answer only')
+      expect(bound).toContain('do not start or take over a run')
+      expect(bound).toContain('claim work or save a plan unless the person explicitly asks')
+    }
+  })
+})
+
 describe('writeTerminalFiles: collaboration policy', () => {
   let userData: string
   let folder: string

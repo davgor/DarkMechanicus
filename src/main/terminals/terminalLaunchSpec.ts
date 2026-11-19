@@ -34,7 +34,7 @@ import { terminalEnv, terminalLoginEnv } from './terminalEnv'
 import { terminalInstructions, type TerminalFiles } from './terminalFiles'
 import { windowsCommandLine } from './windowsCommandLine'
 
-interface TerminalChat extends Pick<ChatRecord, 'agent' | 'role' | 'allowSave' | 'model' | 'sessionId' | 'runId' | 'transferEpicId' | 'cardId' | 'titleStatus' | 'firstPrompt'> {
+interface TerminalChat extends Pick<ChatRecord, 'agent' | 'role' | 'allowSave' | 'model' | 'sessionId' | 'runId' | 'transferEpicId' | 'cardId' | 'conversation' | 'titleStatus' | 'firstPrompt'> {
   /** Whether the CLI has written the chat's session yet, so a start resumes it. */
   sessionStarted: boolean
   /** Whether the kickoff (an orchestrator's or a transfer chat's) went with an earlier start. */
@@ -397,6 +397,7 @@ function instructionsTextFor(input: TerminalLaunchInput, launcherDir: string | n
     nameFirstPrompt: chat.titleStatus === 'pending',
     transferEpicId: chat.transferEpicId,
     cardId: chat.cardId,
+    conversation: chat.conversation,
     ...(input.reach === undefined ? {} : { reach: input.reach })
   })
 }

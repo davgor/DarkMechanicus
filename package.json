@@ -78,6 +78,7 @@
     "filelist": "^2.0.2",
     "glob": "^14.0.3",
     "minimatch": "$minimatch",
+    "picomatch": "4.0.7",
     "ts-prune": {
       "ts-morph": "^28.0.0"
     }

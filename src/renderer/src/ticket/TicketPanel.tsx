@@ -11,7 +11,7 @@ import type { ReviewInput } from '../epic/workspaceActions'
 import type { EvidenceOpener } from '../scorecard/ScorecardParts'
 import { ActivityTab } from './ActivityTab'
 import { AttemptList } from './AttemptList'
-import { CommentsTab } from './CommentsTab'
+import { ConversationPanel } from '../conversation/ConversationPanel'
 import { DeleteTicketConfirm } from './DeleteTicket'
 import { EvidenceTab, HistoryTab, OverviewTab } from './panelTabs'
 import { ScorecardTab } from './ScorecardTab'
@@ -47,9 +47,9 @@ export interface TicketPanelProps {
   onOpenChat(chatId: string, threadId?: string): void
 }
 
-type TabId = 'overview' | 'attempts' | 'activity' | 'evidence' | 'comments' | 'history' | 'scorecard'
+type TabId = 'overview' | 'attempts' | 'activity' | 'evidence' | 'conversation' | 'history' | 'scorecard'
 
-const TAB_IDS: TabId[] = ['overview', 'attempts', 'activity', 'evidence', 'comments', 'history', 'scorecard']
+const TAB_IDS: TabId[] = ['overview', 'attempts', 'activity', 'evidence', 'conversation', 'history', 'scorecard']
 
 interface DetailState {
   detail: TicketDetailView | null
@@ -91,7 +91,7 @@ function targetTab(key: string, current: TabId): TabId | null {
 }
 
 function tabLabel(id: TabId, attempts: number): string {
-  return { overview: 'Overview', attempts: `Attempts (${attempts})`, activity: 'Activity', evidence: 'Evidence', comments: 'Comments', history: 'History', scorecard: 'Scorecard' }[id]
+  return { overview: 'Overview', attempts: `Attempts (${attempts})`, activity: 'Activity', evidence: 'Evidence', conversation: 'Conversation', history: 'History', scorecard: 'Scorecard' }[id]
 }
 
 /** The tab strip: Tab reaches the open tab, the arrow keys, Home and End move between tabs and open them. */
@@ -177,7 +177,7 @@ function citationTarget(ref: EvidenceRef, detail: TicketDetailView): CitationTar
     case 'ticket':
       return ref.id === detail.ticket.id ? { label: 'Overview', focus: { tab: 'overview' } } : { label: 'ticket', ticketId: ref.id }
     case 'comment':
-      return { label: 'Comments', focus: { tab: 'comments' } }
+      return { label: 'Conversation', focus: { tab: 'conversation' } }
     default:
       return null
   }
@@ -227,16 +227,16 @@ function TabBody(props: TabBodyProps): JSX.Element {
       )
     case 'evidence':
       return <EvidenceTab detail={detail} folderKey={panel.folderKey} attemptId={focus.citedAttemptId} />
-    case 'comments':
+    case 'conversation':
       return (
-        <CommentsTab
-          runner={panel.runner}
-          epicId={panel.epicId}
-          ticketId={detail.ticket.id}
-          now={panel.now}
+        <ConversationPanel
+          folderPath={panel.folderPath}
+          target={{ epicId: panel.epicId, ticketId: detail.ticket.id }}
+          messages={() => panel.runner('listComments', { epicId: panel.epicId, ticketId: detail.ticket.id })}
           reloadKey={panel.reloadKey}
-          canComment={panel.canEdit}
+          canSend={panel.canEdit}
           folderKey={panel.folderKey}
+          onOpenChat={panel.onOpenChat}
         />
       )
     case 'history':
@@ -305,7 +305,7 @@ function PanelHead(props: { panel: TicketPanelProps; detail: TicketDetailView; t
   )
 }
 
-/** Read view of one ticket: Markdown, criteria, capability profile, links, attempts, evidence, comments, history. */
+/** Read view of one ticket: Markdown, criteria, capability profile, links, attempts, evidence, conversation, history. */
 export function TicketPanel(props: TicketPanelProps): JSX.Element {
   const { detail, error } = useTicketDetail(props)
   const [focus, setFocus] = usePanelFocus(props.activity, props.scorecard)

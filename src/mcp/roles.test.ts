@@ -40,6 +40,7 @@ const READ_TOOLS = [
   'get_transfer',
   'list_kanban_cards',
   'get_kanban_card',
+  'list_kanban_messages',
   'get_run_metrics',
   'get_planned_baselines',
   'get_ticket_grade',
@@ -60,7 +61,7 @@ const READ_TOOLS = [
 ]
 
 /** Every role may comment. */
-const COMMENT_TOOLS = ['add_comment', 'name_chat']
+const COMMENT_TOOLS = ['add_comment', 'add_kanban_message', 'name_chat']
 
 /** Every role that writes records may attach an image from a local path (attachment.write); the desktop refuses it. */
 const ATTACHMENT_WRITE_TOOLS = ['add_attachment']

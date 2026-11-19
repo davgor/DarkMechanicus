@@ -1,7 +1,7 @@
 # Baseline ignore for ts-prune: one `file - export` per line (line numbers are not matched)
 # Generated from tsconfig.node.json + tsconfig.web.json
 # Refresh after export moves/deletes: npm run deadcode:refresh
-# Refreshed 2026-11-18 (371 entries)
+# Refreshed 2026-11-18 (374 entries)
 
 electron.vite.config.ts - default
 src/core/canonical.ts - canonicalJson
@@ -100,8 +100,10 @@ src/shared/agents/chatApi.ts - AllowChatMailWakeRequest
 src/shared/agents/chatApi.ts - BoundThreadsRequest
 src/shared/agents/chatApi.ts - ChatMailRef
 src/shared/agents/chatApi.ts - ChatRequestRef
+src/shared/agents/chatApi.ts - ConversationStateRequest
 src/shared/agents/chatApi.ts - MarkChatMailSeenRequest
 src/shared/agents/chatApi.ts - ReadChatMailRequest
+src/shared/agents/chatApi.ts - SendConversationRequest
 src/shared/agents/chatApi.ts - SummonChatRequest
 src/shared/agents/chatApi.ts - TransferChatRequest
 src/shared/agents/chatNaming.ts - NAMING_CONTROL
@@ -143,6 +145,7 @@ src/shared/domain/agentMail.ts - AgentMailWakeState
 src/shared/domain/agentMail.ts - HumanAgentMailStateView
 src/shared/domain/api.ts - API_VERSION
 src/shared/domain/api.ts - AddCommentInput
+src/shared/domain/api.ts - AddKanbanMessageInput
 src/shared/domain/api.ts - ClaimKanbanCardInput
 src/shared/domain/api.ts - ClaimTicketInput
 src/shared/domain/api.ts - FailKanbanCardInput

@@ -119,6 +119,8 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   updateKanbanCard: 'kanban.write',
   listKanbanCards: 'read',
   getKanbanCard: 'read',
+  addKanbanMessage: 'comment.write',
+  listKanbanMessages: 'read',
   playKanbanCard: 'kanban.play',
   launchKanbanCards: 'kanban.launch',
   claimKanbanCard: 'kanban.claim',

@@ -23,7 +23,16 @@ const OLD_SESSION = '7c9e6679-7425-40de-944b-e07fc1f90ae7'
 let rig: TerminalRig
 
 beforeEach(() => {
-  rig = terminalRig()
+  // Folder-loss behavior has its own tests. Keep this lifecycle suite's ten-day virtual clock off the real filesystem:
+  // checking the same scratch path 14,400 times only measures Windows filesystem contention, not session behavior.
+  rig = terminalRig({
+    deps: (subject) => ({
+      folders: {
+        trackedFolder: (path) => (subject.tracked.has(path) ? path : null),
+        fs: { realpath: (path) => path, isDirectory: () => true }
+      }
+    })
+  })
 })
 
 afterEach(() => {

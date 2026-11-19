@@ -226,6 +226,18 @@ Kept, and required: the prototype hung Electron when PTYs were killed without ho
 - **Renderer.** `TerminalPane` logic (attach on show, dispose on switch, hydrate from snapshot, resize debounce, theme from tokens) against a fake terminal interface in jsdom; xterm itself is not exercised in jsdom (it needs canvas and layout).
 - **End to end on the built app.** `npx electron-vite build`, then the packaged-style app with a scratch `--user-data-dir`, over CDP as the prototype did: track a scratch Git repository, register the fixture CLI (stubbing the native dialogs over the main inspector, stated in the evidence), open a chat, type with `Input.dispatchKeyEvent`, resize the window, switch chats and back (same pid), reload the renderer (screen restored from the snapshot), check the CSP log is empty, quit (no process left), screenshot. What the CLI received is read from the fixture's log file, not from the screen: the WebGL renderer draws to a canvas, so the DOM rows the prototype read with the DOM renderer are not there to read (*inference* from how that renderer works). Then once with real Claude Code on Haiku: the folder-trust prompt, one prompt, `/exit`, Start again resumes. On Windows the same suite runs against ConPTY, with a `.cmd` shim CLI.
 
+## Board conversations
+
+Messages posted from an epic, ticket, or Kanban card are routed to one terminal. For a card, the newest Play chat wins, then the newest chat bound to that card. For a ticket, an active attempt's bound terminal wins; otherwise an active epic run's terminal wins, then the newest chat bound to the epic. Epic messages use the same run-then-epic-conversation order. If no eligible chat exists, the app creates a conversation-bound chat. This precedence keeps an active worker or orchestrator in the loop instead of opening a competing session.
+
+The binding is stored on the chat record as `conversation: { epicId }` or `conversation: { cardId }`; ticket conversations bind to their epic so later epic and ticket messages can reuse the same answer chat. Its terminal instructions are answer-only and name the on-record reply command (`add_comment` for epics and tickets, `add_kanban_message` for cards). They do not authorize starting or taking over runs, claiming work, or saving plans unless the person explicitly asks. Deleting the chat deletes that record and therefore unbinds the conversation; a later message resolves again and may open a fresh bound chat.
+
+Delivery is machine-local and append-only in `userData/agents/conversation-deliveries.jsonl`, keyed by folder and message id. The latest entry records `opened`, `delivered`, or `failed`, the destination chat when known, a problem on failure, and the time. This is delivery status and an operational log, not the board's conversation record; replies remain board comments/messages.
+
+Delivery pastes `[Board message from the person]` into the selected terminal. A paste can arrive while the CLI is displaying an approval or other interactive prompt, so its text could be consumed as an answer rather than as a new model turn. The quiet-screen and bracketed-paste machinery lowers accidental interleaving but cannot identify every vendor prompt; operators must treat a delivered state as terminal insertion, not proof that the model read or answered the message.
+
+This path has been verified only on Windows. Routing, binding, deletion, delivery-ledger, and paste behavior have unit coverage, but macOS terminal delivery remains unverified.
+
 ## As built
 
 The terminal-chats build follows this design except where listed here. The code is described in [`architecture.md`](../architecture.md#terminals-pty-host-sessions-attach-and-port-launch-spec) and the user's view in [`runbooks/agents.md`](../runbooks/agents.md).

@@ -819,7 +819,7 @@ export function validation(patch: Partial<ValidationReport> = {}): ValidationRep
 }
 
 /** A comment on DM-202 by a worker, written `minutesAgo` minutes before NOW. */
-export function comment(n: number, minutesAgo: number, patch: Partial<CommentView> = {}): CommentView {
+function comment(n: number, minutesAgo: number, patch: Partial<CommentView> = {}): CommentView {
   return {
     id: `cm_${n}`,
     epicId: EPIC_ID,
@@ -829,6 +829,16 @@ export function comment(n: number, minutesAgo: number, patch: Partial<CommentVie
     createdAt: iso(-minutesAgo * MINUTE),
     ...patch
   }
+}
+
+/** A durable conversation message with a concise body and configurable author. */
+export function conversationMessage(
+  n: number,
+  minutesAgo: number,
+  body: string,
+  patch: Partial<CommentView> = {}
+): CommentView {
+  return comment(n, minutesAgo, { body, ...patch })
 }
 
 export function event(seq: number, kind: string, patch: Partial<EventView> = {}): EventView {

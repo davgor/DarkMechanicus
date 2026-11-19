@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { ChatRecord } from '../../../shared/agents/chat'
 import type { AgentAuthStatus } from '../../../shared/desktop/api'
-import type { KanbanAttemptView, KanbanCardView } from '../../../shared/domain/kanban'
+import type { KanbanAttemptView, KanbanCardView, KanbanMessageView } from '../../../shared/domain/kanban'
 import { FakeDm } from '../__mocks__/fakeDm'
 import { agentView, chatRecord, folderView } from '../__mocks__/fixtures'
 import { settle } from '../__mocks__/settle'
@@ -87,6 +87,10 @@ function attempt(patch: Partial<KanbanAttemptView>): KanbanAttemptView {
     decidedAt: null,
     ...patch
   }
+}
+
+function message(id: string, body: string, createdAt: string): KanbanMessageView {
+  return { id, body, authorRole: 'worker', authorLabel: 'worker-a', createdAt }
 }
 
 describe('KanbanCardPanel Play', () => {
@@ -351,6 +355,66 @@ describe('KanbanCardPanel attachments', () => {
     expect(within(plain).queryByRole('region', { name: 'References' })).toBeNull()
   })
 
+})
+
+describe('KanbanCardPanel Conversation', () => {
+  it('lists card messages oldest first and sends to the exact card target', async () => {
+    seed(cardView({ id: 'kc_a', key: 'DM-7' }))
+    dm.handlers.listKanbanMessages = () => [
+      message('cm_new', 'Newest card message', '2026-03-02T10:00:00.000Z'),
+      message('cm_old', 'Oldest card message', '2026-03-01T10:00:00.000Z')
+    ]
+    dm.chats.chats = [chatRecord({ id: 'chat_card', folder: '/a', cardId: 'kc_a' })]
+    await showBoard()
+    const panel = await openCard('DM-7')
+    const conversation = within(panel).getByRole('region', { name: 'Conversation' })
+    const items = within(await within(conversation).findByRole('list', { name: 'Conversation' })).getAllByRole('listitem')
+    expect(items.map((item) => item.textContent?.includes('Oldest card message'))).toEqual([true, false])
+    fireEvent.change(within(conversation).getByRole('textbox', { name: 'Message' }), { target: { value: 'Please continue' } })
+    fireEvent.click(within(conversation).getByRole('button', { name: 'Send' }))
+    await settle()
+    expect(dm.chats.calls.find((call) => call.method === 'sendConversationMessage')?.args).toEqual([
+      { folder: '/a', target: { cardId: 'kc_a' }, body: 'Please continue' }
+    ])
+    expect(dm.callsOf('listKanbanMessages').map((call) => [call.folder, call.input])).toEqual([
+      ['/a', { cardId: 'kc_a' }],
+      ['/a', { cardId: 'kc_a' }]
+    ])
+  })
+})
+
+describe('KanbanCardPanel Conversation refresh and access', () => {
+
+  it('reloads card messages when the board refresh token changes', async () => {
+    seed(cardView({ id: 'kc_a', key: 'DM-7' }))
+    dm.handlers.listKanbanMessages = () => []
+    const view = render(<KanbanBoard folder={folder} refreshToken={0} host={host()} />)
+    await settle()
+    await openCard('DM-7')
+    expect(dm.callsOf('listKanbanMessages')).toHaveLength(1)
+    view.rerender(<KanbanBoard folder={folder} refreshToken={1} host={host()} />)
+    await settle()
+    expect(dm.callsOf('listKanbanMessages')).toHaveLength(2)
+  })
+
+  it('makes a Done card conversation read-only', async () => {
+    seed(
+      cardView({
+        id: 'kc_a',
+        key: 'DM-7',
+        lane: 'done',
+        summary: { outcome: 'Shipped', commits: [], completedAt: '2026-03-02T10:00:00.000Z', approvedBy: 'Desktop' }
+      })
+    )
+    dm.handlers.listKanbanMessages = () => []
+    await showBoard()
+    fireEvent.click(screen.getByRole('button', { name: /Show Done/ }))
+    const panel = await openCard('DM-7')
+    const conversation = within(panel).getByRole('region', { name: 'Conversation' })
+    expect(within(conversation).getByText('This conversation is read-only.')).toBeTruthy()
+    expect(within(conversation).queryByRole('textbox', { name: 'Message' })).toBeNull()
+    expect(within(conversation).queryByRole('button', { name: 'Send' })).toBeNull()
+  })
 })
 
 describe('KanbanCardPanel Done card', () => {

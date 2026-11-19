@@ -7,10 +7,11 @@ import { newestFirst, waitingOnSignIn } from '../agents/chatList'
 import { SignInOffer } from '../agents/SignInPrompt'
 import type { AgentStatuses } from '../agents/useAgents'
 import type { ChatListState } from '../agents/useChats'
+import type { EpicListState } from '../app/useEpicLists'
 import { Button } from '../components/Button'
 import { classNames } from '../components/classNames'
 import { Icon } from '../components/Icon'
-import { ChatRow } from './ChatRow'
+import { boardConversationOf, ChatRow } from './ChatRow'
 
 /** Every chat that is not deleted, and what can be done with them from an agent's row. */
 interface AgentChats {
@@ -18,6 +19,8 @@ interface AgentChats {
   list: ChatListState
   /** The tracked folders, so a chat is labelled with its folder's name. */
   folders: readonly TrackedFolderView[]
+  /** Sidebar epic summaries by folder, used to name board conversations. */
+  epics: Record<string, EpicListState>
   /** The chat open in the main area, if any. */
   selectedChatId: string | null
   onOpen(chat: ChatRecord): void
@@ -79,6 +82,7 @@ function AgentChatList({ agent, statuses, chats, onAsk }: Pick<AgentRowProps, 'a
               chat={chat}
               agents={[agent]}
               place={placeOf(chat, chats.folders)}
+              boardConversation={boardConversationOf(chat, chat.folder === null ? [] : (chats.epics[chat.folder]?.epics ?? []))}
               signInWaiting={waitingOnSignIn(chat, statuses)}
               selected={chat.id === chats.selectedChatId}
               onOpen={() => chats.onOpen(chat)}
@@ -145,7 +149,12 @@ function ChatDialog({ pending, chats, onClose }: { pending: Pending; chats: Agen
   return pending.kind === 'rename' ? (
     <RenameChatDialog chat={chat} onSubmit={(title) => chats.onRename(chat, title)} onClose={onClose} />
   ) : (
-    <DeleteChatDialog chat={chat} onConfirm={() => chats.onDelete(chat)} onClose={onClose} />
+    <DeleteChatDialog
+      chat={chat}
+      boardConversation={boardConversationOf(chat, chat.folder === null ? [] : (chats.epics[chat.folder]?.epics ?? []))?.kind}
+      onConfirm={() => chats.onDelete(chat)}
+      onClose={onClose}
+    />
   )
 }
 

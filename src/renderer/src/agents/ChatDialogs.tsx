@@ -99,10 +99,11 @@ interface DeleteChatDialogProps {
   /** Resolves true once the chat is gone (the dialog then closes), false if it could not be deleted. */
   onConfirm(): Promise<boolean>
   onClose(): void
+  boardConversation?: 'epic' | 'card'
 }
 
-/** Deleting asks first and says what goes: the chat and its transcript, here, for good. */
-export function DeleteChatDialog({ chat, onConfirm, onClose }: DeleteChatDialogProps): JSX.Element {
+/** Deleting asks first and says what goes, including the effect on a board-bound conversation. */
+export function DeleteChatDialog({ chat, onConfirm, onClose, boardConversation }: DeleteChatDialogProps): JSX.Element {
   const [busy, setBusy] = useState(false)
   const confirm = async (): Promise<void> => {
     setBusy(true)
@@ -115,7 +116,7 @@ export function DeleteChatDialog({ chat, onConfirm, onClose }: DeleteChatDialogP
   return (
     <Dialog
       title="Delete this chat?"
-      description="This removes the chat and its transcript from this computer. It cannot be undone. Your repository and anything the agent changed in it are not touched."
+      description={`This removes the chat and its transcript from this computer. It cannot be undone. Your repository and anything the agent changed in it are not touched.${boardConversation === undefined ? '' : ` This unbinds it from the ${boardConversation}; the conversation history stays on the board.`}`}
       onClose={onClose}
       actions={
         <>

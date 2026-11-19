@@ -186,7 +186,7 @@ describe('the live feed approvals of the chat', () => {
 
     expect(within(card).getByText('Allowed once')).toBeTruthy()
     expect(within(card).queryByRole('button')).toBe(null)
-    expect(chats.calls.map((call) => call.method).sort()).toEqual(['boundTerminal', 'boundThreads', 'read'])
+    expect(chats.calls.map((call) => call.method).sort()).toEqual(['boundTerminal', 'boundThreads', 'conversationState', 'read'])
   })
 
   it('shows a request no decision was stored for as not answered, with nothing to answer', async () => {

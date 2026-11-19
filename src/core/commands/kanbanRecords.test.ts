@@ -151,6 +151,21 @@ describe('importing Kanban records into a fresh database', () => {
     expect([reconciled.imported, reconciled.rejected, reconciled.kanbanConflicts]).toEqual([[], [], []])
   })
 
+  it('round-trips messages without changing the card state', async () => {
+    const s = await sessions('repo')
+    const { cardId } = await cardToDone(s)
+    const before = await s.desktop.getKanbanCard({ cardId })
+    await s.desktop.addKanbanMessage({ cardId, body: 'Can this ship?' })
+    harness.clock.advanceSeconds(1)
+    await harness.open('worker').addKanbanMessage({ cardId, body: 'Yes, the checks passed.' })
+
+    expect(await s.desktop.getKanbanCard({ cardId })).toEqual(before)
+    const messages = await s.desktop.listKanbanMessages({ cardId })
+    const clone = harness.open('desktop', { root: harness.cloneTracked() })
+    expect(await clone.listKanbanMessages({ cardId })).toEqual(messages)
+    expect(await clone.getKanbanCard({ cardId })).toEqual(before)
+  })
+
   it('keeps an open attempt from another computer, which this computer refuses to report on', async () => {
     const s = await sessions('repo')
     const { open } = await richBoard(s)

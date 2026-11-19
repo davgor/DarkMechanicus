@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ChatRecord } from '../../../shared/agents/chat'
 import type { AgentView } from '../../../shared/desktop/api'
+import type { EpicSummaryView } from '../../../shared/domain/views'
 import { agentName } from '../agents/agentText'
 import { chatMeta } from '../agents/chatList'
 import { useLiveTerminal } from '../agents/liveTerminals'
@@ -8,6 +9,18 @@ import { useChatMail } from '../agents/useAgentMail'
 import { plural } from '../app/plural'
 import { classNames } from '../components/classNames'
 import { Menu } from '../components/Menu'
+
+export interface BoardConversation {
+  kind: 'epic' | 'card'
+  identity?: string
+}
+export function boardConversationOf(chat: ChatRecord, epics: readonly EpicSummaryView[]): BoardConversation | undefined {
+  const conversation = chat.conversation
+  if (conversation === undefined) return undefined
+  if ('cardId' in conversation) return { kind: 'card' }
+  return { kind: 'epic', identity: epics.find((epic) => epic.id === conversation.epicId)?.title }
+}
+
 
 interface ChatRowProps {
   chat: ChatRecord
@@ -21,6 +34,7 @@ interface ChatRowProps {
   onDelete(chat: ChatRecord): void
   /** Where the chat belongs, for a list that mixes folders (an agent's chats): its folder's name, or "No project". */
   place?: string
+  boardConversation?: BoardConversation
 }
 
 /** The badge of a chat that waits on the person to sign in to its agent. */
@@ -49,7 +63,7 @@ function UnseenBadge({ chat }: { chat: ChatRecord }): JSX.Element | null {
  * seen, and a badge while it waits for a sign-in), then where it belongs when the list mixes folders, and its agent
  * and model; opens the chat, and has a menu to rename or delete it.
  */
-export function ChatRow({ chat, agents, signInWaiting, selected, onOpen, onRename, onDelete, place }: ChatRowProps): JSX.Element {
+export function ChatRow({ chat, agents, signInWaiting, selected, onOpen, onRename, onDelete, place, boardConversation }: ChatRowProps): JSX.Element {
   const [menuOpen, setMenuOpen] = useState(false)
   const live = useLiveTerminal(chat.id)
   return (
@@ -75,6 +89,11 @@ export function ChatRow({ chat, agents, signInWaiting, selected, onOpen, onRenam
           <WaitingBadge chat={chat} agents={agents} signInWaiting={signInWaiting} />
         </span>{' '}
         {place === undefined ? null : <span className="chat-row-place">{place}</span>}
+        {boardConversation === undefined ? null : (
+          <span className="chat-row-place">
+            {boardConversation.identity === undefined ? 'Board conversation' : `Board conversation · ${boardConversation.identity}`}
+          </span>
+        )}
         <span className="chat-row-meta">{chatMeta(chat, agents)}</span>
       </button>
       <Menu

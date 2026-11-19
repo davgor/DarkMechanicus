@@ -1116,7 +1116,7 @@ export type AttachmentPurpose = 'evidence' | 'reference'
 export type AttachmentMime = 'image/png' | 'image/jpeg'
 
 /** The kinds of record an attachment can belong to. */
-export type AttachmentOwnerKind = 'attempt' | 'kanban_attempt' | 'comment' | 'kanban_card' | 'ticket'
+export type AttachmentOwnerKind = 'attempt' | 'kanban_attempt' | 'kanban_message' | 'comment' | 'kanban_card' | 'ticket'
 
 export interface AttachmentOwner {
   kind: AttachmentOwnerKind

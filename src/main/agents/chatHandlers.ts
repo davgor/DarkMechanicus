@@ -14,30 +14,38 @@
  */
 import { z } from 'zod'
 import { DomainError, toErrorShape } from '../../core/errors'
-import { commentBody, LIMITS, parseInput, stableId } from '../../core/schemas'
+import { attachmentRef, commentBody, LIMITS, parseInput, stableId } from '../../core/schemas'
 import { CHAT_ROLES, chatIdSchema, type ChatRecord } from '../../shared/agents/chat'
 import type {
   BoundThread,
   ChatPushEvent,
   ChatReadView,
+  ConversationStateResult,
   KickBackKanbanCardResult,
+  SendConversationResult,
   StartKanbanCardResult,
   StartOrchestratorResult,
   StartTransferChatResult
 } from '../../shared/agents/chatApi'
 import { agentIdSchema } from '../../shared/desktop/agentKinds'
-import type { CommandResult } from '../../shared/desktop/api'
+import type { AgentId, CommandResult } from '../../shared/desktop/api'
+import type { Workspace } from '../../core/workspace'
+import type { KanbanMessageView } from '../../shared/domain/kanban'
+import type { CommentView } from '../../shared/domain/views'
 import { connectedAgent } from '../desktop/agentHandlers'
 import type { AgentRegistry } from '../desktop/agentRegistry'
 import type { FolderRegistry } from '../desktop/folderRegistry'
 import { kickBackKanbanCard, startKanbanCard, type KanbanCards } from '../kanban/startKanbanCard'
+import type { ConversationDeliveries } from './conversationDeliveries'
+import { boardMessage, freshKickoff, type BoardMessageInput, type ConversationHistoryEntry } from './conversationMessage'
+import { resolveConversationChat, type ConversationReads, type ResolvedConversationChat } from './conversationTarget'
 import type { BoundTarget } from './boundThreads'
 import type { ChatRecords } from './chatRecords'
 import { byRecency, type ChatRef } from './chatStore'
 import { refuseSwappedFolder } from './launchFolder'
 import { startOrchestratorRun, type OrchestratorRuns } from './orchestratorStart'
 import { findTransferChat, startTransferChat, transferPrompt, type TransferReads } from './transferStart'
-import type { TerminalSessions } from '../terminals/terminalSessions'
+import type { TerminalSessions, TerminalStart } from '../terminals/terminalSessions'
 
 /** Windows long-path maximum; bounds path strings from the renderer. */
 const MAX_PATH_LENGTH = 32_767
@@ -95,6 +103,37 @@ const startKanbanCardSchema = z.strictObject({
 })
 const kickBackKanbanCardSchema = z.strictObject({ folder: folderSchema, cardId: cardIdSchema, comment: commentBody })
 const renameSchema = z.strictObject({ ...refShape, title: z.string().trim().min(1).max(LIMITS.title) })
+const epicIdSchema = stableId.regex(/^ep_/)
+const ticketIdSchema = stableId.regex(/^tk_/)
+const conversationTargetSchema = z.union([
+  z.strictObject({ epicId: epicIdSchema, ticketId: ticketIdSchema.optional() }),
+  z.strictObject({ cardId: cardIdSchema })
+])
+const attachmentsSchema = z.array(attachmentRef.shape.id).max(LIMITS.attachmentsPerRecord).optional()
+const sendConversationSchema = z.strictObject({
+  folder: folderSchema,
+  target: conversationTargetSchema,
+  body: commentBody,
+  attachments: attachmentsSchema
+})
+const conversationStateSchema = z.strictObject({
+  folder: folderSchema,
+  target: conversationTargetSchema,
+  messageIds: z.array(stableId).max(LIMITS.listItems)
+})
+
+export type ConversationWorkspace = Pick<
+  Workspace,
+  'addComment' | 'listComments' | 'getEpic' | 'getTicket' | 'getKanbanCard' | 'addKanbanMessage' | 'listKanbanMessages'
+>
+
+interface ConversationHandlerDeps {
+  workspace(folder: string): ConversationWorkspace
+  reads: ConversationReads
+  deliveries: ConversationDeliveries
+  defaultAgent(folder: string): AgentId | null
+  now?: () => string
+}
 
 /** Finds the id of the chat of a (canonical) folder that an attempt or a run is bound to by grant; null when none is. */
 export type BoundTerminalLookup = (folder: string, target: BoundTarget) => Promise<string | null>
@@ -118,6 +157,8 @@ interface ChatHandlerDeps {
   boundThreads?: (folder: string, target: BoundTarget) => BoundThread[]
   /** The chat of a (canonical) folder an attempt or a run is bound to by grant (`grantBindings.ts`); without it none is. */
   boundTerminal?: BoundTerminalLookup
+  /** Durable board-message storage, routing reads, delivery ledger and the selected agent for a fresh chat. */
+  conversation: ConversationHandlerDeps
   /** Told that a chat was created, renamed or deleted, so every window can list its folder's chats (and every chat) again; without it nothing is pushed. */
   push?: (event: ChatPushEvent) => void
   /** Told about failures that are not DomainErrors (bugs, I/O), so main can log the stack. */
@@ -134,6 +175,8 @@ export interface ChatHandlers {
   startTransferChat(request: unknown): Promise<CommandResult<StartTransferChatResult>>
   startKanbanCard(request: unknown): Promise<CommandResult<StartKanbanCardResult>>
   kickBackKanbanCard(request: unknown): Promise<CommandResult<KickBackKanbanCardResult>>
+  sendConversationMessage(request: unknown): Promise<CommandResult<SendConversationResult>>
+  conversationState(request: unknown): Promise<CommandResult<ConversationStateResult>>
   findTransferChat(request: unknown): Promise<CommandResult<ChatRecord | null>>
   transferPrompt(request: unknown): Promise<CommandResult<string>>
   /** The chat and its stored transcript, read-only: nothing is started or stored. */
@@ -293,7 +336,276 @@ async function deleteChat(deps: ChatHandlerDeps, input: unknown): Promise<null> 
   return null
 }
 
-export function createChatHandlers(deps: ChatHandlerDeps): ChatHandlers {
+type SendConversationInput = z.infer<typeof sendConversationSchema>
+type ConversationStateInput = z.infer<typeof conversationStateSchema>
+
+interface ConversationDetails extends Omit<BoardMessageInput, 'body' | 'attachmentIds' | 'relay'> {
+  title: string
+  history: ConversationHistoryEntry[]
+  runActive: boolean
+}
+
+function isCardTarget(target: SendConversationInput['target']): target is { cardId: string } {
+  return 'cardId' in target
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function reportUnexpected(deps: ChatHandlerDeps, error: unknown): void {
+  if (!(error instanceof DomainError)) deps.onUnexpectedError?.(error)
+}
+
+async function storeConversationMessage(
+  workspace: ConversationWorkspace,
+  request: SendConversationInput
+): Promise<string> {
+  const fields = {
+    body: request.body,
+    ...(request.attachments === undefined ? {} : { attachments: request.attachments })
+  }
+  if (isCardTarget(request.target)) {
+    return (await workspace.addKanbanMessage({ cardId: request.target.cardId, ...fields })).id
+  }
+  return (await workspace.addComment({ ...request.target, ...fields })).id
+}
+
+function commentHistory(comments: readonly CommentView[], messageId: string): ConversationHistoryEntry[] {
+  return comments
+    .filter((comment) => comment.id !== messageId)
+    .map((comment) => ({ author: comment.author.label, at: comment.createdAt, body: comment.body }))
+}
+
+function cardHistory(messages: readonly KanbanMessageView[], messageId: string): ConversationHistoryEntry[] {
+  return messages
+    .filter((message) => message.id !== messageId)
+    .map((message) => ({ author: message.authorLabel, at: message.createdAt, body: message.body }))
+}
+
+async function conversationDetails(
+  deps: ChatHandlerDeps,
+  folder: string,
+  target: SendConversationInput['target'],
+  messageId: string
+): Promise<ConversationDetails> {
+  const workspace = deps.conversation.workspace(folder)
+  if (isCardTarget(target)) {
+    const [card, messages] = await Promise.all([
+      workspace.getKanbanCard({ cardId: target.cardId }),
+      workspace.listKanbanMessages({ cardId: target.cardId })
+    ])
+    return {
+      target,
+      cardKey: card.key,
+      title: `Conversation · ${card.key}`,
+      history: cardHistory(messages, messageId),
+      runActive: false
+    }
+  }
+
+  const epic = await workspace.getEpic({ epicId: target.epicId })
+  const runActive = (await deps.conversation.reads.activeRunId(folder, target.epicId)) !== null
+  if (target.ticketId === undefined) {
+    const comments = await workspace.listComments({ epicId: target.epicId })
+    return {
+      target,
+      epicTitle: epic.title,
+      title: `Conversation · ${epic.title}`,
+      history: commentHistory(comments, messageId),
+      runActive
+    }
+  }
+  const [ticket, comments] = await Promise.all([
+    workspace.getTicket({ epicId: target.epicId, ticketId: target.ticketId, view: 'saved' }),
+    workspace.listComments({ epicId: target.epicId, ticketId: target.ticketId })
+  ])
+  return {
+    target,
+    epicTitle: epic.title,
+    ticketKey: ticket.ticket.key,
+    ticketTitle: ticket.ticket.title,
+    title: `Conversation · ${ticket.ticket.key}`,
+    history: commentHistory(comments, messageId),
+    runActive
+  }
+}
+
+async function terminalFailure(deps: ChatHandlerDeps, action: () => Promise<TerminalStart>): Promise<string | null> {
+  try {
+    const result = await action()
+    return result.state === 'running' ? null : result.message
+  } catch (error) {
+    reportUnexpected(deps, error)
+    return errorMessage(error)
+  }
+}
+
+function listedResolvedChat(deps: ChatHandlerDeps, folder: string, resolved: ResolvedConversationChat): ChatRecord | null {
+  return deps.chats.listChats(folder).find((chat) => chat.id === resolved.chatId) ?? null
+}
+
+type ConversationDelivery = Omit<SendConversationResult, 'messageId'>
+type ConversationPrompt = ConversationDetails & Pick<BoardMessageInput, 'body' | 'attachmentIds'>
+
+async function pasteConversationMessage(
+  deps: ChatHandlerDeps,
+  input: {
+    folder: string
+    target: SendConversationInput['target']
+    prompt: ConversationPrompt
+    resolved: ResolvedConversationChat
+  }
+): Promise<ConversationDelivery> {
+  const chat = listedResolvedChat(deps, input.folder, input.resolved)
+  if (chat === null) {
+    return { chatId: input.resolved.chatId, state: 'failed', problem: 'The selected chat was deleted before the message could be delivered.' }
+  }
+  const relay =
+    !isCardTarget(input.target) &&
+    input.target.ticketId !== undefined &&
+    (input.resolved.via === 'attempt' || input.resolved.via === 'run')
+  const problem = await terminalFailure(deps, () => deps.terminals.paste(chat, boardMessage({ ...input.prompt, relay })))
+  return problem === null
+    ? { chatId: chat.id, state: 'delivered', problem: null }
+    : { chatId: chat.id, state: 'failed', problem }
+}
+
+async function removeFailedConversation(deps: ChatHandlerDeps, chat: ChatRecord, problem: string): Promise<ConversationDelivery> {
+  try {
+    await deps.chats.deleteChat(chat)
+    return { chatId: null, state: 'failed', problem }
+  } catch (error) {
+    reportUnexpected(deps, error)
+    return { chatId: chat.id, state: 'failed', problem: `${problem} The failed chat could not be removed: ${errorMessage(error)}` }
+  }
+}
+
+async function openConversationChat(
+  deps: ChatHandlerDeps,
+  folder: string,
+  request: SendConversationInput,
+  prompt: ConversationPrompt
+): Promise<ConversationDelivery> {
+  const agentId = deps.conversation.defaultAgent(folder)
+  if (agentId === null) {
+    return {
+      chatId: null,
+      state: 'failed',
+      problem: 'No default agent is selected for this folder. Select one in Agents, then send another message.'
+    }
+  }
+  connectedAgent(deps.agents, agentId)
+  const kickoff = freshKickoff({ ...prompt, relay: false, history: prompt.history, runActive: prompt.runActive })
+  let chat: ChatRecord
+  try {
+    chat = deps.chats.createChat({
+      folder,
+      agent: agentId,
+      role: 'orchestrator',
+      model: null,
+      allowSave: true,
+      title: prompt.title,
+      conversation: isCardTarget(request.target) ? { cardId: request.target.cardId } : { epicId: request.target.epicId },
+      firstPrompt: kickoff
+    })
+  } catch (error) {
+    reportUnexpected(deps, error)
+    return { chatId: null, state: 'failed', problem: `The conversation chat could not be created: ${errorMessage(error)}` }
+  }
+  const problem = await terminalFailure(deps, () => deps.terminals.start(chat, { kickoff }))
+  return problem === null ? { chatId: chat.id, state: 'opened', problem: null } : removeFailedConversation(deps, chat, problem)
+}
+
+async function deliverConversationMessage(
+  deps: ChatHandlerDeps,
+  folder: string,
+  request: SendConversationInput,
+  messageId: string
+): Promise<ConversationDelivery> {
+  const resolved = await resolveConversationChat(
+    {
+      reads: deps.conversation.reads,
+      store: deps.chats,
+      boundTerminal: deps.boundTerminal ?? (() => Promise.resolve(null))
+    },
+    folder,
+    request.target
+  )
+  const details = await conversationDetails(deps, folder, request.target, messageId)
+  const prompt = { ...details, body: request.body, attachmentIds: request.attachments ?? [] }
+  return resolved === null
+    ? openConversationChat(deps, folder, request, prompt)
+    : pasteConversationMessage(deps, { folder, target: request.target, prompt, resolved })
+}
+
+async function sendConversationMessage(deps: ChatHandlerDeps, input: unknown): Promise<SendConversationResult> {
+  const parsed = parseInput(sendConversationSchema, input, 'conversation message')
+  const folder = chatFolder(deps, parsed.folder)
+  const request: SendConversationInput = { ...parsed, folder }
+  const messageId = await storeConversationMessage(deps.conversation.workspace(folder), request)
+  let delivery: Omit<SendConversationResult, 'messageId'>
+  try {
+    delivery = await deliverConversationMessage(deps, folder, request, messageId)
+  } catch (error) {
+    reportUnexpected(deps, error)
+    delivery = { chatId: null, state: 'failed', problem: errorMessage(error) }
+  }
+  deps.conversation.deliveries.record({
+    messageId,
+    folder,
+    ...delivery,
+    at: (deps.conversation.now ?? (() => new Date().toISOString()))()
+  })
+  if (delivery.chatId !== null) chatsChanged(deps, { folder, id: delivery.chatId })
+  return { messageId, ...delivery }
+}
+
+async function conversationState(deps: ChatHandlerDeps, input: unknown): Promise<ConversationStateResult> {
+  const request: ConversationStateInput = parseInput(conversationStateSchema, input, 'conversation state')
+  const folder = chatFolder(deps, request.folder)
+  const resolved = await resolveConversationChat(
+    {
+      reads: deps.conversation.reads,
+      store: deps.chats,
+      boundTerminal: deps.boundTerminal ?? (() => Promise.resolve(null))
+    },
+    folder,
+    request.target
+  )
+  const chats = deps.chats.listChats(folder)
+  const selected = resolved === null ? null : (chats.find((chat) => chat.id === resolved.chatId) ?? null)
+  const deliveries: ConversationStateResult['deliveries'] = {}
+  for (const [messageId, delivery] of deps.conversation.deliveries.forMessages(folder, request.messageIds)) {
+    deliveries[messageId] = {
+      chatId: delivery.chatId,
+      state: delivery.state,
+      problem: delivery.problem,
+      chatExists: delivery.chatId !== null && chats.some((chat) => chat.id === delivery.chatId)
+    }
+  }
+  return {
+    chat: selected === null || resolved === null ? null : { id: selected.id, title: selected.title, via: resolved.via },
+    deliveries
+  }
+}
+
+type ChatHandlerOptions = Omit<ChatHandlerDeps, 'conversation'> & { conversation?: ConversationHandlerDeps }
+
+function unavailableConversation(): ConversationHandlerDeps {
+  const unavailable = (): never => {
+    throw new DomainError('operation_unavailable', 'Board conversations are not configured.')
+  }
+  return {
+    workspace: unavailable,
+    reads: { openAttemptId: async () => null, activeRunId: async () => null },
+    deliveries: { record: unavailable, forMessages: () => new Map() },
+    defaultAgent: () => null
+  }
+}
+
+export function createChatHandlers(options: ChatHandlerOptions): ChatHandlers {
+  const deps: ChatHandlerDeps = { ...options, conversation: options.conversation ?? unavailableConversation() }
   const { chats } = deps
   return {
     list: (folder) => answer(deps, () => chats.listChats(chatFolder(deps, parseInput(folderSchema, folder, 'folder')))),
@@ -303,6 +615,8 @@ export function createChatHandlers(deps: ChatHandlerDeps): ChatHandlers {
     startTransferChat: (input) => answer(deps, () => startTransfer(deps, input)),
     startKanbanCard: (input) => answer(deps, () => startCard(deps, input)),
     kickBackKanbanCard: (input) => answer(deps, () => kickBackCard(deps, input)),
+    sendConversationMessage: (input) => answer(deps, () => sendConversationMessage(deps, input)),
+    conversationState: (input) => answer(deps, () => conversationState(deps, input)),
     findTransferChat: (input) =>
       answer(deps, () => {
         const { folder, epicId } = transferRequest(deps, input)

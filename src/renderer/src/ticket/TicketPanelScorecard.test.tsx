@@ -129,7 +129,7 @@ describe('ticket panel scorecard citations', () => {
       'check at_999 · Lint',
       'criterion tk_202 · c1 → Overview',
       'ticket tk_304 → ticket',
-      'comment cm_1 → Comments',
+      'comment cm_1 → Conversation',
       'observation ob_1'
     ])
     expect(within(evidence).getAllByTitle('Not viewable here').map((item) => item.textContent)).toEqual(['attempt at_999', 'check at_999 · Lint', 'observation ob_1'])
@@ -148,7 +148,7 @@ describe('ticket panel scorecard citations', () => {
     expect(await follow('check at_202_2 · Unit tests → Evidence')).toBe('Evidence')
     expect(screen.getByText('This attempt recorded no evidence.')).toBeTruthy()
     expect(await follow('criterion tk_202 · c1 → Overview')).toBe('Overview')
-    expect(await follow('comment cm_1 → Comments')).toBe('Comments')
+    expect(await follow('comment cm_1 → Conversation')).toBe('Conversation')
     expect(await follow('ticket tk_304 → ticket')).toBe('Scorecard')
     expect(recorded.selected).toEqual(['tk_304'])
   })
