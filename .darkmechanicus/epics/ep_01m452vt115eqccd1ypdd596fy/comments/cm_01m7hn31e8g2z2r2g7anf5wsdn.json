@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-266 review (orchestrator, this run): docs/runbooks/mcp-setup.md tools-per-role table is wrong: Total row (:234) should be planner 64 (65), orchestrator 96 (97), worker 55, reviewer 51 per tools/list; the 'Read-only (27)' row (:216) is stale (a reader lists 33 reads besides the 12 new score tools). Regenerate the table from a live tools/list rather than hand counts.",
+  "createdAt": "2026-11-16T07:45:33.128Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7hn31e8g2z2r2g7anf5wsdn",
+  "ticketId": "tk_01m453gpadszmpfvveph0zjtg5"
+}

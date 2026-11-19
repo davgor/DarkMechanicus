@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Discovery (orchestrator): `src/mcp/tools/chatNaming.test.ts` is not hermetic. The orchestrator runs inside a DM chat, so its shell inherits DM_DESKTOP_PIPE (the live desktop naming pipe), and `name_chat` then reaches the real app and returns applied:false instead of desktop_unavailable. With DM_DESKTOP_PIPE/DM_SESSION_TOKEN unset the test passes; this was observed with one targeted run, not a rerun-to-green. Fix for the test: clear the DM_* env in the test or harness. The acceptance node runs the DoD with a clean env (DM_* unset), matching CI. Pre-existing on main, not caused by this epic.",
+  "createdAt": "2026-11-17T22:53:03.447Z",
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7nvdejp8efz3yae1rzyc4ex",
+  "ticketId": null
+}

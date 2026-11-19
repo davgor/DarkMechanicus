@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-266 review (orchestrator, this run): eight score read tools settle the read run's overdue leases (timing.ts:348 -> expireLeases, like get_run): do NOT pin 'no database row changes' as an unconditional invariant for reader calls; reword src/mcp/tools/metrics.ts:5-6 and :79 ('no tool records feedback, defects or budgets; reads may settle the run's overdue leases like get_run'). Fix description gaps: :98 omits verification basis review_unknown; :105 says only a person or reviewing session records defects (orchestrator also can, metricReports.ts:190); :17-19 says ISO 8601 but offset-less times are refused; :31,:35 hard-code current policy numbers.",
+  "createdAt": "2026-11-16T07:45:30.569Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7hn2yy9j1sad6xdc9cfhgqk",
+  "ticketId": "tk_01m65yenct4mq6w6rzqj29ty4c"
+}

@@ -1,0 +1,25 @@
+{
+  "activeSprintId": "sp_01m7mn7rjp1cqryb7szb57rwca",
+  "attempts": [],
+  "checkpoints": [],
+  "createdAt": "2026-11-17T13:41:15.856Z",
+  "endedAt": "2026-11-17T14:02:36.358Z",
+  "epicId": "ep_01m7mn7rjn5wx5cx7a8g3pt8h0",
+  "format": "darkmechanicus.run",
+  "formatVersion": 1,
+  "host": {
+    "label": "omp",
+    "type": "omp"
+  },
+  "hostCatalogId": "hc_01m7mvxdbv07sc3eqx8qfhfry7",
+  "number": 1,
+  "ownerMachineId": "mc_01m7gdjzvswj7rwweky9e5fxpe",
+  "pauseReason": "Run started without an explicit feature branch and bound the epic to default branch main; execution is paused before any claims because sprint increments must not land on the default branch.",
+  "reports": [],
+  "revisionId": "rv_01m7mq48cmwc74pb05k7skcj27",
+  "runId": "rn_01m7mvv2ygm4vjpbt13x44bvd9",
+  "skillVersion": "1.9.0",
+  "startedAt": "2026-11-17T13:42:56.966Z",
+  "state": "canceled",
+  "updatedAt": "2026-11-17T14:02:36.358Z"
+}

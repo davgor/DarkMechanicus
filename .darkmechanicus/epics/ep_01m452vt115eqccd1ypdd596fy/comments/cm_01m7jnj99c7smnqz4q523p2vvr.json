@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-193 review (orchestrator, this run): (1) deadcode: src/test/spaceLoop.ts LocalCorrection (:341), DmRequest (:390), DmWork (:408) and src/renderer/src/metrics/metricsView.ts CapabilityRow (:137) are unused exports; (2) docs drift: docs/space-grading.md:745-751 (dashboard 'reads nothing else'/'shows exactly what the summary holds') and docs/product-plan.md:257 omit the new Measurement capabilities table; (3) packaging through a junctioned node_modules silently produces an app that does not start (hoisted deps left out of app.asar) — add it to the packaging runbook or guard the package script; (4) docs/verification/DM-193/screens.mjs is outside lint and has an unused gradeOf and long functions — exclude evidence scripts deliberately or fix; (5) two ~1.2 MB mcp-reads.json under docs/verification/DM-193 could be trimmed to the compared fields.",
+  "createdAt": "2026-11-16T17:13:07.116Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7jnj99c7smnqz4q523p2vvr",
+  "ticketId": "tk_01m65yenctzm9p4y9j9r24htjq"
+}

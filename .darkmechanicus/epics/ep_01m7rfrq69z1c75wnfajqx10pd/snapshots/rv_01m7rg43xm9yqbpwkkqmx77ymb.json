@@ -1,0 +1,651 @@
+{
+  "baseRevisionId": null,
+  "bundle": {
+    "edges": [
+      {
+        "from": "tk_01m7rfym0egkaqzvk0dmvw4ynp",
+        "to": "tk_01m7rfym0ek2q4qe5rgnq4a60t"
+      },
+      {
+        "from": "tk_01m7rfykzbjcfbxhh3v11j5h46",
+        "to": "tk_01m7rfym0exet1fwcr7e0bsbpr"
+      },
+      {
+        "from": "tk_01m7rfym0ek2q4qe5rgnq4a60t",
+        "to": "tk_01m7rfym0exet1fwcr7e0bsbpr"
+      }
+    ],
+    "epic": {
+      "intent": "Make the successful parts of the SPACE scorecards run repeatable and close the workflow gaps it exposed. Future orchestrators must be able to compose an evidence-backed sprint report once, bind long Fireguard evidence to the exact immutable code it graded, avoid holding an unrecoverable claim across multi-hour CI, and perform post-checkpoint PR delivery only when the saved plan or person explicitly authorizes it.\n\nConfirmed decisions:\n- Ship built-in orchestrator guidance plus targeted product guardrails, not guidance alone.\n- A final-epic PR merge is explicit-only. Checkpoint approval never implies permission to merge, and normal branch protection is never bypassed.\n- A verification command declared in the saved plan as an unavoidable long check uses immutable-head CI; ordinary checks remain local.\n\nWhat already works and stays: independent worker review and fix rounds, targeted ticket checks plus one acceptance sweep, one-parent sprint increments, complete failure/tool-error records, human checkpoint authority, the 5/10-minute stop-and-split rule, repeated-escalation reporting, lost-claim replay/fail/reclaim, and the rule that flakes/timeouts are failures. This epic extends those rules rather than duplicating them.\n\nScope:\n1. Expose server-computed tier facts on the active run before any sprint report exists, so the reporter can write the first revision with final tier-fit evidence.\n2. Put exact base and head commit identities in every final Fireguard artifact and human/PR rendering, preserving and validating shard identity.\n3. Ship scoped orchestrator knowledge for declared long CI validation, claim lifecycle, evidence invalidation after source changes, and explicit-only post-checkpoint PR delivery.\n\nNon-goals: secure persistence or recovery of active claim tokens; automatic PR creation or merge; changing checkpoint authority; bypassing required checks or branch protection; making all Fireguard runs use CI; changing the npm-audit policy; or rewriting the existing sizing, retry, timeout and lost-claim rules.\n\nVerification: each work ticket adds targeted behavioral tests. Sprint acceptance runs the repository Definition of Done once and verifies that pushed orchestrator context contains the new rules, pre-report tier facts match post-report facts, and a real Fireguard fixture/report names exact immutable revisions.",
+      "ownerRole": null,
+      "successCriteria": [
+        {
+          "id": "s1",
+          "text": "Before the first sprint report is submitted, get_run returns server-computed tier facts for every ticket in the active sprint; after submission they exactly match get_sprint_report.tierFacts."
+        },
+        {
+          "id": "s2",
+          "text": "Every final Fireguard JSON, Markdown and PR report names the exact base commit and tested head commit, and shard combination refuses missing or mismatched revision identities."
+        },
+        {
+          "id": "s3",
+          "text": "Built-in orchestrator context states that a declared multi-hour verification runs on an immutable CI head without an idle unrecoverable claim, records every outcome, and is invalidated by any later source change."
+        },
+        {
+          "id": "s4",
+          "text": "Built-in orchestrator context permits post-checkpoint PR squash-merge only under explicit saved-plan or person authorization, never treats checkpoint approval as merge permission, never bypasses branch protection, and verifies the remote default-branch commit after merge."
+        },
+        {
+          "id": "s5",
+          "text": "The skills version and regression tests pin the new guidance and guardrails, and the repository Definition of Done passes on the combined increment."
+        }
+      ],
+      "title": "Institutionalize final validation and delivery lessons"
+    },
+    "formatVersion": 1,
+    "policies": {
+      "leaseSeconds": 900,
+      "maxConcurrency": 2,
+      "onTicketFailure": "continue_independent",
+      "retryLimit": 3
+    },
+    "rationale": "## Outcome and evidence\nThis follow-up comes directly from the completed SPACE scorecards epic and its Sprint 1 retro. That run succeeded because independent review caught real defects, the testing tail and final Definition of Done were honest, the sprint landed as one verified increment, long Fireguard grading moved to CI on an immutable PR head, and the human checkpoint remained authoritative. The report also recorded concrete gaps: 23 rejected attempts, lost one-time claim tokens, a long acceptance claim held while CI ran, a Fireguard artifact that omitted the tested head, and a provisional sprint report required only to reveal server-computed tier facts.\n\n## Selected design\nUse targeted product guardrails plus scoped knowledge facts. `RunView.activeSprintTierFacts` fixes the report chicken-and-egg without changing `get_sprint_report`'s useful null-before-report contract or adding another command. Required Fireguard `{base, head}` revision metadata makes artifacts self-identifying across local and shard modes. Two terse built-in facts teach immutable-head long CI and explicit-only delivery at the events where an orchestrator needs them; the kernel only lists pull topics.\n\n## Alternatives rejected\n- Guidance only: rejected because prose cannot make tier facts available before report revision 1 or make a Fireguard artifact prove its tested head.\n- Secure active-claim-token persistence/recovery: deferred by explicit scope choice; it is a larger secret-storage and fencing design. Existing replay/fail/reclaim remains authoritative.\n- Changing `get_sprint_report` to return a preview union or adding a second report command: rejected in favor of one bounded derived field on the already-required `get_run` read.\n- Always use CI or always try local first: rejected. Only checks declared before claim as unavoidable long verification use immutable-head CI; normal checks stay local, and a failed run is never rerun merely to turn green.\n- Default PR merge after every epic: rejected. Checkpoint approval is not merge authority; delivery is explicit-only and never bypasses branch protection.\n\n## Scope and non-goals\nFour work tickets: pre-report tier facts; Fireguard revision contract; Fireguard human evidence; orchestrator protocol. No automatic delivery, approval change, admin merge, audit-policy work, grading-math change, CI topology change, or duplication of existing sizing/time-box/retry/lost-claim rules. No plan-stated Fireguard run is added for this small epic; each ticket runs targeted tests and sprint acceptance runs the six-check project Definition of Done once.\n\n## Graph and sizing\nTier-fact work and the Fireguard report contract start in parallel. Human Fireguard surfaces require the contract. The orchestrator protocol joins the tier-fact and Fireguard-surface branches because it names both delivered interfaces. The acceptance node implicitly requires all four. The critical path is Fireguard contract -> Fireguard surfaces -> orchestrator protocol -> acceptance. Concurrency is two. Tickets are dispatch-sized: one bounded read-model field, one revision contract, one formatter/doc surface, and one scoped guidance package.\n\n## Risks and mitigations\n- Run payload growth: only the active sprint's bounded ticket list is added; no report history is embedded.\n- Run/report drift: both use the same pure `computeTierFacts` and one shared attempt adapter, with exact-equality tests.\n- Widespread Fireguard fixture churn: required typing exposes every missing revision at compile time; ticket scope includes ordinary, skipped, early-failure and shard paths.\n- Context bloat: facts are event/topic scoped and phrase tests prevent moving them into the kernel.\n- Stale CI evidence: exact base/head metadata plus the source-change invalidation rule makes staleness observable.\n- Authority confusion: explicit text separates desktop checkpoint approval, merge authorization and branch protection.\n\n## Acceptance\nSprint acceptance runs the Definition of Done once on the combined head, exercises a pre-report/post-report tier-fact fixture, runs ordinary and two-shard Fireguard fixtures with identity mismatch, inspects all evidence renderings, pulls scoped knowledge for the relevant events, verifies unrelated contexts remain concise, and lands one squashed increment for human approval.",
+    "relations": [],
+    "sprints": [
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": 2,
+        "entryCriteria": [],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "An orchestrator can obtain final active-sprint tier facts before submitting report revision 1, and those facts match the later report read."
+          },
+          {
+            "id": "x2",
+            "text": "Fireguard JSON, Markdown and PR output identify the exact base and tested head commits, including merged-shard runs."
+          },
+          {
+            "id": "x3",
+            "text": "Pushed orchestrator context covers immutable-head long CI, short claim lifetimes, complete run history and evidence invalidation after source changes."
+          },
+          {
+            "id": "x4",
+            "text": "Pushed orchestrator context makes post-checkpoint PR merge explicit-only, preserves human and branch-protection authority, and requires remote-main verification."
+          }
+        ],
+        "goal": "Make final validation evidence self-identifying and give orchestrators the facts and scoped procedure they need before reporting or delivering an approved increment.",
+        "id": "sp_01m7rfrq693ras1mrr09qxttm1",
+        "ordinal": 1,
+        "ticketIds": [
+          "tk_01m7rfykzbjcfbxhh3v11j5h46",
+          "tk_01m7rfym0egkaqzvk0dmvw4ynp",
+          "tk_01m7rfym0ek2q4qe5rgnq4a60t",
+          "tk_01m7rfym0exet1fwcr7e0bsbpr",
+          "tk_01m7rfrq69wfwv52pvpnxam0m3"
+        ]
+      }
+    ],
+    "tickets": [
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m7rfykzbjcfbxhh3v11j5h46",
+            "id": "c1",
+            "text": "Before a scratch sprint report exists, `get_run.activeSprintTierFacts` contains every active-sprint ticket and equals `get_sprint_report.tierFacts` after revision 1 is submitted."
+          },
+          {
+            "covers": "tk_01m7rfym0egkaqzvk0dmvw4ynp",
+            "id": "c2",
+            "text": "A committed ordinary and two-shard Fireguard fixture emits exact resolved base and tested head commits, and shard merge refuses a mismatched identity."
+          },
+          {
+            "covers": "tk_01m7rfym0ek2q4qe5rgnq4a60t",
+            "id": "c3",
+            "text": "The fixture's JSON, Markdown and PR output display the same exact base/head identity and the documentation states that a later source change invalidates it."
+          },
+          {
+            "covers": "tk_01m7rfym0exet1fwcr7e0bsbpr",
+            "id": "c4",
+            "text": "Scoped `get_context` reads show declared immutable-head CI without an idle claim, complete outcome recording, source-change invalidation, explicit-only post-checkpoint merge, no protection bypass and remote-main verification."
+          }
+        ],
+        "body": "Verify the combined increment independently. Run the repository Definition of Done once on the final integration head. Exercise pre-report tier facts before creating a scratch report and compare the later report facts exactly. Run a committed Fireguard fixture through ordinary and two-shard merge paths and inspect JSON, Markdown and PR text for exact base/head identity plus mismatch refusal. Pull the scoped orchestrator context for final validation, recovery and checkpoint approval and verify the long-CI/claim and explicit-delivery rules are present while unrelated contexts stay concise. Land one squashed increment on the epic branch and stop for the human checkpoint.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": 18000,
+            "requiredArtifacts": [
+              "skills/sprint-reporter.md",
+              "skills/knowledge/orchestrator",
+              "fireguard/README.md",
+              "src/core/plan/tierFacts.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": "autonomous",
+            "cost": "normal",
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Acceptance crosses run reporting, Fireguard artifacts and event-scoped orchestrator context."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Acceptance evidence for all four work tickets",
+          "Definition of Done results",
+          "Verified one-commit increment"
+        ],
+        "id": "tk_01m7rfrq69wfwv52pvpnxam0m3",
+        "key": "DM-713",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Definition of Done source",
+            "location": ".cursor/skills/delivery-standards/SKILL.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Sprint reporter",
+            "location": "skills/sprint-reporter.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Fireguard runbook",
+            "location": "fireguard/README.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "orchestrator-lessons",
+          "acceptance"
+        ],
+        "title": "Sprint 1 acceptance"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Before any report exists, `get_run` returns one server-computed tier-fact entry per active-sprint ticket, including planned level/effort, attempt and rejection counts, fallback flags and escalation."
+          },
+          {
+            "id": "c2",
+            "text": "After the first report is submitted, `get_run.activeSprintTierFacts` equals `get_sprint_report.tierFacts` exactly for the same sprint."
+          },
+          {
+            "id": "c3",
+            "text": "A completed or otherwise no-active-sprint run returns an empty active-sprint tier-fact list, and existing report content/hash behavior is unchanged."
+          }
+        ],
+        "body": "## Outcome\nLet a sprint reporter compose the first report revision with authoritative tier-fit evidence. Today `get_sprint_report` correctly returns `null` before any report exists, while the reporter guide asks for its computed `tierFacts`; the completed SPACE run had to submit a provisional report and replace it. Add `activeSprintTierFacts` to `RunView`, computed for the active sprint from the same plan, attempts and host catalog as `SprintReportView.tierFacts`. Before and after report submission, both reads must agree byte-for-byte for that sprint. A run with no active sprint returns an empty list. Keep `get_sprint_report`'s existing null-before-report contract; add no second report command.\n\n## Source locations\n- `src/shared/domain/views.ts` — extend `RunView` with bounded `activeSprintTierFacts: TicketTierFacts[]`.\n- `src/core/services/runs.ts` — in `buildRunView`, call the existing pure `computeTierFacts` for `run.active_sprint_id`, using the run's full attempt rows and recorded host catalog; avoid deriving from the truncated `recentAttempts` view.\n- `src/core/plan/tierFacts.ts` and `src/core/services/reports.ts` — reuse or extract the attempt-to-fact adapter so run/report reads cannot drift; do not duplicate escalation logic.\n- `src/core/services/runs.test.ts` and `src/core/services/reportsTierFacts.test.ts` — extend existing run/report fixtures.\n\n## Tests\nAdd behavioral tests for pre-report facts, rejection/escalation data, exact equality with post-report facts, and the no-active-sprint empty case. Run those test files, `npm run lint`, and `npm run typecheck`. Leave the full Definition of Done to sprint acceptance.\n\n## Non-goals\nDo not change stored report content or hashes, alter `get_sprint_report` null semantics, add a new command, or make clients calculate tier fit themselves.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": 12000,
+            "requiredArtifacts": [
+              "src/core/plan/tierFacts.ts",
+              "src/core/services/runs.ts",
+              "src/core/services/reports.ts",
+              "src/shared/domain/views.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": "autonomous",
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "The existing pure tier-fact computation and exact run/report insertion points are named."
+          },
+          "skills": [
+            "typescript",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Pre-report RunView tier facts",
+          "Targeted run/report tier-fact tests"
+        ],
+        "id": "tk_01m7rfykzbjcfbxhh3v11j5h46",
+        "key": "DM-714",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Run view",
+            "location": "src/shared/domain/views.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Run service",
+            "location": "src/core/services/runs.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Tier facts",
+            "location": "src/core/plan/tierFacts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Report tier facts tests",
+            "location": "src/core/services/reportsTierFacts.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "orchestrator-lessons",
+          "reporting"
+        ],
+        "title": "Expose active-sprint tier facts before reporting"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Every Fireguard report path contains required exact base and head commit hashes, including skipped/no-test reports and hard-gate failures."
+          },
+          {
+            "id": "c2",
+            "text": "Local and sharded invocations identify the same resolved base and tested head for the same checkout and configured base ref."
+          },
+          {
+            "id": "c3",
+            "text": "Shard merge refuses missing, duplicate or mismatched revision identities and emits the verified identity on the final combined report."
+          }
+        ],
+        "body": "## Outcome\nMake a Fireguard result self-identifying instead of requiring PR metadata to prove what it graded. Add required exact revision metadata `{ base, head }` to `FireguardReport`. Both values are verified commit hashes: `base` is the resolved configured base ref and `head` is the committed snapshot graded. Populate it for ordinary, skipped, failed-gate and sharded runs. The CLI must resolve identity for every mode, not only `--shard` and `--merge-shards`. Combined shard reports must preserve the merge invocation's identity and refuse missing, duplicate or mismatched shard identities before grading. This is a clean cutover for ephemeral verification artifacts; do not add a legacy fallback that fabricates revisions.\n\n## Source locations\n- `fireguard/src/types.ts` — add required exact revision metadata to `FireguardReport`, reusing the existing `ShardIdentity` base/head names.\n- `fireguard/src/cli.ts` — resolve `HEAD` and configured base once for local, shard and merge modes and pass one identity through report creation.\n- `fireguard/src/runFireguard.ts` — include revision metadata in every return path, including no-tests/skipped and early hard-gate failures.\n- `fireguard/src/sharding.ts` — validate each shard against count/index/config and exact base/head, and put the verified identity on the combined report.\n- `fireguard/test/runFireguard.test.ts`, `fireguard/test/sharding.test.ts`, and `fireguard/test/cli.test.ts` — extend existing fixtures and failure cases.\n\n## Tests\nAdd behavioral tests first for ordinary, skipped and early-failure reports; local/shard identity equality; and merge refusal for missing or mismatched head/base. Run the three targeted Fireguard test files, `npm run lint`, and `npm run typecheck`. Leave the full Definition of Done to sprint acceptance.\n\n## Non-goals\nDo not change grade math, scope selection, shard partitioning, Git diff semantics, or CI concurrency.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": 18000,
+            "requiredArtifacts": [
+              "fireguard/src/types.ts",
+              "fireguard/src/cli.ts",
+              "fireguard/src/runFireguard.ts",
+              "fireguard/src/sharding.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": "autonomous",
+            "cost": "normal",
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Revision identity must remain exact across local, early-return and two-shard merge paths."
+          },
+          "skills": [
+            "typescript",
+            "node",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Self-identifying Fireguard report contract",
+          "Revision validation tests for local and sharded runs"
+        ],
+        "id": "tk_01m7rfym0egkaqzvk0dmvw4ynp",
+        "key": "DM-715",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Fireguard report contract",
+            "location": "fireguard/src/types.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Fireguard CLI",
+            "location": "fireguard/src/cli.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Fireguard runner",
+            "location": "fireguard/src/runFireguard.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Shard combiner",
+            "location": "fireguard/src/sharding.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "orchestrator-lessons",
+          "fireguard"
+        ],
+        "title": "Carry exact Git identities through Fireguard reports"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The Fireguard Markdown report displays the symbolic base ref, resolved base commit and tested head commit without ambiguity."
+          },
+          {
+            "id": "c2",
+            "text": "The Fireguard PR comment displays the same exact base/head identity as the JSON artifact and final grade."
+          },
+          {
+            "id": "c3",
+            "text": "The runbook explains that any later source change invalidates the artifact for acceptance and requires validation of the new head."
+          }
+        ],
+        "body": "## Outcome\nSurface the exact revision metadata from the Fireguard report contract wherever a reviewer reads the result. The Markdown artifact and PR comment must show both resolved base commit and tested head commit near the existing base-ref/grade summary. JSON already carries the fields from the prerequisite ticket. Update the Fireguard runbook examples so an acceptance reviewer knows those commits are the evidence boundary. The existing CI workflow continues to upload `fireguard-report.json` and `fireguard-pr.md`; no workflow duplication or second artifact is needed.\n\n## Source locations\n- `fireguard/src/report.ts` — render exact base and tested head in the human report.\n- `fireguard/src/prComment.ts` — render the same identity in the single PR comment.\n- `fireguard/test/report.test.ts` and `fireguard/test/prComment.test.ts` — pin exact, unambiguous output.\n- `fireguard/README.md` — document identity semantics and acceptance use beside the existing shard/merge commands.\n- `.github/workflows/pr-checks.yml` — inspect only; the current artifact upload is reused unless a test proves a change is required.\n\n## Tests\nExtend the two formatter test files to assert exact base/head output and that symbolic `baseRef` remains distinct. Run those files, `npm run lint`, and `npm run typecheck`. Leave the full Definition of Done to sprint acceptance.\n\n## Non-goals\nDo not change CI triggers, shard count, grading thresholds, PR-comment ownership, or artifact names.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": 9000,
+            "requiredArtifacts": [
+              "fireguard/src/report.ts",
+              "fireguard/src/prComment.ts",
+              "fireguard/README.md"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": "autonomous",
+            "cost": "low",
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "The prerequisite defines the contract; this ticket formats and documents the exact fields."
+          },
+          "skills": [
+            "typescript",
+            "testing",
+            "documentation"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Revision-aware Fireguard Markdown and PR comment",
+          "Updated Fireguard identity documentation"
+        ],
+        "id": "tk_01m7rfym0ek2q4qe5rgnq4a60t",
+        "key": "DM-716",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Human report formatter",
+            "location": "fireguard/src/report.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "PR comment formatter",
+            "location": "fireguard/src/prComment.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Fireguard runbook",
+            "location": "fireguard/README.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "PR checks workflow",
+            "location": ".github/workflows/pr-checks.yml",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "orchestrator-lessons",
+          "fireguard",
+          "documentation"
+        ],
+        "title": "Show Fireguard revisions in human and PR evidence"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Before report revision 1, the reporter guide reads authoritative tier facts from `get_run.activeSprintTierFacts` and does not require a provisional report."
+          },
+          {
+            "id": "c2",
+            "text": "Scoped pushed context instructs immutable-head CI for declared long checks, avoids idle unrecoverable claims, records all outcomes, and invalidates evidence after a source change."
+          },
+          {
+            "id": "c3",
+            "text": "Scoped pushed context distinguishes checkpoint approval from explicit merge authorization, forbids branch-protection bypass, and requires remote-default-branch verification."
+          },
+          {
+            "id": "c4",
+            "text": "The skills version advances once and regression tests pin the rules without duplicating existing time-box, retry, flake or lost-claim guidance."
+          }
+        ],
+        "body": "## Outcome\nTurn the run's operational lessons into scoped built-in knowledge without bloating the orchestrator kernel or repeating rules already shipped. Add one fact for declared long final validation and one for explicit-only post-checkpoint delivery. Update the sprint reporter to read `get_run.activeSprintTierFacts` before report revision 1. Increment the skills minor version once and pin the phrases and event delivery in tests.\n\nThe final-validation fact must say: only a noninterruptible check declared in the saved plan may exceed the normal time box; use immutable-head CI for that declared long check while ordinary checks stay local; do not hold an acceptance claim across multi-hour CI unless a live reporter can retain the secret and heartbeat it; prefer finishing CI before claiming acceptance; record every pass, failure and tool error; a source change invalidates the old artifact; after fixing the cause, validate the new head once; and acceptance compares the report's exact base/head with the increment.\n\nThe delivery fact must say: checkpoint approval and merge authorization are different; open/ready/squash-merge a PR only when the saved plan or person explicitly requests it; merge only after final checkpoint completion; use normal branch protection and never an admin bypass; a known failing non-required check needs an explicit person-owned risk decision and tracking; and verify the remote default branch equals the merge commit. If delivery was not authorized, stop at the completed epic branch/report.\n\n## Source locations\n- New `skills/knowledge/orchestrator/final-validation-ci.md` — follow the frontmatter/event/topic pattern in `acceptance-round.md`, `time-box-limits.md` and `heartbeat.md`.\n- New `skills/knowledge/orchestrator/post-checkpoint-delivery.md` — scope to `checkpoint.approved` and recovery where relevant.\n- `skills/orchestrator.md` — add only the pull topics needed after omitted context/recovery; keep the kernel terse.\n- `skills/sprint-reporter.md` and `skills/knowledge/orchestrator/sprint-report.md` — read pre-report tier facts from `get_run.activeSprintTierFacts`; use `get_sprint_report` only after a report exists.\n- `src/mcp/skills.test.ts` — pin the new rules and the next minor skills version.\n- `src/core/commands/knowledgePush.test.ts` — prove the new facts reach their scoped events and do not pollute unrelated events.\n- `src/core/version.ts` — increment `SKILLS_VERSION` by one minor version from the branch's current value.\n\n## Tests\nAdd phrase/version tests and pushed-context event tests for both facts. Run `src/mcp/skills.test.ts`, `src/core/commands/knowledgePush.test.ts`, `npm run lint`, and `npm run typecheck`. Leave the full Definition of Done to sprint acceptance.\n\n## Non-goals\nDo not add secure claim-token persistence, automatic PR creation/merge, an admin merge path, always-CI Fireguard, a new approval, or copies of existing sizing/retry/flake/lost-claim rules.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": 18000,
+            "requiredArtifacts": [
+              "skills/orchestrator.md",
+              "skills/sprint-reporter.md",
+              "skills/knowledge/orchestrator",
+              "src/mcp/skills.test.ts",
+              "src/core/commands/knowledgePush.test.ts"
+            ]
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": "autonomous",
+            "cost": "normal",
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Authority, secret lifecycle, event scoping and CI evidence rules must stay consistent across kernel, facts and reporter guidance."
+          },
+          "skills": [
+            "typescript",
+            "testing",
+            "documentation"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "documentation"
+        },
+        "expectedArtifacts": [
+          "Long-validation orchestrator fact",
+          "Explicit-delivery orchestrator fact",
+          "Updated sprint reporter guidance",
+          "Knowledge push and skill regression tests"
+        ],
+        "id": "tk_01m7rfym0exet1fwcr7e0bsbpr",
+        "key": "DM-717",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Orchestrator kernel",
+            "location": "skills/orchestrator.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Sprint reporter",
+            "location": "skills/sprint-reporter.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Acceptance fact pattern",
+            "location": "skills/knowledge/orchestrator/acceptance-round.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Time-box fact pattern",
+            "location": "skills/knowledge/orchestrator/time-box-limits.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Skill regression tests",
+            "location": "src/mcp/skills.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Knowledge push tests",
+            "location": "src/core/commands/knowledgePush.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [
+          "orchestrator-lessons",
+          "knowledge",
+          "delivery"
+        ],
+        "title": "Teach orchestrators the final validation and delivery protocol"
+      }
+    ]
+  },
+  "contentHash": "sha256:6ab42ffc8157b5ca1f82e609c49c4a4330b65f500abc56adcc67413c9324a25c",
+  "createdAt": "2026-11-18T23:33:26.580Z",
+  "epicId": "ep_01m7rfrq69z1c75wnfajqx10pd",
+  "format": "darkmechanicus.plan-snapshot",
+  "formatVersion": 1,
+  "number": 1,
+  "revisionId": "rv_01m7rg43xm9yqbpwkkqmx77ymb",
+  "savedAt": "2026-11-18T23:33:26.580Z"
+}

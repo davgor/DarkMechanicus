@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-185 review (orchestrator, this run) — fix here, since corrective work builds on it: `completed` bypasses the sized/specific gate (src/core/services/experiments.ts:245 requireSchedulable returns early for every status but scheduled/in_progress); an experiment with unsized vague work can go proposed -> completed. Gate `completed` too. Vagueness is a length test only (plan/experiments.ts:511: 'x'.repeat(40) passes); strengthen it as corrective sprints will rely on it.",
+  "createdAt": "2026-11-16T05:52:29.496Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7hem0srscm4dscv9mah551d",
+  "ticketId": "tk_01m453gpadgbwycpmg2dd8y0me"
+}

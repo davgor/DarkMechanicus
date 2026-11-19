@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "## Person decision 2026-11-17: mocked native runs, Full control enabled (revision 4 adopted)\n\nThe orchestrator explained why Windows Hello guards protected decisions, and the risk of mocking it: the security boundary goes unproved on a real machine. The person then chose:\n\n- Mock every native, OS and model run in this epic.\n- Ship Full control enabled, with no feature flag.\n- Run the live native test themselves after merging to main and installing the update. A failure there is handled by a patch fix or a revert.\n\nWindows Hello is not available on this machine. The person allowed a test VM and asked that it be cleaned up afterwards. None was set up: Hyper-V, Windows Sandbox and VirtualMachinePlatform are not installed, enabling them needs an admin prompt and a reboot, and the reboot would end the run. Once the runs are mocked, no VM is needed.\n\nSaved revision 4 (rv_01m7mn04h1br1rt2tj2zhnmkx7) was adopted at a paused point with no open attempts. Seventeen run-only tickets now run their accepted case once, in-process, against fake ports. Their evidence is labelled NONHUMAN / NOT NATIVE-PROVEN and is never reported as native success. At runtime, protected decisions still route to Windows Hello and are denied when Hello is unavailable.\n",
+  "createdAt": "2026-11-17T11:42:48.111Z",
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7mn25sfrvg271xf54zgre4n",
+  "ticketId": null
+}

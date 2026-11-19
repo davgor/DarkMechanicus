@@ -1,0 +1,33 @@
+{
+  "acceptanceCriteria": [
+    {
+      "id": "c1",
+      "text": "`npm audit --audit-level=moderate` on main reports no findings, or each remaining one is documented with why it cannot be fixed yet"
+    },
+    {
+      "id": "c2",
+      "text": "`npm run lint`, `npm run typecheck`, `npm test`, `npm run coverage`, `npm run deadcode` and `npm run build` all pass after the upgrade"
+    },
+    {
+      "id": "c3",
+      "text": "The PR CI `npm audit (fail on moderate+)` job passes"
+    }
+  ],
+  "body": "The `npm audit (fail on moderate+)` check fails on every pull request, including ones that change no dependencies. On 2026-11-17, `npm audit` over main's own package-lock.json (main 9c4705d, v0.44.0) reports 15 high-severity findings: picomatch ReDoS through single-branch repeated extglobs, which reaches fdir/tinyglobby, vite, vitest and @vitest/coverage-v8, and ts-morph/@ts-morph/common, which reaches ts-prune. They were published after main's last green audit. Main's push CI does not run the audit job, so main still looks green.\n\nThis was found on PR #44 and PR #45 (SPACE scorecards), which only add a packaging-guard script line to package.json.\n\nUpgrade or override the affected dev dependencies (`npm audit fix`, or targeted `overrides` for picomatch and fdir) without breaking vitest, coverage, ts-prune deadcode or the Fireguard suite.",
+  "createdAt": "2026-11-18T00:23:37.655Z",
+  "createdBy": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "expectedArtifacts": [],
+  "format": "darkmechanicus.kanban-card",
+  "formatVersion": 1,
+  "generation": 1,
+  "id": "kc_01m7p0k9cjb4vnde114fnq67w3",
+  "key": "DM-712",
+  "priority": "high",
+  "references": [],
+  "size": "small",
+  "title": "Clear the high-severity npm audit findings that fail every PR",
+  "updatedAt": "2026-11-18T00:23:37.655Z"
+}

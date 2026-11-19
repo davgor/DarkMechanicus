@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "DM-273 git-test timeout investigation (measurements, Windows 16 logical CPUs, git 2.56.1, Defender real-time on):\n- Quiet full run on 386d460 (old config, vitest default 15 workers): only the 3 symlink tests failed, but commitLinesProperty took 15,049 ms (limit 15,000), 59 tests > 5 s, git tests 7-11 s. Orchestrator row13 (49fbdfa): 10 git timeouts.\n- Same tests alone: commitLinesProperty 5,921 ms, stash list 2,716 ms (2.5-3.6x faster than in the full run).\n- git spawn cost alone: git --version 25.8 ms, rev-parse 29.5 ms (normal for Windows, not pathological).\n- Git spawns per file (child_process wrapper over a full run): 9,409 in 52 files; top pullRequestsCheckout 678, conflicts 648, incrementVerify 558, commitLines 535, branches 465, branchesGuard 444, commitLinesProperty 397-447 in ONE test.\n- Cause: vitest's sequencer starts the slowest files first, and those are the git-heavy ones, so ~15 git-spawning files ran side by side with everything else; each git process waited on all the others.\n- git-only set (343 files): 15 workers max 11.8 s, p95 4.2 s, 33 tests > 5 s, 73 s wall; 4 workers max 9.4 s, p95 2.3 s, 1 test > 5 s, 137 s wall.\nFix: vitest projects: 'git' group (68 files: src/main/git, src/main/github and the 9 other files starting >= ~60 git processes) runs after the rest (sequence.groupOrder 1) on half the CPUs (capped by VITEST_MAX_WORKERS for Fireguard lanes); commitLinesProperty split into its 4 seeded batches (one test each, ~110 spawns). Symlink EPERM: src/test/symlinks.ts forced the cases whenever CI was set; agent shells export CI=true here and the machine has no symlink right (probe EPERM), so the cases now run unconditionally only on GitHub Actions (GITHUB_ACTIONS=true) and probe elsewhere (same fix in fireguard/test/snapshots.test.ts).",
+  "createdAt": "2026-11-16T17:56:36.019Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7jr1x1kcejmph8k9h9ey5tn",
+  "ticketId": "tk_01m65yenctzm9p4y9j9r24htjq"
+}

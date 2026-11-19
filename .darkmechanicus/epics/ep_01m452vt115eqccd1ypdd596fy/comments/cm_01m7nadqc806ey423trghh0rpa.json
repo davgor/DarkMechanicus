@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Orchestrator (2026-11-17): integration fix e9a8753 (space-commitlines 634d4de, 7c402ad, d1fdf10; reviewed MERGE after one P1 blocker was fixed) removes the cause of the round-2 Fireguard flake timeout in commitLinesProperty: production commitFiles started 3 git processes per line-selected file in sequence (HEAD check, diff, apply); it now applies all patches in one atomic `git apply --cached`, checks HEAD once (stale_selection if the branch moved since the status read — this also closes a pre-existing unborn→born data-loss race) and reuses that state for the diff reads. Batch: ~112 → 58 git processes; two-lane load loop 50/50 green, calm max 6.3 s, max 11.6 s during an outside-load spike (~1.8x). Residual risk: margin under heavy outside load; next cut (bounded parallel diff reads) recorded for the retro.",
+  "createdAt": "2026-11-17T17:56:06.664Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7nadqc806ey423trghh0rpa",
+  "ticketId": "tk_01m452vt12q4vp2x5sza0hpckg"
+}

@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-272 review (orchestrator, this run): Fireguard's AST gate counts only expect() calls inside each `it` callback; tests that assert only through a helper are flagged empty-test and fail the gate before mutation/flake run. src/core/repo/scorecardPortability.test.ts (DM-269, on space-sprint-1) has ~25 tests of that shape — fix them (have the helper return the value and assert in the callback) when you run Fireguard; check the whole epic's test files for the same pattern (grep for `it(` callbacks without `expect(`).",
+  "createdAt": "2026-11-16T14:21:52.739Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7jbrqq37bcye89geqvdtp0e",
+  "ticketId": "tk_01m453gpafjr1k8kmyra0nw8k7"
+}

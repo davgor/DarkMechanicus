@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Orchestrator (2026-11-17): acceptance round 2 on bcb690c — DoD all passed; c17 met (real fd857e3 legacy folder 26/26 ungraded). Fireguard re-grade on 106fd5c graded F: flake gate runs #73 and #74 of 100 timed out at 15 s in src/main/git/commitLinesProperty.test.ts batch '1 of 4' (same test passed 100/100 in DM-198's run). Flakes and timeouts are failures: a helper is diagnosing the cause on space-commitlines (git spawn volume per case vs Fireguard lane load) and will fix it without raising timeouts or reducing cases; then the node re-runs the DoD and Fireguard on the new head. Evidence commit e977691.",
+  "createdAt": "2026-11-17T12:06:13.247Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7mpd1zzae23ztvyqv2sqssf",
+  "ticketId": "tk_01m452vt12q4vp2x5sza0hpckg"
+}

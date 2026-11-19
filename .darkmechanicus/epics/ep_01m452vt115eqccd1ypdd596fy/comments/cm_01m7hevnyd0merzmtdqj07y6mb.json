@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-189 review (orchestrator, this run): reach the target only through `sourceCheckout.requireAvailable()` (no production caller yet; wire it from bootstrap's startSourceCheckout store), call it immediately before each write batch, open the workspace only on the returned path, compare the opened workspace's projectId with target.projectId before materializing, and rely on target-side idempotency (TOCTOU between check and write cannot be closed by path APIs). Treat `projectId` as observed, not canonical (an un-set-up clone gets a fresh id; a DM-home db record can shadow project.json). Source markers are existence-only: expect git operations to fail on a hand-built look-alike and handle that. `requireAvailable` errors carry the absolute local path in message/details.path — never copy them into portable receipts or provenance. Never use `registry.resolve` alone to reach the target (it follows a tracked folder later replaced by a link).",
+  "createdAt": "2026-11-16T05:56:40.525Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7hevnyd0merzmtdqj07y6mb",
+  "ticketId": "tk_01m453gpad190h3kdq5kw1065f"
+}

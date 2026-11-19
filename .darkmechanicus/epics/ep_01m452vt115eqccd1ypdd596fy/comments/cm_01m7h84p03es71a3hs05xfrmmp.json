@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-178 review (orchestrator, this run): fix and pin — (1) export does not verify an existing or outgoing scorecard (src/core/repo/finalizer.ts:571-590): a truncated/edited file on disk or a non-reproducing stored snapshot is exported silently and every other machine then refuses the whole run; fail with a conflict like other immutable records. (2) A non-reproducing snapshot blocks the whole run on import (snapshot.ts:297-306, importer.ts:321-334); add a golden snapshot fixture per policy so CI catches reproduction breaks, and consider a degraded read of stored results. (3) A differing snapshot for a report that already has one is dropped silently on import (importer.ts:935): report a conflict. (4) A ticket moved to a later sprint makes that sprint's T/K roll-up invalid_time (baselines.ts:61) and the sprint reads provisional 100 A while carrying the old sprint's failed attempt cost. (5) Re-sealed edits to non-derived parts (ticket list, outcomes, source ids, timing) import on a fresh machine; validate them against the derived grades. Also pin: one attempt with no usage makes epic E/T/K not_reported (intended by the unreported-is-missing rule).",
+  "createdAt": "2026-11-16T03:59:15.459Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7h84p03es71a3hs05xfrmmp",
+  "ticketId": "tk_01m65yencth80g61jy026rv05n"
+}

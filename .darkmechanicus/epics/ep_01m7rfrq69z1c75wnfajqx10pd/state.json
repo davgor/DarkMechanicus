@@ -1,0 +1,28 @@
+{
+  "branch": {
+    "name": "orchestrator-validation-lessons",
+    "repository": null,
+    "startCommit": null
+  },
+  "completedAt": null,
+  "createdAt": "2026-11-18T23:27:13.097Z",
+  "epicId": "ep_01m7rfrq69z1c75wnfajqx10pd",
+  "format": "darkmechanicus.epic-state",
+  "formatVersion": 1,
+  "generation": 1,
+  "outcome": null,
+  "provenance": {
+    "note": "Follow-up from Sprint 1 retro: preserve the successful acceptance/CI/checkpoint flow and eliminate the report, revision-identity and long-claim gaps.",
+    "sourceEpicId": "ep_01m452vt115eqccd1ypdd596fy"
+  },
+  "status": "backlog",
+  "ticketStatuses": {
+    "tk_01m7rfrq69wfwv52pvpnxam0m3": "backlog",
+    "tk_01m7rfykzbjcfbxhh3v11j5h46": "backlog",
+    "tk_01m7rfym0egkaqzvk0dmvw4ynp": "backlog",
+    "tk_01m7rfym0ek2q4qe5rgnq4a60t": "backlog",
+    "tk_01m7rfym0exet1fwcr7e0bsbpr": "backlog"
+  },
+  "title": "Institutionalize final validation and delivery lessons",
+  "updatedAt": "2026-11-18T23:33:26.682Z"
+}

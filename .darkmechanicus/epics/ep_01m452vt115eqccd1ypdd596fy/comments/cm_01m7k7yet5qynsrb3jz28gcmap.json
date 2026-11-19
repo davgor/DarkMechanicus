@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Orchestrator (2026-11-16): attempt 1 is held unreviewed while an integration helper diagnoses the run-2 tool error `vitest interrupted 3 runs in a row without a failing test` (fireguard/src/vitestLane.mjs:150). Suspected interaction between DM-273's vitest.config.ts `projects` (unit + git with sequence.groupOrder 1) and the lane's bail:1 retry logic. The fix is not a test-file change, so it lands as an integration fix on space-sprint-1 (branch space-fg-interrupt), after which the next DM-198 attempt grades the new head. The 7 mutant-killing tests in 99d7f4c carry over.",
+  "createdAt": "2026-11-16T22:34:20.357Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7k7yet5qynsrb3jz28gcmap",
+  "ticketId": "tk_01m453gpafjr1k8kmyra0nw8k7"
+}

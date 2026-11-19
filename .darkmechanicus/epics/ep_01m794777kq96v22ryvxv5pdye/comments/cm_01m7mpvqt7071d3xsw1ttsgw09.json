@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Orchestrator integration note: the DM-638 worker committed its mocked run record and script at the worktree root (`DM-638-mock/`, commit 318d300). That is evidence, not product source, so the branch is NOT merged into the sprint integration branch. The record is preserved at %TEMP%\\dmorch-adc\\DM-638-mock\\run-record.json (SHA-256 27acef00…, matching the reviewed record).",
+  "createdAt": "2026-11-17T12:14:14.343Z",
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7mpvqt7071d3xsw1ttsgw09",
+  "ticketId": "tk_01m7jmc70725hk9g4b68e2tynp"
+}

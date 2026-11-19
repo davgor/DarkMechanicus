@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-189 review (orchestrator, this run): a refused pick can still leave the folder tracked (`sourceCheckoutIpc.ts:38-43`; e.g. unreadable project.json -> refused/unreadable_project but folder count 2->3, while the shared type says nothing was tracked) — fix: inspect fully before `track`, or return folder/added on that refusal, so the folder list stays fresh. A case-only rename reads as `relocated … a link or junction changed` and `relocated` maps to code project_mismatch (sourceCheckout.ts:84,237-248) — distinguish it. A compromised renderer can switch the association among tracked valid clones without a dialog by design, so the selector/preview must show the destination path explicitly.",
+  "createdAt": "2026-11-16T05:56:41.675Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7hevq2bjk6g20a90nyxhak0",
+  "ticketId": "tk_01m453gpadfcep3c11jqkx33vk"
+}

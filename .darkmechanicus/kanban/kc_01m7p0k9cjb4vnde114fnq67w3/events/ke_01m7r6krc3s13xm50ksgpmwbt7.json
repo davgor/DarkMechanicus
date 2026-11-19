@@ -1,0 +1,132 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": "ka_01m7p9b8d94v5xc21qmqa8sy7g",
+  "cardId": "kc_01m7p0k9cjb4vnde114fnq67w3",
+  "createdAt": "2026-11-18T20:47:13.283Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7r6krc3s13xm50ksgpmwbt7",
+  "kind": "submitted",
+  "payload": {
+    "evidence": {
+      "checks": [
+        {
+          "detail": "npm run lint completed successfully on the final tree.",
+          "name": "lint",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run typecheck passed after replacing Promise.withResolvers with an ES2022-compatible deferred promise.",
+          "name": "typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "npm test: 645 files passed, 2 skipped; 11,124 tests passed, 61 skipped. Fireguard project: 25 files and 170 tests passed, 1 skipped.",
+          "name": "test",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run coverage: 645 files passed, 2 skipped; statements 97.5%, branches 95.16%, functions 96.71%, lines 97.75%.",
+          "name": "coverage",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run deadcode reported no new dead exports.",
+          "name": "deadcode",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run build completed main, preload, and renderer production builds.",
+          "name": "build",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run fireguard: grade A, score 100; agentMail.test.ts executed 100/100 with zero failures.",
+          "name": "fireguard",
+          "status": "passed"
+        },
+        {
+          "detail": "npm run audit:ci exited zero; raw npm audit --audit-level=moderate reported zero current vulnerabilities.",
+          "name": "audit-policy",
+          "status": "passed"
+        },
+        {
+          "detail": "npx vitest run scripts/security-audit.test.mjs: 7/7 passed, including an exclusive allowed chain and nonzero exit for an unrelated moderate+ advisory.",
+          "name": "audit-policy scenarios",
+          "status": "passed"
+        },
+        {
+          "detail": "src/core/commands/agentMail.test.ts passed 14/14; the previous timing-out workload completed in 8.66 seconds with a readiness barrier, no retry or timeout increase.",
+          "name": "mail barrier targeted test",
+          "status": "passed"
+        }
+      ],
+      "criteria": [
+        {
+          "criterionId": "c1",
+          "met": true,
+          "note": "Raw npm audit --audit-level=moderate reports zero current findings. The checker also documents the scoped GHSA exception, dev-only exposure, and removal when a patched picomatch release exists and package-lock.json uses it."
+        },
+        {
+          "criterionId": "c2",
+          "met": true,
+          "note": "npm run lint, npm run typecheck, npm test, npm run coverage, npm run deadcode, npm run build, and Fireguard all passed on the final tree."
+        },
+        {
+          "criterionId": "c3",
+          "met": true,
+          "note": ".github/workflows/security-audit.yml invokes npm run audit:ci. The current lockfile exits zero; a synthetic unrelated moderate advisory exits nonzero."
+        }
+      ],
+      "notes": "No dependencies were downgraded, overridden, or vendored; dev dependencies remain audited. The person explicitly expanded scope to repair the unrelated agentMail concurrency timeout blocking c2. Root cause was a 4-second CPU busy-spin consuming 27% of the test timeout; the deterministic parent-controlled readiness barrier preserves simultaneous cross-process SQLite contention and awaits all child exits. No timeout, retry, skip, or weakened assertion was introduced."
+    },
+    "number": 1,
+    "outputs": {
+      "artifacts": [
+        {
+          "hash": null,
+          "label": "Audit policy checker",
+          "location": "scripts/security-audit.mjs",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "Audit policy tests",
+          "location": "scripts/security-audit.test.mjs",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "PR security workflow",
+          "location": ".github/workflows/security-audit.yml",
+          "remoteOnly": false
+        },
+        {
+          "hash": null,
+          "label": "Deterministic mail concurrency harness",
+          "location": "src/core/commands/agentMail.test.ts",
+          "remoteOnly": false
+        }
+      ],
+      "branch": "main",
+      "changedFiles": [
+        ".github/workflows/security-audit.yml",
+        "package.json",
+        "scripts/security-audit.mjs",
+        "scripts/security-audit.test.mjs",
+        "src/core/commands/agentMail.test.ts"
+      ],
+      "commits": [
+        "1a9cf16799904c54bebe5ed5d33ff98c077073d7",
+        "d1283c5e88abd620405829128d4a2c274080f38e",
+        "56e1824d1dc069f8fe2cb7dac6aadbaff4187303",
+        "b8ca8e2aa61af131a0566525f7863d696dc36600",
+        "7a4c194e49cdc58089c213ddbff33deb57bab47a"
+      ],
+      "summary": "Added a graph-aware npm audit policy that allows only GHSA-fc5q-39xc-vjpf and its exclusive transitive chain while continuing to block every unrelated moderate-or-higher advisory. PR CI now runs the policy checker. Documented dev-only exposure and the exact removal condition. Replaced the mail concurrency test's CPU-burning timed spin with a deterministic child readiness barrier so the required full gate is stable without retries or timeout increases."
+    }
+  }
+}

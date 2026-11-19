@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From DM-187 (orchestrator, this run): getRetroFindings statements name tickets by internal id ('Ticket tk_…') rather than key — include key (and title) so MCP readers see keys; pin it.",
+  "createdAt": "2026-11-16T09:57:24.963Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7hwmfv3dx50tbbrr2ngdpkq",
+  "ticketId": "tk_01m65yenct0k48amzn4y6ac5tb"
+}

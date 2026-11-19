@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-267 review (orchestrator, this run): Metrics dashboard follow-ups to fix and pin — an epic whose only run executed nothing still reads '0.0% of base weight · no executed attempt' (MetricsSections.tsx:116-119 keys on empty measuredRunIds while the core falls back to the last run, spaceGrades.ts:432-433); 'removed after revision N' can name an older revision (useMetricsRead.ts:58-63: sort pinned revisions descending); stacked narrow tables use display:block and drop table semantics — keep accessible roles; delta fallback floors negatives (metricsView.ts:110: −0.04 shows −0.1).",
+  "createdAt": "2026-11-16T09:19:45.081Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7htfgxs9ayjf28myedc3gck",
+  "ticketId": "tk_01m65yenctx5ptxk16d444z9zr"
+}

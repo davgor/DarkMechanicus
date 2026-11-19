@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "REQUIRED from the DM-188 review (orchestrator, this run): (1) two-writer run history — a follow-up-run owner may now append experiment events to the SOURCE run's history; if the source machine also appends (status #1 vs results #1,#2) each refuses the other's file forever, and the source machine's next export overwrites the tracked file, dropping the follow-up results (finalizer.ts:657-664 overwrites unconditionally; no resolver/renumber exists). Add the guard: refuse to append to, or export, a non-owned run's history unless the tracked file matches the last sync; detect forks and give a recovery path (e.g. renumber on import when events don't conflict). Demonstrate with two machines (this owner uses a Mac and a Windows PC). (2) A follow-up epic deleted or never shared after a result cites it blocks the source run history on fresh clones forever — degrade to 'cited scorecard not here' instead. (3) Strip correction markers on add_ticket AND every op that sets references at creation (create_epic+add_ticket forged a follow-up that changed a real outcome); meanwhile ignore draft-only holders in other epics when computing landing. (4) Replace scratch/DM-188 c4-reads' timing ratio with a structural test (a scorecard that passes its seal but would fail regrading still reads, or count regrade calls). Pin: unsized-vs-unsized mixes classify; a damaged scorecard holding the breach flips regressed->improved (decide and pin).",
+  "createdAt": "2026-11-16T09:09:52.957Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7hsxenx3qpv0stydjvft0y8",
+  "ticketId": "tk_01m65yenct0k48amzn4y6ac5tb"
+}

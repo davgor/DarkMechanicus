@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-184 review (orchestrator, this run): experiments are counted by `retroIsEmpty` (plan/retro.ts:114) but not rendered in retroView.ts / RetroSections.tsx, so an experiments-only retro passes the gate and shows nothing to the approver; render them. Wire `recordExperimentEvent`/`getExperiment` (no caller yet) where the retro flow needs them.",
+  "createdAt": "2026-11-16T04:35:06.539Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7ha6anbshgqzabfebswnzw4",
+  "ticketId": "tk_01m453gpadv8vzhk8s84s54h1m"
+}

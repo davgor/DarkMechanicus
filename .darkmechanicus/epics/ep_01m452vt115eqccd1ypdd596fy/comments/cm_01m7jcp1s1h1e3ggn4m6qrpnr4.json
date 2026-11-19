@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-271 review (orchestrator, this run): two unpinned rules the Fireguard/mutation pass may flag — run scoping of the read-time lease settle (changing expireLeases(ctx, input.runId) to expireLeases(ctx) in timing.ts:348 passes all tests; add a second run with its own overdue lease) and the metrics summary's category-withholding rule (removing the changedSince branch in categoriesOf, metricsSummary.ts:133-139, passes; a fixture reporting tokens_input would pin it).",
+  "createdAt": "2026-11-16T14:37:53.313Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7jcp1s1h1e3ggn4m6qrpnr4",
+  "ticketId": "tk_01m65yenctzm9p4y9j9r24htjq"
+}

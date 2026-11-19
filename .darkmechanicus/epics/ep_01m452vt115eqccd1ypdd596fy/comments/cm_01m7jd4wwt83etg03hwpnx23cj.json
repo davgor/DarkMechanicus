@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Orchestrator observation (2026-11-16, space-sprint-1 cdaa7c6): while three other vitest jobs ran on this Windows machine, Git-heavy tests timed out at 15 s, a different set each run — src/core/services/incrementVerify.test.ts, attemptsIncrement.test.ts, src/integration/incrementMerged.test.ts, multiRepo.test.ts (plus git.test.ts seen by DM-270). None of these files or src/core/services/incrementVerify.ts / src/core/repo/git.ts changed since main fd857e3, and they passed in a quiet run on 693d5fe. Timeouts are failures: run the sweep with nothing else running, and if any still exceeds its timeout, find the slow git spawns (Windows process creation) and fix the cause — never raise a timeout or rerun to green.",
+  "createdAt": "2026-11-16T14:45:59.834Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7jd4wwt83etg03hwpnx23cj",
+  "ticketId": "tk_01m65yenctzm9p4y9j9r24htjq"
+}

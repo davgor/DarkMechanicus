@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-186 review (orchestrator, this run): corrective work created by `create_corrections` adds a Fireguard ticket by default (owner-plan decision for corrective sprints), which contradicts skills/planner.md:67 ('Never add one by default') — update the planner skill to state the corrective-work exception. Document the new MCP tools preview_corrections, create_corrections, get_retro_findings, get_experiment, record_experiment_event in the skills and docs/runbooks/mcp-setup.md (whose tool table was already out of date). Document experiment restatement on resubmission (by id + {reportId, assessmentId}) for orchestrators.",
+  "createdAt": "2026-11-16T06:41:02.095Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7hhcx4fg3r3tjhmvb7pdcp1",
+  "ticketId": "tk_01m453gpadszmpfvveph0zjtg5"
+}

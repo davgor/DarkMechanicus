@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Fireguard run 1 (DM-198): `FIREGUARD_BASE_REF=fd857e3d37c8ccc9d9ff21086dc203ac8fa5c685 npm run fireguard -- --json-out <tmp>/run1/fireguard.json --markdown-out <tmp>/run1/fireguard.md` on head 99d7f4c538ac9b4609958904f814fc73c2dbea8a (space-DM-198 = space-sprint-1 1b83ee8 incl. DM-273 head a13f1f5, plus 7 mutant-killing tests). Graded: 174 test files, 257 changed production modules; AST preflight with Fireguard's own runAstGate passed (6,792 assertions, mock ratio 0.003, tautology 0.002, no findings). Result: NO GRADE - tool error exit 2 after 5 min 08 s (19:24:01Z-19:29:09Z): `fireguard error: EBUSY: resource busy or locked, rmdir '...\\Temp\\fireguard-cRZOQH\\lane-2'` thrown by lanes.close()/snapshot dispose, which hides the gate result; no report written. Diagnosing (graded tests once in a manual committed-tree snapshot) before re-running.",
+  "createdAt": "2026-11-16T19:31:22.726Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7jxfef6pen4h76nhc3wtqet",
+  "ticketId": "tk_01m453gpafjr1k8kmyra0nw8k7"
+}

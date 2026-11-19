@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-183 review (orchestrator, this run): docs/runbooks/mcp-setup.md, docs/space-grading.md and the assertPersonEstimates comment overstate the rule — an agent may not KEEP or INTRODUCE the person_estimate label, but may replace a person's budget with a planner_estimate budget or clear it (visible in the plan diff). Fix the wording to say exactly that. Document the 1-minute floor for rescue/planned-review minutes.",
+  "createdAt": "2026-11-16T09:26:09.878Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7htv8pp4408yz1ab6tvxrh9",
+  "ticketId": "tk_01m453gpadszmpfvveph0zjtg5"
+}

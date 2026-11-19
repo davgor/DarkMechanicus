@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Fireguard run 2 (DM-198): `FIREGUARD_CONCURRENCY=2 FIREGUARD_BASE_REF=fd857e3d37c8ccc9d9ff21086dc203ac8fa5c685 npm run fireguard -- --json-out <tmp>/run2/fireguard.json --markdown-out <tmp>/run2/fireguard.md` on head 99d7f4c538ac9b4609958904f814fc73c2dbea8a. FIREGUARD_CONCURRENCY=2 (README speed knob, approved by the orchestrator) because at the default 5 lanes a flake run exceeded testTimeoutMs; thresholds, 100 flake runs and the run timeout unchanged. Ran 19:33:35Z-21:43:59Z (2 h 10 min). The flake gate completed (the mutation gate started ~21:20Z, which only happens after the flake gate passes; snapshot files began receiving mutants then). Result: NO GRADE - tool error exit 2 during the mutation gate: `vitest lane failed in ...\\fireguard-aFanJz\\lane-2: Error: vitest interrupted 3 runs in a row without a failing test` (fireguard/src/vitestLane.mjs:150). No report written. At 21:31Z the lanes were mutating src/core/plan/* modules. Diagnosing which mutant gives no verdict with Fireguard's own runMutationGate/openLanes (a driver outside the repo that logs each mutant run), modules from src/core/plan/ onward.",
+  "createdAt": "2026-11-16T21:45:27.835Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7k54z0vbwbe2rxtfwbg0q6c",
+  "ticketId": "tk_01m453gpafjr1k8kmyra0nw8k7"
+}

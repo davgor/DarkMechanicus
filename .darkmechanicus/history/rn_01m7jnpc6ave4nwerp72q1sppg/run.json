@@ -70,7 +70,7 @@
   ],
   "checkpoints": [],
   "createdAt": "2026-11-16T17:15:21.162Z",
-  "endedAt": null,
+  "endedAt": "2026-11-16T22:04:25.337Z",
   "epicId": "ep_01m794777kq96v22ryvxv5pdye",
   "format": "darkmechanicus.run",
   "formatVersion": 1,
@@ -80,13 +80,13 @@
   },
   "hostCatalogId": "hc_01m7jnnbbk0ge84hxmm51nz0g5",
   "number": 2,
-  "ownerMachineId": "mc_01m41707wstg1crxjbt3jw2ap5",
+  "ownerMachineId": "mc_01m7gdjzvswj7rwweky9e5fxpe",
   "pauseReason": null,
   "reports": [],
   "revisionId": "rv_01m7jnee3ptzsvtrf824zhef2x",
   "runId": "rn_01m7jnpc6ave4nwerp72q1sppg",
   "skillVersion": "1.10.0",
   "startedAt": "2026-11-16T17:15:21.163Z",
-  "state": "running",
-  "updatedAt": "2026-11-16T18:53:52.595Z"
+  "state": "canceled",
+  "updatedAt": "2026-11-16T22:04:25.337Z"
 }

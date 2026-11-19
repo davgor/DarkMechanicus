@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-191 final review (orchestrator, this run): pin cross-repo measurement — self-target flow, holder-check refusals (14 variants in %TEMP%/dm191-review/r3/advC.ts), carried-evidence binding and seal tamper cases. Follow-ups to fix: same project in another checkout as target — get_experiment lists grades as citable that recording refuses; the message should say to bring that checkout's records through Git and cite directly; compare the cited scorecard's own `starts` entry with the scorecard; carried key max 500 vs receipt key 200; result events ~42 KB each (consider referencing a carried scorecard once per receipt).",
+  "createdAt": "2026-11-16T12:08:42.562Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7j44wt2ngmtgk5yt2bvyw5x",
+  "ticketId": "tk_01m65yenct0k48amzn4y6ac5tb"
+}

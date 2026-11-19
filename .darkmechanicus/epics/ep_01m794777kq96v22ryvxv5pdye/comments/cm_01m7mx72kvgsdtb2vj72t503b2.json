@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Run auto-paused with branch_changed. The coordinating checkout (another session or the person, not this orchestrator) briefly moved main -> epic/board-conversations -> main (reflog HEAD@{0..1}). It is back on main, matching the recorded branch: get_storage_status shows branch.changed=false. No attempts were open; integration and worker worktrees are unaffected. Resumed.",
+  "createdAt": "2026-11-17T14:05:17.307Z",
+  "epicId": "ep_01m794777kq96v22ryvxv5pdye",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7mx72kvgsdtb2vj72t503b2",
+  "ticketId": null
+}

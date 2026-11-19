@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-191 final review (orchestrator, this run): useProjectFolder (src/renderer/src/epic/WorkspaceHeader.tsx:99-112) calls getProject on every tracked folder when a correction epic header mounts (opens all workspaces) — resolve the target folder without opening every workspace.",
+  "createdAt": "2026-11-16T12:08:43.683Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7j44xx3aw3hyp3qd62twwc5",
+  "ticketId": "tk_01m65yenctx5ptxk16d444z9zr"
+}

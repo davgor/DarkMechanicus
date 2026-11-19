@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-267 re-review (orchestrator, this run): in addition to the earlier comparability items, have the summary carry run numbers (Run #N) and ticket keys/titles so the dashboard drops its 16 extra getRun/getPlan reads per open, and fix the reason string 'corrective effort no epic executed work' (visible in DM-267 n16).",
+  "createdAt": "2026-11-16T09:19:46.229Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7htfj1n6je4pm1mw0yyc7yz",
+  "ticketId": "tk_01m65yencth80g61jy026rv05n"
+}

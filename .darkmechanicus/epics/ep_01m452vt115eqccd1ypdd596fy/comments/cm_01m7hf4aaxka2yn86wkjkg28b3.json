@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-180 review (orchestrator, this run), for the renderer tests and small fixes: (1) Scorecard points are rounded largest-remainder so they sum to the shown score; say so in the note ('each rounded to one decimal so they add up', ScorecardParts.tsx:205-207) and pin that identical components may differ by 0.1; (2) 'as of <time>' repeats on every attempt row — one line per section; (3) a failed timing read shows its error in both Usage and Attempts; (4) pin the 'as classified' rows when effort is unreported but a classification record exists (Corrective 0 ms · Productive 2 min · Unclassified unavailable) as intended; (5) the Windows row shows the core's raw ISO note.",
+  "createdAt": "2026-11-16T06:01:23.549Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7hf4aaxka2yn86wkjkg28b3",
+  "ticketId": "tk_01m65yenctx5ptxk16d444z9zr"
+}

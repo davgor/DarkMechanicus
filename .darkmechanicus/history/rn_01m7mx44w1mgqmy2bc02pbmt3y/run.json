@@ -1,0 +1,3856 @@
+{
+  "activeSprintId": "sp_01m7nt7jfx4m7s1bmw9dqvgk7k",
+  "attempts": [
+    {
+      "createdAt": "2026-11-17T14:04:31.502Z",
+      "decidedAt": "2026-11-17T14:16:51.882Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Expected resolver and tests are present; no claim token or unrelated changes found.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "2 files and 39 tests passed.",
+            "name": "npx vitest run src/main/agents/conversationTarget.test.ts src/main/agents/chatStore.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "Oxlint completed with no findings.",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "Node, web, and Fireguard TypeScript projects passed.",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Full gate left to the sprint acceptance node.",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "Full gate left to the sprint acceptance node.",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "Full gate left to the sprint acceptance node.",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "Full gate left to the sprint acceptance node.",
+            "name": "npm run build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Reviewed conversationTarget.ts and its tests: listed-chat filtering plus attempt, run, card Play and newest conversation precedence match the ticket; deleted bound ids fall through and cannot resolve."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Reviewed chat schema/store/records wiring and chatStore regression test: optional binding persists and a legacy line remains unchanged."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Submission reports the exact targeted tests (39 tests), lint and typecheck passed; reviewed diff is scoped to the resolver and chat persistence."
+          }
+        ],
+        "notes": "Resolver validates grant-bound chat ids against the current listChats result, so deleted bound chats fall through and cannot resolve."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m7mx5nwe60d3w679w7samymz",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Conversation resolver",
+            "location": "src/main/agents/conversationTarget.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Conversation resolver tests",
+            "location": "src/main/agents/conversationTarget.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "work/dm-691",
+        "changedFiles": [
+          "src/shared/agents/chat.ts",
+          "src/main/agents/chatStore.ts",
+          "src/main/agents/chatRecords.ts",
+          "src/main/agents/chatStore.test.ts",
+          "src/main/agents/conversationTarget.ts",
+          "src/main/agents/conversationTarget.test.ts"
+        ],
+        "commits": [
+          "80e34bd62f4ee0d5c2ee6759c18f306b7bb14759"
+        ],
+        "summary": "Added persisted epic/card conversation bindings and a resolver that selects listed chats by attempt, run, Play, then newest conversation precedence."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7mq48cmwc74pb05k7skcj27",
+      "state": "accepted",
+      "submittedAt": "2026-11-17T14:14:13.230Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:00080ef44234a3ebdbaf6335ad3e39876fffe427fdd556cbc2e75dae3d15ec86",
+      "ticketId": "tk_01m7mncczbq8fmj1r61c9cnhsw",
+      "updatedAt": "2026-11-17T14:16:51.882Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "medium",
+        "hostId": "omp-codex",
+        "label": "DM-691 worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Recommended by match_capabilities: medium multi-step TypeScript/Electron ticket.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-17T14:04:47.691Z",
+      "decidedAt": "2026-11-17T14:24:42.366Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Semantic review found the intended service/command/portable/MCP flow, but the unreviewable line-ending churn and missing targeted evidence require a clean retry.",
+        "outcome": "rejected",
+        "reasons": [
+          "c3/scope: the commit normalizes line endings across large existing files (normal diff is 4,732 insertions/4,435 deletions; migrations.test.ts, migrations.ts, portable.ts and kanbanImport.ts are each largely rewritten). Rebuild the semantic patch on a clean branch while preserving existing line endings; the normal git diff must contain only the intended hunks.",
+          "c3/verification: the submission reports only the three Kanban command/portable/MCP test files, but the implementation also changes migrations.test.ts and migration/authz/server/finalizer/attachment-owner paths. Run the changed migration test and the directly affected targeted suites in addition to the ticket-listed three, then report each command explicitly."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "vitest: 3 files passed, 38 tests passed",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint completed with zero errors",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web, and Fireguard TypeScript projects passed",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "command registry listed add_kanban_message and list_kanban_messages",
+            "name": "CLI --list",
+            "status": "passed"
+          },
+          {
+            "detail": "full gate left to the sprint acceptance node",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "full gate left to the sprint acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "full gate left to the sprint acceptance node",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "full gate left to the sprint acceptance node",
+            "name": "npm run build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "kanban.test.ts proves desktop/worker session authors, refusal, oldest-first order, and idempotent replay"
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "kanbanRecords.test.ts proves message export/import while card state remains unchanged"
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "MCP schema tests pass; source CLI registry lists both command names; lint and typecheck pass"
+          }
+        ],
+        "notes": "Message attachments use a dedicated kanban_message owner added in schema v17 so card edits cannot detach conversation images. Full-suite gates remain for the sprint acceptance node."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m7mx65pbwtx5cf060frr06k4",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Kanban message commands and MCP tools",
+            "location": "src/core/services/kanban/cards.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "work/dm-692",
+        "changedFiles": [
+          "src/core/commands/capabilities.test.ts",
+          "src/core/commands/capabilities.ts",
+          "src/core/commands/kanban.test.ts",
+          "src/core/commands/kanban.ts",
+          "src/core/commands/kanbanRecords.test.ts",
+          "src/core/commandSchemas.ts",
+          "src/core/db/migrations.test.ts",
+          "src/core/db/migrations.ts",
+          "src/core/repo/attachmentFiles.ts",
+          "src/core/repo/finalizer.ts",
+          "src/core/repo/kanbanImport.ts",
+          "src/core/repo/portable.ts",
+          "src/core/services/attachmentOwners.ts",
+          "src/core/services/attachments.ts",
+          "src/core/services/kanban/cards.ts",
+          "src/core/services/kanban/deletion.ts",
+          "src/mcp/roles.test.ts",
+          "src/mcp/server.test.ts",
+          "src/mcp/tools/kanban.test.ts",
+          "src/mcp/tools/kanban.ts",
+          "src/shared/domain/api.ts",
+          "src/shared/domain/kanban.ts",
+          "src/shared/domain/views.ts",
+          "src/test/stubApi.ts"
+        ],
+        "commits": [
+          "e64714060ef483bd74dfe6a5702972a279c86d86"
+        ],
+        "summary": "Added append-only Kanban card messages with session-authored identities, comment-equivalent validation and attachments, idempotent writes, oldest-first reads, portable event round trips, CLI commands, and MCP tools."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7mq48cmwc74pb05k7skcj27",
+      "state": "rejected",
+      "submittedAt": "2026-11-17T14:23:26.189Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:dfe8c9a3f8cdf98cac3490d3080f9e8859053b05aae929022105f47aa37c200c",
+      "ticketId": "tk_01m7mncd2c2x5jxd6tmdwwpy6k",
+      "updatedAt": "2026-11-17T14:24:42.366Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "medium",
+        "hostId": "omp-codex",
+        "label": "DM-692 worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Recommended by match_capabilities: medium multi-step TypeScript/database ticket.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-17T14:04:57.261Z",
+      "decidedAt": "2026-11-17T14:15:06.462Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Implementation and evidence otherwise match the ticket, but a live claim token in the committed test is a mandatory rejection.",
+        "outcome": "rejected",
+        "reasons": [
+          "c1/security: src/main/agents/conversationMessage.test.ts commits the real attempt claim token from this packet at line 24. Claim tokens must never be written to files or commits. Replace it with a synthetic token-shaped value that still exercises maskClaimTokens, confirm the targeted tests/lint/typecheck, and submit a clean commit without the secret."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "2 files and 7 tests passed.",
+            "name": "npx vitest run src/main/agents/conversationMessage.test.ts src/main/agents/conversationDeliveries.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint completed with no findings.",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "All three TypeScript project checks completed successfully.",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Full gate left to the sprint acceptance node.",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "Full gate left to the sprint acceptance node.",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "Full gate left to the sprint acceptance node.",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "Full gate left to the sprint acceptance node.",
+            "name": "npm run build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "conversationMessage.test.ts verifies all target reply commands, relay gating, sanitization/masking, newest-20 history, oldest-first size trimming and the final answer-only line; targeted tests passed."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "conversationDeliveries.test.ts verifies last-wins reload, torn-tail handling and folder-isolated lookups; targeted tests passed."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Targeted Vitest run (7 tests), npm run lint and npm run typecheck passed."
+          }
+        ],
+        "notes": "The initial test startup could not resolve dependencies because this isolated worktree had no node_modules. After linking the coordinating checkout installation into the worktree, the complete targeted run passed; the link was removed afterward. No discoveries."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m7mx6f1defz13244ren0whe2",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Conversation message builders",
+            "location": "src/main/agents/conversationMessage.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Conversation delivery ledger",
+            "location": "src/main/agents/conversationDeliveries.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Message builder tests",
+            "location": "src/main/agents/conversationMessage.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Delivery ledger tests",
+            "location": "src/main/agents/conversationDeliveries.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "work/dm-693",
+        "changedFiles": [
+          "src/main/agents/conversationMessage.ts",
+          "src/main/agents/conversationMessage.test.ts",
+          "src/main/agents/conversationDeliveries.ts",
+          "src/main/agents/conversationDeliveries.test.ts"
+        ],
+        "commits": [
+          "ab6bd439b3b22399b0e4d726f81c6ca7b6329bd2"
+        ],
+        "summary": "Added board-message and fresh-kickoff text builders with sanitization, claim-token masking, target-specific reply commands, relay/history handling and the 24,000-character limit. Added a userData JSONL delivery ledger with last-wins reload, torn-tail recovery and folder-scoped lookup."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7mq48cmwc74pb05k7skcj27",
+      "state": "rejected",
+      "submittedAt": "2026-11-17T14:14:04.818Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:2fdabf8c0a8da6f2074908078b8aad5506510b328bac42bb7b6c2d70fd7d5117",
+      "ticketId": "tk_01m7mncd2cjfjqa5sy6t2xedeh",
+      "updatedAt": "2026-11-17T14:15:06.462Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "low",
+        "hostId": "omp-codex",
+        "label": "DM-693 worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Recommended by match_capabilities: low-effort routine TypeScript helper ticket.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-17T14:15:58.159Z",
+      "decidedAt": "2026-11-17T14:25:22.234Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Verified the accepted branch does not contain either live claim secret and the rejected commit is not in its ancestry.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "vitest: 2 files passed, 6 tests passed",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint completed with zero errors",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "node, web, and Fireguard TypeScript projects passed",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "full gate left to the sprint acceptance node",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "full gate left to the sprint acceptance node",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "full gate left to the sprint acceptance node",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "full gate left to the sprint acceptance node",
+            "name": "npm run build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Reviewed clean message builders/tests: all target commands, sanitize-before-mask, conditional relay, newest-20 history, oldest-first trimming, active-run note and <=24,000-character history behavior are covered."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Reviewed JSONL ledger and tests: last valid entry wins, torn tails are isolated before a later append, and lookup keys include the folder."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Retry reports both targeted test files (6 tests), lint and typecheck passed; rejected secret-bearing commit is not an ancestor."
+          }
+        ],
+        "notes": "The committed diff was scanned for claim-token-shaped literals and contains none; the rejected commit is not an ancestor of this branch. Full-suite gates remain for the sprint acceptance node."
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m7mxtmef5xh3b4fjcq41e3q9",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Conversation message builders",
+            "location": "src/main/agents/conversationMessage.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Conversation delivery ledger",
+            "location": "src/main/agents/conversationDeliveries.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Conversation helper tests",
+            "location": "src/main/agents/conversationMessage.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Conversation ledger tests",
+            "location": "src/main/agents/conversationDeliveries.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "work/dm-693-r2",
+        "changedFiles": [
+          "src/main/agents/conversationMessage.ts",
+          "src/main/agents/conversationMessage.test.ts",
+          "src/main/agents/conversationDeliveries.ts",
+          "src/main/agents/conversationDeliveries.test.ts"
+        ],
+        "commits": [
+          "58d9ce1e9eb2f11e1b8611bba2d54f0acb55a236"
+        ],
+        "summary": "Added sanitized and claim-token-masked board message and fresh kickoff builders with target-specific reply commands, attachment and relay guidance, bounded newest-first history selection rendered oldest-first, active-run context, and an answer-only terminator. Added a machine-local JSONL delivery ledger with last-wins reload, torn-tail recovery, and folder-scoped lookup."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7mq48cmwc74pb05k7skcj27",
+      "state": "accepted",
+      "submittedAt": "2026-11-17T14:24:34.637Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:2fdabf8c0a8da6f2074908078b8aad5506510b328bac42bb7b6c2d70fd7d5117",
+      "ticketId": "tk_01m7mncd2cjfjqa5sy6t2xedeh",
+      "updatedAt": "2026-11-17T14:25:22.234Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "medium",
+        "hostId": "omp-codex",
+        "label": "DM-693 retry worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Attempt 1 rejected for committing its live claim token in a test; match_capabilities escalated the same model from low to medium effort.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-17T14:25:55.521Z",
+      "decidedAt": "2026-11-17T14:51:35.879Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Accepted retry after confirming the final two-commit history descends directly from the integration branch, excludes all discarded broad commits, and contains only the intended 24-file semantic diff.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "444 tests passed: kanban, kanbanRecords, MCP kanban, migrations, capabilities, MCP roles/server, attachmentFiles, finalizer, finalizer.kanban, attachments, and kanbanDeletion.",
+            "name": "npx vitest run (12 targeted suites)",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint completed with zero errors.",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "Node, web, and Fireguard TypeScript projects passed.",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npx vite-node source runner output contains add_kanban_message and list_kanban_messages.",
+            "name": "source CLI --list",
+            "status": "passed"
+          },
+          {
+            "detail": "Normal committed diff is 24 intended files, +333/-36; no whole-file line-ending rewrite.",
+            "name": "git diff --stat e1a75de..HEAD",
+            "status": "passed"
+          },
+          {
+            "detail": "Full gate left to the sprint acceptance node.",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "Full gate left to the sprint acceptance node.",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "Full gate left to the sprint acceptance node.",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "Full gate left to the sprint acceptance node.",
+            "name": "npm run build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Reviewed service and targeted tests: add uses session role/label, idempotency and message ownership; list orders by created_at then id; targeted Kanban tests passed."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Reviewed portable event/import implementation: message attachments restore under kanban_message and message timestamps do not mutate card workflow state; targeted portable/import suites passed."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Reviewed command schemas, capabilities, MCP registration and CLI exposure; 12 affected suites (444 tests), lint, typecheck and source CLI registry all passed. Final diff is narrow (+333/-36) and contains no rejected broad commit or claim token."
+          }
+        ],
+        "notes": "Final branch is work/dm-692-r2-lf4. The normal diff against e1a75de is +333/-36 across only the 24 intended files. No discoveries."
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m7mycvt0xpw0zd6w51p832fg",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Kanban message service and commands",
+            "location": "src/core/services/kanban/cards.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Portable message event support",
+            "location": "src/core/repo/portable.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Attachment ownership migration",
+            "location": "src/core/db/migrations.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "work/dm-692-r2-lf4",
+        "changedFiles": [
+          "src/core/commandSchemas.ts",
+          "src/core/commands/capabilities.test.ts",
+          "src/core/commands/capabilities.ts",
+          "src/core/commands/kanban.test.ts",
+          "src/core/commands/kanban.ts",
+          "src/core/commands/kanbanRecords.test.ts",
+          "src/core/db/migrations.test.ts",
+          "src/core/db/migrations.ts",
+          "src/core/repo/attachmentFiles.ts",
+          "src/core/repo/finalizer.ts",
+          "src/core/repo/kanbanImport.ts",
+          "src/core/repo/portable.ts",
+          "src/core/services/attachmentOwners.ts",
+          "src/core/services/attachments.ts",
+          "src/core/services/kanban/cards.ts",
+          "src/core/services/kanban/deletion.ts",
+          "src/mcp/roles.test.ts",
+          "src/mcp/server.test.ts",
+          "src/mcp/tools/kanban.test.ts",
+          "src/mcp/tools/kanban.ts",
+          "src/shared/domain/api.ts",
+          "src/shared/domain/kanban.ts",
+          "src/shared/domain/views.ts",
+          "src/test/stubApi.ts"
+        ],
+        "commits": [
+          "11a7eac2c1a0e227fcae8883ff11919229a826da",
+          "3b4e79583a670a093d0ba7d754c8aaaa9488bb4c"
+        ],
+        "summary": "Added append-only, session-authored Kanban card messages with comment-equivalent validation, attachments, idempotency, command/MCP exposure, and portable export/import that preserves card workflow state. Dedicated kanban_message attachment ownership is introduced by schema migration v17. Final normal diff is narrow at +333/-36."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7mq48cmwc74pb05k7skcj27",
+      "state": "accepted",
+      "submittedAt": "2026-11-17T14:50:36.773Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:dfe8c9a3f8cdf98cac3490d3080f9e8859053b05aae929022105f47aa37c200c",
+      "ticketId": "tk_01m7mncd2c2x5jxd6tmdwwpy6k",
+      "updatedAt": "2026-11-17T14:51:35.879Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "high",
+        "hostId": "omp-codex",
+        "label": "DM-692 retry worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Attempt 1 was rejected for broad line-ending churn and incomplete targeted evidence; match_capabilities escalated the same model from medium to high effort.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-17T14:54:48.048Z",
+      "decidedAt": "2026-11-17T15:15:45.137Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Accepted after code/test review. Fresh chats deliberately use the folder default agent; absence retains the durable message and records an explicit failed delivery instead of inventing an agent.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "2 files passed; 45 tests passed.",
+            "name": "npx vitest run src/main/agents/chatHandlers.test.ts src/preload/index.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint completed with zero findings after complexity refactoring.",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "Node, web, and Fireguard TypeScript projects passed.",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Full gate left to the sprint acceptance node.",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "Full gate left to the sprint acceptance node.",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "Full gate left to the sprint acceptance node.",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "Full gate left to the sprint acceptance node.",
+            "name": "npm run build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Reviewed storage-first handler order, resolver/paste relay, fresh default-agent allow-save orchestrator creation, history kickoff, failure cleanup and durable failure recording. Handler tests cover delivered, opened, paste-failed, card Play and invalid-input paths."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Reviewed conversationState delivery existence computation and delete/reopen test: old opened delivery reports chatExists false and the next send creates a new bound chat."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Reviewed strict zod schemas, typed ChatsApi, IPC registration, preload invocation and fake updates. The worker reports 45 targeted tests, lint and all TypeScript projects passed."
+          }
+        ],
+        "notes": "Folder default agent selection is authoritative for fresh chats; with no default, the durable message is retained and a failed delivery is recorded. Full-suite gates remain for the sprint acceptance node."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m7n01qqgbe5xnx2xs3de4wet",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Conversation chat APIs and handlers",
+            "location": "src/main/agents/chatHandlers.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Typed shared chat API",
+            "location": "src/shared/agents/chatApi.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Desktop conversation wiring",
+            "location": "src/main/desktop/bootstrap.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Conversation handler coverage",
+            "location": "src/main/agents/chatHandlers.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "work/dm-694",
+        "changedFiles": [
+          "src/main/agents/chatHandlers.test.ts",
+          "src/main/agents/chatHandlers.ts",
+          "src/main/agents/chatIpc.ts",
+          "src/main/agents/conversationMessage.ts",
+          "src/main/agents/conversationTarget.ts",
+          "src/main/desktop/bootstrap.ts",
+          "src/preload/index.test.ts",
+          "src/preload/index.ts",
+          "src/renderer/src/__mocks__/fakeChats.ts",
+          "src/renderer/src/__mocks__/idleChats.ts",
+          "src/shared/agents/chatApi.ts"
+        ],
+        "commits": [
+          "1577df770dd84707458c3d6d8f73259aff35d2d3"
+        ],
+        "summary": "Implemented typed board-conversation request/result/state APIs, strict guarded IPC and preload exposure, storage-first person messages, resolver-based relay/paste delivery, fresh allow-save orchestrator chats with kickoff history, failure cleanup, local delivery state, desktop resolver reads, and renderer fakes."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7mq48cmwc74pb05k7skcj27",
+      "state": "accepted",
+      "submittedAt": "2026-11-17T15:14:42.803Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:df76c974ff24baa790af162e5658fccf425e4aedb028ff9e0657cdf3bff92038",
+      "ticketId": "tk_01m7mncd2cd0fsgazb0cb9kmxr",
+      "updatedAt": "2026-11-17T15:15:45.137Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "medium",
+        "hostId": "omp-codex",
+        "label": "DM-694 worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Recommended by match_capabilities for this multi-step TypeScript/Electron integration ticket.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-17T14:54:57.932Z",
+      "decidedAt": "2026-11-17T15:05:18.699Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Accepted scoped guidance/design implementation. Lint and all TypeScript projects passed; the shipped skills version was bumped consistently with changed guidance.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "28 passed, 3 skipped.",
+            "name": "npm exec vitest run src/main/terminals/terminalFiles.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint completed with no findings after fixes.",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "Node, web, and Fireguard TypeScript projects passed.",
+            "name": "npm run typecheck",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Reviewed all three skills: board-originated person messages, named on-record reply, immediate orchestrator relay/answer ownership, worker return path, and unchanged peer/Skitarii authority are explicit."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Reviewed conversationGuidance propagation through terminal launch/session options and tests for epic, card, and unbound chats; the targeted terminalFiles suite passed (28 tests, 3 existing platform skips)."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Reviewed the Board conversations design section: precedence, persisted binding and delete unbind, local opened/delivered/failed ledger, approval-prompt paste risk, and Windows-only verification are documented."
+          }
+        ],
+        "notes": "The initial shell-form test invocation could not find npm before the required Windows cmd.exe PATH wrapper was applied; no test process started. The scoped test and all required checks then passed. Full gate left to the sprint acceptance node."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m7n021cbw0ak5gxkg1mch3br",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Board conversation guidance",
+            "location": "src/main/terminals/terminalFiles.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Board conversation design",
+            "location": "docs/design/chat-shells.md",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "work/dm-695",
+        "changedFiles": [
+          "docs/design/chat-shells.md",
+          "skills/collaboration.md",
+          "skills/orchestrator.md",
+          "skills/worker.md",
+          "src/core/version.ts",
+          "src/main/terminals/terminalFiles.test.ts",
+          "src/main/terminals/terminalFiles.ts",
+          "src/main/terminals/terminalLaunchSpec.ts",
+          "src/main/terminals/terminalSessions.ts"
+        ],
+        "commits": [
+          "43e9551718638ac5703c637c86c79655306ab3bd"
+        ],
+        "summary": "Added board-message policy to the three role guides, conversation-bound answer-only terminal guidance, and board conversation design documentation. Bumped shipped skills to 1.12.0."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7mq48cmwc74pb05k7skcj27",
+      "state": "accepted",
+      "submittedAt": "2026-11-17T15:03:50.821Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:c709a276ba416b319324d8f2bc9a2e39b96c65a961916b22e2c49b2ecd58f198",
+      "ticketId": "tk_01m7mncd2cemcjde47gbgdvb0g",
+      "updatedAt": "2026-11-17T15:05:18.699Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "low",
+        "hostId": "omp-codex",
+        "label": "DM-695 worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Recommended by match_capabilities for this small routine documentation and guidance ticket.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-17T14:55:07.536Z",
+      "decidedAt": "2026-11-17T15:04:14.126Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Accepted after code and test review. Existing sidebar data carries epic summaries but not card metadata, so the specified Board conversation fallback is correct for card-bound chats.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npx vitest run AgentsSection.test.tsx AgentsBlock.test.tsx: 2 files, 32 tests passed; an earlier run exposed and led to fixing the test setup expansion.",
+            "name": "targeted sidebar tests",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint completed with no errors.",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "All node, web, and fireguard TypeScript projects passed after fixing the surfaced prop and narrowing errors.",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Left to the sprint acceptance node.",
+            "name": "full test suite",
+            "status": "skipped"
+          },
+          {
+            "detail": "Left to the sprint acceptance node.",
+            "name": "build/deadcode/fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Reviewed boardConversationOf, ChatRow label, delete-dialog wiring across folder and global agent lists, and targeted UI assertions: epic title resolves, unbound chats omit both messages, card/unresolved bindings use the required fallback."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Worker reports 32 targeted sidebar tests, lint, and all TypeScript projects passed; the one-commit diff is scoped to the required sidebar/dialog wiring and tests."
+          }
+        ],
+        "notes": "Card metadata is not present in existing sidebar folder data, so card-bound chats use the required Board conversation fallback while delete copy identifies the card binding."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m7n02argr61mjd84ff6cvfes",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": "34e1f32268d2771c035c4e6f6e593bb2d99d2d6c",
+            "label": "Board chat binding UI and tests",
+            "location": "src/renderer/src/sidebar",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "work/dm-699",
+        "changedFiles": [
+          "src/renderer/src/agents/ChatDialogs.tsx",
+          "src/renderer/src/sidebar/AgentsBlock.test.tsx",
+          "src/renderer/src/sidebar/AgentsBlock.tsx",
+          "src/renderer/src/sidebar/AgentsSection.test.tsx",
+          "src/renderer/src/sidebar/AgentsSection.tsx",
+          "src/renderer/src/sidebar/ChatRow.tsx",
+          "src/renderer/src/sidebar/FolderRow.tsx",
+          "src/renderer/src/sidebar/Sidebar.tsx"
+        ],
+        "commits": [
+          "34e1f32268d2771c035c4e6f6e593bb2d99d2d6c"
+        ],
+        "summary": "Shows board-bound chats with an epic title when sidebar data resolves it, otherwise the Board conversation fallback; delete confirmation now explains epic/card unbinding while unbound chats remain unchanged."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7mq48cmwc74pb05k7skcj27",
+      "state": "accepted",
+      "submittedAt": "2026-11-17T15:02:51.389Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:ba6f26b5105c892efdc566b739b10564ea74243ee55f451f557282bb1fba036f",
+      "ticketId": "tk_01m7mncd2czavc23jr918eqf7p",
+      "updatedAt": "2026-11-17T15:04:14.126Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "low",
+        "hostId": "omp-codex",
+        "label": "DM-699 worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Recommended by match_capabilities for this micro routine React UI ticket.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-17T15:19:17.600Z",
+      "decidedAt": "2026-11-17T15:39:02.229Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Accepted after code, cutover, deletion and test review. Shared component remains surface-agnostic for the two dependent tickets.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "48 tests passed across conversationView, ConversationPanel, and TicketPanel.",
+            "name": "targeted Vitest",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint completed with no findings.",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "Node, web, and Fireguard TypeScript projects passed.",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports; refreshed only intentional public conversation API baselines.",
+            "name": "npm run deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "Full suite left to the sprint acceptance node.",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "Not stated for this ticket; left to the sprint acceptance node.",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "Build left to the sprint acceptance node.",
+            "name": "npm run build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Reviewed shared panel and ticket wiring: messages load through listComments, are sorted oldest-first, send uses the exact ticket target, refreshes durable state, and renders delivered/failed/deleted/unknown labels. Targeted panel and ticket tests passed."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Reviewed agentLine mappings for attempt/run/card Play/conversation/no-agent and Open chat wiring; pure and component tests cover all destinations and the action."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Confirmed legacy CommentsTab/commentsView source and tests are deleted, old CSS removed, intended APIs/internal exports reconciled, and worker reports 48 targeted tests plus lint, typecheck and deadcode passed."
+          }
+        ],
+        "notes": "The deadcode refresh added baselines for exported shared request types introduced by the accepted conversation API prerequisite; internal unused exports were unexported instead."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m7n1ejv0wqnkcpmttgg6g2sj",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Conversation panel",
+            "location": "src/renderer/src/conversation/ConversationPanel.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Conversation view model",
+            "location": "src/renderer/src/conversation/conversationView.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "work/dm-696",
+        "changedFiles": [
+          ".tsprune-ignore",
+          "src/main/agents/chatHandlers.ts",
+          "src/main/agents/conversationMessage.ts",
+          "src/main/agents/conversationTarget.ts",
+          "src/main/terminals/terminalFiles.ts",
+          "src/renderer/src/__mocks__/fakeChats.ts",
+          "src/renderer/src/__mocks__/idleChats.ts",
+          "src/renderer/src/conversation/conversation.css",
+          "src/renderer/src/conversation/ConversationPanel.test.tsx",
+          "src/renderer/src/conversation/ConversationPanel.tsx",
+          "src/renderer/src/conversation/conversationView.test.ts",
+          "src/renderer/src/conversation/conversationView.ts",
+          "src/renderer/src/epic/__mocks__/fakeBackend.ts",
+          "src/renderer/src/epic/__mocks__/fixtures.ts",
+          "src/renderer/src/ticket/CommentsTab.test.tsx",
+          "src/renderer/src/ticket/CommentsTab.tsx",
+          "src/renderer/src/ticket/commentsView.test.ts",
+          "src/renderer/src/ticket/commentsView.ts",
+          "src/renderer/src/ticket/ticket.css",
+          "src/renderer/src/ticket/TicketPanel.test.tsx",
+          "src/renderer/src/ticket/TicketPanel.tsx"
+        ],
+        "commits": [
+          "f879af4f49955456407604b6d151fa1a1875e150"
+        ],
+        "summary": "Built the reusable board ConversationPanel and pure conversation view model, including oldest-first author bubbles, exact delivery labels, routed agent explanations/Open chat, image-capable sending, and inline delivery problems. Replaced the ticket Comments tab with Conversation, removed legacy comments code/tests/styles, upgraded renderer fakes, and cleaned intentional dead exports."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7mq48cmwc74pb05k7skcj27",
+      "state": "accepted",
+      "submittedAt": "2026-11-17T15:37:46.916Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:4f58828d8f56c586d400387fb7859b59ab4e9df2008c6bdc00e5e16ffc2cc2a9",
+      "ticketId": "tk_01m7mncd2c8ebqdmed8bwzrws8",
+      "updatedAt": "2026-11-17T15:39:02.229Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "medium",
+        "hostId": "omp-codex",
+        "label": "DM-696 worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Recommended by match_capabilities for this multi-step shared React conversation-view replacement.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-17T15:40:47.023Z",
+      "decidedAt": "2026-11-17T15:48:42.598Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Reviewed the full four-file diff against f879af4. The implementation reuses ConversationPanel and existing persistent-state conventions; CSS preserves collapsed space and caps the open thread. diff --check passed.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "4 tests passed",
+            "name": "npx vitest run src/renderer/src/epic/OrchestratorMessages.test.tsx",
+            "status": "passed"
+          },
+          {
+            "detail": "oxlint completed cleanly",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "all TypeScript projects completed cleanly",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "left to the acceptance node",
+            "name": "full suite/build/deadcode/fireguard",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Reviewed c5e5ff6: OrchestratorMessages is placed immediately after saved Attempts or draft Validation, defaults closed via persistent state, and the targeted placement/persistence behavior tests passed."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Reviewed exact ConversationPanel target {epicId}, completed-status canSend=false, and the targeted epic-only routing/read-only tests; worker lint and typecheck evidence passed."
+          }
+        ],
+        "notes": "The initial targeted test attempt exposed an incorrect fake-backend assertion; the test was corrected to observe the durable comment store and exact chat API request, then all required targeted checks passed."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m7n2ny1fdw86hdah1f9x3w7w",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Orchestrator messages panel",
+            "location": "src/renderer/src/epic/OrchestratorMessages.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Behavior tests",
+            "location": "src/renderer/src/epic/OrchestratorMessages.test.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "work/dm-697",
+        "changedFiles": [
+          "src/renderer/src/epic/OrchestratorMessages.tsx",
+          "src/renderer/src/epic/OrchestratorMessages.test.tsx",
+          "src/renderer/src/epic/EpicWorkspace.tsx",
+          "src/renderer/src/epic/epic.css"
+        ],
+        "commits": [
+          "c5e5ff61ba0001910ba91614c6924c5c121c653d"
+        ],
+        "summary": "Added the persistent Orchestrator messages disclosure using ConversationPanel, placed beneath Attempts or Validation, with epic-only routing and completed-epic read-only behavior."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7mq48cmwc74pb05k7skcj27",
+      "state": "accepted",
+      "submittedAt": "2026-11-17T15:47:48.111Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:eb2aa14a8c82297e511d579d17f47ccfeec8a9791da8dbe9dc9ab2a5c4106dfd",
+      "ticketId": "tk_01m7mncd2cwhhjey0agc8bct08",
+      "updatedAt": "2026-11-17T15:48:42.598Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "low",
+        "hostId": "omp-codex",
+        "label": "DM-697 worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Recommended by match_capabilities for this small routine React disclosure panel.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-17T15:41:00.216Z",
+      "decidedAt": "2026-11-17T15:50:18.519Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Reviewed the complete two-file diff against f879af4. The component reuses existing ConversationPanel/runCommand/card refresh conventions and introduces no parallel data path. The touched files retain their pre-existing CRLF blob convention; lint passed.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "22 tests passed.",
+            "name": "npx vitest run src/renderer/src/kanban/KanbanCardPanel.test.tsx",
+            "status": "passed"
+          },
+          {
+            "detail": "Oxlint completed with no findings after the final code changes.",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "All node, web, and Fireguard TypeScript projects passed after the final code changes.",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Full suite left to the sprint acceptance node.",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "Fireguard left to the sprint acceptance node.",
+            "name": "npm run fireguard",
+            "status": "skipped"
+          },
+          {
+            "detail": "Full gate left to the sprint acceptance node.",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "Full gate left to the sprint acceptance node.",
+            "name": "npm run build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Reviewed d90d759: CardConversation uses the existing listKanbanMessages command path and exact {cardId} ConversationPanel target; tests cover oldest-first rendering and the exact send request."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Reviewed lane=done canSend=false and the read-only behavior test; worker targeted 22-test suite, lint, and typecheck all passed."
+          }
+        ],
+        "notes": "Tests were written and observed failing before implementation. No screenshot was required. No discoveries."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m7n2paxr7jz7wjrzbnwbzgk7",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Kanban card conversation UI",
+            "location": "src/renderer/src/kanban/KanbanCardPanel.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Kanban card conversation behavior tests",
+            "location": "src/renderer/src/kanban/KanbanCardPanel.test.tsx",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "work/dm-698",
+        "changedFiles": [
+          "src/renderer/src/kanban/KanbanCardPanel.tsx",
+          "src/renderer/src/kanban/KanbanCardPanel.test.tsx"
+        ],
+        "commits": [
+          "d90d759fe58c9e7d1bf4c3f9a50a0b3bd062b3fb"
+        ],
+        "summary": "Added a Conversation section to the Kanban card panel. It reads card messages through listKanbanMessages, routes sends through the accepted ConversationPanel with the exact card target, reloads on board refresh, and makes Done cards read-only."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7mq48cmwc74pb05k7skcj27",
+      "state": "accepted",
+      "submittedAt": "2026-11-17T15:49:26.836Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:c04558c6363266881294a0ba030d93074b3387702a543c8affe9f52f646c6386",
+      "ticketId": "tk_01m7mncd2cpa2q02kyvvcvt3cm",
+      "updatedAt": "2026-11-17T15:50:18.519Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "low",
+        "hostId": "omp-codex",
+        "label": "DM-698 worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Recommended by match_capabilities for this small routine Kanban conversation surface.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-17T15:52:47.506Z",
+      "decidedAt": "2026-11-17T16:45:31.692Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Six live criteria were proven, c5 was accepted after semantic comparison showed unchanged run/claim timeline entries and attempt set, and portable card messages round-tripped. The rejected attempt preserves all first-run failures and screenshots; no check was rerun and no product code was edited.",
+        "outcome": "rejected",
+        "reasons": [
+          "definition_of_done: npm test failed 12 tests in 8 files and coverage failed 16 tests in 9 files. Fix the deterministic sprint regressions (chat IPC channel expectations, OrchestratorFeed conversationState call expectations, Kanban card refetch error behavior, and the orchestrator kernel word cap if attributable), then address—not rerun past—the symlink EPERM and timeout failures so the first post-fix full checks pass.",
+          "c8: the real Kanban card Conversation is broken for desktop: it renders `The desktop may not call listKanbanMessages` although person and agent records exist. Correct the authorization/command path and prove the Play reply renders in the card panel.",
+          "c3: attachment im_01m7n67zb3c54jywbkcbrhhgjy does not visibly contain the required ticket key, add_comment command, relay line, and masked token. Recapture a terminal screenshot where all four are legible.",
+          "c4: attachment im_01m7n681vsq6nk4eb7vap9fkyv does not visibly prove the replacement chat kickoff contains the ticket earlier messages. Recapture the kickoff with that history legible.",
+          "increment: no sprint increment was landed or named because acceptance and Definition of Done failed."
+        ]
+      },
+      "evidence": {
+        "attachments": [
+          {
+            "bytes": 162250,
+            "height": 900,
+            "id": "im_01m7n67tc74v522yhkty4bd62f",
+            "label": "C1 running ticket agent target",
+            "mime": "image/png",
+            "purpose": "evidence",
+            "sha256": "7c17a078450d7034f6be55d17dacdd389db220c0d2bf4dbdc4475d79d1247d86",
+            "width": 1440
+          },
+          {
+            "bytes": 139412,
+            "height": 900,
+            "id": "im_01m7n67wwmbmnk4mptxqesw0fe",
+            "label": "C1 saved epic no agent",
+            "mime": "image/png",
+            "purpose": "evidence",
+            "sha256": "149e4a59ea129977d2af82974cd56eb8c76b68383f4903a8164966feb991f1a7",
+            "width": 1440
+          },
+          {
+            "bytes": 65132,
+            "height": 900,
+            "id": "im_01m7n67zb3c54jywbkcbrhhgjy",
+            "label": "C3 relayed terminal message",
+            "mime": "image/png",
+            "purpose": "evidence",
+            "sha256": "8c0f663a9254f0ba7e750610565b3eddf472210e1ff732480f44ad6c59941c75",
+            "width": 1440
+          },
+          {
+            "bytes": 59932,
+            "height": 900,
+            "id": "im_01m7n681vsq6nk4eb7vap9fkyv",
+            "label": "C4 fresh kickoff history",
+            "mime": "image/png",
+            "purpose": "evidence",
+            "sha256": "d56b90087d01608483e8ca82d9e34767ca494b734c0b79b65cbaa97486b0dabf",
+            "width": 1440
+          },
+          {
+            "bytes": 123280,
+            "height": 900,
+            "id": "im_01m7n684518adr4jb61s0gj5nm",
+            "label": "C5 fresh chat answer",
+            "mime": "image/png",
+            "purpose": "evidence",
+            "sha256": "2c9957f03d692aa92736fd6fb289fb2e5381b0dbc0f4d346b00ccd6447aefa6d",
+            "width": 1440
+          },
+          {
+            "bytes": 170453,
+            "height": 900,
+            "id": "im_01m7n686s00c267f0m9c3nr8z4",
+            "label": "C6 ticket conversation chronology",
+            "mime": "image/png",
+            "purpose": "evidence",
+            "sha256": "504582e63b9dd346fab9b66cf202100883f37d768ac9c503dca764bbc9d63f00",
+            "width": 1440
+          },
+          {
+            "bytes": 131787,
+            "height": 900,
+            "id": "im_01m7n68907cdvcg6cacc6yesb3",
+            "label": "C7 orchestrator messages expanded",
+            "mime": "image/png",
+            "purpose": "evidence",
+            "sha256": "52f7e03733725fc1529e22e685cc3aa9828c159dd33ca0e0fa1f13c698f95e93",
+            "width": 1440
+          },
+          {
+            "bytes": 138108,
+            "height": 900,
+            "id": "im_01m7n68b4v5d9h1g3e1w4t5z6m",
+            "label": "C7 orchestrator messages collapsed",
+            "mime": "image/png",
+            "purpose": "evidence",
+            "sha256": "07d47b4fda11cf18a4323b52e33c85b411b9cba72e7768ccd5ea13352522bf52",
+            "width": 1440
+          },
+          {
+            "bytes": 80822,
+            "height": 900,
+            "id": "im_01m7n68d89kwzqkse18rv1axxr",
+            "label": "C8 card conversation failure",
+            "mime": "image/png",
+            "purpose": "evidence",
+            "sha256": "6d0936ad28e22eec8acb97b06f624c195495eaf8a7541b60587d8faedbbceda4",
+            "width": 1440
+          },
+          {
+            "bytes": 80159,
+            "height": 900,
+            "id": "im_01m7n68fn94cc1ed39jz1r1pcd",
+            "label": "C9 board conversation unbind",
+            "mime": "image/png",
+            "purpose": "evidence",
+            "sha256": "9f05ed058e531898e9c639a2a5510a798a70e945240bd2ac54a8c5bd2cd80f85",
+            "width": 1440
+          }
+        ],
+        "checks": [
+          {
+            "detail": "oxlint completed successfully.",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "All three TypeScript projects passed.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "8 files failed, 12 tests failed; 640 files and 11,147 tests passed. Sprint-related failures include stale chat IPC channel expectations, unexpected conversationState calls, and Kanban card message-load failures; separate symlink EPERM and timeout failures also occurred.",
+            "name": "test",
+            "status": "failed"
+          },
+          {
+            "detail": "9 files failed, 16 tests failed; 639 files and 11,143 tests passed. It includes the same sprint-related failures plus environment/time-limit failures.",
+            "name": "coverage",
+            "status": "failed"
+          },
+          {
+            "detail": "No new dead exports found.",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "electron-vite built main, preload and renderer successfully.",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Attachments im_01m7n67tc74v522yhkty4bd62f and im_01m7n67wwmbmnk4mptxqesw0fe show the exact live-ticket and saved-idle agent states."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Person and agent card message records ke_01m7n5pfxe3v3r18cqtgmcnrph and ke_01m7n5q2qcw7etfxdazk3xpy8r survived flush and a fresh workspace import; evidence lists card.json plus four kanban event record files under .darkmechanicus/kanban/kc_01m7n50x8044trnfz4qqra4j4j/."
+          },
+          {
+            "criterionId": "c3",
+            "met": false,
+            "note": "Attachment im_01m7n67zb3c54jywbkcbrhhgjy does not visibly show the required ticket key, add_comment command, relay line, and masked token in the terminal, so screenshot evidence is insufficient."
+          },
+          {
+            "criterionId": "c4",
+            "met": false,
+            "note": "Attachment im_01m7n681vsq6nk4eb7vap9fkyv shows the replacement conversation chat, but the visible terminal does not prove that its kickoff contains the ticket earlier messages."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Attachment im_01m7n684518adr4jb61s0gj5nm shows the real add_comment answer. Before/after get_run output kept the same run and attempt set, and getRunTimeline retained the same run/claim entries; only the event cursor advanced for the expected comment records."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "Attachment im_01m7n686s00c267f0m9c3nr8z4 shows existing person history, Delivered to Conversation · BCA-2, and the orchestrator reply in order."
+          },
+          {
+            "criterionId": "c7",
+            "met": true,
+            "note": "Attachments im_01m7n68907cdvcg6cacc6yesb3 and im_01m7n68b4v5d9h1g3e1w4t5z6m show the live reply expanded and the collapsed panel below an unobscured graph."
+          },
+          {
+            "criterionId": "c8",
+            "met": false,
+            "note": "Attachment im_01m7n68d89kwzqkse18rv1axxr shows the real card UI error: The desktop may not call listKanbanMessages. The Play chat reply exists in records but cannot render in Conversation."
+          },
+          {
+            "criterionId": "c9",
+            "met": true,
+            "note": "Attachment im_01m7n68fn94cc1ed39jz1r1pcd shows Board conversation with its epic in Agents and delete text that says it unbinds while history stays on the board."
+          }
+        ],
+        "notes": "Evidence root: C:/Users/davgo/AppData/Local/Temp/dm-board-conversations-acceptance/evidence. The app exited normally with no forced cleanup. No product files were edited. No increment is named because the Definition of Done and acceptance criteria are not all met."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m7n3bxmj4ms5wktkvvj9caat",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "epic/board-conversations-sprint-1-final",
+        "changedFiles": [],
+        "commits": [
+          "725e05f91eee31eed2ac1271c75c2a8d9545e15b"
+        ],
+        "summary": "Verified the combined sprint on Windows with an isolated development app and real OMP. Four Definition of Done checks passed; test and coverage failed. Live evidence found the Kanban card Conversation cannot list messages as desktop, and screenshot review found two terminal/kickoff criteria not visibly proven. No sprint increment was landed."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7mq48cmwc74pb05k7skcj27",
+      "state": "rejected",
+      "submittedAt": "2026-11-17T16:45:02.984Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:3c6ec3a2972285526445c99ab824344ddd03bf1b65e95671888d590219de639d",
+      "ticketId": "tk_01m7mn7rjpz1emdpm9qyhs0ncn",
+      "updatedAt": "2026-11-17T16:45:31.692Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "high",
+        "hostId": "omp-codex",
+        "label": "Sprint 1 acceptance worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Override medium to high: this node combines six full Definition-of-Done checks with nine live Windows criteria, a real OMP chat, persistent export/import verification, and screenshot evidence.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-17T16:46:26.077Z",
+      "decidedAt": "2026-11-17T17:05:46.906Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Retain commits b5698d01 and 2a1f47b for the next acceptance candidate. The next attempt must run the full six-check gate once on that final commit, then capture fresh live evidence only if all checks pass.",
+        "outcome": "rejected",
+        "reasons": [
+          "The one-shot full npm test gate failed three tests, so Definition of Done is not met. The worker fixed all three exposed causes afterward and proved 78 targeted tests, but correctly did not rerun the full suite.",
+          "Coverage, deadcode, build and live criteria c1-c9 were not run after the test failure.",
+          "No sprint increment was landed or submitted."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "133 tests passed before the full gate; 78 tests passed after repairing the three newly exposed failures.",
+            "name": "targeted tests",
+            "status": "passed"
+          },
+          {
+            "detail": "Passed before and after the final targeted fixes.",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "Passed before and after the final targeted fixes.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "The one-shot full npm test run failed 3 tests: two exact orchestrator skill phrases and the ten-day terminal virtual-time test. All three causes were fixed afterward with 78 targeted tests passing; full test was not rerun.",
+            "name": "test",
+            "status": "failed"
+          },
+          {
+            "detail": "Not run after the full test failed; left for the next acceptance attempt.",
+            "name": "coverage",
+            "status": "skipped"
+          },
+          {
+            "detail": "Not run after the full test failed; left for the next acceptance attempt.",
+            "name": "deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "Not run after the full test failed; left for the next acceptance attempt.",
+            "name": "build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": false,
+            "note": "Live acceptance was not run because the full test gate failed."
+          },
+          {
+            "criterionId": "c2",
+            "met": false,
+            "note": "Live acceptance was not run because the full test gate failed."
+          },
+          {
+            "criterionId": "c3",
+            "met": false,
+            "note": "Live acceptance was not run because the full test gate failed."
+          },
+          {
+            "criterionId": "c4",
+            "met": false,
+            "note": "Live acceptance was not run because the full test gate failed."
+          },
+          {
+            "criterionId": "c5",
+            "met": false,
+            "note": "Live acceptance was not run because the full test gate failed."
+          },
+          {
+            "criterionId": "c6",
+            "met": false,
+            "note": "Live acceptance was not run because the full test gate failed."
+          },
+          {
+            "criterionId": "c7",
+            "met": false,
+            "note": "Live acceptance was not run because the full test gate failed."
+          },
+          {
+            "criterionId": "c8",
+            "met": false,
+            "note": "Authorization was repaired by adding listKanbanMessages to DESKTOP_COMMANDS and its handler contract, but the live card reply was not reverified because the full test gate failed."
+          },
+          {
+            "criterionId": "c9",
+            "met": false,
+            "note": "Live acceptance was not run because the full test gate failed."
+          }
+        ],
+        "notes": "No flakes or reruns. The one-shot full test output is preserved. Post-failure fixes passed only targeted verification; this attempt requires rejection and a fresh acceptance attempt."
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m7n6e4rx0meff614paetyf5j",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Failed one-shot full test",
+            "location": "C:/Users/davgo/AppData/Local/Temp/dm-board-conversations-acceptance-r2/evidence/test.txt",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Post-failure targeted checks",
+            "location": "C:/Users/davgo/AppData/Local/Temp/dm-board-conversations-acceptance-r2/evidence/post-failure-targeted.txt",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "work/dm-689-r2",
+        "changedFiles": [
+          "skills/orchestrator.md",
+          "src/main/agents/chatIpc.test.ts",
+          "src/main/desktop/handlers.test.ts",
+          "src/main/terminals/terminalSessions.lifecycle.test.ts",
+          "src/mcp/tools/chatNaming.test.ts",
+          "src/renderer/src/epic/OrchestratorFeed.thread.test.tsx",
+          "src/renderer/src/kanban/KanbanCardPanel.states.test.tsx",
+          "src/shared/desktop/api.ts",
+          "src/test/symlinks.test.ts",
+          "src/test/symlinks.ts",
+          "vitest.config.ts"
+        ],
+        "commits": [
+          "b5698d01a447926aba4aed6a8cc5f2ec33103734",
+          "2a1f47b96b4a8d6d195b11d145425c3ea310ad90"
+        ],
+        "summary": "Repaired the rejected acceptance regressions and test-environment root causes in two commits. The single post-fix full test run exposed two skill phrase regressions and one terminal virtual-time timeout; all three were fixed afterward and passed targeted checks, but the full test was not rerun, so this attempt remains failed."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7mq48cmwc74pb05k7skcj27",
+      "state": "rejected",
+      "submittedAt": "2026-11-17T17:05:28.430Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:3c6ec3a2972285526445c99ab824344ddd03bf1b65e95671888d590219de639d",
+      "ticketId": "tk_01m7mn7rjpz1emdpm9qyhs0ncn",
+      "updatedAt": "2026-11-17T17:05:46.906Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "high",
+        "hostId": "omp-codex",
+        "label": "Sprint 1 acceptance retry worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Recommended by match_capabilities: the first acceptance attempt was rejected; no eligible model or effort sits above this model at high effort.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-17T17:06:20.538Z",
+      "decidedAt": "2026-11-17T17:25:03.500Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "This was attempt 3. The timeout and coverage deficit are recorded on DM-689 with concrete next-fix evidence. A person must grant another retry before the epic can continue.",
+        "outcome": "rejected",
+        "reasons": [
+          "Definition of Done test failed one non-rerun Windows PATHEXT safety timeout at 15 seconds.",
+          "Definition of Done coverage failed: all tests passed but branch coverage was 94.87% against the required 95%.",
+          "Live criteria c1-c9 were correctly not run after the gate failure, and no sprint increment was landed."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npm run lint passed once; 01-lint.log.",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck passed once; 02-typecheck.log.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm test failed one test: conflictsOpen Windows script/PATHEXT safety timed out at the unchanged 15000ms limit. 647 files passed, 2 skipped; 11,155 tests passed, 61 skipped.",
+            "name": "test",
+            "status": "failed"
+          },
+          {
+            "detail": "npm run coverage ran once: all 648 files and 11,156 tests passed, but branch coverage 94.87% (15,436/16,270) missed the 95% threshold.",
+            "name": "coverage",
+            "status": "failed"
+          },
+          {
+            "detail": "npm run deadcode passed once; 05-deadcode.log.",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build passed once; 06-build.log.",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": false,
+            "note": "Not run because Definition of Done failed."
+          },
+          {
+            "criterionId": "c2",
+            "met": false,
+            "note": "Not run because Definition of Done failed."
+          },
+          {
+            "criterionId": "c3",
+            "met": false,
+            "note": "Not run because Definition of Done failed."
+          },
+          {
+            "criterionId": "c4",
+            "met": false,
+            "note": "Not run because Definition of Done failed."
+          },
+          {
+            "criterionId": "c5",
+            "met": false,
+            "note": "Not run because Definition of Done failed."
+          },
+          {
+            "criterionId": "c6",
+            "met": false,
+            "note": "Not run because Definition of Done failed."
+          },
+          {
+            "criterionId": "c7",
+            "met": false,
+            "note": "Not run because Definition of Done failed."
+          },
+          {
+            "criterionId": "c8",
+            "met": false,
+            "note": "Not run because Definition of Done failed."
+          },
+          {
+            "criterionId": "c9",
+            "met": false,
+            "note": "Not run because Definition of Done failed."
+          }
+        ],
+        "notes": "No check was rerun. No app process was started. No increment was landed. Ticket comments cm_01m7n88h2vtz2bw25v71ypzath and cm_01m7n8jjxc33kektyagj238kzd record the timeout and branch-coverage diagnosis for a future retry."
+      },
+      "failure": null,
+      "fencingToken": 3,
+      "id": "at_01m7n7jk7tftdvw9q8cgvhk1wx",
+      "kind": "work",
+      "number": 3,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Acceptance result",
+            "location": "C:/Users/davgo/AppData/Local/Temp/dm-board-conversations-acceptance-r3/evidence/acceptance-result.json",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Full test log",
+            "location": "C:/Users/davgo/AppData/Local/Temp/dm-board-conversations-acceptance-r3/evidence/03-test.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Coverage log",
+            "location": "C:/Users/davgo/AppData/Local/Temp/dm-board-conversations-acceptance-r3/evidence/04-coverage.log",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "work/dm-689-r3",
+        "changedFiles": [],
+        "commits": [],
+        "summary": "Ran all six Definition of Done checks once on the final candidate. Lint, typecheck, deadcode and build passed. The full test failed one Windows PATHEXT safety timeout; coverage tests all passed but branch coverage was 94.87% against 95%. Live c1-c9 was not launched because the gate failed."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7mq48cmwc74pb05k7skcj27",
+      "state": "rejected",
+      "submittedAt": "2026-11-17T17:24:52.307Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:3c6ec3a2972285526445c99ab824344ddd03bf1b65e95671888d590219de639d",
+      "ticketId": "tk_01m7mn7rjpz1emdpm9qyhs0ncn",
+      "updatedAt": "2026-11-17T17:25:03.500Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "high",
+        "hostId": "omp-codex",
+        "label": "Sprint 1 final acceptance worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Recommended by match_capabilities: the second acceptance attempt was rejected and no eligible model or effort sits above this model at high effort.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-17T19:48:32.069Z",
+      "decidedAt": "2026-11-17T20:25:14.877Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Retain commits 647d8c51 and 83c506d9. Coverage now passes at 95.08%; final candidate 83c506d9 lowers Windows workers to 4 and passes targeted agentMail, lint and typecheck. Another human retry grant is required for one clean six-check gate and live acceptance.",
+        "outcome": "rejected",
+        "reasons": [
+          "The one-shot full test failed the cross-process agentMail case at the unchanged 15-second limit, followed by teardown EPERM.",
+          "The one-shot lint and typecheck ran before follow-up fixes and therefore remain failed for this attempt, although the final follow-up commit passes targeted agentMail, lint and typecheck.",
+          "Live c1-c9 were correctly not run after the gate failure and no increment was landed."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "93 tests passed; 172/194 branches in targeted files. chatHandlers improved from 65/84 to 79/84 and conversationMessage from 25/35 to 35/35.",
+            "name": "targeted coverage diagnostic",
+            "status": "passed"
+          },
+          {
+            "detail": "One-shot gate found max-lines-per-function in new tests. Follow-up commit split the tests and follow-up lint passed, but the gate lint was not rerun.",
+            "name": "lint",
+            "status": "failed"
+          },
+          {
+            "detail": "One-shot gate found unsupported Array.findLast in a new test. Follow-up commit replaced it and follow-up typecheck passed, but gate typecheck was not rerun.",
+            "name": "typecheck",
+            "status": "failed"
+          },
+          {
+            "detail": "conflictsOpen no longer failed. A different cross-process agentMail case timed out at unchanged 15000ms under Windows process contention and teardown then hit EPERM; 647 files and 11,175 tests passed.",
+            "name": "test",
+            "status": "failed"
+          },
+          {
+            "detail": "All 648 files and 11,176 tests passed; branch coverage 95.08% (15,471/16,271).",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run deadcode passed once.",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build passed once.",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "14 tests passed after lowering Windows maxWorkers to 4; follow-up lint and typecheck also passed.",
+            "name": "follow-up agentMail targeted",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": false,
+            "note": "Not run because Definition of Done failed."
+          },
+          {
+            "criterionId": "c2",
+            "met": false,
+            "note": "Not run because Definition of Done failed."
+          },
+          {
+            "criterionId": "c3",
+            "met": false,
+            "note": "Not run because Definition of Done failed."
+          },
+          {
+            "criterionId": "c4",
+            "met": false,
+            "note": "Not run because Definition of Done failed."
+          },
+          {
+            "criterionId": "c5",
+            "met": false,
+            "note": "Not run because Definition of Done failed."
+          },
+          {
+            "criterionId": "c6",
+            "met": false,
+            "note": "Not run because Definition of Done failed."
+          },
+          {
+            "criterionId": "c7",
+            "met": false,
+            "note": "Not run because Definition of Done failed."
+          },
+          {
+            "criterionId": "c8",
+            "met": false,
+            "note": "Not run because Definition of Done failed."
+          },
+          {
+            "criterionId": "c9",
+            "met": false,
+            "note": "Not run because Definition of Done failed."
+          }
+        ],
+        "notes": "No full check was rerun. No app process was started and no increment was landed. The final follow-up candidate is commit 83c506d9b152bfc63e9d38ce73a62e4fdf2e72d2."
+      },
+      "failure": null,
+      "fencingToken": 4,
+      "id": "at_01m7ngvjp5k32r33x3pwc91qf0",
+      "kind": "work",
+      "number": 4,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Acceptance result",
+            "location": "C:/Users/davgo/AppData/Local/Temp/dm-board-conversations-acceptance-r4/evidence/acceptance-result.json",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Full test failure",
+            "location": "C:/Users/davgo/AppData/Local/Temp/dm-board-conversations-acceptance-r4/evidence/03-test.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Passing coverage",
+            "location": "C:/Users/davgo/AppData/Local/Temp/dm-board-conversations-acceptance-r4/evidence/04-coverage.log",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Follow-up targeted checks",
+            "location": "C:/Users/davgo/AppData/Local/Temp/dm-board-conversations-acceptance-r4/evidence/07-agentMail-targeted.log",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "work/dm-689-r4",
+        "changedFiles": [
+          "src/main/git/conflicts.ts",
+          "src/main/git/conflictsOpen.test.ts",
+          "src/main/agents/chatHandlers.test.ts",
+          "src/main/agents/conversationMessage.test.ts",
+          "src/renderer/src/conversation/ConversationPanel.test.tsx",
+          "src/renderer/src/sidebar/AgentsSection.test.tsx",
+          "vitest.config.ts"
+        ],
+        "commits": [
+          "647d8c51970dd3189863b6c5b3efaeab2af00d9a",
+          "83c506d9b152bfc63e9d38ce73a62e4fdf2e72d2"
+        ],
+        "summary": "Fixed the PATHEXT process-contention path and added consumer-visible board-conversation edge coverage. Coverage now passes at 95.08%. The one-shot gate on the first fix commit exposed lint/typecheck findings and a different real-process agentMail timeout; a follow-up commit fixed lint/typecheck and lowered Windows maxWorkers from 8 to 4 without changing timeouts, retries, skips or assertions. Live acceptance was not launched."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7mq48cmwc74pb05k7skcj27",
+      "state": "rejected",
+      "submittedAt": "2026-11-17T20:25:03.679Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:3c6ec3a2972285526445c99ab824344ddd03bf1b65e95671888d590219de639d",
+      "ticketId": "tk_01m7mn7rjpz1emdpm9qyhs0ncn",
+      "updatedAt": "2026-11-17T20:25:14.877Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "high",
+        "hostId": "omp-codex",
+        "label": "Sprint 1 granted acceptance retry worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Human granted retry after attempt 3; recommended by match_capabilities and no eligible model or effort sits above this model at high effort.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-17T21:42:41.825Z",
+      "decidedAt": "2026-11-17T22:30:22.640Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "All six Definition of Done checks passed once and c1-c3/c5-c9 have acceptable evidence. c4 remains observably unmet, so the acceptance node cannot be accepted or landed.",
+        "outcome": "rejected",
+        "reasons": [
+          "c4: Fresh chat replacement occurred, but the replacement terminal kickoff is not retained or rendered after reattachment. Every recapture was visibly blank except the cursor, so the required screenshot proving earlier ticket messages in the new chat kickoff is absent. Persist or expose the initial kickoff in the chat surface and provide a legible screenshot; do not use the blank image."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Exit 0; lint.txt.",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "Exit 0; typecheck.txt.",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "648 files passed, 2 skipped; 11176 tests passed, 61 skipped; test.txt.",
+            "name": "npm test",
+            "status": "passed"
+          },
+          {
+            "detail": "Exit 0; branches 95.08%; coverage.txt.",
+            "name": "npm run coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "Exit 0; no new dead exports; deadcode.txt.",
+            "name": "npm run deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "Exit 0; build.txt.",
+            "name": "npm run build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Running and idle message-target surfaces verified in c1 screenshots."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Portable record flush and fresh import preserve card, ticket, and epic messages."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Relayed terminal visibly shows ticket context, literal add_comment instruction, and masked synthetic token."
+          },
+          {
+            "criterionId": "c4",
+            "met": false,
+            "note": "Replacement chat was created, but its kickoff is not retained or rendered after reattachment; every recapture is blank except the cursor, so the required earlier-message screenshot is absent."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Conversation reply visible with normalized run and attempt evidence unchanged except expected comment cursors."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "Ticket conversation chronology visibly preserves person and agent messages."
+          },
+          {
+            "criterionId": "c7",
+            "met": true,
+            "note": "Epic orchestrator conversation and collapsed graph states verified."
+          },
+          {
+            "criterionId": "c8",
+            "met": true,
+            "note": "Card Play conversation visibly contains both person and agent messages without authorization error."
+          },
+          {
+            "criterionId": "c9",
+            "met": true,
+            "note": "Board conversation remains listed under Agents and deletion confirmation explains unbinding while preserving history."
+          }
+        ],
+        "notes": "Acceptance worker made no repository changes. c4 is an observable product-evidence defect and must not be waived or represented by the blank screenshot."
+      },
+      "failure": null,
+      "fencingToken": 5,
+      "id": "at_01m7nqckx17hqphbt4fa9phnmv",
+      "kind": "work",
+      "number": 5,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Acceptance evidence",
+            "location": "C:/Users/davgo/AppData/Local/Temp/dm-board-conversations-acceptance-r5/evidence",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "epic/board-conversations-sprint-1-final",
+        "changedFiles": [],
+        "commits": [
+          "83c506d9b152bfc63e9d38ce73a62e4fdf2e72d2"
+        ],
+        "summary": "Combined candidate passed all six Definition of Done checks, but acceptance criterion c4 remains unmet because the replacement chat kickoff is not retained or visibly rendered after reattachment."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7mq48cmwc74pb05k7skcj27",
+      "state": "rejected",
+      "submittedAt": "2026-11-17T22:30:11.482Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:3c6ec3a2972285526445c99ab824344ddd03bf1b65e95671888d590219de639d",
+      "ticketId": "tk_01m7mn7rjpz1emdpm9qyhs0ncn",
+      "updatedAt": "2026-11-17T22:30:22.640Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "high",
+        "hostId": "omp-codex",
+        "label": "Sprint 1 final granted acceptance worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Human granted a second retry after attempt 4; recommended by match_capabilities and no eligible model or effort sits above this model at high effort.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-17T23:09:23.338Z",
+      "decidedAt": "2026-11-17T23:22:20.520Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Revised acceptance criteria c1-c9 are otherwise met. coverage, deadcode, and build were correctly not run after the first failed gate.",
+        "outcome": "rejected",
+        "reasons": [
+          "Definition of Done `test` failed once: the main suite passed, then Fireguard `snapshots.test.ts:121` could not create a Windows symlink and returned EPERM. The failure was not rerun. Fix the symlink-permission nondeterminism or its test setup, then run the complete six-check acceptance gate once on a new attempt."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "oxlint completed with exit 0 in 4.49s.",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "All three TypeScript projects completed with exit 0 in 45.35s.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Main suite passed 648 files and 11176 tests; Fireguard failed 1 of 171 tests at fireguard/test/snapshots.test.ts:121 because Windows symlink creation returned EPERM. Exit 1 after 557.79s; not rerun.",
+            "name": "test",
+            "status": "failed"
+          },
+          {
+            "detail": "Not run after the first failed Definition of Done check.",
+            "name": "coverage",
+            "status": "skipped"
+          },
+          {
+            "detail": "Not run after the first failed Definition of Done check.",
+            "name": "deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "Not run after the first failed Definition of Done check.",
+            "name": "build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Running and idle agent-line screenshots are legible."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Card messages and agent reply are present before flush, in portable records, and after fresh import."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Terminal screenshot visibly shows ticket context, add_comment, relay response, and masked synthetic token."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "c4-recapture.json records deleted and distinct replacement chat IDs; lifecycle evidence records the replacement conversation."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Conversation screenshot shows fresh reply; normalized outputs show run state, timeline groups, attempts, and ticket list unchanged except expected comment cursors."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "Ticket Conversation screenshot visibly shows earlier context, delivered person messages, and replies in order."
+          },
+          {
+            "criterionId": "c7",
+            "met": true,
+            "note": "Expanded and collapsed panel screenshots show live reply and unobscured graph."
+          },
+          {
+            "criterionId": "c8",
+            "met": true,
+            "note": "Card screenshot visibly shows Play-chat binding, delivered person request, and agent reply."
+          },
+          {
+            "criterionId": "c9",
+            "met": true,
+            "note": "Agents screenshot and delete confirmation visibly show Board conversation binding and unbind semantics."
+          }
+        ],
+        "notes": "The blank c4 kickoff and c5 terminal images were excluded. No repository changes. Overall acceptance is not passable because test failed and coverage/deadcode/build are unobserved."
+      },
+      "failure": null,
+      "fencingToken": 6,
+      "id": "at_01m7nwbbgaxvfeem6zbwre99rm",
+      "kind": "work",
+      "number": 6,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Live acceptance evidence",
+            "location": "C:/Users/davgo/AppData/Local/Temp/dm-board-conversations-acceptance-r5/evidence",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "epic/board-conversations-sprint-1-final",
+        "changedFiles": [],
+        "commits": [
+          "83c506d9b152bfc63e9d38ce73a62e4fdf2e72d2"
+        ],
+        "summary": "Revised live criteria c1-c9 are met on candidate 83c506d9, but the Definition of Done test check failed once in Fireguard when Windows denied symlink creation with EPERM. The failed check was not rerun; later checks were not run."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7nw8vxkywad7wpt0d38znye",
+      "state": "rejected",
+      "submittedAt": "2026-11-17T23:22:09.058Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:cbca56a631a456a40fededfd7ac2a8fa4c79e55d70fa0f9911ac0f94dd49dc68",
+      "ticketId": "tk_01m7mn7rjpz1emdpm9qyhs0ncn",
+      "updatedAt": "2026-11-17T23:22:20.520Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "high",
+        "hostId": "omp-codex",
+        "label": "Sprint 1 adopted acceptance worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Human granted retry after adoption moved the kickoff-retention proof to Sprint 2; match_capabilities recommends the same highest-capability model at high effort.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-18T02:25:49.096Z",
+      "decidedAt": "2026-11-18T02:36:01.345Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "Windows lint, typecheck/build, deadcode, all main and Fireguard test shards, aggregate test, and Fireguard grading passed. Live c1-c9 evidence remains valid on unchanged candidate 83c506d9.",
+        "outcome": "rejected",
+        "reasons": [
+          "Draft PR #46 was not all green: the security audit failed on high-severity transitive dependency advisories, and the PR workflow did not run the required coverage check. The failure was not rerun. Resolve the audit findings and add/obtain coverage evidence before another acceptance attempt."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Draft PR #46 Windows lint job passed in 52s.",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "Draft PR #46 Windows build job ran npm run typecheck before build and passed.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Both main-suite shards and both Fireguard Vitest shards passed on Windows; aggregate test passed. Fireguard grading shards and aggregate also passed.",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "Draft PR #46 has no coverage job; not inferred from other jobs.",
+            "name": "coverage",
+            "status": "skipped"
+          },
+          {
+            "detail": "Draft PR #46 deadcode job passed in 48s.",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "Draft PR #46 Windows build job passed in 1m15s.",
+            "name": "build",
+            "status": "passed"
+          },
+          {
+            "detail": "Security audit failed once with high-severity transitive advisories through node-gyp/tinyglobby/picomatch/vite/vitest/electron-builder/ts-prune. Not rerun.",
+            "name": "npm audit (fail on moderate+)",
+            "status": "failed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Previously validated live running and idle screenshots remain on the unchanged candidate."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Portable card-message round trip previously validated on the unchanged candidate."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Relayed masked terminal evidence previously validated on the unchanged candidate."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Deleted and replacement chat outputs previously validated on the unchanged candidate."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Fresh reply and unchanged normalized run/attempt outputs previously validated on the unchanged candidate."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "Ticket chronology screenshot previously validated on the unchanged candidate."
+          },
+          {
+            "criterionId": "c7",
+            "met": true,
+            "note": "Expanded/collapsed orchestrator panel screenshots previously validated on the unchanged candidate."
+          },
+          {
+            "criterionId": "c8",
+            "met": true,
+            "note": "Kanban Play-chat reply screenshot previously validated on the unchanged candidate."
+          },
+          {
+            "criterionId": "c9",
+            "met": true,
+            "note": "Board-conversation unbind screenshot previously validated on the unchanged candidate."
+          }
+        ],
+        "notes": "User required an all-green draft PR before local landing. The PR is not all green, and coverage is unobserved, so this attempt cannot be accepted."
+      },
+      "failure": null,
+      "fencingToken": 7,
+      "id": "at_01m7p7k118x2sbg5jc7dkp55ea",
+      "kind": "work",
+      "number": 7,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Draft PR #46",
+            "location": "https://github.com/davgor/DarkMechanicus/pull/46",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "label": "Failed security audit run",
+            "location": "https://github.com/davgor/DarkMechanicus/actions/runs/44223028393",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "epic/board-conversations-sprint-1-final",
+        "changedFiles": [],
+        "commits": [
+          "83c506d9b152bfc63e9d38ce73a62e4fdf2e72d2"
+        ],
+        "summary": "Draft PR #46 validated candidate 83c506d9: lint, build/typecheck, deadcode, all main and Fireguard test shards, aggregate test, and Fireguard grading passed. The PR was not all green because the security audit found current high-severity transitive dependency advisories; coverage was not a PR job. No failed check was rerun."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7nw8vxkywad7wpt0d38znye",
+      "state": "rejected",
+      "submittedAt": "2026-11-18T02:35:52.609Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:cbca56a631a456a40fededfd7ac2a8fa4c79e55d70fa0f9911ac0f94dd49dc68",
+      "ticketId": "tk_01m7mn7rjpz1emdpm9qyhs0ncn",
+      "updatedAt": "2026-11-18T02:36:01.345Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "high",
+        "hostId": "omp-codex",
+        "label": "Sprint 1 PR-backed acceptance worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Human authorized another retry and requested draft PR CI as the authoritative gate after local Windows CI=true caused a symlink-rights mismatch; match_capabilities recommends the same highest-capability model at high effort.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-18T20:21:56.216Z",
+      "decidedAt": "2026-11-18T20:30:38.196Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "The clean remediation commit 84e6a9c is narrow and audit-clean, so the next attempt may verify that candidate. This attempt is recorded as a delegated-worker/Skitarii setup and artifact-quality failure, not a product behavior failure.",
+        "outcome": "rejected",
+        "reasons": [
+          "Definition of Done lint failed because the delegated worker did not provision dependencies before invoking npm run lint; the failure was not rerun and the remaining six-check gate is incomplete.",
+          "The worker first committed an invalid package.json with the override outside the closing brace and rewrote the entire lockfile via line-ending churn. Review rejected that artifact. A clean replacement commit was produced and pushed, but this attempt still cannot pass after the recorded lint failure."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "After the override/lock update, audit reported found 0 vulnerabilities.",
+            "name": "npm audit --audit-level=moderate",
+            "status": "passed"
+          },
+          {
+            "detail": "Worker invoked npm run lint in a fresh worktree without dependencies; oxlint was unavailable. The check was not rerun.",
+            "name": "lint",
+            "status": "failed"
+          },
+          {
+            "detail": "Skipped after first failed Definition of Done check.",
+            "name": "typecheck",
+            "status": "skipped"
+          },
+          {
+            "detail": "Skipped after first failed Definition of Done check.",
+            "name": "test",
+            "status": "skipped"
+          },
+          {
+            "detail": "Skipped after first failed Definition of Done check.",
+            "name": "coverage",
+            "status": "skipped"
+          },
+          {
+            "detail": "Skipped after first failed Definition of Done check.",
+            "name": "deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "Skipped after first failed Definition of Done check.",
+            "name": "build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Previously validated running and idle screenshots remain applicable; package-only remediation does not alter behavior."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Previously validated portable card-message round trip remains applicable."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Previously validated relayed masked terminal evidence remains applicable."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Previously validated deleted and replacement chat outputs remain applicable."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Previously validated fresh reply and unchanged run/attempt outputs remain applicable."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "Previously validated ticket chronology remains applicable."
+          },
+          {
+            "criterionId": "c7",
+            "met": true,
+            "note": "Previously validated expanded/collapsed panel screenshots remain applicable."
+          },
+          {
+            "criterionId": "c8",
+            "met": true,
+            "note": "Previously validated Kanban Play-chat reply remains applicable."
+          },
+          {
+            "criterionId": "c9",
+            "met": true,
+            "note": "Previously validated board-conversation unbind screenshot remains applicable."
+          }
+        ],
+        "notes": "Failure-pattern assessment: attempt 6 was a false local CI=true/symlink environment classification; attempt 7 was a concrete new registry advisory; attempt 8 exposed a delegated-worker setup/orchestration defect—dependencies were not provisioned before lint, the first commit had invalid package.json and whole-lockfile line-ending churn, and review had to request a clean replacement. This directly supports the reported recent subagent/Skitarii reliability concern. Clean commit 84e6a9c is narrow and was pushed to refresh PR #46."
+      },
+      "failure": null,
+      "fencingToken": 8,
+      "id": "at_01m7r55evr5zs2jg3venark8sy",
+      "kind": "work",
+      "number": 8,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": "84e6a9cd574102e6c395ac4f9fabd0492110ed6b",
+            "label": "Clean audit remediation",
+            "location": "package.json",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Draft PR #46",
+            "location": "https://github.com/davgor/DarkMechanicus/pull/46",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "epic/board-conversations-sprint-1-final",
+        "changedFiles": [
+          "package.json",
+          "package-lock.json"
+        ],
+        "commits": [
+          "84e6a9cd574102e6c395ac4f9fabd0492110ed6b"
+        ],
+        "summary": "Remediated the PR audit with a clean picomatch 4.0.7 override/lock update at 84e6a9c, but the delegated acceptance worker ran lint before provisioning dependencies, so lint failed because oxlint was unavailable. The failed check was not rerun and remaining Definition of Done checks were skipped. Review also rejected the worker first malformed/churned commit; only the clean replacement was integrated and pushed."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7nw8vxkywad7wpt0d38znye",
+      "state": "rejected",
+      "submittedAt": "2026-11-18T20:30:26.826Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:cbca56a631a456a40fededfd7ac2a8fa4c79e55d70fa0f9911ac0f94dd49dc68",
+      "ticketId": "tk_01m7mn7rjpz1emdpm9qyhs0ncn",
+      "updatedAt": "2026-11-18T20:30:38.196Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "high",
+        "hostId": "omp-codex",
+        "label": "Sprint 1 audit remediation worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Human granted retry and explicitly requested a subagent after repeated recent failures associated with Skitarii; worker must remediate the concrete PR audit failure, distinguish Skitarii orchestration failures from product defects, and run the complete gate once.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-18T23:17:25.836Z",
+      "decidedAt": "2026-11-18T23:26:59.689Z",
+      "decision": {
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Reviewed both attached live-app screenshots; target labels match active and inactive states."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Reviewed portable-state export/import records; card person and agent messages persisted into the fresh database."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Reviewed terminal screenshot; key, reply command, relay instruction, and masked secret are visible."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Reviewed replacement lifecycle records and chronology screenshot; deleted delivery chat was detected and replaced."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Reviewed real reply screenshot and normalized before/after run comparison; execution state and attempts did not change."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "Reviewed chronology screenshot; earlier comments, person delivery label, and agent reply are ordered."
+          },
+          {
+            "criterionId": "c7",
+            "met": true,
+            "note": "Reviewed expanded and collapsed screenshots; live reply is present and graph remains unobscured when collapsed."
+          },
+          {
+            "criterionId": "c8",
+            "met": true,
+            "note": "Reviewed Kanban screenshot; the Play chat reply is shown in the card Conversation."
+          },
+          {
+            "criterionId": "c9",
+            "met": true,
+            "note": "Reviewed Agents screenshot; Board conversation label, epic context, and unbind confirmation are visible."
+          }
+        ],
+        "decidedBy": "dm CLI",
+        "notes": "Accepted after reviewing all attached live evidence, the exact one-pass coverage result, green draft PR #48 jobs on candidate 84e6a9c, and the server-validated squashed increment cef5ae49. No failed check was rerun; PR remains draft and unmerged.",
+        "outcome": "accepted",
+        "reasons": [],
+        "requiredChecks": [
+          "lint",
+          "typecheck",
+          "test",
+          "coverage",
+          "deadcode",
+          "build"
+        ]
+      },
+      "evidence": {
+        "attachments": [
+          {
+            "bytes": 188367,
+            "height": 1080,
+            "id": "im_01m7p83b021b73gdzkemsakaqb",
+            "label": "Running ticket agent target",
+            "mime": "image/png",
+            "purpose": "evidence",
+            "sha256": "c3743e962732888e36f5171c2fa51950658e3b17f4dcc4a23ad97b3efb7c9160",
+            "width": 1920
+          },
+          {
+            "bytes": 159685,
+            "height": 1080,
+            "id": "im_01m7p83cb6sv1hda143rn7p1ft",
+            "label": "Saved epic no active agent",
+            "mime": "image/png",
+            "purpose": "evidence",
+            "sha256": "647645c81bed872b49b21e661aa3ed8d2af64be41f232ed02550bd9315b37da2",
+            "width": 1920
+          },
+          {
+            "bytes": 155325,
+            "height": 1080,
+            "id": "im_01m7p83dprfvmxh1nrnas04gy1",
+            "label": "Relayed masked ticket message",
+            "mime": "image/png",
+            "purpose": "evidence",
+            "sha256": "90112251e6ecd03c5c8c1d606ccc6ea1e2fe66cd8649c8b71c97aa4091528138",
+            "width": 1920
+          },
+          {
+            "bytes": 204333,
+            "height": 1080,
+            "id": "im_01m7p83f2235c8sv3zcnx4mfx9",
+            "label": "Fresh chat reply and ticket chronology",
+            "mime": "image/png",
+            "purpose": "evidence",
+            "sha256": "a8bf96474b50f66217f9383974e4f08af1ad0c038fd4c8823aae672ff8ffac52",
+            "width": 1920
+          },
+          {
+            "bytes": 162093,
+            "height": 1080,
+            "id": "im_01m7p83gdqsqf7f01v7zs2c3x5",
+            "label": "Expanded orchestrator messages",
+            "mime": "image/png",
+            "purpose": "evidence",
+            "sha256": "c578f72d0be04cb17a0b3ecd7c3cb128ebcba5421f6cbf7b7b8e75cc0e768b1a",
+            "width": 1920
+          },
+          {
+            "bytes": 160230,
+            "height": 1080,
+            "id": "im_01m7p83hsj9av1zrykmz14c221",
+            "label": "Collapsed unobscured graph",
+            "mime": "image/png",
+            "purpose": "evidence",
+            "sha256": "0c71739cb0f9f9275b2cf28dea9bf46bb23e0cc7f4a57c7ad500c310191fb2ac",
+            "width": 1920
+          },
+          {
+            "bytes": 99940,
+            "height": 1080,
+            "id": "im_01m7p83kbnw98deys2tt8wrz44",
+            "label": "Kanban Play chat reply",
+            "mime": "image/png",
+            "purpose": "evidence",
+            "sha256": "944f9335ea61e1b4bd64cba2bdaa167179f933a337c4558587371c0471f5e8b9",
+            "width": 1920
+          },
+          {
+            "bytes": 88391,
+            "height": 1080,
+            "id": "im_01m7p83mqgwg3zp6ev2gv53fyv",
+            "label": "Board conversation unbind confirmation",
+            "mime": "image/png",
+            "purpose": "evidence",
+            "sha256": "a7198658e11b31a9de3cd1d9d8ed1d0471d12ee8c72ea21b806560c41556d6eb",
+            "width": 1920
+          }
+        ],
+        "checks": [
+          {
+            "detail": "Draft PR #48 lint job completed SUCCESS on candidate 84e6a9c. https://github.com/davgor/DarkMechanicus/pull/48/checks",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "Draft PR #48 build job completed SUCCESS on candidate 84e6a9c; the repository build job runs the strict TypeScript project checks before electron-vite production output.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Draft PR #48 main Vitest shards 1/2, Fireguard Vitest shards 1/2, aggregate test, Fireguard grading shards 1/2, and aggregate Fireguard jobs all completed SUCCESS on candidate 84e6a9c.",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "Delegated FinalCoverage worker ran npm run coverage exactly once on clean candidate 84e6a9c with Node 24. Exit 0; statements 97.42% (25345/26016), branches 95.07% (15470/16271), functions 96.60% (8276/8567), lines 97.67% (23271/23824). All configured thresholds passed; worktree remained clean.",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "Draft PR #48 deadcode job completed SUCCESS on candidate 84e6a9c.",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "Draft PR #48 build job completed SUCCESS on candidate 84e6a9c.",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Reviewed both attached live-app screenshots; target labels match active and inactive states."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Reviewed portable-state export/import records; card person and agent messages persisted into the fresh database."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Reviewed terminal screenshot; key, reply command, relay instruction, and masked secret are visible."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Reviewed replacement lifecycle records and chronology screenshot; deleted delivery chat was detected and replaced."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Reviewed real reply screenshot and normalized before/after run comparison; execution state and attempts did not change."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "Reviewed chronology screenshot; earlier comments, person delivery label, and agent reply are ordered."
+          },
+          {
+            "criterionId": "c7",
+            "met": true,
+            "note": "Reviewed expanded and collapsed screenshots; live reply is present and graph remains unobscured when collapsed."
+          },
+          {
+            "criterionId": "c8",
+            "met": true,
+            "note": "Reviewed Kanban screenshot; the Play chat reply is shown in the card Conversation."
+          },
+          {
+            "criterionId": "c9",
+            "met": true,
+            "note": "Reviewed Agents screenshot; Board conversation label, epic context, and unbind confirmation are visible."
+          }
+        ],
+        "notes": "The product candidate was unchanged after PR #48 and coverage. PR #48 remains draft and was not merged into main. Acceptance failure analysis: prior attempts exposed environment classification and worker-provisioning/artifact-quality defects rather than product behavior failures; this attempt constrained delegation to one preflighted, read-only verification command and completed without retry."
+      },
+      "failure": null,
+      "fencingToken": 9,
+      "id": "at_01m7rf6spcm3yezne3s7pkpebv",
+      "increment": {
+        "base": {
+          "commit": "9c4705d97dde028c0ce18295a69803d83cfc37cb",
+          "kind": "epic_start"
+        },
+        "branch": "epic/board-conversations",
+        "checks": [
+          {
+            "detail": "Names the epic branch epic/board-conversations.",
+            "name": "Epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit cef5ae4 exists.",
+            "name": "Commit exists",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit cef5ae4 has one parent, 9c4705d.",
+            "name": "One parent",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit cef5ae4 is reachable from epic/board-conversations.",
+            "name": "On the epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit cef5ae4 comes after the epic's start commit 9c4705d.",
+            "name": "After the base commit",
+            "status": "passed"
+          },
+          {
+            "detail": "None of the 10 commits recorded by this sprint's accepted work is reachable from epic/board-conversations.",
+            "name": "Squashed, not merged",
+            "status": "passed"
+          }
+        ],
+        "commit": "cef5ae49a86c3c7bceff04d6a298b0b00293935e",
+        "parent": "9c4705d97dde028c0ce18295a69803d83cfc37cb",
+        "passed": true,
+        "reasons": [],
+        "verifiedAt": "2026-11-18T23:26:41.675Z"
+      },
+      "kind": "work",
+      "number": 9,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": "84e6a9cd574102e6c395ac4f9fabd0492110ed6b",
+            "label": "Green draft PR checks",
+            "location": "https://github.com/davgor/DarkMechanicus/pull/48/checks",
+            "remoteOnly": true
+          },
+          {
+            "hash": "cef5ae49a86c3c7bceff04d6a298b0b00293935e",
+            "label": "Squashed Sprint 1 increment",
+            "location": "https://github.com/davgor/DarkMechanicus/commit/cef5ae49a86c3c7bceff04d6a298b0b00293935e",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "epic/board-conversations",
+        "changedFiles": [
+          ".tsprune-ignore",
+          "docs/design/chat-shells.md",
+          "package-lock.json",
+          "package.json",
+          "skills/collaboration.md",
+          "skills/orchestrator.md",
+          "skills/worker.md",
+          "src/core/commandSchemas.ts",
+          "src/core/commands/capabilities.test.ts",
+          "src/core/commands/capabilities.ts",
+          "src/core/commands/kanban.test.ts",
+          "src/core/commands/kanban.ts",
+          "src/core/commands/kanbanRecords.test.ts",
+          "src/core/db/migrations.test.ts",
+          "src/core/db/migrations.ts",
+          "src/core/repo/attachmentFiles.ts",
+          "src/core/repo/finalizer.ts",
+          "src/core/repo/kanbanImport.ts",
+          "src/core/repo/portable.ts",
+          "src/core/services/attachmentOwners.ts",
+          "src/core/services/attachments.ts",
+          "src/core/services/kanban/cards.ts",
+          "src/core/services/kanban/deletion.ts",
+          "src/core/version.ts",
+          "src/main/agents/chatHandlers.test.ts",
+          "src/main/agents/chatHandlers.ts",
+          "src/main/agents/chatIpc.test.ts",
+          "src/main/agents/chatIpc.ts",
+          "src/main/agents/chatRecords.ts",
+          "src/main/agents/chatStore.test.ts",
+          "src/main/agents/chatStore.ts",
+          "src/main/agents/conversationDeliveries.test.ts",
+          "src/main/agents/conversationDeliveries.ts",
+          "src/main/agents/conversationMessage.test.ts",
+          "src/main/agents/conversationMessage.ts",
+          "src/main/agents/conversationTarget.test.ts",
+          "src/main/agents/conversationTarget.ts",
+          "src/main/desktop/bootstrap.ts",
+          "src/main/desktop/handlers.test.ts",
+          "src/main/git/conflicts.ts",
+          "src/main/git/conflictsOpen.test.ts",
+          "src/main/terminals/terminalFiles.test.ts",
+          "src/main/terminals/terminalFiles.ts",
+          "src/main/terminals/terminalLaunchSpec.ts",
+          "src/main/terminals/terminalSessions.lifecycle.test.ts",
+          "src/main/terminals/terminalSessions.ts",
+          "src/mcp/roles.test.ts",
+          "src/mcp/server.test.ts",
+          "src/mcp/tools/chatNaming.test.ts",
+          "src/mcp/tools/kanban.test.ts",
+          "src/mcp/tools/kanban.ts",
+          "src/preload/index.test.ts",
+          "src/preload/index.ts",
+          "src/renderer/src/__mocks__/fakeChats.ts",
+          "src/renderer/src/__mocks__/idleChats.ts",
+          "src/renderer/src/agents/ChatDialogs.tsx",
+          "src/renderer/src/conversation/ConversationPanel.test.tsx",
+          "src/renderer/src/conversation/ConversationPanel.tsx",
+          "src/renderer/src/conversation/conversation.css",
+          "src/renderer/src/conversation/conversationView.test.ts",
+          "src/renderer/src/conversation/conversationView.ts",
+          "src/renderer/src/epic/EpicWorkspace.tsx",
+          "src/renderer/src/epic/OrchestratorFeed.thread.test.tsx",
+          "src/renderer/src/epic/OrchestratorMessages.test.tsx",
+          "src/renderer/src/epic/OrchestratorMessages.tsx",
+          "src/renderer/src/epic/__mocks__/fakeBackend.ts",
+          "src/renderer/src/epic/__mocks__/fixtures.ts",
+          "src/renderer/src/epic/epic.css",
+          "src/renderer/src/kanban/KanbanCardPanel.states.test.tsx",
+          "src/renderer/src/kanban/KanbanCardPanel.test.tsx",
+          "src/renderer/src/kanban/KanbanCardPanel.tsx",
+          "src/renderer/src/sidebar/AgentsBlock.test.tsx",
+          "src/renderer/src/sidebar/AgentsBlock.tsx",
+          "src/renderer/src/sidebar/AgentsSection.test.tsx",
+          "src/renderer/src/sidebar/AgentsSection.tsx",
+          "src/renderer/src/sidebar/ChatRow.tsx",
+          "src/renderer/src/sidebar/FolderRow.tsx",
+          "src/renderer/src/sidebar/Sidebar.tsx",
+          "src/renderer/src/ticket/CommentsTab.test.tsx",
+          "src/renderer/src/ticket/CommentsTab.tsx",
+          "src/renderer/src/ticket/TicketPanel.test.tsx",
+          "src/renderer/src/ticket/TicketPanel.tsx",
+          "src/renderer/src/ticket/commentsView.test.ts",
+          "src/renderer/src/ticket/commentsView.ts",
+          "src/renderer/src/ticket/ticket.css",
+          "src/shared/agents/chat.ts",
+          "src/shared/agents/chatApi.ts",
+          "src/shared/desktop/api.ts",
+          "src/shared/domain/api.ts",
+          "src/shared/domain/kanban.ts",
+          "src/shared/domain/views.ts",
+          "src/test/stubApi.ts",
+          "src/test/symlinks.test.ts",
+          "src/test/symlinks.ts",
+          "vitest.config.ts"
+        ],
+        "commits": [
+          "cef5ae49a86c3c7bceff04d6a298b0b00293935e"
+        ],
+        "summary": "Accepted Sprint 1 candidate 84e6a9c was landed as one squashed commit cef5ae49 on the epic branch. Draft PR #48 passed every CI job, including lint, build/typecheck, full main and Fireguard test shards, Fireguard grading, deadcode, and npm audit. The delegated final worker ran the only missing Definition of Done check, coverage, exactly once on the same clean candidate; it passed all thresholds. Existing live-app evidence covers all nine revised acceptance criteria."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7nw8vxkywad7wpt0d38znye",
+      "state": "accepted",
+      "submittedAt": "2026-11-18T23:26:42.062Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:cbca56a631a456a40fededfd7ac2a8fa4c79e55d70fa0f9911ac0f94dd49dc68",
+      "ticketId": "tk_01m7mn7rjpz1emdpm9qyhs0ncn",
+      "updatedAt": "2026-11-18T23:26:59.689Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "high",
+        "hostId": "omp-codex",
+        "label": "Sprint 1 final coverage worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Human granted retry after repaired draft PR #48 passed every CI check. The only unobserved Definition of Done item is coverage; worker will run that exact check in the already-provisioned integration worktree and inspect candidate identity, with no edits.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-18T23:31:16.046Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": {
+        "details": "Focused tests passed: 2 files, 66 tests. The subsequent npm run lint and npm run typecheck invocations each exited 1 before running their scripts because Node interpreted the MSYS /c/npm-cli.js argument as C:\\c\\... and could not find the module. Per the no-rerun rule, I did not retry either check. Worktree C:/Users/davgo/OneDrive/Documents/Github/DarkMechanicus-worktrees/dm-710 remains on work/dm-710 with uncommitted changes in src/main/agents/chatHandlers.ts, src/main/agents/chatHandlers.test.ts, and src/main/terminals/terminalSessions.transfer.test.ts.",
+        "reason": "Required lint and typecheck checks failed to launch.",
+        "retryable": true
+      },
+      "fencingToken": 1,
+      "id": "at_01m7rg04eeck3cn366g6sj21n7",
+      "kind": "work",
+      "number": 1,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m7nw8vxkywad7wpt0d38znye",
+      "state": "failed",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:4ebe46d25ea5537a8e7b2426ed893b2be94da05e1712725ef26213733805f691",
+      "ticketId": "tk_01m7nt7jhjz2td4148t4s2cvee",
+      "updatedAt": "2026-11-18T23:36:59.344Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "medium",
+        "hostId": "omp-codex",
+        "label": "DM-710 worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Recommended by match_capabilities. Small TypeScript/Electron persistence change with duplicate-submission risk requires focused tests first and medium reasoning.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-18T23:37:41.334Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": {
+        "details": "Reviewed the existing 3-file diff and confirmed the persisted freshKickoff is the same value passed to terminal start; the handler regression includes the specific ticket history and the terminal regression proves one submission with no attach/restart replay. Focused tests passed: 2 files, 66 tests. npm run lint then failed once at src/main/agents/chatHandlers.test.ts:843:1 because conversationChats is 51 lines and max-lines-per-function permits 50. Per the retry packet, I did not rerun lint, did not run typecheck, and did not commit. The 3-file patch remains uncommitted on work/dm-710.",
+        "reason": "Required lint check failed.",
+        "retryable": true
+      },
+      "fencingToken": 2,
+      "id": "at_01m7rgbwpp5z47wrk8ar6aa7tr",
+      "kind": "work",
+      "number": 2,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m7nw8vxkywad7wpt0d38znye",
+      "state": "failed",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:4ebe46d25ea5537a8e7b2426ed893b2be94da05e1712725ef26213733805f691",
+      "ticketId": "tk_01m7nt7jhjz2td4148t4s2cvee",
+      "updatedAt": "2026-11-18T23:42:07.385Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "high",
+        "hostId": "omp-codex",
+        "label": "DM-710 retry worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Recommended after attempt 1 failed before lint/typecheck execution due MSYS path conversion. Reuse its focused-test-passing partial branch, validate the diff, invoke npm through the known-good cmd.exe/Node 24 environment, and commit only if all required checks pass.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-18T23:42:45.002Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": {
+        "details": "Focused Vitest passed 2 files / 66 tests. Lint then failed once at src/main/agents/chatHandlers.test.ts:843 because conversationChats remains 51 lines against the 50-line maximum. Typecheck was correctly not run and lint was not rerun. The worker misunderstood the requested two-line-to-one-line declaration consolidation and did not apply it; patch remains uncommitted on work/dm-710.",
+        "reason": "required_check_failed",
+        "retryable": true
+      },
+      "fencingToken": 3,
+      "id": "at_01m7rgn58aqd33fbr6k74xet6y",
+      "kind": "work",
+      "number": 3,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m7nw8vxkywad7wpt0d38znye",
+      "state": "failed",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:4ebe46d25ea5537a8e7b2426ed893b2be94da05e1712725ef26213733805f691",
+      "ticketId": "tk_01m7nt7jhjz2td4148t4s2cvee",
+      "updatedAt": "2026-11-18T23:44:31.522Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "high",
+        "hostId": "omp-codex",
+        "label": "DM-710 lint correction worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Recommended after attempt 2 exposed a deterministic lint violation: test helper conversationChats grew from 50 to 51 lines. Correct that structural issue in the preserved patch, then run the required checks once with the proven Windows commands.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-18T23:54:41.910Z",
+      "decidedAt": "2026-11-19T00:01:37.733Z",
+      "decision": {
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Reviewed chatHandlers diff and focused test: freshKickoff is built before createChat, persisted as firstPrompt, and the replacement test proves both earlier and current ticket messages are present."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Reviewed terminal regression: initial start writes the persisted prompt once and marks delivery submitted; attach and later start produce no additional prompt write. Existing focused tests pass."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Worker ran focused tests (2 files/66 tests), lint, and typecheck exactly once on the final committed patch; all passed."
+          }
+        ],
+        "decidedBy": "dm CLI",
+        "notes": "Accepted commit 641ff5e2 after diff review. Three scoped files only; no unrelated refactor and no failed check rerun in this attempt.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Node 24 Vitest run of src/main/agents/chatHandlers.test.ts and src/main/terminals/terminalSessions.transfer.test.ts passed: 2 files, 66 tests.",
+            "name": "focused tests",
+            "status": "passed"
+          },
+          {
+            "detail": "Passed exactly once after consolidating the test-helper declarations to remain within max-lines-per-function.",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "Passed exactly once through the proven Windows cmd.exe/Node 24 environment.",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Left to the Sprint 2 acceptance node.",
+            "name": "npm test",
+            "status": "skipped"
+          },
+          {
+            "detail": "Left to the Sprint 2 acceptance node.",
+            "name": "npm run coverage",
+            "status": "skipped"
+          },
+          {
+            "detail": "Left to the Sprint 2 acceptance node.",
+            "name": "npm run deadcode",
+            "status": "skipped"
+          },
+          {
+            "detail": "Left to the Sprint 2 acceptance node.",
+            "name": "npm run build",
+            "status": "skipped"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Reviewed chatHandlers diff and focused test: freshKickoff is built before createChat, persisted as firstPrompt, and the replacement test proves both earlier and current ticket messages are present."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Reviewed terminal regression: initial start writes the persisted prompt once and marks delivery submitted; attach and later start produce no additional prompt write. Existing focused tests pass."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Worker ran focused tests (2 files/66 tests), lint, and typecheck exactly once on the final committed patch; all passed."
+          }
+        ],
+        "notes": "Attempts 1-3 were infrastructure/coordination failures rather than product regressions: MSYS npm launch, then deterministic max-lines lint, then a worker misunderstanding the specified correction. Attempt 4 applied the literal correction and passed every ticket-required check without reruns."
+      },
+      "failure": null,
+      "fencingToken": 4,
+      "id": "at_01m7rhb1bp7h473repah98hg9s",
+      "kind": "work",
+      "number": 4,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": null,
+            "label": "Persisted conversation kickoff implementation",
+            "location": "src/main/agents/chatHandlers.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Focused chat-handler regression",
+            "location": "src/main/agents/chatHandlers.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "label": "Exactly-once terminal regression",
+            "location": "src/main/terminals/terminalSessions.transfer.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "branch": "work/dm-710",
+        "changedFiles": [
+          "src/main/agents/chatHandlers.test.ts",
+          "src/main/agents/chatHandlers.ts",
+          "src/main/terminals/terminalSessions.transfer.test.ts"
+        ],
+        "commits": [
+          "641ff5e2fa442e4a80340e6bb705ad00f4f8a3ea"
+        ],
+        "summary": "Persisted the generated fresh board-conversation kickoff as the replacement chat's original first prompt before terminal start. Added focused coverage proving specific ticket history is retained, the same kickoff is submitted exactly once, reattachment does not paste again, and subsequent starts remain empty. The helper lint correction preserves behavior."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7nw8vxkywad7wpt0d38znye",
+      "state": "accepted",
+      "submittedAt": "2026-11-19T00:01:25.990Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:4ebe46d25ea5537a8e7b2426ed893b2be94da05e1712725ef26213733805f691",
+      "ticketId": "tk_01m7nt7jhjz2td4148t4s2cvee",
+      "updatedAt": "2026-11-19T00:01:37.733Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "high",
+        "hostId": "omp-codex",
+        "label": "DM-710 granted retry worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Human granted retry after attempt 3 worker failed to apply the specified lint correction. The implementation is focused-test green; this attempt performs the exact two-line-to-one-line declaration replacement, then runs the three required checks once with proven commands.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-19T00:03:27.984Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": {
+        "details": "Candidate 641ff5e2 was clean. UI harness exited 1 before mutation because it incorrectly required a chat binding containing both epicId and ticketId; ticket conversations are bound by epicId, so no match was found. No PNG/JSON/attachment was produced; cleanup exited 0. Coverage was started once but the assigned cmd form opened an interactive prompt and never invoked npm; it was stopped after 5m50s, produced no percentages, and was not rerun.",
+        "reason": "acceptance_environment_failed",
+        "retryable": true
+      },
+      "fencingToken": 1,
+      "id": "at_01m7rhv33gsd98z652nc2cmhre",
+      "kind": "work",
+      "number": 1,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m7nw8vxkywad7wpt0d38znye",
+      "state": "failed",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:34b73f1accc3b11d37d65a40aedc80704aee8604e203a3230b0990178037a21b",
+      "ticketId": "tk_01m7nt7jfxp7n85egzvezd93e2",
+      "updatedAt": "2026-11-19T00:10:56.806Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "medium",
+        "hostId": "omp-codex",
+        "label": "Sprint 2 acceptance worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Recommended by match_capabilities. Verify the single live-app screenshot criterion on combined candidate 641ff5e2 while draft PR #49 runs the stable Windows CI matrix; run only missing coverage locally and report exact evidence.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-19T00:11:30.507Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": {
+        "details": "Claim expired during the user pause. Worker was stopped; before receiving the stop it corrected only the temp harness predicates and started coverage once. Coverage failed immediately because npm scripts could not resolve node on PATH. No UI run, screenshot, attachment, repository change, or submission occurred.",
+        "reason": "lease expired",
+        "retryable": true
+      },
+      "fencingToken": 2,
+      "id": "at_01m7rj9tab7z8eghscadz3jjg3",
+      "kind": "work",
+      "number": 2,
+      "outputs": null,
+      "reconciledAt": "2026-11-19T03:06:01.201Z",
+      "revisionId": "rv_01m7nw8vxkywad7wpt0d38znye",
+      "state": "lease_expired",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:34b73f1accc3b11d37d65a40aedc80704aee8604e203a3230b0990178037a21b",
+      "ticketId": "tk_01m7nt7jfxp7n85egzvezd93e2",
+      "updatedAt": "2026-11-19T03:06:01.201Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "high",
+        "hostId": "omp-codex",
+        "label": "Sprint 2 acceptance retry worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Recommended after attempt 1 failed before behavior verification due two diagnosed harness invocation defects. Draft PR #49 is fully green. Correct only the conversation binding predicate and invoke coverage directly through Node/npm-cli, then capture the required disclosure screenshot.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-19T03:06:35.928Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": null,
+      "fencingToken": 3,
+      "id": "at_01m7rwadgrgtng0ywa7jkymekx",
+      "kind": "work",
+      "number": 3,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m7nw8vxkywad7wpt0d38znye",
+      "state": "running",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:34b73f1accc3b11d37d65a40aedc80704aee8604e203a3230b0990178037a21b",
+      "ticketId": "tk_01m7nt7jfxp7n85egzvezd93e2",
+      "updatedAt": "2026-11-19T03:06:59.298Z",
+      "worker": {
+        "catalogRevision": "2026-11-17.1",
+        "effort": "high",
+        "hostId": "omp-codex",
+        "label": "Sprint 2 final acceptance worker",
+        "modelId": "openai-codex/gpt-5.6-sol",
+        "rationale": "Final retry after an expired claim and an immediate coverage child-PATH failure. Harness predicates are now corrected, draft PR #49 is fully green, and the exact Windows PATH/Node/npm-cli coverage launcher was preflighted by spawning child node v24.22.3 successfully.",
+        "sessionId": null
+      }
+    }
+  ],
+  "checkpoints": [
+    {
+      "decidedAt": "2026-11-18T23:29:47.995Z",
+      "decidedBy": "ss_01m7rf4d0tr26v5zwm7gkv23m9",
+      "id": "ck_01m7rfxeevwaz5yne9fkb3am1s",
+      "outcome": "advanced",
+      "policy": "human",
+      "reportId": "rp_01m7rftrmy7a4ma7twajnjsk2s",
+      "sprintId": "sp_01m7mn7rjp1cqryb7szb57rwca"
+    }
+  ],
+  "createdAt": "2026-11-17T14:03:41.313Z",
+  "endedAt": null,
+  "epicId": "ep_01m7mn7rjn5wx5cx7a8g3pt8h0",
+  "format": "darkmechanicus.run",
+  "formatVersion": 1,
+  "host": {
+    "label": "omp",
+    "type": "omp"
+  },
+  "hostCatalogId": "hc_01m7mvxdbv07sc3eqx8qfhfry7",
+  "number": 2,
+  "ownerMachineId": "mc_01m7gdjzvswj7rwweky9e5fxpe",
+  "pauseReason": null,
+  "reports": [
+    {
+      "content": {
+        "accepted": [
+          "DM-691 through DM-699 accepted and integrated at 83c506d9b152bfc63e9d38ce73a62e4fdf2e72d2."
+        ],
+        "blocked": [
+          "Sprint increment is not landed while DM-689 is rejected at its retry limit."
+        ],
+        "changes": {
+          "commits": [],
+          "files": []
+        },
+        "checks": [
+          {
+            "detail": "Exit 0 on combined candidate.",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "Exit 0 on combined candidate.",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "648 files passed, 2 skipped; 11176 tests passed, 61 skipped.",
+            "name": "npm test",
+            "status": "passed"
+          },
+          {
+            "detail": "Statements 97.42%, branches 95.08%, functions 96.6%, lines 97.67%.",
+            "name": "npm run coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "No new dead exports.",
+            "name": "npm run deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "Exit 0 on combined candidate.",
+            "name": "npm run build",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": {
+          "successCriteria": [
+            {
+              "criterionId": "s1",
+              "met": true,
+              "note": "Orchestrator messages reached the live orchestrator and its reply appeared."
+            },
+            {
+              "criterionId": "s2",
+              "met": true,
+              "note": "Ticket Conversation delivered ticket key, add_comment, relay instruction, and showed the reply."
+            },
+            {
+              "criterionId": "s3",
+              "met": true,
+              "note": "Fresh bound chat opened from the board, appeared under Agents, answered, and left run/attempt state unchanged."
+            },
+            {
+              "criterionId": "s4",
+              "met": false,
+              "note": "Deletion and rebinding occurred, but the new chat terminal reattached blank; no screenshot proves its kickoff contains the ticket earlier conversation."
+            },
+            {
+              "criterionId": "s5",
+              "met": true,
+              "note": "Card Play chat showed the agent reply and portable fresh import retained both card messages."
+            },
+            {
+              "criterionId": "s6",
+              "met": true,
+              "note": "Delivery labels and unchanged comment chronology were visibly verified."
+            }
+          ],
+          "summary": "Five of six epic success criteria are verified. s4 is unmet because the replacement chat kickoff is not retained or visibly rendered after reattachment."
+        },
+        "exitCriteria": [
+          {
+            "criterionId": "x1",
+            "met": true,
+            "note": "Epic, ticket, and card surfaces routed to the expected chat and showed agent replies."
+          },
+          {
+            "criterionId": "x2",
+            "met": true,
+            "note": "Fresh bound chat opened without run or claim changes, appeared under Agents, answered, and deletion unbound it."
+          },
+          {
+            "criterionId": "x3",
+            "met": true,
+            "note": "Conversation surfaces visibly reported delivery/opened states and failures include reasons."
+          },
+          {
+            "criterionId": "x4",
+            "met": true,
+            "note": "All six Definition of Done checks passed once on the combined candidate."
+          }
+        ],
+        "failed": [
+          "DM-689 acceptance rejected after five attempts: c4 has no legible kickoff-history screenshot because the replacement chat reattaches to a blank terminal."
+        ],
+        "followUps": [
+          {
+            "body": "Store the generated freshKickoff as the chat original first prompt, render it through the existing prompt disclosure after reattachment, and verify the replacement chat visibly contains the specific ticket earlier conversation without sending duplicate prompts.",
+            "title": "Persist and expose fresh conversation kickoff after reattachment"
+          }
+        ],
+        "retro": {
+          "actions": [
+            "Carry the kickoff-retention defect into a new sprint instead of waiving c4 or using a blank screenshot."
+          ],
+          "delivered": [
+            {
+              "demo": "Chat binding and precedence resolution.",
+              "evidence": "Accepted ticket and row-1 check.",
+              "ticket": "tk_01m7mncczbq8fmj1r61c9cnhsw"
+            },
+            {
+              "demo": "Kanban card message persistence and portable round trip.",
+              "evidence": "Accepted ticket plus fresh-import evidence.",
+              "ticket": "tk_01m7mncd2c2x5jxd6tmdwwpy6k"
+            },
+            {
+              "demo": "Board-message builders and local delivery ledger.",
+              "evidence": "Accepted ticket plus masked terminal evidence.",
+              "ticket": "tk_01m7mncd2cjfjqa5sy6t2xedeh"
+            },
+            {
+              "demo": "Board messages route to existing or fresh bound chats.",
+              "evidence": "Accepted ticket; fresh replacement chat created during acceptance.",
+              "ticket": "tk_01m7mncd2cd0fsgazb0cb9kmxr"
+            },
+            {
+              "demo": "Agent answer and relay guidance.",
+              "evidence": "Accepted ticket; live replies verified.",
+              "ticket": "tk_01m7mncd2cemcjde47gbgdvb0g"
+            },
+            {
+              "demo": "Shared Conversation view and ticket thread.",
+              "evidence": "Accepted ticket plus chronology screenshot.",
+              "ticket": "tk_01m7mncd2c8ebqdmed8bwzrws8"
+            },
+            {
+              "demo": "Expandable Orchestrator messages panel.",
+              "evidence": "Accepted ticket plus expanded/collapsed screenshots.",
+              "ticket": "tk_01m7mncd2cwhhjey0agc8bct08"
+            },
+            {
+              "demo": "Kanban card Conversation section.",
+              "evidence": "Accepted ticket plus Play-chat reply screenshot.",
+              "ticket": "tk_01m7mncd2cpa2q02kyvvcvt3cm"
+            },
+            {
+              "demo": "Agents board-binding label and unbind confirmation.",
+              "evidence": "Accepted ticket plus Agents screenshot.",
+              "ticket": "tk_01m7mncd2czavc23jr918eqf7p"
+            }
+          ],
+          "discoveries": [
+            {
+              "body": "The send handler starts a replacement conversation with generated freshKickoff, but the replacement chat does not retain or render that kickoff after reattachment. Persist it as the chat original first prompt, avoid duplicate submission, and prove the specific ticket earlier messages are legible in the replacement chat.",
+              "ticket": "tk_01m7mncd2cd0fsgazb0cb9kmxr",
+              "title": "Persist and expose fresh conversation kickoff after reattachment"
+            }
+          ],
+          "leftovers": [
+            {
+              "reason": "Acceptance c4 is unmet and the node reached its retry limit after five attempts.",
+              "ticket": "tk_01m7mn7rjpz1emdpm9qyhs0ncn"
+            }
+          ],
+          "tierFit": [],
+          "wentPoorly": [
+            "Acceptance needed five attempts due earlier gate and live-evidence defects; the final attempt exposed that kickoff context is ephemeral after chat reattachment."
+          ],
+          "wentWell": [
+            "All implementation tickets accepted; all four row checks passed.",
+            "Combined lint, typecheck, test, coverage, deadcode, and build passed once without reruns."
+          ]
+        },
+        "risks": [
+          "A fresh chat receives the kickoff only at terminal start; after reattachment the board cannot show or prove that initial context, leaving epic success criterion s4 unverified."
+        ],
+        "summary": "All nine implementation tickets are accepted and the combined candidate passes all six Definition of Done checks. Sprint acceptance exhausted five attempts because fresh replacement chats do not retain or render the initial kickoff after reattachment, so the required c4 screenshot of earlier ticket history is impossible and DM-689 remains rejected."
+      },
+      "contentHash": "sha256:d3088fd058c0a64b7838ea6b6897b98304303458b4c8e5d8d6f73378c839edd2",
+      "createdAt": "2026-11-17T22:32:14.786Z",
+      "id": "rp_01m7nt7b62d2kqexretabgzt44",
+      "reportRevision": 1,
+      "sprintId": "sp_01m7mn7rjp1cqryb7szb57rwca",
+      "submittedBy": "dm CLI"
+    },
+    {
+      "content": {
+        "accepted": [
+          "DM-691 through DM-699: all implementation tickets accepted and integrated.",
+          "DM-689: revised Sprint 1 acceptance accepted with all nine criteria met, eight attached live-app screenshots, portable-state/lifecycle evidence, and a server-validated increment.",
+          "Sprint increment cef5ae49a86c3c7bceff04d6a298b0b00293935e pushed to epic/board-conversations."
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "cef5ae49a86c3c7bceff04d6a298b0b00293935e"
+          ],
+          "files": [
+            "src/main/agents/conversationTarget.ts",
+            "src/main/agents/conversationMessage.ts",
+            "src/main/agents/conversationDeliveries.ts",
+            "src/main/agents/chatHandlers.ts",
+            "src/renderer/src/conversation/ConversationPanel.tsx",
+            "src/renderer/src/epic/OrchestratorMessages.tsx",
+            "src/renderer/src/kanban/KanbanCardPanel.tsx",
+            "src/renderer/src/ticket/TicketPanel.tsx",
+            "src/core/services/kanban/cards.ts",
+            "src/core/repo/portable.ts",
+            "skills/collaboration.md",
+            "skills/orchestrator.md",
+            "skills/worker.md"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "Draft PR #48 lint job succeeded on candidate 84e6a9c.",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "Draft PR #48 build/typecheck job succeeded on candidate 84e6a9c.",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Draft PR #48 main and Fireguard Vitest shards, aggregate test, and Fireguard grading all succeeded on candidate 84e6a9c.",
+            "name": "npm test",
+            "status": "passed"
+          },
+          {
+            "detail": "One local run on clean candidate 84e6a9c: statements 97.42%, branches 95.07%, functions 96.60%, lines 97.67%; all thresholds passed.",
+            "name": "npm run coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "Draft PR #48 deadcode job succeeded on candidate 84e6a9c.",
+            "name": "npm run deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "Draft PR #48 production build succeeded on candidate 84e6a9c.",
+            "name": "npm run build",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": null,
+        "exitCriteria": [
+          {
+            "criterionId": "x1",
+            "met": true,
+            "note": "Live epic, ticket, and card surfaces routed to the expected chats and showed agent replies."
+          },
+          {
+            "criterionId": "x2",
+            "met": true,
+            "note": "A fresh bound chat opened without run or attempt changes, appeared under Agents, answered, and deletion unbound it."
+          },
+          {
+            "criterionId": "x3",
+            "met": true,
+            "note": "Conversation surfaces visibly reported delivery/opened states; replacement lifecycle evidence records deleted and new chat identities."
+          },
+          {
+            "criterionId": "x4",
+            "met": true,
+            "note": "All six Definition of Done checks passed on candidate 84e6a9c; the server validated squashed increment cef5ae49."
+          }
+        ],
+        "failed": [],
+        "followUps": [],
+        "retro": {
+          "actions": [
+            "For delegated verification, preflight exact candidate SHA, clean status, Node/runtime, dependency availability, and command environment before dispatch; forbid installation or unrelated checks.",
+            "For delegated edits, require line-ending preservation and parse/type validation of changed manifests before review or commit.",
+            "For acceptance, establish one evidence ledger up front: use immutable CI jobs for checks they cover, run each missing check once, and never rerun failures.",
+            "Keep Sprint 2 scoped to retained kickoff visibility and duplicate-submission prevention; do not reopen accepted Sprint 1 behavior."
+          ],
+          "delivered": [
+            {
+              "demo": "Chat binding and precedence resolution.",
+              "evidence": "Accepted DM-691 and row-1 check.",
+              "ticket": "tk_01m7mncczbq8fmj1r61c9cnhsw"
+            },
+            {
+              "demo": "Kanban card message persistence and portable round trip.",
+              "evidence": "Accepted DM-692 plus fresh-import records.",
+              "ticket": "tk_01m7mncd2c2x5jxd6tmdwwpy6k"
+            },
+            {
+              "demo": "Masked board-message builders and delivery ledger.",
+              "evidence": "Accepted DM-693 plus terminal screenshot.",
+              "ticket": "tk_01m7mncd2cjfjqa5sy6t2xedeh"
+            },
+            {
+              "demo": "Existing/fresh chat routing and replacement lifecycle.",
+              "evidence": "Accepted DM-694 plus live replacement records.",
+              "ticket": "tk_01m7mncd2cd0fsgazb0cb9kmxr"
+            },
+            {
+              "demo": "Agent answer and relay policy.",
+              "evidence": "Accepted DM-695 plus live replies.",
+              "ticket": "tk_01m7mncd2cemcjde47gbgdvb0g"
+            },
+            {
+              "demo": "Shared Conversation view and ticket chronology.",
+              "evidence": "Accepted DM-696 plus chronology screenshot.",
+              "ticket": "tk_01m7mncd2c8ebqdmed8bwzrws8"
+            },
+            {
+              "demo": "Expandable Orchestrator messages panel.",
+              "evidence": "Accepted DM-697 plus expanded/collapsed screenshots.",
+              "ticket": "tk_01m7mncd2cwhhjey0agc8bct08"
+            },
+            {
+              "demo": "Kanban card Conversation section.",
+              "evidence": "Accepted DM-698 plus Play-chat screenshot.",
+              "ticket": "tk_01m7mncd2cpa2q02kyvvcvt3cm"
+            },
+            {
+              "demo": "Agents board-binding label and unbind confirmation.",
+              "evidence": "Accepted DM-699 plus Agents screenshot.",
+              "ticket": "tk_01m7mncd2czavc23jr918eqf7p"
+            },
+            {
+              "demo": "Full live acceptance and squashed sprint increment.",
+              "evidence": "Accepted DM-689 attempt 9, green draft PR #48, one-pass coverage, and validated increment cef5ae49.",
+              "ticket": "tk_01m7mn7rjpz1emdpm9qyhs0ncn"
+            }
+          ],
+          "discoveries": [],
+          "leftovers": [],
+          "tierFit": [],
+          "wentPoorly": [
+            "DM-689 required nine attempts. Failures mixed evidence gaps, a local shell falsely setting CI and forcing the Windows symlink test, an external picomatch audit finding, and delegated-worker setup/artifact defects.",
+            "The audit-remediation delegate initially produced malformed package.json and whole-lockfile line-ending churn after running without a validated workspace. This failure pattern is consistent with the recent Skitarii reliability concern, although other acceptance failures had independent causes.",
+            "Several attempts spent time reproving already-green behavior instead of separating product evidence, CI evidence, and the one remaining local check."
+          ],
+          "wentWell": [
+            "All nine implementation tickets, all four integration row checks, and final acceptance passed.",
+            "Draft PR #48 gave stable Windows CI evidence across lint, build/typecheck, unit/Fireguard shards, Fireguard grading, deadcode, and audit.",
+            "The final delegated coverage check used a preflighted clean worktree, ran exactly once, passed every threshold, and produced no changes."
+          ]
+        },
+        "risks": [
+          "Sprint 2 still owns visible retention of the original kickoff after replacement-chat reattachment; Sprint 1 intentionally verifies replacement lifecycle state rather than that retained prompt."
+        ],
+        "summary": "Sprint 1 is accepted and landed. Epic, ticket, and Kanban card conversations route to their live agent chats; replies persist and render on the board; chat bindings survive portable-state round trips and deletion/rebinding. All nine implementation tickets and DM-689 acceptance are accepted. The sprint is one squashed commit, cef5ae49, on epic/board-conversations."
+      },
+      "contentHash": "sha256:5e37d207e72034661a345f9932a9d431adb3cf9b48775dd915a5c08a5a4138a6",
+      "createdAt": "2026-11-18T23:28:20.126Z",
+      "id": "rp_01m7rftrmy7a4ma7twajnjsk2s",
+      "reportRevision": 2,
+      "scorecard": {
+        "snapshotHash": "sha256:5b40af81b7ae54bead666043c213c8c67d1a6dedf6b15a8383dd74c3b6d9d07b",
+        "snapshotId": "as_kzcqpk9zf024wqdadv5ajg4k7b"
+      },
+      "sprintId": "sp_01m7mn7rjp1cqryb7szb57rwca",
+      "submittedBy": "dm CLI"
+    }
+  ],
+  "revisionId": "rv_01m7nw8vxkywad7wpt0d38znye",
+  "rowChecks": [
+    {
+      "checks": [
+        {
+          "detail": "Node, web, and Fireguard TypeScript projects passed on the combined row-1 integration commit.",
+          "name": "npm run typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "16 files passed; 489 tests passed on the combined row-1 integration commit.",
+          "name": "npx vitest run (16 row-targeted suites)",
+          "status": "passed"
+        }
+      ],
+      "commit": "3b4e79583a670a093d0ba7d754c8aaaa9488bb4c",
+      "createdAt": "2026-11-17T14:53:21.182Z",
+      "id": "rk_01m7mzz2wyjhk1wf6f2kce441v",
+      "number": 1,
+      "recordedBy": "dm CLI",
+      "row": 1,
+      "sprintId": "sp_01m7mn7rjp1cqryb7szb57rwca"
+    },
+    {
+      "checks": [
+        {
+          "detail": "Node, web, and Fireguard TypeScript projects passed on the combined row-2 integration commit.",
+          "name": "npm run typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "5 files passed; 105 tests passed and 3 existing platform tests skipped on the combined row-2 integration commit.",
+          "name": "npx vitest run (5 row-targeted suites)",
+          "status": "passed"
+        }
+      ],
+      "commit": "909740fb56ccce741837239433a4b3421268b364",
+      "createdAt": "2026-11-17T15:18:56.347Z",
+      "id": "rk_01m7n1dy2vjmc76wemn96y6br0",
+      "number": 2,
+      "recordedBy": "dm CLI",
+      "row": 2,
+      "sprintId": "sp_01m7mn7rjp1cqryb7szb57rwca"
+    },
+    {
+      "checks": [
+        {
+          "detail": "Node, web, and Fireguard TypeScript projects passed on the combined row-3 integration commit.",
+          "name": "npm run typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "3 files and 48 tests passed on the combined row-3 integration commit.",
+          "name": "npx vitest run (3 row-targeted suites)",
+          "status": "passed"
+        }
+      ],
+      "commit": "f879af4f49955456407604b6d151fa1a1875e150",
+      "createdAt": "2026-11-17T15:40:24.300Z",
+      "id": "rk_01m7n2n7vcys3xrgqjg9sezr7d",
+      "number": 3,
+      "recordedBy": "dm CLI",
+      "row": 3,
+      "sprintId": "sp_01m7mn7rjp1cqryb7szb57rwca"
+    },
+    {
+      "checks": [
+        {
+          "detail": "Node, web, and Fireguard TypeScript projects passed on the combined row-4 integration commit.",
+          "name": "npm run typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "2 files and 26 tests passed on the combined row-4 integration commit.",
+          "name": "npx vitest run (2 row-targeted suites)",
+          "status": "passed"
+        }
+      ],
+      "commit": "725e05f91eee31eed2ac1271c75c2a8d9545e15b",
+      "createdAt": "2026-11-17T15:52:26.220Z",
+      "id": "rk_01m7n3b8vcnnzsdjzh1fc9xq6g",
+      "number": 4,
+      "recordedBy": "dm CLI",
+      "row": 4,
+      "sprintId": "sp_01m7mn7rjp1cqryb7szb57rwca"
+    },
+    {
+      "checks": [
+        {
+          "detail": "Integration worktree: 2 files passed, 66 tests passed at 641ff5e2.",
+          "name": "focused chat and terminal tests",
+          "status": "passed"
+        },
+        {
+          "detail": "All node, web, and Fireguard TypeScript projects passed at 641ff5e2.",
+          "name": "npm run typecheck",
+          "status": "passed"
+        }
+      ],
+      "commit": "641ff5e2fa442e4a80340e6bb705ad00f4f8a3ea",
+      "createdAt": "2026-11-19T00:02:35.907Z",
+      "id": "rk_01m7rhsg83ghck7rkxxx9acxwg",
+      "number": 5,
+      "recordedBy": "dm CLI",
+      "row": 1,
+      "sprintId": "sp_01m7nt7jfx4m7s1bmw9dqvgk7k"
+    }
+  ],
+  "runId": "rn_01m7mx44w1mgqmy2bc02pbmt3y",
+  "skillVersion": "1.9.0",
+  "startedAt": "2026-11-17T14:03:41.314Z",
+  "state": "running",
+  "updatedAt": "2026-11-18T23:29:47.995Z"
+}

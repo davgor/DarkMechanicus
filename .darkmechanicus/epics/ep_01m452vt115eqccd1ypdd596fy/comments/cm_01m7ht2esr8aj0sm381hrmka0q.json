@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Orchestrator integration note (space-sprint-1): merging DM-188 after DM-190 failed typecheck — DM-190 made `EpicProvenance` a union (`EarlierEpicProvenance | CorrectionProvenance`) and DM-188's `correctionHolderProblem` read `provenance.sourceEpicId` directly. Fixed in the integration branch with `followUpSourceOf` (src/core/plan/corrections.ts): only same-project follow-up provenance counts; a cross-repo correction epic is not a follow-up. Typecheck, oxlint, 19 test files (481 tests) and DM-186/188/190 scripts pass after the fix.",
+  "createdAt": "2026-11-16T09:12:36.920Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7ht2esr8aj0sm381hrmka0q",
+  "ticketId": null
+}

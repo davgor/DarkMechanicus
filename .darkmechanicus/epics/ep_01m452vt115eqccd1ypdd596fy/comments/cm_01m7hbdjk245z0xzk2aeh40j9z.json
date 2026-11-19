@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-184 review (orchestrator, this run): resubmitting a report needs explicit restatement — an experiment not restated by `id` plus `{ reportId, assessmentId }` is withdrawn, and resubmitting the same body by subject mints new ids and strands the originals' events. The corrective/authoring flow must restate experiments correctly; DM-192 should document it for orchestrators.",
+  "createdAt": "2026-11-16T04:56:32.611Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7hbdjk245z0xzk2aeh40j9z",
+  "ticketId": "tk_01m453gpadgbwycpmg2dd8y0me"
+}

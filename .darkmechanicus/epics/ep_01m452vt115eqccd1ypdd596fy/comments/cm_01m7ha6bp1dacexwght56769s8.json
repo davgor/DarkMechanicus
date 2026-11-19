@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "From the DM-184 review (orchestrator, this run): add `experiment_events` to `DOMAIN_TABLES` in src/test/repoEnv.ts:133 so 'nothing changed' assertions see events; pin experiment import refusals (tampered events, edited definitions under stored events, non-contiguous sequences, provenance edits).",
+  "createdAt": "2026-11-16T04:35:07.585Z",
+  "epicId": "ep_01m452vt115eqccd1ypdd596fy",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7ha6bp1dacexwght56769s8",
+  "ticketId": "tk_01m65yenct0k48amzn4y6ac5tb"
+}
