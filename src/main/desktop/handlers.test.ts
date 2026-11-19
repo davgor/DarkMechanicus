@@ -432,7 +432,7 @@ describe('timeline commands', () => {
 })
 
 describe('kanban card commands', () => {
-  it('lets the person create, edit, list, read, play, approve and kick back Kanban cards, with each input passed through untouched', async () => {
+  it('lets the person create, edit, list, read, play, approve and kick back Kanban cards and read their messages, with each input passed through untouched', async () => {
     const world = createWorld({ tracked: ['/repos/a'] })
     const handlers = createDesktopHandlers(world.deps)
     const calls = [
@@ -440,6 +440,7 @@ describe('kanban card commands', () => {
       { name: 'updateKanbanCard', input: { cardId: 'kc_x', expectedRevision: 3, body: 'Edited' } },
       { name: 'listKanbanCards', input: { doneLimit: 20, doneCursor: 'cursor-1' } },
       { name: 'getKanbanCard', input: { cardId: 'kc_x' } },
+      { name: 'listKanbanMessages', input: { cardId: 'kc_x' } },
       { name: 'playKanbanCard', input: { cardId: 'kc_x' } },
       { name: 'approveKanbanCard', input: { cardId: 'kc_x' } },
       { name: 'kickBackKanbanCard', input: { cardId: 'kc_x', comment: 'Cover the empty case.' } },

@@ -27,12 +27,17 @@ import type {
   BoundThreadsRequest,
   ChatPushEvent,
   ChatReadView,
+  ConversationStateRequest,
+  ConversationTarget,
+  ConversationStateResult,
   ChatRequestRef,
   ChatsApi,
   CreateChatRequest,
   SummonChatRequest,
   KickBackKanbanCardRequest,
   KickBackKanbanCardResult,
+  SendConversationRequest,
+  SendConversationResult,
   StartKanbanCardRequest,
   StartKanbanCardResult,
   StartOrchestratorRequest,
@@ -59,6 +64,8 @@ type Method =
   | 'startTransferChat'
   | 'startKanbanCard'
   | 'kickBackKanbanCard'
+  | 'sendConversationMessage'
+  | 'conversationState'
   | 'findTransferChat'
   | 'transferPrompt'
   | 'rename'
@@ -88,6 +95,24 @@ interface FakeKanban {
 }
 
 const NOT_FOUND: DomainErrorShape = { code: 'not_found', message: 'Chat not found.' }
+function conversationChat(
+  chats: readonly ChatRecord[],
+  target: ConversationTarget
+): { chat: ChatRecord; via: 'card_play' | 'conversation' } | null {
+  if ('cardId' in target) {
+    const play = chats.find((chat) => chat.cardId === target.cardId)
+    if (play !== undefined) return { chat: play, via: 'card_play' }
+    const bound = chats.find(
+      (chat) => chat.conversation !== undefined && 'cardId' in chat.conversation && chat.conversation.cardId === target.cardId
+    )
+    return bound === undefined ? null : { chat: bound, via: 'conversation' }
+  }
+  const bound = chats.find(
+    (chat) => chat.conversation !== undefined && 'epicId' in chat.conversation && chat.conversation.epicId === target.epicId
+  )
+  return bound === undefined ? null : { chat: bound, via: 'conversation' }
+}
+
 
 export class FakeChats implements ChatsApi {
   /** Every stored chat, across folders. */
@@ -120,6 +145,9 @@ export class FakeChats implements ChatsApi {
   private listeners = new Set<(event: ChatPushEvent) => void>()
   private clock = 0
   private created = 0
+  private conversationMessages: Record<string, { folder: string; result: SendConversationResult }> = {}
+  /** Persists a conversation message in a command fake and returns its durable id; null uses the local generated id. */
+  storeConversationMessage: ((request: SendConversationRequest) => string | null) | null = null
 
   /** Makes the next call of `method` wait until the returned deferred is resolved. */
   hold(method: Method): Deferred {
@@ -272,6 +300,49 @@ export class FakeChats implements ChatsApi {
       const card = await kanban.kickBack(request.folder, request.cardId, request.comment)
       const chat = this.inFolder(request.folder).find((item) => item.cardId === request.cardId) ?? null
       return { ok: true, data: { card, chatId: chat?.id ?? null, problem: null } }
+    })
+  }
+
+  sendConversationMessage(request: SendConversationRequest): Promise<CommandResult<SendConversationResult>> {
+    return this.call('sendConversationMessage', [request], () => {
+      this.created += 1
+      const messageId = this.storeConversationMessage?.(request) ?? `cm_fake_${this.created}`
+      const chats = this.inFolder(request.folder)
+      const selected = conversationChat(chats, request.target)
+      const result: SendConversationResult =
+        selected === null
+          ? { messageId, chatId: null, state: 'failed', problem: 'No conversation chat is configured in this fake.' }
+          : { messageId, chatId: selected.chat.id, state: 'delivered', problem: null }
+      this.conversationMessages[messageId] = { folder: request.folder, result }
+      return { ok: true, data: result }
+    })
+  }
+
+  conversationState(request: ConversationStateRequest): Promise<CommandResult<ConversationStateResult>> {
+    return this.call('conversationState', [request], () => {
+      const chats = this.inFolder(request.folder)
+      const selected = conversationChat(chats, request.target)
+      const deliveries: ConversationStateResult['deliveries'] = {}
+      for (const messageId of request.messageIds) {
+        const entry = this.conversationMessages[messageId]
+        if (entry === undefined || entry.folder !== request.folder) continue
+        deliveries[messageId] = {
+          chatId: entry.result.chatId,
+          state: entry.result.state,
+          problem: entry.result.problem,
+          chatExists: entry.result.chatId !== null && chats.some((chat) => chat.id === entry.result.chatId)
+        }
+      }
+      return {
+        ok: true,
+        data: {
+          chat:
+            selected === null
+              ? null
+              : { id: selected.chat.id, title: selected.chat.title, via: selected.via },
+          deliveries
+        }
+      }
     })
   }
 

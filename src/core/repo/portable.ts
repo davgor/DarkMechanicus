@@ -617,6 +617,13 @@ export const kanbanEventRecord = z.discriminatedUnion('kind', [
   cardEvent('created', z.strictObject({ revision: positiveInt })),
   cardEvent('updated', z.strictObject({ revision: positiveInt, fields: z.array(z.enum(KANBAN_EDITABLE_FIELDS)).max(KANBAN_EDITABLE_FIELDS.length) })),
   cardEvent('played', z.strictObject({})),
+  cardEvent(
+    'message',
+    z.strictObject({
+      body: commentBody,
+      attachments: z.array(attachmentRef).max(LIMITS.attachmentsPerRecord)
+    })
+  ),
   attemptEvent('claimed', { machineId: idOf('machine'), leaseExpiresAt: isoTime }),
   attemptEvent('running', {}),
   attemptEvent('submitted', { outputs: attemptOutputs, evidence: attemptEvidence }),

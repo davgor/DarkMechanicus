@@ -6,13 +6,15 @@ import { DeleteChatDialog, RenameChatDialog } from '../agents/ChatDialogs'
 import { newestFirst, waitingCount, waitingOnSignIn } from '../agents/chatList'
 import type { AgentStatuses } from '../agents/useAgents'
 import type { ChatListState } from '../agents/useChats'
+import type { EpicListState } from '../app/useEpicLists'
 import { Button } from '../components/Button'
 import { Icon } from '../components/Icon'
-import { ChatRow } from './ChatRow'
+import { boardConversationOf, ChatRow, type BoardConversation } from './ChatRow'
 
 interface AgentsBlockProps {
   folder: TrackedFolderView
   list: ChatListState
+  epics: EpicListState
   /** The connected agents' sign-in states: a chat whose agent is signed out and whose turn it cut short waits on a sign-in. */
   statuses: AgentStatuses
   /** The connected agents, so a custom agent's chats show its display name. */
@@ -37,10 +39,11 @@ interface ChatListProps {
   selectedChatId: string | null
   onOpen(chatId: string): void
   onAsk(pending: Pending): void
+  conversationOf(chat: ChatRecord): BoardConversation | undefined
 }
 
 /** The rows, or the note that stands in for them while there are none to show. */
-function ChatList({ list, statuses, agents, selectedChatId, onOpen, onAsk }: ChatListProps): JSX.Element {
+function ChatList({ list, statuses, agents, selectedChatId, onOpen, onAsk, conversationOf }: ChatListProps): JSX.Element {
   if (list.status === 'loading') {
     return <p className="sidebar-note chat-note">Loading chats…</p>
   }
@@ -56,6 +59,7 @@ function ChatList({ list, statuses, agents, selectedChatId, onOpen, onAsk }: Cha
             <ChatRow
               chat={chat}
               agents={agents}
+              boardConversation={conversationOf(chat)}
               signInWaiting={waitingOnSignIn(chat, statuses)}
               selected={chat.id === selectedChatId}
               onOpen={onOpen}
@@ -74,7 +78,7 @@ function ChatDialog({ pending, props, onClose }: { pending: Pending; props: Agen
   return pending.kind === 'rename' ? (
     <RenameChatDialog chat={chat} onSubmit={(title) => props.onRenameChat(chat, title)} onClose={onClose} />
   ) : (
-    <DeleteChatDialog chat={chat} onConfirm={() => props.onDeleteChat(chat)} onClose={onClose} />
+    <DeleteChatDialog chat={chat} boardConversation={boardConversationOf(chat, props.epics.epics)?.kind} onConfirm={() => props.onDeleteChat(chat)} onClose={onClose} />
   )
 }
 
@@ -100,12 +104,11 @@ export function AgentsBlock(props: AgentsBlockProps): JSX.Element {
           <Icon name={expanded ? 'chevron-down' : 'chevron-right'} size={14} />
           <span className="bucket-label">Agents</span>
           {waiting > 0 && !expanded ? <span className="waiting-badge">{waiting} waiting</span> : null}
-          <span className="count-badge">{list.chats.length}</span>
         </button>
         <Button variant="ghost" size="sm" icon="plus" aria-label={`New chat in ${folder.name}`} onClick={props.onNewChat} />
       </div>
       {expanded ? (
-        <ChatList list={list} statuses={statuses} agents={props.agents} selectedChatId={props.selectedChatId} onOpen={props.onOpenChat} onAsk={setPending} />
+        <ChatList list={list} statuses={statuses} agents={props.agents} selectedChatId={props.selectedChatId} onOpen={props.onOpenChat} onAsk={setPending} conversationOf={(chat) => boardConversationOf(chat, props.epics.epics)} />
       ) : null}
       {pending === null ? null : <ChatDialog pending={pending} props={props} onClose={() => setPending(null)} />}
     </div>

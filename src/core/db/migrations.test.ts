@@ -37,8 +37,8 @@ afterEach(() => {
 })
 
 describe('migrate on a fresh database', () => {
-  it('starts at schema version 0 and targets SCHEMA_VERSION 21', () => {
-    expect(SCHEMA_VERSION).toBe(21)
+  it('starts at schema version 0 and targets SCHEMA_VERSION 22', () => {
+    expect(SCHEMA_VERSION).toBe(22)
     expect(readSchemaVersion(freshDb())).toBe(0)
   })
 
@@ -46,7 +46,7 @@ describe('migrate on a fresh database', () => {
     const db = freshDb()
     expect(migrate(db)).toEqual({ from: 0, to: SCHEMA_VERSION })
     expect(readSchemaVersion(db)).toBe(SCHEMA_VERSION)
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(21)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(22)
   })
 })
 
@@ -132,8 +132,8 @@ describe('the indexes a fresh database ends up with', () => {
 describe('migrate when already current', () => {
   it('is a no-op the second time', () => {
     const db = migratedDb()
-    expect(migrate(db)).toEqual({ from: 21, to: 21 })
-    expect(readSchemaVersion(db)).toBe(21)
+    expect(migrate(db)).toEqual({ from: 22, to: 22 })
+    expect(readSchemaVersion(db)).toBe(22)
   })
 
   it('checks a current database without taking the write lock, which every open and mailbox poll would wait on', () => {
@@ -151,11 +151,11 @@ describe('migrate when already current', () => {
         }
       }
     })
-    expect(migrate(watched)).toEqual({ from: 21, to: 21 })
+    expect(migrate(watched)).toEqual({ from: 22, to: 22 })
     expect(transactions).toBe(0)
     // Positive control: a database behind the target still migrates under the lock.
-    watched.exec('PRAGMA user_version = 20')
-    expect(migrate(watched, MIGRATIONS.filter((migration) => migration.version !== 21).concat({ version: 21, sql: '' }))).toEqual({ from: 20, to: 21 })
+    watched.exec('PRAGMA user_version = 21')
+    expect(migrate(watched, MIGRATIONS.filter((migration) => migration.version !== 22).concat({ version: 22, sql: '' }))).toEqual({ from: 21, to: 22 })
     expect(transactions).toBe(1)
   })
 
@@ -175,19 +175,19 @@ describe('migrate refuses newer databases', () => {
     expect(error).toBeInstanceOf(DomainError)
     expect((error as DomainError).code).toBe('incompatible_schema')
     expect((error as DomainError).message).toBe(
-      'Database schema v22 is newer than this build supports (v21). Update Dark Mechanicus.'
+      'Database schema v23 is newer than this build supports (v22). Update Dark Mechanicus.'
     )
-    expect((error as DomainError).details).toEqual({ found: 22, supported: 21 })
-    expect(readSchemaVersion(db)).toBe(22)
+    expect((error as DomainError).details).toEqual({ found: 23, supported: 22 })
+    expect(readSchemaVersion(db)).toBe(23)
     expect(objectNames(db, 'table')).toEqual([])
   })
 
   it('refuses a migrated database that a newer build has upgraded', () => {
     const db = migratedDb()
-    db.exec('PRAGMA user_version = 22')
+    db.exec('PRAGMA user_version = 23')
     const error = thrownBy(() => migrate(db))
     expect((error as DomainError).code).toBe('incompatible_schema')
-    expect((error as DomainError).details).toEqual({ found: 22, supported: 21 })
+    expect((error as DomainError).details).toEqual({ found: 23, supported: 22 })
     expect(objectNames(db, 'table')).toContain('epics')
   })
 
@@ -1161,6 +1161,26 @@ describe('schema v14 attachment records', () => {
     insertAttachment(db, 'im1', { kind: 'attempt', id: 'at1' })
     const plan = db.all<{ detail: string }>("EXPLAIN QUERY PLAN SELECT id FROM attachments WHERE owner_kind = 'attempt' AND owner_id = 'at1'")
     expect(plan.map((row) => row.detail).join(' ')).toContain('attachments_owner')
+  })
+})
+
+describe('schema v22 Kanban message attachments', () => {
+  it('upgrades the v21 schema without losing existing attachments or the owner index', () => {
+    const db = freshDb()
+    migrate(db, MIGRATIONS.filter((migration) => migration.version <= 21))
+    insertAttachment(db, 'im1', { kind: 'comment', id: 'cm1' })
+    insertAttachment(db, 'im2')
+    const previous = db.all('SELECT * FROM attachments ORDER BY id')
+    expect(() => insertAttachment(db, 'im3', { kind: 'kanban_message', id: 'ke1' })).toThrow(/CHECK constraint failed/)
+
+    expect(migrate(db)).toEqual({ from: 21, to: 22 })
+    expect(db.all('SELECT * FROM attachments ORDER BY id')).toEqual(previous)
+    insertAttachment(db, 'im3', { kind: 'kanban_message', id: 'ke1' })
+    expect(db.get<{ owner_kind: string; owner_id: string }>('SELECT owner_kind, owner_id FROM attachments WHERE id = ?', 'im3')).toEqual({
+      owner_kind: 'kanban_message',
+      owner_id: 'ke1'
+    })
+    expect(objectNames(db, 'index')).toContain('attachments_owner')
   })
 })
 

@@ -27,6 +27,16 @@ function cardPlacement(cardId: string | undefined): AttachmentPlacement | null {
   return cardId === undefined ? null : { folder: { kind: 'kanban_card', id: cardId }, epicId: null, runId: null }
 }
 
+function kanbanAttemptPlacement(db: Db, attemptId: string): AttachmentPlacement | null {
+  const cardId = db.get<{ card_id: string }>('SELECT card_id FROM kanban_attempts WHERE id = ?', attemptId)?.card_id
+  return cardPlacement(cardId)
+}
+
+function kanbanMessagePlacement(db: Db, eventId: string): AttachmentPlacement | null {
+  const cardId = db.get<{ card_id: string }>('SELECT card_id FROM kanban_events WHERE id = ? AND kind = ?', eventId, 'message')?.card_id
+  return cardPlacement(cardId)
+}
+
 function epicPlacement(epicId: string | undefined): AttachmentPlacement | null {
   return epicId === undefined ? null : { folder: { kind: 'epic', id: epicId }, epicId, runId: null }
 }
@@ -37,7 +47,9 @@ export function resolveAttachmentPlacement(db: Db, owner: AttachmentOwner): Atta
     case 'attempt':
       return runPlacement(db, owner.id)
     case 'kanban_attempt':
-      return cardPlacement(db.get<{ card_id: string }>('SELECT card_id FROM kanban_attempts WHERE id = ?', owner.id)?.card_id)
+      return kanbanAttemptPlacement(db, owner.id)
+    case 'kanban_message':
+      return kanbanMessagePlacement(db, owner.id)
     case 'kanban_card':
       return cardPlacement(db.get<{ id: string }>('SELECT id FROM kanban_cards WHERE id = ?', owner.id)?.id)
     case 'comment':

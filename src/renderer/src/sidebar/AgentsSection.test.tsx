@@ -2,10 +2,13 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { FakeDm } from '../__mocks__/fakeDm'
-import { agentView } from '../__mocks__/fixtures'
+import { agentView, chatRecord, epicSummary, folderView } from '../__mocks__/fixtures'
 import { settle } from '../__mocks__/settle'
 import { SignInRecorder } from '../__mocks__/signInRecorder'
 import type { AgentAuthStatus, AgentId, AgentView } from '../../../shared/desktop/api'
+import type { ChatRecord } from '../../../shared/agents/chat'
+import type { TrackedFolderView } from '../../../shared/desktop/api'
+import type { EpicListState } from '../app/useEpicLists'
 import type { AgentStatuses } from '../agents/useAgents'
 import { AgentsSection } from './AgentsSection'
 
@@ -29,7 +32,12 @@ interface Calls {
   statuses: [AgentId, AgentAuthStatus][]
 }
 
-function renderSection(agents: AgentView[], statuses: AgentStatuses = {}, selected: AgentId | null = null): Calls {
+function renderSection(
+  agents: AgentView[],
+  statuses: AgentStatuses = {},
+  selected: AgentId | null = null,
+  chatSetup: { chats: ChatRecord[]; folders: TrackedFolderView[]; epics: Record<string, EpicListState> } = { chats: [], folders: [], epics: {} }
+): Calls {
   const calls: Calls = { added: 0, selected: [], statuses: [] }
   render(
     recorder.wrap(
@@ -37,7 +45,7 @@ function renderSection(agents: AgentView[], statuses: AgentStatuses = {}, select
         agents={agents}
         statuses={statuses}
         selected={selected}
-        chats={{ list: { status: 'ready', chats: [] }, folders: [], selectedChatId: null, onOpen: () => undefined, onRename: () => Promise.resolve(true), onDelete: () => Promise.resolve(true), onSummon: () => undefined }}
+        chats={{ list: { status: 'ready', chats: chatSetup.chats }, folders: chatSetup.folders, epics: chatSetup.epics, selectedChatId: null, onOpen: () => undefined, onRename: () => Promise.resolve(true), onDelete: () => Promise.resolve(true), onSummon: () => undefined }}
         onAdd={() => {
           calls.added += 1
         }}
@@ -141,6 +149,60 @@ describe('AgentsSection list', () => {
     expect(row.queryByRole('button', { name: 'Sign in' })).toBeNull()
     fireEvent.click(row.getByRole('button', { name: /^My Claude/ }))
     expect(calls.selected).toEqual([custom.id])
+  })
+})
+
+describe('AgentsSection board conversations', () => {
+  const folder = folderView({ path: '/a', name: 'alpha' })
+  const epicLists = { '/a': { status: 'ready', epics: [epicSummary({ id: 'ep_alpha', title: 'Alpha migration' })], error: null } } satisfies Record<string, EpicListState>
+
+  it('names an epic-bound chat, leaves an unbound chat unlabelled, and explains that deleting the bound chat only unbinds it', () => {
+    const bound = chatRecord({ id: 'chat_bound', folder: '/a', agent: 'claude', title: 'Bound work', conversation: { epicId: 'ep_alpha' } })
+    const unbound = chatRecord({ id: 'chat_free', folder: '/a', agent: 'claude', title: 'Free work' })
+    renderSection([claude], {}, null, { chats: [bound, unbound], folders: [folder], epics: epicLists })
+    fireEvent.click(screen.getByRole('button', { name: 'Chats of Claude Code' }))
+
+    const boundRow = screen.getByRole('button', { name: /^Bound work/ })
+    expect(within(boundRow).getByText('Board conversation · Alpha migration')).toBeTruthy()
+    expect(within(screen.getByRole('button', { name: /^Free work/ })).queryByText(/Board conversation/)).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Bound work' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }))
+    expect(screen.getByText('This unbinds it from the epic; the conversation history stays on the board.', { exact: false })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Free work' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }))
+    expect(screen.queryByText(/This unbinds it from/)).toBeNull()
+  })
+
+  it('labels card and unknown-epic conversations without inventing names', () => {
+    const card = chatRecord({
+      id: 'chat_card',
+      folder: '/workspace/project',
+      agent: 'claude',
+      title: 'Card answer',
+      conversation: { cardId: 'kc_missing' }
+    })
+    const unknownEpic = chatRecord({
+      id: 'chat_unknown',
+      folder: '/workspace/project',
+      agent: 'claude',
+      title: 'Epic answer',
+      conversation: { epicId: 'ep_missing' }
+    })
+    renderSection([claude], {}, null, { chats: [card, unknownEpic], folders: [], epics: {} })
+    fireEvent.click(screen.getByRole('button', { name: 'Chats of Claude Code' }))
+
+    const cardRow = screen.getByRole('button', { name: /^Card answer/ })
+    const epicRow = screen.getByRole('button', { name: /^Epic answer/ })
+    expect(within(cardRow).getByText('project')).toBeTruthy()
+    expect(within(cardRow).getByText('Board conversation')).toBeTruthy()
+    expect(within(epicRow).getByText('Board conversation')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Card answer' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete' }))
+    expect(screen.getByText('This unbinds it from the card; the conversation history stays on the board.', { exact: false })).toBeTruthy()
   })
 })
 

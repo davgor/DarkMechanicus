@@ -343,6 +343,20 @@ function syncCardAttachments(db: Db, record: KanbanCardRecord): void {
   }
 }
 
+/** Restores the attachment rows named by immutable message events; the card-folder restore fills their bytes. */
+function syncMessageAttachments(db: Db, events: readonly KanbanEventRecord[]): void {
+  for (const event of events) {
+    if (event.kind !== 'message') {
+      continue
+    }
+    for (const ref of event.payload.attachments) {
+      if (db.get('SELECT id FROM attachments WHERE id = ?', ref.id) === undefined) {
+        insertOwnedRow(db, ref, { owner: 'kanban_message', ownerId: event.id, createdAt: event.createdAt })
+      }
+    }
+  }
+}
+
 /**
  * Where a transition falls in a card's stream. Transitions made in one step can share a timestamp, so within one
  * millisecond the step orders them: a claim before its heartbeat, a submission before its review.
@@ -357,7 +371,8 @@ const STREAM_STEP: Record<KanbanEventRecord['kind'], number> = {
   failed: 6,
   lease_expired: 6,
   approved: 7,
-  kicked_back: 7
+  kicked_back: 7,
+  message: 8
 }
 
 function byStreamOrder(a: KanbanEventRecord, b: KanbanEventRecord): number {
@@ -605,7 +620,7 @@ function rebuildCard(db: Db, cardId: string, events: KanbanEventRecord[], attemp
   const latest = attempts[attempts.length - 1]
   const play = pendingPlay(events, latest)
   const done = doneOf(latest)
-  const lastAt = events.reduce((at, event) => (event.createdAt > at ? event.createdAt : at), '')
+  const lastAt = events.reduce((at, event) => (event.kind !== 'message' && event.createdAt > at ? event.createdAt : at), '')
   db.run(
     `UPDATE kanban_cards SET lane = ?, play_requested_at = ?, play_requested_by = ?, completed_at = ?, summary_json = ?,
        compacted_at = ?, updated_at = MAX(updated_at, ?), revision = MAX(revision, ?) WHERE id = ?`,
@@ -638,6 +653,7 @@ function applyCard(db: Db, card: StagedCard, now: string): void {
     insertEvent(db, event.record)
   }
   const events = cardEvents(db, card.cardId, card.path)
+  syncMessageAttachments(db, events)
   const attempts = rebuildAttempts(events, card.path)
   // Closed attempts first, so one that closes never collides with the one-open-attempt index.
   const open = attempts.filter((item) => KANBAN_OPEN_ATTEMPT_STATES.includes(item.state))

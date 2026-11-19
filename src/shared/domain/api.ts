@@ -32,7 +32,14 @@ import type {
   TransferReadbackResult,
   TransferView
 } from './transfer'
-import type { DeleteKanbanCardResultView, KanbanAttemptView, KanbanBoardView, KanbanCardView, KanbanPacket } from './kanban'
+import type {
+  DeleteKanbanCardResultView,
+  KanbanAttemptView,
+  KanbanBoardView,
+  KanbanCardView,
+  KanbanMessageView,
+  KanbanPacket
+} from './kanban'
 import type { WorkStatus } from './status'
 import type {
   AcknowledgeAgentMessagesResult,
@@ -328,6 +335,15 @@ export interface AddCommentInput {
   idempotencyKey?: string
 }
 
+export interface AddKanbanMessageInput {
+  cardId: string
+  /** Markdown, at most 20,000 characters and not blank. */
+  body: string
+  /** Staged image ids (`addAttachment`) to attach, at most 20; either purpose. */
+  attachments?: string[]
+  idempotencyKey?: string
+}
+
 /** A new Kanban card's content. It always starts in Backlog; the key and author come from the server. */
 export interface CreateKanbanCardInput {
   title: string
@@ -570,6 +586,10 @@ export interface CommandApi {
   listKanbanCards(input: ListKanbanCardsInput): Promise<KanbanBoardView>
   /** The full card, with its body, criteria and every attempt. */
   getKanbanCard(input: { cardId: string }): Promise<KanbanCardView>
+  /** Adds an append-only card message authored by the calling session, in any lane. */
+  addKanbanMessage(input: AddKanbanMessageInput): Promise<KanbanMessageView>
+  /** Every message on the card, oldest first. */
+  listKanbanMessages(input: { cardId: string }): Promise<KanbanMessageView[]>
   /**
    * The person presses Play: a pending play an orchestrator's claim consumes. Backlog, or In progress with no
    * open attempt; pressing it again changes nothing. Human-only.

@@ -75,6 +75,30 @@ describe('kanban card commands', () => {
   })
 })
 
+describe('Kanban card messages', () => {
+  it('records desktop and worker authors, lists oldest first and replays idempotently', async () => {
+    const card = await desktop.createKanbanCard({ title: 'Discuss this card' })
+    const first = await desktop.addKanbanMessage({ cardId: card.id, body: 'Person question', idempotencyKey: 'person-1' })
+    harness.clock.advanceSeconds(1)
+    const worker = harness.open('worker')
+    const second = await worker.addKanbanMessage({ cardId: card.id, body: 'Agent answer', idempotencyKey: 'agent-1' })
+    const replay = await worker.addKanbanMessage({ cardId: card.id, body: 'Agent answer', idempotencyKey: 'agent-1' })
+
+    expect(replay).toEqual(second)
+    expect(await desktop.listKanbanMessages({ cardId: card.id })).toEqual([
+      expect.objectContaining({ id: first.id, body: 'Person question', authorRole: 'desktop', authorLabel: 'desktop session' }),
+      expect.objectContaining({ id: second.id, body: 'Agent answer', authorRole: 'worker', authorLabel: 'worker session' })
+    ])
+  })
+
+  it('refuses a session without comment.write and leaves the thread unchanged', async () => {
+    const card = await desktop.createKanbanCard({ title: 'Protected thread' })
+    const reader = harness.open('reader')
+    expect((await failureOf(reader.addKanbanMessage({ cardId: card.id, body: 'Not allowed' }))).code).toBe('unauthorized')
+    expect(await reader.listKanbanMessages({ cardId: card.id })).toEqual([])
+  })
+})
+
 describe('kanban card command input', () => {
   it('takes no lane, key or author from the input', async () => {
     const raw = desktop.createKanbanCard as (input: unknown) => Promise<unknown>

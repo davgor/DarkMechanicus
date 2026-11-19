@@ -1,34 +1,13 @@
 /**
- * `window.dm.chats` for renderer tests that are not about chats: no folder has chats, nothing is
- * bound, nothing is pushed, and every other request is refused as unavailable.
+ * `window.dm.chats.mail` for renderer tests that do not exercise a mailbox.
  */
-import type { ChatMailApi, ChatsApi } from '../../../shared/agents/chatApi'
+import type { ChatMailApi } from '../../../shared/agents/chatApi'
 import type { CommandResult } from '../../../shared/desktop/api'
 
 function refused(): Promise<CommandResult<never>> {
   return Promise.resolve({ ok: false, error: { code: 'unsupported_capability', message: 'Chats are not part of this test.' } })
 }
 
-export function idleChats(): ChatsApi {
-  return {
-    list: () => Promise.resolve({ ok: true, data: [] }),
-    listAll: () => Promise.resolve({ ok: true, data: [] }),
-    create: refused,
-    startOrchestrator: refused,
-    startTransferChat: refused,
-    startKanbanCard: refused,
-    kickBackKanbanCard: refused,
-    findTransferChat: () => Promise.resolve({ ok: true, data: null }),
-    transferPrompt: refused,
-    read: refused,
-    boundThreads: () => Promise.resolve({ ok: true, data: [] }),
-    boundTerminal: () => Promise.resolve({ ok: true, data: null }),
-    rename: refused,
-    delete: refused,
-    onEvent: () => () => {},
-    mail: idleChatMail()
-  }
-}
 
 /** `window.dm.chats.mail` with no mailbox anywhere: every folder's snapshot is empty and nothing is pushed. */
 export function idleChatMail(): ChatMailApi {
