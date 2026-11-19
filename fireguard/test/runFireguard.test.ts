@@ -4,16 +4,20 @@ import { DEFAULT_CONFIG } from '../src/config.js';
 import { fakeLanes } from './support.js';
 
 const killAll = async () => fakeLanes(async () => ({ ok: false }));
+const revision = { base: 'base-commit', head: 'head-commit' };
+
 
 describe('runFireguard', () => {
   it('fails closed with F when modules change without graded test updates', async () => {
     const report = await runFireguard({
       config: DEFAULT_CONFIG,
+      revision,
       getDiffEntries: async () => [{ status: 'M', path: 'src/data/jobs.ts' }],
       readFile: async () => '',
       openLanes: killAll,
     });
     expect(report.skipped).toBe(false);
+    expect(report.revision).toEqual(revision);
     expect(report.grade.letter).toBe('F');
     expect(report.grade.reasons.join(' ')).toMatch(/without graded unit test/i);
     expect(report.gates.mutation).toBeUndefined();
@@ -32,6 +36,7 @@ describe('add', () => {
         ...DEFAULT_CONFIG,
         thresholds: { ...DEFAULT_CONFIG.thresholds, agenticFlakinessRuns: 2 },
       },
+      revision,
       getDiffEntries: async () => [
         { status: 'M', path: 'src/add.test.ts' },
         { status: 'M', path: 'src/add.ts' },
@@ -43,6 +48,7 @@ describe('add', () => {
       openLanes: killAll,
     });
     expect(report.skipped).toBe(false);
+    expect(report.revision).toEqual(revision);
     expect(report.scope.gradedTestFiles).toEqual(['src/add.test.ts']);
     expect(report.gates.ast?.pass).toBe(true);
     expect(report.grade.letter).not.toBe('F');
@@ -58,6 +64,7 @@ it('empty', () => { fn(); });
 `;
     const report = await runFireguard({
       config: DEFAULT_CONFIG,
+      revision,
       getDiffEntries: async () => [
         { status: 'A', path: 'src/slop.test.ts' },
         { status: 'A', path: 'src/slop.ts' },
@@ -66,6 +73,7 @@ it('empty', () => { fn(); });
       openLanes,
     });
     expect(report.grade.letter).toBe('F');
+    expect(report.revision).toEqual(revision);
     expect(report.gates.ast?.pass).toBe(false);
     expect(report.gates.flake).toBeUndefined();
     expect(openLanes).not.toHaveBeenCalled();
@@ -89,6 +97,7 @@ export function add(a: number, b: number): number {
         ...DEFAULT_CONFIG,
         thresholds: { ...DEFAULT_CONFIG.thresholds, agenticFlakinessRuns: 3 },
       },
+      revision,
       getDiffEntries: async () => [
         { status: 'A', path: 'src/add.test.ts' },
         { status: 'A', path: 'src/add.ts' },
@@ -97,8 +106,20 @@ export function add(a: number, b: number): number {
       openLanes: killAll,
     });
     expect(report.gates.ast?.pass).toBe(true);
+    expect(report.revision).toEqual(revision);
     expect(report.gates.flake?.pass).toBe(true);
     expect(report.gates.mutation?.pass).toBe(true);
     expect(report.grade.letter).not.toBe('F');
+  });
+
+  it('identifies a skipped run with no changed tests or modules', async () => {
+    const report = await runFireguard({
+      config: DEFAULT_CONFIG,
+      revision,
+      getDiffEntries: async () => [],
+      readFile: async () => '',
+      openLanes: killAll,
+    });
+    expect(report).toMatchObject({ revision, skipped: true, grade: { letter: 'A' } });
   });
 });

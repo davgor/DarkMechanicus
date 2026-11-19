@@ -8,6 +8,7 @@ import { createTestCtx, type TestCtx } from '../../test/testContext'
 import { contentHash } from '../canonical'
 import { registerHost } from './hosts'
 import { getSprintReport, submitSprintReport } from './reports'
+import { getRun } from './runs'
 
 function model(id: string, costTier: HostModel['costTier'], reasoningLevels: string[]): HostModel {
   return { id, label: id, reasoningLevels, modalities: ['text'], contextWindowTokens: null, skills: [], costTier, latencyTier: null }
@@ -46,6 +47,38 @@ function setup(withCatalog = true): { ctx: TestCtx; run: SeededRun } {
 function report(ctx: TestCtx, run: SeededRun, sprint = 1) {
   return submitSprintReport(ctx, { runId: run.runId, sprintId: sid(sprint), report: { summary: 'Done' } })
 }
+
+describe('active-sprint tier facts before and after the first report', () => {
+  it('exposes planned facts before reporting and preserves the null-before-report contract', () => {
+    const { ctx, run } = setup()
+    expect(getSprintReport(ctx, { runId: run.runId })).toBeNull()
+    expect(getRun(ctx, { runId: run.runId })?.activeSprintTierFacts).toEqual([
+      { ticketId: tid(1), key: 'DM-1', size: 'medium', plannedLevel: 'deep', plannedEffort: 'high', attempts: [], attemptCount: 0, rejectionCount: 0, escalated: false },
+      { ticketId: tid(2), key: 'DM-2', size: null, plannedLevel: 'multi_step', plannedEffort: null, attempts: [], attemptCount: 0, rejectionCount: 0, escalated: false }
+    ])
+  })
+
+  it('uses all attempt rows and the recorded catalog, including rejection, fallback and escalation', () => {
+    const { ctx, run } = setup()
+    seedAttempt(ctx, run, { ticket: 1, state: 'rejected', worker: { label: 'Claude Code', modelId: 'small', effort: 'low' } })
+    seedAttempt(ctx, run, { ticket: 1, state: 'accepted', worker: { label: 'Claude Code', modelId: 'big', effort: 'high' } })
+    seedAttempt(ctx, run, { ticket: 2, state: 'accepted', worker: { label: ORCHESTRATOR_FALLBACK_LABEL, modelId: null, effort: null } })
+    const before = getRun(ctx, { runId: run.runId })?.activeSprintTierFacts
+    expect(before?.[0]).toMatchObject({ attemptCount: 2, rejectionCount: 1, escalated: true })
+    expect(before?.[1]?.attempts[0]).toMatchObject({ fallback: true, modelId: null, effort: null })
+    const submitted = report(ctx, run)
+    expect(getRun(ctx, { runId: run.runId })?.activeSprintTierFacts).toEqual(getSprintReport(ctx, { runId: run.runId })?.tierFacts)
+    expect(JSON.stringify(before)).toBe(JSON.stringify(submitted.tierFacts))
+    expect(submitted.contentHash).toBe(contentHash(submitted.report))
+    expect(Object.keys(submitted.report)).not.toContain('tierFacts')
+  })
+
+  it('returns no active-sprint facts when the run has no active sprint', () => {
+    const { ctx, run } = setup()
+    ctx.db.run('UPDATE runs SET active_sprint_id = NULL, state = ? WHERE id = ?', 'completed', run.runId)
+    expect(getRun(ctx, { runId: run.runId })?.activeSprintTierFacts).toEqual([])
+  })
+})
 
 describe('the report view: computed tier facts of the sprint tickets', () => {
   it('lists the sprint tickets with their size, planned level and effort, and no attempts yet', () => {

@@ -61,6 +61,8 @@ function flakeLines(flake: FlakeGateResult): string[] {
 function scopeLines(report: FireguardReport): string[] {
   const lines = [
     `Base ref: ${report.scope.baseRef}`,
+    `Resolved base commit: ${report.revision.base}`,
+    `Tested head commit: ${report.revision.head}`,
     `Graded tests: ${report.scope.gradedTestFiles.join(', ') || '(none)'}`,
     `Changed modules: ${report.scope.changedModules.join(', ') || '(none)'}`,
   ];
@@ -73,14 +75,13 @@ export function formatHumanReport(report: FireguardReport): string {
   lines.push('════════════════════════════════════════');
   lines.push(`FIREGUARD GRADE: ${report.grade.letter} (score ${report.grade.score})`);
   lines.push('════════════════════════════════════════');
+  lines.push(...scopeLines(report));
+  lines.push('');
 
   if (report.skipped) {
     lines.push(`Skipped: ${report.skipReason ?? 'nothing to grade'}`);
     return lines.join('\n');
   }
-
-  lines.push(...scopeLines(report));
-  lines.push('');
 
   for (const reason of report.grade.reasons) {
     lines.push(`• ${reason}`);

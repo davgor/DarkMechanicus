@@ -633,6 +633,8 @@ export interface RunView {
   rows: RowView[]
   /** The increment each sprint with an acceptance node named, in sprint order; sprints that named none are left out. */
   increments: SprintIncrementView[]
+  /** Server-computed facts for the active sprint, including all attempts; empty without an active sprint. */
+  activeSprintTierFacts: TicketTierFacts[]
   attempts: AttemptView[]
   checkpoint: CheckpointView | null
 }

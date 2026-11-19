@@ -72,6 +72,12 @@ Create an empty `shards` directory first; keep unrelated JSON files outside it. 
 
 Only the aggregate adds `--comment-pr`, so it emits one final report/grade and upserts one sticky comment. Both required check names, `test` and `fireguard`, are aggregate jobs that run even after failed children and require every child job to succeed. CI retains shard/combined JSON artifacts for diagnosis. Local `npm run fireguard` remains unsharded and unchanged.
 
+### Revision identity and acceptance
+
+The JSON report (`revision.base`, `revision.head`, `scope.baseRef`), human report and sticky PR comment identify the same final grade and revisions, including a skipped result. `baseRef` is the symbolic/configured ref (or supplied base SHA); the **resolved base commit** is the exact commit used for the diff, and the **tested head commit** is the exact committed source graded. A symbolic branch name may move, so use the resolved commits, not the ref alone, to match acceptance evidence to the code.
+
+`fireguard-report.json` and `fireguard-pr.md` from the aggregate CI job are evidence only for that tested head against that resolved base. Any later source edit or new commit changes the source under review and invalidates that artifact for acceptance; commit the new source and run validation on the new head before accepting or delivering it. Do not reuse an earlier grade or PR comment as evidence for the new head.
+
 ## Config (`.fireguardrc.json`)
 
 ```json

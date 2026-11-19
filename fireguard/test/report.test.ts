@@ -3,6 +3,7 @@ import { formatHumanReport, formatJsonReport } from '../src/report.js';
 import type { Execution, FireguardReport } from '../src/types.js';
 
 const failingReport: FireguardReport = {
+  revision: { base: 'base-commit', head: 'head-commit' },
   grade: { letter: 'F', score: 0, reasons: ['ast gate failed'] },
   gates: {
     ast: {
@@ -41,6 +42,29 @@ describe('report', () => {
     expect(text).toContain('mock-ratio');
   });
 
+  it('identifies the symbolic base ref and both resolved revisions', () => {
+    const text = formatHumanReport(failingReport);
+    const json = JSON.parse(formatJsonReport(failingReport)) as FireguardReport;
+    expect(text).toContain(`Base ref: ${json.scope.baseRef}\n`);
+    expect(text).toContain(`Resolved base commit: ${json.revision.base}\n`);
+    expect(text).toContain(`Tested head commit: ${json.revision.head}\n`);
+  });
+
+  it('identifies both revisions even when grading is skipped', () => {
+    const skipped: FireguardReport = {
+      ...failingReport,
+      grade: { letter: 'A', score: 100, reasons: ['no new tests to grade'] },
+      gates: {},
+      skipped: true,
+      skipReason: 'No new unit tests vs base ref',
+    };
+    const text = formatHumanReport(skipped);
+    expect(text).toContain('Base ref: main\n');
+    expect(text).toContain('Resolved base commit: base-commit\n');
+    expect(text).toContain('Tested head commit: head-commit\n');
+    expect(text).toContain('Skipped: No new unit tests vs base ref');
+  });
+
   it('formats JSON with grade and gates', () => {
     const json = JSON.parse(formatJsonReport(failingReport)) as FireguardReport;
     expect(json.grade.letter).toBe('F');
@@ -53,6 +77,7 @@ function mutationReport(
   extra: { execution?: Execution; unchangedLineMutants?: number } = {}
 ): FireguardReport {
   return {
+    revision: { base: 'base-commit', head: 'head-commit' },
     grade: { letter: 'F', score: 0, reasons: ['mutation gate failed'] },
     gates: {
       mutation: {

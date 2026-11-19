@@ -3,7 +3,7 @@ import type { KnowledgeFact } from './fact'
 import { LAYER_RANK } from './merge'
 import { compareCodeUnits } from './order'
 
-export const DEFAULT_CONTEXT_BUDGET = 1500
+export const DEFAULT_CONTEXT_BUDGET = 1800
 
 interface SelectQuery {
   role: string

@@ -4,6 +4,7 @@ import { FIREGUARD_COMMENT_MARKER } from '../src/prComment.js';
 import type { FireguardReport } from '../src/types.js';
 
 const skippedReport: FireguardReport = {
+  revision: { base: 'base-commit', head: 'head-commit' },
   grade: { letter: 'A', score: 100, reasons: ['no new tests to grade'] },
   gates: {},
   scope: { baseRef: 'main', gradedTestFiles: [], changedModules: [] },
