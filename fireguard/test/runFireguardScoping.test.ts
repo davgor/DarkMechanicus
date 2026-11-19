@@ -52,6 +52,7 @@ function harness(changed: string[], options: HarnessOptions = {}) {
   const lanes = { opened: 0, closed: 0 };
   const apply: ApplyAndTest = options.apply ?? (async () => ({ ok: false }));
   const deps: RunFireguardDeps = {
+    revision: { base: 'base-commit', head: 'head-commit' },
     config: {
       ...DEFAULT_CONFIG,
       thresholds: { ...DEFAULT_CONFIG.thresholds, agenticFlakinessRuns: 1 },

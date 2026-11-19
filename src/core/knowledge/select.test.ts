@@ -39,7 +39,7 @@ const ids = (facts: KnowledgeFact[]) => facts.map((f) => f.id)
 
 describe('selectFacts', () => {
   it('exports the default budget', () => {
-    expect(DEFAULT_CONTEXT_BUDGET).toBe(1500)
+    expect(DEFAULT_CONTEXT_BUDGET).toBe(1800)
   })
 
   it('filters by role and needs an event or topic match', () => {

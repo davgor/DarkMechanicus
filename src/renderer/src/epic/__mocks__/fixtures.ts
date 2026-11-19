@@ -393,6 +393,7 @@ export function runView(patch: Partial<RunView> = {}): RunView {
     ],
     rows: [],
     increments: [],
+    activeSprintTierFacts: [],
     attempts: SAMPLE_ATTEMPTS,
     checkpoint: null,
     ...patch

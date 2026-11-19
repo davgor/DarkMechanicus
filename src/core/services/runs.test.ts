@@ -610,6 +610,9 @@ describe('getRun — attempts', () => {
     const ids = getRun(ctx, { runId })?.attempts.map((attempt) => attempt.id) ?? []
     expect(ids).toHaveLength(51)
     expect([ids[0], ids[49], ids[50]]).toEqual(['at_old_51', 'at_old_2', open])
+    const facts = getRun(ctx, { runId })?.activeSprintTierFacts.find((fact) => fact.ticketId === tid(2))
+    expect(facts?.attemptCount).toBe(51)
+    expect(facts?.attempts.map((attempt) => attempt.attemptId)).toContain('at_old_1')
   })
 })
 

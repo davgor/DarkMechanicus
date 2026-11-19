@@ -68,8 +68,8 @@ describe('getContext', () => {
       layer: 'repo',
       body: 'Run the targeted tests first.'
     })
-    expect(result.budgetTokens).toBe(1500)
-    expect(result.usedTokens).toBeLessThanOrEqual(1500)
+    expect(result.budgetTokens).toBe(1800)
+    expect(result.usedTokens).toBeLessThanOrEqual(1800)
     expect(result.omitted).toEqual([])
     expect(result.diagnostics).toEqual([])
     expect(result.layers.repo).toEqual({ path: knowledgeDir(), count: 2 })

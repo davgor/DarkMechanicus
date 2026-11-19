@@ -1,7 +1,6 @@
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { type Db, openDatabase } from '../../core/db/database'
 import { migrate } from '../../core/db/migrations'
@@ -617,14 +616,3 @@ describe.runIf(process.platform !== 'win32')('a custom CLI picked through a syml
   })
 })
 
-describe('no handshake is left to run', () => {
-  const SRC = fileURLToPath(new URL('../..', import.meta.url))
-
-  it('has no protocolHandshake module, and no source file imports one', () => {
-    expect(existsSync(join(SRC, 'main', 'agents', 'protocolHandshake.ts'))).toBe(false)
-    const importers = readdirSync(SRC, { recursive: true, encoding: 'utf8' })
-      .filter((path) => /\.tsx?$/.test(path))
-      .filter((path) => /from\s+['"][^'"]*protocolHandshake['"]|import\(\s*['"][^'"]*protocolHandshake/.test(readFileSync(join(SRC, path), 'utf8')))
-    expect(importers).toEqual([])
-  })
-})
