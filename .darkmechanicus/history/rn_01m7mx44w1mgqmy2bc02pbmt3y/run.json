@@ -3320,7 +3320,11 @@
       "decidedAt": null,
       "decision": null,
       "evidence": null,
-      "failure": null,
+      "failure": {
+        "details": "Live acceptance passed once on clean candidate 641ff5e2: replacement chat chat_36af1eb4 opened after deleting chat_a4485870; the expanded Original first prompt (submitted once) disclosure visibly contained complete earlier BCA-2 history, and screenshot/JSON were produced. Coverage ran once and failed before percentages because the mandated minimal PATH omitted Git: 51 files/399 tests failed with spawnSync git ENOENT; 597 files/10655 tests passed. It was not rerun. PR #49 remains fully green for all other DoD checks.",
+        "reason": "coverage_environment_failed",
+        "retryable": true
+      },
       "fencingToken": 3,
       "id": "at_01m7rwadgrgtng0ywa7jkymekx",
       "kind": "work",
@@ -3328,12 +3332,12 @@
       "outputs": null,
       "reconciledAt": null,
       "revisionId": "rv_01m7nw8vxkywad7wpt0d38znye",
-      "state": "running",
+      "state": "failed",
       "submittedAt": null,
       "supersededAt": null,
       "ticketContentHash": "sha256:34b73f1accc3b11d37d65a40aedc80704aee8604e203a3230b0990178037a21b",
       "ticketId": "tk_01m7nt7jfxp7n85egzvezd93e2",
-      "updatedAt": "2026-11-19T03:06:59.298Z",
+      "updatedAt": "2026-11-19T03:12:00.733Z",
       "worker": {
         "catalogRevision": "2026-11-17.1",
         "effort": "high",
