@@ -179,7 +179,7 @@ Roles are fixed at launch. Nothing a tool call says can change them.
 | `worker` | Heartbeat, submit, and fail for the claim it holds; report that attempt's usage (`record_attempt_metrics` with its claim token); comment. |
 | `reviewer` | Accept or reject submitted attempts; report review overhead usage (`record_run_metrics`); comment. |
 
-Every role can read and add comments (`list_comments`, `add_comment`): append-only Markdown notes on an epic or one of its tickets, signed with the session's role and label. Completed epics refuse new comments. Every role can also stage an image (`add_attachment`) and name its chat (`name_chat`), and read every scorecard and metric (see [Scorecards and project metrics](#scorecards-and-project-metrics)).
+Every role can read and add comments (`list_comments`, `add_comment`): append-only Markdown notes on an epic or one of its tickets, signed with the session's role and label. Completed epics refuse new comments. Every role can also read and add Kanban card messages (`list_kanban_messages`, `add_kanban_message`), stage an image (`add_attachment`), name its chat (`name_chat`), and read every scorecard and metric (see [Scorecards and project metrics](#scorecards-and-project-metrics)).
 
 Some actions exist only in the desktop app and are not available over MCP for any role: approving a checkpoint, authorizing auto-continue, granting a retry, queueing a run, queueing or canceling a Linear transfer, recording a person's rating, rescue time or planned review time, labelling a budget as a person's estimate, and creating corrective work in another project (the Dark Mechanicus source). A person's escaped-defect records (`recordEscapedDefects`) are desktop-only too, but no desktop control calls that command yet; escaped defects are recorded over MCP with `record_attempt_metrics` instead (see [Scorecards and project metrics](#scorecards-and-project-metrics)).
 
@@ -224,9 +224,9 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 
 | Tools | planner | orchestrator | worker | reviewer |
 |-------|:-------:|:------------:|:------:|:--------:|
-| Read-only (34): `get_capabilities`, `get_project`, `list_projects`, `get_storage_status`, `get_context`, `search_history`, `list_branch_epics`, `list_sessions`, `list_epics`, `get_epic`, `list_tickets`, `get_ticket`, `get_attachment`, `get_plan`, `validate_plan`, `list_revisions`, `match_capabilities`, `get_run`, `get_ready_tickets`, `get_run_events`, `get_run_metrics`, `get_planned_baselines`, `get_sprint_report`, `get_checkpoint`, `get_retro_findings`, `get_experiment`, `preview_corrections`, `list_comments`, `list_profiles`, `get_profile`, `preview_board_import`, `get_transfer`, `list_kanban_cards`, `get_kanban_card` | yes | yes | yes | yes |
+| Read-only (35): `get_capabilities`, `get_project`, `list_projects`, `get_storage_status`, `get_context`, `search_history`, `list_branch_epics`, `list_sessions`, `list_epics`, `get_epic`, `list_tickets`, `get_ticket`, `get_attachment`, `get_plan`, `validate_plan`, `list_revisions`, `match_capabilities`, `get_run`, `get_ready_tickets`, `get_run_events`, `get_run_metrics`, `get_planned_baselines`, `get_sprint_report`, `get_checkpoint`, `get_retro_findings`, `get_experiment`, `preview_corrections`, `list_comments`, `list_profiles`, `get_profile`, `preview_board_import`, `get_transfer`, `list_kanban_cards`, `get_kanban_card`, `list_kanban_messages` | yes | yes | yes | yes |
 | Scorecards and metrics (12, read-only): `get_ticket_grade`, `get_sprint_grade`, `get_run_grade`, `get_epic_grade`, `get_report_scorecard`, `reassess_report_scorecard`, `get_space_signals`, `get_ticket_performance`, `get_escaped_defects`, `get_run_efficiency`, `get_run_timing`, `get_metrics_summary` | yes | yes | yes | yes |
-| Comments, images and chat names: `add_comment`, `add_attachment`, `name_chat` | yes | yes | yes | yes |
+| Comments, Kanban messages, images and chat names: `add_comment`, `add_kanban_message`, `add_attachment`, `name_chat` | yes | yes | yes | yes |
 | Profiles: `save_profile` | yes | yes | | |
 | Definition of Done: `set_definition_of_done` | yes | | | |
 | Repository and drafts: `initialize_repository`, `rescan_repositories`, `flush_portable_state`, `reconcile_repository`, `create_epic`, `import_board`, `create_ticket`, `update_ticket`, `open_plan_draft`, `update_plan_draft`, `discard_plan_draft` | yes | yes | | |
@@ -247,7 +247,7 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 | Kanban launch and claim: `launch_kanban_cards`, `claim_kanban_card` | | yes | | |
 | Kanban reporting (`kanban.report`): `heartbeat_kanban_card`, `submit_kanban_card`, `fail_kanban_card` | | yes | yes | |
 | Agent mail (`mail.use`; listed, but always `unauthorized` over MCP): `get_agent_identity`, `list_agent_peers`, `send_agent_message`, `read_agent_inbox`, `acknowledge_agent_messages`, `get_agent_mail_status`, `take_agent_mail_wake` | yes | yes | yes | yes |
-| **Total** | 72 (73 with `--allow-save`) | 104 (105 with `--allow-save`) | 63 | 59 |
+| **Total** | 74 (75 with `--allow-save`) | 106 (107 with `--allow-save`) | 65 | 61 |
 
 `--allow-save` has no effect for `worker` and `reviewer`. No role lists a tool for the desktop-only actions: no tool presses Play on a Kanban card, approves one or kicks one back (`kanban.play` and `kanban.review` belong to a person in the desktop app).
 
