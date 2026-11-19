@@ -70,6 +70,11 @@ function maskSecretText(text: string): string {
   return maskWholeClaimTokens(text).replace(GRANT_TOKEN, GRANT_TOKEN_MASK)
 }
 
+/** Whether `text` holds a claim token or a grant token (whole, or long enough to be one cut short). */
+export function holdsSecretText(text: string): boolean {
+  return maskSecretText(text) !== text
+}
+
 /**
  * Fields whose keys are data a caller chose, not field names: `refMap` maps a draft's client refs
  * (any `[A-Za-z0-9_.-]`, so `api-key` is a valid ref) to the ticket ids they became. Those keys are

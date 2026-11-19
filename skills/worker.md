@@ -58,6 +58,16 @@ If something needed is missing or contradictory, do not guess: report it (see Bl
 
 When your packet carries a `repository` (`name`, `path`, `branch`), the project is a folder of Git repositories and your ticket targets that one repository. Work only in a worktree of `repository.path`, branched from that repository's sprint integration branch, and run Git as `git -C <worktree>`. Never switch the branch of the repository's own checkout, and never change another repository. On an acceptance node the packet lists the touched repositories under `repositories`: run each repository's Definition of Done checks in its own integration worktree and report each check as `<repo>: <check>`, for example `api: npm test`.
 
+## Measurement
+
+Dark Mechanicus grades every ticket from its own records: the reviewer's decision, the server's lifecycle times, and the usage the host or the agent reported. Your part is to report what you measured, honestly, and nothing else.
+
+- Usage is recorded by the session that did the work, never estimated. When your host's session files are read for the run (the orchestrator does that), report nothing yourself. Otherwise, before you submit, report your attempt's real token and active-time numbers with `record_attempt_metrics`, passing your claim token; you may report only your own live attempt. When your host cannot measure a number, report it missing with the reason the tool names; never send 0 or a guess for unknown. A resend of the same delivery changes nothing.
+- You may classify your effort as corrective (with its cause) or productive. Planned tests and useful investigation are productive, never waste.
+- Never record a person's rating, rescue time or review time, a verification result or a handoff check: those come from a person or the server, and the tools refuse them. A coordination defect must cite a run record, and a clarification you asked for is not one. You may add an unassigned or candidate escaped-defect report; only a reviewing session charges a defect to a ticket.
+- Your evidence is a claim, not verification. A criterion counts as verified only when the reviewer checks it, so give each criterion a note saying where it is shown. Report every Definition of Done check you ran under its exact name, and a check you skipped as skipped.
+- Never state a grade or a score in your report: the server computes them, and no grade you write is read.
+
 ## Discoveries
 
 Record discoveries as structured notes the reporter can lift into the sprint retro. A discovery is work outside your ticket that someone should do: a defect you did not cause, missing coverage, a design problem, a risk to a later ticket. Each one needs a title and a reason, because the retro turns it into a ticket in the next sprint and a ticket with no reason cannot be planned. Put them at the end of `evidence.notes`, under a `Discoveries:` line, one item per discovery:

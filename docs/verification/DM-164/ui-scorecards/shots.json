@@ -1,0 +1,2159 @@
+{
+  "commit": "b20d191ab984664eee10d381efe0ec9892891152",
+  "launched": {
+    "out/main/index.js": "3fc4399828d868f0d15a43b3a8fcaa04568fe8162f2936e94fe8a6fdd07d81d8",
+    "out/preload/index.js": "fb82523ed15c1eaec29526fb16a8e70a7394ab6b6044b82d1cc646cf1043f252",
+    "out/renderer/index.html": "739e79b19984e88003f39c0d3e1e89cf983870ffc72f280081af7897eb299883"
+  },
+  "summary": {
+    "c13": {
+      "passed": 12,
+      "failed": 0,
+      "errors": []
+    },
+    "c19": {
+      "passed": 7,
+      "failed": 0,
+      "errors": []
+    },
+    "c15": {
+      "passed": 15,
+      "failed": 0,
+      "errors": []
+    },
+    "c23": {
+      "passed": 16,
+      "failed": 0,
+      "errors": []
+    },
+    "c16": {
+      "passed": 25,
+      "failed": 0,
+      "errors": []
+    },
+    "c14": {
+      "passed": 11,
+      "failed": 0,
+      "errors": []
+    }
+  },
+  "sessions": [
+    {
+      "variant": "loop",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-loop-I8qHg8",
+      "criteria": [
+        "c13",
+        "c19"
+      ],
+      "seedMs": 7742,
+      "fixture": {
+        "project": {
+          "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-loop-I8qHg8\\shop",
+          "name": "shop",
+          "epicTitle": "Checkout flow",
+          "epicId": "ep_0000000000000000000001x145",
+          "runId": "rn_0000000000000000000001x14c",
+          "sprintId": "sp_0000000000000000000001x146",
+          "tickets": {
+            "api": "tk_0000000000000000000001x148",
+            "page": "tk_0000000000000000000001x149",
+            "docs": "tk_0000000000000000000001x14a",
+            "node": "tk_0000000000000000000001x147"
+          },
+          "pageAttempts": [
+            "at_0000000000000000000001x14g",
+            "at_0000000000000000000001x14j"
+          ],
+          "reports": [
+            "rp_0000000000000000000001x14r",
+            "rp_0000000000000000000001x15q",
+            "rp_0000000000000000000001x162"
+          ],
+          "report1Revision": 1
+        },
+        "unexpected": []
+      }
+    },
+    {
+      "variant": "regress",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-regress-HqgxjV",
+      "criteria": [
+        "c15"
+      ],
+      "seedMs": 8524,
+      "fixture": {
+        "project": {
+          "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-regress-HqgxjV\\shop",
+          "name": "shop",
+          "epicTitle": "Checkout flow",
+          "epicId": "ep_0000000000000000000001x145",
+          "runId": "rn_0000000000000000000001x14c",
+          "sprintId": "sp_0000000000000000000001x146",
+          "tickets": {
+            "api": "tk_0000000000000000000001x148",
+            "page": "tk_0000000000000000000001x149",
+            "docs": "tk_0000000000000000000001x14a",
+            "node": "tk_0000000000000000000001x147"
+          },
+          "pageAttempts": [
+            "at_0000000000000000000001x14g",
+            "at_0000000000000000000001x14j"
+          ],
+          "reports": [
+            "rp_0000000000000000000001x14r",
+            "rp_0000000000000000000001x15q",
+            "rp_0000000000000000000001x162"
+          ],
+          "report1Revision": 1
+        },
+        "unexpected": []
+      },
+      "after": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-regress-HqgxjV\\after.json"
+    },
+    {
+      "variant": "report1",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-report1-HaQCuc",
+      "criteria": [
+        "c23",
+        "c16"
+      ],
+      "seedMs": 2872,
+      "fixture": {
+        "project": {
+          "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-report1-HaQCuc\\shop",
+          "name": "shop",
+          "epicTitle": "Checkout flow",
+          "epicId": "ep_0000000000000000000001x145",
+          "runId": "rn_0000000000000000000001x14c",
+          "sprintId": "sp_0000000000000000000001x146",
+          "tickets": {
+            "api": "tk_0000000000000000000001x148",
+            "page": "tk_0000000000000000000001x149",
+            "docs": "tk_0000000000000000000001x14a",
+            "node": "tk_0000000000000000000001x147"
+          },
+          "pageAttempts": [
+            "at_0000000000000000000001x14g",
+            "at_0000000000000000000001x14j"
+          ],
+          "reportId": "rp_0000000000000000000001x14r",
+          "reportRevision": 1,
+          "experiments": {
+            "local": "xp_0000000000000000000001x14s"
+          }
+        },
+        "unexpected": []
+      },
+      "after": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-report1-HaQCuc\\after.json"
+    },
+    {
+      "variant": "failed",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-failed-DuLMg4",
+      "criteria": [
+        "c14"
+      ],
+      "seedMs": 13131,
+      "fixture": {
+        "project": {
+          "path": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-failed-DuLMg4\\shop",
+          "name": "shop",
+          "epicTitle": "Payment receipts",
+          "epicId": "ep_0000000000000000000001x145",
+          "runId": "rn_0000000000000000000001x14f",
+          "sprintIds": [
+            "sp_0000000000000000000001x146",
+            "sp_0000000000000000000001x148"
+          ],
+          "tickets": {
+            "render": "tk_0000000000000000000001x14a",
+            "store": "tk_0000000000000000000001x14b",
+            "node1": "tk_0000000000000000000001x147",
+            "email": "tk_0000000000000000000001x14c",
+            "pdf": "tk_0000000000000000000001x14d",
+            "node2": "tk_0000000000000000000001x149"
+          },
+          "reports": [
+            "rp_0000000000000000000001x14p",
+            "rp_0000000000000000000001x14z"
+          ]
+        },
+        "unexpected": []
+      }
+    }
+  ],
+  "shots": [
+    {
+      "criterion": "c13",
+      "name": "c13-complete-SHOP-2-normal.png",
+      "viewport": "1600x1000",
+      "session": "loop",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-loop-I8qHg8",
+      "note": "Ticket Scorecard tab of SHOP-2 (complete) at normal width; headline equal to get_ticket_grade",
+      "values": {
+        "mcp": {
+          "letter": "A",
+          "displayScore": "96.4",
+          "status": "final",
+          "outcome": "verified",
+          "statusReasons": []
+        },
+        "headline": "A\nFinal\nScore 96.4\nCoverage 100.0% of base weight · 7 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n(S 75 + P 100 + A 100 + C 100 + E 100 + T 100 + K 100) ÷ 7 = 96.428571\n96.428571 ≥ 90 → A\nfinal: the outcome is decided (verified or confirmed failed) and every required component is observ"
+      }
+    },
+    {
+      "criterion": "c13",
+      "name": "c13-complete-SHOP-2-narrow.png",
+      "viewport": "1024x768",
+      "session": "loop",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-loop-I8qHg8",
+      "note": "Ticket Scorecard tab of SHOP-2 (complete) at narrow width; headline equal to get_ticket_grade",
+      "values": {
+        "mcp": {
+          "letter": "A",
+          "displayScore": "96.4",
+          "status": "final",
+          "outcome": "verified",
+          "statusReasons": []
+        },
+        "headline": "A\nFinal\nScore 96.4\nCoverage 100.0% of base weight · 7 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n(S 75 + P 100 + A 100 + C 100 + E 100 + T 100 + K 100) ÷ 7 = 96.428571\n96.428571 ≥ 90 → A\nfinal: the outcome is decided (verified or confirmed failed) and every required component is observ"
+      }
+    },
+    {
+      "criterion": "c13",
+      "name": "c13-partial-SHOP-1-normal.png",
+      "viewport": "1600x1000",
+      "session": "loop",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-loop-I8qHg8",
+      "note": "Ticket Scorecard tab of SHOP-1 (partial) at normal width; headline equal to get_ticket_grade",
+      "values": {
+        "mcp": {
+          "letter": "A",
+          "displayScore": "95.0",
+          "status": "provisional",
+          "outcome": "verified",
+          "statusReasons": [
+            "required_component_missing"
+          ]
+        },
+        "headline": "A\nProvisional\nScore 95.0\nCoverage 71.4% of base weight · 5 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n\nStatus provisional: a required component is missing\n\n(S 75 + P 100 + A 100 + C 100 + E 100) ÷ 5 = 95\n95 ≥ 90 → A\nprovisional: a score and letter, not final until every required compon"
+      }
+    },
+    {
+      "criterion": "c13",
+      "name": "c13-partial-SHOP-1-narrow.png",
+      "viewport": "1024x768",
+      "session": "loop",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-loop-I8qHg8",
+      "note": "Ticket Scorecard tab of SHOP-1 (partial) at narrow width; headline equal to get_ticket_grade",
+      "values": {
+        "mcp": {
+          "letter": "A",
+          "displayScore": "95.0",
+          "status": "provisional",
+          "outcome": "verified",
+          "statusReasons": [
+            "required_component_missing"
+          ]
+        },
+        "headline": "A\nProvisional\nScore 95.0\nCoverage 71.4% of base weight · 5 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n\nStatus provisional: a required component is missing\n\n(S 75 + P 100 + A 100 + C 100 + E 100) ÷ 5 = 95\n95 ≥ 90 → A\nprovisional: a score and letter, not final until every required compon"
+      }
+    },
+    {
+      "criterion": "c13",
+      "name": "c13-rejected-retried-SHOP-3-normal.png",
+      "viewport": "1600x1000",
+      "session": "loop",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-loop-I8qHg8",
+      "note": "Ticket Scorecard tab of SHOP-3 (rejected-retried) at normal width; headline equal to get_ticket_grade",
+      "values": {
+        "mcp": {
+          "letter": "C",
+          "displayScore": "76.4",
+          "status": "final",
+          "outcome": "verified",
+          "statusReasons": []
+        },
+        "headline": "C\nFinal\nScore 76.4\nCoverage 100.0% of base weight · 7 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n(S 75 + P 100 + A 100 + C 50 + E 10 + T 100 + K 100) ÷ 7 = 76.428571\n76.428571 ≥ 70 → C\nfinal: the outcome is decided (verified or confirmed failed) and every required component is observed"
+      }
+    },
+    {
+      "criterion": "c13",
+      "name": "c13-rejected-retried-SHOP-3-attempts-normal.png",
+      "viewport": "1600x1000",
+      "session": "loop",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-loop-I8qHg8",
+      "note": "Ticket Scorecard tab of SHOP-3: the rejected attempt and the accepted corrective retry, and the rejection deduction, at normal width",
+      "values": {
+        "attempts": "ATTEMPTS IN THIS RUN (2)\nAttempt #1 · rejected\nelapsed 10 min · active 10 min · effort 10 min · tokens 12,000 tokens\nAttempt #2 · accepted\nelapsed 15 min · active 15 min · effort 15 min · tokens 16,000 tokens\n\nRetries: 1 (a diagnostic, never scored as waste).\n\nTokens as of 11/17/2026, 1:38:49 AM, from the run's usage table when this was read.",
+        "mcpDeductions": [
+          "rejected_submission"
+        ]
+      }
+    },
+    {
+      "criterion": "c13",
+      "name": "c13-rejected-retried-SHOP-3-narrow.png",
+      "viewport": "1024x768",
+      "session": "loop",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-loop-I8qHg8",
+      "note": "Ticket Scorecard tab of SHOP-3 (rejected-retried) at narrow width; headline equal to get_ticket_grade",
+      "values": {
+        "mcp": {
+          "letter": "C",
+          "displayScore": "76.4",
+          "status": "final",
+          "outcome": "verified",
+          "statusReasons": []
+        },
+        "headline": "C\nFinal\nScore 76.4\nCoverage 100.0% of base weight · 7 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n(S 75 + P 100 + A 100 + C 50 + E 10 + T 100 + K 100) ÷ 7 = 76.428571\n76.428571 ≥ 70 → C\nfinal: the outcome is decided (verified or confirmed failed) and every required component is observed"
+      }
+    },
+    {
+      "criterion": "c13",
+      "name": "c13-rejected-retried-SHOP-3-attempts-narrow.png",
+      "viewport": "1024x768",
+      "session": "loop",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-loop-I8qHg8",
+      "note": "Ticket Scorecard tab of SHOP-3: the rejected attempt and the accepted corrective retry, and the rejection deduction, at narrow width",
+      "values": {
+        "attempts": "ATTEMPTS IN THIS RUN (2)\nAttempt #1 · rejected\nelapsed 10 min · active 10 min · effort 10 min · tokens 12,000 tokens\nAttempt #2 · accepted\nelapsed 15 min · active 15 min · effort 15 min · tokens 16,000 tokens\n\nRetries: 1 (a diagnostic, never scored as waste).\n\nTokens as of 11/17/2026, 1:38:49 AM, from the run's usage table when this was read.",
+        "mcpDeductions": [
+          "rejected_submission"
+        ]
+      }
+    },
+    {
+      "criterion": "c19",
+      "name": "c19-metrics-dashboard-normal.png",
+      "viewport": "1600x1000",
+      "session": "loop",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-loop-I8qHg8",
+      "note": "Metrics dashboard of shop at normal width (opened from the sidebar Metrics link), equal to get_metrics_summary",
+      "values": {
+        "footer": {
+          "mcpIndex": 0,
+          "mcpText": "MCP\nWaiting for an agent",
+          "nextText": "Metrics",
+          "linkText": "Metrics",
+          "mcpBox": {
+            "x": 18,
+            "y": 798,
+            "w": 235,
+            "h": 28
+          },
+          "nextBox": {
+            "x": 18,
+            "y": 836,
+            "w": 235,
+            "h": 28
+          }
+        },
+        "mcp": {
+          "epicGrade": [
+            "A",
+            "96.2"
+          ],
+          "trend": [
+            "B",
+            "88.2",
+            "A",
+            "100.0",
+            "A",
+            "100.0"
+          ],
+          "totalTokens": 160000
+        },
+        "shownExcerpt": "Metrics\nC:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-loop-I8qHg8\\shop\nPolicy dm-space v2 · f50d32f4eb4e\nRead 11/17/2026, 1:38:55 AM · records up to 11/17/2026, 1:38:55 AM · read when opened and on Refresh, not polled\nRefresh\n\nTotals are summed from the raw measures of the 1 epic that executed work; an epic that ran nothing keeps its row below but adds nothing.\n\nGRADES\n\n1 of 1 epic graded\n\nFinal\n0\nProvisional\n1\nIn progress\n0\nFailed\n0\nUngraded\n0\n\nBy the grade's own status: final 0 · provisional 1 · ungraded 0. Letters are counted, never averaged.\n\nTOKENS\n\n160,000 tokens\n\nCoverage: 14 of 14 executed a"
+      }
+    },
+    {
+      "criterion": "c19",
+      "name": "c19-metrics-epic-row-normal.png",
+      "viewport": "1600x1000",
+      "session": "loop",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-loop-I8qHg8",
+      "note": "Metrics dashboard: the epic table with the Checkout flow row at normal width",
+      "values": {
+        "row": "EPIC\tGRADE\tCOVERAGE\tTOKENS\tACTIVE TIME\tWALL TIME\nCheckout flow\ncompleted\n\t\nA 96.2\nProvisional\n\t\n85.7% of base weight\n14 of 14 executed attempts reported tokens\n\t\n160,000 tokens\n\t\n2 h 37 min\n\t\n3 h 02 min"
+      }
+    },
+    {
+      "criterion": "c19",
+      "name": "c19-metrics-dashboard-narrow.png",
+      "viewport": "1024x768",
+      "session": "loop",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-loop-I8qHg8",
+      "note": "Metrics dashboard of shop at narrow width (opened from the sidebar Metrics link), equal to get_metrics_summary",
+      "values": {
+        "footer": {
+          "mcpIndex": 0,
+          "mcpText": "MCP\nWaiting for an agent",
+          "nextText": "Metrics",
+          "linkText": "Metrics",
+          "mcpBox": {
+            "x": 18,
+            "y": 798,
+            "w": 235,
+            "h": 28
+          },
+          "nextBox": {
+            "x": 18,
+            "y": 836,
+            "w": 235,
+            "h": 28
+          }
+        },
+        "mcp": {
+          "epicGrade": [
+            "A",
+            "96.2"
+          ],
+          "trend": [
+            "B",
+            "88.2",
+            "A",
+            "100.0",
+            "A",
+            "100.0"
+          ],
+          "totalTokens": 160000
+        },
+        "shownExcerpt": "Metrics\nC:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-loop-I8qHg8\\shop\nPolicy dm-space v2 · f50d32f4eb4e\nRead 11/17/2026, 1:38:55 AM · records up to 11/17/2026, 1:38:55 AM · read when opened and on Refresh, not polled\nRefresh\n\nTotals are summed from the raw measures of the 1 epic that executed work; an epic that ran nothing keeps its row below but adds nothing.\n\nGRADES\n\n1 of 1 epic graded\n\nFinal\n0\nProvisional\n1\nIn progress\n0\nFailed\n0\nUngraded\n0\n\nBy the grade's own status: final 0 · provisional 1 · ungraded 0. Letters are counted, never averaged.\n\nTOKENS\n\n160,000 tokens\n\nCoverage: 14 of 14 executed a"
+      }
+    },
+    {
+      "criterion": "c19",
+      "name": "c19-metrics-epic-row-narrow.png",
+      "viewport": "1024x768",
+      "session": "loop",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-loop-I8qHg8",
+      "note": "Metrics dashboard: the epic table with the Checkout flow row at narrow width",
+      "values": {
+        "row": "EPIC\nGRADE\nCOVERAGE\nTOKENS\nACTIVE TIME\nWALL TIME\nCheckout flow\ncompleted\nA 96.2\nProvisional\n85.7% of base weight\n14 of 14 executed attempts reported tokens\n160,000 tokens\n2 h 37 min\n3 h 02 min"
+      }
+    },
+    {
+      "criterion": "c19",
+      "name": "c19-epic-scorecard-from-metrics-normal.png",
+      "viewport": "1600x1000",
+      "session": "loop",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-loop-I8qHg8",
+      "note": "The epic row's link opened Checkout flow's Scorecard tab at normal width; grade equal to get_epic_grade",
+      "values": {
+        "headline": "A\nProvisional\nScore 96.2\nCoverage 85.7% of base weight · 6 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n\nStatus provisional: an input is estimated\n\n(P 100 + A 100 + C 92.857143 + E 84.375 + T 100 + K 100) ÷ 6 = 96.205357\n96.205357 ≥ 90 → A\nprovisional: a score and letter, not final until",
+        "mcp": [
+          "A",
+          "96.2"
+        ]
+      }
+    },
+    {
+      "criterion": "c19",
+      "name": "c19-epic-scorecard-from-metrics-narrow.png",
+      "viewport": "1024x768",
+      "session": "loop",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-loop-I8qHg8",
+      "note": "The epic row's link opened Checkout flow's Scorecard tab at narrow width; grade equal to get_epic_grade",
+      "values": {
+        "headline": "A\nProvisional\nScore 96.2\nCoverage 85.7% of base weight · 6 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n\nStatus provisional: an input is estimated\n\n(P 100 + A 100 + C 92.857143 + E 84.375 + T 100 + K 100) ÷ 6 = 96.205357\n96.205357 ≥ 90 → A\nprovisional: a score and letter, not final until",
+        "mcp": [
+          "A",
+          "96.2"
+        ]
+      }
+    },
+    {
+      "criterion": "c15",
+      "name": "c15-approved-snapshot-normal.png",
+      "viewport": "1600x1000",
+      "session": "regress",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-regress-HqgxjV",
+      "note": "Sprint 1 report Scorecard (completed epic overview): the snapshot frozen with report revision 1 and approved at its checkpoint",
+      "values": {
+        "mode": "Historical snapshot",
+        "headline": "B\nFinal\nScore 88.2\nCoverage 100.0% of base weight · 7 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n(S 75 + P 100 + A 100 + C 80 + E 62.5 + T 100 + K 100) ÷ 7 = 88.214286\n88.214286 ≥ 80 → B\nfinal: the outcome is decided (verified or confirmed failed) and every required component is observ",
+        "mcp": {
+          "result": "B 88.2 (final)",
+          "snapshotId": "as_8jzga9ys8jszp3dhrqfwmsdc02",
+          "reportRevision": 1
+        }
+      }
+    },
+    {
+      "criterion": "c15",
+      "name": "c15-reassessment-normal.png",
+      "viewport": "1600x1000",
+      "session": "regress",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-regress-HqgxjV",
+      "note": "Later reassessment of Sprint 1 (dated now, after the high-severity defect recorded at 2026-11-15T12:05:00.000Z + 1 h): approved snapshot vs reassessed grade, P difference",
+      "values": {
+        "mcp": {
+          "approved": "B 88.2 (final)",
+          "current": "B 83.9 (final)",
+          "differences": [
+            [
+              "P",
+              100,
+              70
+            ]
+          ],
+          "assessedAt": "2026-11-15T13:06:00.000Z",
+          "comparedWithSnapshot": "as_8jzga9ys8jszp3dhrqfwmsdc02"
+        },
+        "shownExcerpt": "LATER REASSESSMENT\n\nA reassessment is a separate, dated reading of this report's scope from the records as they stand when you ask. It never replaces the snapshot above: late metrics, ratings, defects and newer rubric versions show up only here, each difference with its cause.\n\nReassess again\nReassessment · 11/17/2026, 1:39:20 AM\nReassessed at\n11/17/2026, 1:39:20 AM\nGraded under\ndm-space v2 · f50d32f4eb4e (the snapshot’s policy)\nCompared with\nsnapshot as_8jzga9ys8jszp3dhrqfwmsdc02, frozen 11/15/2026, 4:14:00 AM under dm-space v2 · f50d32f4eb4e\nProvenance\nregraded by the Dark Mechanicus core from this folder’s records when you asked; not stored, not approved\nSprint · approved B 88.2 (final) · reassessed B 83.9 (final) · 1 difference(s)\nApproved (frozen)\nB 88.2 (final) · as of 11/15/2026, 4:14:00 AM\nSame window, regraded now\nB 88.2 (final)\nReassessed (11/17/2026, 1:39:20 AM)\nB 83.9 (final)"
+      }
+    },
+    {
+      "criterion": "c15",
+      "name": "c15-reassessment-narrow.png",
+      "viewport": "1024x768",
+      "session": "regress",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-regress-HqgxjV",
+      "note": "Later reassessment of Sprint 1 (dated now, after the high-severity defect recorded at 2026-11-15T12:05:00.000Z + 1 h): approved snapshot vs reassessed grade, P difference",
+      "values": {
+        "mcp": {
+          "approved": "B 88.2 (final)",
+          "current": "B 83.9 (final)",
+          "differences": [
+            [
+              "P",
+              100,
+              70
+            ]
+          ],
+          "assessedAt": "2026-11-15T13:06:00.000Z",
+          "comparedWithSnapshot": "as_8jzga9ys8jszp3dhrqfwmsdc02"
+        },
+        "shownExcerpt": "LATER REASSESSMENT\n\nA reassessment is a separate, dated reading of this report's scope from the records as they stand when you ask. It never replaces the snapshot above: late metrics, ratings, defects and newer rubric versions show up only here, each difference with its cause.\n\nReassess again\nReassessment · 11/17/2026, 1:39:20 AM\nReassessed at\n11/17/2026, 1:39:20 AM\nGraded under\ndm-space v2 · f50d32f4eb4e (the snapshot’s policy)\nCompared with\nsnapshot as_8jzga9ys8jszp3dhrqfwmsdc02, frozen 11/15/2026, 4:14:00 AM under dm-space v2 · f50d32f4eb4e\nProvenance\nregraded by the Dark Mechanicus core from this folder’s records when you asked; not stored, not approved\nSprint · approved B 88.2 (final) · reassessed B 83.9 (final) · 1 difference(s)\nApproved (frozen)\nB 88.2 (final) · as of 11/15/2026, 4:14:00 AM\nSame window, regraded now\nB 88.2 (final)\nReassessed (11/17/2026, 1:39:20 AM)\nB 83.9 (final)"
+      }
+    },
+    {
+      "criterion": "c15",
+      "name": "c15-snapshot-after-reassess-normal.png",
+      "viewport": "1600x1000",
+      "session": "regress",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-regress-HqgxjV",
+      "note": "Sprint 1 report Scorecard after Reassess now and Refresh: the approved snapshot unchanged",
+      "values": {
+        "headline": "B\nFinal\nScore 88.2\nCoverage 100.0% of base weight · 7 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n(S 75 + P 100 + A 100 + C 80 + E 62.5 + T 100 + K 100) ÷ 7 = 88.214286\n88.214286 ≥ 80 → B\nfinal: the outcome is decided (verified or confirmed failed) and every required component is observ",
+        "approval": {
+          "id": "ap_0000000000000000000001x15b",
+          "run_id": "rn_0000000000000000000001x14c",
+          "sprint_id": "sp_0000000000000000000001x146",
+          "report_id": "rp_0000000000000000000001x14r",
+          "report_hash": "sha256:007928121df529bd87f6355c13ce34189e65612c08d0f1c08579ed9ffe140fec",
+          "action": "advance_sprint",
+          "issued_by": "ss_0000000000000000000001x143",
+          "issued_at": "2026-11-15T10:16:00.000Z",
+          "consumed_at": "2026-11-15T10:16:00.000Z"
+        }
+      }
+    },
+    {
+      "criterion": "c23",
+      "name": "c23-findings-normal.png",
+      "viewport": "1600x1000",
+      "session": "report1",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-report1-HaQCuc",
+      "note": "Sprint 1 report Improvement tab: the measured findings of the frozen scorecard (get_retro_findings)",
+      "values": {
+        "count": 2,
+        "kinds": [
+          "corrective_concentration",
+          "coordination_problem"
+        ],
+        "excerpt": "2 · FINDINGS · 2\n\nMeasured gaps of the frozen scorecard, largest first. Each states a fact; what might explain it is a hypothesis, never a proven cause.\n\n#1 · Concentrated corrective effort\nTicket SHOP-3 \"Build the checkout page\": 15 min of corrective effort, 100% of the sprint's 15 min and 60% of its own recorded effort (productive 10 min, unclassified 0 min; neither is counted as waste: productive effort includes planned tests and useful investigation).\nSubject\nTicket grade · SHOP-3 Build the checkout page SHOP-3\nComponent\nE · Efficiency and flow\nMagnitude\n100% of the sprint's corrective eff"
+      }
+    },
+    {
+      "criterion": "c23",
+      "name": "c23-experiment-selected-normal.png",
+      "viewport": "1600x1000",
+      "session": "report1",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-report1-HaQCuc",
+      "note": "Experiment xp_0000000000000000000001x14s (E.corrective_ms -50% on SHOP-3) ticked for corrective work",
+      "values": {
+        "experiment": "xp_0000000000000000000001x14s",
+        "checked": true
+      }
+    },
+    {
+      "criterion": "c23",
+      "name": "c23-experiment-from-finding-normal.png",
+      "viewport": "1600x1000",
+      "session": "report1",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-report1-HaQCuc",
+      "note": "The ticked experiment's \"From findings\" link: ← #1 Ticket SHOP-3 \"Build the checkout page\": 15 min of corrective effort, 100% of th…",
+      "values": {
+        "finding": {
+          "rank": 1,
+          "kind": "corrective_concentration",
+          "measure": "E.corrective_ms",
+          "statement": "Ticket SHOP-3 \"Build the checkout page\": 15 min of corrective effort, 100% of the sprint's 15 min and 60% of its own recorded effort (productive 10 min, unclassified 0 min; neither is counted as waste: productive effort includes planned tests and useful investigation)."
+        }
+      }
+    },
+    {
+      "criterion": "c23",
+      "name": "c23-preview-normal.png",
+      "viewport": "1600x1000",
+      "session": "report1",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-report1-HaQCuc",
+      "note": "Corrective work preview (normal): tickets it would add, nothing written",
+      "values": {
+        "excerpt": "PREVIEW · NOTHING IS WRITTEN YET\nGoes into\nThe draft of \"Checkout flow\": a new Sprint 2, appended (after Sprint 1, which stays as it is) · goal: Corrective work from the Sprint 1 retro (report revision 1): experiments xp_0000000000000000000001x14s.\nDestination\nThis project's repository\nDraft\nNone open: created by this request\nReady to create xp_0000000000000000000001x14s\nCorrective work\nSHOP-6\nWrite the card validation rules into the page ticket template\nSmall\nDestination\nThis project's repository\nTags\ncorrective, plan_context\nBody\nAdd the card number, expiry and CVC rules to docs/checkout-rules.md and link it from every checkout ticket body.\nCriteria\nWrite the card validation rules into the"
+      }
+    },
+    {
+      "criterion": "c23",
+      "name": "c23-preview-narrow.png",
+      "viewport": "1024x768",
+      "session": "report1",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-report1-HaQCuc",
+      "note": "Corrective work preview (narrow): tickets it would add, nothing written",
+      "values": {
+        "excerpt": "PREVIEW · NOTHING IS WRITTEN YET\nGoes into\nThe draft of \"Checkout flow\": a new Sprint 2, appended (after Sprint 1, which stays as it is) · goal: Corrective work from the Sprint 1 retro (report revision 1): experiments xp_0000000000000000000001x14s.\nDestination\nThis project's repository\nDraft\nNone open: created by this request\nReady to create xp_0000000000000000000001x14s\nCorrective work\nSHOP-6\nWrite the card validation rules into the page ticket template\nSmall\nDestination\nThis project's repository\nTags\ncorrective, plan_context\nBody\nAdd the card number, expiry and CVC rules to docs/checkout-rules.md and link it from every checkout ticket body.\nCriteria\nWrite the card validation rules into the"
+      }
+    },
+    {
+      "criterion": "c23",
+      "name": "c23-draft-created-normal.png",
+      "viewport": "1600x1000",
+      "session": "report1",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-report1-HaQCuc",
+      "note": "Corrective draft work created (normal); run 1 still awaiting_checkpoint with 5 attempts",
+      "values": {
+        "excerpt": "Draft work created Created as draft work in \"Checkout flow\" (draft revision 2). Nothing was saved, adopted, started or approved.\n\nSHOP-6 Write the card validation rules into the page ticket template\nSHOP-7 Grade the corrective tests with Fireguard\nSHOP-5 Sprint 2 acceptance\nReview epic ep_0000000000000000000001x145's draft: the corrective tickets, criteria, dependencies, Fireguard ticket and acceptance node.\nSave the draft, then adopt the saved revision into the run at its checkpoint (or Approve with redraft, which saves, adopts, approves and advances in one approval). Sprint 1's gates still a",
+        "runBefore": {
+          "id": "rn_0000000000000000000001x14c",
+          "number": 1,
+          "state": "awaiting_checkpoint",
+          "revisionId": "rv_0000000000000000000001x14b",
+          "activeSprintOrdinal": 1,
+          "attempts": 5,
+          "updatedAt": "2026-11-15T10:14:00.000Z"
+        },
+        "runAfter": {
+          "id": "rn_0000000000000000000001x14c",
+          "number": 1,
+          "state": "awaiting_checkpoint",
+          "revisionId": "rv_0000000000000000000001x14b",
+          "activeSprintOrdinal": 1,
+          "attempts": 5,
+          "updatedAt": "2026-11-15T10:14:00.000Z"
+        },
+        "newTicket": {
+          "id": "tk_01m7m754h3h0kjax81ykcbxcdx",
+          "key": "SHOP-6"
+        }
+      }
+    },
+    {
+      "criterion": "c23",
+      "name": "c23-draft-created-narrow.png",
+      "viewport": "1024x768",
+      "session": "report1",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-report1-HaQCuc",
+      "note": "Corrective draft work created (narrow); run 1 still awaiting_checkpoint with 5 attempts",
+      "values": {
+        "excerpt": "Draft work created Created as draft work in \"Checkout flow\" (draft revision 2). Nothing was saved, adopted, started or approved.\n\nSHOP-6 Write the card validation rules into the page ticket template\nSHOP-7 Grade the corrective tests with Fireguard\nSHOP-5 Sprint 2 acceptance\nReview epic ep_0000000000000000000001x145's draft: the corrective tickets, criteria, dependencies, Fireguard ticket and acceptance node.\nSave the draft, then adopt the saved revision into the run at its checkpoint (or Approve with redraft, which saves, adopts, approves and advances in one approval). Sprint 1's gates still a",
+        "runBefore": {
+          "id": "rn_0000000000000000000001x14c",
+          "number": 1,
+          "state": "awaiting_checkpoint",
+          "revisionId": "rv_0000000000000000000001x14b",
+          "activeSprintOrdinal": 1,
+          "attempts": 5,
+          "updatedAt": "2026-11-15T10:14:00.000Z"
+        },
+        "runAfter": {
+          "id": "rn_0000000000000000000001x14c",
+          "number": 1,
+          "state": "awaiting_checkpoint",
+          "revisionId": "rv_0000000000000000000001x14b",
+          "activeSprintOrdinal": 1,
+          "attempts": 5,
+          "updatedAt": "2026-11-15T10:14:00.000Z"
+        },
+        "newTicket": {
+          "id": "tk_01m7m754h3h0kjax81ykcbxcdx",
+          "key": "SHOP-6"
+        }
+      }
+    },
+    {
+      "criterion": "c23",
+      "name": "c23-run-bar-after-create-normal.png",
+      "viewport": "1600x1000",
+      "session": "report1",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-report1-HaQCuc",
+      "note": "Run bar after Create draft work: the run is still awaiting its checkpoint; nothing started",
+      "values": {
+        "runBar": "AWAITING CHECKPOINT\nRun #1 · pinned to rev 1 · Sprint 1 of 1 finished 1d ago · no work is dispatched until you decide\norchestrator session (DM-193)\nCancel run\nOpen graph",
+        "runAfter": {
+          "id": "rn_0000000000000000000001x14c",
+          "number": 1,
+          "state": "awaiting_checkpoint",
+          "revisionId": "rv_0000000000000000000001x14b",
+          "activeSprintOrdinal": 1,
+          "attempts": 5,
+          "updatedAt": "2026-11-15T10:14:00.000Z"
+        }
+      }
+    },
+    {
+      "criterion": "c16",
+      "name": "c16-sprint1-snapshot-before-normal.png",
+      "viewport": "1600x1000",
+      "session": "report1",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-report1-HaQCuc",
+      "note": "Sprint 1 report Scorecard before the rating: the frozen snapshot",
+      "values": {
+        "headline": "B\nFinal\nScore 88.2\nCoverage 100.0% of base weight · 7 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n(S 75 + P 100 + A 100 + C 80 + E 62.5 + T 100 + K 100) ÷ 7 = 88.214286\n88.214286 ≥ 80 → B\nfinal: the outcome is decided (verified or confirmed failed) and every required component is observ",
+        "mcp": "B 88.2 (final)"
+      }
+    },
+    {
+      "criterion": "c16",
+      "name": "c16-sprint-feedback-recorded-normal.png",
+      "viewport": "1600x1000",
+      "session": "report1",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-report1-HaQCuc",
+      "note": "Sprint feedback on the Sprint 1 report: one rating (5 of 5, shared with the tickets) recorded through the desktop (normal)",
+      "values": {
+        "before": "SPRINT FEEDBACK\n\nRated 4 of 5, shared with the sprint's tickets: a ticket without its own rating inherits it, marked inherited.\n\n4 of 5 · shared with the tickets · by desktop session (DM-193) at 11/15/2026, 4:13:00 AM\nRecorded by: labelled as recorded on this machine (a label, not a signature); desktop session ss_0000000000000000000001x143, machine mc_0000000000000000000001x142\n\nThe scorecard abov",
+        "after": "SPRINT FEEDBACK\n\nRated 5 of 5, shared with the sprint's tickets: a ticket without its own rating inherits it, marked inherited.\n\n4 of 5 · shared with the tickets · by desktop session (DM-193) at 11/15/2026, 4:13:00 AM\nRecorded by: labelled as recorded on this machine (a label, not a signature); desktop session ss_0000000000000000000001x143, machine mc_0000000000000000000001x142\n5 of 5 · shared with the tickets · by Desktop at 11/17/2026, 1:39:52 AM\nRecorded by: labelled as recorded on this machine (a label, not a signature); desktop session ss_01m7m74v1ah9r8k0ecq1g4mc8r, machine mc_00000000000"
+      }
+    },
+    {
+      "criterion": "c16",
+      "name": "c16-sprint-feedback-recorded-narrow.png",
+      "viewport": "1024x768",
+      "session": "report1",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-report1-HaQCuc",
+      "note": "Sprint feedback on the Sprint 1 report: one rating (5 of 5, shared with the tickets) recorded through the desktop (narrow)",
+      "values": {
+        "before": "SPRINT FEEDBACK\n\nRated 4 of 5, shared with the sprint's tickets: a ticket without its own rating inherits it, marked inherited.\n\n4 of 5 · shared with the tickets · by desktop session (DM-193) at 11/15/2026, 4:13:00 AM\nRecorded by: labelled as recorded on this machine (a label, not a signature); desktop session ss_0000000000000000000001x143, machine mc_0000000000000000000001x142\n\nThe scorecard abov",
+        "after": "SPRINT FEEDBACK\n\nRated 5 of 5, shared with the sprint's tickets: a ticket without its own rating inherits it, marked inherited.\n\n4 of 5 · shared with the tickets · by desktop session (DM-193) at 11/15/2026, 4:13:00 AM\nRecorded by: labelled as recorded on this machine (a label, not a signature); desktop session ss_0000000000000000000001x143, machine mc_0000000000000000000001x142\n5 of 5 · shared with the tickets · by Desktop at 11/17/2026, 1:39:52 AM\nRecorded by: labelled as recorded on this machine (a label, not a signature); desktop session ss_01m7m74v1ah9r8k0ecq1g4mc8r, machine mc_00000000000"
+      }
+    },
+    {
+      "criterion": "c16",
+      "name": "c16-budget-dispatched-SHOP-2-normal.png",
+      "viewport": "1600x1000",
+      "session": "report1",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-report1-HaQCuc",
+      "note": "Draft ticket editor SHOP-2 (dispatched): budget set to 40000 tokens / 25 min in the draft (normal)",
+      "values": {
+        "excerpt": "BUDGET (OPTIONAL)\n\nIn the draft now: 40,000 tokens and 25 min active · basis not stated. Leave both amounts blank for no budget; a budget only sets the baseline T and K compare against.\n\nTokens (whole tokens, all attempts and overhead)\nActive time (minutes of active execution)\n= 25 min\nWhere the numbers come from\nNot stated\nA person’s estimate\nThe planner’s estimate\nSimilar earlier tickets\nSet budget in draft\nDiscard\nClear budget\n\nSet in the draft: 40,000 tokens and 25 min active · basis not stated. This ticket was already dispatched: its frozen budget stays, and once saved this applies only to later dispatches.\n\nAlready dispatched in this run: its budget was frozen at dispatch. A change you save now is a new, prospective version.\n\nv1 · 30 min · basis not stated · saved in revision 1 at 11/15/2026, 3:01:00 AM · frozen at this run’s dispatch: the one its grade uses\nv1 · 50,000 tokens · ba"
+      }
+    },
+    {
+      "criterion": "c16",
+      "name": "c16-budget-dispatched-SHOP-2-narrow.png",
+      "viewport": "1024x768",
+      "session": "report1",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-report1-HaQCuc",
+      "note": "Draft ticket editor SHOP-2 (dispatched): budget set to 40000 tokens / 25 min in the draft (narrow)",
+      "values": {
+        "excerpt": "BUDGET (OPTIONAL)\n\nIn the draft now: 40,000 tokens and 25 min active · basis not stated. Leave both amounts blank for no budget; a budget only sets the baseline T and K compare against.\n\nTokens (whole tokens, all attempts and overhead)\nActive time (minutes of active execution)\n= 25 min\nWhere the numbers come from\nNot stated\nA person’s estimate\nThe planner’s estimate\nSimilar earlier tickets\nSet budget in draft\nDiscard\nClear budget\n\nSet in the draft: 40,000 tokens and 25 min active · basis not stated. This ticket was already dispatched: its frozen budget stays, and once saved this applies only to later dispatches.\n\nAlready dispatched in this run: its budget was frozen at dispatch. A change you save now is a new, prospective version.\n\nv1 · 30 min · basis not stated · saved in revision 1 at 11/15/2026, 3:01:00 AM · frozen at this run’s dispatch: the one its grade uses\nv1 · 50,000 tokens · ba"
+      }
+    },
+    {
+      "criterion": "c16",
+      "name": "c16-budget-never-dispatched-SHOP-6-normal.png",
+      "viewport": "1600x1000",
+      "session": "report1",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-report1-HaQCuc",
+      "note": "Draft ticket editor SHOP-6 (never dispatched): budget set to 20000 tokens / 15 min in the draft (normal)",
+      "values": {
+        "excerpt": "BUDGET (OPTIONAL)\n\nIn the draft now: 20,000 tokens and 15 min active · basis not stated. Leave both amounts blank for no budget; a budget only sets the baseline T and K compare against.\n\nTokens (whole tokens, all attempts and overhead)\nActive time (minutes of active execution)\n= 15 min\nWhere the numbers come from\nNot stated\nA person’s estimate\nThe planner’s estimate\nSimilar earlier tickets\nSet budget in draft\nDiscard\nClear budget\n\nSet in the draft: 20,000 tokens and 15 min active · basis not stated. It is frozen when the plan is saved, and applies from the ticket’s next dispatch.\n\nNo saved version yet: the budget becomes this ticket's first version when the plan is saved."
+      }
+    },
+    {
+      "criterion": "c16",
+      "name": "c16-budget-never-dispatched-SHOP-6-narrow.png",
+      "viewport": "1024x768",
+      "session": "report1",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-report1-HaQCuc",
+      "note": "Draft ticket editor SHOP-6 (never dispatched): budget set to 20000 tokens / 15 min in the draft (narrow)",
+      "values": {
+        "excerpt": "BUDGET (OPTIONAL)\n\nIn the draft now: 20,000 tokens and 15 min active · basis not stated. Leave both amounts blank for no budget; a budget only sets the baseline T and K compare against.\n\nTokens (whole tokens, all attempts and overhead)\nActive time (minutes of active execution)\n= 15 min\nWhere the numbers come from\nNot stated\nA person’s estimate\nThe planner’s estimate\nSimilar earlier tickets\nSet budget in draft\nDiscard\nClear budget\n\nSet in the draft: 20,000 tokens and 15 min active · basis not stated. It is frozen when the plan is saved, and applies from the ticket’s next dispatch.\n\nNo saved version yet: the budget becomes this ticket's first version when the plan is saved."
+      }
+    },
+    {
+      "criterion": "c16",
+      "name": "c16-ticket-SHOP-2-headline-normal.png",
+      "viewport": "1600x1000",
+      "session": "report1",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-report1-HaQCuc",
+      "note": "Ticket Scorecard of SHOP-2 after the rating and the budget edit (normal)",
+      "values": {
+        "headline": "A\nFinal\nScore 100.0\nCoverage 100.0% of base weight · 7 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n(S 100 + P 100 + A 100 + C 100 + E 100 + T 100 + K 100) ÷ 7 = 100\n100 ≥ 90 → A\nfinal: the outcome is decided (verified or confirmed failed) and every required component is observed",
+        "seed": "A 96.4 (final)",
+        "inheritedChip": true
+      }
+    },
+    {
+      "criterion": "c16",
+      "name": "c16-ticket-SHOP-2-inherited-normal.png",
+      "viewport": "1600x1000",
+      "session": "report1",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-report1-HaQCuc",
+      "note": "SHOP-2 People's feedback: S inherits the Sprint 1 rating (5 of 5, shared), marked inherited (normal)",
+      "values": {
+        "excerpt": "PEOPLE'S FEEDBACK\n\nNo rating of its own: S inherits the sprint's rating, 5 of 5, which was shared with the sprint's tickets (marked inherited).\n\nSprint rating, shared with its tickets: 4 of 5 · by desktop session (DM-193) at 11/15/2026, 4:13:00 AM\nRecorded by: labelled as recorded on this machine (a label, not a signature); desktop session ss_0000000000000000000001x143, machine mc_0000000000000000000001x142\nSprint rating, shared with its tickets: 5 of 5 · by Desktop at 11/17/2026, 1:39:52 AM\nRecorded by: labelled as recorded on this machine (a label, not a signature); desktop session ss_01m7m74v1ah9r8k0ecq1g4mc8r, machine mc_0000000000000000000001x142\n\nAll optional: leave these alone and not"
+      }
+    },
+    {
+      "criterion": "c16",
+      "name": "c16-ticket-SHOP-2-original-normal.png",
+      "viewport": "1600x1000",
+      "session": "report1",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-report1-HaQCuc",
+      "note": "SHOP-2: the grade frozen in the Sprint 1 report beside the reassessment (normal)",
+      "values": {
+        "excerpt": "ORIGINAL AND REASSESSED · REPORT REVISION 1\nOriginal (frozen 11/15/2026, 4:14:00 AM)\nA 96.4 (final)\nSame window, regraded now\nA 96.4 (final)\nReassessed (11/17/2026, 1:40:07 AM)\nA 100.0 (final)\nMembership\nkept\nWindows\nboth windows start at the first dispatch (11/15/2026, 3:02:00 AM); the current one runs 11/15/2026, 4:14:00 AM → 11/17/2026, 1:40:07 AM longer\nS\nsince the approved cutoff: rating 4 → 5 (later records)"
+      }
+    },
+    {
+      "criterion": "c16",
+      "name": "c16-ticket-SHOP-2-headline-narrow.png",
+      "viewport": "1024x768",
+      "session": "report1",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-report1-HaQCuc",
+      "note": "Ticket Scorecard of SHOP-2 after the rating and the budget edit (narrow)",
+      "values": {
+        "headline": "A\nFinal\nScore 100.0\nCoverage 100.0% of base weight · 7 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n(S 100 + P 100 + A 100 + C 100 + E 100 + T 100 + K 100) ÷ 7 = 100\n100 ≥ 90 → A\nfinal: the outcome is decided (verified or confirmed failed) and every required component is observed",
+        "seed": "A 96.4 (final)",
+        "inheritedChip": true
+      }
+    },
+    {
+      "criterion": "c16",
+      "name": "c16-ticket-SHOP-2-inherited-narrow.png",
+      "viewport": "1024x768",
+      "session": "report1",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-report1-HaQCuc",
+      "note": "SHOP-2 People's feedback: S inherits the Sprint 1 rating (5 of 5, shared), marked inherited (narrow)",
+      "values": {
+        "excerpt": "PEOPLE'S FEEDBACK\n\nNo rating of its own: S inherits the sprint's rating, 5 of 5, which was shared with the sprint's tickets (marked inherited).\n\nSprint rating, shared with its tickets: 4 of 5 · by desktop session (DM-193) at 11/15/2026, 4:13:00 AM\nRecorded by: labelled as recorded on this machine (a label, not a signature); desktop session ss_0000000000000000000001x143, machine mc_0000000000000000000001x142\nSprint rating, shared with its tickets: 5 of 5 · by Desktop at 11/17/2026, 1:39:52 AM\nRecorded by: labelled as recorded on this machine (a label, not a signature); desktop session ss_01m7m74v1ah9r8k0ecq1g4mc8r, machine mc_0000000000000000000001x142\n\nAll optional: leave these alone and not"
+      }
+    },
+    {
+      "criterion": "c16",
+      "name": "c16-ticket-SHOP-2-original-narrow.png",
+      "viewport": "1024x768",
+      "session": "report1",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-report1-HaQCuc",
+      "note": "SHOP-2: the grade frozen in the Sprint 1 report beside the reassessment (narrow)",
+      "values": {
+        "excerpt": "ORIGINAL AND REASSESSED · REPORT REVISION 1\nOriginal (frozen 11/15/2026, 4:14:00 AM)\nA 96.4 (final)\nSame window, regraded now\nA 96.4 (final)\nReassessed (11/17/2026, 1:40:07 AM)\nA 100.0 (final)\nMembership\nkept\nWindows\nboth windows start at the first dispatch (11/15/2026, 3:02:00 AM); the current one runs 11/15/2026, 4:14:00 AM → 11/17/2026, 1:40:07 AM longer\nS\nsince the approved cutoff: rating 4 → 5 (later records)"
+      }
+    },
+    {
+      "criterion": "c16",
+      "name": "c16-sprint1-snapshot-after-normal.png",
+      "viewport": "1600x1000",
+      "session": "report1",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-report1-HaQCuc",
+      "note": "Sprint 1 report Scorecard after the rating and the budget edits: still B 88.2 (final)",
+      "values": {
+        "headline": "B\nFinal\nScore 88.2\nCoverage 100.0% of base weight · 7 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n(S 75 + P 100 + A 100 + C 80 + E 62.5 + T 100 + K 100) ÷ 7 = 88.214286\n88.214286 ≥ 80 → B\nfinal: the outcome is decided (verified or confirmed failed) and every required component is observ"
+      }
+    },
+    {
+      "criterion": "c16",
+      "name": "c16-sprint1-reassessment-normal.png",
+      "viewport": "1600x1000",
+      "session": "report1",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-report1-HaQCuc",
+      "note": "Sprint 1 Later reassessment: the late rating shows only here, the approved snapshot stays",
+      "values": {
+        "excerpt": "LATER REASSESSMENT\n\nA reassessment is a separate, dated reading of this report's scope from the records as they stand when you ask. It never replaces the snapshot above: late metrics, ratings, defects and newer rubric versions show up only here, each difference with its cause.\n\nReassess again\nReassessment · 11/17/2026, 1:40:17 AM\nReassessed at\n11/17/2026, 1:40:17 AM\nGraded under\ndm-space v2 · f50d32f4eb4e (the snapshot’s policy)\nCompared with\nsnapshot as_8jzga9ys8jszp3dhrqfwmsdc02, frozen 11/15/2026, 4:14:00 AM under dm-space v2 · f50d32f4eb4e\nProvenance\nregraded by the Dark Mechanicus core from this folder’s records when you asked; not stored, not approved\nSprint · approved B 88.2 (final) · reassessed A 91.7 (final) · 1 difference(s)\nApproved (frozen)\nB 88.2 (final) · as of 11/15/2026, 4:14:00 AM\nSame window, regraded now\nB 88.2 (final)\nReassessed (11/17/2026, 1:40:17 AM)\nA 91.7 (final)"
+      }
+    },
+    {
+      "criterion": "c14",
+      "name": "c14-epic-failed-headline-normal.png",
+      "viewport": "1600x1000",
+      "session": "failed",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-failed-DuLMg4",
+      "note": "Epic Scorecard of Payment receipts at normal width: grade capped by the failed integrated outcome",
+      "values": {
+        "headline": "F\nFailed · final\nScore 59.0\nCoverage 85.7% of base weight · 6 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n\nStatus final: a mandatory check or criterion failed\n\n(P 0 + A 100 + C 100 + E 100 + T 100 + K 100) ÷ 6 = 83.333333\nconfirmed mandatory failure: min(83.333333, 59) = 59\nconfirmed ma",
+        "mcp": "F 59.0 (final)"
+      }
+    },
+    {
+      "criterion": "c14",
+      "name": "c14-epic-outcome-failed-normal.png",
+      "viewport": "1600x1000",
+      "session": "failed",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-failed-DuLMg4",
+      "note": "Epic Scorecard: 4 of 4 feature tickets verified, yet the epic failed on the integrated outcome (normal)",
+      "values": {
+        "conclusion": "ORIGINAL SCOPE AND OUTCOMES\n\nThe scope committed before the first dispatch stays the denominator; scope added later is shown apart. Integrated outcomes (acceptance nodes and administrative tickets) and required tickets decide the epic: one confirmed failure fails it.\n\nCommitted before dispatch\n4 ticket(s)\nDelivered of that scope\n4 of 4 (accepted, every committed criterion verified)\nRemoved after dispatch\n0 (still counted as committed)\nAdded after dispatch\n0 (shown apart, never counted as delivered scope)\n\n4 of 4 feature ticket(s) and 1 of 2 integrated outcome(s) are verified, yet the epic failed: SHOP-2 Sprint 2 acceptance. A confirmed failure of a required or integrated outcome caps the gra"
+      }
+    },
+    {
+      "criterion": "c14",
+      "name": "c14-epic-failed-headline-narrow.png",
+      "viewport": "1024x768",
+      "session": "failed",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-failed-DuLMg4",
+      "note": "Epic Scorecard of Payment receipts at narrow width: grade capped by the failed integrated outcome",
+      "values": {
+        "headline": "F\nFailed · final\nScore 59.0\nCoverage 85.7% of base weight · 6 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n\nStatus final: a mandatory check or criterion failed\n\n(P 0 + A 100 + C 100 + E 100 + T 100 + K 100) ÷ 6 = 83.333333\nconfirmed mandatory failure: min(83.333333, 59) = 59\nconfirmed ma",
+        "mcp": "F 59.0 (final)"
+      }
+    },
+    {
+      "criterion": "c14",
+      "name": "c14-epic-outcome-failed-narrow.png",
+      "viewport": "1024x768",
+      "session": "failed",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-failed-DuLMg4",
+      "note": "Epic Scorecard: 4 of 4 feature tickets verified, yet the epic failed on the integrated outcome (narrow)",
+      "values": {
+        "conclusion": "ORIGINAL SCOPE AND OUTCOMES\n\nThe scope committed before the first dispatch stays the denominator; scope added later is shown apart. Integrated outcomes (acceptance nodes and administrative tickets) and required tickets decide the epic: one confirmed failure fails it.\n\nCommitted before dispatch\n4 ticket(s)\nDelivered of that scope\n4 of 4 (accepted, every committed criterion verified)\nRemoved after dispatch\n0 (still counted as committed)\nAdded after dispatch\n0 (shown apart, never counted as delivered scope)\n\n4 of 4 feature ticket(s) and 1 of 2 integrated outcome(s) are verified, yet the epic failed: SHOP-2 Sprint 2 acceptance. A confirmed failure of a required or integrated outcome caps the gra"
+      }
+    },
+    {
+      "criterion": "c14",
+      "name": "c14-sprint-drilldown-normal.png",
+      "viewport": "1600x1000",
+      "session": "failed",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-failed-DuLMg4",
+      "note": "Epic Scorecard sprint drill-down: Sprint 2 opened to its grade and outcomes (normal)",
+      "values": {
+        "toggles": [
+          "Sprint 1\nA 100.0 (final) · frozen with report revision 1",
+          "Sprint 2 · Send the receipt\nF 59.0 (final) · frozen with report revision 1"
+        ],
+        "sprint2": "F 59.0 (final)",
+        "detail": "F\nFailed · final\nScore 59.0\nCoverage 85.7% of base weight · 6 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n\nStatus final: a mandatory check or criterion failed\n\n(P 0 + A 100 + C 100 + E 100 + T 100 + K 100) ÷ 6 = 83.333333\nconfirmed mandatory failure: min(83.333333, 59) = 59\nconfirmed mandatory failure → F (the capped score 59 < 60 → F)\nfinal: the outcome is decided (verified or confirmed failed) and every required component is observed\na mandatory check or criterion is confirmed failed: P is 0 and the score is capped at 59, letter F\nCommitted before dispatch\n2 ticket(s)\nDelivered "
+      }
+    },
+    {
+      "criterion": "c14",
+      "name": "c14-sprint-drilldown-narrow.png",
+      "viewport": "1024x768",
+      "session": "failed",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-failed-DuLMg4",
+      "note": "Epic Scorecard sprint drill-down: Sprint 2 opened to its grade and outcomes (narrow)",
+      "values": {
+        "toggles": [
+          "Sprint 1\nA 100.0 (final) · frozen with report revision 1",
+          "Sprint 2 · Send the receipt\nF 59.0 (final) · frozen with report revision 1"
+        ],
+        "sprint2": "F 59.0 (final)",
+        "detail": "F\nFailed · final\nScore 59.0\nCoverage 85.7% of base weight · 6 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n\nStatus final: a mandatory check or criterion failed\n\n(P 0 + A 100 + C 100 + E 100 + T 100 + K 100) ÷ 6 = 83.333333\nconfirmed mandatory failure: min(83.333333, 59) = 59\nconfirmed mandatory failure → F (the capped score 59 < 60 → F)\nfinal: the outcome is decided (verified or confirmed failed) and every required component is observed\na mandatory check or criterion is confirmed failed: P is 0 and the score is capped at 59, letter F\nCommitted before dispatch\n2 ticket(s)\nDelivered "
+      }
+    },
+    {
+      "criterion": "c14",
+      "name": "c14-total-resources-normal.png",
+      "viewport": "1600x1000",
+      "session": "failed",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-failed-DuLMg4",
+      "note": "Epic Scorecard total resources (normal): 69,000 tokens = ledger 69,000 = Sprint 1 37,000 + Sprint 2 32,000",
+      "values": {
+        "totals": "Tokens (every attempt and overhead)\n69,000 tokens\nActive time (every actor, waits excluded)\n1 h 05 min\nEffort (every actor, parallel work added up)\n1 h 05 min\nOverhead inside that effort (orchestration, review, verification)\nunavailable (Run #1: not reported)\nCorrective effort (E, as classified in the runs the grade measured)\n0 ms\nProductive effort (E, as classified in those runs)\n1 h 05 min\nUnclassified effort (E, in those runs)\n0 ms\nRetried attempts\n0 (a diagnostic, never scored as waste)\nRuns counted\nRun #1",
+        "runUsage": [
+          [
+            "Epic totals",
+            "Tokens (every attempt and overhead)\n69,000 tokens\nActive time (every actor, waits excluded)\n1 h 05 min\nEffort (every actor, parallel work added up)\n1 h 05 min\nOverhead inside that effort (orchestration, review, verification)\nunavailable (Run #1: not reported)\nCorrective effort (E, as classified in the runs the grade measured)\n0 ms\nProductive effort (E, as classified in those runs)\n1 h 05 min\nUnclassified effort (E, in those runs)\n0 ms\nRetried attempts\n0 (a diagnostic, never scored as waste)\nRuns counted\nRun #1"
+          ],
+          [
+            "Wall time",
+            "Wall time (union of run windows)\n≥ 46 h 38 min (Run #1 is still running: as of 11/17/2026, 1:40:41 AM)\nSomeone measurably working (active wall clock)\n≥ 1 h 05 min (Run #1 is still running: as of 11/17/2026, 1:40:41 AM)"
+          ],
+          [
+            "Run #1 timing",
+            "Window (start → end)\n46 h 38 min (still running, a lower bound)\nAny attempt open (union)\n1 h 05 min\nActive wall clock (union)\n1 h 05 min (still running, a lower bound)\nEffort (every actor, summed)\n1 h 05 min\nOverhead effort\nunavailable\nEffort by how attempts ended\naccepted: 6 attempt(s), 1 h 05 min"
+          ],
+          [
+            "Run #1 usage",
+            "Tokens\n69,000 tokens\nActive time\n1 h 05 min\nEffort\n1 h 05 min\nRetried attempts\n0"
+          ]
+        ],
+        "ledger": {
+          "tokens": 69000,
+          "minutes": 65,
+          "perSprint": [
+            {
+              "sprintId": "sp_0000000000000000000001x146",
+              "tokens": 37000,
+              "minutes": 35
+            },
+            {
+              "sprintId": "sp_0000000000000000000001x148",
+              "tokens": 32000,
+              "minutes": 30
+            }
+          ]
+        },
+        "sprintK": [
+          37000,
+          32000
+        ]
+      }
+    },
+    {
+      "criterion": "c14",
+      "name": "c14-total-resources-narrow.png",
+      "viewport": "1024x768",
+      "session": "failed",
+      "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm164-failed-DuLMg4",
+      "note": "Epic Scorecard total resources (narrow): 69,000 tokens = ledger 69,000 = Sprint 1 37,000 + Sprint 2 32,000",
+      "values": {
+        "totals": "Tokens (every attempt and overhead)\n69,000 tokens\nActive time (every actor, waits excluded)\n1 h 05 min\nEffort (every actor, parallel work added up)\n1 h 05 min\nOverhead inside that effort (orchestration, review, verification)\nunavailable (Run #1: not reported)\nCorrective effort (E, as classified in the runs the grade measured)\n0 ms\nProductive effort (E, as classified in those runs)\n1 h 05 min\nUnclassified effort (E, in those runs)\n0 ms\nRetried attempts\n0 (a diagnostic, never scored as waste)\nRuns counted\nRun #1",
+        "runUsage": [
+          [
+            "Epic totals",
+            "Tokens (every attempt and overhead)\n69,000 tokens\nActive time (every actor, waits excluded)\n1 h 05 min\nEffort (every actor, parallel work added up)\n1 h 05 min\nOverhead inside that effort (orchestration, review, verification)\nunavailable (Run #1: not reported)\nCorrective effort (E, as classified in the runs the grade measured)\n0 ms\nProductive effort (E, as classified in those runs)\n1 h 05 min\nUnclassified effort (E, in those runs)\n0 ms\nRetried attempts\n0 (a diagnostic, never scored as waste)\nRuns counted\nRun #1"
+          ],
+          [
+            "Wall time",
+            "Wall time (union of run windows)\n≥ 46 h 38 min (Run #1 is still running: as of 11/17/2026, 1:40:41 AM)\nSomeone measurably working (active wall clock)\n≥ 1 h 05 min (Run #1 is still running: as of 11/17/2026, 1:40:41 AM)"
+          ],
+          [
+            "Run #1 timing",
+            "Window (start → end)\n46 h 38 min (still running, a lower bound)\nAny attempt open (union)\n1 h 05 min\nActive wall clock (union)\n1 h 05 min (still running, a lower bound)\nEffort (every actor, summed)\n1 h 05 min\nOverhead effort\nunavailable\nEffort by how attempts ended\naccepted: 6 attempt(s), 1 h 05 min"
+          ],
+          [
+            "Run #1 usage",
+            "Tokens\n69,000 tokens\nActive time\n1 h 05 min\nEffort\n1 h 05 min\nRetried attempts\n0"
+          ]
+        ],
+        "ledger": {
+          "tokens": 69000,
+          "minutes": 65,
+          "perSprint": [
+            {
+              "sprintId": "sp_0000000000000000000001x146",
+              "tokens": 37000,
+              "minutes": 35
+            },
+            {
+              "sprintId": "sp_0000000000000000000001x148",
+              "tokens": 32000,
+              "minutes": 30
+            }
+          ]
+        },
+        "sprintK": [
+          37000,
+          32000
+        ]
+      }
+    }
+  ],
+  "results": {
+    "c13": {
+      "checks": [
+        {
+          "label": "SHOP-2 normal: headline shows get_ticket_grade A 96.4",
+          "ok": true,
+          "detail": {
+            "headline": "A\nFinal\nScore 96.4\nCoverage 100.0% of base weight · 7 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n(S 75 + P 100 + A 100 + C 100 + E 100 + T 100 + K 100) ÷ 7 = 96.428571\n96.428571 ≥ 90 → A\nfinal: the outcome is decided (verified or confirmed failed) and every required component is observed",
+            "expected": [
+              "A",
+              "96.4"
+            ]
+          }
+        },
+        {
+          "label": "SHOP-2 narrow: headline shows get_ticket_grade A 96.4",
+          "ok": true,
+          "detail": {
+            "headline": "A\nFinal\nScore 96.4\nCoverage 100.0% of base weight · 7 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n(S 75 + P 100 + A 100 + C 100 + E 100 + T 100 + K 100) ÷ 7 = 96.428571\n96.428571 ≥ 90 → A\nfinal: the outcome is decided (verified or confirmed failed) and every required component is observed",
+            "expected": [
+              "A",
+              "96.4"
+            ]
+          }
+        },
+        {
+          "label": "SHOP-1 normal: headline shows get_ticket_grade A 95.0 Status provisional",
+          "ok": true,
+          "detail": {
+            "headline": "A\nProvisional\nScore 95.0\nCoverage 71.4% of base weight · 5 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n\nStatus provisional: a required component is missing\n\n(S 75 + P 100 + A 100 + C 100 + E 100) ÷ 5 = 95\n95 ≥ 90 → A\nprovisional: a score and letter, not final until every required component is observed\nrequired component(s) T, K missing",
+            "expected": [
+              "A",
+              "95.0",
+              "Status provisional"
+            ]
+          }
+        },
+        {
+          "label": "SHOP-1 narrow: headline shows get_ticket_grade A 95.0 Status provisional",
+          "ok": true,
+          "detail": {
+            "headline": "A\nProvisional\nScore 95.0\nCoverage 71.4% of base weight · 5 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n\nStatus provisional: a required component is missing\n\n(S 75 + P 100 + A 100 + C 100 + E 100) ÷ 5 = 95\n95 ≥ 90 → A\nprovisional: a score and letter, not final until every required component is observed\nrequired component(s) T, K missing",
+            "expected": [
+              "A",
+              "95.0",
+              "Status provisional"
+            ]
+          }
+        },
+        {
+          "label": "SHOP-3 normal: headline shows get_ticket_grade C 76.4",
+          "ok": true,
+          "detail": {
+            "headline": "C\nFinal\nScore 76.4\nCoverage 100.0% of base weight · 7 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n(S 75 + P 100 + A 100 + C 50 + E 10 + T 100 + K 100) ÷ 7 = 76.428571\n76.428571 ≥ 70 → C\nfinal: the outcome is decided (verified or confirmed failed) and every required component is observed",
+            "expected": [
+              "C",
+              "76.4"
+            ]
+          }
+        },
+        {
+          "label": "SHOP-3 normal: two attempts listed",
+          "ok": true,
+          "detail": "ATTEMPTS IN THIS RUN (2)\nAttempt #1 · rejected\nelapsed 10 min · active 10 min · effort 10 min · tokens 12,000 tokens\nAttempt #2 · accepted\nelapsed 15 min · active 15 min · effort 15 min · tokens 16,000 tokens\n\nRetries: 1 (a diagnostic, never scored as waste).\n\nTokens as of 11/17/2026, 1:38:49 AM, from the run's usage table when this was read."
+        },
+        {
+          "label": "SHOP-3 normal: the rejection is shown (attempts or corrections)",
+          "ok": true,
+          "detail": {
+            "attempts": "ATTEMPTS IN THIS RUN (2)\nAttempt #1 · rejected\nelapsed 10 min · active 10 min · effort 10 min · tokens 12,000 tokens\nAttempt #2 · accepted\nelapsed 15 min · active 15 min · effort 15 min · tokens 16,000 tokens\n\nRetries: 1 (a diagnostic, never scored as waste).\n\nTokens as of 11/17/2026, 1:38:49 AM, from the run's usage table when this was read.",
+            "corrections": "CORRECTIONS\nCorrective effort (E, as classified)\n15 min\nCorrective by cause\nimplementation 15 min\nProductive effort (as classified)\n10 min\nUnclassified effort\n0 ms\nRescue by a person\nnone recorded\nPlanned review or playtesting\nnone recorded\nSubmission rejected by orchestrator session (DM-193) at 11/15/2026, 3:35:00 AM (3 check(s) count failed)\nattempt at_0000000000000000000001x14g · rejected → Attempts"
+          }
+        },
+        {
+          "label": "SHOP-3: get_ticket_grade C carries the rejected submission",
+          "ok": true,
+          "detail": [
+            "rejected_submission"
+          ]
+        },
+        {
+          "label": "SHOP-3 narrow: headline shows get_ticket_grade C 76.4",
+          "ok": true,
+          "detail": {
+            "headline": "C\nFinal\nScore 76.4\nCoverage 100.0% of base weight · 7 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n(S 75 + P 100 + A 100 + C 50 + E 10 + T 100 + K 100) ÷ 7 = 76.428571\n76.428571 ≥ 70 → C\nfinal: the outcome is decided (verified or confirmed failed) and every required component is observed",
+            "expected": [
+              "C",
+              "76.4"
+            ]
+          }
+        },
+        {
+          "label": "SHOP-3 narrow: two attempts listed",
+          "ok": true,
+          "detail": "ATTEMPTS IN THIS RUN (2)\nAttempt #1 · rejected\nelapsed 10 min · active 10 min · effort 10 min · tokens 12,000 tokens\nAttempt #2 · accepted\nelapsed 15 min · active 15 min · effort 15 min · tokens 16,000 tokens\n\nRetries: 1 (a diagnostic, never scored as waste).\n\nTokens as of 11/17/2026, 1:38:49 AM, from the run's usage table when this was read."
+        },
+        {
+          "label": "SHOP-3 narrow: the rejection is shown (attempts or corrections)",
+          "ok": true,
+          "detail": {
+            "attempts": "ATTEMPTS IN THIS RUN (2)\nAttempt #1 · rejected\nelapsed 10 min · active 10 min · effort 10 min · tokens 12,000 tokens\nAttempt #2 · accepted\nelapsed 15 min · active 15 min · effort 15 min · tokens 16,000 tokens\n\nRetries: 1 (a diagnostic, never scored as waste).\n\nTokens as of 11/17/2026, 1:38:49 AM, from the run's usage table when this was read.",
+            "corrections": "CORRECTIONS\nCorrective effort (E, as classified)\n15 min\nCorrective by cause\nimplementation 15 min\nProductive effort (as classified)\n10 min\nUnclassified effort\n0 ms\nRescue by a person\nnone recorded\nPlanned review or playtesting\nnone recorded\nSubmission rejected by orchestrator session (DM-193) at 11/15/2026, 3:35:00 AM (3 check(s) count failed)\nattempt at_0000000000000000000001x14g · rejected → Attempts"
+          }
+        },
+        {
+          "label": "SHOP-3: get_ticket_grade C carries the rejected submission",
+          "ok": true,
+          "detail": [
+            "rejected_submission"
+          ]
+        }
+      ],
+      "errors": []
+    },
+    "c19": {
+      "checks": [
+        {
+          "label": "sidebar footer: the element directly after the MCP indicator holds the Metrics link",
+          "ok": true,
+          "detail": {
+            "mcpIndex": 0,
+            "mcpText": "MCP\nWaiting for an agent",
+            "nextText": "Metrics",
+            "linkText": "Metrics",
+            "mcpBox": {
+              "x": 18,
+              "y": 798,
+              "w": 235,
+              "h": 28
+            },
+            "nextBox": {
+              "x": 18,
+              "y": 836,
+              "w": 235,
+              "h": 28
+            }
+          }
+        },
+        {
+          "label": "dashboard normal: shows get_metrics_summary epic grade, trend grades and total tokens",
+          "ok": true,
+          "detail": {
+            "missing": [],
+            "expected": [
+              "A",
+              "96.2",
+              "B",
+              "88.2",
+              "A",
+              "100.0",
+              "A",
+              "100.0",
+              "160,000"
+            ]
+          }
+        },
+        {
+          "label": "dashboard normal: in-app getMetricsSummary has the same epics, totals and trend as the MCP read (inputHash aside)",
+          "ok": true,
+          "detail": {
+            "differs": [
+              ".epics.0.grade.inputHash: \"sha256:d0ee8f9990bf6da7954bf015c09342c088c5df236bf01cfc4494401b3d536b0f\" -> \"sha256:0220784895736161d5bec7e480deed8a132d6fb5b6658fa558dc1cfbe5bb1f97\""
+            ]
+          }
+        },
+        {
+          "label": "dashboard narrow: shows get_metrics_summary epic grade, trend grades and total tokens",
+          "ok": true,
+          "detail": {
+            "missing": [],
+            "expected": [
+              "A",
+              "96.2",
+              "B",
+              "88.2",
+              "A",
+              "100.0",
+              "A",
+              "100.0",
+              "160,000"
+            ]
+          }
+        },
+        {
+          "label": "dashboard narrow: in-app getMetricsSummary has the same epics, totals and trend as the MCP read (inputHash aside)",
+          "ok": true,
+          "detail": {
+            "differs": [
+              ".epics.0.grade.inputHash: \"sha256:d0ee8f9990bf6da7954bf015c09342c088c5df236bf01cfc4494401b3d536b0f\" -> \"sha256:0946c2e0e8c2d53a21fd0916ea7d306812c5a01b87d30c41e03a05980ffc8d5c\""
+            ]
+          }
+        },
+        {
+          "label": "epic Scorecard normal: opened from the row, headline equals get_epic_grade and the metrics row",
+          "ok": true,
+          "detail": {
+            "headline": "A\nProvisional\nScore 96.2\nCoverage 85.7% of base weight · 6 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n\nStatus provisional: an input is estimated\n\n(P 100 + A 100 + C 92.857143 + E 84.375 + T 100 + K 100) ÷ 6 = 96.205357\n96.205357 ≥ 90 → A\nprovisional: a score and letter, not final until",
+            "pressed": [
+              "Scorecard"
+            ],
+            "epic": [
+              "A",
+              "96.2"
+            ]
+          }
+        },
+        {
+          "label": "epic Scorecard narrow: opened from the row, headline equals get_epic_grade and the metrics row",
+          "ok": true,
+          "detail": {
+            "headline": "A\nProvisional\nScore 96.2\nCoverage 85.7% of base weight · 6 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n\nStatus provisional: an input is estimated\n\n(P 100 + A 100 + C 92.857143 + E 84.375 + T 100 + K 100) ÷ 6 = 96.205357\n96.205357 ≥ 90 → A\nprovisional: a score and letter, not final until",
+            "pressed": [
+              "Scorecard"
+            ],
+            "epic": [
+              "A",
+              "96.2"
+            ]
+          }
+        }
+      ],
+      "errors": []
+    },
+    "c15": {
+      "checks": [
+        {
+          "label": "snapshot headline equals get_report_scorecard (pinned revision) sprint result",
+          "ok": true,
+          "detail": {
+            "headline": "B\nFinal\nScore 88.2\nCoverage 100.0% of base weight · 7 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n(S 75 + P 100 + A 100 + C 80 + E 62.5 + T 100 + K 100) ÷ 7 = 88.214286\n88.214286 ≥ 80 → B\nfinal: the outcome is decided (verified or confirmed failed) and every required component is observ",
+            "mcp": [
+              "B",
+              "88.2"
+            ]
+          }
+        },
+        {
+          "label": "pinned report facts name report 1, revision and the snapshot id of get_report_scorecard",
+          "ok": true,
+          "detail": "Report revision\n1 (pinned: a later revision has its own scorecard)\nReport\nrp_0000000000000000000001x14r\nSubmitted\n11/15/2026, 4:14:00 AM\nRun\nRun #1\nSnapshot\nas_8jzga9ys8jszp3dhrqfwmsdc02 · 88b5ac1a8d82\nReport content\n007928121df5\nGraded under\ndm-space v2 · f50d32f4eb4e\nPlan revision\nrv_0000000000000000000001x14b"
+        },
+        {
+          "label": "reassessment normal: dated, approved vs reassessed sprint grade as reassess_report_scorecard",
+          "ok": true,
+          "detail": {
+            "missing": [],
+            "excerpt": "LATER REASSESSMENT\n\nA reassessment is a separate, dated reading of this report's scope from the records as they stand when you ask. It never replaces the snapshot above: late metrics, ratings, defects and newer rubric versions show up only here, each difference with its cause.\n\nReassess again\nReassessment · 11/17/2026, 1:39:20 AM\nReassessed at\n11/17/2026, 1:39:20 AM\nGraded under\ndm-space v2 · f50d32f4eb4e (the snapshot’s policy)\nCompared with\nsnapshot as_8jzga9ys8jszp3dhrqfwmsdc02, frozen 11/15/2026, 4:14:00 AM under dm-space v2 · f50d32f4eb4e\nProvenance\nregraded by the Dark Mechanicus core from this folder’s records when you asked; not stored, not approved\nSprint · approved B 88.2 (final) · reassessed B 83.9 (final) · 1 difference(s)\nApproved (frozen)\nB 88.2 (final) · as of 11/15/2026, 4:14:00 AM\nSame window, regraded now\nB 88.2 (final)\nReassessed (11/17/2026, 1:39:20 AM)\nB 83.9 (final)"
+          }
+        },
+        {
+          "label": "reassessment normal: the P difference is listed",
+          "ok": true,
+          "detail": "LATER REASSESSMENT\n\nA reassessment is a separate, dated reading of this report's scope from the records as they stand when you ask. It never replaces the snapshot above: late metrics, ratings, defects and newer rubric versions show up only here, each difference with its cause.\n\nReassess again\nReassessment · 11/17/2026, 1:39:20 AM\nReassessed at\n11/17/2026, 1:39:20 AM\nGraded under\ndm-space v2 · f50d32f4eb4e (the snapshot’s policy)\nCompared with\nsnapshot as_8jzga9ys8jszp3dhrqfwmsdc02, frozen 11/15/2026, 4:14:00 AM under dm-space v2 · f50d32f4eb4e\nProvenance\nregraded by the Dark Mechanicus core from this folder’s records when you asked; not stored, not approved\nSprint · approved B 88.2 (final) · reassessed B 83.9 (final) · 1 difference(s)\nApproved (frozen)\nB 88.2 (final) · as of 11/15/2026, 4:14:00 AM\nSame window, regraded now\nB 88.2 (final)\nReassessed (11/17/2026, 1:39:20 AM)\nB 83.9 (final)\nMembership\nthe report’s own sprint, frozen with it\nWindows\nboth windows start at the first dispatch (2026-11-15T09:02:00.000Z); the current one runs 2026-11-15T10:14:00.000Z → 2026-11-17T07:39:20.629Z longer\nP\nsince the approved cutoff: attributedRegressions 0 → 1; regressionPenalty 0 → 30 — record"
+        },
+        {
+          "label": "reassessment narrow: dated, approved vs reassessed sprint grade as reassess_report_scorecard",
+          "ok": true,
+          "detail": {
+            "missing": [],
+            "excerpt": "LATER REASSESSMENT\n\nA reassessment is a separate, dated reading of this report's scope from the records as they stand when you ask. It never replaces the snapshot above: late metrics, ratings, defects and newer rubric versions show up only here, each difference with its cause.\n\nReassess again\nReassessment · 11/17/2026, 1:39:20 AM\nReassessed at\n11/17/2026, 1:39:20 AM\nGraded under\ndm-space v2 · f50d32f4eb4e (the snapshot’s policy)\nCompared with\nsnapshot as_8jzga9ys8jszp3dhrqfwmsdc02, frozen 11/15/2026, 4:14:00 AM under dm-space v2 · f50d32f4eb4e\nProvenance\nregraded by the Dark Mechanicus core from this folder’s records when you asked; not stored, not approved\nSprint · approved B 88.2 (final) · reassessed B 83.9 (final) · 1 difference(s)\nApproved (frozen)\nB 88.2 (final) · as of 11/15/2026, 4:14:00 AM\nSame window, regraded now\nB 88.2 (final)\nReassessed (11/17/2026, 1:39:20 AM)\nB 83.9 (final)"
+          }
+        },
+        {
+          "label": "reassessment narrow: the P difference is listed",
+          "ok": true,
+          "detail": "LATER REASSESSMENT\n\nA reassessment is a separate, dated reading of this report's scope from the records as they stand when you ask. It never replaces the snapshot above: late metrics, ratings, defects and newer rubric versions show up only here, each difference with its cause.\n\nReassess again\nReassessment · 11/17/2026, 1:39:20 AM\nReassessed at\n11/17/2026, 1:39:20 AM\nGraded under\ndm-space v2 · f50d32f4eb4e (the snapshot’s policy)\nCompared with\nsnapshot as_8jzga9ys8jszp3dhrqfwmsdc02, frozen 11/15/2026, 4:14:00 AM under dm-space v2 · f50d32f4eb4e\nProvenance\nregraded by the Dark Mechanicus core from this folder’s records when you asked; not stored, not approved\nSprint · approved B 88.2 (final) · reassessed B 83.9 (final) · 1 difference(s)\nApproved (frozen)\nB 88.2 (final) · as of 11/15/2026, 4:14:00 AM\nSame window, regraded now\nB 88.2 (final)\nReassessed (11/17/2026, 1:39:20 AM)\nB 83.9 (final)\nMembership\nthe report’s own sprint, frozen with it\nWindows\nboth windows start at the first dispatch (2026-11-15T09:02:00.000Z); the current one runs 2026-11-15T10:14:00.000Z → 2026-11-17T07:39:20.629Z longer\nP\nsince the approved cutoff: attributedRegressions 0 → 1; regressionPenalty 0 → 30 — record"
+        },
+        {
+          "label": "reassess_report_scorecard: sprint differences are exactly P 100 -> 70",
+          "ok": true,
+          "detail": [
+            [
+              "P",
+              100,
+              70
+            ]
+          ]
+        },
+        {
+          "label": "reassess_report_scorecard: approved snapshot is the pinned get_report_scorecard snapshot (id and hash)",
+          "ok": true,
+          "detail": {
+            "reassessed": "as_8jzga9ys8jszp3dhrqfwmsdc02",
+            "pinned": "as_8jzga9ys8jszp3dhrqfwmsdc02"
+          }
+        },
+        {
+          "label": "get_report_scorecard after the regression equals the read before it",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "label": "after Reassess and Refresh the snapshot headline is unchanged",
+          "ok": true,
+          "detail": "B\nFinal\nScore 88.2\nCoverage 100.0% of base weight · 7 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n(S 75 + P 100 + A 100 + C 80 + E 62.5 + T 100 + K 100) ÷ 7 = 88.214286\n88.214286 ≥ 80 → B\nfinal: the outcome is decided (verified or confirmed failed) and every required component is observ"
+        },
+        {
+          "label": "in-app getReportScorecard (pinned revision) after reassessing equals the MCP read",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "label": "the Sprint 1 approval record is bound to report 1 and its content hash (snapshot report.contentHash)",
+          "ok": true,
+          "detail": {
+            "approval": {
+              "id": "ap_0000000000000000000001x15b",
+              "run_id": "rn_0000000000000000000001x14c",
+              "sprint_id": "sp_0000000000000000000001x146",
+              "report_id": "rp_0000000000000000000001x14r",
+              "report_hash": "sha256:007928121df529bd87f6355c13ce34189e65612c08d0f1c08579ed9ffe140fec",
+              "action": "advance_sprint",
+              "issued_by": "ss_0000000000000000000001x143",
+              "issued_at": "2026-11-15T10:16:00.000Z",
+              "consumed_at": "2026-11-15T10:16:00.000Z"
+            },
+            "contentHash": "sha256:007928121df529bd87f6355c13ce34189e65612c08d0f1c08579ed9ffe140fec"
+          }
+        },
+        {
+          "label": "after the session: MCP get_report_scorecard (pinned) equals the seed read",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "label": "after the session: MCP reassess_report_scorecard still P 100 -> 70 against the same snapshot",
+          "ok": true,
+          "detail": [
+            {
+              "component": "P",
+              "approved": {
+                "state": "observed",
+                "score": 100,
+                "missingReason": null
+              },
+              "sameWindow": {
+                "state": "observed",
+                "score": 100,
+                "missingReason": null
+              },
+              "current": {
+                "state": "observed",
+                "score": 70,
+                "missingReason": null
+              },
+              "causes": [
+                "later_records"
+              ],
+              "detail": "since the approved cutoff: attributedRegressions 0 → 1; regressionPenalty 0 → 30"
+            }
+          ]
+        },
+        {
+          "label": "after the session: the approval records are unchanged and bound to report 1",
+          "ok": true,
+          "detail": [
+            {
+              "id": "ap_0000000000000000000001x15b",
+              "run_id": "rn_0000000000000000000001x14c",
+              "sprint_id": "sp_0000000000000000000001x146",
+              "report_id": "rp_0000000000000000000001x14r",
+              "report_hash": "sha256:007928121df529bd87f6355c13ce34189e65612c08d0f1c08579ed9ffe140fec",
+              "action": "advance_sprint",
+              "issued_by": "ss_0000000000000000000001x143",
+              "issued_at": "2026-11-15T10:16:00.000Z",
+              "consumed_at": "2026-11-15T10:16:00.000Z"
+            },
+            {
+              "id": "ap_0000000000000000000001x15r",
+              "run_id": "rn_0000000000000000000001x14c",
+              "sprint_id": "sp_0000000000000000000001x14z",
+              "report_id": "rp_0000000000000000000001x15q",
+              "report_hash": "sha256:2118c8c2256267bb6aa77abbb2cc69a69af114c2518d2317308ed0ad8e1f2e7b",
+              "action": "advance_sprint",
+              "issued_by": "ss_0000000000000000000001x143",
+              "issued_at": "2026-11-15T11:13:00.000Z",
+              "consumed_at": "2026-11-15T11:13:00.000Z"
+            },
+            {
+              "id": "ap_0000000000000000000001x163",
+              "run_id": "rn_0000000000000000000001x14c",
+              "sprint_id": "sp_0000000000000000000001x155",
+              "report_id": "rp_0000000000000000000001x162",
+              "report_hash": "sha256:0995930b6390279d6eec2431c494e61b9606d43c1c469456812a3c792a6becf6",
+              "action": "advance_sprint",
+              "issued_by": "ss_0000000000000000000001x143",
+              "issued_at": "2026-11-15T12:04:00.000Z",
+              "consumed_at": "2026-11-15T12:04:00.000Z"
+            }
+          ]
+        }
+      ],
+      "errors": []
+    },
+    "c23": {
+      "checks": [
+        {
+          "label": "before: the in-app run equals the seed get_run (same run, state, attempts)",
+          "ok": true,
+          "detail": {
+            "before": {
+              "id": "rn_0000000000000000000001x14c",
+              "number": 1,
+              "state": "awaiting_checkpoint",
+              "revisionId": "rv_0000000000000000000001x14b",
+              "activeSprintOrdinal": 1,
+              "attempts": 5,
+              "updatedAt": "2026-11-15T10:14:00.000Z"
+            },
+            "seed": {
+              "id": "rn_0000000000000000000001x14c",
+              "state": "awaiting_checkpoint",
+              "attempts": 5
+            }
+          }
+        },
+        {
+          "label": "findings shown are get_retro_findings (count)",
+          "ok": true,
+          "detail": {
+            "heading": "2 · FINDINGS · 2\n\nMeasured gaps of the frozen scorecard, largest first. Each states a fact; what might explain it is a hypothesis, never a proven cause.\n\n#1 · Concentrated corrective effort\nTicket SHO",
+            "mcp": 2
+          }
+        },
+        {
+          "label": "the experiment is drawn from measured finding #1 (corrective_concentration on tk_0000000000000000000001x149, E.corrective_ms) per get_retro_findings",
+          "ok": true,
+          "detail": {
+            "excerpt": "3 · EXPERIMENTS · 1\nSelect\nPlan or context\nThe page ticket spent 15 min of corrective effort, all of the sprint's, after one rejected attempt.\nxp_0000000000000000000001x14s\nDrawn from\nTicket grade · this revision's scorecard SHOP-3\nEvidence\nattempt at_0000000000000000000001x14g · rejected attempt → ticket\nHypothesis\nHypothesis: the page ticket lacked the card validation rules, so its first attempt was rejected and retried.\nGoes to\nSource repository\nProposed work\nWrite the card validation rules into the page ticket template Small Add the card number, expiry and CVC rules to docs/checkout-rules.md and link it from every checkout ticket body.\nBaseline\nE.corrective_ms 900,000 milliseconds (observed)\nExpected change\nDecrease by 50 percent\nGuardrails\nA.delivered at least 1 count\nWindow\nOver the next 1 sprint\nOutcome\nInsufficient evidence Proposed\nno measured result is recorded\nno corrective ticket is found here and it is not marked completed\nObservational: the baseline and the result measure different work in different windows, so a difference is not proof that the corrective work caused it.\nTarget\nDecrease by 50 percent from 900,000 to 450,000 milliseconds\nCorrective work\nNo corrective ticket foundNot landed: no corrective ticket is found here and it is not marked completed\nResults\nNo measured result recorded\nFrom findings\n← #1 Ticket SHOP-3 \"Build the checkout page\": 15 min of corrective effort, 100% of the sprint's 15 min and 60% of its own recorded effort (productive 10 min, un",
+            "finding": {
+              "id": "corrective_concentration:ticket:tk_0000000000000000000001x149",
+              "rank": 1,
+              "kind": "corrective_concentration",
+              "subject": {
+                "level": "ticket",
+                "id": "tk_0000000000000000000001x149"
+              },
+              "assessmentId": "as_48qmvha7gpzd4gdd33yvdqchee",
+              "component": "E",
+              "statement": "Ticket SHOP-3 \"Build the checkout page\": 15 min of corrective effort, 100% of the sprint's 15 min and 60% of its own recorded effort (productive 10 min, unclassified 0 min; neither is counted as waste: productive effort includes planned tests and useful investigation).",
+              "magnitude": {
+                "measure": "E.corrective_ms",
+                "value": 900000,
+                "unit": "milliseconds",
+                "reference": 900000,
+                "ratio": 1,
+                "state": "observed",
+                "text": "100% of the sprint's corrective effort"
+              },
+              "severity": 0.6,
+              "coverage": {
+                "grade": 1,
+                "items": {
+                  "measured": 4,
+                  "total": 4
+                }
+              },
+              "origins": {
+                "attemptIds": [],
+                "criteria": [],
+                "observationIds": [
+                  "mo_d7nncn4mdqmax2x4aftwjr5z8q",
+                  "mo_smvr63seaj6pp3n6kmx7k41far"
+                ],
+                "checks": [],
+                "ticketIds": []
+              },
+              "evidence": [
+                {
+                  "detail": "corrective",
+                  "id": "mo_d7nncn4mdqmax2x4aftwjr5z8q",
+                  "kind": "observation"
+                },
+                {
+                  "detail": "productive",
+                  "id": "mo_smvr63seaj6pp3n6kmx7k41far",
+                  "kind": "observation"
+                }
+              ],
+              "hypotheses": [
+                {
+                  "concern": "code_defect",
+                  "hypothesis": "Hypothesis: the rework went into fixing defects in the change itself."
+                },
+                {
+                  "concern": "plan_context",
+                  "hypothesis": "Hypothesis: criteria or context changed or were unclear while the ticket was in flight, so finished work was redone."
+                }
+              ],
+              "concern": null,
+              "contradictedBy": [],
+              "proposal": null,
+              "withheld": "multiple_candidate_causes"
+            }
+          }
+        },
+        {
+          "label": "planner selection names the experiment",
+          "ok": true,
+          "detail": "4 · CORRECTIVE WORK\n\nCorrective work is created only when you ask, as DRAFT work you review. Opening this report or a low grade starts nothing, and nothing here saves, adopts, starts or approves.\n\nSelected: xp_0000000000000000000001x14s\n\nDestination\nThis project's source repository\nEach experiment's"
+        },
+        {
+          "label": "preview normal: nothing written yet, the generated ticket shown",
+          "ok": true,
+          "detail": "PREVIEW · NOTHING IS WRITTEN YET\nGoes into\nThe draft of \"Checkout flow\": a new Sprint 2, appended (after Sprint 1, which stays as it is) · goal: Corrective work from the Sprint 1 retro (report revision 1): experiments xp_0000000000000000000001x14s.\nDestination\nThis project's repository\nDraft\nNone open: created by this request\nReady to create xp_0000000000000000000001x14s\nCorrective work\nSHOP-6\nWrite the card validation rules into the page ticket template\nSmall\nDestination\nThis project's repository\nTags\ncorrective, plan_context\nBody\nAdd the card number, expiry and CVC rules to docs/checkout-rules.md and link it from every checkout ticket body.\nCriteria\nWrite the card validation rules into the page ticket template: the change the body describes is in place. Add the card number, expiry and CVC rules to docs/checkout-rules.md and link it from every checkout ticket body.\nTests or a recorded d"
+        },
+        {
+          "label": "preview narrow: nothing written yet, the generated ticket shown",
+          "ok": true,
+          "detail": "PREVIEW · NOTHING IS WRITTEN YET\nGoes into\nThe draft of \"Checkout flow\": a new Sprint 2, appended (after Sprint 1, which stays as it is) · goal: Corrective work from the Sprint 1 retro (report revision 1): experiments xp_0000000000000000000001x14s.\nDestination\nThis project's repository\nDraft\nNone open: created by this request\nReady to create xp_0000000000000000000001x14s\nCorrective work\nSHOP-6\nWrite the card validation rules into the page ticket template\nSmall\nDestination\nThis project's repository\nTags\ncorrective, plan_context\nBody\nAdd the card number, expiry and CVC rules to docs/checkout-rules.md and link it from every checkout ticket body.\nCriteria\nWrite the card validation rules into the page ticket template: the change the body describes is in place. Add the card number, expiry and CVC rules to docs/checkout-rules.md and link it from every checkout ticket body.\nTests or a recorded d"
+        },
+        {
+          "label": "after Preview the run is unchanged",
+          "ok": true,
+          "detail": {
+            "id": "rn_0000000000000000000001x14c",
+            "number": 1,
+            "state": "awaiting_checkpoint",
+            "revisionId": "rv_0000000000000000000001x14b",
+            "activeSprintOrdinal": 1,
+            "attempts": 5,
+            "updatedAt": "2026-11-15T10:14:00.000Z"
+          }
+        },
+        {
+          "label": "after Create: same run, same state, no new attempt (no run started or advanced)",
+          "ok": true,
+          "detail": {
+            "before": {
+              "id": "rn_0000000000000000000001x14c",
+              "number": 1,
+              "state": "awaiting_checkpoint",
+              "revisionId": "rv_0000000000000000000001x14b",
+              "activeSprintOrdinal": 1,
+              "attempts": 5,
+              "updatedAt": "2026-11-15T10:14:00.000Z"
+            },
+            "after": {
+              "id": "rn_0000000000000000000001x14c",
+              "number": 1,
+              "state": "awaiting_checkpoint",
+              "revisionId": "rv_0000000000000000000001x14b",
+              "activeSprintOrdinal": 1,
+              "attempts": 5,
+              "updatedAt": "2026-11-15T10:14:00.000Z"
+            }
+          }
+        },
+        {
+          "label": "after Create: the draft holds the corrective ticket",
+          "ok": true,
+          "detail": {
+            "draftRevision": 2,
+            "draftBefore": {
+              "code": "not_found",
+              "message": "No draft. Open one with openDraft or update_plan_draft.",
+              "details": {
+                "epicId": "ep_0000000000000000000001x145"
+              }
+            }
+          }
+        },
+        {
+          "label": "after Create: the saved plan revision is unchanged (nothing saved)",
+          "ok": true,
+          "detail": {
+            "saved": "rv_0000000000000000000001x14b",
+            "seed": "rv_0000000000000000000001x14b"
+          }
+        },
+        {
+          "label": "after Create: the new ticket is not in the run",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "label": "created panel normal: Draft work created",
+          "ok": true,
+          "detail": "Draft work created Created as draft work in \"Checkout flow\" (draft revision 2). Nothing was saved, adopted, started or approved.\n\nSHOP-6 Write the card validation rules into the page ticket template\nSHOP-7 Grade the corrective tests with Fireguard\nSHOP-5 Sprint 2 acceptance\nReview epic ep_0000000000000000000001x145's draft: the corrective tickets, criteria, dependencies, Fireguard ticket and acceptance node.\nSave the draft, then adopt the saved revision into the run at its checkpoint (or Approve with redraft, which saves, adopts, approves and advances in one approval). Sprint 1's gates still a"
+        },
+        {
+          "label": "created panel narrow: Draft work created",
+          "ok": true,
+          "detail": "Draft work created Created as draft work in \"Checkout flow\" (draft revision 2). Nothing was saved, adopted, started or approved.\n\nSHOP-6 Write the card validation rules into the page ticket template\nSHOP-7 Grade the corrective tests with Fireguard\nSHOP-5 Sprint 2 acceptance\nReview epic ep_0000000000000000000001x145's draft: the corrective tickets, criteria, dependencies, Fireguard ticket and acceptance node.\nSave the draft, then adopt the saved revision into the run at its checkpoint (or Approve with redraft, which saves, adopts, approves and advances in one approval). Sprint 1's gates still a"
+        },
+        {
+          "label": "after the session (MCP/DB): still one run, same state and attempt count",
+          "ok": true,
+          "detail": {
+            "before": [
+              {
+                "id": "rn_0000000000000000000001x14c",
+                "number": 1,
+                "state": "awaiting_checkpoint",
+                "revision_id": "rv_0000000000000000000001x14b",
+                "active_sprint_id": "sp_0000000000000000000001x146",
+                "created_at": "2026-11-15T09:02:00.000Z",
+                "started_at": "2026-11-15T09:02:00.000Z",
+                "updated_at": "2026-11-15T10:14:00.000Z",
+                "ended_at": null,
+                "attempts": 5
+              }
+            ],
+            "after": [
+              {
+                "id": "rn_0000000000000000000001x14c",
+                "number": 1,
+                "state": "awaiting_checkpoint",
+                "revision_id": "rv_0000000000000000000001x14b",
+                "active_sprint_id": "sp_0000000000000000000001x146",
+                "created_at": "2026-11-15T09:02:00.000Z",
+                "started_at": "2026-11-15T09:02:00.000Z",
+                "updated_at": "2026-11-15T10:14:00.000Z",
+                "ended_at": null,
+                "attempts": 5
+              }
+            ]
+          }
+        },
+        {
+          "label": "after the session: MCP get_run is the same run, same state",
+          "ok": true,
+          "detail": {
+            "id": "rn_0000000000000000000001x14c",
+            "state": "awaiting_checkpoint"
+          }
+        },
+        {
+          "label": "after the session: MCP get_plan draft holds the corrective ticket; saved revision unchanged",
+          "ok": true,
+          "detail": {
+            "corrective": "SHOP-6",
+            "saved": "rv_0000000000000000000001x14b"
+          }
+        }
+      ],
+      "errors": []
+    },
+    "c16": {
+      "checks": [
+        {
+          "label": "Sprint 1 snapshot headline equals get_report_scorecard before the rating",
+          "ok": true,
+          "detail": {
+            "headline": "B\nFinal\nScore 88.2\nCoverage 100.0% of base weight · 7 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n(S 75 + P 100 + A 100 + C 80 + E 62.5 + T 100 + K 100) ÷ 7 = 88.214286\n88.214286 ≥ 80 → B\nfinal: the outcome is decided (verified or confirmed failed) and every required component is observ",
+            "mcp": [
+              "B",
+              "88.2"
+            ]
+          }
+        },
+        {
+          "label": "sprint feedback normal: the recorded rating is shown, shared with the tickets, and the snapshot note",
+          "ok": true,
+          "detail": "SPRINT FEEDBACK\n\nRated 5 of 5, shared with the sprint's tickets: a ticket without its own rating inherits it, marked inherited.\n\n4 of 5 · shared with the tickets · by desktop session (DM-193) at 11/15/2026, 4:13:00 AM\nRecorded by: labelled as recorded on this machine (a label, not a signature); desktop session ss_0000000000000000000001x143, machine mc_0000000000000000000001x142\n5 of 5 · shared with the tickets · by Desktop at 11/17/2026, 1:39:52 AM\nRecorded by: labelled as recorded on this machine (a label, not a signature); desktop session ss_01m7m74v1ah9r8k0ecq1g4mc8r, machine mc_0000000000000000000001x142\n\nThe scorecard above was frozen with the report: a rating recorded now never changes it. It shows in a later reassessment.\n\nOptional and asked once per sprint. A ticket's own rating, on its Scorecard tab, overrides a shared sprint rating for that ticket.\n\nRate Sprint 1 (optional)\n1 ·"
+        },
+        {
+          "label": "sprint feedback narrow: the recorded rating is shown, shared with the tickets, and the snapshot note",
+          "ok": true,
+          "detail": "SPRINT FEEDBACK\n\nRated 5 of 5, shared with the sprint's tickets: a ticket without its own rating inherits it, marked inherited.\n\n4 of 5 · shared with the tickets · by desktop session (DM-193) at 11/15/2026, 4:13:00 AM\nRecorded by: labelled as recorded on this machine (a label, not a signature); desktop session ss_0000000000000000000001x143, machine mc_0000000000000000000001x142\n5 of 5 · shared with the tickets · by Desktop at 11/17/2026, 1:39:52 AM\nRecorded by: labelled as recorded on this machine (a label, not a signature); desktop session ss_01m7m74v1ah9r8k0ecq1g4mc8r, machine mc_0000000000000000000001x142\n\nThe scorecard above was frozen with the report: a rating recorded now never changes it. It shows in a later reassessment.\n\nOptional and asked once per sprint. A ticket's own rating, on its Scorecard tab, overrides a shared sprint rating for that ticket.\n\nRate Sprint 1 (optional)\n1 ·"
+        },
+        {
+          "label": "after the rating the Sprint 1 snapshot headline is unchanged",
+          "ok": true,
+          "detail": "B\nFinal\nScore 88.2\nCoverage 100.0% of base weight · 7 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n(S 75 + P 100 + A 100 + C 80 + E 62.5 + T 100 + K 100) ÷ 7 = 88.214286\n88.214286 ≥ 80 → B\nfinal: the outcome is decided (verified or confirmed failed) and every required component is observ"
+        },
+        {
+          "label": "budget SHOP-2 (dispatched) normal: set in the draft, for future dispatches only",
+          "ok": true,
+          "detail": "BUDGET (OPTIONAL)\n\nIn the draft now: 40,000 tokens and 25 min active · basis not stated. Leave both amounts blank for no budget; a budget only sets the baseline T and K compare against.\n\nTokens (whole tokens, all attempts and overhead)\nActive time (minutes of active execution)\n= 25 min\nWhere the numbers come from\nNot stated\nA person’s estimate\nThe planner’s estimate\nSimilar earlier tickets\nSet budget in draft\nDiscard\nClear budget\n\nSet in the draft: 40,000 tokens and 25 min active · basis not stated. This ticket was already dispatched: its frozen budget stays, and once saved this applies only to later dispatches.\n\nAlready dispatched in this run: its budget was frozen at dispatch. A change you save now is a new, prospective version.\n\nv1 · 30 min · basis not stated · saved in revision 1 at 11/15/2026, 3:01:00 AM · frozen at this run’s dispatch: the one its grade uses\nv1 · 50,000 tokens · ba"
+        },
+        {
+          "label": "budget SHOP-2 (dispatched) narrow: set in the draft, for future dispatches only",
+          "ok": true,
+          "detail": "BUDGET (OPTIONAL)\n\nIn the draft now: 40,000 tokens and 25 min active · basis not stated. Leave both amounts blank for no budget; a budget only sets the baseline T and K compare against.\n\nTokens (whole tokens, all attempts and overhead)\nActive time (minutes of active execution)\n= 25 min\nWhere the numbers come from\nNot stated\nA person’s estimate\nThe planner’s estimate\nSimilar earlier tickets\nSet budget in draft\nDiscard\nClear budget\n\nSet in the draft: 40,000 tokens and 25 min active · basis not stated. This ticket was already dispatched: its frozen budget stays, and once saved this applies only to later dispatches.\n\nAlready dispatched in this run: its budget was frozen at dispatch. A change you save now is a new, prospective version.\n\nv1 · 30 min · basis not stated · saved in revision 1 at 11/15/2026, 3:01:00 AM · frozen at this run’s dispatch: the one its grade uses\nv1 · 50,000 tokens · ba"
+        },
+        {
+          "label": "budget SHOP-6 (never dispatched) normal: set in the draft, for future dispatches only",
+          "ok": true,
+          "detail": "BUDGET (OPTIONAL)\n\nIn the draft now: 20,000 tokens and 15 min active · basis not stated. Leave both amounts blank for no budget; a budget only sets the baseline T and K compare against.\n\nTokens (whole tokens, all attempts and overhead)\nActive time (minutes of active execution)\n= 15 min\nWhere the numbers come from\nNot stated\nA person’s estimate\nThe planner’s estimate\nSimilar earlier tickets\nSet budget in draft\nDiscard\nClear budget\n\nSet in the draft: 20,000 tokens and 15 min active · basis not stated. It is frozen when the plan is saved, and applies from the ticket’s next dispatch.\n\nNo saved version yet: the budget becomes this ticket's first version when the plan is saved."
+        },
+        {
+          "label": "budget SHOP-6 (never dispatched) narrow: set in the draft, for future dispatches only",
+          "ok": true,
+          "detail": "BUDGET (OPTIONAL)\n\nIn the draft now: 20,000 tokens and 15 min active · basis not stated. Leave both amounts blank for no budget; a budget only sets the baseline T and K compare against.\n\nTokens (whole tokens, all attempts and overhead)\nActive time (minutes of active execution)\n= 15 min\nWhere the numbers come from\nNot stated\nA person’s estimate\nThe planner’s estimate\nSimilar earlier tickets\nSet budget in draft\nDiscard\nClear budget\n\nSet in the draft: 20,000 tokens and 15 min active · basis not stated. It is frozen when the plan is saved, and applies from the ticket’s next dispatch.\n\nNo saved version yet: the budget becomes this ticket's first version when the plan is saved."
+        },
+        {
+          "label": "in-app draft: SHOP-2 budget is the edit (40,000 tokens, 25 min)",
+          "ok": true,
+          "detail": {
+            "tokens": 40000,
+            "activeMs": 1500000
+          }
+        },
+        {
+          "label": "SHOP-2 normal: live headline equals in-app getTicketGrade now (seed read before the rating: A 96.4 (final))",
+          "ok": true,
+          "detail": {
+            "headline": "A\nFinal\nScore 100.0\nCoverage 100.0% of base weight · 7 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n(S 100 + P 100 + A 100 + C 100 + E 100 + T 100 + K 100) ÷ 7 = 100\n100 ≥ 90 → A\nfinal: the outcome is decided (verified or confirmed failed) and every required component is observed",
+            "now": "A 100.0 (final)",
+            "seed": "A 96.4 (final)",
+            "S": {
+              "component": "S",
+              "state": "observed",
+              "required": false,
+              "score": 100,
+              "baseWeight": 0.14285714285714285,
+              "effectiveWeight": 0.14285714285714285,
+              "rule": "S.rating.v1",
+              "missingReason": null,
+              "inherited": true,
+              "inputs": {
+                "rating": 5,
+                "ratingScope": "sprint"
+              },
+              "diagnostics": {},
+              "evidence": [
+                {
+                  "kind": "observation",
+                  "id": "mo_01m7m75c1hts2h81c9fra8jg2v",
+                  "detail": "inherited sprint rating"
+                }
+              ],
+              "explanation": {
+                "normalization": "(5 − 1) × 25 = 100, from the shared sprint rating, inherited",
+                "cutoff": "2026-11-17T07:40:08.578Z",
+                "baseline": null,
+                "caps": []
+              }
+            }
+          }
+        },
+        {
+          "label": "SHOP-2 normal: S component marked inherited",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "label": "SHOP-2 normal: feedback says S inherits the sprint's 5 of 5",
+          "ok": true,
+          "detail": "PEOPLE'S FEEDBACK\n\nNo rating of its own: S inherits the sprint's rating, 5 of 5, which was shared with the sprint's tickets (marked inherited).\n\nSprint rating, shared with its tickets: 4 of 5 · by desktop session (DM-193) at 11/15/2026, 4:13:00 AM\nRecorded by: labelled as recorded on this machine (a label, not a signature); desktop session ss_0000000000000000000001x143, machine mc_0000000000000000000001x142\nSprint rating, shared with its tickets: 5 of 5 · by Desktop at 11/17/2026, 1:39:52 AM\nRecorded by: labelled as recorded on this machine (a label, not a signature); desktop session ss_01m7m7"
+        },
+        {
+          "label": "SHOP-2 normal: original frozen grade shown (A 96.4 (final))",
+          "ok": true,
+          "detail": {
+            "excerpt": "ORIGINAL AND REASSESSED · REPORT REVISION 1\nOriginal (frozen 11/15/2026, 4:14:00 AM)\nA 96.4 (final)\nSame window, regraded now\nA 96.4 (final)\nReassessed (11/17/2026, 1:40:07 AM)\nA 100.0 (final)\nMembership\nkept\nWindows\nboth windows start at the first dispatch (11/15/2026, 3:02:00 AM); the current one runs 11/15/2026, 4:14:00 AM → 11/17/2026, 1:40:07 AM longer\nS\nsince the approved cutoff: rating 4 → 5 (later records)",
+            "frozen": "A 96.4 (final)"
+          }
+        },
+        {
+          "label": "SHOP-2 narrow: live headline equals in-app getTicketGrade now (seed read before the rating: A 96.4 (final))",
+          "ok": true,
+          "detail": {
+            "headline": "A\nFinal\nScore 100.0\nCoverage 100.0% of base weight · 7 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n(S 100 + P 100 + A 100 + C 100 + E 100 + T 100 + K 100) ÷ 7 = 100\n100 ≥ 90 → A\nfinal: the outcome is decided (verified or confirmed failed) and every required component is observed",
+            "now": "A 100.0 (final)",
+            "seed": "A 96.4 (final)",
+            "S": {
+              "component": "S",
+              "state": "observed",
+              "required": false,
+              "score": 100,
+              "baseWeight": 0.14285714285714285,
+              "effectiveWeight": 0.14285714285714285,
+              "rule": "S.rating.v1",
+              "missingReason": null,
+              "inherited": true,
+              "inputs": {
+                "rating": 5,
+                "ratingScope": "sprint"
+              },
+              "diagnostics": {},
+              "evidence": [
+                {
+                  "kind": "observation",
+                  "id": "mo_01m7m75c1hts2h81c9fra8jg2v",
+                  "detail": "inherited sprint rating"
+                }
+              ],
+              "explanation": {
+                "normalization": "(5 − 1) × 25 = 100, from the shared sprint rating, inherited",
+                "cutoff": "2026-11-17T07:40:12.131Z",
+                "baseline": null,
+                "caps": []
+              }
+            }
+          }
+        },
+        {
+          "label": "SHOP-2 narrow: S component marked inherited",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "label": "SHOP-2 narrow: feedback says S inherits the sprint's 5 of 5",
+          "ok": true,
+          "detail": "PEOPLE'S FEEDBACK\n\nNo rating of its own: S inherits the sprint's rating, 5 of 5, which was shared with the sprint's tickets (marked inherited).\n\nSprint rating, shared with its tickets: 4 of 5 · by desktop session (DM-193) at 11/15/2026, 4:13:00 AM\nRecorded by: labelled as recorded on this machine (a label, not a signature); desktop session ss_0000000000000000000001x143, machine mc_0000000000000000000001x142\nSprint rating, shared with its tickets: 5 of 5 · by Desktop at 11/17/2026, 1:39:52 AM\nRecorded by: labelled as recorded on this machine (a label, not a signature); desktop session ss_01m7m7"
+        },
+        {
+          "label": "SHOP-2 narrow: original frozen grade shown (A 96.4 (final))",
+          "ok": true,
+          "detail": {
+            "excerpt": "ORIGINAL AND REASSESSED · REPORT REVISION 1\nOriginal (frozen 11/15/2026, 4:14:00 AM)\nA 96.4 (final)\nSame window, regraded now\nA 96.4 (final)\nReassessed (11/17/2026, 1:40:07 AM)\nA 100.0 (final)\nMembership\nkept\nWindows\nboth windows start at the first dispatch (11/15/2026, 3:02:00 AM); the current one runs 11/15/2026, 4:14:00 AM → 11/17/2026, 1:40:07 AM longer\nS\nsince the approved cutoff: rating 4 → 5 (later records)",
+            "frozen": "A 96.4 (final)"
+          }
+        },
+        {
+          "label": "Sprint 1 snapshot after rating and budget edits still equals the seed get_report_scorecard",
+          "ok": true,
+          "detail": "B\nFinal\nScore 88.2\nCoverage 100.0% of base weight · 7 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n(S 75 + P 100 + A 100 + C 80 + E 62.5 + T 100 + K 100) ÷ 7 = 88.214286\n88.214286 ≥ 80 → B\nfinal: the outcome is decided (verified or confirmed failed) and every required component is observ"
+        },
+        {
+          "label": "in-app getReportScorecard snapshot equals the seed MCP read",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "label": "after the session: MCP get_report_scorecard equals the seed read (frozen snapshot unchanged)",
+          "ok": true,
+          "detail": null
+        },
+        {
+          "label": "after the session: MCP get_space_signals sprint rating 5, shared with tickets (one desktop record added)",
+          "ok": true,
+          "detail": {
+            "rating": {
+              "observationId": "mo_01m7m75c1hts2h81c9fra8jg2v",
+              "source": "human",
+              "value": 5,
+              "sharedWithTickets": true
+            },
+            "ratings": 2,
+            "seedRatings": 1
+          }
+        },
+        {
+          "label": "after the session: SHOP-2 draft budget is the edit, saved budget unchanged",
+          "ok": true,
+          "detail": {
+            "apiDraft": {
+              "tokens": 40000,
+              "activeMs": 1500000
+            },
+            "apiSaved": {
+              "tokens": 50000,
+              "activeMs": 1800000
+            }
+          }
+        },
+        {
+          "label": "after the session: SHOP-2 K inputs (frozen budget) unchanged by the budget edit",
+          "ok": true,
+          "detail": {
+            "seed": {
+              "actual": 30000,
+              "actualState": "observed",
+              "unreportedAttempts": 0,
+              "baselineId": "bl_qqv5gv8rehq9wp5swecqmt224z",
+              "baselineKind": "budget",
+              "baselineValue": 50000,
+              "baselineSampleSize": null,
+              "ratio": 0.6
+            },
+            "now": {
+              "actual": 30000,
+              "actualState": "observed",
+              "unreportedAttempts": 0,
+              "baselineId": "bl_qqv5gv8rehq9wp5swecqmt224z",
+              "baselineKind": "budget",
+              "baselineValue": 50000,
+              "baselineSampleSize": null,
+              "ratio": 0.6
+            }
+          }
+        },
+        {
+          "label": "after the session: SHOP-2 live grade vs seed (recorded; S may move with the late rating)",
+          "ok": true,
+          "detail": {
+            "seed": "A 96.4 (final)",
+            "now": "A 100.0 (final)",
+            "S": {
+              "component": "S",
+              "state": "observed",
+              "required": false,
+              "score": 100,
+              "baseWeight": 0.14285714285714285,
+              "effectiveWeight": 0.14285714285714285,
+              "rule": "S.rating.v1",
+              "missingReason": null,
+              "inherited": true,
+              "inputs": {
+                "rating": 5,
+                "ratingScope": "sprint"
+              },
+              "diagnostics": {},
+              "evidence": [
+                {
+                  "kind": "observation",
+                  "id": "mo_01m7m75c1hts2h81c9fra8jg2v",
+                  "detail": "inherited sprint rating"
+                }
+              ],
+              "explanation": {
+                "normalization": "(5 − 1) × 25 = 100, from the shared sprint rating, inherited",
+                "cutoff": "2026-11-17T07:40:24.660Z",
+                "baseline": null,
+                "caps": []
+              }
+            }
+          }
+        },
+        {
+          "label": "after the session: reassessment keeps the approved Sprint 1 grade; the rating is a dated difference",
+          "ok": true,
+          "detail": {
+            "approved": "B 88.2 (final)",
+            "current": "A 91.7 (final)",
+            "differences": [
+              {
+                "component": "S",
+                "approved": {
+                  "state": "observed",
+                  "score": 75,
+                  "missingReason": null
+                },
+                "sameWindow": {
+                  "state": "observed",
+                  "score": 75,
+                  "missingReason": null
+                },
+                "current": {
+                  "state": "observed",
+                  "score": 100,
+                  "missingReason": null
+                },
+                "causes": [
+                  "later_records"
+                ],
+                "detail": "since the approved cutoff: rating 4 → 5"
+              }
+            ]
+          }
+        }
+      ],
+      "errors": []
+    },
+    "c14": {
+      "checks": [
+        {
+          "label": "get_epic_grade: outcome failed, every counted feature outcome verified, an integrated one failed",
+          "ok": true,
+          "detail": {
+            "outcome": "failed",
+            "work": [
+              [
+                "tk_0000000000000000000001x14a",
+                "verified"
+              ],
+              [
+                "tk_0000000000000000000001x14b",
+                "verified"
+              ],
+              [
+                "tk_0000000000000000000001x14c",
+                "verified"
+              ],
+              [
+                "tk_0000000000000000000001x14d",
+                "verified"
+              ]
+            ],
+            "integrated": [
+              [
+                "tk_0000000000000000000001x147",
+                "verified"
+              ],
+              [
+                "tk_0000000000000000000001x149",
+                "failed"
+              ]
+            ]
+          }
+        },
+        {
+          "label": "epic headline normal equals get_epic_grade",
+          "ok": true,
+          "detail": {
+            "headline": "F\nFailed · final\nScore 59.0\nCoverage 85.7% of base weight · 6 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n\nStatus final: a mandatory check or criterion failed\n\n(P 0 + A 100 + C 100 + E 100 + T 100 + K 100) ÷ 6 = 83.333333\nconfirmed mandatory failure: min(83.333333, 59) = 59\nconfirmed ma",
+            "mcp": [
+              "F",
+              "59.0"
+            ]
+          }
+        },
+        {
+          "label": "outcome section normal: says the epic failed although feature tickets are verified",
+          "ok": true,
+          "detail": "ORIGINAL SCOPE AND OUTCOMES\n\nThe scope committed before the first dispatch stays the denominator; scope added later is shown apart. Integrated outcomes (acceptance nodes and administrative tickets) and required tickets decide the epic: one confirmed failure fails it.\n\nCommitted before dispatch\n4 ticket(s)\nDelivered of that scope\n4 of 4 (accepted, every committed criterion verified)\nRemoved after dispatch\n0 (still counted as committed)\nAdded after dispatch\n0 (shown apart, never counted as delivered scope)\n\n4 of 4 feature ticket(s) and 1 of 2 integrated outcome(s) are verified, yet the epic failed: SHOP-2 Sprint 2 acceptance. A confirmed failure of a required or integrated outcome caps the grade at F, so completed tickets alone do not make the epic a success.\n\nSHOP-1 Sprint 1 acceptance\nintegrated (acceptance or administrative) · verified: accepted after review · Run #1\nSHOP-3 Render the r"
+        },
+        {
+          "label": "epic headline narrow equals get_epic_grade",
+          "ok": true,
+          "detail": {
+            "headline": "F\nFailed · final\nScore 59.0\nCoverage 85.7% of base weight · 6 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n\nStatus final: a mandatory check or criterion failed\n\n(P 0 + A 100 + C 100 + E 100 + T 100 + K 100) ÷ 6 = 83.333333\nconfirmed mandatory failure: min(83.333333, 59) = 59\nconfirmed ma",
+            "mcp": [
+              "F",
+              "59.0"
+            ]
+          }
+        },
+        {
+          "label": "outcome section narrow: says the epic failed although feature tickets are verified",
+          "ok": true,
+          "detail": "ORIGINAL SCOPE AND OUTCOMES\n\nThe scope committed before the first dispatch stays the denominator; scope added later is shown apart. Integrated outcomes (acceptance nodes and administrative tickets) and required tickets decide the epic: one confirmed failure fails it.\n\nCommitted before dispatch\n4 ticket(s)\nDelivered of that scope\n4 of 4 (accepted, every committed criterion verified)\nRemoved after dispatch\n0 (still counted as committed)\nAdded after dispatch\n0 (shown apart, never counted as delivered scope)\n\n4 of 4 feature ticket(s) and 1 of 2 integrated outcome(s) are verified, yet the epic failed: SHOP-2 Sprint 2 acceptance. A confirmed failure of a required or integrated outcome caps the grade at F, so completed tickets alone do not make the epic a success.\n\nSHOP-1 Sprint 1 acceptance\nintegrated (acceptance or administrative) · verified: accepted after review · Run #1\nSHOP-3 Render the r"
+        },
+        {
+          "label": "sprint toggles show each sprint grade (get_sprint_grade)",
+          "ok": true,
+          "detail": {
+            "toggles": [
+              "Sprint 1\nA 100.0 (final) · frozen with report revision 1",
+              "Sprint 2 · Send the receipt\nF 59.0 (final) · frozen with report revision 1"
+            ],
+            "s1": [
+              "A",
+              "100.0"
+            ],
+            "s2": [
+              "F",
+              "59.0"
+            ]
+          }
+        },
+        {
+          "label": "Sprint 2 drill-down normal: its own grade and \"yet the sprint failed\"",
+          "ok": true,
+          "detail": "F\nFailed · final\nScore 59.0\nCoverage 85.7% of base weight · 6 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n\nStatus final: a mandatory check or criterion failed\n\n(P 0 + A 100 + C 100 + E 100 + T 100 + K 100) ÷ 6 = 83.333333\nconfirmed mandatory failure: min(83.333333, 59) = 59\nconfirmed mandatory failure → F (the capped score 59 < 60 → F)\nfinal: the outcome is decided (verified or confirmed failed) and every required component is observed\na mandatory check or criterion is confirmed failed: P is 0 and the score is capped at 59, letter F\nCommitted before dispatch\n2 ticket(s)\nDelivered of that scope\n2 of 2 (accepted, every committed criterion verified)\nRemoved after dispatch\n0 (still counted as committed)\nAdded after dispatch\n0 (shown apart, never counted as delivered scope)\n\n2 of 2 feature ticket(s) and 0 of 1 integrated outcome(s) are verified, yet the sprint failed: SHOP-2 Spri"
+        },
+        {
+          "label": "Sprint 2 drill-down narrow: its own grade and \"yet the sprint failed\"",
+          "ok": true,
+          "detail": "F\nFailed · final\nScore 59.0\nCoverage 85.7% of base weight · 6 of 7 components scored\nPolicy dm-space v2 · f50d32f4eb4e\n\nStatus final: a mandatory check or criterion failed\n\n(P 0 + A 100 + C 100 + E 100 + T 100 + K 100) ÷ 6 = 83.333333\nconfirmed mandatory failure: min(83.333333, 59) = 59\nconfirmed mandatory failure → F (the capped score 59 < 60 → F)\nfinal: the outcome is decided (verified or confirmed failed) and every required component is observed\na mandatory check or criterion is confirmed failed: P is 0 and the score is capped at 59, letter F\nCommitted before dispatch\n2 ticket(s)\nDelivered of that scope\n2 of 2 (accepted, every committed criterion verified)\nRemoved after dispatch\n0 (still counted as committed)\nAdded after dispatch\n0 (shown apart, never counted as delivered scope)\n\n2 of 2 feature ticket(s) and 0 of 1 integrated outcome(s) are verified, yet the sprint failed: SHOP-2 Spri"
+        },
+        {
+          "label": "epic totals tokens on screen = ledger total = sum of the per-sprint K actuals (get_sprint_grade)",
+          "ok": true,
+          "detail": {
+            "screenTokens": 69000,
+            "ledger": {
+              "tokens": 69000,
+              "minutes": 65,
+              "perSprint": [
+                {
+                  "sprintId": "sp_0000000000000000000001x146",
+                  "tokens": 37000,
+                  "minutes": 35
+                },
+                {
+                  "sprintId": "sp_0000000000000000000001x148",
+                  "tokens": 32000,
+                  "minutes": 30
+                }
+              ]
+            },
+            "sprintK": [
+              37000,
+              32000
+            ]
+          }
+        },
+        {
+          "label": "per-sprint K actuals equal the ledger per sprint",
+          "ok": true,
+          "detail": {
+            "sprintK": [
+              37000,
+              32000
+            ],
+            "perSprint": [
+              {
+                "sprintId": "sp_0000000000000000000001x146",
+                "tokens": 37000,
+                "minutes": 35
+              },
+              {
+                "sprintId": "sp_0000000000000000000001x148",
+                "tokens": 32000,
+                "minutes": 30
+              }
+            ]
+          }
+        },
+        {
+          "label": "epic K actual (get_epic_grade) recorded",
+          "ok": true,
+          "detail": {
+            "epicK": 69000,
+            "epicT": 3900000,
+            "runMetricsTokens": null
+          }
+        }
+      ],
+      "errors": []
+    }
+  }
+}

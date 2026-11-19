@@ -10,7 +10,7 @@ import type {
 import type { WorkStatus } from '../../../shared/domain/status'
 import type { BoardImportView, EpicConflictChoice, EpicDetailView, StorageMode } from '../../../shared/domain/views'
 import { runCommand } from '../api/dm'
-import type { Landing, TicketLanding } from './landing'
+import type { Landing, TicketLanding, TicketScorecardLanding } from './landing'
 import type { Selection } from './selection'
 import {
   describeBoardImport,
@@ -25,6 +25,9 @@ export type BusyKey = 'initialize' | 'flush' | 'reconcile'
 
 /** A link to a ticket: its epic, the ticket, and the attempt whose Activity tab opens, if one is named. */
 type TicketLink = Omit<TicketLanding, 'kind'>
+
+/** A link to a ticket's Scorecard tab: its epic, the ticket, and the run whose grade it reads (null: the newest attempt's run). */
+type TicketScorecardLink = Omit<TicketScorecardLanding, 'kind'>
 
 /** Choices on the onboarding screen that shape what Initialize does. */
 export interface InitializeOptions {
@@ -80,6 +83,8 @@ export interface ShellActions {
   selectEpic(path: string, epicId: string): void
   /** Opens a folder's Kanban board in the main area. */
   selectKanban(path: string): void
+  /** Opens a folder's Metrics dashboard in the main area. */
+  selectMetrics(path: string): void
   /** Opens one of a folder's chats in the main area. */
   selectChat(path: string, chatId: string): void
   /**
@@ -93,7 +98,11 @@ export interface ShellActions {
    * have opens the chat as it is.
    */
   openThread(path: string, chatId: string, threadId: string): void
-  /** The screen opened by `openTicket` or `openThread` took its request: forget it. */
+  /** Opens an epic's workspace on its Scorecard (a Metrics dashboard row). */
+  openEpicScorecard(path: string, epicId: string): void
+  /** Opens a ticket in its epic's workspace on its Scorecard tab (a Metrics dashboard gap). */
+  openTicketScorecard(path: string, link: TicketScorecardLink): void
+  /** The screen opened by a link (`openTicket`, `openThread`, `openEpicScorecard`, `openTicketScorecard`) took its request: forget it. */
   landed(): void
   /** Opens the add-agent pane in place of the folder or epic view. */
   openAddAgent(): void
@@ -142,7 +151,7 @@ async function whileBusy(deps: ShellDeps, key: BusyKey, work: () => Promise<void
 
 type SelectionActions = Pick<
   ShellActions,
-  'selectFolder' | 'selectEpic' | 'selectKanban' | 'selectChat' | 'openAddAgent' | 'openAgent' | 'changed'
+  'selectFolder' | 'selectEpic' | 'selectKanban' | 'selectMetrics' | 'selectChat' | 'openAddAgent' | 'openAgent' | 'changed'
 >
 
 function showEpic(deps: ShellDeps, path: string, epicId: string): void {
@@ -172,6 +181,11 @@ function selectionActions(deps: ShellDeps): SelectionActions {
       deps.select({ folderPath: path, epicId: null, kanban: true })
       deps.reveal(path, null)
     },
+    selectMetrics: (path) => {
+      deps.land(null)
+      deps.select({ folderPath: path, epicId: null, metrics: true })
+      deps.reveal(path, null)
+    },
     selectChat: (path, chatId) => {
       deps.land(null)
       showChat(deps, path, chatId)
@@ -190,7 +204,7 @@ function selectionActions(deps: ShellDeps): SelectionActions {
 }
 
 /** Links from one screen to another: the screen is opened, then asked for what the link points at. */
-function linkActions(deps: ShellDeps): Pick<ShellActions, 'openTicket' | 'openThread' | 'landed'> {
+function linkActions(deps: ShellDeps): Pick<ShellActions, 'openTicket' | 'openThread' | 'openEpicScorecard' | 'openTicketScorecard' | 'landed'> {
   return {
     openTicket: (path, link) => {
       showEpic(deps, path, link.epicId)
@@ -199,6 +213,14 @@ function linkActions(deps: ShellDeps): Pick<ShellActions, 'openTicket' | 'openTh
     openThread: (path, chatId, threadId) => {
       showChat(deps, path, chatId)
       deps.land({ kind: 'thread', chatId, threadId })
+    },
+    openEpicScorecard: (path, epicId) => {
+      showEpic(deps, path, epicId)
+      deps.land({ kind: 'epicScorecard', epicId })
+    },
+    openTicketScorecard: (path, link) => {
+      showEpic(deps, path, link.epicId)
+      deps.land({ kind: 'ticketScorecard', ...link })
     },
     landed: () => deps.land(null)
   }

@@ -343,6 +343,34 @@ describe('partial and inconsistent epics', () => {
   })
 })
 
+describe('epic records missing or out of place', () => {
+  it('rejects a pointer that belongs to another epic', () => {
+    const state = imported()
+    editJson(state, paths(state).epicPointerFile(EPIC), (value) => ({ ...value, epicId: idOf('epic', 2) }))
+    const result = reconcile(state)
+    expect(result.rejected).toEqual([{ path: EPIC_DIR, message: `${EPIC_DIR}/current.json belongs to a different epic.` }])
+    expectUnchanged(state, result)
+  })
+
+  it('rejects an epic whose snapshots directory is gone', () => {
+    const state = imported()
+    state.target.fs.removeTree(paths(state).snapshotsDir(EPIC))
+    touchEpic(state)
+    const result = reconcile(state)
+    expect(result.rejected).toEqual([{ path: EPIC_DIR, message: `${EPIC_DIR}/snapshots is missing.` }])
+    expectUnchanged(state, result)
+  })
+
+  it('rejects a file in place of an epic directory', () => {
+    const state = imported()
+    state.target.fs.removeTree(paths(state).epicDir(EPIC))
+    state.target.fs.put(paths(state).epicDir(EPIC), 'oops')
+    const result = reconcile(state)
+    expect(result.rejected).toEqual([{ path: EPIC_DIR, message: `${EPIC_DIR} is not a directory.` }])
+    expectUnchanged(state, result)
+  })
+})
+
 describe('hostile run history', () => {
   function editRun(state: Imported, edit: (value: Record<string, unknown>) => unknown): void {
     editJson(state, paths(state).runHistoryFile(RUN), edit)

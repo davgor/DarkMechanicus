@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { bundle, reportView, reportWithRetro, retroView, tierFacts } from '../epic/__mocks__/fixtures'
-import { evidenceParts, retroSections, type TicketRef } from './retroView'
+import { comparison, experiment, improvementReport, outcome, reading } from '../__mocks__/improvementFixtures'
+import { evidenceParts, experimentRow, retroSections, type TicketRef } from './retroView'
 
 const TICKETS = bundle().tickets
 
@@ -156,5 +157,125 @@ describe('evidence parts', () => {
     expect(evidenceParts('')).toEqual([])
     expect(evidenceParts('  ')).toEqual([])
     expect(evidenceParts('file:///etc/passwd javascript:alert(1)')).toEqual([{ text: 'file:///etc/passwd javascript:alert(1)', href: null }])
+  })
+})
+
+const OUTCOME_LOOKUP = { ref, accepted: NONE_ACCEPTED }
+
+function sealed(reportId: string, epicId: string) {
+  return {
+    revision: 'earlier' as const,
+    epicId,
+    runId: 'rn_3',
+    sprintId: 'sp_3',
+    reportId,
+    reportRevision: 2,
+    snapshotId: 'ss',
+    policyHash: 'ph',
+    assessmentId: 'as',
+    subject: { level: 'sprint' as const, id: 'sp_3' },
+    inputHash: 'ih',
+    reportContentHash: 'rh',
+    snapshotHash: 'sh'
+  }
+}
+
+describe('DM-188 c4 (view): experimentRow sets each result against the frozen baseline with its evidence', () => {
+  const lookup = OUTCOME_LOOKUP
+
+  it('is null without an outcome, and states the target from the baseline', () => {
+    expect(experimentRow(experiment('xp_a'), undefined, lookup).outcome).toBeNull()
+    const row = experimentRow(experiment('xp_a'), outcome('xp_a', { status: 'in_progress' }), lookup).outcome
+    expect(row?.label).toBe('Improved')
+    expect(row?.tone).toBe('accepted')
+    expect(row?.status).toBe('In progress')
+    expect(row?.target).toBe('Decrease by 20 percent from 5,400,000 to 4,320,000 milliseconds')
+    expect(row?.landing).toBe('Landed 2026-10-01T09:00:00.000Z: DM-205 accepted')
+  })
+
+  it('keeps per-ticket figures with their totals and sample sizes, where each side was graded, and the sign of the change', () => {
+    const baseline = reading({ value: 900, unit: 'tokens', perTicket: 300, sampleSize: 3, size: null, sizeMix: { small: 2, unsized: 1 }, assessment: sealed('sr_1', 'ep_1') })
+    const window = { from: '2026-10-01T09:00:00.000Z', to: '2026-10-06T17:00:00.000Z' }
+    const after = reading({ value: 1000, unit: 'tokens', perTicket: 250, sampleSize: 4, size: null, sizeMix: { small: 4 }, assessment: sealed('sr_3', 'ep_f'), window })
+    const result = comparison({ basis: 'per_ticket', after, difference: 50, percentChange: 16.7, target: null, classification: 'unchanged', note: 'Read by hand' })
+    const row = experimentRow(experiment('xp_a'), outcome('xp_a', { baseline, comparisons: [result] }), lookup).outcome?.results[0]
+    expect(row).toEqual({
+      heading: 'Result #2 · Unchanged',
+      tone: 'neutral',
+      before: '300 tokens per ticket (900 tokens (observed) over 3 tickets) · sprint grade of report sr_1 revision 2 · sizes 2 Small, 1 unsized',
+      after: '250 tokens per ticket (1,000 tokens (observed) over 4 tickets) · sprint grade of report sr_3 revision 2 of epic ep_f · sizes 4 Small · window 2026-10-01T09:00:00.000Z to 2026-10-06T17:00:00.000Z',
+      change: '+50 (+16.7%)',
+      guardrails: ['A.delivered 5 at least 4 (held)'],
+      evidence: ['run rn_3 (sprint 3 run)'],
+      reasons: ['It moved past the target and every guardrail held.'],
+      note: 'Read by hand'
+    })
+  })
+
+  it('names a result read from a Dark Mechanicus correction epic, and corrective tickets by where they are held', () => {
+    const crossRepo = { projectId: 'pj_dm', key: 'k', epicId: 'ep_dm', epicTitle: 'Fix packets' }
+    const result = comparison({ after: reading({ assessment: sealed('sr_dm', 'ep_dm') }), crossRepo })
+    const tickets = [
+      { epicId: 'ep_1', epicTitle: 'Home', ticketId: 'tk_204', key: 'DM-204', title: 'x', role: 'fireguard' as const, workIndex: null, revisionNumber: 5, accepted: null },
+      { epicId: 'ep_dm', epicTitle: 'Fix packets', projectId: 'pj_dm', ticketId: 'tk_dm', key: 'DMX-1', title: 'Packets', role: 'work' as const, workIndex: 0, revisionNumber: null, accepted: { runId: 'rn_9', attemptId: 'at', at: '2026-10-02T00:00:00.000Z' } }
+    ]
+    const baseline = reading({ assessment: sealed('sr_1', 'ep_1') })
+    const row = experimentRow(experiment('xp_a'), outcome('xp_a', { baseline, comparisons: [result], corrections: { tickets, runIds: [] } }), lookup).outcome
+    expect(row?.results[0]?.after).toContain('of correction epic "Fix packets" (ep_dm) in the Dark Mechanicus source, project pj_dm')
+    expect(row?.corrections).toEqual([
+      { ticket: ref('tk_204'), epic: null, state: 'Not accepted yet (Fireguard) · saved in revision 5' },
+      { ticket: { ticketId: null, key: 'DMX-1', title: 'Packets' }, epic: 'Correction epic "Fix packets" (ep_dm) in the Dark Mechanicus source', state: 'Accepted 2026-10-02T00:00:00.000Z in run rn_9' }
+    ])
+  })
+})
+
+describe('experimentRow words an experiment written another way', () => {
+  const lookup = OUTCOME_LOOKUP
+
+  it('names an earlier revision’s scorecard, an unstated concern, unsized work and a plural window', () => {
+    const written = experiment('xp_e', {
+      source: { ...experiment('x').source, revision: 'earlier', reportRevision: 2, reportContentHash: 'rh', snapshotHash: 'sh' },
+      concern: undefined,
+      proposedWork: [{ title: 'Unsized', body: '' }],
+      expectedChange: { direction: 'increase', amount: 3, unit: 'count' },
+      guardrails: [{ measure: 'T.actual_ms', unit: 'milliseconds', comparator: 'at_most', threshold: 60_000 }],
+      window: { basis: 'runs', count: 2 }
+    })
+    const row = experimentRow(written, undefined, lookup)
+    expect(row.source).toBe('Ticket grade · the scorecard of report revision 2')
+    expect(row.concern).toBe('Concern not stated')
+    expect(row.work).toEqual([{ title: 'Unsized', body: '', size: null }])
+    expect(row.change).toBe('Increase by 3 count')
+    expect(row.guardrails).toEqual(['T.actual_ms at most 60,000 milliseconds'])
+    expect(row.window).toBe('Over the next 2 runs')
+  })
+
+  it('states an increase target from no baseline value, an unlanded outcome and an unscoped, open-window result', () => {
+    const after = reading({ value: 3_600_000, size: null, sizeMix: {}, window: { from: null, to: '2026-10-06T17:00:00.000Z' } })
+    const result = comparison({ after, percentChange: null, evidence: [{ kind: 'run', id: 'rn_3', detail: null }] })
+    const measured = outcome('xp_a', {
+      baseline: reading({ value: null, state: 'missing', size: null }),
+      target: { direction: 'increase', amount: 2, unit: 'count', value: 2 },
+      landing: { at: null, by: 'corrective_tickets', detail: 'No corrective ticket accepted yet' },
+      comparisons: [result]
+    })
+    expect(experimentRow(experiment('xp_a'), measured, lookup).outcome).toMatchObject({
+      target: 'Increase by 2 count from 0 to 2 milliseconds',
+      landing: 'Not landed: No corrective ticket accepted yet',
+      results: [
+        {
+          before: 'no value (missing) · stated with evidence',
+          after: '3,600,000 milliseconds (observed) · stated with evidence · sizes none · window no dispatch to 2026-10-06T17:00:00.000Z',
+          change: '-1,800,000 against a target of 4,320,000',
+          evidence: ['run rn_3']
+        }
+      ]
+    })
+  })
+
+  it('reads each retro experiment with the outcome the report carries for it', () => {
+    const report = improvementReport([experiment('xp_a'), experiment('xp_b')], { experimentOutcomes: [outcome('xp_b', { classification: 'regressed' })] })
+    const sections = retroSections(report, lookup)
+    expect(sections?.experiments.map((row) => row.outcome?.label ?? null)).toEqual([null, 'Regressed'])
   })
 })

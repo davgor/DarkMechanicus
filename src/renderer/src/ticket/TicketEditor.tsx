@@ -2,12 +2,14 @@ import '../epic/tones.css'
 import './ticket.css'
 import { useCallback, useEffect, useState } from 'react'
 import type { DraftOp } from '../../../shared/domain/api'
-import type { PlanBundle } from '../../../shared/domain/bundle'
+import type { PlanBundle, TicketBudget } from '../../../shared/domain/bundle'
+import type { SetTicketBudgetResultView } from '../../../shared/domain/scoreReads'
 import type { RepositoryView } from '../../../shared/domain/views'
 import type { Runner } from '../epic/runner'
 import { StatePill } from '../epic/StatePill'
 import type { Result } from '../epic/workspaceActions'
 import type { TicketBadge } from '../graph/graphModel'
+import { BudgetFields } from './BudgetFields'
 import { BasicFields, CapabilityFields, CriteriaFields, DetailFields, ImageFields, PrerequisiteFields } from './editorFields'
 import { ProfileBar } from './ProfileBar'
 import {
@@ -33,7 +35,15 @@ interface TicketEditorProps {
   ticketId: string
   badge: TicketBadge
   busy: boolean
+  /** The epic, its run (null before any run) and the draft revision shown: where the budget is set and read. */
+  epicId: string
+  runId: string | null
+  /** The run has ended: its dispatches are history, and the next dispatch is in a later run. */
+  runEnded: boolean
+  draftRevision: number | null
   applyOps(ops: DraftOp[]): Promise<Result<unknown>>
+  /** Sets or clears the ticket's budget in the draft against the draft revision shown (`setTicketBudget`). */
+  setBudget(budget: TicketBudget | null): Promise<Result<SetTicketBudgetResultView>>
   onClose(): void
   onRemoved(): void
 }
@@ -158,6 +168,17 @@ export function TicketEditor(props: TicketEditorProps): JSX.Element {
         <CriteriaFields form={form} update={editor.update} />
         <ImageFields form={form} update={editor.update} runner={props.runner} folderKey={props.folderKey} />
         <DetailFields form={form} update={editor.update} bundle={props.bundle} repositories={props.repositories} />
+        <BudgetFields
+          runner={props.runner}
+          epicId={props.epicId}
+          ticketId={props.ticketId}
+          runId={props.runId}
+          runEnded={props.runEnded}
+          draftBudget={props.bundle.tickets.find((item) => item.id === props.ticketId)?.budget}
+          draftRevision={props.draftRevision}
+          busy={props.busy}
+          setBudget={props.setBudget}
+        />
         <PrerequisiteFields form={form} update={editor.update} bundle={props.bundle} ticketId={props.ticketId} />
         <CapabilityFields form={form} update={editor.update}>
           <ProfileBar runner={props.runner} form={form} update={editor.update} />

@@ -1,0 +1,255 @@
+{
+  "description": "A run paused 10:20-10:40 (a repeated pause at 10:25 is ignored) while one worker held its attempt. Activity spans, including one starting exactly at the pause and one inside it, stay active; the rest of the pause is blocked.",
+  "input": {
+    "runId": "rn_01m7gdve7p0000000000000001",
+    "asOf": "2026-11-01T12:00:00.000Z",
+    "events": [
+      {
+        "kind": "run_started",
+        "at": "2026-11-01T09:00:00.000Z"
+      },
+      {
+        "kind": "sprint_activated",
+        "at": "2026-11-01T09:00:00.000Z",
+        "sprintId": "sp_01m452vt120000000000000001"
+      },
+      {
+        "kind": "ticket_ready",
+        "at": "2026-11-01T09:00:00.000Z",
+        "ticketId": "tk_01m453gpad0000000000000001"
+      },
+      {
+        "kind": "attempt_claimed",
+        "at": "2026-11-01T10:00:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000001",
+        "ticketId": "tk_01m453gpad0000000000000001",
+        "sprintId": "sp_01m452vt120000000000000001",
+        "number": 1,
+        "carriedForward": false
+      },
+      {
+        "kind": "attempt_signal",
+        "at": "2026-11-01T10:05:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000001"
+      },
+      {
+        "kind": "run_paused",
+        "at": "2026-11-01T10:20:00.000Z"
+      },
+      {
+        "kind": "run_paused",
+        "at": "2026-11-01T10:25:00.000Z"
+      },
+      {
+        "kind": "run_resumed",
+        "at": "2026-11-01T10:40:00.000Z"
+      },
+      {
+        "kind": "attempt_submitted",
+        "at": "2026-11-01T11:00:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000001"
+      },
+      {
+        "kind": "attempt_accepted",
+        "at": "2026-11-01T11:30:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000001"
+      }
+    ],
+    "activity": [
+      {
+        "observationId": "mo_01m7gf00000000000000000001",
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000001",
+          "attemptId": "at_01m7ge55kx0000000000000001"
+        },
+        "source": {
+          "kind": "host",
+          "actor": "claude-code-adapter"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 1200000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T10:20:00.000Z",
+        "recordedAt": "2026-11-01T10:20:00.100Z",
+        "attributes": {
+          "spanStart": "2026-11-01T10:00:00.000Z"
+        },
+        "evidence": []
+      },
+      {
+        "observationId": "mo_01m7gf00000000000000000002",
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000001",
+          "attemptId": "at_01m7ge55kx0000000000000001"
+        },
+        "source": {
+          "kind": "host",
+          "actor": "claude-code-adapter"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 300000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T10:25:00.000Z",
+        "recordedAt": "2026-11-01T10:25:00.100Z",
+        "attributes": {
+          "spanStart": "2026-11-01T10:20:00.000Z"
+        },
+        "evidence": []
+      },
+      {
+        "observationId": "mo_01m7gf00000000000000000003",
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000001",
+          "attemptId": "at_01m7ge55kx0000000000000001"
+        },
+        "source": {
+          "kind": "host",
+          "actor": "claude-code-adapter"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 300000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T10:35:00.000Z",
+        "recordedAt": "2026-11-01T10:35:00.100Z",
+        "attributes": {
+          "spanStart": "2026-11-01T10:30:00.000Z"
+        },
+        "evidence": []
+      },
+      {
+        "observationId": "mo_01m7gf00000000000000000004",
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000001",
+          "attemptId": "at_01m7ge55kx0000000000000001"
+        },
+        "source": {
+          "kind": "host",
+          "actor": "claude-code-adapter"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 1200000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T11:00:00.000Z",
+        "recordedAt": "2026-11-01T11:00:00.100Z",
+        "attributes": {
+          "spanStart": "2026-11-01T10:40:00.000Z"
+        },
+        "evidence": []
+      }
+    ],
+    "tickets": [
+      {
+        "ticketId": "tk_01m453gpad0000000000000001",
+        "sprintId": "sp_01m452vt120000000000000001"
+      }
+    ]
+  },
+  "expect": [
+    {
+      "path": "tickets[0].attempts[0].elapsed.ms",
+      "equals": 3600000,
+      "note": "claim 10:00 to submit 11:00"
+    },
+    {
+      "path": "tickets[0].attempts[0].active.ms",
+      "equals": 3000000,
+      "note": "20 + 5 (starts at the pause) + 5 (inside it) + 20"
+    },
+    {
+      "path": "tickets[0].attempts[0].waits.blocked.ms",
+      "equals": 600000,
+      "note": "pause minus the active spans in it"
+    },
+    {
+      "path": "tickets[0].attempts[0].unknown.ms",
+      "equals": 0
+    },
+    {
+      "path": "tickets[0].attempts[0].elapsed.coverage",
+      "equals": {
+        "covered": 3600000,
+        "of": 3600000,
+        "unit": "milliseconds"
+      }
+    },
+    {
+      "path": "tickets[0].cycleTime.ms",
+      "equals": 5400000,
+      "note": "first claim 10:00 to acceptance 11:30"
+    },
+    {
+      "path": "tickets[0].leadTime.ms",
+      "equals": 9000000,
+      "note": "ready 09:00 to acceptance 11:30"
+    },
+    {
+      "path": "tickets[0].waitBeforeDispatch.ms",
+      "equals": 3600000
+    },
+    {
+      "path": "tickets[0].waits.review.ms",
+      "equals": 1800000
+    },
+    {
+      "path": "tickets[0].waits.blocked.ms",
+      "equals": 600000
+    },
+    {
+      "path": "tickets[0].active.ms",
+      "equals": 3000000
+    },
+    {
+      "path": "elapsed.ms",
+      "equals": 10800000,
+      "note": "run started 09:00, still open at the 12:00 cutoff"
+    },
+    {
+      "path": "elapsed.open",
+      "equals": true
+    },
+    {
+      "path": "effort.total.ms",
+      "equals": 3000000
+    },
+    {
+      "path": "anomalies.length",
+      "equals": 0
+    }
+  ]
+}

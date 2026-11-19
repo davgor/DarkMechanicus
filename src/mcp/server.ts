@@ -15,6 +15,7 @@ import { registerDiscoveryTools } from './tools/discovery'
 import { registerExecutionTools } from './tools/execution'
 import { registerKanbanTools } from './tools/kanban'
 import { registerKnowledgeTools } from './tools/knowledge'
+import { registerMetricsTools } from './tools/metrics'
 import { registerPlanningTools } from './tools/planning'
 import { registerProfileTools } from './tools/profiles'
 import { registerTransferTools } from './tools/transfers'
@@ -61,6 +62,7 @@ export function createMcpServer(
   registerProfileTools(server, api)
   registerPlanningTools(server, api)
   registerExecutionTools(server, api)
+  registerMetricsTools(server, api)
   registerCheckpointTools(server, api)
   registerCommentTools(server, api)
   registerAttachmentTools(server, api)

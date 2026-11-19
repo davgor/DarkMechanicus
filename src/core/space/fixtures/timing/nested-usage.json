@@ -1,0 +1,202 @@
+{
+  "description": "An orchestrator reports its usage inclusive of its sub-agents; a sub-agent and its own child report too. The descendants keep their own time; the inclusive parent keeps only the time no descendant was active (60 - 30 = 30), so nothing counts twice.",
+  "input": {
+    "runId": "rn_01m7gdve7p0000000000000001",
+    "asOf": "2026-11-01T12:00:00.000Z",
+    "events": [
+      {
+        "kind": "run_started",
+        "at": "2026-11-01T10:00:00.000Z"
+      }
+    ],
+    "activity": [
+      {
+        "observationId": "mo_01m7gf00000000000000000701",
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "run",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": null,
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": null,
+          "attemptId": null
+        },
+        "source": {
+          "kind": "host",
+          "actor": "orch"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 3600000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T11:00:00.000Z",
+        "recordedAt": "2026-11-01T11:00:00.100Z",
+        "attributes": {
+          "spanStart": "2026-11-01T10:00:00.000Z",
+          "role": "orchestrator"
+        },
+        "evidence": [],
+        "usage": {
+          "coverage": "inclusive",
+          "parentActor": null
+        }
+      },
+      {
+        "observationId": "mo_01m7gf00000000000000000702",
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "run",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": null,
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": null,
+          "attemptId": null
+        },
+        "source": {
+          "kind": "host",
+          "actor": "sub-a"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 1200000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T10:30:00.000Z",
+        "recordedAt": "2026-11-01T10:30:00.100Z",
+        "attributes": {
+          "spanStart": "2026-11-01T10:10:00.000Z"
+        },
+        "evidence": [],
+        "usage": {
+          "coverage": "self",
+          "parentActor": "orch"
+        }
+      },
+      {
+        "observationId": "mo_01m7gf00000000000000000703",
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "run",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": null,
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": null,
+          "attemptId": null
+        },
+        "source": {
+          "kind": "host",
+          "actor": "sub-a"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 1800000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T11:20:00.000Z",
+        "recordedAt": "2026-11-01T11:20:00.100Z",
+        "attributes": {
+          "spanStart": "2026-11-01T10:50:00.000Z"
+        },
+        "evidence": [],
+        "usage": {
+          "coverage": "self",
+          "parentActor": "orch"
+        }
+      },
+      {
+        "observationId": "mo_01m7gf00000000000000000704",
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "run",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": null,
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": null,
+          "attemptId": null
+        },
+        "source": {
+          "kind": "host",
+          "actor": "sub-b"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 300000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T10:20:00.000Z",
+        "recordedAt": "2026-11-01T10:20:00.100Z",
+        "attributes": {
+          "spanStart": "2026-11-01T10:15:00.000Z"
+        },
+        "evidence": [],
+        "usage": {
+          "coverage": "self",
+          "parentActor": "sub-a"
+        }
+      },
+      {
+        "observationId": "mo_01m7gf00000000000000000705",
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "run",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": null,
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": null,
+          "attemptId": null
+        },
+        "source": {
+          "kind": "host",
+          "actor": "sub-b"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 300000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T11:30:00.000Z",
+        "recordedAt": "2026-11-01T11:30:00.100Z",
+        "attributes": {
+          "spanStart": "2026-11-01T11:25:00.000Z"
+        },
+        "evidence": [],
+        "usage": {
+          "coverage": "self",
+          "parentActor": "sub-a"
+        }
+      }
+    ],
+    "tickets": []
+  },
+  "expect": [
+    {
+      "path": "effort.byRole",
+      "equals": {
+        "worker": 0,
+        "orchestrator": 1800000,
+        "reviewer": 0,
+        "other": 3600000
+      },
+      "note": "sub-a 20 + 30, sub-b 5 + 5 (parallel to sub-a, which reports self only)"
+    },
+    {
+      "path": "effort.overhead.ms",
+      "equals": 5400000
+    },
+    {
+      "path": "effort.total.ms",
+      "equals": 5400000
+    }
+  ]
+}

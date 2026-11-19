@@ -22,6 +22,8 @@ const ICON_PATHS = {
   kanban: 'M2.5 3h3v10h-3zM6.5 3h3v6h-3zM10.5 3h3v8h-3z',
   hourglass: 'M4 2h8M4 14h8M5 2v2.5L8 8l-3 3.5V14M11 2v2.5L8 8l3 3.5V14',
   lock: 'M4 7.5h8v6H4zM5.5 7.5v-2a2.5 2.5 0 0 1 5 0v2',
+  /** A bar chart: the Metrics dashboard. */
+  chart: 'M2.5 13.5h11M4.5 11V8.5M8 11V4M11.5 11V6.5',
   /** The GitHub mark (Octocat silhouette), drawn as an outline. */
   github:
     'M6 13c-3 .9-3-1.5-4.2-1.8M10.2 14.5v-2.3c0-.7-.1-1.2-.5-1.6 1.7-.2 3.5-.8 3.5-3.8a3 3 0 0 0-.8-2 2.7 2.7 0 0 0-.1-2s-.6-.2-2.1.8a7.3 7.3 0 0 0-3.8 0C4.9 2.6 4.3 2.8 4.3 2.8a2.7 2.7 0 0 0-.1 2 3 3 0 0 0-.8 2c0 3 1.8 3.6 3.5 3.8-.4.4-.5.9-.5 1.6v2.3'

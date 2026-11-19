@@ -1,0 +1,106 @@
+{
+  "description": "The run ended at 10:50 (while paused) with no stop event for its attempt: the attempt and the pause end with the run, not at the cutoff.",
+  "input": {
+    "runId": "rn_01m7gdve7p0000000000000001",
+    "asOf": "2026-11-01T12:00:00.000Z",
+    "events": [
+      {
+        "kind": "run_started",
+        "at": "2026-11-01T09:00:00.000Z"
+      },
+      {
+        "kind": "sprint_activated",
+        "at": "2026-11-01T09:00:00.000Z",
+        "sprintId": "sp_01m452vt120000000000000001"
+      },
+      {
+        "kind": "attempt_claimed",
+        "at": "2026-11-01T10:00:00.000Z",
+        "attemptId": "at_01m7ge55kx0000000000000001",
+        "ticketId": "tk_01m453gpad0000000000000001",
+        "sprintId": "sp_01m452vt120000000000000001",
+        "number": 1,
+        "carriedForward": false
+      },
+      {
+        "kind": "run_paused",
+        "at": "2026-11-01T10:30:00.000Z"
+      },
+      {
+        "kind": "run_ended",
+        "at": "2026-11-01T10:50:00.000Z"
+      }
+    ],
+    "activity": [
+      {
+        "observationId": "mo_01m7gf00000000000000000301",
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000001",
+          "attemptId": "at_01m7ge55kx0000000000000001"
+        },
+        "source": {
+          "kind": "host",
+          "actor": "claude-code-adapter"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 1200000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T10:20:00.000Z",
+        "recordedAt": "2026-11-01T10:20:00.100Z",
+        "attributes": {
+          "spanStart": "2026-11-01T10:00:00.000Z"
+        },
+        "evidence": []
+      }
+    ],
+    "tickets": [
+      {
+        "ticketId": "tk_01m453gpad0000000000000001",
+        "sprintId": "sp_01m452vt120000000000000001"
+      }
+    ]
+  },
+  "expect": [
+    {
+      "path": "tickets[0].attempts[0].endedBy",
+      "equals": "run_ended"
+    },
+    {
+      "path": "tickets[0].attempts[0].elapsed.ms",
+      "equals": 3000000
+    },
+    {
+      "path": "tickets[0].attempts[0].elapsed.open",
+      "equals": false
+    },
+    {
+      "path": "tickets[0].attempts[0].active.ms",
+      "equals": 1200000
+    },
+    {
+      "path": "tickets[0].attempts[0].unknown.ms",
+      "equals": 600000
+    },
+    {
+      "path": "tickets[0].attempts[0].waits.blocked.ms",
+      "equals": 1200000
+    },
+    {
+      "path": "tickets[0].endedBy",
+      "equals": "run_ended"
+    },
+    {
+      "path": "elapsed.ms",
+      "equals": 6600000
+    }
+  ]
+}

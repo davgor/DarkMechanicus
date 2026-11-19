@@ -1,0 +1,109 @@
+{
+  "buildCommit": "6b8c14568bd1e91229808f45dac1db22f21331bf",
+  "packaged": true,
+  "launched": {
+    "release/win-unpacked/resources/app.asar": "5cf2a58a903be67d8a967df958bba5c139a8f779691b15c0510ac0891177ab23",
+    "release/win-unpacked/DarkMechanicus.exe": "fd524d2b39b5393b37706148102699d10a1531a12bc3b9de5ac98761c6cbd695"
+  },
+  "root": "C:\\Users\\davgo\\AppData\\Local\\Temp\\dm193-pkg-q3faLB",
+  "shots": [
+    {
+      "name": "01-epic-scorecard.png",
+      "note": "Epic tab: the Scorecard of the completed epic Checkout flow (shop), grade equal to get_epic_grade",
+      "values": {
+        "mcp": [
+          "A",
+          "96.2"
+        ]
+      }
+    },
+    {
+      "name": "02-epic-scorecard-outcomes.png",
+      "note": "Epic tab: ticket outcomes and runs below the headline",
+      "values": {}
+    },
+    {
+      "name": "03-sprint-report-scorecard.png",
+      "note": "Sprint report tab: Sprint 1 report Scorecard, the snapshot frozen with report revision 1, equal to get_report_scorecard and get_sprint_grade",
+      "values": {
+        "mcp": [
+          "B",
+          "88.2"
+        ]
+      }
+    },
+    {
+      "name": "04-ticket-scorecard-node.png",
+      "note": "Ticket tab: SHOP-1 (node) Scorecard, grade equal to get_ticket_grade",
+      "values": {
+        "mcp": [
+          "A",
+          "95.0"
+        ]
+      }
+    },
+    {
+      "name": "04-ticket-scorecard-api.png",
+      "note": "Ticket tab: SHOP-2 (api) Scorecard, grade equal to get_ticket_grade",
+      "values": {
+        "mcp": [
+          "A",
+          "96.4"
+        ]
+      }
+    },
+    {
+      "name": "04-ticket-scorecard-page.png",
+      "note": "Ticket tab: SHOP-3 (page) Scorecard, grade equal to get_ticket_grade",
+      "values": {
+        "mcp": [
+          "C",
+          "76.4"
+        ]
+      }
+    },
+    {
+      "name": "04-ticket-scorecard-docs.png",
+      "note": "Ticket tab: SHOP-4 (docs) Scorecard, grade equal to get_ticket_grade",
+      "values": {
+        "mcp": [
+          "A",
+          "96.4"
+        ]
+      }
+    },
+    {
+      "name": "05-metrics-dashboard.png",
+      "note": "Metrics dashboard of shop: summary, per-epic grade and the three-sprint trend, equal to get_metrics_summary",
+      "values": {
+        "mcp": [
+          "A",
+          "96.2",
+          "B",
+          "88.2",
+          "A",
+          "100.0",
+          "A",
+          "100.0"
+        ]
+      }
+    },
+    {
+      "name": "06-metrics-dashboard-trend.png",
+      "note": "Metrics dashboard: the grade trend across the three sprint reports (B final, A provisional +11.8, A final 0.0)",
+      "values": {}
+    },
+    {
+      "name": "07-metrics-measurement-capabilities.png",
+      "note": "Metrics dashboard: Measurement capabilities, the hosts whose usage cannot be read labelled Not readable (c4)",
+      "values": {
+        "labels": [
+          "Codex",
+          "Not readable",
+          "Custom agents",
+          "Read from the host"
+        ]
+      }
+    }
+  ]
+}

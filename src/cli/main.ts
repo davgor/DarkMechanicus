@@ -24,6 +24,7 @@ import type { EpicDetailView } from '../shared/domain/views'
 import { openWorkspace, type OpenWorkspaceOptions, type Workspace } from '../core/workspace'
 import { transferKickoff } from '../mcp/transferKickoff'
 import { CLI_USAGE, type CallInput, type CliOptions, parseCliArgs, TOKEN_ENV } from './args'
+import { reportHostUsage } from './usage'
 
 /** Exit codes: 0 fine, 1 the command failed, 2 the arguments were wrong. */
 const EXIT_OK = 0
@@ -173,12 +174,11 @@ function hintAboutGrants(host: CliHost, error: unknown, presentedToken: boolean)
   )
 }
 
-async function runCommand(host: CliHost, options: CliOptions, requested: string, source: CallInput): Promise<number> {
-  const name = resolveCommand(requested)
-  if (name === null) {
-    host.writeStderr(`dm: unknown command "${requested}". Use --list to see them all.\n`)
-    return EXIT_USAGE
-  }
+/**
+ * Opens the workspace with the caller's grant and runs `action` in it, printing its answer or its refusal. `mailPoll`
+ * opens the restricted poll mode, which only the mail status and wake commands select.
+ */
+async function runGranted(host: CliHost, options: CliOptions, mailPoll: boolean, action: (workspace: Workspace) => Promise<unknown>): Promise<number> {
   const token = readToken(host, options)
   let workspace: Workspace | null = null
   try {
@@ -193,9 +193,9 @@ async function runCommand(host: CliHost, options: CliOptions, requested: string,
       ...(token === null ? {} : { grantToken: token }),
       // Status and wake polls run every few seconds: they open the restricted poll mode, which reuses one session
       // per binding and does no record maintenance. No other command can select it.
-      ...(MAIL_POLL_COMMANDS.includes(name) ? { mailPoll: true } : {})
+      ...(mailPoll ? { mailPoll: true } : {})
     })
-    ok(host, await workspace.execute(name, parseInputJson(readInput(host, source))))
+    ok(host, await action(workspace))
     return EXIT_OK
   } catch (error) {
     failed(host, error)
@@ -204,6 +204,15 @@ async function runCommand(host: CliHost, options: CliOptions, requested: string,
   } finally {
     workspace?.close()
   }
+}
+
+async function runCommand(host: CliHost, options: CliOptions, requested: string, source: CallInput): Promise<number> {
+  const name = resolveCommand(requested)
+  if (name === null) {
+    host.writeStderr(`dm: unknown command "${requested}". Use --list to see them all.\n`)
+    return EXIT_USAGE
+  }
+  return runGranted(host, options, MAIL_POLL_COMMANDS.includes(name), async (workspace) => workspace.execute(name, parseInputJson(readInput(host, source))))
 }
 
 /** How many issues the packet summary lists before it only counts the rest. */
@@ -320,6 +329,10 @@ async function dispatch(host: CliHost, options: CliOptions): Promise<number> {
     }
     case 'transfer':
       return runTransfer(host, options, options.mode.epicId, options.mode.json)
+    case 'usage': {
+      const mode = options.mode
+      return runGranted(host, options, false, async (workspace) => reportHostUsage(workspace, mode, Date.now()))
+    }
     default:
       return runCommand(host, options, options.mode.command, options.mode.input)
   }

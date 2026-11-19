@@ -6,10 +6,10 @@ import { tmpdir } from 'node:os';
 import { snapshotCommittedTree } from '../src/snapshots.js';
 import { git, initRepo, withTempDir } from './support.js';
 
-// Whether a file symlink can be made here. CI always answers yes, so the case runs and fails there rather than skipping.
-// Inlined: Fireguard cannot import src/test.
+// Whether a file symlink can be made here. GitHub Actions always answers yes, so the case runs and fails there rather
+// than skipping; a bare CI=true (agent and tool shells export it) still probes. Inlined: Fireguard cannot import src/test.
 function canCreateFileSymlinks(): boolean {
-  if (process.env.CI) {
+  if (process.env.GITHUB_ACTIONS === 'true') {
     return true;
   }
   const dir = mkdtempSync(join(tmpdir(), 'fg-symlink-probe-'));

@@ -1,0 +1,708 @@
+{
+  "description": "Two tickets with the same 100 minutes of effort, the same 200,000 tokens and the same budgets. Ticket 1 spent it on research and planned tests (5 minutes repairing a tool); ticket 2 on repairing a rejected result (implementation and requirement causes). T and K are the same; only E, the corrective share, tells them apart. Ticket 2's retry is a diagnostic, not the reason its E is low.",
+  "input": {
+    "timing": {
+      "runId": "rn_01m7gdve7p0000000000000001",
+      "asOf": "2026-11-01T14:00:00.000Z",
+      "events": [
+        {
+          "kind": "run_started",
+          "at": "2026-11-01T09:00:00.000Z"
+        },
+        {
+          "kind": "sprint_activated",
+          "at": "2026-11-01T09:00:00.000Z",
+          "sprintId": "sp_01m452vt120000000000000001"
+        },
+        {
+          "kind": "ticket_ready",
+          "at": "2026-11-01T09:00:00.000Z",
+          "ticketId": "tk_01m453gpad0000000000000001"
+        },
+        {
+          "kind": "ticket_ready",
+          "at": "2026-11-01T09:00:00.000Z",
+          "ticketId": "tk_01m453gpad0000000000000002"
+        },
+        {
+          "kind": "attempt_claimed",
+          "at": "2026-11-01T09:00:00.000Z",
+          "attemptId": "at_01m7ge55kx0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "number": 1,
+          "carriedForward": false
+        },
+        {
+          "kind": "attempt_submitted",
+          "at": "2026-11-01T10:40:00.000Z",
+          "attemptId": "at_01m7ge55kx0000000000000001"
+        },
+        {
+          "kind": "attempt_accepted",
+          "at": "2026-11-01T10:50:00.000Z",
+          "attemptId": "at_01m7ge55kx0000000000000001"
+        },
+        {
+          "kind": "attempt_claimed",
+          "at": "2026-11-01T09:00:00.000Z",
+          "attemptId": "at_01m7ge55kx0000000000000002",
+          "ticketId": "tk_01m453gpad0000000000000002",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "number": 1,
+          "carriedForward": false
+        },
+        {
+          "kind": "attempt_submitted",
+          "at": "2026-11-01T09:40:00.000Z",
+          "attemptId": "at_01m7ge55kx0000000000000002"
+        },
+        {
+          "kind": "attempt_rejected",
+          "at": "2026-11-01T09:50:00.000Z",
+          "attemptId": "at_01m7ge55kx0000000000000002"
+        },
+        {
+          "kind": "attempt_claimed",
+          "at": "2026-11-01T09:50:00.000Z",
+          "attemptId": "at_01m7ge55kx0000000000000003",
+          "ticketId": "tk_01m453gpad0000000000000002",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "number": 2,
+          "carriedForward": false
+        },
+        {
+          "kind": "attempt_submitted",
+          "at": "2026-11-01T10:50:00.000Z",
+          "attemptId": "at_01m7ge55kx0000000000000003"
+        },
+        {
+          "kind": "attempt_accepted",
+          "at": "2026-11-01T11:00:00.000Z",
+          "attemptId": "at_01m7ge55kx0000000000000003"
+        }
+      ],
+      "activity": [
+        {
+          "metric": "active_ms",
+          "unit": "milliseconds",
+          "scope": {
+            "level": "attempt",
+            "epicId": "ep_01m452vt110000000000000001",
+            "sprintId": "sp_01m452vt120000000000000001",
+            "runId": "rn_01m7gdve7p0000000000000001",
+            "ticketId": "tk_01m453gpad0000000000000001",
+            "attemptId": "at_01m7ge55kx0000000000000001"
+          },
+          "source": {
+            "kind": "host",
+            "actor": "worker-1"
+          },
+          "measurement": {
+            "state": "observed",
+            "value": 6000000
+          },
+          "accumulation": "event",
+          "sequence": null,
+          "observedAt": "2026-11-01T10:40:00.000Z",
+          "recordedAt": "2026-11-01T10:40:00.000Z",
+          "attributes": {
+            "spanStart": "2026-11-01T09:00:00.000Z"
+          },
+          "evidence": [],
+          "observationId": "mo_01m7gf00000000000000000001"
+        },
+        {
+          "metric": "active_ms",
+          "unit": "milliseconds",
+          "scope": {
+            "level": "attempt",
+            "epicId": "ep_01m452vt110000000000000001",
+            "sprintId": "sp_01m452vt120000000000000001",
+            "runId": "rn_01m7gdve7p0000000000000001",
+            "ticketId": "tk_01m453gpad0000000000000002",
+            "attemptId": "at_01m7ge55kx0000000000000002"
+          },
+          "source": {
+            "kind": "host",
+            "actor": "worker-2"
+          },
+          "measurement": {
+            "state": "observed",
+            "value": 2400000
+          },
+          "accumulation": "event",
+          "sequence": null,
+          "observedAt": "2026-11-01T09:40:00.000Z",
+          "recordedAt": "2026-11-01T09:40:00.000Z",
+          "attributes": {
+            "spanStart": "2026-11-01T09:00:00.000Z"
+          },
+          "evidence": [],
+          "observationId": "mo_01m7gf00000000000000000006"
+        },
+        {
+          "metric": "active_ms",
+          "unit": "milliseconds",
+          "scope": {
+            "level": "attempt",
+            "epicId": "ep_01m452vt110000000000000001",
+            "sprintId": "sp_01m452vt120000000000000001",
+            "runId": "rn_01m7gdve7p0000000000000001",
+            "ticketId": "tk_01m453gpad0000000000000002",
+            "attemptId": "at_01m7ge55kx0000000000000003"
+          },
+          "source": {
+            "kind": "host",
+            "actor": "worker-3"
+          },
+          "measurement": {
+            "state": "observed",
+            "value": 3600000
+          },
+          "accumulation": "event",
+          "sequence": null,
+          "observedAt": "2026-11-01T10:50:00.000Z",
+          "recordedAt": "2026-11-01T10:50:00.000Z",
+          "attributes": {
+            "spanStart": "2026-11-01T09:50:00.000Z"
+          },
+          "evidence": [],
+          "observationId": "mo_01m7gf00000000000000000007"
+        }
+      ],
+      "tickets": [
+        {
+          "ticketId": "tk_01m453gpad0000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001"
+        },
+        {
+          "ticketId": "tk_01m453gpad0000000000000002",
+          "sprintId": "sp_01m452vt120000000000000001"
+        }
+      ]
+    },
+    "observations": [
+      {
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000001",
+          "attemptId": "at_01m7ge55kx0000000000000001"
+        },
+        "source": {
+          "kind": "host",
+          "actor": "worker-1"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 6000000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T10:40:00.000Z",
+        "recordedAt": "2026-11-01T10:40:00.000Z",
+        "attributes": {
+          "spanStart": "2026-11-01T09:00:00.000Z"
+        },
+        "evidence": [],
+        "observationId": "mo_01m7gf00000000000000000001"
+      },
+      {
+        "metric": "corrective_effort_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000001",
+          "attemptId": "at_01m7ge55kx0000000000000001"
+        },
+        "source": {
+          "kind": "agent",
+          "actor": "worker-1"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 3600000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T10:40:00.000Z",
+        "recordedAt": "2026-11-01T10:40:00.000Z",
+        "attributes": {
+          "classification": "productive",
+          "work": "research"
+        },
+        "evidence": [],
+        "observationId": "mo_01m7gf00000000000000000002"
+      },
+      {
+        "metric": "corrective_effort_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000001",
+          "attemptId": "at_01m7ge55kx0000000000000001"
+        },
+        "source": {
+          "kind": "agent",
+          "actor": "worker-1"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 1500000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T10:40:00.000Z",
+        "recordedAt": "2026-11-01T10:40:00.000Z",
+        "attributes": {
+          "classification": "productive",
+          "work": "planned_test"
+        },
+        "evidence": [],
+        "observationId": "mo_01m7gf00000000000000000003"
+      },
+      {
+        "metric": "corrective_effort_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000001",
+          "attemptId": "at_01m7ge55kx0000000000000001"
+        },
+        "source": {
+          "kind": "agent",
+          "actor": "worker-1"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 600000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T10:40:00.000Z",
+        "recordedAt": "2026-11-01T10:40:00.000Z",
+        "attributes": {
+          "classification": "productive",
+          "work": "implementation"
+        },
+        "evidence": [],
+        "observationId": "mo_01m7gf00000000000000000004"
+      },
+      {
+        "metric": "corrective_effort_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000001",
+          "attemptId": "at_01m7ge55kx0000000000000001"
+        },
+        "source": {
+          "kind": "agent",
+          "actor": "worker-1"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 300000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T10:40:00.000Z",
+        "recordedAt": "2026-11-01T10:40:00.000Z",
+        "attributes": {
+          "classification": "corrective"
+        },
+        "evidence": [],
+        "cause": "tooling",
+        "observationId": "mo_01m7gf00000000000000000005"
+      },
+      {
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000002",
+          "attemptId": "at_01m7ge55kx0000000000000002"
+        },
+        "source": {
+          "kind": "host",
+          "actor": "worker-2"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 2400000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T09:40:00.000Z",
+        "recordedAt": "2026-11-01T09:40:00.000Z",
+        "attributes": {
+          "spanStart": "2026-11-01T09:00:00.000Z"
+        },
+        "evidence": [],
+        "observationId": "mo_01m7gf00000000000000000006"
+      },
+      {
+        "metric": "active_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000002",
+          "attemptId": "at_01m7ge55kx0000000000000003"
+        },
+        "source": {
+          "kind": "host",
+          "actor": "worker-3"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 3600000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T10:50:00.000Z",
+        "recordedAt": "2026-11-01T10:50:00.000Z",
+        "attributes": {
+          "spanStart": "2026-11-01T09:50:00.000Z"
+        },
+        "evidence": [],
+        "observationId": "mo_01m7gf00000000000000000007"
+      },
+      {
+        "metric": "corrective_effort_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000002",
+          "attemptId": "at_01m7ge55kx0000000000000002"
+        },
+        "source": {
+          "kind": "agent",
+          "actor": "worker-2"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 2400000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T09:40:00.000Z",
+        "recordedAt": "2026-11-01T09:40:00.000Z",
+        "attributes": {
+          "classification": "productive",
+          "work": "implementation"
+        },
+        "evidence": [],
+        "observationId": "mo_01m7gf00000000000000000008"
+      },
+      {
+        "metric": "corrective_effort_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000002",
+          "attemptId": "at_01m7ge55kx0000000000000003"
+        },
+        "source": {
+          "kind": "agent",
+          "actor": "worker-3"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 2700000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T10:50:00.000Z",
+        "recordedAt": "2026-11-01T10:50:00.000Z",
+        "attributes": {
+          "classification": "corrective"
+        },
+        "evidence": [],
+        "cause": "implementation",
+        "observationId": "mo_01m7gf00000000000000000009"
+      },
+      {
+        "metric": "corrective_effort_ms",
+        "unit": "milliseconds",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000002",
+          "attemptId": "at_01m7ge55kx0000000000000003"
+        },
+        "source": {
+          "kind": "agent",
+          "actor": "worker-3"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 900000
+        },
+        "accumulation": "event",
+        "sequence": null,
+        "observedAt": "2026-11-01T10:50:00.000Z",
+        "recordedAt": "2026-11-01T10:50:00.000Z",
+        "attributes": {
+          "classification": "corrective"
+        },
+        "evidence": [],
+        "cause": "requirement",
+        "observationId": "mo_01m7gf00000000000000000010"
+      },
+      {
+        "metric": "tokens_total",
+        "unit": "tokens",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000001",
+          "attemptId": "at_01m7ge55kx0000000000000001"
+        },
+        "source": {
+          "kind": "host",
+          "actor": "worker-1"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 200000
+        },
+        "accumulation": "cumulative",
+        "sequence": 2,
+        "observedAt": "2026-11-01T10:40:00.000Z",
+        "recordedAt": "2026-11-01T10:40:00.000Z",
+        "attributes": {},
+        "evidence": [],
+        "observationId": "mo_01m7gf00000000000000000011"
+      },
+      {
+        "metric": "tokens_total",
+        "unit": "tokens",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000002",
+          "attemptId": "at_01m7ge55kx0000000000000002"
+        },
+        "source": {
+          "kind": "host",
+          "actor": "worker-2"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 80000
+        },
+        "accumulation": "cumulative",
+        "sequence": 2,
+        "observedAt": "2026-11-01T09:40:00.000Z",
+        "recordedAt": "2026-11-01T09:40:00.000Z",
+        "attributes": {},
+        "evidence": [],
+        "observationId": "mo_01m7gf00000000000000000012"
+      },
+      {
+        "metric": "tokens_total",
+        "unit": "tokens",
+        "scope": {
+          "level": "attempt",
+          "epicId": "ep_01m452vt110000000000000001",
+          "sprintId": "sp_01m452vt120000000000000001",
+          "runId": "rn_01m7gdve7p0000000000000001",
+          "ticketId": "tk_01m453gpad0000000000000002",
+          "attemptId": "at_01m7ge55kx0000000000000003"
+        },
+        "source": {
+          "kind": "host",
+          "actor": "worker-3"
+        },
+        "measurement": {
+          "state": "observed",
+          "value": 120000
+        },
+        "accumulation": "cumulative",
+        "sequence": 2,
+        "observedAt": "2026-11-01T10:50:00.000Z",
+        "recordedAt": "2026-11-01T10:50:00.000Z",
+        "attributes": {},
+        "evidence": [],
+        "observationId": "mo_01m7gf00000000000000000013"
+      }
+    ],
+    "plan": {
+      "tk_01m453gpad0000000000000001": {
+        "cohortKey": {
+          "workType": "implementation",
+          "size": "medium",
+          "risk": "multi_step"
+        },
+        "acceptance": false
+      },
+      "tk_01m453gpad0000000000000002": {
+        "cohortKey": {
+          "workType": "implementation",
+          "size": "medium",
+          "risk": "multi_step"
+        },
+        "acceptance": false
+      }
+    },
+    "budgets": {
+      "tk_01m453gpad0000000000000001": {
+        "active_ms": {
+          "pinned": {
+            "baselineId": "bl_01m7gb00000000000000000110",
+            "kind": "budget",
+            "metric": "active_ms",
+            "unit": "milliseconds",
+            "ticketId": "tk_01m453gpad0000000000000001",
+            "revisionId": "rv_01m65yene3p1dwngx9apev01pn",
+            "version": 1,
+            "value": 7200000,
+            "frozenAt": "2026-11-01T08:00:00.000Z"
+          },
+          "others": []
+        },
+        "tokens": {
+          "pinned": {
+            "baselineId": "bl_01m7gb00000000000000000111",
+            "kind": "budget",
+            "metric": "tokens",
+            "unit": "tokens",
+            "ticketId": "tk_01m453gpad0000000000000001",
+            "revisionId": "rv_01m65yene3p1dwngx9apev01pn",
+            "version": 1,
+            "value": 300000,
+            "frozenAt": "2026-11-01T08:00:00.000Z"
+          },
+          "others": []
+        }
+      },
+      "tk_01m453gpad0000000000000002": {
+        "active_ms": {
+          "pinned": {
+            "baselineId": "bl_01m7gb00000000000000000210",
+            "kind": "budget",
+            "metric": "active_ms",
+            "unit": "milliseconds",
+            "ticketId": "tk_01m453gpad0000000000000002",
+            "revisionId": "rv_01m65yene3p1dwngx9apev01pn",
+            "version": 1,
+            "value": 7200000,
+            "frozenAt": "2026-11-01T08:00:00.000Z"
+          },
+          "others": []
+        },
+        "tokens": {
+          "pinned": {
+            "baselineId": "bl_01m7gb00000000000000000211",
+            "kind": "budget",
+            "metric": "tokens",
+            "unit": "tokens",
+            "ticketId": "tk_01m453gpad0000000000000002",
+            "revisionId": "rv_01m65yene3p1dwngx9apev01pn",
+            "version": 1,
+            "value": 300000,
+            "frozenAt": "2026-11-01T08:00:00.000Z"
+          },
+          "others": []
+        }
+      }
+    },
+    "otherRuns": []
+  },
+  "expect": [
+    {
+      "path": "tickets.tk_01m453gpad0000000000000001.classification.denominator.effortMs",
+      "equals": 6000000
+    },
+    {
+      "path": "tickets.tk_01m453gpad0000000000000001.classification.productiveByWork.research",
+      "equals": 3600000
+    },
+    {
+      "path": "tickets.tk_01m453gpad0000000000000001.classification.correctiveByCause.tooling",
+      "equals": 300000
+    },
+    {
+      "path": "grades.tk_01m453gpad0000000000000001.E.score",
+      "equals": 92.5,
+      "note": "100 - 150 x 5/100"
+    },
+    {
+      "path": "tickets.tk_01m453gpad0000000000000002.classification.denominator.effortMs",
+      "equals": 6000000
+    },
+    {
+      "path": "tickets.tk_01m453gpad0000000000000002.classification.correctiveByCause",
+      "equals": {
+        "implementation": 2700000,
+        "requirement": 900000
+      }
+    },
+    {
+      "path": "grades.tk_01m453gpad0000000000000002.E.score",
+      "equals": 10,
+      "note": "100 - 150 x 60/100"
+    },
+    {
+      "path": "grades.tk_01m453gpad0000000000000001.E.diagnostics.retries",
+      "equals": 0
+    },
+    {
+      "path": "grades.tk_01m453gpad0000000000000002.E.diagnostics.retries",
+      "equals": 1,
+      "note": "shown, never scored"
+    },
+    {
+      "path": "grades.tk_01m453gpad0000000000000001.T.score",
+      "equals": 100,
+      "note": "research is not charged as extra time within its budget"
+    },
+    {
+      "path": "grades.tk_01m453gpad0000000000000002.T.score",
+      "equals": 100
+    },
+    {
+      "path": "grades.tk_01m453gpad0000000000000001.K.score",
+      "equals": 100
+    },
+    {
+      "path": "grades.tk_01m453gpad0000000000000002.K.score",
+      "equals": 100
+    }
+  ]
+}

@@ -3,6 +3,8 @@ import type { CommandName } from '../../../shared/domain/api'
 import { deferred } from './deferred'
 import { FakeChats } from './fakeChats'
 import { knowledgeStatus } from './fixtures'
+import { idleCrossRepoCorrections } from './idleCrossRepoCorrections'
+import { idleSourceCheckout } from './idleSourceCheckout'
 import { idleTerminals } from './idleTerminals'
 import type { Deferred } from './deferred'
 import type { DomainErrorShape } from '../../../shared/domain/errors'
@@ -55,6 +57,8 @@ export const MCP_JSON = '{\n  "mcpServers": {\n    "darkmechanicus": { "command"
 export class FakeDm implements DmApi {
   chats = new FakeChats()
   terminals = idleTerminals()
+  sourceCheckout = idleSourceCheckout()
+  crossRepoCorrections = idleCrossRepoCorrections()
   folders: TrackedFolderView[] = []
   pickQueue: FolderPickResult[] = []
   responses: Partial<Record<CommandName, unknown>> = {

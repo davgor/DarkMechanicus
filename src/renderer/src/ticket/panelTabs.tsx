@@ -235,9 +235,13 @@ export function EvidenceSections({ evidence, folderKey }: { evidence: EvidenceVi
   )
 }
 
-export function EvidenceTab({ detail, folderKey }: { detail: TicketDetailView; folderKey: string }): JSX.Element {
-  const evidence = evidenceView(detail.ticket, detail.attempts)
-  return evidence === null ? <p className="ew-muted">No evidence recorded yet.</p> : <EvidenceSections evidence={evidence} folderKey={folderKey} />
+/** The newest attempt's evidence, or the evidence of `attemptId` when a scorecard citation opened it. */
+export function EvidenceTab({ detail, folderKey, attemptId = null }: { detail: TicketDetailView; folderKey: string; attemptId?: string | null }): JSX.Element {
+  const evidence = evidenceView(detail.ticket, detail.attempts, attemptId)
+  if (evidence !== null) {
+    return <EvidenceSections evidence={evidence} folderKey={folderKey} />
+  }
+  return <p className="ew-muted">{attemptId === null ? 'No evidence recorded yet.' : 'This attempt recorded no evidence.'}</p>
 }
 
 function useHistory(runner: Runner, epicId: string, reloadKey: unknown): { events: EventView[] | null; error: string | null } {

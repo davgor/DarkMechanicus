@@ -2,7 +2,7 @@
 import { execFileSync } from 'node:child_process'
 import { readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { changedLineIndices, type FileDiff } from '../../shared/git/diff'
 import type { RepoStatus } from '../../shared/git/status'
 import { copyGitRepo, createGitRepo, type GitRepo } from '../../test/gitRepo'
@@ -216,24 +216,25 @@ async function runBatch(r: GitRepo, batch: number, size: number, next: () => num
 }
 
 describe('commitFiles with random line selections', () => {
-  it('commits exactly the selected content and never changes the working file', async () => {
-    const base = createGitRepo()
-    cleanups.push(base.cleanup)
+  // Four batches of 20 cases, each in a repository of its own with its own generator seeded from 154, so a failing case
+  // replays from its batch's seed. One test per batch: a batch starts about 58 git processes, most of them one diff read
+  // per case here and one in commitFiles, and each git process takes several times longer on a loaded machine (a single
+  // test once started about 450 side by side, and took the whole of its timeout when the full suite ran in parallel).
+  const seeds = random(154)
+  const batches = [0, 1, 2, 3].map((batch) => ({ batch, label: `${batch + 1} of 4`, seed: Math.floor(seeds() * 4294967296) }))
+  let base: GitRepo
+  beforeAll(() => {
+    base = createGitRepo()
     base.git('config', 'core.autocrlf', 'false')
-    // Four batches of 20 cases, each in a repository of its own with its own generator seeded from 154, run side by
-    // side: the cases stay replayable, and git's processes for one batch overlap another's.
-    const seeds = random(154)
-    const batches = [0, 1, 2, 3].map((batch) => {
-      const r = batch === 0 ? base : copyGitRepo(base)
-      if (r !== base) {
-        cleanups.push(r.cleanup)
-      }
-      return { r, batch, next: random(Math.floor(seeds() * 4294967296)) }
-    })
-    const observed = (await Promise.all(batches.map(({ r, batch, next }) => runBatch(r, batch, 20, next)))).flat()
+  })
+  afterAll(() => base.cleanup())
+
+  it.each(batches)('commits exactly the selected content of batch $label and never changes the working file', async ({ batch, seed }) => {
+    const r = copyGitRepo(base)
+    cleanups.push(r.cleanup)
+    const observed = await runBatch(r, batch, 20, random(seed))
     const actual = observed.map((outcome) => outcome.actual)
-    const expected = observed.map((outcome) => outcome.expected)
-    expect(actual).toHaveLength(80)
-    expect(actual).toEqual(expected)
+    expect(actual).toHaveLength(20)
+    expect(actual).toEqual(observed.map((outcome) => outcome.expected))
   })
 })

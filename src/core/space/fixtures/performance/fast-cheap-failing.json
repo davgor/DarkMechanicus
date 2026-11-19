@@ -1,0 +1,147 @@
+{
+  "name": "fast-cheap-failing",
+  "description": "Done in 8 minutes and cheap, accepted with criterion c2 found unmet by the reviewer: a confirmed failure. P is failed, so the grade is capped at F however fast or cheap the work was. Its failing npm test is not in a Definition of Done, so it is shown as a diagnostic and is not itself the failure.",
+  "facts": {
+    "runId": "rn_01m7gf00000000000000000001",
+    "ticketId": "tk_01m453gpad0000000000000001",
+    "attempts": [
+      {
+        "attemptId": "at_01m7ge55kx0000000000000001",
+        "number": 1,
+        "kind": "work",
+        "state": "accepted",
+        "createdAt": "2026-11-01T10:00:00.000Z",
+        "reconciledAt": null,
+        "endedAt": null,
+        "retryLimit": 3,
+        "submittedAt": "2026-11-01T10:08:00.000Z",
+        "decidedAt": "2026-11-01T10:20:00.000Z",
+        "supersededAt": null,
+        "evidence": {
+          "checks": [
+            {
+              "name": "typecheck",
+              "status": "passed",
+              "detail": "ok"
+            },
+            {
+              "name": "npm test",
+              "status": "failed",
+              "detail": "2 failing"
+            }
+          ],
+          "criteria": [
+            {
+              "criterionId": "c1",
+              "met": true,
+              "note": "reran"
+            },
+            {
+              "criterionId": "c2",
+              "met": false,
+              "note": "docs missing"
+            }
+          ],
+          "notes": ""
+        },
+        "decision": {
+          "outcome": "accepted",
+          "notes": "accepted for integration",
+          "reasons": [],
+          "decidedBy": "reviewer",
+          "criteria": [
+            {
+              "criterionId": "c1",
+              "met": true,
+              "note": "reran"
+            },
+            {
+              "criterionId": "c2",
+              "met": false,
+              "note": "docs missing"
+            }
+          ]
+        },
+        "criteria": [
+          "c1",
+          "c2"
+        ]
+      }
+    ],
+    "retryGrants": [],
+    "grantsKnown": true,
+    "runEnded": null,
+    "cutoff": "2026-11-05T00:00:00.000Z"
+  },
+  "defects": [],
+  "expected": {
+    "verification": {
+      "state": "failed",
+      "reason": "confirmed_failure",
+      "items": [
+        {
+          "kind": "criterion",
+          "id": "c1",
+          "required": true,
+          "basis": "reviewer_checked",
+          "result": "passed"
+        },
+        {
+          "kind": "criterion",
+          "id": "c2",
+          "required": true,
+          "basis": "reviewer_checked",
+          "result": "failed"
+        },
+        {
+          "kind": "check",
+          "id": "typecheck",
+          "required": false,
+          "basis": "reviewer_checked",
+          "result": "passed"
+        },
+        {
+          "kind": "check",
+          "id": "npm test",
+          "required": false,
+          "basis": "reviewer_checked",
+          "result": "failed"
+        }
+      ]
+    },
+    "performance": {
+      "verification": {
+        "state": "failed",
+        "evidence": [
+          {
+            "kind": "attempt",
+            "id": "at_01m7ge55kx0000000000000001",
+            "detail": "accepted"
+          },
+          {
+            "kind": "criterion",
+            "id": "tk_01m453gpad0000000000000001",
+            "detail": "c1"
+          },
+          {
+            "kind": "criterion",
+            "id": "tk_01m453gpad0000000000000001",
+            "detail": "c2"
+          },
+          {
+            "kind": "check",
+            "id": "at_01m7ge55kx0000000000000001",
+            "detail": "typecheck"
+          },
+          {
+            "kind": "check",
+            "id": "at_01m7ge55kx0000000000000001",
+            "detail": "npm test"
+          }
+        ]
+      },
+      "regressions": []
+    },
+    "regressions": []
+  }
+}

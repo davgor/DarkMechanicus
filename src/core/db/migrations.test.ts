@@ -37,8 +37,8 @@ afterEach(() => {
 })
 
 describe('migrate on a fresh database', () => {
-  it('starts at schema version 0 and targets SCHEMA_VERSION 16', () => {
-    expect(SCHEMA_VERSION).toBe(16)
+  it('starts at schema version 0 and targets SCHEMA_VERSION 21', () => {
+    expect(SCHEMA_VERSION).toBe(21)
     expect(readSchemaVersion(freshDb())).toBe(0)
   })
 
@@ -46,7 +46,7 @@ describe('migrate on a fresh database', () => {
     const db = freshDb()
     expect(migrate(db)).toEqual({ from: 0, to: SCHEMA_VERSION })
     expect(readSchemaVersion(db)).toBe(SCHEMA_VERSION)
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(16)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(21)
   })
 })
 
@@ -64,9 +64,11 @@ describe('the schema a fresh database ends up with', () => {
       'attempts',
       'checkpoints',
       'comments',
+      'correction_links',
       'drafts',
       'epics',
       'events',
+      'experiment_events',
       'grants',
       'host_catalogs',
       'idempotency',
@@ -74,6 +76,7 @@ describe('the schema a fresh database ends up with', () => {
       'kanban_cards',
       'kanban_events',
       'meta',
+      'metric_observations',
       'outbox',
       'plan_revisions',
       'profiles',
@@ -105,11 +108,18 @@ describe('the indexes a fresh database ends up with', () => {
       'attempts_one_open_per_ticket',
       'attempts_run_state',
       'comments_epic_ticket',
+      'correction_links_epic',
+      'correction_links_experiment',
       'events_epic',
       'events_run',
+      'experiment_events_run',
       'grants_active',
       'kanban_attempts_one_open_per_card',
       'kanban_events_card',
+      'metric_observations_attempt',
+      'metric_observations_epic',
+      'metric_observations_recorded',
+      'metric_observations_run',
       'outbox_state',
       'plan_revisions_epic',
       'row_checks_run',
@@ -122,8 +132,8 @@ describe('the indexes a fresh database ends up with', () => {
 describe('migrate when already current', () => {
   it('is a no-op the second time', () => {
     const db = migratedDb()
-    expect(migrate(db)).toEqual({ from: 16, to: 16 })
-    expect(readSchemaVersion(db)).toBe(16)
+    expect(migrate(db)).toEqual({ from: 21, to: 21 })
+    expect(readSchemaVersion(db)).toBe(21)
   })
 
   it('checks a current database without taking the write lock, which every open and mailbox poll would wait on', () => {
@@ -141,11 +151,11 @@ describe('migrate when already current', () => {
         }
       }
     })
-    expect(migrate(watched)).toEqual({ from: 16, to: 16 })
+    expect(migrate(watched)).toEqual({ from: 21, to: 21 })
     expect(transactions).toBe(0)
     // Positive control: a database behind the target still migrates under the lock.
-    watched.exec('PRAGMA user_version = 15')
-    expect(migrate(watched, MIGRATIONS.filter((migration) => migration.version !== 16).concat({ version: 16, sql: '' }))).toEqual({ from: 15, to: 16 })
+    watched.exec('PRAGMA user_version = 20')
+    expect(migrate(watched, MIGRATIONS.filter((migration) => migration.version !== 21).concat({ version: 21, sql: '' }))).toEqual({ from: 20, to: 21 })
     expect(transactions).toBe(1)
   })
 
@@ -165,19 +175,19 @@ describe('migrate refuses newer databases', () => {
     expect(error).toBeInstanceOf(DomainError)
     expect((error as DomainError).code).toBe('incompatible_schema')
     expect((error as DomainError).message).toBe(
-      'Database schema v17 is newer than this build supports (v16). Update Dark Mechanicus.'
+      'Database schema v22 is newer than this build supports (v21). Update Dark Mechanicus.'
     )
-    expect((error as DomainError).details).toEqual({ found: 17, supported: 16 })
-    expect(readSchemaVersion(db)).toBe(17)
+    expect((error as DomainError).details).toEqual({ found: 22, supported: 21 })
+    expect(readSchemaVersion(db)).toBe(22)
     expect(objectNames(db, 'table')).toEqual([])
   })
 
   it('refuses a migrated database that a newer build has upgraded', () => {
     const db = migratedDb()
-    db.exec('PRAGMA user_version = 17')
+    db.exec('PRAGMA user_version = 22')
     const error = thrownBy(() => migrate(db))
     expect((error as DomainError).code).toBe('incompatible_schema')
-    expect((error as DomainError).details).toEqual({ found: 17, supported: 16 })
+    expect((error as DomainError).details).toEqual({ found: 22, supported: 21 })
     expect(objectNames(db, 'table')).toContain('epics')
   })
 
@@ -426,7 +436,7 @@ describe('migrate failure handling', () => {
     const db = freshDb()
     thrownBy(() => migrate(db, [{ version: 1, sql: 'NOT SQL' }]))
     expect(db.inTransaction()).toBe(false)
-    expect(migrate(db)).toEqual({ from: 0, to: 16 })
+    expect(migrate(db)).toEqual({ from: 0, to: SCHEMA_VERSION })
   })
 })
 
@@ -1271,5 +1281,40 @@ describe('schema v15 agent mail constraints', () => {
     expect(db.all('SELECT id, in_reply_to FROM agent_mail_messages')).toEqual([{ id: 'mm2', in_reply_to: 'mm1' }])
     expect(() => db.run("UPDATE agent_mail_messages SET expires_at = 't' WHERE id = 'mm2'")).toThrow(/CHECK constraint failed/)
     expect(() => db.run("DELETE FROM agent_mail_endpoints WHERE id = 'me2'")).toThrow(/FOREIGN KEY constraint failed/)
+  })
+})
+
+/** The last schema released before the SPACE ledger: a v14 project with agent mail and an armed wake on top. */
+function v16MailProject(): Db {
+  const db = v14Project()
+  migrate(db, MIGRATIONS.filter((migration) => migration.version <= 16))
+  insertMailEndpoint(db, 'me1')
+  insertMailEndpoint(db, 'me2')
+  insertMailMessage(db, { id: 'mm1', to: 'me2', from: 'me1', seq: 1 })
+  db.run("UPDATE agent_mail_endpoints SET last_seq = 1 WHERE id = 'me2'")
+  db.run("INSERT INTO agent_mail_wakes (endpoint_id, revision, armed, request_nonce, armed_at) VALUES ('me2', 1, 1, 'n1', 't')")
+  return db
+}
+
+function mailRecords(db: Db): unknown {
+  return {
+    endpoints: db.all(`SELECT ${ENDPOINT_COLUMNS}, last_seq FROM agent_mail_endpoints ORDER BY id`),
+    messages: db.all('SELECT id, recipient_endpoint_id, recipient_seq, sender_endpoint_id, body FROM agent_mail_messages ORDER BY id'),
+    wakes: db.all('SELECT endpoint_id, revision, armed, request_nonce FROM agent_mail_wakes')
+  }
+}
+
+describe('a v16 database (agent mail) upgraded to the SPACE ledger', () => {
+  it('keeps every project and mail record and the outbox sequence, and adds the empty SPACE tables', () => {
+    const db = v16MailProject()
+    const before = { project: projectRecords(db), mail: mailRecords(db) }
+    const outboxSeq = db.get<{ seq: number }>("SELECT seq FROM sqlite_sequence WHERE name = 'outbox'")?.seq
+    expect(migrate(db)).toEqual({ from: 16, to: SCHEMA_VERSION })
+    expect({ project: projectRecords(db), mail: mailRecords(db) }).toEqual(before)
+    expect(db.get<{ seq: number }>("SELECT seq FROM sqlite_sequence WHERE name = 'outbox'")?.seq).toBe(outboxSeq)
+    for (const table of ['metric_observations', 'experiment_events', 'correction_links']) {
+      expect(db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM ${table}`)?.n).toBe(0)
+    }
+    expect(db.all('PRAGMA foreign_key_check')).toEqual([])
   })
 })

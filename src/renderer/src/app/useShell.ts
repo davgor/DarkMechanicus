@@ -125,6 +125,7 @@ function shellView(input: {
     epicId: selection.epicId,
     chatId: selection.chatId,
     kanban: selection.kanban,
+    metrics: selection.metrics,
     chats,
     agentPane: selection.agentPane,
     agents,

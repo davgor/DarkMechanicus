@@ -1,0 +1,95 @@
+{
+  "description": "Retro experiment inputs for a delivered sprint (src/test/experimentWorld.ts `reported`): tickets 1-3 accepted and a first report revision with a prose retro, whose scorecard is sealed. {{tokens}} are filled from that world (`tokens`): sprintId, runId, ticket1 and attempt1 name the run's records; sourceReport is the first report revision and sprintAssessment/runAssessment/ticketAssessment are grades of its sealed scorecard; earlierReport/earlierAssessment are the report revision holding an earlier experiment and the grade it cites; legacyReport is a report from before scorecards. `valid` is a complete experiment drawn from the sprint grade of the scorecard frozen with the very report that carries it (source by subject). Each case submits a report whose retro is `retro`, where the string \"$valid\" stands for the valid experiment and an object { \"$valid\": patch } for the valid experiment with `patch` merged in (a null value removes the key). `expect` is rejected (with `error`, a substring of the message), accepted, or normalized (accepted, and `stored` says how the retro is stored).",
+  "valid": {
+    "source": { "subject": { "level": "sprint", "id": "{{sprintId}}" } },
+    "concern": "plan_context",
+    "issue": {
+      "summary": "Sprint 1 took 70 minutes of active time across three medium tickets.",
+      "evidence": [
+        { "kind": "run", "id": "{{runId}}" },
+        { "kind": "attempt", "id": "{{attempt1}}", "detail": "longest attempt" }
+      ]
+    },
+    "hypothesis": "Hypothesis: the tickets were sized without the importer context, so workers re-read it each time.",
+    "destination": { "kind": "source_repository" },
+    "proposedWork": [{ "title": "Add an importer context note to the planner skill", "body": "Add one paragraph to the planner skill naming the importer's record files.", "size": "small" }],
+    "baseline": { "measure": "T.actual_ms", "unit": "milliseconds" },
+    "expectedChange": { "direction": "decrease", "amount": 20, "unit": "percent" },
+    "guardrails": [
+      { "measure": "A.delivered", "unit": "count", "comparator": "at_least", "threshold": 3 },
+      { "measure": "P.regressions", "unit": "count", "comparator": "at_most", "threshold": 0 }
+    ],
+    "window": { "basis": "sprints", "count": 1 }
+  },
+  "cases": [
+    { "name": "a complete experiment drawn from this report's own scorecard (by subject)", "expect": "accepted", "retro": { "experiments": ["$valid"] } },
+    {
+      "name": "a ticket grade of this report's own scorecard, the Dark Mechanicus source as destination, K tokens with an absolute change",
+      "expect": "accepted",
+      "retro": {
+        "experiments": [
+          {
+            "$valid": {
+              "source": { "subject": { "level": "ticket", "id": "{{ticket1}}" } },
+              "destination": { "kind": "darkmechanicus_source" },
+              "baseline": { "measure": "K.actual_tokens", "unit": "tokens" },
+              "expectedChange": { "direction": "decrease", "amount": 5000, "unit": "tokens" }
+            }
+          }
+        ]
+      }
+    },
+    { "name": "a grade of an earlier revision's sealed scorecard (by report and assessment id)", "expect": "accepted", "retro": { "experiments": [{ "$valid": { "source": { "reportId": "{{sourceReport}}", "assessmentId": "{{sprintAssessment}}" } } }] } },
+    { "name": "missing reference: a subject this report's scorecard does not grade", "expect": "rejected", "error": "this report's scorecard grades no ticket tk_zzzzzzzzzzzzzzzzzzzzzzzzzz", "retro": { "experiments": [{ "$valid": { "source": { "subject": { "level": "ticket", "id": "tk_zzzzzzzzzzzzzzzzzzzzzzzzzz" } } } }] } },
+    { "name": "missing reference: an unknown source report", "expect": "rejected", "error": "Unknown report rp_zzzzzzzzzzzzzzzzzzzzzzzzzz", "retro": { "experiments": [{ "$valid": { "source": { "reportId": "rp_zzzzzzzzzzzzzzzzzzzzzzzzzz", "assessmentId": "{{sprintAssessment}}" } } }] } },
+    { "name": "missing reference: an assessment the scorecard does not hold", "expect": "rejected", "error": "Unknown assessment as_zzzzzzzzzzzzzzzzzzzzzzzzzz", "retro": { "experiments": [{ "$valid": { "source": { "reportId": "{{sourceReport}}", "assessmentId": "as_zzzzzzzzzzzzzzzzzzzzzzzzzz" } } }] } },
+    { "name": "missing reference: a report submitted before scorecards", "expect": "rejected", "error": "was submitted before scorecards were frozen", "retro": { "experiments": [{ "$valid": { "source": { "reportId": "{{legacyReport}}", "assessmentId": "{{sprintAssessment}}" } } }] } },
+    { "name": "missing reference: an evidence id that is not of its kind", "expect": "rejected", "error": "issue.evidence[0]", "retro": { "experiments": [{ "$valid": { "issue": { "summary": "x", "evidence": [{ "kind": "attempt", "id": "{{runId}}" }] } } }] } },
+    { "name": "missing reference: an issue without evidence", "expect": "rejected", "error": "at least one piece of evidence", "retro": { "experiments": [{ "$valid": { "issue": { "summary": "x", "evidence": [] } } }] } },
+    { "name": "missing reference: the baseline measure has no value in the source assessment", "expect": "rejected", "error": "S.score has no value", "retro": { "experiments": [{ "$valid": { "baseline": { "measure": "S.score", "unit": "points" }, "expectedChange": { "direction": "increase", "amount": 5, "unit": "points" } } }] } },
+    { "name": "evidence text: a detail holding a machine path and a password", "expect": "rejected", "error": "The detail holds", "retro": { "experiments": [{ "$valid": { "issue": { "summary": "x", "evidence": [{ "kind": "run", "id": "{{runId}}", "detail": "C:\\Users\\davgo\\.ssh\\id_rsa password=hunter2" }] } } }] } },
+    { "name": "evidence text: a detail holding a cloud credential path", "expect": "rejected", "error": "The detail holds", "retro": { "experiments": [{ "$valid": { "issue": { "summary": "x", "evidence": [{ "kind": "run", "id": "{{runId}}", "detail": "/home/dav/.aws/credentials AKIAIOSFODNN7EXAMPLE" }] } } }] } },
+    { "name": "evidence text: a detail holding a machine-local path", "expect": "rejected", "error": "holds a machine-local path", "retro": { "experiments": [{ "$valid": { "issue": { "summary": "x", "evidence": [{ "kind": "run", "id": "{{runId}}", "detail": "see C:\\Users\\davgo\\notes\\run.txt" }] } } }] } },
+    { "name": "repeated ids: one experiment restated twice", "expect": "rejected", "error": "is listed twice", "retro": { "experiments": [{ "$valid": { "id": "{{earlierExperiment}}" } }, { "$valid": { "id": "{{earlierExperiment}}" } }] } },
+    { "name": "stable identity: an id the server never minted", "expect": "rejected", "error": "Unknown experiment xp_zzzzzzzzzzzzzzzzzzzzzzzzzz", "retro": { "experiments": [{ "$valid": { "id": "xp_zzzzzzzzzzzzzzzzzzzzzzzzzz" } }] } },
+    { "name": "stable identity: a restated experiment citing this report's scorecard instead of its original source", "expect": "rejected", "error": "a restated experiment keeps its source", "retro": { "experiments": [{ "$valid": { "id": "{{earlierExperiment}}" } }] } },
+    { "name": "stable identity: a restated experiment keeps its id and original source", "expect": "accepted", "retro": { "experiments": [{ "$valid": { "id": "{{earlierExperiment}}", "source": { "reportId": "{{earlierReport}}", "assessmentId": "{{earlierAssessment}}" } } }] } },
+    { "name": "invalid metric unit: a time baseline stated in tokens", "expect": "rejected", "error": "T.actual_ms is measured in milliseconds, not tokens", "retro": { "experiments": [{ "$valid": { "baseline": { "measure": "T.actual_ms", "unit": "tokens" } } }] } },
+    { "name": "invalid metric unit: a guardrail count stated in points", "expect": "rejected", "error": "guardrails[0].unit", "retro": { "experiments": [{ "$valid": { "guardrails": [{ "measure": "A.delivered", "unit": "points", "comparator": "at_least", "threshold": 3 }] } }] } },
+    { "name": "invalid metric unit: a change in another unit than the baseline's", "expect": "rejected", "error": "expectedChange.unit", "retro": { "experiments": [{ "$valid": { "expectedChange": { "direction": "decrease", "amount": 2, "unit": "count" } } }] } },
+    { "name": "invalid metric unit: a unit that does not exist", "expect": "rejected", "error": "baseline.unit", "retro": { "experiments": [{ "$valid": { "baseline": { "measure": "T.actual_ms", "unit": "seconds" } } }] } },
+    { "name": "invalid metric unit: a decrease below zero", "expect": "rejected", "error": "goes below zero", "retro": { "experiments": [{ "$valid": { "expectedChange": { "direction": "decrease", "amount": 150, "unit": "percent" } } }] } },
+    { "name": "invalid metric unit: an increase past 100 points", "expect": "rejected", "error": "goes past 100 points", "retro": { "experiments": [{ "$valid": { "baseline": { "measure": "T.score", "unit": "points" }, "expectedChange": { "direction": "increase", "amount": 1, "unit": "points" } } }] } },
+    { "name": "absent destination", "expect": "rejected", "error": "destination", "retro": { "experiments": [{ "$valid": { "destination": null } }] } },
+    { "name": "a destination naming a repository in a single repository", "expect": "rejected", "error": "single repository", "retro": { "experiments": [{ "$valid": { "destination": { "kind": "source_repository", "repository": "api" } } }] } },
+    { "name": "a destination kind that does not exist", "expect": "rejected", "error": "destination", "retro": { "experiments": [{ "$valid": { "destination": { "kind": "elsewhere" } } }] } },
+    { "name": "a missing planning field: no hypothesis", "expect": "rejected", "error": "hypothesis", "retro": { "experiments": [{ "$valid": { "hypothesis": null } }] } },
+    { "name": "a missing planning field: a blank hypothesis", "expect": "rejected", "error": "The hypothesis needs some text", "retro": { "experiments": [{ "$valid": { "hypothesis": "   " } }] } },
+    { "name": "a missing planning field: no proposed work", "expect": "rejected", "error": "proposes at least one piece of work", "retro": { "experiments": [{ "$valid": { "proposedWork": [] } }] } },
+    { "name": "a missing planning field: no guardrail", "expect": "rejected", "error": "at least one guardrail", "retro": { "experiments": [{ "$valid": { "guardrails": [] } }] } },
+    { "name": "a missing planning field: no measurement window", "expect": "rejected", "error": "window", "retro": { "experiments": [{ "$valid": { "window": null } }] } },
+    { "name": "a missing planning field: no baseline", "expect": "rejected", "error": "baseline", "retro": { "experiments": [{ "$valid": { "baseline": null } }] } },
+    { "name": "a missing planning field: no expected change", "expect": "rejected", "error": "expectedChange", "retro": { "experiments": [{ "$valid": { "expectedChange": null } }] } },
+    { "name": "a missing planning field: no source", "expect": "rejected", "error": "source", "retro": { "experiments": [{ "$valid": { "source": null } }] } },
+    { "name": "structured/prose mixed: an experiment written as prose", "expect": "rejected", "error": "experiments.0", "retro": { "actions": ["Size importer tickets larger"], "experiments": ["Cut active time by 20% by documenting the importer"] } },
+    { "name": "structured/prose mixed: an experiment object in the prose actions", "expect": "rejected", "error": "actions.0", "retro": { "actions": ["$valid"] } },
+    {
+      "name": "structured/prose mixed: prose actions beside structured experiments",
+      "expect": "normalized",
+      "stored": "actions kept as written, in order; experiments stored beside them",
+      "retro": { "wentWell": ["Reviews were quick"], "actions": ["Keep reviews short", "Pair on the importer"], "experiments": ["$valid"] }
+    },
+    {
+      "name": "structured/prose mixed: prose actions with an empty experiments list",
+      "expect": "normalized",
+      "stored": "no experiments key: the stored retro and content hash equal the prose-only retro's",
+      "retro": { "actions": ["Keep reviews short", "Pair on the importer"], "experiments": [] }
+    },
+    {
+      "name": "an empty experiments list alone",
+      "expect": "normalized",
+      "stored": "no experiments key: the retro is empty (retroIsEmpty) and stores like {}",
+      "retro": { "experiments": [] }
+    }
+  ]
+}

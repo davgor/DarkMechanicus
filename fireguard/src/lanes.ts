@@ -58,6 +58,8 @@ class WarmVitestLane implements Lane {
   private starting: Promise<ChildProcess> | undefined;
   private pending: PendingRun | undefined;
   private readonly pendingChanges = new Set<string>();
+  /** Kills of the vitests this lane stopped (a run's timeout, a close's grace), for close. */
+  private readonly kills: Promise<void>[] = [];
   private output = '';
   private nextId = 0;
 
@@ -104,14 +106,16 @@ class WarmVitestLane implements Lane {
 
   async close(): Promise<void> {
     const child = this.child;
-    if (!child) return;
-    const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()));
-    const grace = setTimeout(() => this.stop(), CLOSE_GRACE_MS);
-    child.send({ type: 'close' });
-    await exited;
-    clearTimeout(grace);
-    this.child = undefined;
-    this.starting = undefined;
+    if (child) {
+      const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()));
+      const grace = setTimeout(() => this.stop(), CLOSE_GRACE_MS);
+      child.send({ type: 'close' });
+      await exited;
+      clearTimeout(grace);
+      this.child = undefined;
+      this.starting = undefined;
+    }
+    await Promise.all(this.kills);
   }
 
   private start(): Promise<ChildProcess> {
@@ -172,7 +176,13 @@ class WarmVitestLane implements Lane {
     const child = this.child;
     this.child = undefined;
     this.starting = undefined;
-    killTree(child?.pid);
+    if (!child) return;
+    // taskkill can exit before the lane process has, which still holds the lane's directory.
+    const exited =
+      child.exitCode === null && child.signalCode === null
+        ? new Promise<void>((resolve) => child.once('exit', () => resolve()))
+        : Promise.resolve();
+    this.kills.push(killTree(child.pid).then(() => exited));
   }
 }
 

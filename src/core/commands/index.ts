@@ -10,8 +10,10 @@ import { deletionCommands } from './deletion'
 import { executionCommands } from './execution'
 import { kanbanCommands } from './kanban'
 import { knowledgeCommands } from './knowledge'
+import { metricCommands } from './metrics'
 import { profileCommands } from './profiles'
 import { repositoryCommands } from './repository'
+import { scoreCommands } from './scores'
 import { transferCommands } from './transfers'
 import type { CommandTable } from './types'
 
@@ -23,6 +25,8 @@ export const COMMANDS: CommandTable = {
   ...boardCommands,
   ...profileCommands,
   ...executionCommands,
+  ...metricCommands,
+  ...scoreCommands,
   ...checkpointCommands,
   ...commentCommands,
   ...attachmentCommands,

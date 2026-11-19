@@ -9,8 +9,10 @@ import { KANBAN_EDITABLE_FIELDS } from '../../shared/domain/kanban'
 import { TIER_VERDICTS } from '../../shared/domain/retro'
 import { ATTEMPT_STATES, OPEN_ATTEMPT_STATES, RUN_STATES } from '../../shared/domain/status'
 import { LINEAR_IDENTIFIER_PATTERN } from '../../shared/domain/transfer'
+import type { ExperimentEvent } from '../../shared/domain/experiments'
+import type { ScorecardSnapshot } from '../../shared/domain/spaceGrades'
 import type { SessionRole } from '../../shared/domain/views'
-import { contentHash } from '../canonical'
+import { contentHash, prettyJson } from '../canonical'
 import { CLAIM_TOKEN_MASK, maskWholeClaimTokens } from '../claimTokenMask'
 import { type Db, parseJson } from '../db/database'
 import { fail } from '../errors'
@@ -34,13 +36,19 @@ import {
   ticketReference,
   workStatus
 } from '../schemas'
+import { experimentEventSchema, experimentHash, retroExperimentsSchema } from '../plan/experiments'
 import { listAttachmentRefs } from '../services/attachments'
+import { metricObservationSchema } from '../space/contract'
+import { parseScorecardSnapshot } from '../space/snapshot'
+import { ledgerProblem } from '../space/ledger'
 import { assertContained, displayPath } from './paths'
 import type { FsAdapter, RepoLayout } from './types'
 
 export const MAX_RECORD_BYTES = 8 * 1024 * 1024
 /** A comment file holds at most 20,000 characters of Markdown; anything far larger is not a comment. */
 export const MAX_COMMENT_RECORD_BYTES = 256 * 1024
+/** An observation file is a few hundred bytes; even 500 evidence references stay far below this. */
+export const MAX_OBSERVATION_RECORD_BYTES = 256 * 1024
 export const KEY_PREFIX_PATTERN = /^[A-Z][A-Z0-9]{0,11}$/
 /**
  * A Git conflict marker at the start of a line. Only `\n` (with an optional `\r`) ends a line: no `m`
@@ -51,6 +59,7 @@ const MAX_ATTEMPTS = 10_000
 const MAX_REPORTS = 5_000
 const MAX_CHECKPOINTS = 1_000
 const MAX_ROW_CHECKS = 5_000
+const MAX_EXPERIMENT_EVENTS = 10_000
 
 const idOf = (kind: IdKind) => z.string().refine((value) => isStableId(value, kind), { message: `Expected a ${kind} id` })
 const anyStableId = z.string().regex(STABLE_ID_PATTERN)
@@ -159,6 +168,38 @@ export const epicOutcome = z.strictObject({
   transfer: transferOutcome.optional()
 })
 
+/** `<assessment report>/<experiment>/from:<source project>/to:<target project>` (`CorrectionProvenance.key`). */
+const CORRECTION_KEY_PATTERN = /^rp_[0-9a-hjkmnp-tv-z]{26}\/xp_[0-9a-hjkmnp-tv-z]{26}\/from:pj_[0-9a-hjkmnp-tv-z]{26}\/to:pj_[0-9a-hjkmnp-tv-z]{26}$/
+
+/**
+ * An epic another project asked of this one (`CorrectionProvenance`): identities and hashes only, no machine path. Its
+ * key names the target project, which must be the one its `target` names.
+ */
+export const correctionProvenance = z
+  .strictObject({
+    kind: z.literal('cross_repo_correction'),
+    key: z.string().regex(CORRECTION_KEY_PATTERN),
+    payloadHash: sha256,
+    source: z.strictObject({
+      projectId: idOf('project'),
+      projectName: z.string().min(1).max(200),
+      epicId: idOf('epic'),
+      runId: idOf('run'),
+      sprintId: idOf('sprint'),
+      reportId: idOf('report'),
+      reportRevision: positiveInt,
+      reportHash: sha256,
+      experimentId: idOf('experiment'),
+      assessment: z.strictObject({ reportId: idOf('report'), assessmentId: idOf('assessment'), snapshotId: idOf('assessment'), policyHash: sha256 })
+    }),
+    target: z.strictObject({ projectId: idOf('project') }),
+    note: shortText
+  })
+  .refine((value) => value.key === `${value.source.assessment.reportId}/${value.source.experimentId}/from:${value.source.projectId}/to:${value.target.projectId}`, {
+    message: 'A correction key names its assessment report, its experiment, its source project and its target project',
+    path: ['key']
+  })
+
 export const epicStateRecord = z.strictObject({
   format: z.literal('darkmechanicus.epic-state'),
   formatVersion: z.literal(1),
@@ -168,7 +209,8 @@ export const epicStateRecord = z.strictObject({
   branch: epicBranch.nullable(),
   // No default: an epic state written before repositories were bound (or of a single repository) re-serializes unchanged.
   repositoryBranches: repositoryBranches.optional(),
-  provenance: z.strictObject({ sourceEpicId: anyStableId, note: shortText }).nullable(),
+  // An earlier epic of this project, or (no default, so older records re-serialize unchanged) another project's correction.
+  provenance: z.union([z.strictObject({ sourceEpicId: anyStableId, note: shortText }), correctionProvenance]).nullable(),
   outcome: epicOutcome.nullable(),
   createdAt: isoTime,
   completedAt: isoTime.nullable(),
@@ -239,7 +281,9 @@ const attemptDecision = z.strictObject({
   notes: markdown.default(''),
   reasons: textList.default([]),
   decidedBy: label.nullable().default(null),
-  criteria: criterionResults.optional()
+  criteria: criterionResults.optional(),
+  // No default: a decision written before acceptance nodes froze their Definition of Done keeps its bytes.
+  requiredChecks: textList.optional()
 })
 
 /**
@@ -287,7 +331,11 @@ const attemptRecord = z.strictObject({
     message: 'An attempt names either increment or increments, not both'
   })
 
-/** A sprint report's retro as stored: every list present, every ticket a stable id. */
+/**
+ * A sprint report's retro as stored: every list present, every ticket a stable id. `experiments` appears only with at
+ * least one experiment (no default, so a retro written before experiments parses and re-exports byte for byte; an
+ * empty list, which the server never writes, is refused).
+ */
 const retroContent = z.strictObject({
   delivered: z
     .array(z.strictObject({ ticket: idOf('ticket'), demo: markdown, evidence: markdown }))
@@ -301,7 +349,8 @@ const retroContent = z.strictObject({
   leftovers: z.array(z.strictObject({ ticket: idOf('ticket'), reason: markdown })).max(LIMITS.listItems),
   tierFit: z
     .array(z.strictObject({ ticket: idOf('ticket'), verdict: z.enum(TIER_VERDICTS), note: markdown }))
-    .max(LIMITS.listItems)
+    .max(LIMITS.listItems),
+  experiments: retroExperimentsSchema.optional()
 })
 
 const reportContent = z.strictObject({
@@ -325,14 +374,37 @@ const reportContent = z.strictObject({
   retro: retroContent.nullable().optional()
 })
 
+/**
+ * A report revision's frozen scorecard is its own record (`history/<runId>/scorecards/<reportId>.json`, see
+ * `scorecardRecord`); the report names it by id and seal, so the run history stays small however many revisions a
+ * sprint has, and an import refuses a report whose named scorecard file is missing or differs.
+ */
+const reportScorecardRef = z.strictObject({ snapshotId: idOf('assessment'), snapshotHash: opaqueHash })
+
 const reportRecord = z.strictObject({
   id: idOf('report'),
   sprintId: idOf('sprint'),
   reportRevision: positiveInt,
   contentHash: opaqueHash,
   content: reportContent,
+  // No default: a report saved before scorecards existed must parse and re-export byte for byte.
+  scorecard: reportScorecardRef.optional(),
   submittedBy: label.nullable(),
   createdAt: isoTime
+})
+
+/**
+ * One immutable file per report revision's scorecard: the snapshot exactly as frozen, checked against its schema, its
+ * seal, its own identity and pools, and regraded (every stored result must follow from its stored input under its
+ * stored policy). Which run, epic, sprint, report revision and plan revision it belongs to is checked on import
+ * against the run history that names it.
+ */
+export const scorecardRecord = z.custom<ScorecardSnapshot>().superRefine((value, ctx) => {
+  try {
+    parseScorecardSnapshot(value)
+  } catch (error: unknown) {
+    ctx.addIssue({ code: 'custom', message: error instanceof Error ? error.message : 'Invalid scorecard snapshot' })
+  }
 })
 
 const checkpointRecord = z.strictObject({
@@ -379,7 +451,10 @@ const runHistoryShape = z.strictObject({
   reports: z.array(reportRecord).max(MAX_REPORTS),
   checkpoints: z.array(checkpointRecord).max(MAX_CHECKPOINTS),
   // No default: run history written before row checks existed must parse and re-export byte for byte.
-  rowChecks: z.array(rowCheckRecord).max(MAX_ROW_CHECKS).optional()
+  rowChecks: z.array(rowCheckRecord).max(MAX_ROW_CHECKS).optional(),
+  // Later statuses and results of the reports' experiments, never inside a report. Left out when the run has none,
+  // so run history written before experiments keeps its bytes.
+  experimentEvents: z.array(experimentEventSchema).max(MAX_EXPERIMENT_EVENTS).optional()
 })
 type RunHistoryShape = z.infer<typeof runHistoryShape>
 
@@ -416,7 +491,13 @@ const RUN_UNIQUENESS: { what: string; path: string; keys: (record: RunHistorySha
   },
   { what: 'checkpoint id', path: 'checkpoints', keys: (record) => record.checkpoints.map((item) => item.id) },
   { what: 'row check id', path: 'rowChecks', keys: (record) => (record.rowChecks ?? []).map((item) => item.id) },
-  { what: 'row check number', path: 'rowChecks', keys: (record) => (record.rowChecks ?? []).map((item) => String(item.number)) }
+  { what: 'row check number', path: 'rowChecks', keys: (record) => (record.rowChecks ?? []).map((item) => String(item.number)) },
+  { what: 'experiment event id', path: 'experimentEvents', keys: (record) => (record.experimentEvents ?? []).map((item) => item.id) },
+  {
+    what: 'experiment event number',
+    path: 'experimentEvents',
+    keys: (record) => (record.experimentEvents ?? []).map((item) => `${item.experimentId}#${item.number}`)
+  }
 ]
 
 const SESSION_ROLES = ['desktop', 'planner', 'orchestrator', 'worker', 'reviewer'] as const satisfies readonly SessionRole[]
@@ -546,12 +627,97 @@ export const kanbanEventRecord = z.discriminatedUnion('kind', [
 ])
 export type KanbanEventRecord = z.infer<typeof kanbanEventRecord>
 
+/**
+ * One immutable file per metric observation: `epics/<epicId>/observations/<observationId>.json`, or
+ * `observations/<observationId>.json` for a project-level one. It holds the SPACE contract observation exactly as the
+ * ledger stored it, server `recordedAt` included. The ledger's storage rules apply to it too, so a file carrying a
+ * claim or grant token, a credential, a machine-local path or chat text is rejected, and a newer format is refused.
+ */
+export const metricObservationRecord = z
+  .strictObject({
+    format: z.literal('darkmechanicus.metric-observation'),
+    formatVersion: z.literal(1),
+    observation: metricObservationSchema
+  })
+  .superRefine((record, ctx) => {
+    const problem = ledgerProblem(record.observation)
+    if (problem !== null) {
+      ctx.addIssue({ code: 'custom', path: ['observation', ...problem.path.split('.')], message: problem.message })
+    }
+  })
+type MetricObservationRecord = z.infer<typeof metricObservationRecord>
+
+type HistoryReport = RunHistoryShape['reports'][number]
+
+/** An experiment id belongs to one sprint and keeps its source assessment across the run's report revisions. */
+function restatementProblems(reports: HistoryReport[]): string[] {
+  const problems: string[] = []
+  const defined = new Map<string, { sprintId: string; source: string }>()
+  for (const report of reports) {
+    for (const experiment of report.content.retro?.experiments ?? []) {
+      const source = `${experiment.source.reportId}#${experiment.source.assessmentId}`
+      const first = defined.get(experiment.id)
+      if (first !== undefined && (first.sprintId !== report.sprintId || first.source !== source)) {
+        problems.push(`Experiment ${experiment.id} is restated with another sprint or source`)
+      }
+      defined.set(experiment.id, first ?? { sprintId: report.sprintId, source })
+    }
+  }
+  return problems
+}
+
+/**
+ * What is wrong with one event, or null: it must belong to this run and name a report of the run whose retro holds the
+ * very experiment definition it cites (by content hash), and a result must be in that experiment's baseline unit. The
+ * importer also checks every event it already stores against an incoming run history with this.
+ */
+export function eventProblem(event: ExperimentEvent, runId: string, reports: ReadonlyMap<string, HistoryReport>): string | null {
+  if (event.runId !== runId) return `belongs to run ${event.runId}`
+  const experiment = reports.get(event.source.reportId)?.content.retro?.experiments?.find((item) => item.id === event.experimentId)
+  if (experiment === undefined) return `names experiment ${event.experimentId}, which report ${event.source.reportId} of this run does not hold`
+  if (experimentHash(experiment) !== event.source.experimentHash) {
+    return `cites another definition of experiment ${event.experimentId} than report ${event.source.reportId} holds`
+  }
+  return event.kind === 'result' && event.result.unit !== experiment.baseline.unit
+    ? `reports a result in ${event.result.unit}, not the baseline's ${experiment.baseline.unit}`
+    : null
+}
+
+/** Each experiment's events are numbered 1, 2, … n with none missing: dropping one from the middle is refused. */
+function sequenceProblems(events: ExperimentEvent[]): string[] {
+  const numbers = new Map<string, number[]>()
+  for (const event of events) numbers.set(event.experimentId, [...(numbers.get(event.experimentId) ?? []), event.number])
+  return [...numbers].flatMap(([experimentId, list]) =>
+    [...list].sort((a, b) => a - b).every((number, index) => number === index + 1) ? [] : [`Experiment ${experimentId}'s events are not numbered 1 to ${list.length}`]
+  )
+}
+
+/**
+ * What the run's experiments and their events must agree on (see `restatementProblems`, `eventProblem` and
+ * `sequenceProblems`). A hand-edited event therefore can never attach to an experiment the reports do not hold.
+ */
+function experimentProblems(record: RunHistoryShape): { message: string; path: string }[] {
+  const reports = new Map(record.reports.map((report) => [report.id, report]))
+  const events = record.experimentEvents ?? []
+  const eventProblems = events.flatMap((event) => {
+    const problem = eventProblem(event, record.runId, reports)
+    return problem === null ? [] : [`Experiment event ${event.id} ${problem}`]
+  })
+  return [
+    ...restatementProblems(record.reports).map((message) => ({ message, path: 'reports' })),
+    ...[...eventProblems, ...sequenceProblems(events)].map((message) => ({ message, path: 'experimentEvents' }))
+  ]
+}
+
 export const runHistoryRecord = runHistoryShape.superRefine((record, ctx) => {
   for (const rule of RUN_UNIQUENESS) {
     const duplicate = firstDuplicate(rule.keys(record))
     if (duplicate !== undefined) {
       ctx.addIssue({ code: 'custom', message: `Duplicate ${rule.what}: ${duplicate}`, path: [rule.path] })
     }
+  }
+  for (const problem of experimentProblems(record)) {
+    ctx.addIssue({ code: 'custom', message: problem.message, path: [problem.path] })
   }
 })
 export type RunHistoryRecord = z.infer<typeof runHistoryRecord>
@@ -652,6 +818,11 @@ export function trackedKanbanCardHash(text: string): string {
 /** Change-detection hash of one Kanban event file's text. */
 export function trackedKanbanEventHash(text: string): string {
   return contentHash(['kanban-event', normalizeNewlines(text)])
+}
+
+/** Change-detection hash of one metric observation file's text. */
+export function trackedObservationHash(text: string): string {
+  return contentHash(['metric-observation', normalizeNewlines(text)])
 }
 
 function exportable<T>(schema: z.ZodType<T>, value: unknown, what: string): T {
@@ -805,6 +976,9 @@ interface ReportRow {
   report_revision: number
   content_json: string
   content_hash: string
+  /** The frozen scorecard's id and seal, read from its stored JSON; null for a report from before scorecards. */
+  scorecard_id: string | null
+  scorecard_hash: string | null
   submitted_by: string | null
   created_at: string
 }
@@ -889,6 +1063,7 @@ function attemptEntry(row: AttemptRow): Record<string, unknown> {
   }
 }
 
+/** The scorecard reference is left out when the report has none, so a report from before scorecards keeps its bytes. */
 function reportEntry(row: ReportRow): Record<string, unknown> {
   return {
     id: row.id,
@@ -896,6 +1071,7 @@ function reportEntry(row: ReportRow): Record<string, unknown> {
     reportRevision: row.report_revision,
     contentHash: row.content_hash,
     content: parseJson<unknown>(row.content_json, null),
+    ...(row.scorecard_id === null || row.scorecard_hash === null ? {} : { scorecard: { snapshotId: row.scorecard_id, snapshotHash: row.scorecard_hash } }),
     submittedBy: row.submitted_by,
     createdAt: row.created_at
   }
@@ -934,14 +1110,49 @@ export function buildRunHistoryRecord(db: Db, runId: string): RunHistoryRecord {
     fail('not_found', `Run ${runId} does not exist.`)
   }
   const rowChecks = db.all<RowCheckRow>('SELECT * FROM row_checks WHERE run_id = ? ORDER BY number', runId).map(rowCheckEntry)
+  const experimentEvents = db
+    .all<{ event_json: string }>('SELECT event_json FROM experiment_events WHERE run_id = ? ORDER BY experiment_id, number', runId)
+    .map((row) => parseJson<unknown>(row.event_json, null))
+  const reports = db.all<ReportRow>(
+    `SELECT id, sprint_id, report_revision, content_json, content_hash, submitted_by, created_at,
+       json_extract(scorecard_json, '$.snapshotId') AS scorecard_id, json_extract(scorecard_json, '$.snapshotHash') AS scorecard_hash
+     FROM sprint_reports WHERE run_id = ? ORDER BY id`,
+    runId
+  )
   const record = {
     ...runFields(run),
     attempts: db.all<AttemptRow>('SELECT * FROM attempts WHERE run_id = ? ORDER BY id', runId).map(attemptEntry),
-    reports: db.all<ReportRow>('SELECT * FROM sprint_reports WHERE run_id = ? ORDER BY id', runId).map(reportEntry),
+    reports: reports.map(reportEntry),
     checkpoints: db.all<CheckpointRow>('SELECT * FROM checkpoints WHERE run_id = ? ORDER BY id', runId).map(checkpointEntry),
-    ...(rowChecks.length > 0 ? { rowChecks } : {})
+    ...(rowChecks.length > 0 ? { rowChecks } : {}),
+    ...(experimentEvents.length > 0 ? { experimentEvents } : {})
   }
-  return exportable(runHistoryRecord, record, `run history ${runId}`)
+  const exported = exportable(runHistoryRecord, record, `run history ${runId}`)
+  // A report's content is exported exactly as stored, which is as it was written: validating it fills the defaults a
+  // report written by an earlier build left out, and its content hash binds the content without them.
+  const written = new Map(reports.map((row) => [row.id, parseJson<unknown>(row.content_json, null) as ReportContent]))
+  return { ...exported, reports: exported.reports.map((report) => ({ ...report, content: written.get(report.id) ?? report.content })) }
+}
+
+type ReportContent = RunHistoryRecord['reports'][number]['content']
+
+/**
+ * A stored report's content with every default filled in, for readers. The database keeps a report's content as it was
+ * written (its content hash binds that form; an imported report written by an earlier build may lack later keys, at the
+ * top or nested, such as `followUps` or a follow-up's `body`); reading fills them as the record schema does.
+ */
+export function filledReportContent(stored: unknown): ReportContent {
+  return reportContent.parse(stored)
+}
+
+/**
+ * The record text of each frozen scorecard of a run's reports, by report id: the stored snapshot (canonical JSON)
+ * written with sorted keys, so every machine writes the same bytes. Reports from before scorecards have none.
+ */
+export function scorecardRecordTexts(db: Db, runId: string): { reportId: string; text: string }[] {
+  return db
+    .all<{ id: string; scorecard_json: string }>('SELECT id, scorecard_json FROM sprint_reports WHERE run_id = ? AND scorecard_json IS NOT NULL ORDER BY id', runId)
+    .map((row) => ({ reportId: row.id, text: prettyJson(JSON.parse(row.scorecard_json)) }))
 }
 
 interface CommentRow {
@@ -1097,4 +1308,18 @@ export function readKanbanEventRecord(db: Db, eventId: string): Record<string, u
 export function buildKanbanEventRecord(db: Db, eventId: string): KanbanEventRecord {
   const record = readKanbanEventRecord(db, eventId) ?? fail('not_found', `Kanban event ${eventId} does not exist.`)
   return exportable(kanbanEventRecord, record, `Kanban event ${eventId}`)
+}
+
+/** An observation row in its record shape, not validated (the importer compares tracked files with it); null when absent. */
+function readObservationRecord(db: Db, observationId: string): Record<string, unknown> | null {
+  const row = db.get<{ observation_json: string }>('SELECT observation_json FROM metric_observations WHERE id = ?', observationId)
+  if (row === undefined) {
+    return null
+  }
+  return { format: 'darkmechanicus.metric-observation', formatVersion: 1, observation: parseJson<unknown>(row.observation_json, null) }
+}
+
+export function buildObservationRecord(db: Db, observationId: string): MetricObservationRecord {
+  const record = readObservationRecord(db, observationId) ?? fail('not_found', `Metric observation ${observationId} does not exist.`)
+  return exportable(metricObservationRecord, record, `metric observation ${observationId}`)
 }

@@ -14,12 +14,15 @@ import {
   capabilityProfile,
   commentBody,
   commitHash,
+  correctionsInput,
+  createCorrectionsInput,
   criterionInput,
   criterionResult,
   definitionOfDoneChecks,
   draftOps,
   entityRef,
   epicBranch,
+  experimentEventInput,
   heartbeatProgress,
   hostCatalog,
   idempotencyKey,
@@ -34,10 +37,28 @@ import {
   rowCheckEntries,
   sprintReportInput,
   stableId,
+  ticketBudget,
   ticketInput,
   transferRef,
   workStatus
 } from './schemas'
+import { evidenceRefSchema, measurementSchema } from './space/contract'
+import { LEDGER_LIMITS } from './space/ledger'
+import {
+  ACCUMULATIONS,
+  GRADE_SUBJECT_LEVELS,
+  HUMAN_INTERVENTIONS,
+  HUMAN_REVIEW_ACTIVITIES,
+  METRIC_KINDS,
+  METRIC_SOURCES,
+  METRIC_UNITS,
+  REGRESSION_SEVERITIES,
+  USAGE_COVERAGES,
+  WORKFLOW_CAUSES
+} from '../shared/domain/space'
+import { OVERHEAD_KINDS } from '../shared/domain/metrics'
+import { DEFECT_ATTRIBUTIONS, DEFECT_EVENTS, DISCOVERY_PHASES } from '../shared/domain/performance'
+import { HUMAN_RATING_RANGE, MAX_RESCUE_MINUTES, MIN_FEEDBACK_MINUTES } from '../shared/domain/spaceSignals'
 
 /**
  * Input schemas for every command that takes input. The Workspace parses raw MCP/IPC payloads
@@ -67,6 +88,67 @@ const mailWindow = {
 const noInput = z.strictObject({})
 
 /**
+ * One reported measurement (`MetricReport`). The schema takes every metric and source kind so the service can refuse
+ * human and server ones as `unauthorized` rather than as malformed. Its delivery identity is fixed here: a cumulative
+ * report names its `sequence` and no `eventId`; a delta or event names its `eventId` and no `sequence`.
+ */
+const metricReport = z
+  .strictObject({
+    metric: z.enum(METRIC_KINDS),
+    unit: z.enum(METRIC_UNITS).describe("The metric's fixed unit, stated explicitly (tokens_* in tokens, active_ms in milliseconds)."),
+    source: z.strictObject({
+      kind: z.enum(METRIC_SOURCES).describe('agent (your own account) or host (telemetry your host read). human and server are refused.'),
+      actor: z.string().min(1).max(200).describe('The session, stream or adapter that measured it; the stream a cumulative sequence counts in.')
+    }),
+    measurement: measurementSchema.describe(
+      'observed {value}, estimated {value, method}, or missing {reason}: not_reported, host_unavailable (the host cannot report it) or partial_coverage. Never send 0 for unknown.'
+    ),
+    accumulation: z.enum(ACCUMULATIONS).describe('delta (adds to the stream), cumulative (the stream total so far) or event.'),
+    sequence: z
+      .number()
+      .int()
+      .min(0)
+      .max(Number.MAX_SAFE_INTEGER)
+      .optional()
+      .describe('Cumulative reports only: the position in the stream. A later sequence never reports less.'),
+    eventId: z
+      .string()
+      .regex(/^[A-Za-z0-9][A-Za-z0-9._:@-]{0,127}$/, 'Use 1-128 letters, digits and . _ : @ -')
+      .optional()
+      .describe('Delta and event reports only: the source event id, unique within the actor and metric. Resending it is a no-op.'),
+    observedAt: z.iso.datetime({ offset: true }).describe('When it was measured, by the source clock (ISO 8601).'),
+    attributes: z
+      .record(z.string().min(1).max(64), z.union([z.string().max(200), z.number(), z.boolean(), z.null()]))
+      .optional()
+      .describe('At most 20 short qualifiers such as model or waitKind; no transcripts, paths or secrets.'),
+    evidence: z.array(evidenceRefSchema).max(100).optional(),
+    cause: z.enum(WORKFLOW_CAUSES).optional(),
+    usage: z
+      .strictObject({ coverage: z.enum(USAGE_COVERAGES), parentActor: z.string().min(1).max(200).nullable() })
+      .optional()
+      .describe('Token and active-time metrics: self (this session only) or inclusive (with every child session, counted once).')
+  })
+  .superRefine((report, ctx) => {
+    if (report.accumulation === 'cumulative') {
+      if (report.sequence === undefined) {
+        ctx.addIssue({ code: 'custom', path: ['sequence'], message: 'A cumulative report names its sequence in the stream' })
+      }
+      if (report.eventId !== undefined) {
+        ctx.addIssue({ code: 'custom', path: ['eventId'], message: 'A cumulative report is identified by its sequence, not an eventId' })
+      }
+      return
+    }
+    if (report.eventId === undefined) {
+      ctx.addIssue({ code: 'custom', path: ['eventId'], message: `A ${report.accumulation} report names its source eventId` })
+    }
+    if (report.sequence !== undefined) {
+      ctx.addIssue({ code: 'custom', path: ['sequence'], message: `A ${report.accumulation} report is identified by its eventId, not a sequence` })
+    }
+  })
+
+export const metricReports = z.array(metricReport).min(1).max(LEDGER_LIMITS.perCall)
+
+/**
  * A Kanban card's content: the ticket fields a card shares, with no kind, tags, capability or repository. Its
  * criteria never carry `covers`, which only an acceptance node uses.
  */
@@ -80,6 +162,13 @@ const kanbanCardFields = {
   /** Staged reference images (`add_attachment`) to attach; on an edit the list replaces the card's. */
   attachments: z.array(attachmentRef.shape.id).max(LIMITS.attachmentsPerRecord).optional()
 }
+
+/** A read's cutoff: a server time (default now, and never later than now). */
+const cutoff = z.iso.datetime({ offset: true }).optional()
+/** One sprint report revision: its id, and optionally the revision number the caller expects it to be. */
+const reportRevisionRef = { reportId: stableId, reportRevision: z.number().int().min(1).max(1_000_000_000).optional() }
+/** The person a desktop entry names (the desktop session's label when absent). */
+const person = z.string().min(1).max(200).optional()
 
 export const COMMAND_SCHEMAS = {
   nameChat: nameChatArgsSchema,
@@ -306,7 +395,92 @@ export const COMMAND_SCHEMAS = {
     revisionId: stableId,
     carryForward: z.array(stableId).max(LIMITS.tickets).optional()
   }),
+  recordAttemptMetrics: z.strictObject({
+    attemptId: stableId,
+    claimToken: claimToken.optional(),
+    reports: metricReports
+  }),
+  recordRunMetrics: z.strictObject({
+    runId: stableId,
+    sprintId: stableId.optional(),
+    overhead: z.enum(OVERHEAD_KINDS),
+    reports: metricReports
+  }),
+  getRunMetrics: z.strictObject({
+    runId: stableId,
+    attemptId: stableId.optional(),
+    includeObservations: z.boolean().optional()
+  }),
+  getPlannedBaselines: z.strictObject({ epicId: stableId, runId: stableId.optional() }),
+  getTicketGrade: z.strictObject({ runId: stableId, ticketId: stableId, cutoff }),
+  getSprintGrade: z.strictObject({ runId: stableId, sprintId: stableId, cutoff }),
+  getRunGrade: z.strictObject({ runId: stableId, cutoff }),
+  getEpicGrade: z.strictObject({ epicId: stableId, cutoff }),
+  getReportScorecard: z.strictObject(reportRevisionRef),
+  reassessReportScorecard: z.strictObject({ ...reportRevisionRef, cutoff }),
+  getSpaceSignals: z.strictObject({ level: z.enum(GRADE_SUBJECT_LEVELS), id: stableId, runId: stableId.optional(), cutoff }),
+  getTicketPerformance: z.strictObject({ runId: stableId, ticketId: stableId, cutoff }),
+  getEscapedDefects: z.strictObject({ epicId: stableId, cutoff }),
+  getRunEfficiency: z.strictObject({ runId: stableId, cutoff, ticketId: stableId.optional() }),
+  getRunTiming: z.strictObject({ runId: stableId, ticketId: stableId.optional(), cutoff }),
+  getMetricsSummary: z.strictObject({ epicIds: z.array(stableId).max(1_000).optional(), since: cutoff, until: cutoff }),
+  recordHumanFeedback: z.strictObject({
+    target: z.strictObject({
+      epicId: stableId,
+      sprintId: stableId.optional(),
+      runId: stableId.optional(),
+      ticketId: stableId.optional(),
+      attemptId: stableId.optional()
+    }),
+    feedback: z.discriminatedUnion('kind', [
+      z.strictObject({
+        kind: z.literal('rating'),
+        value: z.number().int().min(HUMAN_RATING_RANGE.min).max(HUMAN_RATING_RANGE.max),
+        sharedWithTickets: z.boolean().optional()
+      }),
+      z.strictObject({
+        kind: z.literal('rescue'),
+        minutes: z.number().min(MIN_FEEDBACK_MINUTES).max(MAX_RESCUE_MINUTES).optional(),
+        intervention: z.enum(HUMAN_INTERVENTIONS),
+        cause: z.enum(WORKFLOW_CAUSES)
+      }),
+      z.strictObject({
+        kind: z.literal('planned_review'),
+        activity: z.enum(HUMAN_REVIEW_ACTIVITIES),
+        minutes: z.number().min(MIN_FEEDBACK_MINUTES).max(MAX_RESCUE_MINUTES).optional()
+      })
+    ]),
+    person,
+    idempotencyKey
+  }),
+  recordEscapedDefects: z.strictObject({
+    target: z.strictObject({ epicId: stableId, runId: stableId.optional(), sprintId: stableId.optional() }),
+    records: z
+      .array(
+        z.strictObject({
+          defectEvent: z.enum(DEFECT_EVENTS),
+          severity: z.enum(REGRESSION_SEVERITIES).optional(),
+          attribution: z.enum(DEFECT_ATTRIBUTIONS).optional(),
+          discoveryPhase: z.enum(DISCOVERY_PHASES).optional(),
+          defectKey: z.string().min(1).max(200).optional(),
+          evidence: z.array(evidenceRefSchema).max(100)
+        })
+      )
+      .min(1)
+      .max(LEDGER_LIMITS.perCall),
+    person,
+    idempotencyKey
+  }),
+  setTicketBudget: z.strictObject({
+    epicId: stableId,
+    ticketId: stableId,
+    budget: ticketBudget.nullable(),
+    expectedDraftRevision: revision,
+    runId: stableId.optional()
+  }),
   redraftNextSprint: runRef,
+  previewCorrections: correctionsInput,
+  createCorrections: createCorrectionsInput,
   submitSprintReport: z.strictObject({
     runId: stableId,
     sprintId: stableId,
@@ -314,6 +488,9 @@ export const COMMAND_SCHEMAS = {
     idempotencyKey
   }),
   getSprintReport: z.strictObject({ runId: stableId, sprintId: stableId.optional() }),
+  getRetroFindings: z.strictObject(reportRevisionRef),
+  getExperiment: z.strictObject({ experimentId: stableId }),
+  recordExperimentEvent: experimentEventInput,
   getCheckpoint: runRef,
   approveCheckpoint: z.strictObject({ runId: stableId, reportId: stableId }),
   advanceSprint: z.strictObject({ runId: stableId, idempotencyKey }),

@@ -81,9 +81,30 @@ const TOOLS: Record<string, { method: CommandName; kind: Kind }> = {
   cancel_run: { method: 'cancelRun', kind: 'destructive' },
   takeover_run: { method: 'takeoverRun', kind: 'idempotent' },
   adopt_revision: { method: 'adoptRevision', kind: 'write' },
+  record_attempt_metrics: { method: 'recordAttemptMetrics', kind: 'idempotent' },
+  record_run_metrics: { method: 'recordRunMetrics', kind: 'idempotent' },
+  get_run_metrics: { method: 'getRunMetrics', kind: 'read' },
+  get_planned_baselines: { method: 'getPlannedBaselines', kind: 'read' },
+  get_ticket_grade: { method: 'getTicketGrade', kind: 'read' },
+  get_sprint_grade: { method: 'getSprintGrade', kind: 'read' },
+  get_run_grade: { method: 'getRunGrade', kind: 'read' },
+  get_epic_grade: { method: 'getEpicGrade', kind: 'read' },
+  get_report_scorecard: { method: 'getReportScorecard', kind: 'read' },
+  reassess_report_scorecard: { method: 'reassessReportScorecard', kind: 'read' },
+  get_space_signals: { method: 'getSpaceSignals', kind: 'read' },
+  get_ticket_performance: { method: 'getTicketPerformance', kind: 'read' },
+  get_escaped_defects: { method: 'getEscapedDefects', kind: 'read' },
+  get_run_efficiency: { method: 'getRunEfficiency', kind: 'read' },
+  get_run_timing: { method: 'getRunTiming', kind: 'read' },
+  get_metrics_summary: { method: 'getMetricsSummary', kind: 'read' },
   submit_sprint_report: { method: 'submitSprintReport', kind: 'write' },
   redraft_next_sprint: { method: 'redraftNextSprint', kind: 'idempotent' },
+  preview_corrections: { method: 'previewCorrections', kind: 'read' },
+  create_corrections: { method: 'createCorrections', kind: 'idempotent' },
   get_sprint_report: { method: 'getSprintReport', kind: 'read' },
+  get_retro_findings: { method: 'getRetroFindings', kind: 'read' },
+  get_experiment: { method: 'getExperiment', kind: 'read' },
+  record_experiment_event: { method: 'recordExperimentEvent', kind: 'write' },
   get_checkpoint: { method: 'getCheckpoint', kind: 'read' },
   advance_sprint: { method: 'advanceSprint', kind: 'write' },
   get_run_events: { method: 'listEvents', kind: 'read' },
@@ -141,14 +162,23 @@ const HUMAN_ONLY: CommandName[] = [
   'playKanbanCard',
   'approveKanbanCard',
   'kickBackKanbanCard',
-  'deleteKanbanCard'
+  'deleteKanbanCard',
+  // What a person says (a rating, rescue time, an escaped defect record) is recorded only by the person at the desktop.
+  'recordHumanFeedback',
+  'recordEscapedDefects'
 ]
 
-/** Read models for the desktop's activity panels: the app polls them, and no MCP tool adapts them. */
-const DESKTOP_READS: CommandName[] = ['getAttemptTimeline', 'getRunTimeline', 'listGrants']
+/**
+ * Read models for the desktop's activity panels and scorecard views: the app reads them, and no MCP tool adapts them
+ * (the grading policy is documented for agents in docs/space-grading.md).
+ */
+const DESKTOP_READS: CommandName[] = ['getAttemptTimeline', 'getRunTimeline', 'listGrants', 'getGradingPolicy']
 
-/** Commands only the desktop app may call (an agent has a path-based equivalent): no MCP tool adapts them. */
-const DESKTOP_ONLY: CommandName[] = ['uploadAttachment']
+/**
+ * Commands only the desktop app may call (an agent has a path-based equivalent): no MCP tool adapts them. An agent sets a
+ * ticket's budget with `update_plan_draft`; the desktop's `setTicketBudget` is the same draft edit.
+ */
+const DESKTOP_ONLY: CommandName[] = ['uploadAttachment', 'setTicketBudget']
 
 function kindOf(annotations: ToolAnnotations | undefined): Kind {
   if (annotations?.readOnlyHint === true) {

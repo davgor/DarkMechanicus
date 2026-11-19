@@ -9,6 +9,8 @@ import type { TerminalsApi } from '../agents/terminalApi'
 import type { CommandApi, CommandName } from '../domain/api'
 import type { DomainErrorShape } from '../domain/errors'
 import type { BoardRemovalResultView, BoardRemovalView, StorageMode } from '../domain/views'
+import type { CrossRepoCorrectionsApi } from './crossRepoCorrections'
+import type { SourceCheckoutApi } from './sourceCheckout'
 
 export interface TrackedFolderView {
   /** Canonical real path; the registry key. */
@@ -251,6 +253,10 @@ export interface DmApi {
   chats: ChatsApi
   /** Chat terminals: `terminals:attach`, and the port main posts for a running one. */
   terminals: TerminalsApi
+  /** The local Dark Mechanicus source checkout: the `sourceCheckout:*` channels. */
+  sourceCheckout: SourceCheckoutApi
+  /** Corrective work a folder's retro asks of the chosen Dark Mechanicus checkout: the `corrections:*CrossRepo` channels. */
+  crossRepoCorrections: CrossRepoCorrectionsApi
   listFolders(): Promise<TrackedFolderView[]>
   pickFolder(): Promise<FolderPickResult>
   untrackFolder(path: string): Promise<TrackedFolderView[]>
@@ -397,8 +403,33 @@ const DESKTOP_COMMANDS = [
   'cancelRun',
   'takeoverRun',
   'adoptRevision',
+  // SPACE measurement: the run's usage and budgets, the scorecard reads (core read models, unchanged), and the person's
+  // own inputs. Ratings, rescue time and defect records are recorded only here; a budget is a draft edit `savePlan` freezes.
+  'getRunMetrics',
+  'getPlannedBaselines',
+  'getTicketGrade',
+  'getSprintGrade',
+  'getRunGrade',
+  'getEpicGrade',
+  'getReportScorecard',
+  'reassessReportScorecard',
+  'getSpaceSignals',
+  'getTicketPerformance',
+  'getEscapedDefects',
+  'getRunEfficiency',
+  'getRunTiming',
+  'getMetricsSummary',
+  'getGradingPolicy',
+  'recordHumanFeedback',
+  'recordEscapedDefects',
+  'setTicketBudget',
   'redraftNextSprint',
+  // Corrective work from a retro's experiments: the person previews it and creates it as draft work to review and save.
+  'previewCorrections',
+  'createCorrections',
   'getSprintReport',
+  'getRetroFindings',
+  'getExperiment',
   'getCheckpoint',
   'approveCheckpoint',
   'advanceSprint',

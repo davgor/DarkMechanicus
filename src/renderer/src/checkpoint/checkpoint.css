@@ -286,6 +286,54 @@
   overflow-wrap: anywhere;
 }
 
+/* Structured improvement experiments: one card per experiment, its fields as a two-column list. */
+.cp-experiments {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cp-experiment {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line-soft);
+  font-size: 13.5px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
+}
+
+.cp-experiment-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.cp-experiment-fields {
+  display: grid;
+  grid-template-columns: minmax(96px, max-content) minmax(0, 1fr);
+  gap: 4px 12px;
+  margin: 0;
+}
+
+.cp-experiment-fields dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.cp-experiment-fields dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.cp-experiment-fields ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
 .cp-tier-scroll {
   overflow-x: auto;
 }
@@ -388,4 +436,300 @@
 
 .is-pending > .cp-icon {
   color: var(--accent);
+}
+
+/* A sprint report's tabs (Report, Scorecard), the same in the checkpoint review and the epic's history. */
+.cp-tabs {
+  margin-top: -12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.cp-tabpanel {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
+}
+
+.cp-scorecard {
+  max-width: 860px;
+}
+
+.cp-sc-mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.cp-sc-conclusion {
+  margin: 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--line);
+  font-size: 13px;
+  line-height: 19px;
+}
+
+.cp-sc-conclusion.is-failed {
+  border-left-color: var(--st-failed);
+}
+
+.cp-sc-conclusion.is-verified {
+  border-left-color: var(--st-accepted);
+}
+
+.cp-sc-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.cp-sc-list > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  min-width: 0;
+}
+
+/* An outcome's state label names its role and reason too: it wraps instead of widening the report column. */
+.cp-sc-list .ew-state {
+  min-width: 0;
+  white-space: normal;
+}
+
+.cp-sc-ticket {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.cp-sc-tickets > li {
+  flex-direction: column;
+  align-items: stretch;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.cp-sc-ticket-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.cp-sc-ticket-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 10px 0 4px 12px;
+  border-left: 2px solid var(--line-soft);
+}
+
+.cp-sc-subjects details > summary {
+  cursor: pointer;
+  line-height: 20px;
+}
+
+.cp-sc-subjects details[open] > summary {
+  margin-bottom: 6px;
+}
+
+/* A report's Improvement tab: measured result → findings → experiments → corrective work. */
+.cp-improvement {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
+}
+
+.cp-imp-chain {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.cp-imp-headline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+}
+
+.cp-open-tab {
+  align-self: flex-start;
+}
+
+.cp-experiment:focus {
+  outline: none;
+}
+
+.cp-experiment:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.cp-plan-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cp-planner {
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+}
+
+.cp-planner > p {
+  margin: 0;
+}
+
+.cp-plan-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.cp-plan-fieldset > legend {
+  margin-bottom: 6px;
+  padding: 0;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+.cp-plan-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13.5px;
+}
+
+.cp-plan-option > span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.cp-plan-option.is-disabled {
+  color: var(--muted);
+}
+
+.cp-plan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.cp-plan-info {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+}
+
+.cp-plan-info p {
+  margin: 0;
+}
+
+.cp-plan-preview,
+.cp-plan-result {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+  min-width: 0;
+}
+
+.cp-plan-result p {
+  margin: 0;
+}
+
+.cp-plan-stale {
+  margin: 0;
+  color: var(--attention);
+}
+
+.cp-plan-states,
+.cp-plan-tickets {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cp-plan-states > li {
+  padding: 4px 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.cp-plan-ticket {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line-soft);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.cp-plan-ticket > .btn {
+  align-self: flex-start;
+}
+
+.cp-plan-body {
+  white-space: pre-wrap;
+}
+
+.cp-plan-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+}
+
+.cp-plan-restatement {
+  max-height: 240px;
+  overflow: auto;
+  font-size: 11.5px;
+  white-space: pre-wrap;
+}
+
+/* An experiment's Dark Mechanicus source panel: target checkout, preview, requests and the grades brought back. */
+.cp-xr {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.cp-xr .cp-plan-tickets > li {
+  padding: 4px 0;
+  font-size: 13px;
+}
+
+.cp-xr-target .cp-plan-option .ew-mono {
+  overflow-wrap: anywhere;
 }

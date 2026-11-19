@@ -1,0 +1,136 @@
+{
+  "name": "passing-missing-evidence",
+  "description": "A sprint acceptance node accepted with every criterion reviewer-checked and nothing failing, but of the Definition of Done its decision froze (typecheck, test, build) the test check was skipped and build never reported: verification is missing, so the grade is ungraded.",
+  "facts": {
+    "runId": "rn_01m7gf00000000000000000001",
+    "ticketId": "tk_01m453gpad0000000000000001",
+    "attempts": [
+      {
+        "attemptId": "at_01m7ge55kx0000000000000001",
+        "number": 1,
+        "kind": "work",
+        "state": "accepted",
+        "createdAt": "2026-11-01T10:00:00.000Z",
+        "reconciledAt": null,
+        "endedAt": null,
+        "retryLimit": 3,
+        "submittedAt": "2026-11-01T10:08:00.000Z",
+        "decidedAt": "2026-11-01T10:20:00.000Z",
+        "supersededAt": null,
+        "evidence": {
+          "checks": [
+            {
+              "name": "typecheck",
+              "status": "passed",
+              "detail": "ok"
+            },
+            {
+              "name": "test",
+              "status": "skipped",
+              "detail": "left for later"
+            }
+          ],
+          "criteria": [
+            {
+              "criterionId": "c1",
+              "met": true,
+              "note": "ticket 2 verified"
+            }
+          ],
+          "notes": ""
+        },
+        "decision": {
+          "outcome": "accepted",
+          "notes": "looks good",
+          "reasons": [],
+          "decidedBy": "reviewer",
+          "criteria": [
+            {
+              "criterionId": "c1",
+              "met": true,
+              "note": "ticket 2 verified"
+            }
+          ],
+          "requiredChecks": [
+            "typecheck",
+            "test",
+            "build"
+          ]
+        },
+        "criteria": [
+          "c1"
+        ]
+      }
+    ],
+    "retryGrants": [],
+    "grantsKnown": true,
+    "runEnded": null,
+    "cutoff": "2026-11-05T00:00:00.000Z"
+  },
+  "defects": [],
+  "expected": {
+    "verification": {
+      "state": "missing",
+      "reason": "required_evidence_missing",
+      "items": [
+        {
+          "kind": "criterion",
+          "id": "c1",
+          "required": true,
+          "basis": "reviewer_checked",
+          "result": "passed"
+        },
+        {
+          "kind": "check",
+          "id": "typecheck",
+          "required": true,
+          "basis": "reviewer_checked",
+          "result": "passed"
+        },
+        {
+          "kind": "check",
+          "id": "test",
+          "required": true,
+          "basis": "skipped",
+          "result": null
+        },
+        {
+          "kind": "check",
+          "id": "build",
+          "required": true,
+          "basis": "missing",
+          "result": null
+        }
+      ]
+    },
+    "performance": {
+      "verification": {
+        "state": "missing",
+        "evidence": [
+          {
+            "kind": "attempt",
+            "id": "at_01m7ge55kx0000000000000001",
+            "detail": "accepted"
+          },
+          {
+            "kind": "criterion",
+            "id": "tk_01m453gpad0000000000000001",
+            "detail": "c1"
+          },
+          {
+            "kind": "check",
+            "id": "at_01m7ge55kx0000000000000001",
+            "detail": "typecheck"
+          },
+          {
+            "kind": "check",
+            "id": "at_01m7ge55kx0000000000000001",
+            "detail": "test"
+          }
+        ]
+      },
+      "regressions": []
+    },
+    "regressions": []
+  }
+}

@@ -666,7 +666,8 @@ describe('submitAttempt', () => {
       evidence: { checks: [], criteria: [], notes: 'All green' }
     })
     expect(lastEventPayload(ctx, 'attempt.submitted')).toEqual({ attemptId: claimed.attempt.id })
-    expect(pendingOutbox(ctx)).toEqual([`run_history:${epicId}:${runId}`])
+    // The submission's three server-derived handoff checks (SPACE C) are exported with it.
+    expect(pendingOutbox(ctx)).toEqual([...Array<string>(3).fill(`metric_observation:${epicId}:`), `run_history:${epicId}:${runId}`])
     expect(ctx.db.get<{ title: string; body: string }>("SELECT title, body FROM search_index WHERE doc_type = 'attempt'")).toEqual({
       title: 'DM-1 attempt #1',
       body: 'Implemented the schema\n\nAll green'

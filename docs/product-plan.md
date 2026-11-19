@@ -229,7 +229,9 @@ Maintain provider-neutral Markdown instructions and host-specific installation w
 - **Orchestrator:** read the pinned plan, register available host capabilities, select workers, claim ready tickets, schedule work, handle failures, and preserve resumable state.
 - **Worker:** act on one execution packet, stay within scope, return artifacts and test evidence, and report blockers without mutating the plan.
 - **Reviewer:** independently compare submitted results with acceptance criteria; return acceptance or actionable rejection.
-- **Sprint reporter:** summarize outcomes, unresolved decisions, and proposed replanning; advance only under the configured gate policy.
+- **Sprint reporter:** summarize outcomes, unresolved decisions, and proposed replanning; advance only under the configured gate policy. Quote the frozen scorecard, and draw retro experiments from the measured findings.
+
+Measurement duties are split the same way: the session that did the work records its usage (the orchestrator reads host session files, or relays or marks usage unavailable), the per-criterion results of a review decision are the only verification, the orchestrator records experiment progress and creates corrective work only as a draft, and a person alone records satisfaction, rescue time and person's estimates and approves anything. No role grades: the server computes every grade ([space-grading.md](space-grading.md#who-records-checks-and-reviews)).
 
 Ticket prose and retrieved documents are task data. They do not override installed skill rules, host permissions, or transition validation. Record skill version on runs for reproducibility.
 
@@ -246,6 +248,14 @@ Clicking a plan opens its ticket dependency graph in the main workspace and high
 Show sprints as labeled graph regions. Display containment separately from blocking edges. Users can add dependencies, move tickets between draft sprint regions, and edit Markdown plus structured metadata. Every invalid edit returns a concrete reason; moving a node visually never changes execution order by itself.
 
 Separate Draft and Saved views with visible Save and Discard controls and an unsaved-change indicator. Show which saved revision an active run uses, and explain blocked tickets as execution details. Save and Start are distinct actions. Completed epics open read-only, with no Reopen action; agents can use historical content to author a new epic.
+
+### Scorecards and the Metrics dashboard
+
+Every ticket, sprint, run and epic gets a grade under a versioned Dark Mechanicus policy informed by the SPACE framework (it is not an official SPACE formula): seven equally weighted components, letters A–F, Ungraded without reviewed verification, Provisional when incomplete, and an F cap on a confirmed mandatory failure. Missing telemetry stays missing, never zero. The rules, and what is SPACE's and what is Dark Mechanicus's own choice, are in [space-grading.md](space-grading.md).
+
+- **Scorecard tabs.** A ticket's panel, each sprint report (Report, Scorecard and Improvement tabs) and the epic workspace (Graph, List, Scorecard) show the grade, its components with their evidence, tokens, time and coverage. A report's scorecard is frozen when the report is submitted and never changes; later records show only in a dated reassessment.
+- **Metrics dashboard.** A **Metrics** link with a chart icon sits directly below the MCP indicator in the sidebar footer while an initialized folder is selected. It opens the folder's dashboard: the grade distribution by status (letters counted, never averaged), totals over the epics that executed work with their coverage, one row per epic (opening that epic's Scorecard), the sprint trend with each entry's run and why it is or is not comparable, and the top gaps (each opening its ticket's Scorecard). Last comes a Measurement capabilities table, which is not part of the summary: for each built-in agent, whether its tokens and active time are `Read from the host` or `Not readable` and why, and a `Custom agents` row that is `Not readable`, so usage a host cannot report reads unavailable unless real numbers are relayed over MCP, never zero. It loads when opened and on Refresh, never on a timer, and keeps its place across a reload. Agents read the same summary with `get_metrics_summary`.
+- **Corrective work.** The Improvement tab turns a retro's experiments into DRAFT work in this repository, or, for the Dark Mechanicus source, into an epic in that project's own checkout that it runs separately ([corrective work runbook](runbooks/corrective-work.md)). Nothing is saved, run or approved without the person.
 
 ### Deferred deletion
 

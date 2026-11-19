@@ -1,0 +1,11 @@
+REAL  OMP session file copy: 2353439 bytes, sha256 0a7e3e42ea4774939bcddbe2dc5993365ee58f97668e5ce29a939132920553c4
+REAL  host=omp thread=main samples=109 input=1830 cached_input=15918692 output=54952 reasoning=missing(host_unavailable) total=16191785 activeMs=732676
+REPLAY host=omp thread=main samples=3 input=723 cached_input=66418 output=930 reasoning=missing(host_unavailable) total=102660 activeMs=11000
+REPLAY host=omp thread=subagent(parent main) samples=6 input=12 cached_input=216607 output=14077 reasoning=missing(host_unavailable) total=350475 activeMs=201000
+REPLAY host=omp thread=subagent(parent DM-1Worker) samples=1 input=2 cached_input=11839 output=262 reasoning=missing(host_unavailable) total=36423 activeMs=8000
+REPLAY host=omp thread=subagent(parent main) samples=2 input=528 cached_input=120611 output=12034 reasoning=missing(host_unavailable) total=154620 activeMs=29000
+REPLAY host=claude_code thread=main samples=4 input=12 cached_input=54839 output=737 reasoning=missing(host_unavailable) total=57936 activeMs=9000
+REPLAY host=claude_code thread=subagent(parent main) samples=2 input=6 cached_input=5000 output=3400 reasoning=missing(host_unavailable) total=13506 activeMs=6000
+REPLAY host=codex cumulative running totals 12800 -> 26700 -> 26700 -> 41600; deltas 12800 + 13900 + 0 + 14900 = 41600 (each token counted once)
+MISSING support table: omp: tokens host, time host; claude: tokens host, time host; codex: tokens unavailable, time unavailable; cursor: tokens unavailable, time unavailable; autonomous: tokens unavailable, time unavailable
+MISSING a stream whose provider left categories out: tokens_input=150 tokens_cached_input=missing(host_unavailable) tokens_output=missing(partial_coverage) tokens_reasoning=missing(host_unavailable) tokens_total=missing(partial_coverage)

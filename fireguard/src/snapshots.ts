@@ -39,6 +39,15 @@ async function exists(path: string): Promise<boolean> {
 }
 
 /**
+ * Removes a directory tree. On Windows a process killed a moment ago can hold its working
+ * directory for some tens of milliseconds after it has ended (EBUSY, EPERM), so Node's own retry
+ * for these errors tries again up to 10 times, waiting 100 ms longer each time (5.5 s at most).
+ */
+export function removeTree(dir: string): Promise<void> {
+  return rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+}
+
+/**
  * The `node_modules` directories every snapshot links to: each one git ignores (top-level and
  * nested), plus a top-level `node_modules` git does not ignore because it is a symlink.
  */
@@ -117,7 +126,7 @@ export async function snapshotCommittedTree(options: {
   liveRoots.add(root);
   const dispose = async (): Promise<void> => {
     liveRoots.delete(root);
-    await rm(root, { recursive: true, force: true });
+    await removeTree(root);
   };
   try {
     const env = { ...process.env, GIT_INDEX_FILE: join(root, 'index') };
