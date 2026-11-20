@@ -8,4 +8,4 @@ scope.topics: [time-box, fallback-claim]
 priority: 80
 ---
 
-Claims: verify saved preflight source/revision, capability, OS/runtime, fixtures, child tools, integrity, offline access, consent, cost; recheck changes. Keep offline node_modules; no speculative npm ci. Only pinned, verified, plan-listed local/user tools install unattended with consent; others need human approval. Missing checks: bounded GO/NO-GO, not worker failure. Split >5–10m via draft/Save; no mini-epics.
+Before claim, verify revision, capability, consent/cost; invoke needed Node/npm/Git in actual worker shell/cwd and prove child PATH/pinned dependencies, not parent success. Check Windows/native permissions; recheck changes. Fixtures need unique resources and owned cleanup, not shared snapshots. Keep offline node_modules; installs follow planner preflight. Missing prerequisites: bounded GO/NO-GO; see time-box exceptions.

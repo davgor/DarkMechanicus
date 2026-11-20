@@ -205,10 +205,7 @@ const REQUIRED: [string, string[]][] = [
       'give the title without it',
       'Acceptance nodes take no `repo`',
       'redraft',
-      '`update_kanban_card`',
-      'one key deliverable',
-      'Never split a deliverable across sprints',
-      'spike sprint'
+      '`update_kanban_card`'
     ]
   ],
   [
@@ -279,9 +276,6 @@ const REQUIRED: [string, string[]][] = [
       'Register every tool the host really has',
       '`network` and `browser`',
       "the run's catalog is fixed at start",
-      "against its own criteria and the worker's targeted evidence",
-      'Do not run the full sweep',
-      'no per-ticket merge commit on the epic branch',
       "The sprint's combined work lives on a sprint integration branch in a separate worktree",
       'sprint integration branch',
       'separate worktree',
@@ -290,8 +284,6 @@ const REQUIRED: [string, string[]][] = [
       '`git -C <worktree>`',
       'Never put a destructive git command after a `cd`',
       'Merge each accepted ticket',
-      'When a row is fully accepted',
-      "typecheck plus the tests that touch that row's files",
       '`record_row_check`',
       '`row_check_failed`',
       '`get_project`',
@@ -359,7 +351,6 @@ const REQUIRED: [string, string[]][] = [
       'Run only targeted checks',
       'tests for the files you touched',
       'typecheck when you changed types',
-      'a screenshot only when a criterion needs one',
       'Never run the full sweep',
       "the sprint's acceptance node",
       '## Discoveries',

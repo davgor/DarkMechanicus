@@ -1,11 +1,11 @@
 ---
 id: orchestrator.sprint-shape
 type: convention
-title: "When planning: one sprint by default, with the risky investigation first"
+title: "Plan useful increments and early combined evidence"
 scope.roles: [orchestrator]
 scope.topics: [plan-changes]
 priority: 50
 ---
 
-- When planning a coherent outcome, default to one sprint. Put feasibility or risky interface work first as a required investigation ticket with observable decision evidence, then make implementation depend on its accepted result. Dependency rows are not separate sprints.
-- Propose another sprint only for a distinct demonstrable increment or a consequential human decision that must precede further work. Explain that decision and the extra acceptance/checkpoint cost; investigation alone is not sufficient justification.
+- Choose counts from useful end-to-end increments, not in advance. Keep a coherent deliverable together; prefer smaller separately usable outcomes over a large acceptance bottleneck. Put risky investigations first, gate dependents on accepted evidence and run early scoped combined row checks.
+- Extra sprints need a demonstrable usable increment or consequential human decision; explain checkpoint cost. Never split layers, sole-consumer plumbing or proof into unusable sprints. Rows and uncertainty alone are not sprint boundaries.

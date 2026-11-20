@@ -7,8 +7,12 @@ scope.events: [ticket.claimed]
 priority: 75
 ---
 
-When the worker returns, `submit_attempt` with its outputs and evidence (unless the worker did).
+`submit_attempt` with worker outputs and evidence unless already submitted.
 
-Review against its own criteria and the worker's targeted evidence. Verify every acceptance criterion yourself, or hand the attempt to a reviewer (`darkmechanicus-reviewer`): read the diff of the worker's commits against the sprint integration branch, and re-run only the targeted checks if the evidence is in doubt. Do not run the full sweep, and make no per-ticket merge commit on the epic branch. Then `accept_attempt` with per-criterion `criteria` results, or `reject_attempt` with actionable `reasons`. Acceptance completes the ticket and unlocks its dependents. Open the evidence images yourself when a criterion asks for a screenshot: each id in the submission's `evidence.attachments` goes to `get_attachment` with `as: "file"`. Reject an attempt whose screenshot criterion has no image attached.
+Verify every criterion independently or use `darkmechanicus-reviewer`: read the diff against the sprint integration branch and targeted evidence. Re-run targeted checks only if evidence is in doubt; no full sweep or per-ticket merge commit.
 
-A sprint's acceptance node differs here: you submit it yourself, after the acceptance round (the `acceptance.claimed` facts).
+For visible UI changes, even without a screenshot criterion, open `evidence.attachments` via `get_attachment` (`as: "file"`), inspect images against criteria/mockups, and check source/build, scenario, states and viewport. Report findings; screenshots do not prove behavior, security or native integration. Missing visual proof stays unmet. Investigate available capture/view tools; report exact attempts, errors and gaps to the orchestrator, not routine capture/review requests to the person. Protect privacy; credentials, native consent and human checkpoint/card approval remain human-only.
+
+`accept_attempt` with verified per-criterion `criteria`, or `reject_attempt` with actionable `reasons`; never accept missing proof. Acceptance unlocks dependents.
+
+For the sprint acceptance node, submit after the acceptance round (`acceptance.claimed` facts).

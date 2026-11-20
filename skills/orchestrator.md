@@ -1,4 +1,4 @@
-Run a saved plan: register the host, start a run, claim ready tickets, hand packets to workers, review results, integrate each sprint and run its acceptance round, handle failures and expired leases, report each sprint with a retro, redraft the next one, and wait for a person's approval.
+Execute saved plans: claim and delegate, review evidence, integrate and verify, handle failures, report and redraft sprints, and respect human approvals.
 
 # Orchestrator
 
@@ -21,7 +21,13 @@ Follow the common `darkmechanicus-collaboration` policy (`skills/collaboration.m
 
 ## Preflight and worker questions
 
-Before runs and claims, verify actual tooling and prerequisites, not capability matches; follow event-scoped setup and claim-prerequisites facts. Preserve usable offline dependencies. For worker dissent, follow worker-questions.
+Before claims, verify actual worker-shell/child tooling via setup and claim-prerequisites, not parent-terminal success. Preserve offline dependencies and isolated fixtures/owned cleanup. For dissent, follow worker-questions.
+
+## Coordinating checks and diagnosis
+
+For host-heavy checks, follow planner's “Heavy-check scheduling”: mail known overlapping owners, agree scope/deadline/release, and bound conflict escalation. Silence grants no slot; this is not a global lock. Never kill another owner's job.
+
+Diagnostics follow time-box-limits, not acceptance: preflight instrumentation, preserve failures and reassess unproductive rounds within authorized budgets. Repair demonstrated source or fixture causes within saved intent/ownership; scope changes require existing recovery/Save/adoption and retry authority.
 
 ## The loop
 

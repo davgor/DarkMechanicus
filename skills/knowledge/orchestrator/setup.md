@@ -12,4 +12,4 @@ priority: 95
 3. Pick the epic (`list_epics`, `get_epic`) and read its saved plan with `get_plan` (`view: "saved"`). Execution uses only saved revisions.
 4. Register the host (`orchestrator.register-host`), perform the preflight below, then start the run (`orchestrator.start-run`).
 
-Before start_run verify saved tooling against host, revision and worker child-process executables; check integrity, offline access, consent and cost. Registration is not proof. Missing prerequisites need bounded GO/NO-GO preparation, not an ordinary run.
+Before start_run, verify saved tooling in the actual worker shell and children (needed Node/npm/Git paths, pinned dependencies, Windows/native capabilities), integrity, offline access, consent and cost. Registration/parent-shell success is not proof. Missing prerequisites need bounded GO/NO-GO preparation; follow claim-prerequisites.
