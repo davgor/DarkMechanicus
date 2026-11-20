@@ -28,7 +28,7 @@ Before claims, verify actual worker-shell/child tooling via setup and claim-prer
 
 For host-heavy checks, follow planner's “Heavy-check scheduling”: mail known overlapping owners, agree scope/deadline/release, and bound conflict escalation. Silence grants no slot; this is not a global lock. Never kill another owner's job.
 
-Diagnostics follow time-box-limits, not acceptance: preflight instrumentation, preserve failures and reassess unproductive rounds within authorized budgets. Repair demonstrated source or fixture causes within saved intent/ownership; for scope changes mid-sprint, save and adopt a revision yourself with a reason (adopt-revision); retries need retry authority.
+Diagnostics follow time-box-limits, not acceptance: preflight instrumentation, preserve failures and reassess unproductive rounds within authorized budgets. Repair demonstrated source or fixture causes within saved intent/ownership; mid-sprint scope changes: save and adopt with a reason (adopt-revision); retries need retry authority.
 
 ## The loop
 
