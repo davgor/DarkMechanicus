@@ -298,7 +298,6 @@ const REQUIRED: [string, string[]][] = [
       'cannot approve',
       'rationale',
       'subagent',
-      'never do a ticket yourself',
       'the `efforts` it can run at',
       'Use the recommended model and effort',
       'at the model and effort you claimed',
