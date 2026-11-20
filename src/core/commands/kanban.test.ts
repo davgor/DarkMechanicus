@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { KanbanPacket } from '../../shared/domain/kanban'
+import type { PushedContext } from '../../shared/domain/knowledge'
 import { createHarness, type Harness } from '../../test/workspaceHarness'
 import { LIMITS } from '../schemas'
 import type { Workspace } from '../workspace'
@@ -125,7 +126,7 @@ describe('kanban card command input', () => {
 })
 
 /** A card the person created and pressed Play on, claimed by an orchestrator session. */
-async function claimed(leaseSeconds?: number): Promise<{ packet: KanbanPacket; claimToken: string }> {
+async function claimed(leaseSeconds?: number): Promise<{ packet: KanbanPacket & PushedContext; claimToken: string }> {
   const card = await desktop.createKanbanCard({ title: 'Isolated fix', acceptanceCriteria: ['It is fixed'] })
   await desktop.playKanbanCard({ cardId: card.id })
   const packet = await harness
@@ -167,6 +168,39 @@ describe('kanban card lifecycle commands', () => {
       ['KB-1', 'Fixed the isolated bug.', ['0123abc']]
     ])
   })
+})
+
+describe('kanban progress alarms', () => {
+
+  it('keeps a productive DM-820-style worker on its original card and claim beyond ten minutes', async () => {
+    const { packet, claimToken } = await claimed()
+    const watchdog = packet.context?.facts.find((fact) => fact.id === 'orchestrator.time-box')
+    expect(watchdog?.body).toMatch(/productive.*continue.*same.*claim/i)
+    const worker = harness.open('worker')
+    const orchestrator = harness.open('orchestrator')
+    for (const progressNote of [
+      '5-minute check: consumer regressions RED then GREEN; implementing delivery; next targeted tests; no blockers.',
+      '10-minute alarm: 48 targeted tests pass; finishing criteria; next full verification; no blockers.',
+      'Subsequent alarm: authorized long-running verification still progressing; next check result; no blockers.'
+    ]) {
+      harness.clock.advanceSeconds(300)
+      await worker.heartbeatKanbanCard({ attemptId: packet.attemptId, claimToken, progressNote })
+      const inspected = await orchestrator.getKanbanCard({ cardId: packet.cardId })
+      expect(inspected.lane).toBe('in_progress')
+      expect(inspected.attempts).toHaveLength(1)
+      expect(inspected.attempts[0]).toMatchObject({ id: packet.attemptId, state: 'running', progressNote })
+    }
+    await orchestrator.submitKanbanCard({
+      attemptId: packet.attemptId, claimToken, outputs: { summary: 'Original scope and verification completed.' }
+    })
+    const reviewed = await desktop.getKanbanCard({ cardId: packet.cardId })
+    expect(reviewed.lane).toBe('ready_for_review')
+    expect(reviewed.attempts.map((attempt) => [attempt.id, attempt.state])).toEqual([[packet.attemptId, 'submitted']])
+    expect(await desktop.listEpics()).toEqual([])
+  })
+})
+
+describe('kanban card kick-back commands', () => {
 
   it('kicks a card back to the same orchestrator, whose next claim lists the comment', async () => {
     const { packet, claimToken } = await claimed()

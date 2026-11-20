@@ -111,6 +111,19 @@ describe('kanban guidance steps', () => {
     expect(handoff).toMatch(/never (put it )?in(to)? a commit, comment[^.]* or note/i)
   })
 
+  it('hands off an alarm, not a worker deadline, and keeps the same card and claim while productive', () => {
+    const text = kanbanGuidance(CARD_ID)
+    const handoff = stepNaming(text, /^3\. /)
+    expect(handoff).toMatch(/5-minute.*10-minute.*alarm/i)
+    expect(handoff).toMatch(/not.*worker deadline/i)
+    expect(text).toMatch(/productive.*continue.*same.*claim/i)
+    expect(text).toMatch(/single card.*not.*unsolicited epic.*Save/i)
+    const workerGuide = text.slice(text.indexOf('=== Worker guidance'))
+    expect(workerGuide).toMatch(/progress.*current operation.*expected next result.*blockers/i)
+    expect(workerGuide).toMatch(/do not.*stop.*solely.*alarm/i)
+    expect(text).toMatch(/stalled.*(?:evidence|observation)/i)
+  })
+
 })
 
 describe('kanban guidance guides', () => {

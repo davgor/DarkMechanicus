@@ -80,6 +80,59 @@ describe('built-in knowledge selection', () => {
   })
 })
 
+describe('progress supervision delivered to orchestrators', () => {
+  it.each(['ticket.claimed', 'acceptance.claimed', 'kanban.claimed', 'run.recovery'])(
+    'delivers productive-worker continuation and evidence-led stall diagnosis for %s',
+    (event) => {
+      const result = selectFacts(merged.facts, { role: 'orchestrator', event, budgetTokens: DEFAULT_CONTEXT_BUDGET })
+      const watchdog = result.facts.find((fact) => fact.id === 'orchestrator.time-box')?.body ?? ''
+      const limits = result.facts.find((fact) => fact.id === 'orchestrator.time-box-limits')?.body ?? ''
+      expect(result.omitted).toEqual([])
+      // These are the decisions the recipient must be able to make, not a simulated scheduler.
+      expect(watchdog).toMatch(/5-minute.*10-minute.*alarm/i)
+      expect(watchdog).toMatch(/progress.*current operation.*expected next result.*blockers/i)
+      expect(watchdog).toMatch(/productive.*continue.*same.*claim/i)
+      expect(watchdog).toMatch(/elapsed time alone.*not.*(?:fail|stop)/i)
+      expect(limits).toMatch(/stalled.*hypothesis.*observation.*intervention.*reason/i)
+      expect(limits).toMatch(/long-running.*authorized deadline.*not.*stalled/i)
+      expect(limits).toMatch(/consent.*cost.*cleanup.*lease fencing/i)
+    }
+  )
+
+  it('pulls compatible time-box guidance without a saved exception or forced epic for a single card', () => {
+    const result = selectFacts(merged.facts, {
+      role: 'orchestrator', topics: ['time-box'], budgetTokens: DEFAULT_CONTEXT_BUDGET
+    })
+    const text = result.facts.map((fact) => fact.body).join('\n')
+    expect(result.omitted).toEqual([])
+    expect(text).toMatch(/no.*(?:saved exception|pre-saved exception).*productive/i)
+    expect(text).toMatch(/single card.*(?:epic|Save)/i)
+    expect(text).not.toMatch(/default 10-minute deadline|Beyond 10 minutes needs|fits? .*5[–-]10 minute/i)
+  })
+
+  it('delivers bounded stall intervention rather than clock-only failure, including recovery', () => {
+    const selected = selectFacts(merged.facts, {
+      role: 'orchestrator', event: 'run.recovery', budgetTokens: DEFAULT_CONTEXT_BUDGET
+    })
+    const limits = selected.facts.find((fact) => fact.id === 'orchestrator.time-box-limits')?.body ?? ''
+    expect(limits).toMatch(/two rounds closing no gap.*reassess.*blocker/i)
+    expect(limits).toMatch(/intervention.*recorded reason\/evidence/i)
+    expect(limits).toMatch(/Actual failures.*partial artifacts\/unmet criteria.*safe containment/i)
+  })
+
+  it('delivers long-check supervision through final-validation-ci as well as claim guidance', () => {
+    const selected = selectFacts(merged.facts, {
+      role: 'orchestrator', topics: ['final-validation-ci'], budgetTokens: DEFAULT_CONTEXT_BUDGET
+    })
+    const text = selected.facts.map((fact) => fact.body).join('\n')
+    expect(text).toMatch(/alarms are not deadlines or saved-exception gates/i)
+    expect(text).toMatch(/immutable head.*genuine authorized limits/i)
+    expect(text).toMatch(/claim.*live reporter.*secret claim token and heartbeats/i)
+    expect(text).toMatch(/source change invalidates.*artifact/i)
+    expect(text).not.toMatch(/Only.*noninterruptible.*may exceed.*time box/i)
+  })
+})
+
 describe('the orchestrator kernel', () => {
   it('is at most 800 words', () => {
     expect(kernelSource.trim().split(/\s+/).length).toBeLessThanOrEqual(800)

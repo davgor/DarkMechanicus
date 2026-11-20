@@ -179,10 +179,10 @@ describe('final validation and delivery guidance', () => {
     return parsed.fact.body
   }
 
-  it('limits long validation to declared checks on immutable CI heads and accounts for every outcome', () => {
+  it('supervises long validation on immutable CI heads within real limits and accounts for every outcome', () => {
     const body = fact('final-validation-ci')
     for (const phrase of [
-      'noninterruptible', 'saved plan', 'immutable head', 'ordinary checks', 'local',
+      'alarms are not deadlines', 'genuine authorized limits', 'immutable head', 'ordinary checks', 'local',
       'live reporter', 'claim token', 'heartbeat', 'before claiming acceptance',
       'pass', 'failure', 'tool error', 'source change', 'new head once', 'exact base and head'
     ]) expect(body).toContain(phrase)
@@ -383,11 +383,12 @@ const REQUIRED: [string, string[]][] = [
       'worktree',
       'sprint integration branch',
       '`git -C <worktree>`',
-      'Run only targeted checks',
-      'tests for the files you touched',
-      'typecheck when you changed types',
-      'Never run the full sweep',
-      "the sprint's acceptance node",
+      'Inside an epic, run targeted tests',
+      'typecheck when types changed',
+      'Leave the full sweep',
+      'sprint acceptance',
+      'an isolated card runs its complete Definition of Done and repository delivery gate',
+      'Neither alarm timing nor card/tool substitutions waive verification',
       '## Discoveries',
       'structured notes',
       'a title and a reason',
@@ -717,5 +718,24 @@ describe('skillBody', () => {
 
   it('refuses a name that is not a shipped skill, so a typo cannot ship an empty guide', () => {
     expect(() => skillBody('orchestrater')).toThrow(/no shipped skill named orchestrater/i)
+  })
+})
+
+describe('single-card progress supervision skills', () => {
+  it('sizes the shipped planner by cohesion rather than forcing an epic at an alarm interval', () => {
+    const body = skillBody('planner')
+    expect(body).toMatch(/Size by cohesion, dependencies and reviewability, not.*alarm interval/i)
+    expect(body).toMatch(/productive single-worker card.*without decomposition.*unsolicited epic.*Save prerequisite/i)
+    expect(body).toMatch(/never grow a real deadline retroactively/i)
+    expect(body).not.toMatch(/fits a 5[–-]10 minute active worker window|Only.*exceptions.*exceed the window/i)
+  })
+
+  it('gives the shipped worker continuation and honest failure reporting without waiving isolated-card gates', () => {
+    const body = skillBody('worker')
+    expect(body).toMatch(/productive workers continue.*same assignment and claim/i)
+    expect(body).toMatch(/Do not self-stop or fail solely at an alarm/i)
+    expect(body).toMatch(/report actual failures honestly/i)
+    expect(body).toMatch(/isolated card runs its complete Definition of Done and repository delivery gate/i)
+    expect(body).toMatch(/Stop on `expired_claim` or `stale_claim`/i)
   })
 })

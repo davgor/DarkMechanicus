@@ -119,6 +119,7 @@ export function cliInstructions(options: InstructionOptions): string {
       : []),
     ...(options.reach === undefined ? folderGrant(options.role) : []),
     saving,
+    'Save applies only to plan changes. An authorized single card must not wait on an unsolicited epic or its Save; supervisory alarms do not change that authorization.',
     '',
     'To attach a screenshot, save it as a PNG or JPEG in the project, the temp folder or the screenshots folder, run `add_attachment` with its `path`, a `label` and a `purpose` of `evidence` or `reference`, and pass the returned id in the `attachments` of the record. On Windows, put the JSON in a file and run `call <command> --args-file <path>`.',
     '',

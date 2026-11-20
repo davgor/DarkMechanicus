@@ -1,13 +1,13 @@
 ---
 id: orchestrator.time-box
 type: procedure
-title: "Five-minute check and bounded stop for every ticket and card attempt"
+title: "Supervise worker progress at five and ten minutes"
 scope.roles: [orchestrator]
 scope.events: [ticket.claimed, acceptance.claimed, kanban.claimed, run.recovery]
 scope.topics: [time-box]
 priority: 88
 ---
 
-- Record start including setup, 5-minute checkpoint, default 10-minute deadline and criterion gaps. A preclaim saved investigation/verification exception uses its finite limits (time-box-limits). Coordination and delegates share the budget; heartbeats, handoffs and new attempts never reset unfinished work's clock.
-- At 5 minutes assess evidence and feasibility, not activity. At the authorized deadline stop expansion, collect partial artifacts and report **not finished** with unmet criteria. Use `fail_attempt` / `fail_kanban_card`, recovery and draft/Save/adoption or retro/redraft for remainder; no silent continuation. A probe mistake alone needs no revision if correction fits scope and budget.
-- Report independently accepted outcomes, evidence/gaps, elapsed time and measured usage/cost. Unmetered billed cost is **unknown**, not zero. Missing consent or an unmeterable accepted cost cap needs a prerequisite decision. Lease length and code volume are not progress.
+- Log start/setup and gaps; schedule a 5-minute check and 10-minute alarm, then every 5 minutes. Alarms supervise, not terminate.
+- Obtain progress/evidence, current operation, expected next result and blockers. Productive workers continue on the same assignment and claim. Elapsed time alone must not stop/fail, decompose or reset attempts. No saved exception for productive work; a single card never waits on an unsolicited epic Save. Diagnose stalls under time-box-limits.
+- Report outcomes/gaps, elapsed time and measured usage/cost; unmetered cost is **unknown**. Missing consent/unmeterable caps need a decision. Handoffs never erase time; activity is not progress. Never claim completion to avoid alarms.

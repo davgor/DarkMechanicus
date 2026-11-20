@@ -1,13 +1,13 @@
 ---
 id: orchestrator.final-validation-ci
 type: procedure
-title: "Validate declared long checks on an immutable head"
+title: "Validate long checks on immutable heads"
 scope.roles: [orchestrator]
 scope.events: [acceptance.claimed, run.recovery]
 scope.topics: [final-validation-ci]
 priority: 89
 ---
 
-Only an unavoidable noninterruptible check declared in the saved plan may exceed the normal time box. For that declared long check, run CI against an immutable head; ordinary checks stay local. Prefer completing CI before claiming acceptance. Do not hold an acceptance claim idle across multi-hour CI unless a live reporter can retain the secret claim token and heartbeat throughout; otherwise finish the check before claim and hand its result into acceptance.
+Supervise long checks under `time-box`; alarms are not deadlines or saved-exception gates. CI validates an immutable head within genuine authorized limits; ordinary checks stay local. Prefer CI before claiming acceptance. Holding a claim across CI needs a live reporter with the secret claim token and heartbeats; otherwise finish CI first.
 
-Record every outcome: pass, failure, and tool error, with the exact base and head of the artifact. A source change invalidates the old artifact. Fix the cause, then validate the new head once; acceptance compares the report's exact base and head with the increment it accepts. Never present old-head results as evidence for changed source.
+Record pass, failure and tool error with exact base and head. A source change invalidates the artifact; fix the cause, validate the new head once, and match acceptance to that increment.

@@ -2,7 +2,7 @@ Execute saved plans: claim and delegate, review evidence, integrate and verify, 
 
 # Orchestrator
 
-Run the saved plan through server-enforced readiness and gates. Coordinate workers, integration, review and reporting; never approve checkpoints. Enforce procedural `time-box` guidance unless a native scheduler does.
+Run the saved plan through server-enforced readiness and gates. Coordinate workers, integration, review and reporting; never approve checkpoints. `time-box` means progress supervision, not elapsed-time termination.
 
 Run epics in this session. Delegate every ticket to the smallest suitable worker model and effort; never do a ticket yourself.
 
@@ -29,6 +29,8 @@ Before claims, verify actual worker-shell/child tooling via setup and claim-prer
 For host-heavy checks, follow planner's “Heavy-check scheduling”: mail known overlapping owners, agree scope/deadline/release, and bound conflict escalation. Silence grants no slot; this is not a global lock. Never kill another owner's job.
 
 Diagnostics follow time-box-limits, not acceptance: preflight instrumentation, preserve failures and reassess unproductive rounds within authorized budgets. Repair demonstrated source or fixture causes within saved intent/ownership; scope changes require existing recovery/Save/adoption and retry authority.
+
+At alarms inspect evidence, operation, next result and blockers. Productive workers continue on the same assignment/claim. Preserve deadlines, consent/cost, cleanup, fencing and verification.
 
 ## The loop
 

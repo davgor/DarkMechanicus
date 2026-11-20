@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createTempRepo, type TempRepo } from '../../test/tempRepo'
 import { nodeFs } from '../repo/nodeFs'
 import type { FsAdapter } from '../repo/types'
-import { withKnowledgeContext } from './push'
+import { knowledgeContext, withKnowledgeContext } from './push'
 
 let repo: TempRepo
 
@@ -43,6 +43,23 @@ describe('withKnowledgeContext', () => {
     ])
     expect(result.context).not.toHaveProperty('layers')
   })
+
+  it.each(['ticket.claimed', 'acceptance.claimed', 'kanban.claimed', 'run.recovery'])(
+    'pushes the same supervision rules as the time-box pull for %s',
+    async (event) => {
+      const pushed = await withKnowledgeContext(core('orchestrator'), { attemptId: 'same-claim' }, event)
+      const pulled = await knowledgeContext(core('orchestrator'), { topics: ['time-box'] })
+      for (const id of ['orchestrator.time-box', 'orchestrator.time-box-limits']) {
+        const fact = pushed.context?.facts.find((candidate) => candidate.id === id)
+        expect(fact, `${event}: ${id}`).toBeDefined()
+        expect(fact).toEqual(pulled.facts.find((candidate) => candidate.id === id))
+      }
+      expect(pushed.attemptId).toBe('same-claim')
+      expect(pushed.context?.omitted).toEqual([])
+      expect(pushed.context?.facts.find((fact) => fact.id === 'orchestrator.time-box')?.body)
+        .toMatch(/productive.*continue.*same.*claim/i)
+    }
+  )
 
   it('leaves the result alone for any other role', async () => {
     const result = { id: 'r1' }

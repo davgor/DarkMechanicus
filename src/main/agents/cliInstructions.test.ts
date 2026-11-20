@@ -59,6 +59,12 @@ describe('cliInstructions', () => {
   it('names the role it was issued', () => {
     expect(cliInstructions({ cli: CLI, role: 'worker', allowSave: false })).toContain('**worker**')
   })
+
+  it.each(['orchestrator', 'worker'] as const)('does not make an authorized single card wait on an unsolicited epic Save for %s', (role) => {
+    const guidance = cliInstructions({ cli: CLI, role, allowSave: false })
+    expect(guidance).toMatch(/Save.*only.*plan/i)
+    expect(guidance).toMatch(/authorized single card.*not.*unsolicited epic.*Save/i)
+  })
 })
 
 describe('cliInstructions: a project-less chat', () => {

@@ -83,6 +83,7 @@ export function kanbanGuidance(cardId: string): string {
     '1. Call get_capabilities first and confirm your role is orchestrator.',
     `2. Call claim_kanban_card with cardId ${card}. It returns the card's packet: its content, the branch, every earlier kick-back comment and a claim token. If the packet's card lists attachments, they are the card's reference images or mockups: fetch each with get_attachment and give the worker what they show.`,
     '3. Start one worker subagent with three things written into the message you give it: the whole packet, the worker guidance below, and this rule: do not call submit_kanban_card or fail_kanban_card, report back to the orchestrator instead. ' +
+      'The 5-minute check and 10-minute alarm are supervisory, not a worker deadline: productive workers continue on the same assignment and claim. Report progress/evidence, current operation, expected next result and blockers; investigate suspected stalled workers from evidence. A single card must not wait on an unsolicited epic or its Save. ' +
       'The claim token is a secret: give it only to the worker, and never put it in a commit, comment, report or note.',
     '4. The worker works on the checked-out branch, commits there, calls heartbeat_kanban_card with a progress note every heartbeatIntervalSeconds, and reports back to you. It does not submit the card.',
     '5. Review what the worker reports against the acceptance criteria of the card and the Definition of Done in the packet. Send it back to the worker until it meets them. ' +
