@@ -602,7 +602,7 @@ Recorded on 2026-11-20 on macOS from source only: no `omp` model session was sta
 
 **Decision: the app passes no `--approval-mode`** (`ompLaunch` in `src/main/terminals/terminalLaunchSpec.ts` is unchanged). Every Skitarii chat, orchestrator and worker included, runs under the person's own OMP `tools.approvalMode`. DM-902 set out to stop orchestrator and worker chats from asking before every action, assuming the person's config was always-ask. The source shows the opposite:
 
-- **OMP's default is `yolo`.** With no `tools.approvalMode` in `~/.omp/agent/config.yml` (the person's has none), chats already run without prompts. A flag can only change the mode, and every mode except `yolo` prompts more.
+- **OMP's default is `yolo`.** With no `tools.approvalMode` in `~/.omp/agent/config.yml` (the person's macOS config had none when checked on 2026-11-20; check each machine), chats already run without prompts. A flag can only change the mode, and every mode except `yolo` prompts more.
 - **`always-ask`** is the least-prompting mode that still asks before anything destructive outside the folder. Passing it would stop autonomous orchestrator and worker chats at their first write and their first shell command, and `dm` itself runs through `bash`. That is the hand-holding the card meant to remove.
 - **`always-ask-cached` prompts more than `always-ask`.** It also asks before each file read in a folder not yet granted, and its write grants cover one folder level at a time.
 
