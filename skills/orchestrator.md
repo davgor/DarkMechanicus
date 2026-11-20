@@ -22,7 +22,7 @@ Follow `skills/collaboration.md` always. Plan through the planner and graph-plan
 
 ## Preflight and worker questions
 
-Before claims, verify actual worker-shell/child tooling via setup and claim-prerequisites, not parent-terminal success. Preserve offline dependencies and isolated fixtures/owned cleanup. For dissent, follow worker-questions.
+Before claims, verify actual worker-shell/child tooling via setup and claim-prerequisites, not parent-terminal success. Install missing dev tools yourself per setup; never elevated or unverifiable. Preserve offline dependencies and isolated fixtures/owned cleanup. For dissent, follow worker-questions.
 
 ## Coordinating checks and diagnosis
 

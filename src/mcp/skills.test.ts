@@ -679,6 +679,65 @@ describe('the Fireguard default rule', () => {
   })
 })
 
+/** DM-901: the orchestrator installs pinned dev tools itself, within limits, and every work ticket is agent-verifiable. */
+const INSTALL_AND_VERIFIABILITY_RULES: [string, string, string[]][] = [
+  [
+    'the planner lets the orchestrator install pinned dev tools, records them, and keeps elevation and unverified sources out',
+    planner,
+    [
+      'The orchestrator installs the development tools a ticket needs without asking the person',
+      'project-local, lockfile-pinned dependencies and user-scope tools from the official publisher or a standard package manager',
+      'pinned to a version',
+      'records each install in a ticket or card comment',
+      'anything that needs elevation',
+      'changes to system security settings',
+      'unknown publishers or unverifiable downloads',
+      'never pipe a remote script into a shell',
+      'App-native agent installers still require their own human confirmation'
+    ]
+  ],
+  [
+    'the orchestrator installs missing dev tools itself within the same limits and records each',
+    orchestrator,
+    [
+      'Install missing dev tools yourself per setup; never elevated or unverifiable',
+      'Install missing dev tools yourself without asking: project-local lockfile-pinned, or user-scope',
+      'Never elevated, security-changing, machine-wide, piped-script or unverifiable',
+      'Install a missing dev tool yourself, without asking the person',
+      'never pipe a script into a shell',
+      'Record each install in a ticket or card comment',
+      'Never install anything needing elevation',
+      'use unknown or unverifiable sources'
+    ]
+  ],
+  ['the worker asks the orchestrator, never the person, for a missing tool', worker, ['A missing development tool goes to the orchestrator', 'never ask the person to install one']],
+  [
+    'the planner requires agent-verifiable work-ticket criteria',
+    planner,
+    ["Every work ticket's acceptance criteria must be agent-verifiable", 'The person verifies only at the sprint checkpoint', "belongs in the sprint's acceptance node", '`criterion_needs_person`']
+  ],
+  [
+    'the graph planner requires agent-verifiable work-ticket criteria',
+    skill('graph-planner').body,
+    ["Every work ticket's criteria must be agent-verifiable", 'Human verification happens only at the sprint checkpoint', '`criterion_needs_person`']
+  ],
+  [
+    'the redraft keeps work-ticket criteria agent-verifiable',
+    orchestrator,
+    ["Keep every work ticket's criteria agent-verifiable", "move a criterion that needs a person to the sprint's acceptance node"]
+  ]
+]
+
+describe('dev tool installs and agent-verifiable tickets', () => {
+  it.each(INSTALL_AND_VERIFIABILITY_RULES)('%s', (_rule, text, phrases) => {
+    expect(missingPhrases(text, phrases)).toEqual([])
+  })
+
+  it('no longer sends every tool install to a separate human decision', () => {
+    expect(planner).not.toContain('require a separate human decision, never an automatic fallback')
+  })
+})
+
 describe('splitSkillSource', () => {
   it('splits the description line from the trimmed body and ends the body with a newline', () => {
     expect(splitSkillSource('Does a thing.\n\n# Title\n\nText.\n\n')).toEqual({

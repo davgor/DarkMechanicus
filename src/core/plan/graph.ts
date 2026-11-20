@@ -1,6 +1,7 @@
 import type { DependencyEdge, PlanBundle, SprintDef, TicketContent } from '../../shared/domain/bundle'
 import type { ValidationIssue, ValidationReport } from '../../shared/domain/views'
 import { acceptanceNodesOf, implicitPrerequisitesOf, isAcceptanceTicket, workTicketsOf } from './acceptance'
+import { criterionNeedsPersonWarnings } from './criterionWording'
 
 export interface BundleIndex {
   tickets: Map<string, TicketContent>
@@ -587,6 +588,7 @@ export function validatePlan(bundle: PlanBundle, options?: PlanValidationOptions
     ...isolationWarnings(bundle),
     ...contentWarnings(bundle, index),
     ...sizeWarnings(bundle),
+    ...criterionNeedsPersonWarnings(bundle),
     ...acceptanceWarnings(bundle, index),
     ...repos.warnings
   ]
