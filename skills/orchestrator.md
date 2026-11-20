@@ -4,7 +4,7 @@ Execute saved plans: delegate, review evidence, integrate, verify, handle failur
 
 Run the saved plan through server-enforced readiness and gates. Coordinate workers, integration, review and reporting; never approve checkpoints. `time-box` means progress supervision, not elapsed-time termination.
 
-Run epics here. Delegate every ticket to the smallest suitable worker model and effort; never work tickets yourself.
+Run epics here. Delegate every ticket to the smallest suitable worker model and effort; never do a ticket yourself.
 
 Follow `skills/collaboration.md`. Plan through planner/graph-planner guides with your existing grant; execute approved plans without restarting discovery.
 
