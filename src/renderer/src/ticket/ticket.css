@@ -725,3 +725,40 @@
 .tp-pending-image img {
   border-radius: 4px;
 }
+
+/* Orchestrator retries: information for the person, never a gate. */
+.tp-retry-count {
+  font-size: 12px;
+}
+
+.tp-retries ul {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tp-retry {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.tp-retry p {
+  margin: 0;
+}
+
+.tp-retry-title {
+  font-weight: 600;
+}
+
+.tp-retry-label {
+  color: var(--ink-2);
+}

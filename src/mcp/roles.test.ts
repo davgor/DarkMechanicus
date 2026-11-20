@@ -126,6 +126,8 @@ const ORCHESTRATOR_TOOLS = [
   'submit_sprint_report',
   'redraft_next_sprint',
   'advance_sprint',
+  // ticket.auto_retry: the orchestrator's own bounded retry of a ticket at its retry limit.
+  'retry_ticket',
   // epic.transfer: carrying out a transfer the person queued.
   'start_transfer',
   'record_transfer_item',
@@ -167,7 +169,8 @@ interface ListingCase {
 const LISTINGS: ListingCase[] = [
   { role: 'planner', allowSave: false, tools: PLANNER_TOOLS },
   { role: 'planner', allowSave: true, tools: [...PLANNER_TOOLS, 'save_plan'] },
-  { role: 'orchestrator', allowSave: false, tools: ORCHESTRATOR_TOOLS },
+  // The service decides an orchestrator's save per epic (its own active run), so save_plan is listed either way.
+  { role: 'orchestrator', allowSave: false, tools: [...ORCHESTRATOR_TOOLS, 'save_plan'] },
   { role: 'orchestrator', allowSave: true, tools: [...ORCHESTRATOR_TOOLS, 'save_plan'] },
   { role: 'worker', allowSave: false, tools: WORKER_TOOLS },
   { role: 'worker', allowSave: true, tools: WORKER_TOOLS },

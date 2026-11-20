@@ -1,6 +1,6 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { metricReports } from '../../core/commandSchemas'
+import { adoptionReason, metricReports } from '../../core/commandSchemas'
 import { DomainError } from '../../core/errors'
 import {
   attemptEvidenceInput,
@@ -141,9 +141,9 @@ const RUN_CONTROL_TOOLS = [
   defineTool({
     name: 'adopt_revision',
     description:
-      'Switches a run to a newer saved revision. Allowed only at a checkpoint or while paused, with no open attempts. Unchanged accepted tickets stay accepted; list changed tickets you want kept in carryForward, the rest need new work.',
+      'Switches a run to the epic\'s current saved revision. Allowed while the run is running, paused or at a checkpoint, once no attempts are open (wait for in-flight workers to submit, fail or be reconciled; no pause is needed). reason is required: say what failed and what the revision changes; it is recorded masked in the run\'s activity for the person and blocks nothing. Unchanged accepted tickets stay accepted; list changed tickets you want kept in carryForward, the rest need new work. Fails with `run_not_active` (the run is queued or ended), `conflict` (open attempts, not the current saved revision, or a changed ticket in a passed sprint), `invalid_input` (reason missing or shorter than 20 characters), or `run_not_owned`.',
     kind: 'write',
-    input: { runId, revisionId, carryForward: z.array(ticketId).max(LIMITS.tickets).optional() },
+    input: { runId, revisionId, carryForward: z.array(ticketId).max(LIMITS.tickets).optional(), reason: adoptionReason },
     run: (api, input) => api.adoptRevision(input)
   })
 ]

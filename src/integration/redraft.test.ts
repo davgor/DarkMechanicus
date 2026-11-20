@@ -193,7 +193,7 @@ describe('after the redraft is saved and adopted', () => {
     const result = await orchestrator.redraftNextSprint({ runId: run.runId })
     await orchestrator.savePlan({ epicId: run.epicId, expectedDraftRevision: result.draftRevision })
     const saved = await orchestrator.getPlan({ epicId: run.epicId, view: 'saved' })
-    await orchestrator.adoptRevision({ runId: run.runId, revisionId: saved.revisionId ?? '' })
+    await orchestrator.adoptRevision({ reason: 'Test adoption: the plan changed mid-run.', runId: run.runId, revisionId: saved.revisionId ?? '' })
     return result
   }
 
@@ -231,7 +231,7 @@ describe('validate_plan while the run is on a later sprint', () => {
     const result = await orchestrator.redraftNextSprint({ runId: run.runId })
     await orchestrator.savePlan({ epicId: run.epicId, expectedDraftRevision: result.draftRevision })
     const saved = await orchestrator.getPlan({ epicId: run.epicId, view: 'saved' })
-    await orchestrator.adoptRevision({ runId: run.runId, revisionId: saved.revisionId ?? '' })
+    await orchestrator.adoptRevision({ reason: 'Test adoption: the plan changed mid-run.', runId: run.runId, revisionId: saved.revisionId ?? '' })
     const report = await orchestrator.getSprintReport({ runId: run.runId })
     await harness.open('desktop').approveAndAdvance({ runId: run.runId, reportId: report?.id ?? '' })
   }

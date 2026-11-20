@@ -38,6 +38,7 @@ const ORCHESTRATOR: Capability[] = [
   'epic.branch',
   'epic.transfer',
   'ticket.status',
+  'ticket.auto_retry',
   'host.register',
   'run.start',
   'run.control',
@@ -99,6 +100,7 @@ const DESKTOP: Capability[] = [
   'project.repositories',
   'ticket.status',
   'ticket.retry_grant',
+  'ticket.retry_acknowledge',
   'ticket.delete',
   'run.queue',
   'run.control',
@@ -137,6 +139,7 @@ const AGENT_ONLY = [
   'kanban.launch',
   'kanban.claim',
   'kanban.report',
+  'ticket.auto_retry',
   'metrics.report',
   'metrics.report_run',
   'mail.use'
@@ -173,6 +176,7 @@ describe('capability vocabulary', () => {
         'run.pause_signed_out',
         'run.resume_signed_out',
         'ticket.retry_grant',
+        'ticket.retry_acknowledge',
         'run.queue',
         'epic.delete',
         'ticket.delete',
@@ -277,6 +281,24 @@ describe('backing up the whole database', () => {
   it('is held by the desktop alone, because the copy holds every local mailbox', () => {
     expect(HUMAN_ONLY_CAPABILITIES).toContain('repo.backup')
     expect(ALL_ROLES.filter((role) => capabilitiesForRole(role, { allowSave: true }).includes('repo.backup'))).toEqual(['desktop'])
+  })
+})
+
+describe('retrying a ticket at its retry limit', () => {
+  it("gives ticket.auto_retry to the orchestrator alone, never human-only, never the desktop's", () => {
+    const holders = ALL_ROLES.filter((role) => capabilitiesForRole(role, { allowSave: true }).includes('ticket.auto_retry'))
+    expect(holders).toEqual(['orchestrator'])
+    expect(HUMAN_ONLY_CAPABILITIES).not.toContain('ticket.auto_retry')
+  })
+
+  it("keeps the person's ticket.retry_grant human-only, held by the desktop alone", () => {
+    expect(HUMAN_ONLY_CAPABILITIES).toContain('ticket.retry_grant')
+    expect(ALL_ROLES.filter((role) => capabilitiesForRole(role, { allowSave: true }).includes('ticket.retry_grant'))).toEqual(['desktop'])
+  })
+
+  it('keeps acknowledging an orchestrator retry human-only, held by the desktop alone', () => {
+    expect(HUMAN_ONLY_CAPABILITIES).toContain('ticket.retry_acknowledge')
+    expect(ALL_ROLES.filter((role) => capabilitiesForRole(role, { allowSave: true }).includes('ticket.retry_acknowledge'))).toEqual(['desktop'])
   })
 })
 

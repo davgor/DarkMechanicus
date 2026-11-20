@@ -222,7 +222,8 @@ const SCHEMA_FINGERPRINTS: Record<string, string> = {
   open_plan_draft: 'f7874c5f7d17c6c5',
   // Changed on purpose: the ticket input of add_ticket and update_ticket gained a description on `attachments`, then
   // (DM-171) the optional planned `budget`, then (DM-183) the budget's `basis`.
-  update_plan_draft: '9454c397d40813cf',
+  // Changed on purpose: set_policies gained the optional autoRetryLimit (orchestrator retries per ticket over the epic's runs).
+  update_plan_draft: '2cf98e6a32e28467',
   validate_plan: '3b52b9b5157a2fba',
   save_plan: 'a77f363be76d0e70',
   discard_plan_draft: 'e242b76040271758',
@@ -245,7 +246,7 @@ const SCHEMA_FINGERPRINTS: Record<string, string> = {
   resume_run: 'd481e0f29f2ca1c1',
   cancel_run: 'be49650976f9ddba',
   takeover_run: 'd481e0f29f2ca1c1',
-  adopt_revision: '18e63e4a9fe69b58',
+  adopt_revision: '5930cb03c4ec0d02',
   // Changed on purpose: retro experiments state their concern and may size each piece of proposed work (DM-185).
   submit_sprint_report: '925f676c145f0b42',
   get_sprint_report: '3fe78b4c15e34139',

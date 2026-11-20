@@ -23,6 +23,11 @@ export const CAPABILITIES = [
   'project.repositories',
   'ticket.status',
   'ticket.retry_grant',
+  // The orchestrator's own extra attempt for a ticket at its retry limit (`retry_ticket`), bounded per ticket over
+  // every run of its epic by the plan's `autoRetryLimit`. Never the person's grant: `ticket.retry_grant` stays human-only.
+  'ticket.auto_retry',
+  // The person marking an orchestrator retry as read. It records seeing it and never gates a claim or the run.
+  'ticket.retry_acknowledge',
   'ticket.delete',
   'host.register',
   'run.queue',
@@ -83,6 +88,8 @@ export const HUMAN_ONLY_CAPABILITIES: readonly Capability[] = [
   'run.pause_signed_out',
   'run.resume_signed_out',
   'ticket.retry_grant',
+  // Acknowledging an orchestrator retry records that the person read it: an agent could mark its own retry as seen.
+  'ticket.retry_acknowledge',
   'run.queue',
   'epic.delete',
   'ticket.delete',
@@ -144,6 +151,7 @@ const ORCHESTRATOR: Capability[] = [
   'epic.branch',
   'epic.transfer',
   'ticket.status',
+  'ticket.auto_retry',
   'host.register',
   'run.start',
   'run.control',
@@ -181,6 +189,8 @@ const AGENT_ONLY: readonly Capability[] = [
   'kanban.launch',
   'kanban.claim',
   'kanban.report',
+  // The desktop grants a person's retry with `ticket.retry_grant`; a retry recorded as the orchestrator's is the agent's.
+  'ticket.auto_retry',
   // Agent and host usage is reported by the sessions that did the work; human feedback is a separate desktop input.
   'metrics.report',
   'metrics.report_run',

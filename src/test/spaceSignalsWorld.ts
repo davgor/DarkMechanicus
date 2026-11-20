@@ -112,7 +112,7 @@ export async function signalsWorld(tickets: Record<string, TicketInput>, options
       const edited = await orchestrator.updatePlanDraft({ epicId, ops })
       const saved = await orchestrator.savePlan({ epicId, expectedDraftRevision: edited.draftRevision })
       step()
-      await orchestrator.adoptRevision({ runId, revisionId: saved.revisionId })
+      await orchestrator.adoptRevision({ reason: 'Test adoption: the plan changed mid-run.', runId, revisionId: saved.revisionId })
       await orchestrator.resumeRun({ runId })
       Object.assign(ticket, edited.refMap)
     },

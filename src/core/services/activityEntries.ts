@@ -142,6 +142,21 @@ function runChange(change: EntryOf<'run'>['change'], reason: (event: EventView) 
 
 const reasonOf = (event: EventView): string | null => text(event.payload.reason)
 
+/** Who adopted, as the run's activity names them; any other role is named by its role. */
+const ADOPTERS: Readonly<Record<string, string>> = { orchestrator: 'the orchestrator', desktop: 'the person' }
+
+/**
+ * "Plan revision 5 adopted by the orchestrator: why". An adoption logged before revision numbers, adopters and
+ * reasons were recorded reads "Plan revision adopted".
+ */
+const adoptionOf = (event: EventView): string => {
+  const number = typeof event.payload.revisionNumber === 'number' ? ` ${event.payload.revisionNumber}` : ''
+  const role = text(event.payload.adoptedBy)
+  const by = role === null ? '' : ` by ${ADOPTERS[role] ?? `a ${role} session`}`
+  const why = text(event.payload.reason)
+  return `Plan revision${number} adopted${by}${why === null ? '' : `: ${why}`}`
+}
+
 const reported: RunBody = (event) => ({
   kind: 'report',
   sprintId: text(event.payload.sprintId) ?? '',
@@ -175,6 +190,7 @@ export const RUN_BODIES: Readonly<Record<string, RunBody>> = {
   'run.canceled': runChange('canceled', reasonOf),
   'run.failed': runChange('failed', reasonOf),
   'run.taken_over': runChange('taken_over'),
+  'run.revision_adopted': runChange('revision_adopted', adoptionOf),
   'report.submitted': reported,
   'checkpoint.approved': approved,
   'checkpoint.advanced': advanced

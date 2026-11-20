@@ -427,7 +427,7 @@ describe('DM-170 c4: work stays attributable after adopting a revision that remo
     const { rejectedTry, supersededTry } = ADOPT
     recordObservations(ctx, [outputUsage(ticketTwoScope(rejectedTry), 900), outputUsage(ticketTwoScope(supersededTry), 1500)])
     saveRevision(a, { epicId: ADOPT.epicId, revisionId: ADOPT.r2, number: 2, bundle: makeBundle([[1], [3]]), baseRevisionId: ADOPT.r1 })
-    expect(adoptRevision(ctx, { runId: ADOPT.runId, revisionId: ADOPT.r2 }).superseded).toContain(tid(2))
+    expect(adoptRevision(ctx, { reason: 'Test adoption: the plan changed mid-run.', runId: ADOPT.runId, revisionId: ADOPT.r2 }).superseded).toContain(tid(2))
     a.clock.advanceSeconds(60)
     const wait: ObservationInput = {
       ...outputUsage(ticketTwoScope(null), 0),

@@ -4,6 +4,7 @@ import { DomainError } from '../core/errors'
 import { BUILTIN_KNOWLEDGE } from '../core/knowledge/builtin'
 import { parseFact } from '../core/knowledge/fact'
 import { draftOp } from '../core/schemas'
+import { CRITERION_NEEDS_PERSON } from '../core/plan/criterionWording'
 import { DOMAIN_ERROR_CODES } from '../shared/domain/errors'
 import type { CommandName } from '../shared/domain/api'
 import { ATTEMPT_STATES, RUN_STATES, TICKET_EXECUTION_STATES, WORK_STATUSES } from '../shared/domain/status'
@@ -107,6 +108,7 @@ const TOOLS: Record<string, { method: CommandName; kind: Kind }> = {
   record_experiment_event: { method: 'recordExperimentEvent', kind: 'write' },
   get_checkpoint: { method: 'getCheckpoint', kind: 'read' },
   advance_sprint: { method: 'advanceSprint', kind: 'write' },
+  retry_ticket: { method: 'retryTicket', kind: 'write' },
   get_run_events: { method: 'listEvents', kind: 'read' },
   get_transfer: { method: 'getTransfer', kind: 'read' },
   start_transfer: { method: 'startTransfer', kind: 'idempotent' },
@@ -147,6 +149,7 @@ const HUMAN_ONLY: CommandName[] = [
   'approveWithRedraft',
   'authorizeAutoContinue',
   'grantRetry',
+  'acknowledgeAutoRetry',
   'backupDatabase',
   'deleteEpic',
   'deleteTicket',
@@ -408,7 +411,8 @@ const VOCABULARY = new Set<string>([
   ...TIER_VERDICTS,
   ...GATE_CONDITIONS,
   ...BLOCKER_KINDS,
-  ...DRAFT_OPS
+  ...DRAFT_OPS,
+  CRITERION_NEEDS_PERSON
 ])
 
 const BUILTIN_FACT_BODIES = BUILTIN_KNOWLEDGE.map(({ path, source }) => {

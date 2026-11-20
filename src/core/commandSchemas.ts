@@ -7,6 +7,7 @@ import { STORAGE_MODES } from './repo/storageMode'
 import { AGENT_MAIL_LIMITS } from './services/agentMailStore'
 import { MAX_GRANT_MINUTES, MIN_GRANT_MINUTES } from './services/grants'
 import {
+  ADOPTION_REASON_MIN,
   attachmentPurpose,
   attachmentRef,
   attemptEvidenceInput,
@@ -67,6 +68,16 @@ import { HUMAN_RATING_RANGE, MAX_RESCUE_MINUTES, MIN_FEEDBACK_MINUTES } from '..
 const view = z.enum(['saved', 'draft'])
 const revision = z.number().int().min(0).max(1_000_000_000)
 const note = z.string().max(LIMITS.shortText)
+/**
+ * Why a run adopts a revision: what failed and what the revision changes. Required of every session but the
+ * desktop's, which the service enforces (`services/adoption.ts`); stored masked on `run.revision_adopted`.
+ */
+export const adoptionReason = z
+  .string()
+  .trim()
+  .min(ADOPTION_REASON_MIN)
+  .max(LIMITS.shortText)
+  .describe('Why you adopt: what failed and what the revision changes (20 or more characters). Required for agents.')
 const claimToken = z.string().min(1).max(300)
 const leaseSeconds = z.number().int().min(30).max(86_400)
 const epicRef = z.strictObject({ epicId: stableId })
@@ -400,7 +411,8 @@ export const COMMAND_SCHEMAS = {
   adoptRevision: z.strictObject({
     runId: stableId,
     revisionId: stableId,
-    carryForward: z.array(stableId).max(LIMITS.tickets).optional()
+    carryForward: z.array(stableId).max(LIMITS.tickets).optional(),
+    reason: adoptionReason.optional()
   }),
   recordAttemptMetrics: z.strictObject({
     attemptId: stableId,
@@ -509,6 +521,14 @@ export const COMMAND_SCHEMAS = {
   }),
   authorizeAutoContinue: z.strictObject({ runId: stableId, enabled: z.boolean() }),
   grantRetry: z.strictObject({ runId: stableId, ticketId: stableId }),
+  // The service trims both texts and needs at least 20 characters of each; the length is checked here as given.
+  retryTicket: z.strictObject({
+    runId: stableId,
+    ticketId: stableId,
+    failureReason: z.string().max(LIMITS.shortText),
+    newApproach: z.string().max(LIMITS.shortText)
+  }),
+  acknowledgeAutoRetry: z.strictObject({ runId: stableId, ticketId: stableId, number: z.number().int().min(1).max(1_000) }),
   listEvents: z.strictObject({
     sinceSeq: z.number().int().min(0).optional(),
     limit: z.number().int().min(1).max(500).optional(),

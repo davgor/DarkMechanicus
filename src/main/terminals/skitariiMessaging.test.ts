@@ -13,6 +13,7 @@ import skitariiExtension from '../../../resources/skitarii/extension/index'
 import {
   DM_CLIENT_DESCRIPTOR_ENV,
   DM_CLIENT_LIMITS,
+  DM_RUN_LIMITS,
   createDmClient,
   type DmCallResult,
   type DmClient,
@@ -23,6 +24,9 @@ import {
   type DmMailStatusPage
 } from '../../../resources/skitarii/extension/dmClient'
 import {
+  DM_CALL_DATA_NOTE,
+  DM_CALL_TOOL_NAME,
+  DM_CALL_UNSURE_NOTE,
   INBOX_REMINDER_TEXT,
   INBOX_REMINDER_TYPE,
   MAIL_DATA_NOTE,
@@ -79,7 +83,9 @@ const answers = {
     : { messages: [{ ...meta, body: hostileBody }], snapshotHighWater: input.throughSeq ?? 1, nextCursor: 1, hasMore: false },
   acknowledge_agent_messages: { acknowledged: (input.messageIds || []).map((messageId) => ({ messageId, acknowledgedAt: '2026-11-15T10:02:00.000Z', expiresAt: '2026-11-22T10:02:00.000Z' })) },
   get_agent_mail_status: { pendingCount: 1, messages: [meta], snapshotHighWater: 1, nextCursor: 1, hasMore: false },
-  take_agent_mail_wake: { claimed: false, wakeAttemptId: null, pendingCount: 1 }
+  take_agent_mail_wake: { claimed: false, wakeAttemptId: null, pendingCount: 1 },
+  get_capabilities: { role: 'worker', capabilities: ['ticket.claim'], note: 'grant ' + process.env.DM_SESSION_TOKEN, [process.env.DM_SESSION_TOKEN]: [process.env.DM_SESSION_TOKEN] },
+  claim_ticket: { claimed: input, by: hostileName }
 }
 if (process.env.DM_SESSION_TOKEN.startsWith('revoked')) {
   process.stdout.write(JSON.stringify({ ok: false, error: { code: 'unauthorized', message: 'This grant was withdrawn: ' + process.env.DM_SESSION_TOKEN } }))
@@ -124,7 +130,7 @@ afterEach(() => {
 })
 
 /** Real spawns, each child kept; `nextSpawn` resolves when the next child starts. */
-function realDeps(token = TOKEN, limits = DM_CLIENT_LIMITS): DmClientDeps & { children: ChildProcess[]; nextSpawn: () => Promise<ChildProcess> } {
+function realDeps(token = TOKEN, limits = DM_CLIENT_LIMITS, runLimits = DM_RUN_LIMITS): DmClientDeps & { children: ChildProcess[]; nextSpawn: () => Promise<ChildProcess> } {
   const children: ChildProcess[] = []
   const waiting: ((child: ChildProcess) => void)[] = []
   return {
@@ -138,6 +144,7 @@ function realDeps(token = TOKEN, limits = DM_CLIENT_LIMITS): DmClientDeps & { ch
       return child
     },
     limits,
+    runLimits,
     children,
     nextSpawn: () => new Promise((resolve) => waiting.push(resolve))
   }
@@ -326,16 +333,17 @@ function watch(box: Mailbox, options: { send?: boolean; failNotify?: () => boole
 // --- the tools --------------------------------------------------------------------------------------------------------
 
 describe('Skitarii mail tools', () => {
-  it('registers the five native tools: read approval to look, write approval to send or acknowledge, strict schemas', () => {
+  it('registers the five native tools and dm_call: read approval to look, write approval to change anything, strict schemas', () => {
     const { pi, tools, handlers } = fakePi()
     attachMessaging(pi, createDmClient(realDeps()), fakeTimers())
-    expect(tools.map((tool) => tool.name)).toEqual([...MAIL_TOOL_NAMES])
+    expect(tools.map((tool) => tool.name)).toEqual([...MAIL_TOOL_NAMES, DM_CALL_TOOL_NAME])
     expect(Object.fromEntries(tools.map((tool) => [tool.name, tool.approval]))).toEqual({
       dm_agent_identity: 'read',
       dm_agent_peers: 'read',
       dm_message_send: 'write',
       dm_inbox_read: 'read',
-      dm_inbox_ack: 'write'
+      dm_inbox_ack: 'write',
+      dm_call: 'write'
     })
     for (const tool of tools) {
       expect(tool.loadMode).toBe('essential')
@@ -804,9 +812,117 @@ describe('Skitarii mail in the extension entry', () => {
   it('registers the tools and the watcher with the extension when OMP has them', async () => {
     const { pi, tools, handlers } = fakePi()
     await skitariiExtension(pi as never)
-    expect(tools.map((tool) => tool.name)).toEqual([...MAIL_TOOL_NAMES])
+    expect(tools.map((tool) => tool.name)).toEqual([...MAIL_TOOL_NAMES, DM_CALL_TOOL_NAME])
     expect(handlers.get('before_agent_start')).toHaveLength(1)
     // The mascot's, the watcher's and the client's.
     expect(handlers.get('session_shutdown')).toHaveLength(3)
+  })
+})
+
+// --- dm_call ----------------------------------------------------------------------------------------------------------
+
+/** The JSON a successful dm_call result carries after its fixed note. */
+function callDataOf(result: ToolResult): unknown {
+  expect(result.isError).toBeUndefined()
+  const text = textOf(result)
+  expect(text.startsWith(`${DM_CALL_DATA_NOTE}\n`)).toBe(true)
+  return JSON.parse(text.slice(DM_CALL_DATA_NOTE.length + 1))
+}
+
+describe('dm_call', () => {
+  it('has a short description pointing at get_capabilities and dm --list, and a strict schema', () => {
+    const tool = toolsOver(createDmClient(realDeps())).get(DM_CALL_TOOL_NAME)!
+    expect(tool).toMatchObject({ approval: 'write', loadMode: 'essential' })
+    expect(tool.description).toContain('get_capabilities')
+    expect(tool.description).toContain('dm --list')
+    expect(tool.description.length).toBeLessThan(400)
+    expect(tool.parameters).toMatchObject({
+      type: 'object',
+      additionalProperties: false,
+      properties: { command: { type: 'string', pattern: '^[a-z][A-Za-z0-9_]{0,63}$' }, args: { optional: { type: 'object', additionalProperties: true } } }
+    })
+  })
+
+  it('runs any command through the real dm child, its args literally on stdin, and returns its data with the grant redacted', async () => {
+    const deps = realDeps()
+    const tool = toolsOver(createDmClient(deps)).get(DM_CALL_TOOL_NAME)!
+    const capabilities = await tool.execute('c', { command: 'get_capabilities' })
+    expect(callDataOf(capabilities)).toEqual({ role: 'worker', capabilities: ['ticket.claim'], note: 'grant [redacted]', '[redacted]': ['[redacted]'] })
+    const args = { ticketId: 'T-1', note: `${AWKWARD} "q" \\ \n $(whoami) | rm -rf ~` }
+    const claimed = await tool.execute('c', { command: 'claim_ticket', args })
+    expect(callDataOf(claimed)).toEqual({ claimed: args, by: HOSTILE_NAME })
+    expect(textOf(claimed)).not.toMatch(RAW_CONTROL)
+    expect(fixtureCalls()).toEqual([{ command: 'get_capabilities', input: {} }, { command: 'claim_ticket', input: args }])
+    for (const result of [capabilities, claimed]) expect(textOf(result)).not.toContain(TOKEN)
+    for (const child of deps.children) expect(child.exitCode).toBe(0)
+  })
+})
+
+describe('dm_call: refusals and failures', () => {
+  it('returns the server’s refusal as an error result with its code and message, the grant redacted', async () => {
+    const revoked = 'revoked-grant-903'
+    const result = await toolsOver(createDmClient(realDeps(revoked))).get(DM_CALL_TOOL_NAME)!.execute('c', { command: 'approve_checkpoint', args: {} })
+    expect(result.isError).toBe(true)
+    const text = textOf(result)
+    expect(text.startsWith('Dark Mechanicus refused the call:\n')).toBe(true)
+    expect(JSON.parse(text.split('\n').slice(1).join('\n'))).toEqual({ ok: false, error: { code: 'unauthorized', message: 'This grant was withdrawn: [redacted]' } })
+    expect(text).not.toContain(revoked)
+    expect(fixtureCalls()).toEqual([{ command: 'approve_checkpoint', input: {} }])
+  })
+
+  it('refuses a command name that is not one, and args that are not one JSON object, before any child starts', async () => {
+    const deps = realDeps()
+    const tool = toolsOver(createDmClient(deps)).get(DM_CALL_TOOL_NAME)!
+    const refused = [
+      ...['-h', '--help', '--token-file', '--repo', '-', '', 'claim ticket', 'claim_ticket -', '../cli', 'a/b', 'a\\b', 'C:x', 'Claim', '_x', 'x'.repeat(65), 'x\n'].map((command) => ({ command })),
+      ...['{"ticketId":"T-1"}', [], null, 5, true].map((args) => ({ command: 'claim_ticket', args })),
+      {},
+      { command: 5 },
+      { command: 'claim_ticket', args: {}, token: TOKEN },
+      ['claim_ticket'],
+      'get_capabilities'
+    ]
+    for (const params of refused) {
+      const result = await tool.execute('c', params)
+      expect(result.isError).toBe(true)
+      expect(textOf(result)).toMatch(/^dm_call refused the call: .* Nothing was run\.$/)
+      expect(textOf(result)).not.toContain(TOKEN)
+    }
+    expect(deps.children).toEqual([])
+    expect(fixtureCalls()).toEqual([])
+  })
+
+  it('stops a hung child at its own bound, not the mail tools’ 5 s, and logs nothing', async () => {
+    const logged = (['log', 'info', 'warn', 'error', 'debug'] as const).map((level) => vi.spyOn(console, level).mockImplementation(() => {}))
+    const deps = realDeps(TOKEN, { ...DM_CLIENT_LIMITS, timeoutMs: 60_000 }, { ...DM_RUN_LIMITS, timeoutMs: 300 })
+    writeFileSync(join(folder, 'mode.txt'), 'hang')
+    const result = await toolsOver(createDmClient(deps)).get(DM_CALL_TOOL_NAME)!.execute('c', { command: 'get_capabilities' })
+    expect(result.isError).toBe(true)
+    expect(textOf(result)).toMatch(/^dm_call failed \(client: timeout\)\. /)
+    expect(textOf(result).endsWith(` ${DM_CALL_UNSURE_NOTE}`)).toBe(true)
+    for (const child of deps.children) expect(child.exitCode !== null || child.signalCode !== null).toBe(true)
+    expect(deps.children).toHaveLength(1)
+    for (const spy of logged) {
+      expect(spy).not.toHaveBeenCalled()
+      spy.mockRestore()
+    }
+  })
+})
+
+describe('dm_call: stopping it', () => {
+  it('kills the child when OMP aborts the call, says the command may have run, and refuses a server error without that note', async () => {
+    const deps = realDeps()
+    const tool = toolsOver(createDmClient(deps)).get(DM_CALL_TOOL_NAME)!
+    writeFileSync(join(folder, 'mode.txt'), 'hang')
+    const controller = new AbortController()
+    const call = tool.execute('c', { command: 'submit_ticket', args: { ticketId: 'T-1' } }, controller.signal)
+    await deps.nextSpawn()
+    controller.abort()
+    const result = await call
+    expect(textOf(result)).toMatch(/^dm_call failed \(client: aborted\)\. /)
+    expect(textOf(result).endsWith(` ${DM_CALL_UNSURE_NOTE}`)).toBe(true)
+    for (const child of deps.children) expect(child.exitCode !== null || child.signalCode !== null).toBe(true)
+    const refused = await toolsOver(createDmClient(realDeps('revoked-903'))).get(DM_CALL_TOOL_NAME)!.execute('c', { command: 'get_capabilities' })
+    expect(textOf(refused)).not.toContain(DM_CALL_UNSURE_NOTE)
   })
 })
