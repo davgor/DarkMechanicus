@@ -5,11 +5,15 @@
 import { describe, expect, it } from 'vitest'
 import type { DraftOp } from '../../shared/domain/api'
 import type { RunState } from '../../shared/domain/status'
-import { captureError, createSavedEpic, draftRevisionOf, insertAttempt, insertRun, TWO_TICKETS } from '../../test/authoring'
+import { captureError, createSavedEpic, draftRevisionOf, insertAttempt, insertRun, saveNow, TWO_TICKETS } from '../../test/authoring'
 import { createTestCtx, type TestCtx, withRole } from '../../test/testContext'
 import { DomainError } from '../errors'
+import { adoptRevision } from './adoption'
+import { claimTicket, failAttempt } from './attempts'
+import { retryTicket } from './autoRetry'
 import { updatePlanDraft } from './drafts'
 import { getPlan, requestSave } from './plans'
+import { startRun } from './runs'
 
 const OTHER_MACHINE = 'mc_0000000000000000000000other'
 
@@ -178,5 +182,157 @@ describe('save_plan on run ownership alone cannot grant retries', () => {
       ]
     })
     expect(save(w.orchestrator, w.epicId).status).toBe('pending')
+  })
+})
+
+describe('save_plan on run ownership alone cannot remove a spent ticket', () => {
+  it('refuses removing a ticket with a spent attempt, and says what to do instead', () => {
+    const w = twoSprintRun()
+    insertAttempt(w.ctx, { runId: w.runId, ticketId: w.beta, state: 'rejected' })
+    updatePlanDraft(w.ctx, {
+      epicId: w.epicId,
+      ops: [
+        { op: 'remove_ticket', ticket: w.beta },
+        { op: 'add_ticket', sprint: '1', ticket: { title: 'Beta', acceptanceCriteria: ['Beta works'] } }
+      ]
+    })
+    const error = captureError(() => save(w.orchestrator, w.epicId))
+    expect(error).toMatchObject({ code: 'unauthorized', details: { tickets: [w.beta] } })
+    for (const hint of ['update_ticket keeps its id', 'add new tickets', 'retry_ticket', 'the person saves']) {
+      expect(error.message).toContain(hint)
+    }
+    expect(pendingRevisions(w.ctx, w.epicId)).toBe(0)
+  })
+
+  it('counts an abandoned expired lease as spent, but not an accepted, canceled or superseded attempt', () => {
+    const w = twoSprintRun()
+    insertAttempt(w.ctx, { runId: w.runId, ticketId: w.beta, state: 'lease_expired' })
+    w.ctx.db.run("UPDATE attempts SET reconciled_at = '2026-01-01T00:00:00.000Z' WHERE ticket_id = ?", w.beta)
+    updatePlanDraft(w.ctx, { epicId: w.epicId, ops: [{ op: 'remove_ticket', ticket: w.beta }] })
+    expect(captureError(() => save(w.orchestrator, w.epicId)).code).toBe('unauthorized')
+    w.ctx.db.run("UPDATE attempts SET superseded_at = '2026-01-01T00:00:00.000Z' WHERE ticket_id = ?", w.beta)
+    insertAttempt(w.ctx, { runId: w.runId, ticketId: w.beta, state: 'canceled' })
+    expect(save(w.orchestrator, w.epicId).status).toBe('pending')
+  })
+})
+
+describe('save_plan on run ownership alone and removals that reset nothing', () => {
+  it('still saves once the person has removed the spent ticket and the run adopted that revision', () => {
+    const w = twoSprintRun()
+    insertAttempt(w.ctx, { runId: w.runId, ticketId: w.beta, state: 'failed' })
+    const desktop = withRole(w.ctx, 'desktop')
+    updatePlanDraft(desktop, { epicId: w.epicId, ops: [{ op: 'remove_ticket', ticket: w.beta }] })
+    adoptRevision(desktop, { runId: w.runId, revisionId: saveNow(desktop, w.epicId) })
+    updatePlanDraft(w.orchestrator, { epicId: w.epicId, ops: [{ op: 'set_rationale', rationale: 'Beta was dropped by the person.' }] })
+    expect(save(w.orchestrator, w.epicId).status).toBe('pending')
+  })
+
+  it.each(['remove', 'move'] as const)(
+    'still saves when the person saved, but did not adopt, a revision that %ss the spent ticket; adopting it stays theirs',
+    (change) => {
+      const w = twoSprintRun()
+      insertAttempt(w.ctx, { runId: w.runId, ticketId: w.beta, state: 'failed' })
+      const desktop = withRole(w.ctx, 'desktop')
+      const op: DraftOp =
+        change === 'remove' ? { op: 'remove_ticket', ticket: w.beta } : { op: 'move_ticket', ticket: w.beta, toSprint: w.sprint2 }
+      updatePlanDraft(desktop, { epicId: w.epicId, ops: [op] })
+      saveNow(desktop, w.epicId)
+      updatePlanDraft(w.orchestrator, { epicId: w.epicId, ops: [{ op: 'set_rationale', rationale: 'Clarified while the run continues.' }] })
+      const revisionId = saveNow(w.orchestrator, w.epicId)
+      const adopt = (): unknown => adoptRevision(w.orchestrator, { runId: w.runId, revisionId, reason: 'Adopting the plan the person saved.' })
+      expect(captureError(adopt).code).toBe('unauthorized')
+    }
+  )
+
+  it('lets it remove a ticket that spent no attempts, and lets allowSave and the desktop remove a spent one', () => {
+    const w = twoSprintRun()
+    insertAttempt(w.ctx, { runId: w.runId, ticketId: w.beta, state: 'failed' })
+    const alpha = getPlan(w.ctx, { epicId: w.epicId, view: 'saved' }).bundle.tickets.find((t) => t.title === 'Alpha')?.id ?? ''
+    // Alpha is Beta's prerequisite: drop the edge with it.
+    updatePlanDraft(w.ctx, { epicId: w.epicId, ops: [{ op: 'remove_ticket', ticket: alpha }] })
+    expect(save(w.orchestrator, w.epicId).status).toBe('pending')
+    const v = twoSprintRun()
+    insertAttempt(v.ctx, { runId: v.runId, ticketId: v.beta, state: 'failed' })
+    updatePlanDraft(v.ctx, { epicId: v.epicId, ops: [{ op: 'remove_ticket', ticket: v.beta }] })
+    expect(save(withRole(v.ctx, 'orchestrator', { allowSave: true }), v.epicId).status).toBe('pending')
+    const d = twoSprintRun()
+    insertAttempt(d.ctx, { runId: d.runId, ticketId: d.beta, state: 'failed' })
+    updatePlanDraft(d.ctx, { epicId: d.epicId, ops: [{ op: 'remove_ticket', ticket: d.beta }] })
+    expect(save(withRole(d.ctx, 'desktop'), d.epicId).status).toBe('pending')
+  })
+})
+
+const RETRY_REASON = 'The migration kept timing out on the large fixture.'
+
+/**
+ * A started run whose Alpha (one attempt, one orchestrator retry) used up both through the real services, driven by an
+ * orchestrator without `allowSave`.
+ */
+function spentAlpha(): { ctx: TestCtx; epicId: string; runId: string; alpha: string; orchestrator: TestCtx } {
+  const ctx = createTestCtx()
+  const { epicId } = createSavedEpic(ctx, {
+    ops: [
+      { op: 'set_policies', patch: { retryLimit: 1, autoRetryLimit: 1 } },
+      { op: 'add_ticket', ref: 'a', sprint: '1', ticket: { title: 'Alpha', acceptanceCriteria: ['Alpha works'] } },
+      { op: 'add_ticket', ref: 'b', sprint: '1', ticket: { title: 'Beta', acceptanceCriteria: ['Beta works'] } }
+    ]
+  })
+  const orchestrator = withRole(ctx, 'orchestrator', { allowSave: false })
+  const worker = withRole(ctx, 'worker')
+  const runId = startRun(orchestrator, { epicId }).id
+  const alpha = getPlan(ctx, { epicId, view: 'saved' }).bundle.tickets.find((t) => t.title === 'Alpha')?.id ?? ''
+  for (let i = 0; i < 2; i += 1) {
+    const claimed = claimTicket(orchestrator, { runId, ticketId: alpha, worker: { label: 'w' } })
+    failAttempt(worker, { attemptId: claimed.attempt.id, claimToken: claimed.packet.claimToken ?? '', failure: { reason: 'broken', retryable: true } })
+    if (i === 0) {
+      retryTicket(orchestrator, { runId, ticketId: alpha, failureReason: RETRY_REASON, newApproach: 'Split the migration into two batches.' })
+    }
+  }
+  return { ctx, epicId, runId, alpha, orchestrator }
+}
+
+describe('the remove-and-re-add loop, through the real services', () => {
+  it('stops at the save: the spent ticket cannot be swapped for a fresh copy, so its limits stay bounded', () => {
+    const { ctx, epicId, runId, alpha, orchestrator } = spentAlpha()
+    const again = (): unknown =>
+      retryTicket(orchestrator, { runId, ticketId: alpha, failureReason: RETRY_REASON, newApproach: 'Move the work to a higher model tier.' })
+    expect(captureError(again).code).toBe('retry_escalation_required')
+    updatePlanDraft(orchestrator, {
+      epicId,
+      ops: [
+        { op: 'remove_ticket', ticket: alpha },
+        { op: 'add_ticket', sprint: '1', ticket: { title: 'Alpha', acceptanceCriteria: ['Alpha works'] } }
+      ]
+    })
+    expect(captureError(() => save(orchestrator, epicId))).toMatchObject({ code: 'unauthorized', details: { tickets: [alpha] } })
+    expect(pendingRevisions(ctx, epicId)).toBe(0)
+    // Nothing to adopt either: the epic's current revision is still the one the run executes.
+    const current = getPlan(ctx, { epicId, view: 'saved' }).revisionId ?? ''
+    const adopt = (): unknown => adoptRevision(orchestrator, { runId, revisionId: current, reason: 'Re-planning the failing ticket as a fresh one.' })
+    expect(captureError(adopt)).toMatchObject({ code: 'conflict', message: 'The run already executes this revision.' })
+  })
+})
+
+describe('save_plan on run ownership alone keeps the policies the person saved last', () => {
+  /** The person saves a newer revision with a stricter retry limit, not adopted, so the run still executes the old one. */
+  function stricterSaved(): ReturnType<typeof twoSprintRun> {
+    const w = twoSprintRun()
+    updatePlanDraft(w.ctx, { epicId: w.epicId, ops: [{ op: 'set_policies', patch: { retryLimit: 1 } }] })
+    saveNow(withRole(w.ctx, 'desktop'), w.epicId)
+    return w
+  }
+
+  it('saves an in-place edit on top of the stricter policies the run has not adopted yet', () => {
+    const w = stricterSaved()
+    updatePlanDraft(w.orchestrator, { epicId: w.epicId, ops: [{ op: 'update_ticket', ticket: w.beta, patch: { title: 'Beta, clarified' } }] })
+    expect(save(w.orchestrator, w.epicId).status).toBe('pending')
+  })
+
+  it("refuses a draft that reverts them to the run's pinned policies", () => {
+    const w = stricterSaved()
+    const pinned = getPlan(w.ctx, { epicId: w.epicId, view: 'saved', revisionId: w.revisionId }).bundle.policies
+    updatePlanDraft(w.orchestrator, { epicId: w.epicId, ops: [{ op: 'set_policies', patch: { retryLimit: pinned.retryLimit } }] })
+    expect(captureError(() => save(w.orchestrator, w.epicId))).toMatchObject({ code: 'unauthorized', details: { field: 'policies' } })
+    expect(pendingRevisions(w.ctx, w.epicId)).toBe(0)
   })
 })

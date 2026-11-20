@@ -12,6 +12,7 @@ import { failAttempt } from './attempts'
 import { acknowledgeAutoRetry, approachKey, listAutoRetries, retryTicket } from './autoRetry'
 import { grantRetry } from './checkpoints'
 import { runExecution } from './execution'
+import { cancelRun, startRun } from './runs'
 
 const TOKEN = `at_${'0'.repeat(26)}.${'s'.repeat(32)}`
 const GRANT = `dmg_${'a'.repeat(64)}`
@@ -230,8 +231,55 @@ describe('the orchestrator retry budget', () => {
     const none = atLimit({ bundle: { ...one, policies: { ...one.policies, autoRetryLimit: 0 } } })
     expect(errorOf(() => retry(none.agent, none.run)).code).toBe('retry_escalation_required')
   })
+})
 
-  it('counts each run on its own', () => {
+/** A started run of a one-ticket epic whose plan allows one attempt and two orchestrator retries. */
+function restartableEpic(): { ctx: TestCtx; epicId: string; firstRun: string; failOnce: (runId: string) => void } {
+  const ctx = createTestCtx()
+  const worker = withRole(ctx, 'worker')
+  const base = makeBundle([[1]])
+  const { epicId, runId } = startedRun(ctx, { bundle: { ...base, policies: { ...base.policies, retryLimit: 1, autoRetryLimit: 2 } } })
+  const failOnce = (target: string): void => {
+    const claimed = claim(ctx, target, 1)
+    failAttempt(worker, { attemptId: claimed.attempt.id, claimToken: claimed.packet.claimToken, failure: { reason: 'broken', retryable: true } })
+  }
+  return { ctx, epicId, firstRun: runId, failOnce }
+}
+
+/** Cancels the run and starts a new one of the same epic. */
+function restart(ctx: TestCtx, epicId: string, runId: string): string {
+  cancelRun(withRole(ctx, 'orchestrator'), { runId, reason: 'restart' })
+  return startRun(withRole(ctx, 'orchestrator'), { epicId }).id
+}
+
+function retryIn(ctx: TestCtx, runId: string, approach: number): { autoRetry: number; autoRetriesLeft: number } {
+  return retryTicket(ctx, { runId, ticketId: tid(1), failureReason: REASON, newApproach: APPROACHES[approach] ?? '' })
+}
+
+describe('the orchestrator retry budget across runs', () => {
+  it('counts every run of the epic: canceling the run and starting a new one gives no fresh retries or approaches', () => {
+    const { ctx, epicId, firstRun, failOnce } = restartableEpic()
+    failOnce(firstRun)
+    expect(retryIn(ctx, firstRun, 0).autoRetry).toBe(1)
+    failOnce(firstRun)
+    const second = restart(ctx, epicId, firstRun)
+    failOnce(second)
+    // The approach tried in the first run is refused in the second, and the second retry is the epic's last.
+    expect(errorOf(() => retryIn(ctx, second, 0)).code).toBe('conflict')
+    expect(retryIn(ctx, second, 1)).toEqual({ autoRetry: 2, autoRetriesLeft: 0 })
+    failOnce(second)
+    const third = restart(ctx, epicId, second)
+    failOnce(third)
+    expect(errorOf(() => retryIn(ctx, third, 2))).toMatchObject({
+      code: 'retry_escalation_required',
+      details: { autoRetries: 2, autoRetryLimit: 2 }
+    })
+    // The person's grant still adds an attempt in the new run.
+    grantRetry(withRole(ctx, 'desktop'), { runId: third, ticketId: tid(1) })
+    expect(claim(ctx, third, 1).attempt.number).toBe(2)
+  })
+
+  it("counts another epic's retries of a ticket with the same id on their own", () => {
     const agent = createTestCtx()
     const first = seedRun(agent)
     fail3(agent, first)
@@ -240,6 +288,7 @@ describe('the orchestrator retry budget', () => {
       failAgain(agent, first)
     }
     const second = seedRun(agent)
+    expect(second.epicId).not.toBe(first.epicId)
     fail3(agent, second)
     expect(retry(agent, second, APPROACHES[0]).autoRetry).toBe(1)
   })

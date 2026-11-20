@@ -23,8 +23,8 @@ export const CAPABILITIES = [
   'project.repositories',
   'ticket.status',
   'ticket.retry_grant',
-  // The orchestrator's own extra attempt for a ticket at its retry limit (`retry_ticket`), bounded per ticket per run
-  // by the plan's `autoRetryLimit`. Never the person's grant: `ticket.retry_grant` stays human-only.
+  // The orchestrator's own extra attempt for a ticket at its retry limit (`retry_ticket`), bounded per ticket over
+  // every run of its epic by the plan's `autoRetryLimit`. Never the person's grant: `ticket.retry_grant` stays human-only.
   'ticket.auto_retry',
   // The person marking an orchestrator retry as read. It records seeing it and never gates a claim or the run.
   'ticket.retry_acknowledge',

@@ -147,14 +147,14 @@ function reconcileAcceptances(ctx: Ctx, input: Reconciliation): { kept: string[]
  * Attempts that used up a try without delivering: failed, rejected, or abandoned after an expired lease. An accepted
  * attempt delivered, and a canceled one never counted, so neither is spent.
  */
-export const SPENT_ATTEMPT_SQL = "(state IN ('failed', 'rejected') OR (state = 'lease_expired' AND reconciled_at IS NOT NULL))"
+const SPENT_ATTEMPT_SQL = "(state IN ('failed', 'rejected') OR (state = 'lease_expired' AND reconciled_at IS NOT NULL))"
 
 /**
  * The tickets that sit in a later sprint of `target` than the sprint `current` had them in. A sprint is the same
  * sprint under the same id, whatever its ordinal becomes, so renumbering moves nothing; a ticket whose old sprint
  * is gone, or that is new, did not move.
  */
-export function ticketsMovedLater(current: PlanBundle, target: PlanBundle): string[] {
+function ticketsMovedLater(current: PlanBundle, target: PlanBundle): string[] {
   const before = indexBundle(current)
   const after = indexBundle(target)
   return target.tickets
@@ -164,6 +164,68 @@ export function ticketsMovedLater(current: PlanBundle, target: PlanBundle): stri
       const now = after.sprintOf.get(id)
       return origin !== undefined && now !== undefined && now.id !== origin.id && now.ordinal > origin.ordinal
     })
+}
+
+/** The tickets with spent attempts in the run that no later adoption has superseded, sorted by id. */
+function spentTicketIds(ctx: Ctx, runId: string): string[] {
+  return ctx.db
+    .all<{ ticket_id: string }>(
+      `SELECT DISTINCT ticket_id FROM attempts WHERE run_id = ? AND superseded_at IS NULL AND ${SPENT_ATTEMPT_SQL} ORDER BY ticket_id`,
+      runId
+    )
+    .map((row) => row.ticket_id)
+}
+
+/**
+ * What a revision would do to the run's spent tickets that resets their retry budget: drop them from the plan (a
+ * copy added under a new id starts with no attempts) or move them to a later sprint (adoption supersedes their spent
+ * attempts). `current` is the revision the run executes now. A spent ticket `current` no longer plans was dropped by
+ * an adoption already made (by the person, or by a session allowed to): it is not removed again, and it cannot come
+ * back with a fresh budget, since a ticket keeps its id and its attempts in the run count against that id.
+ */
+export function retryBudgetResets(
+  ctx: Ctx,
+  input: { runId: string; current: PlanBundle; target: PlanBundle }
+): { removed: string[]; movedLater: string[] } {
+  const spent = spentTicketIds(ctx, input.runId)
+  const before = new Set(input.current.tickets.map((ticket) => ticket.id))
+  const after = new Set(input.target.tickets.map((ticket) => ticket.id))
+  const later = new Set(ticketsMovedLater(input.current, input.target))
+  return {
+    removed: spent.filter((id) => before.has(id) && !after.has(id)),
+    movedLater: spent.filter((id) => later.has(id))
+  }
+}
+
+/**
+ * How an agent changes a ticket that spent attempts without resetting its retry budget, for the refusals of a save
+ * on run ownership and of an adoption without `allowSave`.
+ */
+export const KEEP_SPENT_TICKETS =
+  'Instead, edit the ticket in place (update_ticket keeps its id and its spent attempts), add new tickets for the parts you split off, or retry it with retry_ticket. If it truly must be removed or moved to a later sprint, the person saves and adopts that plan in the desktop app (or an orchestrator launched with allowSave does).'
+
+/**
+ * A session that saves only on run ownership (no `plan.save`, so not the desktop and not an orchestrator with
+ * `allowSave`; the same split `requireSaveAuthority` in `plans.ts` makes) may not adopt a revision that resets a
+ * spent ticket's retry budget. The save already refused such a draft, but a ticket can be moved or removed while
+ * unspent and then fail on the pinned revision before the adoption: this repeats the check on the attempts as they
+ * are now, inside the adoption's transaction. Retries past the limits are the person's to grant.
+ */
+function assertNoBudgetReset(ctx: Ctx, input: Reconciliation): void {
+  if (ctx.session.role === 'desktop' || ctx.session.capabilities.has('plan.save')) {
+    return
+  }
+  const { removed, movedLater } = retryBudgetResets(ctx, { runId: input.run.id, current: input.current, target: input.target })
+  if (removed.length === 0 && movedLater.length === 0) {
+    return
+  }
+  const index = indexBundle(input.current)
+  const labels = [...removed, ...movedLater].map((id) => ticketLabel(index, id)).join(', ')
+  fail(
+    'unauthorized',
+    `This revision removes or moves to a later sprint tickets with spent attempts in this run (${labels}), which would give them a fresh retry budget. ${KEEP_SPENT_TICKETS}`,
+    { removed, movedLater }
+  )
 }
 
 /**
@@ -249,6 +311,7 @@ export function adoptRevision(
     const carryForward = new Set(input.carryForward ?? [])
     const activeSprintId = chooseActiveSprint(run.active_sprint_id, current, target)
     assertNoClosedSprintRework(ctx, { run, current, target, carryForward, activeSprintId })
+    assertNoBudgetReset(ctx, { run, current, target, carryForward })
     const { kept, superseded } = reconcileAcceptances(ctx, { run, current, target, carryForward })
     const freshBudget = grantFreshBudgets(ctx, { run, current, target, carryForward })
     ctx.db.run(

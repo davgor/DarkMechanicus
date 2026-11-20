@@ -14,14 +14,19 @@ import {
   type SeededRun,
   type SeedRunOptions
 } from '../../test/checkpointSeed'
+import { captureError, createSavedEpic, saveNow } from '../../test/authoring'
 import { createTestCtx, withRole, type TestCtx } from '../../test/testContext'
 import { COMMAND_SCHEMAS } from '../commandSchemas'
 import { CLAIM_TOKEN_MASK } from '../claimTokenMask'
 import { GRANT_TOKEN_MASK } from '../storedSecrets'
 import { getRunTimeline } from './activity'
 import { adoptRevision } from './adoption'
+import { claimTicket, failAttempt } from './attempts'
 import { advanceSprint, approveCheckpoint, getCheckpoint } from './checkpoints'
+import { updatePlanDraft } from './drafts'
+import { getPlan } from './plans'
 import { submitSprintReport } from './reports'
+import { startRun } from './runs'
 
 /** An agent's adoption reason: what failed and what the revision changes. */
 const REASON = 'Test adoption: the plan changed mid-run.'
@@ -330,5 +335,97 @@ describe('adoptRevision reason record', () => {
     expect(COMMAND_SCHEMAS.adoptRevision.safeParse({ ...base, reason: 'too short' }).success).toBe(false)
     expect(COMMAND_SCHEMAS.adoptRevision.safeParse({ ...base, reason: `  ${'z'.repeat(19)} ` }).success).toBe(false)
     expect(COMMAND_SCHEMAS.adoptRevision.parse({ ...base, reason: `  ${REASON}  ` }).reason).toBe(REASON)
+  })
+})
+
+/** Sprint 1 = {DM-1, DM-2} with DM-2 failed once, sprint 2 = {DM-3}; a running run this machine owns. */
+function spentRun(): { ctx: TestCtx; run: SeededRun; noSave: TestCtx } {
+  const ctx = createTestCtx()
+  const run = seedRun(ctx, { state: 'running' })
+  seedAttempt(ctx, run, { ticket: 2, state: 'failed' })
+  return { ctx, run, noSave: withRole(ctx, 'orchestrator', { allowSave: false }) }
+}
+
+function adoptedEvents(ctx: TestCtx): unknown[] {
+  return eventLog(ctx).filter((event) => event.kind === 'run.revision_adopted')
+}
+
+describe('adoptRevision without allowSave cannot reset a spent ticket', () => {
+  it('refuses a revision that moves a spent ticket to a later sprint, and changes nothing', () => {
+    const { ctx, run, noSave } = spentRun()
+    const revisionId = seedRevision(ctx, run.epicId, makeBundle([[1], [2, 3]]))
+    const error = errorOf(() => adoptRevision(noSave, { reason: REASON, runId: run.runId, revisionId }))
+    expect(error).toMatchObject({ code: 'unauthorized', details: { removed: [], movedLater: [tid(2)] } })
+    for (const hint of ['update_ticket keeps its id', 'add new tickets', 'retry_ticket', 'the person saves and adopts']) {
+      expect(error.message).toContain(hint)
+    }
+    expect(runRow(ctx, run.runId)?.revision_id).toBe(run.revisionId)
+    expect(ctx.db.get<{ n: number }>('SELECT COUNT(*) AS n FROM attempts WHERE superseded_at IS NOT NULL')?.n).toBe(0)
+    expect(adoptedEvents(ctx)).toEqual([])
+  })
+
+  it('refuses a revision that removes a spent ticket', () => {
+    const { ctx, run, noSave } = spentRun()
+    const revisionId = seedRevision(ctx, run.epicId, makeBundle([[1], [3]]))
+    expect(errorOf(() => adoptRevision(noSave, { reason: REASON, runId: run.runId, revisionId }))).toMatchObject({
+      code: 'unauthorized',
+      details: { removed: [tid(2)], movedLater: [] }
+    })
+    expect(runRow(ctx, run.runId)?.revision_id).toBe(run.revisionId)
+  })
+
+  it('adopts a revision that moves or removes only unspent tickets', () => {
+    const { ctx, run, noSave } = spentRun()
+    const revisionId = seedRevision(ctx, run.epicId, makeBundle([[2], [1]]))
+    expect(adoptRevision(noSave, { reason: REASON, runId: run.runId, revisionId }).freshBudget).toEqual([])
+    expect(runRow(ctx, run.runId)?.revision_id).toBe(revisionId)
+  })
+
+  it('does not count again a spent ticket the person already removed: later fixes still adopt', () => {
+    const { ctx, run, noSave } = spentRun()
+    const removed = seedRevision(ctx, run.epicId, makeBundle([[1], [3]]))
+    adoptRevision(withRole(ctx, 'desktop'), { runId: run.runId, revisionId: removed })
+    const fixed = seedRevision(ctx, run.epicId, retitle(makeBundle([[1], [3]]), 3))
+    expect(adoptRevision(noSave, { reason: REASON, runId: run.runId, revisionId: fixed }).runId).toBe(run.runId)
+    expect(runRow(ctx, run.runId)?.revision_id).toBe(fixed)
+  })
+
+  it('leaves the desktop and an orchestrator with allowSave free to adopt it, as before', () => {
+    for (const session of ['desktop', 'allowSave'] as const) {
+      const { ctx, run } = spentRun()
+      const adopter = session === 'desktop' ? withRole(ctx, 'desktop') : withRole(ctx, 'orchestrator', { allowSave: true })
+      const revisionId = seedRevision(ctx, run.epicId, makeBundle([[1], [2, 3]]))
+      expect(adoptRevision(adopter, { reason: REASON, runId: run.runId, revisionId }).freshBudget).toEqual([tid(2)])
+    }
+  })
+})
+
+describe('adoptRevision without allowSave, through the real services', () => {
+  it('refuses a move saved while the ticket was unspent once it has failed, through the real services', () => {
+    const ctx = createTestCtx()
+    const { epicId } = createSavedEpic(ctx, {
+      ops: [
+        { op: 'set_policies', patch: { retryLimit: 1 } },
+        { op: 'add_ticket', ref: 'a', sprint: '1', ticket: { title: 'Alpha', acceptanceCriteria: ['Alpha works'] } },
+        { op: 'add_sprint', ref: 's2', sprint: { goal: 'Later' } },
+        { op: 'add_ticket', sprint: 's2', ticket: { title: 'Gamma', acceptanceCriteria: ['Gamma works'] } }
+      ]
+    })
+    const orchestrator = withRole(ctx, 'orchestrator', { allowSave: false })
+    const run = startRun(orchestrator, { epicId })
+    const plan = getPlan(ctx, { epicId, view: 'saved' }).bundle
+    const alpha = plan.tickets.find((ticket) => ticket.title === 'Alpha')?.id ?? ''
+    const later = plan.sprints.find((sprint) => sprint.ordinal === 2)?.id ?? ''
+    updatePlanDraft(orchestrator, { epicId, ops: [{ op: 'move_ticket', ticket: alpha, toSprint: later }] })
+    const revisionId = saveNow(orchestrator, epicId)
+    const claimed = claimTicket(orchestrator, { runId: run.id, ticketId: alpha, worker: { label: 'w' } })
+    failAttempt(withRole(ctx, 'worker'), {
+      attemptId: claimed.attempt.id,
+      claimToken: claimed.packet.claimToken ?? '',
+      failure: { reason: 'broken', retryable: true }
+    })
+    const adopt = (): unknown => adoptRevision(orchestrator, { runId: run.id, revisionId, reason: 'Moving alpha to the later sprint now.' })
+    expect(captureError(adopt)).toMatchObject({ code: 'unauthorized', details: { movedLater: [alpha] } })
+    expect(runRow(ctx, run.id)?.revision_id).toBe(run.revisionId)
   })
 })

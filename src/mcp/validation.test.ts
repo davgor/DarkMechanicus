@@ -222,7 +222,7 @@ const SCHEMA_FINGERPRINTS: Record<string, string> = {
   open_plan_draft: 'f7874c5f7d17c6c5',
   // Changed on purpose: the ticket input of add_ticket and update_ticket gained a description on `attachments`, then
   // (DM-171) the optional planned `budget`, then (DM-183) the budget's `basis`.
-  // Changed on purpose: set_policies gained the optional autoRetryLimit (orchestrator retries per ticket per run).
+  // Changed on purpose: set_policies gained the optional autoRetryLimit (orchestrator retries per ticket over the epic's runs).
   update_plan_draft: '2cf98e6a32e28467',
   validate_plan: '3b52b9b5157a2fba',
   save_plan: 'a77f363be76d0e70',
