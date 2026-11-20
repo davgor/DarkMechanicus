@@ -6,6 +6,7 @@ import { createEpic, getEpic, listEpics, setEpicBranch, setEpicStatus } from '..
 import { discardPlanDraft, openDraft, updatePlanDraft } from '../services/drafts'
 import { listAttempts, runExecution } from '../services/execution'
 import { getPlan, listRevisions, requestSave, saveResult, validatePlanView } from '../services/plans'
+import { listAutoRetries } from '../services/autoRetry'
 import { getTicket, listTickets, setTicketStatus } from '../services/tickets'
 import type { CommandTable, WorkspaceCore } from './types'
 
@@ -27,6 +28,7 @@ function enrichTicket(ctx: Ctx, detail: TicketDetailView): TicketDetailView {
     ...detail,
     execution: byTicket.get(detail.ticket.id) ?? null,
     attempts: listAttempts(ctx, { ticketId: detail.ticket.id, epicId: detail.epicId }),
+    autoRetries: listAutoRetries(ctx, detail.epicId, detail.ticket.id),
     prerequisites: detail.prerequisites.map((link) => ({ ...link, executionState: stateOf(link.ticketId) })),
     dependents: detail.dependents.map((link) => ({ ...link, executionState: stateOf(link.ticketId) })),
     relations: detail.relations.map((relation) => ({

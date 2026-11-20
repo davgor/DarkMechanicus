@@ -780,6 +780,7 @@ export function ticketDetail(patch: Partial<TicketDetailView> = {}): TicketDetai
     relations: [],
     execution: execution('DM-202', 'sp_2', 'running', { attemptCount: 2 }),
     attempts: SAMPLE_ATTEMPTS.filter((item) => item.ticketId === 'tk_202'),
+    autoRetries: [],
     readOnly: true,
     readOnlyReason: 'Read-only while run #2 is active',
     ...patch

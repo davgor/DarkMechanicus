@@ -175,7 +175,7 @@ Roles are fixed at launch. Nothing a tool call says can change them.
 | Role | Can do |
 |------|--------|
 | `planner` | Read, create epics, edit drafts (including corrective DRAFT work from a retro's experiments, `create_corrections`), comment, save named capability profiles (`save_profile`), set the project's Definition of Done (`set_definition_of_done`). `save_plan` only with `--allow-save`. |
-| `orchestrator` (default) | Everything a planner can except set the Definition of Done (it reads it with `get_project`, and holds work to it when it accepts), plus register hosts, start and control runs, claim tickets, review attempts, record usage for any attempt of its run and the run's overhead, submit sprint reports, record experiment statuses and results (`record_experiment_event`), redraft the next sprint from a retro (`redraft_next_sprint`), advance sprints, launch named Kanban cards, and carry out a Linear transfer the person queued (`epic.transfer`; see [Linear transfer](#linear-transfer)). Never approves. |
+| `orchestrator` (default) | Everything a planner can except set the Definition of Done (it reads it with `get_project`, and holds work to it when it accepts), plus register hosts, start and control runs, claim tickets, review attempts, record usage for any attempt of its run and the run's overhead, submit sprint reports, record experiment statuses and results (`record_experiment_event`), redraft the next sprint from a retro (`redraft_next_sprint`), retry a ticket at its retry limit itself (`retry_ticket`, at most the plan's `autoRetryLimit` times per ticket per run), advance sprints, launch named Kanban cards, and carry out a Linear transfer the person queued (`epic.transfer`; see [Linear transfer](#linear-transfer)). Never approves. |
 | `worker` | Heartbeat, submit, and fail for the claim it holds; report that attempt's usage (`record_attempt_metrics` with its claim token); comment. |
 | `reviewer` | Accept or reject submitted attempts; report review overhead usage (`record_run_metrics`); comment. |
 
@@ -242,12 +242,13 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 | `accept_attempt`, `reject_attempt` | | yes | | yes |
 | Run overhead usage: `record_run_metrics` | | yes | | yes |
 | Checkpoints: `submit_sprint_report`, `redraft_next_sprint`, `advance_sprint` | | yes | | |
+| Retrying a ticket at its retry limit (`ticket.auto_retry`): `retry_ticket` | | yes | | |
 | Experiments: `record_experiment_event` | | yes | | |
 | Linear transfer (`epic.transfer`): `start_transfer`, `record_transfer_item`, `submit_transfer_readback` | | yes | | |
 | Kanban launch and claim: `launch_kanban_cards`, `claim_kanban_card` | | yes | | |
 | Kanban reporting (`kanban.report`): `heartbeat_kanban_card`, `submit_kanban_card`, `fail_kanban_card` | | yes | yes | |
 | Agent mail (`mail.use`; listed, but always `unauthorized` over MCP): `get_agent_identity`, `list_agent_peers`, `send_agent_message`, `read_agent_inbox`, `acknowledge_agent_messages`, `get_agent_mail_status`, `take_agent_mail_wake` | yes | yes | yes | yes |
-| **Total** | 74 (75 with `--allow-save`) | 106 (107 with `--allow-save`) | 65 | 61 |
+| **Total** | 74 (75 with `--allow-save`) | 107 (108 with `--allow-save`) | 65 | 61 |
 
 `--allow-save` has no effect for `worker` and `reviewer`. No role lists a tool for the desktop-only actions: no tool presses Play on a Kanban card, approves one or kicks one back (`kanban.play` and `kanban.review` belong to a person in the desktop app).
 
@@ -364,6 +365,7 @@ If the host reports that the connection closed at once, run the same command in 
 | `unauthorized` | The session's role lacks the capability (the tool is not in its list either). Check `get_capabilities` and relaunch with the right `--role`. `save_plan` also needs `--allow-save`. |
 | A tool from the docs or a skill is missing from the host's tool list | The role does not include it. See [Tools per role](#tools-per-role). |
 | `not_initialized` | Call `initialize_repository`. |
+| `retry_escalation_required` on `retry_ticket` | The orchestrator used up the plan's `autoRetryLimit` (default 3) retries of that ticket in this run. Only the person's Grant retry in the desktop app adds attempts now; the orchestrator tells them why the ticket keeps failing. |
 | `approval_required` or `gate_blocked` on `advance_sprint` | Waiting for a person's approval, or a gate condition is unmet. `get_checkpoint` lists what is missing. |
 | `stale_claim` or `expired_claim` | The claim was superseded or its lease ran out. Stop the worker. The orchestrator reconciles the attempt before any retry. |
 | `invalid_input` | The arguments do not match the tool's input schema; nothing ran. `details.issues` lists each field by path with what is wrong. |

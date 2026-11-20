@@ -1,9 +1,9 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
-import { correctionsInput, createCorrectionsInput, experimentEventInput, sprintReportInput, stableId } from '../../core/schemas'
+import { correctionsInput, createCorrectionsInput, experimentEventInput, LIMITS, sprintReportInput, stableId } from '../../core/schemas'
 import type { CommandApi } from '../../shared/domain/api'
 import { defineTool, registerTools } from './define'
-import { epicId, idempotencyKey, runId, sprintId } from './params'
+import { epicId, idempotencyKey, runId, sprintId, ticketId } from './params'
 
 const CHECKPOINT_TOOLS = [
   defineTool({
@@ -92,6 +92,22 @@ const CHECKPOINT_TOOLS = [
     kind: 'write',
     input: { runId, idempotencyKey },
     run: (api, input) => api.advanceSprint(input)
+  }),
+  defineTool({
+    name: 'retry_ticket',
+    description:
+      "When a ticket is held by its retry limit (its readiness blocker is retry_limit), gives it one more attempt yourself instead of asking the person. failureReason says honestly why it failed, and newApproach says what you will do genuinely differently this time (split the work, change the design, change the model tier or effort, fix the environment); each needs 20 to 2000 characters once trimmed, and secrets in them are masked. The run must be active and owned by this machine. A run waiting at its checkpoint resumes. The person sees each retry in the desktop app and may acknowledge it, which never blocks you. Returns autoRetry (this retry's number), autoRetriesLeft and the run. Fails with `conflict` when the ticket is not at its retry limit or when this run already tried that approach for the ticket (case, spacing and punctuation do not make an approach different), `invalid_input` for a short or long text, `run_not_owned`, `run_not_active`, `not_found`, and `retry_escalation_required` once the plan's autoRetryLimit (default 3) orchestrator retries of the ticket in this run are used up: then tell the person why it keeps failing, since only their Grant retry in the desktop app adds attempts. Do not repeat a refused call.",
+    kind: 'write',
+    input: {
+      runId,
+      ticketId,
+      failureReason: z.string().max(LIMITS.shortText).describe('Why the ticket failed, honestly: what the attempts showed. At least 20 characters.'),
+      newApproach: z
+        .string()
+        .max(LIMITS.shortText)
+        .describe('What this attempt does differently: a genuinely different angle, not the same one restated. At least 20 characters.')
+    },
+    run: (api, input) => api.retryTicket(input)
   }),
   defineTool({
     name: 'get_run_events',

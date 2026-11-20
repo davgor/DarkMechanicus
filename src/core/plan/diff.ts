@@ -1,14 +1,15 @@
-import type {
-  CapabilityProfile,
-  DependencyEdge,
-  EpicContent,
-  PlanBundle,
-  PlanPolicies,
-  Relation,
-  RelationKind,
-  SprintDef,
-  TicketContent,
-  TicketCriterion
+import {
+  autoRetryLimitOf,
+  type CapabilityProfile,
+  type DependencyEdge,
+  type EpicContent,
+  type PlanBundle,
+  type PlanPolicies,
+  type Relation,
+  type RelationKind,
+  type SprintDef,
+  type TicketContent,
+  type TicketCriterion
 } from '../../shared/domain/bundle'
 import type { ChangeKind, PlanChange } from '../../shared/domain/views'
 import { canonicalJson } from '../canonical'
@@ -304,12 +305,14 @@ function relationChanges(sides: Sides): PlanChange[] {
   })
 }
 
-function policyFields(policies: PlanPolicies): [string, string][] {
+/** `withAuto` adds the orchestrator retry limit, shown only when either side sets it, so older diffs read the same. */
+function policyFields(policies: PlanPolicies, withAuto: boolean): [string, string][] {
   return [
     ['max concurrency', policies.maxConcurrency === null ? 'unlimited' : String(policies.maxConcurrency)],
     ['retry limit', String(policies.retryLimit)],
     ['on ticket failure', policies.onTicketFailure],
-    ['lease', `${policies.leaseSeconds}s`]
+    ['lease', `${policies.leaseSeconds}s`],
+    ...(withAuto ? [['orchestrator retries', String(autoRetryLimitOf(policies))] as [string, string]] : [])
   ]
 }
 
@@ -321,11 +324,12 @@ function policyChanges(base: PlanBundle | null, next: PlanBundle): PlanChange[] 
     label: 'Policies',
     detail
   })
-  const after = policyFields(next.policies)
+  const withAuto = next.policies.autoRetryLimit !== undefined || base?.policies.autoRetryLimit !== undefined
+  const after = policyFields(next.policies, withAuto)
   if (base === null) {
     return [change('added', after.map(([label, value]) => `${label} ${value}`).join(SEPARATOR))]
   }
-  const phrases = policyFields(base.policies).map(([label, value], position) => arrow(label, value, after[position][1]))
+  const phrases = policyFields(base.policies, withAuto).map(([label, value], position) => arrow(label, value, after[position][1]))
   const edit = editedOrNull(detailOf(phrases), (detail) => change('edited', detail))
   return edit ? [edit] : []
 }

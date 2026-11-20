@@ -120,6 +120,7 @@ const PHRASES: Readonly<Record<string, Phrases>> = {
   submit_sprint_report: { doing: 'filing the sprint report', done: 'sprint report filed', failed: 'sprint report refused' },
   get_checkpoint: { doing: 'reading the checkpoint', done: 'read the checkpoint', failed: 'could not read the checkpoint' },
   advance_sprint: { doing: 'advancing the sprint', done: 'advanced the sprint', failed: 'could not advance the sprint' },
+  retry_ticket: { doing: 'retrying a ticket', done: 'retried a ticket', failed: 'could not retry a ticket' },
   redraft_next_sprint: { doing: 'redrafting the next sprint', done: 'redrafted the next sprint', failed: 'could not redraft the next sprint' }
 }
 

@@ -86,6 +86,35 @@ describe('the orchestrator kernel', () => {
   })
 })
 
+describe('retrying a ticket at its retry limit', () => {
+  const body = (id: string): string => merged.facts.find((fact) => fact.id === id)?.body ?? ''
+
+  it('tells the orchestrator to retry from a different angle with retry_ticket instead of asking the person', () => {
+    const escalation = body('orchestrator.retry-escalation')
+    for (const phrase of [
+      '`retry_ticket`',
+      'do not ask the person',
+      'genuinely different `newApproach`',
+      'honest `failureReason`',
+      'Escalate to the person only on `retry_escalation_required`'
+    ]) {
+      expect(escalation).toContain(phrase)
+    }
+    const repeated = body('orchestrator.repeated-escalations')
+    expect(repeated).toContain('retry it from that different angle with `retry_ticket`')
+    expect(repeated).toContain('instead of asking the person')
+    expect(repeated).not.toContain('tell the person: it may need splitting')
+    expect(kernelSource).toContain('Retry-limited tickets: `retry_ticket`.')
+  })
+
+  it('pushes the retry_ticket rule after a rejection and after a failure', () => {
+    for (const event of ['attempt.rejected', 'attempt.failed'] as const) {
+      const result = selectFacts(merged.facts, { role: 'orchestrator', event, budgetTokens: DEFAULT_CONTEXT_BUDGET })
+      expect(result.facts.map((fact) => fact.body).join('\n'), event).toContain('`retry_ticket`')
+    }
+  })
+})
+
 /**
  * Each SPACE measurement obligation (the orchestrator guide's former section 9), a phrase that states it, and every
  * event after which its trigger can occur. A person may report an escaped defect or ask for a grade at any time, and a

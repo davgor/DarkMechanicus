@@ -509,6 +509,14 @@ export const COMMAND_SCHEMAS = {
   }),
   authorizeAutoContinue: z.strictObject({ runId: stableId, enabled: z.boolean() }),
   grantRetry: z.strictObject({ runId: stableId, ticketId: stableId }),
+  // The service trims both texts and needs at least 20 characters of each; the length is checked here as given.
+  retryTicket: z.strictObject({
+    runId: stableId,
+    ticketId: stableId,
+    failureReason: z.string().max(LIMITS.shortText),
+    newApproach: z.string().max(LIMITS.shortText)
+  }),
+  acknowledgeAutoRetry: z.strictObject({ runId: stableId, ticketId: stableId, number: z.number().int().min(1).max(1_000) }),
   listEvents: z.strictObject({
     sinceSeq: z.number().int().min(0).optional(),
     limit: z.number().int().min(1).max(500).optional(),

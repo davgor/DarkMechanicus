@@ -2,6 +2,7 @@ import { COMMAND_SCHEMAS } from '../commandSchemas'
 import type { Ctx } from '../context'
 import { withKnowledgeContext } from '../knowledge/push'
 import { approveWithRedraft } from '../services/approveRedraft'
+import { acknowledgeAutoRetry, retryTicket } from '../services/autoRetry'
 import {
   advanceSprint,
   approveAndAdvance,
@@ -116,6 +117,19 @@ const checkpointCommands = {
       grantRetry(core.ctx(), input)
       return requireRunView(core.ctx(), input.runId)
     }
+  },
+  retryTicket: {
+    schema: COMMAND_SCHEMAS.retryTicket,
+    mutates: true,
+    run: (core, input) => {
+      const retry = retryTicket(core.ctx(), input)
+      return { ...retry, run: requireRunView(core.ctx(), input.runId) }
+    }
+  },
+  acknowledgeAutoRetry: {
+    schema: COMMAND_SCHEMAS.acknowledgeAutoRetry,
+    mutates: true,
+    run: (core, input) => acknowledgeAutoRetry(core.ctx(), input)
   }
 } satisfies Partial<CommandTable>
 

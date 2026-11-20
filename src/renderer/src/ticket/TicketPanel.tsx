@@ -2,7 +2,7 @@ import '../epic/tones.css'
 import './ticket.css'
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from 'react'
 import type { EvidenceRef } from '../../../shared/domain/space'
-import type { PlanView, TicketDetailView } from '../../../shared/domain/views'
+import type { AutoRetryView, PlanView, TicketDetailView } from '../../../shared/domain/views'
 import { errorMessage } from '../api/dm'
 import type { Scheduler } from '../app/scheduler'
 import type { Runner } from '../epic/runner'
@@ -11,6 +11,7 @@ import type { ReviewInput } from '../epic/workspaceActions'
 import type { EvidenceOpener } from '../scorecard/ScorecardParts'
 import { ActivityTab } from './ActivityTab'
 import { AttemptList } from './AttemptList'
+import { AutoRetries, AutoRetryCount } from './AutoRetries'
 import { ConversationPanel } from '../conversation/ConversationPanel'
 import { DeleteTicketConfirm } from './DeleteTicket'
 import { EvidenceTab, HistoryTab, OverviewTab } from './panelTabs'
@@ -56,7 +57,8 @@ interface DetailState {
   error: string | null
 }
 
-function useTicketDetail(props: TicketPanelProps): DetailState {
+/** The ticket read, and a way to record that the person acknowledged one of its orchestrator retries. */
+function useTicketDetail(props: TicketPanelProps): DetailState & { onAcknowledged(retry: AutoRetryView): void } {
   const { runner, epicId, ticketId, reloadKey } = props
   const view = props.plan.view
   const [state, setState] = useState<DetailState>({ detail: null, error: null })
@@ -78,7 +80,19 @@ function useTicketDetail(props: TicketPanelProps): DetailState {
       active = false
     }
   }, [runner, epicId, ticketId, view, reloadKey])
-  return state
+  const onAcknowledged = (retry: AutoRetryView): void =>
+    setState((held) =>
+      held.detail === null
+        ? held
+        : {
+            ...held,
+            detail: {
+              ...held.detail,
+              autoRetries: held.detail.autoRetries.map((item) => (item.runId === retry.runId && item.number === retry.number ? retry : item))
+            }
+          }
+    )
+  return { ...state, onAcknowledged }
 }
 
 /** The tab an arrow, Home or End key moves to, or null for any other key. */
@@ -264,7 +278,14 @@ function ScorecardBody({ detail, panel, focus, onFocus }: TabBodyProps): JSX.Ele
   )
 }
 
-function PanelHead(props: { panel: TicketPanelProps; detail: TicketDetailView; tab: TabId; panelId: string; onTab(tab: TabId): void }): JSX.Element {
+function PanelHead(props: {
+  panel: TicketPanelProps
+  detail: TicketDetailView
+  tab: TabId
+  panelId: string
+  onTab(tab: TabId): void
+  onAcknowledged(retry: AutoRetryView): void
+}): JSX.Element {
   const { panel, detail } = props
   const [deleting, setDeleting] = useState(false)
   const pill = statePill(detail)
@@ -279,6 +300,7 @@ function PanelHead(props: { panel: TicketPanelProps; detail: TicketDetailView; t
           </span>
         )}
         <StatePill tone={pill.tone} label={pill.label} />
+        <AutoRetryCount retries={detail.autoRetries} />
         <span className="tp-head-actions">
           {panel.canEdit ? (
             <>
@@ -297,6 +319,7 @@ function PanelHead(props: { panel: TicketPanelProps; detail: TicketDetailView; t
       </div>
       <h2 className="tp-title">{detail.ticket.title}</h2>
       <p className="tp-meta">{metaLine(detail, sprint?.goal ?? '', panel.plan.revisionNumber)}</p>
+      <AutoRetries runner={panel.runner} retries={detail.autoRetries} onAcknowledged={props.onAcknowledged} />
       {deleting && panel.canEdit ? (
         <DeleteTicketConfirm ticketKey={detail.ticket.key} onDelete={panel.onDelete} onKeep={() => setDeleting(false)} />
       ) : null}
@@ -307,7 +330,7 @@ function PanelHead(props: { panel: TicketPanelProps; detail: TicketDetailView; t
 
 /** Read view of one ticket: Markdown, criteria, capability profile, links, attempts, evidence, conversation, history. */
 export function TicketPanel(props: TicketPanelProps): JSX.Element {
-  const { detail, error } = useTicketDetail(props)
+  const { detail, error, onAcknowledged } = useTicketDetail(props)
   const [focus, setFocus] = usePanelFocus(props.activity, props.scorecard)
   const panelId = useId()
   const key = props.plan.bundle.tickets.find((item) => item.id === props.ticketId)?.key ?? props.ticketId
@@ -326,7 +349,14 @@ export function TicketPanel(props: TicketPanelProps): JSX.Element {
   }
   return (
     <aside className="tp" aria-label={`Ticket ${key}`}>
-      <PanelHead panel={props} detail={detail} tab={focus.tab} panelId={panelId} onTab={(tab) => setFocus({ tab, citedAttemptId: null })} />
+      <PanelHead
+        panel={props}
+        detail={detail}
+        tab={focus.tab}
+        panelId={panelId}
+        onTab={(tab) => setFocus({ tab, citedAttemptId: null })}
+        onAcknowledged={onAcknowledged}
+      />
       <div className="tp-body" role="tabpanel" id={panelId} aria-labelledby={`${panelId}-tab-${focus.tab}`}>
         <TabBody focus={focus} detail={detail} panel={props} onFocus={setFocus} />
       </div>

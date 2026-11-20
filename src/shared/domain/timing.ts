@@ -10,7 +10,8 @@
 /**
  * What a stretch of time was spent on.
  * - `active`: measured activity (host or agent activity spans) of the worker that held the attempt.
- * - `queue`: the ticket was ready (or awaiting a retry or reconciliation decision by the orchestrator) and nobody held it.
+ * - `queue`: the ticket was ready (or awaiting a retry or reconciliation decision by the orchestrator, including the
+ *   orchestrator's own retry of a ticket at its retry limit) and nobody held it.
  * - `build_test`: a host-reported wait on a build or test run.
  * - `blocked`: the run was paused, or a host reported the worker blocked.
  * - `review`: a submission waited for its review decision.
@@ -36,6 +37,7 @@ const SEGMENT_REASONS = [
   'awaiting_review',
   'awaiting_reconciliation',
   'awaiting_retry_grant',
+  'awaiting_orchestrator_retry',
   'sprint_checkpoint',
   'no_activity_evidence',
   'after_last_signal',

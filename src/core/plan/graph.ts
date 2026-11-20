@@ -278,6 +278,9 @@ function policyIssues(bundle: PlanBundle): ValidationIssue[] {
   if (!Number.isInteger(policies.retryLimit) || policies.retryLimit < 1) {
     issues.push({ code: 'invalid_policy', message: 'Retry limit must be a whole number of at least 1.' })
   }
+  if (policies.autoRetryLimit !== undefined && (!Number.isInteger(policies.autoRetryLimit) || policies.autoRetryLimit < 0)) {
+    issues.push({ code: 'invalid_policy', message: 'Orchestrator retry limit must be a whole number of at least 0.' })
+  }
   if (!Number.isInteger(policies.leaseSeconds) || policies.leaseSeconds < 30) {
     issues.push({ code: 'invalid_policy', message: 'Lease duration must be at least 30 seconds.' })
   }

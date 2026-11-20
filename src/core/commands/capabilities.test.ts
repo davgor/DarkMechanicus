@@ -148,6 +148,8 @@ const PROBES: Record<CommandName, unknown> = {
   approveWithRedraft: { runId: RUN, expectedDraftRevision: 1 },
   authorizeAutoContinue: { runId: RUN, enabled: true },
   grantRetry: { runId: RUN, ticketId: TICKET },
+  retryTicket: { runId: RUN, ticketId: TICKET, failureReason: 'The probe failed for a probing reason.', newApproach: 'A probing approach that differs entirely.' },
+  acknowledgeAutoRetry: { runId: RUN, ticketId: TICKET, number: 1 },
   listEvents: {},
   getAttemptTimeline: { attemptId: ATTEMPT },
   getRunTimeline: { runId: RUN },
@@ -266,6 +268,7 @@ describe('COMMAND_CAPABILITIES', () => {
   it('reserves the human-only capabilities for the desktop actions that exist for them', () => {
     const humanOnly = COMMAND_NAMES.filter((name) => HUMAN_ONLY_CAPABILITIES.includes(COMMAND_CAPABILITIES[name]))
     expect(humanOnly.sort()).toEqual([
+      'acknowledgeAutoRetry',
       'approveAndAdvance',
       'approveCheckpoint',
       'approveKanbanCard',

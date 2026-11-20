@@ -70,7 +70,8 @@ interface EventBase {
 
 type RunEventKind = 'run_started' | 'run_paused' | 'run_resumed' | 'run_ended'
 type SprintEventKind = 'sprint_activated' | 'sprint_report_submitted' | 'checkpoint_approved'
-type TicketEventKind = 'ticket_ready' | 'retry_granted'
+/** `retry_granted` is the person's grant; `auto_retry_granted` the orchestrator's own retry (`retry_ticket`). */
+type TicketEventKind = 'ticket_ready' | 'retry_granted' | 'auto_retry_granted'
 type AttemptEventKind =
   | 'attempt_signal'
   | 'attempt_submitted'
@@ -201,6 +202,8 @@ interface RunFacts {
   approvals: { sprintId: string; ms: number }[]
   ready: Map<string, number>
   retryGrants: Map<string, number[]>
+  /** The orchestrator's own retries: the wait before one is orchestration, never a person's approval. */
+  autoRetryGrants: Map<string, number[]>
 }
 
 type Handler<F, E> = (facts: F, event: E, ms: number, anomalies: TimingAnomaly[]) => void
@@ -241,15 +244,18 @@ const RUN_HANDLERS: { [K in RunLevelKind]: Handler<RunFacts, EventOf<K>> } = {
   ticket_ready: (facts, event, ms) => {
     if (!facts.ready.has(event.ticketId)) facts.ready.set(event.ticketId, ms)
   },
-  retry_granted: (facts, event, ms) => {
-    const grants = facts.retryGrants.get(event.ticketId)
-    if (grants === undefined) facts.retryGrants.set(event.ticketId, [ms])
-    else grants.push(ms)
-  }
+  retry_granted: (facts, event, ms) => pushGrant(facts.retryGrants, event.ticketId, ms),
+  auto_retry_granted: (facts, event, ms) => pushGrant(facts.autoRetryGrants, event.ticketId, ms)
+}
+
+function pushGrant(grants: Map<string, number[]>, ticketId: string, ms: number): void {
+  const times = grants.get(ticketId)
+  if (times === undefined) grants.set(ticketId, [ms])
+  else times.push(ms)
 }
 
 function runFacts(ordered: readonly Ordered[], asOf: number, anomalies: TimingAnomaly[]): RunFacts {
-  const facts: RunFacts = { startMs: null, endMs: null, pausedAt: null, pauses: [], activations: [], reports: [], approvals: [], ready: new Map(), retryGrants: new Map() }
+  const facts: RunFacts = { startMs: null, endMs: null, pausedAt: null, pauses: [], activations: [], reports: [], approvals: [], ready: new Map(), retryGrants: new Map(), autoRetryGrants: new Map() }
   const handlers = RUN_HANDLERS as unknown as Partial<Record<string, Handler<RunFacts, TimingEvent>>>
   for (const { event, ms } of ordered) handlers[event.kind]?.(facts, event, ms, anomalies)
   if (facts.pausedAt !== null) facts.pauses.push({ start: facts.pausedAt, end: asOf, open: true })
@@ -533,12 +539,26 @@ function reconciliationLayers(facts: AttemptFacts, next: number): Layer[] {
   return [{ start: facts.endMs, end: facts.reconciledMs ?? next, priority: PRIORITY.reconciliation, label: { class: 'queue', reason: 'awaiting_reconciliation', evidence: 'lifecycle' } }]
 }
 
-/** A retry grant between the attempt's close and the next claim: the time before it waited on a person. */
-function retryGrantLayers(facts: AttemptFacts, next: number, grants: readonly number[]): Layer[] {
+const AWAITING_PERSON_GRANT: Label = { class: 'human_approval', reason: 'awaiting_retry_grant', evidence: 'lifecycle' }
+const AWAITING_ORCHESTRATOR_RETRY: Label = { class: 'queue', reason: 'awaiting_orchestrator_retry', evidence: 'lifecycle' }
+
+/**
+ * The first retry grant between the attempt's close and the next claim, and what the time before it waited on: a
+ * person for their grant, the orchestrator (orchestration time, never a person's approval) for its own retry.
+ */
+function retryGrantLayers(facts: AttemptFacts, next: number, run: RunFacts): Layer[] {
   const closed = facts.decision?.ms ?? facts.reconciledMs ?? facts.endMs ?? next
-  const grant = grants.find((ms) => ms >= closed && ms <= next)
-  if (grant === undefined) return []
-  return [{ start: closed, end: grant, priority: PRIORITY.retryGrant, label: { class: 'human_approval', reason: 'awaiting_retry_grant', evidence: 'lifecycle' } }]
+  const grant = firstGrant(run, facts.claim.ticketId, (ms) => ms >= closed && ms <= next)
+  if (grant === null) return []
+  return [{ start: closed, end: grant.ms, priority: PRIORITY.retryGrant, label: grant.byOrchestrator ? AWAITING_ORCHESTRATOR_RETRY : AWAITING_PERSON_GRANT }]
+}
+
+/** The earliest grant of the ticket that `within` takes, the person's or the orchestrator's; null when there is none. */
+function firstGrant(run: RunFacts, ticketId: string, within: (ms: number) => boolean): { ms: number; byOrchestrator: boolean } | null {
+  const person = (run.retryGrants.get(ticketId) ?? []).find(within)
+  const orchestrator = (run.autoRetryGrants.get(ticketId) ?? []).find(within)
+  if (orchestrator !== undefined && (person === undefined || orchestrator < person)) return { ms: orchestrator, byOrchestrator: true }
+  return person === undefined ? null : { ms: person, byOrchestrator: false }
 }
 
 /** Marks where an attempt was open in the ticket's timeline; replaced by that attempt's own segments. */
@@ -550,7 +570,7 @@ function ticketLayers(attempts: readonly BuiltAttempt[], run: RunFacts, end: num
     const { facts } = attempt
     const next = attempts[i + 1]?.facts.claimMs ?? end
     layers.push({ ...attempt.window, priority: PRIORITY.attempt, label: IN_ATTEMPT })
-    layers.push(...reviewLayers(facts, next), ...reconciliationLayers(facts, next), ...retryGrantLayers(facts, next, run.retryGrants.get(facts.claim.ticketId) ?? []))
+    layers.push(...reviewLayers(facts, next), ...reconciliationLayers(facts, next), ...retryGrantLayers(facts, next, run))
   })
   return layers
 }

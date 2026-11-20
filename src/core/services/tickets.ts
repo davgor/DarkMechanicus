@@ -134,6 +134,7 @@ export function getTicket(
     relations: relationsOf(bundle, ticket.id).map(({ kind, other }) => ({ kind, ticket: link(other) })),
     execution: null,
     attempts: [],
+    autoRetries: [],
     readOnly: reason !== null,
     readOnlyReason: reason
   }
