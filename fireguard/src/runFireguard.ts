@@ -17,6 +17,7 @@ import type {
 
 export interface RunFireguardDeps {
   config: FireguardConfig;
+  revision: Pick<ShardIdentity, 'base' | 'head'>;
   shard?: ShardIdentity;
   getDiffEntries: () => Promise<DiffEntry[]>;
   /** A graded test as committed: the AST gate grades what the diff grades. */
@@ -107,11 +108,13 @@ async function runLaneGates(
 /** The report for a diff with no graded tests, which no gate runs for. */
 function untestedReport(
   scope: GitScope,
-  scopePayload: FireguardReport['scope']
+  scopePayload: FireguardReport['scope'],
+  revision: FireguardReport['revision']
 ): FireguardReport {
   // Fail closed: production module changes without graded test updates cannot earn a free A.
   if (scope.changedModules.length > 0) {
     return {
+      revision,
       grade: {
         letter: 'F',
         score: 0,
@@ -124,6 +127,7 @@ function untestedReport(
     };
   }
   return {
+    revision,
     grade: {
       letter: 'A',
       score: 100,
@@ -145,7 +149,7 @@ async function run(deps: RunFireguardDeps): Promise<FireguardReport> {
     gradedTestFiles: scope.gradedTestFiles,
     changedModules: scope.changedModules,
   };
-  if (scope.gradedTestFiles.length === 0) return untestedReport(scope, scopePayload);
+  if (scope.gradedTestFiles.length === 0) return untestedReport(scope, scopePayload, deps.revision);
 
   const gates: FireguardReport['gates'] = {};
 
@@ -158,6 +162,7 @@ async function run(deps: RunFireguardDeps): Promise<FireguardReport> {
   gates.ast = runAstGate({ config: deps.config, files });
   if (!gates.ast.pass) {
     return {
+      revision: deps.revision,
       grade: computeGrade(gates),
       gates,
       scope: scopePayload,
@@ -167,6 +172,7 @@ async function run(deps: RunFireguardDeps): Promise<FireguardReport> {
 
   const execution = await runLaneGates(deps, scope, gates);
   return {
+    revision: deps.revision,
     grade: computeGrade(gates),
     gates,
     scope: scopePayload,

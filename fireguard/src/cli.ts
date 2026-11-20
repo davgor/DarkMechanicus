@@ -35,9 +35,10 @@ function flagValue(argv: string[], name: string): string | undefined {
 }
 
 /** Git/vitest/filesystem-backed dependencies for a real run: everything graded is committed. */
-function createDeps(cwd: string, config: FireguardConfig): RunFireguardDeps {
+function createDeps(cwd: string, config: FireguardConfig, revision: FireguardReport['revision']): RunFireguardDeps {
   const { baseRef } = config;
   return {
+    revision,
     config,
     getDiffEntries: () => getGitDiffEntries({ cwd, baseRef }),
     readFile: (path) => readCommittedFile(cwd, path),
@@ -109,11 +110,11 @@ Exit codes:
     if (argv.includes('--shard') && !shardArg) throw new Error('--shard requires index/count');
     if (argv.includes('--merge-shards') && !mergeDirectory) throw new Error('--merge-shards requires a directory');
     if (shardArg && (mergeDirectory || commentPr)) throw new Error('shards cannot merge or post PR comments');
-    const deps = createDeps(cwd, config);
+    const revision = (ref: string) => execFileSync('git', ['rev-parse', '--verify', `${ref}^{commit}`],
+      { cwd, encoding: 'utf8' }).trim();
+    const identity = { head: revision('HEAD'), base: revision(config.baseRef) };
+    const deps = createDeps(cwd, config, identity);
     if (shardArg || mergeDirectory) {
-      const revision = (ref: string) => execFileSync('git', ['rev-parse', '--verify', `${ref}^{commit}`],
-        { cwd, encoding: 'utf8' }).trim();
-      const identity = { head: revision('HEAD'), base: revision(config.baseRef) };
       if (mergeDirectory) {
         const count = Number(flagValue(argv, '--shard-count'));
         const reports = readdirSync(mergeDirectory).filter((name) => name.endsWith('.json'))

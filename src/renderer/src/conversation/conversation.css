@@ -1,0 +1,106 @@
+.conversation-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.conversation-agent {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.conversation-thread {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.conversation-bubble {
+  width: min(88%, 720px);
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.conversation-bubble.is-mine {
+  justify-self: end;
+  border-color: var(--line-strong);
+  background: var(--primary-soft);
+}
+
+.conversation-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 6px;
+  color: var(--ink-2);
+  font-size: 12px;
+}
+
+.conversation-meta time,
+.conversation-delivery {
+  color: var(--muted);
+}
+
+.conversation-body > :first-child {
+  margin-top: 0;
+}
+
+.conversation-body > :last-child {
+  margin-bottom: 0;
+}
+
+.conversation-delivery {
+  margin: 8px 0 0;
+  font-size: 12px;
+}
+
+.conversation-composer,
+.conversation-draft {
+  display: grid;
+  gap: 8px;
+}
+
+.conversation-draft textarea {
+  width: 100%;
+  min-height: 78px;
+  padding: 9px 10px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-2);
+}
+
+.conversation-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.conversation-error {
+  margin: 0;
+  color: var(--st-failed);
+}
+
+.conversation-panel .tp-pending-images {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.conversation-panel .tp-pending-image {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.conversation-panel .tp-pending-image img {
+  border-radius: 4px;
+}

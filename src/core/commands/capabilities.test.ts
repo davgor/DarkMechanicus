@@ -161,6 +161,8 @@ const PROBES: Record<CommandName, unknown> = {
   updateKanbanCard: { cardId: CARD, expectedRevision: 1, title: 'Probe edit' },
   listKanbanCards: {},
   getKanbanCard: { cardId: CARD },
+  addKanbanMessage: { cardId: CARD, body: 'probe' },
+  listKanbanMessages: { cardId: CARD },
   playKanbanCard: { cardId: CARD },
   launchKanbanCards: { cardIds: [CARD] },
   claimKanbanCard: { cardId: CARD },

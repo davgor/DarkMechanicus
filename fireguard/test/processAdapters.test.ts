@@ -203,6 +203,25 @@ describe('committed reads and diffs', () => {
     });
   });
 
+  it('grades changed code without counting line-ending-only changes', async () => {
+    await withTempDir(async (dir) => {
+      initRepo(dir);
+      git(dir, 'config', 'core.autocrlf', 'false');
+      await mkdir(join(dir, 'src'));
+      await writeFile(join(dir, 'src/a.ts'), 'const first = 1;\nconst second = 2;\n');
+      git(dir, 'add', '.');
+      git(dir, 'commit', '-q', '-m', 'base');
+      const baseRef = git(dir, 'rev-parse', 'HEAD');
+      await writeFile(join(dir, 'src/a.ts'), 'const first = 1;\r\nconst second = 3;\r\n');
+      git(dir, 'add', '.');
+      git(dir, 'commit', '-q', '-m', 'change and convert endings');
+
+      expect(await getChangedLines({ cwd: dir, baseRef, paths: ['src/a.ts'] })).toEqual(
+        new Map([['src/a.ts', new Set([2])]])
+      );
+    });
+  });
+
   it('fall back to base..HEAD when the histories share no merge base', async () => {
     await withTempDir(async (dir) => {
       initRepo(dir);

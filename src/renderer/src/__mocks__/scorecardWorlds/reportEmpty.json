@@ -1975,7 +1975,7 @@
         "activeSprintOrdinal": 1,
         "sprintCount": 1,
         "host": null,
-        "skillVersion": "1.12.0",
+        "skillVersion": "1.13.0",
         "ownerMachineId": "mc_00000000000000000000000001",
         "ownedByThisMachine": true,
         "pauseReason": null,
@@ -2021,6 +2021,19 @@
           }
         ],
         "increments": [],
+        "activeSprintTierFacts": [
+          {
+            "ticketId": "tk_000000000000000000000000z9",
+            "key": "DM-1",
+            "size": "medium",
+            "plannedLevel": "multi_step",
+            "plannedEffort": null,
+            "attempts": [],
+            "attemptCount": 0,
+            "rejectionCount": 0,
+            "escalated": false
+          }
+        ],
         "attempts": [],
         "checkpoint": {
           "runId": "rn_00000000000000000000000003",

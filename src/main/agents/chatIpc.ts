@@ -16,6 +16,8 @@ export function registerChatIpc(ipcMain: Pick<IpcMain, 'handle'>, handlers: Chat
   ipcMain.handle('chats:startTransferChat', (_event, request: unknown) => handlers.startTransferChat(request))
   ipcMain.handle('chats:startKanbanCard', (_event, request: unknown) => handlers.startKanbanCard(request))
   ipcMain.handle('chats:kickBackKanbanCard', (_event, request: unknown) => handlers.kickBackKanbanCard(request))
+  ipcMain.handle('chats:sendConversationMessage', (_event, request: unknown) => handlers.sendConversationMessage(request))
+  ipcMain.handle('chats:conversationState', (_event, request: unknown) => handlers.conversationState(request))
   ipcMain.handle('chats:findTransferChat', (_event, request: unknown) => handlers.findTransferChat(request))
   ipcMain.handle('chats:transferPrompt', (_event, request: unknown) => handlers.transferPrompt(request))
   ipcMain.handle('chats:read', (_event, request: unknown) => handlers.read(request))

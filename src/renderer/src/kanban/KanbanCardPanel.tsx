@@ -7,6 +7,7 @@ import { errorMessage, runCommand } from '../api/dm'
 import { AttachmentGallery } from '../attachments/AttachmentGallery'
 import { unwrapChat } from '../agents/chatCalls'
 import { Button } from '../components/Button'
+import { ConversationPanel } from '../conversation/ConversationPanel'
 import type { OrchestrationHost } from '../epic/orchestration'
 import { Markdown } from '../markdown/Markdown'
 import { formatShortDate } from '../sidebar/epicStatusLine'
@@ -142,7 +143,40 @@ function KickBackHistory({ attempts }: { attempts: KanbanAttemptView[] }): JSX.E
   )
 }
 
-function CardDetails({ card, folderKey }: { card: KanbanCardView; folderKey: string }): JSX.Element {
+function CardConversation(props: {
+  folderPath: string
+  folderKey: string
+  card: KanbanCardView
+  refreshToken: number
+  onOpenChat(chatId: string): void
+}): JSX.Element {
+  const { folderPath, folderKey, card, refreshToken, onOpenChat } = props
+  return (
+    <section className="tp-section" aria-label="Conversation">
+      <h3 className="ew-eyebrow">CONVERSATION</h3>
+      <ConversationPanel
+        folderPath={folderPath}
+        target={{ cardId: card.id }}
+        messages={() => runCommand(folderPath, 'listKanbanMessages', { cardId: card.id })}
+        reloadKey={refreshToken}
+        canSend={card.lane !== 'done'}
+        folderKey={folderKey}
+        onOpenChat={onOpenChat}
+      />
+    </section>
+  )
+}
+
+interface CardDetailsProps {
+  folderPath: string
+  folderKey: string
+  card: KanbanCardView
+  refreshToken: number
+  onOpenChat(chatId: string): void
+}
+
+function CardDetails(props: CardDetailsProps): JSX.Element {
+  const { folderPath, folderKey, card, refreshToken, onOpenChat } = props
   const attempts = card.attempts.map((attempt) => asAttemptView(attempt, card.summary))
   const checklist = criteriaChecklist(card, attempts)
   const evidence = evidenceView(card, attempts)
@@ -178,6 +212,13 @@ function CardDetails({ card, folderKey }: { card: KanbanCardView; folderKey: str
         <h3 className="ew-eyebrow">ATTEMPTS</h3>
         <AttemptList attempts={attempts} now={Date.now()} />
       </section>
+      <CardConversation
+        folderPath={folderPath}
+        folderKey={folderKey}
+        card={card}
+        refreshToken={refreshToken}
+        onOpenChat={onOpenChat}
+      />
     </>
   )
 }
@@ -261,6 +302,7 @@ interface CardBodyProps {
   folderPath: string
   folderKey: string
   card: KanbanCardView
+  refreshToken: number
   host: OrchestrationHost
   onPlay(): void
   onReviewed(card: KanbanCardView, problem: string | null): void
@@ -268,7 +310,7 @@ interface CardBodyProps {
 }
 
 /** The loaded card: title, Play or Retry and the chat link, review controls, the Done summary, then the details. */
-function CardBody({ folderPath, folderKey, card, host, onPlay, onReviewed, onDeleted }: CardBodyProps): JSX.Element {
+function CardBody({ folderPath, folderKey, card, refreshToken, host, onPlay, onReviewed, onDeleted }: CardBodyProps): JSX.Element {
   // The card's newest chat: the one the last Play started, which a kick-back is pasted into.
   const chat = host.chats
     .filter((item) => item.cardId === card.id)
@@ -287,7 +329,13 @@ function CardBody({ folderPath, folderKey, card, host, onPlay, onReviewed, onDel
       </div>
       {card.lane === 'ready_for_review' ? <ReviewControls folderPath={folderPath} card={card} onReviewed={onReviewed} /> : null}
       {card.summary === null ? null : <DoneSummary summary={card.summary} />}
-      <CardDetails card={card} folderKey={folderKey} />
+      <CardDetails
+        folderPath={folderPath}
+        folderKey={folderKey}
+        card={card}
+        refreshToken={refreshToken}
+        onOpenChat={host.onOpenChat}
+      />
     </>
   )
 }
@@ -334,6 +382,7 @@ export function KanbanCardPanel({ folderPath, folderKey, cardId, refreshToken, h
           folderKey={folderKey}
           card={card}
           host={host}
+          refreshToken={refreshToken}
           onPlay={() => setPlaying(true)}
           onReviewed={changed}
           onDeleted={deleted}

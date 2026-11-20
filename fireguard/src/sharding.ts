@@ -53,6 +53,8 @@ export function mergeShards(
     parseShard(`${shard.index}/${shard.count}`);
     if (seen.has(shard.index)) throw new Error('duplicate shard index');
     seen.add(shard.index);
+    if (!report.revision || report.revision.head !== identity.head
+      || report.revision.base !== identity.base) throw new Error('shard report revision commit mismatch');
     if (shard.head !== identity.head || shard.base !== identity.base) throw new Error('shard commit mismatch');
     if (!same(shard.config, config)) throw new Error('shard config mismatch');
     if (!same(report.scope, first.scope)) throw new Error('shard scope mismatch');
@@ -60,7 +62,7 @@ export function mergeShards(
     if (report.skipped !== first.skipped) throw new Error('shard skip mismatch');
   }
   const gates: FireguardReport['gates'] = { ast: first.gates.ast };
-  const combined: FireguardReport = { scope: first.scope, skipped: first.skipped,
+  const combined: FireguardReport = { revision: identity, scope: first.scope, skipped: first.skipped,
     skipReason: first.skipReason, gates, grade: first.grade };
   if (first.scope.gradedTestFiles.length === 0) {
     combined.gates = {};

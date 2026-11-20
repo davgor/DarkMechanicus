@@ -170,6 +170,41 @@ function orchestratorFactBodies(idPrefix = 'orchestrator.'): string[] {
   })
 }
 
+describe('final validation and delivery guidance', () => {
+  const fact = (id: string): string => {
+    const source = BUILTIN_KNOWLEDGE.find((item) => item.path.endsWith(`/${id}.md`))
+    if (source === undefined) throw new Error(`missing fact ${id}`)
+    const parsed = parseFact(source.source, { layer: 'builtin', path: source.path })
+    if (!parsed.ok) throw new Error(parsed.diagnostic.message)
+    return parsed.fact.body
+  }
+
+  it('limits long validation to declared checks on immutable CI heads and accounts for every outcome', () => {
+    const body = fact('final-validation-ci')
+    for (const phrase of [
+      'noninterruptible', 'saved plan', 'immutable head', 'ordinary checks', 'local',
+      'live reporter', 'claim token', 'heartbeat', 'before claiming acceptance',
+      'pass', 'failure', 'tool error', 'source change', 'new head once', 'exact base and head'
+    ]) expect(body).toContain(phrase)
+  })
+
+  it('requires explicit authorization and normal protected PR delivery after the checkpoint', () => {
+    const body = fact('post-checkpoint-delivery')
+    for (const phrase of [
+      'Checkpoint approval', 'merge authorization', 'saved plan or person',
+      'open', 'ready', 'squash-merge', 'final checkpoint', 'branch protection',
+      'never an admin bypass', 'non-required check', 'person-owned risk decision',
+      'remote default branch', 'completed epic branch/report'
+    ]) expect(body).toContain(phrase)
+  })
+
+  it('reads active-sprint tier facts before report revision 1', () => {
+    expect(reporter).toContain('`get_run.activeSprintTierFacts`')
+    expect(reporter).toContain('before report revision 1')
+    expect(reporter).toContain('`get_sprint_report` only after a report exists')
+  })
+})
+
 /** Phrases each skill must keep; a guard against accidentally dropping a rule during edits. */
 const REQUIRED: [string, string[]][] = [
   [

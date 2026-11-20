@@ -64,7 +64,9 @@ describe('built-in knowledge selection', () => {
       'required-leftover',
       'record-keeping',
       'host-catalog',
-      'time-box'
+      'time-box',
+      'final-validation-ci',
+      'post-checkpoint-delivery'
     ])
     for (const topic of topics) {
       const result = selectFacts(merged.facts, { role: 'orchestrator', topics: [topic], budgetTokens: DEFAULT_CONTEXT_BUDGET })

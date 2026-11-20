@@ -120,7 +120,7 @@ export async function getGitDiffEntries(options: {
 }
 
 /**
- * Lines each file gained or changed (new side, 1-based), from `git diff -U0` hunk headers.
+ * Lines each file gained or changed (new side, 1-based), from `git diff -U0 --ignore-space-at-eol` hunk headers.
  * Pure deletions add no line; a file the diff does not mention is left out.
  */
 export function parseChangedLines(diff: string): Map<string, Set<number>> {
@@ -150,7 +150,7 @@ export async function getChangedLines(options: {
   paths: string[];
 }): Promise<Map<string, Set<number>>> {
   if (options.paths.length === 0) return new Map();
-  const diff = await gitDiff(options, ['-U0', '--src-prefix=a/', '--dst-prefix=b/']);
+  const diff = await gitDiff(options, ['-U0', '--ignore-space-at-eol', '--src-prefix=a/', '--dst-prefix=b/']);
   const wanted = new Set(options.paths);
   const changed = parseChangedLines(diff);
   for (const path of changed.keys()) if (!wanted.has(path)) changed.delete(path);

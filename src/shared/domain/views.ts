@@ -633,6 +633,8 @@ export interface RunView {
   rows: RowView[]
   /** The increment each sprint with an acceptance node named, in sprint order; sprints that named none are left out. */
   increments: SprintIncrementView[]
+  /** Server-computed facts for the active sprint, including all attempts; empty without an active sprint. */
+  activeSprintTierFacts: TicketTierFacts[]
   attempts: AttemptView[]
   checkpoint: CheckpointView | null
 }
@@ -1116,7 +1118,7 @@ export type AttachmentPurpose = 'evidence' | 'reference'
 export type AttachmentMime = 'image/png' | 'image/jpeg'
 
 /** The kinds of record an attachment can belong to. */
-export type AttachmentOwnerKind = 'attempt' | 'kanban_attempt' | 'comment' | 'kanban_card' | 'ticket'
+export type AttachmentOwnerKind = 'attempt' | 'kanban_attempt' | 'kanban_message' | 'comment' | 'kanban_card' | 'ticket'
 
 export interface AttachmentOwner {
   kind: AttachmentOwnerKind

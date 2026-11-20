@@ -1,9 +1,10 @@
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { withRig, callTool } from '../../test/mcpHarness'
 import { createHarness } from '../../test/workspaceHarness'
 import { registerChatNamingTools } from './chatNaming'
 it('publishes the exact strict metadata union and refuses target selectors before the command runs', async () => {
+  vi.stubEnv('DM_DESKTOP_PIPE', '')
   const h = createHarness()
   await h.open('desktop').initializeRepository({ name: 'Naming adapter' })
   const api = h.open('worker')
@@ -17,5 +18,5 @@ it('publishes the exact strict metadata union and refuses target selectors befor
       }
       expect((await callTool(rig, 'name_chat', { title: 'Intent label' })).payload).toMatchObject({ ok: false, error: { code: 'desktop_unavailable' } })
     })
-  } finally { api.close(); h.cleanup() }
+  } finally { api.close(); h.cleanup(); vi.unstubAllEnvs() }
 })

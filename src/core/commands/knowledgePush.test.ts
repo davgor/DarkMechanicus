@@ -55,6 +55,13 @@ function pushed(result: PushedContext): string[] {
   return context.facts.filter((fact) => fact.layer === 'repo').map((fact) => fact.id)
 }
 
+const protocolFacts = (result: PushedContext): string[] =>
+  (result.context?.facts ?? [])
+    .filter((fact) => fact.layer === 'builtin' && (
+      fact.id === 'orchestrator.final-validation-ci' || fact.id === 'orchestrator.post-checkpoint-delivery'
+    ))
+    .map((fact) => fact.id)
+
 async function codeOf(promise: Promise<unknown>): Promise<string> {
   try {
     await promise
@@ -115,6 +122,7 @@ describe('knowledge pushed with run and attempt commands', () => {
     const plan = await planned()
     const run = await agent.startRun({ epicId: plan.epicId })
     expect(pushed(run)).toEqual(['repo.run.started'])
+    expect(protocolFacts(run)).toEqual([])
 
     const claim = await agent.claimTicket({ runId: run.id, ticketId: plan.ticket('first'), worker: { label: 'w' } })
     expect(pushed(claim)).toEqual(['repo.ticket.claimed'])
@@ -158,6 +166,7 @@ describe('knowledge pushed with ticket claims', () => {
     await agent.submitAttempt({ attemptId: work.attempt.id, claimToken: work.packet.claimToken, outputs: { summary: 'done' } })
     await agent.acceptAttempt({ attemptId: work.attempt.id })
     const claim = await agent.claimTicket({ runId: run.id, ticketId: node, worker: { label: 'w' } })
+    expect(protocolFacts(claim)).toEqual(['orchestrator.final-validation-ci'])
     expect(pushed(claim)).toEqual(['repo.acceptance.claimed'])
   })
 
@@ -171,10 +180,17 @@ describe('knowledge pushed with ticket claims', () => {
     expect(passed.context).toBeUndefined()
   })
 
+})
+
+describe('knowledge pushed with recovery', () => {
   it('takeover_run and adopt_revision push run.recovery', async () => {
     const plan = await planned()
     const run = await agent.startRun({ epicId: plan.epicId })
-    expect(pushed(await agent.takeoverRun({ runId: run.id }))).toEqual(['repo.run.recovery'])
+    const recovered = await agent.takeoverRun({ runId: run.id })
+    expect(pushed(recovered)).toEqual(['repo.run.recovery'])
+    expect(protocolFacts(recovered)).toEqual([
+      'orchestrator.final-validation-ci', 'orchestrator.post-checkpoint-delivery'
+    ])
     await agent.pauseRun({ runId: run.id })
 
     const draft = await agent.updatePlanDraft({
@@ -196,9 +212,12 @@ describe('knowledge pushed with checkpoint and kanban commands', () => {
       await agent.acceptAttempt({ attemptId: claim.attempt.id })
     }
     const report = await agent.submitSprintReport({ runId: run.id, sprintId: plan.sprintOne, report: { summary: 'Done.' } })
+    expect(protocolFacts(report)).toEqual([])
     expect(pushed(report)).toEqual(['repo.sprint.reported'])
     await harness.open('desktop').approveCheckpoint({ runId: run.id, reportId: report.id })
-    expect(pushed(await agent.advanceSprint({ runId: run.id }))).toEqual(['repo.checkpoint.approved'])
+    const advanced = await agent.advanceSprint({ runId: run.id })
+    expect(pushed(advanced)).toEqual(['repo.checkpoint.approved'])
+    expect(protocolFacts(advanced)).toEqual(['orchestrator.post-checkpoint-delivery'])
   })
 
   it('claim_kanban_card pushes kanban.claimed', async () => {

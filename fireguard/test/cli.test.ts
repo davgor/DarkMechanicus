@@ -24,6 +24,7 @@ describe('runCli', () => {
 });
 
 const skipped: FireguardReport = {
+  revision: { base: 'base-commit', head: 'head-commit' },
   grade: { letter: 'A', score: 100, reasons: ['no graded unit tests to evaluate'] },
   gates: {},
   scope: { baseRef: 'main', gradedTestFiles: [], changedModules: [] },
@@ -75,6 +76,42 @@ describe('runCli production dependencies', () => {
         null,
         { lanes: 2, workspace: 'committed', runner: 'warm' },
       ]);
+    });
+  });
+
+  it('resolves the same committed base and head for local and sharded reports', async () => {
+    await withTempDir(async (dir) => {
+      initRepo(dir);
+      await writeFile(join(dir, 'tracked.txt'), 'base');
+      git(dir, 'add', '.');
+      git(dir, 'commit', '-qm', 'base');
+      const base = git(dir, 'rev-parse', 'HEAD');
+      await writeFile(join(dir, 'tracked.txt'), 'head');
+      git(dir, 'commit', '-qam', 'head');
+      const head = git(dir, 'rev-parse', 'HEAD');
+      const run = async (argv: string[]): Promise<FireguardReport> => {
+        let output = '';
+        const code = await runCli({
+          cwd: dir, argv: ['--json', ...argv],
+          env: { FIREGUARD_BASE_REF: base },
+          stdout: (text) => { output += text; },
+        });
+        expect(code).toBe(0);
+        return JSON.parse(output) as FireguardReport;
+      };
+      const local = await run([]);
+      const shard = await run(['--shard', '1/2']);
+      expect(local.revision).toEqual({ base, head });
+      expect(shard.revision).toEqual(local.revision);
+      expect(shard.shard).toMatchObject({ base, head, index: 1, count: 2 });
+      const second = await run(['--shard', '2/2']);
+      const directory = join(dir, 'reports');
+      await mkdir(directory);
+      await writeFile(join(directory, '1.json'), JSON.stringify(shard));
+      await writeFile(join(directory, '2.json'), JSON.stringify(second));
+      const merged = await run(['--merge-shards', directory, '--shard-count', '2']);
+      expect(merged).toMatchObject({ revision: { base, head }, skipped: true });
+      expect(merged.shard).toBeUndefined();
     });
   });
 });

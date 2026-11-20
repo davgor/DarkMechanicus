@@ -18,6 +18,7 @@ import type { Ctx } from '../context'
 import { parseJson, toJson } from '../db/database'
 import { fail } from '../errors'
 import { sortedSprints } from '../plan/graph'
+import { computeTierFacts } from '../plan/tierFacts'
 import { SKILLS_VERSION } from '../version'
 import { bindRepositoryBranches, isRepositoryFolder, requireFolderBranchName } from './epicBranches'
 import { appendEvent } from './events'
@@ -27,10 +28,12 @@ import {
   executionOf,
   expireLeases,
   guardUnique,
+  loadHostCatalog,
   loadBundle,
   loadRunContext,
   recordCarryForward,
   requireRun,
+  tierFactsAttempt,
   type RunRow
 } from './execution'
 import { requestWithoutKey, withIdempotency } from './idempotency'
@@ -194,6 +197,12 @@ function buildRunView(ctx: Ctx, runId: string): RunView {
     tickets: execution.tickets,
     rows: execution.rows,
     increments: sprintIncrementViews(bundle, context.attempts),
+    activeSprintTierFacts: run.active_sprint_id === null ? [] : computeTierFacts({
+      bundle,
+      sprintId: run.active_sprint_id,
+      attempts: context.attempts.map(tierFactsAttempt),
+      catalog: loadHostCatalog(ctx, run.host_catalog_id)?.catalog ?? null
+    }),
     attempts: recentAttempts(context.attempts),
     checkpoint: null
   }

@@ -1,8 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { FIREGUARD_COMMENT_MARKER, formatPrMarkdown, upsertPrComment } from '../src/prComment.js';
+import { formatJsonReport } from '../src/report.js';
 import type { FireguardReport } from '../src/types.js';
 
 const report: FireguardReport = {
+  revision: { base: 'base-commit', head: 'head-commit' },
   grade: { letter: 'F', score: 0, reasons: ['ast gate failed'] },
   gates: {
     ast: {
@@ -42,15 +44,29 @@ describe('formatPrMarkdown', () => {
     expect(md).toContain('mock-ratio');
   });
 
-  it('states skip reason when nothing was graded', () => {
-    const md = formatPrMarkdown({
+  it('shows the same final grade, symbolic base and exact revisions as JSON', () => {
+    const md = formatPrMarkdown(report);
+    const json = JSON.parse(formatJsonReport(report)) as FireguardReport;
+    expect(md).toContain(`## Fireguard grade: **${json.grade.letter}** (score ${json.grade.score})`);
+    expect(md).toContain(`Base ref: \`${json.scope.baseRef}\`\n`);
+    expect(md).toContain(`Resolved base commit: \`${json.revision.base}\`\n`);
+    expect(md).toContain(`Tested head commit: \`${json.revision.head}\`\n`);
+  });
+
+  it('states skip reason, final grade and exact revisions when nothing was graded', () => {
+    const skipped: FireguardReport = {
       ...report,
       grade: { letter: 'A', score: 100, reasons: ['no new tests to grade'] },
       gates: {},
       skipped: true,
       skipReason: 'No new unit tests vs base ref',
-    });
-    expect(md).toContain('## Fireguard grade: **A**');
+    };
+    const md = formatPrMarkdown(skipped);
+    const json = JSON.parse(formatJsonReport(skipped)) as FireguardReport;
+    expect(md).toContain(`## Fireguard grade: **${json.grade.letter}** (score ${json.grade.score})`);
+    expect(md).toContain(`Base ref: \`${json.scope.baseRef}\`\n`);
+    expect(md).toContain(`Resolved base commit: \`${json.revision.base}\`\n`);
+    expect(md).toContain(`Tested head commit: \`${json.revision.head}\`\n`);
     expect(md).toContain('No new unit tests vs base ref');
   });
 });

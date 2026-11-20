@@ -101,6 +101,18 @@ export interface KanbanCardView extends KanbanCardSummaryView {
   attempts: KanbanAttemptView[]
 }
 
+/** One append-only conversation message on a card. */
+export interface KanbanMessageView {
+  id: string
+  body: string
+  /** The writing session, never caller-supplied. */
+  authorRole: SessionRole
+  authorLabel: string
+  createdAt: string
+  /** The images attached to the message; absent when it has none. */
+  attachments?: AttachmentRef[]
+}
+
 /** What a claim hands the agent that carries a card. */
 export interface KanbanPacket {
   cardId: string

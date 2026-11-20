@@ -72,6 +72,12 @@ Create an empty `shards` directory first; keep unrelated JSON files outside it. 
 
 Only the aggregate adds `--comment-pr`, so it emits one final report/grade and upserts one sticky comment. Both required check names, `test` and `fireguard`, are aggregate jobs that run even after failed children and require every child job to succeed. CI retains shard/combined JSON artifacts for diagnosis. Local `npm run fireguard` remains unsharded and unchanged.
 
+### Revision identity and acceptance
+
+The JSON report (`revision.base`, `revision.head`, `scope.baseRef`), human report and sticky PR comment identify the same final grade and revisions, including a skipped result. `baseRef` is the symbolic/configured ref (or supplied base SHA); the **resolved base commit** is the exact commit used for the diff, and the **tested head commit** is the exact committed source graded. A symbolic branch name may move, so use the resolved commits, not the ref alone, to match acceptance evidence to the code.
+
+`fireguard-report.json` and `fireguard-pr.md` from the aggregate CI job are evidence only for that tested head against that resolved base. Any later source edit or new commit changes the source under review and invalidates that artifact for acceptance; commit the new source and run validation on the new head before accepting or delivering it. Do not reuse an earlier grade or PR comment as evidence for the new head.
+
 ## Config (`.fireguardrc.json`)
 
 ```json
@@ -114,7 +120,7 @@ Env overrides: `FIREGUARD_MIN_MUTATION_SCORE`, `FIREGUARD_MAX_MOCK_RATIO`, `FIRE
 
 Each changed production module is mutated one operator at a time (`+ - * / < > <= >= === !==`, `if` inversion, boolean/number `return` tweaks) and the tests are re-run against every mutant; a mutant that still passes them survives.
 
-**Only mutants on changed lines run.** A mutant counts when the code it replaces touches a line the diff added or changed (`git diff -U0`, new side; a condition spanning lines counts if any of them changed). The score is the kill rate of those mutants, so a branch is graded on the code it wrote, not on old code it happens to touch; a module whose diff only deletes lines has none. The report says how many mutants sat on unchanged lines and were not run (`changed lines only: 15 mutants on changed lines, 166 on unchanged lines not run`; `--json`: `gates.mutation.unchangedLineMutants`). Callers of `runFireguard` that do not supply `getChangedLines` run every mutant of every changed module.
+**Only mutants on changed lines run.** A mutant counts when the code it replaces touches a line the diff added or changed (`git diff -U0 --ignore-space-at-eol`, new side; a condition spanning lines counts if any of them changed). Line-ending-only conversions are not code changes and do not expand mutation scope. The score is the kill rate of those mutants, so a branch is graded on the code it wrote, not on old code it happens to touch; a module whose diff only deletes lines has none. The report says how many mutants sat on unchanged lines and were not run (`changed lines only: 15 mutants on changed lines, 166 on unchanged lines not run`; `--json`: `gates.mutation.unchangedLineMutants`). Callers of `runFireguard` that do not supply `getChangedLines` run every mutant of every changed module.
 
 **Mutants of a module run only against graded tests that transitively import it.** Only those tests can load the mutated code, so grading semantics are unchanged, but a milestone-sized branch no longer re-runs every graded test file for every mutant. Fireguard builds a static import graph with the TypeScript compiler (nothing is executed):
 
