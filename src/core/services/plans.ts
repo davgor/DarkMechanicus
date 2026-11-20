@@ -8,7 +8,7 @@ import { fail } from '../errors'
 import { computeChanges } from '../plan/diff'
 import { validatePlan } from '../plan/graph'
 import { enqueueUnexportedComments } from './comments'
-import { SPENT_ATTEMPT_SQL, ticketsMovedLater } from './adoption'
+import { KEEP_SPENT_TICKETS, retryBudgetResets } from './adoption'
 import { activeRun, assertEpicOpen, type EpicRow, loadEpicRow } from './epics'
 import { appendEvent } from './events'
 import { requestWithoutKey, withIdempotency } from './idempotency'
@@ -344,8 +344,10 @@ const PERSON_SAVES = 'only the person can save that (or an orchestrator launched
 /**
  * What a save on run ownership alone may not do, checked inside the save's transaction (so a run canceled or taken
  * over since `requireSaveAuthority` refuses the save). Retries are the person's to grant (`ticket.retry_grant`), so
- * the orchestrator may not change the plan's policies (the retry limit, the ticket-failure policy) or move a ticket
- * that spent attempts in this run to a later sprint, which adoption would give a fresh retry budget.
+ * the orchestrator may not change the plan's policies (the retry limit, the ticket-failure policy), nor reset the
+ * retry budget of a ticket that spent attempts in this run: moving it to a later sprint (adoption supersedes its
+ * spent attempts) or removing it (a copy added under a new id starts with none). Adoption repeats the budget check
+ * (`adoptRevision`), since a ticket can be moved or removed while unspent and fail before the revision is adopted.
  */
 function assertRunSaveLimits(ctx: Ctx, epicId: string, bundle: PlanBundle): void {
   const run = ownedActiveRun(ctx, epicId)
@@ -353,21 +355,32 @@ function assertRunSaveLimits(ctx: Ctx, epicId: string, bundle: PlanBundle): void
     requireCapability(ctx.session, 'plan.save', 'The run this orchestrator owned for the epic has ended or moved to another machine.')
     return
   }
-  const pinned = loadRevisionBundle(ctx, run.revision_id)
-  if (contentHash(pinned.policies) !== contentHash(bundle.policies)) {
+  // Compared with the epic's current saved revision, not the run's pinned one: that is the person's latest word on
+  // the policies. A newer revision they saved with stricter limits, not yet adopted, would otherwise have to be
+  // reverted for this save to pass, and the orchestrator's save would silently loosen them. Saves on run ownership
+  // never change policies, so the current revision's policies were set by the person (or an allowSave session).
+  const epic = loadEpicRow(ctx, epicId)
+  const policySource = loadRevisionBundle(ctx, epic.current_revision_id ?? run.revision_id)
+  if (contentHash(policySource.policies) !== contentHash(bundle.policies)) {
     fail('unauthorized', `The draft changes the plan's policies (retry limit, ticket-failure policy): ${PERSON_SAVES}.`, {
       field: 'policies'
     })
   }
-  const spent = ticketsMovedLater(pinned, bundle).filter(
-    (ticketId) =>
-      ctx.db.get(`SELECT id FROM attempts WHERE run_id = ? AND ticket_id = ? AND superseded_at IS NULL AND ${SPENT_ATTEMPT_SQL} LIMIT 1`, run.id, ticketId) !==
-      undefined
-  )
-  if (spent.length > 0) {
-    fail('unauthorized', `The draft moves tickets with spent attempts to a later sprint, which grants them a fresh retry budget: ${PERSON_SAVES}.`, {
-      tickets: spent
-    })
+  const pinned = loadRevisionBundle(ctx, run.revision_id)
+  const { removed, movedLater } = retryBudgetResets(ctx, { runId: run.id, current: pinned, target: bundle })
+  if (removed.length > 0) {
+    fail(
+      'unauthorized',
+      `The draft removes tickets with spent attempts in this run, and a copy under a new id would start with a fresh retry budget: ${PERSON_SAVES}. ${KEEP_SPENT_TICKETS}`,
+      { tickets: removed }
+    )
+  }
+  if (movedLater.length > 0) {
+    fail(
+      'unauthorized',
+      `The draft moves tickets with spent attempts to a later sprint, which grants them a fresh retry budget: ${PERSON_SAVES}. ${KEEP_SPENT_TICKETS}`,
+      { tickets: movedLater }
+    )
   }
 }
 

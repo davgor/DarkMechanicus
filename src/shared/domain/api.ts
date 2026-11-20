@@ -803,7 +803,7 @@ export interface CommandApi {
   grantRetry(input: { runId: string; ticketId: string }): Promise<RunView>
   /**
    * Orchestrator only: one more attempt for a ticket its retry limit holds, saying why it failed and what changes
-   * this time; bounded per ticket per run by the plan's `autoRetryLimit` (then `retry_escalation_required`).
+   * this time; bounded per ticket over every run of the epic by the plan's `autoRetryLimit` (then `retry_escalation_required`).
    */
   retryTicket(input: { runId: string; ticketId: string; failureReason: string; newApproach: string }): Promise<RetryTicketResult>
   /** Desktop only: records that the person read an orchestrator retry; it never gates a claim or the run. */

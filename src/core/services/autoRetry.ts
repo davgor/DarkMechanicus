@@ -1,8 +1,10 @@
 /**
  * The orchestrator's own retries. Once a ticket uses up its plan's `retryLimit` (plus any grants), the orchestrator
  * may give it one more attempt itself (`retry_ticket`, capability `ticket.auto_retry`), saying why it failed and what
- * it does differently, up to the plan's `autoRetryLimit` per ticket per run. After that only the person's
- * `grant_retry` adds attempts. The person's grants never use up that budget: it counts orchestrator retries only.
+ * it does differently, up to the plan's `autoRetryLimit` per ticket over every run of its epic. After that only the
+ * person's `grant_retry` adds attempts. The person's grants never use up that budget: it counts orchestrator retries
+ * only. The budget and the tried approaches are the epic's, not the run's, so canceling the run and starting a new one
+ * gives the orchestrator no fresh retries and lets it repeat no approach (the person's grants stay per run).
  *
  * Every retry is a `ticket.retry_granted` event whose payload names `grantedBy: 'orchestrator'`; the extra attempt
  * itself goes into `retry_grants` exactly as the person's grant does, so readiness, scorecards and verification read
@@ -24,14 +26,14 @@ import { enqueueOutbox } from './outbox'
 import { setRunState } from './reports'
 import { requireOwnedRun } from './runs'
 
-export const RETRY_GRANTED_EVENT = 'ticket.retry_granted'
-export const AUTO_RETRY_ACKNOWLEDGED_EVENT = 'ticket.auto_retry_acknowledged'
-export const ORCHESTRATOR_GRANT = 'orchestrator'
+const RETRY_GRANTED_EVENT = 'ticket.retry_granted'
+const AUTO_RETRY_ACKNOWLEDGED_EVENT = 'ticket.auto_retry_acknowledged'
+const ORCHESTRATOR_GRANT = 'orchestrator'
 
 /** The fewest characters a reason or an approach may have once trimmed: a word or two says nothing. */
-export const MIN_RETRY_TEXT = 20
+const MIN_RETRY_TEXT = 20
 
-export interface RetryTicketInput {
+interface RetryTicketInput {
   runId: string
   ticketId: string
   failureReason: string
@@ -96,17 +98,37 @@ function autoRetryOf(row: { seq: number; at: string; run_id: string; ticket_id: 
   }
 }
 
+type RetryEventRow = { seq: number; at: string; run_id: string; ticket_id: string; payload_json: string }
+
+function orchestratorRetries(rows: RetryEventRow[]): AutoRetryEvent[] {
+  return rows.map(autoRetryOf).filter((event): event is AutoRetryEvent => event !== null)
+}
+
 /** The orchestrator's retries of one ticket in one run, oldest first. */
 function autoRetriesInRun(ctx: Ctx, runId: string, ticketId: string): AutoRetryEvent[] {
-  return ctx.db
-    .all<{ seq: number; at: string; run_id: string; ticket_id: string; payload_json: string }>(
+  return orchestratorRetries(
+    ctx.db.all<RetryEventRow>(
       'SELECT seq, at, run_id, ticket_id, payload_json FROM events WHERE kind = ? AND run_id = ? AND ticket_id = ? ORDER BY seq',
       RETRY_GRANTED_EVENT,
       runId,
       ticketId
     )
-    .map(autoRetryOf)
-    .filter((event): event is AutoRetryEvent => event !== null)
+  )
+}
+
+/**
+ * The orchestrator's retries of one ticket over every run of its epic, oldest first: what its budget and its tried
+ * approaches count. `retryTicket` always records the event with the run's epic, so none is missed.
+ */
+function autoRetriesInEpic(ctx: Ctx, epicId: string, ticketId: string): AutoRetryEvent[] {
+  return orchestratorRetries(
+    ctx.db.all<RetryEventRow>(
+      'SELECT seq, at, run_id, ticket_id, payload_json FROM events WHERE kind = ? AND epic_id = ? AND ticket_id = ? ORDER BY seq',
+      RETRY_GRANTED_EVENT,
+      epicId,
+      ticketId
+    )
+  )
 }
 
 /** Refused with `conflict` unless the ticket is held by its retry limit right now. */
@@ -122,26 +144,26 @@ function requireAtRetryLimit(ctx: Ctx, runId: string, ticketId: string, key: str
 }
 
 /**
- * The run's earlier orchestrator retries of the ticket, once the plan's budget has room for another
+ * The earlier orchestrator retries of the ticket in any run of the epic, once the plan's budget has room for another
  * (`retry_escalation_required` otherwise) and `newApproach` is not one of theirs (`conflict` otherwise).
  */
 function requireNewApproachWithinBudget(
   ctx: Ctx,
-  ticket: { runId: string; ticketId: string; key: string },
+  ticket: { epicId: string; ticketId: string; key: string },
   limit: number,
   newApproach: string
 ): AutoRetryEvent[] {
-  const earlier = autoRetriesInRun(ctx, ticket.runId, ticket.ticketId)
+  const earlier = autoRetriesInEpic(ctx, ticket.epicId, ticket.ticketId)
   if (earlier.length >= limit) {
     fail(
       'retry_escalation_required',
-      `${ticket.key} has had ${earlier.length} orchestrator ${earlier.length === 1 ? 'retry' : 'retries'} in this run, the most the plan allows (${limit}). Tell the person why it keeps failing; only their Grant retry in the desktop app adds attempts now.`,
+      `${ticket.key} has had ${earlier.length} orchestrator ${earlier.length === 1 ? 'retry' : 'retries'} in this epic's runs, the most the plan allows (${limit}). Tell the person why it keeps failing; only their Grant retry in the desktop app adds attempts now.`,
       { ticketId: ticket.ticketId, autoRetries: earlier.length, autoRetryLimit: limit }
     )
   }
   const key = approachKey(newApproach)
   if (earlier.some((event) => approachKey(event.newApproach) === key)) {
-    fail('conflict', `This approach was already tried for ${ticket.key} in this run. Retry from a genuinely different angle.`, {
+    fail('conflict', `This approach was already tried for ${ticket.key} in a run of this epic. Retry from a genuinely different angle.`, {
       ticketId: ticket.ticketId
     })
   }
@@ -150,7 +172,7 @@ function requireNewApproachWithinBudget(
 
 /**
  * Orchestrator only: one more attempt for a ticket its retry limit holds, in a run this machine owns, with an honest
- * reason and an approach this run has not tried for the ticket. A run waiting at its checkpoint resumes, as with the
+ * reason and an approach no run of the epic has tried for the ticket. A run waiting at its checkpoint resumes, as with the
  * person's grant. Returns the retry's number and how many more the plan allows.
  */
 export function retryTicket(ctx: Ctx, input: RetryTicketInput): { autoRetry: number; autoRetriesLeft: number } {
@@ -168,7 +190,7 @@ export function retryTicket(ctx: Ctx, input: RetryTicketInput): { autoRetry: num
       fail('not_found', `Ticket ${input.ticketId} is not part of this run's plan revision.`, { ticketId: input.ticketId })
     requireAtRetryLimit(ctx, run.id, ticket.id, ticket.key)
     const limit = autoRetryLimitOf(bundle.policies)
-    const earlier = requireNewApproachWithinBudget(ctx, { runId: run.id, ticketId: ticket.id, key: ticket.key }, limit, newApproach)
+    const earlier = requireNewApproachWithinBudget(ctx, { epicId: run.epic_id, ticketId: ticket.id, key: ticket.key }, limit, newApproach)
     ctx.db.run(
       `INSERT INTO retry_grants (run_id, ticket_id, extra) VALUES (?, ?, 1)
        ON CONFLICT (run_id, ticket_id) DO UPDATE SET extra = extra + 1`,

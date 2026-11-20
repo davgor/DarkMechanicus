@@ -10,7 +10,7 @@ priority: 80
 A run stays pinned to the revision it started with. When a ticket proves wrong or unworkable mid-sprint, fix the plan yourself; do not ask the person to save or adopt:
 
 1. Fix the draft, then `validate_plan` with `view: "draft"`; fix every error, read every warning.
-2. `save_plan`. Without `--allow-save` this works for an epic whose active run this machine owns, except a draft that changes the plan's policies or moves a ticket with spent attempts to a later sprint: retries are the person's to grant.
+2. `save_plan`. Without `--allow-save` this works for an epic whose active run this machine owns, except a draft that changes the plan's policies, or removes a ticket with spent attempts or moves one to a later sprint: retries are the person's to grant. Edit such a ticket in place with `update_ticket` (it keeps its id and its spent attempts), add new tickets for split-off parts, or retry it with `retry_ticket`. Adoption refuses the same changes.
 3. Wait until no attempts are open: in-flight workers submit or fail, expired leases are reconciled. No pause is needed.
 4. `adopt_revision` with a `reason` (20 characters or more): what failed and what the revision changes. The person reads it in the run's activity; it blocks nothing.
 
