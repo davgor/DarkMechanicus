@@ -15,9 +15,16 @@ import {
   type SeedRunOptions
 } from '../../test/checkpointSeed'
 import { createTestCtx, withRole, type TestCtx } from '../../test/testContext'
+import { COMMAND_SCHEMAS } from '../commandSchemas'
+import { CLAIM_TOKEN_MASK } from '../claimTokenMask'
+import { GRANT_TOKEN_MASK } from '../storedSecrets'
+import { getRunTimeline } from './activity'
 import { adoptRevision } from './adoption'
 import { advanceSprint, approveCheckpoint, getCheckpoint } from './checkpoints'
 import { submitSprintReport } from './reports'
+
+/** An agent's adoption reason: what failed and what the revision changes. */
+const REASON = 'Test adoption: the plan changed mid-run.'
 
 /** Sprint 1 = {DM-1, DM-2} accepted, sprint 2 = {DM-3}; the run waits at its first checkpoint. */
 function atCheckpoint(options: SeedRunOptions = {}): { ctx: TestCtx; run: SeededRun } {
@@ -49,7 +56,7 @@ describe('adoptRevision reconciliation', () => {
     const revisionId = seedRevision(ctx, run.epicId, retitle(run.bundle, 2))
     ctx.clock.advanceSeconds(60)
     const now = '2026-01-01T00:01:00.000Z'
-    const result = adoptRevision(ctx, { runId: run.runId, revisionId })
+    const result = adoptRevision(ctx, { reason: REASON, runId: run.runId, revisionId })
     expect(result).toEqual({
       runId: run.runId,
       kept: [tid(1)],
@@ -66,7 +73,16 @@ describe('adoptRevision reconciliation', () => {
         epicId: run.epicId,
         runId: run.runId,
         ticketId: null,
-        payload: { from: run.revisionId, to: revisionId, kept: [tid(1)], superseded: [tid(2)], freshBudget: [] }
+        payload: {
+          from: run.revisionId,
+          to: revisionId,
+          revisionNumber: 2,
+          kept: [tid(1)],
+          superseded: [tid(2)],
+          freshBudget: [],
+          adoptedBy: 'orchestrator',
+          reason: REASON
+        }
       }
     ])
     expect(outboxEntries(ctx).map((entry) => [entry.kind, entry.epic_id])).toEqual([
@@ -74,11 +90,13 @@ describe('adoptRevision reconciliation', () => {
       ['epic_state', run.epicId]
     ])
   })
+})
 
+describe('adoptRevision carry-forward', () => {
   it('keeps changed tickets that are explicitly carried forward', () => {
     const { ctx, run } = atCheckpoint()
     const revisionId = seedRevision(ctx, run.epicId, retitle(run.bundle, 2))
-    const result = adoptRevision(ctx, { runId: run.runId, revisionId, carryForward: [tid(2)] })
+    const result = adoptRevision(ctx, { reason: REASON, runId: run.runId, revisionId, carryForward: [tid(2)] })
     expect([result.kept, result.superseded]).toEqual([[tid(1), tid(2)], []])
     expect([supersededAt(ctx, 2), ticketStatusOf(ctx, 2)]).toEqual([[null], 'completed'])
     expect(outboxEntries(ctx).map((entry) => entry.kind)).toEqual(['run_history'])
@@ -87,7 +105,7 @@ describe('adoptRevision reconciliation', () => {
   it('supersedes acceptances of tickets the new revision removed, even when listed for carry-forward', () => {
     const { ctx, run } = atCheckpoint()
     const revisionId = seedRevision(ctx, run.epicId, makeBundle([[1], [3]]))
-    const result = adoptRevision(ctx, { runId: run.runId, revisionId, carryForward: [tid(2)] })
+    const result = adoptRevision(ctx, { reason: REASON, runId: run.runId, revisionId, carryForward: [tid(2)] })
     expect([result.kept, result.superseded]).toEqual([[tid(1)], [tid(2)]])
     expect([supersededAt(ctx, 2)[0] === null, ticketStatusOf(ctx, 2)]).toEqual([false, 'completed'])
   })
@@ -97,7 +115,7 @@ describe('adoptRevision active sprint', () => {
   it('keeps the active sprint when its id survives', () => {
     const { ctx, run } = atCheckpoint({ activeSprint: 2 })
     const revisionId = seedRevision(ctx, run.epicId, makeBundle([[1, 2], [3], [4]]))
-    expect(adoptRevision(ctx, { runId: run.runId, revisionId }).activeSprintId).toBe(sid(2))
+    expect(adoptRevision(ctx, { reason: REASON, runId: run.runId, revisionId }).activeSprintId).toBe(sid(2))
   })
 
   it('falls back to the sprint with the same ordinal, then to the last sprint', () => {
@@ -105,60 +123,63 @@ describe('adoptRevision active sprint', () => {
     const renamed = makeBundle([[1, 2], [3]])
     renamed.sprints = renamed.sprints.map((sprint) => ({ ...sprint, id: sid(sprint.ordinal + 10) }))
     const second = seedRevision(ctx, run.epicId, renamed)
-    expect(adoptRevision(ctx, { runId: run.runId, revisionId: second }).activeSprintId).toBe(sid(12))
+    expect(adoptRevision(ctx, { reason: REASON, runId: run.runId, revisionId: second }).activeSprintId).toBe(sid(12))
     const merged = seedRevision(ctx, run.epicId, makeBundle([[1, 2, 3]]))
-    expect(adoptRevision(ctx, { runId: run.runId, revisionId: merged }).activeSprintId).toBe(sid(1))
+    expect(adoptRevision(ctx, { reason: REASON, runId: run.runId, revisionId: merged }).activeSprintId).toBe(sid(1))
   })
 })
 
 describe('adoptRevision guards', () => {
-  it('only adopts at a checkpoint or while paused', () => {
-    const { ctx, run } = atCheckpoint({ state: 'running' })
+  it('adopts while running, at a checkpoint or paused, never while queued or ended', () => {
+    const { ctx, run } = atCheckpoint({ state: 'queued' })
     const revisionId = seedRevision(ctx, run.epicId, retitle(run.bundle, 3))
-    expect(errorOf(() => adoptRevision(ctx, { runId: run.runId, revisionId }))).toMatchObject({
+    expect(errorOf(() => adoptRevision(ctx, { reason: REASON, runId: run.runId, revisionId }))).toMatchObject({
       code: 'run_not_active',
-      message: 'Adopt a new revision at a checkpoint or while paused.'
+      message: 'Adopt a new revision while the run is running, paused or at a checkpoint.'
     })
+    const ended = seedRun(ctx, { state: 'completed' })
+    const endedNext = seedRevision(ctx, ended.epicId, retitle(ended.bundle, 3))
+    expect(errorOf(() => adoptRevision(ctx, { reason: REASON, runId: ended.runId, revisionId: endedNext })).code).toBe('run_not_active')
     const paused = seedRun(ctx, { state: 'paused' })
     const next = seedRevision(ctx, paused.epicId, retitle(paused.bundle, 3))
-    expect(adoptRevision(ctx, { runId: paused.runId, revisionId: next }).activeSprintId).toBe(sid(1))
+    expect(adoptRevision(ctx, { reason: REASON, runId: paused.runId, revisionId: next }).activeSprintId).toBe(sid(1))
   })
 
   it('refuses while attempts are open', () => {
     const { ctx, run } = atCheckpoint()
     const open = seedAttempt(ctx, run, { ticket: 3, state: 'submitted' })
     const revisionId = seedRevision(ctx, run.epicId, retitle(run.bundle, 3))
-    const result = errorOf(() => adoptRevision(ctx, { runId: run.runId, revisionId }))
+    const result = errorOf(() => adoptRevision(ctx, { reason: REASON, runId: run.runId, revisionId }))
     expect(result).toMatchObject({ code: 'conflict', details: { openAttempts: [open] } })
     expect(runRow(ctx, run.runId)?.revision_id).toBe(run.revisionId)
   })
 
   it("only adopts the epic's current saved revision, and only a different one", () => {
     const { ctx, run } = atCheckpoint()
-    const sameRevision = errorOf(() => adoptRevision(ctx, { runId: run.runId, revisionId: run.revisionId }))
+    const sameRevision = errorOf(() => adoptRevision(ctx, { reason: REASON, runId: run.runId, revisionId: run.revisionId }))
     expect(sameRevision).toMatchObject({ code: 'conflict', message: 'The run already executes this revision.' })
     const older = seedRevision(ctx, run.epicId, retitle(run.bundle, 3))
     seedRevision(ctx, run.epicId, retitle(run.bundle, 1))
-    const stale = errorOf(() => adoptRevision(ctx, { runId: run.runId, revisionId: older }))
+    const stale = errorOf(() => adoptRevision(ctx, { reason: REASON, runId: run.runId, revisionId: older }))
     expect(stale).toMatchObject({ code: 'conflict', message: "Only the epic's current saved revision can be adopted." })
     const pending = seedRevision(ctx, run.epicId, retitle(run.bundle, 2), { state: 'pending' })
-    const unsaved = errorOf(() => adoptRevision(ctx, { runId: run.runId, revisionId: pending }))
+    const unsaved = errorOf(() => adoptRevision(ctx, { reason: REASON, runId: run.runId, revisionId: pending }))
     expect(unsaved).toMatchObject({ code: 'conflict', message: `Revision ${pending} is not saved yet.` })
   })
 
   it('requires ownership, the run.adopt capability, an unchanged branch, and an existing run', () => {
     const { ctx, run } = atCheckpoint({ ownerMachineId: 'mc_0000000000000000000000other' })
     const revisionId = seedRevision(ctx, run.epicId, retitle(run.bundle, 3))
-    expect(errorOf(() => adoptRevision(ctx, { runId: run.runId, revisionId })).code).toBe('run_not_owned')
-    expect(errorOf(() => adoptRevision(withRole(ctx, 'planner'), { runId: run.runId, revisionId })).code).toBe('unauthorized')
+    expect(errorOf(() => adoptRevision(ctx, { reason: REASON, runId: run.runId, revisionId })).code).toBe('run_not_owned')
+    expect(errorOf(() => adoptRevision(withRole(ctx, 'planner'), { reason: REASON, runId: run.runId, revisionId })).code).toBe('unauthorized')
     const moved: TestCtx = {
       ...ctx,
       assertBranch: () => {
         throw Object.assign(new Error('branch moved'), { code: 'branch_changed' })
       }
     }
-    expect(errorOf(() => adoptRevision(moved, { runId: run.runId, revisionId })).code).toBe('branch_changed')
-    expect(errorOf(() => adoptRevision(ctx, { runId: 'rn_00000000000000000000000404', revisionId })).code).toBe('not_found')
+    expect(errorOf(() => adoptRevision(moved, { reason: REASON, runId: run.runId, revisionId })).code).toBe('branch_changed')
+    expect(errorOf(() => adoptRevision(ctx, { reason: REASON, runId: 'rn_00000000000000000000000404', revisionId })).code).toBe('not_found')
   })
 })
 
@@ -171,7 +192,7 @@ describe('adoptRevision and checkpoint approvals', () => {
     const report = submitSprintReport(agent, { runId: run.runId, sprintId: sid(1), report: { summary: 'Done' } })
     approveCheckpoint(desktop, { runId: run.runId, reportId: report.id })
     const revisionId = seedRevision(agent, run.epicId, retitle(run.bundle, 3))
-    adoptRevision(agent, { runId: run.runId, revisionId })
+    adoptRevision(agent, { reason: REASON, runId: run.runId, revisionId })
     expect(getCheckpoint(agent, { runId: run.runId })).toMatchObject({ gatesMet: true, approval: null, canAdvance: false })
     expect(errorOf(() => advanceSprint(agent, { runId: run.runId })).code).toBe('approval_required')
     approveCheckpoint(desktop, { runId: run.runId, reportId: report.id })
@@ -183,7 +204,7 @@ describe('adoptRevision closed-sprint guard', () => {
   it('refuses to supersede an accepted ticket in a sprint the run already passed', () => {
     const { ctx, run } = atCheckpoint({ activeSprint: 2 })
     const revisionId = seedRevision(ctx, run.epicId, retitle(run.bundle, 1))
-    const error = errorOf(() => adoptRevision(ctx, { runId: run.runId, revisionId }))
+    const error = errorOf(() => adoptRevision(ctx, { reason: REASON, runId: run.runId, revisionId }))
     expect(error.code).toBe('conflict')
     expect(error.message).toBe(
       'DM-1 changed in a sprint this run already passed. Carry it forward or start a new run to redo it.'
@@ -194,7 +215,7 @@ describe('adoptRevision closed-sprint guard', () => {
   it('adopts when the passed-sprint change is explicitly carried forward', () => {
     const { ctx, run } = atCheckpoint({ activeSprint: 2 })
     const revisionId = seedRevision(ctx, run.epicId, retitle(run.bundle, 1))
-    const result = adoptRevision(ctx, { runId: run.runId, revisionId, carryForward: [tid(1)] })
+    const result = adoptRevision(ctx, { reason: REASON, runId: run.runId, revisionId, carryForward: [tid(1)] })
     expect([result.kept, result.superseded, result.activeSprintId]).toEqual([[tid(1), tid(2)], [], sid(2)])
   })
 
@@ -202,6 +223,112 @@ describe('adoptRevision closed-sprint guard', () => {
     const { ctx, run } = atCheckpoint({ activeSprint: 2 })
     seedAttempt(ctx, run, { ticket: 3, state: 'accepted' })
     const revisionId = seedRevision(ctx, run.epicId, retitle(run.bundle, 3))
-    expect(adoptRevision(ctx, { runId: run.runId, revisionId }).superseded).toEqual([tid(3)])
+    expect(adoptRevision(ctx, { reason: REASON, runId: run.runId, revisionId }).superseded).toEqual([tid(3)])
+  })
+})
+
+describe('adoptRevision mid-sprint by the orchestrator', () => {
+  it('adopts into a running run it owns once no attempts are open, and the run keeps running', () => {
+    const { ctx, run } = atCheckpoint({ state: 'running' })
+    seedAttempt(ctx, run, { ticket: 3, state: 'failed' })
+    const revisionId = seedRevision(ctx, run.epicId, retitle(run.bundle, 3))
+    expect(adoptRevision(ctx, { reason: REASON, runId: run.runId, revisionId })).toMatchObject({ kept: [tid(1), tid(2)], superseded: [] })
+    expect(runRow(ctx, run.runId)).toMatchObject({ revision_id: revisionId, state: 'running' })
+  })
+
+  it.each(['claimed', 'running', 'submitted'] as const)('refuses a running run with an open %s attempt', (state) => {
+    const { ctx, run } = atCheckpoint({ state: 'running' })
+    const open = seedAttempt(ctx, run, { ticket: 3, state })
+    const revisionId = seedRevision(ctx, run.epicId, retitle(run.bundle, 3))
+    const error = errorOf(() => adoptRevision(ctx, { reason: REASON, runId: run.runId, revisionId }))
+    expect(error).toMatchObject({ code: 'conflict', details: { openAttempts: [open] } })
+    expect(runRow(ctx, run.runId)?.revision_id).toBe(run.revisionId)
+    expect(eventLog(ctx).filter((event) => event.kind === 'run.revision_adopted')).toEqual([])
+  })
+
+  it('refuses a running run another machine owns', () => {
+    const { ctx, run } = atCheckpoint({ state: 'running', ownerMachineId: 'mc_0000000000000000000000other' })
+    const revisionId = seedRevision(ctx, run.epicId, retitle(run.bundle, 3))
+    expect(errorOf(() => adoptRevision(ctx, { reason: REASON, runId: run.runId, revisionId })).code).toBe('run_not_owned')
+  })
+})
+
+describe('adoptRevision reason', () => {
+  it.each([
+    ['missing', undefined],
+    ['blank', '   '],
+    ['shorter than 20 characters once trimmed', `   ${'x'.repeat(19)}   `]
+  ])('refuses an agent adoption whose reason is %s, and changes nothing', (_case, reason) => {
+    const { ctx, run } = atCheckpoint({ state: 'running' })
+    const revisionId = seedRevision(ctx, run.epicId, retitle(run.bundle, 3))
+    const error = errorOf(() => adoptRevision(ctx, { runId: run.runId, revisionId, ...(reason === undefined ? {} : { reason }) }))
+    expect(error).toMatchObject({ code: 'invalid_input', details: { field: 'reason' } })
+    expect(runRow(ctx, run.runId)?.revision_id).toBe(run.revisionId)
+    expect(eventLog(ctx)).toEqual([])
+  })
+
+})
+
+describe('adoptRevision reason limits', () => {
+  it('refuses a reason longer than the short-text limit', () => {
+    const { ctx, run } = atCheckpoint()
+    const revisionId = seedRevision(ctx, run.epicId, retitle(run.bundle, 3))
+    expect(errorOf(() => adoptRevision(ctx, { reason: 'x'.repeat(2_001), runId: run.runId, revisionId })).code).toBe('invalid_input')
+  })
+
+  it('accepts exactly 20 characters, trimmed', () => {
+    const { ctx, run } = atCheckpoint()
+    const revisionId = seedRevision(ctx, run.epicId, retitle(run.bundle, 3))
+    adoptRevision(ctx, { reason: `  ${'y'.repeat(20)}  `, runId: run.runId, revisionId })
+    expect(eventLog(ctx)[0]?.payload).toMatchObject({ reason: 'y'.repeat(20) })
+  })
+
+  it('lets the desktop adopt without a reason, recorded as none', () => {
+    const { ctx, run } = atCheckpoint()
+    const revisionId = seedRevision(ctx, run.epicId, retitle(run.bundle, 3))
+    adoptRevision(withRole(ctx, 'desktop'), { runId: run.runId, revisionId })
+    expect(eventLog(ctx)[0]?.payload).toMatchObject({ to: revisionId, adoptedBy: 'desktop', reason: null })
+  })
+
+})
+
+describe('adoptRevision reason record', () => {
+  it('stores the reason with claim and grant tokens masked', () => {
+    const { ctx, run } = atCheckpoint()
+    const revisionId = seedRevision(ctx, run.epicId, retitle(run.bundle, 3))
+    const claim = `at_${'0'.repeat(26)}.${'s'.repeat(32)}`
+    const grant = `dmg_${'a'.repeat(64)}`
+    adoptRevision(ctx, { reason: `DM-3 failed with ${claim}; regrant ${grant} and split DM-3`, runId: run.runId, revisionId })
+    const stored = ctx.db.get<{ payload_json: string }>("SELECT payload_json FROM events WHERE kind = 'run.revision_adopted'")?.payload_json ?? ''
+    expect(stored).not.toContain(claim)
+    expect(stored).not.toContain(grant)
+    expect(JSON.parse(stored)).toMatchObject({ reason: `DM-3 failed with ${CLAIM_TOKEN_MASK}; regrant ${GRANT_TOKEN_MASK} and split DM-3` })
+  })
+
+  it('shows the adoption and its reason in the run activity, blocking nothing', () => {
+    const { ctx, run } = atCheckpoint({ state: 'running' })
+    const revisionId = seedRevision(ctx, run.epicId, retitle(run.bundle, 3))
+    adoptRevision(ctx, { reason: REASON, runId: run.runId, revisionId })
+    const entries = getRunTimeline(ctx, { runId: run.runId }).groups.flatMap((group) => group.entries)
+    expect(entries).toEqual([
+      expect.objectContaining({ kind: 'run', change: 'revision_adopted', reason: `Plan revision 2 adopted by the orchestrator: ${REASON}` })
+    ])
+    expect(runRow(ctx, run.runId)?.state).toBe('running')
+  })
+
+  it('names the person, with no reason, for a desktop adoption in the run activity', () => {
+    const { ctx, run } = atCheckpoint()
+    const revisionId = seedRevision(ctx, run.epicId, retitle(run.bundle, 3))
+    adoptRevision(withRole(ctx, 'desktop'), { runId: run.runId, revisionId })
+    const entries = getRunTimeline(ctx, { runId: run.runId }).groups.flatMap((group) => group.entries)
+    expect(entries.map((entry) => (entry.kind === 'run' ? entry.reason : null))).toEqual(['Plan revision 2 adopted by the person'])
+  })
+
+  it('takes reason as optional in the command schema, trimmed and at least 20 characters', () => {
+    const base = { runId: 'rn_00000000000000000000000001', revisionId: 'rv_00000000000000000000000001' }
+    expect(COMMAND_SCHEMAS.adoptRevision.safeParse(base).success).toBe(true)
+    expect(COMMAND_SCHEMAS.adoptRevision.safeParse({ ...base, reason: 'too short' }).success).toBe(false)
+    expect(COMMAND_SCHEMAS.adoptRevision.safeParse({ ...base, reason: `  ${'z'.repeat(19)} ` }).success).toBe(false)
+    expect(COMMAND_SCHEMAS.adoptRevision.parse({ ...base, reason: `  ${REASON}  ` }).reason).toBe(REASON)
   })
 })

@@ -106,7 +106,7 @@ describe('plan_current with a saved revision the run has not adopted', () => {
     expect(errorOf(() => approveCheckpoint(fixture.desktop, { runId: fixture.run.runId, reportId: fixture.report.id })).code).toBe(
       'gate_blocked'
     )
-    adoptRevision(fixture.ctx, { runId: fixture.run.runId, revisionId })
+    adoptRevision(fixture.ctx, { reason: 'Test adoption: the plan changed mid-run.', runId: fixture.run.runId, revisionId })
     expect(planGate(fixture.ctx, fixture.run)).toEqual({
       ...MET,
       detail: 'The run executes revision 2, the saved plan, and no draft holds unsaved changes'

@@ -110,8 +110,10 @@ function createShutdown(parts: ShutdownParts): () => Promise<void> {
 function logReady({ workspace, args, options }: ServeContext): void {
   const canSave = capabilitiesForRole(args.role, { allowSave: args.allowSave }).includes('plan.save')
   const session = workspace.sessionId() ?? 'none'
+  // Without --allow-save an orchestrator still saves the plan of an epic whose active run this machine owns.
+  const save = canSave ? 'allowed' : args.role === 'orchestrator' ? 'own active runs only' : 'not allowed'
   options.log(
-    `${MCP_SERVER_NAME} ${options.version} ready: repo=${workspace.repoRoot} role=${args.role} save=${canSave ? 'allowed' : 'not allowed'} session=${session}`
+    `${MCP_SERVER_NAME} ${options.version} ready: repo=${workspace.repoRoot} role=${args.role} save=${save} session=${session}`
   )
   if (args.allowSave && !canSave) {
     options.log(

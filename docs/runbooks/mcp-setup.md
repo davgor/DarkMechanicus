@@ -23,7 +23,7 @@ One process is one session with one role. Start one server entry per role you wa
 |--------|---------|
 | `--repo <path>` | Repository root to coordinate. Default: `$DARKMECHANICUS_REPO`, else the current directory. Relative paths resolve against the current directory. Point every session of an epic at the same coordinating checkout. |
 | `--role <role>` | `orchestrator` (default), `planner`, `worker`, or `reviewer`. `desktop` is reserved for the app and is refused. |
-| `--allow-save` | Lets a `planner` or `orchestrator` session call `save_plan`. Without it the agent has to ask a person to press Save in the desktop app. |
+| `--allow-save` | Lets a `planner` or `orchestrator` session call `save_plan`. Without it the agent has to ask a person to press Save in the desktop app, except that an `orchestrator` may still save the plan of an epic whose active run this machine owns. |
 | `--label <text>` | Name shown for the session in the desktop app. Default: `<role> via MCP`. |
 | `--help` | Print usage on stdout and exit. |
 
@@ -175,7 +175,7 @@ Roles are fixed at launch. Nothing a tool call says can change them.
 | Role | Can do |
 |------|--------|
 | `planner` | Read, create epics, edit drafts (including corrective DRAFT work from a retro's experiments, `create_corrections`), comment, save named capability profiles (`save_profile`), set the project's Definition of Done (`set_definition_of_done`). `save_plan` only with `--allow-save`. |
-| `orchestrator` (default) | Everything a planner can except set the Definition of Done (it reads it with `get_project`, and holds work to it when it accepts), plus register hosts, start and control runs, claim tickets, review attempts, record usage for any attempt of its run and the run's overhead, submit sprint reports, record experiment statuses and results (`record_experiment_event`), redraft the next sprint from a retro (`redraft_next_sprint`), retry a ticket at its retry limit itself (`retry_ticket`, at most the plan's `autoRetryLimit` times per ticket per run), advance sprints, launch named Kanban cards, and carry out a Linear transfer the person queued (`epic.transfer`; see [Linear transfer](#linear-transfer)). Never approves. |
+| `orchestrator` (default) | Everything a planner can except set the Definition of Done (it reads it with `get_project`, and holds work to it when it accepts), plus register hosts, start and control runs, claim tickets, review attempts, record usage for any attempt of its run and the run's overhead, submit sprint reports, record experiment statuses and results (`record_experiment_event`), redraft the next sprint from a retro (`redraft_next_sprint`), retry a ticket at its retry limit itself (`retry_ticket`, at most the plan's `autoRetryLimit` times per ticket per run), advance sprints, launch named Kanban cards, and carry out a Linear transfer the person queued (`epic.transfer`; see [Linear transfer](#linear-transfer)). Without `--allow-save` it still saves the plan of an epic whose active run (queued, running, awaiting its checkpoint or paused) this machine owns, so it can fix the sprint it runs and adopt the revision (`adopt_revision` with a `reason`) without you. That save may not change the plan's policies or move a ticket with spent attempts to a later sprint (so it cannot raise its own retry limits; past `autoRetryLimit`, retries are yours to grant). Never approves. |
 | `worker` | Heartbeat, submit, and fail for the claim it holds; report that attempt's usage (`record_attempt_metrics` with its claim token); comment. |
 | `reviewer` | Accept or reject submitted attempts; report review overhead usage (`record_run_metrics`); comment. |
 
@@ -232,7 +232,7 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 | Repository and drafts: `initialize_repository`, `rescan_repositories`, `flush_portable_state`, `reconcile_repository`, `create_epic`, `import_board`, `create_ticket`, `update_ticket`, `open_plan_draft`, `update_plan_draft`, `discard_plan_draft` | yes | yes | | |
 | Corrective work: `create_corrections` | yes | yes | | |
 | Kanban cards (`kanban.write`): `create_kanban_card`, `update_kanban_card` | yes | yes | | |
-| `save_plan` | with `--allow-save` | with `--allow-save` | | |
+| `save_plan` | with `--allow-save` | yes | | |
 | Epic and ticket status: `set_epic_status`, `set_epic_branch`, `set_ticket_status` | | yes | | |
 | Runs: `register_host`, `start_run`, `pause_run`, `resume_run`, `cancel_run`, `takeover_run`, `adopt_revision` | | yes | | |
 | Claims and reporting: `claim_ticket`, `reconcile_attempt`, `carry_forward_ticket` | | yes | | |
@@ -248,9 +248,9 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 | Kanban launch and claim: `launch_kanban_cards`, `claim_kanban_card` | | yes | | |
 | Kanban reporting (`kanban.report`): `heartbeat_kanban_card`, `submit_kanban_card`, `fail_kanban_card` | | yes | yes | |
 | Agent mail (`mail.use`; listed, but always `unauthorized` over MCP): `get_agent_identity`, `list_agent_peers`, `send_agent_message`, `read_agent_inbox`, `acknowledge_agent_messages`, `get_agent_mail_status`, `take_agent_mail_wake` | yes | yes | yes | yes |
-| **Total** | 74 (75 with `--allow-save`) | 107 (108 with `--allow-save`) | 65 | 61 |
+| **Total** | 74 (75 with `--allow-save`) | 108 (108 with `--allow-save`) | 65 | 61 |
 
-`--allow-save` has no effect for `worker` and `reviewer`. No role lists a tool for the desktop-only actions: no tool presses Play on a Kanban card, approves one or kicks one back (`kanban.play` and `kanban.review` belong to a person in the desktop app).
+An `orchestrator` lists `save_plan` with or without `--allow-save`: without it, the service saves only the plan of an epic whose active run this machine owns and refuses the rest with `unauthorized`. `--allow-save` has no effect for `worker` and `reviewer`. No role lists a tool for the desktop-only actions: no tool presses Play on a Kanban card, approves one or kicks one back (`kanban.play` and `kanban.review` belong to a person in the desktop app).
 
 The seven agent mail tools are listed to every hosted role, but a mailbox belongs to a `dm` CLI grant the desktop bound to a chat, which no MCP session has (not even one that inherited `DM_SESSION_TOKEN`): every call over MCP answers `unauthorized` and changes nothing. Native Skitarii chats use them through the `dm` CLI; see [Agent mail between Skitarii chats](cli.md#agent-mail-between-skitarii-chats).
 
@@ -362,7 +362,7 @@ If the host reports that the connection closed at once, run the same command in 
 | `incompatible_schema` | The repository's database was created by a newer build. Update this app or checkout to the same version as the desktop. Databases are never downgraded. |
 | `branch_changed` | The coordinating checkout's Git branch differs from the one recorded at the last reconcile. Saves and dispatch are blocked and active runs are paused. Switch back to the epic branch, or if the change is intended call `reconcile_repository`, then `resume_run`. Drafts are kept. |
 | `run_not_owned` | The run was imported from another computer. Make sure the other computer has stopped, call `takeover_run` (it pauses the run and marks leased attempts `lease_expired`), call `reconcile_attempt` for each, then `resume_run`. |
-| `unauthorized` | The session's role lacks the capability (the tool is not in its list either). Check `get_capabilities` and relaunch with the right `--role`. `save_plan` also needs `--allow-save`. |
+| `unauthorized` | The session's role lacks the capability (the tool is not in its list either). Check `get_capabilities` and relaunch with the right `--role`. `save_plan` also needs `--allow-save`, except for an orchestrator saving an epic whose active run this machine owns. |
 | A tool from the docs or a skill is missing from the host's tool list | The role does not include it. See [Tools per role](#tools-per-role). |
 | `not_initialized` | Call `initialize_repository`. |
 | `retry_escalation_required` on `retry_ticket` | The orchestrator used up the plan's `autoRetryLimit` (default 3) retries of that ticket in this run. Only the person's Grant retry in the desktop app adds attempts now; the orchestrator tells them why the ticket keeps failing. |

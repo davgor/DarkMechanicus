@@ -44,7 +44,7 @@ function reported(): Fixture {
 
 function adopt(fixture: Fixture, bundle: PlanBundle): void {
   const revisionId = seedRevision(fixture.ctx, fixture.run.epicId, bundle)
-  adoptRevision(fixture.ctx, { runId: fixture.run.runId, revisionId })
+  adoptRevision(fixture.ctx, { reason: 'Test adoption: the plan changed mid-run.', runId: fixture.run.runId, revisionId })
 }
 
 function reportGate(fixture: Fixture): GateCondition | undefined {

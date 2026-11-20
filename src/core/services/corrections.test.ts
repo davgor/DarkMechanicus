@@ -488,13 +488,17 @@ describe('DM-186 c4: created work follows the normal rules; no grade grants anyt
   it('creating it validates and saves, adopts, approves, grants, retries and continues nothing; the checkpoint stays blocked', () => {
     const w = unfinished()
     const before = controls(w)
+    const revisions = (): unknown => w.ctx.db.get('SELECT COUNT(*) AS n FROM plan_revisions WHERE epic_id = ?', w.epicId)
+    const revisionsBefore = revisions()
     const made = createCorrections(w.orchestrator, { reportId: w.report.id, experimentIds: [w.xp.ready.id] })
     expect([made.validation.valid, validatePlanView(w.ctx, { epicId: w.epicId, view: 'draft' }).errors]).toEqual([true, []])
     expect(controls(w)).toBe(before)
     expect(getExperiment(w.ctx, { experimentId: w.xp.ready.id }).status).toBe('proposed')
     expect(getCheckpoint(w.ctx, { runId: w.runId }).conditions.find((item) => item.id === 'plan_current')?.met).toBe(false)
     expect(outcome(() => advanceSprint(w.orchestrator, { runId: w.runId })).code).toBe('gate_blocked')
-    expect(outcome(() => requestSave(withRole(w.ctx, 'orchestrator', { allowSave: false }), { epicId: w.epicId, expectedDraftRevision: made.draftRevision ?? 0 })).code).toBe('unauthorized')
+    // Creating saves nothing. The orchestrator that owns the run may save it (DM-900); a planner without allowSave may not.
+    expect(revisions()).toEqual(revisionsBefore)
+    expect(outcome(() => requestSave(withRole(w.ctx, 'planner', { allowSave: false }), { epicId: w.epicId, expectedDraftRevision: made.draftRevision ?? 0 })).code).toBe('unauthorized')
   })
 
   it('the person saves and adopts it normally; the run stays in sprint 1 and the corrective tickets are not claimable', () => {

@@ -136,6 +136,7 @@ type RunChange =
   | 'canceled'
   | 'failed'
   | 'taken_over'
+  | 'revision_adopted'
 
 /** A change to the run itself. */
 interface RunChangeEntry extends EntryBase {

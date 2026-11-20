@@ -344,7 +344,7 @@ const REQUIRED: [string, string[]][] = [
       'a required ticket that is not accepted',
       'can never be accepted',
       'rolls the adoption back',
-      'Adoption is allowed at a checkpoint with no open attempts',
+      'Adoption needs no open attempts',
       'Run the acceptance node over what remains',
       'submit a new report revision',
       '`plan_current`',

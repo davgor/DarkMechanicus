@@ -236,7 +236,7 @@ export function adopt(w: SpaceWorld, change: (plan: PlanBundle) => PlanBundle): 
   const adopted = seedRevision(w.ctx, w.epicId, change(loadBundle(w.ctx, run?.revision_id ?? '')))
   const running = run?.state === 'running'
   if (running) pauseRun(w.orchestrator, { runId: w.runId, reason: 'adopting a changed plan' })
-  adoptRevision(w.ctx, { runId: w.runId, revisionId: adopted })
+  adoptRevision(w.ctx, { reason: 'Test adoption: the plan changed mid-run.', runId: w.runId, revisionId: adopted })
   if (running) resumeRun(w.orchestrator, { runId: w.runId })
   w.ctx.clock.advanceSeconds(60)
   return adopted

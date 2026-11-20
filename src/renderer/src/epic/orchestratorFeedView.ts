@@ -58,7 +58,8 @@ const RUN_CHANGES: Record<EntryOf<'run'>['change'], { label: string; tone: Tone 
   completed: { label: 'Run completed', tone: 'accepted' },
   canceled: { label: 'Run canceled', tone: 'failed' },
   failed: { label: 'Run failed', tone: 'failed' },
-  taken_over: { label: 'Run taken over', tone: 'attention' }
+  taken_over: { label: 'Run taken over', tone: 'attention' },
+  revision_adopted: { label: 'Revision adopted', tone: 'attention' }
 }
 
 function claimDetails(worker: EntryOf<'claim'>['worker']): FeedDetail[] {

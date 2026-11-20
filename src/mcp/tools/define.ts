@@ -2,7 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { CallToolRequestSchema, type CallToolResult, type ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
 import { z } from 'zod'
 import { capabilitiesForRole, type Capability } from '../../core/authz'
-import { COMMAND_CAPABILITIES } from '../../core/commands/capabilities'
+import { COMMAND_CAPABILITIES, PER_CALL_COMMANDS } from '../../core/commands/capabilities'
 import type { CommandApi, CommandName } from '../../shared/domain/api'
 import type { SessionRole } from '../../shared/domain/views'
 import { invalidInputFailure, runTool, toolFailure } from '../result'
@@ -221,7 +221,8 @@ export function defineArglessTool<Name extends string>(
 /**
  * Limits the tools registered on `server` from now on to those a session of `role` may call: the
  * role must hold the capability declared for the tool's command (`allowSave` adds `plan.save` for
- * planner and orchestrator sessions, exactly as for the session itself). Other tools are not listed,
+ * planner and orchestrator sessions, exactly as for the session itself), or the command must be one the service
+ * allows that role per call (`PER_CALL_COMMANDS`, such as an orchestrator's `save_plan`). Other tools are not listed,
  * and calling one is answered with `unauthorized` without running anything. Call before registering.
  */
 export function grantTools(server: McpServer, session: { role: SessionRole; allowSave: boolean }): void {
@@ -232,7 +233,9 @@ export function grantTools(server: McpServer, session: { role: SessionRole; allo
 /** How to refuse `spec` when the granted role lacks its command's capability; undefined when it may call it. */
 function refusalFor(grant: ToolGrant | undefined, spec: ToolSpec): ToolCall | undefined {
   const capability = COMMAND_CAPABILITIES[spec.command]
-  if (grant === undefined || grant.capabilities.has(capability)) {
+  // A per-call command is listed to its role; the service refuses the calls it does not allow.
+  const perCall = grant !== undefined && PER_CALL_COMMANDS[grant.role]?.includes(spec.command) === true
+  if (grant === undefined || grant.capabilities.has(capability) || perCall) {
     return undefined
   }
   return refusedFor(grant, spec.name, capability)

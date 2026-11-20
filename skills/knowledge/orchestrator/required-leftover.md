@@ -11,5 +11,5 @@ In a sprint with an acceptance node, a required ticket that is not accepted (fai
 
 1. Submit the report with the retro, listing the leftovers with their reasons. The run waits at the checkpoint, and the report is complete even though `acceptance_accepted` is unmet.
 2. Redraft and validate as usual (`redraft_next_sprint`, refine, `validate_plan`; `get_context` topic `retro-redraft`).
-3. Ask the person to save the draft and adopt the new revision in the desktop app. Adoption is allowed at a checkpoint with no open attempts (or while paused), so finish or reconcile any open attempt first. The leftovers, and the tickets that require them, leave the sprint. The tickets that stay keep their acceptance, and the run is still waiting at its checkpoint.
+3. Save the draft and adopt the new revision yourself (`adopt_revision` with a `reason`). Adoption needs no open attempts, so finish or reconcile any open attempt first. The leftovers, and the tickets that require them, leave the sprint. The tickets that stay keep their acceptance, and the run is still waiting at its checkpoint.
 4. Then finish the sprint (`orchestrator.required-leftover-finish`).

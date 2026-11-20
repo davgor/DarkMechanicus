@@ -109,7 +109,7 @@ const PROBES: Record<CommandName, unknown> = {
   resumeRun: { runId: RUN },
   cancelRun: { runId: RUN },
   takeoverRun: { runId: RUN },
-  adoptRevision: { runId: RUN, revisionId: probeId('revision') },
+  adoptRevision: { runId: RUN, revisionId: probeId('revision'), reason: 'Probe adoption reason, long enough.' },
   recordAttemptMetrics: { attemptId: ATTEMPT, claimToken: TOKEN, reports: [PROBE_REPORT] },
   recordRunMetrics: { runId: RUN, overhead: 'orchestration', reports: [PROBE_REPORT] },
   getRunMetrics: { runId: RUN },

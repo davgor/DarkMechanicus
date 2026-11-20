@@ -41,7 +41,7 @@ const PLANNING_TOOLS = [
   defineTool({
     name: 'save_plan',
     description:
-      'Validates the whole draft and replaces the saved plan. Requires the session to be launched with --allow-save; otherwise ask the user to press Save in the desktop app. Pass the draftRevision you last read. Result status: saved (durable), pending (still being written; the draft is kept, check get_storage_status), or unchanged. Fails with `invalid_plan`, `stale_draft`, `conflict`, or `branch_changed`.',
+      'Validates the whole draft and replaces the saved plan. Requires the session to be launched with --allow-save, except that an orchestrator may save the plan of an epic whose active run this machine owns (to fix the sprint it runs, then adopt_revision with a reason); otherwise ask the user to press Save in the desktop app. Pass the draftRevision you last read. Result status: saved (durable), pending (still being written; the draft is kept, check get_storage_status), or unchanged. Fails with `invalid_plan`, `stale_draft`, `conflict`, or `branch_changed`.',
     kind: 'write',
     input: { epicId, expectedDraftRevision: draftRevision, idempotencyKey },
     run: (api, input) => api.savePlan(input)

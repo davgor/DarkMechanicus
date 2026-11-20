@@ -35,6 +35,9 @@ import { CRITERION_ID_PATTERN } from './plan/normalize'
 import { checkNameKey } from './definitionOfDone'
 import { isProfileName, PROFILE_NAME_RULE } from './profileNames'
 
+/** The shortest reason a run's revision adoption may give, trimmed: enough to say what failed and what it changes. */
+export const ADOPTION_REASON_MIN = 20
+
 /** Size limits applied to every untrusted input: tool calls, IPC payloads, and imported records. */
 export const LIMITS = {
   title: 300,

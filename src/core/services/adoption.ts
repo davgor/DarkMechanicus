@@ -4,6 +4,8 @@ import { contentHash } from '../canonical'
 import type { Ctx } from '../context'
 import { fail } from '../errors'
 import { indexBundle, sortedSprints, ticketLabel } from '../plan/graph'
+import { ADOPTION_REASON_MIN, LIMITS } from '../schemas'
+import { maskSecretText } from '../storedSecrets'
 import { bindRepositoryBranches } from './epicBranches'
 import { appendEvent } from './events'
 import { enqueueOutbox } from './outbox'
@@ -27,9 +29,16 @@ interface Reconciliation {
   carryForward: ReadonlySet<string>
 }
 
+/**
+ * A running run adopts too, so an orchestrator can fix the plan of the sprint it is in without a pause. Open
+ * attempts still refuse it in every state: adoption invalidates grants bound to the old revision, so in-flight
+ * workers finish (or are reconciled) first. A queued run has started nothing and has nothing to adopt into.
+ */
+const ADOPTABLE_STATES: ReadonlySet<string> = new Set(['running', 'awaiting_checkpoint', 'paused'])
+
 function requireAdoptableRun(ctx: Ctx, run: RunRow): void {
-  if (run.state !== 'awaiting_checkpoint' && run.state !== 'paused') {
-    fail('run_not_active', 'Adopt a new revision at a checkpoint or while paused.', { runId: run.id, state: run.state })
+  if (!ADOPTABLE_STATES.has(run.state)) {
+    fail('run_not_active', 'Adopt a new revision while the run is running, paused or at a checkpoint.', { runId: run.id, state: run.state })
   }
   const open = ctx.db.all<{ id: string }>(
     `SELECT id FROM attempts WHERE run_id = ? AND state IN ('claimed', 'running', 'submitted') ORDER BY id`,
@@ -42,8 +51,30 @@ function requireAdoptableRun(ctx: Ctx, run: RunRow): void {
   }
 }
 
+/**
+ * Why the run adopts, trimmed and with claim and grant tokens masked; null when none was given. An agent must say
+ * why (it acts without the person, who reads the reason in the run's activity); the desktop's person may leave it
+ * out, and so may approve with redraft, which the person presses. The reason is information only: nothing waits on it.
+ */
+function adoptionReason(ctx: Ctx, reason: string | undefined): string | null {
+  const trimmed = reason?.trim() ?? ''
+  if (trimmed === '') {
+    if (ctx.session.role !== 'desktop') {
+      fail('invalid_input', 'Say why you adopt this revision: what failed and what the revision changes (reason).', { field: 'reason' })
+    }
+    return null
+  }
+  if (trimmed.length < ADOPTION_REASON_MIN || trimmed.length > LIMITS.shortText) {
+    fail('invalid_input', `The adoption reason must be ${ADOPTION_REASON_MIN} to ${LIMITS.shortText} characters.`, {
+      field: 'reason',
+      length: trimmed.length
+    })
+  }
+  return maskSecretText(trimmed)
+}
+
 /** Only the epic's current saved revision can replace the run's pinned one. */
-function loadTargetBundle(ctx: Ctx, run: RunRow, revisionId: string): PlanBundle {
+function loadTargetBundle(ctx: Ctx, run: RunRow, revisionId: string): { bundle: PlanBundle; number: number } {
   if (revisionId === run.revision_id) {
     fail('conflict', 'The run already executes this revision.', { revisionId })
   }
@@ -57,11 +88,11 @@ function loadTargetBundle(ctx: Ctx, run: RunRow, revisionId: string): PlanBundle
       currentRevisionId: epic?.current_revision_id ?? null
     })
   }
-  const revision = ctx.db.get<{ state: string }>('SELECT state FROM plan_revisions WHERE id = ?', revisionId)
+  const revision = ctx.db.get<{ state: string; number: number }>('SELECT state, number FROM plan_revisions WHERE id = ?', revisionId)
   if (revision?.state !== 'saved') {
     fail('conflict', `Revision ${revisionId} is not saved yet.`, { revisionId })
   }
-  return loadBundle(ctx, revisionId)
+  return { bundle: loadBundle(ctx, revisionId), number: revision.number }
 }
 
 /**
@@ -116,14 +147,14 @@ function reconcileAcceptances(ctx: Ctx, input: Reconciliation): { kept: string[]
  * Attempts that used up a try without delivering: failed, rejected, or abandoned after an expired lease. An accepted
  * attempt delivered, and a canceled one never counted, so neither is spent.
  */
-const SPENT_ATTEMPT_SQL = "(state IN ('failed', 'rejected') OR (state = 'lease_expired' AND reconciled_at IS NOT NULL))"
+export const SPENT_ATTEMPT_SQL = "(state IN ('failed', 'rejected') OR (state = 'lease_expired' AND reconciled_at IS NOT NULL))"
 
 /**
  * The tickets that sit in a later sprint of `target` than the sprint `current` had them in. A sprint is the same
  * sprint under the same id, whatever its ordinal becomes, so renumbering moves nothing; a ticket whose old sprint
  * is gone, or that is new, did not move.
  */
-function ticketsMovedLater(current: PlanBundle, target: PlanBundle): string[] {
+export function ticketsMovedLater(current: PlanBundle, target: PlanBundle): string[] {
   const before = indexBundle(current)
   const after = indexBundle(target)
   return target.tickets
@@ -197,21 +228,23 @@ function chooseActiveSprint(activeSprintId: string | null, current: PlanBundle, 
 }
 
 /**
- * Switches a run to the epic's newer saved revision at a checkpoint (or while paused) with no open
- * attempts. Grants bound to the old revision stop matching because their binding names it. In a folder of
+ * Switches a run to the epic's newer saved revision while it runs, waits at a checkpoint or is paused, with no
+ * open attempts. Grants bound to the old revision stop matching because their binding names it. In a folder of
  * repositories, a repository the adopted revision names for the first time is bound to the epic branch now.
+ * `reason` is required of every session but the desktop's, and is recorded masked on `run.revision_adopted`.
  */
 export function adoptRevision(
   ctx: Ctx,
-  input: { runId: string; revisionId: string; carryForward?: string[] }
+  input: { runId: string; revisionId: string; carryForward?: string[]; reason?: string }
 ): AdoptionResult {
   requireCapability(ctx.session, 'run.adopt')
+  const reason = adoptionReason(ctx, input.reason)
   ctx.assertBranch()
   return ctx.db.tx(() => {
     const run = loadRun(ctx, input.runId)
     requireOwnedRun(ctx, run)
     requireAdoptableRun(ctx, run)
-    const target = loadTargetBundle(ctx, run, input.revisionId)
+    const { bundle: target, number: revisionNumber } = loadTargetBundle(ctx, run, input.revisionId)
     const current = loadBundle(ctx, run.revision_id)
     const carryForward = new Set(input.carryForward ?? [])
     const activeSprintId = chooseActiveSprint(run.active_sprint_id, current, target)
@@ -229,7 +262,16 @@ export function adoptRevision(
       kind: 'run.revision_adopted',
       epicId: run.epic_id,
       runId: run.id,
-      payload: { from: run.revision_id, to: input.revisionId, kept, superseded, freshBudget }
+      payload: {
+        from: run.revision_id,
+        to: input.revisionId,
+        revisionNumber,
+        kept,
+        superseded,
+        freshBudget,
+        adoptedBy: ctx.session.role,
+        reason
+      }
     })
     enqueueOutbox(ctx, { kind: 'run_history', epicId: run.epic_id, runId: run.id })
     bindRepositoryBranches(ctx, run.epic_id, input.revisionId, null)

@@ -133,7 +133,7 @@ When an epic already has a run (`get_run` with its `epicId` shows the active spr
 - Edit only future sprints: the sprints after the run's active sprint. Put new work in one of them, or in a new sprint after the active one.
 - Never edit a sprint the run has passed. A run does not redo a sprint it has passed. Validation warns about a change there, and about a new sprint placed before the active one, which the run would never reach. Adopting a revision refuses a changed accepted ticket in a passed sprint unless the orchestrator carries it forward. Read each run warning that `validate_plan` adds and fix the draft instead of explaining it away.
 - After a sprint's retro, the orchestrator redrafts the next sprint of the draft: it moves the sprint's leftovers there and adds its discoveries as tickets, then sizes the new tickets and writes the next acceptance node's `covers` criteria. When you pick up such a draft, keep what the redraft moved and added, finish its sizing and criteria, and leave the passed sprints as they are.
-- Saving never changes a running plan. The run takes a saved revision only when it is adopted, at a checkpoint or while paused.
+- Saving never changes a running plan. The run takes a saved revision only when it is adopted: by the orchestrator mid-sprint once no attempts are open, or at a checkpoint or while paused.
 
 In a planner-only session, start no runs and claim no tickets. Execution belongs to an authorized orchestrator following the orchestrator guide; using this planning guide never changes your grant.
 
