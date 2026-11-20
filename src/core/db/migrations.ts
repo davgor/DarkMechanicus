@@ -3,7 +3,7 @@ import { redactedJson } from '../storedSecrets'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 22
+export const SCHEMA_VERSION = 23
 
 export interface Migration {
   version: number
@@ -933,6 +933,49 @@ ALTER TABLE attachments_v22 RENAME TO attachments;
 CREATE INDEX attachments_owner ON attachments(owner_kind, owner_id);
 `
 
+/** Local elevation state is never portable; its audit is append-only and survives revocation. */
+const V23 = `
+CREATE TABLE yolo_chat_bindings (
+  grant_id TEXT PRIMARY KEY REFERENCES grants(id),
+  chat_id TEXT NOT NULL,
+  generation TEXT NOT NULL,
+  desktop_id TEXT NOT NULL,
+  desktop_pid INTEGER NOT NULL,
+  fence_path TEXT NOT NULL,
+  proof_endpoint TEXT NOT NULL,
+  proof_public_key TEXT NOT NULL,
+  folder TEXT NOT NULL,
+  card_id TEXT
+);
+CREATE TABLE yolo_elevations (
+  grant_id TEXT PRIMARY KEY REFERENCES grants(id),
+  chat_id TEXT NOT NULL,
+  generation TEXT NOT NULL,
+  desktop_id TEXT NOT NULL,
+  folder TEXT NOT NULL,
+  run_id TEXT,
+  card_id TEXT,
+  expires_at TEXT NOT NULL,
+  revoked_at TEXT
+);
+CREATE TABLE yolo_audit (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  time TEXT NOT NULL,
+  grant_id TEXT NOT NULL,
+  session_id TEXT NOT NULL,
+  folder TEXT NOT NULL,
+  run_id TEXT,
+  capability TEXT NOT NULL,
+  command TEXT NOT NULL,
+  result TEXT NOT NULL,
+  target_id TEXT,
+  card_id TEXT
+);
+CREATE TRIGGER yolo_audit_no_update BEFORE UPDATE ON yolo_audit BEGIN SELECT RAISE(ABORT, 'YOLO audit is append-only'); END;
+CREATE TRIGGER yolo_audit_no_delete BEFORE DELETE ON yolo_audit BEGIN SELECT RAISE(ABORT, 'YOLO audit is append-only'); END;
+CREATE INDEX yolo_audit_run ON yolo_audit(run_id, id);
+`
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, sql: V1 },
   { version: 2, sql: V2 },
@@ -955,7 +998,8 @@ export const MIGRATIONS: Migration[] = [
   { version: 19, sql: V19 },
   { version: 20, sql: V20 },
   { version: 21, sql: V21 },
-  { version: 22, sql: V22 }
+  { version: 22, sql: V22 },
+  { version: 23, sql: V23 }
 ]
 
 export function readSchemaVersion(db: Db): number {

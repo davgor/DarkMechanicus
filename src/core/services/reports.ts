@@ -21,6 +21,7 @@ import { sprintIncrementViews } from './increments'
 import { enqueueOutbox } from './outbox'
 import { draftScorecard, sealScorecard, storedScorecard, storedSummary } from './scorecards'
 import { indexDocument } from './searchIndex'
+import { listYoloAudit, yoloEvidence } from './yolo'
 
 /** The run columns checkpoint, report, and adoption rules read. */
 export interface RunRow {
@@ -197,6 +198,12 @@ function insertReport(ctx: Ctx, run: RunRow, sprintId: string, write: (draft: Sc
   const createdAt = ctx.clock.nowIso()
   const draft = draftScorecard(ctx, { runId: run.id, sprintId, report: { reportId: id, reportRevision }, cutoff: createdAt })
   const content = write(draft)
+  const usage = listYoloAudit(ctx, { runId: run.id })
+  if (usage.length > 0) {
+    const log = yoloEvidence(usage, content.retro?.actions ?? [])
+    if (content.retro === null) fail('invalid_input', 'An affected run needs a retro with per-capability YOLO permission suggestions.')
+    content.retro.yoloUsage = log
+  }
   const hash = contentHash(content)
   const snapshot = sealScorecard(draft, hash)
   const row: ReportRow = {

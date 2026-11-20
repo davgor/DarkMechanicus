@@ -37,8 +37,8 @@ afterEach(() => {
 })
 
 describe('migrate on a fresh database', () => {
-  it('starts at schema version 0 and targets SCHEMA_VERSION 22', () => {
-    expect(SCHEMA_VERSION).toBe(22)
+  it('starts at schema version 0 and targets the v23 scoped elevation storage contract', () => {
+    expect(SCHEMA_VERSION).toBe(23)
     expect(readSchemaVersion(freshDb())).toBe(0)
   })
 
@@ -46,7 +46,7 @@ describe('migrate on a fresh database', () => {
     const db = freshDb()
     expect(migrate(db)).toEqual({ from: 0, to: SCHEMA_VERSION })
     expect(readSchemaVersion(db)).toBe(SCHEMA_VERSION)
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(22)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(23)
   })
 })
 
@@ -89,7 +89,10 @@ describe('the schema a fresh database ends up with', () => {
       'sync_state',
       'ticket_status',
       'transfer_items',
-      'transfers'
+      'transfers',
+      'yolo_audit',
+      'yolo_chat_bindings',
+      'yolo_elevations'
     ])
   })
 
@@ -124,7 +127,8 @@ describe('the indexes a fresh database ends up with', () => {
       'plan_revisions_epic',
       'row_checks_run',
       'runs_one_active_per_epic',
-      'ticket_status_epic'
+      'ticket_status_epic',
+      'yolo_audit_run'
     ])
   })
 })
@@ -132,8 +136,8 @@ describe('the indexes a fresh database ends up with', () => {
 describe('migrate when already current', () => {
   it('is a no-op the second time', () => {
     const db = migratedDb()
-    expect(migrate(db)).toEqual({ from: 22, to: 22 })
-    expect(readSchemaVersion(db)).toBe(22)
+    expect(migrate(db)).toEqual({ from: 23, to: 23 })
+    expect(readSchemaVersion(db)).toBe(23)
   })
 
   it('checks a current database without taking the write lock, which every open and mailbox poll would wait on', () => {
@@ -151,11 +155,11 @@ describe('migrate when already current', () => {
         }
       }
     })
-    expect(migrate(watched)).toEqual({ from: 22, to: 22 })
+    expect(migrate(watched)).toEqual({ from: 23, to: 23 })
     expect(transactions).toBe(0)
     // Positive control: a database behind the target still migrates under the lock.
-    watched.exec('PRAGMA user_version = 21')
-    expect(migrate(watched, MIGRATIONS.filter((migration) => migration.version !== 22).concat({ version: 22, sql: '' }))).toEqual({ from: 21, to: 22 })
+    watched.exec('PRAGMA user_version = 22')
+    expect(migrate(watched, MIGRATIONS.filter((migration) => migration.version !== 23).concat({ version: 23, sql: '' }))).toEqual({ from: 22, to: 23 })
     expect(transactions).toBe(1)
   })
 
@@ -175,19 +179,19 @@ describe('migrate refuses newer databases', () => {
     expect(error).toBeInstanceOf(DomainError)
     expect((error as DomainError).code).toBe('incompatible_schema')
     expect((error as DomainError).message).toBe(
-      'Database schema v23 is newer than this build supports (v22). Update Dark Mechanicus.'
+      'Database schema v24 is newer than this build supports (v23). Update Dark Mechanicus.'
     )
-    expect((error as DomainError).details).toEqual({ found: 23, supported: 22 })
-    expect(readSchemaVersion(db)).toBe(23)
+    expect((error as DomainError).details).toEqual({ found: 24, supported: 23 })
+    expect(readSchemaVersion(db)).toBe(24)
     expect(objectNames(db, 'table')).toEqual([])
   })
 
   it('refuses a migrated database that a newer build has upgraded', () => {
     const db = migratedDb()
-    db.exec('PRAGMA user_version = 23')
+    db.exec('PRAGMA user_version = 24')
     const error = thrownBy(() => migrate(db))
     expect((error as DomainError).code).toBe('incompatible_schema')
-    expect((error as DomainError).details).toEqual({ found: 23, supported: 22 })
+    expect((error as DomainError).details).toEqual({ found: 24, supported: 23 })
     expect(objectNames(db, 'table')).toContain('epics')
   })
 
@@ -1173,7 +1177,7 @@ describe('schema v22 Kanban message attachments', () => {
     const previous = db.all('SELECT * FROM attachments ORDER BY id')
     expect(() => insertAttachment(db, 'im3', { kind: 'kanban_message', id: 'ke1' })).toThrow(/CHECK constraint failed/)
 
-    expect(migrate(db)).toEqual({ from: 21, to: 22 })
+    expect(migrate(db, MIGRATIONS.filter((migration) => migration.version <= 22))).toEqual({ from: 21, to: 22 })
     expect(db.all('SELECT * FROM attachments ORDER BY id')).toEqual(previous)
     insertAttachment(db, 'im3', { kind: 'kanban_message', id: 'ke1' })
     expect(db.get<{ owner_kind: string; owner_id: string }>('SELECT owner_kind, owner_id FROM attachments WHERE id = ?', 'im3')).toEqual({
@@ -1336,5 +1340,30 @@ describe('a v16 database (agent mail) upgraded to the SPACE ledger', () => {
       expect(db.get<{ n: number }>(`SELECT COUNT(*) AS n FROM ${table}`)?.n).toBe(0)
     }
     expect(db.all('PRAGMA foreign_key_check')).toEqual([])
+  })
+})
+
+describe('v23 elevation storage compatibility', () => {
+  it('preserves existing grants and attachments while defaulting to no elevation', () => {
+    const db = freshDb()
+    migrate(db, MIGRATIONS.filter((migration) => migration.version <= 22))
+    db.run("INSERT INTO grants (id, role, allow_save, label, token_hash, machine_id, created_at, expires_at) VALUES ('gr1', 'worker', 0, 'Existing worker', 'old-hash', 'mc1', '2026-01-01', '2027-01-01')")
+    insertAttachment(db, 'old-image', { kind: 'kanban_message', id: 'ke1' })
+    const grants = db.all('SELECT * FROM grants')
+    const images = db.all('SELECT * FROM attachments')
+    expect(migrate(db)).toEqual({ from: 22, to: 23 })
+    expect(db.all('SELECT * FROM grants')).toEqual(grants)
+    expect(db.all('SELECT * FROM attachments')).toEqual(images)
+    expect(db.all('SELECT * FROM yolo_elevations')).toEqual([])
+    expect(db.all('SELECT * FROM yolo_chat_bindings')).toEqual([])
+  })
+
+  it('refuses audit edits and deletion without changing the stored command record', () => {
+    const db = migratedDb()
+    db.run("INSERT INTO yolo_audit (time, grant_id, session_id, folder, capability, command, result, target_id, card_id) VALUES ('2026-01-01', 'gr1', 'ss1', '/folder', 'plan.save', 'savePlan', 'failed', 'ep1', 'kc1')")
+    const before = db.all('SELECT * FROM yolo_audit')
+    expect(() => db.run("UPDATE yolo_audit SET result = 'succeeded'")).toThrow('YOLO audit is append-only')
+    expect(() => db.run('DELETE FROM yolo_audit')).toThrow('YOLO audit is append-only')
+    expect(db.all('SELECT * FROM yolo_audit')).toEqual(before)
   })
 })

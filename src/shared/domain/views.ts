@@ -50,6 +50,16 @@ export interface CapabilitiesView {
    * belongs to a desktop-bound `dm` CLI grant, so an MCP (stdio) session always reads `{ bound: false }`.
    */
   mailbox: AgentMailboxStatus
+  yolo?: {
+    grantId: string
+    chatId: string
+    folder: string
+    runId: string | null
+    expiresAt: string
+    capabilities: readonly string[]
+    transport: 'cli'
+    admission: 'fresh_desktop_challenge_required'
+  }
 }
 
 /**

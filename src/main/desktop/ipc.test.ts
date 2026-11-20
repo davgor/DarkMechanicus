@@ -8,7 +8,7 @@ import type { FolderDefaultHandlers } from './folderAgentDefaults'
 import type { DesktopHandlers } from './handlers'
 import type { KnowledgeHandlers } from './knowledgeHandlers'
 import type { OmpThemeHandlers } from './ompTheme'
-import { registerDesktopIpc, registerKnowledgeIpc } from './ipc'
+import { registerDesktopIpc, registerKnowledgeIpc, registerYoloIpc } from './ipc'
 
 type Listener = Parameters<IpcMain['handle']>[1]
 
@@ -403,6 +403,7 @@ describe('preload bridge', () => {
   it('invokes exactly the channels the main process registers', () => {
     const ipc = createFakeIpcMain()
     registerDesktopIpc(ipc, createRecordingHandlers().handlers)
+    registerYoloIpc(ipc, { yolo: async () => ({ live: false, expiresAt: null, audit: [] }) })
     const preload = readFileSync(fileURLToPath(new URL('../../preload/index.ts', import.meta.url)), 'utf8')
 
     const invoked = [...preload.matchAll(/ipcRenderer\.invoke\(\s*'((?:dm|agents):[A-Za-z]+)'/g)]

@@ -29,7 +29,8 @@ import type {
   KnowledgeChooseResult,
   KnowledgeStatusView,
   McpConfigView,
-  TrackedFolderView
+  TrackedFolderView,
+  YoloStatus
 } from '../../../shared/desktop/api'
 
 interface CommandCall {
@@ -96,6 +97,13 @@ export class FakeDm implements DmApi {
     env: {},
     json: MCP_JSON,
     note: 'development build'
+  }
+  yoloState: YoloStatus = { live: false, expiresAt: null, audit: [] }
+  yoloCalls: { folder: string; grantId: string; action: 'enable' | 'revoke' | 'inspect' }[] = []
+  yolo(folder: string, grantId: string, action: 'enable' | 'revoke' | 'inspect'): Promise<YoloStatus> {
+    this.yoloCalls.push({ folder, grantId, action })
+    if (action === 'revoke') this.yoloState = { ...this.yoloState, expiresAt: null }
+    return Promise.resolve(this.yoloState)
   }
 
   listFolders(): Promise<TrackedFolderView[]> {

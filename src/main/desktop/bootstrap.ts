@@ -32,7 +32,8 @@ import { openWorkspace, type Workspace } from '../../core/workspace'
 import type { AgentDownloadProgress, BuiltInAgentKind, McpConfigView } from '../../shared/desktop/api'
 import { isActiveRunState, isLeasedAttemptState } from '../../shared/domain/status'
 import { createActivityBindings, type ActivityBindings } from '../agents/activityBindings'
-import { createChatGrants } from '../agents/chatGrants'
+import { createChatGrants, type ChatGrants } from '../agents/chatGrants'
+import { createYoloDesktopRuntime } from '../../core/services/yoloFence'
 import { createChatHandlers } from '../agents/chatHandlers'
 import { createConversationDeliveries } from '../agents/conversationDeliveries'
 import type { ConversationReads } from '../agents/conversationTarget'
@@ -95,7 +96,8 @@ import {
   type CustomAgentConfirmation,
   type CustomAgents
 } from './customAgent'
-import { registerDesktopIpc, registerKnowledgeIpc } from './ipc'
+import { registerDesktopIpc, registerKnowledgeIpc, registerYoloIpc } from './ipc'
+import { createYoloHandlers } from './yoloHandlers'
 import { createKnowledgeHandlers } from './knowledgeHandlers'
 import { createAttachmentLookup, registerAttachmentProtocol } from './attachmentProtocol'
 import { buildCliConfig, type CliLaunch } from './cliConfig'
@@ -170,6 +172,13 @@ function confirmInstall(confirmation: InstallConfirmation): Promise<boolean> {
   const parent = BrowserWindow.getFocusedWindow()
   const shown = parent ? dialog.showMessageBox(parent, options) : dialog.showMessageBox(options)
   return shown.then(({ response }) => response === 0)
+}
+
+async function confirmYolo(detail: string): Promise<boolean> {
+  const parent = BrowserWindow.getFocusedWindow()
+  if (!parent || parent.isDestroyed()) return false
+  const decision = await dialog.showMessageBox(parent, { type: 'warning', title: 'Enable YOLO for this agent?', message: 'Allow this agent to act without further workflow review?', detail, buttons: ['Cancel', 'Enable YOLO'], defaultId: 0, cancelId: 0, noLink: true })
+  return decision.response === 1
 }
 
 function broadcastDownloadProgress(progress: AgentDownloadProgress): void {
@@ -319,6 +328,7 @@ interface ChatProcesses {
   releaseFolder: (folder: string, forget: () => void) => Promise<void>
   /** The person's side of the chats' mailboxes and its per-folder monitors (`chatMail:*`). */
   mail: AgentMailDesktop
+  grants: ChatGrants
 }
 
 /** What the chat terminals run over besides the store: the grants and runs of the chats, the tracked folders, the agents. */
@@ -362,6 +372,13 @@ function createTerminalProcesses(store: ChatStore, deps: TerminalDeps): Pick<Cha
   return { terminals, logins }
 }
 
+function chatRunCommands(folders: Pick<FolderRegistry, 'resolve'>, workspaces: Pick<WorkspacePool, 'get'>): TerminalSessionsDeps['runs'] {
+  return {
+    getRun: async (folder, runId) => desktopWorkspace(folders, workspaces, folder).getRun({ runId }),
+    pauseRun: async (folder, input) => desktopWorkspace(folders, workspaces, folder).pauseRun(input)
+  }
+}
+
 /**
  * The agent chats (`userData/agents/chats`) with the connected agents, each run in its terminal. When an
  * orchestrator chat's agent turns out to be signed out, the run it orchestrates is paused with the reason
@@ -375,6 +392,7 @@ function createChatProcesses(
   workspaces: Pick<WorkspacePool, 'get'>,
   activity: ActivityBindings
 ): ChatProcesses {
+  const yoloRuntime = createYoloDesktopRuntime(join(app.getPath('userData'), 'yolo-desktop-instance.json'))
   // One store for all: it keeps each folder's index in memory, so two would write over each other's records.
   const store = createChatStore({ root: join(app.getPath('userData'), 'agents', 'chats') })
   const { records, mailboxes } = createMailboxRecords(store, { folders, workspaces, agents, activity })
@@ -388,6 +406,8 @@ function createChatProcesses(
     minutes: CHAT_GRANT_MINUTES,
     desktopAddress: () => namingPipe?.address,
     desktopReady: () => namingReady,
+    desktopFence: yoloRuntime.fence,
+    yoloReady: () => yoloRuntime.ready,
     log: (line) => {
       logger.warn(line)
     }
@@ -395,10 +415,8 @@ function createChatProcesses(
   namingReady = createControlPipe({ authorize: (token) => grants.authorizeNaming(token), dispatch: createNamingDispatcher({ store, push }) }).then((pipe) => { namingPipe = pipe })
   // Observe startup failure immediately; each attempted chat launch still receives the real rejection.
   void namingReady.catch((error: unknown) => logger.error('Chat naming transport failed:', error))
-  const runs = {
-    getRun: async (folder: string, runId: string) => desktopWorkspace(folders, workspaces, folder).getRun({ runId }),
-    pauseRun: async (folder: string, input: { runId: string; reason: string }) => desktopWorkspace(folders, workspaces, folder).pauseRun(input)
-  }
+  void yoloRuntime.ready.catch((error: unknown) => logger.error('YOLO desktop proof transport failed:', error))
+  const runs = chatRunCommands(folders, workspaces)
   const launchFolders = { trackedFolder: (path: string) => folders.resolve(path) }
   const reachFolders = (): string[] => folders.list().flatMap((folder) => (folder.initialized && folder.available ? [folder.path] : []))
   const { terminals, logins } = createTerminalProcesses(store, { grants: { ...grants, runs, onChatChanged: (ref) => push({ type: 'chats_changed', folder: ref.folder, chatId: ref.id }) }, folders: launchFolders, reachFolders, agents })
@@ -406,6 +424,7 @@ function createChatProcesses(
     busy: () => terminals.busy() || logins.busy(),
     dispose: async () => {
       grants.dispose()
+      await yoloRuntime.dispose()
       await namingReady.catch(() => {})
       await namingPipe?.close()
       await Promise.all([terminals.dispose(), logins.dispose()])
@@ -414,7 +433,7 @@ function createChatProcesses(
   const chats = endingTerminals(records, terminals)
   recoverChats(folders, chats)
   const mail = createChatMail({ folders, store, workspaces })
-  return { chats, quit, store, terminals, logins, mail, releaseFolder: releasingFolders(terminals, mailboxes, store) }
+  return { chats, quit, store, terminals, logins, mail, grants, releaseFolder: releasingFolders(terminals, mailboxes, store) }
 }
 
 /**
@@ -810,7 +829,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   const folderDefaults = createFolderAgentDefaults({ db: appDb })
   // Which threads of old chats acted on which runs and attempts, as they stored it next to the chats.
   const activity = createActivityBindings({ file: join(app.getPath('userData'), 'agents', 'activity-bindings.jsonl') })
-  const { chats, quit, store, terminals, logins, mail, releaseFolder } = createChatProcesses(registry, agents, pool, activity)
+  const { chats, quit, store, terminals, logins, mail, grants, releaseFolder } = createChatProcesses(registry, agents, pool, activity)
   const handlers = createDesktopHandlers({
     registry,
     pool,
@@ -841,6 +860,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
     }
   })
   registerDesktopIpc(ipc, handlers)
+  registerYoloIpc(ipc, createYoloHandlers({ registry, grants, confirm: confirmYolo }))
   startCrossRepoCorrections(ipc, registry, pool, startSourceCheckout(ipc, registry))
   startKnowledge(ipc, registry)
   startAttachmentProtocol(registry, pool)

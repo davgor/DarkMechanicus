@@ -118,6 +118,7 @@ const dm: DmApi = {
   connectClaudeCode: (folder, request) => ipcRenderer.invoke('dm:connectClaudeCode', folder, request),
   previewBoardRemoval: (folder) => ipcRenderer.invoke('dm:previewBoardRemoval', folder),
   removeBoardFiles: (folder, paths) => ipcRenderer.invoke('dm:removeBoardFiles', folder, paths),
+  yolo: (folder, grantId, action) => ipcRenderer.invoke('dm:yolo', folder, grantId, action),
   copyText: (text) => ipcRenderer.invoke('dm:copyText', text),
   openExternal: (url) => ipcRenderer.invoke('dm:openExternal', url),
   listAgents: () => ipcRenderer.invoke('agents:list'),

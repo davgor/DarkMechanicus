@@ -2097,8 +2097,8 @@ textarea.input {
 }
 
 .grant-row {
-  display: grid;
-  grid-template-columns: 1fr auto auto auto auto;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   padding: 6px 0;
@@ -2109,6 +2109,21 @@ textarea.input {
 .grant-row-label {
   color: var(--ink);
   font-weight: 600;
+  flex-basis: 100%;
+  min-width: 0;
+}
+
+.grant-row-yolo {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  overflow-wrap: anywhere;
+}
+
+.grant-row-yolo details {
+  flex-basis: 100%;
 }
 
 .grant-form {

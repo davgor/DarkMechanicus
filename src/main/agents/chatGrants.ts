@@ -24,9 +24,14 @@
  * A start that cannot issue all of them revokes the ones it did and fails.
  */
 import { realpathSync } from 'node:fs'
+import { approveYolo, auditYolo, isYoloEligible, bindYoloChat, endYoloChat, listYoloAudit, revokeYolo, YOLO_CAPABILITIES } from '../../core/services/yolo'
+import type { YoloStatus } from '../../shared/desktop/api'
+import type { GrantView } from '../../shared/domain/views'
+import type { Ctx } from '../../core/context'
+import type { DesktopFence } from '../../core/services/yoloFence'
 import { DomainError } from '../../core/errors'
 import { closeAgentMailBinding } from '../../core/services/agentMail'
-import { assertGrantCapability, hashToken } from '../../core/services/grants'
+import { assertGrantCapability, assertGrantUsable, hashToken } from '../../core/services/grants'
 import { NamingControlError } from '../../shared/agents/chatNaming'
 import type { NamingControlBinding } from '../naming/controlPipe'
 import { writePrivateFile } from '../terminals/privateFile'
@@ -46,6 +51,9 @@ interface ChatGrantsDeps {
   log: (line: string) => void
   desktopAddress?: () => string | undefined
   desktopReady?: () => Promise<void>
+  /** Main rotates this before opening any folder; absent means YOLO cannot be enabled. */
+  desktopFence?: DesktopFence
+  yoloReady?: () => Promise<void>
 }
 
 /** What the chat terminals (`terminalSessions.ts`) issue and revoke chat grants through. */
@@ -61,11 +69,12 @@ export interface IssuedChatCli {
 /** A project-less chat's `dm` invocation, pinned to no folder, and the grants it holds, one per folder, in the targets' order. */
 interface IssuedReachCli { cli: DarkMechanicusCli; grantIds: string[] }
 /** The live terminal a grant is bound to for naming: its chat's folder (null for a project-less chat), id and start. */
-interface LiveIdentity { folder: string | null; chatId: string; generation: string }
+interface LiveIdentity { folder: string | null; chatId: string; generation: string; runId?: string; cardId?: string }
 
 export interface ChatGrants {
   bindChatGrant(grantId: string, identity: LiveIdentity): void
   authorizeNaming(token: string): NamingControlBinding
+  yolo(folder: string, grantId: string, action: 'enable' | 'revoke' | 'inspect', confirm: (detail: string) => Promise<boolean>): Promise<YoloStatus>
   dispose(): void
   /** Binds the grant to the chat's mailbox when `chat` has one (see the module comment). */
   issueChatCli(folder: string, grant: GrantOptions, chat?: GrantChat): Promise<IssuedChatCli>
@@ -89,6 +98,8 @@ interface HeldGrant {
   lifetime: AbortController
   /** Whether it was bound to a mailbox, whose binding its revoke closes. */
   mailbox: boolean
+  runId?: string
+  cardId?: string
 }
 
 async function through(held: HeldGrant, act: (workspace: Workspace) => Promise<unknown>): Promise<void> {
@@ -109,21 +120,30 @@ function ownedBy(grant: HeldGrant, chatFolder: string | null): boolean {
   return chatFolder === null ? grant.projectless : !grant.projectless && realpathSync.native(chatFolder) === grant.folder
 }
 
+function yoloConfirmation(parent: GrantView, held: HeldGrant, binding: NamingControlBinding, expiresAt: string): string {
+  return `Agent: ${parent.label}\nChat: ${binding.chatId}\nStart: ${binding.generation}\nGrant: ${parent.id}\nFolder: ${held.folder}\nRun: ${held.runId ?? '(none; no run commands)'}\nCard: ${held.cardId ?? '(none)'}\nPowers: ${YOLO_CAPABILITIES.join(', ')}\nExpires: ${expiresAt} (never renewed automatically)\n\nThis agent can Save plans, grant retries and approve/advance checkpoints without further human review. Evidence gates remain mandatory. No OS privileges, credentials, mail management, grant issue/revoke or human feedback powers. Revocable immediately. Ends on chat exit/restart. Only approve if you accept unreviewed in-scope workflow changes.`
+}
+
 class ChatGrantRegistry implements ChatGrants {
   private readonly held = new Map<string, HeldGrant>()
   private readonly liveByHash = new Map<string, HeldGrant>()
   constructor(private readonly deps: ChatGrantsDeps) {}
   private invalidate(grant: HeldGrant): void {
+    if (grant.live !== null) {
+      try { endYoloChat(grant.workspace.ctx(), grant.live.grantId) }
+      catch { this.deps.log(`Could not end YOLO binding for ${grant.live.grantId}; its fixed expiry still applies.`) }
+    }
     grant.lifetime.abort()
     this.liveByHash.delete(grant.tokenHash)
     grant.live = null
   }
-  private assertBinding(grantId: string, grant: HeldGrant, binding: NamingControlBinding): void {
+  private assertBinding(grantId: string, grant: HeldGrant, binding: NamingControlBinding, naming = true): void {
     if (this.held.get(grantId) !== grant || grant.live !== binding || binding.signal.aborted || grant.workspace.sessionId() === null || realpathSync.native(grant.folder) !== grant.folder) {
       throw new NamingControlError('unauthorized')
     }
     const ctx = grant.workspace.ctx()
-    assertGrantCapability({ db: ctx.db, clock: ctx.clock, machineId: ctx.machineId }, grantId, grant.tokenHash, 'chat.name')
+    if (naming) assertGrantCapability({ db: ctx.db, clock: ctx.clock, machineId: ctx.machineId }, grantId, grant.tokenHash, 'chat.name')
+    else assertGrantUsable(ctx, grantId)
   }
   /** Issues one grant in the folder's workspace and holds it; answers it with its token and that workspace. */
   private async issueHeld(folder: string, grant: GrantOptions, projectless: boolean, mailbox: boolean): Promise<{ grantId: string; token: string; workspace: Workspace }> {
@@ -204,12 +224,68 @@ class ChatGrantRegistry implements ChatGrants {
     this.invalidateEarlierStarts(binding)
     grant.live = binding
     this.liveByHash.set(grant.tokenHash, grant)
+    grant.runId = identity.runId
+    grant.cardId = identity.cardId
+    if (this.deps.desktopFence !== undefined) bindYoloChat(grant.workspace.ctx(), this.yoloBinding(grantId, grant, binding))
   }
   authorizeNaming(token: string): NamingControlBinding {
     const binding = this.liveByHash.get(hashToken(token))?.live
     if (!binding) throw new NamingControlError('unauthorized')
     binding.assertCurrent()
     return binding
+  }
+  private yoloBinding(grantId: string, held: HeldGrant, binding: NamingControlBinding) {
+    const fence = this.deps.desktopFence
+    if (fence === undefined) throw new DomainError('unauthorized', 'No current desktop instance can authorize YOLO.')
+    return { grantId, chatId: binding.chatId, generation: binding.generation, desktopId: fence.instance, desktopPid: fence.pid,
+      fencePath: fence.path, proofEndpoint: fence.proofEndpoint, proofPublicKey: fence.proofPublicKey, runId: held.runId ?? null, ...(held.cardId === undefined ? {} : { cardId: held.cardId }) }
+  }
+  private requireYoloGrant(workspace: Workspace, grantId: string): HeldGrant & { live: NamingControlBinding } {
+    const held = this.held.get(grantId)
+    if (held === undefined || held.live === null || held.live.signal.aborted || held.workspace !== workspace) {
+      auditYolo(workspace.ctx(), { grantId, runId: null, capability: 'yolo.enable', command: 'yolo.enable', result: 'refused' })
+      throw new DomainError('unauthorized', 'Only an existing live chat in this folder can receive YOLO.')
+    }
+    return held as HeldGrant & { live: NamingControlBinding }
+  }
+  private assertYoloCurrent(ctx: Ctx, grantId: string, held: HeldGrant, binding: NamingControlBinding): void {
+    try { this.assertBinding(grantId, held, binding, false) }
+    catch (error) {
+      auditYolo(ctx, { grantId, runId: held.runId ?? null, capability: 'yolo.enable', command: 'yolo.enable', result: 'refused' })
+      throw error
+    }
+  }
+  private async enableYolo(workspace: Workspace, grantId: string, confirm: (detail: string) => Promise<boolean>): Promise<void> {
+    const ctx = workspace.ctx()
+    const held = this.requireYoloGrant(workspace, grantId)
+    const binding = held.live
+    this.assertYoloCurrent(ctx, grantId, held, binding)
+    const scope = this.yoloBinding(grantId, held, binding)
+    await this.deps.yoloReady?.()
+    const parent = (await workspace.listGrants()).find((grant) => grant.id === grantId)
+    if (!parent?.active) throw new DomainError('unauthorized', 'That grant is no longer active.')
+    const expiry = new Date(Math.min(ctx.clock.nowMs() + 24 * 60 * 60_000, Date.parse(parent.expiresAt))).toISOString()
+    if (!await confirm(yoloConfirmation(parent, held, binding, expiry))) {
+      auditYolo(ctx, { grantId, runId: scope.runId, capability: 'yolo.enable', command: 'yolo.enable', result: 'refused' })
+      return
+    }
+    this.assertYoloCurrent(ctx, grantId, held, binding)
+    approveYolo(ctx, scope, expiry)
+  }
+  private yoloStatus(workspace: Workspace, grantId: string): YoloStatus {
+    const ctx = workspace.ctx()
+    const audit = listYoloAudit(ctx, { grantId })
+    const held = this.held.get(grantId)
+    if (!held || !held.live || held.live.signal.aborted || held.workspace !== workspace) return { live: false, expiresAt: null, audit }
+    const elevation = ctx.db.get<{ expires_at: string }>('SELECT expires_at FROM yolo_elevations WHERE grant_id = ?', grantId)
+    const active = isYoloEligible(ctx, grantId, 'plan.save', held.runId ?? null)
+    return { live: true, expiresAt: active ? elevation?.expires_at ?? null : null, audit }
+  }
+  async yolo(folder: string, grantId: string, action: 'enable' | 'revoke' | 'inspect', confirm: (detail: string) => Promise<boolean>): Promise<YoloStatus> {
+    const workspace = this.deps.workspaceFor(folder)
+    if (action === 'revoke') revokeYolo(workspace.ctx(), grantId)
+    if (action === 'enable') await this.enableYolo(workspace, grantId, confirm)
+    return this.yoloStatus(workspace, grantId)
   }
   dispose(): void {
     for (const grant of this.held.values()) this.invalidate(grant)
@@ -262,6 +338,7 @@ export function createChatGrants(deps: ChatGrantsDeps): ChatGrants {
     renewChatGrant: (id) => registry.renewChatGrant(id),
     bindChatGrant: (id, identity) => registry.bindChatGrant(id, identity),
     authorizeNaming: (token) => registry.authorizeNaming(token),
+    yolo: (folder, grantId, action, confirm) => registry.yolo(folder, grantId, action, confirm),
     dispose: () => registry.dispose()
   }
 }

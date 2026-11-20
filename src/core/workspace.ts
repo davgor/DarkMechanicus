@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { createDesktopClient, type DesktopClient } from './desktop/desktopClient'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -33,6 +34,7 @@ import { assertStorageMigrationIdle, recoverStorageMigration, switchStorage } fr
 import { pruneStagedAttachments } from './services/attachments'
 import { MAIL_POLL_COMMANDS, openMailPollSession, touchMailPollSession } from './services/agentMail'
 import { assertGrantUsable, redeemGrant, type RedeemedGrant } from './services/grants'
+import { auditYoloCommand, authorizeYoloCommand, type YoloCommandAdmission } from './services/yoloCommands'
 import type { FsAdapter, GitAdapter, RepoLayout } from './repo/types'
 import { parseInput } from './schemas'
 import { completeSavedRevision } from './services/plans'
@@ -195,6 +197,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
     return this.options.transport
   }
   private store: Store | null = null
+  private readonly commandContext = new AsyncLocalStorage<Ctx>()
   /** What the presented grant conferred, or null for a session that presented none. */
   private granted: RedeemedGrant | null = null
   /** Comment and profile files read by earlier reconciles, so unchanged ones are not read again. */
@@ -276,7 +279,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
   }
 
   ctx(): Ctx {
-    return this.requireStore().ctx
+    return this.commandContext.getStore() ?? this.requireStore().ctx
   }
 
   /**
@@ -651,6 +654,29 @@ export class RepositoryWorkspace implements WorkspaceCore {
     assertGrantUsable({ db: store.db, clock: this.clock, machineId: store.ctx.machineId }, this.granted.grantId)
   }
 
+  private async runElevated(ctx: Ctx, admission: YoloCommandAdmission, run: () => unknown): Promise<unknown> {
+    auditYoloCommand(ctx, admission, 'admitted')
+    const capabilities = new Set(ctx.session.capabilities)
+    for (const capability of admission.capabilities) capabilities.add(capability)
+    const scoped = { ...ctx, session: { ...ctx.session, capabilities } }
+    try {
+      const result = await this.commandContext.run(scoped, run)
+      auditYoloCommand(ctx, admission, 'succeeded')
+      return result
+    } catch (error) {
+      auditYoloCommand(ctx, admission, 'failed')
+      throw error
+    }
+  }
+
+  private async runCommand(name: CommandName, input: unknown, run: () => unknown): Promise<unknown> {
+    const ctx = this.store?.ctx
+    const grantId = this.granted?.grantId
+    if (ctx === undefined || grantId === undefined) return run()
+    const admission = await authorizeYoloCommand(ctx, grantId, name, input)
+    return admission === null ? run() : this.runElevated(ctx, admission, run)
+  }
+
   async execute(name: CommandName, rawInput: unknown): Promise<unknown> {
     if (this.options.mailPoll === true) {
       return this.executePoll(name, rawInput)
@@ -664,7 +690,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
     }
     this.assertStillGranted()
     const run = spec.run as (core: WorkspaceCore, input: unknown) => unknown
-    const result = await run(this, input)
+    const result = await this.runCommand(name, input, () => run(this, input))
     if (spec.mutates && this.store) {
       this.safeFlush()
     }

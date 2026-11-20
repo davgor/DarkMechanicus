@@ -248,6 +248,12 @@ export type KnowledgeChooseResult =
   | { outcome: 'refused'; reason: string }
   | { outcome: 'set'; repository: string }
 
+export interface YoloStatus {
+  live: boolean
+  expiresAt: string | null
+  audit: { id: number; time: string; grantId: string; sessionId: string; folder: string; runId: string | null; capability: string; command: string; result: string; targetId: string | null; boundCardId: string | null }[]
+}
+
 export interface DmApi {
   /** Agent chats run by the main process: the `chats:*` channels and their push channel. */
   chats: ChatsApi
@@ -260,6 +266,8 @@ export interface DmApi {
   listFolders(): Promise<TrackedFolderView[]>
   pickFolder(): Promise<FolderPickResult>
   untrackFolder(path: string): Promise<TrackedFolderView[]>
+  /** Main resolves the live identity and obtains a native person decision; no affirmative payload is accepted. */
+  yolo(folder: string, grantId: string, action: 'enable' | 'revoke' | 'inspect'): Promise<YoloStatus>
   command<K extends CommandName>(
     folder: string,
     name: K,

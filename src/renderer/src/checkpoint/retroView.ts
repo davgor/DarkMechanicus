@@ -157,6 +157,7 @@ export interface RetroSections {
   discoveries: DiscoveryRow[]
   leftovers: LeftoverRow[]
   experiments: ExperimentRow[]
+  yoloUsage?: string[]
 }
 
 const URL_PATTERN = /https?:\/\/[^\s<>"')\]]+/g
@@ -384,6 +385,7 @@ export function retroSections(report: SprintReportView, lookup: RetroLookup): Re
     wentWell: retro.wentWell,
     wentPoorly: retro.wentPoorly,
     actions: retro.actions,
+    ...(retro.yoloUsage === undefined ? {} : { yoloUsage: retro.yoloUsage }),
     tierFit: tierFitRows(report, lookup),
     discoveries: retro.discoveries.map((item) => ({
       title: item.title,

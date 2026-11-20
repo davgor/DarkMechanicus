@@ -430,6 +430,8 @@ export function Retro(props: Selectable & { retro: RetroSections | null; actions
   return (
     <>
       <Delivered rows={retro.delivered} onSelectTicket={props.onSelectTicket} />
+      <Notes label="Verified YOLO usage" title="SERVER-RECORDED YOLO USAGE (COMPLETE THROUGH REPORT CUTOFF)" items={retro.yoloUsage ?? []} />
+      {(retro.yoloUsage?.length ?? 0) > 0 ? <p className="note">Permission suggestions in Actions are agent recommendations only. They grant no authority.</p> : null}
       <Notes label="Went well" title="WENT WELL" items={retro.wentWell} />
       <Notes label="Went poorly" title="WENT POORLY" items={retro.wentPoorly} />
       <Notes label="Actions" title="ACTIONS FOR THE NEXT SPRINT" items={retro.actions} />

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useState } from 'react'
-import type { TrackedFolderView } from '../../../shared/desktop/api'
+import type { TrackedFolderView, YoloStatus } from '../../../shared/desktop/api'
 import type { GrantableRole, GrantView } from '../../../shared/domain/views'
 import { useToasts } from '../app/toasts'
 import { Button } from '../components/Button'
@@ -122,7 +122,56 @@ function IssueForm({ busy, onIssue, onCancel }: IssueFormProps): JSX.Element {
   )
 }
 
-function GrantRow({ grant, onRevoke }: { grant: GrantView; onRevoke(id: string): void }): JSX.Element {
+const YOLO_EXPIRY_FORMAT = new Intl.DateTimeFormat(undefined, {
+  year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short'
+})
+
+function useGrantYolo(folder: string, grantId: string) {
+  const [yolo, setYolo] = useState<YoloStatus | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const act = useCallback(async (action: 'enable' | 'revoke' | 'inspect') => {
+    try {
+      setYolo(await window.dm.yolo(folder, grantId, action))
+      setError(null)
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'Unable to inspect YOLO.')
+    }
+  }, [folder, grantId])
+  useEffect(() => {
+    void act('inspect')
+    const timer = window.setInterval(() => void act('inspect'), 5_000)
+    return () => window.clearInterval(timer)
+  }, [act])
+  return { yolo, error, act }
+}
+
+function YoloAudit({ audit }: { audit: YoloStatus['audit'] }): JSX.Element | null {
+  if (audit.length === 0) return null
+  return (
+    <details><summary>YOLO audit ({audit.length})</summary>
+      <ul>{audit.map((entry) => <li key={entry.id}>{entry.time} · {entry.command} · {entry.capability} · {entry.result} · {entry.runId ?? 'no run'} · {entry.sessionId} · target {entry.targetId ?? 'none'} · card {entry.boundCardId ?? 'none'}</li>)}</ul>
+    </details>
+  )
+}
+
+function YoloControls({ folder, grant }: { folder: string; grant: GrantView }): JSX.Element {
+  const { yolo, error, act } = useGrantYolo(folder, grant.id)
+  if (yolo === null) return <span role={error ? 'alert' : undefined}>{error}</span>
+  return (
+    <div className="grant-row-yolo">
+      {yolo.live && grant.active ? (
+        <Button onClick={() => void act(yolo.expiresAt ? 'revoke' : 'enable')}>
+          {yolo.expiresAt ? 'Revoke YOLO' : 'Enable YOLO…'}
+        </Button>
+      ) : null}
+      {yolo.expiresAt ? <strong role="status" className="tone-warn">YOLO ACTIVE until <time dateTime={yolo.expiresAt} title={yolo.expiresAt}>{YOLO_EXPIRY_FORMAT.format(new Date(yolo.expiresAt))}</time></strong> : null}
+      {error ? <span role="alert">{error}</span> : null}
+      <YoloAudit audit={yolo.audit} />
+    </div>
+  )
+}
+
+function GrantRow({ grant, folder, onRevoke }: { grant: GrantView; folder: string; onRevoke(id: string): void }): JSX.Element {
   const state = grant.revokedAt !== null ? 'Revoked' : grant.active ? 'Active' : 'Expired'
   return (
     <div className="grant-row">
@@ -133,6 +182,7 @@ function GrantRow({ grant, onRevoke }: { grant: GrantView; onRevoke(id: string):
       {grant.active ? (
         <Button onClick={() => onRevoke(grant.id)}>Revoke</Button>
       ) : null}
+      <YoloControls folder={folder} grant={grant} />
     </div>
   )
 }
@@ -212,8 +262,8 @@ export function GrantsCard({ folder }: GrantsCardProps): JSX.Element {
       <h2 className="card-title">Agent access</h2>
       <p className="note">
         A <code>dm</code> session reads and nothing more until you give it a role. A grant expires, can be
-        revoked, and never carries anything reserved to you — approving a checkpoint and deleting an epic stay
-        here.
+        revoked, and never carries anything reserved to you by default. A separate native confirmation can
+        enable scoped YOLO for an active chat; its approvals and usage remain auditable.
       </p>
       {state.token !== null ? <IssuedToken token={state.token} onDone={() => state.setToken(null)} /> : null}
       {state.grants === null ? (
@@ -222,7 +272,7 @@ export function GrantsCard({ folder }: GrantsCardProps): JSX.Element {
         <div className="grant-list">
           {state.grants.length === 0 ? <p className="muted">No grants yet.</p> : null}
           {state.grants.map((grant) => (
-            <GrantRow key={grant.id} grant={grant} onRevoke={(id) => void state.revoke(id)} />
+            <GrantRow key={grant.id} grant={grant} folder={folder.path} onRevoke={(id) => void state.revoke(id)} />
           ))}
         </div>
       )}

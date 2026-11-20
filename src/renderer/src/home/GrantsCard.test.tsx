@@ -63,6 +63,26 @@ describe('GrantsCard listing', () => {
     expect(card().textContent).toContain('Revoked')
   })
 
+  it('marks active scoped YOLO conspicuously and revokes through the narrow main-owned bridge', async () => {
+    dm.responses.listGrants = [grant()]
+    dm.yoloState = { live: true, expiresAt: '2026-01-01T08:00:00.000Z', audit: [{
+      id: 1, time: '2026-01-01T01:00:00.000Z', grantId: grant().id, sessionId: 'session-one', folder: folderView().path,
+      runId: 'run-one', capability: 'plan.save', command: 'savePlan', result: 'succeeded', targetId: null, boundCardId: null
+    }] }
+    renderCard()
+    await settle()
+    expect(within(card()).getByRole('status').textContent).toContain('YOLO ACTIVE')
+    const expiry = within(card()).getByRole('status').querySelector('time')
+    expect(expiry?.getAttribute('datetime')).toBe('2026-01-01T08:00:00.000Z')
+    expect(expiry?.textContent).toMatch(/\d+:\d{2}/)
+    expect(card().textContent).toContain('savePlan')
+    fireEvent.click(within(card()).getByRole('button', { name: 'Revoke YOLO' }))
+    await settle()
+    expect(within(card()).queryByRole('status')).toBeNull()
+    expect(dm.yoloCalls.at(-1)).toEqual({ folder: folderView().path, grantId: grant().id, action: 'revoke' })
+    expect(within(card()).getByRole('button', { name: 'Enable YOLO…' })).toBeTruthy()
+  })
+
   it('offers Revoke only for a grant that still works', async () => {
     dm.responses.listGrants = [grant({ active: false, revokedAt: '2026-01-01T01:00:00.000Z' })]
     renderCard()

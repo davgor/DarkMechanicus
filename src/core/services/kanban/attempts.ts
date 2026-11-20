@@ -35,6 +35,7 @@ import { appendEvent } from '../events'
 import { guardUnique } from '../execution'
 import { requestWithoutKey, withIdempotency } from '../idempotency'
 import { type AttemptRow, cardView, loadSummaryRow, recordCardEvent, type SummaryRow, toAttemptView } from './cards'
+import { listYoloAudit, yoloEvidence } from '../yolo'
 
 /** An attempt row with its claim secret, which only the claim checks read and no view carries. */
 interface ClaimRow extends AttemptRow {
@@ -416,6 +417,11 @@ export function submitKanbanCard(ctx: Ctx, input: SubmitKanbanCardInput): Kanban
     const outputs = maskedReport(normalizeOutputs(input.outputs), claim)
     // Claimed in this transaction: a refused image refuses the whole submission.
     const evidence = maskedReport(normalizeEvidence(claimEvidenceAttachments(ctx, input.evidence, { kind: 'kanban_attempt', id: row.id })), claim)
+    const usage = listYoloAudit(ctx, { runId: null, boundCardId: row.card_id })
+    if (usage.length > 0) {
+      const log = yoloEvidence(usage, evidence.notes.split('\n'))
+      evidence.notes += `\n\nServer-recorded YOLO usage (complete card history through submission, across all grants and attempts; recommendations above grant no authority):\n${log.join('\n')}`
+    }
     const now = ctx.clock.nowIso()
     ctx.db.run(
       `UPDATE kanban_attempts SET state = 'submitted', outputs_json = ?, evidence_json = ?, submitted_at = ?,

@@ -13,7 +13,8 @@ import { registerChatIpc, registerChatMailIpc } from '../main/agents/chatIpc'
 import type { ChatHandlers } from '../main/agents/chatHandlers'
 import type { ChatMailHandlers } from '../main/agents/agentMailDesktop'
 import { registerAutoUpdateHandlers } from '../main/autoUpdate'
-import { registerDesktopIpc, registerKnowledgeIpc } from '../main/desktop/ipc'
+import { registerDesktopIpc, registerKnowledgeIpc, registerYoloIpc } from '../main/desktop/ipc'
+import type { YoloHandlers } from '../main/desktop/yoloHandlers'
 import { registerCrossRepoCorrectionIpc, type CrossRepoCorrectionHandlers } from '../main/desktop/crossRepoCorrections'
 import type { DesktopHandlers } from '../main/desktop/handlers'
 import type { KnowledgeHandlers } from '../main/desktop/knowledgeHandlers'
@@ -88,6 +89,7 @@ beforeAll(() => {
   registerGitIpc(recorder(true), recordingHandlers<GitHandlers>())
   registerGithubIpc(recorder(true), recordingHandlers<GithubHandlers>())
   registerDesktopIpc(recorder(true), recordingHandlers<DesktopHandlers>())
+  registerYoloIpc(recorder(true), recordingHandlers<YoloHandlers>())
   registerSourceCheckoutIpc(recorder(true), recordingHandlers<SourceCheckoutHandlers>())
   registerCrossRepoCorrectionIpc(recorder(true), recordingHandlers<CrossRepoCorrectionHandlers>())
   registerKnowledgeIpc(recorder(true), recordingHandlers<KnowledgeHandlers>())

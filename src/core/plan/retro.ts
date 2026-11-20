@@ -111,7 +111,8 @@ export function retroIsEmpty(retro: SprintRetro): boolean {
     retro.discoveries,
     retro.leftovers,
     retro.tierFit,
-    retro.experiments ?? []
+    retro.experiments ?? [],
+    retro.yoloUsage ?? []
   ]
   return lists.every((entries) => entries.length === 0)
 }
@@ -123,6 +124,7 @@ export function retroSearchParts(retro: SprintRetro, keyOf: (ticketId: string) =
     ...retro.wentWell,
     ...retro.wentPoorly,
     ...retro.actions,
+    ...(retro.yoloUsage ?? []),
     ...retro.discoveries.flatMap((item) => [item.title, item.body, ...(item.ticket === null ? [] : [keyOf(item.ticket)])]),
     ...retro.leftovers.flatMap((item) => [keyOf(item.ticket), item.reason]),
     ...retro.tierFit.flatMap((item) => [keyOf(item.ticket), item.verdict, item.note]),

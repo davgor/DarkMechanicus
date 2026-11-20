@@ -22,7 +22,8 @@ import type {
   KnowledgeChooseResult,
   KnowledgeStatusView,
   McpConfigView,
-  TrackedFolderView
+  TrackedFolderView,
+  YoloStatus
 } from '../../../../shared/desktop/api'
 import type { CapabilityProfile } from '../../../../shared/domain/bundle'
 import { isActiveRunState, isOpenAttemptState } from '../../../../shared/domain/status'
@@ -115,6 +116,9 @@ export class FakeBackend implements DmApi {
   terminals = idleTerminals()
   sourceCheckout = idleSourceCheckout()
   crossRepoCorrections = idleCrossRepoCorrections()
+  yolo(): Promise<YoloStatus> {
+    return Promise.resolve({ live: false, expiresAt: null, audit: [] })
+  }
   readonly calls: RecordedCall[] = []
   readonly opened: string[] = []
   /** Every text put on the clipboard, oldest first. */

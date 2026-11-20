@@ -17,11 +17,13 @@ import { appendEvent, listEvents } from '../services/events'
 import { issueGrant, listGrants, renewGrant, revokeGrant } from '../services/grants'
 import { searchHistory } from '../services/history'
 import { listSessions } from '../services/sessions'
+import { yoloSessionScope } from '../services/yolo'
 import { SKILLS_VERSION } from '../version'
 import type { CommandTable, WorkspaceCore } from './types'
 
 function capabilitiesView(core: WorkspaceCore): CapabilitiesView {
   const initialized = core.isInitialized()
+  const yolo = initialized ? yoloSessionScope(core.ctx()) : undefined
   return {
     server: core.options.serverInfo ?? { name: 'darkmechanicus', version: '0.0.0' },
     apiVersion: API_VERSION,
@@ -32,6 +34,7 @@ function capabilitiesView(core: WorkspaceCore): CapabilitiesView {
     capabilities: initialized ? [...core.ctx().session.capabilities] : core.roleCapabilities(),
     repoRoot: core.repoRoot,
     initialized,
+    ...(yolo === undefined ? {} : { yolo }),
     // Never a promise the role alone could make: an uninitialized folder has no mailbox to be bound to.
     mailbox: initialized
       ? agentMailboxStatus(core.ctx())

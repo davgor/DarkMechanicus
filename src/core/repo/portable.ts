@@ -350,7 +350,9 @@ const retroContent = z.strictObject({
   tierFit: z
     .array(z.strictObject({ ticket: idOf('ticket'), verdict: z.enum(TIER_VERDICTS), note: markdown }))
     .max(LIMITS.listItems),
-  experiments: retroExperimentsSchema.optional()
+  experiments: retroExperimentsSchema.optional(),
+  // A complete bounded log may exceed ordinary agent prose-list limits; the server owns its rows.
+  yoloUsage: z.array(z.string()).optional()
 })
 
 const reportContent = z.strictObject({

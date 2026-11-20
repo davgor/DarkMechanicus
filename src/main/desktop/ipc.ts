@@ -8,6 +8,7 @@
 import type { IpcMain } from 'electron'
 import type { DesktopHandlers } from './handlers'
 import type { KnowledgeHandlers } from './knowledgeHandlers'
+import type { YoloHandlers } from './yoloHandlers'
 
 export function registerDesktopIpc(ipcMain: Pick<IpcMain, 'handle'>, handlers: DesktopHandlers): void {
   ipcMain.handle('dm:listFolders', () => handlers.listFolders())
@@ -47,4 +48,9 @@ export function registerKnowledgeIpc(ipcMain: Pick<IpcMain, 'handle'>, handlers:
   ipcMain.handle('knowledge:status', (_event, folder: unknown) => handlers.knowledgeStatus(folder))
   ipcMain.handle('knowledge:choose-repository', () => handlers.chooseKnowledgeRepository())
   ipcMain.handle('knowledge:clear-repository', () => handlers.clearKnowledgeRepository())
+}
+
+/** Native elevation remains a separate narrow surface, not a generic desktop command. */
+export function registerYoloIpc(ipcMain: Pick<IpcMain, 'handle'>, handlers: YoloHandlers): void {
+  ipcMain.handle('dm:yolo', (_event, folder: unknown, grantId: unknown, action: unknown) => handlers.yolo(folder, grantId, action))
 }

@@ -276,7 +276,7 @@ export interface TerminalSessionsDeps {
   onError?: (error: unknown) => void
   onChatChanged?: (ref: ChatRef) => void
   /** Binds only a tracked live PTY, never a persisted historical grant id. */
-  bindChatGrant?: (grantId: string, identity: { folder: string | null; chatId: string; generation: string }) => void
+  bindChatGrant?: (grantId: string, identity: { folder: string | null; chatId: string; generation: string; runId?: string; cardId?: string }) => void
 }
 
 interface Subscriber {
@@ -1031,7 +1031,7 @@ function bindGrants(manager: Manager, live: Live, grantIds: readonly string[]): 
   const { chat } = live
   try {
     for (const grantId of grantIds) {
-      manager.deps.bindChatGrant?.(grantId, { folder: chat.folder, chatId: chat.id, generation: live.generation })
+      manager.deps.bindChatGrant?.(grantId, { folder: chat.folder, chatId: chat.id, generation: live.generation, ...(chat.runId === undefined ? {} : { runId: chat.runId }), ...(chat.cardId === undefined ? {} : { cardId: chat.cardId }) })
     }
   } catch (error) {
     void stop(manager, live, 'The terminal could not bind its chat naming authority.')

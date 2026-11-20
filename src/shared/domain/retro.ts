@@ -59,6 +59,8 @@ export interface SprintRetro {
   tierFit: RetroTierFit[]
   /** Structured improvement experiments linked to a frozen scorecard; never an empty list. */
   experiments?: RetroExperiment[]
+  /** Server-derived complete local audit through this report's cutoff; never accepted from report input. */
+  yoloUsage?: string[]
 }
 
 /** A retro as a reporter writes it: every list optional, tickets by id or display key. */
