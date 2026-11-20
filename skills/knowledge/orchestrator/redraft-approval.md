@@ -7,6 +7,8 @@ scope.topics: [retro-redraft]
 priority: 80
 ---
 
+This covers only the end-of-sprint retro and redraft, which the person approves. To fix the plan during a sprint, save and adopt the revision yourself with a reason (`orchestrator.adopt-revision`).
+
 After refining the draft (`orchestrator.redraft-refine`):
 
 1. Call `validate_plan` with `view: "draft"`. Fix every error and read every warning, including the run-aware ones about passed sprints and about a new sprint placed before the active one.
