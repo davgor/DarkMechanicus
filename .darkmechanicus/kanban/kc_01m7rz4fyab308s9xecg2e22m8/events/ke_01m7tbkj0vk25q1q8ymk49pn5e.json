@@ -1,0 +1,17 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": "ka_01m7tb2p25n3mfqa03hq76gmbt",
+  "cardId": "kc_01m7rz4fyab308s9xecg2e22m8",
+  "createdAt": "2026-11-19T16:52:58.522Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7tbkj0vk25q1q8ymk49pn5e",
+  "kind": "failed",
+  "payload": {
+    "number": 1,
+    "reason": "c1 implemented in commit 8c33ddc5d3e9640ef6233ecbc39845a6f1aa60d6 (two Kanban renderer/test files only), targeted 24/24 tests passed: latest failed/expired attempt labels existing authorized Play flow Retry and preserves visible history. c2 remains unmet because required delivery gate did not pass: initial lint max-lines and typecheck PATH/TS failures were repaired with later passes, deadcode/build passed, but prior npm test and coverage timeout failures remain failures and Fireguard was not run. c3 unmet: installed app v0.47.0 bundle still labels failed card Play and version banner observed, but shared desktop concurrency prevented a privacy-safe actual failed-card screenshot; raw screenshot contains another chat and was not attached. At ten-minute stop no full gate or visual proof can be claimed. No extra service left running. Preserve scoped commit and history; do not mark Ready for review."
+  }
+}

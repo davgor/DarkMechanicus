@@ -1,0 +1,39 @@
+{
+  "format": "darkmechanicus.metric-observation",
+  "formatVersion": 1,
+  "observation": {
+    "accumulation": "delta",
+    "attributes": {
+      "activeBasis": "requests_and_tools",
+      "sourceEvent": "span-1795142288656",
+      "spanStart": "2026-11-20T02:38:08.656Z"
+    },
+    "evidence": [],
+    "measurement": {
+      "state": "observed",
+      "value": 183654
+    },
+    "metric": "active_ms",
+    "observationId": "mo_xtdmz273bhf6hctpbchbhxnsjz",
+    "observedAt": "2026-11-20T02:41:12.310Z",
+    "recordedAt": "2026-11-20T02:47:07.725Z",
+    "scope": {
+      "attemptId": "at_01m7vd2wyp7ga8mrcbh5x1ejkf",
+      "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+      "level": "attempt",
+      "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+      "sprintId": "sp_01m7rget6q03n7a08sjxtjjh8t",
+      "ticketId": "tk_01m7vcpd7564ecyqc3h1mtsfs7"
+    },
+    "sequence": null,
+    "source": {
+      "actor": "omp:01a1f451-775e-7582-b26e-eb850ecd15ea/ApprovalTimingFix",
+      "kind": "host"
+    },
+    "unit": "milliseconds",
+    "usage": {
+      "coverage": "self",
+      "parentActor": "omp:01a1f451-775e-7582-b26e-eb850ecd15ea"
+    }
+  }
+}

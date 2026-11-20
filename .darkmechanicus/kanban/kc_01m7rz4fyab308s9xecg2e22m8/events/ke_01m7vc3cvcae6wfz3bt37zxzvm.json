@@ -1,0 +1,17 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": null,
+  "cardId": "kc_01m7rz4fyab308s9xecg2e22m8",
+  "createdAt": "2026-11-20T02:20:51.948Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7vc3cvcae6wfz3bt37zxzvm",
+  "kind": "message",
+  "payload": {
+    "attachments": [],
+    "body": "Attempt 5 one controlled diagnostic on the CHANGED final combined tree (NOT retry-based acceptance): `npm test` exit0, wall 295.68s against ordinary outer300s deadline (4.32s margin). Unit: 787 passed/2 skipped files; 13,543 passed/61 skipped tests; 272.29s. Fireguard Vitest config: 25 passed files; 172 passed/1 skipped tests; 20.74s. UTF-16LE log `%TEMP%/DM-761-attempt5-npm-test.log` retained. Another agent’s targeted Vitest began mid-run, but no cause attribution is possible. Historical DM-689 full test and coverage timeouts remain failures; this run is not an erasure or proof of reliability, and no new coverage run was made. DM-761 c2 full delivery gate remains non-green; Retry fix commit 8c33ddc5 and UI screenshots remain valid functional evidence."
+  }
+}

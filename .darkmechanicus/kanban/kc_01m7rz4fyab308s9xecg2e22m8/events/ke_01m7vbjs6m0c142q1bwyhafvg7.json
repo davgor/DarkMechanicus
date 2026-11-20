@@ -1,0 +1,17 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": null,
+  "cardId": "kc_01m7rz4fyab308s9xecg2e22m8",
+  "createdAt": "2026-11-20T02:11:47.540Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7vbjs6m0c142q1bwyhafvg7",
+  "kind": "message",
+  "payload": {
+    "attachments": [],
+    "body": "Further evidence search: npm cache `_logs` retains only recent invocations (the log says `logs-max:10` and cleans older files). Surviving 2026-11-20 01:29 `npm test` exit0 and 01:33 `npm run coverage` exit1 logs have cwd `C:/Users/davgo/dmwt/adc-s1`, a DIFFERENT worktree belonging to concurrent work; they are not this Kanban attempt or the earlier DM-689 timeout. Do not use those exit codes to clear this card’s gate or infer its failure cause. Original full-test/coverage stdout and exit metadata remain unavailable for our attempts."
+  }
+}

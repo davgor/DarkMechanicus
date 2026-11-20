@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "DM-771 attempt 2 actually executed npm test on e66a8efc; core Vitest 13,540 passed and one customAgent.test.ts:623 15s timeout, Fireguard never started. No rerun. Static inspection shows that test synchronously readdirSync(src,{recursive:true}) and readFileSync every TS/TSX solely to assert no protocolHandshake import; customAgent.test.ts:110-129 already behaviorally verifies no executable/handshake launch. Test is a source-text/implementation assertion, not consumer-visible, and repo test quality says delete such tests rather than raise timeout or skip. Prepare a scoped ticket to remove redundant scan/test-only imports, then validate fresh code HEAD. Coverage deferred until that HEAD exists; run paused.",
+  "createdAt": "2026-11-19T08:23:33.739Z",
+  "epicId": "ep_01m7rfrq69z1c75wnfajqx10pd",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7seeskb4zzzy7y9q0z69gpd",
+  "ticketId": "tk_01m7rzx3kfvmtgvntrdq0zk35c"
+}

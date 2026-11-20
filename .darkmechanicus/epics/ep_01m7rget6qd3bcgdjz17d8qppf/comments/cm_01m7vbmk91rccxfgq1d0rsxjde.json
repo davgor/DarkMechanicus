@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Composition decisions from verified source, for early paired implementation: (1) ordinary approveKanbanCard takes only cardId/idempotencyKey (kanban/attempts.ts:515); it cannot bind the human-reviewed attempt/revision. Use a narrow new desktop approval input carrying prepareLearningApproval's exact cardId/attemptId/expectedRevision, with tracked-folder validation; ordinary approval stays direct. Do not silently infer reviewed identity from current server state. (2) Reuse learningBranchPlans(ctx,source,attemptId) for current trusted paths/branch manifests, and the accepted learningOperationRecord(workspace) callback; always call real core persist/current() before canonical mutation. Opaque engine JSON never supplies registry/path authority. Startup uses only existing local-pending operations, never creates approvals. (3) bootstrap startGit currently creates runner internally and Git handlers create private OperationLocks; compose one intended shared runner/lock ownership for approval/source-control writes, migrating callers cleanly. (4) New background recovery must be owned/drained on untrack and quit. TerminalSessions.releaseFolder currently calls forget() without awaiting it (1318-1333); the bridge has async chats.dispose then sync close. Existing quitDisposal races chat disposal against5000ms, then closes stores. Do NOT let that race release a workspace while a canonical write remains alive. Use scoped cancellation plus the existing actual-exit/finite-cleanup contracts and a proper native drain barrier; do not raise the chat timeout or add a generic lifecycle framework. This is the existing close/restart safety requirement. Review these seams BEFORE final checks, not after freeze; worker may propose a better evidenced in-scope composition to Main.",
+  "createdAt": "2026-11-20T02:12:47.009Z",
+  "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7vbmk91rccxfgq1d0rsxjde",
+  "ticketId": "tk_01m7rgrfw585v9ttzffsvr9zfh"
+}

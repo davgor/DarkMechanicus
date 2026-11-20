@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Resume preflight: saved revision 2 was adopted, but active Sprint 1 goal and x1/x2/x3 still require full single-repository lifecycle, multi-repository integration recovery and desktop management. DM-719 recovery body/c1/c5 correctly describe foundation-only acceptance, but expectedArtifacts still requires single-/multi-repository lifecycle results and real Electron review/Learnings screenshots, and references the future docs/verification/sprint-learnings.md. This is a contradictory packet; no acceptance claim/check was started. Required desktop reconciliation before Save/adoption: change Sprint 1 goal/x1-x3 to the explicitly authorized foundation outcome (suggested exact text in prior epic comment); retain x4 full Definition of Done. Set DM-719 expectedArtifacts to Definition of Done evidence, schema/migration and collector fixture results, and one squashed foundation increment; remove its future lifecycle verification reference. Keep all full-loop/artifact requirements on Sprint 2/DM-740. Do not mark old full-loop criteria met.",
+  "createdAt": "2026-11-19T04:06:36.698Z",
+  "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7rzr9wtrngk3gx4xwdfs36a",
+  "ticketId": "tk_01m7rget6q81xt36beccgh02nh"
+}

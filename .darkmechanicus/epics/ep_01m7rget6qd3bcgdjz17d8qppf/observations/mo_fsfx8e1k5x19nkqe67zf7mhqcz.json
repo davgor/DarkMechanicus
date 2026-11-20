@@ -1,0 +1,33 @@
+{
+  "format": "darkmechanicus.metric-observation",
+  "formatVersion": 1,
+  "observation": {
+    "accumulation": "cumulative",
+    "attributes": {
+      "hostUsage": "unavailable"
+    },
+    "evidence": [],
+    "measurement": {
+      "reason": "host_unavailable",
+      "state": "missing"
+    },
+    "metric": "tokens_cached_input",
+    "observationId": "mo_fsfx8e1k5x19nkqe67zf7mhqcz",
+    "observedAt": "2026-11-19T15:39:49.986Z",
+    "recordedAt": "2026-11-19T15:40:55.023Z",
+    "scope": {
+      "attemptId": "at_01m7t78xbgvx029vy7ccsfz2rr",
+      "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+      "level": "attempt",
+      "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+      "sprintId": "sp_01m7rget6q03n7a08sjxtjjh8t",
+      "ticketId": "tk_01m7t5dtwthjbj0ckam8xhx58z"
+    },
+    "sequence": 0,
+    "source": {
+      "actor": "omp-skitarii:unavailable",
+      "kind": "host"
+    },
+    "unit": "tokens"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Combined row2fa203ba failed51/53 with15s timeouts/209.73s versus worker53/53/68.47s. Cleanup hook no longer failed. Read-only runtime comparisons found identical Node24.22.3,flags,priority0,CPU16,CI/env,temp/home and same physical dependencies. Peer notices report repository-wide gates during the surrounding interval, Resync heavy chain observed15:12 then explicit release15:17; exact test-phase overlap requested, not fabricated. Operational repair: coordinate known owner releases and serialize own verification in a quiet host window (OS15:23:41Z zero heavy jobs), no concurrent own commands. Preserve all test scope/config/deadlines and original failures; this is a bounded check after fixing uncoordinated integration conditions, not green-rerun source acceptance. No new revision or ticket.",
+  "createdAt": "2026-11-20T15:25:01.443Z",
+  "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7wrz7m3zq9fy3qvbv5kgy4n",
+  "ticketId": "tk_01m7vcpd7564ecyqc3h1mtsfs7"
+}

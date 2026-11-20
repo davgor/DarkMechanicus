@@ -1,0 +1,24 @@
+{
+  "actor": {
+    "label": "Desktop",
+    "role": "desktop"
+  },
+  "attemptId": "ka_01m7xaebgqeymjg567h2j54y1b",
+  "cardId": "kc_01m7wxwg56qgcgame6mc7199e8",
+  "createdAt": "2026-11-20T21:17:22.298Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7xd4czvxp8js9mb73dgy39z",
+  "kind": "approved",
+  "payload": {
+    "number": 3,
+    "summary": {
+      "approvedBy": "Desktop",
+      "commits": [
+        "5fe14b348e9b844f66878e53967c64b8e152439d"
+      ],
+      "completedAt": "2026-11-20T21:17:22.298Z",
+      "outcome": "Implemented native human-approved YOLO for a named active grant: fixed, scoped Save/retry/checkpoint powers; fresh signed liveness fencing; default-deny lifecycle checks; append-only secret-free command audit; server-derived run/Kanban evidence and advisory role recommendations;…"
+    }
+  }
+}

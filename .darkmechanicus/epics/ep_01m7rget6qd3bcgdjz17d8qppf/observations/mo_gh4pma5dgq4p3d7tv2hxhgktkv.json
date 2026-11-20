@@ -1,0 +1,39 @@
+{
+  "format": "darkmechanicus.metric-observation",
+  "formatVersion": 1,
+  "observation": {
+    "accumulation": "delta",
+    "attributes": {
+      "activeBasis": "requests_and_tools",
+      "sourceEvent": "span-1795135214761",
+      "spanStart": "2026-11-20T00:40:14.761Z"
+    },
+    "evidence": [],
+    "measurement": {
+      "state": "observed",
+      "value": 107775
+    },
+    "metric": "active_ms",
+    "observationId": "mo_gh4pma5dgq4p3d7tv2hxhgktkv",
+    "observedAt": "2026-11-20T00:42:02.536Z",
+    "recordedAt": "2026-11-20T00:54:33.020Z",
+    "scope": {
+      "attemptId": "at_01m7v635x2w272nfg49r8ascm5",
+      "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+      "level": "attempt",
+      "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+      "sprintId": "sp_01m7rget6q03n7a08sjxtjjh8t",
+      "ticketId": "tk_01m7v32cxvbja4jz0y5855bp12"
+    },
+    "sequence": null,
+    "source": {
+      "actor": "omp:01a1f451-775e-7582-b26e-eb850ecd15ea/NativeWriteContainment",
+      "kind": "host"
+    },
+    "unit": "milliseconds",
+    "usage": {
+      "coverage": "self",
+      "parentActor": "omp:01a1f451-775e-7582-b26e-eb850ecd15ea"
+    }
+  }
+}

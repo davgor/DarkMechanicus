@@ -1,0 +1,35 @@
+{
+  "format": "darkmechanicus.metric-observation",
+  "formatVersion": 1,
+  "observation": {
+    "accumulation": "cumulative",
+    "attributes": {},
+    "evidence": [],
+    "measurement": {
+      "reason": "host_unavailable",
+      "state": "missing"
+    },
+    "metric": "tokens_input",
+    "observationId": "mo_yk8jsyfhntepx8shjth6xkt4ev",
+    "observedAt": "2026-11-19T04:09:34.000Z",
+    "recordedAt": "2026-11-19T04:09:35.755Z",
+    "scope": {
+      "attemptId": "at_01m7rz0g9tdz9andz5mqmy6ybq",
+      "epicId": "ep_01m7rfrq69z1c75wnfajqx10pd",
+      "level": "attempt",
+      "runId": "rn_01m7rwvc9tb0m3zj9r6st5jjkg",
+      "sprintId": "sp_01m7rfrq693ras1mrr09qxttm1",
+      "ticketId": "tk_01m7rfrq69wfwv52pvpnxam0m3"
+    },
+    "sequence": 1,
+    "source": {
+      "actor": "omp-task-host",
+      "kind": "host"
+    },
+    "unit": "tokens",
+    "usage": {
+      "coverage": "self",
+      "parentActor": null
+    }
+  }
+}

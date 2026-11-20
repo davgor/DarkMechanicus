@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "DO NOT DISPATCH: prerequisite DM-791 is accepted as a completed investigation with explicit NO-GO, not accepted GO. Independently reviewed one supported isolated-cache cold/warm pair; both normal full workloads/cleanup succeeded, but no pathological mechanism or historical phase was established and external resource comparability remains limited. Passing dependency row check rk_01m7t9aqpj1pgtrrjcws6p8y4b does not override this saved feasibility condition. Report revision 6 (rp_01m7t9ashcbjv9sjrh4pd984q4) records the blocker. DM-783 implementation, DM-719 acceptance rerun, increment landing and sprint advancement remain prohibited under current scope. Further diagnostics require an explicit bounded scope decision aimed at actual failing-case phase evidence, not another normal pair, speculative scheduling, timeout increases or reruns for green. Five outcomes are independently accepted; no new code/increment landed in this resumed investigation.",
+  "createdAt": "2026-11-19T16:14:01.834Z",
+  "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7t9c83ahmk0k4qf25fg2hx7",
+  "ticketId": "tk_01m7t6bby6qyjcezpcrs6znmrc"
+}

@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Additional verified boundary from learningApproval.ts: fresh prepare enqueues only the new current operation, but explicit supersession of imported pending operations also updates/enqueues those old operation records (lines 76-82). Do not incorrectly claim prepare always dirties exactly one path. The saved whitelist remains only the current owned untracked operation; other dirty/staged records must fail closed and remain preserved. In the initially-clean fresh-card positive consumer there are no superseded records. Keep actionable diagnostics for other dirty files rather than silently broadening this ticket or suppressing flush. If a caller requires imported supersession on a checked-out root, it must satisfy the normal other-file clean precondition before a new prepare result can be accepted; never auto-commit/stash/reset, never treat imported records as execution authority.",
+  "createdAt": "2026-11-20T00:39:34.479Z",
+  "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7v69xtfe3s8e6rx4yv9dz1n",
+  "ticketId": "tk_01m7tng62ysa5x5tz8awgkvrae"
+}

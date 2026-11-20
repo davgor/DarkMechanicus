@@ -1,0 +1,17 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": null,
+  "cardId": "kc_01m7wqy5gw8sqy7p1gavy2s2c1",
+  "createdAt": "2026-11-20T16:58:01.650Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7wy9h1j7efddztybycjkaqd",
+  "kind": "message",
+  "payload": {
+    "attachments": [],
+    "body": "The person explicitly rejected the recovery epic and ordered this to stay one work item and be implemented. Relaunched this named card under that explicit authorization. One worker dispatched on main for the unchanged full c1-c4 scope, regression-first implementation, isolated-card gate and live context/inbox evidence. The prior attempt made no code changes. No epic Save is required or being used as execution authority. Approval remains human-only. Actual second claim start 16:56:58 UTC; evidence checkpoint 17:01:58, stop deadline 17:06:58. No claim of completed behavior or waived verification."
+  }
+}

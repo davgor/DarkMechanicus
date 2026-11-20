@@ -1,0 +1,39 @@
+{
+  "format": "darkmechanicus.metric-observation",
+  "formatVersion": 1,
+  "observation": {
+    "accumulation": "delta",
+    "attributes": {
+      "activeBasis": "requests_and_tools",
+      "sourceEvent": "span-1795189496288",
+      "spanStart": "2026-11-20T15:44:56.288Z"
+    },
+    "evidence": [],
+    "measurement": {
+      "state": "observed",
+      "value": 188396
+    },
+    "metric": "active_ms",
+    "observationId": "mo_5ct63wba5f8vhyp2663q4ycs2n",
+    "observedAt": "2026-11-20T15:48:04.684Z",
+    "recordedAt": "2026-11-20T19:23:50.124Z",
+    "scope": {
+      "attemptId": "at_01m7wstwt6sy01g5esv9yycarx",
+      "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+      "level": "attempt",
+      "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+      "sprintId": "sp_01m7rget6q03n7a08sjxtjjh8t",
+      "ticketId": "tk_01m7rgrfw585v9ttzffsvr9zfh"
+    },
+    "sequence": null,
+    "source": {
+      "actor": "omp:01a1f451-775e-7582-b26e-eb850ecd15ea/LearningCoordinator",
+      "kind": "host"
+    },
+    "unit": "milliseconds",
+    "usage": {
+      "coverage": "self",
+      "parentActor": "omp:01a1f451-775e-7582-b26e-eb850ecd15ea"
+    }
+  }
+}

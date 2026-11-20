@@ -1,0 +1,39 @@
+{
+  "format": "darkmechanicus.metric-observation",
+  "formatVersion": 1,
+  "observation": {
+    "accumulation": "event",
+    "attributes": {
+      "check": "verification_checks"
+    },
+    "evidence": [
+      {
+        "detail": "submission",
+        "id": "at_01m7tht84qw464ja1ecbdjyhay",
+        "kind": "attempt"
+      }
+    ],
+    "measurement": {
+      "state": "observed",
+      "value": 1
+    },
+    "metric": "handoff_check",
+    "observationId": "mo_wf7fkq0mbaypq9237ny5cnphfp",
+    "observedAt": "2026-11-19T18:44:49.294Z",
+    "recordedAt": "2026-11-19T18:44:49.295Z",
+    "scope": {
+      "attemptId": "at_01m7tht84qw464ja1ecbdjyhay",
+      "epicId": "ep_01m7tbykx46akp8brsg5mpr6a8",
+      "level": "attempt",
+      "runId": "rn_01m7thkk8my3a4xr2kyx0yergx",
+      "sprintId": "sp_01m7tbykx42yzzsxzs20nt41gq",
+      "ticketId": "tk_01m7tc2834qhec9w4j473hb0ma"
+    },
+    "sequence": null,
+    "source": {
+      "actor": null,
+      "kind": "server"
+    },
+    "unit": "pass_fail"
+  }
+}

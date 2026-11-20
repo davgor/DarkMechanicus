@@ -1,0 +1,38 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": null,
+  "cardId": "kc_01m7wxwg56qgcgame6mc7199e8",
+  "createdAt": "2026-11-20T19:54:28.945Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7x8cm6hjs891v9p71s24jqp",
+  "kind": "message",
+  "payload": {
+    "attachments": [
+      {
+        "bytes": 157987,
+        "height": 1296,
+        "id": "im_01m7x8bs11zp5sh3bvx5rcxzfn",
+        "label": "DM-838 preflight: actual person-approved test grant and audit",
+        "mime": "image/png",
+        "purpose": "evidence",
+        "sha256": "5d6a24c137ac3162872c473baa8a1df7a0636fa61d9aec10635f6934661bf2f2",
+        "width": 2139
+      },
+      {
+        "bytes": 155578,
+        "height": 1296,
+        "id": "im_01m7x8bwf9z6f6ehzh77jjs0zk",
+        "label": "DM-838 preflight: actual immediate test-grant revocation",
+        "mime": "image/png",
+        "purpose": "evidence",
+        "sha256": "5f06d52b5e8fbf44c03cbfd7383d8b7989ebfd01606c730f23e39bf3884978de",
+        "width": 2139
+      }
+    ],
+    "body": "Actual desktop preflight evidence, not final acceptance: using first full-gate build output in isolated Temp profile/home/db-only project, the person reported hearing the native confirmation and clicking its button. Renderer then showed YOLO ACTIVE, one server approval audit entry and Revoke YOLO. Parent captured/inspected attached active PNG, clicked only Revoke YOLO, observed active indicator removed, Enable YOLO restored and a second revoked audit entry, then captured/inspected attached revoked PNG. No actual user/session grant was elevated; the grant belonged to the harmless no-tools custom CLI fixture. Native dialog image was missed because the person had already acted; no positive consent was automated. Viewport1426x864 at1.5device-scale; original PNG2139x1296. Actual surface revealed cramped vertical grant-name wrapping and date-only YOLO expiry; worker is correcting identity layout and precise expiry. These are preflight images of pre-final source and will not be presented as final corrected-build evidence."
+  }
+}

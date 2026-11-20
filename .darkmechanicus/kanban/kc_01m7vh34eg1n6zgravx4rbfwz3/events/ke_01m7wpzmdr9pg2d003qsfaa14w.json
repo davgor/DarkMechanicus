@@ -1,0 +1,25 @@
+{
+  "actor": {
+    "label": "Desktop",
+    "role": "desktop"
+  },
+  "attemptId": "ka_01m7vj39qp5h5df9gmy8z3e79n",
+  "cardId": "kc_01m7vh34eg1n6zgravx4rbfwz3",
+  "createdAt": "2026-11-20T14:50:17.399Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7wpzmdr9pg2d003qsfaa14w",
+  "kind": "approved",
+  "payload": {
+    "number": 2,
+    "summary": {
+      "approvedBy": "Desktop",
+      "commits": [
+        "caac09ad124ed7ac905d668e85cbc3d5576f0795",
+        "aa292db1cbb044de708bda627c0b5102585f4c00"
+      ],
+      "completedAt": "2026-11-20T14:50:17.399Z",
+      "outcome": "Implemented actual-shell preflight, isolated test-resource ownership, smaller meaningful increments/early integration checks, bounded hypothesis-led diagnostics, explicit host-heavy scheduling, and outcome-based repair scope without weakening gates."
+    }
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "format": "darkmechanicus.metric-observation",
+  "formatVersion": 1,
+  "observation": {
+    "accumulation": "cumulative",
+    "attributes": {
+      "billing": "unknown",
+      "costBasis": "list_price",
+      "listPriceUsd": 0.815521,
+      "model": "mixed",
+      "raw.premiumRequests": 0,
+      "raw.reasoningTokens": 3167,
+      "totalBasis": "reported",
+      "usageFormat": "omp"
+    },
+    "evidence": [],
+    "measurement": {
+      "state": "observed",
+      "value": 3822779
+    },
+    "metric": "tokens_total",
+    "observationId": "mo_6cd5rsshegb7gdcvj46db25a6g",
+    "observedAt": "2026-11-19T18:25:21.752Z",
+    "recordedAt": "2026-11-19T18:49:32.234Z",
+    "scope": {
+      "attemptId": "at_01m7tg96a08vpf7750pdyd1tyv",
+      "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+      "level": "attempt",
+      "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+      "sprintId": "sp_01m7rget6q03n7a08sjxtjjh8t",
+      "ticketId": "tk_01m7rgrfw5kzhmtq9g183271db"
+    },
+    "sequence": 137,
+    "source": {
+      "actor": "omp:01a1f451-775e-7582-b26e-eb850ecd15ea/LearningApprovalState",
+      "kind": "host"
+    },
+    "unit": "tokens",
+    "usage": {
+      "coverage": "self",
+      "parentActor": "omp:01a1f451-775e-7582-b26e-eb850ecd15ea"
+    }
+  }
+}

@@ -1,5 +1,5 @@
 {
-  "activeSprintId": "sp_01m7nt7jfx4m7s1bmw9dqvgk7k",
+  "activeSprintId": null,
   "attempts": [
     {
       "createdAt": "2026-11-17T14:04:31.502Z",
@@ -3383,23 +3383,165 @@
     },
     {
       "createdAt": "2026-11-19T03:31:28.318Z",
-      "decidedAt": null,
-      "decision": null,
-      "evidence": null,
+      "decidedAt": "2026-11-19T03:40:01.548Z",
+      "decision": {
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Reviewed attached 1920x1080 screenshot: replacement chat Conversation · BCA-2 has expanded Original first prompt (submitted once) with legible specific ticket earlier history. Supporting lifecycle JSON identifies deleted chat_a4485870 and replacement chat_36af1eb4. Full DoD checks passed; increment faceffd9 was server-validated."
+          }
+        ],
+        "decidedBy": "dm CLI",
+        "notes": "Accepted on reviewed live screenshot, unchanged clean candidate 641ff5e2, all green PR #49 CI jobs, one-pass successful coverage, and server-valid squashed increment faceffd9. No failed check was rerun within an attempt; prior failures and environment causes remain in history.",
+        "outcome": "accepted",
+        "reasons": [],
+        "requiredChecks": [
+          "lint",
+          "typecheck",
+          "test",
+          "coverage",
+          "deadcode",
+          "build"
+        ]
+      },
+      "evidence": {
+        "attachments": [
+          {
+            "bytes": 109336,
+            "height": 1080,
+            "id": "im_01m7rwn0n9hzsmn5kvkt1gytnn",
+            "label": "Replacement chat persisted kickoff",
+            "mime": "image/png",
+            "purpose": "evidence",
+            "sha256": "de03bc45bc36cd276e736f996d86491433bf2235df6681621860bad9f8d0ac86",
+            "width": 1920
+          }
+        ],
+        "checks": [
+          {
+            "detail": "Draft PR #49 lint job completed SUCCESS on candidate 641ff5e2.",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "Draft PR #49 build job completed SUCCESS on candidate 641ff5e2 and includes strict TypeScript project checks; DM-710 targeted typecheck and Sprint 2 row typecheck also passed.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Draft PR #49 main Vitest shards 1/2, Fireguard Vitest shards 1/2, aggregate test, Fireguard grading shards/aggregate all completed SUCCESS on candidate 641ff5e2.",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "Delegated FullPathCoverage worker ran npm run coverage exactly once on clean candidate 641ff5e2 with child Node/Git/PowerShell/PING preflighted and CI unset. Exit 0; 648 test files passed, 2 skipped; 11177 tests passed, 61 skipped. Statements 97.42%, branches 95.08%, functions 96.60%, lines 97.67%. The command passed its configured thresholds; worktree remained clean.",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "Draft PR #49 deadcode job completed SUCCESS on candidate 641ff5e2.",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "Draft PR #49 build job completed SUCCESS on candidate 641ff5e2.",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Reviewed attached 1920x1080 screenshot: replacement chat Conversation · BCA-2 has expanded Original first prompt (submitted once) with legible specific ticket earlier history. Supporting lifecycle JSON identifies deleted chat_a4485870 and replacement chat_36af1eb4. Full DoD checks passed; increment faceffd9 was server-validated."
+          }
+        ],
+        "notes": "PR #49 remains draft and unmerged. Earlier attempts correctly failed on harness or coverage setup defects and no failed check was rerun to obtain a pass. The final attempt reused unchanged previously captured screenshot evidence and green CI, then ran only the missing coverage command once in a fully preflighted Windows environment."
+      },
       "failure": null,
       "fencingToken": 5,
       "id": "at_01m7rxqyxyjbhhgyr4kavkdevj",
+      "increment": {
+        "base": {
+          "commit": "cef5ae49a86c3c7bceff04d6a298b0b00293935e",
+          "kind": "previous_increment"
+        },
+        "branch": "epic/board-conversations",
+        "checks": [
+          {
+            "detail": "Names the epic branch epic/board-conversations.",
+            "name": "Epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit faceffd exists.",
+            "name": "Commit exists",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit faceffd has one parent, cef5ae4.",
+            "name": "One parent",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit faceffd is reachable from epic/board-conversations.",
+            "name": "On the epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit faceffd is not part of the previous sprint's increment cef5ae4.",
+            "name": "After the base commit",
+            "status": "passed"
+          },
+          {
+            "detail": "None of the 1 commit recorded by this sprint's accepted work is reachable from epic/board-conversations.",
+            "name": "Squashed, not merged",
+            "status": "passed"
+          }
+        ],
+        "commit": "faceffd95c6daae590366111b4d45a08719bfeeb",
+        "parent": "cef5ae49a86c3c7bceff04d6a298b0b00293935e",
+        "passed": true,
+        "reasons": [],
+        "verifiedAt": "2026-11-19T03:39:49.361Z"
+      },
       "kind": "work",
       "number": 5,
-      "outputs": null,
+      "outputs": {
+        "artifacts": [
+          {
+            "hash": "641ff5e2fa442e4a80340e6bb705ad00f4f8a3ea",
+            "label": "Green draft PR matrix",
+            "location": "https://github.com/davgor/DarkMechanicus/pull/49/checks",
+            "remoteOnly": true
+          },
+          {
+            "hash": "faceffd95c6daae590366111b4d45a08719bfeeb",
+            "label": "Squashed Sprint 2 increment",
+            "location": "https://github.com/davgor/DarkMechanicus/commit/faceffd95c6daae590366111b4d45a08719bfeeb",
+            "remoteOnly": true
+          }
+        ],
+        "branch": "epic/board-conversations",
+        "changedFiles": [
+          "src/main/agents/chatHandlers.test.ts",
+          "src/main/agents/chatHandlers.ts",
+          "src/main/terminals/terminalSessions.transfer.test.ts"
+        ],
+        "commits": [
+          "faceffd95c6daae590366111b4d45a08719bfeeb"
+        ],
+        "summary": "Sprint 2 candidate 641ff5e2 passed the live replacement-chat original-prompt disclosure criterion, draft PR #49 Windows CI, and a one-pass coverage run. Landed the sprint as a single squashed commit faceffd9 on the epic branch. The screenshot shows the ticket's earlier conversation legibly in Original first prompt (submitted once)."
+      },
       "reconciledAt": null,
       "revisionId": "rv_01m7nw8vxkywad7wpt0d38znye",
-      "state": "running",
-      "submittedAt": null,
+      "state": "accepted",
+      "submittedAt": "2026-11-19T03:39:49.617Z",
       "supersededAt": null,
       "ticketContentHash": "sha256:34b73f1accc3b11d37d65a40aedc80704aee8604e203a3230b0990178037a21b",
       "ticketId": "tk_01m7nt7jfxp7n85egzvezd93e2",
-      "updatedAt": "2026-11-19T03:31:47.493Z",
+      "updatedAt": "2026-11-19T03:40:01.548Z",
       "worker": {
         "catalogRevision": "2026-11-17.1",
         "effort": "high",
@@ -3420,10 +3562,19 @@
       "policy": "human",
       "reportId": "rp_01m7rftrmy7a4ma7twajnjsk2s",
       "sprintId": "sp_01m7mn7rjp1cqryb7szb57rwca"
+    },
+    {
+      "decidedAt": "2026-11-19T03:50:37.217Z",
+      "decidedBy": "ss_01m7rf4d0tr26v5zwm7gkv23m9",
+      "id": "ck_01m7ryv0x1br69aa7ee5r1t20k",
+      "outcome": "completed",
+      "policy": "human",
+      "reportId": "rp_01m7ry91hxkpp1yw6jb8k85480",
+      "sprintId": "sp_01m7nt7jfx4m7s1bmw9dqvgk7k"
     }
   ],
   "createdAt": "2026-11-17T14:03:41.313Z",
-  "endedAt": null,
+  "endedAt": "2026-11-19T03:50:37.217Z",
   "epicId": "ep_01m7mn7rjn5wx5cx7a8g3pt8h0",
   "format": "darkmechanicus.run",
   "formatVersion": 1,
@@ -3804,6 +3955,151 @@
       },
       "sprintId": "sp_01m7mn7rjp1cqryb7szb57rwca",
       "submittedBy": "dm CLI"
+    },
+    {
+      "content": {
+        "accepted": [
+          "DM-710: persisted replacement kickoff and exactly-once terminal regression; 66 targeted tests, lint and typecheck passed.",
+          "DM-709: live acceptance screenshot attached, all six Definition of Done checks passed, squashed increment faceffd9 server-validated."
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "faceffd95c6daae590366111b4d45a08719bfeeb"
+          ],
+          "files": [
+            "src/main/agents/chatHandlers.ts",
+            "src/main/agents/chatHandlers.test.ts",
+            "src/main/terminals/terminalSessions.transfer.test.ts"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "Draft PR #49 lint SUCCESS on candidate 641ff5e2; DM-710 ticket lint also passed.",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "Draft PR #49 build job SUCCESS; DM-710 ticket and integrated row typechecks passed.",
+            "name": "npm run typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "Draft PR #49 main/Fireguard shards and aggregate test SUCCESS on candidate 641ff5e2.",
+            "name": "npm test",
+            "status": "passed"
+          },
+          {
+            "detail": "One run in accepted DM-709 attempt 5 on clean candidate: 648 files and 11177 tests passed, 2 files and 61 tests skipped; statements 97.42%, branches 95.08%, functions 96.60%, lines 97.67%; exit 0.",
+            "name": "npm run coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "Draft PR #49 deadcode SUCCESS on candidate 641ff5e2.",
+            "name": "npm run deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "Draft PR #49 production build SUCCESS on candidate 641ff5e2.",
+            "name": "npm run build",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": {
+          "successCriteria": [
+            {
+              "criterionId": "s1",
+              "met": true,
+              "note": "Sprint 1 Orchestrator messages screenshot shows delivery to the live orchestrator and add_comment reply in the expanded panel."
+            },
+            {
+              "criterionId": "s2",
+              "met": true,
+              "note": "Sprint 1 terminal screenshot shows ticket key, relay instruction, add_comment command and masked claim token; ticket chronology screenshot shows reply."
+            },
+            {
+              "criterionId": "s3",
+              "met": true,
+              "note": "Sprint 1 live fresh chat appeared under Agents and answered; normalized run/attempt comparison remained unchanged."
+            },
+            {
+              "criterionId": "s4",
+              "met": true,
+              "note": "Sprint 2 screenshot and lifecycle JSON show deletion of the prior chat, replacement from specific ticket BCA-2, and expanded original prompt containing earlier ticket history; DM-710 terminal tests prove exactly-once submission."
+            },
+            {
+              "criterionId": "s5",
+              "met": true,
+              "note": "Sprint 1 Kanban Play screenshot shows card reply; portable-state export and fresh import retain person and agent card messages."
+            },
+            {
+              "criterionId": "s6",
+              "met": true,
+              "note": "Sprint 1 ticket Conversation screenshot shows delivery labels, earlier comments and chronological replies; replacement state reports prior chat deleted and new chat opened."
+            }
+          ],
+          "summary": "All six saved epic success criteria are met across accepted Sprint 1 and Sprint 2. The final ticket-history/replacement-chat criterion is verified with an attached live screenshot, and both increments are squashed on epic/board-conversations."
+        },
+        "exitCriteria": [
+          {
+            "criterionId": "x1",
+            "met": true,
+            "note": "Attached live screenshot shows deleted bound chat replaced with Conversation · BCA-2 and expanded Original first prompt (submitted once) containing earlier ticket messages legibly."
+          },
+          {
+            "criterionId": "x2",
+            "met": true,
+            "note": "Terminal regression proves exactly one kickoff submission across attach/restart; draft PR #49 and one-pass coverage satisfy all six Definition of Done checks."
+          }
+        ],
+        "failed": [],
+        "followUps": [],
+        "retro": {
+          "actions": [
+            "Proposal for future verification workers: use an environment manifest listing every executable required by the targeted suite, preflight their child-process resolution once before claiming, and avoid rewriting PATH when an inherited known-good toolchain can be preserved.",
+            "Proposal for Skitarii worktree dispatch: validate npm/runtime, repository schema-compatible reporting path, and exact command launch before assignment; keep failure evidence and do not re-run a failed check to get green."
+          ],
+          "delivered": [
+            {
+              "demo": "Persisted replacement-chat kickoff and exactly-once terminal delivery.",
+              "evidence": "Accepted DM-710; 66 targeted tests plus lint/typecheck; Sprint 2 row check.",
+              "ticket": "tk_01m7nt7jhjz2td4148t4s2cvee"
+            },
+            {
+              "demo": "Live replacement chat displays earlier ticket history inside its expanded original-first-prompt disclosure.",
+              "evidence": "Accepted DM-709; attached screenshot im_01m7rwn0n9hzsmn5kvkt1gytnn; coverage 97.42/95.08/96.60/97.67; validated increment faceffd9.",
+              "ticket": "tk_01m7nt7jfxp7n85egzvezd93e2"
+            }
+          ],
+          "discoveries": [],
+          "leftovers": [],
+          "tierFit": [],
+          "wentPoorly": [
+            "DM-710 required four attempts: worker MSYS invocation error, deterministic test-helper lint length, and worker failure to apply the literal correction before the final passing attempt.",
+            "DM-709 required five attempts: initial harness assumed a nonexistent ticketId binding, a claim expired during an interruption, and three coverage-launch environments were successively missing Node, Git, then PowerShell. These were orchestration/setup failures, not evidence of the feature failing.",
+            "The deliberately narrowed PATH was not preflighted against the full test suite's executables, consuming human retry grants and time. The final attempt preflighted Node, Git, PowerShell and PING together and passed coverage once."
+          ],
+          "wentWell": [
+            "The implementation changed only three files; existing and new targeted tests, lint, typecheck, and CI remained green.",
+            "Live app evidence conclusively proves the missing visible kickoff history after chat replacement.",
+            "Both sprint increments landed as separate single-parent squashed commits on the epic branch."
+          ]
+        },
+        "risks": [
+          "Draft PR #49 is a CI evidence branch against feature/board-conversations-sprint-2-base, not a merge to main. The accepted epic branch remains the integration result."
+        ],
+        "summary": "Sprint 2 is accepted and landed as the single squashed commit faceffd9 on epic/board-conversations. Replacement ticket conversation chats persist their kickoff as the original first prompt, submit it once, and display the specific ticket's earlier history in the expanded disclosure after reattachment. The final live screenshot, full Definition of Done, and draft PR #49 CI passed."
+      },
+      "contentHash": "sha256:2cab786f78fbfae5303da9eb2f2aed024f410ff93b4a30f008f1fe5070770e54",
+      "createdAt": "2026-11-19T03:40:48.061Z",
+      "id": "rp_01m7ry91hxkpp1yw6jb8k85480",
+      "reportRevision": 1,
+      "scorecard": {
+        "snapshotHash": "sha256:84e63ddf9ac0be0c57c27e563c70418c8c8e29e285d7052c908b3b98ad629c99",
+        "snapshotId": "as_3k5kkpxmt1tccfctdg9yer67mw"
+      },
+      "sprintId": "sp_01m7nt7jfx4m7s1bmw9dqvgk7k",
+      "submittedBy": "dm CLI"
     }
   ],
   "revisionId": "rv_01m7nw8vxkywad7wpt0d38znye",
@@ -3917,6 +4213,6 @@
   "runId": "rn_01m7mx44w1mgqmy2bc02pbmt3y",
   "skillVersion": "1.9.0",
   "startedAt": "2026-11-17T14:03:41.314Z",
-  "state": "running",
-  "updatedAt": "2026-11-18T23:29:47.995Z"
+  "state": "completed",
+  "updatedAt": "2026-11-19T03:50:37.217Z"
 }

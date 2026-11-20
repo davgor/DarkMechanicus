@@ -1,0 +1,40 @@
+{
+  "format": "darkmechanicus.metric-observation",
+  "formatVersion": 1,
+  "observation": {
+    "accumulation": "delta",
+    "attributes": {
+      "activeBasis": "requests_and_tools",
+      "overhead": "unattributed",
+      "sourceEvent": "span-1795186509169",
+      "spanStart": "2026-11-20T14:55:09.169Z"
+    },
+    "evidence": [],
+    "measurement": {
+      "state": "observed",
+      "value": 2096
+    },
+    "metric": "active_ms",
+    "observationId": "mo_tq97qqj1zp7bf7emm9kz97r7g8",
+    "observedAt": "2026-11-20T14:55:11.265Z",
+    "recordedAt": "2026-11-20T15:29:59.895Z",
+    "scope": {
+      "attemptId": null,
+      "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+      "level": "run",
+      "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+      "sprintId": null,
+      "ticketId": null
+    },
+    "sequence": null,
+    "source": {
+      "actor": "omp:01a1f451-775e-7582-b26e-eb850ecd15ea/ApprovalFinish",
+      "kind": "host"
+    },
+    "unit": "milliseconds",
+    "usage": {
+      "coverage": "self",
+      "parentActor": "omp:01a1f451-775e-7582-b26e-eb850ecd15ea"
+    }
+  }
+}

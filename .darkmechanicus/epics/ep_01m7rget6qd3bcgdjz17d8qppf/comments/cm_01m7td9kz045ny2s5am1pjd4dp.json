@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Commit-chain clarification: integrate the complete work/learnings-DM723 branch, containing df2880ba1b71bc3e353fac6f4f35c926b364aba8 followed by 5fbb98b78062a0b4741b8d751a516c47513cc0bd. The commit tool created a second commit despite requested amendment; the submitted tip hash alone does not name the initial view/helper additions. Final targeted verification covered the full worktree (48 tests, changed-file lint, all three typechecks).",
+  "createdAt": "2026-11-19T17:22:29.984Z",
+  "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7td9kz045ny2s5am1pjd4dp",
+  "ticketId": "tk_01m7rgrfw41vm23bzyy86a6ce9"
+}

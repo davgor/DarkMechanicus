@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Human retry granted; active authorized attempt now at_01m7wqa8bhh27sey2k3prm22x8. Actual worker-shell preflight passed before claim (Node24.22.3, own Finish cwd/dependency junction, native call get_capabilities reporting rights). Private worktree starts preserved f1e174; no source integration yet. Scope: two concrete lint/lib fixes, one real already-aborted cancellation consumer, retain original52cases and existing lane/whole-task ownership correction; final full4/scopedlint/3tsc fresh. No more diagnostics, profile framework, revisions or inferred historical attribution. Peer DM818/819 reports prior heavy jobs finished; notified current targeted verification and will coordinate full final gate later. Main owns criteria review; user requested delivery, not new approval loops.",
+  "createdAt": "2026-11-20T14:57:25.394Z",
+  "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7wqcpcj0dm15sdtj6fcvchx",
+  "ticketId": "tk_01m7vcpd7564ecyqc3h1mtsfs7"
+}

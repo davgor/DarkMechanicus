@@ -1,0 +1,17 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": null,
+  "cardId": "kc_01m7x52f49k8m30nj8y07pnmvv",
+  "createdAt": "2026-11-20T23:36:00.414Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7xn284y8y6bcg2xad4ss3sy",
+  "kind": "message",
+  "payload": {
+    "attachments": [],
+    "body": "User-authorized delivery update: Retry 8c33ddc and timer-policy db7bfef7 are both included in published origin/main 27b4bf10308b9da1f2e7df79e165248ec0236878. Nonforce push succeeded; independent ls-remote matched exactly. New clean merged-head verification (not reused old-head acceptance) passed lint, typecheck, npm test, coverage, deadcode, build, Fireguard and actual runtime context/prompt probe. Fireguard reported A,100/100 flake runs with0failures,104/123 changed-line mutants killed (85%). Logs: file:///C:/Users/davgo/AppData/Local/Temp/dm761-final-gate-k2glczac/27b4bf10308b9da1f2e7df79e165248ec0236878. Integration preserves upstream pinned-install safeguards plus productive same-claim/no-clock-cutoff semantics. Kernel trim retained delegation and human controls; tests distinguish normal run-owned Save from policy-changing YOLO elevation without production authorization changes. One incidental wording-only pin removed, not replaced. Historical failures remain recorded. This is delivery evidence, NOT card approval or acceptance. DM-761 attempt8 submitted for human review with5independently inspected screenshots. Unrelated DM820 root work was preserved and its owner/worker continues separately."
+  }
+}

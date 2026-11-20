@@ -1,0 +1,17 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": null,
+  "cardId": "kc_01m7wqy5gw8sqy7p1gavy2s2c1",
+  "createdAt": "2026-11-20T17:08:19.553Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7wywcf0qwe64mzje73wbv3f",
+  "kind": "message",
+  "payload": {
+    "attachments": [],
+    "body": "NOT FINISHED. Single-card worker stopped at the mandated ten-minute deadline; no epic execution, commit, submission or approval. Actual claim 16:56:58Z, final bounded targeted check finished 17:06:54Z. Independently accepted criteria: 0/4; no new implementation after deadline. Partial uncommitted changes on main: resources/skitarii/extension/messaging.ts; resources/skitarii/extension/index.ts; src/main/agents/agentMailDesktop.ts; src/main/agents/agentMailDesktop.test.ts; src/main/terminals/skitariiMessaging.test.ts; src/main/desktop/bootstrap.ts. Implemented automatic full-body peer asides, pagination, branch-entry cursor reconstruction, and tracked-folder monitoring without opening Inbox. This is NOT the complete requested guarantee. Worker evidence: local://dm820-worker-evidence.json.\n\nChecks reported by worker: new consumer regressions observed RED before implementation; last targeted Vitest invocation (skitariiMessaging.test.ts and agentMailDesktop.test.ts) 48 passed, finished before deadline; final changed-file oxlint passed. Main-project TypeScript passed at 17:05:51Z, BEFORE final helper extraction, so final main/typecheck is not claimed green. Full named lint/typecheck/test/coverage/deadcode/build/Fireguard gate all skipped because incomplete. Runtime proved Node24.22.3/npm11.19.1, native module load in Node ABI137 and Electron ABI146, OMP18.20.2 available; actual changed native path remains unproved. No installs, live two-chat proof, screenshots or attachment ids. Usage/billed cost unknown.\n\nc1 false: stopped recipients not automatically resumed and person-board route unchanged. c2 false: body-bearing unit delivery covered, but actual model-context ordering/persistence and person-board authority delivery are not demonstrated; before_agent_start still has instruction-only reminder. c3 false: restart unit fixture reads custom_message entries, but actual persistence/ambiguous-dispatch semantics and durable desktop insertion receipts independent of ack are absent. c4 false: full gate, live proof, inspected screenshot attachments and obsolete manual UI/core caller/docs cleanup missing.\n\nReview finding: do not attach/restart on unacknowledged pendingCount alone; that would repeatedly resume already-delivered yet intentionally unacknowledged chats. Desktop needs authenticated insertion progress separate from ack. PTY queued success is not active-context insertion. Remaining requirements have not been waived or silently narrowed. All partial code remains uncommitted; no completion claim. This record preserves the single-card scope the person required."
+  }
+}

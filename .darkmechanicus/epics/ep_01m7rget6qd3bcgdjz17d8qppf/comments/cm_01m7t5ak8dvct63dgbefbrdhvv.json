@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Acceptance attempt at_01m7t4jbjgxvj6fe457frzrz8k FAILED, not submitted/accepted. Independently inspected original test.log:2508-2551: 2 timed-out tests, EPERM fixture cleanup, 13,570 tests passed, 344.92s initial Vitest phase; Fireguard UNIT phase never ran. Coverage not started before finite ten-minute boundary. lint/typecheck/build passed; deadcode passed only after an explicitly authorized causal baseline correction (exactly 10 justified entries), commit d6d0606e9aaba30fab8cbf82a1286d7ef52ccc06 on integration branch. No production changes or epic landing. No node.exe command line matched unique failed workspace dm-ws-SvSv3K at ownership check; no broad process kill attempted. Root causes remain unproven. Full logs and per-criterion c1/c5 proof retained in failure.details. Need scoped causal-fix tickets and a prospective saved automation-only acceptance allowance: observed test phase alone was 344.92s, so the unchanged full DoD plus separate coverage cannot fit ten minutes. Never raise test/hook timeouts or rerun unchanged failures.",
+  "createdAt": "2026-11-19T15:03:13.421Z",
+  "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7t5ak8dvct63dgbefbrdhvv",
+  "ticketId": "tk_01m7rget6q81xt36beccgh02nh"
+}

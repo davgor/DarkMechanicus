@@ -1,0 +1,41 @@
+{
+  "format": "darkmechanicus.metric-observation",
+  "formatVersion": 1,
+  "observation": {
+    "accumulation": "cumulative",
+    "attributes": {
+      "cacheWriteTokens": 0,
+      "includesCachedInput": false,
+      "model": "mixed",
+      "overhead": "orchestration",
+      "usageFormat": "omp"
+    },
+    "evidence": [],
+    "measurement": {
+      "state": "observed",
+      "value": 2941335
+    },
+    "metric": "tokens_input",
+    "observationId": "mo_w1f6jp1rrvq93esx93d8wfb3mq",
+    "observedAt": "2026-11-20T19:23:31.065Z",
+    "recordedAt": "2026-11-20T19:23:45.294Z",
+    "scope": {
+      "attemptId": null,
+      "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+      "level": "run",
+      "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+      "sprintId": null,
+      "ticketId": null
+    },
+    "sequence": 2334,
+    "source": {
+      "actor": "omp:01a1f451-775e-7582-b26e-eb850ecd15ea",
+      "kind": "host"
+    },
+    "unit": "tokens",
+    "usage": {
+      "coverage": "self",
+      "parentActor": null
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": null,
+  "cardId": "kc_01m7rz4fyab308s9xecg2e22m8",
+  "createdAt": "2026-11-20T01:52:10.223Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7vaevff7b3xxgt1q4d2axtt",
+  "kind": "message",
+  "payload": {
+    "attachments": [],
+    "body": "Gate evidence correction: the DM-761 worker never ran full `npm test` or `npm run coverage`; those reported timeouts belong to earlier DM-689 attempts. The retained board record says only `npm test timed out, npm run coverage timed out with a concurrent-send failure. No reruns.` It contains no stdout/stderr, deadlines or exit codes. The `agentMail.test.ts` 3-process send fixture and Vitest 15s deadline make resource sensitivity plausible but DO NOT establish the actual timeout cause. DM-761’s separate first Fireguard call hit an observed outer 210s deadline with no grade; its CLI is silent until completion, so silence alone is not a hang. Do not assert any of these failures were fixed or green. Retry UI commit 8c33ddc5 and installed-app v0.48.0 screenshots remain valid functional evidence; c2 full gate is still unmet."
+  }
+}

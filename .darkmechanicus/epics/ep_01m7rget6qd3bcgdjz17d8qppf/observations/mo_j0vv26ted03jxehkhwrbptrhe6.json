@@ -1,0 +1,31 @@
+{
+  "format": "darkmechanicus.metric-observation",
+  "formatVersion": 1,
+  "observation": {
+    "accumulation": "cumulative",
+    "attributes": {},
+    "evidence": [],
+    "measurement": {
+      "reason": "host_unavailable",
+      "state": "missing"
+    },
+    "metric": "tokens_input",
+    "observationId": "mo_j0vv26ted03jxehkhwrbptrhe6",
+    "observedAt": "2026-11-19T15:03:08.079Z",
+    "recordedAt": "2026-11-19T15:03:09.754Z",
+    "scope": {
+      "attemptId": "at_01m7t4jbjgxvj6fe457frzrz8k",
+      "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+      "level": "attempt",
+      "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+      "sprintId": "sp_01m7rget6q03n7a08sjxtjjh8t",
+      "ticketId": "tk_01m7rget6q81xt36beccgh02nh"
+    },
+    "sequence": 1,
+    "source": {
+      "actor": "FoundationAcceptance",
+      "kind": "agent"
+    },
+    "unit": "tokens"
+  }
+}

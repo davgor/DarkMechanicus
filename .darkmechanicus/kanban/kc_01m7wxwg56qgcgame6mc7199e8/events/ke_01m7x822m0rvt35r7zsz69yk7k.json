@@ -1,0 +1,17 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": null,
+  "cardId": "kc_01m7wxwg56qgcgame6mc7199e8",
+  "createdAt": "2026-11-20T19:48:43.264Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7x822m0rvt35r7zsz69yk7k",
+  "kind": "message",
+  "payload": {
+    "attachments": [],
+    "body": "Audit-scope implementation decision: Kanban completion will include the complete server-derived history for the bound CARD across all its grants and attempts through submission, ordered by immutable audit ID and explicitly labeled. This matches the existing full affected-RUN history in sprint retros and the card body asking equivalent complete evidence. A per-attempt timestamp exclusion was an unnecessary coordinating-session constraint, not a user requirement; removing it prevents same-millisecond/clock-rollback omissions without extra watermark schema. Earlier usage of the same card still requires per-capability suggestions; unrelated cards remain excluded. Distinct workflow target IDs and trusted boundCardId remain separate. No criterion or privacy requirement is waived. The remaining PID-reuse liveness gap is still a required correction before final gates."
+  }
+}

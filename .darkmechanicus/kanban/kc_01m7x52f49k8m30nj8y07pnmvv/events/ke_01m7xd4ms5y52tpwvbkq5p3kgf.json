@@ -1,0 +1,14 @@
+{
+  "actor": {
+    "label": "Desktop",
+    "role": "desktop"
+  },
+  "attemptId": null,
+  "cardId": "kc_01m7x52f49k8m30nj8y07pnmvv",
+  "createdAt": "2026-11-20T21:17:30.277Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7xd4ms5y52tpwvbkq5p3kgf",
+  "kind": "played",
+  "payload": {}
+}

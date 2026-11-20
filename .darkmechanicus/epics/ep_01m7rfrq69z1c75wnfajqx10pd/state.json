@@ -4,25 +4,61 @@
     "repository": null,
     "startCommit": null
   },
-  "completedAt": null,
+  "completedAt": "2026-11-19T15:28:23.373Z",
   "createdAt": "2026-11-18T23:27:13.097Z",
   "epicId": "ep_01m7rfrq69z1c75wnfajqx10pd",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 6,
-  "outcome": null,
+  "generation": 25,
+  "outcome": {
+    "recordedAt": "2026-11-19T15:28:23.373Z",
+    "runId": "rn_01m7rwvc9tb0m3zj9r6st5jjkg",
+    "successCriteria": [
+      {
+        "criterionId": "s1",
+        "met": true,
+        "note": "Server pre-report get_run captured all 10 ticket tier facts; scratch revision-1 equality regression passed; live parity checked after submission."
+      },
+      {
+        "criterionId": "s2",
+        "met": true,
+        "note": "Accepted ordinary/shard Fireguard identity and mismatch tests; JSON, Markdown and PR output parity plus runbook invalidation."
+      },
+      {
+        "criterionId": "s3",
+        "met": true,
+        "note": "Fresh-built CLI pushed final-validation-ci for acceptance and recovery, immutable CI/no idle claim/all outcomes/source invalidation, with omitted:[]."
+      },
+      {
+        "criterionId": "s4",
+        "met": true,
+        "note": "Fresh-built CLI pushed post-checkpoint-delivery, explicit-only merge/human/protection/remote-main requirements with omitted:[]."
+      },
+      {
+        "criterionId": "s5",
+        "met": true,
+        "note": "Skills version 1.13.0, targeted regression fixtures and all six Definition of Done checks passed on the combined tree 7c23d6d4, landed as 6f076aa."
+      }
+    ],
+    "summary": "The single-sprint epic shipped pre-report tier facts, exact Fireguard revision identities and enforceable orchestrator validation/delivery guidance on one verified increment. Six DoD checks passed; delivery remains explicitly separate from checkpoint approval."
+  },
   "provenance": {
     "note": "Follow-up from Sprint 1 retro: preserve the successful acceptance/CI/checkpoint flow and eliminate the report, revision-identity and long-claim gaps.",
     "sourceEpicId": "ep_01m452vt115eqccd1ypdd596fy"
   },
-  "status": "in_progress",
+  "status": "completed",
   "ticketStatuses": {
-    "tk_01m7rfrq69wfwv52pvpnxam0m3": "backlog",
-    "tk_01m7rfykzbjcfbxhh3v11j5h46": "in_progress",
+    "tk_01m7rfrq69wfwv52pvpnxam0m3": "completed",
+    "tk_01m7rfykzbjcfbxhh3v11j5h46": "completed",
     "tk_01m7rfym0egkaqzvk0dmvw4ynp": "completed",
-    "tk_01m7rfym0ek2q4qe5rgnq4a60t": "in_progress",
-    "tk_01m7rfym0exet1fwcr7e0bsbpr": "backlog"
+    "tk_01m7rfym0ek2q4qe5rgnq4a60t": "completed",
+    "tk_01m7rfym0exet1fwcr7e0bsbpr": "completed",
+    "tk_01m7rzx3j4ek10bhytzxh79x3a": "completed",
+    "tk_01m7rzx3kf0c4k1mw7mca4k8t9": "completed",
+    "tk_01m7rzx3kf4tvbt9k8akqa8t0z": "completed",
+    "tk_01m7rzx3kfvmtgvntrdq0zk35c": "completed",
+    "tk_01m7seg1annaggh2a16r265vtg": "completed"
   },
   "title": "Institutionalize final validation and delivery lessons",
-  "updatedAt": "2026-11-19T03:32:18.741Z"
+  "updatedAt": "2026-11-19T15:28:23.410Z"
 }

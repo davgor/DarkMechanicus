@@ -1,0 +1,39 @@
+{
+  "format": "darkmechanicus.metric-observation",
+  "formatVersion": 1,
+  "observation": {
+    "accumulation": "delta",
+    "attributes": {
+      "activeBasis": "requests_and_tools",
+      "sourceEvent": "span-1795111242016",
+      "spanStart": "2026-11-19T18:00:42.016Z"
+    },
+    "evidence": [],
+    "measurement": {
+      "state": "observed",
+      "value": 360619
+    },
+    "metric": "active_ms",
+    "observationId": "mo_yjp98p0p6ap5td7n6mdtqbgk69",
+    "observedAt": "2026-11-19T18:06:42.635Z",
+    "recordedAt": "2026-11-19T18:49:39.495Z",
+    "scope": {
+      "attemptId": "at_01m7tffgt0fefrw9psm904bxnm",
+      "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+      "level": "attempt",
+      "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+      "sprintId": "sp_01m7rget6q03n7a08sjxtjjh8t",
+      "ticketId": "tk_01m7rgrfw4jmsaaf5kjkn1axkm"
+    },
+    "sequence": null,
+    "source": {
+      "actor": "omp:01a1f451-775e-7582-b26e-eb850ecd15ea/LearningSubmissionDurability",
+      "kind": "host"
+    },
+    "unit": "milliseconds",
+    "usage": {
+      "coverage": "self",
+      "parentActor": "omp:01a1f451-775e-7582-b26e-eb850ecd15ea"
+    }
+  }
+}

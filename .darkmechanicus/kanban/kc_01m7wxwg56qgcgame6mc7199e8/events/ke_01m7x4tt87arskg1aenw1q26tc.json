@@ -1,0 +1,17 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": "ka_01m7x4qm3hcft62q8yem14ys6m",
+  "cardId": "kc_01m7wxwg56qgcgame6mc7199e8",
+  "createdAt": "2026-11-20T18:52:19.591Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7x4tt87arskg1aenw1q26tc",
+  "kind": "failed",
+  "payload": {
+    "number": 1,
+    "reason": "Not finished: prerequisite inspection found a large cross-layer security feature requiring decomposition before worker dispatch under orchestrator.claim-prerequisites and time-box. Verified entry points: authz.ts human-only capability denylist; grants.ts grant issue/redeem/liveness; chatGrants.ts live identity and grant renewal; GrantsCard.tsx issue/revoke UI; reports.ts and retro.ts report normalization. No implementation was dispatched and no code was changed. c1 unmet: no human confirmation/indicator/revoke elevation surface. c2 unmet: no scoped elevation or end-to-end command proof. c3 unmet: no durable YOLO audit or derived report/completion log. c4 unmet: red-first tests and full gate not run. c5 unmet: no real-app screenshot evidence or guide update. Independently accepted outcomes: 0. Billed usage/cost unknown: host exposes no metering here. Recovery: prepare a draft epic preserving all criteria, starting with a bounded trusted-desktop-consent and runtime preflight prerequisite; require desktop Save before execution. Do not reclaim the same oversized work or submit it Ready for review."
+  }
+}

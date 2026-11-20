@@ -1,0 +1,44 @@
+{
+  "format": "darkmechanicus.metric-observation",
+  "formatVersion": 1,
+  "observation": {
+    "accumulation": "cumulative",
+    "attributes": {
+      "billing": "unknown",
+      "costBasis": "list_price",
+      "listPriceUsd": 0.582799,
+      "model": "gpt-6.1-sol",
+      "raw.premiumRequests": 0,
+      "raw.reasoningTokens": 3006,
+      "totalBasis": "reported",
+      "usageFormat": "omp"
+    },
+    "evidence": [],
+    "measurement": {
+      "state": "observed",
+      "value": 4149546
+    },
+    "metric": "tokens_total",
+    "observationId": "mo_fkzwc8ew11rak6c1qgzc73z1ew",
+    "observedAt": "2026-11-20T19:19:28.196Z",
+    "recordedAt": "2026-11-20T19:23:51.299Z",
+    "scope": {
+      "attemptId": "at_01m7x5xsk2z7nwj2by4cyzb77k",
+      "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+      "level": "attempt",
+      "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+      "sprintId": "sp_01m7rget6q03n7a08sjxtjjh8t",
+      "ticketId": "tk_01m7wyvr12p74y8mcxfzs56qyn"
+    },
+    "sequence": 84,
+    "source": {
+      "actor": "omp:01a1f451-775e-7582-b26e-eb850ecd15ea/LearningCoordinator",
+      "kind": "host"
+    },
+    "unit": "tokens",
+    "usage": {
+      "coverage": "self",
+      "parentActor": "omp:01a1f451-775e-7582-b26e-eb850ecd15ea"
+    }
+  }
+}

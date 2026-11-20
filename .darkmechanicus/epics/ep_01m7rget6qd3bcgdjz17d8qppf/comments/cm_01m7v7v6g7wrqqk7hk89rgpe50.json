@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Person requested paired work and better communication. FrozenNativeProof owns one complete verification batch/report on immutable eecb23d9; FrozenNativeReview independently checks native safety/coverage read-only in parallel. Both received the same up-front c1/c2 ledger, exact source, existing21/lint/all-three-types matrix and current role policy. Findings go to partner and Main early; decisions stay Main. No late edits or filtered-suite substitute. Later implementation tickets will use the same early review/freeze/check handoff rather than defer safety review until the deadline. Parent retains acceptance authority and actual host metering.",
+  "createdAt": "2026-11-20T01:06:28.999Z",
+  "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7v7v6g7wrqqk7hk89rgpe50",
+  "ticketId": "tk_01m7v749z328dd8ktcx49rzhnp"
+}

@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Execution interface decision: accepted V25 learning_integration persistence keeps operation/card/attempt/manifest/hash/createdAt immutable; only pending progress may advance to terminal. Reuse transactional learning_integration outbox enqueue on every real producer write. Persist mutable prepared-plan/completion-receipt state separately from that immutable reviewed manifest (nullable optional portable fields/columns if required, preserving absent legacy hashes); do not rewrite manifest identity as repositories complete. Core owns narrow repository old/new-head receipt DTOs and actual read-only verification; main Git engine may own a richer prepared plan, with the desktop coordinator mapping the boundary. This keeps DM-727 and DM-728 source ownership independent. Pending errors remain recoverable; aborted/failed operation is terminal and a new explicit approval may create a new bound operation, never silently rebind old receipts. Include applied-operation provenance in published history/read models for Learnings UI. No activation before all exact repository receipts/head verification and final card+publication transaction.",
+  "createdAt": "2026-11-19T17:49:06.085Z",
+  "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7tetan5k1xz2yby4c98jpe3",
+  "ticketId": "tk_01m7rgrfw5kzhmtq9g183271db"
+}

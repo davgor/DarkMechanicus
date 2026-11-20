@@ -1,0 +1,17 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": null,
+  "cardId": "kc_01m7rz4fyab308s9xecg2e22m8",
+  "createdAt": "2026-11-20T02:07:16.006Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7vbag169x3dh34r07g2vn1t",
+  "kind": "message",
+  "payload": {
+    "attachments": [],
+    "body": "Attempt 4 bounded diagnostic, NOT a gate rerun: one first-run `fireguard/src/vitestLane.mjs` IPC request for `KanbanCardPanel.test.tsx` with `VITEST_MAX_WORKERS=2` returned ok:true, initMs=560, runMs=3455, child exit0, total 4.14s. Multiplying this single run by 100 serialized flake iterations gives ~345.5s before mutation, above the earlier Fireguard invocation’s OUTER 210s deadline. Warm runs may be faster, so this does not prove the exact earlier stage, a hang, or a source/test defect. No timeout/config change or repeat gate run made; c2 required gate remains failed. Original full npm test/coverage failure logs are still unavailable (only a board summary exists)."
+  }
+}

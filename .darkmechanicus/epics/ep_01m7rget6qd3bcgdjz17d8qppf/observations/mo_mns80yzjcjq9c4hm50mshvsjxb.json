@@ -1,0 +1,44 @@
+{
+  "format": "darkmechanicus.metric-observation",
+  "formatVersion": 1,
+  "observation": {
+    "accumulation": "cumulative",
+    "attributes": {
+      "billing": "unknown",
+      "costBasis": "list_price",
+      "listPriceUsd": 0.069346,
+      "model": "mixed",
+      "overhead": "unattributed",
+      "raw.premiumRequests": 0,
+      "totalBasis": "reported",
+      "usageFormat": "omp"
+    },
+    "evidence": [],
+    "measurement": {
+      "state": "observed",
+      "value": 125884
+    },
+    "metric": "tokens_total",
+    "observationId": "mo_mns80yzjcjq9c4hm50mshvsjxb",
+    "observedAt": "2026-11-20T14:55:11.265Z",
+    "recordedAt": "2026-11-20T15:29:59.895Z",
+    "scope": {
+      "attemptId": null,
+      "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+      "level": "run",
+      "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+      "sprintId": null,
+      "ticketId": null
+    },
+    "sequence": 23,
+    "source": {
+      "actor": "omp:01a1f451-775e-7582-b26e-eb850ecd15ea/ApprovalFinish",
+      "kind": "host"
+    },
+    "unit": "tokens",
+    "usage": {
+      "coverage": "self",
+      "parentActor": "omp:01a1f451-775e-7582-b26e-eb850ecd15ea"
+    }
+  }
+}

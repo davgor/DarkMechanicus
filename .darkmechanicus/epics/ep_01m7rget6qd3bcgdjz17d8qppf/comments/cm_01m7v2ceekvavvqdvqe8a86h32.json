@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Composition preflight (not implementation): src/main/desktop/handlers.ts runCommand validates the desktop command, canonicalizes a tracked folder and obtains the real Workspace from pool.get; src/main/desktop/workspacePool.ts caches/open workspaces synchronously and currently has no recovery hook. Existing main Kanban orchestration helpers are injected factories. Consider consuming the existing narrow desktop command route for generated approval if it satisfies the saved narrow-API requirement without redundant transport plumbing; ordinary approvals must remain direct and core generated approval must remain fail-closed for headless callers. A minimal one-pass open/reopen recovery hook must enumerate only listLocalPendingLearningApprovals and report visible persisted errors, not scan/auto-prepare Ready cards or add hidden retries. Coordinate concurrent human action/startup on the same operation so idempotent recovery does not create duplicate preparation. These are in-scope composition decisions; worker may propose a better evidenced alternative under the updated reciprocal role policy. Required DM-807/808 must first be accepted and their rows checked.",
+  "createdAt": "2026-11-19T23:31:02.739Z",
+  "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7v2ceekvavvqdvqe8a86h32",
+  "ticketId": "tk_01m7rgrfw585v9ttzffsvr9zfh"
+}

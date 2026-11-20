@@ -1,0 +1,39 @@
+{
+  "format": "darkmechanicus.metric-observation",
+  "formatVersion": 1,
+  "observation": {
+    "accumulation": "cumulative",
+    "attributes": {
+      "model": "mixed",
+      "subsetOf": "tokens_output",
+      "usageFormat": "omp"
+    },
+    "evidence": [],
+    "measurement": {
+      "reason": "host_unavailable",
+      "state": "missing"
+    },
+    "metric": "tokens_reasoning",
+    "observationId": "mo_k6sr2q2962a6j1xaqvv0qgvyhz",
+    "observedAt": "2026-11-19T03:42:33.998Z",
+    "recordedAt": "2026-11-19T18:49:34.309Z",
+    "scope": {
+      "attemptId": "at_01m7rxwnwwzd9h444q55b5n6cq",
+      "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+      "level": "attempt",
+      "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+      "sprintId": "sp_01m7rget6q03n7a08sjxtjjh8t",
+      "ticketId": "tk_01m7rgrfw4kh31ra13d3mwyjp7"
+    },
+    "sequence": 95,
+    "source": {
+      "actor": "omp:01a1f451-775e-7582-b26e-eb850ecd15ea/LearningEvidence",
+      "kind": "host"
+    },
+    "unit": "tokens",
+    "usage": {
+      "coverage": "self",
+      "parentActor": "omp:01a1f451-775e-7582-b26e-eb850ecd15ea/2026-11-19T03-15-44-185Z_01a1f1cd-93b9-7495-8fc3-20b4d87edbe0"
+    }
+  }
+}

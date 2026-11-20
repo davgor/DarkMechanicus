@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Execution decisions/evidence: shared root main checkout had extensive unrelated user changes, so kept it unchanged and bound epic/engineering-dissent-tool-readiness to a dedicated worktree; worker and sprint integration branches are isolated worktrees. Host grant is bound to original repo path, so CLI coordination stays there rather than switching dirty main. Official Node v24.13.0 Windows x64 ZIP was verified against nodejs.org/dist/v24.13.0/SHASUMS256.txt and installed user-locally; child cmd PATH also needs PowerShell for installer tests. Separately tracked DM-793 card failed required full-suite gate (three installer tests due initial PATH omission, one storage symlink cleanup); no retries or card approval. Its constructive planner challenge guidance was independently incorporated into accepted DM-796 guide; DM-793 remains failed. Row 2 initially failed one skill test because selective commit moved the orchestrator section above the skill heading; failure recorded at 632006ce, root cause fixed by moving section inside body at c4be504 and targeted check passed on corrected commit. Acceptance must not infer full DoD green from row checks or card work.",
+  "createdAt": "2026-11-19T18:52:45.773Z",
+  "epicId": "ep_01m7tbykx46akp8brsg5mpr6a8",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7tjewtdy3d08hc0g9mxbqyp",
+  "ticketId": null
+}

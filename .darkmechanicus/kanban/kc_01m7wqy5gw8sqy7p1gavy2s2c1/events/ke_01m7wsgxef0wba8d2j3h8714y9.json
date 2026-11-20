@@ -1,0 +1,17 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": "ka_01m7ws4rrehyzbcre1ej9kww12",
+  "cardId": "kc_01m7wqy5gw8sqy7p1gavy2s2c1",
+  "createdAt": "2026-11-20T15:34:40.847Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7wsgxef0wba8d2j3h8714y9",
+  "kind": "failed",
+  "payload": {
+    "number": 1,
+    "reason": "Not finished: pre-dispatch inspection found a cross-layer core/OMP/desktop lifecycle/board/UI delivery change plus mandatory live and full-gate proof that requires decomposition under the card scope boundary and 5/10-minute rule. c1-c4 all remain unmet; no implementation dispatched, no code edits, commits, tests or screenshots. Detailed evidence/gap ledger is card message ke_01m7wsgfsdew87ev4j704kh439. Concrete recovery epic ep_01m7wsbhsrd5gdfnvawr75fcg6 draft revision 2 has nine bounded work tickets plus acceptance; explicit validate_plan returned valid with no errors/warnings. No saved revision/run; person must review and Save. Runtime and host receipt GO/NO-GO gate all implementation. Claim began 15:28:02 UTC; stopped before ten-minute deadline. Zero accepted outcomes; usage and billed cost unavailable. Do not replay the unchanged oversized work in a fresh attempt."
+  }
+}

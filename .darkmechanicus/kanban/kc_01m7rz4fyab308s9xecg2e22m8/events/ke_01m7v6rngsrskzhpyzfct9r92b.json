@@ -1,0 +1,38 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": null,
+  "cardId": "kc_01m7rz4fyab308s9xecg2e22m8",
+  "createdAt": "2026-11-20T00:47:37.498Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7v6rngsrskzhpyzfct9r92b",
+  "kind": "message",
+  "payload": {
+    "attachments": [
+      {
+        "bytes": 88715,
+        "height": 450,
+        "id": "im_01m7v6fgwe0415a0ac35zvq82q",
+        "label": "v0.48 failed Kanban card shows Play",
+        "mime": "image/png",
+        "purpose": "evidence",
+        "sha256": "c1746098c2d33ec79c1fd43e383d45fcf1bdf99f5cb57fb790372ee2ad92c394",
+        "width": 2139
+      },
+      {
+        "bytes": 160251,
+        "height": 758,
+        "id": "im_01m7v6fn5a6asm2qj801ktaee2",
+        "label": "v0.48 failed Kanban attempt badge",
+        "mime": "image/png",
+        "purpose": "evidence",
+        "sha256": "57d4959c0e654746a0bbaba2112355cefe2861dc91a4c057b5f8eed5f19f42e0",
+        "width": 2139
+      }
+    ],
+    "body": "Attempt 2 evidence (not approval): existing commit 8c33ddc5 adds accessible Retry for failed/expired attempts via desktop Play; targeted renderer tests 24/24 passed. Installed v0.48.0 real failed DM-793 attempt #1 shows Play, so the shipped failure is an unclear label rather than absent control. Attached privacy-safe cropped screenshots show the Play button and FAILED badge. Checkout source is v0.46.0. Full delivery gate remains non-green: prior npm test/coverage timeouts and this attempt’s one-shot Fireguard timeout at 210.03s; no check was rerun for green."
+  }
+}

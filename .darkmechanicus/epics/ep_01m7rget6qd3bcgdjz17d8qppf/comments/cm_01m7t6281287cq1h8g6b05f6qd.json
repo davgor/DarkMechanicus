@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Five-minute DM-781 ledger: source inspection shows long-idle test now uses existing folders.fs injection while retaining production folder validator, all 14,400 minute checks, ten simulated days and 240 renewals; adds disappearance-after-idle safety proof. Worker measured 600 native checks 70.9323ms vs injected 0.1139ms; exact historical host-contention magnitude remains inference. Worker reports 27 lifecycle tests, changed-file lint and all three typechecks passing after causal max-lines helper extraction. Review/submission pending, no independently accepted new outcome yet.",
+  "createdAt": "2026-11-19T15:16:08.354Z",
+  "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7t6281287cq1h8g6b05f6qd",
+  "ticketId": "tk_01m7t5dtzrmzfyy3fabkm4ct9h"
+}

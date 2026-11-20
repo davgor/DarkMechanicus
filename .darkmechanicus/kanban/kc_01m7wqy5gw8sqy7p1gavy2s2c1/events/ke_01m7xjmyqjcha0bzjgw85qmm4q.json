@@ -1,0 +1,17 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": null,
+  "cardId": "kc_01m7wqy5gw8sqy7p1gavy2s2c1",
+  "createdAt": "2026-11-20T22:53:47.634Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7xjmyqjcha0bzjgw85qmm4q",
+  "kind": "message",
+  "payload": {
+    "attachments": [],
+    "body": "Person directly instructed this chat to follow DM-761. Read DM-761 handoff and restored official CLI access using current repository out/main/cli.js (schema23; installed pinned entry was incompatible22), retaining existing grant. Current shipped knowledge explicitly says 5/10-minute progress alarms, not worker cutoffs. Same original worker revived on preserved6files for full c1-c4 scope; no forced epic/Save, no elapsed-time failure. New live claim began22:52:08UTC, 5-minute check22:57:08, 10-minute alarm23:02:08, then every5min; elapsed prior work not erased. DM-761 owns immutable-head Retry/watchdog final gate; no overlapping heavy suite/build/native/node_modules mutation until explicit release. Shared schema/workspace/migration/preload expansion coordinated before edit. No implementation or verification completion claimed."
+  }
+}

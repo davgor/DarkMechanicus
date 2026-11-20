@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Decision: raise pushed-context default budget from 1500 to the measured minimum 1800 tokens. Existing plus new scoped facts require 1610 acceptance, 1602 checkpoint and 1750 recovery; 1500 silently drops established facts. Preserve those facts and constrain new facts to relevant events so unrelated event fact counts do not increase. Worker verifies regression coverage.",
+  "createdAt": "2026-11-19T03:46:52.656Z",
+  "epicId": "ep_01m7rfrq69z1c75wnfajqx10pd",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7rym5kga50knhdhvj9bs2yb",
+  "ticketId": "tk_01m7rfym0exet1fwcr7e0bsbpr"
+}

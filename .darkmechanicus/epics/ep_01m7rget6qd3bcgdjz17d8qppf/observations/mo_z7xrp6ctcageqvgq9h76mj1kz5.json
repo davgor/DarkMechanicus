@@ -1,0 +1,39 @@
+{
+  "format": "darkmechanicus.metric-observation",
+  "formatVersion": 1,
+  "observation": {
+    "accumulation": "cumulative",
+    "attributes": {
+      "model": "mixed",
+      "subsetOf": null,
+      "usageFormat": "omp"
+    },
+    "evidence": [],
+    "measurement": {
+      "state": "observed",
+      "value": 2611200
+    },
+    "metric": "tokens_cached_input",
+    "observationId": "mo_z7xrp6ctcageqvgq9h76mj1kz5",
+    "observedAt": "2026-11-19T18:25:47.623Z",
+    "recordedAt": "2026-11-19T18:49:34.895Z",
+    "scope": {
+      "attemptId": "at_01m7tg92agwajs21dvyzfs3cge",
+      "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+      "level": "attempt",
+      "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+      "sprintId": "sp_01m7rget6q03n7a08sjxtjjh8t",
+      "ticketId": "tk_01m7rgrfw55xn4c0693w4pkg9w"
+    },
+    "sequence": 122,
+    "source": {
+      "actor": "omp:01a1f451-775e-7582-b26e-eb850ecd15ea/LearningGitIntegration",
+      "kind": "host"
+    },
+    "unit": "tokens",
+    "usage": {
+      "coverage": "self",
+      "parentActor": "omp:01a1f451-775e-7582-b26e-eb850ecd15ea"
+    }
+  }
+}

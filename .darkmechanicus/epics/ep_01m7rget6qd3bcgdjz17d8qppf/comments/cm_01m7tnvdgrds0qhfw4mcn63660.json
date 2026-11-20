@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Run rn_01m7rx5yzr8zxkdq1ndzcst1yv is intentionally paused at the required human Save boundary. Saved revision is still 9; current draft revision 3 validates with zero errors and zero warnings. Press Save on this epic draft to authorize/adopt the bounded DM-807 native recovery/owned preparation-context closure and DM-808 default repo-mode current-operation-record interoperability prerequisite. This session cannot save plans. DM-798 management UI is accepted and integrated, with 132 targeted tests, lint/all-three typechecks and attached real populated Electron proof. Failed native WIP 7db51a7 is preserved but not integrated. Remaining coordinator, generated-card review UI, complete management proof, role guidance, assembled lifecycle and final full acceptance remain required; none is reported finished. No workers or live claims remain, and no checkpoint approval is requested or bypassed.",
+  "createdAt": "2026-11-19T19:52:01.816Z",
+  "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7tnvdgrds0qhfw4mcn63660",
+  "ticketId": null
+}

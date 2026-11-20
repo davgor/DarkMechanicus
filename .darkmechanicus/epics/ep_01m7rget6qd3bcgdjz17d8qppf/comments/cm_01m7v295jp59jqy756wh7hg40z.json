@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Preflight for the saved bounded interoperability scope: src/core/repo/layout.ts already provides resolveLayout(root,{mode}) and DM_DIR; reuse that convention. Public Workspace exposes repoRoot, execute and ctx(), while Ctx exposes projectRoot but deliberately no RepoLayout. The concrete RepositoryWorkspace has a live layout field; avoid broadening Ctx or trusting renderer paths just to obtain the owned record. Prefer a minimal main-owned binding from the current trusted workspace/root and live storage status (DB mode has no in-repository record). Source inspection confirms existing main Kanban helpers use pure injected factories, e.g. startKanbanCard.ts. LSP reports no configured server here. DM-807 is active; do not start or edit this prerequisite until server-ready after accepted row-7 integration.",
+  "createdAt": "2026-11-19T23:29:15.350Z",
+  "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7v295jp59jqy756wh7hg40z",
+  "ticketId": "tk_01m7tng62ysa5x5tz8awgkvrae"
+}

@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Five-minute checkpoint: c1 evidence complete: supported Node TEMP/TMP + installed tsx temporary-directory/FileCache controls; exact-byte cold/warm pair only (cache 0→186 then same 186 files retained), all original 3×26 sends and 77 gap-free rows in each. c2 evidence complete for NO-GO: both exit 0, every owned child close observed before successful cleanup, fixture leftovers absent. Artifacts: file:///C:/Users/davgo/AppData/Local/Temp/DM791-ControlledMailboxProbe/. Normal cold/warm timings do not establish pathological cause; desktop resource activity varied and was observed, not changed. NO-GO explicitly blocks DM-783 dispatch and sprint advancement. Next prerequisite is phase-localized evidence of the actual pathological stall under comparable failing conditions; historical timings UNKNOWN. No source/config changes, tests or gates. Independently accepted outcomes 0. Elapsed wall time ~5 minutes from server claim; host active time/tokens unavailable (reported missing), billed cost unknown. No more diagnostic expansion.",
+  "createdAt": "2026-11-19T16:10:01.022Z",
+  "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7t94wxy4kskb6bydkgv0knj",
+  "ticketId": "tk_01m7t8dftp56xsggmfy942m5qb"
+}

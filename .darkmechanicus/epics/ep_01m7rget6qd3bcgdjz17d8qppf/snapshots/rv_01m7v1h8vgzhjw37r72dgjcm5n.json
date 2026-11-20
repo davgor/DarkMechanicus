@@ -1,0 +1,3029 @@
+{
+  "baseRevisionId": "rv_01m7thsfhcb1mvkyw698w4sv21",
+  "bundle": {
+    "edges": [
+      {
+        "from": "tk_01m7rgrfv2xr81m68bjnp1kb7h",
+        "to": "tk_01m7rgrfw4902evkb6f675qxfw"
+      },
+      {
+        "from": "tk_01m7rgrfv2xr81m68bjnp1kb7h",
+        "to": "tk_01m7rgrfw4kh31ra13d3mwyjp7"
+      },
+      {
+        "from": "tk_01m7rgrfw4kh31ra13d3mwyjp7",
+        "to": "tk_01m7rgrfw4xg21z2bkk9q8pm8j"
+      },
+      {
+        "from": "tk_01m7rgrfw4xg21z2bkk9q8pm8j",
+        "to": "tk_01m7rgrfw4jmsaaf5kjkn1axkm"
+      },
+      {
+        "from": "tk_01m7rgrfw4jmsaaf5kjkn1axkm",
+        "to": "tk_01m7rgrfw55xn4c0693w4pkg9w"
+      },
+      {
+        "from": "tk_01m7rgrfw4jmsaaf5kjkn1axkm",
+        "to": "tk_01m7rgrfw5kzhmtq9g183271db"
+      },
+      {
+        "from": "tk_01m7rgrfw4mb2bbws108gdhaqm",
+        "to": "tk_01m7rgrfw55tadh1z18j5079we"
+      },
+      {
+        "from": "tk_01m7rgrfw41vm23bzyy86a6ce9",
+        "to": "tk_01m7rgrfw5eyq9fnt31gevt802"
+      },
+      {
+        "from": "tk_01m7rgrfw4xg21z2bkk9q8pm8j",
+        "to": "tk_01m7rgrfw5eyq9fnt31gevt802"
+      },
+      {
+        "from": "tk_01m7rgrfw585v9ttzffsvr9zfh",
+        "to": "tk_01m7rgrfw5eyq9fnt31gevt802"
+      },
+      {
+        "from": "tk_01m7rgrfw4mb2bbws108gdhaqm",
+        "to": "tk_01m7rgrfw5t6bp2056xzc8teaf"
+      },
+      {
+        "from": "tk_01m7rgrfw41vm23bzyy86a6ce9",
+        "to": "tk_01m7rgrfw5t6bp2056xzc8teaf"
+      },
+      {
+        "from": "tk_01m7rgrfw585v9ttzffsvr9zfh",
+        "to": "tk_01m7rgrfw5t6bp2056xzc8teaf"
+      },
+      {
+        "from": "tk_01m7rgrfw5rjgn3b7vjxbfscjv",
+        "to": "tk_01m7rgrfw5t6bp2056xzc8teaf"
+      },
+      {
+        "from": "tk_01m7rgrfw5eyq9fnt31gevt802",
+        "to": "tk_01m7rgrfw5t6bp2056xzc8teaf"
+      },
+      {
+        "from": "tk_01m7rgrfw4902evkb6f675qxfw",
+        "to": "tk_01m7ryqcv3k8m07j4cx0y86ray"
+      },
+      {
+        "from": "tk_01m7rgrfw4kh31ra13d3mwyjp7",
+        "to": "tk_01m7ryqcv3k8m07j4cx0y86ray"
+      },
+      {
+        "from": "tk_01m7ryqcv3k8m07j4cx0y86ray",
+        "to": "tk_01m7rgrfw4mb2bbws108gdhaqm"
+      },
+      {
+        "from": "tk_01m7ryqcv3k8m07j4cx0y86ray",
+        "to": "tk_01m7rgrfw41vm23bzyy86a6ce9"
+      },
+      {
+        "from": "tk_01m7ryqcv3k8m07j4cx0y86ray",
+        "to": "tk_01m7rgrfw4xg21z2bkk9q8pm8j"
+      },
+      {
+        "from": "tk_01m7ryqcv3k8m07j4cx0y86ray",
+        "to": "tk_01m7rgrfw5kzhmtq9g183271db"
+      },
+      {
+        "from": "tk_01m7ryqcv3k8m07j4cx0y86ray",
+        "to": "tk_01m7rgrfw55tadh1z18j5079we"
+      },
+      {
+        "from": "tk_01m7t5dtwthjbj0ckam8xhx58z",
+        "to": "tk_01m7t8dftp56xsggmfy942m5qb"
+      },
+      {
+        "from": "tk_01m7t8dftp56xsggmfy942m5qb",
+        "to": "tk_01m7t6bby6qyjcezpcrs6znmrc"
+      },
+      {
+        "from": "tk_01m7t5dtwthjbj0ckam8xhx58z",
+        "to": "tk_01m7tacxrc97bqteknsmwm7z6g"
+      },
+      {
+        "from": "tk_01m7t8dftp56xsggmfy942m5qb",
+        "to": "tk_01m7tacxrc97bqteknsmwm7z6g"
+      },
+      {
+        "from": "tk_01m7rgrfw4mb2bbws108gdhaqm",
+        "to": "tk_01m7tgr3vktdd6kqzfh9s7z2pc"
+      },
+      {
+        "from": "tk_01m7ryqcv3k8m07j4cx0y86ray",
+        "to": "tk_01m7tgr3vktdd6kqzfh9s7z2pc"
+      },
+      {
+        "from": "tk_01m7tgr3vktdd6kqzfh9s7z2pc",
+        "to": "tk_01m7tgr3xc08adnfqejj2s7b48"
+      },
+      {
+        "from": "tk_01m7rgrfw585v9ttzffsvr9zfh",
+        "to": "tk_01m7tgr3xc08adnfqejj2s7b48"
+      },
+      {
+        "from": "tk_01m7tgr3xc08adnfqejj2s7b48",
+        "to": "tk_01m7rgrfw5t6bp2056xzc8teaf"
+      },
+      {
+        "from": "tk_01m7rgrfw4jmsaaf5kjkn1axkm",
+        "to": "tk_01m7thpe033bxc6g35qsafh92n"
+      },
+      {
+        "from": "tk_01m7thpe033bxc6g35qsafh92n",
+        "to": "tk_01m7thpe1hm9t1esg39a5g9e23"
+      },
+      {
+        "from": "tk_01m7rgrfw4jmsaaf5kjkn1axkm",
+        "to": "tk_01m7thpe1hh4pgba6yw3jjzevp"
+      },
+      {
+        "from": "tk_01m7ryqcv3k8m07j4cx0y86ray",
+        "to": "tk_01m7thpe1hh4pgba6yw3jjzevp"
+      },
+      {
+        "from": "tk_01m7thpe1hh4pgba6yw3jjzevp",
+        "to": "tk_01m7rgrfw585v9ttzffsvr9zfh"
+      },
+      {
+        "from": "tk_01m7thpe1hh4pgba6yw3jjzevp",
+        "to": "tk_01m7rgrfw5rjgn3b7vjxbfscjv"
+      },
+      {
+        "from": "tk_01m7rgrfw585v9ttzffsvr9zfh",
+        "to": "tk_01m7rgrfw5rjgn3b7vjxbfscjv"
+      },
+      {
+        "from": "tk_01m7thpe1hh4pgba6yw3jjzevp",
+        "to": "tk_01m7tgr3vktdd6kqzfh9s7z2pc"
+      },
+      {
+        "from": "tk_01m7thpe033bxc6g35qsafh92n",
+        "to": "tk_01m7tng61ea1q3zf6ftxfncp3e"
+      },
+      {
+        "from": "tk_01m7tng61ea1q3zf6ftxfncp3e",
+        "to": "tk_01m7tng62ysa5x5tz8awgkvrae"
+      },
+      {
+        "from": "tk_01m7thpe1hh4pgba6yw3jjzevp",
+        "to": "tk_01m7tng62ysa5x5tz8awgkvrae"
+      },
+      {
+        "from": "tk_01m7tng62ysa5x5tz8awgkvrae",
+        "to": "tk_01m7rgrfw585v9ttzffsvr9zfh"
+      }
+    ],
+    "epic": {
+      "intent": "## Outcome\n\nTurn execution mistakes into durable, reviewable prevention instead of losing them in attempt history. Rejection reasons remain tied to the exact ticket and attempt and are injected into the next retry packet automatically. Every successfully completed sprint produces exactly one idempotent learning Kanban card after checkpoint advance. The same orchestrator claims and delegates that queued card before polling ordinary work in the next sprint, without blocking sprint advancement.\n\nThe card receives an immutable evidence snapshot containing rejected attempts, failed or reconciled attempts, failed row and acceptance checks, and the sprint retro's `wentPoorly` and `actions`. Its worker must disposition every item as a reusable learning, a duplicate, or sprint-specific noise; deduplicate the reusable items; propose scoped learning records for workers and/or orchestrators; and add repository guardrails such as tests, lint rules, documentation or skills when those are the stronger prevention.\n\nRepository edits run on isolated learning branches/worktrees rooted at the completed sprint increment. A multi-repository sprint may produce one guarded branch per affected repository under the same card. The card reaches Ready for review without blocking the next sprint. Human approval preflights and integrates every branch, then publishes the learning records; a conflict, failed integration, or kick-back publishes nothing. Published records are selected by role and path into future worker packets and orchestrator context. A Learnings surface shows provenance and applicability and lets a person retire or replace stale guidance.\n\n## Confirmed decisions\n\n- Evidence sources: rejections, failures/reconciliations, failed row and acceptance checks, and retro `wentPoorly`/`actions`.\n- Codification may create first-class learning records and any justified repository guardrails.\n- Generation happens only after the sprint checkpoint advances; it is non-blocking.\n- The same orchestrator picks up the generated card.\n- Learning records activate only on human approval.\n- Guardrail work is isolated from ongoing sprint work.\n- One card may span every affected repository in a repository-folder project.\n- People can inspect, retire and replace published learnings.\n\n## Non-goals\n\n- No automatic approval or checkpoint authority for agents.\n- No learning becomes active while its card is merely In progress or Ready for review.\n- No mutation of historical attempts, reports or retros to retrofit conclusions.\n- No checkpoint gate: the next sprint may proceed while codification is being reviewed.\n- No blanket conversion of every failure into permanent guidance; the card must justify or dismiss each source item.\n- No direct edits to built-in Dark Mechanicus facts in another installation; repository guardrails stay in the project repositories the sprint affected.\n\n## Standards\n\nEach work ticket lists and runs its targeted tests. The sprint acceptance node runs the project's Definition of Done once on the combined increment. No additional tests-first or Fireguard requirement is added by this plan.\n\n## Explicit feature-first recovery directive\nThe person directed: stop building test infrastructure and build the feature. Consolidate all existing feature implementation/UI/lifecycle tickets into the active sprint, eliminate the intermediate foundation-only checkpoint, and run the complete Definition of Done once at end-to-end feature acceptance. Already accepted ownership/PTY fixes and original failure records remain; no failed test is relabeled passed. Unresolved historical latency work DM-783 and unstarted scheduling detour DM-792 are optional/deferred and must not consume feature execution. The completed DM-791 NO-GO remains historical evidence with its limitations; it does not mandate an endless diagnostic loop or block the separately specified product tickets. This explicitly supersedes prior recovery proposals that made proving the unrecorded old pathological phase or adding a resource-policy ticket a prerequisite to feature implementation. All original feature outcomes, real Electron evidence, test limits, coverage thresholds and human authority controls remain unchanged. No new probes, fixture frameworks or test-only work are authorized before feature delivery; feature tests use existing harnesses and each ticket's Tests section. Save/adoption is still the execution boundary.",
+      "ownerRole": null,
+      "successCriteria": [
+        {
+          "id": "s1",
+          "text": "A rejected ticket's retry packet identifies every earlier rejected attempt with its actionable reasons, review notes and provenance, so a replacement worker does not rely on the orchestrator manually copying the WHY."
+        },
+        {
+          "id": "s2",
+          "text": "After each successful sprint checkpoint advance, exactly one queued learning card is linked to that run and sprint, contains a complete immutable snapshot of all configured learning sources, and is surfaced for the same orchestrator to claim before ordinary next-sprint polling without blocking the run."
+        },
+        {
+          "id": "s3",
+          "text": "A learning-card worker can disposition every source item, submit deduplicated role/path-scoped learning records, and produce isolated guardrail commits rooted at the completed sprint increment for one or several affected repositories; ordinary Kanban cards keep their current behavior."
+        },
+        {
+          "id": "s4",
+          "text": "Approving a learning card recoverably integrates every declared guardrail branch and publishes its learning records only after all integrations pass; conflict, crash recovery and kick-back paths never leave active records claiming guardrails that were not integrated."
+        },
+        {
+          "id": "s5",
+          "text": "Future worker packets and orchestrator context contain only applicable active learning records with evidence provenance, while bounded selection prevents the guidance from overwhelming the execution packet."
+        },
+        {
+          "id": "s6",
+          "text": "A person can inspect each learning's source sprint, tickets, attempts and checks, see its roles and paths, and retire or replace it; portable export/import preserves cards, records, lifecycle state and integration recovery across repository and database storage modes."
+        }
+      ],
+      "title": "Sprint learnings: rejection-aware retries and post-sprint codification into durable guardrails"
+    },
+    "formatVersion": 1,
+    "policies": {
+      "leaseSeconds": 900,
+      "maxConcurrency": 3,
+      "onTicketFailure": "pause_run",
+      "retryLimit": 3
+    },
+    "rationale": "## Evidence inspected\n\n- `rejectAttempt` already persists actionable `reasons` and `notes` on an attempt (`src/core/services/attempts.ts`), but `executionPacket` carries only the current ticket and accepted predecessors; the next worker does not receive earlier rejection decisions.\n- The shipped `orchestrator.retry-escalation` fact tells the orchestrator to copy reasons manually, confirming the handoff is procedural rather than enforced.\n- Sprint retros already record `wentPoorly` and `actions`, and reports/search preserve them, but no first-class learning lifecycle exists.\n- Kanban already supports authorized launch/claim and human-only approval, but ordinary cards work directly on the checked-out branch.\n- Knowledge facts already support role/event/topic/path selection and token budgets, but pushed context is orchestrator-only and facts are unmanaged Markdown files.\n- The completed SPACE scorecards epic established corrective retrospectives; this epic extends that loop rather than replacing it.\n\n## Selected design\n\nUse immutable evidence plus human-reviewed publication. Rejections reach retries immediately as exact attempt history. A successful checkpoint advance atomically creates and queues one special learning card from a deterministic evidence snapshot. The same orchestrator claims it as its next procedural action, but the run and next sprint remain unblocked. The worker classifies every source item and may propose both scoped learning records and concrete repository guardrails. Guardrail work uses branches/worktrees rooted at the completed increment. Human approval prepares and recoverably integrates all repositories before one final transaction publishes records and completes the card. Active records reuse bounded role/path/event selection for future worker packets and orchestrator context. Humans can later retire or replace records without deleting history.\n\n## Rejected alternatives\n\n- **Prompt-only copying of rejection reasons:** cheap, but it is the current failure mode and remains dependent on orchestrator memory.\n- **Publish a fact immediately on every rejection:** fast, but turns one reviewer's local observation into unreviewed permanent authority and amplifies noise.\n- **Make codification a next-sprint plan ticket or checkpoint gate:** would guarantee ordering, but the person explicitly chose post-completion, non-blocking Kanban work.\n- **Use ordinary Kanban direct-checkout edits:** conflicts with the next sprint and violates the selected isolation requirement.\n- **Activate records at Ready for review:** lets unreviewed or malicious guidance affect agents before the person approves it.\n- **One card per repository:** simplifies Git integration but fragments the requested single sprint-wide synthesis and can publish inconsistent subsets.\n\n## Dependency graph and critical path\n\nThe shared contract is first. Lifecycle services and the evidence collector then proceed in parallel. The service unlocks portable records and context delivery; service plus evidence unlock generated-card creation. Card generation unlocks structured isolated submission. Submission then splits into the Git integration engine and core approval state machine; the desktop coordinator joins them. Kanban review UI and Learnings management UI proceed once their underlying APIs exist. Guidance follows stable command/workflow behavior. The end-to-end ticket joins persistence, delivery, approval, both UIs and guidance before the acceptance node. Critical path: contract → service/evidence → generation → submission → Git/core approval → desktop approval → guidance → end-to-end → acceptance.\n\n## Risks and mitigations\n\n- **The next sprint can start before the card is approved.** This is confirmed behavior, not a hidden guarantee. Same-ticket retries still receive raw rejection WHY immediately; cross-ticket codified guidance activates only after approval.\n- **Cross-repository Git is not atomic.** Prepare every result before moving targets, persist expected old/new heads, use compare-and-swap updates, record each applied repository, recover from actual Git truth, and publish records only after all heads verify.\n- **Self-reinforcing bad guidance or prompt injection.** Evidence and worker output remain task data; schemas contain no capability/approval fields; human approval is mandatory; applicability is bounded; management can retire/replace.\n- **Context overload.** Deduplicate, scope by role/path/event, impose a separate budget, and expose omissions.\n- **Stale guidance.** Preserve provenance and replacement chains and provide human retirement/replacement controls.\n- **Legacy/storage drift.** Version strict portable records, migrate forward only, keep optional fields absent on older records, and test repo/database round trips.\n\n## Verification strategy\n\nEach work ticket runs only its targeted tests and typecheck when it changes types. The dedicated lifecycle ticket proves assembled single- and multi-repository behavior and captures real Electron evidence. The sprint acceptance node runs the project's Definition of Done exactly once on the combined increment and checks every ticket through a covering criterion. No additional tests-first or Fireguard requirement is imposed by this plan.\n\n## Required-leftover recovery proposal\nDM-721 failed its first bounded attempt; management and approved-publication/provenance are split without deleting original scope. The sanctioned retro redraft moves it and its dependents to Sprint 2. DM-720/DM-724 remain accepted in Sprint 1. This is a proposed recovery checkpoint, not a delivered user feature. It adds one full acceptance/report/human checkpoint cost. The person explicitly selected the foundation-only recovery checkpoint and instructed the orchestrator to prepare its draft correction because human sprint-edit controls are intentionally restricted. Sprint 1 goal, exit criteria and DM-719 artifacts are aligned to accepted DM-720/DM-724 only. This does not claim the complete learning loop exists or weaken Sprint 2: its lifecycle, integration recovery, UI evidence and full Definition of Done requirements are unchanged. Human Save, adoption and checkpoint approval remain separate required actions. All complete-loop, Git recovery, UI screenshot and DoD requirements remain in Sprint 2. No additional tests-first or Fireguard requirement is added.\n\n## Failed foundation acceptance: proposed causal corrections\nDM-719 failed its first complete npm test attempt: two timeouts and EPERM cleanup, with original log preserved; no full-gate retry was made. Two required scoped corrective tickets are proposed in active Sprint 1 because its existing Definition of Done cannot pass without resolving these failures; neither changes the requested product feature scope. Their causes are not yet proven; verified fixture/lifecycle entry points and bounded investigations are explicit. They run independently and only targeted checks. After their accepted corrections meet, DM-719 gets a prospective twenty-minute automation-only envelope for the unchanged six DoD commands, with all per-test/hook timeouts, retries/skips, workload assertions and coverage thresholds unchanged. This is not a retroactive extension of the failed attempt. Sprint 2 and all complete-loop/UI requirements remain unchanged. Human Save/adoption is required before dispatch.\n\n## Split after incomplete DM-780\nDM-781 deterministic folder-FS fixture correction was accepted and integrated. DM-780 proved a child-cleanup ownership defect but failed with timeout cause unproven and final complete targeted verification missing. Split these distinct obligations: narrowed DM-780 finishes and verifies the known ownership fix; the new required latency ticket records discriminating startup/barrier/send/close evidence and requires an evidence-backed correction, not guessed historical timing. This replaces an impossible demand to reconstruct an unlogged historical phase with explicit current causal evidence while preserving the original failed result, unchanged concurrency assertions and complete gate. Both remain required in current Sprint 1; DM-719 gains covering criteria and retains its saved twenty-minute automation-only allowance. No full-loop/Sprint 2 requirement changes and no failed check is waived. Save/adoption is required before either new scope executes.\n\n## DM-783 NO-GO: explicit controlled investigation prerequisite\nKnown child cleanup is now accepted and its combined prerequisite row passed 230 tests and three TypeScript projects. DM-783 made no source/config change: normal measured child/workload/cleanup phases do not explain the original failure, and an earlier pre-entry timeout cannot be causally compared because probe form/cache/load changed. Insert a bounded read-only controlled startup/import decision before latency implementation. Supported cache controls and comparable resource conditions are prerequisites, not assumptions; do not interfere with external work or global caches. The probe returns GO only for a localized pathological mechanism; NO-GO explicitly blocks downstream dispatch and acceptance. No test, timeout, quality gate or full-loop requirement is waived. This is a proposed saved-plan boundary, not authority to rerun or implement before Save/adoption.\n\n## Authorized concrete recovery after DM-791 NO-GO\nThe person rejected stopping at normal probe results and directed the orchestrator to get the run working. The old diagnostic demand for a localized pathological mechanism is not a product outcome and cannot be manufactured from missing historical data. Preserve its NO-GO and failed attempts; make DM-783 optional/unresolved rather than falsely accepting it. A new required one-config scheduling correction classifies the real mailbox child-process fixture with the existing bounded process-heavy lane. This fixes an inspectable classification mismatch without asserting the historical cause. The complete test, coverage, typecheck, lint, deadcode and build gate remains mandatory with unchanged limits, workload, assertions and no blind rerun. The saved 20-minute automation-only acceptance allowance remains; no implementation exception is added. Sprint 2/full learning-loop requirements are unchanged. Human Save/adoption and checkpoint approval remain mandatory; this session's capability response does not include plan.save despite the newly stated administrative access.\n\n## Explicit feature-first recovery directive\nThe person directed: stop building test infrastructure and build the feature. Consolidate all existing feature implementation/UI/lifecycle tickets into the active sprint, eliminate the intermediate foundation-only checkpoint, and run the complete Definition of Done once at end-to-end feature acceptance. Already accepted ownership/PTY fixes and original failure records remain; no failed test is relabeled passed. Unresolved historical latency work DM-783 and unstarted scheduling detour DM-792 are optional/deferred and must not consume feature execution. The completed DM-791 NO-GO remains historical evidence with its limitations; it does not mandate an endless diagnostic loop or block the separately specified product tickets. This explicitly supersedes prior recovery proposals that made proving the unrecorded old pathological phase or adding a resource-policy ticket a prerequisite to feature implementation. All original feature outcomes, real Electron evidence, test limits, coverage thresholds and human authority controls remain unchanged. No new probes, fixture frameworks or test-only work are authorized before feature delivery; feature tests use existing harnesses and each ticket's Tests section. Save/adoption is still the execution boundary.\n\n## Required bounded UI remainder after observed stop\nDM-731 failed at its ten-minute boundary (attempt at_01m7tf5y3y84fkcrd88raqs15y). Source code exists but ordinary provenance/navigation, final verification and useful real-app screenshots were not complete. New attempts do not reset unfinished work: the old ticket is historical/optional and must not be reclaimed. Two NEW required bounded tickets finish preserved implementation and then prove actual Electron lifecycle/navigation with attached images. All original behavior and screenshot acceptance remains required; no extra sprint/checkpoint or weaker gate, and no new test infrastructure. Saved/adopted revision 8 remains executable for unchanged backend work while this is only a proposal. Human Save is required; adopt only paused/checkpoint with no open attempts, preserving unchanged accepted tickets. Full feature lifecycle and existing twenty-minute automation-only final gate remain at DM-733/DM-719, once on the complete feature.\n\n## Observed Git and approval remainder\nDM-727 failed at ten minutes: 9 passed/1 timed out under unchanged 15-second recovery bound; its canonical detach workaround is explicitly rejected and WIP 83cad36f must not merge. Safe preparation and invariant-preserving CAS/recovery are separate required bounded outcomes, with the original failed scenario fully retained. DM-728 WIP 7c339909 was rejected for imported updates inheriting local machine authority; a required narrow closure invalidates imported authority and enables explicit human fresh preparation/local-only recovery discovery. Original 727/728 remain optional historical records, never accepted. Five new required remainder tickets replace the unfinished scopes, all in the SAME sprint; coordinator and both UI proof/action routes wait for actual dependencies. Acceptance node coverage includes every new outcome. Saved revision 8 is not changed by this draft; no new remainder executes before human Save/adoption with no open attempts. No higher timeout, new checkpoint, weakened acceptance, fresh-claim clock bypass or new test infrastructure.\n\n\n## Revision 10: observed native closure and default repo-mode prerequisite\nDM-798 is accepted and integrated after 132 focused UI consumers, lint/all-three typechecks and a real populated Epics→Knowledge→Learnings Electron screenshot. DM-801 stopped at its saved ten-minute boundary, preserving 7db51a7: 15/16 native cases passed, including the original unchanged 15000ms crash/repeated-resume scenario; exact bytes restored after owned tree-forward interruption still fail. No incomplete native work is integrated. Replace its execution with one narrowly bounded content/owned-execution-context closure, then one separately bounded existing-scope default repo-mode operation-record interoperability prerequisite split from DM-729. Source review shows execute safeFlush creates the current owned untracked operation JSON after initial clean precondition; suppressing all metadata or exports is rejected. Current trusted operation/layout only, no portable path authority. No new checkpoint, sprint, outcome or full sweep: all remaining coordinator, Kanban UI, actual management matrix, guidance, assembled lifecycle and final DM-719 acceptance remain required. Historical failed attempts and usage stay recorded; no unchanged oversize retry or weakened criteria. Save/adoption remains human controlled.",
+    "relations": [],
+    "sprints": [
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": 3,
+        "entryCriteria": [
+          {
+            "id": "n1",
+            "text": "The completed knowledge-layers, Kanban, Scrum-cadence and SPACE-scorecard behaviors are available as the baseline contracts."
+          }
+        ],
+        "exitCriteria": [
+          {
+            "id": "x1",
+            "text": "A single-repository lifecycle proves reject → retry context → checkpoint advance → generated card → isolated guardrail branch → Ready for review → approval → future packet/context guidance."
+          },
+          {
+            "id": "x2",
+            "text": "A multi-repository lifecycle proves all branch integrations recover together and no learning publishes after a conflict or partial failure."
+          },
+          {
+            "id": "x3",
+            "text": "A person can inspect provenance and retire or replace an approved learning from the desktop."
+          },
+          {
+            "id": "x4",
+            "text": "The project's Definition of Done passes on the combined sprint increment."
+          }
+        ],
+        "goal": "Ship the complete learnings loop: exact rejection WHY reaches retries, every completed sprint emits one isolated codification card, approved guidance and guardrails reach future agents, and people can manage the result.",
+        "id": "sp_01m7rget6q03n7a08sjxtjjh8t",
+        "ordinal": 1,
+        "ticketIds": [
+          "tk_01m7rgrfv2xr81m68bjnp1kb7h",
+          "tk_01m7rgrfw4kh31ra13d3mwyjp7",
+          "tk_01m7t5dtwthjbj0ckam8xhx58z",
+          "tk_01m7t5dtzrmzfyy3fabkm4ct9h",
+          "tk_01m7t6bby6qyjcezpcrs6znmrc",
+          "tk_01m7t8dftp56xsggmfy942m5qb",
+          "tk_01m7tacxrc97bqteknsmwm7z6g",
+          "tk_01m7rgrfw4902evkb6f675qxfw",
+          "tk_01m7ryqcv3k8m07j4cx0y86ray",
+          "tk_01m7rgrfw4mb2bbws108gdhaqm",
+          "tk_01m7rgrfw41vm23bzyy86a6ce9",
+          "tk_01m7rgrfw4xg21z2bkk9q8pm8j",
+          "tk_01m7rgrfw4jmsaaf5kjkn1axkm",
+          "tk_01m7rgrfw55tadh1z18j5079we",
+          "tk_01m7rgrfw55xn4c0693w4pkg9w",
+          "tk_01m7rgrfw5kzhmtq9g183271db",
+          "tk_01m7rgrfw585v9ttzffsvr9zfh",
+          "tk_01m7rgrfw5rjgn3b7vjxbfscjv",
+          "tk_01m7rgrfw5eyq9fnt31gevt802",
+          "tk_01m7rgrfw5t6bp2056xzc8teaf",
+          "tk_01m7tgr3vktdd6kqzfh9s7z2pc",
+          "tk_01m7tgr3xc08adnfqejj2s7b48",
+          "tk_01m7thpe033bxc6g35qsafh92n",
+          "tk_01m7thpe1hm9t1esg39a5g9e23",
+          "tk_01m7thpe1hh4pgba6yw3jjzevp",
+          "tk_01m7tng61ea1q3zf6ftxfncp3e",
+          "tk_01m7tng62ysa5x5tz8awgkvrae",
+          "tk_01m7rget6q81xt36beccgh02nh"
+        ]
+      }
+    ],
+    "tickets": [
+      {
+        "acceptanceCriteria": [
+          {
+            "covers": "tk_01m7rgrfv2xr81m68bjnp1kb7h",
+            "id": "c1",
+            "text": "Learning record types, migration and lifecycle invariants reject malformed authority or provenance and preserve existing data."
+          },
+          {
+            "covers": "tk_01m7rgrfw4kh31ra13d3mwyjp7",
+            "id": "c5",
+            "text": "A mixed-failure sprint produces a byte-stable evidence snapshot containing every configured source with provenance."
+          },
+          {
+            "covers": "tk_01m7t5dtwthjbj0ckam8xhx58z",
+            "id": "c2",
+            "text": "The final ownership-safe mailbox fixture closes owned children before workspace removal on success/error paths while retaining original concurrent-send assertions and passes in the corrected full gate."
+          },
+          {
+            "covers": "tk_01m7t5dtzrmzfyy3fabkm4ct9h",
+            "id": "c3",
+            "text": "The corrected ten-day PTY fixture preserves all 240 renewals and no-idle-stop semantics and passes in the full corrected gate without changing test limits or reducing assertions."
+          },
+          {
+            "covers": "tk_01m7t8dftp56xsggmfy942m5qb",
+            "id": "c6",
+            "text": "The completed controlled investigation remains an accurately recorded NO-GO with safe cleanup and unknown historical phases; it is not misrepresented as a product repair or a requirement to build more diagnostic infrastructure."
+          },
+          {
+            "covers": "tk_01m7rgrfw4902evkb6f675qxfw",
+            "id": "c25",
+            "text": "Human read/retire/content-based replacement preserves immutable provenance and searchable revision-checked history."
+          },
+          {
+            "covers": "tk_01m7rgrfw4mb2bbws108gdhaqm",
+            "id": "c26",
+            "text": "Repo and database storage modes round-trip learning records and incomplete integration recovery safely."
+          },
+          {
+            "covers": "tk_01m7rgrfw41vm23bzyy86a6ce9",
+            "id": "c27",
+            "text": "A real retry packet shows exact prior rejection WHY, and a future packet/context shows only applicable active guidance within its budget."
+          },
+          {
+            "covers": "tk_01m7rgrfw4xg21z2bkk9q8pm8j",
+            "id": "c28",
+            "text": "Intermediate and final checkpoint advances each create and queue exactly one linked non-blocking learning card, including replay and empty evidence."
+          },
+          {
+            "covers": "tk_01m7rgrfw4jmsaaf5kjkn1axkm",
+            "id": "c29",
+            "text": "The same orchestrator can claim the card and submit complete dispositions, scoped drafts and verified isolated branch manifests without changing ordinary cards."
+          },
+          {
+            "covers": "tk_01m7rgrfw55xn4c0693w4pkg9w",
+            "id": "c30",
+            "text": "Single and multi-repository guardrail integrations preflight, compare-and-swap and resume after interruption without premature publication."
+          },
+          {
+            "covers": "tk_01m7rgrfw5kzhmtq9g183271db",
+            "id": "c31",
+            "text": "Core approval publishes all learning records only after every repository receipt verifies and remains recoverable on conflict or kick-back."
+          },
+          {
+            "covers": "tk_01m7rgrfw585v9ttzffsvr9zfh",
+            "id": "c32",
+            "text": "One desktop approval action integrates branches and finalizes publication, with visible restart recovery and ordinary-card compatibility."
+          },
+          {
+            "covers": "tk_01m7rgrfw5rjgn3b7vjxbfscjv",
+            "id": "c33",
+            "text": "Attached Electron screenshots show complete provenance/dispositions and honest success, conflict, kick-back and Done states on the learning card."
+          },
+          {
+            "covers": "tk_01m7rgrfw55tadh1z18j5079we",
+            "id": "c34",
+            "text": "Attached Electron screenshots show active/retired provenance and a successful human retire/replace flow in the managed Learnings surface."
+          },
+          {
+            "covers": "tk_01m7rgrfw5eyq9fnt31gevt802",
+            "id": "c35",
+            "text": "Shipped role guidance and runbooks describe the non-blocking post-sprint claim, isolation, authority and recovery model and pass executable knowledge checks."
+          },
+          {
+            "covers": "tk_01m7rgrfw5t6bp2056xzc8teaf",
+            "id": "c36",
+            "text": "The accepted single- and two-repository scenarios prove reject-to-guidance lifecycle, conflict/restart recovery, storage modes and legacy/ordinary compatibility end to end."
+          },
+          {
+            "covers": "tk_01m7ryqcv3k8m07j4cx0y86ray",
+            "id": "c37",
+            "text": "Internal approved-attempt publication validates complete source provenance and replays without duplicate records or events; agents cannot publish."
+          },
+          {
+            "covers": "tk_01m7tgr3vktdd6kqzfh9s7z2pc",
+            "id": "c4",
+            "text": "Finish preserved Learnings routing, provenance and lifecycle behavior is accepted with all its required behavior and evidence, without weakening the complete feature gate."
+          },
+          {
+            "covers": "tk_01m7tgr3xc08adnfqejj2s7b48",
+            "id": "c7",
+            "text": "Verify the real Learnings management workflow and attach evidence is accepted with all its required behavior and evidence, without weakening the complete feature gate."
+          },
+          {
+            "covers": "tk_01m7thpe033bxc6g35qsafh92n",
+            "id": "c8",
+            "text": "Extract and verify safe prepare-only guardrail integration is accepted with all its required behavior and evidence, without weakening the complete feature gate."
+          },
+          {
+            "covers": "tk_01m7tng61ea1q3zf6ftxfncp3e",
+            "id": "c9",
+            "text": "The accepted native closure proves exact-content recovery and currently owned preparation Git context, together with every original safe canonical CAS/recovery invariant and the unchanged 15000ms crash/repeated-resume consumer."
+          },
+          {
+            "covers": "tk_01m7thpe1hh4pgba6yw3jjzevp",
+            "id": "c10",
+            "text": "Close imported-operation authority and explicit human recovery is accepted with all its required behavior and evidence, without weakening the complete feature gate."
+          },
+          {
+            "covers": "tk_01m7tng62ysa5x5tz8awgkvrae",
+            "id": "c11",
+            "text": "Real repo-mode workspace flush and native integration preserve only the current trusted owned untracked approval record, while unrelated/staged/foreign work and record-path collisions remain fail-closed; DB/other-target behavior remains strict."
+          }
+        ],
+        "body": "## End-to-end feature acceptance\nVerify the complete originally requested learning loop, not a foundation-only checkpoint: rejection WHY in retry packets; deterministic generated post-sprint card; complete dispositions and isolated guardrail branches; recoverable human approval/publication; applicable guidance in future packets/context; inspectable retire/replace UI. Verify each covering criterion using actual accepted implementations, lifecycle fixtures and the real Electron surfaces. Attach the required review/Learnings screenshots. Historical failed attempts and NO-GO observations remain recorded, not falsely passed.\n\n## Tests and scope\nEach implementation ticket writes/runs its existing Tests section against feature behavior. This node runs the full project Definition of Done once on the completed combined feature increment: npm run lint; npm run typecheck; npm test (including its Fireguard UNIT phase); npm run coverage; npm run deadcode; npm run build. Use accepted targeted feature evidence where appropriate; execute the documented real Electron lifecycle procedure. No Fireguard grading is added by this plan. No separate diagnostic/infrastructure project or prerequisite foundation checkpoint.\n\n## Prospective automation-only verification allowance\nThe original DM-719 full gate remains FAILED. Feature implementation and the already accepted ownership/PTY corrections must be integrated before this new full gate; this is not an unchanged rerun to obtain green. The prior initial Vitest phase took 344.92s before a second complete coverage pass, so this acceptance node has a prospective maximum twenty-minute automation/report-collection window. No implementation or diagnostic expansion may use the extension. Keep test and coverage sequential; run each exact DoD command once. Preserve all test/hook/command/cleanup limits, workload, assertions, thresholds and no-retry/no-skip rules. Report proof/gaps at five minutes; no implementation after ten minutes, and finish only declared automated verification by twenty minutes. Any failure remains a failure and requires a specific causal correction before another verification. Never claim old unknown phases were reconstructed.\n\n## Integration and authority\nOnly independently accepted feature work and already accepted necessary corrections form the increment. Keep failed/unaccepted partial branches isolated. Land one squashed feature increment only after verification; human checkpoint/card approvals remain human-only. DM-783's unresolved historical mechanism and unstarted DM-792 scheduling work are optional deferred items, not feature prerequisites and not accepted repairs.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "deep",
+            "rationale": "Acceptance must verify the combined authority, Git recovery, persistence and UI behavior across the whole increment."
+          },
+          "skills": [
+            "typescript",
+            "integration-testing",
+            "electron",
+            "git",
+            "security-review"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Complete project Definition of Done evidence",
+          "Single- and multi-repository learning lifecycle proof",
+          "Real Electron learning-card review and managed Learnings screenshots",
+          "One verified squashed complete feature increment on the epic branch",
+          "Original failure/NO-GO evidence retained without false causal claims"
+        ],
+        "id": "tk_01m7rget6q81xt36beccgh02nh",
+        "key": "DM-719",
+        "kind": "acceptance",
+        "optional": false,
+        "priority": "critical",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Project Definition of Done documentation",
+            "location": "README.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Schema migration regression tests",
+            "location": "src/core/db/migrations.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Learning contract validation tests",
+            "location": "src/shared/domain/learnings.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Immutable evidence collector fixtures",
+            "location": "src/core/services/learningEvidence.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Lifecycle verification runbook",
+            "location": "docs/verification/sprint-learnings.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Sprint 1 acceptance"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The shared contract represents a learning's rule, prevention check, roles/events/paths, source run/sprint/card and source evidence ids, active/retired lifecycle, and replacement link without free-form unvalidated authority fields."
+          },
+          {
+            "id": "c2",
+            "text": "The migration upgrades existing databases without altering prior Kanban or run content and enforces one generated learning card per run and sprint."
+          },
+          {
+            "id": "c3",
+            "text": "Malformed or oversized learning records and invalid lifecycle links are rejected by focused tests."
+          }
+        ],
+        "body": "## Context\nIntroduce the first-class record that approval publishes. It must carry the prevention rule, applicability, immutable evidence provenance, lifecycle state, replacement links and the source learning card. The database also needs a unique run/sprint → generated-card link and durable integration state. Preserve older databases and imported records.\n\n## In scope\n- Strict shared types and validation limits for learning drafts, active/retired records, evidence references, role/event/path applicability and replacement/supersession.\n- SQLite migration and indexes for learning records, generated sprint-card identity and integration recovery metadata.\n- Compatibility defaults that do not change hashes of older Kanban/run records.\n\n## Out of scope\nCommands, packet selection, portable import/export and UI.\n\n## Source locations\n- `src/shared/domain/learnings.ts` (new): follow the strict domain vocabulary beside `src/shared/domain/knowledge.ts` and `src/shared/domain/kanban.ts`.\n- `src/core/db/migrations.ts`: add the next forward-only schema migration and indexes.\n- `src/core/db/migrations.test.ts`: extend clean-install and upgrade coverage.\n\n## Tests\n- Add focused schema tests for invalid roles/events, unsafe paths, missing provenance, replacement cycles/self-links and size limits.\n- Extend migration tests for upgrade preservation, uniqueness and clean-install parity.\n- Run `npx vitest run src/core/db/migrations.test.ts src/shared/domain/learnings.test.ts` and `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "deep",
+            "rationale": "Persistent lifecycle and recovery invariants are hard to repair after records ship."
+          },
+          "skills": [
+            "typescript",
+            "database",
+            "schema-migration",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/shared/domain/learnings.ts",
+          "src/shared/domain/learnings.test.ts",
+          "src/core/db/migrations.ts",
+          "src/core/db/migrations.test.ts"
+        ],
+        "id": "tk_01m7rgrfv2xr81m68bjnp1kb7h",
+        "key": "DM-720",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Knowledge domain pattern",
+            "location": "src/shared/domain/knowledge.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Kanban domain pattern",
+            "location": "src/shared/domain/kanban.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Database migrations",
+            "location": "src/core/db/migrations.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Define versioned learning records and storage invariants"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "List/get commands expose stored guidance and provenance to readers while agent roles cannot retire, replace or publish records; malformed management inputs fail schema checks."
+          },
+          {
+            "id": "c2",
+            "text": "Human retire and content-based replacement require an explicit reason and matching revision; replacement creates a linked new version, retires its predecessor, preserves original evidence, and rejects stale concurrent edits."
+          },
+          {
+            "id": "c3",
+            "text": "Management changes preserve append-only searchable history with source links, and focused service/command/schema/migration tests plus typecheck and changed-file lint pass."
+          }
+        ],
+        "body": "## Recovery context\nDM-721 attempt 1 stopped incomplete within its ten-minute window. Its isolated partial commit 3e2bf69b1bb893827cdbde96f4518b4aa7132f04 (work/learnings-DM721) is reference material, not accepted or integration-ready. Do not merge it wholesale: it also contains incomplete publication code assigned to the next ticket. Extract only this ticket's necessary changes into a new worktree from the named sprint integration base.\n\n## Outcome and boundaries\nFinish the read and human management half of the original DM-721 contract. Provide list/get, retirement with an explicit reason, and content-based replacement that creates a linked new record/version while retiring the predecessor. Preserve the original immutable evidence provenance and searchable history. Use optimistic revision checks; stale concurrent edits fail explicitly. Agent roles may read but cannot retire, replace or publish guidance. This ticket owns shared management types, command/capability wiring, revision storage and indexed management events. It does not implement staging/publication, portable export, selection, card generation, Git integration or UI.\n\n## Source locations\n- `src/core/services/learnings.ts` and `src/core/services/learnings.test.ts`: verified partial load/list/retire/replace functions; replace the prepublished-replacementId approach with replacement content and required reason. Keep management tests separate from publication tests.\n- `src/core/commands/learnings.ts`, `src/core/commands/index.ts`, `src/core/commandSchemas.ts`, `src/core/commands/capabilities.ts`, `src/core/authz.ts`, `src/shared/domain/api.ts`, `src/test/stubApi.ts`: verified partial read and desktop-only management wiring; keep only the commands this ticket implements.\n- `src/core/db/migrations.ts`: partial additive v23 revision/index support; preserve forward-only migration and existing rows, without adopting unfinished publication staging tables unless required by the following ticket.\n- `src/shared/domain/learnings.ts`: accepted bounded content/lifecycle/provenance validators; preserve source identity and replacement invariants.\n\n## Tests\nExtend management tests for read authorization, human-only mutations, required reason, new-version replacement, immutable provenance/history, retirement exclusion, stale revisions and search. Extend command capability/schema tests for each implemented command and migration upgrade tests if storage changes. Run the management test file, src/core/commands/capabilities.test.ts, src/core/schemas.test.ts, affected migration tests, changed-file lint and npm run typecheck. Leave full Definition of Done to sprint acceptance. One worker, no nested delegation; five-minute evidence checkpoint and ten-minute stop apply.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "deep",
+            "rationale": "Publication is an authority boundary: agents may propose guidance but only human actions activate or retire it."
+          },
+          "skills": [
+            "typescript",
+            "authorization",
+            "database",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/services/learnings.ts",
+          "src/core/services/learnings.test.ts",
+          "src/core/commands/learnings.ts",
+          "src/shared/domain/api.ts"
+        ],
+        "id": "tk_01m7rgrfw4902evkb6f675qxfw",
+        "key": "DM-721",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Transactional card service pattern",
+            "location": "src/core/services/kanban/cards.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Command schemas",
+            "location": "src/core/commandSchemas.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Authorization table",
+            "location": "src/core/authz.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Complete human learning management and searchable history"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Export and import round-trip active, retired and replaced learnings and their immutable provenance without changing semantic hashes."
+          },
+          {
+            "id": "c2",
+            "text": "An interrupted integration manifest is recoverable after restart or clone/import and never implies that its learning is already active."
+          },
+          {
+            "id": "c3",
+            "text": "Malformed, linked, escaping or conflicting learning records are rejected independently and surfaced in reconcile results; database mode settles the same outbox entries without files."
+          }
+        ],
+        "body": "## Context\nLearning records and pending multi-repository integrations must survive restart, clone/import and repository/database storage modes with the same safety rules as plans and Kanban records.\n\n## In scope\n- Owned paths and strict portable record schemas for learning definitions, lifecycle events and integration recovery manifests.\n- Outbox/finalizer/export/import/reconcile behavior, hash checks, path/link containment and conflict reporting.\n- Database-only settlement without writing portable files.\n\n## Out of scope\nKnowledge selection and UI.\n\n## Source locations\n- `src/core/repo/paths.ts`, `src/core/repo/portable.ts`, `src/core/repo/finalizer.ts`, `src/core/repo/migrationExport.ts`: add the learning record family.\n- `src/core/repo/learningImport.ts` (new): follow `src/core/repo/kanbanImport.ts` strict scan/apply pattern.\n- `src/core/repo/importer.ts`, `src/core/services/outbox.ts`: wire reconcile and outbox kinds.\n\n## Tests\n- Add round-trip tests for active, retired and replaced records plus an in-progress integration manifest in repo and db modes.\n- Add traversal, symlink, malformed/hash-conflict and partial-import tests.\n- Run the new learning portable/import tests, relevant finalizer/importer tests, and `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "deep",
+            "rationale": "Portable state crosses trust boundaries and must preserve incomplete integration truth without unsafe recovery."
+          },
+          "skills": [
+            "typescript",
+            "filesystem-security",
+            "database",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/repo/learningImport.ts",
+          "src/core/repo/learningImport.test.ts",
+          "src/core/repo/portable.learning.test.ts",
+          "src/core/repo/finalizer.ts"
+        ],
+        "id": "tk_01m7rgrfw4mb2bbws108gdhaqm",
+        "key": "DM-722",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Kanban import safety pattern",
+            "location": "src/core/repo/kanbanImport.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Portable record builders",
+            "location": "src/core/repo/portable.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Finalizer",
+            "location": "src/core/repo/finalizer.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Persist learning records and recovery state across storage modes"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A second claim after rejection carries all earlier actionable reasons and review notes with stable attempt provenance without manual orchestration text."
+          },
+          {
+            "id": "c2",
+            "text": "Worker packets and orchestrator context include only active role/path/event matches, report what the budget omitted, and exclude retired or superseded records."
+          },
+          {
+            "id": "c3",
+            "text": "Legacy first claims and ordinary knowledge facts retain their existing shape and precedence, and learning text grants no capability or authority."
+          }
+        ],
+        "body": "## Context\nToday `rejectAttempt` stores reasons on the attempt, but `executionPacket` omits prior attempts; the retry depends on the orchestrator copying text manually. Fix that contract and reuse bounded knowledge selection for approved learning records.\n\n## In scope\n- Add prior rejected/failed attempt context to retry packets with attempt number/id, reasons, review notes and timestamps; preserve exact reviewer text.\n- Select active learnings for the worker role using ticket file references and a dedicated token budget, with explicit omitted metadata.\n- Convert active orchestrator learnings into the existing event/path selection pipeline without allowing them to override authorization or built-in always-apply rules.\n- Keep first attempts and legacy records compatible.\n\n## Source locations\n- `src/core/services/attempts.ts`: `executionPacket`, `rejectAttempt` and claim tests.\n- `src/shared/domain/views.ts`: extend `ExecutionPacket`.\n- `src/core/knowledge/select.ts` and `src/core/knowledge/push.ts`: merge approved record candidates into bounded selection.\n- `src/core/services/attempts.review.test.ts`, `src/core/knowledge/select.test.ts`, `src/core/commands/knowledgePush.test.ts`: regression coverage.\n\n## Tests\n- Add a reject-then-reclaim test proving exact reasons/notes/provenance reach attempt 2 and do not appear on attempt 1.\n- Add worker and orchestrator scope/path/budget tests, including omitted records and retired/replaced records.\n- Run the targeted attempt and knowledge tests plus `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "The packet must combine historical review evidence with bounded scoped guidance without breaking legacy claims."
+          },
+          "skills": [
+            "typescript",
+            "execution-workflows",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/services/attempts.ts",
+          "src/shared/domain/views.ts",
+          "src/core/knowledge/select.ts",
+          "src/core/services/attempts.review.test.ts"
+        ],
+        "id": "tk_01m7rgrfw41vm23bzyy86a6ce9",
+        "key": "DM-723",
+        "optional": false,
+        "priority": "critical",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Claim packet builder",
+            "location": "src/core/services/attempts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Execution packet contract",
+            "location": "src/shared/domain/views.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Knowledge selection",
+            "location": "src/core/knowledge/select.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Deliver rejection WHY and applicable learnings in execution context"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The snapshot contains every configured source kind with stable run/sprint/ticket/attempt/check/report provenance and no reporter-invented facts."
+          },
+          {
+            "id": "c2",
+            "text": "Repeated collection of unchanged state is byte-stable, while the latest report revision and standing row/check outcomes are represented correctly."
+          },
+          {
+            "id": "c3",
+            "text": "A sprint with no negative evidence still produces a valid empty snapshot so downstream generation remains one-card-per-sprint."
+          }
+        ],
+        "body": "## Context\nThe generated card needs complete facts, not a reporter's paraphrase. Build one deterministic collector over the pinned run revision and latest accepted sprint report.\n\n## In scope\n- Collect rejected attempt reasons/notes, failed and reconciled attempts, latest failed row checks, failed/skipped acceptance checks, and retro `wentPoorly`/`actions`.\n- Attach stable source ids, display keys, repository/path references where known, timestamps and normalized fingerprints for deduplication.\n- Preserve every source item; classification happens later on the card.\n\n## Out of scope\nCreating cards or deciding what becomes a permanent rule.\n\n## Source locations\n- `src/core/services/learningEvidence.ts` (new): follow read-model patterns in `src/core/services/reports.ts` and `src/core/services/execution.ts`.\n- `src/shared/domain/learnings.ts`: snapshot types from the contract ticket.\n- `src/core/services/reports.ts`, `src/core/services/checkpoints.ts`: read-only integration points only where necessary.\n\n## Tests\n- Add deterministic fixtures covering every source kind, repeated report revisions, superseded attempts, accepted reruns after a failed row check, legacy null retros and no-learning sprints.\n- Prove stable ordering and fingerprints across repeated collection.\n- Run `npx vitest run src/core/services/learningEvidence.test.ts` and `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "multi_step",
+            "rationale": "The collector joins several execution sources and must distinguish historical failures from current standing outcomes."
+          },
+          "skills": [
+            "typescript",
+            "data-modeling",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/services/learningEvidence.ts",
+          "src/core/services/learningEvidence.test.ts"
+        ],
+        "id": "tk_01m7rgrfw4kh31ra13d3mwyjp7",
+        "key": "DM-724",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Report read model",
+            "location": "src/core/services/reports.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Execution state",
+            "location": "src/core/services/execution.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Retro contract",
+            "location": "src/shared/domain/retro.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [],
+        "title": "Build an immutable sprint learning evidence snapshot"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Every successful sprint advance creates and queues exactly one linked learning card after the checkpoint is recorded, including the final sprint and an empty evidence snapshot."
+          },
+          {
+            "id": "c2",
+            "text": "Replays and alternate advance paths return the same card and never duplicate card, Play or event records; a failed advance creates nothing."
+          },
+          {
+            "id": "c3",
+            "text": "The advanced run exposes the pending learning card to the owning orchestrator while next-sprint readiness remains non-blocking."
+          }
+        ],
+        "body": "## Context\nCreate the post-sprint work only after the checkpoint transition succeeds. It must be idempotent for explicit `advance_sprint`, desktop `approve_and_advance`, auto continuation and replay. It is non-blocking but is the orchestrator's next procedural priority.\n\n## In scope\n- Add a special sprint-learning Kanban card kind linked to epic/run/sprint/report/revision and the immutable evidence snapshot.\n- Inside successful advancement, create exactly one card, mark its Play pending, and record completed increment bases for every affected repository.\n- Expose the queued card id/state in the advance/run read model and `checkpoint.approved` context so the same orchestrator claims it before normal next-sprint polling.\n- Generate a card even for an empty snapshot; its worker may conclude there is no reusable rule.\n\n## Out of scope\nClaim packet details, submission and approval integration.\n\n## Source locations\n- `src/core/services/checkpoints.ts`: `advance`, `moveToSprint`, `completeRun`.\n- `src/core/services/kanban/cards.ts`: internal generated-card insertion beside `insertCard`.\n- `src/shared/domain/kanban.ts` and `src/shared/domain/views.ts`: card kind/source and run linkage views.\n- `src/core/commands/checkpoints.ts`: pushed context/read-model return.\n\n## Tests\n- Extend checkpoint control tests for intermediate/final sprint, explicit/desktop/auto paths, replay and transaction rollback.\n- Add generation tests proving one queued card, exact snapshot and repository bases, with no checkpoint gate.\n- Run targeted checkpoint/Kanban generation tests and `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "deep",
+            "rationale": "Checkpoint completion, idempotency and generated work must commit atomically across every advancement path."
+          },
+          "skills": [
+            "typescript",
+            "transactions",
+            "execution-workflows",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/services/checkpoints.ts",
+          "src/core/services/kanban/cards.ts",
+          "src/core/services/checkpointsLearning.test.ts",
+          "src/shared/domain/kanban.ts"
+        ],
+        "id": "tk_01m7rgrfw4xg21z2bkk9q8pm8j",
+        "key": "DM-725",
+        "optional": false,
+        "priority": "critical",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Checkpoint transition",
+            "location": "src/core/services/checkpoints.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Card insertion",
+            "location": "src/core/services/kanban/cards.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Checkpoint command context",
+            "location": "src/core/commands/checkpoints.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Generate and queue one learning card after checkpoint advance"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A learning-card packet names an isolated branch rooted at the completed sprint increment for every affected repository and carries the immutable evidence snapshot; an ordinary card packet is unchanged."
+          },
+          {
+            "id": "c2",
+            "text": "Submission is refused unless every source item has exactly one justified disposition and every proposed learning has bounded role/path applicability and evidence provenance."
+          },
+          {
+            "id": "c3",
+            "text": "Every guardrail manifest is read-only verified against its recorded repository, base, branch and commit before the card reaches Ready for review."
+          }
+        ],
+        "body": "## Context\nA generated card differs from an ordinary card: it starts from completed sprint increments, may span repositories, must disposition every evidence item, and submits proposed records plus guardrail commit manifests. Preserve ordinary card behavior byte-for-byte.\n\n## In scope\n- Learning packet fields: immutable snapshot, one base/branch/worktree instruction per affected repository, and reporting contract.\n- Deterministic safe branch names and replay-safe claims using the existing secret/lease behavior.\n- Submission schema for evidence dispositions (`learning`, `duplicate`, `not_reusable` with reason), proposed learning drafts, and per-repository base/branch/commit manifests.\n- Read-only Git verification that every named commit exists, descends from its recorded sprint base, and matches the submitted branch; no merge occurs here.\n\n## Source locations\n- `src/core/services/kanban/attempts.ts`: `packetOf`, `claimKanbanCard`, `submitKanbanCard`.\n- `src/core/services/learningBranches.ts` (new): branch plan and verification, following `src/core/services/incrementVerify.ts`.\n- `src/shared/domain/kanban.ts`, `src/core/commandSchemas.ts`: discriminated packet/submission contracts.\n\n## Tests\n- Add single/multi-repository packet tests, claim replay/lost-token behavior, complete disposition coverage and ordinary-card compatibility.\n- Add Git fixtures for wrong base, missing branch/commit, unrelated commit and valid manifests.\n- Run targeted Kanban attempt/branch verification tests and `npm run typecheck`.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "deep",
+            "rationale": "A special card spans untrusted evidence, secret claims and multiple Git repositories while preserving ordinary-card compatibility."
+          },
+          "skills": [
+            "typescript",
+            "git",
+            "security-review",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/services/learningBranches.ts",
+          "src/core/services/learningBranches.test.ts",
+          "src/core/services/kanban/attempts.ts",
+          "src/shared/domain/kanban.ts"
+        ],
+        "id": "tk_01m7rgrfw4jmsaaf5kjkn1axkm",
+        "key": "DM-726",
+        "optional": false,
+        "priority": "critical",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Kanban claim and report service",
+            "location": "src/core/services/kanban/attempts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Increment verification pattern",
+            "location": "src/core/services/incrementVerify.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Kanban packet contract",
+            "location": "src/shared/domain/kanban.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Claim learning cards with isolated branches and structured codification output"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "All repository results are prepared and conflict-checked before any target branch moves, under deterministic operation locks."
+          },
+          {
+            "id": "c2",
+            "text": "Each target update is compare-and-swap guarded and a crash after a partial multi-repository apply resumes from actual Git truth without rewriting completed repositories."
+          },
+          {
+            "id": "c3",
+            "text": "A conflict or concurrent target movement leaves the card Ready for review, preserves isolated branches, publishes no guidance and reports the exact repository/action needed."
+          }
+        ],
+        "body": "## Context\nApproval must integrate isolated guardrail branches even if the next sprint has advanced the target branch. Across several repositories there is no single Git transaction, so prepare all results first, persist a manifest, then apply with compare-and-swap and resumable truth. Never move a checked-out branch behind its worktree.\n\n## In scope\n- Main-process Git engine that locks each repository in deterministic order, validates clean/owned worktrees and prepares merge or cherry-pick results in temporary worktrees without moving targets.\n- Preflight every repository before the first target update; persist planned old/new heads and operation results.\n- Apply targets with expected-old-head checks, record each completed update, and recover after crash by reading actual refs/commits.\n- Surface conflicts as reviewable failure without publishing learning records or discarding worker branches.\n\n## Out of scope\nCore card approval and desktop UI.\n\n## Source locations\n- `src/main/git/learningIntegration.ts` (new): follow safe argument, operation-lock and conflict patterns in `src/main/git/branches.ts`, `src/main/git/operationLock.ts`, and `src/main/git/conflicts.ts`.\n- `src/shared/git/learningIntegration.ts` (new): manifest/result contracts.\n- `src/main/git/learningIntegration.test.ts`: real temporary single/multi-repository fixtures.\n\n## Tests\n- Test clean fast path, non-fast-forward preparation, merge conflict before updates, concurrent head movement, crash after one repository update, idempotent resume and checked-out worktree safety.\n- Run `npx vitest run src/main/git/learningIntegration.test.ts` and `npm run typecheck`.\n\n## Historical ten-minute stop\nAttempt at_01m7tg92agwajs21dvyzfs3cge failed: 9 tests passed, repeated multi-repository recovery timed out at unchanged 15 seconds, canonical detach workaround violates branch identity. WIP commit 83cad36f is NOT safe to merge. Required prepare-only and safe apply/recovery replacement tickets in this draft retain every original safety/proof requirement. Do not reclaim the oversized scope.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "deep",
+            "rationale": "Cross-repository Git updates cannot be atomic and need explicit crash recovery and worktree safety."
+          },
+          "skills": [
+            "typescript",
+            "git-internals",
+            "concurrency",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/git/learningIntegration.ts",
+          "src/main/git/learningIntegration.test.ts",
+          "src/shared/git/learningIntegration.ts"
+        ],
+        "id": "tk_01m7rgrfw55xn4c0693w4pkg9w",
+        "key": "DM-727",
+        "optional": true,
+        "priority": "critical",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Safe branch operations",
+            "location": "src/main/git/branches.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Git operation lock",
+            "location": "src/main/git/operationLock.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Conflict state handling",
+            "location": "src/main/git/conflicts.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Prepare recoverable guardrail integrations across repositories"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Preparation binds one submitted attempt, its proposed records and exact repository manifests to a durable operation; later card changes make it stale rather than silently rebinding."
+          },
+          {
+            "id": "c2",
+            "text": "Finalization approves the card and publishes all records in one transaction only after every repository receipt and current head verifies."
+          },
+          {
+            "id": "c3",
+            "text": "Conflict, crash, kick-back and idempotent replay paths preserve recoverable state and never affect ordinary Kanban approval semantics."
+          }
+        ],
+        "body": "## Context\nCore must bind the exact Ready-for-review attempt, proposed records and verified branch manifests to one integration operation. Publication happens only after Git proves every prepared result landed. Kick-back and ordinary-card approval retain their current behavior.\n\n## In scope\n- Human-only prepare/read/finalize commands or internal service steps with idempotency and stale-submission guards.\n- Persist the integration manifest before Git work, accept per-repository completion receipts, verify actual heads read-only, then publish learning records and mark the card Done in one final transaction.\n- Resume/abort semantics for crash, conflict and kick-back; no active records before finalization.\n\n## Source locations\n- `src/core/services/kanban/learningApproval.ts` (new): state machine beside `src/core/services/kanban/attempts.ts`.\n- `src/core/services/kanban/attempts.ts`: delegate special approval, leave ordinary path unchanged.\n- `src/core/commands/kanban.ts`, `src/core/commandSchemas.ts`, `src/shared/domain/api.ts`: desktop integration contract.\n\n## Tests\n- Add transition-table tests for prepare, stale attempt, duplicate calls, partial receipts, head mismatch, finalize, kick-back and ordinary-card regression.\n- Prove no active records exist before successful finalization.\n- Run targeted learning approval and Kanban attempt tests plus `npm run typecheck`.\n\n## Historical rejected implementation\nSource 7c339909 was reviewed but rejected for retaining local authority on imported updates to an existing operation. Required bounded authority/recovery closure in this draft owns the complete inherited state machine and targeted proof. Preserve the rejection and source; do not bypass the ten-minute boundary with another claim.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "deep",
+            "rationale": "The state machine joins human authority, Git receipts and database publication without a distributed transaction."
+          },
+          "skills": [
+            "typescript",
+            "transactions",
+            "authorization",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/services/kanban/learningApproval.ts",
+          "src/core/services/kanban/learningApproval.test.ts",
+          "src/core/services/kanban/attempts.ts",
+          "src/core/commands/kanban.ts"
+        ],
+        "id": "tk_01m7rgrfw5kzhmtq9g183271db",
+        "key": "DM-728",
+        "optional": true,
+        "priority": "critical",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Current card approval",
+            "location": "src/core/services/kanban/attempts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Kanban command adapter",
+            "location": "src/core/commands/kanban.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Typed API",
+            "location": "src/shared/domain/api.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Make learning-card approval a prepare-integrate-publish state machine"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "One human approval action drives prepare, all repository integrations and final publication, and returns the final Done card only after every step succeeds."
+          },
+          {
+            "id": "c2",
+            "text": "Closing or restarting after partial integration resumes from the durable manifest and actual Git heads; it neither starts a second operation nor republishes records."
+          },
+          {
+            "id": "c3",
+            "text": "Conflicts remain visible on the Ready-for-review card with isolated branches intact, and ordinary card approval still uses its existing path."
+          }
+        ],
+        "body": "## Context\nOnly the desktop/person can approve. Route learning cards through the core prepare step, the main-process Git integration engine and core finalization; ordinary cards keep the direct command path. A close or restart during integration must resume visibly.\n\n## In scope\n- Main-process coordinator for prepare → Git prepare/apply → receipt recording → finalize, with recovery on desktop start/open.\n- Narrow IPC/desktop API used only by the learning-card review action.\n- Clear conflict/recovery result returned to the renderer; no hidden retry loops.\n\n## Source locations\n- `src/main/kanban/approveLearningCard.ts` (new): follow orchestration/error patterns in `src/main/kanban/startKanbanCard.ts`.\n- `src/main/agents/chatHandlers.ts` or the appropriate desktop handler registration, `src/main/desktop/ipc.ts`, `src/preload/index.ts`, `src/shared/desktop/api.ts`: narrow bridge.\n- `src/main/kanban/approveLearningCard.test.ts`: injected core/Git fakes plus restart recovery.\n\n## Tests\n- Test success, prepare refusal, conflict before update, partial apply then restart/resume, stale submission, finalization failure and ordinary approval bypass.\n- Run targeted main/preload handler tests and `npm run typecheck`.\n\n## Revision 10 bounded prerequisite split\nThe required native closure and owned-operation-record interoperability ticket now establish safe apply/recover and default repo-mode clean-checkout compatibility before this coordinator starts. Consume their minimal trusted main/native binding rather than rediscovering or bypassing outbox dirt. Recovery enumerates only listLocalPendingLearningApprovals; never auto-prepare every Ready card or execute imported operations. Validate current source/registered repository bindings, never persisted engine JSON paths. Preserve original coordinator success/conflict/partial restart/stale/finalize-failure and ordinary-card bypass tests. Full actual default-mode core/native dirty-file interoperability proof belongs to the required predecessor; this ticket proves the coordinator consumes it and preserves the protocol ordering.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "deep",
+            "rationale": "Desktop orchestration must recover a partially applied multi-repository operation without bypassing human approval."
+          },
+          "skills": [
+            "typescript",
+            "electron",
+            "git",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/kanban/approveLearningCard.ts",
+          "src/main/kanban/approveLearningCard.test.ts",
+          "src/shared/desktop/api.ts",
+          "src/preload/index.ts"
+        ],
+        "id": "tk_01m7rgrfw585v9ttzffsvr9zfh",
+        "key": "DM-729",
+        "optional": false,
+        "priority": "critical",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Kanban desktop orchestration pattern",
+            "location": "src/main/kanban/startKanbanCard.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Desktop IPC registration",
+            "location": "src/main/desktop/ipc.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Preload bridge",
+            "location": "src/preload/index.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Orchestrate guardrail integration from the desktop approval action"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The review panel lets a person trace every proposed learning and guardrail commit back to its sprint evidence and see every source item's disposition."
+          },
+          {
+            "id": "c2",
+            "text": "Approval, conflict, partial recovery, kick-back, empty-snapshot and Done states state whether records and repository changes are active; ordinary cards remain unchanged."
+          },
+          {
+            "id": "c3",
+            "text": "The learning-card surface is keyboard accessible, theme-safe and demonstrated with attached screenshots from the real Electron UI."
+          }
+        ],
+        "body": "## Context\nA person approving permanent guidance needs to see the original mistakes, what the worker classified, the proposed rules, guardrail diffs/commits and any recovery/conflict state. Do not overload ordinary cards.\n\n## In scope\n- A learning-card detail treatment inside the existing Kanban panel: provenance, evidence grouped by ticket/source, every disposition, proposed record scopes, repository branch/commit status and publication state.\n- Learning approval action uses the desktop integration coordinator; kick-back explains that nothing was published.\n- Accessible loading, conflict, partial-recovery, empty-snapshot and Done states.\n\n## Source locations\n- `src/renderer/src/kanban/KanbanCardPanel.tsx`: discriminate ordinary and learning cards.\n- `src/renderer/src/kanban/LearningCardDetails.tsx` (new): focused review surface beside the panel.\n- `src/renderer/src/kanban/KanbanCardPanel.test.tsx`, new `LearningCardDetails.test.tsx`, and `src/renderer/src/kanban/kanban.css`.\n\n## Tests\n- Add component tests for complete evidence/disposition rendering, approve/kick-back, conflict/recovery, empty snapshot, ordinary-card regression and keyboard/accessible labels.\n- Run targeted renderer tests and `npm run typecheck`.\n- Visually exercise the actual Kanban panel in the Electron app for Ready-for-review and conflict states; attach screenshots to the attempt evidence.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "The UI must make authority and partial integration truth obvious without changing ordinary cards."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "css",
+            "accessibility",
+            "ui-testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/kanban/LearningCardDetails.tsx",
+          "src/renderer/src/kanban/LearningCardDetails.test.tsx",
+          "src/renderer/src/kanban/KanbanCardPanel.tsx",
+          "UI evidence screenshots"
+        ],
+        "id": "tk_01m7rgrfw5rjgn3b7vjxbfscjv",
+        "key": "DM-730",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Existing card panel",
+            "location": "src/renderer/src/kanban/KanbanCardPanel.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Kanban component tests",
+            "location": "src/renderer/src/kanban/KanbanCardPanel.test.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Kanban styles",
+            "location": "src/renderer/src/kanban/kanban.css",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Show learning evidence, dispositions and integration state on Kanban cards"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A person can inspect active and retired learnings with complete source evidence, applicability and integrated commit provenance from the folder's Knowledge area."
+          },
+          {
+            "id": "c2",
+            "text": "Retire removes a record from future selection without deleting history; replace creates a linked new version and handles stale concurrent edits explicitly."
+          },
+          {
+            "id": "c3",
+            "text": "The surface persists in folder navigation, refreshes on lifecycle events, is accessible/theme-safe and is demonstrated with real Electron screenshots."
+          }
+        ],
+        "body": "## Context\nApproved guidance can become stale. Add a human management surface beside the existing Knowledge card without turning raw Markdown facts into editable database records.\n\n## In scope\n- Folder-level Learnings view with active/retired filters, rule/prevention text, roles/events/paths, source card/sprint/ticket/attempt/check links, replacement chain and integrated commits.\n- Human retire and replace flows with explicit reason and optimistic revision handling. Replacement creates a new version and retires the predecessor; history remains visible.\n- Refresh through existing workspace events.\n\n## Source locations\n- `src/renderer/src/home/KnowledgeCard.tsx`: add the Learnings entry point.\n- `src/renderer/src/home/LearningsPanel.tsx` and `.test.tsx` (new): follow folder-resource patterns in the home modules.\n- `src/renderer/src/app/chooseView.ts`, `src/renderer/src/app/selection.ts`, `src/renderer/src/App.tsx`: route/persist the folder view.\n- `src/renderer/src/__mocks__/fakeDm.ts`: API test fixture.\n\n## Tests\n- Add component/routing tests for active/retired history, provenance links, replacement, retire, stale revision, empty/error/loading states and refresh.\n- Run targeted renderer tests and `npm run typecheck`.\n- Visually exercise active and retired/replaced records in the Electron app; attach screenshots.\n\n## Historical ten-minute stop\nOriginal attempt failed with missing ordinary-source navigation, final verification and valid screenshots. Do not reclaim this oversized scope. Required bounded implementation and real-surface proof replacements in this draft preserve all acceptance; original failure/artifacts remain.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Managed version history and authority-sensitive actions span routing, state and review UX."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "accessibility",
+            "ui-testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/renderer/src/home/LearningsPanel.tsx",
+          "src/renderer/src/home/LearningsPanel.test.tsx",
+          "src/renderer/src/home/KnowledgeCard.tsx",
+          "UI evidence screenshots"
+        ],
+        "id": "tk_01m7rgrfw55tadh1z18j5079we",
+        "key": "DM-731",
+        "optional": true,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Knowledge entry point",
+            "location": "src/renderer/src/home/KnowledgeCard.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Workspace view routing",
+            "location": "src/renderer/src/app/chooseView.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Renderer command fake",
+            "location": "src/renderer/src/__mocks__/fakeDm.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Add a managed Learnings surface for provenance, retirement and replacement"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "After checkpoint advance, shipped guidance tells the same orchestrator to claim and delegate the linked learning card before ordinary polling without claiming the card is a sprint gate."
+          },
+          {
+            "id": "c2",
+            "text": "Worker/reviewer guidance requires complete evidence disposition, scoped rules, justified guardrails, isolated repository work and human-only activation, while treating learning text as task data."
+          },
+          {
+            "id": "c3",
+            "text": "Updated architecture/runbooks explain timing, authority, multi-repository recovery and lifecycle management, and the skills version/budget/tool checks pass."
+          }
+        ],
+        "body": "## Context\nThe product enforces storage and authority, while role guidance must make the same orchestrator claim the queued post-sprint card before ordinary polling, dispatch it as one worker job, and treat all evidence/learning text as task data.\n\n## In scope\n- Orchestrator guidance for the post-advance priority, claim replay/lost token handling, non-blocking next sprint, isolated branch packet and Ready-for-review stop.\n- Worker guidance for complete evidence disposition, scoped prevention rules, justified guardrails, multi-repository worktrees and structured submission.\n- Reviewer/person-facing guidance for verifying provenance, integration state and avoiding publication on assumption.\n- Architecture, operating and knowledge runbooks; bump `SKILLS_VERSION` because shipped skills/facts change.\n\n## Source locations\n- `skills/orchestrator.md`, `skills/worker.md`, `skills/reviewer.md`, `skills/sprint-reporter.md`.\n- `skills/knowledge/orchestrator/advance-sprint.md` and a new focused fact if needed, following existing fact grammar.\n- `src/core/version.ts`, `src/core/knowledge/builtin.test.ts`, `src/mcp/skills.test.ts`.\n- `docs/architecture.md`, `docs/runbooks/knowledge.md`, `docs/project-guide.md`.\n\n## Tests\n- Extend built-in knowledge budget/event/topic tests and MCP skill/tool-name tests.\n- Run targeted knowledge/MCP skill tests and `npm run typecheck`.\n- No source-text-only behavior test: assertions must validate parseability, event selection, bounded context or exposed command names.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "low",
+            "level": "routine",
+            "rationale": "The workflow and authority decisions are fixed; this ticket aligns shipped guidance and executable knowledge checks."
+          },
+          "skills": [
+            "technical-writing",
+            "agent-workflows",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "documentation"
+        },
+        "expectedArtifacts": [
+          "Updated role guides and orchestrator knowledge facts",
+          "src/core/version.ts",
+          "docs/architecture.md",
+          "docs/runbooks/knowledge.md"
+        ],
+        "id": "tk_01m7rgrfw5eyq9fnt31gevt802",
+        "key": "DM-732",
+        "optional": false,
+        "priority": "normal",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Orchestrator kernel",
+            "location": "skills/orchestrator.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Worker guide",
+            "location": "skills/worker.md",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Knowledge runbook",
+            "location": "docs/runbooks/knowledge.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [],
+        "title": "Teach orchestrators and workers the generated learning-card workflow"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "The single-repository test proves exact rejection handoff, generated-card idempotency, approved publication, future selection and retire/replace end to end."
+          },
+          {
+            "id": "c2",
+            "text": "The two-repository test proves prepared integration, conflict refusal, partial-apply restart recovery and all-or-nothing publication semantics."
+          },
+          {
+            "id": "c3",
+            "text": "Repo/db storage and ordinary Kanban/legacy compatibility are covered, and the documented real Electron run attaches review and Learnings screenshots."
+          }
+        ],
+        "body": "## Context\nExercise the assembled contract across command, storage, Git and desktop boundaries before the acceptance node runs the full Definition of Done. This is targeted lifecycle proof, not a duplicate full-suite gate.\n\n## In scope\n- A deterministic single-repository scenario: rejected attempt → retry packet WHY → sprint advance → queued/claimed card → complete dispositions → isolated guardrail commit → Ready for review → human approval → active packet/context learning → retire/replace.\n- A deterministic two-repository scenario with a conflict and restart after one target update, proving recovery and no premature publication.\n- Repository and database storage-mode round trips, plus ordinary Kanban and legacy-run compatibility assertions.\n- A real Electron smoke of the review and management surfaces with screenshot evidence.\n\n## Source locations\n- `src/test/learningLifecycle.ts` (new fixture): follow `src/test/workspaceHarness.ts` and existing multi-repository fixtures.\n- `src/core/services/learningLifecycle.test.ts` and `src/main/kanban/learningWorkflow.test.ts` (new).\n- `docs/verification/sprint-learnings.md` (new): reproducible real-app procedure beside existing verification documents.\n\n## Tests\n- Run only the new lifecycle/desktop workflow tests and `npm run typecheck`; leave the complete Definition of Done to the acceptance node.\n- Execute the documented real Electron scenario once and attach screenshots and commit ids as evidence.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "deep",
+            "rationale": "The proof crosses authority, durable state, Git recovery, renderer and compatibility boundaries."
+          },
+          "skills": [
+            "typescript",
+            "integration-testing",
+            "electron",
+            "git"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "src/test/learningLifecycle.ts",
+          "src/core/services/learningLifecycle.test.ts",
+          "src/main/kanban/learningWorkflow.test.ts",
+          "docs/verification/sprint-learnings.md",
+          "Real-app evidence screenshots"
+        ],
+        "id": "tk_01m7rgrfw5t6bp2056xzc8teaf",
+        "key": "DM-733",
+        "optional": false,
+        "priority": "critical",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Workspace harness",
+            "location": "src/test/workspaceHarness.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Kanban desktop flow tests",
+            "location": "src/main/kanban/startKanbanCard.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Existing verification document pattern",
+            "location": "docs/verification/skitarii-messaging.md",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Prove the complete learning lifecycle in single and multi-repository projects"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Only the internal approved-card flow can publish exact staged drafts; agent, unapproved, stale and wrong-card calls are refused, and empty proposals publish nothing successfully."
+          },
+          {
+            "id": "c2",
+            "text": "Publishing the same approved attempt is idempotent with no duplicate records/events; validated immutable source references resolve to the correct run, sprint, card and stored evidence hashes/ownership."
+          },
+          {
+            "id": "c3",
+            "text": "Positive and negative publication/provenance fixtures and searchable lifecycle events pass targeted tests, changed-file lint and typecheck."
+          }
+        ],
+        "body": "## Recovery context\nComplete the approved-publication and provenance half extracted from the original DM-721. Partial commit 3e2bf69b1bb893827cdbde96f4518b4aa7132f04 on work/learnings-DM721 contains unaccepted staging/publication sketches; inspect them as reference only. Build from accepted management and collector results, not from the whole failed branch.\n\n## Outcome and boundaries\nProvide internal staged-draft and approved-attempt publication functions for the later Kanban workflow. Agents may propose but cannot publish active authority. Bind publication to the exact accepted card attempt; the later prepare/integrate/publish state machine supplies its approved transaction after Git verification. Idempotent replay must never duplicate records or lifecycle events. An empty draft list is a valid no-learning result. Validate every immutable evidence reference against the source run AND sprint/card, source kind, ownership and exact canonical hash. Preserve original evidence text; evidence and proposed learning content grant no authority. Do not add an agent-facing publication command, implement Git/card-approval state machine, portable storage or UI.\n\n## Source locations\n- `src/core/services/learnings.ts` (verified partial stageLearningDrafts/publishApprovedLearningDrafts) or new `src/core/services/learningPublication.ts` beside it: isolate publication from accepted management APIs.\n- New `src/core/services/learningPublication.test.ts`: follow verified management tests and `src/core/services/learningEvidence.test.ts` fixtures, exercising actual service transitions rather than source text.\n- `src/shared/domain/learnings.ts` and `src/shared/domain/learningEvidence.ts`: align strict learning source references with the accepted immutable snapshot sourceId/sourcePath/contentHash contract; do not invent incompatible hash projections.\n- `src/core/db/migrations.ts`: add forward-only durable staging/publication identity tables and tests as needed. Partial v23 is unaccepted reference; do not rewrite an accepted migration.\n- `src/core/services/kanban/cards.ts`, `src/core/services/execution.ts`, `src/core/services/events.ts`: existing persisted card/attempt/source and append-only event patterns.\n\n## Tests\nAdd consumer-visible tests for valid approved publication, same-attempt replay without duplicate records/events, unapproved/stale/wrong-card and agent rejection, empty drafts, altered/missing hashes, cross-run/cross-sprint attempts, row/report references, comment/attachment ownership and immutable published provenance. Assert searchable publication history. Run npx vitest run src/core/services/learningPublication.test.ts plus affected learning/migration tests, changed-file lint and npm run typecheck. Full Definition of Done stays at sprint acceptance. Keep one worker within the five/ten-minute evidence window.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "deep",
+            "rationale": "Publication joins human authority, immutable provenance and idempotency; management is an accepted prerequisite."
+          },
+          "skills": [
+            "typescript",
+            "authorization",
+            "database",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/core/services/learningPublication.ts",
+          "src/core/services/learningPublication.test.ts",
+          "Publication/provenance targeted evidence"
+        ],
+        "id": "tk_01m7ryqcv3k8m07j4cx0y86ray",
+        "key": "DM-741",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Accepted learning contract",
+            "location": "src/shared/domain/learnings.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Accepted snapshot contract",
+            "location": "src/shared/domain/learningEvidence.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Verified partial lifecycle service on isolated failed branch",
+            "location": "src/core/services/learnings.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Forward-only schema migrations",
+            "location": "src/core/db/migrations.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Complete approved learning publication and provenance validation"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Owned children are stopped and closed before workspace removal, including a failed ready barrier and an owned child with SQLite open; original contention/deduplication workload and assertions remain intact without broad kills, ignored cleanup errors or timeout/retry/skip changes."
+          },
+          {
+            "id": "c2",
+            "text": "The final complete agent-mail test file, changed-file lint and all three typecheck projects pass on the actual final corrected source; evidence distinguishes the established EPERM ownership defect from the still-unproven original timeout cause."
+          }
+        ],
+        "body": "## Split of the failed DM-780 attempt\nThe original timeout/EPERM evidence remains authoritative. Partial commit 57ef463f9fed336a4962cd1c64194ebb6e0f27d4 on work/learnings-DM780 establishes and corrects a separate ownership defect: a timed-out Vitest callback can leave its children live while afterEach removes their SQLite workspace. It is NOT accepted or integration-ready: final complete targeted checks were not run after the last fixture/helper corrections. Extract only the scoped correction into a new worker worktree; do not merge the failed branch wholesale.\n\n## Outcome and boundaries\nFinish the known child-ownership correction and complete its verification. Await every owned child's close before deleting its workspace; abort surviving barrier peers when readiness fails instead of starting their work. Keep the original three-process contention workload, gap-free sequence and sender-scoped deduplication assertions. Preserve bounded cleanup, no broad process kills, no ignored EPERM, no timeout/retry/skip/config changes. The separate required latency ticket owns diagnosis/correction of the original timeout; this ticket must not claim that a cleanup fix explains that unrecorded latency.\n\n## Source locations\n- src/core/commands/agentMail.test.ts: original afterEach, WaitingProcess/waitingProcess and inProcesses; inspected partial commit adds ownedChildren, stop/close lifecycle and two cleanup regressions.\n- src/test/workspaceHarness.ts: cleanup remains reference-only unless a necessary ownership issue is demonstrated; do not add filesystem removal retries.\n\n## Tests\nThe original complete targeted run had 15 passed/1 newly added fixture failure from a missing required label; the label was corrected and two cleanup regressions then passed, but final complete verification is still required. After inspecting/extracting the corrected scoped source, run the complete npx vitest run src/core/commands/agentMail.test.ts, changed-file lint and all three TypeScript projects once on that final state. Keep deterministic real-child database-close and failed-barrier survivor cleanup coverage, and all original mail assertions. No full gate/coverage/build/grading. Finish within the ordinary five-/ten-minute evidence boundary.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": 10
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "The original full-run failure is established; isolate its actual fixture lifecycle or scheduling cause without changing acceptance limits."
+          },
+          "skills": [
+            "typescript",
+            "testing",
+            "concurrency"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Owned-child cleanup correction",
+          "Final complete targeted agent-mail, lint and typecheck evidence"
+        ],
+        "id": "tk_01m7t5dtwthjbj0ckam8xhx58z",
+        "key": "DM-780",
+        "optional": false,
+        "priority": "critical",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Concurrent mailbox fixture and child barrier",
+            "location": "src/core/commands/agentMail.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Workspace cleanup ownership",
+            "location": "src/test/workspaceHarness.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Existing suite resource grouping",
+            "location": "vitest.config.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Finish mailbox child ownership and final verification"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Measured fixture/clock/settlement evidence identifies the original long-idle timeout cause; the correction preserves ten simulated days, 240 hourly grant renewals, no idle termination/revocation and production folder-safety behavior."
+          },
+          {
+            "id": "c2",
+            "text": "The corrected lifecycle and directly affected regression tests, changed-file lint and typecheck pass without timeout/retry/skip changes, reduced assertions or artificial sleeps."
+          }
+        ],
+        "body": "## Observed failure and evidence\nDM-719 original combined npm test timed out at src/main/terminals/terminalSessions.lifecycle.test.ts:216 (configured 15000ms). Original log: file:///C:/Users/davgo/AppData/Local/Temp/DM719-acceptance-20261119/test.log lines 2534-2551. Treat it as established red evidence; do not rerun the unchanged test for a flake. No root cause has been proven.\n\n## Bounded outcome\nTrace and correct the fixture/clock/settlement cost causing the ten-day idle scenario to time out, while preserving all 240 hourly renewals, no idle PTY kill/revoke, and no-output/no-input semantics. Verified code schedules per-minute folder validation as well as hourly renewal; advancing ten days executes 14,400 minute checks. That is an investigation lead, not a proven cause. Prefer a deterministic faithful fixture over real-time waits where the existing injection boundary supports it. Do not weaken production renewal/folder safety, compress simulated duration or expected renewal count, raise timeouts, add retries/skips, or introduce fixed sleeps to make a pass. If no cause is established within the ten-minute attempt, stop with a precise gap.\n\n## Source locations\n- src/main/terminals/terminalSessions.lifecycle.test.ts: long-idle fixture (216-230), renewal-stop/restart cases (232-251), before/after rig lifecycle (23-31): preserve observable assertions.\n- src/main/terminals/__mocks__/terminalSessionsRig.ts: FakeClock.advance (57-73), rigGrants (243-277), rigDeps, terminalRig and settle (373-375): verified fixture investigation/fix entry points.\n- src/main/terminals/terminalSessions.ts: watchLive (563-570) schedules folder validation and renewal; production behavior is a reference, not permission for unrelated changes.\n\n## Tests\nAfter a causal correction, run npx vitest run src/main/terminals/terminalSessions.lifecycle.test.ts once, any directly affected fixture regression tests, changed-file lint and npm run typecheck. Existing 240-renewal/no-idle-stop assertions are the regression; add a deterministic consumer-visible edge only where the correction exposes an uncovered path. Report measured cause and final targeted results. No full gate or grading here; acceptance verifies the combined work.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": 10
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "The original full-run failure is established; isolate its actual fixture lifecycle or scheduling cause without changing acceptance limits."
+          },
+          "skills": [
+            "typescript",
+            "testing",
+            "concurrency"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Causal timeout explanation",
+          "Scoped deterministic fixture correction",
+          "Targeted lifecycle checks"
+        ],
+        "id": "tk_01m7t5dtzrmzfyy3fabkm4ct9h",
+        "key": "DM-781",
+        "optional": false,
+        "priority": "critical",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Failed long-idle scenario",
+            "location": "src/main/terminals/terminalSessions.lifecycle.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Fake clock and terminal rig",
+            "location": "src/main/terminals/__mocks__/terminalSessionsRig.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Live folder/renewal watches",
+            "location": "src/main/terminals/terminalSessions.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Correct ten-day idle PTY renewal fixture timeout"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Finite phase/cost observations distinguish startup/barrier/send/close work and establish a specific current latency mechanism; the original unrecorded phase remains honestly unknown, and neither an isolated pass nor negative fsync evidence is misrepresented as proof."
+          },
+          {
+            "id": "c2",
+            "text": "An evidence-backed narrow correction addresses that mechanism while preserving original three-process contention, workload and assertions, without timeout/retry/skip changes or speculative scheduling; final targeted mail checks, lint and typecheck pass."
+          }
+        ],
+        "body": "## Required feasibility input\nDo not dispatch this implementation ticket until the controlled startup/import investigation returns accepted GO evidence identifying a pathological mechanism. A NO-GO result blocks this prerequisite even if graph readiness alone would allow a claim. Do not repeat uncontrolled phase probes or choose a speculative correction.\n\n## Established evidence and missing fact\nDM-719 original full npm test timed out at src/core/commands/agentMail.test.ts:460 and cleanup then failed EPERM. DM-780 isolated a real ownership bug but did NOT explain the original timeout. Its bounded single-call probe measured openWorkspace 24.7075ms/send 3.2719ms with zero fsync calls; that rejects only the sampled fsync hypothesis. The original log contains no child startup/ready/send/close phase timing. Do not invent those historical timings or regard a passing isolated test as a causal explanation.\n\n## Bounded outcome\nOn the accepted ownership-safe fixture, obtain discriminating phase/cost evidence and identify/correct the actual contention-latency mechanism before another acceptance gate. Use the smallest finite throwaway observational probe needed to distinguish cold module/child startup, readiness barrier, the full original send workload and child close. This is investigation output, not an unchanged regression-test rerun for confirmation. Preserve exact probe setup/output and clean up only owned processes/resources. A current mechanism may be established experimentally, but the old run's unrecorded phase remains explicitly unknown. If no mechanism is established within ten minutes, stop with NO-GO and precise remaining evidence, not an assumed cause or speculative change.\n\nOnly after evidence supports a mechanism, apply the narrow fixture/ownership or justified resource-scheduling correction. A resource-grouping change requires measured contention evidence and must preserve real three-process concurrency within the test. Do not raise timeouts, add retries/skips, reduce workload/assertions, suppress errors or broadly kill Node processes. No production refactor or full suite is authorized here. The original failed gate remains failed; acceptance must later run the causally corrected combined source under its saved automation-only allowance.\n\n## Source locations\n- src/core/commands/agentMail.test.ts: waitingProcess, script and inProcesses are verified child startup/barrier/send/close entry points; retain the accepted cleanup correction and existing concurrency fixture.\n- src/test/workspaceHarness.ts: open/cleanup lifecycle is an investigation reference.\n- vitest.config.ts: current process-heavy grouping policy is reference-only until measured evidence justifies a narrowly scoped change.\n- Original evidence: file:///C:/Users/davgo/AppData/Local/Temp/DM719-acceptance-20261119/test.log lines 2508-2530; failed partial evidence at file:///C:/Users/davgo/AppData/Local/Temp/DM780-partial-evidence.json.\n\n## Tests\nUse the original failure as red evidence; do not rerun the unchanged test merely to confirm it. After an evidence-backed causal correction, run npx vitest run src/core/commands/agentMail.test.ts, changed-file lint and all three typecheck projects once. Existing real contention assertions are the regression; add a deterministic behavioral edge only if the fix exposes an uncovered path. No full suite/coverage/build/Fireguard grading. Return phase evidence, causal reasoning with stated limits, exact diff and targeted checks. Ordinary five-minute checkpoint/ten-minute stop apply.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": 10
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "The original full-run failure is established; isolate its actual fixture lifecycle or scheduling cause without changing acceptance limits."
+          },
+          "skills": [
+            "typescript",
+            "testing",
+            "concurrency"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Discriminating bounded phase/cost evidence and causal decision",
+          "Scoped evidence-backed latency correction",
+          "Targeted verification results with original failure retained"
+        ],
+        "id": "tk_01m7t6bby6qyjcezpcrs6znmrc",
+        "key": "DM-783",
+        "optional": true,
+        "priority": "critical",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Child protocol and contention fixture",
+            "location": "src/core/commands/agentMail.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Workspace lifecycle reference",
+            "location": "src/test/workspaceHarness.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Resource grouping reference",
+            "location": "vitest.config.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Measure and correct mailbox contention latency"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A fixed finite probe preserves the real original contention workload and records phase data with explicit supported cache/resource controls, or documents precisely why comparable controlled conditions are unavailable; no uncontrolled samples are presented as causal contrasts."
+          },
+          {
+            "id": "c2",
+            "text": "The evidence produces an explicit GO only for a localized pathological mechanism, otherwise NO-GO with the next prerequisite; all owned resources are safely settled, external processes/caches and repository source/config remain unchanged, and historical missing timing stays unknown."
+          }
+        ],
+        "body": "## Why this prerequisite is separate\nDM-783 returned NO-GO with no code/config changes. Its fixed real workload completed 77 gap-free rows, all 78 send calls and all owned-child closes; measured spawn-to-close was 2.25-2.28s per child and cleanup 7.3452ms. An earlier static-import probe hit a 40s outer deadline before output, but a later dynamic-import probe changed entry shape and cache/load were uncontrolled. Those samples are not a valid causal contrast. Original full-suite child phase timings remain unknown.\n\n## Bounded decision, not implementation\nRun one controlled observational experiment that can localize pathological startup/import cost before DM-783 selects any correction. Reuse the exact phase-instrumented probe as a fixed shape: entry before dynamic imports, same source/ref/runtime/dependency versions, same three-process ready barrier, same original 26-send-per-child workload and sender deduplication, owned close-before-cleanup. Capture parent entry/import, fixture setup, child entry/import/ready/barrier/full workload/close and cleanup phases.\n\nFirst derive supported loader/cache controls from the installed Node/tsx implementation or documentation; never invent a flag. Use only probe-owned isolated cache/temp paths when supported. Do not clear/change a person's or another agent's global cache, change repository test settings or install dependencies. Define cold/warm conditions before invocation and execute at most one paired cold/warm observation with the same import/probe form. Observe external test/resource activity consistently; never stop, kill or modify unrelated processes. If conditions cannot be controlled/comparable, report that exact prerequisite as NO-GO rather than attributing the old stall to cache/load.\n\nRetain the original finite phase/resource deadlines from the verified phase-probe source (20s import/owned-child bounds, 45s outer invocation); do not grow a timeout after a failure. The whole investigation fits the ordinary ten-minute window, with a five-minute evidence checkpoint. No uncontrolled repeated probes, synthetic heavy load or full test/coverage runs. Stop after the paired observation or sooner if controls are unavailable. Only a genuinely localized pathological mechanism with controlled supporting evidence is GO. Normal timings or unavailable controls are NO-GO, not proof of repair. A conclusive NO-GO is a valid investigation result but blocks DM-783 dispatch and sprint advancement; it does not authorize implementation or weaken acceptance.\n\n## Source locations and evidence\n- file:///C:/Users/davgo/AppData/Local/Temp/DM783-phase-probe-2.mjs: verified fixed dynamic-import phase probe to inspect and control; copy only into a probe-owned temporary area.\n- file:///C:/Users/davgo/AppData/Local/Temp/DM783-phase-output-2.txt and DM783-evidence.json: exact prior observations and declared limitations.\n- src/core/commands/agentMail.test.ts: accepted ownership-safe waitingProcess/inProcesses/script and contention semantics that the probe must preserve.\n- src/test/workspaceHarness.ts: real temporary workspace setup/cleanup reference.\n- package.json: installed tsx/Node-related dependency contract; inspect installed supported controls before use.\n\n## Tests\nNone: this is a read-only repository investigation with finite observational child-process proof, not a source correction. Do not rerun the unchanged regression to confirm its old failure, and do not run lint/typecheck/full gate when no repository source changes. Return exact probe source/output, controlled-condition manifest, cleanup evidence and an explicit GO/NO-GO decision with unresolved limits. No repository implementation, permanent docs or configuration edits.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": 10
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Use a fixed finite phase probe and explicit loader/cache/resource controls to produce a GO/NO-GO decision without speculative changes."
+          },
+          "skills": [
+            "typescript",
+            "testing",
+            "concurrency"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell"
+          ],
+          "workType": "investigation"
+        },
+        "expectedArtifacts": [
+          "Controlled-condition manifest and exact finite probe source/output",
+          "Owned-resource cleanup observations",
+          "Explicit GO/NO-GO decision and remaining prerequisites"
+        ],
+        "id": "tk_01m7t8dftp56xsggmfy942m5qb",
+        "key": "DM-791",
+        "optional": false,
+        "priority": "critical",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Fixed phase probe source",
+            "location": "file:///C:/Users/davgo/AppData/Local/Temp/DM783-phase-probe-2.mjs",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Prior exact NO-GO evidence",
+            "location": "file:///C:/Users/davgo/AppData/Local/Temp/DM783-evidence.json",
+            "remoteOnly": true
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Accepted child protocol and contention semantics",
+            "location": "src/core/commands/agentMail.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Temporary workspace lifecycle",
+            "location": "src/test/workspaceHarness.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Installed dependency contract",
+            "location": "package.json",
+            "remoteOnly": false
+          }
+        ],
+        "size": "medium",
+        "tags": [],
+        "title": "Establish controlled mailbox startup and import evidence"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Actual Vitest discovery places the real mailbox test file exactly once in the existing bounded process-heavy lane and not in the ordinary unit pool; group ordering, limits and all original workload/assertions remain unchanged."
+          },
+          {
+            "id": "c2",
+            "text": "The complete existing mailbox behavioral test file, changed-file lint and all three TypeScript projects pass once on the changed configuration; evidence explicitly does not claim an original-timeout root cause or a DM-791 GO."
+          }
+        ],
+        "body": "## Concrete recovery decision\nThe person explicitly rejected stopping at the diagnostic NO-GO and authorized getting the run working. This ticket fixes a verified resource-classification mismatch, not an invented historical root cause. DM-791 remains a valid NO-GO for the old demand to localize a pathological stall; its exact observations and all original failures remain unchanged. No more normal cold/warm probes are required or authorized here.\n\n## Evidence and selected correction\n`src/core/commands/agentMail.test.ts` spawns real Node processes with `--import tsx`, loads the real application workspace and coordinates the original three-process contention workload. Its own tests exercise ten-plus real child starts across cleanup, send, poll and revocation scenarios. The accepted fixed probe records child imports around 3.27-3.29s with an initially empty isolated transform cache, versus 0.466-0.478s warm; this establishes nontrivial loader/process cost, not the cause of the old timeout. The original failure occurred only in the combined unit run, not in the subsequently corrected isolated fixture.\n\n`vitest.config.ts` currently puts this file in the ordinary full-parallel unit pool. The same file already separates expensive process-spawning tests into a bounded group after unit work, explicitly to avoid Windows resource contention. Use that existing scheduling convention for this real multi-process fixture. Do not claim the old timeout has been causally reconstructed. Correctness will be decided by the unchanged complete suite on the changed scheduling configuration.\n\n## Scope / source ownership\n- `vitest.config.ts`: include `src/core/commands/agentMail.test.ts` in the existing bounded process-heavy include/exclude set so it runs exactly once, outside the ordinary unit group, with the existing half-CPU / VITEST_MAX_WORKERS bound and group order. Generalize only the local constant/comment vocabulary if necessary. Preserve established project labels/callers unless a rename is demonstrably required; no new scheduling abstraction.\n- `src/core/commands/agentMail.test.ts`: reference-only. Preserve all accepted child ownership/close-before-cleanup fixes, original three concurrent children, 26 sends per child, 77 gap-free rows, sender-scoped deduplication, polling/revocation assertions and cleanup regressions. No workload reduction, fake process/SQLite, serialized sends, retries, skips or larger timeout.\n- `src/main/terminals/terminalSessions.lifecycle.test.ts`: reference-only; preserve accepted DM-781 ten-day fixture with all 14,400 validations / 240 renewals and disappearance safety.\n- Fixed evidence: TEMP/DM791-ControlledMailboxProbe/control-manifest.json, cold.stdout.txt, warm.stdout.txt. Read them as limited timing evidence, never as a GO or historical causal proof.\n\n## Tests\nNo new source-text/config-wiring unit tests. Existing behavioral mailbox tests are the regression contract. Inspect actual Vitest test discovery to prove the file is selected exactly once in the bounded group and excluded from ordinary unit selection; run the existing complete mailbox test file once on the changed configuration. Run changed-file lint and all three TypeScript projects. Leave full tests, coverage, deadcode and build to DM-719; no Fireguard grading is added. No unchanged failed test/full-suite rerun for green, no timeout/retry/threshold changes. One worker in its own worktree from the accepted sprint integration branch; five-minute proof checkpoint and ten-minute implementation stop.\n\n## Acceptance handoff\nReturn the exact small diff, discovery/targeted-check output and honest limitations. This is a resource-policy correction; no specific pathological latency mechanism or historical phase is claimed. DM-719 then runs its existing prospective 20-minute automation-only gate once on the changed combined source. Any failure remains a failure; no blind retry or approval bypass.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": 10
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Apply an existing process-heavy scheduling policy without changing mailbox concurrency, discovery cardinality or verification limits."
+          },
+          "skills": [
+            "typescript",
+            "testing",
+            "concurrency"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Scoped Vitest resource-classification diff",
+          "Actual test discovery and complete mailbox/lint/typecheck results",
+          "Unchanged concurrency/limits and historical-evidence statement"
+        ],
+        "id": "tk_01m7tacxrc97bqteknsmwm7z6g",
+        "key": "DM-792",
+        "optional": true,
+        "priority": "critical",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Existing bounded resource grouping",
+            "location": "vitest.config.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Real mailbox child protocol and behavior",
+            "location": "src/core/commands/agentMail.test.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Accepted idle fixture regression",
+            "location": "src/main/terminals/terminalSessions.lifecycle.test.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [],
+        "title": "Run real mailbox process fixtures in the bounded verification lane"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Active/retired Learnings preserve complete applicability, immutable source/commit provenance and replacement chain; ordinary and generated source links resolve from authoritative source data."
+          },
+          {
+            "id": "c2",
+            "text": "Retire/replace preserve immutable fields/history, require reason/current revision, refresh correctly and retain explicit stale-draft handling with passing consumer tests."
+          },
+          {
+            "id": "c3",
+            "text": "Persisted folder routing and loading/error/empty/event refresh paths pass targeted tests, final lint/typechecks pass, and a real isolated Electron smoke reaches populated Learnings."
+          }
+        ],
+        "body": "## Outcome and prior evidence\nFinish only the bounded implementation remainder from failed DM-731; no redesign. Preserve its commits 322e4e4fedd573c8966e8b72b5b85340ad6f69e7 and 7fcfffd49110b888e74a1f2883b500cea15b503a in work/learnings-DM731, merged with accepted integration. The original ten-minute failure remains historical and optional; this new scoped ticket is not an unapproved retry of that oversized attempt.\n\n## Scope\n- Fix ordinary-source run/sprint/ticket/attempt/check navigation without requiring generation metadata. Resolve authoritative run/source data; never infer epic identity from current selection or fabricate targets.\n- Complete persisted Selection.learnings/chooseView/home entry wiring, loading/error/empty and lifecycle workspace-event refresh paths. Preserve optimistic revision/reason and stale draft handling in retire/replace.\n- Remove only this work's unrelated existing-file EOL churn, preserving semantic edits and all source provenance. No restyling, new framework, backend schema or Git approval changes.\n- Reuse the existing isolated real-app setup in system TEMP/dm731-proof (seed.ts, app.cjs, launch.cjs, proof.cjs). Its first screenshot was Source control, not Learnings: fix actual navigation, do not relabel it. No real profiles/auth/agents or renderer API mocks.\n\n## Tests\nComplete targeted component/routing coverage for ordinary/generated provenance links, persisted route, loading/error/empty, refresh, retire/replace and stale revision; existing 88 targeted and 8 panel tests are prior evidence, not proof after edits. Run changed-file lint and all three typechecks after final correction. Perform a real isolated Electron navigation smoke reaching the populated Learnings panel. The complete visual/action matrix and required attachments are the separate dependent proof ticket; do not duplicate a full sweep.\n\n## Boundary\nOne bounded 5-10 minute implementation/targeted-verification outcome. At five minutes identify exact proof/gaps; stop at ten if unfinished. No restart under a fresh claim to bypass the stop. No production build, full suite, new harness or source-string tests.\n\nAfter the required approval closure is accepted, use actual LearningView.integration / approved Card.summary.integration {operationId,targets:[{repository,oldHead,newHead}]} for applied provenance. Replacement versions retain original source.cardId; source-card integration remains authoritative even when a successor has no own publication event. Do not invent mutable record provenance.\n",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Managed version history and authority-sensitive actions span routing, state and review UX."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "accessibility",
+            "ui-testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "LearningsPanel implementation and targeted tests",
+          "Persisted folder navigation and ordinary provenance links",
+          "Real Electron populated navigation smoke"
+        ],
+        "id": "tk_01m7tgr3vktdd6kqzfh9s7z2pc",
+        "key": "DM-798",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Knowledge entry point",
+            "location": "src/renderer/src/home/KnowledgeCard.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Workspace view routing",
+            "location": "src/renderer/src/app/chooseView.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Renderer command fake",
+            "location": "src/renderer/src/__mocks__/fakeDm.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "learnings",
+          "ui",
+          "bounded-remainder"
+        ],
+        "title": "Finish preserved Learnings routing, provenance and lifecycle behavior"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Real Electron inspection demonstrates active/retired/replaced records, source evidence/navigation, applicability, chain and approved/integrated commit provenance with attached useful screenshots."
+          },
+          {
+            "id": "c2",
+            "text": "Actual retire, replace and stale-revision interactions show correct backend-visible lifecycle/history and explicit refresh/retry without fake renderer APIs."
+          },
+          {
+            "id": "c3",
+            "text": "Persisted navigation and event refresh, accessible/theme-safe useful layout and clean isolated app exit are observed and recorded; screenshot IDs are attached to the submission."
+          }
+        ],
+        "body": "## Outcome\nProve the complete managed Learnings surface in the actual source Electron app after its implementation and desktop integration prerequisites are accepted. This required ticket owns the visual/action evidence formerly in DM-731; no acceptance is waived and the feature remains one sprint with one final checkpoint.\n\n## Scope\nUse the existing isolated TEMP/dm731-proof bootstrap/seed/proof recipe, updating only throwaway proof inputs as required. Reuse accepted source, real persisted data and actual IPC. Do not mock window.dm, use a real profile, export credentials, launch agents/chats or operate the real epic checkpoint. No production source implementation or new permanent test infrastructure in this ticket.\n\n## Verification and evidence\n- Open from folder Knowledge, inspect active and retired/replaced records, applicability, immutable evidence selectors/hashes, ordinary/generated source run/sprint/card/ticket/attempt/check links, replacement chain and approved/integrated source commits.\n- Exercise real retire and replace with explicit reason/revision; verify active selection disappears and history/linked successor remains. Exercise stale revision feedback without losing the edited draft, then explicit refresh/retry. Check persisted navigation/reopen and workspace-event refresh.\n- Assess actual accessible labels/focus, usable layout and existing theme tokens. Capture useful populated and lifecycle-result PNG/JPEG images, read them yourself, attach with add_attachment purpose evidence and list returned IDs plus filenames per criterion. A path or Source control screenshot does not count.\n- Record exact scenario outcomes, current source commit, isolation and clean exit. Carry accepted targeted tests by named ticket; do not rerun full suites or Fireguard grading here. If a production defect appears, stop and report the precise bounded implementation prerequisite; never patch unseen scope or claim a screenshot proves unexecuted behavior.\n\n## Boundary\nOne bounded 5-10 minute verification outcome with known existing runtime/fixture. No endless diagnostics, timeout growth, retries/skips or weak acceptance. Full assembled lifecycle and Definition of Done remain DM-733/DM-719.\n",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text",
+            "images"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "multi_step",
+            "rationale": "Bounded actual-app action and screenshot evidence using an existing isolated runtime/fixture, without implementation or a new harness."
+          },
+          "skills": [
+            "typescript",
+            "react",
+            "accessibility",
+            "ui-testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "testing"
+        },
+        "expectedArtifacts": [
+          "Attached real Electron Learnings screenshots",
+          "Actual lifecycle/navigation/refresh scenario evidence"
+        ],
+        "id": "tk_01m7tgr3xc08adnfqejj2s7b48",
+        "key": "DM-799",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Knowledge entry point",
+            "location": "src/renderer/src/home/KnowledgeCard.tsx",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Workspace view routing",
+            "location": "src/renderer/src/app/chooseView.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Renderer command fake",
+            "location": "src/renderer/src/__mocks__/fakeDm.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "learnings",
+          "ui",
+          "evidence"
+        ],
+        "title": "Verify the real Learnings management workflow and attach evidence"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Safe typed single/multi-repository preparation preserves completed/source bases and prepares all FF/nonFF/no-change results under deterministic locks before any canonical update."
+          },
+          {
+            "id": "c2",
+            "text": "Conflicts, unsafe paths and worktree ownership errors preserve canonical branch identity, target refs/index/worktrees and isolated worker branches, with precise errors."
+          },
+          {
+            "id": "c3",
+            "text": "Preparation consumer tests, changed-file lint and final typechecks pass; unsafe detach/apply exports are absent and complete application/recovery remains an explicit required dependency."
+          }
+        ],
+        "body": "## Outcome\nSalvage only the safe, independently bounded preparation phase from failed DM-727. Original attempt at_01m7tg92agwajs21dvyzfs3cge and timed-out recovery remain historical; do not reclaim the oversized ticket. Preserved WIP: work/learnings-DM727, commit 83cad36f15443aff303719b4fcf5f9bca19e3e8d, three assigned files. Never merge its detach/apply implementation.\n\n## Scope\nExtract/reuse typed prepareLearningIntegration, PreparedLearningIntegration/Target contracts and deterministic operation locking/canonical path guards. Prepare every repository result in owned isolated worktrees/refs before any canonical target update; handle FF/nonFF/no-change and collect conflicts. Preserve exact oldHead/newHead, source/worker commit binding and reachable prepared result objects for later restart. No canonical HEAD/branch switch, target ref write, source branch deletion, publication or placeholder apply/recover API in this phase. Remove unsafe detach/reattach code from the accepted phase rather than leaving dormant dangerous exports. Final apply/recover is a separate required dependent ticket in the same sprint.\n\n## Tests\nUse existing real Git fixtures for single/multi preparation, nonFF, conflict-before-any-update, safe paths/locks and unchanged canonical branch/index/worktree. Run only preparation consumer cases plus changed-file lint and all three final typechecks. The original crash/repeated-recovery test is explicitly relocated, NOT waived, to the apply ticket under its unchanged 15-second bound. No timeout growth or new test infrastructure.\n\n## Boundary\nA bounded 5-10 minute extraction/verification of already implemented prepare logic. Stop at ten if incomplete; no fresh claim to reset unfinished work.\n",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "deep",
+            "rationale": "Bounded extraction and proof of already implemented safe prepare-only logic; no canonical Git writer."
+          },
+          "skills": [
+            "typescript",
+            "git-internals",
+            "concurrency",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "src/main/git/learningIntegration.ts",
+          "src/shared/git/learningIntegration.ts",
+          "Preparation-only real Git consumer evidence"
+        ],
+        "id": "tk_01m7thpe033bxc6g35qsafh92n",
+        "key": "DM-800",
+        "optional": false,
+        "priority": "high",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Safe branch operations",
+            "location": "src/main/git/branches.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Git operation lock",
+            "location": "src/main/git/operationLock.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Conflict state handling",
+            "location": "src/main/git/conflicts.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "learnings",
+          "git",
+          "bounded-remainder"
+        ],
+        "title": "Extract and verify safe prepare-only guardrail integration"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "All prepared results are durably persisted before exact expected-old target updates, while checked-out canonical worktrees retain branch identity and consistent safe index/worktree state."
+          },
+          {
+            "id": "c2",
+            "text": "Deterministic concurrent movement and partial multi-repo/intermediate crashes preserve foreign/dirty work and recover from actual Git truth with idempotent exact receipt replay."
+          },
+          {
+            "id": "c3",
+            "text": "Original real crash/repeated-recovery scenario passes unchanged 15000ms bound after causal engine correction, with no retries/skips/workload weakening; targeted suite/lint/typechecks pass."
+          }
+        ],
+        "body": "## Outcome\nFinish only canonical application and recovery on the accepted safe preparation phase. This is the required replacement for failed DM-727 c2; all original safety and recovery behavior remains required before coordinator integration.\n\n## Scope\nImplement applyLearningIntegration/recoverLearningIntegration with deterministic locks, persistPrepared(plan) awaited before the FIRST canonical change, and onApplied({repository,oldHead,newHead}) awaited after each completed or recovered target. Exact expected-old CAS must hold even if another Git process moves the target between preflight and update. Checked-out canonical/coordinating worktrees must retain HEAD branch identity throughout: NO git switch/checkout --detach workaround, no ref move behind index/worktree, no reset/force checkout. Use an invariant-preserving held-ref/worktree transaction or equivalently proven existing primitive; owned temporary preparation worktrees may detach.\n\nRecover from actual refs and owned transition state, never rewrite completed targets, preserve worker branches and foreign/dirty work. A crash after one repository applies resumes the remainder idempotently; lost receipt response replays exact tuple without duplicate Git changes. Unprovable partial worktree state must fail visibly with exact safe action rather than clobbering user files or claiming Done. No hidden retries or global Git atomicity claim.\n\n## Tests and causal latency correction\nRestore and pass the ORIGINAL real multi-repository crash/repeated-recovery scenario under its unchanged 15000ms bound; failed original evidence remains. Diagnose/fix redundant immutable Git computations within the actual engine path, not the timeout, scenario workload, assertions, scheduling or retries. Retain required mutable ref/worktree truth checks. Add deterministic concurrent head movement at the checked-out transition, mid-transition crash/dirty-state safety, receipt replay and idempotent resume. Run the complete focused native integration file plus changed-file lint and all three typechecks after final edits. No new probe/harness, broad-suite reruns, skipped cases or fixture weakening.\n\n## Boundary\nOne bounded 5-10 minute production-correction outcome on accepted preparation. At five minutes report exact observed evidence/gaps; stop at ten and propose a precise remaining prerequisite if not complete. Main coordinator depends on this result; no unsafe partial engine integration.\n\n\n## Revision 10 disposition\nHistorical failed WIP 7db51a78224a95446f0fe236301580371dc612b6; 15/16 focused cases passed, exact-restoration recovery remains failed. Do not claim/retry or integrate alone. Required bounded native closure replaces this execution; original invariants and proof remain mandatory.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "deep",
+            "rationale": "One focused safety-critical checked-out expected-old CAS/recovery correction on accepted preparation, with unchanged real failure scenario."
+          },
+          "skills": [
+            "typescript",
+            "git-internals",
+            "concurrency",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Safe native apply/recover engine and contracts",
+          "Original and deterministic-race real Git consumer proof"
+        ],
+        "id": "tk_01m7thpe1hm9t1esg39a5g9e23",
+        "key": "DM-801",
+        "optional": true,
+        "priority": "critical",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Safe branch operations",
+            "location": "src/main/git/branches.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Git operation lock",
+            "location": "src/main/git/operationLock.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Conflict state handling",
+            "location": "src/main/git/conflicts.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "learnings",
+          "git",
+          "recovery"
+        ],
+        "title": "Complete invariant-preserving canonical CAS and integration recovery"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Changed imported updates to existing local operations invalidate execution authority while immutable manifest/prepared/receipt-prefix and unchanged-own-export behavior remain correct."
+          },
+          {
+            "id": "c2",
+            "text": "Imported pending operations never auto-execute; explicit human re-preparation binds a new locally validated operation, and startup enumeration exposes only locally authorized pending operations."
+          },
+          {
+            "id": "c3",
+            "text": "Complete inherited exact-attempt/receipt/head/atomic publication/provenance behavior and ordinary semantics pass targeted authority/import/approval/permission tests, lint and final typechecks."
+          }
+        ],
+        "body": "## Outcome and preserved source\nFinish the narrow import/recovery authority gap in reviewed DM-728 WIP, without rewriting its implemented state machine. Preserve work/learnings-DM728 commit 7c33990900aacfb4b9cb0a4d6059b9af25edf183 (18 owned files); c1/c2 source and 216 targeted/11 permission tests were positively reviewed, but c3 was rejected. No success is implied by inherited tests.\n\n## Exact defect and correction\nlearningImport.applyIntegration ON CONFLICT imports prepared/receipt/progress data while retaining an existing local owner_machine_id. Thus an externally re-sealed update to a previously local pending operation still passes current() local authority. Invalidate local execution authority for CHANGED imported operations too, not only inserts. Unchanged own exported hashes already skip import and may retain authority. Preserve immutable operation/card/attempt/manifest, prepared plan and receipt-prefix checks.\n\nAn inert imported pending operation must never auto-resume. An explicit HUMAN prepare action may create a NEW locally owned operation only after current source/submission/staging/repository/Git validation, preserving/superseding the inert old operation as terminal evidence. Do not silently rebind or grant authority to imported paths/receipts. Keep ordinary/local prepare replay and applied finalize replay unchanged. Add a narrow typed read-only local-pending-operation enumeration for desktop startup/open recovery, filtered by current machine authority, rather than a second main-process registry or auto-prepare on every Ready-for-review card.\n\n## Tests\nRegression first: export a locally owned pending operation, import a changed same-identity prepared/receipt/progress record and prove execution becomes inert; preserve unchanged-own-export behavior. Test explicit human fresh re-preparation versus refused agent/automatic imported replay, local-only recovery enumeration, ordinary/local idempotence and exact source binding. Run affected approval/portable/import/permission tests plus changed-file lint and all three typechecks on complete inherited source. No full sweep, no new generic framework or permission bypass.\n\n## Boundary and provenance\nOne bounded 5-10 minute correction on existing implementation. Keep V26 nullable prepared/receipts and immutable reviewed manifest; no machine authority in portable files. Preserve LearningView.integration and Card.summary.integration/verified guardrail commits for UI. Do not change main Git writer or renderer. Stop at ten if unfinished; do not reset via another claim.\n",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "deep",
+            "rationale": "One identified imported local-authority inheritance defect plus explicit human recovery boundary in implemented core state machine."
+          },
+          "skills": [
+            "typescript",
+            "transactions",
+            "authorization",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Complete core learning approval state machine and typed recovery boundary",
+          "Imported authority and explicit human re-preparation consumer tests"
+        ],
+        "id": "tk_01m7thpe1hh4pgba6yw3jjzevp",
+        "key": "DM-802",
+        "optional": false,
+        "priority": "critical",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Current card approval",
+            "location": "src/core/services/kanban/attempts.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Kanban command adapter",
+            "location": "src/core/commands/kanban.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Typed API",
+            "location": "src/shared/domain/api.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "learnings",
+          "authority",
+          "recovery"
+        ],
+        "title": "Close imported-operation authority and explicit human recovery"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Recovery accepts the exact intended restored working-tree contents with the expected index tree, while still rejecting and preserving real dirty/staged/foreign changes; original failed consumer passes without weakened assertions."
+          },
+          {
+            "id": "c2",
+            "text": "Native CAS uses a currently validated owned preparation Git context; rebound/missing/foreign preparation locations cannot mutate foreign refs or files, including a clone containing the same objects."
+          },
+          {
+            "id": "c3",
+            "text": "Complete inherited native invariants and all focused tests pass, including unchanged 15000ms multi-repo crash/repeated-recovery case; changed-file lint and all three typechecks pass without retries/skips/timeout increases."
+          }
+        ],
+        "body": "## Outcome\nClose only the remaining native recovery/application defects on preserved DM-801 WIP 7db51a78224a95446f0fe236301580371dc612b6. DM-801 is historical failed work, not a retry or accepted implementation. Start from current accepted integration, inherit that WIP only into this private worker branch, and deliver the complete native contract without the unsafe DM-727 ancestry.\n\n## Observed evidence and bounded change\nDM-801 ran 15/16 native cases successfully; the original multi-repository crash/repeated-recovery scenario passed its unchanged 15000ms bound. The remaining real consumer at learningIntegration.test.ts:236-255 refuses personal edits correctly, but still refuses after exact intended bytes are restored. transitioned currently uses stat-sensitive plumbing diff-files --name-only after checking the index tree; stat-only dirt is the leading hypothesis, not an established root cause. Correct semantic working-tree/content reconciliation without weakening true dirty/index/branch ownership checks or changing staged contents.\nIndependently reviewed source also runs the native branch update from target.temporaryWorktree without rechecking its current Git common-directory/owned preparation identity. Validate that live execution context before using it for canonical writes; a removed/rebound preparation path must never mutate a foreign clone even when old/new objects exist there. Do not create an ownership framework or trust persisted plan paths as authority.\n\n## Invariants / non-goals\nKeep held exact expected-old branch CAS and symbolic HEAD verification throughout index/tree transition; never detach/switch/reset canonical worktrees. Preserve all source/manifest/persist-before-change/awaited-receipt, deterministic lock, null/empty, partial/repeated recovery and foreign-movement invariants from DM-801. Do not edit core authority, coordinator, UI, timeouts, retries, skips or test workloads. Repo-mode operation-record interoperability is a separate required successor, not scope here.\n\n## Tests\nUse the existing failing exact-byte-restoration consumer as established red evidence; do not rerun unchanged to confirm it. Add a real Git rebound-preparation/foreign-ref preservation consumer, then run the entire focused native integration file once after causal changes, changed-file lint and all three typechecks. Preserve the original crash/repeated-recovery case and its 15000ms bound exactly. Full sweep belongs to DM-719; no new harness, benchmark or diagnostic product.\n\n## Boundary\nFive-minute criterion ledger; ten-minute implementation/check boundary includes claim and setup. Stop and preserve honestly at the boundary; new attempts do not reset unfinished oversized work.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "deep",
+            "rationale": "One focused safety-critical checked-out expected-old CAS/recovery correction on accepted preparation, with unchanged real failure scenario."
+          },
+          "skills": [
+            "typescript",
+            "git-internals",
+            "concurrency",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Complete safe native apply/recover engine and shared contracts",
+          "Exact-content and foreign-preparation real Git consumer regressions"
+        ],
+        "id": "tk_01m7tng61ea1q3zf6ftxfncp3e",
+        "key": "DM-807",
+        "optional": false,
+        "priority": "critical",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Safe branch operations",
+            "location": "src/main/git/branches.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Git operation lock",
+            "location": "src/main/git/operationLock.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Conflict state handling",
+            "location": "src/main/git/conflicts.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "learnings",
+          "git",
+          "recovery"
+        ],
+        "title": "Close exact-content recovery and preparation-worktree ownership before canonical CAS"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "A real repo-mode workspace prepare flush and native apply can coexist on an initially otherwise-clean registered-root target; only the current trusted owned untracked operation record is preserved through prepared/receipt progress."
+          },
+          {
+            "id": "c2",
+            "text": "Unrelated/staged/foreign changes and prepared-tree record or ancestor collisions remain fail-closed without clobbering; DB and other-target modes keep strict existing behavior and no persisted/renderer path becomes authority."
+          },
+          {
+            "id": "c3",
+            "text": "Focused real workspace/Git interoperability consumers, changed-file lint and all three typechecks pass; no broad ignore/export suppression, auto-commit/reset/stash, new retry or framework."
+          }
+        ],
+        "body": "## Outcome\nMake the already-approved core/native approval protocol work in its default repo storage mode, without broad dirty-file suppression. This is a bounded prerequisite split from DM-729, not a new feature or permission change.\n\n## Repository evidence\nRepositoryWorkspace.execute invokes safeFlush after every mutating command; initialize/storageMode default to repo and only .darkmechanicus/local is ignored. prepareLearningApproval therefore writes a new portable .darkmechanicus/learnings/learning_integration/<operationId>.json after the otherwise-clean checkout precondition. Native clean-checkout validation currently sees that owned untracked file and refuses its own approval. Prepared-plan and receipt callbacks update the same record. A mock-only coordinator would hide this real default-mode failure.\n\n## Scope and trust contract\nExtend only the native clean/preflight adapter and a small main-owned binding helper needed by DM-729. Derive the exact current operation record from the current trusted workspace layout/storage mode and current core operation id; never accept renderer or persisted engine-plan paths/allowances as authority, and do not serialize this ephemeral allowance into the engine plan. For a registered-root target checkout, preserve only that owned untracked record (and verify the prepared tree cannot own/overwrite it or an ancestor); preserve its contents and staged index truth. Refuse every other dirty/staged/conflicting/foreign path. A tracked/staged record is not the allowed untracked case. Recovery rederives the allowance from current trusted local operation/layout. DB mode, unchecked-out targets, registered child repositories and owned worktrees not containing the control record retain strict existing behavior.\nDo not ignore all .darkmechanicus changes, fake status, suppress export/outbox flush, change storage mode, auto-commit/stash/reset, add hidden retry loops or introduce a storage/ownership framework. Pre-existing unrelated dirt still requires explicit human preservation/commit before approval. No coordinator/IPC/UI implementation in this ticket; expose the smallest typed main/native binding that DM-729 can consume.\n\n## Tests\nUse real RepositoryWorkspace.execute in repo mode and real Git: prepare the reviewed card with an otherwise-clean registered-root target; the core prepare flush creates the operation file; native prepare/application plus durable prepared/receipt callbacks preserve that exact owned record and reach the reviewed canonical result. Verify current JSON progress remains readable, exact stage/tree truth and symbolic HEAD, and correct refusal of unrelated dirty/staged files and prepared-record/path collisions. Include strict DB/foreign-binding behavior as focused consumer cases, not source-text/wiring tests. Run only the touched native/adapter/consumer files, changed-file lint and all three typechecks. Full assembled desktop behavior remains DM-733 and full gate DM-719.\n\n## Boundary\nFive-minute criterion ledger; ten-minute implementation/check boundary including setup. No new unbounded investigation; preserve a concrete unfinished remainder at the boundary.",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "effort": "medium",
+            "level": "deep",
+            "rationale": "One narrowly scoped default repo-mode core/native interoperability correction, preserving exact operation ownership and Git dirty-work protections."
+          },
+          "skills": [
+            "typescript",
+            "git-internals",
+            "concurrency",
+            "testing"
+          ],
+          "tools": [
+            "repo_read",
+            "repo_write",
+            "shell",
+            "test_execution"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [
+          "Minimal trusted current-operation record binding for the main coordinator",
+          "Native owned-untracked-record preservation and focused real workspace/Git consumers"
+        ],
+        "id": "tk_01m7tng62ysa5x5tz8awgkvrae",
+        "key": "DM-808",
+        "optional": false,
+        "priority": "critical",
+        "references": [
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Safe branch operations",
+            "location": "src/main/git/branches.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Git operation lock",
+            "location": "src/main/git/operationLock.ts",
+            "remoteOnly": false
+          },
+          {
+            "hash": null,
+            "kind": "file",
+            "label": "Conflict state handling",
+            "location": "src/main/git/conflicts.ts",
+            "remoteOnly": false
+          }
+        ],
+        "size": "small",
+        "tags": [
+          "learnings",
+          "git",
+          "recovery"
+        ],
+        "title": "Preserve the current owned portable approval record during repo-mode Git integration"
+      }
+    ]
+  },
+  "contentHash": "sha256:1fa5171fe44ae0ef7f9a4c8ba802acd6973beb916bb40c1c1a20e7483fbaaf7d",
+  "createdAt": "2026-11-19T23:16:12.272Z",
+  "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+  "format": "darkmechanicus.plan-snapshot",
+  "formatVersion": 1,
+  "number": 10,
+  "revisionId": "rv_01m7v1h8vgzhjw37r72dgjcm5n",
+  "savedAt": "2026-11-19T23:16:12.272Z"
+}

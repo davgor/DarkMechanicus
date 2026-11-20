@@ -1,0 +1,33 @@
+{
+  "format": "darkmechanicus.metric-observation",
+  "formatVersion": 1,
+  "observation": {
+    "accumulation": "delta",
+    "attributes": {
+      "sourceEvent": "DM791-unavailable-tokens_reasoning"
+    },
+    "evidence": [],
+    "measurement": {
+      "reason": "host_unavailable",
+      "state": "missing"
+    },
+    "metric": "tokens_reasoning",
+    "observationId": "mo_5etepmvdrgw6dnq9dyerb4z4hg",
+    "observedAt": "2026-11-19T16:08:44.796Z",
+    "recordedAt": "2026-11-19T16:08:46.544Z",
+    "scope": {
+      "attemptId": "at_01m7t8sktqkgrd7m82ybwnesvx",
+      "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+      "level": "attempt",
+      "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+      "sprintId": "sp_01m7rget6q03n7a08sjxtjjh8t",
+      "ticketId": "tk_01m7t8dftp56xsggmfy942m5qb"
+    },
+    "sequence": null,
+    "source": {
+      "actor": "ControlledMailboxProbe",
+      "kind": "agent"
+    },
+    "unit": "tokens"
+  }
+}

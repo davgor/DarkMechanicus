@@ -1,0 +1,17 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": null,
+  "cardId": "kc_01m7wxwg56qgcgame6mc7199e8",
+  "createdAt": "2026-11-20T19:35:49.693Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7x7af5xmkvphd180wne3th7",
+  "kind": "message",
+  "payload": {
+    "attachments": [],
+    "body": "First full gate completed on frozen source. Build passed. Lint failed seven existing-rule complexity/function-length diagnostics; npm test and coverage failed eleven migration/IPC/preload expectations (13626 tests passed,57 skipped); typecheck failed an unsupported reader ChatRole fixture; deadcode reported three module-local exported types. Evidence retained under Temp/dm838-gates-1795202400, no unchanged-source reruns. Independent review additionally found restart invalidation for unavailable folders, eager DB-open startup failure, missing combined-capability audit, missing workflow target identifiers and separate-submitter Kanban usage loss. These original-scope defects are accepted for causal correction with failing consumer regressions first. Worker has source freeze release; final gate will exercise corrected source, not erase previous failures. Initial lifecycle and retro tests were red-first; later native/CLI/UI expansions were not all independently red-first, a chronology limitation that cannot be retroactively claimed fixed. No real grant elevated; final actual desktop images and native person decision are still pending. No completion or passing criterion is claimed by this note."
+  }
+}

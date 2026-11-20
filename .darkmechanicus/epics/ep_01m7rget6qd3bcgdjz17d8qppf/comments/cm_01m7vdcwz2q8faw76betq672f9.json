@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Main decision: stop after2 diagnostic rounds closed no named acceptance gap. Round1 preloader reached global setup only, not worker; owned-record6/6 was diagnostic only. Round2 temporary wrapper shadowed seeded run and prevented consumer collection; other46passing is not approval evidence. Temporary source logging restored to original EAEA snapshot; no correction/commit or frozen gate exists. Reviewer independently confirms home Git repo is only storage and createTempRepo could reduce setup, but initiating timeout cause remains unproven. c1/c2/c3 unverified; writer instructed to fail its own attempt, no third profiler, no expanded framework and no rerun-only acceptance. Main owns ineffective pairing/profiler preflight; no production defect attribution added. Original row8 failure remains.",
+  "createdAt": "2026-11-20T02:43:31.938Z",
+  "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7vdcwz2q8faw76betq672f9",
+  "ticketId": "tk_01m7vcpd7564ecyqc3h1mtsfs7"
+}

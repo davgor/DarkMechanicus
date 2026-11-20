@@ -1,0 +1,39 @@
+{
+  "format": "darkmechanicus.metric-observation",
+  "formatVersion": 1,
+  "observation": {
+    "accumulation": "delta",
+    "attributes": {
+      "activeBasis": "requests_and_tools",
+      "sourceEvent": "span-1795110213613",
+      "spanStart": "2026-11-19T17:43:33.613Z"
+    },
+    "evidence": [],
+    "measurement": {
+      "state": "observed",
+      "value": 432595
+    },
+    "metric": "active_ms",
+    "observationId": "mo_zy2fzqccn69v0n2k47y98e6mv7",
+    "observedAt": "2026-11-19T17:50:46.208Z",
+    "recordedAt": "2026-11-19T18:49:35.600Z",
+    "scope": {
+      "attemptId": "at_01m7teg0bgzmqd7hxmz9ap86cn",
+      "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+      "level": "attempt",
+      "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+      "sprintId": "sp_01m7rget6q03n7a08sjxtjjh8t",
+      "ticketId": "tk_01m7rgrfw4mb2bbws108gdhaqm"
+    },
+    "sequence": null,
+    "source": {
+      "actor": "omp:01a1f451-775e-7582-b26e-eb850ecd15ea/LearningImportAuthority",
+      "kind": "host"
+    },
+    "unit": "milliseconds",
+    "usage": {
+      "coverage": "self",
+      "parentActor": "omp:01a1f451-775e-7582-b26e-eb850ecd15ea"
+    }
+  }
+}

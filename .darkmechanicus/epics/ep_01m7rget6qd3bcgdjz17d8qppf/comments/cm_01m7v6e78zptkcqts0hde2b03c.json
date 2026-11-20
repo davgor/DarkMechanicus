@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "Five-minute checkpoint: start 00:35:53 UTC, checkpoint 00:41:12 UTC (~5m19s), ten-minute boundary 00:45:53 UTC. Independently accepted outcomes: 0. c1: shared 120000ms transition cancellation plus onExit barriers implemented; deterministic deadline/early-result consumer passes. c2: targeted native file failed (20/21 pass); inherited exact-restoration consumer fails final recover expected applied (Vitest omitted failure fields). No unchanged rerun. Changed-file lint initially failed function length, causal compacting fixed it and lint passed. Three targeted TypeScript projects emitted no errors. Original 15000ms crash/repeated-recovery case unchanged and passed. Preserved scoped commit 8f69c6d07ee6165689666d110fffdfb0f5e7f150 on work/learnings-DM809, with inherited 11e7c34f private only. Recovery failure remains in scope, not waived; requested bounded diagnostic decision from Main. Usage ingested by parent, cost unknown. No LSP tool/server exposed; used scoped source reads.",
+  "createdAt": "2026-11-20T00:41:55.231Z",
+  "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7v6e78zptkcqts0hde2b03c",
+  "ticketId": "tk_01m7v32cxvbja4jz0y5855bp12"
+}

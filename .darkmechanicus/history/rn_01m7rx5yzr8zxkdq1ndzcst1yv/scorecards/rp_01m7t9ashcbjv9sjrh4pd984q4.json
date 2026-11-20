@@ -1,0 +1,3381 @@
+{
+  "anomalies": [],
+  "cutoff": "2026-11-19T16:13:14.156Z",
+  "details": {
+    "sha256:0a9f2b0e8d296663ce9421faaf309171d30d6c47ae40de6b0d31ed4bc8abdfdb": {
+      "efficiency": [
+        {
+          "effort": {
+            "coverage": {
+              "covered": 0,
+              "of": 8,
+              "unit": "attempts"
+            },
+            "effortMs": null,
+            "overheadMs": null,
+            "state": "missing"
+          },
+          "retries": 1,
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "time": {
+            "actual": {
+              "reason": "host_unavailable",
+              "state": "missing"
+            },
+            "excludedWaitsMs": {
+              "blocked": 2072227,
+              "build_test": 0,
+              "human_approval": 44835184,
+              "queue": 132601445,
+              "review": 353814
+            },
+            "openAttemptIds": [],
+            "overheadMs": null,
+            "unreportedAttemptIds": [
+              "at_01m7t4jbjgxvj6fe457frzrz8k",
+              "at_01m7rx7d9a8n2sgsta3rhz9xg1",
+              "at_01m7rxwnwwzd9h444q55b5n6cq",
+              "at_01m7t5r05za3y5jzkxhefpftmr",
+              "at_01m7t78xbgvx029vy7ccsfz2rr",
+              "at_01m7t5r3vhynr75je3bhh6hfhj",
+              "at_01m7t7rmhxtmcs8hz5n1ve4k9t",
+              "at_01m7t8sktqkgrd7m82ybwnesvx"
+            ]
+          },
+          "tokens": {
+            "actual": {
+              "reason": "host_unavailable",
+              "state": "missing"
+            },
+            "openAttemptIds": [],
+            "unreportedAttemptIds": []
+          }
+        }
+      ],
+      "measuredRunIds": [
+        "rn_01m7rx5yzr8zxkdq1ndzcst1yv"
+      ],
+      "outcomes": [
+        {
+          "attemptId": "at_01m7t4jbjgxvj6fe457frzrz8k",
+          "counted": true,
+          "movedOut": false,
+          "reason": "awaiting_retry",
+          "role": "integrated",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "pending",
+          "ticketId": "tk_01m7rget6q81xt36beccgh02nh"
+        },
+        {
+          "attemptId": "at_01m7rx7d9a8n2sgsta3rhz9xg1",
+          "counted": true,
+          "movedOut": false,
+          "reason": "reviewed",
+          "role": "work",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "verified",
+          "ticketId": "tk_01m7rgrfv2xr81m68bjnp1kb7h"
+        },
+        {
+          "attemptId": "at_01m7rxwnwwzd9h444q55b5n6cq",
+          "counted": true,
+          "movedOut": false,
+          "reason": "reviewed",
+          "role": "work",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "verified",
+          "ticketId": "tk_01m7rgrfw4kh31ra13d3mwyjp7"
+        },
+        {
+          "attemptId": "at_01m7t78xbgvx029vy7ccsfz2rr",
+          "counted": true,
+          "movedOut": false,
+          "reason": "reviewed",
+          "role": "work",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "verified",
+          "ticketId": "tk_01m7t5dtwthjbj0ckam8xhx58z"
+        },
+        {
+          "attemptId": "at_01m7t5r3vhynr75je3bhh6hfhj",
+          "counted": true,
+          "movedOut": false,
+          "reason": "reviewed",
+          "role": "work",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "verified",
+          "ticketId": "tk_01m7t5dtzrmzfyy3fabkm4ct9h"
+        },
+        {
+          "attemptId": "at_01m7t7rmhxtmcs8hz5n1ve4k9t",
+          "counted": true,
+          "movedOut": false,
+          "reason": "awaiting_retry",
+          "role": "work",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "pending",
+          "ticketId": "tk_01m7t6bby6qyjcezpcrs6znmrc"
+        },
+        {
+          "attemptId": "at_01m7t8sktqkgrd7m82ybwnesvx",
+          "counted": true,
+          "movedOut": false,
+          "reason": "reviewed",
+          "role": "work",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "verified",
+          "ticketId": "tk_01m7t8dftp56xsggmfy942m5qb"
+        },
+        {
+          "attemptId": "at_01m7rxwgkk4eaegmch1c9fa8yf",
+          "counted": true,
+          "movedOut": true,
+          "reason": "awaiting_retry",
+          "role": "work",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "pending",
+          "ticketId": "tk_01m7rgrfw4902evkb6f675qxfw"
+        }
+      ],
+      "rollups": {
+        "K": {
+          "overhead": [
+            {
+              "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+              "ticketId": "tk_01m7rget6q81xt36beccgh02nh"
+            }
+          ],
+          "partial": false
+        },
+        "T": {
+          "overhead": [
+            {
+              "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+              "ticketId": "tk_01m7rget6q81xt36beccgh02nh"
+            }
+          ],
+          "partial": false
+        }
+      },
+      "runIds": [
+        "rn_01m7rx5yzr8zxkdq1ndzcst1yv"
+      ]
+    },
+    "sha256:7747bf5db6b47dda07057dd5fab3db0b8988f79c2b921c393881313274ecf468": {
+      "efficiency": [
+        {
+          "effort": {
+            "coverage": {
+              "covered": 0,
+              "of": 9,
+              "unit": "attempts"
+            },
+            "effortMs": null,
+            "overheadMs": null,
+            "state": "missing"
+          },
+          "retries": 1,
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "time": {
+            "actual": {
+              "reason": "host_unavailable",
+              "state": "missing"
+            },
+            "excludedWaitsMs": {
+              "blocked": 2805681,
+              "build_test": 0,
+              "human_approval": 44835184,
+              "queue": 177077111,
+              "review": 353814
+            },
+            "openAttemptIds": [],
+            "overheadMs": null,
+            "unreportedAttemptIds": [
+              "at_01m7t4jbjgxvj6fe457frzrz8k",
+              "at_01m7rx7d9a8n2sgsta3rhz9xg1",
+              "at_01m7rxwgkk4eaegmch1c9fa8yf",
+              "at_01m7rxwnwwzd9h444q55b5n6cq",
+              "at_01m7t5r05za3y5jzkxhefpftmr",
+              "at_01m7t78xbgvx029vy7ccsfz2rr",
+              "at_01m7t5r3vhynr75je3bhh6hfhj",
+              "at_01m7t7rmhxtmcs8hz5n1ve4k9t",
+              "at_01m7t8sktqkgrd7m82ybwnesvx"
+            ]
+          },
+          "tokens": {
+            "actual": {
+              "reason": "host_unavailable",
+              "state": "missing"
+            },
+            "openAttemptIds": [],
+            "unreportedAttemptIds": []
+          }
+        }
+      ],
+      "measuredRunIds": [
+        "rn_01m7rx5yzr8zxkdq1ndzcst1yv"
+      ],
+      "outcomes": [
+        {
+          "attemptId": "at_01m7t4jbjgxvj6fe457frzrz8k",
+          "counted": true,
+          "movedOut": false,
+          "reason": "awaiting_retry",
+          "role": "integrated",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "pending",
+          "ticketId": "tk_01m7rget6q81xt36beccgh02nh"
+        },
+        {
+          "attemptId": "at_01m7rx7d9a8n2sgsta3rhz9xg1",
+          "counted": true,
+          "movedOut": false,
+          "reason": "reviewed",
+          "role": "work",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "verified",
+          "ticketId": "tk_01m7rgrfv2xr81m68bjnp1kb7h"
+        },
+        {
+          "attemptId": "at_01m7rxwnwwzd9h444q55b5n6cq",
+          "counted": true,
+          "movedOut": false,
+          "reason": "reviewed",
+          "role": "work",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "verified",
+          "ticketId": "tk_01m7rgrfw4kh31ra13d3mwyjp7"
+        },
+        {
+          "attemptId": "at_01m7t78xbgvx029vy7ccsfz2rr",
+          "counted": true,
+          "movedOut": false,
+          "reason": "reviewed",
+          "role": "work",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "verified",
+          "ticketId": "tk_01m7t5dtwthjbj0ckam8xhx58z"
+        },
+        {
+          "attemptId": "at_01m7t5r3vhynr75je3bhh6hfhj",
+          "counted": true,
+          "movedOut": false,
+          "reason": "reviewed",
+          "role": "work",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "verified",
+          "ticketId": "tk_01m7t5dtzrmzfyy3fabkm4ct9h"
+        },
+        {
+          "attemptId": "at_01m7t7rmhxtmcs8hz5n1ve4k9t",
+          "counted": true,
+          "movedOut": false,
+          "reason": "awaiting_retry",
+          "role": "work",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "pending",
+          "ticketId": "tk_01m7t6bby6qyjcezpcrs6znmrc"
+        },
+        {
+          "attemptId": "at_01m7t8sktqkgrd7m82ybwnesvx",
+          "counted": true,
+          "movedOut": false,
+          "reason": "reviewed",
+          "role": "work",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "verified",
+          "ticketId": "tk_01m7t8dftp56xsggmfy942m5qb"
+        },
+        {
+          "attemptId": "at_01m7rxwgkk4eaegmch1c9fa8yf",
+          "counted": true,
+          "movedOut": true,
+          "reason": "awaiting_retry",
+          "role": "work",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "pending",
+          "ticketId": "tk_01m7rgrfw4902evkb6f675qxfw"
+        },
+        {
+          "attemptId": null,
+          "counted": false,
+          "movedOut": false,
+          "reason": "no_attempt",
+          "role": "work",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "missing",
+          "ticketId": "tk_01m7rgrfw4902evkb6f675qxfw"
+        },
+        {
+          "attemptId": null,
+          "counted": false,
+          "movedOut": false,
+          "reason": "no_attempt",
+          "role": "work",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "missing",
+          "ticketId": "tk_01m7rgrfw4mb2bbws108gdhaqm"
+        },
+        {
+          "attemptId": null,
+          "counted": false,
+          "movedOut": false,
+          "reason": "no_attempt",
+          "role": "work",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "missing",
+          "ticketId": "tk_01m7rgrfw41vm23bzyy86a6ce9"
+        },
+        {
+          "attemptId": null,
+          "counted": false,
+          "movedOut": false,
+          "reason": "no_attempt",
+          "role": "work",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "missing",
+          "ticketId": "tk_01m7rgrfw4xg21z2bkk9q8pm8j"
+        },
+        {
+          "attemptId": null,
+          "counted": false,
+          "movedOut": false,
+          "reason": "no_attempt",
+          "role": "work",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "missing",
+          "ticketId": "tk_01m7rgrfw4jmsaaf5kjkn1axkm"
+        },
+        {
+          "attemptId": null,
+          "counted": false,
+          "movedOut": false,
+          "reason": "no_attempt",
+          "role": "work",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "missing",
+          "ticketId": "tk_01m7rgrfw55xn4c0693w4pkg9w"
+        },
+        {
+          "attemptId": null,
+          "counted": false,
+          "movedOut": false,
+          "reason": "no_attempt",
+          "role": "work",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "missing",
+          "ticketId": "tk_01m7rgrfw5kzhmtq9g183271db"
+        },
+        {
+          "attemptId": null,
+          "counted": false,
+          "movedOut": false,
+          "reason": "no_attempt",
+          "role": "work",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "missing",
+          "ticketId": "tk_01m7rgrfw585v9ttzffsvr9zfh"
+        },
+        {
+          "attemptId": null,
+          "counted": false,
+          "movedOut": false,
+          "reason": "no_attempt",
+          "role": "work",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "missing",
+          "ticketId": "tk_01m7rgrfw5rjgn3b7vjxbfscjv"
+        },
+        {
+          "attemptId": null,
+          "counted": false,
+          "movedOut": false,
+          "reason": "no_attempt",
+          "role": "work",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "missing",
+          "ticketId": "tk_01m7rgrfw55tadh1z18j5079we"
+        },
+        {
+          "attemptId": null,
+          "counted": false,
+          "movedOut": false,
+          "reason": "no_attempt",
+          "role": "work",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "missing",
+          "ticketId": "tk_01m7rgrfw5eyq9fnt31gevt802"
+        },
+        {
+          "attemptId": null,
+          "counted": false,
+          "movedOut": false,
+          "reason": "no_attempt",
+          "role": "work",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "missing",
+          "ticketId": "tk_01m7rgrfw5t6bp2056xzc8teaf"
+        },
+        {
+          "attemptId": null,
+          "counted": true,
+          "movedOut": false,
+          "reason": "no_attempt",
+          "role": "integrated",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "missing",
+          "ticketId": "tk_01m7ryk7cp49qwdfycjwzgwwmd"
+        },
+        {
+          "attemptId": null,
+          "counted": false,
+          "movedOut": false,
+          "reason": "no_attempt",
+          "role": "work",
+          "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+          "state": "missing",
+          "ticketId": "tk_01m7ryqcv3k8m07j4cx0y86ray"
+        }
+      ],
+      "rollups": {
+        "K": {
+          "overhead": [
+            {
+              "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+              "ticketId": "tk_01m7rget6q81xt36beccgh02nh"
+            }
+          ],
+          "partial": false
+        },
+        "T": {
+          "overhead": [
+            {
+              "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+              "ticketId": "tk_01m7rget6q81xt36beccgh02nh"
+            }
+          ],
+          "partial": false
+        }
+      },
+      "runIds": [
+        "rn_01m7rx5yzr8zxkdq1ndzcst1yv"
+      ]
+    }
+  },
+  "epic": null,
+  "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+  "format": "darkmechanicus.scorecard",
+  "formatVersion": 1,
+  "inputs": {
+    "sha256:04196343c2dae58546271d75f3f8673eab48831a7cbf23a4ef8252f17e17d7a7": {
+      "actual": {
+        "reason": "host_unavailable",
+        "state": "missing"
+      },
+      "baseline": {
+        "reason": "no_eligible_baseline",
+        "rejected": [],
+        "state": "missing"
+      },
+      "evidence": [
+        {
+          "detail": "accepted",
+          "id": "at_01m7rx7d9a8n2sgsta3rhz9xg1",
+          "kind": "attempt"
+        }
+      ],
+      "unreportedAttempts": 1
+    },
+    "sha256:0ade4f9f3ee8cf7b37da7c2520d2e8c06ca0803889626b35cd78d9f0b3172e5b": {
+      "activity": {
+        "attempts": 1,
+        "changedLines": null,
+        "commits": 1
+      },
+      "added": 0,
+      "committed": 2,
+      "delivered": 2,
+      "evidence": [
+        {
+          "detail": "accepted",
+          "id": "at_01m7t5r3vhynr75je3bhh6hfhj",
+          "kind": "attempt"
+        }
+      ],
+      "removed": 0
+    },
+    "sha256:0d52daf399910255d1695d75591ce8d8788391dd20cda60c37f2fd96fd631847": {
+      "actual": {
+        "reason": "host_unavailable",
+        "state": "missing"
+      },
+      "baseline": {
+        "reason": "no_eligible_baseline",
+        "rejected": [],
+        "state": "missing"
+      },
+      "evidence": [
+        {
+          "detail": "failed",
+          "id": "at_01m7t7rmhxtmcs8hz5n1ve4k9t",
+          "kind": "attempt"
+        }
+      ],
+      "unreportedAttempts": 0
+    },
+    "sha256:0f061e846af5af05212b5b30231701a74ade6280694358dce8ead5e1ef1d88bb": {
+      "regressions": [],
+      "verification": {
+        "evidence": [
+          {
+            "detail": "failed",
+            "id": "at_01m7t4jbjgxvj6fe457frzrz8k",
+            "kind": "attempt"
+          }
+        ],
+        "state": "pending"
+      }
+    },
+    "sha256:13ea91583f8d2ae9e5c3cafe5aa17a0af0d9fb4d4ba60aba7d15371f5399425b": {
+      "regressions": [],
+      "verification": {
+        "evidence": [
+          {
+            "detail": "accepted",
+            "id": "at_01m7t8sktqkgrd7m82ybwnesvx",
+            "kind": "attempt"
+          },
+          {
+            "detail": "c1",
+            "id": "tk_01m7t8dftp56xsggmfy942m5qb",
+            "kind": "criterion"
+          },
+          {
+            "detail": "c2",
+            "id": "tk_01m7t8dftp56xsggmfy942m5qb",
+            "kind": "criterion"
+          },
+          {
+            "detail": "Controlled finite cold/warm observations",
+            "id": "at_01m7t8sktqkgrd7m82ybwnesvx",
+            "kind": "check"
+          },
+          {
+            "detail": "Owned-resource cleanup observations",
+            "id": "at_01m7t8sktqkgrd7m82ybwnesvx",
+            "kind": "check"
+          },
+          {
+            "detail": "npx vitest run src/core/commands/agentMail.test.ts",
+            "id": "at_01m7t8sktqkgrd7m82ybwnesvx",
+            "kind": "check"
+          },
+          {
+            "detail": "npm run lint",
+            "id": "at_01m7t8sktqkgrd7m82ybwnesvx",
+            "kind": "check"
+          },
+          {
+            "detail": "npm test",
+            "id": "at_01m7t8sktqkgrd7m82ybwnesvx",
+            "kind": "check"
+          },
+          {
+            "detail": "npm run fireguard",
+            "id": "at_01m7t8sktqkgrd7m82ybwnesvx",
+            "kind": "check"
+          },
+          {
+            "detail": "npm run typecheck",
+            "id": "at_01m7t8sktqkgrd7m82ybwnesvx",
+            "kind": "check"
+          },
+          {
+            "detail": "npm run deadcode",
+            "id": "at_01m7t8sktqkgrd7m82ybwnesvx",
+            "kind": "check"
+          },
+          {
+            "detail": "npm run build",
+            "id": "at_01m7t8sktqkgrd7m82ybwnesvx",
+            "kind": "check"
+          },
+          {
+            "detail": "coverage",
+            "id": "at_01m7t8sktqkgrd7m82ybwnesvx",
+            "kind": "check"
+          }
+        ],
+        "state": "verified"
+      }
+    },
+    "sha256:16f19aa4026a46e2e9d545fb48d2118aa19c6d0254b0ee97aa8805e16ffc4321": {
+      "actual": {
+        "reason": "host_unavailable",
+        "state": "missing"
+      },
+      "baseline": {
+        "reason": "no_eligible_baseline",
+        "rejected": [],
+        "state": "missing"
+      },
+      "evidence": [
+        {
+          "detail": "accepted",
+          "id": "at_01m7rxwnwwzd9h444q55b5n6cq",
+          "kind": "attempt"
+        }
+      ],
+      "unreportedAttempts": 1
+    },
+    "sha256:1c13b81fe353e28949e60dae39ad9697fc5b1ffb09020002eef4e877ebf0bcea": {
+      "activity": {
+        "attempts": 1,
+        "changedLines": null,
+        "commits": 2
+      },
+      "added": 0,
+      "committed": 3,
+      "delivered": 3,
+      "evidence": [
+        {
+          "detail": "accepted",
+          "id": "at_01m7rx7d9a8n2sgsta3rhz9xg1",
+          "kind": "attempt"
+        }
+      ],
+      "removed": 0
+    },
+    "sha256:22c0934872fa0c2d71896833ddce71db9b4e088acaf1f9116f3290385a2bbd61": {
+      "coordinationDefects": 0,
+      "evidence": [
+        {
+          "detail": "criteria_evidence",
+          "id": "mo_9r5x7zq5rvw4sza5zprc18y4yt",
+          "kind": "observation"
+        },
+        {
+          "detail": "verification_checks",
+          "id": "mo_pzek6q71cpzw3v26at7w1amknm",
+          "kind": "observation"
+        },
+        {
+          "detail": "outputs_contract",
+          "id": "mo_g663arrwgycvtxz0g02jqx50nz",
+          "kind": "observation"
+        },
+        {
+          "detail": "criteria_evidence",
+          "id": "mo_4rs7p5hfd66916t08g9xxybaj1",
+          "kind": "observation"
+        },
+        {
+          "detail": "verification_checks",
+          "id": "mo_rxw6yshfnp4c6avy4jem40ztqs",
+          "kind": "observation"
+        },
+        {
+          "detail": "outputs_contract",
+          "id": "mo_d157qe74t8xe4hsxsjfwy0yw1n",
+          "kind": "observation"
+        },
+        {
+          "detail": "criteria_evidence",
+          "id": "mo_gs4yvgdzsd91bc3kwq57vxv6p9",
+          "kind": "observation"
+        },
+        {
+          "detail": "verification_checks",
+          "id": "mo_0fvghha8kew8qp8n9zy2k9c5pa",
+          "kind": "observation"
+        },
+        {
+          "detail": "outputs_contract",
+          "id": "mo_a31he5jgxsyt3h987rqksjbxvt",
+          "kind": "observation"
+        },
+        {
+          "detail": "criteria_evidence",
+          "id": "mo_h7dw0be16q8sgxrvp0cxs4pasq",
+          "kind": "observation"
+        },
+        {
+          "detail": "verification_checks",
+          "id": "mo_2zzjfw77dqv46pdxkcbhq65tej",
+          "kind": "observation"
+        },
+        {
+          "detail": "outputs_contract",
+          "id": "mo_jbbfmp161an0z8f67dfw6nte6p",
+          "kind": "observation"
+        },
+        {
+          "detail": "criteria_evidence",
+          "id": "mo_74301yjf017jmf7szdkttank5k",
+          "kind": "observation"
+        },
+        {
+          "detail": "verification_checks",
+          "id": "mo_1e5nx7nj9dn4nxaxxnad453e4x",
+          "kind": "observation"
+        },
+        {
+          "detail": "outputs_contract",
+          "id": "mo_ztw0v2hcasy6vjpsm5gc3qvzdg",
+          "kind": "observation"
+        }
+      ],
+      "handoffChecks": {
+        "failed": 0,
+        "passed": 15
+      }
+    },
+    "sha256:31e9384a6fb6821312f790fdb4d77abbe026cabf6369ab760d23e00191a53501": {
+      "actual": {
+        "reason": "host_unavailable",
+        "state": "missing"
+      },
+      "baseline": {
+        "reason": "no_eligible_baseline",
+        "rejected": [],
+        "state": "missing"
+      },
+      "evidence": [
+        {
+          "detail": "accepted",
+          "id": "at_01m7t5r3vhynr75je3bhh6hfhj",
+          "kind": "attempt"
+        }
+      ],
+      "unreportedAttempts": 0
+    },
+    "sha256:4081cd62a35a2c35f3e7d4ddff6397db64156128115221be65950998bb4041bf": {
+      "correctiveMs": {
+        "state": "observed",
+        "value": 0
+      },
+      "evidence": [],
+      "productiveMs": {
+        "state": "observed",
+        "value": 0
+      },
+      "retries": 0,
+      "unclassifiedMs": {
+        "reason": "host_unavailable",
+        "state": "missing"
+      }
+    },
+    "sha256:458d350cd3f8a905a03513db2b2d2e62d4a797337f3d177bf6b82c7ca6b2432f": {
+      "regressions": [],
+      "verification": {
+        "evidence": [
+          {
+            "detail": "accepted",
+            "id": "at_01m7rxwnwwzd9h444q55b5n6cq",
+            "kind": "attempt"
+          },
+          {
+            "detail": "c1",
+            "id": "tk_01m7rgrfw4kh31ra13d3mwyjp7",
+            "kind": "criterion"
+          },
+          {
+            "detail": "c2",
+            "id": "tk_01m7rgrfw4kh31ra13d3mwyjp7",
+            "kind": "criterion"
+          },
+          {
+            "detail": "c3",
+            "id": "tk_01m7rgrfw4kh31ra13d3mwyjp7",
+            "kind": "criterion"
+          },
+          {
+            "detail": "npx vitest run src/core/services/learningEvidence.test.ts",
+            "id": "at_01m7rxwnwwzd9h444q55b5n6cq",
+            "kind": "check"
+          },
+          {
+            "detail": "targeted lint",
+            "id": "at_01m7rxwnwwzd9h444q55b5n6cq",
+            "kind": "check"
+          },
+          {
+            "detail": "npm run typecheck",
+            "id": "at_01m7rxwnwwzd9h444q55b5n6cq",
+            "kind": "check"
+          },
+          {
+            "detail": "npm run lint",
+            "id": "at_01m7rxwnwwzd9h444q55b5n6cq",
+            "kind": "check"
+          },
+          {
+            "detail": "npm test",
+            "id": "at_01m7rxwnwwzd9h444q55b5n6cq",
+            "kind": "check"
+          },
+          {
+            "detail": "npm run fireguard",
+            "id": "at_01m7rxwnwwzd9h444q55b5n6cq",
+            "kind": "check"
+          },
+          {
+            "detail": "npm run deadcode",
+            "id": "at_01m7rxwnwwzd9h444q55b5n6cq",
+            "kind": "check"
+          },
+          {
+            "detail": "npm run build",
+            "id": "at_01m7rxwnwwzd9h444q55b5n6cq",
+            "kind": "check"
+          }
+        ],
+        "state": "verified"
+      }
+    },
+    "sha256:4c2ce571fdf7a10fed018e561bd44560832055758be3d9e21f522a5c56046d65": {
+      "coordinationDefects": 0,
+      "evidence": [
+        {
+          "detail": "criteria_evidence",
+          "id": "mo_gs4yvgdzsd91bc3kwq57vxv6p9",
+          "kind": "observation"
+        },
+        {
+          "detail": "verification_checks",
+          "id": "mo_0fvghha8kew8qp8n9zy2k9c5pa",
+          "kind": "observation"
+        },
+        {
+          "detail": "outputs_contract",
+          "id": "mo_a31he5jgxsyt3h987rqksjbxvt",
+          "kind": "observation"
+        }
+      ],
+      "handoffChecks": {
+        "failed": 0,
+        "passed": 3
+      }
+    },
+    "sha256:507403c4db162e4d10c743a15257c2ea71fb9b3941b0d13d47d52675d7eb375a": {
+      "actual": {
+        "reason": "host_unavailable",
+        "state": "missing"
+      },
+      "baseline": {
+        "reason": "no_eligible_baseline",
+        "rejected": [],
+        "state": "missing"
+      },
+      "evidence": [
+        {
+          "detail": "accepted",
+          "id": "at_01m7rx7d9a8n2sgsta3rhz9xg1",
+          "kind": "attempt"
+        }
+      ],
+      "unreportedAttempts": 0
+    },
+    "sha256:53fb8cebf3eb8df6d936091d0b40c919d98fb6861cc2954382590d8e2eb5808f": {
+      "activity": {
+        "attempts": 9,
+        "changedLines": null,
+        "commits": 5
+      },
+      "added": 5,
+      "committed": 14,
+      "delivered": 2,
+      "evidence": [
+        {
+          "detail": "accepted",
+          "id": "at_01m7rx7d9a8n2sgsta3rhz9xg1",
+          "kind": "attempt"
+        },
+        {
+          "detail": "accepted",
+          "id": "at_01m7rxwnwwzd9h444q55b5n6cq",
+          "kind": "attempt"
+        }
+      ],
+      "removed": 0
+    },
+    "sha256:5b870d8aaa82c411202aa8409a61761bb96b665b6e57b9e80bf56559c2b8d75f": {
+      "activity": {
+        "attempts": 1,
+        "changedLines": null,
+        "commits": 0
+      },
+      "added": 0,
+      "committed": 2,
+      "delivered": 0,
+      "evidence": [],
+      "removed": 0
+    },
+    "sha256:61829660b005f54725324eec86805a9c537509557bc52b0451f8eefffdc768a3": {
+      "actual": {
+        "reason": "host_unavailable",
+        "state": "missing"
+      },
+      "baseline": {
+        "reason": "no_eligible_baseline",
+        "rejected": [],
+        "state": "missing"
+      },
+      "evidence": [
+        {
+          "detail": "accepted",
+          "id": "at_01m7t8sktqkgrd7m82ybwnesvx",
+          "kind": "attempt"
+        }
+      ],
+      "unreportedAttempts": 0
+    },
+    "sha256:62ccb115e24a64e29e910d7e32b45284d0344543fbef43026b7073b043821f19": {
+      "coordinationDefects": 0,
+      "evidence": [],
+      "handoffChecks": {
+        "failed": 0,
+        "passed": 0
+      }
+    },
+    "sha256:659a1e687ea92fe1a2dd16696947c6c4f01adaf693d10ee28f74e34b9f038e40": {
+      "regressions": [],
+      "verification": {
+        "evidence": [
+          {
+            "detail": "accepted",
+            "id": "at_01m7t78xbgvx029vy7ccsfz2rr",
+            "kind": "attempt"
+          },
+          {
+            "detail": "c1",
+            "id": "tk_01m7t5dtwthjbj0ckam8xhx58z",
+            "kind": "criterion"
+          },
+          {
+            "detail": "c2",
+            "id": "tk_01m7t5dtwthjbj0ckam8xhx58z",
+            "kind": "criterion"
+          },
+          {
+            "detail": "npx vitest run src/core/commands/agentMail.test.ts",
+            "id": "at_01m7t78xbgvx029vy7ccsfz2rr",
+            "kind": "check"
+          },
+          {
+            "detail": "Changed-file lint",
+            "id": "at_01m7t78xbgvx029vy7ccsfz2rr",
+            "kind": "check"
+          },
+          {
+            "detail": "Initial lint launcher setup",
+            "id": "at_01m7t78xbgvx029vy7ccsfz2rr",
+            "kind": "check"
+          },
+          {
+            "detail": "tsc --noEmit -p tsconfig.node.json",
+            "id": "at_01m7t78xbgvx029vy7ccsfz2rr",
+            "kind": "check"
+          },
+          {
+            "detail": "tsc --noEmit -p tsconfig.web.json",
+            "id": "at_01m7t78xbgvx029vy7ccsfz2rr",
+            "kind": "check"
+          },
+          {
+            "detail": "tsc --noEmit -p fireguard/tsconfig.json",
+            "id": "at_01m7t78xbgvx029vy7ccsfz2rr",
+            "kind": "check"
+          },
+          {
+            "detail": "npm run lint (whole tree)",
+            "id": "at_01m7t78xbgvx029vy7ccsfz2rr",
+            "kind": "check"
+          },
+          {
+            "detail": "npm test",
+            "id": "at_01m7t78xbgvx029vy7ccsfz2rr",
+            "kind": "check"
+          },
+          {
+            "detail": "npm run fireguard",
+            "id": "at_01m7t78xbgvx029vy7ccsfz2rr",
+            "kind": "check"
+          },
+          {
+            "detail": "npm run deadcode",
+            "id": "at_01m7t78xbgvx029vy7ccsfz2rr",
+            "kind": "check"
+          },
+          {
+            "detail": "npm run build",
+            "id": "at_01m7t78xbgvx029vy7ccsfz2rr",
+            "kind": "check"
+          },
+          {
+            "detail": "coverage",
+            "id": "at_01m7t78xbgvx029vy7ccsfz2rr",
+            "kind": "check"
+          }
+        ],
+        "state": "verified"
+      }
+    },
+    "sha256:66bd714aad943ce1cef2b35e1cbdea247e2bf9eb64b97ef270454dcf6058ae25": {
+      "actual": {
+        "reason": "host_unavailable",
+        "state": "missing"
+      },
+      "baseline": {
+        "reason": "no_eligible_baseline",
+        "rejected": [],
+        "state": "missing"
+      },
+      "evidence": [
+        {
+          "detail": "failed",
+          "id": "at_01m7t5r05za3y5jzkxhefpftmr",
+          "kind": "attempt"
+        },
+        {
+          "detail": "accepted",
+          "id": "at_01m7t78xbgvx029vy7ccsfz2rr",
+          "kind": "attempt"
+        }
+      ],
+      "unreportedAttempts": 0
+    },
+    "sha256:6b9b504f17d5a11d094fbde10a9defce7daafbc1f58c2a5265c2e0d42f70d4b1": {
+      "actual": {
+        "reason": "host_unavailable",
+        "state": "missing"
+      },
+      "baseline": {
+        "reason": "no_eligible_baseline",
+        "rejected": [],
+        "state": "missing"
+      },
+      "evidence": [
+        {
+          "detail": "failed",
+          "id": "at_01m7t4jbjgxvj6fe457frzrz8k",
+          "kind": "attempt"
+        },
+        {
+          "detail": "accepted",
+          "id": "at_01m7rx7d9a8n2sgsta3rhz9xg1",
+          "kind": "attempt"
+        },
+        {
+          "detail": "accepted",
+          "id": "at_01m7rxwnwwzd9h444q55b5n6cq",
+          "kind": "attempt"
+        },
+        {
+          "detail": "failed",
+          "id": "at_01m7t5r05za3y5jzkxhefpftmr",
+          "kind": "attempt"
+        },
+        {
+          "detail": "accepted",
+          "id": "at_01m7t78xbgvx029vy7ccsfz2rr",
+          "kind": "attempt"
+        },
+        {
+          "detail": "accepted",
+          "id": "at_01m7t5r3vhynr75je3bhh6hfhj",
+          "kind": "attempt"
+        },
+        {
+          "detail": "failed",
+          "id": "at_01m7t7rmhxtmcs8hz5n1ve4k9t",
+          "kind": "attempt"
+        },
+        {
+          "detail": "accepted",
+          "id": "at_01m7t8sktqkgrd7m82ybwnesvx",
+          "kind": "attempt"
+        }
+      ],
+      "unreportedAttempts": 8
+    },
+    "sha256:6e1b906e8d61b9761878c7628499767ad0438827b2f895cf8d963c967e2e4009": {
+      "coordinationDefects": 0,
+      "evidence": [
+        {
+          "detail": "criteria_evidence",
+          "id": "mo_74301yjf017jmf7szdkttank5k",
+          "kind": "observation"
+        },
+        {
+          "detail": "verification_checks",
+          "id": "mo_1e5nx7nj9dn4nxaxxnad453e4x",
+          "kind": "observation"
+        },
+        {
+          "detail": "outputs_contract",
+          "id": "mo_ztw0v2hcasy6vjpsm5gc3qvzdg",
+          "kind": "observation"
+        }
+      ],
+      "handoffChecks": {
+        "failed": 0,
+        "passed": 3
+      }
+    },
+    "sha256:76bf305bb749d90ff3ec38320cc93919a00a8d3ad74061466b179f1d825ffa6d": {
+      "correctiveMs": {
+        "state": "observed",
+        "value": 0
+      },
+      "evidence": [],
+      "productiveMs": {
+        "state": "observed",
+        "value": 0
+      },
+      "retries": 1,
+      "unclassifiedMs": {
+        "reason": "host_unavailable",
+        "state": "missing"
+      }
+    },
+    "sha256:7960c0f31033746560e2958b9ad5155e4d9faba4c24fdf2d7466a970e3fa61c6": {
+      "regressions": [],
+      "verification": {
+        "evidence": [
+          {
+            "detail": "accepted",
+            "id": "at_01m7t5r3vhynr75je3bhh6hfhj",
+            "kind": "attempt"
+          },
+          {
+            "detail": "c1",
+            "id": "tk_01m7t5dtzrmzfyy3fabkm4ct9h",
+            "kind": "criterion"
+          },
+          {
+            "detail": "c2",
+            "id": "tk_01m7t5dtzrmzfyy3fabkm4ct9h",
+            "kind": "criterion"
+          },
+          {
+            "detail": "vitest run src/main/terminals/terminalSessions.lifecycle.test.ts",
+            "id": "at_01m7t5r3vhynr75je3bhh6hfhj",
+            "kind": "check"
+          },
+          {
+            "detail": "changed-file oxlint",
+            "id": "at_01m7t5r3vhynr75je3bhh6hfhj",
+            "kind": "check"
+          },
+          {
+            "detail": "npm run typecheck",
+            "id": "at_01m7t5r3vhynr75je3bhh6hfhj",
+            "kind": "check"
+          },
+          {
+            "detail": "bounded folder-check probe",
+            "id": "at_01m7t5r3vhynr75je3bhh6hfhj",
+            "kind": "check"
+          },
+          {
+            "detail": "npm run lint",
+            "id": "at_01m7t5r3vhynr75je3bhh6hfhj",
+            "kind": "check"
+          },
+          {
+            "detail": "npm test",
+            "id": "at_01m7t5r3vhynr75je3bhh6hfhj",
+            "kind": "check"
+          },
+          {
+            "detail": "npm run fireguard",
+            "id": "at_01m7t5r3vhynr75je3bhh6hfhj",
+            "kind": "check"
+          },
+          {
+            "detail": "npm run deadcode",
+            "id": "at_01m7t5r3vhynr75je3bhh6hfhj",
+            "kind": "check"
+          },
+          {
+            "detail": "npm run build",
+            "id": "at_01m7t5r3vhynr75je3bhh6hfhj",
+            "kind": "check"
+          },
+          {
+            "detail": "coverage",
+            "id": "at_01m7t5r3vhynr75je3bhh6hfhj",
+            "kind": "check"
+          }
+        ],
+        "state": "verified"
+      }
+    },
+    "sha256:7ac47664d9c210e7f0677ecb20185b115a419633955136f239641504ae844b8c": {
+      "activity": {
+        "attempts": 1,
+        "changedLines": null,
+        "commits": 0
+      },
+      "added": 4,
+      "committed": 14,
+      "delivered": 0,
+      "evidence": [],
+      "removed": 12
+    },
+    "sha256:7c1cf68c5606773b05d95b637ec27d523002857b46724d834cd8b0f6c04e48c6": {
+      "actual": {
+        "reason": "host_unavailable",
+        "state": "missing"
+      },
+      "baseline": {
+        "reason": "no_eligible_baseline",
+        "rejected": [],
+        "state": "missing"
+      },
+      "evidence": [
+        {
+          "detail": "failed",
+          "id": "at_01m7t4jbjgxvj6fe457frzrz8k",
+          "kind": "attempt"
+        }
+      ],
+      "unreportedAttempts": 1
+    },
+    "sha256:818dea7c9e71c2cbcb33dbac10636a43061ec12a23f8b7ff5468379a36e840d6": {
+      "regressions": [],
+      "verification": {
+        "evidence": [
+          {
+            "detail": "pending (awaiting_retry)",
+            "id": "tk_01m7rget6q81xt36beccgh02nh",
+            "kind": "ticket"
+          },
+          {
+            "detail": "verified (reviewed)",
+            "id": "tk_01m7rgrfv2xr81m68bjnp1kb7h",
+            "kind": "ticket"
+          },
+          {
+            "detail": "verified (reviewed)",
+            "id": "tk_01m7rgrfw4kh31ra13d3mwyjp7",
+            "kind": "ticket"
+          },
+          {
+            "detail": "verified (reviewed)",
+            "id": "tk_01m7t5dtwthjbj0ckam8xhx58z",
+            "kind": "ticket"
+          },
+          {
+            "detail": "verified (reviewed)",
+            "id": "tk_01m7t5dtzrmzfyy3fabkm4ct9h",
+            "kind": "ticket"
+          },
+          {
+            "detail": "pending (awaiting_retry)",
+            "id": "tk_01m7t6bby6qyjcezpcrs6znmrc",
+            "kind": "ticket"
+          },
+          {
+            "detail": "verified (reviewed)",
+            "id": "tk_01m7t8dftp56xsggmfy942m5qb",
+            "kind": "ticket"
+          },
+          {
+            "detail": "pending (awaiting_retry), since moved out of this sprint",
+            "id": "tk_01m7rgrfw4902evkb6f675qxfw",
+            "kind": "ticket"
+          },
+          {
+            "detail": "missing (no_attempt)",
+            "id": "tk_01m7ryk7cp49qwdfycjwzgwwmd",
+            "kind": "ticket"
+          }
+        ],
+        "state": "pending"
+      }
+    },
+    "sha256:823ef6eafc5a95e81cd4a9f54611efa95fca2b78b1e4a72e6e652eeeb849ec83": {
+      "activity": {
+        "attempts": 1,
+        "changedLines": null,
+        "commits": 1
+      },
+      "added": 0,
+      "committed": 3,
+      "delivered": 3,
+      "evidence": [
+        {
+          "detail": "accepted",
+          "id": "at_01m7rxwnwwzd9h444q55b5n6cq",
+          "kind": "attempt"
+        }
+      ],
+      "removed": 0
+    },
+    "sha256:83f6a760b2640200ca7164d729429b3484c0253f71ce917865a830154f5cc039": {
+      "regressions": [],
+      "verification": {
+        "evidence": [
+          {
+            "detail": "accepted",
+            "id": "at_01m7rx7d9a8n2sgsta3rhz9xg1",
+            "kind": "attempt"
+          },
+          {
+            "detail": "c1",
+            "id": "tk_01m7rgrfv2xr81m68bjnp1kb7h",
+            "kind": "criterion"
+          },
+          {
+            "detail": "c2",
+            "id": "tk_01m7rgrfv2xr81m68bjnp1kb7h",
+            "kind": "criterion"
+          },
+          {
+            "detail": "c3",
+            "id": "tk_01m7rgrfv2xr81m68bjnp1kb7h",
+            "kind": "criterion"
+          },
+          {
+            "detail": "npx vitest run src/core/db/migrations.test.ts src/shared/domain/learnings.test.ts",
+            "id": "at_01m7rx7d9a8n2sgsta3rhz9xg1",
+            "kind": "check"
+          },
+          {
+            "detail": "npm run lint",
+            "id": "at_01m7rx7d9a8n2sgsta3rhz9xg1",
+            "kind": "check"
+          },
+          {
+            "detail": "npm run typecheck",
+            "id": "at_01m7rx7d9a8n2sgsta3rhz9xg1",
+            "kind": "check"
+          },
+          {
+            "detail": "npm test",
+            "id": "at_01m7rx7d9a8n2sgsta3rhz9xg1",
+            "kind": "check"
+          },
+          {
+            "detail": "npm run fireguard",
+            "id": "at_01m7rx7d9a8n2sgsta3rhz9xg1",
+            "kind": "check"
+          },
+          {
+            "detail": "npm run deadcode",
+            "id": "at_01m7rx7d9a8n2sgsta3rhz9xg1",
+            "kind": "check"
+          },
+          {
+            "detail": "npm run build",
+            "id": "at_01m7rx7d9a8n2sgsta3rhz9xg1",
+            "kind": "check"
+          }
+        ],
+        "state": "verified"
+      }
+    },
+    "sha256:8725f2672f298eaee99094bfaea839f2480efeb3907cf258a1dffbaad1c78e0c": {
+      "coordinationDefects": 0,
+      "evidence": [
+        {
+          "detail": "criteria_evidence",
+          "id": "mo_4rs7p5hfd66916t08g9xxybaj1",
+          "kind": "observation"
+        },
+        {
+          "detail": "verification_checks",
+          "id": "mo_rxw6yshfnp4c6avy4jem40ztqs",
+          "kind": "observation"
+        },
+        {
+          "detail": "outputs_contract",
+          "id": "mo_d157qe74t8xe4hsxsjfwy0yw1n",
+          "kind": "observation"
+        }
+      ],
+      "handoffChecks": {
+        "failed": 0,
+        "passed": 3
+      }
+    },
+    "sha256:879e414e0fd3b629059af17fe814c8df7d909de2f1c582d66185f4b46534fba5": {
+      "actual": {
+        "reason": "host_unavailable",
+        "state": "missing"
+      },
+      "baseline": {
+        "reason": "no_eligible_baseline",
+        "rejected": [],
+        "state": "missing"
+      },
+      "evidence": [
+        {
+          "detail": "accepted",
+          "id": "at_01m7t5r3vhynr75je3bhh6hfhj",
+          "kind": "attempt"
+        }
+      ],
+      "unreportedAttempts": 1
+    },
+    "sha256:908d9a02da616176f358f687347dee9ac48abd04afb166275853bee61acd41e2": {
+      "actual": {
+        "reason": "host_unavailable",
+        "state": "missing"
+      },
+      "baseline": {
+        "reason": "no_eligible_baseline",
+        "rejected": [],
+        "state": "missing"
+      },
+      "evidence": [
+        {
+          "detail": "failed",
+          "id": "at_01m7t4jbjgxvj6fe457frzrz8k",
+          "kind": "attempt"
+        },
+        {
+          "detail": "accepted",
+          "id": "at_01m7rx7d9a8n2sgsta3rhz9xg1",
+          "kind": "attempt"
+        },
+        {
+          "detail": "accepted",
+          "id": "at_01m7rxwnwwzd9h444q55b5n6cq",
+          "kind": "attempt"
+        },
+        {
+          "detail": "failed",
+          "id": "at_01m7t5r05za3y5jzkxhefpftmr",
+          "kind": "attempt"
+        },
+        {
+          "detail": "accepted",
+          "id": "at_01m7t78xbgvx029vy7ccsfz2rr",
+          "kind": "attempt"
+        },
+        {
+          "detail": "accepted",
+          "id": "at_01m7t5r3vhynr75je3bhh6hfhj",
+          "kind": "attempt"
+        },
+        {
+          "detail": "failed",
+          "id": "at_01m7t7rmhxtmcs8hz5n1ve4k9t",
+          "kind": "attempt"
+        },
+        {
+          "detail": "accepted",
+          "id": "at_01m7t8sktqkgrd7m82ybwnesvx",
+          "kind": "attempt"
+        }
+      ],
+      "unreportedAttempts": 0
+    },
+    "sha256:9cc5a5591c504cf703bada4d8da76ca308e335c0c1e8268223cdb889a713dde0": {
+      "actual": {
+        "reason": "host_unavailable",
+        "state": "missing"
+      },
+      "baseline": {
+        "reason": "no_eligible_baseline",
+        "rejected": [],
+        "state": "missing"
+      },
+      "evidence": [
+        {
+          "detail": "failed",
+          "id": "at_01m7t4jbjgxvj6fe457frzrz8k",
+          "kind": "attempt"
+        }
+      ],
+      "unreportedAttempts": 0
+    },
+    "sha256:a37351bc5529aa8d8e78c9747f96dbf0baf6d37d00ce9ea34e6cf5f12bfae3b3": {
+      "coordinationDefects": 0,
+      "evidence": [
+        {
+          "detail": "criteria_evidence",
+          "id": "mo_h7dw0be16q8sgxrvp0cxs4pasq",
+          "kind": "observation"
+        },
+        {
+          "detail": "verification_checks",
+          "id": "mo_2zzjfw77dqv46pdxkcbhq65tej",
+          "kind": "observation"
+        },
+        {
+          "detail": "outputs_contract",
+          "id": "mo_jbbfmp161an0z8f67dfw6nte6p",
+          "kind": "observation"
+        }
+      ],
+      "handoffChecks": {
+        "failed": 0,
+        "passed": 3
+      }
+    },
+    "sha256:a696951c98f2de69a995629b703153bb2a3cd9d52c9dd8ed874bd7f52c3f1bb8": {
+      "actual": {
+        "reason": "host_unavailable",
+        "state": "missing"
+      },
+      "baseline": {
+        "reason": "no_eligible_baseline",
+        "rejected": [],
+        "state": "missing"
+      },
+      "evidence": [
+        {
+          "detail": "accepted",
+          "id": "at_01m7t8sktqkgrd7m82ybwnesvx",
+          "kind": "attempt"
+        }
+      ],
+      "unreportedAttempts": 1
+    },
+    "sha256:b06c0d81aa9db77957fd4fa5a9792629ae6ae3198c12d39b48699e30dd944236": {
+      "actual": {
+        "reason": "host_unavailable",
+        "state": "missing"
+      },
+      "baseline": {
+        "reason": "no_eligible_baseline",
+        "rejected": [],
+        "state": "missing"
+      },
+      "evidence": [
+        {
+          "detail": "failed",
+          "id": "at_01m7t4jbjgxvj6fe457frzrz8k",
+          "kind": "attempt"
+        },
+        {
+          "detail": "accepted",
+          "id": "at_01m7rx7d9a8n2sgsta3rhz9xg1",
+          "kind": "attempt"
+        },
+        {
+          "detail": "superseded",
+          "id": "at_01m7rxwgkk4eaegmch1c9fa8yf",
+          "kind": "attempt"
+        },
+        {
+          "detail": "accepted",
+          "id": "at_01m7rxwnwwzd9h444q55b5n6cq",
+          "kind": "attempt"
+        },
+        {
+          "detail": "failed",
+          "id": "at_01m7t5r05za3y5jzkxhefpftmr",
+          "kind": "attempt"
+        },
+        {
+          "detail": "accepted",
+          "id": "at_01m7t78xbgvx029vy7ccsfz2rr",
+          "kind": "attempt"
+        },
+        {
+          "detail": "accepted",
+          "id": "at_01m7t5r3vhynr75je3bhh6hfhj",
+          "kind": "attempt"
+        },
+        {
+          "detail": "failed",
+          "id": "at_01m7t7rmhxtmcs8hz5n1ve4k9t",
+          "kind": "attempt"
+        },
+        {
+          "detail": "accepted",
+          "id": "at_01m7t8sktqkgrd7m82ybwnesvx",
+          "kind": "attempt"
+        }
+      ],
+      "unreportedAttempts": 0
+    },
+    "sha256:b2521e0032c0d7a6c60d61b7efb803c992a5c9ef914dc7f925338d7bf6b2b2be": {
+      "activity": {
+        "attempts": 1,
+        "changedLines": null,
+        "commits": 0
+      },
+      "added": 0,
+      "committed": 2,
+      "delivered": 2,
+      "evidence": [
+        {
+          "detail": "accepted",
+          "id": "at_01m7t8sktqkgrd7m82ybwnesvx",
+          "kind": "attempt"
+        }
+      ],
+      "removed": 0
+    },
+    "sha256:b47db3eb9dc7d8e7c89f0b7c7bfeb8860f17221854914b1863bbdc71e8425516": {
+      "sprintRating": null,
+      "ticketRating": null
+    },
+    "sha256:bd46de78e53e84fc6d50fa72111e6ea0653ac3c4d18e3e1cfd67cd2bc7eef7dd": {
+      "activity": {
+        "attempts": 2,
+        "changedLines": null,
+        "commits": 1
+      },
+      "added": 2,
+      "committed": 2,
+      "delivered": 0,
+      "evidence": [
+        {
+          "detail": "accepted",
+          "id": "at_01m7t78xbgvx029vy7ccsfz2rr",
+          "kind": "attempt"
+        }
+      ],
+      "removed": 2
+    },
+    "sha256:c098ac0c5ad0638bdebcd2811535133abaa73f03349e4f021358f452576b250d": {
+      "actual": {
+        "reason": "host_unavailable",
+        "state": "missing"
+      },
+      "baseline": {
+        "reason": "no_eligible_baseline",
+        "rejected": [],
+        "state": "missing"
+      },
+      "evidence": [
+        {
+          "detail": "failed",
+          "id": "at_01m7t5r05za3y5jzkxhefpftmr",
+          "kind": "attempt"
+        },
+        {
+          "detail": "accepted",
+          "id": "at_01m7t78xbgvx029vy7ccsfz2rr",
+          "kind": "attempt"
+        }
+      ],
+      "unreportedAttempts": 2
+    },
+    "sha256:cb3caa9138a054c2d612537557c81801aa0111655afe0ada7db20d390bbd9348": {
+      "coordinationDefects": 0,
+      "evidence": [
+        {
+          "detail": "criteria_evidence",
+          "id": "mo_9r5x7zq5rvw4sza5zprc18y4yt",
+          "kind": "observation"
+        },
+        {
+          "detail": "verification_checks",
+          "id": "mo_pzek6q71cpzw3v26at7w1amknm",
+          "kind": "observation"
+        },
+        {
+          "detail": "outputs_contract",
+          "id": "mo_g663arrwgycvtxz0g02jqx50nz",
+          "kind": "observation"
+        }
+      ],
+      "handoffChecks": {
+        "failed": 0,
+        "passed": 3
+      }
+    },
+    "sha256:ce4c48d2ada70c8913cf5d3db35cc04c97649209cd61d0b8577528707c4efdaa": {
+      "actual": {
+        "reason": "host_unavailable",
+        "state": "missing"
+      },
+      "baseline": {
+        "reason": "no_eligible_baseline",
+        "rejected": [],
+        "state": "missing"
+      },
+      "evidence": [
+        {
+          "detail": "accepted",
+          "id": "at_01m7rxwnwwzd9h444q55b5n6cq",
+          "kind": "attempt"
+        }
+      ],
+      "unreportedAttempts": 0
+    },
+    "sha256:d34c8372838e50a6197a88a6350d668577840a2aab476ba09cb37ab06f3330ea": {
+      "actual": {
+        "reason": "host_unavailable",
+        "state": "missing"
+      },
+      "baseline": {
+        "reason": "no_eligible_baseline",
+        "rejected": [],
+        "state": "missing"
+      },
+      "evidence": [
+        {
+          "detail": "failed",
+          "id": "at_01m7t4jbjgxvj6fe457frzrz8k",
+          "kind": "attempt"
+        },
+        {
+          "detail": "accepted",
+          "id": "at_01m7rx7d9a8n2sgsta3rhz9xg1",
+          "kind": "attempt"
+        },
+        {
+          "detail": "superseded",
+          "id": "at_01m7rxwgkk4eaegmch1c9fa8yf",
+          "kind": "attempt"
+        },
+        {
+          "detail": "accepted",
+          "id": "at_01m7rxwnwwzd9h444q55b5n6cq",
+          "kind": "attempt"
+        },
+        {
+          "detail": "failed",
+          "id": "at_01m7t5r05za3y5jzkxhefpftmr",
+          "kind": "attempt"
+        },
+        {
+          "detail": "accepted",
+          "id": "at_01m7t78xbgvx029vy7ccsfz2rr",
+          "kind": "attempt"
+        },
+        {
+          "detail": "accepted",
+          "id": "at_01m7t5r3vhynr75je3bhh6hfhj",
+          "kind": "attempt"
+        },
+        {
+          "detail": "failed",
+          "id": "at_01m7t7rmhxtmcs8hz5n1ve4k9t",
+          "kind": "attempt"
+        },
+        {
+          "detail": "accepted",
+          "id": "at_01m7t8sktqkgrd7m82ybwnesvx",
+          "kind": "attempt"
+        }
+      ],
+      "unreportedAttempts": 9
+    },
+    "sha256:e814f5fa989bf7ed45d7907aa851c7bd60ea4335c404ad5a05439373cb3d39b3": {
+      "actual": {
+        "reason": "host_unavailable",
+        "state": "missing"
+      },
+      "baseline": {
+        "reason": "no_eligible_baseline",
+        "rejected": [],
+        "state": "missing"
+      },
+      "evidence": [
+        {
+          "detail": "failed",
+          "id": "at_01m7t7rmhxtmcs8hz5n1ve4k9t",
+          "kind": "attempt"
+        }
+      ],
+      "unreportedAttempts": 1
+    },
+    "sha256:eae949f8aa44b7e278aae4792e26867d648a21812e3e5c483ba88cc0b8722ca0": {
+      "regressions": [],
+      "verification": {
+        "evidence": [
+          {
+            "detail": "pending (awaiting_retry)",
+            "id": "tk_01m7rget6q81xt36beccgh02nh",
+            "kind": "ticket"
+          },
+          {
+            "detail": "verified (reviewed)",
+            "id": "tk_01m7rgrfv2xr81m68bjnp1kb7h",
+            "kind": "ticket"
+          },
+          {
+            "detail": "verified (reviewed)",
+            "id": "tk_01m7rgrfw4kh31ra13d3mwyjp7",
+            "kind": "ticket"
+          },
+          {
+            "detail": "verified (reviewed)",
+            "id": "tk_01m7t5dtwthjbj0ckam8xhx58z",
+            "kind": "ticket"
+          },
+          {
+            "detail": "verified (reviewed)",
+            "id": "tk_01m7t5dtzrmzfyy3fabkm4ct9h",
+            "kind": "ticket"
+          },
+          {
+            "detail": "pending (awaiting_retry)",
+            "id": "tk_01m7t6bby6qyjcezpcrs6znmrc",
+            "kind": "ticket"
+          },
+          {
+            "detail": "verified (reviewed)",
+            "id": "tk_01m7t8dftp56xsggmfy942m5qb",
+            "kind": "ticket"
+          },
+          {
+            "detail": "pending (awaiting_retry), since moved out of this sprint",
+            "id": "tk_01m7rgrfw4902evkb6f675qxfw",
+            "kind": "ticket"
+          }
+        ],
+        "state": "pending"
+      }
+    },
+    "sha256:f50ea631ec625009c4c552da57c01f3859b48367760eabefa42266e90b1e1ffa": {
+      "activity": {
+        "attempts": 9,
+        "changedLines": null,
+        "commits": 5
+      },
+      "added": 4,
+      "committed": 14,
+      "delivered": 2,
+      "evidence": [
+        {
+          "detail": "accepted",
+          "id": "at_01m7rx7d9a8n2sgsta3rhz9xg1",
+          "kind": "attempt"
+        },
+        {
+          "detail": "accepted",
+          "id": "at_01m7rxwnwwzd9h444q55b5n6cq",
+          "kind": "attempt"
+        }
+      ],
+      "removed": 12
+    },
+    "sha256:fd16a155e76c2cf24d6d318881ab152713f7aa3482e00100d0381ad9d5ff3852": {
+      "regressions": [],
+      "verification": {
+        "evidence": [
+          {
+            "detail": "failed",
+            "id": "at_01m7t7rmhxtmcs8hz5n1ve4k9t",
+            "kind": "attempt"
+          }
+        ],
+        "state": "pending"
+      }
+    }
+  },
+  "planRevisionId": "rv_01m7t8ke0gbqze39fdkw8rx98g",
+  "policy": {
+    "hash": "sha256:f50d32f4eb4e2d45dd56fedf66ecf75bb55409cf79cc542729cb503f42281712",
+    "policyId": "dm-space",
+    "version": 2
+  },
+  "report": {
+    "contentHash": "sha256:a34fc3fe16d46ea3917768a98e4996d457813899b6c4af09db5edcef4b1bc3d6",
+    "reportId": "rp_01m7t9ashcbjv9sjrh4pd984q4",
+    "reportRevision": 6
+  },
+  "run": {
+    "assessmentId": "as_19p6fcegt24yf6mdbhphhqrcx6",
+    "detail": "sha256:7747bf5db6b47dda07057dd5fab3db0b8988f79c2b921c393881313274ecf468",
+    "dispatchedAt": "2026-11-19T03:22:25.962Z",
+    "inputs": {
+      "A": "sha256:53fb8cebf3eb8df6d936091d0b40c919d98fb6861cc2954382590d8e2eb5808f",
+      "C": "sha256:22c0934872fa0c2d71896833ddce71db9b4e088acaf1f9116f3290385a2bbd61",
+      "E": "sha256:76bf305bb749d90ff3ec38320cc93919a00a8d3ad74061466b179f1d825ffa6d",
+      "K": "sha256:b06c0d81aa9db77957fd4fa5a9792629ae6ae3198c12d39b48699e30dd944236",
+      "P": "sha256:818dea7c9e71c2cbcb33dbac10636a43061ec12a23f8b7ff5468379a36e840d6",
+      "S": "sha256:b47db3eb9dc7d8e7c89f0b7c7bfeb8860f17221854914b1863bbdc71e8425516",
+      "T": "sha256:d34c8372838e50a6197a88a6350d668577840a2aab476ba09cb37ab06f3330ea"
+    },
+    "result": {
+      "components": [
+        {
+          "component": "S",
+          "missingReason": "no_rating",
+          "score": null,
+          "state": "missing"
+        },
+        {
+          "component": "P",
+          "missingReason": "verification_pending",
+          "score": null,
+          "state": "missing"
+        },
+        {
+          "component": "A",
+          "missingReason": null,
+          "score": 14.285714,
+          "state": "observed"
+        },
+        {
+          "component": "C",
+          "missingReason": null,
+          "score": 100,
+          "state": "observed"
+        },
+        {
+          "component": "E",
+          "missingReason": "host_unavailable",
+          "score": null,
+          "state": "missing"
+        },
+        {
+          "component": "T",
+          "missingReason": "host_unavailable",
+          "score": null,
+          "state": "missing"
+        },
+        {
+          "component": "K",
+          "missingReason": "host_unavailable",
+          "score": null,
+          "state": "missing"
+        }
+      ],
+      "coverage": 0.2857142857142857,
+      "displayScore": null,
+      "inputHash": "sha256:1e18c97dec1be2846317930e443d1d061bf5f6b41300517c0bf275d3e92267df",
+      "letter": null,
+      "outcome": "unverified",
+      "score": null,
+      "status": "ungraded",
+      "statusReasons": [
+        "verification_pending",
+        "required_component_missing"
+      ],
+      "uncappedScore": null
+    },
+    "subject": {
+      "id": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+      "level": "run"
+    }
+  },
+  "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+  "snapshotHash": "sha256:a5e45c0e4f979ee7a59ddcdc92de8a6150b19fcd8f1067e46a18e3e0e43e4ff9",
+  "snapshotId": "as_r036q2hx3gd04zv2gzh1py2hky",
+  "sources": {
+    "attemptIds": [
+      "at_01m7rx7d9a8n2sgsta3rhz9xg1",
+      "at_01m7rxwgkk4eaegmch1c9fa8yf",
+      "at_01m7rxwnwwzd9h444q55b5n6cq",
+      "at_01m7t4jbjgxvj6fe457frzrz8k",
+      "at_01m7t5r05za3y5jzkxhefpftmr",
+      "at_01m7t5r3vhynr75je3bhh6hfhj",
+      "at_01m7t78xbgvx029vy7ccsfz2rr",
+      "at_01m7t7rmhxtmcs8hz5n1ve4k9t",
+      "at_01m7t8sktqkgrd7m82ybwnesvx"
+    ],
+    "runIds": [
+      "rn_01m7rx5yzr8zxkdq1ndzcst1yv"
+    ],
+    "ticketIds": [
+      "tk_01m7rget6q81xt36beccgh02nh",
+      "tk_01m7rgrfv2xr81m68bjnp1kb7h",
+      "tk_01m7rgrfw4902evkb6f675qxfw",
+      "tk_01m7rgrfw4mb2bbws108gdhaqm",
+      "tk_01m7rgrfw41vm23bzyy86a6ce9",
+      "tk_01m7rgrfw4kh31ra13d3mwyjp7",
+      "tk_01m7rgrfw4xg21z2bkk9q8pm8j",
+      "tk_01m7rgrfw4jmsaaf5kjkn1axkm",
+      "tk_01m7rgrfw55xn4c0693w4pkg9w",
+      "tk_01m7rgrfw5kzhmtq9g183271db",
+      "tk_01m7rgrfw585v9ttzffsvr9zfh",
+      "tk_01m7rgrfw5rjgn3b7vjxbfscjv",
+      "tk_01m7rgrfw55tadh1z18j5079we",
+      "tk_01m7rgrfw5eyq9fnt31gevt802",
+      "tk_01m7rgrfw5t6bp2056xzc8teaf",
+      "tk_01m7ryk7cp49qwdfycjwzgwwmd",
+      "tk_01m7ryqcv3k8m07j4cx0y86ray",
+      "tk_01m7t5dtwthjbj0ckam8xhx58z",
+      "tk_01m7t5dtzrmzfyy3fabkm4ct9h",
+      "tk_01m7t6bby6qyjcezpcrs6znmrc",
+      "tk_01m7t8dftp56xsggmfy942m5qb"
+    ]
+  },
+  "sprint": {
+    "assessmentId": "as_szpmj20s2h2mz70e8544042edy",
+    "detail": "sha256:0a9f2b0e8d296663ce9421faaf309171d30d6c47ae40de6b0d31ed4bc8abdfdb",
+    "dispatchedAt": "2026-11-19T03:22:25.962Z",
+    "inputs": {
+      "A": "sha256:f50ea631ec625009c4c552da57c01f3859b48367760eabefa42266e90b1e1ffa",
+      "C": "sha256:22c0934872fa0c2d71896833ddce71db9b4e088acaf1f9116f3290385a2bbd61",
+      "E": "sha256:76bf305bb749d90ff3ec38320cc93919a00a8d3ad74061466b179f1d825ffa6d",
+      "K": "sha256:908d9a02da616176f358f687347dee9ac48abd04afb166275853bee61acd41e2",
+      "P": "sha256:eae949f8aa44b7e278aae4792e26867d648a21812e3e5c483ba88cc0b8722ca0",
+      "S": "sha256:b47db3eb9dc7d8e7c89f0b7c7bfeb8860f17221854914b1863bbdc71e8425516",
+      "T": "sha256:6b9b504f17d5a11d094fbde10a9defce7daafbc1f58c2a5265c2e0d42f70d4b1"
+    },
+    "result": {
+      "components": [
+        {
+          "component": "S",
+          "missingReason": "no_rating",
+          "score": null,
+          "state": "missing"
+        },
+        {
+          "component": "P",
+          "missingReason": "verification_pending",
+          "score": null,
+          "state": "missing"
+        },
+        {
+          "component": "A",
+          "missingReason": null,
+          "score": 14.285714,
+          "state": "observed"
+        },
+        {
+          "component": "C",
+          "missingReason": null,
+          "score": 100,
+          "state": "observed"
+        },
+        {
+          "component": "E",
+          "missingReason": "host_unavailable",
+          "score": null,
+          "state": "missing"
+        },
+        {
+          "component": "T",
+          "missingReason": "host_unavailable",
+          "score": null,
+          "state": "missing"
+        },
+        {
+          "component": "K",
+          "missingReason": "host_unavailable",
+          "score": null,
+          "state": "missing"
+        }
+      ],
+      "coverage": 0.2857142857142857,
+      "displayScore": null,
+      "inputHash": "sha256:ab408a96280c2404ac84c882f6025336335ff2662908812dd78cfdc191472ee2",
+      "letter": null,
+      "outcome": "unverified",
+      "score": null,
+      "status": "ungraded",
+      "statusReasons": [
+        "verification_pending",
+        "required_component_missing"
+      ],
+      "uncappedScore": null
+    },
+    "subject": {
+      "id": "sp_01m7rget6q03n7a08sjxtjjh8t",
+      "level": "sprint"
+    }
+  },
+  "sprintId": "sp_01m7rget6q03n7a08sjxtjjh8t",
+  "tickets": [
+    {
+      "assessmentId": "as_be18bcnevqx9hgjny1c3v99wjj",
+      "dispatchedAt": "2026-11-19T14:49:59.120Z",
+      "inputs": {
+        "A": "sha256:7ac47664d9c210e7f0677ecb20185b115a419633955136f239641504ae844b8c",
+        "C": "sha256:62ccb115e24a64e29e910d7e32b45284d0344543fbef43026b7073b043821f19",
+        "E": "sha256:4081cd62a35a2c35f3e7d4ddff6397db64156128115221be65950998bb4041bf",
+        "K": "sha256:9cc5a5591c504cf703bada4d8da76ca308e335c0c1e8268223cdb889a713dde0",
+        "P": "sha256:0f061e846af5af05212b5b30231701a74ade6280694358dce8ead5e1ef1d88bb",
+        "S": "sha256:b47db3eb9dc7d8e7c89f0b7c7bfeb8860f17221854914b1863bbdc71e8425516",
+        "T": "sha256:7c1cf68c5606773b05d95b637ec27d523002857b46724d834cd8b0f6c04e48c6"
+      },
+      "result": {
+        "components": [
+          {
+            "component": "S",
+            "missingReason": "no_rating",
+            "score": null,
+            "state": "missing"
+          },
+          {
+            "component": "P",
+            "missingReason": "verification_pending",
+            "score": null,
+            "state": "missing"
+          },
+          {
+            "component": "A",
+            "missingReason": null,
+            "score": 0,
+            "state": "observed"
+          },
+          {
+            "component": "C",
+            "missingReason": "no_handoffs",
+            "score": null,
+            "state": "missing"
+          },
+          {
+            "component": "E",
+            "missingReason": "host_unavailable",
+            "score": null,
+            "state": "missing"
+          },
+          {
+            "component": "T",
+            "missingReason": "host_unavailable",
+            "score": null,
+            "state": "missing"
+          },
+          {
+            "component": "K",
+            "missingReason": "host_unavailable",
+            "score": null,
+            "state": "missing"
+          }
+        ],
+        "coverage": 0.14285714285714285,
+        "displayScore": null,
+        "inputHash": "sha256:8f5777b389c81b708516c99a4efd0b7ef9608b223e257be25341248864fc8217",
+        "letter": null,
+        "outcome": "unverified",
+        "score": null,
+        "status": "ungraded",
+        "statusReasons": [
+          "verification_pending",
+          "required_component_missing"
+        ],
+        "uncappedScore": null
+      },
+      "subject": {
+        "id": "tk_01m7rget6q81xt36beccgh02nh",
+        "level": "ticket"
+      }
+    },
+    {
+      "assessmentId": "as_znd89bemc2h612jt62r57v83wr",
+      "dispatchedAt": "2026-11-19T03:22:25.962Z",
+      "inputs": {
+        "A": "sha256:1c13b81fe353e28949e60dae39ad9697fc5b1ffb09020002eef4e877ebf0bcea",
+        "C": "sha256:cb3caa9138a054c2d612537557c81801aa0111655afe0ada7db20d390bbd9348",
+        "E": "sha256:4081cd62a35a2c35f3e7d4ddff6397db64156128115221be65950998bb4041bf",
+        "K": "sha256:507403c4db162e4d10c743a15257c2ea71fb9b3941b0d13d47d52675d7eb375a",
+        "P": "sha256:83f6a760b2640200ca7164d729429b3484c0253f71ce917865a830154f5cc039",
+        "S": "sha256:b47db3eb9dc7d8e7c89f0b7c7bfeb8860f17221854914b1863bbdc71e8425516",
+        "T": "sha256:04196343c2dae58546271d75f3f8673eab48831a7cbf23a4ef8252f17e17d7a7"
+      },
+      "result": {
+        "components": [
+          {
+            "component": "S",
+            "missingReason": "no_rating",
+            "score": null,
+            "state": "missing"
+          },
+          {
+            "component": "P",
+            "missingReason": null,
+            "score": 100,
+            "state": "observed"
+          },
+          {
+            "component": "A",
+            "missingReason": null,
+            "score": 100,
+            "state": "observed"
+          },
+          {
+            "component": "C",
+            "missingReason": null,
+            "score": 100,
+            "state": "observed"
+          },
+          {
+            "component": "E",
+            "missingReason": "host_unavailable",
+            "score": null,
+            "state": "missing"
+          },
+          {
+            "component": "T",
+            "missingReason": "host_unavailable",
+            "score": null,
+            "state": "missing"
+          },
+          {
+            "component": "K",
+            "missingReason": "host_unavailable",
+            "score": null,
+            "state": "missing"
+          }
+        ],
+        "coverage": 0.42857142857142855,
+        "displayScore": null,
+        "inputHash": "sha256:8245cdc41bb4bb26abb799ec490accb056c2085297c461eb8a8e3886e6bbfcfc",
+        "letter": null,
+        "outcome": "verified",
+        "score": null,
+        "status": "ungraded",
+        "statusReasons": [
+          "insufficient_coverage",
+          "required_component_missing"
+        ],
+        "uncappedScore": null
+      },
+      "subject": {
+        "id": "tk_01m7rgrfv2xr81m68bjnp1kb7h",
+        "level": "ticket"
+      }
+    },
+    {
+      "assessmentId": "as_nyvq8w9389643gdbfe738vgf8h",
+      "dispatchedAt": "2026-11-19T03:34:02.908Z",
+      "inputs": {
+        "A": "sha256:823ef6eafc5a95e81cd4a9f54611efa95fca2b78b1e4a72e6e652eeeb849ec83",
+        "C": "sha256:8725f2672f298eaee99094bfaea839f2480efeb3907cf258a1dffbaad1c78e0c",
+        "E": "sha256:4081cd62a35a2c35f3e7d4ddff6397db64156128115221be65950998bb4041bf",
+        "K": "sha256:ce4c48d2ada70c8913cf5d3db35cc04c97649209cd61d0b8577528707c4efdaa",
+        "P": "sha256:458d350cd3f8a905a03513db2b2d2e62d4a797337f3d177bf6b82c7ca6b2432f",
+        "S": "sha256:b47db3eb9dc7d8e7c89f0b7c7bfeb8860f17221854914b1863bbdc71e8425516",
+        "T": "sha256:16f19aa4026a46e2e9d545fb48d2118aa19c6d0254b0ee97aa8805e16ffc4321"
+      },
+      "result": {
+        "components": [
+          {
+            "component": "S",
+            "missingReason": "no_rating",
+            "score": null,
+            "state": "missing"
+          },
+          {
+            "component": "P",
+            "missingReason": null,
+            "score": 100,
+            "state": "observed"
+          },
+          {
+            "component": "A",
+            "missingReason": null,
+            "score": 100,
+            "state": "observed"
+          },
+          {
+            "component": "C",
+            "missingReason": null,
+            "score": 100,
+            "state": "observed"
+          },
+          {
+            "component": "E",
+            "missingReason": "host_unavailable",
+            "score": null,
+            "state": "missing"
+          },
+          {
+            "component": "T",
+            "missingReason": "host_unavailable",
+            "score": null,
+            "state": "missing"
+          },
+          {
+            "component": "K",
+            "missingReason": "host_unavailable",
+            "score": null,
+            "state": "missing"
+          }
+        ],
+        "coverage": 0.42857142857142855,
+        "displayScore": null,
+        "inputHash": "sha256:7d9dba0c3b483417c657984ba5433c465fcadd60e88fb05e4edeae2cd0aebfe7",
+        "letter": null,
+        "outcome": "verified",
+        "score": null,
+        "status": "ungraded",
+        "statusReasons": [
+          "insufficient_coverage",
+          "required_component_missing"
+        ],
+        "uncappedScore": null
+      },
+      "subject": {
+        "id": "tk_01m7rgrfw4kh31ra13d3mwyjp7",
+        "level": "ticket"
+      }
+    },
+    {
+      "assessmentId": "as_d8zpa4x4tsfhwvh5q9fvsxwnga",
+      "dispatchedAt": "2026-11-19T15:10:32.639Z",
+      "inputs": {
+        "A": "sha256:bd46de78e53e84fc6d50fa72111e6ea0653ac3c4d18e3e1cfd67cd2bc7eef7dd",
+        "C": "sha256:a37351bc5529aa8d8e78c9747f96dbf0baf6d37d00ce9ea34e6cf5f12bfae3b3",
+        "E": "sha256:76bf305bb749d90ff3ec38320cc93919a00a8d3ad74061466b179f1d825ffa6d",
+        "K": "sha256:66bd714aad943ce1cef2b35e1cbdea247e2bf9eb64b97ef270454dcf6058ae25",
+        "P": "sha256:659a1e687ea92fe1a2dd16696947c6c4f01adaf693d10ee28f74e34b9f038e40",
+        "S": "sha256:b47db3eb9dc7d8e7c89f0b7c7bfeb8860f17221854914b1863bbdc71e8425516",
+        "T": "sha256:c098ac0c5ad0638bdebcd2811535133abaa73f03349e4f021358f452576b250d"
+      },
+      "result": {
+        "components": [
+          {
+            "component": "S",
+            "missingReason": "no_rating",
+            "score": null,
+            "state": "missing"
+          },
+          {
+            "component": "P",
+            "missingReason": null,
+            "score": 100,
+            "state": "observed"
+          },
+          {
+            "component": "A",
+            "missingReason": null,
+            "score": 0,
+            "state": "observed"
+          },
+          {
+            "component": "C",
+            "missingReason": null,
+            "score": 100,
+            "state": "observed"
+          },
+          {
+            "component": "E",
+            "missingReason": "host_unavailable",
+            "score": null,
+            "state": "missing"
+          },
+          {
+            "component": "T",
+            "missingReason": "host_unavailable",
+            "score": null,
+            "state": "missing"
+          },
+          {
+            "component": "K",
+            "missingReason": "host_unavailable",
+            "score": null,
+            "state": "missing"
+          }
+        ],
+        "coverage": 0.42857142857142855,
+        "displayScore": null,
+        "inputHash": "sha256:fc7e457157498776a886c148fd8f9fe17acca08daed809bde4421186dc42b44a",
+        "letter": null,
+        "outcome": "verified",
+        "score": null,
+        "status": "ungraded",
+        "statusReasons": [
+          "insufficient_coverage",
+          "required_component_missing"
+        ],
+        "uncappedScore": null
+      },
+      "subject": {
+        "id": "tk_01m7t5dtwthjbj0ckam8xhx58z",
+        "level": "ticket"
+      }
+    },
+    {
+      "assessmentId": "as_pjheyf8mtd2r28c41fhhq0c6je",
+      "dispatchedAt": "2026-11-19T15:10:36.401Z",
+      "inputs": {
+        "A": "sha256:0ade4f9f3ee8cf7b37da7c2520d2e8c06ca0803889626b35cd78d9f0b3172e5b",
+        "C": "sha256:4c2ce571fdf7a10fed018e561bd44560832055758be3d9e21f522a5c56046d65",
+        "E": "sha256:4081cd62a35a2c35f3e7d4ddff6397db64156128115221be65950998bb4041bf",
+        "K": "sha256:31e9384a6fb6821312f790fdb4d77abbe026cabf6369ab760d23e00191a53501",
+        "P": "sha256:7960c0f31033746560e2958b9ad5155e4d9faba4c24fdf2d7466a970e3fa61c6",
+        "S": "sha256:b47db3eb9dc7d8e7c89f0b7c7bfeb8860f17221854914b1863bbdc71e8425516",
+        "T": "sha256:879e414e0fd3b629059af17fe814c8df7d909de2f1c582d66185f4b46534fba5"
+      },
+      "result": {
+        "components": [
+          {
+            "component": "S",
+            "missingReason": "no_rating",
+            "score": null,
+            "state": "missing"
+          },
+          {
+            "component": "P",
+            "missingReason": null,
+            "score": 100,
+            "state": "observed"
+          },
+          {
+            "component": "A",
+            "missingReason": null,
+            "score": 100,
+            "state": "observed"
+          },
+          {
+            "component": "C",
+            "missingReason": null,
+            "score": 100,
+            "state": "observed"
+          },
+          {
+            "component": "E",
+            "missingReason": "host_unavailable",
+            "score": null,
+            "state": "missing"
+          },
+          {
+            "component": "T",
+            "missingReason": "host_unavailable",
+            "score": null,
+            "state": "missing"
+          },
+          {
+            "component": "K",
+            "missingReason": "host_unavailable",
+            "score": null,
+            "state": "missing"
+          }
+        ],
+        "coverage": 0.42857142857142855,
+        "displayScore": null,
+        "inputHash": "sha256:7d5127d2ad8987eeff348e6345695d870e7439a2208ca55fb15d6db1539c182c",
+        "letter": null,
+        "outcome": "verified",
+        "score": null,
+        "status": "ungraded",
+        "statusReasons": [
+          "insufficient_coverage",
+          "required_component_missing"
+        ],
+        "uncappedScore": null
+      },
+      "subject": {
+        "id": "tk_01m7t5dtzrmzfyy3fabkm4ct9h",
+        "level": "ticket"
+      }
+    },
+    {
+      "assessmentId": "as_02bbhcf1cwyf0e928mnzt4rv7m",
+      "dispatchedAt": "2026-11-19T15:45:50.653Z",
+      "inputs": {
+        "A": "sha256:5b870d8aaa82c411202aa8409a61761bb96b665b6e57b9e80bf56559c2b8d75f",
+        "C": "sha256:62ccb115e24a64e29e910d7e32b45284d0344543fbef43026b7073b043821f19",
+        "E": "sha256:4081cd62a35a2c35f3e7d4ddff6397db64156128115221be65950998bb4041bf",
+        "K": "sha256:0d52daf399910255d1695d75591ce8d8788391dd20cda60c37f2fd96fd631847",
+        "P": "sha256:fd16a155e76c2cf24d6d318881ab152713f7aa3482e00100d0381ad9d5ff3852",
+        "S": "sha256:b47db3eb9dc7d8e7c89f0b7c7bfeb8860f17221854914b1863bbdc71e8425516",
+        "T": "sha256:e814f5fa989bf7ed45d7907aa851c7bd60ea4335c404ad5a05439373cb3d39b3"
+      },
+      "result": {
+        "components": [
+          {
+            "component": "S",
+            "missingReason": "no_rating",
+            "score": null,
+            "state": "missing"
+          },
+          {
+            "component": "P",
+            "missingReason": "verification_pending",
+            "score": null,
+            "state": "missing"
+          },
+          {
+            "component": "A",
+            "missingReason": null,
+            "score": 0,
+            "state": "observed"
+          },
+          {
+            "component": "C",
+            "missingReason": "no_handoffs",
+            "score": null,
+            "state": "missing"
+          },
+          {
+            "component": "E",
+            "missingReason": "host_unavailable",
+            "score": null,
+            "state": "missing"
+          },
+          {
+            "component": "T",
+            "missingReason": "host_unavailable",
+            "score": null,
+            "state": "missing"
+          },
+          {
+            "component": "K",
+            "missingReason": "host_unavailable",
+            "score": null,
+            "state": "missing"
+          }
+        ],
+        "coverage": 0.14285714285714285,
+        "displayScore": null,
+        "inputHash": "sha256:cd017608b2951c88754a4719c32b2d1d589ec14baa7af5fd252cbc6b28c9605d",
+        "letter": null,
+        "outcome": "unverified",
+        "score": null,
+        "status": "ungraded",
+        "statusReasons": [
+          "verification_pending",
+          "required_component_missing"
+        ],
+        "uncappedScore": null
+      },
+      "subject": {
+        "id": "tk_01m7t6bby6qyjcezpcrs6znmrc",
+        "level": "ticket"
+      }
+    },
+    {
+      "assessmentId": "as_csfwg19jhj1ddwz8gxhxcae9j9",
+      "dispatchedAt": "2026-11-19T16:03:51.256Z",
+      "inputs": {
+        "A": "sha256:b2521e0032c0d7a6c60d61b7efb803c992a5c9ef914dc7f925338d7bf6b2b2be",
+        "C": "sha256:6e1b906e8d61b9761878c7628499767ad0438827b2f895cf8d963c967e2e4009",
+        "E": "sha256:4081cd62a35a2c35f3e7d4ddff6397db64156128115221be65950998bb4041bf",
+        "K": "sha256:61829660b005f54725324eec86805a9c537509557bc52b0451f8eefffdc768a3",
+        "P": "sha256:13ea91583f8d2ae9e5c3cafe5aa17a0af0d9fb4d4ba60aba7d15371f5399425b",
+        "S": "sha256:b47db3eb9dc7d8e7c89f0b7c7bfeb8860f17221854914b1863bbdc71e8425516",
+        "T": "sha256:a696951c98f2de69a995629b703153bb2a3cd9d52c9dd8ed874bd7f52c3f1bb8"
+      },
+      "result": {
+        "components": [
+          {
+            "component": "S",
+            "missingReason": "no_rating",
+            "score": null,
+            "state": "missing"
+          },
+          {
+            "component": "P",
+            "missingReason": null,
+            "score": 100,
+            "state": "observed"
+          },
+          {
+            "component": "A",
+            "missingReason": null,
+            "score": 100,
+            "state": "observed"
+          },
+          {
+            "component": "C",
+            "missingReason": null,
+            "score": 100,
+            "state": "observed"
+          },
+          {
+            "component": "E",
+            "missingReason": "host_unavailable",
+            "score": null,
+            "state": "missing"
+          },
+          {
+            "component": "T",
+            "missingReason": "host_unavailable",
+            "score": null,
+            "state": "missing"
+          },
+          {
+            "component": "K",
+            "missingReason": "host_unavailable",
+            "score": null,
+            "state": "missing"
+          }
+        ],
+        "coverage": 0.42857142857142855,
+        "displayScore": null,
+        "inputHash": "sha256:047d3b506b9ee0c73426cf9cc98ad5825fd843138f28bd31bb16a6211b26e4f7",
+        "letter": null,
+        "outcome": "verified",
+        "score": null,
+        "status": "ungraded",
+        "statusReasons": [
+          "insufficient_coverage",
+          "required_component_missing"
+        ],
+        "uncappedScore": null
+      },
+      "subject": {
+        "id": "tk_01m7t8dftp56xsggmfy942m5qb",
+        "level": "ticket"
+      }
+    }
+  ],
+  "timing": {
+    "anomalies": [
+      {
+        "detail": "attempt_signal at 2026-11-19T03:27:47.861Z",
+        "kind": "duplicate_event",
+        "subject": "at_01m7rx7d9a8n2sgsta3rhz9xg1"
+      },
+      {
+        "detail": "attempt_signal at 2026-11-19T03:40:33.230Z",
+        "kind": "duplicate_event",
+        "subject": "at_01m7rxwgkk4eaegmch1c9fa8yf"
+      },
+      {
+        "detail": "attempt_signal at 2026-11-19T03:39:24.545Z",
+        "kind": "duplicate_event",
+        "subject": "at_01m7rxwnwwzd9h444q55b5n6cq"
+      },
+      {
+        "detail": "attempt_signal at 2026-11-19T15:15:43.090Z",
+        "kind": "duplicate_event",
+        "subject": "at_01m7t5r05za3y5jzkxhefpftmr"
+      },
+      {
+        "detail": "attempt_signal at 2026-11-19T15:15:16.630Z",
+        "kind": "duplicate_event",
+        "subject": "at_01m7t5r3vhynr75je3bhh6hfhj"
+      },
+      {
+        "detail": "attempt_signal at 2026-11-19T15:40:17.730Z",
+        "kind": "duplicate_event",
+        "subject": "at_01m7t78xbgvx029vy7ccsfz2rr"
+      },
+      {
+        "detail": "attempt_signal at 2026-11-19T16:07:27.414Z",
+        "kind": "duplicate_event",
+        "subject": "at_01m7t8sktqkgrd7m82ybwnesvx"
+      },
+      {
+        "detail": "delta active_ms has no place in time",
+        "kind": "not_an_interval",
+        "subject": "mo_5c3f0fjxtjjhwyhys8tdade2z0"
+      },
+      {
+        "detail": "delta active_ms has no place in time",
+        "kind": "not_an_interval",
+        "subject": "mo_hrft5byn1n9ky1gmec9ph9g7bz"
+      },
+      {
+        "detail": "delta active_ms has no place in time",
+        "kind": "not_an_interval",
+        "subject": "mo_t0t72x4wkwgkfjtd2wgbwbvxtk"
+      },
+      {
+        "detail": "delta active_ms has no place in time",
+        "kind": "not_an_interval",
+        "subject": "mo_8d1jmgn0f4n1fn628rcfap7a0n"
+      },
+      {
+        "detail": "delta active_ms has no place in time",
+        "kind": "not_an_interval",
+        "subject": "mo_6532c75qmmjk5pwf5q9knvyy4w"
+      },
+      {
+        "detail": "delta active_ms has no place in time",
+        "kind": "not_an_interval",
+        "subject": "mo_hfx053gm47bacvn08sp87qfn43"
+      },
+      {
+        "detail": "ready at 2026-11-19T16:11:08.889Z, after its first claim",
+        "kind": "event_out_of_place",
+        "subject": "tk_01m7t6bby6qyjcezpcrs6znmrc"
+      }
+    ],
+    "asOf": "2026-11-19T16:13:14.156Z",
+    "basis": {
+      "totals": "current_plan",
+      "window": "activation"
+    },
+    "run": {
+      "activeWallClock": {
+        "aggregation": "union",
+        "coverage": {
+          "covered": 0,
+          "of": 9,
+          "unit": "attempts"
+        },
+        "ms": null,
+        "open": true,
+        "quantity": "active_wall_clock",
+        "state": "missing",
+        "unit": "milliseconds"
+      },
+      "effort": {
+        "aggregation": "sum",
+        "coverage": {
+          "covered": 0,
+          "of": 9,
+          "unit": "attempts"
+        },
+        "ms": null,
+        "open": false,
+        "quantity": "resource_effort",
+        "state": "missing",
+        "unit": "milliseconds"
+      },
+      "elapsed": {
+        "aggregation": "single",
+        "coverage": {
+          "covered": 46295603,
+          "of": 46295603,
+          "unit": "milliseconds"
+        },
+        "ms": 46295603,
+        "open": true,
+        "quantity": "window_elapsed",
+        "state": "observed",
+        "unit": "milliseconds"
+      },
+      "endedAt": null,
+      "inFlight": {
+        "aggregation": "union",
+        "coverage": {
+          "covered": 9,
+          "of": 9,
+          "unit": "attempts"
+        },
+        "ms": 3009961,
+        "open": false,
+        "quantity": "in_flight_wall_clock",
+        "state": "observed",
+        "unit": "milliseconds"
+      },
+      "overhead": {
+        "aggregation": "sum",
+        "coverage": {
+          "covered": 0,
+          "of": 5,
+          "unit": "attempts"
+        },
+        "ms": null,
+        "open": false,
+        "quantity": "resource_effort",
+        "state": "missing",
+        "unit": "milliseconds"
+      },
+      "startedAt": "2026-11-19T03:21:38.553Z",
+      "unattributedEffort": {
+        "aggregation": "sum",
+        "coverage": {
+          "covered": 0,
+          "of": 0,
+          "unit": "attempts"
+        },
+        "ms": null,
+        "open": false,
+        "quantity": "resource_effort",
+        "state": "missing",
+        "unit": "milliseconds"
+      }
+    },
+    "runId": "rn_01m7rx5yzr8zxkdq1ndzcst1yv",
+    "sprint": {
+      "activeWallClock": {
+        "aggregation": "union",
+        "coverage": {
+          "covered": 0,
+          "of": 8,
+          "unit": "attempts"
+        },
+        "ms": null,
+        "open": true,
+        "quantity": "active_wall_clock",
+        "state": "missing",
+        "unit": "milliseconds"
+      },
+      "checkpointWait": {
+        "aggregation": "single",
+        "coverage": {
+          "covered": 44835184,
+          "of": 44835184,
+          "unit": "milliseconds"
+        },
+        "ms": 44835184,
+        "open": true,
+        "quantity": "classified_wait",
+        "state": "observed",
+        "unit": "milliseconds"
+      },
+      "effort": {
+        "aggregation": "sum",
+        "coverage": {
+          "covered": 0,
+          "of": 8,
+          "unit": "attempts"
+        },
+        "ms": null,
+        "open": false,
+        "quantity": "resource_effort",
+        "state": "missing",
+        "unit": "milliseconds"
+      },
+      "elapsed": {
+        "aggregation": "single",
+        "coverage": {
+          "covered": 46295603,
+          "of": 46295603,
+          "unit": "milliseconds"
+        },
+        "ms": 46295603,
+        "open": true,
+        "quantity": "window_elapsed",
+        "state": "observed",
+        "unit": "milliseconds"
+      },
+      "endedAt": null,
+      "inFlight": {
+        "aggregation": "union",
+        "coverage": {
+          "covered": 8,
+          "of": 8,
+          "unit": "attempts"
+        },
+        "ms": 3004544,
+        "open": false,
+        "quantity": "in_flight_wall_clock",
+        "state": "observed",
+        "unit": "milliseconds"
+      },
+      "overhead": {
+        "aggregation": "sum",
+        "coverage": {
+          "covered": 0,
+          "of": 5,
+          "unit": "attempts"
+        },
+        "ms": null,
+        "open": false,
+        "quantity": "resource_effort",
+        "state": "missing",
+        "unit": "milliseconds"
+      },
+      "sprintId": "sp_01m7rget6q03n7a08sjxtjjh8t",
+      "startedAt": "2026-11-19T03:21:38.553Z",
+      "ticketIds": [
+        "tk_01m7rget6q81xt36beccgh02nh",
+        "tk_01m7rgrfv2xr81m68bjnp1kb7h",
+        "tk_01m7rgrfw4kh31ra13d3mwyjp7",
+        "tk_01m7t5dtwthjbj0ckam8xhx58z",
+        "tk_01m7t5dtzrmzfyy3fabkm4ct9h",
+        "tk_01m7t6bby6qyjcezpcrs6znmrc",
+        "tk_01m7t8dftp56xsggmfy942m5qb"
+      ],
+      "unattributedOverhead": {
+        "aggregation": "sum",
+        "coverage": {
+          "covered": 0,
+          "of": 0,
+          "unit": "attempts"
+        },
+        "ms": null,
+        "open": false,
+        "quantity": "resource_effort",
+        "state": "missing",
+        "unit": "milliseconds"
+      }
+    },
+    "tickets": [
+      {
+        "acceptedAt": null,
+        "active": {
+          "aggregation": "union",
+          "coverage": {
+            "covered": 0,
+            "of": 1,
+            "unit": "attempts"
+          },
+          "ms": null,
+          "open": true,
+          "quantity": "measured_active",
+          "state": "missing",
+          "unit": "milliseconds"
+        },
+        "cycleTime": {
+          "aggregation": "single",
+          "coverage": {
+            "covered": 4381791,
+            "of": 4995036,
+            "unit": "milliseconds"
+          },
+          "ms": 4995036,
+          "open": true,
+          "quantity": "ticket_cycle_time",
+          "state": "observed",
+          "unit": "milliseconds"
+        },
+        "effort": {
+          "aggregation": "sum",
+          "coverage": {
+            "covered": 0,
+            "of": 1,
+            "unit": "attempts"
+          },
+          "ms": null,
+          "open": false,
+          "quantity": "resource_effort",
+          "state": "missing",
+          "unit": "milliseconds"
+        },
+        "endedBy": "cutoff",
+        "firstClaimAt": "2026-11-19T14:49:59.120Z",
+        "leadTime": {
+          "aggregation": "single",
+          "coverage": {
+            "covered": 45682358,
+            "of": 46295603,
+            "unit": "milliseconds"
+          },
+          "ms": 46295603,
+          "open": true,
+          "quantity": "ticket_lead_time",
+          "state": "observed",
+          "unit": "milliseconds"
+        },
+        "overhead": {
+          "aggregation": "sum",
+          "coverage": {
+            "covered": 0,
+            "of": 0,
+            "unit": "attempts"
+          },
+          "ms": null,
+          "open": false,
+          "quantity": "resource_effort",
+          "state": "missing",
+          "unit": "milliseconds"
+        },
+        "readyAt": "2026-11-19T03:21:38.553Z",
+        "sprintId": "sp_01m7rget6q03n7a08sjxtjjh8t",
+        "ticketId": "tk_01m7rget6q81xt36beccgh02nh"
+      },
+      {
+        "acceptedAt": "2026-11-19T03:31:35.061Z",
+        "active": {
+          "aggregation": "union",
+          "coverage": {
+            "covered": 0,
+            "of": 1,
+            "unit": "attempts"
+          },
+          "ms": null,
+          "open": false,
+          "quantity": "measured_active",
+          "state": "missing",
+          "unit": "milliseconds"
+        },
+        "cycleTime": {
+          "aggregation": "single",
+          "coverage": {
+            "covered": 65635,
+            "of": 549099,
+            "unit": "milliseconds"
+          },
+          "ms": 549099,
+          "open": false,
+          "quantity": "ticket_cycle_time",
+          "state": "observed",
+          "unit": "milliseconds"
+        },
+        "effort": {
+          "aggregation": "sum",
+          "coverage": {
+            "covered": 0,
+            "of": 1,
+            "unit": "attempts"
+          },
+          "ms": null,
+          "open": false,
+          "quantity": "resource_effort",
+          "state": "missing",
+          "unit": "milliseconds"
+        },
+        "endedBy": "accepted",
+        "firstClaimAt": "2026-11-19T03:22:25.962Z",
+        "leadTime": {
+          "aggregation": "single",
+          "coverage": {
+            "covered": 113044,
+            "of": 596508,
+            "unit": "milliseconds"
+          },
+          "ms": 596508,
+          "open": false,
+          "quantity": "ticket_lead_time",
+          "state": "observed",
+          "unit": "milliseconds"
+        },
+        "overhead": {
+          "aggregation": "sum",
+          "coverage": {
+            "covered": 0,
+            "of": 1,
+            "unit": "attempts"
+          },
+          "ms": null,
+          "open": false,
+          "quantity": "resource_effort",
+          "state": "missing",
+          "unit": "milliseconds"
+        },
+        "readyAt": "2026-11-19T03:21:38.553Z",
+        "sprintId": "sp_01m7rget6q03n7a08sjxtjjh8t",
+        "ticketId": "tk_01m7rgrfv2xr81m68bjnp1kb7h"
+      },
+      {
+        "acceptedAt": "2026-11-19T03:43:32.271Z",
+        "active": {
+          "aggregation": "union",
+          "coverage": {
+            "covered": 0,
+            "of": 1,
+            "unit": "attempts"
+          },
+          "ms": null,
+          "open": false,
+          "quantity": "measured_active",
+          "state": "missing",
+          "unit": "milliseconds"
+        },
+        "cycleTime": {
+          "aggregation": "single",
+          "coverage": {
+            "covered": 74462,
+            "of": 569363,
+            "unit": "milliseconds"
+          },
+          "ms": 569363,
+          "open": false,
+          "quantity": "ticket_cycle_time",
+          "state": "observed",
+          "unit": "milliseconds"
+        },
+        "effort": {
+          "aggregation": "sum",
+          "coverage": {
+            "covered": 0,
+            "of": 1,
+            "unit": "attempts"
+          },
+          "ms": null,
+          "open": false,
+          "quantity": "resource_effort",
+          "state": "missing",
+          "unit": "milliseconds"
+        },
+        "endedBy": "accepted",
+        "firstClaimAt": "2026-11-19T03:34:02.908Z",
+        "leadTime": {
+          "aggregation": "single",
+          "coverage": {
+            "covered": 222309,
+            "of": 717210,
+            "unit": "milliseconds"
+          },
+          "ms": 717210,
+          "open": false,
+          "quantity": "ticket_lead_time",
+          "state": "observed",
+          "unit": "milliseconds"
+        },
+        "overhead": {
+          "aggregation": "sum",
+          "coverage": {
+            "covered": 0,
+            "of": 1,
+            "unit": "attempts"
+          },
+          "ms": null,
+          "open": false,
+          "quantity": "resource_effort",
+          "state": "missing",
+          "unit": "milliseconds"
+        },
+        "readyAt": "2026-11-19T03:31:35.061Z",
+        "sprintId": "sp_01m7rget6q03n7a08sjxtjjh8t",
+        "ticketId": "tk_01m7rgrfw4kh31ra13d3mwyjp7"
+      },
+      {
+        "acceptedAt": "2026-11-19T15:42:52.738Z",
+        "active": {
+          "aggregation": "union",
+          "coverage": {
+            "covered": 0,
+            "of": 2,
+            "unit": "attempts"
+          },
+          "ms": null,
+          "open": false,
+          "quantity": "measured_active",
+          "state": "missing",
+          "unit": "milliseconds"
+        },
+        "cycleTime": {
+          "aggregation": "single",
+          "coverage": {
+            "covered": 1240497,
+            "of": 1940099,
+            "unit": "milliseconds"
+          },
+          "ms": 1940099,
+          "open": false,
+          "quantity": "ticket_cycle_time",
+          "state": "observed",
+          "unit": "milliseconds"
+        },
+        "effort": {
+          "aggregation": "sum",
+          "coverage": {
+            "covered": 0,
+            "of": 2,
+            "unit": "attempts"
+          },
+          "ms": null,
+          "open": false,
+          "quantity": "resource_effort",
+          "state": "missing",
+          "unit": "milliseconds"
+        },
+        "endedBy": "accepted",
+        "firstClaimAt": "2026-11-19T15:10:32.639Z",
+        "leadTime": {
+          "aggregation": "single",
+          "coverage": {
+            "covered": 43774583,
+            "of": 44474185,
+            "unit": "milliseconds"
+          },
+          "ms": 44474185,
+          "open": false,
+          "quantity": "ticket_lead_time",
+          "state": "observed",
+          "unit": "milliseconds"
+        },
+        "overhead": {
+          "aggregation": "sum",
+          "coverage": {
+            "covered": 0,
+            "of": 1,
+            "unit": "attempts"
+          },
+          "ms": null,
+          "open": false,
+          "quantity": "resource_effort",
+          "state": "missing",
+          "unit": "milliseconds"
+        },
+        "readyAt": "2026-11-19T03:21:38.553Z",
+        "sprintId": "sp_01m7rget6q03n7a08sjxtjjh8t",
+        "ticketId": "tk_01m7t5dtwthjbj0ckam8xhx58z"
+      },
+      {
+        "acceptedAt": "2026-11-19T15:17:54.571Z",
+        "active": {
+          "aggregation": "union",
+          "coverage": {
+            "covered": 0,
+            "of": 1,
+            "unit": "attempts"
+          },
+          "ms": null,
+          "open": false,
+          "quantity": "measured_active",
+          "state": "missing",
+          "unit": "milliseconds"
+        },
+        "cycleTime": {
+          "aggregation": "single",
+          "coverage": {
+            "covered": 71022,
+            "of": 438170,
+            "unit": "milliseconds"
+          },
+          "ms": 438170,
+          "open": false,
+          "quantity": "ticket_cycle_time",
+          "state": "observed",
+          "unit": "milliseconds"
+        },
+        "effort": {
+          "aggregation": "sum",
+          "coverage": {
+            "covered": 0,
+            "of": 1,
+            "unit": "attempts"
+          },
+          "ms": null,
+          "open": false,
+          "quantity": "resource_effort",
+          "state": "missing",
+          "unit": "milliseconds"
+        },
+        "endedBy": "accepted",
+        "firstClaimAt": "2026-11-19T15:10:36.401Z",
+        "leadTime": {
+          "aggregation": "single",
+          "coverage": {
+            "covered": 42608870,
+            "of": 42976018,
+            "unit": "milliseconds"
+          },
+          "ms": 42976018,
+          "open": false,
+          "quantity": "ticket_lead_time",
+          "state": "observed",
+          "unit": "milliseconds"
+        },
+        "overhead": {
+          "aggregation": "sum",
+          "coverage": {
+            "covered": 0,
+            "of": 1,
+            "unit": "attempts"
+          },
+          "ms": null,
+          "open": false,
+          "quantity": "resource_effort",
+          "state": "missing",
+          "unit": "milliseconds"
+        },
+        "readyAt": "2026-11-19T03:21:38.553Z",
+        "sprintId": "sp_01m7rget6q03n7a08sjxtjjh8t",
+        "ticketId": "tk_01m7t5dtzrmzfyy3fabkm4ct9h"
+      },
+      {
+        "acceptedAt": null,
+        "active": {
+          "aggregation": "union",
+          "coverage": {
+            "covered": 0,
+            "of": 1,
+            "unit": "attempts"
+          },
+          "ms": null,
+          "open": true,
+          "quantity": "measured_active",
+          "state": "missing",
+          "unit": "milliseconds"
+        },
+        "cycleTime": {
+          "aggregation": "single",
+          "coverage": {
+            "covered": 1307054,
+            "of": 1643503,
+            "unit": "milliseconds"
+          },
+          "ms": 1643503,
+          "open": true,
+          "quantity": "ticket_cycle_time",
+          "state": "observed",
+          "unit": "milliseconds"
+        },
+        "effort": {
+          "aggregation": "sum",
+          "coverage": {
+            "covered": 0,
+            "of": 1,
+            "unit": "attempts"
+          },
+          "ms": null,
+          "open": false,
+          "quantity": "resource_effort",
+          "state": "missing",
+          "unit": "milliseconds"
+        },
+        "endedBy": "cutoff",
+        "firstClaimAt": "2026-11-19T15:45:50.653Z",
+        "leadTime": {
+          "aggregation": "single",
+          "coverage": {
+            "covered": 0,
+            "of": 0,
+            "unit": "milliseconds"
+          },
+          "ms": null,
+          "open": false,
+          "quantity": "ticket_lead_time",
+          "state": "missing",
+          "unit": "milliseconds"
+        },
+        "overhead": {
+          "aggregation": "sum",
+          "coverage": {
+            "covered": 0,
+            "of": 0,
+            "unit": "attempts"
+          },
+          "ms": null,
+          "open": false,
+          "quantity": "resource_effort",
+          "state": "missing",
+          "unit": "milliseconds"
+        },
+        "readyAt": null,
+        "sprintId": "sp_01m7rget6q03n7a08sjxtjjh8t",
+        "ticketId": "tk_01m7t6bby6qyjcezpcrs6znmrc"
+      },
+      {
+        "acceptedAt": "2026-11-19T16:11:08.889Z",
+        "active": {
+          "aggregation": "union",
+          "coverage": {
+            "covered": 0,
+            "of": 1,
+            "unit": "attempts"
+          },
+          "ms": null,
+          "open": false,
+          "quantity": "measured_active",
+          "state": "missing",
+          "unit": "milliseconds"
+        },
+        "cycleTime": {
+          "aggregation": "single",
+          "coverage": {
+            "covered": 60750,
+            "of": 437633,
+            "unit": "milliseconds"
+          },
+          "ms": 437633,
+          "open": false,
+          "quantity": "ticket_cycle_time",
+          "state": "observed",
+          "unit": "milliseconds"
+        },
+        "effort": {
+          "aggregation": "sum",
+          "coverage": {
+            "covered": 0,
+            "of": 1,
+            "unit": "attempts"
+          },
+          "ms": null,
+          "open": false,
+          "quantity": "resource_effort",
+          "state": "missing",
+          "unit": "milliseconds"
+        },
+        "endedBy": "accepted",
+        "firstClaimAt": "2026-11-19T16:03:51.256Z",
+        "leadTime": {
+          "aggregation": "single",
+          "coverage": {
+            "covered": 1319268,
+            "of": 1696151,
+            "unit": "milliseconds"
+          },
+          "ms": 1696151,
+          "open": false,
+          "quantity": "ticket_lead_time",
+          "state": "observed",
+          "unit": "milliseconds"
+        },
+        "overhead": {
+          "aggregation": "sum",
+          "coverage": {
+            "covered": 0,
+            "of": 1,
+            "unit": "attempts"
+          },
+          "ms": null,
+          "open": false,
+          "quantity": "resource_effort",
+          "state": "missing",
+          "unit": "milliseconds"
+        },
+        "readyAt": "2026-11-19T15:42:52.738Z",
+        "sprintId": "sp_01m7rget6q03n7a08sjxtjjh8t",
+        "ticketId": "tk_01m7t8dftp56xsggmfy942m5qb"
+      }
+    ]
+  }
+}

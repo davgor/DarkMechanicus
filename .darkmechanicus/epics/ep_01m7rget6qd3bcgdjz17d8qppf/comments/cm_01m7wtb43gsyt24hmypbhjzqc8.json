@@ -1,0 +1,13 @@
+{
+  "author": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "body": "DM-729 bounded attempt stopped after the setup-inclusive 15:48:05Z deadline; no further implementation or rerun. One actual combined 14-file target batch on private 65857857 plus primary new files: 155/157 tests passed; IPC stable-id fixture and primary partial receipt fake failed. Scoped lint failed max-lines/complexity in coordinator/test fixture and bootstrap. Node tsc failed missing fake GitHead.detached and two unsupported Promise.withResolvers uses; web tsc failed unmigrated FakeBackend narrow methods; Fireguard tsc passed. Prior shell invocation ran no checks (node command not found); corrected to actual absolute preflight Node24 path, not a test rerun. Latest secondary f55b505c fixture correction arrived after freeze and was FF-collected only after failed checks; not verified. Primary two new files remain preserved in private Core worktree. Criteria c1/c2/c3 remain unmet pending clean combined targeted verification and actual isolated Electron proof. Full suite/build/deadcode/coverage/Fireguard intentionally not run; acceptance node owns them. No acceptance or integration into sprint performed.",
+  "createdAt": "2026-11-20T15:48:59.632Z",
+  "epicId": "ep_01m7rget6qd3bcgdjz17d8qppf",
+  "format": "darkmechanicus.comment",
+  "formatVersion": 1,
+  "id": "cm_01m7wtb43gsyt24hmypbhjzqc8",
+  "ticketId": "tk_01m7rgrfw585v9ttzffsvr9zfh"
+}

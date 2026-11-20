@@ -1,0 +1,17 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": "ka_01m7xd6tk3hwyj1zxytd3y08pg",
+  "cardId": "kc_01m7rz4fyab308s9xecg2e22m8",
+  "createdAt": "2026-11-20T21:26:19.074Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7xdms636aq2a12tgseq3zn4",
+  "kind": "failed",
+  "payload": {
+    "number": 7,
+    "reason": "Not finished; cannot submit Ready for review. Existing Retry implementation and renderer regressions were already committed at 8c33ddc5d3e9640ef6233ecbc39845a6f1aa60d6; this attempt made no source edits or commits. c2 unmet: actual npm run lint failed at src/core/commands/kanban.test.ts:141:44, eslint(max-lines-per-function), 63 lines exceeds 50; independently inspected output, no rerun or unrelated fix. c3 unmet: running app and checkout are 0.48.0; inspected native screenshot dm761-full.png, but original 0.45.0 missing-control versus unclear-label symptom not reproducible on available cards. Native app became Not Responding; add_attachment timed out after 25 seconds with no ID. No UI restart, unauthorized Play or direct record mutation. c1 existing source and tests reviewed but failed-state runtime evidence remains absent. Build, typecheck and deadcode reported passed; Fireguard reported no-change skip. Already-running finite test/coverage results will be recorded in a card message. Zero independently accepted outcomes; billed cost unknown. This failure is not approval or kick-back."
+  }
+}

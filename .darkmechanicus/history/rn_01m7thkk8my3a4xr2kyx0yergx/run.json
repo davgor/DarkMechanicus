@@ -1,0 +1,1650 @@
+{
+  "activeSprintId": null,
+  "attempts": [
+    {
+      "createdAt": "2026-11-19T18:39:32.404Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": {
+        "details": "",
+        "reason": "Claim token dropped by output projection before worker dispatch; no worker started.",
+        "retryable": true
+      },
+      "fencingToken": 1,
+      "id": "at_01m7thpp1mbxy1fh3fva80303f",
+      "kind": "work",
+      "number": 1,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m7tc63m5yy6fn15rhtb5ehye",
+      "state": "failed",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:d6b746124620f60169573f37b17a3ce51cdc7babce77d7b787a3ffd12b666866",
+      "ticketId": "tk_01m7tc281keq32c50eatqmsj35",
+      "updatedAt": "2026-11-19T18:40:27.103Z",
+      "worker": {
+        "catalogRevision": "2026-11-19-1",
+        "effort": "low",
+        "hostId": "omp-gpt6sol-windows",
+        "label": "DM-795-worker-dissent",
+        "modelId": "openai-codex/gpt-6-sol",
+        "rationale": "Recommended eligible model/effort; isolated docs-only skill guidance in prepared branch.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-19T18:39:34.623Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": {
+        "details": "",
+        "reason": "Claim token dropped by output projection before worker dispatch; no worker started.",
+        "retryable": true
+      },
+      "fencingToken": 1,
+      "id": "at_01m7thpr6z7rca417y8dpeema0",
+      "kind": "work",
+      "number": 1,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m7tc63m5yy6fn15rhtb5ehye",
+      "state": "failed",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:e02f498c22f26026eb8ba2f6051743e11eee1fcc1e66084b97121cc7317d3f91",
+      "ticketId": "tk_01m7tc2834qhec9w4j473hb0ma",
+      "updatedAt": "2026-11-19T18:40:29.239Z",
+      "worker": {
+        "catalogRevision": "2026-11-19-1",
+        "effort": "low",
+        "hostId": "omp-gpt6sol-windows",
+        "label": "DM-796-planner-tooling",
+        "modelId": "openai-codex/gpt-6-sol",
+        "rationale": "Recommended eligible model/effort; isolated docs-only skill guidance in prepared branch.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-19T18:40:40.071Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": {
+        "details": "",
+        "reason": "Claim token projected from incorrect response field before worker dispatch; no worker started.",
+        "retryable": true
+      },
+      "fencingToken": 2,
+      "id": "at_01m7thrr4741cgtyx8rzzdx5gv",
+      "kind": "work",
+      "number": 2,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m7tc63m5yy6fn15rhtb5ehye",
+      "state": "failed",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:d6b746124620f60169573f37b17a3ce51cdc7babce77d7b787a3ffd12b666866",
+      "ticketId": "tk_01m7tc281keq32c50eatqmsj35",
+      "updatedAt": "2026-11-19T18:41:08.215Z",
+      "worker": {
+        "catalogRevision": "2026-11-19-1",
+        "effort": "low",
+        "hostId": "omp-gpt6sol-windows",
+        "label": "DM-795-worker-dissent",
+        "modelId": "openai-codex/gpt-6-sol",
+        "rationale": "Recommended eligible model/effort; isolated docs-only skill guidance in prepared branch.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-19T18:41:19.847Z",
+      "decidedAt": "2026-11-19T18:44:01.404Z",
+      "decision": {
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Explicit unapproved, evidence-backed worker challenge and better alternative in skills/worker.md:13."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Reasoned response, one new-evidence reconsideration, unresolved objection record and incomplete-report rule in worker.md:13; no direct person contact."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "skills/collaboration.md:25 codifies reciprocal discussion with orchestrator and human authority preserved."
+          }
+        ],
+        "decidedBy": "dm CLI",
+        "notes": "Reviewed two guide lines and targeted 62 passing prompt-import tests; no code changed.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "vitest run: 62 tests passed in isolated worker worktree",
+            "name": "src/mcp/skills.test.ts",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Explicit unapproved, evidence-backed worker challenge and better alternative in skills/worker.md:13."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Reasoned response, one new-evidence reconsideration, unresolved objection record and incomplete-report rule in worker.md:13; no direct person contact."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "skills/collaboration.md:25 codifies reciprocal discussion with orchestrator and human authority preserved."
+          }
+        ],
+        "notes": ""
+      },
+      "failure": null,
+      "fencingToken": 3,
+      "id": "at_01m7thsyz7b6sh297wtwmk1wh2",
+      "kind": "work",
+      "number": 3,
+      "outputs": {
+        "artifacts": [],
+        "branch": "ticket/DM-795-worker-dissent",
+        "changedFiles": [
+          "skills/worker.md",
+          "skills/collaboration.md"
+        ],
+        "commits": [
+          "57ff312c80032572d2382ebc6ecab716ee1f6b5b"
+        ],
+        "summary": "Worker and collaboration guides now permit evidence-backed engineering disagreement with a reasoned orchestrator response and honest unresolved-objection handling."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7tc63m5yy6fn15rhtb5ehye",
+      "state": "accepted",
+      "submittedAt": "2026-11-19T18:43:51.283Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:d6b746124620f60169573f37b17a3ce51cdc7babce77d7b787a3ffd12b666866",
+      "ticketId": "tk_01m7tc281keq32c50eatqmsj35",
+      "updatedAt": "2026-11-19T18:44:01.404Z",
+      "worker": {
+        "catalogRevision": "2026-11-19-1",
+        "effort": "low",
+        "hostId": "omp-gpt6sol-windows",
+        "label": "DM-795-worker-dissent",
+        "modelId": "openai-codex/gpt-6-sol",
+        "rationale": "Recommended eligible model/effort; isolated docs-only skill guidance in prepared branch.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-19T18:41:29.239Z",
+      "decidedAt": "2026-11-19T18:44:58.947Z",
+      "decision": {
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Planner guide :35-40 names exact host, version, source, integrity, privileges, child environment, evidence and blocked prerequisite before Save."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Planner guide :38 limits unattended verified installs, preserves offline packages and app consent, escalates global/admin/unverified installs."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Planner guide :29 reconstructs evidence-backed challenge; separately tracked DM-793 remains failed; :37 never assumes other hosts ready."
+          }
+        ],
+        "decidedBy": "dm CLI",
+        "notes": "Reviewed planner guide and 62 targeted prompt tests; doc-only ticket. Separate DM-793 card failed its unrelated full test gate and is not approved.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "vitest run: 62 prompt tests passed in isolated planner worktree",
+            "name": "src/mcp/skills.test.ts",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Planner guide :35-40 names exact host, version, source, integrity, privileges, child environment, evidence and blocked prerequisite before Save."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Planner guide :38 limits unattended verified installs, preserves offline packages and app consent, escalates global/admin/unverified installs."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Planner guide :29 reconstructs evidence-backed challenge; separately tracked DM-793 remains failed; :37 never assumes other hosts ready."
+          }
+        ],
+        "notes": ""
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m7tht84qw464ja1ecbdjyhay",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [],
+        "branch": "ticket/DM-796-planner-tooling",
+        "changedFiles": [
+          "skills/planner.md"
+        ],
+        "commits": [
+          "b44b2ac71e63072b2f1aeced10d44e3ce96d4a0d"
+        ],
+        "summary": "Planner guide requires host-specific verified tooling readiness and safe install boundaries; separately reproduces the failed DM-793 card guidance without claiming that card complete."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7tc63m5yy6fn15rhtb5ehye",
+      "state": "accepted",
+      "submittedAt": "2026-11-19T18:44:49.294Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:e02f498c22f26026eb8ba2f6051743e11eee1fcc1e66084b97121cc7317d3f91",
+      "ticketId": "tk_01m7tc2834qhec9w4j473hb0ma",
+      "updatedAt": "2026-11-19T18:44:58.947Z",
+      "worker": {
+        "catalogRevision": "2026-11-19-1",
+        "effort": "low",
+        "hostId": "omp-gpt6sol-windows",
+        "label": "DM-796-planner-tooling",
+        "modelId": "openai-codex/gpt-6-sol",
+        "rationale": "Recommended eligible model/effort; planner guide isolated from worker dissent branch.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-19T18:46:51.122Z",
+      "decidedAt": "2026-11-19T18:48:36.838Z",
+      "decision": {
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "orchestrator.md:22-24 requires actual host/worktree HEAD and child-process executable checks before start/claims, blocks absent prerequisites."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "orchestrator.md:26 binds unattended installs to pinned and verified scope, protects offline tree and native confirmation."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "orchestrator.md:28 requires reasoned recorded dissent response with new-evidence reconsideration and true human escalation."
+          }
+        ],
+        "decidedBy": "dm CLI",
+        "notes": "Reviewed changed guide and targeted 62 passing prompt-import tests; doc-only ticket.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "vitest run: 62 prompt tests passed in isolated orchestrator worktree",
+            "name": "src/mcp/skills.test.ts",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "orchestrator.md:22-24 requires actual host/worktree HEAD and child-process executable checks before start/claims, blocks absent prerequisites."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "orchestrator.md:26 binds unattended installs to pinned and verified scope, protects offline tree and native confirmation."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "orchestrator.md:28 requires reasoned recorded dissent response with new-evidence reconsideration and true human escalation."
+          }
+        ],
+        "notes": ""
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m7tj42fjdpmekzj4cgadn5we",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "ticket/DM-797-orchestrator-tooling",
+        "changedFiles": [
+          "skills/orchestrator.md"
+        ],
+        "commits": [
+          "632006ce058d26f147b088d952501e7170bf5a3f"
+        ],
+        "summary": "Orchestrator guide now preflights real saved-plan host/worktree child tools and authorized install boundary before dispatch, and records reasoned worker dissent."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7tc63m5yy6fn15rhtb5ehye",
+      "state": "accepted",
+      "submittedAt": "2026-11-19T18:48:27.053Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:c18b20262562bd629c6156316a218fe04c3fc86f91a5bf9b0c870e47e2754d71",
+      "ticketId": "tk_01m7tc2834mwgz15pgns17mmk8",
+      "updatedAt": "2026-11-19T18:48:36.838Z",
+      "worker": {
+        "catalogRevision": "2026-11-19-1",
+        "effort": "low",
+        "hostId": "omp-gpt6sol-windows",
+        "label": "DM-797-orchestrator-preflight",
+        "modelId": "openai-codex/gpt-6-sol",
+        "rationale": "Recommended eligible worker and effort; row-one combined checks passed.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-19T18:51:59.796Z",
+      "decidedAt": "2026-11-19T19:07:32.501Z",
+      "decision": {
+        "decidedBy": "dm CLI",
+        "notes": "c1-c3 verified in shipped prompts; c4 failed, so no increment landed and no acceptance granted. The card DM-793 also failed an earlier independent gate. Follow bounded plan/recovery path rather than repeated infrastructure reruns.",
+        "outcome": "rejected",
+        "reasons": [
+          "Criterion c4 failed on immutable c4be504: npm test and npm run coverage each failed 4 tests. No full-suite rerun to obtain green.",
+          "Two src/mcp/server.test.ts prompt vocabulary cases reject backticked node_modules in planner and orchestrator guides; remove the backticks as a substantive guide edit, then verify the new candidate under a separately authorized scope.",
+          "src/core/knowledge/builtin.test.ts enforces orchestrator kernel <=800 words: original guide was exactly 800, adding 339 words grew it to 1139. Move detailed preflight/dissent guidance into scoped knowledge facts with a brief kernel reference instead of raising the test limit; this requires a saved-plan change and targeted tests.",
+          "src/core/workspace.storageMigration.guards.test.ts:180 cleanupPending remained true when unlinking junction; investigate separately from docs scope, do not mask or skip it."
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npm run lint exit 0 on c4be504",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck exit 0 on c4be504",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm test exit 1: 4 failed/13537 passed; storage cleanup, two server prompt-vocabulary assertions, built-in knowledge word budget.",
+            "name": "test",
+            "status": "failed"
+          },
+          {
+            "detail": "npm run coverage exit 1: same 4 failures; no retry.",
+            "name": "coverage",
+            "status": "failed"
+          },
+          {
+            "detail": "npm run deadcode exit 0",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build exit 0",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Shipped worker.md:13 and collaboration.md:25 permit evidence-backed dissent, reciprocal discussion, preserved objections and decision boundary."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Shipped planner.md:29,35-40 requires evidence-backed challenge and a host/tool matrix with safe install scope and offline preservation."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Shipped orchestrator.md:22-28 requires actual child-environment preflight and a reasoned recorded reply to worker dissent."
+          },
+          {
+            "criterionId": "c4",
+            "met": false,
+            "note": "Full immutable combined HEAD c4be504: npm test and coverage each failed four tests; lint/typecheck/deadcode/build passed. No increment landed or check rerun."
+          }
+        ],
+        "notes": "Worker ran six exact DoD commands sequentially once each on c4be504; logs C:/Users/davgo/AppData/Local/Temp/DM-794-acceptance-bLsViTA3/. Full acceptance unmet, no fabricated green."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m7tjdfxmmrcm3fw24hjah0z2",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "sprint/engineering-dissent-1-integration",
+        "changedFiles": [
+          "skills/planner.md",
+          "skills/worker.md",
+          "skills/collaboration.md",
+          "skills/orchestrator.md"
+        ],
+        "commits": [
+          "c4be504398e9ab14a7bbe5b46311668d0818b5e6"
+        ],
+        "summary": "Shipped guide behavior verified on c4be504, but full immutable-head acceptance failed npm test and coverage (four failures each); no sprint landing or increment."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7tc63m5yy6fn15rhtb5ehye",
+      "state": "rejected",
+      "submittedAt": "2026-11-19T19:06:28.112Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:f2ee2976ca5c56b1937c4e05b1335f5ed848d7e77c49e8dbc6469cd513750d06",
+      "ticketId": "tk_01m7tbykx4pqjp2s2m6bfb3bgx",
+      "updatedAt": "2026-11-19T19:07:32.501Z",
+      "worker": {
+        "catalogRevision": "2026-11-19-1",
+        "effort": "medium",
+        "hostId": "omp-gpt6sol-windows",
+        "label": "DM-794-acceptance-auditor",
+        "modelId": "openai-codex/gpt-6-sol",
+        "rationale": "Recommended eligible model/effort; exact combined integration commit c4be504 verified by row checks; acceptance worker audits shipped prompts and full DoD.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-19T20:18:28.397Z",
+      "decidedAt": "2026-11-19T20:22:03.978Z",
+      "decision": {
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Reviewed exact candidate and contract anchors: 800-word builtin kernel, prompt vocabulary scanner, selected facts/skill preservation and junction storage guard, with 4 recorded failures classified without rerun and narrow DM-803/DM-804 handoffs."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Observed corrected Windows PowerShell child Node v24.13.0/npm 11.6.2/Git 2.56.1/PowerShell 5.1; installed tools and lockfiles present; isolated %TEMP% junction removal left target sentinel intact. Shared dependency content integrity remains unverified, no install or npm ci attempted."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "GO limited to unchanged clean c4be504, existing tree and explicit per-command PATH; instructions block dependent claims on any changed host prerequisite, no suite rerun or unsafe shortcut."
+          }
+        ],
+        "decidedBy": "dm CLI",
+        "notes": "Read-only preflight completed with independent host/tool check and worker fixture ledger; no code/test changes. Accepted scoped GO, not a migration diagnosis.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "PowerShell child PATH prep found Node v24.13.0, npm 11.6.2, Git 2.56.1, PowerShell 5.1; npm.cmd ls --depth=0 --offline found Vitest 4.1.12 and TypeScript 5.9.3; a disposable junction was created and nonrecursively removed with target/keep.txt preserved. No test suite rerun.",
+            "name": "read-only Windows host and contract preflight",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Reviewed exact candidate and contract anchors: 800-word builtin kernel, prompt vocabulary scanner, selected facts/skill preservation and junction storage guard, with 4 recorded failures classified without rerun and narrow DM-803/DM-804 handoffs."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Observed corrected Windows PowerShell child Node v24.13.0/npm 11.6.2/Git 2.56.1/PowerShell 5.1; installed tools and lockfiles present; isolated %TEMP% junction removal left target sentinel intact. Shared dependency content integrity remains unverified, no install or npm ci attempted."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "GO limited to unchanged clean c4be504, existing tree and explicit per-command PATH; instructions block dependent claims on any changed host prerequisite, no suite rerun or unsafe shortcut."
+          }
+        ],
+        "notes": "Previous c4be504 test/coverage each failed four tests and remain failures; lint/typecheck/deadcode/build passed. No new test files, environment installs, or source mutations. New acceptance candidate will run lint, test, coverage, typecheck, deadcode, build once each."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m7tqbtxddd0j3wedrpd5f688",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "sprint/engineering-dissent-1-integration",
+        "changedFiles": [],
+        "commits": [],
+        "summary": "GO on unchanged c4be504 integration candidate with explicit per-command PATH and existing installed dependencies; isolated disposable junction permission/no-follow cleanup proven. Concrete contract ledger and narrow handoffs recorded in evidence. No code changes or failing-suite rerun."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7tq2mjnevv5089jmvsrf5s3",
+      "state": "accepted",
+      "submittedAt": "2026-11-19T20:21:52.569Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:d0be3973606e2489d3567c7d5d0d9d0219728bbdd8a935f6209d5034a6fb145a",
+      "ticketId": "tk_01m7tmnhv8aax2q9bzshr4pmtk",
+      "updatedAt": "2026-11-19T20:22:03.978Z",
+      "worker": {
+        "catalogRevision": "2026-11-19-1",
+        "effort": "low",
+        "hostId": "omp-gpt6sol-windows",
+        "label": "DM-806-contract-preflight",
+        "modelId": "openai-codex/gpt-6-sol",
+        "rationale": "Available read-only Windows engineering worker on the registered host; bounded evidence audit before corrective claims.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-19T20:22:52.982Z",
+      "decidedAt": null,
+      "decision": null,
+      "evidence": null,
+      "failure": {
+        "details": "Worker first distinct candidate targeted builtin/server/skills tests: 162 passed, 21 failed due scoped fact budgets. Substantive fact compaction produced branch ticket/DM-803-guide-contracts HEAD 56a4b83831816874c9c63e0ec2646b5e2a5be584; one final-candidate targeted check: 182 passed, 1 failed (checkpoint.approved headroom 46<50). Kernel 753<=800 and prompt vocabulary suites passed. No accepted output/merge, no full-suite rerun; next attempt needs measured >=50 headroom with margin BEFORE a single new-candidate targeted check.",
+        "reason": "DM-803 prompt correction not verified: selected-context checkpoint.approved headroom 46 tokens, below the required 50; c1 and c3 unmet.",
+        "retryable": true
+      },
+      "fencingToken": 1,
+      "id": "at_01m7tqkx9pcy77s8a2zxbn7d95",
+      "kind": "work",
+      "number": 1,
+      "outputs": null,
+      "reconciledAt": null,
+      "revisionId": "rv_01m7tq2mjnevv5089jmvsrf5s3",
+      "state": "failed",
+      "submittedAt": null,
+      "supersededAt": null,
+      "ticketContentHash": "sha256:5e7d1701ebbcb79968bf537216f2c827b3acd1e2b62eca0fe58641766186191f",
+      "ticketId": "tk_01m7tm00akry69hac38rrs4dq2",
+      "updatedAt": "2026-11-19T20:32:51.168Z",
+      "worker": {
+        "catalogRevision": "2026-11-19-1",
+        "effort": "medium",
+        "hostId": "omp-gpt6sol-windows",
+        "label": "DM-803-guide-contracts",
+        "modelId": "openai-codex/gpt-6-sol",
+        "rationale": "Registered Windows worker with repo-write and targeted test capability; moderate effort for three prompt contract suites and scoped fact routing.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-19T20:22:55.535Z",
+      "decidedAt": "2026-11-19T20:25:33.266Z",
+      "decision": {
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Reviewed operation-by-operation isolated fixture evidence: lstat detects junction, rmSync(force) throws ERR_FS_EISDIR, rmdirSync removes only link; outside 7-byte sentinel SHA-256 preserved."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Diagnosis identifies exact adapter operation, recovery effect and bounded Windows-specific no-follow remedy with concrete targeted tests; no source mutation, suite rerun or permission bypass."
+          }
+        ],
+        "decidedBy": "dm CLI",
+        "notes": "Accepted safe cause probe; DM-805 owns implementation, not this investigation.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "%TEMP%/dm804-junction-k0ifo3 fixture, 7-byte outside keep.bin 00 0d 0a ff 81 01 2a; lstatSync classified junction, rmSync(link,{force:true}) threw ERR_FS_EISDIR; rmdirSync(link) removed link nonrecursively, outside sentinel remained SHA-256 17b476abfe0a3661845b05cc6c7e04dea39d795e6b9719b3ae2f54e49b346fe8; fixture cleaned. No full-suite or source edit.",
+            "name": "isolated Windows junction removal probe",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Reviewed operation-by-operation isolated fixture evidence: lstat detects junction, rmSync(force) throws ERR_FS_EISDIR, rmdirSync removes only link; outside 7-byte sentinel SHA-256 preserved."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Diagnosis identifies exact adapter operation, recovery effect and bounded Windows-specific no-follow remedy with concrete targeted tests; no source mutation, suite rerun or permission bypass."
+          }
+        ],
+        "notes": "Source read: src/core/repo/nodeFs.ts:63-68 and storageMigration.ts:101-108,144-155,328-330; existing failing guard src/core/workspace.storageMigration.guards.test.ts:174-183. Prior combined c4be504 failed test stays failed."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m7tqkzsfwxmcykqxb3jjdpft",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "sprint/engineering-dissent-1-integration",
+        "changedFiles": [],
+        "commits": [],
+        "summary": "GO: Windows junction cleanup fails at nodeFs.remove rmSync(link,{force:true}) with ERR_FS_EISDIR; storage recovery catches error and leaves cleanupPending true. One isolated fixture only, outside target sentinel preserved. Recommend Windows directory-link rmdirSync no-follow case and focused nodeFs regression."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7tq2mjnevv5089jmvsrf5s3",
+      "state": "accepted",
+      "submittedAt": "2026-11-19T20:25:30.592Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:e259d5a91d15317b0af50b69e0277aa6159877f7b80d73b387448c8b0d4dede0",
+      "ticketId": "tk_01m7tm00c39rc99v3w1zzc9wbw",
+      "updatedAt": "2026-11-19T20:25:33.266Z",
+      "worker": {
+        "catalogRevision": "2026-11-19-1",
+        "effort": "low",
+        "hostId": "omp-gpt6sol-windows",
+        "label": "DM-804-junction-diagnosis",
+        "modelId": "openai-codex/gpt-6-sol",
+        "rationale": "Registered Windows worker for bounded isolated junction probe; no code edits or full-suite rerun.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-19T20:26:00.757Z",
+      "decidedAt": "2026-11-19T20:31:02.359Z",
+      "decision": {
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Reviewed ticket diff against c4be504 and worker targeted Windows guard 18/18 passed; cleanupPending false and outside target remained unchanged."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Only semantic change is Windows live directory-link rmdirSync nonrecursive branch; file/file-link rmSync unchanged. No swallowed error or traversal of target contents. Dangling-link behavior remains unproven/not part of this fixture."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Targeted guard 18 tests, lint, typecheck passed once on new e46cbcb candidate; no full suite/coverage/Fireguard or test weakening. Raw diff EOL churn disclosed (ignore-EOL 8 insert/1 delete)."
+          }
+        ],
+        "decidedBy": "dm CLI",
+        "notes": "Accepted bounded confirmed adapter fix; integration/combined row check remains before acceptance.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "Targeted Vitest run on ticket commit e46cbcb: 1 file, 18 tests passed; Windows junction cleanupPending false and outside target content intact.",
+            "name": "src/core/workspace.storageMigration.guards.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "Worker ran lint once on final ticket candidate e46cbcb; exit 0.",
+            "name": "npm run lint",
+            "status": "passed"
+          },
+          {
+            "detail": "Worker ran typecheck once on final ticket candidate e46cbcb; exit 0.",
+            "name": "npm run typecheck",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Reviewed ticket diff against c4be504 and worker targeted Windows guard 18/18 passed; cleanupPending false and outside target remained unchanged."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Only semantic change is Windows live directory-link rmdirSync nonrecursive branch; file/file-link rmSync unchanged. No swallowed error or traversal of target contents. Dangling-link behavior remains unproven/not part of this fixture."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Targeted guard 18 tests, lint, typecheck passed once on new e46cbcb candidate; no full suite/coverage/Fireguard or test weakening. Raw diff EOL churn disclosed (ignore-EOL 8 insert/1 delete)."
+          }
+        ],
+        "notes": "Reviewer note: dangling junctions with unavailable targets are not covered by the proven case; statSync resolves metadata to distinguish directory vs file link, but no target contents are enumerated or removed. Source blob changed from LF to CRLF by Windows edit/commit tooling, so raw diff shows 145 lines; ignore-EOL diff is 8 inserts/1 delete confined to remove. No unrelated logic changes."
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m7tqsmnn7d3575rqdgw873ss",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": "ticket/DM-805-junction-repair",
+        "changedFiles": [
+          "src/core/repo/nodeFs.ts"
+        ],
+        "commits": [
+          "e46cbcb0ab37f75338be012ff7523de8e4ae4ddc"
+        ],
+        "summary": "Windows directory junction removal now uses nonrecursive rmdirSync after link/directory classification; unchanged rmSync for ordinary files/file links. Existing migration guard confirms cleanupPending false and outside target preserved. One targeted guard file 18 tests passed; lint/typecheck passed."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7tq2mjnevv5089jmvsrf5s3",
+      "state": "accepted",
+      "submittedAt": "2026-11-19T20:30:52.125Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:78d5ff79fe7e5c4b63f90d49da5d5547b1ca44e24b448182b1d8fd6c65271318",
+      "ticketId": "tk_01m7tm00c363bvqx9ce49atx56",
+      "updatedAt": "2026-11-19T20:31:02.359Z",
+      "worker": {
+        "catalogRevision": "2026-11-19-1",
+        "effort": "low",
+        "hostId": "omp-gpt6sol-windows",
+        "label": "DM-805-windows-junction-fix",
+        "modelId": "openai-codex/gpt-6-sol",
+        "rationale": "Registered Windows worker with filesystem-safe targeted regression capability; DM-804 isolated probe established exact adapter ERR_FS_EISDIR cause.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-19T20:33:43.143Z",
+      "decidedAt": "2026-11-19T20:38:09.433Z",
+      "decision": {
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Reviewed full five-file prompt/fact diff and 753-word kernel; static checkpoint.approved headroom 70>=50 and final candidate builtin tests pass, with existing setup/claim/question fact routing preserved."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Backticked unknown node_modules removed from planner/orchestrator while offline warning remains; prompt scanner suite passed on cbb71bc, no tests or whitelist weakened."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Final new candidate cbb71bc passed all three targeted suites, 183/183 in one invocation; prior failed 162/183 and 182/183 candidates remain failures and are not counted as green."
+          }
+        ],
+        "decidedBy": "dm CLI",
+        "notes": "Accept corrective prompt branch only after measured-budget fix and a single targeted final-candidate run; full six-check sprint gate still pending integration.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "One combined targeted Vitest invocation on final cbb71bc ticket HEAD: 3 files, 183/183 passed; scoped fact budgets and checkpoint.approved headroom now >=50 (static calc 70). First and intermediate candidates failed and remain failed.",
+            "name": "src/core/knowledge/builtin.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "Same one targeted Vitest invocation on cbb71bc, 183/183 aggregate; prompt vocabulary scanner passed after removing unknown backticked node_modules.",
+            "name": "src/mcp/server.test.ts",
+            "status": "passed"
+          },
+          {
+            "detail": "Same one targeted Vitest invocation on cbb71bc, 183/183 aggregate; shipped skill import and required phrases preserved.",
+            "name": "src/mcp/skills.test.ts",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Reviewed full five-file prompt/fact diff and 753-word kernel; static checkpoint.approved headroom 70>=50 and final candidate builtin tests pass, with existing setup/claim/question fact routing preserved."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Backticked unknown node_modules removed from planner/orchestrator while offline warning remains; prompt scanner suite passed on cbb71bc, no tests or whitelist weakened."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Final new candidate cbb71bc passed all three targeted suites, 183/183 in one invocation; prior failed 162/183 and 182/183 candidates remain failures and are not counted as green."
+          }
+        ],
+        "notes": "Prompt fix spans original unaccepted candidate commits 36423b, f50761, 56a4b8 plus distinct bounded retry commit cbb71bc; complete branch submitted together, no tests altered. Temporary local node_modules junction removed nonrecursively; shared target intact. Revision 3 ticket now meets criteria on new substantive candidate."
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m7tr7r77dr9ghcfkmh5k7shj",
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [],
+        "branch": "ticket/DM-803-guide-budget-r2",
+        "changedFiles": [
+          "skills/orchestrator.md",
+          "skills/planner.md",
+          "skills/knowledge/orchestrator/setup.md",
+          "skills/knowledge/orchestrator/claim-prerequisites.md",
+          "skills/knowledge/orchestrator/worker-questions.md"
+        ],
+        "commits": [
+          "36423b2aba154b1414c46bd9c36c6746b9f23c34",
+          "f50761f204e201048e1b6794b18440c4d343c990",
+          "56a4b83831816874c9c63e0ec2646b5e2a5be584",
+          "cbb71bc0522dddad7ff0e910d0a24ad66facd91d"
+        ],
+        "summary": "Corrected prompt contracts: orchestrator kernel 753<=800, event-scoped facts selected within budgets with checkpoint.approved headroom 70>=50, no unknown backticked vocabulary, offline dependency warning retained. One targeted run on final distinct cbb71bc candidate passed 3 files/183 tests; earlier failed candidates remain recorded failures."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7tq2mjnevv5089jmvsrf5s3",
+      "state": "accepted",
+      "submittedAt": "2026-11-19T20:38:00.443Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:5e7d1701ebbcb79968bf537216f2c827b3acd1e2b62eca0fe58641766186191f",
+      "ticketId": "tk_01m7tm00akry69hac38rrs4dq2",
+      "updatedAt": "2026-11-19T20:38:09.433Z",
+      "worker": {
+        "catalogRevision": "2026-11-19-1",
+        "effort": "high",
+        "hostId": "omp-gpt6sol-windows",
+        "label": "DM-803-context-budget-r2",
+        "modelId": "openai-codex/gpt-6-sol",
+        "rationale": "Prior medium-effort attempt failed deterministically on checkpoint.approved fact selection headroom 46<50 after 182/183 passes; matched retry raises same model one effort step to high for static budget calculation and a single new-candidate check, not flaky rerun.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-11-19T20:41:06.949Z",
+      "decidedAt": "2026-11-19T20:55:38.948Z",
+      "decision": {
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Independent served-skill inspection and accepted DM-795 evidence show worker dissent and unresolved-safety reporting with human decision boundary."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Served planner skill includes concrete host/tooling matrix, evidence-backed proposal challenge and authorized install/offline/native consent limits."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Served orchestrator kernel+scoped facts require actual child preflight and reasoned worker challenge response; budget-preserving fact selection passed."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Reviewed worker once-only lint,typecheck,test,coverage,deadcode,build on immutable 4d09813; all exit 0. Old c4be504 failed tests remain recorded. Squashed a09b773 increment verdict passed all branch/parent/reachability checks."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Kernel 753<=800, event fact headroom 70>=50, row2 prompt suites 183/183 and combined full tests passed on new candidate."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "Accepted DM-804 bounded Windows probe showed ERR_FS_EISDIR in rmSync(force); nonrecursive rmdirSync preserved outside target sentinel/hash."
+          },
+          {
+            "criterionId": "c7",
+            "met": true,
+            "note": "Accepted DM-805 adapter correction passed targeted Windows storage guard 18/18 and integration row check, outside target protected; full test/coverage now passed."
+          },
+          {
+            "criterionId": "c8",
+            "met": true,
+            "note": "Accepted DM-806 preclaim contract/host ledger GO with observed tool versions/PATH and junction fixture; missing installed-content integrity disclosed, no speculative install."
+          }
+        ],
+        "decidedBy": "dm CLI",
+        "notes": "Accepted one reviewed squashed epic increment a09b773 after six project DoD checks on immutable 4d09813. All earlier failed candidates remain failed in history. Human checkpoint approval still required.",
+        "outcome": "accepted",
+        "reasons": [],
+        "requiredChecks": [
+          "lint",
+          "typecheck",
+          "test",
+          "coverage",
+          "deadcode",
+          "build"
+        ]
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "npm run lint exit 0 in 0.48s on integration 4d09813, once.",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck exit 0 in 26.69s on integration 4d09813, once.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm test exit 0 in 293.20s on 4d09813: 13,541 passed/57 skipped across 787 passed/2 skipped project files; Fireguard-config 25 files/173 tests passed within npm test. No separate Fireguard run.",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run coverage exit 0 in 304.78s on 4d09813: 13,541 passed/57 skipped; V8 statements 98.14% (35466/36137), branches 95.99% (23643/24630), functions 97.41% (11664/11973), lines 98.31% (31682/32225). Once.",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run deadcode exit 0 in 22.43s on 4d09813, no new dead exports.",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build exit 0 in 8.63s on 4d09813.",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Independent served-skill inspection and accepted DM-795 evidence show worker dissent and unresolved-safety reporting with human decision boundary."
+          },
+          {
+            "criterionId": "c2",
+            "met": true,
+            "note": "Served planner skill includes concrete host/tooling matrix, evidence-backed proposal challenge and authorized install/offline/native consent limits."
+          },
+          {
+            "criterionId": "c3",
+            "met": true,
+            "note": "Served orchestrator kernel+scoped facts require actual child preflight and reasoned worker challenge response; budget-preserving fact selection passed."
+          },
+          {
+            "criterionId": "c4",
+            "met": true,
+            "note": "Reviewed worker once-only lint,typecheck,test,coverage,deadcode,build on immutable 4d09813; all exit 0. Old c4be504 failed tests remain recorded. Squashed a09b773 increment verdict passed all branch/parent/reachability checks."
+          },
+          {
+            "criterionId": "c5",
+            "met": true,
+            "note": "Kernel 753<=800, event fact headroom 70>=50, row2 prompt suites 183/183 and combined full tests passed on new candidate."
+          },
+          {
+            "criterionId": "c6",
+            "met": true,
+            "note": "Accepted DM-804 bounded Windows probe showed ERR_FS_EISDIR in rmSync(force); nonrecursive rmdirSync preserved outside target sentinel/hash."
+          },
+          {
+            "criterionId": "c7",
+            "met": true,
+            "note": "Accepted DM-805 adapter correction passed targeted Windows storage guard 18/18 and integration row check, outside target protected; full test/coverage now passed."
+          },
+          {
+            "criterionId": "c8",
+            "met": true,
+            "note": "Accepted DM-806 preclaim contract/host ledger GO with observed tool versions/PATH and junction fixture; missing installed-content integrity disclosed, no speculative install."
+          }
+        ],
+        "notes": "Acceptance worker independently inspected served MCP prompt route and six command outputs; source HEAD 4d09813 remained immutable and clean. Squash increment is one commit a09b773 on bound epic branch. Open risk: dangling junction with unavailable target not proved by existing fixture; duplicate DM-793 Kanban card remains failed, not accepted. Human checkpoint is not self-approved."
+      },
+      "failure": null,
+      "fencingToken": 2,
+      "id": "at_01m7trn9m5913w61thzhqjyw5x",
+      "increment": {
+        "base": {
+          "commit": "8c33ddc5d3e9640ef6233ecbc39845a6f1aa60d6",
+          "kind": "epic_start"
+        },
+        "branch": "epic/engineering-dissent-tool-readiness",
+        "checks": [
+          {
+            "detail": "Names the epic branch epic/engineering-dissent-tool-readiness.",
+            "name": "Epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit a09b773 exists.",
+            "name": "Commit exists",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit a09b773 has one parent, 8c33ddc.",
+            "name": "One parent",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit a09b773 is reachable from epic/engineering-dissent-tool-readiness.",
+            "name": "On the epic branch",
+            "status": "passed"
+          },
+          {
+            "detail": "Commit a09b773 comes after the epic's start commit 8c33ddc.",
+            "name": "After the base commit",
+            "status": "passed"
+          },
+          {
+            "detail": "None of the 8 commits recorded by this sprint's accepted work is reachable from epic/engineering-dissent-tool-readiness.",
+            "name": "Squashed, not merged",
+            "status": "passed"
+          }
+        ],
+        "commit": "a09b7738a3ab8b40ebc20713deb5b4b4b6492205",
+        "parent": "8c33ddc5d3e9640ef6233ecbc39845a6f1aa60d6",
+        "passed": true,
+        "reasons": [],
+        "verifiedAt": "2026-11-19T20:55:20.783Z"
+      },
+      "kind": "work",
+      "number": 2,
+      "outputs": {
+        "artifacts": [],
+        "branch": "epic/engineering-dissent-tool-readiness",
+        "changedFiles": [
+          "skills/collaboration.md",
+          "skills/knowledge/orchestrator/claim-prerequisites.md",
+          "skills/knowledge/orchestrator/setup.md",
+          "skills/knowledge/orchestrator/worker-questions.md",
+          "skills/orchestrator.md",
+          "skills/planner.md",
+          "skills/worker.md",
+          "src/core/repo/nodeFs.ts"
+        ],
+        "commits": [
+          "a09b7738a3ab8b40ebc20713deb5b4b4b6492205"
+        ],
+        "summary": "Combined sprint guidance and Windows junction repair passed all six once-only Definition of Done checks on immutable integration 4d09813; one reviewed squash increment a09b773 landed on epic branch. Prior c4be504 test/coverage failures and DM-803 pre-correction failures remain recorded. Human checkpoint remains required."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m7tq2mjnevv5089jmvsrf5s3",
+      "state": "accepted",
+      "submittedAt": "2026-11-19T20:55:21.160Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:41d9d07fb54e245556815355636c006d0e5bea539323a566e20a15ad81ea21f6",
+      "ticketId": "tk_01m7tbykx4pqjp2s2m6bfb3bgx",
+      "updatedAt": "2026-11-19T20:55:38.948Z",
+      "worker": {
+        "catalogRevision": "2026-11-19-1",
+        "effort": "high",
+        "hostId": "omp-gpt6sol-windows",
+        "label": "DM-794-combined-acceptance",
+        "modelId": "openai-codex/gpt-6-sol",
+        "rationale": "Prior medium-effort acceptance failed four deterministic cases on c4be504; six-check combined immutable candidate now includes accepted scoped fixes, so match recommendation escalates one effort step to high.",
+        "sessionId": null
+      }
+    }
+  ],
+  "checkpoints": [
+    {
+      "decidedAt": "2026-11-19T21:54:45.856Z",
+      "decidedBy": "ss_01m7t9yp2hxj61kay2z44jq0ep",
+      "id": "ck_01m7tww4z0rrnjs4d3bgm8j1b4",
+      "outcome": "completed",
+      "policy": "human",
+      "reportId": "rp_01m7tsk5vzfq23yqyysna5whgz",
+      "sprintId": "sp_01m7tbykx42yzzsxzs20nt41gq"
+    }
+  ],
+  "createdAt": "2026-11-19T18:37:51.253Z",
+  "endedAt": "2026-11-19T21:54:45.856Z",
+  "epicId": "ep_01m7tbykx46akp8brsg5mpr6a8",
+  "format": "darkmechanicus.run",
+  "formatVersion": 1,
+  "host": {
+    "label": "OMP delegated engineering",
+    "type": "omp-subagents"
+  },
+  "hostCatalogId": "hc_01m7thdbt58pev8020ws7sx5ch",
+  "number": 1,
+  "ownerMachineId": "mc_01m7gdjzvswj7rwweky9e5fxpe",
+  "pauseReason": null,
+  "reports": [
+    {
+      "content": {
+        "accepted": [
+          "DM-795 worker and collaboration dissent guidance; 62 targeted tests passed",
+          "DM-796 planner tooling matrix and constructive challenge; 62 targeted tests passed",
+          "DM-797 orchestrator child preflight and reasoned reply; 62 targeted tests passed"
+        ],
+        "blocked": [
+          "Sprint acceptance cannot advance while c4 and x3 fail; corrective scope needs a decision"
+        ],
+        "changes": {
+          "commits": [
+            "57ff312c80032572d2382ebc6ecab716ee1f6b5b",
+            "b44b2ac71e63072b2f1aeced10d44e3ce96d4a0d",
+            "632006ce058d26f147b088d952501e7170bf5a3f",
+            "c4be504398e9ab14a7bbe5b46311668d0818b5e6"
+          ],
+          "files": [
+            "skills/planner.md",
+            "skills/worker.md",
+            "skills/collaboration.md",
+            "skills/orchestrator.md"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "npm run lint exit 0 on c4be504",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck exit 0 on c4be504",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm test: 4 failures, 13537 passed; storage junction cleanup, 2 prompt vocabulary, kernel word budget",
+            "name": "test",
+            "status": "failed"
+          },
+          {
+            "detail": "npm run coverage: same 4 test failures; no rerun",
+            "name": "coverage",
+            "status": "failed"
+          },
+          {
+            "detail": "npm run deadcode exit 0",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build exit 0",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": {
+          "successCriteria": [
+            {
+              "criterionId": "s1",
+              "met": true,
+              "note": "Worker and collaboration guidance demonstrates constructive dissent and honest objections."
+            },
+            {
+              "criterionId": "s2",
+              "met": true,
+              "note": "Planner guidance demands evidence-backed challenge and host-specific tooling matrix."
+            },
+            {
+              "criterionId": "s3",
+              "met": true,
+              "note": "Orchestrator guidance demands actual child-process preflight and bounded install authority."
+            },
+            {
+              "criterionId": "s4",
+              "met": false,
+              "note": "The six-check Definition of Done failed test and coverage; no increment or approval."
+            }
+          ],
+          "summary": "Role guidance exists on an isolated sprint branch but acceptance and human checkpoint have not passed."
+        },
+        "exitCriteria": [
+          {
+            "criterionId": "x1",
+            "met": true,
+            "note": "Accepted worker/orchestrator guidance and shipped prompt inspection show evidence-backed dissent and reasoned reply."
+          },
+          {
+            "criterionId": "x2",
+            "met": true,
+            "note": "Accepted planner/orchestrator guidance and shipped prompt inspection show actual-host tooling and install boundaries."
+          },
+          {
+            "criterionId": "x3",
+            "met": false,
+            "note": "npm test and coverage failed 4 tests each on c4be504; no increment landed."
+          }
+        ],
+        "failed": [
+          "DM-794 acceptance rejected after one attempt; npm test and coverage failed four tests each, no increment"
+        ],
+        "followUps": [
+          {
+            "body": "Move detailed orchestrator preflight and dissent guidance into scoped built-in knowledge facts with a concise kernel pointer, retaining 800-word cap; remove forbidden backticks around node_modules in both guides. Do not weaken consumer-facing checks.",
+            "title": "Correct guide test contracts"
+          },
+          {
+            "body": "Identify why workspace.storageMigration.guards.test.ts:180 reports cleanupPending true on Windows and fix a deterministic root cause without skipping the test or rerunning the failed combined candidate.",
+            "title": "Investigate Windows junction cleanup failure"
+          }
+        ],
+        "retro": {
+          "actions": [
+            "Before guide claims inspect prompt vocabulary and kernel word budget along with targeted prompt tests.",
+            "Stop at this failed checkpoint and request a bounded corrective-scope decision rather than repeat the failed gate."
+          ],
+          "delivered": [
+            {
+              "demo": "skills/worker.md:13; skills/collaboration.md:25",
+              "evidence": "Accepted attempt, 62 prompt tests, commit 57ff312c",
+              "ticket": "tk_01m7tc281keq32c50eatqmsj35"
+            },
+            {
+              "demo": "skills/planner.md:29,35-40",
+              "evidence": "Accepted attempt, 62 prompt tests, commit b44b2ac",
+              "ticket": "tk_01m7tc2834qhec9w4j473hb0ma"
+            },
+            {
+              "demo": "skills/orchestrator.md:22-28",
+              "evidence": "Accepted attempt, 62 prompt tests, corrected integration commit c4be504",
+              "ticket": "tk_01m7tc2834mwgz15pgns17mmk8"
+            }
+          ],
+          "discoveries": [],
+          "leftovers": [],
+          "tierFit": [],
+          "wentPoorly": [
+            "DM-793 card's full gate failed; child PowerShell PATH was not preflighted before claim.",
+            "Two claim tokens were projected from the wrong field and wasted attempts before workers started.",
+            "Selective commit misplaced a section; row check failed, followed by an integration repair.",
+            "Acceptance found forbidden prompt-vocabulary backticks, an enforced kernel word budget, and a Windows junction cleanup failure."
+          ],
+          "wentWell": [
+            "Three bounded guidance tickets were reviewed; a failed row check caught a header-position regression before the full gate."
+          ]
+        },
+        "risks": [
+          "No epic branch increment landed; accepted changes are committed on sprint integration branch c4be504 only.",
+          "Baseline orchestrator kernel is exactly 800 words; the new 339 words require knowledge-fact extraction, not a relaxed limit.",
+          "DM-793 card failed its independent gate; its red-team wording was incorporated independently into DM-796."
+        ],
+        "summary": "Three role-guidance tickets were accepted on the isolated sprint branch. Shipped prompts expose worker dissent, planner evidence-backed challenge and tooling readiness, and orchestrator preflight. Separately tracked DM-793 failed its own full gate and remains unapproved. DM-794 acceptance failed npm test and coverage on the same combined commit, so no increment landed. Do not claim the epic complete."
+      },
+      "contentHash": "sha256:f96424a608f6ba42c0430d3fbc4b86d5294fb4e284917a86075f8df605401813",
+      "createdAt": "2026-11-19T19:10:59.969Z",
+      "id": "rp_01m7tkg9c1w5c6qter07cak1hj",
+      "reportRevision": 1,
+      "scorecard": {
+        "snapshotHash": "sha256:62176035453f3343a6fe71738fb04e222fdca32bc14255e7a2dc082b946e6679",
+        "snapshotId": "as_yv1nf03bv4pwse3fkzptka852b"
+      },
+      "sprintId": "sp_01m7tbykx42yzzsxzs20nt41gq",
+      "submittedBy": "dm CLI"
+    },
+    {
+      "content": {
+        "accepted": [
+          "DM-795 worker and collaboration guidance: engineering dissent with honest safety objections; targeted prompt tests passed.",
+          "DM-796 planner guidance: evidence-backed early challenges and verified pre-Save tooling matrix; targeted prompt tests passed.",
+          "DM-797 orchestrator guidance: before-claim child preflight and reasoned worker replies; targeted prompt tests passed.",
+          "DM-806 contract and host preflight: scoped GO after exact prompt contracts, portable Node child PATH, dependencies and isolated junction permission observed.",
+          "DM-804 Windows junction diagnosis: isolated rmSync(force) ERR_FS_EISDIR cause; outside sentinel unchanged.",
+          "DM-805 Windows adapter repair: nonrecursive directory-junction unlink; existing guard 18/18, lint and typecheck passed.",
+          "DM-803 prompt-contract correction: kernel 753<=800, checkpoint context headroom 70>=50 and 183/183 targeted tests passed on new distinct candidate.",
+          "DM-794 combined acceptance: six Definition of Done checks passed once on 4d09813; squashed epic increment a09b773 verified."
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [
+            "57ff312c80032572d2382ebc6ecab716ee1f6b5b",
+            "b44b2ac71e63072b2f1aeced10d44e3ce96d4a0d",
+            "632006ce058d26f147b088d952501e7170bf5a3f",
+            "c4be504398e9ab14a7bbe5b46311668d0818b5e6",
+            "cbb71bc0522dddad7ff0e910d0a24ad66facd91d",
+            "e46cbcb0ab37f75338be012ff7523de8e4ae4ddc",
+            "4d09813f814126dfc9047b63e8cb0c6c0490fa29",
+            "a09b7738a3ab8b40ebc20713deb5b4b4b6492205"
+          ],
+          "files": [
+            "skills/collaboration.md",
+            "skills/knowledge/orchestrator/claim-prerequisites.md",
+            "skills/knowledge/orchestrator/setup.md",
+            "skills/knowledge/orchestrator/worker-questions.md",
+            "skills/orchestrator.md",
+            "skills/planner.md",
+            "skills/worker.md",
+            "src/core/repo/nodeFs.ts"
+          ]
+        },
+        "checks": [
+          {
+            "detail": "Existing same-head c4be504 typecheck and 62 prompt-import tests reused for read-only DM-806, then recorded row 1 pass.",
+            "name": "row 1 targeted",
+            "status": "passed"
+          },
+          {
+            "detail": "Integration 4d09813 typecheck and builtin/server/skills targeted 183/183 tests passed.",
+            "name": "row 2 targeted",
+            "status": "passed"
+          },
+          {
+            "detail": "Integration e46cbcb typecheck and Windows storage guard 18/18 passed; guide-only changes followed.",
+            "name": "row 3 targeted",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run lint exit 0, 0.48s, once on 4d09813.",
+            "name": "lint",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run typecheck exit 0, 26.69s, once on 4d09813.",
+            "name": "typecheck",
+            "status": "passed"
+          },
+          {
+            "detail": "npm test exit 0, 293.20s; project 13541 passed/57 skipped; included Fireguard-config 173/173; once on 4d09813.",
+            "name": "test",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run coverage exit 0, 304.78s; statements 98.14%, branches 95.99%, functions 97.41%, lines 98.31%; once on 4d09813.",
+            "name": "coverage",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run deadcode exit 0, 22.43s, once on 4d09813.",
+            "name": "deadcode",
+            "status": "passed"
+          },
+          {
+            "detail": "npm run build exit 0, 8.63s, once on 4d09813.",
+            "name": "build",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": {
+          "successCriteria": [
+            {
+              "criterionId": "s1",
+              "met": true,
+              "note": "Accepted DM-795 worker/collaboration guidance permits evidence-backed disagreement and recorded continuing safety objection without contacting the person."
+            },
+            {
+              "criterionId": "s2",
+              "met": true,
+              "note": "Accepted DM-796 planner guide requires concrete host/tool matrix before Save and directs early sourced challenges to user proposals; DM-806 confirmed actual prerequisites."
+            },
+            {
+              "criterionId": "s3",
+              "met": true,
+              "note": "Accepted DM-797 orchestrator guidance checks actual child tool availability before claim and keeps verified install consent boundary; DM-806 host preflight observed Node/npm/Git/PowerShell."
+            },
+            {
+              "criterionId": "s4",
+              "met": true,
+              "note": "Shipped role prompts passed consumer prompt contracts, all six project DoD checks passed on 4d09813, and verified squashed epic increment a09b773 landed without bypassing human approval."
+            }
+          ],
+          "summary": "Engineering dissent, evidence-backed planner challenges and verified tooling readiness are shipped on the epic branch with the Windows junction correction and six-check Definition of Done pass; final human checkpoint approval is outstanding."
+        },
+        "exitCriteria": [
+          {
+            "criterionId": "x1",
+            "met": true,
+            "note": "Accepted worker and orchestrator served guides plus targeted skill tests demonstrate evidence-based challenge, accountable reply and honest unresolved safety reporting."
+          },
+          {
+            "criterionId": "x2",
+            "met": true,
+            "note": "Accepted planner and orchestrator served guides include plan-specific tool/host matrix, actual child checks, pinned install authority, offline protection and native confirmation."
+          },
+          {
+            "criterionId": "x3",
+            "met": true,
+            "note": "Six Definition of Done checks passed exactly once on immutable 4d09813 and one-parent squash increment a09b773 was accepted on the epic branch; human checkpoint now awaits approval."
+          }
+        ],
+        "failed": [],
+        "followUps": [],
+        "retro": {
+          "actions": [
+            "For prompt-guide work, calculate the actual selected-context headroom and per-fact limits before the first targeted test, not only the kernel word count and vocabulary scanner; DM-803 initially missed a 50-token reserved margin.",
+            "Check the worker child process tool PATH and installed offline tree before claim, and record whether the installed content integrity is verified rather than assuming npm ls proves it.",
+            "Avoid a separate parallel card and epic ticket editing the same planner guide: coordinate ownership before dispatch and leave board approval/deletion to the person.",
+            "Preserve repository LF when editing Windows source through selective commits, or surface line-ending drift during review before landing."
+          ],
+          "delivered": [
+            {
+              "demo": "skills/worker.md:13 and skills/collaboration.md:25",
+              "evidence": "Accepted attempt at_01m7thsyz7b6sh297wtwmk1wh2; prompt tests on integration.",
+              "ticket": "tk_01m7tc281keq32c50eatqmsj35"
+            },
+            {
+              "demo": "skills/planner.md:29,35-40",
+              "evidence": "Accepted attempt at_01m7tht84qw464ja1ecbdjyhay; served prompt tests and combined acceptance.",
+              "ticket": "tk_01m7tc2834qhec9w4j473hb0ma"
+            },
+            {
+              "demo": "skills/orchestrator.md:24 and scoped setup/claim/worker-question facts",
+              "evidence": "Accepted attempt at_01m7tj42fjdpmekzj4cgadn5we; targeted prompt tests.",
+              "ticket": "tk_01m7tc2834mwgz15pgns17mmk8"
+            },
+            {
+              "demo": "GO/NO-GO ledger in accepted preflight attempt",
+              "evidence": "Accepted attempt at_01m7tqbtxddd0j3wedrpd5f688; Windows temporary junction preserved sentinel and child Node/npm paths observed.",
+              "ticket": "tk_01m7tmnhv8aax2q9bzshr4pmtk"
+            },
+            {
+              "demo": "Bounded Windows junction adapter operation probe",
+              "evidence": "Accepted attempt at_01m7tqkzsfwxmcykqxb3jjdpft; rmSync ERR_FS_EISDIR and outside target SHA-256 unchanged.",
+              "ticket": "tk_01m7tm00c39rc99v3w1zzc9wbw"
+            },
+            {
+              "demo": "src/core/repo/nodeFs.ts:67-75 and existing Windows storage guard",
+              "evidence": "Accepted attempt at_01m7tqsmnn7d3575rqdgw873ss; row 3 check rk_01m7tr4rbdfn7fx8wv1yrv8hd5 18/18 tests passed.",
+              "ticket": "tk_01m7tm00c363bvqx9ce49atx56"
+            },
+            {
+              "demo": "skills/orchestrator.md:24 and knowledge facts for setup, claims and worker questions",
+              "evidence": "Accepted attempt at_01m7tr7r77dr9ghcfkmh5k7shj; row 2 check rk_01m7trjs0bkfz7ck8x52gkxtgd 183/183 passed on 4d09813.",
+              "ticket": "tk_01m7tm00akry69hac38rrs4dq2"
+            },
+            {
+              "demo": "Six Definition of Done commands on integration HEAD 4d09813 and epic increment",
+              "evidence": "Accepted attempt at_01m7trn9m5913w61thzhqjyw5x; six passing checks and verified squashed a09b773 increment.",
+              "ticket": "tk_01m7tbykx4pqjp2s2m6bfb3bgx"
+            }
+          ],
+          "discoveries": [],
+          "leftovers": [],
+          "tierFit": [
+            {
+              "note": "Accepted at planned low effort; two preceding failed attempts were claim-token orchestration errors before worker dispatch, not model-tier evidence.",
+              "ticket": "tk_01m7tc281keq32c50eatqmsj35",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted at planned low effort; one preceding failed claim was orchestration, not model-tier evidence.",
+              "ticket": "tk_01m7tc2834qhec9w4j473hb0ma",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted at planned low effort in first attempt.",
+              "ticket": "tk_01m7tc2834mwgz15pgns17mmk8",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted at planned low effort after one bounded Windows probe.",
+              "ticket": "tk_01m7tm00c39rc99v3w1zzc9wbw",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted at planned low effort in one Windows adapter fix attempt.",
+              "ticket": "tk_01m7tm00c363bvqx9ce49atx56",
+              "verdict": "right_sized"
+            },
+            {
+              "note": "Accepted at planned low effort in one read-only contract/host audit.",
+              "ticket": "tk_01m7tmnhv8aax2q9bzshr4pmtk",
+              "verdict": "right_sized"
+            }
+          ],
+          "wentPoorly": [
+            "Original c4be504 acceptance found four missed contracts: two prompt vocabulary cases, kernel word budget and Windows junction removal.",
+            "First DM-803 attempt generated 21/183 and then 1/183 failing targeted tests before the context selector headroom was computed; the measured second attempt reached 70>=50 and passed 183/183 on a different candidate.",
+            "Initial DM-795 and DM-796 claims wasted three attempts before workers started because the token was read from the wrong response field; the independent DM-793 card failed its full gate.",
+            "Windows editing and selective commit converted nodeFs source LF to CRLF, increasing review diff size despite a narrow logic change."
+          ],
+          "wentWell": [
+            "DM-806 host/contract preflight prevented another speculative install or full-suite retry; it exposed a portable Node PATH fix and exact prompt constraints.",
+            "DM-804 isolated one failing filesystem operation and preserved the outside target; DM-805 made a bounded adapter change with existing guard proof.",
+            "All six Definition of Done gates passed once on a single new immutable combined candidate; original failed run remained failed in the record."
+          ]
+        },
+        "risks": [
+          "Separate DM-793 Kanban card remains failed and unapproved; its early evidence-backed planner challenge is implemented through accepted DM-796. Only the person can resolve board approval or deletion.",
+          "Shared existing node_modules includes OneDrive junctions; availability was observed but independent installed-content integrity was not proven. No install or npm ci was attempted.",
+          "Windows dangling junction with unavailable target was not part of the proven guard; current adapter classifies live directory links via metadata, without enumerating or deleting target contents.",
+          "nodeFs Windows edit/commit normalized LF to CRLF in its blob: raw diff shows 145 changed lines while ignore-EOL diff has 8 inserted and 1 deleted semantic lines.",
+          "Final sprint checkpoint requires a person to approve; no agent approval or automatic advance occurred."
+        ],
+        "summary": "All eight sprint tickets are accepted after an evidence-backed preflight, bounded Windows probe, prompt-budget correction and junction root-cause repair. Six Definition of Done checks passed once on immutable integration 4d09813, and a reviewed one-parent squash a09b773 landed on the epic branch. Earlier c4be504 and first DM-803 candidates remain failed in history; no flaky retry was counted as success. The separate DM-793 Kanban card remains failed and unapproved, although its planner-challenge guidance is present in the accepted sprint. Human checkpoint approval remains pending."
+      },
+      "contentHash": "sha256:cc289f2475d0d632baade79c0033219a7130e1df9dc6aa34e942e5fc6bb7ad9b",
+      "createdAt": "2026-11-19T20:57:26.143Z",
+      "id": "rp_01m7tsk5vzfq23yqyysna5whgz",
+      "reportRevision": 2,
+      "scorecard": {
+        "snapshotHash": "sha256:09ad03d7290247da7647fe53cbeb62e79fcab160a469b157507f0ea20714f0f5",
+        "snapshotId": "as_gmy2whpz109vg9z7x6snj6xp5a"
+      },
+      "sprintId": "sp_01m7tbykx42yzzsxzs20nt41gq",
+      "submittedBy": "dm CLI"
+    }
+  ],
+  "revisionId": "rv_01m7tq2mjnevv5089jmvsrf5s3",
+  "rowChecks": [
+    {
+      "checks": [
+        {
+          "detail": "All three tsconfig projects passed on integration branch",
+          "name": "npm run typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "62 prompt-import tests passed on combined first-row commit",
+          "name": "src/mcp/skills.test.ts",
+          "status": "passed"
+        }
+      ],
+      "commit": "20ae9824fe518f9a832bfc5e5811bf74cf4d6e5d",
+      "createdAt": "2026-11-19T18:46:35.243Z",
+      "id": "rk_01m7tj3jzbgg2h3t5mnnrsvdd6",
+      "number": 1,
+      "recordedBy": "dm CLI",
+      "row": 1,
+      "sprintId": "sp_01m7tbykx42yzzsxzs20nt41gq"
+    },
+    {
+      "checks": [
+        {
+          "detail": "All tsconfig projects passed on 632006ce",
+          "name": "npm run typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "1/62 failed: selective commit misplaced orchestrator preflight before # Orchestrator heading; integration defect, not a flaky rerun.",
+          "name": "src/mcp/skills.test.ts",
+          "status": "failed"
+        }
+      ],
+      "commit": "632006ce058d26f147b088d952501e7170bf5a3f",
+      "createdAt": "2026-11-19T18:49:53.437Z",
+      "id": "rk_01m7tj9mgx4c5s2qdhzx52vvw0",
+      "number": 2,
+      "recordedBy": "dm CLI",
+      "row": 2,
+      "sprintId": "sp_01m7tbykx42yzzsxzs20nt41gq"
+    },
+    {
+      "checks": [
+        {
+          "detail": "All three tsconfig projects passed on corrected c4be504 integration candidate",
+          "name": "npm run typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "62 prompt tests passed after substantive heading-placement repair; preceding 632006c candidate failed and remains recorded.",
+          "name": "src/mcp/skills.test.ts",
+          "status": "passed"
+        }
+      ],
+      "commit": "c4be504398e9ab14a7bbe5b46311668d0818b5e6",
+      "createdAt": "2026-11-19T18:51:34.536Z",
+      "id": "rk_01m7tjcq889shpng71kds60vfv",
+      "number": 3,
+      "recordedBy": "dm CLI",
+      "row": 2,
+      "sprintId": "sp_01m7tbykx42yzzsxzs20nt41gq"
+    },
+    {
+      "checks": [
+        {
+          "detail": "Reuse existing row 2 check rk_01m7tjcq889shpng71kds60vfv on identical c4be504 integration HEAD; DM-806 made no source changes.",
+          "name": "npm run typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "Reuse existing row 2 check rk_01m7tjcq889shpng71kds60vfv: 62 prompt-import tests passed on identical c4be504; DM-806 read-only. Earlier failed full-suite candidate remains failed.",
+          "name": "src/mcp/skills.test.ts",
+          "status": "passed"
+        }
+      ],
+      "commit": "c4be504398e9ab14a7bbe5b46311668d0818b5e6",
+      "createdAt": "2026-11-19T20:22:26.934Z",
+      "id": "rk_01m7tqk3vp361znh6ypj61set4",
+      "number": 4,
+      "recordedBy": "dm CLI",
+      "row": 1,
+      "sprintId": "sp_01m7tbykx42yzzsxzs20nt41gq"
+    },
+    {
+      "checks": [
+        {
+          "detail": "Integration worktree at e46cbcb0, all three tsconfig projects passed; PowerShell child explicit Node PATH.",
+          "name": "npm run typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "Integration worktree at e46cbcb0, Vitest 1 file/18 tests passed in 7.76s including Windows junction cleanup guard; target safety asserted.",
+          "name": "src/core/workspace.storageMigration.guards.test.ts",
+          "status": "passed"
+        }
+      ],
+      "commit": "e46cbcb0ab37f75338be012ff7523de8e4ae4ddc",
+      "createdAt": "2026-11-19T20:32:04.973Z",
+      "id": "rk_01m7tr4rbdfn7fx8wv1yrv8hd5",
+      "number": 5,
+      "recordedBy": "dm CLI",
+      "row": 3,
+      "sprintId": "sp_01m7tbykx42yzzsxzs20nt41gq"
+    },
+    {
+      "checks": [
+        {
+          "detail": "Integration HEAD 4d09813 after both accepted corrective branches; three tsconfig projects passed with explicit Node PATH.",
+          "name": "npm run typecheck",
+          "status": "passed"
+        },
+        {
+          "detail": "Integration HEAD 4d09813, Vitest 3 files/183 tests passed in 3.00s; previous DM-803 candidates failed and remain recorded failures.",
+          "name": "src/core/knowledge/builtin.test.ts + src/mcp/server.test.ts + src/mcp/skills.test.ts",
+          "status": "passed"
+        }
+      ],
+      "commit": "4d09813f814126dfc9047b63e8cb0c6c0490fa29",
+      "createdAt": "2026-11-19T20:39:44.395Z",
+      "id": "rk_01m7trjs0bkfz7ck8x52gkxtgd",
+      "number": 6,
+      "recordedBy": "dm CLI",
+      "row": 2,
+      "sprintId": "sp_01m7tbykx42yzzsxzs20nt41gq"
+    }
+  ],
+  "runId": "rn_01m7thkk8my3a4xr2kyx0yergx",
+  "skillVersion": "1.12.0",
+  "startedAt": "2026-11-19T18:37:51.253Z",
+  "state": "completed",
+  "updatedAt": "2026-11-19T21:54:45.856Z"
+}

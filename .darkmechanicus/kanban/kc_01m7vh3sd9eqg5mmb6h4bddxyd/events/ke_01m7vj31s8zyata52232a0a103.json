@@ -1,0 +1,17 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": "ka_01m7vh4474xd86qbh7exxc41cv",
+  "cardId": "kc_01m7vh3sd9eqg5mmb6h4bddxyd",
+  "createdAt": "2026-11-20T04:05:32.071Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7vj31s8zyata52232a0a103",
+  "kind": "failed",
+  "payload": {
+    "number": 1,
+    "reason": "The eval host force-killed its VM during an unrelated peer-mail CLI timeout, losing in-memory claim tokens. Implementation and exact check logs remain intact in commits caac09ad12 and aa292db1cb. Use sanctioned tokenless orchestrator recovery; no test failure is cleared and no unchanged suite is rerun."
+  }
+}

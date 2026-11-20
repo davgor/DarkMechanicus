@@ -1,0 +1,17 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": null,
+  "cardId": "kc_01m7rz4fyab308s9xecg2e22m8",
+  "createdAt": "2026-11-20T02:32:30.751Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7vcrq8zx62dffrzq34cbpg3",
+  "kind": "message",
+  "payload": {
+    "attachments": [],
+    "body": "Person chose functional handoff instead of further Ready-for-review verification work. Retry UI source fix 8c33ddc5 remains on main; real installed-app failed-card screenshots remain attached on ke_01m7v6rngsrskzhpyzfct9r92b. This card remains failed/not Ready: required delivery gate did not pass (original full-suite/coverage timeouts, first DM-761 Fireguard outer210s timeout, later current-tree coverage outer300s timeout with no reported threshold). No pass or completion is claimed. Only the person will delete the Kanban card if desired."
+  }
+}

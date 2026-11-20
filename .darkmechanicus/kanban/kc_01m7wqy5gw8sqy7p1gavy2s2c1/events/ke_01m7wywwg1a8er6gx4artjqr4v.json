@@ -1,0 +1,17 @@
+{
+  "actor": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "attemptId": "ka_01m7wy7kh3q134096efw0x85vz",
+  "cardId": "kc_01m7wqy5gw8sqy7p1gavy2s2c1",
+  "createdAt": "2026-11-20T17:08:35.969Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7wywwg1a8er6gx4artjqr4v",
+  "kind": "failed",
+  "payload": {
+    "number": 2,
+    "reason": "NOT FINISHED at mandated stop deadline. One worker implemented partial automatic full-body peer delivery/pagination/restart cursor plus unconditional folder monitoring on main. Six files remain uncommitted; no commit/submission. Worker targeted delivery/desktop suites: 48 passed; final changed-file lint passed. Main TypeScript passed before final extraction only, not final full typecheck. All named full gate checks skipped. c1-c4 remain false: stopped-chat resume, durable desktop insertion receipts independent of ack, person-board active-context delivery, manual UI/core caller/docs cleanup, full gate and live two-chat/inspected screenshot proof missing. Detailed output, checks, limitations and changed-file list recorded in card message ke_01m7wywcf0qwe64mzje73wbv3f and local://dm820-worker-evidence.json. No new epic requested or executed. User single-card scope retained, not silently narrowed. No implementation after ten-minute deadline; no unsupported completion or passing full-gate claim. Usage/cost unknown."
+  }
+}

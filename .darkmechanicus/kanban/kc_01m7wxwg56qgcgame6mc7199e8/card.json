@@ -1,0 +1,110 @@
+{
+  "acceptanceCriteria": [
+    {
+      "id": "c1",
+      "text": "A live desktop person can explicitly confirm YOLO for one named active agent grant and see scope, powers, expiry and a revoke control; no agent-facing CLI/MCP/renderer input can enable or renew it, and default grants stay unchanged."
+    },
+    {
+      "id": "c2",
+      "text": "An approved, current grant can Save a plan, grant a retry and complete an approved-run checkpoint through ordinary command authorization without becoming `desktop`; wrong folder/run, expired/revoked grant, restarted or different chat, and self-grant operations still fail in deterministic end-to-end tests."
+    },
+    {
+      "id": "c3",
+      "text": "Every command admitted only by YOLO is durably audited without secrets, including failures, and surfaced to the person; a sprint retro for an affected run contains the server-derived complete usage log plus specific per-capability agent suggestions for safer future role grants; Kanban-only work carries equivalent completion evidence."
+    },
+    {
+      "id": "c4",
+      "text": "Tests are written red-first and cover denial, approval, expiry, revocation, restart, audit and retro; targeted tests and the full lint/test/Fireguard/typecheck/deadcode/build gate pass without retries or lowered checks."
+    },
+    {
+      "id": "c5",
+      "text": "The actual desktop confirmation, active indicator, revocation and retro rendering are visually exercised with attached screenshots, and the existing operating guide documents the opt-in risk, scope and audit limits."
+    }
+  ],
+  "body": "## Outcome\nOne express action by the person at the local Dark Mechanicus desktop enables a deliberately permissive YOLO mode for a named, existing active agent grant, its folder, and its current run when present. After approval, the agent can perform in-scope app workflow commands that otherwise require another person intervention (at minimum plan Save, retry grant, and checkpoint approval/advance), so a long epic can finish without repeatedly asking for those buttons. This changes Dark Mechanicus app authorization, not Windows privileges or native desktop consent. The mode is off by default, conspicuously marked, revocable immediately, and ends at a fixed maximum lifetime or when the bound chat/grant ends; a restart or new grant does not silently retain it. Show the exact scope, powers, duration and risk to the person *before* confirmation. Only a live desktop-person action may enable it; a chat message, CLI/MCP call, agent-originated renderer content or a former approval cannot.\n\n## Authority boundary\nImplement a distinct YOLO elevation bound to the specific grant/session and folder (and run if present), checked on every privileged command. Never turn the agent's role into `desktop` and never hand it `grant.issue`, `grant.revoke`, `mail.manage`, `feedback.record`, OS-native consent or credential/export-all-mail authority. Other elevated app CRUD powers must be displayed in the confirmation and audited; scope them rather than relying on a mutable global flag. Retain the existing denial for all ordinary agent grants. Do not allow a YOLO session to activate, extend, transfer or reauthorize itself. Default suggestion: fixed maximum 24 hours with explicit revocation and end-on-chat-exit; implement a shorter cap if existing grant lifetime requires it, and never extend beyond the parent grant. No bypass of report evidence or false test/grade claims.\n\n## Audit and retro\nStore a durable server-generated, append-only record of each command admitted solely due to YOLO (and refused attempts to turn it on), with time, grant/session/folder/run, capability/command, result and safe target identifiers, never token or secret payload. Make these entries discoverable in the app. The sprint report retro for an affected run must include the complete bounded YOLO-usage log and agent-authored, per-capability suggestions on which specific permissions could safely belong to planner/orchestrator/worker/reviewer roles instead; the server derives the log rather than trusting an agent-edited list and the person can distinguish recommendation from authority granted. When a YOLO-enabled Kanban card has no sprint retro, include the same log and recommendations in its completion evidence, rather than claiming a nonexistent retro. Audit persists through restart and revocation.\n\n## Verified source locations and intended changes\n`src/core/authz.ts` and `src/core/commands/capabilities.ts`: role/capability boundary and YOLO enforcement; `src/core/services/grants.ts`, `src/main/agents/chatGrants.ts`, `src/core/db/migrations.ts`: scoped grant lifecycle and durable audit; `src/renderer/src/home/GrantsCard.tsx`: human-only confirmation, active status and revoke; `src/core/services/reports.ts`, `src/core/plan/retro.ts`, `src/renderer/src/checkpoint/RetroSections.tsx`: verified usage in report and readable retro. Update command schemas, IPC/preload types and UI only along this same end-to-end path. Existing neighboring tests: `src/core/authz.test.ts`, `src/core/services/grants.test.ts`, `src/core/services/reports.test.ts`, `src/renderer/src/home/GrantsCard.form.test.tsx` (check actual names before editing).\n\n## Tests and delivery\nOutside an epic: write failing deterministic tests first for successful desktop approval plus actual denied/allowed commands, role isolation, wrong run/folder/session, expiry/revocation/restart, self-elevation refusals, audit privacy and automatic retro insertion. Run targeted tests during implementation and the full delivery gate once at completion: npm run lint, npm test, npm run fireguard for added/changed unit tests, npm run typecheck, npm run deadcode, npm run build. Exercise the human desktop surface in the real app, attach inspected visual evidence; Electron/native IPC changes require a real packaged or ABI-correct app exercise. Document the capability boundary and revocation in the existing operating guide; no unrestricted OS execution or fabricated human presence.\n\n## Non-goals\nDo not enable YOLO for this current session by editing `.darkmechanicus` records, changing `DM_SESSION_TOKEN`, calling an unauthorized command or claiming that a new card grants authority. The person must approve this card and then separately trigger the implemented elevation before it is usable.\n",
+  "createdAt": "2026-11-20T16:50:54.807Z",
+  "createdBy": {
+    "label": "dm CLI",
+    "role": "orchestrator"
+  },
+  "expectedArtifacts": [
+    "Scoped capability/grant, audit and report changes with regression tests",
+    "Desktop YOLO confirmation and revoke visual evidence",
+    "Retro usage log and per-role permission recommendations",
+    "Full delivery-gate results and operating-guide update"
+  ],
+  "format": "darkmechanicus.kanban-card",
+  "formatVersion": 1,
+  "generation": 1,
+  "id": "kc_01m7wxwg56qgcgame6mc7199e8",
+  "key": "DM-838",
+  "priority": "high",
+  "references": [
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Role capability boundaries",
+      "location": "src/core/authz.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Command authorization",
+      "location": "src/core/commands/capabilities.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Grant lifecycle",
+      "location": "src/core/services/grants.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Desktop-bound chat grants",
+      "location": "src/main/agents/chatGrants.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Agent access UI",
+      "location": "src/renderer/src/home/GrantsCard.tsx",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Sprint report persistence",
+      "location": "src/core/services/reports.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Retro normalization",
+      "location": "src/core/plan/retro.ts",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Retro display",
+      "location": "src/renderer/src/checkpoint/RetroSections.tsx",
+      "remoteOnly": false
+    },
+    {
+      "hash": null,
+      "kind": "file",
+      "label": "Development and operating guide",
+      "location": "docs/project-guide.md",
+      "remoteOnly": false
+    }
+  ],
+  "size": "large",
+  "title": "Add human-approved, auditable YOLO elevation for an active agent",
+  "updatedAt": "2026-11-20T16:50:54.807Z"
+}
