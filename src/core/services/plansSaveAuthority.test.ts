@@ -214,7 +214,9 @@ describe('save_plan on run ownership alone cannot remove a spent ticket', () => 
     insertAttempt(w.ctx, { runId: w.runId, ticketId: w.beta, state: 'canceled' })
     expect(save(w.orchestrator, w.epicId).status).toBe('pending')
   })
+})
 
+describe('save_plan on run ownership alone and removals that reset nothing', () => {
   it('still saves once the person has removed the spent ticket and the run adopted that revision', () => {
     const w = twoSprintRun()
     insertAttempt(w.ctx, { runId: w.runId, ticketId: w.beta, state: 'failed' })
