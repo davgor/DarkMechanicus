@@ -228,6 +228,12 @@ export interface PlanPolicies {
   onTicketFailure: TicketFailurePolicy
   /** Default claim lease duration. */
   leaseSeconds: number
+  /**
+   * Extra attempts the orchestrator may add itself (`retry_ticket`) per ticket per run once `retryLimit` is used up,
+   * before only the person's retry grants can add more. No default is stored, like a ticket's `size`: a plan saved
+   * without it keeps its shape and hash and reads as `DEFAULT_AUTO_RETRY_LIMIT` (`autoRetryLimitOf`).
+   */
+  autoRetryLimit?: number
 }
 
 export interface EpicContent {
@@ -255,6 +261,14 @@ export const DEFAULT_POLICIES: PlanPolicies = {
   retryLimit: 3,
   onTicketFailure: 'continue_independent',
   leaseSeconds: 900
+}
+
+/** Orchestrator retries per ticket per run when a plan does not set `autoRetryLimit`. */
+export const DEFAULT_AUTO_RETRY_LIMIT = 3
+
+/** The plan's orchestrator retry budget per ticket per run, its default when unset. */
+export function autoRetryLimitOf(policies: PlanPolicies): number {
+  return policies.autoRetryLimit ?? DEFAULT_AUTO_RETRY_LIMIT
 }
 
 export function defaultCapabilityProfile(): CapabilityProfile {

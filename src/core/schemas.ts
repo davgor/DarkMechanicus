@@ -279,7 +279,8 @@ export const policiesPatch = z.strictObject({
   maxConcurrency: concurrencyCap.optional(),
   retryLimit: z.number().int().min(1).max(100).optional(),
   onTicketFailure: z.enum(TICKET_FAILURE_POLICIES).optional(),
-  leaseSeconds: z.number().int().min(30).max(86_400).optional()
+  leaseSeconds: z.number().int().min(30).max(86_400).optional(),
+  autoRetryLimit: z.number().int().min(0).max(100).optional()
 })
 
 const clientRef = z.string().min(1).max(64).regex(/^[A-Za-z0-9_.-]+$/).optional()
@@ -368,7 +369,9 @@ export const planBundle = z.strictObject({
     maxConcurrency: concurrencyCap,
     retryLimit: z.number().int().min(1).max(100),
     onTicketFailure: z.enum(TICKET_FAILURE_POLICIES),
-    leaseSeconds: z.number().int().min(30).max(86_400)
+    leaseSeconds: z.number().int().min(30).max(86_400),
+    // No default, like a ticket's `size`: a plan saved without it keeps its shape and hash (`autoRetryLimitOf`).
+    autoRetryLimit: z.number().int().min(0).max(100).optional()
   }),
   rationale: markdown
 })

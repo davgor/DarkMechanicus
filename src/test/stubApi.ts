@@ -134,6 +134,8 @@ const COMMAND_FLAGS: Record<CommandName, true> = {
   approveWithRedraft: true,
   authorizeAutoContinue: true,
   grantRetry: true,
+  retryTicket: true,
+  acknowledgeAutoRetry: true,
   listEvents: true,
   getAttemptTimeline: true,
   getRunTimeline: true,

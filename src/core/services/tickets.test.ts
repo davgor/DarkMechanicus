@@ -105,6 +105,7 @@ describe('getTicket links', () => {
       relations: [{ kind: 'related_to', ticket: link(c, 'DM-3', 'Gamma') }],
       execution: null,
       attempts: [],
+      autoRetries: [],
       readOnly: true,
       readOnlyReason: 'Saved revisions are immutable. Edit a draft.'
     })

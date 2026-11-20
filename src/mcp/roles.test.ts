@@ -126,6 +126,8 @@ const ORCHESTRATOR_TOOLS = [
   'submit_sprint_report',
   'redraft_next_sprint',
   'advance_sprint',
+  // ticket.auto_retry: the orchestrator's own bounded retry of a ticket at its retry limit.
+  'retry_ticket',
   // epic.transfer: carrying out a transfer the person queued.
   'start_transfer',
   'record_transfer_item',

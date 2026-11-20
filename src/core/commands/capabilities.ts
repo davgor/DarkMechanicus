@@ -110,6 +110,8 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   approveWithRedraft: 'checkpoint.approve',
   authorizeAutoContinue: 'run.authorize_auto',
   grantRetry: 'ticket.retry_grant',
+  retryTicket: 'ticket.auto_retry',
+  acknowledgeAutoRetry: 'ticket.retry_acknowledge',
   addAttachment: 'attachment.write',
   uploadAttachment: 'attachment.write',
   getAttachment: 'read',

@@ -4,6 +4,7 @@ import { makeBundle, makeSprint, sid, tid } from '../../test/bundles'
 import { attemptRow, claim, errorCode, type IssuedClaim, seedEpic, seedRevision, startedRun } from '../../test/execution'
 import { createTestClock, createTestCtx, type TestClock, type TestCtx, withRole } from '../../test/testContext'
 import { adoptRevision } from './adoption'
+import { retryTicket } from './autoRetry'
 import { acceptAttempt, failAttempt, heartbeatAttempt, reconcileAttempt, rejectAttempt, submitAttempt } from './attempts'
 import { type ObservationInput, recordObservations } from './observations'
 import { advanceSprint, approveCheckpoint, grantRetry } from './checkpoints'
@@ -473,6 +474,29 @@ describe('DM-172 c1: retry grants and runs that never started', () => {
     const ticket = ticketOf(projectRunTiming(ctx, { runId }), 1)
     expect(outline(ticket.segments)).toContain('human_approval/awaiting_retry_grant 10:10-10:30')
     expect(ticket.waits.human_approval.ms).toBe(20 * MIN)
+  })
+
+  it("the time before the orchestrator's own retry is orchestration, never a wait on a person", () => {
+    const { clock, ctx, worker } = world(T('10:00'))
+    const base = makeBundle([[1]])
+    const { runId } = startedRun(ctx, { bundle: { ...base, policies: { ...base.policies, retryLimit: 1 } } })
+    const c = claim(ctx, runId, 1)
+    clock.set(T('10:10'))
+    failAttempt(worker, { attemptId: c.attempt.id, claimToken: c.packet.claimToken, failure: { reason: 'broken', retryable: true } })
+    clock.set(T('10:30'))
+    retryTicket(ctx, {
+      runId,
+      ticketId: tid(1),
+      failureReason: 'The build broke on a missing native module.',
+      newApproach: 'Fix the environment first: install the native module, then rerun.'
+    })
+    clock.set(T('10:40'))
+    claim(ctx, runId, 1)
+    clock.set(T('11:00'))
+    const ticket = ticketOf(projectRunTiming(ctx, { runId }), 1)
+    expect(outline(ticket.segments)).toContain('queue/awaiting_orchestrator_retry 10:10-10:30')
+    expect(outline(ticket.segments).some((line) => line.startsWith('human_approval'))).toBe(false)
+    expect(ticket.waits.human_approval.ms).toBe(0)
   })
 
   it('a queued run that never started has no window and no sprint activation', () => {

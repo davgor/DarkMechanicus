@@ -66,7 +66,8 @@ function isSecretField(name: string): boolean {
   return SECRET_WORDS[last] === true || SECRET_WORD_PAIRS[`${words.at(-2) ?? ''} ${last}`] === true
 }
 
-function maskSecretText(text: string): string {
+/** `text` with whole claim tokens and grant tokens masked: how free text a person or agent wrote is stored. */
+export function maskSecretText(text: string): string {
   return maskWholeClaimTokens(text).replace(GRANT_TOKEN, GRANT_TOKEN_MASK)
 }
 
