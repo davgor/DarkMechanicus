@@ -446,6 +446,8 @@ const DESKTOP_COMMANDS = [
   'approveWithRedraft',
   'authorizeAutoContinue',
   'grantRetry',
+  // The person marks an orchestrator retry as read; `retryTicket` is the orchestrator's alone, never the desktop's.
+  'acknowledgeAutoRetry',
   'listEvents',
   'getAttemptTimeline',
   'getRunTimeline',

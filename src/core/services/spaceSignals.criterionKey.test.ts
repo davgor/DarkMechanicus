@@ -89,7 +89,7 @@ async function replannedRun(): Promise<{ read: (input: Omit<GetSpaceSignalsInput
   })
   const saved = await s.api.savePlan({ epicId: s.epicId, expectedDraftRevision: edited.draftRevision })
   step()
-  await s.api.adoptRevision({ runId: s.runId, revisionId: saved.revisionId })
+  await s.api.adoptRevision({ reason: 'Test adoption: the plan changed mid-run.', runId: s.runId, revisionId: saved.revisionId })
   await s.api.resumeRun({ runId: s.runId })
   await deliver(s, 'alpha', { c1: true, c2: true })
   await deliver(s, 'beta', { c1: true })

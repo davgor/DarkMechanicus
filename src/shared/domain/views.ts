@@ -242,8 +242,33 @@ export interface TicketDetailView {
   relations: { kind: string; ticket: TicketLinkView }[]
   execution: TicketExecutionView | null
   attempts: AttemptView[]
+  /** The orchestrator's own retries of this ticket (`retry_ticket`) in this epic's runs on this machine, oldest first. */
+  autoRetries: AutoRetryView[]
   readOnly: boolean
   readOnlyReason: string | null
+}
+
+/**
+ * One extra attempt the orchestrator gave a ticket at its retry limit (`retry_ticket`): why the ticket failed and
+ * what it does differently this time. `acknowledgedAt` records that the person read it; it never gates anything.
+ */
+export interface AutoRetryView {
+  runId: string
+  runNumber: number
+  ticketId: string
+  /** 1 for the run's first orchestrator retry of this ticket, 2 for the second, and so on. */
+  number: number
+  failureReason: string
+  newApproach: string
+  at: string
+  acknowledgedAt: string | null
+}
+
+/** What `retry_ticket` did: the retry's number, how many more the plan allows, and the run as it now stands. */
+export interface RetryTicketResult {
+  autoRetry: number
+  autoRetriesLeft: number
+  run: RunView
 }
 
 export type Blocker =

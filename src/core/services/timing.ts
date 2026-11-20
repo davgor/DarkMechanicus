@@ -86,7 +86,11 @@ const FROM_LOG: Readonly<Record<string, (event: LoggedEvent) => TimingEvent | nu
   'run.paused': (event) => ({ kind: 'run_paused', at: event.at, seq: event.seq }),
   'run.taken_over': (event) => ({ kind: 'run_paused', at: event.at, seq: event.seq }),
   'run.resumed': (event) => ({ kind: 'run_resumed', at: event.at, seq: event.seq }),
-  'ticket.retry_granted': (event) => (event.ticketId === null ? null : { kind: 'retry_granted', ticketId: event.ticketId, at: event.at, seq: event.seq })
+  // The orchestrator's own retry (`retry_ticket`) is orchestration, not a wait on the person's grant.
+  'ticket.retry_granted': (event) =>
+    event.ticketId === null
+      ? null
+      : { kind: event.payload.grantedBy === 'orchestrator' ? 'auto_retry_granted' : 'retry_granted', ticketId: event.ticketId, at: event.at, seq: event.seq }
 }
 
 /** Pauses, resumes and retry grants, which only the log records. A run paused elsewhere still has its row's `paused_at`. */

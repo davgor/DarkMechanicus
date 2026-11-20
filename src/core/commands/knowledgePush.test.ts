@@ -198,7 +198,7 @@ describe('knowledge pushed with recovery', () => {
       ops: [{ op: 'add_ticket', ref: 'extra', sprint: '1', ticket: { title: 'Extra' } }]
     })
     const saved = await agent.savePlan({ epicId: plan.epicId, expectedDraftRevision: draft.draftRevision })
-    expect(pushed(await agent.adoptRevision({ runId: run.id, revisionId: saved.revisionId }))).toEqual(['repo.run.recovery'])
+    expect(pushed(await agent.adoptRevision({ reason: 'Test adoption: the plan changed mid-run.', runId: run.id, revisionId: saved.revisionId }))).toEqual(['repo.run.recovery'])
   })
 })
 
@@ -255,7 +255,7 @@ describe('knowledge is pushed to orchestrators only', () => {
       () => worker.advanceSprint({ runId: run }),
       () => worker.claimKanbanCard({ cardId: id('kanbanCard') }),
       () => worker.takeoverRun({ runId: run }),
-      () => worker.adoptRevision({ runId: run, revisionId: id('revision') })
+      () => worker.adoptRevision({ reason: 'Test adoption: the plan changed mid-run.', runId: run, revisionId: id('revision') })
     ]
     for (const call of calls) expect(await codeOf(call())).toBe('unauthorized')
   })

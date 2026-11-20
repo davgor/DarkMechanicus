@@ -35,6 +35,9 @@ import { CRITERION_ID_PATTERN } from './plan/normalize'
 import { checkNameKey } from './definitionOfDone'
 import { isProfileName, PROFILE_NAME_RULE } from './profileNames'
 
+/** The shortest reason a run's revision adoption may give, trimmed: enough to say what failed and what it changes. */
+export const ADOPTION_REASON_MIN = 20
+
 /** Size limits applied to every untrusted input: tool calls, IPC payloads, and imported records. */
 export const LIMITS = {
   title: 300,
@@ -279,7 +282,8 @@ export const policiesPatch = z.strictObject({
   maxConcurrency: concurrencyCap.optional(),
   retryLimit: z.number().int().min(1).max(100).optional(),
   onTicketFailure: z.enum(TICKET_FAILURE_POLICIES).optional(),
-  leaseSeconds: z.number().int().min(30).max(86_400).optional()
+  leaseSeconds: z.number().int().min(30).max(86_400).optional(),
+  autoRetryLimit: z.number().int().min(0).max(100).optional()
 })
 
 const clientRef = z.string().min(1).max(64).regex(/^[A-Za-z0-9_.-]+$/).optional()
@@ -368,7 +372,9 @@ export const planBundle = z.strictObject({
     maxConcurrency: concurrencyCap,
     retryLimit: z.number().int().min(1).max(100),
     onTicketFailure: z.enum(TICKET_FAILURE_POLICIES),
-    leaseSeconds: z.number().int().min(30).max(86_400)
+    leaseSeconds: z.number().int().min(30).max(86_400),
+    // No default, like a ticket's `size`: a plan saved without it keeps its shape and hash (`autoRetryLimitOf`).
+    autoRetryLimit: z.number().int().min(0).max(100).optional()
   }),
   rationale: markdown
 })

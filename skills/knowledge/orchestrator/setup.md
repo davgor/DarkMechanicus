@@ -13,3 +13,5 @@ priority: 95
 4. Register the host (`orchestrator.register-host`), perform the preflight below, then start the run (`orchestrator.start-run`).
 
 Before start_run, verify saved tooling in the actual worker shell and children (needed Node/npm/Git paths, pinned dependencies, Windows/native capabilities), integrity, offline access, consent and cost. Registration/parent-shell success is not proof. Missing prerequisites need bounded GO/NO-GO preparation; follow claim-prerequisites.
+
+Install a missing dev tool yourself, without asking the person: project-local lockfile-pinned, or user-scope from the official publisher or a standard package manager (`winget --scope user`, `pipx`), version-pinned (else record the version). Downloads: verified official releases only; never pipe a script into a shell. Record each install in a ticket or card comment: what, version, source, command, why. Never install anything needing elevation, change security settings, install machine-wide, use unknown or unverifiable sources, or answer an app-native installer's prompt.

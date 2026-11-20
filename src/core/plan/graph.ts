@@ -1,6 +1,7 @@
 import type { DependencyEdge, PlanBundle, SprintDef, TicketContent } from '../../shared/domain/bundle'
 import type { ValidationIssue, ValidationReport } from '../../shared/domain/views'
 import { acceptanceNodesOf, implicitPrerequisitesOf, isAcceptanceTicket, workTicketsOf } from './acceptance'
+import { criterionNeedsPersonWarnings } from './criterionWording'
 
 export interface BundleIndex {
   tickets: Map<string, TicketContent>
@@ -276,6 +277,9 @@ function policyIssues(bundle: PlanBundle): ValidationIssue[] {
   const issues: ValidationIssue[] = []
   if (!Number.isInteger(policies.retryLimit) || policies.retryLimit < 1) {
     issues.push({ code: 'invalid_policy', message: 'Retry limit must be a whole number of at least 1.' })
+  }
+  if (policies.autoRetryLimit !== undefined && (!Number.isInteger(policies.autoRetryLimit) || policies.autoRetryLimit < 0)) {
+    issues.push({ code: 'invalid_policy', message: 'Orchestrator retry limit must be a whole number of at least 0.' })
   }
   if (!Number.isInteger(policies.leaseSeconds) || policies.leaseSeconds < 30) {
     issues.push({ code: 'invalid_policy', message: 'Lease duration must be at least 30 seconds.' })
@@ -587,6 +591,7 @@ export function validatePlan(bundle: PlanBundle, options?: PlanValidationOptions
     ...isolationWarnings(bundle),
     ...contentWarnings(bundle, index),
     ...sizeWarnings(bundle),
+    ...criterionNeedsPersonWarnings(bundle),
     ...acceptanceWarnings(bundle, index),
     ...repos.warnings
   ]

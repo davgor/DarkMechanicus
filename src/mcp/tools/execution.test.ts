@@ -183,9 +183,9 @@ const CASES: Case[] = [
   { tool: 'takeover_run', args: { runId: RUN }, method: 'takeoverRun', input: { runId: RUN } },
   {
     tool: 'adopt_revision',
-    args: { runId: RUN, revisionId: REVISION, carryForward: [TICKET] },
+    args: { runId: RUN, revisionId: REVISION, carryForward: [TICKET], reason: '  DM-3 failed; split it into two.  ' },
     method: 'adoptRevision',
-    input: { runId: RUN, revisionId: REVISION, carryForward: [TICKET] }
+    input: { runId: RUN, revisionId: REVISION, carryForward: [TICKET], reason: 'DM-3 failed; split it into two.' }
   }
 ]
 
@@ -313,6 +313,8 @@ describe('execution input validation', () => {
     ['record_row_check with an unknown check status', 'record_row_check', { ...ROW_CHECK, checks: [{ name: 'x', status: 'maybe' }] }],
     ['start_run with an invalid branch name', 'start_run', { epicId: EPIC, branch: { repository: null, name: 'a b', startCommit: null } }],
     ['adopt_revision with a malformed revision id', 'adopt_revision', { runId: RUN, revisionId: 'r1' }],
+    ['adopt_revision without a reason', 'adopt_revision', { runId: RUN, revisionId: REVISION }],
+    ['adopt_revision with a reason under 20 characters', 'adopt_revision', { runId: RUN, revisionId: REVISION, reason: 'too short' }],
     ['register_host without models', 'register_host', { hostId: 'h', hostType: 't', catalogRevision: '1', tools: [], canSelectWorkerModel: false }],
     ['register_host with an unknown reasoning level', 'register_host', { ...HOST, models: [{ id: 'm', reasoningLevels: ['genius'], modalities: ['text'] }] }]
   ])('rejects %s without calling the command', async (_label, tool, args) => {

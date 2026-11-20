@@ -80,6 +80,7 @@ import type { RunTiming } from './timing'
 import type {
   ApprovalView,
   ApproveWithRedraftResultView,
+  AutoRetryView,
   AttachmentFileView,
   AttachmentPurpose,
   AttachmentView,
@@ -115,6 +116,7 @@ import type {
   ReconcileResultView,
   RepositoryView,
   ResolveEpicConflictView,
+  RetryTicketResult,
   RevisionSummaryView,
   RowCheckView,
   RunView,
@@ -675,6 +677,8 @@ export interface CommandApi {
     runId: string
     revisionId: string
     carryForward?: string[]
+    /** Why the run adopts: what failed and what the revision changes. Required of every session but the desktop's. */
+    reason?: string
   }): Promise<RunView & PushedContext>
 
   // Metric ingestion and reads (the SPACE observation ledger)
@@ -797,6 +801,13 @@ export interface CommandApi {
   }): Promise<ApproveWithRedraftResultView>
   authorizeAutoContinue(input: { runId: string; enabled: boolean }): Promise<RunView>
   grantRetry(input: { runId: string; ticketId: string }): Promise<RunView>
+  /**
+   * Orchestrator only: one more attempt for a ticket its retry limit holds, saying why it failed and what changes
+   * this time; bounded per ticket over every run of the epic by the plan's `autoRetryLimit` (then `retry_escalation_required`).
+   */
+  retryTicket(input: { runId: string; ticketId: string; failureReason: string; newApproach: string }): Promise<RetryTicketResult>
+  /** Desktop only: records that the person read an orchestrator retry; it never gates a claim or the run. */
+  acknowledgeAutoRetry(input: { runId: string; ticketId: string; number: number }): Promise<AutoRetryView>
 
   // Events
   listEvents(input: {

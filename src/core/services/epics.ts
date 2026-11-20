@@ -34,6 +34,7 @@ interface ActiveRunRow {
   id: string
   number: number
   revision_id: string
+  owner_machine_id: string
 }
 
 /**
@@ -116,7 +117,7 @@ export function assertEpicOpen(row: EpicRow): void {
 /** The epic's run in `queued|running|awaiting_checkpoint|paused`, if any. */
 export function activeRun(ctx: Ctx, epicId: string): ActiveRunRow | null {
   const run = ctx.db.get<ActiveRunRow>(
-    `SELECT id, number, revision_id FROM runs WHERE epic_id = ? AND state IN ${ACTIVE_RUN_SQL}`,
+    `SELECT id, number, revision_id, owner_machine_id FROM runs WHERE epic_id = ? AND state IN ${ACTIVE_RUN_SQL}`,
     epicId
   )
   return run ?? null

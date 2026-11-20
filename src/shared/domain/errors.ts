@@ -25,6 +25,8 @@ export const DOMAIN_ERROR_CODES = [
   'already_claimed',
   'capacity_exceeded',
   'retry_limit_reached',
+  /** `retry_ticket` found the plan's orchestrator retry budget for the ticket used up: only the person's grant adds attempts. */
+  'retry_escalation_required',
   'unsupported_capability',
   'completed_epic',
   'active_run_exists',

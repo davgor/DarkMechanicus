@@ -254,7 +254,7 @@ describe('DM-171 c3: adopting the revision moves only undispatched tickets', () 
       failure: { reason: 'retry' }
     })
     await w.orchestrator.pauseRun({ runId: w.runId })
-    await w.orchestrator.adoptRevision({ runId: w.runId, revisionId })
+    await w.orchestrator.adoptRevision({ reason: 'Test adoption: the plan changed mid-run.', runId: w.runId, revisionId })
     await w.orchestrator.resumeRun({ runId: w.runId })
     return revisionId
   }

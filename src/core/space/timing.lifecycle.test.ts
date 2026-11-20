@@ -57,6 +57,26 @@ describe('DM-273: a retry grant after the rejection is the wait on a person', ()
   })
 })
 
+describe("an orchestrator's own retry is not a wait on a person", () => {
+  it('the wait before it is queue time, and a later person grant in the same gap is not counted as approval', () => {
+    const run = oneTicket()
+    run.attempt(1, 1, 1, { claim: 0, submit: 30, decided: 40, decision: 'rejected' })
+    run.events.push({ kind: 'auto_retry_granted', at: at(50), ticketId: tk(1) }, { kind: 'retry_granted', at: at(55), ticketId: tk(1) })
+    run.attempt(2, 1, 2, { claim: 60, submit: 90, decided: 100 })
+    const ticket = project(run).tickets[0]
+    expect(ticket?.waits.human_approval.ms).toBe(0)
+    expect(ticket?.segments.find((segment) => segment.reason === 'awaiting_orchestrator_retry')).toMatchObject({ class: 'queue', ms: 10 * MIN })
+  })
+
+  it("a person's grant that comes first in the gap is still their approval", () => {
+    const run = oneTicket()
+    run.attempt(1, 1, 1, { claim: 0, submit: 30, decided: 40, decision: 'rejected' })
+    run.events.push({ kind: 'retry_granted', at: at(45), ticketId: tk(1) }, { kind: 'auto_retry_granted', at: at(50), ticketId: tk(1) })
+    run.attempt(2, 1, 2, { claim: 60, submit: 90, decided: 100 })
+    expect(project(run).tickets[0]?.waits.human_approval.ms).toBe(5 * MIN)
+  })
+})
+
 describe('DM-273: worker evidence by source and state', () => {
   it('an agent-reported wait classifies the attempt where the host reported nothing, labelled as the agent', () => {
     const run = oneTicket()

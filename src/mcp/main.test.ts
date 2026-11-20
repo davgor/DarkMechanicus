@@ -137,9 +137,9 @@ describe('startMcpServer serving', () => {
     expect(rig.logs).toEqual(['darkmechanicus 1.2.3 ready: repo=/canonical role=planner save=allowed session=ss_stub'])
   })
 
-  it('says that saving needs the desktop app when it was not allowed', async () => {
+  it('says that an orchestrator without --allow-save saves only for its own active runs', async () => {
     const rig = await startRig([], { sessionId: null })
-    expect(rig.logs[0]).toBe('darkmechanicus 1.2.3 ready: repo=/repo role=orchestrator save=not allowed session=none')
+    expect(rig.logs[0]).toBe('darkmechanicus 1.2.3 ready: repo=/repo role=orchestrator save=own active runs only session=none')
   })
 
   it('reports the effective save permission and explains an --allow-save that cannot apply', async () => {
@@ -191,6 +191,12 @@ describe('startMcpServer tool list', () => {
     expect([worker.includes('submit_attempt'), planner.includes('submit_attempt')]).toEqual([true, false])
     expect([worker.includes('set_definition_of_done'), planner.includes('set_definition_of_done')]).toEqual([false, true])
     expect(saver.filter((name) => !planner.includes(name))).toEqual(['save_plan'])
+  })
+
+  it('lists save_plan to an orchestrator without --allow-save, whose service decides per epic', async () => {
+    const orchestrator = await listedTools(['--role', 'orchestrator'])
+    const worker = await listedTools(['--role', 'worker'])
+    expect([orchestrator.includes('save_plan'), worker.includes('save_plan')]).toEqual([true, false])
   })
 })
 
