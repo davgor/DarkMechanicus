@@ -15,6 +15,12 @@
  * an overflow, the caller's abort signal or `cancelAll` kills the child, and the call settles only once it has exited.
  * Results may carry message bodies: they go back to the caller only and are never logged here.
  *
+ * `run` is the same path for any other Dark Mechanicus command (the `dm_call` tool): the same descriptor, grant,
+ * spawn, caps and stopping, with a 60 s bound (`DM_RUN_LIMITS`). The command name must have the CLI's own shape (a
+ * lowercase letter, then letters, digits or `_`), so it can never be read as a flag, a path or a second word; which
+ * commands the chat may run is the grant's decision, checked by the CLI, never a list here. Its successful data comes
+ * back with the grant redacted wherever it appears.
+ *
  * Self-contained on purpose: OMP runs this file with its bundled Bun, from `<resources>/skitarii/extension/` when
  * packaged, so it imports Node built-ins only. The result types mirror `src/shared/domain/agentMail.ts`; the tests
  * check they stay equal.
@@ -37,6 +43,16 @@ interface DmClientLimits {
 }
 
 export const DM_CLIENT_LIMITS: Readonly<DmClientLimits> = { timeoutMs: 5_000, stdoutBytes: 2 * 1024 * 1024, stderrBytes: 4 * 1024 }
+
+/**
+ * `run`'s limits: the mail caps, with 60 s instead of 5 s. A workflow command (claim, submit, review) opens the
+ * workspace, may wait out SQLite's 5 s busy timeout more than once while the desktop or another chat writes, and may
+ * touch git; 5 s would fail real calls. 60 s still stops a hung child well inside one agent turn.
+ */
+export const DM_RUN_LIMITS: Readonly<DmClientLimits> = { ...DM_CLIENT_LIMITS, timeoutMs: 60_000 }
+
+/** A CLI command name in either spelling (`claim_ticket`, `claimTicket`): never a flag, a path or two words. */
+export const DM_COMMAND_NAME = /^[a-z][A-Za-z0-9_]{0,63}$/
 
 /** A descriptor is a few hundred bytes; anything past this is not one. */
 const DESCRIPTOR_MAX_BYTES = 64 * 1024
@@ -156,6 +172,7 @@ type DmClientErrorCode =
   | 'descriptor_invalid'
   | 'descriptor_stale'
   | 'command_not_allowed'
+  | 'invalid_command'
   | 'invalid_input'
   | 'no_grant'
   | 'spawn_failed'
@@ -173,6 +190,11 @@ export type DmCallResult<T> = { ok: true; data: T } | { ok: false; error: DmClie
 export interface DmClient {
   /** Runs one mailbox command; never rejects. `signal` aborting kills the child and settles with `aborted`. */
   call<C extends DmMailCommand>(command: C, input: DmMailCalls[C]['input'], signal?: AbortSignal): Promise<DmCallResult<DmMailCalls[C]['output']>>
+  /**
+   * Runs any CLI command by name (`DM_COMMAND_NAME`) with a JSON object of arguments, under `DM_RUN_LIMITS`; never
+   * rejects. The grant decides what is allowed: a refusal comes back as the CLI's own error.
+   */
+  run(command: string, input: unknown, signal?: AbortSignal): Promise<DmCallResult<unknown>>
   /** Kills every running child (each call settles with `cancelled`) and resolves once all have exited. */
   cancelAll(): Promise<void>
 }
@@ -185,6 +207,8 @@ export interface DmClientDeps {
   readFile: (path: string) => Promise<string>
   spawn: (command: string, args: readonly string[], options: SpawnOptions) => ChildProcess
   limits?: Readonly<DmClientLimits>
+  /** `run`'s limits; `DM_RUN_LIMITS` unless a test gives others. */
+  runLimits?: Readonly<DmClientLimits>
 }
 
 export function nodeDmClientDeps(): DmClientDeps {
@@ -336,6 +360,8 @@ interface Run {
   token: string
   limits: Readonly<DmClientLimits>
   signal: AbortSignal | undefined
+  /** Whether successful data is redacted too (`run`); the mail calls keep theirs as before. */
+  redact: boolean
 }
 
 type Envelope = { ok: true; data: unknown } | { ok: false; code: string; message: string } | null
@@ -367,13 +393,26 @@ function exitText(code: number | null, signal: NodeJS.Signals | null): string {
   return code === null ? `was stopped by ${signal ?? 'a signal'}` : `exited with code ${code}`
 }
 
-/** How an exited child's run ended, from its exit and its output. */
-function outcome(exit: Exit, token: string): DmCallResult<unknown> {
+/** `value` with the grant replaced by `[redacted]` in every string and key, at any depth. */
+function redacted(value: unknown, token: string): unknown {
+  if (typeof value === 'string') return value.replaceAll(token, '[redacted]')
+  if (Array.isArray(value)) return value.map((item) => redacted(item, token))
+  if (!isRecord(value)) return value
+  const out: Record<string, unknown> = {}
+  for (const [key, item] of Object.entries(value)) {
+    // defineProperty, so a key such as `__proto__` stays a plain key rather than setting the prototype.
+    Object.defineProperty(out, key.replaceAll(token, '[redacted]'), { value: redacted(item, token), enumerable: true, writable: true, configurable: true })
+  }
+  return out
+}
+
+/** How an exited child's run ended, from its exit and its output; `redact` also clears the grant from its data. */
+function outcome(exit: Exit, token: string, redact: boolean): DmCallResult<unknown> {
   const { code } = exit
   const envelope = envelopeOf(exit.stdout.toString('utf8'))
-  if (code === 0 && envelope?.ok === true) return { ok: true, data: envelope.data }
+  if (code === 0 && envelope?.ok === true) return { ok: true, data: redact ? redacted(envelope.data, token) : envelope.data }
   if (code !== 0 && envelope?.ok === false) {
-    return { ok: false, error: { source: 'dm', code: envelope.code, message: envelope.message.replaceAll(token, '[redacted]') } }
+    return { ok: false, error: { source: 'dm', code: envelope.code.replaceAll(token, '[redacted]'), message: envelope.message.replaceAll(token, '[redacted]') } }
   }
   if (code === 0) return clientError('malformed_output', 'The dm CLI exited without a JSON result.')
   const stderr = sanitizeStderr(exit.stderr, token)
@@ -427,7 +466,7 @@ function supervise(run: Run, settle: (result: DmCallResult<unknown>) => void): (
   })
   child.once('close', (code: number | null, signal: NodeJS.Signals | null) => {
     exited = true
-    settle(stopped === null ? outcome({ code, signal, stdout: Buffer.concat(out), stderr: Buffer.concat(err) }, run.token) : clientError(stopped, STOP_MESSAGES[stopped]))
+    settle(stopped === null ? outcome({ code, signal, stdout: Buffer.concat(out), stderr: Buffer.concat(err) }, run.token, run.redact) : clientError(stopped, STOP_MESSAGES[stopped]))
   })
   return stop
 }
@@ -463,9 +502,9 @@ function inputText(input: unknown): Checked<string> {
   }
 }
 
-function startChild(deps: DmClientDeps, descriptor: DmClientDescriptor, command: DmMailCommand, token: string): Checked<ChildProcess> {
+function startChild(deps: DmClientDeps, descriptor: DmClientDescriptor, cliName: string, token: string): Checked<ChildProcess> {
   try {
-    const child = deps.spawn(descriptor.command, [...descriptor.args, 'call', DM_MAIL_COMMANDS[command], '-'], {
+    const child = deps.spawn(descriptor.command, [...descriptor.args, 'call', cliName, '-'], {
       cwd: descriptor.cwd,
       env: dmChildEnv(descriptor, deps.env, deps.platform, token),
       shell: false,
@@ -484,8 +523,8 @@ interface ClientState {
   cancelEpoch: number
 }
 
-interface Request {
-  command: DmMailCommand
+/** One call: a mailbox command by the client's name, or (`run`) any command by the CLI's. */
+type Request = ({ kind: 'mail'; command: DmMailCommand } | { kind: 'run'; command: unknown }) & {
   input: unknown
   signal: AbortSignal | undefined
 }
@@ -494,18 +533,31 @@ interface Prepared {
   descriptor: DmClientDescriptor
   token: string
   input: string
+  cliName: string
+}
+
+/** The CLI command a request runs: a mailbox command's mapped name, or a `run` name of the CLI's own shape. */
+function cliNameOf(request: Request): Checked<string> {
+  if (request.kind === 'run') {
+    const { command } = request
+    if (typeof command === 'string' && DM_COMMAND_NAME.test(command)) return { ok: true, value: command }
+    return clientError('invalid_command', 'The command must be one Dark Mechanicus command name, such as get_capabilities.')
+  }
+  if (!Object.hasOwn(DM_MAIL_COMMANDS, request.command)) return clientError('command_not_allowed', 'Only the mailbox commands can be called.')
+  return { ok: true, value: DM_MAIL_COMMANDS[request.command] }
 }
 
 /** Everything a call needs before it spawns: an allowed command, JSON input, a valid descriptor and the grant. */
 async function prepare(deps: DmClientDeps, request: Request): Promise<Checked<Prepared>> {
-  if (!Object.hasOwn(DM_MAIL_COMMANDS, request.command)) return clientError('command_not_allowed', 'Only the mailbox commands can be called.')
+  const cliName = cliNameOf(request)
+  if (!cliName.ok) return cliName
   const input = inputText(request.input)
   if (!input.ok) return input
   const descriptor = await loadDescriptor(deps)
   if (!descriptor.ok) return descriptor
   const token = envValue(deps.env, deps.platform, 'DM_SESSION_TOKEN')?.trim() ?? ''
   if (token === '') return clientError('no_grant', 'This chat holds no Dark Mechanicus grant.')
-  return { ok: true, value: { descriptor: descriptor.value, token, input: input.value } }
+  return { ok: true, value: { descriptor: descriptor.value, token, input: input.value, cliName: cliName.value } }
 }
 
 async function callOnce(deps: DmClientDeps, state: ClientState, request: Request): Promise<DmCallResult<unknown>> {
@@ -514,22 +566,26 @@ async function callOnce(deps: DmClientDeps, state: ClientState, request: Request
   if (!prepared.ok) return prepared
   if (epoch !== state.cancelEpoch) return clientError('cancelled', STOP_MESSAGES.cancelled)
   if (request.signal?.aborted === true) return clientError('aborted', STOP_MESSAGES.aborted)
-  const { descriptor, token, input } = prepared.value
-  const child = startChild(deps, descriptor, request.command, token)
+  const { descriptor, token, input, cliName } = prepared.value
+  const child = startChild(deps, descriptor, cliName, token)
   if (!child.ok) return child
-  return runChild({ child: child.value, token, limits: deps.limits ?? DM_CLIENT_LIMITS, signal: request.signal }, input, state.cancels)
+  const run = request.kind === 'run'
+  const limits = run ? (deps.runLimits ?? DM_RUN_LIMITS) : (deps.limits ?? DM_CLIENT_LIMITS)
+  return runChild({ child: child.value, token, limits, signal: request.signal, redact: run }, input, state.cancels)
 }
 
 export function createDmClient(deps: DmClientDeps): DmClient {
   const state: ClientState = { cancels: new Set(), cancelEpoch: 0 }
   const calls = new Set<Promise<unknown>>()
+  const track = (request: Request): Promise<DmCallResult<unknown>> => {
+    const call = callOnce(deps, state, request)
+    calls.add(call)
+    void call.finally(() => calls.delete(call))
+    return call
+  }
   return {
-    call: (command, input, signal) => {
-      const call = callOnce(deps, state, { command, input, signal })
-      calls.add(call)
-      void call.finally(() => calls.delete(call))
-      return call as Promise<DmCallResult<never>>
-    },
+    call: (command, input, signal) => track({ kind: 'mail', command, input, signal }) as Promise<DmCallResult<never>>,
+    run: (command, input, signal) => track({ kind: 'run', command, input, signal }),
     cancelAll: async () => {
       state.cancelEpoch += 1
       for (const stop of state.cancels) stop('cancelled')

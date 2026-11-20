@@ -1,7 +1,7 @@
 /**
  * The Skitarii OMP extension: the mascot banner, the drill working indicator, the Mechanicus working messages and the
- * Skitarii title, the chat's private mail client (`dmClient.ts`) and Skitarii mail's tools and inbox watcher
- * (`messaging.ts`). The app loads it for its own OMP chats only, per launch, with `-e <this file>`
+ * Skitarii title, the chat's private `dm` client (`dmClient.ts`), Skitarii mail's tools and inbox watcher and the
+ * `dm_call` tool for every other Dark Mechanicus command (`messaging.ts`). The app loads it for its own OMP chats only, per launch, with `-e <this file>`
  * (`terminalLaunchSpec.ts`); it is never installed into the person's OMP folder. OMP runs it with its bundled Bun, which
  * reads the TypeScript and the JSON import directly. The logic is in `skitarii.ts`, `dmClient.ts` and `messaging.ts`;
  * this file only wires OMP's events.
