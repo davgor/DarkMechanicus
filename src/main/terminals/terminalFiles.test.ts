@@ -217,7 +217,9 @@ describe('writeTerminalFiles: Skitarii mail guidance', () => {
     expect(text).toContain(`\`${DM_CALL_TOOL_NAME}\``)
     expect(text).toMatch(/Use it for every Dark Mechanicus command instead of running the `dm` CLI in\nbash/)
     expect(text).toContain('`descriptor_missing`')
-    expect(text).not.toContain('call <command> -`')
+    expect(text).toContain('your kickoff or a skill say to run')
+    expect(text).toContain('read the state first')
+    expect(text).toContain('Leave `take_agent_mail_wake` to the Skitarii extension')
   })
 })
 

@@ -26,6 +26,7 @@ import {
 import {
   DM_CALL_DATA_NOTE,
   DM_CALL_TOOL_NAME,
+  DM_CALL_UNSURE_NOTE,
   INBOX_REMINDER_TEXT,
   INBOX_REMINDER_TYPE,
   MAIL_DATA_NOTE,
@@ -898,11 +899,30 @@ describe('dm_call: refusals and failures', () => {
     const result = await toolsOver(createDmClient(deps)).get(DM_CALL_TOOL_NAME)!.execute('c', { command: 'get_capabilities' })
     expect(result.isError).toBe(true)
     expect(textOf(result)).toMatch(/^dm_call failed \(client: timeout\)\. /)
+    expect(textOf(result).endsWith(` ${DM_CALL_UNSURE_NOTE}`)).toBe(true)
     for (const child of deps.children) expect(child.exitCode !== null || child.signalCode !== null).toBe(true)
     expect(deps.children).toHaveLength(1)
     for (const spy of logged) {
       expect(spy).not.toHaveBeenCalled()
       spy.mockRestore()
     }
+  })
+})
+
+describe('dm_call: stopping it', () => {
+  it('kills the child when OMP aborts the call, says the command may have run, and refuses a server error without that note', async () => {
+    const deps = realDeps()
+    const tool = toolsOver(createDmClient(deps)).get(DM_CALL_TOOL_NAME)!
+    writeFileSync(join(folder, 'mode.txt'), 'hang')
+    const controller = new AbortController()
+    const call = tool.execute('c', { command: 'submit_ticket', args: { ticketId: 'T-1' } }, controller.signal)
+    await deps.nextSpawn()
+    controller.abort()
+    const result = await call
+    expect(textOf(result)).toMatch(/^dm_call failed \(client: aborted\)\. /)
+    expect(textOf(result).endsWith(` ${DM_CALL_UNSURE_NOTE}`)).toBe(true)
+    for (const child of deps.children) expect(child.exitCode !== null || child.signalCode !== null).toBe(true)
+    const refused = await toolsOver(createDmClient(realDeps('revoked-903'))).get(DM_CALL_TOOL_NAME)!.execute('c', { command: 'get_capabilities' })
+    expect(textOf(refused)).not.toContain(DM_CALL_UNSURE_NOTE)
   })
 })

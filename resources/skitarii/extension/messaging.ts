@@ -327,6 +327,12 @@ function ackTool({ type, id, run }: ToolKit): MailToolDefinition {
   }
 }
 
+/** Client failures after the child started: the command may already have taken effect. */
+const UNSURE_OUTCOME: ReadonlySet<string> = new Set(['timeout', 'output_too_large', 'aborted', 'cancelled', 'process_failed', 'malformed_output'])
+/** What a failure in `UNSURE_OUTCOME` adds, so a stopped write is checked rather than blindly repeated. */
+export const DM_CALL_UNSURE_NOTE =
+  'The command was started and may already have taken effect: read the current state before you retry, and reuse the same idempotencyKey where the command takes one.'
+
 const isArgs = (value: unknown): boolean => typeof value === 'object' && value !== null && !Array.isArray(value)
 
 /** What `dm_call` answers for a refused or failed call: the CLI's own code and message, or the client's. */
@@ -334,7 +340,8 @@ function dmCallFailure(error: DmClientError): ToolResult {
   if (error.source === 'dm') {
     return failure(`Dark Mechanicus refused the call:\n${inertJson({ ok: false, error: { code: error.code, message: error.message } })}`)
   }
-  return failure(`dm_call failed (client: ${codeText(error)}). ${inertJson(error.message)}`)
+  const unsure = UNSURE_OUTCOME.has(error.code) ? ` ${DM_CALL_UNSURE_NOTE}` : ''
+  return failure(`dm_call failed (client: ${codeText(error)}). ${inertJson(error.message)}${unsure}`)
 }
 
 /** Any Dark Mechanicus command, through the same client as the mail tools; the grant is the only authority. */
