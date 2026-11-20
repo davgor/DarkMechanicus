@@ -14,7 +14,7 @@ function retryTitle(retry: AutoRetryView, manyRuns: boolean): string {
 }
 
 /** How many orchestrator retries the person has not read yet. */
-export function unreadAutoRetries(retries: readonly AutoRetryView[]): number {
+function unreadAutoRetries(retries: readonly AutoRetryView[]): number {
   return retries.filter((retry) => retry.acknowledgedAt === null).length
 }
 
