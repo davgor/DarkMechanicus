@@ -8,6 +8,7 @@ import { fail } from '../errors'
 import { computeChanges } from '../plan/diff'
 import { validatePlan } from '../plan/graph'
 import { enqueueUnexportedComments } from './comments'
+import { SPENT_ATTEMPT_SQL, ticketsMovedLater } from './adoption'
 import { activeRun, assertEpicOpen, type EpicRow, loadEpicRow } from './epics'
 import { appendEvent } from './events'
 import { requestWithoutKey, withIdempotency } from './idempotency'
@@ -286,13 +287,16 @@ function insertPendingRevision(ctx: Ctx, save: { epic: EpicRow; bundle: PlanBund
   return { status: 'pending', revisionId: id, revisionNumber: number, contentHash: save.hash }
 }
 
-function saveDraft(ctx: Ctx, input: { epicId: string; expectedDraftRevision: number }): SaveRequestResult {
+function saveDraft(ctx: Ctx, input: { epicId: string; expectedDraftRevision: number }, viaRun: boolean): SaveRequestResult {
   const epic = loadEpicRow(ctx, input.epicId)
   assertEpicOpen(epic)
   assertNoOpenTransfer(ctx, epic.id)
   const draft = loadDraftRow(ctx, epic.id) ?? fail('not_found', 'There is no draft to save.', { epicId: epic.id })
   assertDraftRevision(draft, input.expectedDraftRevision)
   const bundle = savableBundle(ctx, epic, draft)
+  if (viaRun) {
+    assertRunSaveLimits(ctx, epic.id, bundle)
+  }
   assertNoPendingSave(ctx, epic.id)
   const hash = contentHash(bundle)
   const current = ctx.db.get<RevisionRow>('SELECT * FROM plan_revisions WHERE id = ?', epic.current_revision_id)
@@ -312,19 +316,59 @@ function saveDraft(ctx: Ctx, input: { epicId: string; expectedDraftRevision: num
  * a capability in the static role table (`authz.ts`), because it depends on the epic and its run: the role table
  * answers for every epic at once, and an orchestrator without `allowSave` holds no general right to save. A run of
  * another machine, an ended run, no run, or any other role is refused as before. Every other save check still runs.
+ * Returns true when the right comes from the run alone: the save then also passes `assertRunSaveLimits` in its
+ * transaction.
  */
-function requireSaveAuthority(ctx: Ctx, epicId: string): void {
+function requireSaveAuthority(ctx: Ctx, epicId: string): boolean {
   if (ctx.session.capabilities.has('plan.save')) {
-    return
+    return false
   }
   const runsEpics = ctx.session.role === 'orchestrator' && ctx.session.capabilities.has('run.adopt')
-  if (runsEpics && activeRun(ctx, epicId)?.owner_machine_id === ctx.machineId) {
-    return
+  if (runsEpics && ownedActiveRun(ctx, epicId) !== null) {
+    return true
   }
   const message = runsEpics
     ? 'Without allowSave, an orchestrator saves only the plan of an epic whose active run this machine owns. Otherwise the person presses Save in the desktop app.'
     : undefined
   requireCapability(ctx.session, 'plan.save', message)
+  return false
+}
+
+function ownedActiveRun(ctx: Ctx, epicId: string): { id: string; revision_id: string } | null {
+  const run = activeRun(ctx, epicId)
+  return run?.owner_machine_id === ctx.machineId ? run : null
+}
+
+const PERSON_SAVES = 'only the person can save that (or an orchestrator launched with allowSave)'
+
+/**
+ * What a save on run ownership alone may not do, checked inside the save's transaction (so a run canceled or taken
+ * over since `requireSaveAuthority` refuses the save). Retries are the person's to grant (`ticket.retry_grant`), so
+ * the orchestrator may not change the plan's policies (the retry limit, the ticket-failure policy) or move a ticket
+ * that spent attempts in this run to a later sprint, which adoption would give a fresh retry budget.
+ */
+function assertRunSaveLimits(ctx: Ctx, epicId: string, bundle: PlanBundle): void {
+  const run = ownedActiveRun(ctx, epicId)
+  if (run === null) {
+    requireCapability(ctx.session, 'plan.save', 'The run this orchestrator owned for the epic has ended or moved to another machine.')
+    return
+  }
+  const pinned = loadRevisionBundle(ctx, run.revision_id)
+  if (contentHash(pinned.policies) !== contentHash(bundle.policies)) {
+    fail('unauthorized', `The draft changes the plan's policies (retry limit, ticket-failure policy): ${PERSON_SAVES}.`, {
+      field: 'policies'
+    })
+  }
+  const spent = ticketsMovedLater(pinned, bundle).filter(
+    (ticketId) =>
+      ctx.db.get(`SELECT id FROM attempts WHERE run_id = ? AND ticket_id = ? AND superseded_at IS NULL AND ${SPENT_ATTEMPT_SQL} LIMIT 1`, run.id, ticketId) !==
+      undefined
+  )
+  if (spent.length > 0) {
+    fail('unauthorized', `The draft moves tickets with spent attempts to a later sprint, which grants them a fresh retry budget: ${PERSON_SAVES}.`, {
+      tickets: spent
+    })
+  }
 }
 
 /**
@@ -335,10 +379,10 @@ export function requestSave(
   ctx: Ctx,
   input: { epicId: string; expectedDraftRevision: number; idempotencyKey?: string }
 ): SaveRequestResult {
-  requireSaveAuthority(ctx, input.epicId)
+  const viaRun = requireSaveAuthority(ctx, input.epicId)
   ctx.assertBranch()
   const scope = { command: 'savePlan', key: input.idempotencyKey, request: requestWithoutKey(input) }
-  return withIdempotency(ctx, scope, () => saveDraft(ctx, input))
+  return withIdempotency(ctx, scope, () => saveDraft(ctx, input, viaRun))
 }
 
 function searchBody(parts: string[]): string {

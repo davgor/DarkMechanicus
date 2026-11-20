@@ -3,12 +3,13 @@
  * fix the sprint it runs and adopt the revision; every other session without `plan.save` is refused as before.
  */
 import { describe, expect, it } from 'vitest'
+import type { DraftOp } from '../../shared/domain/api'
 import type { RunState } from '../../shared/domain/status'
-import { captureError, createSavedEpic, draftRevisionOf, insertRun } from '../../test/authoring'
+import { captureError, createSavedEpic, draftRevisionOf, insertAttempt, insertRun, TWO_TICKETS } from '../../test/authoring'
 import { createTestCtx, type TestCtx, withRole } from '../../test/testContext'
 import { DomainError } from '../errors'
 import { updatePlanDraft } from './drafts'
-import { requestSave } from './plans'
+import { getPlan, requestSave } from './plans'
 
 const OTHER_MACHINE = 'mc_0000000000000000000000other'
 
@@ -130,5 +131,52 @@ describe('save_plan by other sessions without plan.save', () => {
   it('still lets an orchestrator launched with allowSave save an epic with no run', () => {
     const { ctx, epicId } = editedEpic()
     expect(save(withRole(ctx, 'orchestrator', { allowSave: true }), epicId).status).toBe('pending')
+  })
+})
+
+/** Sprint 1 = {Alpha, Beta (requires Alpha)}, sprint 2 = {Gamma}; a running run this machine owns pins it. */
+function twoSprintRun(): World & { runId: string; beta: string; sprint2: string } {
+  const ctx = createTestCtx()
+  const ops: DraftOp[] = [
+    ...TWO_TICKETS,
+    { op: 'add_sprint', ref: 's2', sprint: { goal: 'Later' } },
+    { op: 'add_ticket', sprint: 's2', ticket: { title: 'Gamma', acceptanceCriteria: ['Gamma works'] } }
+  ]
+  const { epicId, revisionId, refMap } = createSavedEpic(ctx, { ops })
+  const sprints = getPlan(ctx, { epicId, view: 'saved' }).bundle.sprints
+  const sprint2 = sprints.find((sprint) => sprint.ordinal === 2)?.id ?? ''
+  const runId = insertRun(ctx, { epicId, revisionId, state: 'running', activeSprintId: sprints[0]?.id ?? null })
+  const orchestrator = withRole(ctx, 'orchestrator', { allowSave: false })
+  return { ctx, epicId, revisionId, orchestrator, runId, beta: refMap.b ?? '', sprint2 }
+}
+
+describe('save_plan on run ownership alone cannot grant retries', () => {
+  it('refuses a draft that changes the retry limit, which only the person (or allowSave) saves', () => {
+    const w = twoSprintRun()
+    updatePlanDraft(w.ctx, { epicId: w.epicId, ops: [{ op: 'set_policies', patch: { retryLimit: 100 } }] })
+    expect(captureError(() => save(w.orchestrator, w.epicId))).toMatchObject({ code: 'unauthorized', details: { field: 'policies' } })
+    expect(pendingRevisions(w.ctx, w.epicId)).toBe(0)
+    expect(save(withRole(w.ctx, 'orchestrator', { allowSave: true }), w.epicId).status).toBe('pending')
+  })
+
+  it('refuses moving a ticket with a spent attempt to a later sprint, which would reset its retry budget', () => {
+    const w = twoSprintRun()
+    insertAttempt(w.ctx, { runId: w.runId, ticketId: w.beta, state: 'failed' })
+    updatePlanDraft(w.ctx, { epicId: w.epicId, ops: [{ op: 'move_ticket', ticket: w.beta, toSprint: w.sprint2 }] })
+    expect(captureError(() => save(w.orchestrator, w.epicId))).toMatchObject({ code: 'unauthorized', details: { tickets: [w.beta] } })
+    expect(pendingRevisions(w.ctx, w.epicId)).toBe(0)
+  })
+
+  it('lets it move a ticket that spent no attempts, and change a ticket in place', () => {
+    const w = twoSprintRun()
+    insertAttempt(w.ctx, { runId: w.runId, ticketId: w.beta, state: 'failed', superseded: true })
+    updatePlanDraft(w.ctx, {
+      epicId: w.epicId,
+      ops: [
+        { op: 'move_ticket', ticket: w.beta, toSprint: w.sprint2 },
+        { op: 'update_ticket', ticket: w.beta, patch: { title: 'Beta, split' } }
+      ]
+    })
+    expect(save(w.orchestrator, w.epicId).status).toBe('pending')
   })
 })

@@ -147,14 +147,14 @@ function reconcileAcceptances(ctx: Ctx, input: Reconciliation): { kept: string[]
  * Attempts that used up a try without delivering: failed, rejected, or abandoned after an expired lease. An accepted
  * attempt delivered, and a canceled one never counted, so neither is spent.
  */
-const SPENT_ATTEMPT_SQL = "(state IN ('failed', 'rejected') OR (state = 'lease_expired' AND reconciled_at IS NOT NULL))"
+export const SPENT_ATTEMPT_SQL = "(state IN ('failed', 'rejected') OR (state = 'lease_expired' AND reconciled_at IS NOT NULL))"
 
 /**
  * The tickets that sit in a later sprint of `target` than the sprint `current` had them in. A sprint is the same
  * sprint under the same id, whatever its ordinal becomes, so renumbering moves nothing; a ticket whose old sprint
  * is gone, or that is new, did not move.
  */
-function ticketsMovedLater(current: PlanBundle, target: PlanBundle): string[] {
+export function ticketsMovedLater(current: PlanBundle, target: PlanBundle): string[] {
   const before = indexBundle(current)
   const after = indexBundle(target)
   return target.tickets
