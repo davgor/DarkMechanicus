@@ -9,7 +9,7 @@
   "epicId": "ep_01m7wwrct94nzbeskqarzqevc9",
   "format": "darkmechanicus.epic-state",
   "formatVersion": 1,
-  "generation": 1,
+  "generation": 2,
   "outcome": null,
   "provenance": null,
   "status": "backlog",
@@ -145,8 +145,10 @@
     "tk_01m7x2qsm3ywyp3j3arx1176ft": "backlog",
     "tk_01m7x2qsm3zm4cxxvctkdsbp9q": "backlog",
     "tk_01m7x2qsm49hn64avaczrpkkww": "backlog",
-    "tk_01m7x2qsm4d7d7mr01h2sv4m1c": "backlog"
+    "tk_01m7x2qsm4d7d7mr01h2sv4m1c": "backlog",
+    "tk_01m7x5tvgv52fbwtppr6qcn4rp": "backlog",
+    "tk_01m7x5tvhgcaepc56bfxet0vm5": "backlog"
   },
   "title": "Agent chats in the epic: GUI chats over each CLI, a named agent tree, Magos arbiter, delivered sprints, browser and desktop control",
-  "updatedAt": "2026-11-20T19:05:02.505Z"
+  "updatedAt": "2026-11-20T19:09:59.262Z"
 }
