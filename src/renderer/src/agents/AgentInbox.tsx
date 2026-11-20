@@ -67,8 +67,8 @@ function MailButton({ state, onOpen }: { state: ChatMailState; onOpen(): void })
       onClick={onOpen}
     >
       Messages
-      <span className={classNames('mail-count', state.unseenCount > 0 && 'is-unseen')}>{unseen}</span>
-      <span className={classNames('mail-count', state.pendingCount > 0 && 'is-pending')}>{pending}</span>
+      <span className={classNames('mail-count', state.unseenCount > 0 && 'is-unseen')}>{state.unseenCount} unseen</span>
+      <span className={classNames('mail-count', state.pendingCount > 0 && 'is-pending')}>{state.pendingCount} awaiting agent</span>
     </Button>
   )
 }

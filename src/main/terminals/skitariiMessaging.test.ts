@@ -74,7 +74,9 @@ const answers = {
   get_agent_identity: { endpointId: 'me_self', name: 'Self', role: 'worker', boundAt: '2026-11-15T09:00:00.000Z' },
   list_agent_peers: { peers: [{ endpointId: 'me_peer', name: hostileName }], nextAfterId: 'me_peer', hasMore: false },
   send_agent_message: { messageId: 'mm_9', to: input.to, clientMessageId: input.clientMessageId, inReplyTo: input.inReplyTo ?? null, acceptedAt: '2026-11-15T10:01:00.000Z', duplicate: false },
-  read_agent_inbox: { messages: [{ ...meta, body: hostileBody }], snapshotHighWater: 1, nextCursor: 1, hasMore: false },
+  read_agent_inbox: input.throughSeq === 0
+    ? { messages: [], snapshotHighWater: 0, nextCursor: input.afterSeq ?? 0, hasMore: false }
+    : { messages: [{ ...meta, body: hostileBody }], snapshotHighWater: input.throughSeq ?? 1, nextCursor: 1, hasMore: false },
   acknowledge_agent_messages: { acknowledged: (input.messageIds || []).map((messageId) => ({ messageId, acknowledgedAt: '2026-11-15T10:02:00.000Z', expiresAt: '2026-11-22T10:02:00.000Z' })) },
   get_agent_mail_status: { pendingCount: 1, messages: [meta], snapshotHighWater: 1, nextCursor: 1, hasMore: false },
   take_agent_mail_wake: { claimed: false, wakeAttemptId: null, pendingCount: 1 }
@@ -353,6 +355,19 @@ describe('Skitarii mail tools', () => {
     expect(textOf(result)).toContain('not proof it was read')
     for (const child of deps.children) expect(child.exitCode).toBe(0)
   })
+  it('reads the newest first page when OMP supplies zero for its optional first-page horizon', async () => {
+    const tools = toolsOver(createDmClient(realDeps()))
+    const read = await tools.get('dm_inbox_read')!.execute('c', { afterSeq: 0, throughSeq: 0, limit: 50, unacknowledgedOnly: true })
+    expect(dataOf(read)).toMatchObject({ snapshotHighWater: 1, messages: [{ id: 'mm_1' }] })
+    expect(fixtureCalls()).toEqual([{ command: 'read_agent_inbox', input: { afterSeq: 0, limit: 50, unacknowledgedOnly: true } }])
+
+    await tools.get('dm_inbox_read')!.execute('c', { afterSeq: 1, throughSeq: 2, limit: 50 })
+    expect(fixtureCalls().at(-1)).toEqual({ command: 'read_agent_inbox', input: { afterSeq: 1, throughSeq: 2, limit: 50 } })
+
+    await tools.get('dm_inbox_read')!.execute('c', { afterSeq: 1, throughSeq: 0, limit: 50 })
+    expect(fixtureCalls().at(-1)).toEqual({ command: 'read_agent_inbox', input: { afterSeq: 1, throughSeq: 0, limit: 50 } })
+  })
+
 })
 
 describe('Skitarii mail tools: results and refusals', () => {
@@ -622,21 +637,69 @@ describe('the inbox watcher: passive by default', () => {
     expect(new Set(client.calls.map((call) => call.command))).toEqual(new Set(['status', 'takeWake']))
     expect(box.pending()).toBe(3)
   })
+})
 
+describe('the inbox watcher: natural-turn pickup', () => {
+  it('checks fresh mail before the next natural main-agent turn, even before the scheduled watcher tick', async () => {
+    const box = fakeMailbox()
+    const { client, ui, emit, sent } = watch(box)
+    emit('session_start', main(ui))
+    await Promise.resolve()
+    box.arrive(1, HOSTILE_NAME)
+    const reminder = { message: { customType: INBOX_REMINDER_TYPE, content: INBOX_REMINDER_TEXT, display: false } }
+    expect(await Promise.all(emit('before_agent_start', main(ui)))).toEqual([reminder])
+    expect(client.calls.map((call) => call.command)).toEqual(['status', 'status'])
+    expect(box.pending()).toBe(1)
+    expect(sent).toEqual([])
+    expect(await Promise.all(emit('before_agent_start', sub(ui)))).toEqual([undefined])
+    expect(client.calls).toHaveLength(2)
+  })
+
+  it('waits for an in-flight startup query and reads a fresh snapshot for a resumed turn', async () => {
+    const box = fakeMailbox()
+    const { client, ui, emit } = watch(box, { hold: true })
+    emit('session_start', main(ui))
+    box.arrive(1)
+    const pending = Promise.all(emit('before_agent_start', main(ui)))
+    client.release()
+    await vi.waitFor(() => expect(client.calls.map((call) => call.command)).toEqual(['status', 'status']))
+    client.release()
+    expect(await pending).toEqual([{ message: { customType: INBOX_REMINDER_TYPE, content: INBOX_REMINDER_TEXT, display: false } }])
+  })
+
+  it('does not reuse a cancelled turn check after a session restart', async () => {
+    const box = fakeMailbox()
+    const { client, ui, emit, watcher } = watch(box, { hold: true })
+    emit('session_start', main(ui))
+    const cancelled = Promise.all(emit('before_agent_start', main(ui)))
+    watcher.stop()
+    box.arrive(1)
+    const resumed = fakeUi()
+    emit('session_start', main(resumed))
+    const nextTurn = Promise.all(emit('before_agent_start', main(resumed)))
+    client.release()
+    expect(await cancelled).toEqual([undefined])
+    await vi.waitFor(() => expect(client.calls.length).toBeGreaterThan(1))
+    client.release()
+    expect(await nextTurn).toEqual([{ message: { customType: INBOX_REMINDER_TYPE, content: INBOX_REMINDER_TEXT, display: false } }])
+  })
+})
+
+describe('the inbox watcher: constant reminder', () => {
   it('reminds the main agent’s next prompt with constant text while mail is pending, and nothing else', async () => {
     const box = fakeMailbox()
     const { watcher, ui, client, emit } = watch(box)
     watcher.start(ui)
     await watcher.tick()
-    expect(emit('before_agent_start', main(ui), { type: 'before_agent_start', prompt: 'hi', reason: 'prompt' })).toEqual([undefined])
+    expect(await Promise.all(emit('before_agent_start', main(ui), { type: 'before_agent_start', prompt: 'hi', reason: 'prompt' }))).toEqual([undefined])
     box.arrive(2, HOSTILE_NAME)
     await watcher.tick()
     const calls = client.calls.length
     const reminder = { message: { customType: INBOX_REMINDER_TYPE, content: INBOX_REMINDER_TEXT, display: false } }
-    expect(emit('before_agent_start', main(ui))).toEqual([reminder])
-    expect(emit('before_agent_start', main(ui))).toEqual([reminder])
-    expect(emit('before_agent_start', sub(ui))).toEqual([undefined])
-    expect(client.calls).toHaveLength(calls)
+    expect(await Promise.all(emit('before_agent_start', main(ui)))).toEqual([reminder])
+    expect(await Promise.all(emit('before_agent_start', main(ui)))).toEqual([reminder])
+    expect(await Promise.all(emit('before_agent_start', sub(ui)))).toEqual([undefined])
+    expect(client.calls).toHaveLength(calls + 2)
     for (const text of [INBOX_REMINDER_TEXT, WAKE_TEXT]) {
       expect(text).not.toContain('Evil')
       expect(text).not.toContain('mm_')

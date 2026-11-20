@@ -84,6 +84,28 @@ describe('AgentInbox: counts', () => {
     expect(screen.queryByRole('button', { name: /^Messages/ })).toBeNull()
   })
 
+  it('keeps compact, separate visible counters and full accessible meanings on the actual header action', async () => {
+    await show()
+    const button = messagesButton()
+    expect(button.querySelectorAll('.mail-count')).toHaveLength(2)
+    expect(Array.from(button.querySelectorAll('.mail-count')).map((node) => node.textContent)).toEqual(['2 unseen', '2 awaiting agent'])
+    expect(button.getAttribute('aria-label')).toBe('Messages: 2 unseen by you, 2 unacknowledged by its agent')
+  })
+
+  it('keeps human-unseen and agent-unacknowledged counters independent as either reaches zero', async () => {
+    await show()
+    act(() => mail.put({ folder: '/a', chatId: 'chat_a', unseenCount: 0, pendingCount: 1 }, true))
+    expect(Array.from(messagesButton().querySelectorAll('.mail-count')).map((node) => [node.textContent, node.classList.contains('is-unseen'), node.classList.contains('is-pending')])).toEqual([
+      ['0 unseen', false, false],
+      ['1 awaiting agent', false, true]
+    ])
+    act(() => mail.put({ folder: '/a', chatId: 'chat_a', unseenCount: 1, pendingCount: 0 }, true))
+    expect(Array.from(messagesButton().querySelectorAll('.mail-count')).map((node) => [node.textContent, node.classList.contains('is-unseen'), node.classList.contains('is-pending')])).toEqual([
+      ['1 unseen', true, false],
+      ['0 awaiting agent', false, false]
+    ])
+  })
+
   it('announces new mail once per burst, politely, without moving focus', async () => {
     await show()
     const outside = document.body.appendChild(document.createElement('button'))
