@@ -27,6 +27,7 @@ import type {
 import type { CapabilityProfile } from '../../../../shared/domain/bundle'
 import { isActiveRunState, isOpenAttemptState } from '../../../../shared/domain/status'
 import type {
+  AutoRetryView,
   BoardRemovalResultView,
   BoardRemovalView,
   CheckpointView,
@@ -410,6 +411,16 @@ function cancelTransfer(state: Scenario): TransferView {
   return state.transfer
 }
 
+/** Records that the person read an orchestrator retry, the first time only, as the core does; nothing else changes. */
+function acknowledgeAutoRetry(state: Scenario, input: { runId: string; ticketId: string; number: number }): AutoRetryView {
+  const retry =
+    state.ticket.autoRetries.find((item) => item.runId === input.runId && item.ticketId === input.ticketId && item.number === input.number) ??
+    notFound('No orchestrator retry')
+  const acknowledged = { ...retry, acknowledgedAt: retry.acknowledgedAt ?? iso(0) }
+  state.ticket = { ...state.ticket, autoRetries: state.ticket.autoRetries.map((item) => (item === retry ? acknowledged : item)) }
+  return acknowledged
+}
+
 function runHandlers(state: Scenario): Partial<Record<CommandName, Handler>> {
   return {
     approveWithRedraft: () => approveWithRedraft(state),
@@ -427,6 +438,7 @@ function runHandlers(state: Scenario): Partial<Record<CommandName, Handler>> {
     adoptRevision: (input: { revisionId: string }) => updateRun(state, { revisionId: input.revisionId }),
     authorizeAutoContinue: (input: { enabled: boolean }) => updateRun(state, { autoContinue: input.enabled }),
     grantRetry: () => updateRun(state, { state: 'running' }),
+    acknowledgeAutoRetry: (input: { runId: string; ticketId: string; number: number }) => acknowledgeAutoRetry(state, input),
     approveAndAdvance: () => updateRun(state, { state: 'running', activeSprintOrdinal: 3 }),
     acceptAttempt: () => state.ticket.attempts[0],
     rejectAttempt: () => state.ticket.attempts[0],
