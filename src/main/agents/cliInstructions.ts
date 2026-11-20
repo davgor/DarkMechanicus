@@ -128,20 +128,32 @@ export function cliInstructions(options: InstructionOptions): string {
 }
 
 /**
- * What an OMP (Skitarii) chat is told about its mailbox. Written before the grant is issued, so it cannot know whether
- * the desktop bound one: it says how to find out. Constant text: never a peer's name, id or message.
+ * What an OMP (Skitarii) chat is told about its `dm_call` tool and its mailbox. Written before the grant is issued, so
+ * it cannot know whether the desktop bound one: it says how to find out. Constant text: never a peer's name, id or
+ * message.
  */
 export function skitariiMailGuidance(): string {
   return [
+    '## Dark Mechanicus commands in Skitarii',
+    '',
+    'This chat has a native `dm_call` tool. Use it for every Dark Mechanicus command instead of running the `dm` CLI in',
+    'bash: wherever these instructions or a message say to run `call <command> \'<json>\'`, call `dm_call` instead.',
+    'Pass `command`, the command name (`claim_ticket` or `claimTicket`), and `args`, its arguments as one JSON object',
+    '(an object, not a string; leave it out for `{}`), for example `{"command":"get_capabilities"}`. It runs with this',
+    'chat\'s grant, with no shell and no quoting, and returns the command\'s JSON `data`, or its error code and message.',
+    'Your grant decides which commands you may run; a refusal is an answer, not a reason to retry through bash.',
+    'Use the CLI only for `--list`, `--describe <command>`, `usage` and `transfer`, or when `dm_call` is missing or',
+    'reports `descriptor_missing` or `descriptor_stale`.',
+    '',
     '## Skitarii mail',
     '',
     'Skitarii chats in this folder on this machine can message each other through durable, local-only mailboxes.',
     'This chat has one only when the desktop bound its grant: `dm_agent_identity` (or `get_capabilities`, `"mailbox"`) says so.',
     'Use the native tools: `dm_agent_identity`, `dm_agent_peers` (endpoint ids to send to), `dm_message_send` (`to`,',
     '`clientMessageId`, `body` up to 16 KiB, `inReplyTo` to answer a message of your inbox), `dm_inbox_read` (never',
-    'acknowledges) and `dm_inbox_ack` (1–100 message ids). The `dm` CLI equivalents are `get_agent_identity`,',
-    '`list_agent_peers`, `send_agent_message`, `read_agent_inbox` and `acknowledge_agent_messages`; pass their JSON',
-    'on stdin (`call <command> -`) or, on Windows, in a file (`call <command> --args-file <path>`).',
+    'acknowledges) and `dm_inbox_ack` (1–100 message ids). Their command names, for `dm_call` or the CLI, are',
+    '`get_agent_identity`, `list_agent_peers`, `send_agent_message`, `read_agent_inbox` and',
+    '`acknowledge_agent_messages`.',
     '',
     '- Your subagents share this chat\'s mailbox; nobody can address them separately.',
     '- Check, reply and acknowledge deliberately: acknowledge a message only once you have handled it. A notice or',

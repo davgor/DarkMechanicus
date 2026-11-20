@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'v
 import {
   DM_CLIENT_DESCRIPTOR_ENV,
   DM_CLIENT_LIMITS,
+  DM_RUN_LIMITS,
   createDmClient,
   parseDmClientDescriptor,
   type DmClientDeps,
@@ -47,6 +48,12 @@ switch (input.mode) {
   case 'error':
     process.stdout.write(JSON.stringify({ ok: false, error: { code: 'mailbox_full', message: 'full for ' + token } }))
     process.exit(1)
+  case 'badcode':
+    process.stdout.write(JSON.stringify({ ok: false, error: { code: 'bad_' + token, message: 'm' } }))
+    process.exit(1)
+  case 'leak':
+    process.stdout.write('{"ok":true,"data":' + JSON.stringify({ note: 'grant ' + token, [token]: [token, 1, null, { deep: token }] }).slice(0, -1) + ',"__proto__":{"polluted":"' + token + '"}}}')
+    process.exit(0)
   case 'garbage':
     process.stdout.write('{"ok": tru')
     process.exit(0)
@@ -405,6 +412,132 @@ describe('the DM client child: stopping it', () => {
     const missing = join(root, 'no such runtime', process.platform === 'win32' ? 'node.exe' : 'node')
     const path = await writeDmClientDescriptor({ userData: join(root, 'userData'), chatId: CHAT, generation: 'g2', folder, cli: cli({ command: missing }), platform: process.platform })
     expect(await createDmClient(realDeps(chatEnv({ [DM_CLIENT_DESCRIPTOR_ENV]: path }))).call('identity', {})).toMatchObject({ ok: false, error: { code: 'spawn_failed' } })
+  })
+})
+
+/** A child that never answers, and exits only when killed. */
+function hungChild(): ChildProcess {
+  const child = new EventEmitter() as ChildProcess
+  const kill = vi.fn(() => {
+    setImmediate(() => {
+      child.emit('exit', null, 'SIGKILL')
+      child.emit('close', null, 'SIGKILL')
+    })
+    return true
+  })
+  Object.assign(child, { stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(), pid: 4343, kill })
+  return child
+}
+
+describe('the DM client run (dm_call)', () => {
+  it('runs the pinned runtime and script, call <command> -, with shell: false and the args on stdin only', async () => {
+    const child = fakeChild(JSON.stringify({ ok: true, data: { attemptId: 'at_1' } }))
+    const spawn = vi.fn(() => child)
+    const input = { ticketId: 'T-1', idempotencyKey: `k ${AWKWARD} "q"`, nested: { list: [1, 'two'] } }
+
+    const result = await createDmClient({ ...realDeps(), spawn }).run('claim_ticket', input)
+
+    expect(result).toEqual({ ok: true, data: { attemptId: 'at_1' } })
+    const [command, args, options] = spawn.mock.calls[0] as unknown as [string, string[], Record<string, unknown>]
+    expect(command).toBe(process.execPath)
+    expect(args).toEqual([script, '--repo', folder, 'call', 'claim_ticket', '-'])
+    expect(options).toMatchObject({ cwd: folder, shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] })
+    expect((options['env'] as Record<string, string>)['DM_SESSION_TOKEN']).toBe(TOKEN)
+    expect(JSON.parse(child.stdinText())).toEqual(input)
+    expect(args.join(' ')).not.toContain(TOKEN)
+  })
+
+  it('refuses a name of any other shape, and input that is not one JSON object, without spawning', async () => {
+    const spawn = vi.fn(() => fakeChild('{"ok":true,"data":{}}'))
+    const client = createDmClient({ ...realDeps(), spawn })
+    const names: unknown[] = ['-h', '--help', '--token-file', '--repo', '-', '', ' claim_ticket', 'claim ticket', '../cli', 'a/b', 'a\\b', 'C:x', 'Claim', '_x', '9x', 'x'.repeat(65), 'x\n', 5, null, undefined]
+    for (const name of names) {
+      expect(await client.run(name as string, {})).toMatchObject({ ok: false, error: { source: 'client', code: 'invalid_command' } })
+    }
+    for (const input of [null, [], '{"a":1}', 5, undefined]) {
+      expect(await client.run('get_capabilities', input)).toMatchObject({ ok: false, error: { source: 'client', code: 'invalid_input' } })
+    }
+    expect(await client.run('x'.repeat(64), {})).toMatchObject({ ok: true })
+    expect(spawn).toHaveBeenCalledTimes(1)
+  })
+
+  it('applies every descriptor and grant check of the mail calls before spawning', async () => {
+    written((d) => (d['args'] = [script, '--repo', folder, '--token-file', 'x']))
+    refusingSpawn.mockClear()
+    const run = (env: Record<string, string | undefined>) => createDmClient({ ...realDeps(chatEnv(env)), spawn: refusingSpawn }).run('get_capabilities', {})
+    expect(await run({})).toMatchObject({ ok: false, error: { code: 'descriptor_invalid' } })
+    expect(await run({ [DM_CLIENT_DESCRIPTOR_ENV]: undefined })).toMatchObject({ ok: false, error: { code: 'descriptor_missing' } })
+    descriptor = await writeDmClientDescriptor({ userData: join(root, 'userData'), chatId: CHAT, generation: 'g3', folder, cli: cli(), platform: process.platform })
+    expect(await run({ [DM_CLIENT_DESCRIPTOR_ENV]: descriptor, DM_SESSION_TOKEN: '' })).toMatchObject({ ok: false, error: { code: 'no_grant' } })
+    expect(refusingSpawn).not.toHaveBeenCalled()
+  })
+
+  it('keeps the mail caps with a 60 s bound, and the mail calls keep 5 s', () => {
+    expect(DM_RUN_LIMITS).toEqual({ timeoutMs: 60_000, stdoutBytes: 2 * 1024 * 1024, stderrBytes: 4 * 1024 })
+    expect(DM_CLIENT_LIMITS.timeoutMs).toBe(5_000)
+  })
+})
+
+describe('the DM client run (dm_call): its bound', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('outlives the mail calls’ 5 s and kills a hung child at 60 s, settling once it has exited', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const child = hungChild()
+    const client = createDmClient({ ...realDeps(), spawn: vi.fn(() => child) })
+    let settled: unknown = null
+    void client.run('submit_ticket', {}).then((result) => (settled = result))
+    await vi.advanceTimersByTimeAsync(DM_CLIENT_LIMITS.timeoutMs + 1_000)
+    expect(settled).toBeNull()
+    expect(child.kill).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(DM_RUN_LIMITS.timeoutMs - DM_CLIENT_LIMITS.timeoutMs)
+    expect(child.kill).toHaveBeenCalledWith('SIGKILL')
+    await vi.waitFor(() => expect(settled).toMatchObject({ ok: false, error: { source: 'client', code: 'timeout' } }))
+  })
+
+  it('kills a real hung child at its bound, and the session’s end kills a running one', async () => {
+    const deps = realDeps(chatEnv(), DM_CLIENT_LIMITS)
+    const timed = createDmClient({ ...deps, runLimits: { ...DM_RUN_LIMITS, timeoutMs: 300 } })
+    expect(await timed.run('get_capabilities', { mode: 'hang' })).toMatchObject({ ok: false, error: { code: 'timeout' } })
+    const client = createDmClient(deps)
+    const call = client.run('get_capabilities', { mode: 'hang' })
+    await vi.waitFor(() => expect(deps.children[1]?.pid).toBeDefined())
+    await client.cancelAll()
+    expect(await call).toMatchObject({ ok: false, error: { code: 'cancelled' } })
+    expectAllGone(deps.children)
+  })
+})
+
+describe('the DM client run (dm_call): output and the grant', () => {
+  it('returns the data with the grant redacted in every string and key, and never reaches the prototype', async () => {
+    const result = await createDmClient(realDeps()).run('get_capabilities', { mode: 'leak' })
+    const data = (result as { data: Record<string, unknown> }).data
+    expect(Object.getPrototypeOf(data)).toBe(Object.prototype)
+    expect(Object.keys(data)).toEqual(['note', '[redacted]', '__proto__'])
+    expect(data['note']).toBe('grant [redacted]')
+    expect(data['[redacted]']).toEqual(['[redacted]', 1, null, { deep: '[redacted]' }])
+    expect(Object.getOwnPropertyDescriptor(data, '__proto__')?.value).toEqual({ polluted: '[redacted]' })
+    expect(({} as Record<string, unknown>)['polluted']).toBeUndefined()
+    expect(JSON.stringify(result)).not.toContain(TOKEN)
+  })
+
+  it('passes the CLI’s refusal through with its code, and a failed exit’s stderr capped, never with the grant', async () => {
+    const client = createDmClient(realDeps())
+    expect(await client.run('approve_checkpoint', { mode: 'error' })).toEqual({ ok: false, error: { source: 'dm', code: 'mailbox_full', message: 'full for [redacted]' } })
+    expect(await client.run('approve_checkpoint', { mode: 'badcode' })).toEqual({ ok: false, error: { source: 'dm', code: 'bad_[redacted]', message: 'm' } })
+    const crashed = await client.run('get_capabilities', { mode: 'crash' })
+    expect(crashed).toMatchObject({ ok: false, error: { source: 'client', code: 'process_failed' } })
+    const message = crashed.ok ? '' : crashed.error.message
+    expect(message).not.toContain(TOKEN)
+    expect(message.length).toBeLessThan(4 * 1024 + 100)
+  })
+
+  it('kills a child that prints more than 2 MiB', async () => {
+    const deps = realDeps()
+    expect(await createDmClient(deps).run('get_capabilities', { mode: 'flood' })).toMatchObject({ ok: false, error: { code: 'output_too_large' } })
+    expectAllGone(deps.children)
   })
 })
 
