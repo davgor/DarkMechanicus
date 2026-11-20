@@ -387,7 +387,7 @@ describe('startRun and adoptRevision — repositories bound later', () => {
     repos.web.branches[EPIC_BRANCH] = '5'.repeat(40)
     pauseRun(ctx, { runId })
     opened.length = 0
-    adoptRevision(ctx, { runId, revisionId: seedRevision(ctx, epicId, repoBundle(['api', 'web'])) })
+    adoptRevision(ctx, { reason: 'Test adoption: the plan changed mid-run.', runId, revisionId: seedRevision(ctx, epicId, repoBundle(['api', 'web'])) })
     const webBound = { repository: 'web', name: EPIC_BRANCH, startCommit: '5'.repeat(40) }
     expect(repositoryBranchesOf(ctx, epicId)).toEqual([apiBound, webBound])
     expect(opened).toEqual(['web'])
@@ -396,7 +396,7 @@ describe('startRun and adoptRevision — repositories bound later', () => {
       repositoryBranches: [webBound]
     })
     // Adopting a revision that names no new repository binds nothing more.
-    adoptRevision(ctx, { runId, revisionId: seedRevision(ctx, epicId, repoBundle(['web', 'api'])) })
+    adoptRevision(ctx, { reason: 'Test adoption: the plan changed mid-run.', runId, revisionId: seedRevision(ctx, epicId, repoBundle(['web', 'api'])) })
     expect(repositoryBranchesOf(ctx, epicId)).toEqual([apiBound, webBound])
     expect(eventKinds(ctx, 'epic.branch_set')).toEqual(['epic.branch_set', 'epic.branch_set'])
   })
@@ -445,7 +445,7 @@ describe('startRun and adoptRevision — edge cases of binding in a folder of re
     ctx.db.run('UPDATE epics SET branch_json = NULL WHERE id = ?', epicId)
     pauseRun(ctx, { runId })
     opened.length = 0
-    adoptRevision(ctx, { runId, revisionId: seedRevision(ctx, epicId, repoBundle(['api', 'web'])) })
+    adoptRevision(ctx, { reason: 'Test adoption: the plan changed mid-run.', runId, revisionId: seedRevision(ctx, epicId, repoBundle(['api', 'web'])) })
     expect(repositoryBranchesOf(ctx, epicId)).toEqual(apiBound)
     expect(epicRow(ctx, epicId).branch_json).toBeNull()
     expect(opened).toEqual([])

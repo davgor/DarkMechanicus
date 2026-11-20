@@ -245,7 +245,7 @@ const SCHEMA_FINGERPRINTS: Record<string, string> = {
   resume_run: 'd481e0f29f2ca1c1',
   cancel_run: 'be49650976f9ddba',
   takeover_run: 'd481e0f29f2ca1c1',
-  adopt_revision: '18e63e4a9fe69b58',
+  adopt_revision: '5930cb03c4ec0d02',
   // Changed on purpose: retro experiments state their concern and may size each piece of proposed work (DM-185).
   submit_sprint_report: '925f676c145f0b42',
   get_sprint_report: '3fe78b4c15e34139',

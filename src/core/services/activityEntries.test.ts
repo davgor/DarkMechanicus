@@ -262,6 +262,7 @@ describe('RUN_BODIES — what the run itself did', () => {
       'run.paused',
       'run.queued',
       'run.resumed',
+      'run.revision_adopted',
       'run.started',
       'run.taken_over'
     ])
@@ -286,6 +287,31 @@ describe('RUN_BODIES — what the run itself did', () => {
     expect(runBody(kind, { reason: 'lunch' })).toEqual({ kind: 'run', change, reason: 'lunch' })
     expect(runBody(kind, {})).toEqual({ kind: 'run', change, reason: null })
     expect(runBody(kind, { reason: 4 })).toEqual({ kind: 'run', change, reason: null })
+  })
+})
+
+describe('RUN_BODIES — revision adoptions', () => {
+  it('says which revision an adoption took, who adopted it and why', () => {
+    const payload = { revisionNumber: 5, adoptedBy: 'orchestrator', reason: 'DM-3 was unworkable; split it.' }
+    expect(runBody('run.revision_adopted', payload)).toEqual({
+      kind: 'run',
+      change: 'revision_adopted',
+      reason: 'Plan revision 5 adopted by the orchestrator: DM-3 was unworkable; split it.'
+    })
+    expect(runBody('run.revision_adopted', { revisionNumber: 2, adoptedBy: 'desktop', reason: null })).toMatchObject({
+      reason: 'Plan revision 2 adopted by the person'
+    })
+    expect(runBody('run.revision_adopted', { revisionNumber: 2, adoptedBy: 'planner' })).toMatchObject({
+      reason: 'Plan revision 2 adopted by a planner session'
+    })
+  })
+
+  it('reads an adoption logged before numbers, adopters and reasons were recorded', () => {
+    expect(runBody('run.revision_adopted', { from: 'rv_1', to: 'rv_2' })).toEqual({
+      kind: 'run',
+      change: 'revision_adopted',
+      reason: 'Plan revision adopted'
+    })
   })
 
 })

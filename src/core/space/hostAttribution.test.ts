@@ -320,7 +320,7 @@ function lifecycleRun() {
   acceptAttempt(ctx, { attemptId: d1.attempt.id })
   pauseRun(ctx, { runId, reason: 'replan' })
   const changed = seedRevision(ctx, epicId, { ...bundle, tickets: bundle.tickets.map((ticket) => (ticket.id === tid(4) ? { ...ticket, title: 'Ticket 4, changed' } : ticket)) })
-  adoptRevision(withRole(ctx, 'orchestrator'), { runId, revisionId: changed })
+  adoptRevision(withRole(ctx, 'orchestrator'), { reason: 'Test adoption: the plan changed mid-run.', runId, revisionId: changed })
   resumeRun(ctx, { runId })
   const d2 = claim(ctx, runId, 4, lease)
   const c1 = claim(ctx, runId, 3, lease)

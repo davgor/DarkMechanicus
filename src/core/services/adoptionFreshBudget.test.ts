@@ -36,7 +36,7 @@ function exhaust(ctx: TestCtx, run: SeededRun, ticket = 2): void {
 
 function adopt(ctx: TestCtx, run: SeededRun, bundle: PlanBundle) {
   const revisionId = seedRevision(ctx, run.epicId, bundle)
-  return adoptRevision(ctx, { runId: run.runId, revisionId })
+  return adoptRevision(ctx, { reason: 'Test adoption: the plan changed mid-run.', runId: run.runId, revisionId })
 }
 
 /** `superseded_at` set or not, for each attempt of the ticket in attempt order. */

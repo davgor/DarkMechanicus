@@ -675,6 +675,8 @@ export interface CommandApi {
     runId: string
     revisionId: string
     carryForward?: string[]
+    /** Why the run adopts: what failed and what the revision changes. Required of every session but the desktop's. */
+    reason?: string
   }): Promise<RunView & PushedContext>
 
   // Metric ingestion and reads (the SPACE observation ledger)
