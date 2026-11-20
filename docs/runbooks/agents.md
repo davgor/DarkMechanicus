@@ -174,7 +174,7 @@ A ticket's **Activity** tab and a run's **Orchestrator feed** show the command l
 
 ## Approvals
 
-Approvals are the CLI's own, asked and answered in its terminal; the app holds none. Claude Code runs in its default permission mode, with your Claude Code settings, and asks before edits, commands and other tools (a write into its memory folder asks too, see [Chats](#chats)). Autonomous runs with `--approval-mode always-ask`. Codex and Cursor apply their own approval policies. The app's own boundary stays the chat's `dm` grant: its role, and Allow save.
+Approvals are the CLI's own, asked and answered in its terminal; the app holds none. Claude Code runs in its default permission mode, with your Claude Code settings, and asks before edits, commands and other tools (a write into its memory folder asks too, see [Chats](#chats)). Autonomous runs with `--approval-mode always-ask`. Skitarii (OMP) chats get no `--approval-mode` from the app, so your own OMP `tools.approvalMode` applies. OMP's default is `yolo`, which runs every tool without asking. Set `always-ask` in your OMP config to be asked before every write and shell command. Why the app passes none, and what each mode allows: [`omp-cli.md`](../reports/omp-cli.md#11-approval-modes-dm-902). Codex and Cursor apply their own approval policies. The app's own boundary stays the chat's `dm` grant: its role, and Allow save.
 
 ## Subagents in a chat
 
