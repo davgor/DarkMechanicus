@@ -179,18 +179,20 @@ function spentTicketIds(ctx: Ctx, runId: string): string[] {
 /**
  * What a revision would do to the run's spent tickets that resets their retry budget: drop them from the plan (a
  * copy added under a new id starts with no attempts) or move them to a later sprint (adoption supersedes their spent
- * attempts). `current` is the revision the run executes now. Spent attempts on a ticket `current` no longer plans
- * count too, so the check never fails open on tickets an earlier adoption already dropped.
+ * attempts). `current` is the revision the run executes now. A spent ticket `current` no longer plans was dropped by
+ * an adoption already made (by the person, or by a session allowed to): it is not removed again, and it cannot come
+ * back with a fresh budget, since a ticket keeps its id and its attempts in the run count against that id.
  */
 export function retryBudgetResets(
   ctx: Ctx,
   input: { runId: string; current: PlanBundle; target: PlanBundle }
 ): { removed: string[]; movedLater: string[] } {
   const spent = spentTicketIds(ctx, input.runId)
-  const planned = new Set(input.target.tickets.map((ticket) => ticket.id))
+  const before = new Set(input.current.tickets.map((ticket) => ticket.id))
+  const after = new Set(input.target.tickets.map((ticket) => ticket.id))
   const later = new Set(ticketsMovedLater(input.current, input.target))
   return {
-    removed: spent.filter((id) => !planned.has(id)),
+    removed: spent.filter((id) => before.has(id) && !after.has(id)),
     movedLater: spent.filter((id) => later.has(id))
   }
 }

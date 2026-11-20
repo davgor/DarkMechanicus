@@ -215,6 +215,16 @@ describe('save_plan on run ownership alone cannot remove a spent ticket', () => 
     expect(save(w.orchestrator, w.epicId).status).toBe('pending')
   })
 
+  it('still saves once the person has removed the spent ticket and the run adopted that revision', () => {
+    const w = twoSprintRun()
+    insertAttempt(w.ctx, { runId: w.runId, ticketId: w.beta, state: 'failed' })
+    const desktop = withRole(w.ctx, 'desktop')
+    updatePlanDraft(desktop, { epicId: w.epicId, ops: [{ op: 'remove_ticket', ticket: w.beta }] })
+    adoptRevision(desktop, { runId: w.runId, revisionId: saveNow(desktop, w.epicId) })
+    updatePlanDraft(w.orchestrator, { epicId: w.epicId, ops: [{ op: 'set_rationale', rationale: 'Beta was dropped by the person.' }] })
+    expect(save(w.orchestrator, w.epicId).status).toBe('pending')
+  })
+
   it('lets it remove a ticket that spent no attempts, and lets allowSave and the desktop remove a spent one', () => {
     const w = twoSprintRun()
     insertAttempt(w.ctx, { runId: w.runId, ticketId: w.beta, state: 'failed' })

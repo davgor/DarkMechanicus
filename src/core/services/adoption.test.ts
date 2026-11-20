@@ -381,6 +381,15 @@ describe('adoptRevision without allowSave cannot reset a spent ticket', () => {
     expect(runRow(ctx, run.runId)?.revision_id).toBe(revisionId)
   })
 
+  it('does not count again a spent ticket the person already removed: later fixes still adopt', () => {
+    const { ctx, run, noSave } = spentRun()
+    const removed = seedRevision(ctx, run.epicId, makeBundle([[1], [3]]))
+    adoptRevision(withRole(ctx, 'desktop'), { runId: run.runId, revisionId: removed })
+    const fixed = seedRevision(ctx, run.epicId, retitle(makeBundle([[1], [3]]), 3))
+    expect(adoptRevision(noSave, { reason: REASON, runId: run.runId, revisionId: fixed }).runId).toBe(run.runId)
+    expect(runRow(ctx, run.runId)?.revision_id).toBe(fixed)
+  })
+
   it('leaves the desktop and an orchestrator with allowSave free to adopt it, as before', () => {
     for (const session of ['desktop', 'allowSave'] as const) {
       const { ctx, run } = spentRun()
