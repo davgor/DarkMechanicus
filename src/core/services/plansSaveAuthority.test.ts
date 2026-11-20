@@ -227,6 +227,23 @@ describe('save_plan on run ownership alone and removals that reset nothing', () 
     expect(save(w.orchestrator, w.epicId).status).toBe('pending')
   })
 
+  it.each(['remove', 'move'] as const)(
+    'still saves when the person saved, but did not adopt, a revision that %ss the spent ticket; adopting it stays theirs',
+    (change) => {
+      const w = twoSprintRun()
+      insertAttempt(w.ctx, { runId: w.runId, ticketId: w.beta, state: 'failed' })
+      const desktop = withRole(w.ctx, 'desktop')
+      const op: DraftOp =
+        change === 'remove' ? { op: 'remove_ticket', ticket: w.beta } : { op: 'move_ticket', ticket: w.beta, toSprint: w.sprint2 }
+      updatePlanDraft(desktop, { epicId: w.epicId, ops: [op] })
+      saveNow(desktop, w.epicId)
+      updatePlanDraft(w.orchestrator, { epicId: w.epicId, ops: [{ op: 'set_rationale', rationale: 'Clarified while the run continues.' }] })
+      const revisionId = saveNow(w.orchestrator, w.epicId)
+      const adopt = (): unknown => adoptRevision(w.orchestrator, { runId: w.runId, revisionId, reason: 'Adopting the plan the person saved.' })
+      expect(captureError(adopt).code).toBe('unauthorized')
+    }
+  )
+
   it('lets it remove a ticket that spent no attempts, and lets allowSave and the desktop remove a spent one', () => {
     const w = twoSprintRun()
     insertAttempt(w.ctx, { runId: w.runId, ticketId: w.beta, state: 'failed' })

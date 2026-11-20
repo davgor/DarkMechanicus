@@ -360,14 +360,21 @@ function assertRunSaveLimits(ctx: Ctx, epicId: string, bundle: PlanBundle): void
   // reverted for this save to pass, and the orchestrator's save would silently loosen them. Saves on run ownership
   // never change policies, so the current revision's policies were set by the person (or an allowSave session).
   const epic = loadEpicRow(ctx, epicId)
-  const policySource = loadRevisionBundle(ctx, epic.current_revision_id ?? run.revision_id)
+  // The epic's current saved revision (the run's pinned one if, impossibly for an epic with a run, there is none).
+  const policySource =loadRevisionBundle(ctx, epic.current_revision_id ?? run.revision_id)
   if (contentHash(policySource.policies) !== contentHash(bundle.policies)) {
     fail('unauthorized', `The draft changes the plan's policies (retry limit, ticket-failure policy): ${PERSON_SAVES}.`, {
       field: 'policies'
     })
   }
+  // A removal or move the epic's current saved revision already makes is not this draft's doing: refusing it would
+  // freeze the orchestrator's saves whenever the person saved such a revision without adopting it yet. Adoption is
+  // the gate that resets budgets, and it refuses every reset for a session without `plan.save` (`adoptRevision`).
   const pinned = loadRevisionBundle(ctx, run.revision_id)
-  const { removed, movedLater } = retryBudgetResets(ctx, { runId: run.id, current: pinned, target: bundle })
+  const draftResets = retryBudgetResets(ctx, { runId: run.id, current: pinned, target: bundle })
+  const savedResets = retryBudgetResets(ctx, { runId: run.id, current: pinned, target: policySource })
+  const removed = draftResets.removed.filter((id) => !savedResets.removed.includes(id))
+  const movedLater = draftResets.movedLater.filter((id) => !savedResets.movedLater.includes(id))
   if (removed.length > 0) {
     fail(
       'unauthorized',
