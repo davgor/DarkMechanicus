@@ -1,5 +1,16 @@
 import type { CommandName } from '../../shared/domain/api'
+import type { SessionRole } from '../../shared/domain/views'
 import type { Capability } from '../authz'
+
+/**
+ * Commands a role may call for some entities without holding their capability, because the service decides per call.
+ * The MCP server lists them to that role anyway, and the service refuses the calls it does not allow with
+ * `unauthorized`. An orchestrator without `allowSave` saves the plan of an epic whose active run this machine owns
+ * (`requireSaveAuthority` in services/plans.ts), so it fixes the plan of the sprint it runs without the person.
+ */
+export const PER_CALL_COMMANDS: Readonly<Partial<Record<SessionRole, readonly CommandName[]>>> = {
+  orchestrator: ['savePlan']
+}
 
 /**
  * The capability each command requires, declared once for every entry point. The services enforce

@@ -8,7 +8,7 @@ import { fail } from '../errors'
 import { computeChanges } from '../plan/diff'
 import { validatePlan } from '../plan/graph'
 import { enqueueUnexportedComments } from './comments'
-import { assertEpicOpen, type EpicRow, loadEpicRow } from './epics'
+import { activeRun, assertEpicOpen, type EpicRow, loadEpicRow } from './epics'
 import { appendEvent } from './events'
 import { requestWithoutKey, withIdempotency } from './idempotency'
 import { enqueueOutbox } from './outbox'
@@ -305,6 +305,29 @@ function saveDraft(ctx: Ctx, input: { epicId: string; expectedDraftRevision: num
 }
 
 /**
+ * Who may save `epicId`: a session holding `plan.save` (the desktop, or a planner or orchestrator launched or granted
+ * with `allowSave`), or an orchestrator saving the epic whose active run (queued, running, awaiting its checkpoint or
+ * paused) this machine owns. That orchestrator fixes the plan of the sprint it runs and then adopts the revision with
+ * a recorded reason, without the person; the person still approves at the sprint checkpoint. It is a check here, not
+ * a capability in the static role table (`authz.ts`), because it depends on the epic and its run: the role table
+ * answers for every epic at once, and an orchestrator without `allowSave` holds no general right to save. A run of
+ * another machine, an ended run, no run, or any other role is refused as before. Every other save check still runs.
+ */
+function requireSaveAuthority(ctx: Ctx, epicId: string): void {
+  if (ctx.session.capabilities.has('plan.save')) {
+    return
+  }
+  const runsEpics = ctx.session.role === 'orchestrator' && ctx.session.capabilities.has('run.adopt')
+  if (runsEpics && activeRun(ctx, epicId)?.owner_machine_id === ctx.machineId) {
+    return
+  }
+  const message = runsEpics
+    ? 'Without allowSave, an orchestrator saves only the plan of an epic whose active run this machine owns. Otherwise the person presses Save in the desktop app.'
+    : undefined
+  requireCapability(ctx.session, 'plan.save', message)
+}
+
+/**
  * Save, step one: validates the draft and records a `pending` revision plus a snapshot outbox
  * entry in one transaction. The finalizer makes it `saved` via `completeSavedRevision`.
  */
@@ -312,7 +335,7 @@ export function requestSave(
   ctx: Ctx,
   input: { epicId: string; expectedDraftRevision: number; idempotencyKey?: string }
 ): SaveRequestResult {
-  requireCapability(ctx.session, 'plan.save')
+  requireSaveAuthority(ctx, input.epicId)
   ctx.assertBranch()
   const scope = { command: 'savePlan', key: input.idempotencyKey, request: requestWithoutKey(input) }
   return withIdempotency(ctx, scope, () => saveDraft(ctx, input))
