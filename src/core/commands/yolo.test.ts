@@ -41,15 +41,33 @@ async function fixture(role: 'orchestrator' | 'reviewer' = 'orchestrator') {
   return { ctx, run, issued, agent, binding }
 }
 
+  it('permits an ordinary own-run Save without YOLO but still requires retry approval', async () => {
+    const { ctx, run, agent } = await fixture()
+    const draft = await desktop.openDraft({ epicId: run.epicId })
+    await expect(agent.savePlan({
+      epicId: run.epicId,
+      expectedDraftRevision: draft.draftRevision ?? 0
+    })).resolves.toMatchObject({ status: 'unchanged' })
+    expect(agent.ctx().session.capabilities.has('plan.save')).toBe(false)
+    expect(listYoloAudit(ctx).filter((entry) => entry.command === 'savePlan')).toEqual([])
+    await expect(agent.grantRetry({ runId: run.runId, ticketId: tid(1) })).rejects.toMatchObject({ code: 'unauthorized' })
+  })
+
   it('denies then permits actual Save/retry/checkpoint commands without desktop promotion or forbidden powers', async () => {
     const { ctx, run, issued, agent, binding } = await fixture()
-    const draft = await desktop.openDraft({ epicId: run.epicId })
+    // Ordinary own-run saves need no elevation; a retry-policy change specifically requires plan.save.
+    const draft = await desktop.updatePlanDraft({
+      epicId: run.epicId,
+      ops: [{ op: 'set_policies', patch: { retryLimit: run.bundle.policies.retryLimit + 1 } }]
+    })
     const save = { epicId: run.epicId, expectedDraftRevision: draft.draftRevision ?? 0 }
     await expect(agent.savePlan(save)).rejects.toMatchObject({ code: 'unauthorized' })
     await expect(agent.grantRetry({ runId: run.runId, ticketId: tid(1) })).rejects.toMatchObject({ code: 'unauthorized' })
     approveYolo(ctx, binding)
-    await agent.savePlan(save)
+    const saved = await agent.savePlan(save)
     expect(listYoloAudit(ctx).find((entry) => entry.command === 'savePlan' && entry.result === 'admitted')?.targetId).toBe(run.epicId)
+    // Adopt the elevated policy Save so checkpoint assertions test authority, not a stale-plan rejection.
+    await desktop.adoptRevision({ runId: run.runId, revisionId: saved.revisionId, reason: 'Adopt the approved retry-policy revision before verifying checkpoint progression.' })
     await agent.grantRetry({ runId: run.runId, ticketId: tid(1) })
     acceptTickets(ctx, run, [1, 2])
     const report = await agent.submitSprintReport({ runId: run.runId, sprintId: run.bundle.sprints[0]?.id ?? '', report: { summary: 'Verified work', retro: { actions: [
@@ -231,7 +249,10 @@ it('denies Save without mutation if its epic maps to a replacement run while des
   bindYoloChat(ctx, delayed)
   approveYolo(ctx, delayed)
   await desktop.openDraft({ epicId: run.epicId })
-  const edited = await desktop.updatePlanDraft({ epicId: run.epicId, ops: [{ op: 'set_epic', title: 'Must remain unsaved' }] })
+  const edited = await desktop.updatePlanDraft({ epicId: run.epicId, ops: [
+    { op: 'set_epic', title: 'Must remain unsaved' },
+    { op: 'set_policies', patch: { retryLimit: run.bundle.policies.retryLimit + 1 } }
+  ] })
   const savedBefore = await desktop.getPlan({ epicId: run.epicId, view: 'saved' })
   const draftBefore = await desktop.getPlan({ epicId: run.epicId, view: 'draft' })
   const connected = once(server, 'connection')
