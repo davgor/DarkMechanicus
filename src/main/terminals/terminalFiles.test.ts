@@ -16,7 +16,6 @@ import { orchestratorGuidance, orchestratorKickoff } from '../agents/orchestrato
 import { dmClientDescriptorPath, removeDmClientDescriptor, terminalFilePaths, terminalInstructions, writeDmClientDescriptor, writeTerminalFiles } from './terminalFiles'
 import { parseDmClientDescriptor } from '../../../resources/skitarii/extension/dmClient'
 import { MAIL_TOOL_NAMES } from '../../../resources/skitarii/extension/messaging'
-import { DM_CALL_TOOL_NAME } from '../../../resources/skitarii/extension/contextDelivery'
 import { ompFilePaths } from './ompSession'
 import { terminalLaunchSpec } from './terminalLaunchSpec'
 
@@ -210,15 +209,6 @@ describe('writeTerminalFiles: Skitarii mail guidance', () => {
   it('names every native mail tool OMP registers', () => {
     const text = skitariiMailGuidance()
     for (const tool of MAIL_TOOL_NAMES) expect(text).toContain(`\`${tool}\``)
-  })
-
-  it('tells a Skitarii chat to run Dark Mechanicus commands with dm_call, not the dm CLI in bash', () => {
-    const text = skitariiMailGuidance()
-    expect(text).toContain(`\`${DM_CALL_TOOL_NAME}\``)
-    expect(text).toMatch(/Use it for every Dark Mechanicus command instead of running the `dm` CLI in\nbash/)
-    expect(text).toContain('`descriptor_missing`')
-    expect(text).toContain('your kickoff or a skill say to run')
-    expect(text).toContain('read the state first')
   })
 })
 
