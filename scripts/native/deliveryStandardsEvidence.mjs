@@ -1,7 +1,7 @@
 /** Run after npm run build. Drive the production desktop with disposable projects. */
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { createRequire } from 'node:module'
@@ -14,7 +14,7 @@ import { defaultPrompts } from '../../src/shared/domain/standardsPrompts.ts'
 import { createFolderRegistry } from '../../src/main/desktop/folderRegistry.ts'
 
 const require = createRequire(import.meta.url)
-const root = mkdtempSync(join(tmpdir(), 'dm-standards-'))
+const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-standards-')))
 const output = resolve(process.argv[2] ?? 'out/standards-evidence')
 const live = process.argv[3] === '--live-skitarii'
 if (live && existsSync(output) && readdirSync(output).length) throw new Error('Choose an empty output directory for live provider evidence.')
