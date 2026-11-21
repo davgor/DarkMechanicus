@@ -5,6 +5,7 @@ import { useToasts } from '../app/toasts'
 import { Button } from '../components/Button'
 import { Icon } from '../components/Icon'
 import { formatShortDate } from '../sidebar/epicStatusLine'
+import { SavePermissionRequests } from './SavePermissionRequests'
 
 interface GrantsCardProps {
   folder: TrackedFolderView
@@ -71,17 +72,16 @@ function Field({ id, label, children }: { id: string; label: string; children: J
   )
 }
 
-function IssueForm({ busy, onIssue, onCancel }: IssueFormProps): JSX.Element {
-  const ids = { role: useId(), label: useId(), minutes: useId() }
-  const [role, setRole] = useState<GrantableRole>('orchestrator')
-  const [label, setLabel] = useState('dm CLI')
-  const [minutes, setMinutes] = useState(8 * 60)
-  const [allowSave, setAllowSave] = useState(false)
-  const canSave = role === 'orchestrator' || role === 'planner'
+function GrantRoleField({ role, busy, onChange }: {
+  role: GrantableRole
+  busy: boolean
+  onChange(role: GrantableRole): void
+}): JSX.Element {
+  const id = useId()
   return (
-    <div className="grant-form">
-      <Field id={ids.role} label="Role">
-        <select id={ids.role} value={role} disabled={busy} onChange={(event) => setRole(event.target.value as GrantableRole)}>
+    <>
+      <Field id={id} label="Role">
+        <select id={id} value={role} disabled={busy} onChange={(event) => onChange(event.target.value as GrantableRole)}>
           {ROLES.map((option) => (
             <option key={option.role} value={option.role}>
               {option.label}
@@ -90,6 +90,23 @@ function IssueForm({ busy, onIssue, onCancel }: IssueFormProps): JSX.Element {
         </select>
       </Field>
       <p className="note">{ROLES.find((option) => option.role === role)?.note}</p>
+    </>
+  )
+}
+
+function IssueForm({ busy, onIssue, onCancel }: IssueFormProps): JSX.Element {
+  const ids = { label: useId(), minutes: useId() }
+  const [role, setRole] = useState<GrantableRole>('orchestrator')
+  const [label, setLabel] = useState('dm CLI')
+  const [minutes, setMinutes] = useState(8 * 60)
+  const [allowSave, setAllowSave] = useState(true)
+  const canSave = role === 'orchestrator' || role === 'planner'
+  return (
+    <div className="grant-form">
+      <GrantRoleField role={role} busy={busy} onChange={(next) => {
+        setRole(next)
+        setAllowSave(next === 'orchestrator')
+      }} />
       <Field id={ids.label} label="Label">
         <input id={ids.label} value={label} disabled={busy} onChange={(event) => setLabel(event.target.value)} />
       </Field>
@@ -276,6 +293,7 @@ export function GrantsCard({ folder }: GrantsCardProps): JSX.Element {
           ))}
         </div>
       )}
+      <SavePermissionRequests folder={folder.path} />
       {issuing ? (
         <IssueForm
           busy={state.busy}

@@ -17,6 +17,9 @@ interface Case {
 }
 
 const CASES: Case[] = [
+  { tool: 'request_save_permission', args: { reason: 'Save a plan' }, method: 'requestSavePermission', input: { reason: 'Save a plan' } },
+  { tool: 'list_save_permission_requests', args: {}, method: 'listSavePermissionRequests', input: undefined },
+  { tool: 'decide_save_permission', args: { requestId: sampleId('savePermission'), decision: 'denied', reason: 'Not approved' }, method: 'decideSavePermission', input: { requestId: sampleId('savePermission'), decision: 'denied', reason: 'Not approved' } },
   { tool: 'get_capabilities', args: {}, method: 'getCapabilities', input: undefined },
   { tool: 'get_project', args: {}, method: 'getProject', input: undefined },
   {

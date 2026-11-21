@@ -98,7 +98,9 @@ export function cliInstructions(options: InstructionOptions): string {
   const line = cliCommandLine(options.cli)
   const saving = options.allowSave
     ? 'This chat may save plans itself.'
-    : 'This chat may not save plans: prepare the draft and ask the person to press Save in the app.'
+    : options.role === 'orchestrator'
+      ? 'This chat starts without general Allow save. Use request_save_permission with a reason, inspect list_save_permission_requests for pending/approved/denied, then recheck get_capabilities. A person in Agent access or a distinct originally authorized orchestrator must decide; requesting never grants permission. Approval applies only to this folder and grant until expiry/revocation. Own-run save authority is separate.'
+      : 'This chat may not save plans: prepare the draft and ask the person to press Save in the app.'
   return [
     '## Dark Mechanicus',
     '',
@@ -119,6 +121,7 @@ export function cliInstructions(options: InstructionOptions): string {
       : []),
     ...(options.reach === undefined ? folderGrant(options.role) : []),
     saving,
+    'The effective permission is always get_capabilities, not this startup text. Acquired Allow save never permits approving other requests, checkpoints, retry grants or card outcomes.',
     'Save applies only to plan changes. An authorized single card must not wait on an unsolicited epic or its Save; supervisory alarms do not change that authorization.',
     '',
     'To attach a screenshot, save it as a PNG or JPEG in the project, the temp folder or the screenshots folder, run `add_attachment` with its `path`, a `label` and a `purpose` of `evidence` or `reference`, and pass the returned id in the `attachments` of the record. On Windows, put the JSON in a file and run `call <command> --args-file <path>`.',

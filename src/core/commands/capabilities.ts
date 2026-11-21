@@ -9,7 +9,7 @@ import type { Capability } from '../authz'
  * (`requireSaveAuthority` in services/plans.ts), so it fixes the plan of the sprint it runs without the person.
  */
 export const PER_CALL_COMMANDS: Readonly<Partial<Record<SessionRole, readonly CommandName[]>>> = {
-  orchestrator: ['savePlan']
+  orchestrator: ['savePlan', 'decideSavePermission']
 }
 
 /**
@@ -42,6 +42,9 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   listGrants: 'read',
   revokeGrant: 'grant.revoke',
   renewGrant: 'grant.issue',
+  requestSavePermission: 'plan.request_save',
+  listSavePermissionRequests: 'read',
+  decideSavePermission: 'plan.decide_save',
   listEvents: 'read',
   getAttemptTimeline: 'read',
   getRunTimeline: 'read',

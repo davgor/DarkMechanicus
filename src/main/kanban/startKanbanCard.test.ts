@@ -116,14 +116,14 @@ describe('play a Kanban card', () => {
     expect(state.calls).toEqual([`play ${card.id}`])
     expect(result.problem).toBeNull()
     expect(result.card).toMatchObject({ id: card.id, playPending: true })
-    expect(result.chat).toMatchObject({ role: 'orchestrator', allowSave: false, model: 'sonnet', cardId: card.id, title: `Kanban · ${card.key} ${TITLE}` })
+    expect(result.chat).toMatchObject({ role: 'orchestrator', allowSave: true, model: 'sonnet', cardId: card.id, title: `Kanban · ${card.key} ${TITLE}` })
     expect(chats().map((chat) => chat.id)).toEqual([result.chat?.id])
     expect(terminals.steps).toEqual(['auth', 'grant:gr_1', 'spawn'])
     expect(argsOf(terminals.host.last()).at(-1)).toBe(kanbanKickoff({ cardId: card.id, key: card.key, title: TITLE, branch: 'feature/cards' }))
     expect(terminals.host.kickoffSentAtSpawn).toEqual([true])
   })
 
-  it('keeps the kickoff short, and puts the card guidance in the instructions of an orchestrator grant that may not save', async () => {
+  it('keeps the kickoff short, and puts the card guidance in the instructions of an orchestrator grant that may save', async () => {
     const state = rig()
     const card = newCard(state)
 
@@ -136,7 +136,7 @@ describe('play a Kanban card', () => {
     expect(kickoff.length).toBeLessThan(1_500)
     const instructions = instructionsOf(pty)
     expect(instructions).toContain('**orchestrator** grant')
-    expect(instructions).toContain('This chat may not save plans')
+    expect(instructions).toContain('This chat may save plans')
     expect(instructions).not.toContain('Orchestrating a Dark Mechanicus run')
     expect(instructions.endsWith(kanbanGuidance(card.id))).toBe(true)
     expect(instructions).toMatch(/do not call submit_kanban_card or fail_kanban_card, report back/)

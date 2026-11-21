@@ -39,8 +39,8 @@ export function registerSession(
   const now = deps.clock.nowIso()
   deps.db.tx(() => {
     deps.db.run(
-      `INSERT INTO sessions (id, role, label, capabilities_json, transport, pid, grant_id, started_at, last_seen_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO sessions (id, role, label, capabilities_json, transport, pid, grant_id, started_at, last_seen_at, launch_capabilities_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       id,
       registration.role,
       registration.label,
@@ -49,7 +49,8 @@ export function registerSession(
       registration.pid,
       registration.grantId ?? null,
       now,
-      now
+      now,
+      toJson(registration.capabilities)
     )
   })
   return {

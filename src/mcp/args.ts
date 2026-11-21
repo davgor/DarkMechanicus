@@ -14,14 +14,15 @@ export interface McpOptions {
 }
 
 export const MCP_USAGE = [
-  'Usage: mcp.js [--repo <path>] [--role <role>] [--allow-save] [--label <text>] [--help]',
+  'Usage: mcp.js [--repo <path>] [--role <role>] [--allow-save | --no-allow-save] [--label <text>] [--help]',
   '',
   'Serves the Dark Mechanicus tools for one repository over stdio (MCP).',
   '',
   'Options:',
   '  --repo <path>   Repository root to coordinate (default: $DARKMECHANICUS_REPO, else the current directory)',
   '  --role <role>   planner, orchestrator (default), worker, or reviewer',
-  '  --allow-save    Let a planner or orchestrator session call save_plan (otherwise a person presses Save in the desktop app)',
+  '  --allow-save    Let a planner save plans (orchestrators may save by default)',
+  '  --no-allow-save Start without general save permission; an orchestrator can request it later',
   '  --label <text>  Name shown for this session in the desktop app (default: "<role> via MCP")',
   '  --help          Show this help'
 ].join('\n')
@@ -34,7 +35,7 @@ interface RawFlags {
   repo?: string
   role?: string
   label?: string
-  allowSave: boolean
+  allowSave?: boolean
   help: boolean
 }
 
@@ -48,12 +49,12 @@ function usageError(message: string): Error {
 type ValueKey = 'repo' | 'role' | 'label'
 type SwitchKey = 'allowSave' | 'help'
 
-function switchFlag(name: string, key: SwitchKey): FlagHandler {
+function switchFlag(name: string, key: SwitchKey, value = true): FlagHandler {
   return (flags, inline) => {
     if (inline !== undefined) {
       throw usageError(`${name} does not take a value.`)
     }
-    flags[key] = true
+    flags[key] = value
     return 1
   }
 }
@@ -75,6 +76,7 @@ const FLAG_HANDLERS = new Map<string, FlagHandler>([
   ['--role', valueFlag('--role', 'role')],
   ['--label', valueFlag('--label', 'label')],
   ['--allow-save', switchFlag('--allow-save', 'allowSave')],
+  ['--no-allow-save', switchFlag('--no-allow-save', 'allowSave', false)],
   ['--help', switchFlag('--help', 'help')],
   ['-h', switchFlag('-h', 'help')]
 ])
@@ -97,7 +99,7 @@ function applyToken(flags: RawFlags, argv: readonly string[], index: number): nu
 }
 
 function readFlags(argv: readonly string[]): RawFlags {
-  const flags: RawFlags = { allowSave: false, help: false }
+  const flags: RawFlags = { help: false }
   let index = 0
   while (index < argv.length && !flags.help) {
     index += applyToken(flags, argv, index)
@@ -134,5 +136,5 @@ export function parseMcpArgs(
     return { repo, role: DEFAULT_ROLE, allowSave: false, label: `${DEFAULT_ROLE} via MCP`, help: true }
   }
   const role = resolveRole(flags.role)
-  return { repo, role, allowSave: flags.allowSave, label: flags.label ?? `${role} via MCP`, help: false }
+  return { repo, role, allowSave: flags.allowSave ?? role === 'orchestrator', label: flags.label ?? `${role} via MCP`, help: false }
 }
