@@ -80,6 +80,19 @@ it('initializes each store and distinguishes publishing from connecting', async 
   expect(api.create).toHaveBeenCalledWith(project.path)
 })
 
+it('creates a private Forge World and migrates the current project before opening it', async () => {
+  const { api, open, sources } = show({ ...project, initialized: true })
+  const create = screen.getByRole('option', { name: /Create a Forge World/ }) as HTMLOptionElement
+  enter('Ticket repository', create.value)
+  expect((screen.getByRole('button', { name: 'Create and migrate' }) as HTMLButtonElement).disabled).toBe(true)
+  enter('GitHub repository', 'owner/new-world')
+  open.mockImplementationOnce(async () => { expect(sources.get(project.path)).toBe(world.path) })
+  await click('Create and migrate')
+  expect(api.connect).toHaveBeenCalledWith(project.path, 'owner/new-world', true)
+  expect(sources.get(project.path)).toBe(world.path)
+  expect(open).toHaveBeenCalledWith(world.path)
+})
+
 it('opens a restored code checkout and stays on the member when the picker is cancelled', async () => {
   const { api, open } = show(member)
   await click('Open Forge World')
