@@ -87,7 +87,7 @@ describe('redeeming a grant', () => {
     const { token } = issueGrant(ctx, { role: 'orchestrator', label: 'CLI' })
     const redeemed = redeemGrant(redeemDeps(ctx), token)
     expect(redeemed.role).toBe('orchestrator')
-    expect(redeemed.capabilities).toEqual(grantedCapabilities('orchestrator', false))
+    expect(redeemed.capabilities).toEqual(grantedCapabilities('orchestrator', true))
   })
 
   it('records when it was last used, so a person can see it working', () => {

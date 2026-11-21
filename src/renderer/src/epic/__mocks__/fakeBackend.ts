@@ -112,6 +112,8 @@ export function scenario(patch: Partial<Scenario> = {}): Scenario {
 }
 
 export class FakeBackend implements DmApi {
+  async telegramStatus() { return { configured: false, paired: false, issue: '' } }
+  async pairTelegram() { return 'pair-code' }
   /** Chat calls use the in-memory fake; tests can seed routes or replace it. */
   chats: ChatsApi
   terminals = idleTerminals()

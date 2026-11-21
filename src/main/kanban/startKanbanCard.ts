@@ -101,7 +101,7 @@ export async function startKanbanCard(deps: KanbanStartDeps, request: StartKanba
       agent,
       role: 'orchestrator',
       model: request.model ?? null,
-      allowSave: false,
+      allowSave: true,
       title: kanbanTitle(card.key, card.title),
       cardId: card.id,
       // Recorded as the chat's first input, so a start that ends before they went delivers them once, later.

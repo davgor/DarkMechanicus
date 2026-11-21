@@ -40,7 +40,7 @@ export function darkMechanicusServer(
   config: LaunchConfig,
   launch: { role: ChatRole; allowSave: boolean; label: string }
 ): McpServerEntry {
-  const saving = launch.allowSave ? ['--allow-save'] : []
+  const saving = launch.allowSave ? ['--allow-save'] : launch.role === 'orchestrator' ? ['--no-allow-save'] : []
   const args = [...config.args, '--role', launch.role, ...saving, '--label', launch.label]
   if (Object.keys(config.env).length === 0) {
     return { command: config.command, args }

@@ -33,6 +33,7 @@ const PINNED_PREFIXES = {
   comment: 'cm',
   rowCheck: 'rk',
   grant: 'gr',
+  savePermission: 'sv',
   kanbanCard: 'kc',
   kanbanAttempt: 'ka',
   kanbanEvent: 'ke',
@@ -45,7 +46,7 @@ const PINNED_PREFIXES = {
   assessment: 'as',
   experiment: 'xp',
   experimentEvent: 'xe'
-}
+} as const satisfies Record<IdKind, string>
 
 /** A random source that records the sizes it was asked for and fills bytes from `fill`. */
 function fixedRandom(fill: (index: number) => number): {
@@ -171,8 +172,13 @@ describe('createIdGenerator kinds', () => {
     expect(isStableId(id, kind)).toBe(true)
   })
 
-  it('pins the prefix of every id kind', () => {
-    expect(ID_PREFIXES).toEqual(PINNED_PREFIXES)
+  it.each(ID_KINDS)('preserves serialized and persisted %s prefix compatibility', (kind) => {
+    const prefix = PINNED_PREFIXES[kind]
+    const generated = createIdGenerator(() => 1_700_000_000_000, fixedRandom((i) => i * 7).random).next(kind)
+    const record: { id: string } = JSON.parse(JSON.stringify({ id: generated }))
+    expect(record.id).toMatch(new RegExp(`^${prefix}_[0-9a-hjkmnp-tv-z]{26}$`))
+    const persisted: unknown = JSON.parse(`"${prefix}_${BODY}"`)
+    expect(isStableId(persisted, kind)).toBe(true)
   })
 
   it('gives every id kind a distinct prefix, so a kanban id never passes as another kind', () => {

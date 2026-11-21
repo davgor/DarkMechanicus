@@ -17,6 +17,7 @@ import { appendEvent, listEvents } from '../services/events'
 import { issueGrant, listGrants, renewGrant, revokeGrant } from '../services/grants'
 import { searchHistory } from '../services/history'
 import { listSessions } from '../services/sessions'
+import { decideSavePermission, listSavePermissionRequests, requestSavePermission } from '../services/savePermissions'
 import { yoloSessionScope } from '../services/yolo'
 import { SKILLS_VERSION } from '../version'
 import type { CommandTable, WorkspaceCore } from './types'
@@ -242,6 +243,20 @@ const repositoryCommands = {
         return grant
       })
     }
+  },
+  requestSavePermission: {
+    schema: COMMAND_SCHEMAS.requestSavePermission,
+    mutates: true,
+    run: (core, input) => requestSavePermission(core.ctx(), input)
+  },
+  listSavePermissionRequests: {
+    mutates: false,
+    run: (core) => listSavePermissionRequests(core.ctx())
+  },
+  decideSavePermission: {
+    schema: COMMAND_SCHEMAS.decideSavePermission,
+    mutates: true,
+    run: (core, input) => decideSavePermission(core.ctx(), input)
   },
   listEvents: {
     schema: COMMAND_SCHEMAS.listEvents,

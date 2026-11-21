@@ -58,6 +58,9 @@ const PROBES: Record<CommandName, unknown> = {
   listGrants: undefined,
   revokeGrant: { grantId: 'gr_00000000000000000000000001' },
   renewGrant: { grantId: 'gr_00000000000000000000000001', minutes: 60 },
+  requestSavePermission: { reason: 'Probe save permission' },
+  listSavePermissionRequests: undefined,
+  decideSavePermission: { requestId: probeId('savePermission'), decision: 'approved', reason: 'Probe decision' },
   listEpics: undefined,
   createEpic: { title: 'Probe epic' },
   getEpic: { epicId: EPIC },
@@ -250,6 +253,8 @@ describe('declared command capabilities match what the services enforce', () => 
         !held.has(COMMAND_CAPABILITIES[name]) ||
         name === 'uploadAttachment' ||
         name === 'switchStorageMode' ||
+        (name === 'requestSavePermission' && session.role !== 'orchestrator') ||
+        (name === 'decideSavePermission' && session.role === 'orchestrator' && !session.allowSave) ||
         COMMAND_CAPABILITIES[name] === 'mail.use'
     )
     expect(refused).toEqual(lacking)

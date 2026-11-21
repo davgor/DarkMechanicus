@@ -204,6 +204,12 @@ export const COMMAND_SCHEMAS = {
   }),
   revokeGrant: z.strictObject({ grantId: stableId }),
   renewGrant: z.strictObject({ grantId: stableId, minutes: z.number().int().min(MIN_GRANT_MINUTES).max(MAX_GRANT_MINUTES) }),
+  requestSavePermission: z.strictObject({ reason: z.string().trim().min(1).max(LIMITS.markdown) }),
+  decideSavePermission: z.strictObject({
+    requestId: stableId,
+    decision: z.enum(['approved', 'denied']),
+    reason: z.string().trim().min(1).max(LIMITS.markdown)
+  }),
   searchHistory: z.strictObject({
     query: z.string().max(500),
     limit: z.number().int().min(1).max(100).optional(),

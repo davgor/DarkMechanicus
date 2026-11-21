@@ -3,7 +3,7 @@ import { redactedJson } from '../storedSecrets'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 24
+export const SCHEMA_VERSION = 25
 
 export interface Migration {
   version: number
@@ -976,8 +976,28 @@ CREATE TRIGGER yolo_audit_no_delete BEFORE DELETE ON yolo_audit BEGIN SELECT RAI
 CREATE INDEX yolo_audit_run ON yolo_audit(run_id, id);
 `
 
-/** Machine-local, incident-scoped workflow interruption; no portable plan or claim is rewritten. */
 const V24 = `
+ALTER TABLE sessions ADD COLUMN launch_capabilities_json TEXT NOT NULL DEFAULT '[]';
+UPDATE sessions SET launch_capabilities_json = capabilities_json;
+CREATE TABLE save_permission_requests (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES sessions(id),
+  grant_id TEXT REFERENCES grants(id),
+  machine_id TEXT NOT NULL,
+  requester_label TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('pending','approved','denied')),
+  requested_at TEXT NOT NULL,
+  decided_at TEXT,
+  decided_by_session_id TEXT REFERENCES sessions(id),
+  decision_reason TEXT
+);
+CREATE INDEX save_permission_grant ON save_permission_requests(grant_id, status);
+CREATE INDEX save_permission_session ON save_permission_requests(session_id, status);
+`
+
+/** Machine-local, incident-scoped workflow interruption; no portable plan or claim is rewritten. */
+const V25 = `
 CREATE TABLE tooling_chat_grants (
   grant_id TEXT PRIMARY KEY REFERENCES grants(id),
   chat_id TEXT NOT NULL
@@ -1029,7 +1049,8 @@ export const MIGRATIONS: Migration[] = [
   { version: 21, sql: V21 },
   { version: 22, sql: V22 },
   { version: 23, sql: V23 },
-  { version: 24, sql: V24 }
+  { version: 24, sql: V24 },
+  { version: 25, sql: V25 }
 ]
 
 export function readSchemaVersion(db: Db): number {

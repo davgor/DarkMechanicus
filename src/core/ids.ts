@@ -23,6 +23,7 @@ export const ID_PREFIXES = {
   comment: 'cm',
   rowCheck: 'rk',
   grant: 'gr',
+  savePermission: 'sv',
   kanbanCard: 'kc',
   kanbanAttempt: 'ka',
   kanbanEvent: 'ke',

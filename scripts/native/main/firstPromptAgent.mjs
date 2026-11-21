@@ -1,24 +1,28 @@
 /** Disposable custom CLI for the first-prompt desktop proof. Its selected OMP model, not this fixture, infers the title. */
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs'
 import { spawn } from 'node:child_process'
-import { createConnection } from 'node:net'
 import { randomUUID } from 'node:crypto'
+import { createDmClient, DM_CLIENT_DESCRIPTOR_ENV, nodeDmClientDeps } from '../../../resources/skitarii/extension/dmClient.ts'
+import { writeDmClientDescriptor } from '../../../src/main/terminals/terminalFiles.ts'
 
-const [instructionsPath, evidence] = process.argv.slice(2)
+const [instructionsPath, evidence, descriptorRoot, cliRuntime, cliScript] = process.argv.slice(2)
 const instructions = readFileSync(instructionsPath, 'utf8')
 const report = (event) => appendFileSync(evidence, JSON.stringify({ at: new Date().toISOString(), pid: process.pid, ...event }) + '\n')
-function naming(args) {
-  return new Promise((resolve, reject) => {
-    const socket = createConnection(process.env.DM_DESKTOP_PIPE)
-    const chunks = []
-    socket.setTimeout(20_000, () => socket.destroy(new Error('Naming transport timed out.')))
-    socket.on('data', (chunk) => chunks.push(chunk))
-    socket.once('error', reject)
-    socket.once('end', () => {
-      try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))) } catch (error) { reject(error) }
+let native
+async function naming(args) {
+  if (!native) {
+    // Custom CLIs do not receive an OMP descriptor. This private fixture descriptor routes only;
+    // the real app-issued token still authenticates the actual live chat and generation.
+    const descriptor = await writeDmClientDescriptor({
+      userData: descriptorRoot, chatId: 'ch_native_smoke', generation: randomUUID(), folder: process.cwd(), platform: process.platform,
+      cli: {
+        command: cliRuntime, args: [cliScript, '--repo', process.cwd()],
+        env: { ELECTRON_RUN_AS_NODE: '1', DARKMECHANICUS_HOME: process.env.DARKMECHANICUS_HOME }
+      }
     })
-    socket.once('connect', () => socket.write(JSON.stringify({ version: 1, requestId: randomUUID(), token: process.env.DM_SESSION_TOKEN, op: 'name_chat', args }) + '\n'))
-  })
+    native = createDmClient({ ...nodeDmClientDeps(), env: { ...process.env, [DM_CLIENT_DESCRIPTOR_ENV]: descriptor } })
+  }
+  return native.run('name_chat', args)
 }
 async function infer(prompt) {
   const system = `${instructions}\n\nThis custom CLI owns the metadata transport. Return ONLY a JSON object {"title":"your semantic intent label"} (or {"error":"real inference problem"}). Do not run commands or solve the user's task; the CLI sends your inferred result through name_chat. Read the full unmodified user message to infer intent. Never copy the instruction's example title.`
@@ -51,7 +55,7 @@ async function firstMessage(prompt) {
     const result = await infer(prompt)
     report({ event: 'model-result', result })
     const reply = await naming(result)
-    report({ event: 'title-reply', reply })
+    report({ event: 'title-reply', transport: 'native-dm-client', reply })
     process.stdout.write(`Title inference ${reply.ok ? 'reported' : 'refused'}.\r\n> `)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

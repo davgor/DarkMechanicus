@@ -116,7 +116,7 @@ export function issueGrant(ctx: Ctx, input: IssueGrantInput): { grant: GrantView
   }
   const minutes = input.minutes ?? DEFAULT_GRANT_MINUTES
   checkMinutes(minutes)
-  const canSave = input.allowSave === true && (input.role === 'planner' || input.role === 'orchestrator')
+  const canSave = (input.allowSave ?? input.role === 'orchestrator') && (input.role === 'planner' || input.role === 'orchestrator')
   const token = formatToken(randomBytes(TOKEN_BYTES).toString('hex'))
   const id = ctx.ids.next('grant')
   const now = ctx.clock.nowIso()

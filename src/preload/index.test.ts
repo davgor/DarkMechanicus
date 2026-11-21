@@ -9,6 +9,7 @@ import { CHAT_EVENT_CHANNEL, CHAT_MAIL_EVENT_CHANNEL } from '../shared/agents/ch
 import { AUTO_UPDATE_EVENT_CHANNEL } from '../shared/autoUpdate/types'
 import { GIT_PROGRESS_CHANNEL } from '../shared/git/api'
 import { GITHUB_ACCOUNT_CHANGED_CHANNEL } from '../shared/github/api'
+import { registerTelegramIpc } from '../main/telegram'
 import { registerChatIpc, registerChatMailIpc } from '../main/agents/chatIpc'
 import type { ChatHandlers } from '../main/agents/chatHandlers'
 import type { ChatMailHandlers } from '../main/agents/agentMailDesktop'
@@ -32,16 +33,28 @@ type Api = Record<string, unknown>
 
 const bridge = vi.hoisted(() => ({
   exposed: new Map<string, Record<string, unknown>>(),
-  invoke: vi.fn(),
-  on: vi.fn(),
-  removeListener: vi.fn()
+  calls: [] as Array<[string, ...unknown[]]>,
+  listeners: new Map<string, Set<Listener>>()
 }))
 
 vi.mock('electron', () => ({
   contextBridge: {
     exposeInMainWorld: (key: string, api: Record<string, unknown>) => bridge.exposed.set(key, api)
   },
-  ipcRenderer: { invoke: bridge.invoke, on: bridge.on, removeListener: bridge.removeListener },
+  ipcRenderer: {
+    invoke: async (channel: string, ...args: unknown[]) => {
+      bridge.calls.push([channel, ...args])
+      const handler = registered.get(channel)
+      if (!handler) throw new Error('Unregistered channel ' + channel)
+      return handler(fakeEvent, ...args)
+    },
+    on: (channel: string, listener: Listener) => {
+      const listeners = bridge.listeners.get(channel) ?? new Set<Listener>()
+      listeners.add(listener)
+      bridge.listeners.set(channel, listeners)
+    },
+    removeListener: (channel: string, listener: Listener) => bridge.listeners.get(channel)?.delete(listener)
+  },
   app: { getVersion: () => '0.0.0' },
   BrowserWindow: { getAllWindows: () => [] }
 }))
@@ -95,16 +108,13 @@ beforeAll(() => {
   registerKnowledgeIpc(recorder(true), recordingHandlers<KnowledgeHandlers>())
   registerChatIpc(recorder(true), recordingHandlers<ChatHandlers>())
   registerChatMailIpc(recorder(true), recordingHandlers<ChatMailHandlers>())
+  registerTelegramIpc(recorder(false), () => ({}), async () => 'code')
   registerAutoUpdateHandlers(recorder(false))
   // Terminal handlers take the sender's frame, not the event, so these are checked by channel and payload only.
   registerTerminalIpc(recorder(false), recordingHandlers<TerminalHandlers>())
   // Registered inline in src/main/index.ts (app bootstrap, not importable without launching the app).
   registered.set('app:getVersion', () => 'result:app:getVersion')
-  bridge.invoke.mockImplementation(async (channel: string, ...args: unknown[]) => {
-    const handler = registered.get(channel)
-    if (!handler) throw new Error(`No main handler registered for ${channel}`)
-    return handler(fakeEvent, ...args)
-  })
+
 })
 
 describe('preload bridge', () => {
@@ -116,12 +126,12 @@ describe('preload bridge', () => {
     const invoked = new Set<string>()
     const methods = [...bridge.exposed].flatMap(([key, api]) => methodsOf(api, key))
     for (const [path, method] of methods.filter(([p]) => !isSubscription(p))) {
-      bridge.invoke.mockClear()
+      bridge.calls.length = 0
       handled.length = 0
       const args = Array.from({ length: method.length }, (_, i) => `${path}#${i}`)
       const result = await method(...args)
-      expect(bridge.invoke, path).toHaveBeenCalledTimes(1)
-      const [channel, ...sent] = bridge.invoke.mock.calls[0] as [string, ...unknown[]]
+      expect(bridge.calls, path).toHaveLength(1)
+      const [channel, ...sent] = bridge.calls[0] as [string, ...unknown[]]
       expect(registered.has(channel), `${path} → ${channel}`).toBe(true)
       expect(sent, path).toEqual(wireArgs[path]?.(args) ?? args)
       if (handled.length > 0) {
@@ -138,11 +148,11 @@ describe('preload bridge', () => {
     const send = { folder: '/repo', target: { epicId: 'ep_1' }, body: 'Can you help?' }
     const state = { folder: '/repo', target: { epicId: 'ep_1' }, messageIds: ['cm_1'] }
 
+    bridge.calls.length = 0
     await dm.chats.sendConversationMessage(send)
     await dm.chats.conversationState(state)
 
-    expect(bridge.invoke).toHaveBeenCalledWith('chats:sendConversationMessage', send)
-    expect(bridge.invoke).toHaveBeenCalledWith('chats:conversationState', state)
+    expect(bridge.calls).toEqual([['chats:sendConversationMessage', send], ['chats:conversationState', state]])
   })
 })
 
@@ -160,19 +170,14 @@ describe('preload bridge subscriptions', () => {
     const subscriptions = methods.filter(([path]) => isSubscription(path))
     expect(subscriptions.map(([path]) => path).sort()).toEqual(Object.keys(expected).sort())
     for (const [path, subscribe] of subscriptions) {
-      bridge.on.mockClear()
-      bridge.removeListener.mockClear()
-      const listener = vi.fn()
-      const unsubscribe = subscribe(listener) as () => void
-      expect(bridge.on, path).toHaveBeenCalledTimes(1)
-      const [channel, handler] = bridge.on.mock.calls[0] as [string, Listener]
-      expect(channel, path).toBe(expected[path])
-      handler(fakeEvent, { payload: path })
-      expect(listener, path).toHaveBeenCalledWith({ payload: path })
-      expect(listener.mock.calls[0], path).toHaveLength(1)
-      expect(bridge.removeListener, path).not.toHaveBeenCalled()
+      const received: unknown[][] = []
+      const unsubscribe = subscribe((...args: unknown[]) => received.push(args)) as () => void
+      const listeners = bridge.listeners.get(expected[path])
+      expect(listeners?.size, path).toBe(1)
+      for (const listener of listeners ?? []) listener(fakeEvent, { payload: path })
+      expect(received, path).toEqual([[{ payload: path }]])
       unsubscribe()
-      expect(bridge.removeListener, path).toHaveBeenCalledWith(expected[path], handler)
+      expect(listeners?.size, path).toBe(0)
     }
   })
 })

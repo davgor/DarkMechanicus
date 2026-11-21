@@ -98,7 +98,9 @@ export function cliInstructions(options: InstructionOptions): string {
   const line = cliCommandLine(options.cli)
   const saving = options.allowSave
     ? 'This chat may save plans itself.'
-    : 'This chat may not save plans: prepare the draft and ask the person to press Save in the app.'
+    : options.role === 'orchestrator'
+      ? 'This chat starts without general Allow save. Use request_save_permission with a reason, inspect list_save_permission_requests for pending/approved/denied, then recheck get_capabilities. A person in Agent access or a distinct originally authorized orchestrator must decide; requesting never grants permission. Approval applies only to this folder and grant until expiry/revocation. Own-run save authority is separate.'
+      : 'This chat may not save plans: prepare the draft and ask the person to press Save in the app.'
   return [
     '## Dark Mechanicus',
     '',
@@ -119,6 +121,7 @@ export function cliInstructions(options: InstructionOptions): string {
       : []),
     ...(options.reach === undefined ? folderGrant(options.role) : []),
     saving,
+    'The effective permission is always get_capabilities, not this startup text. Acquired Allow save never permits approving other requests, checkpoints, retry grants or card outcomes.',
     'Save applies only to plan changes. An authorized single card must not wait on an unsolicited epic or its Save; supervisory alarms do not change that authorization.',
     ...(options.role === 'planner' || options.role === 'orchestrator' ? [
       'On a Dark Mechanicus tooling defect, interrupt unrelated work immediately with one recover_tooling call: {action:"escalate",incidentId:"stable-incident-id",diagnostic:{command:"failed_dm_command",code:"observed_code",message:"sanitized failure",reproduction:"steps",expected:"expected result",arguments:{}}}. Never copy tokens, credentials, transcripts or private project contents. Authorization and consent refusals are not tooling repair authority.',

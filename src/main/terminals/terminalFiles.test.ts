@@ -150,7 +150,6 @@ describe('writeTerminalFiles: collaboration policy', () => {
     const text = readFileSync(files.instructions, 'utf8')
 
     expect(text).toContain(`**${role}** grant`)
-    expect(text).toContain('This chat may not save plans')
     expect(text).toContain('Planning an epic')
     expect(text).toContain('meaningful questions')
     expect(text).toContain('in-scope decisions')

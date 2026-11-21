@@ -49,7 +49,7 @@ const press = (name: string): void => {
 }
 
 describe('GrantsCard: the issue form', () => {
-  it('issues what the person chose: label, expiry and the save option', async () => {
+  it('issues what the person chose: label, expiry and explicitly opting out of save', async () => {
     dm.responses.issueGrant = { grant: grant(), token: 'dmg_secret' }
     await renderCard()
     press('Authorize an agent')
@@ -60,7 +60,7 @@ describe('GrantsCard: the issue form', () => {
     press('Authorize')
     await settle()
 
-    expect(dm.callsOf('issueGrant')[0]?.input).toEqual({ role: 'orchestrator', label: 'Release bot', minutes: 24 * 60, allowSave: true })
+    expect(dm.callsOf('issueGrant')[0]?.input).toEqual({ role: 'orchestrator', label: 'Release bot', minutes: 24 * 60, allowSave: false })
   })
 
   it('falls back to the default label when the person clears it', async () => {

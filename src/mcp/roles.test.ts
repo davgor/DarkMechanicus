@@ -19,6 +19,7 @@ const READ_TOOLS = [
   'search_history',
   'list_branch_epics',
   'list_sessions',
+  'list_save_permission_requests',
   'list_epics',
   'get_epic',
   'list_tickets',
@@ -105,6 +106,8 @@ const PLANNER_TOOLS = [...PLANNER_SHARED_TOOLS, ...PLANNER_ONLY_TOOLS]
 
 const ORCHESTRATOR_TOOLS = [
   ...PLANNER_SHARED_TOOLS,
+  'request_save_permission',
+  'decide_save_permission',
   'set_epic_status',
   'set_epic_branch',
   'set_ticket_status',

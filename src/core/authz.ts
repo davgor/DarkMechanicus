@@ -19,6 +19,8 @@ export const CAPABILITIES = [
   'transfer.queue',
   'draft.edit',
   'plan.save',
+  'plan.request_save',
+  'plan.decide_save',
   'profile.write',
   'project.definition_of_done',
   'project.repositories',
@@ -174,7 +176,8 @@ const ORCHESTRATOR: Capability[] = [
   'kanban.claim',
   'kanban.report',
   'metrics.report',
-  'metrics.report_run'
+  'metrics.report_run',
+  'plan.request_save',
 ]
 
 /** What the desktop never holds: claiming and reporting on work belong to the agents that execute it. */
@@ -233,6 +236,7 @@ export function capabilitiesForRole(role: SessionRole, options: RoleOptions = {}
   if (options.allowSave === true && canAuthor && !base.includes('plan.save')) {
     base.push('plan.save')
   }
+  if (options.allowSave === true && role === 'orchestrator') base.push('plan.decide_save')
   return base
 }
 

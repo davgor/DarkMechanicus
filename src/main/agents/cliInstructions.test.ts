@@ -56,6 +56,13 @@ describe('cliInstructions', () => {
     expect(planner).toContain('press Save')
   })
 
+  it('teaches an existing no-save orchestrator to request, inspect the decision, and recheck effective authority', () => {
+    const guidance = cliInstructions({ cli: CLI, role: 'orchestrator', allowSave: false })
+    for (const command of ['request_save_permission', 'list_save_permission_requests', 'get_capabilities']) expect(guidance).toContain(command)
+    expect(guidance).toContain('requesting never grants permission')
+    expect(guidance).toContain('Acquired Allow save never permits approving other requests')
+  })
+
   it('names the role it was issued', () => {
     expect(cliInstructions({ cli: CLI, role: 'worker', allowSave: false })).toContain('**worker**')
   })

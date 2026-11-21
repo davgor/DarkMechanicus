@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DomainError } from '../../core/errors'
+import { parseMcpArgs } from '../../mcp/args'
 import type { McpServerEntry } from './mcpJson'
 import { buildMcpConfig } from './mcpConfig'
 import { claudeCodeServer } from './mcpJson'
@@ -319,10 +320,12 @@ describe('refreshMcpServer on a real repository', () => {
       expect(refreshed).toBe(true)
       const written = JSON.parse(readFileSync(mcpJson(repo), 'utf8'))
       expect(written.mcpServers.other).toEqual(other)
-      expect(written.mcpServers.darkmechanicus.args).toEqual([
-        join(newBuild, 'out', 'main', 'mcp.js'), '--repo', repo, '--role', 'orchestrator', '--label', 'Claude Code'
-      ])
-      expect(existsSync(written.mcpServers.darkmechanicus.args[0])).toBe(true)
+      const launch = written.mcpServers.darkmechanicus as McpServerEntry
+      expect(launch.args[0]).toBe(join(newBuild, 'out', 'main', 'mcp.js'))
+      expect(parseMcpArgs(launch.args.slice(1), {}, repo)).toMatchObject({
+        repo, role: 'orchestrator', allowSave: false, label: 'Claude Code'
+      })
+      expect(existsSync(join(newBuild, 'out', 'main', 'mcp.js'))).toBe(true)
     })
   })
 

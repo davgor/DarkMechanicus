@@ -104,6 +104,8 @@ const crossRepoCorrections: CrossRepoCorrectionsApi = {
  * `sourceCheckout` the `sourceCheckout:*` channels; `crossRepoCorrections` the `corrections:*CrossRepo` channels.
  */
 const dm: DmApi = {
+  telegramStatus: () => ipcRenderer.invoke('telegram:status'),
+  pairTelegram: () => ipcRenderer.invoke('telegram:pair'),
   chats,
   terminals: createTerminalsApi(ipcRenderer),
   sourceCheckout,
