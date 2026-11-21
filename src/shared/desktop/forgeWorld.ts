@@ -1,4 +1,4 @@
-export interface ForgeProject {
+interface ForgeProject {
   folder: string
   repository: string
 }
