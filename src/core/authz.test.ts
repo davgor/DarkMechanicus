@@ -15,9 +15,9 @@ import { DomainError } from './errors'
 const PLANNER_ONLY: Capability[] = ['project.definition_of_done']
 
 const PLANNER_SHARED: Capability[] = [
+  'tooling.recover',
   'read',
   'chat.name',
-  'tooling.recover',
   'repo.init',
   'repo.flush',
   'repo.reconcile',
@@ -79,9 +79,9 @@ const WORKER: Capability[] = [
 const REVIEWER: Capability[] = ['read', 'chat.name', 'attempt.review', 'comment.write', 'attachment.write', 'metrics.report_run', 'mail.use']
 
 const DESKTOP: Capability[] = [
+  'tooling.recover',
   'read',
   'chat.name',
-  'tooling.recover',
   'grant.issue',
   'grant.revoke',
   'repo.init',
