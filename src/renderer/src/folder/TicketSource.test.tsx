@@ -12,16 +12,20 @@ const world = folderView({ path: '/world', forgeWorld: { version: 1, owner: 'own
 const member = folderView({ path: '/world/Code', forgeParent: world.path, name: 'Tracked code' })
 
 function show(folder: typeof project) {
+  const projects = new Map<string, { world: string; repository: string }>()
+  const intervals = new Map<string, number>()
+  const sources = new Map<string, string>()
   const api = {
-    status: vi.fn().mockResolvedValue({ last: 1 }), add: vi.fn(), sync: vi.fn(), interval: vi.fn(),
-    convert: vi.fn(), pickConvert: vi.fn(), restore: vi.fn(), connect: vi.fn().mockResolvedValue(world.path), create: vi.fn()
+    status: vi.fn().mockResolvedValue({ last: 1 }), add: async (world: string, repository: string, folder: string) => { projects.set(folder, { world, repository }) }, sync: vi.fn(),
+    interval: async (root: string, minutes: number) => { intervals.set(root, minutes) },
+    convert: async (root: string, source: string) => { sources.set(source, root) }, pickConvert: vi.fn(), restore: vi.fn(), connect: vi.fn().mockResolvedValue(world.path), create: vi.fn()
   }
   const open = vi.fn().mockResolvedValue(undefined)
   const initialize = vi.fn().mockResolvedValue(undefined)
   vi.stubGlobal('dm', { forge: api })
   vi.stubGlobal('github', { listRepositories: async () => ({ ok: true, data: [{ fullName: 'owner/Code' }] }) })
   render(<TicketSource folder={folder} folders={[project, world, member]} status={null} open={open} initialize={initialize} />)
-  return { api, open, initialize }
+  return { api, open, initialize, projects, intervals, sources }
 }
 
 async function click(name: string) {
@@ -33,7 +37,7 @@ function enter(label: string, value: string) {
 }
 
 it('tracks searched repositories, converts projects and configures sync from the world', async () => {
-  const { api, open } = show(world)
+  const { api, open, projects, intervals, sources } = show(world)
   await settle()
   expect(screen.getByRole('status').textContent).toContain('Last synced')
   await click('Tracked code')
@@ -42,31 +46,31 @@ it('tracks searched repositories, converts projects and configures sync from the
   expect(document.querySelector('datalist option')?.getAttribute('value')).toBe('owner/Code')
   enter('GitHub repository', 'owner/Code')
   await click('Add repository')
-  expect(api.add).toHaveBeenCalledWith(world.path, 'owner/Code', 'Code')
+  expect(projects.get('Code')).toEqual({ world: world.path, repository: 'owner/Code' })
   enter('Project folder', 'Alias')
   await click('Add repository')
-  expect(api.add).toHaveBeenCalledWith(world.path, 'owner/Code', 'Alias')
+  expect(projects.get('Alias')).toEqual(projects.get('Code'))
   enter('Project', project.path)
   await click('Move tickets to Forge World')
-  expect(api.convert).toHaveBeenCalledWith(world.path, project.path)
+  expect(sources.get(project.path)).toBe(world.path)
   await click('Choose a local repository to convert')
   expect(api.pickConvert).toHaveBeenCalledWith(world.path)
   enter('Interval in minutes', '12')
   await click('Save interval')
-  expect(api.interval).toHaveBeenCalledWith(world.path, 12)
+  expect(intervals.get(world.path)).toBe(12)
   api.sync.mockRejectedValue(new Error('origin unreachable'))
   await click('Sync now')
   expect(screen.getByRole('status').textContent).toBe('origin unreachable')
 })
 
 it('initializes each store and distinguishes publishing from connecting', async () => {
-  const { api, open, initialize } = show(project)
+  const { api, open, initialize, sources } = show(project)
   await click('Start with SQLite only')
   await click('Start with self-contained repo')
   expect(initialize.mock.calls).toEqual([['db'], ['repo']])
   enter('Ticket repository', world.path)
   await click('Use Forge World storage')
-  expect(api.convert).toHaveBeenCalledWith(world.path, project.path)
+  expect(sources.get(project.path)).toBe(world.path)
   enter('GitHub repository', 'owner/world')
   await click('Open existing Forge World')
   await click('Publish private Forge World')

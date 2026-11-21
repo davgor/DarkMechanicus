@@ -179,10 +179,9 @@ async function runGitClone(deps: CloneDeps, run: CloneRun): Promise<void> {
 
 /** Clones, then tracks; on any failure removes the target if this clone made it. */
 async function cloneInto(deps: CloneDeps, run: CloneRun): Promise<TrackedFolderView> {
-  let created = await claimTarget(run.target)
+  const created = await claimTarget(run.target)
   try {
     await runGitClone(deps, run)
-    created = false // The source clone succeeded even if ticket source reconciliation fails.
     return deps.registry.track(await deps.openProject?.(run.target) ?? run.target).folder
   } catch (error) {
     if (created) {
