@@ -221,13 +221,14 @@ The desktop **Metrics** dashboard ends with a **Measurement capabilities** table
 
 ## Tools per role
 
-A session lists only the tools its role may call. Each tool adapts one command, and each command declares the capability it needs (`src/core/commands/capabilities.ts`); a tool is listed when the role holds that capability. Calling an unlisted tool anyway gets `unauthorized` and runs nothing. The table below was generated from a live `tools/list` of the built server (`out/main/mcp.js`) launched once per role, with and without `--allow-save`; when tools change, regenerate it the same way rather than counting by hand.
+A session lists only the tools its role may call. Each tool adapts one command, and each command declares the capability it needs (`src/core/commands/capabilities.ts`); a tool is listed when the role holds that capability. Calling an unlisted tool anyway gets `unauthorized` and runs nothing. The table is checked against live `tools/list` sessions for each role, with and without `--allow-save`, by `roles.runbook.test.ts`; keep it aligned when the tool surface changes.
 
 | Tools | planner | orchestrator | worker | reviewer |
 |-------|:-------:|:------------:|:------:|:--------:|
 | Read-only (35): `get_capabilities`, `get_project`, `list_projects`, `get_storage_status`, `get_context`, `search_history`, `list_branch_epics`, `list_sessions`, `list_epics`, `get_epic`, `list_tickets`, `get_ticket`, `get_attachment`, `get_plan`, `validate_plan`, `list_revisions`, `match_capabilities`, `get_run`, `get_ready_tickets`, `get_run_events`, `get_run_metrics`, `get_planned_baselines`, `get_sprint_report`, `get_checkpoint`, `get_retro_findings`, `get_experiment`, `preview_corrections`, `list_comments`, `list_profiles`, `get_profile`, `preview_board_import`, `get_transfer`, `list_kanban_cards`, `get_kanban_card`, `list_kanban_messages` | yes | yes | yes | yes |
 | Scorecards and metrics (12, read-only): `get_ticket_grade`, `get_sprint_grade`, `get_run_grade`, `get_epic_grade`, `get_report_scorecard`, `reassess_report_scorecard`, `get_space_signals`, `get_ticket_performance`, `get_escaped_defects`, `get_run_efficiency`, `get_run_timing`, `get_metrics_summary` | yes | yes | yes | yes |
 | Comments, Kanban messages, images and chat names: `add_comment`, `add_kanban_message`, `add_attachment`, `name_chat` | yes | yes | yes | yes |
+| Connected tooling repair (`tooling.recover`): `recover_tooling` | yes | yes | | |
 | Profiles: `save_profile` | yes | yes | | |
 | Definition of Done: `set_definition_of_done` | yes | | | |
 | Repository and drafts: `initialize_repository`, `rescan_repositories`, `flush_portable_state`, `reconcile_repository`, `create_epic`, `import_board`, `create_ticket`, `update_ticket`, `open_plan_draft`, `update_plan_draft`, `discard_plan_draft` | yes | yes | | |
@@ -251,11 +252,13 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 | Kanban launch and claim: `launch_kanban_cards`, `claim_kanban_card` | | yes | | |
 | Kanban reporting (`kanban.report`): `heartbeat_kanban_card`, `submit_kanban_card`, `fail_kanban_card` | | yes | yes | |
 | Agent mail (`mail.use`; listed, but always `unauthorized` over MCP): `get_agent_identity`, `list_agent_peers`, `send_agent_message`, `read_agent_inbox`, `acknowledge_agent_messages`, `get_agent_mail_status` | yes | yes | yes | yes |
-| **Total** | 74 (75 with `--allow-save`) | 110 (110 with `--allow-save`) | 65 | 61 |
+| **Total** | 75 (76 with `--allow-save`) | 111 (111 with `--allow-save`) | 65 | 61 |
 
 An `orchestrator` lists `save_plan` and the narrow permission decision tool with or without Allow save. Explicitly disabled sessions (`--no-allow-save`) gain general saving only after approval; their separate own-run saving rule remains. `decide_save_permission` always checks original explicit authority server-side, so acquired saving cannot delegate it. `--allow-save` has no effect for `worker` and `reviewer`. No role lists a tool for the desktop-only actions: no tool presses Play on a Kanban card, approves one or kicks one back (`kanban.play` and `kanban.review` belong to a person in the desktop app).
 
 The six agent mail tools are listed to every hosted role, but a mailbox belongs to a `dm` CLI grant the desktop bound to a chat, which no MCP session has (not even one that inherited `DM_SESSION_TOKEN`): every call over MCP answers `unauthorized` and changes nothing. Native Skitarii chats use them through the `dm` CLI; see [Agent mail between Skitarii chats](cli.md#agent-mail-between-skitarii-chats).
+
+`recover_tooling` is a narrowly authorized planner/orchestrator exception, not general Kanban Play authority. In a live desktop-bound chat it interrupts the caller, gates the associated initialized source checkout, and starts a card-bound repair orchestrator with receipt-backed, incident-scoped two-way context. Current automatic context transports are OMP and Claude; another selected host returns explicit transport-unavailable before a hold/card/chat/spawn, retaining the diagnostic. A standalone MCP session without a live authenticated desktop binding cannot start recovery. Shared CLI/MCP listing does not imply every host has a verified context adapter. The route reuses the existing chat grant but admits only typed recovery/naming operations with live capability, incident, chat and generation checks; it never transfers source authority to the caller.
 
 ### Scorecards and project metrics
 

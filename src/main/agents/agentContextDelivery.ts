@@ -48,6 +48,10 @@ export async function resumeContextChat(terminals: Pick<TerminalSessions, 'attac
 }
 export interface AgentContextDelivery {
   hasMessage(chat: ChatRecord, message: PeerContextBody): boolean
+  /** Exact persisted user input, not a PTY paste/argument bookkeeping bit. */
+  hasInput(chat: ChatRecord, text: string): boolean
+  hasRecoveryMessage(chat: ChatRecord, message: BoardContextBody): boolean
+  queueRecovery(chat: ChatRecord, message: BoardContextBody): Promise<void>
   hasBoardMessage(chat: ChatRecord, messageId: string, text: string): boolean
   queueBoard(chat: ChatRecord, message: BoardContextBody): Promise<void>
   pendingBoard(chat: ChatRecord): BoardContextBody[]
@@ -140,6 +144,33 @@ class ContextDeliveryService implements AgentContextDelivery {
     return proof?.state === 'delivered' && proof.bodyHash === bodyHash && proof.entryId !== undefined
   }
 
+  hasInput(chat: ChatRecord, text: string): boolean {
+    return this.#receiptsFor(chat).some(receipts => receipts.people.has(text))
+  }
+
+  hasRecoveryMessage(chat: ChatRecord, message: BoardContextBody): boolean {
+    for (const receipts of this.#receiptsFor(chat)) {
+      const found = receipts.recoveries.get(message.id)
+      if (found?.text === message.text) return true
+      // Terminal-only hosts have no attributed peer API: the exact input is explicitly marked peer data.
+      if (this.options.agentKind(chat) === 'claude' && receipts.people.has(message.text)) return true
+    }
+    return false
+  }
+
+  async queueRecovery(chat: ChatRecord, message: BoardContextBody): Promise<void> {
+    const folder = chat.folder ?? 'projectless'
+    const prior = this.options.deliveries.proof(folder, chat.id, 'recovery', message.id)
+    if (prior !== undefined && prior.text !== message.text) throw new Error('Recovery message identity conflicts with its accepted body.')
+    if (this.hasRecoveryMessage(chat, message)) {
+      this.options.deliveries.record({ folder, chatId: chat.id, source: 'recovery', messageId: message.id,
+        text: message.text, state: 'delivered', problem: null, at: this.#now() })
+    } else if (prior === undefined) {
+      this.options.deliveries.record({ folder, chatId: chat.id, source: 'recovery', messageId: message.id,
+        text: message.text, state: 'pending', problem: null, at: this.#now() })
+    }
+  }
+
   hasMessage(chat: ChatRecord, message: PeerContextBody): boolean {
     const bodyHash = this.#hash(chat, 'peer', { id: message.id, seq: message.seq, body: message.body })
     if (this.#observed(chat, 'peer', message.id, bodyHash)) return true
@@ -169,7 +200,7 @@ class ContextDeliveryService implements AgentContextDelivery {
 
   pendingBoard(chat: ChatRecord): BoardContextBody[] {
     return this.options.deliveries.pending()
-      .filter((entry) => entry.folder === chat.folder && entry.chatId === chat.id && entry.text !== undefined)
+      .filter((entry) => entry.source !== 'recovery' && entry.folder === chat.folder && entry.chatId === chat.id && entry.text !== undefined)
       .map((entry) => ({ id: entry.messageId, text: entry.text! }))
   }
 
@@ -255,6 +286,7 @@ class ContextDeliveryService implements AgentContextDelivery {
     this.#reconciling.add(folder)
     try {
       for (const entry of this.options.deliveries.pending()) {
+        if (entry.source === 'recovery') continue
         if (entry.folder !== folder) continue
         if (transport.resolveFolder(folder) !== folder) return
         await this.#reconcileEntry(entry, transport)

@@ -1,3 +1,4 @@
+import { assertToolingCommand } from './services/toolingHold'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { createDesktopClient, type DesktopClient } from './desktop/desktopClient'
 import { homedir } from 'node:os'
@@ -707,6 +708,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
     }
     this.assertStillGranted()
     if (this.store !== null) refreshSavePermission(this.store.ctx)
+    if (this.granted !== null && this.store !== null) assertToolingCommand(this.store.ctx, this.granted.grantId, name, spec.mutates)
     const run = spec.run as (core: WorkspaceCore, input: unknown) => unknown
     const result = await this.runCommand(name, input, () => run(this, input))
     if (spec.mutates && this.store) {

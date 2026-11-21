@@ -6,6 +6,8 @@ import { createChatStore } from '../agents/chatStore'
 import { scratchDir } from '../../test/gitScratch'
 import { forgeAgentSessions } from './forgeAgents'
 import { createForge, updateForge } from './forgeManifest'
+import { createHarness } from '../../test/workspaceHarness'
+import { holdToolingWorkflow, retireToolingWorkflow } from '../../core/services/toolingHold'
 
 it('reuses the resolver record, stops its terminal and retains its archived history', async () => {
   const fixture = scratchDir('forge-agents-')
@@ -66,4 +68,46 @@ it('labels ticket launches with the repository owner and name even when its tick
     expect(store.createChat({ ...agent, cardId: 'kc_1' }).targetRepository).toBe('example/actual-code')
     expect(store.createChat(agent).targetRepository).toBeUndefined()
   } finally { fixture.cleanup() }
+})
+
+it('retires only the stopped resolver hold before archival and keeps an unrelated caller blocked', async () => {
+  const h = createHarness()
+  const workspace = h.open('desktop')
+  try {
+    await workspace.initializeRepository({ name: 'Forge resolver holds' })
+    const root = join(h.homeDir, 'World')
+    const store = createChatStore({ root: join(h.homeDir, 'chats') })
+    const chats = createChatRecords({ store, agentFor: () => null })
+    const resolver = chats.createChat({ folder: h.root, agent: 'omp', role: 'orchestrator' })
+    const caller = chats.createChat({ folder: h.root, agent: 'omp', role: 'planner' })
+    store.updateChat(resolver, { forgeResolver: root, toolingIncidentId: 'resolver_hold' })
+    store.updateChat(caller, { toolingIncidentId: 'caller_hold' })
+    holdToolingWorkflow(workspace.ctx(), { id: resolver.id, incidentId: 'resolver_hold' })
+    holdToolingWorkflow(workspace.ctx(), { id: caller.id, incidentId: 'caller_hold' })
+    const live = new Set([resolver.id, caller.id])
+    let available = false
+    const sessions = forgeAgentSessions({ store, chats,
+      agents: { list: () => [] }, folderDefaults: { get: () => null },
+      registry: { list: () => [{ path: h.root, forgeParent: root }] },
+      terminals: {
+        start: async () => ({ state: 'running', pid: 7 }),
+        deleteChat: async (ref, archive) => { live.delete(ref.id); await archive() }
+      },
+      beforeArchive: chat => {
+        expect(live.has(chat.id)).toBe(false)
+        expect(store.getChat(chat)?.archived).not.toBe(true)
+        if (!available) throw new Error('Retirement unavailable')
+        retireToolingWorkflow(workspace.ctx(), chat.id)
+      }
+    })
+    await expect(sessions.onSynced(root)).rejects.toThrow('Retirement unavailable')
+    expect(store.getChat(resolver)?.archived).not.toBe(true)
+    expect(workspace.ctx().db.all('SELECT chat_id FROM tooling_holds')).toHaveLength(2)
+    available = true
+    await sessions.onSynced(root)
+    expect(store.getChat(resolver)).toMatchObject({ archived: true, toolingIncidentId: 'resolver_hold' })
+    expect(chats.listChats(h.root).map(chat => chat.id)).toEqual([caller.id])
+    expect(workspace.ctx().db.all('SELECT chat_id FROM tooling_holds')).toEqual([{ chat_id: caller.id }])
+    expect(live.has(caller.id)).toBe(true)
+  } finally { h.cleanup() }
 })

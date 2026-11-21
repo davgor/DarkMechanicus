@@ -20,6 +20,7 @@ type AnyMethod = (input: never) => Promise<unknown>
 const COMMAND_FLAGS: Record<CommandName, true> = {
   getCapabilities: true,
   nameChat: true,
+  recoverTooling: true,
   getProject: true,
   setDefinitionOfDone: true,
   rescanRepositories: true,

@@ -22,6 +22,8 @@ const SCROLLBACK_LINES = 5_000
 export interface TerminalScreen {
   /** Writes the PTY's output; `onScreen` runs once it is on the screen. */
   write(data: string, onScreen: () => void): void
+  /** Genuine emulator protocol replies; main, never a pane, owns headless-supported queries. */
+  onResponse(listener: (data: string) => void): () => void
   resize(cols: number, rows: number): void
   /** Calls `take` with the snapshot once everything written so far is on the screen. */
   snapshot(take: (snapshot: string) => void): void
@@ -42,6 +44,10 @@ export function createTerminalScreen(cols: number, rows: number): TerminalScreen
       } catch {
         // Over xterm's backlog: dropped, see above.
       }
+    },
+    onResponse: (listener) => {
+      const subscription = terminal.onData(listener)
+      return () => subscription.dispose()
     },
     resize: (newCols, newRows) => {
       terminal.resize(newCols, newRows)

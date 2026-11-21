@@ -32,6 +32,7 @@ import type { DesktopFence } from '../../core/services/yoloFence'
 import { DomainError } from '../../core/errors'
 import { closeAgentMailBinding } from '../../core/services/agentMail'
 import { assertGrantCapability, assertGrantUsable, hashToken } from '../../core/services/grants'
+import { bindToolingGrant } from '../../core/services/toolingHold'
 import { NamingControlError } from '../../shared/agents/chatNaming'
 import type { NamingControlBinding } from '../naming/controlPipe'
 import { writePrivateFile } from '../terminals/privateFile'
@@ -219,7 +220,14 @@ class ChatGrantRegistry implements ChatGrants {
     const grant = this.bindable(grantId, identity)
     const binding: NamingControlBinding = {
       grantId, folder: identity.folder === null ? null : grant.folder, chatId: identity.chatId, generation: identity.generation,
-      signal: grant.lifetime.signal, assertCurrent: () => this.assertBinding(grantId, grant, binding)
+      ...(identity.runId === undefined ? {} : { runId: identity.runId }),
+      ...(identity.cardId === undefined ? {} : { cardId: identity.cardId }),
+      signal: grant.lifetime.signal, assertCurrent: () => this.assertBinding(grantId, grant, binding),
+      assertRecovery: () => {
+        this.assertBinding(grantId, grant, binding, false)
+        const ctx = grant.workspace.ctx()
+        assertGrantCapability(ctx, grantId, grant.tokenHash, 'tooling.recover')
+      },
     }
     this.invalidateEarlierStarts(binding)
     grant.live = binding
@@ -227,6 +235,7 @@ class ChatGrantRegistry implements ChatGrants {
     grant.runId = identity.runId
     grant.cardId = identity.cardId
     if (this.deps.desktopFence !== undefined) bindYoloChat(grant.workspace.ctx(), this.yoloBinding(grantId, grant, binding))
+    bindToolingGrant(grant.workspace.ctx(), grantId, identity.chatId)
   }
   authorizeNaming(token: string): NamingControlBinding {
     const binding = this.liveByHash.get(hashToken(token))?.live

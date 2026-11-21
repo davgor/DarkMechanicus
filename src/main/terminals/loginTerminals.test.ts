@@ -116,6 +116,19 @@ describe('loginTerminals: what starts', () => {
   })
 })
 
+it('answers sign-in control queries once in main, but never after the login exits', async () => {
+  const heard = recorder()
+  await w.logins.attach(CLAUDE, heard.listener)
+  const pty = w.host.last()
+  pty.emitData('\x1b[c')
+  await w.logins.attach(CLAUDE, recorder().listener)
+  expect(pty.written).toEqual(['\x1b[?1;2c'])
+  pty.emitData('\x1b[6n')
+  pty.exit()
+  await w.logins.dispose()
+  expect(pty.written).toEqual(['\x1b[?1;2c'])
+})
+
 describe('loginTerminals: one per agent, shared', () => {
   it('gives a second view the same PTY, from its screen so far, and both hear what follows', async () => {
     const first = recorder()

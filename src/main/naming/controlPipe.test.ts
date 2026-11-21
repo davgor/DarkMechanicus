@@ -446,3 +446,29 @@ it.each([null, 'private foreign rejection'])('contains a non-Error handler rejec
   reject = false
   expect(await raw(server.address, [wire(NAME)]).reply).toMatchObject({ ok: true, data: { applied: true } })
 })
+
+it('keeps serialized credentials and naming envelopes independently bounded before grant admission', async () => {
+  const dispatched = vi.fn(() => ({ applied: true }))
+  const server = await endpoint(dispatched)
+  const expandedCredential = wire(NAME, '\x01'.repeat(1024))
+  const expandedNaming = wire({ op: 'name_chat', args: { title: '漢'.repeat(120) } }, '\x01'.repeat(620))
+  for (const frame of [expandedCredential, expandedNaming]) {
+    expect(frame.byteLength).toBeGreaterThan(NAMING_CONTROL.namingRequestBytes)
+    expect(frame.byteLength).toBeLessThan(NAMING_CONTROL.requestBytes)
+    expect(await raw(server.address, [frame]).reply).toMatchObject({ ok: false, error: { code: 'invalid_request' } })
+  }
+  expect(dispatched).not.toHaveBeenCalled()
+})
+
+it('admits an authenticated repair diagnostic larger than naming without enlarging naming authority', async () => {
+  const planner = await grants.issueChatCli(repo, { role: 'planner', allowSave: false, label: 'repair caller' })
+  grants.bindChatGrant(planner.grantId, { folder: repo, chatId: 'repair-caller', generation: 'repair-generation' })
+  const dispatched = vi.fn(() => ({ applied: true }))
+  const server = await endpoint(dispatched)
+  const operation: NamingOperation = { op: 'recover_tooling', args: { action: 'escalate', incidentId: 'fixture',
+    diagnostic: { command: 'get_ticket', code: 'internal_error', message: 'x'.repeat(4000), reproduction: 'Read fixture', expected: 'Fixture packet' } } }
+  const frame = wire(operation, planner.cli.env['DM_SESSION_TOKEN']!)
+  expect(frame.byteLength).toBeGreaterThan(NAMING_CONTROL.namingRequestBytes)
+  expect(await raw(server.address, [frame]).reply).toMatchObject({ ok: true, data: { applied: true } })
+  expect(dispatched).toHaveBeenCalledOnce()
+})

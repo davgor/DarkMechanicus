@@ -6,6 +6,7 @@ import type { GitRunner } from '../git/runner'
 import type { CredentialSession } from '../git/credentials'
 import { bindForge, FORGE_POINTER, pendingForgeTransfer, withForgeTransfer } from '../../core/repo/forgeBinding'
 import { dbProjectDir } from '../../core/repo/storageMode'
+import { assertStorageIdle } from '../../core/repo/storageMigration'
 import { requireTracked } from './handlers'
 import { FORGE_FILE, createForge, githubRemote, parseForge, projectName, updateForge } from './forgeManifest'
 import { ForgeGit } from './forgeGit'
@@ -184,6 +185,8 @@ class ForgeService {
     if (text && (!text.split(/\r?\n/).includes('Forge World: ' + remote) || !text.split(/\r?\n/).includes('Project folder: ' + basename(member)))) throw new Error('Choose the code checkout linked to this project.')
     await withForgeTransfer(this.deps.home, member, source + '/' + mode, async (phase, advance) => {
       if (phase === 0) {
+        const ctx = this.deps.pool.get(member).ctx()
+        assertStorageIdle({ db: ctx.db, clock: ctx.clock, sessionId: ctx.session.id })
         await this.sync(root)
         await this.deps.pool.get(member).flushPortableState()
         if (existsSync(join(source, '.darkmechanicus')) || existsSync(dbProjectDir(source, this.deps.home))) throw new Error('The destination already contains a ticket store.')
@@ -290,6 +293,8 @@ class ForgeService {
     if (existsSync(join(source, POINTER)) || existsSync(member) || this.worldAt(root).projects.some(p => p.folder.toLowerCase() === folder.toLowerCase() || p.repository.toLowerCase() === repository.toLowerCase())) throw new Error('This Forge World project or pointer already exists.')
     const original = this.deps.pool.get(source)
     if (!original.isInitialized()) return
+    const ctx = original.ctx()
+    assertStorageIdle({ db: ctx.db, clock: ctx.clock, sessionId: ctx.session.id })
     const flushed = await original.flushPortableState()
     if (flushed.failed) throw new Error('Flush pending ticket records before converting.')
     await this.validateSource(source)
