@@ -33,7 +33,6 @@ export function registerChatMailIpc(ipcMain: Pick<IpcMain, 'handle'>, handlers: 
   ipcMain.handle('chatMail:state', (_event, request: unknown) => handlers.state(request))
   ipcMain.handle('chatMail:read', (_event, request: unknown) => handlers.read(request))
   ipcMain.handle('chatMail:markSeen', (_event, request: unknown) => handlers.markSeen(request))
-  ipcMain.handle('chatMail:allowWake', (_event, request: unknown) => handlers.allowWake(request))
 }
 
 /** What the push needs of a `BrowserWindow`. */

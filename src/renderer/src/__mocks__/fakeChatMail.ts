@@ -1,12 +1,10 @@
 /**
  * `window.dm.chats.mail` for renderer tests about Skitarii inboxes: an in-memory store of each chat's mailbox state
  * and messages, keyed by folder and chat, that answers the way main does. Every answer and push carries a new version
- * from one counter; `read` pages by sequence; `markSeen` moves only the person's cursor (refused past what a read
- * served); `allowWake` arms the one credit for the shown revision and a new nonce, and is a `conflict` otherwise.
+ * from one counter; `read` pages by sequence; `markSeen` moves only the person's cursor.
  * Every call is recorded; a method held with `hold` waits until `release`; `failures` answers a method with an error.
  */
 import type {
-  AllowChatMailWakeRequest,
   ChatMailApi,
   ChatMailPage,
   ChatMailPushEvent,
@@ -21,7 +19,7 @@ import type { DomainErrorShape } from '../../../shared/domain/errors'
 import type { AgentMailMessageView } from '../../../shared/domain/agentMail'
 import { deferred, type Deferred } from './deferred'
 
-type Method = 'snapshot' | 'state' | 'read' | 'markSeen' | 'allowWake'
+type Method = 'snapshot' | 'state' | 'read' | 'markSeen'
 
 const keyOf = (folder: string, chatId: string): string => `${folder}\0${chatId}`
 
@@ -33,7 +31,7 @@ export function mailState(patch: Partial<ChatMailState> & ChatMailRef): ChatMail
     pendingCount: 0,
     retainedCount: 0,
     retentionDays: 7,
-    wake: { revision: 0, armed: false, armedAt: null, lastAttempt: null },
+    delivery: { pendingCount: patch.pendingCount ?? 0, deliveredCount: 0, problem: null },
     version: 0,
     ...patch
   }
@@ -60,7 +58,6 @@ export class FakeChatMail implements ChatMailApi {
   private readonly states = new Map<string, ChatMailState>()
   private readonly inboxes = new Map<string, AgentMailMessageView[]>()
   private readonly served = new Map<string, number>()
-  private readonly nonces = new Set<string>()
   private readonly holds: Partial<Record<Method, Deferred[]>> = {}
   private readonly listeners = new Set<(event: ChatMailPushEvent) => void>()
   private version = 0
@@ -142,19 +139,6 @@ export class FakeChatMail implements ChatMailApi {
     return { ok: true, data: this.put({ folder: request.folder, chatId: request.chatId, humanSeenSeq, unseenCount }) }
   }
 
-  async allowWake(request: AllowChatMailWakeRequest): Promise<CommandResult<ChatMailState>> {
-    const failed = await this.enter('allowWake', [request])
-    if (failed) return failed
-    const known = this.states.get(keyOf(request.folder, request.chatId))
-    if (known === undefined) return { ok: false, error: { code: 'not_found', message: 'No mailbox.' } }
-    if (this.nonces.has(request.requestNonce) || request.expectedRevision !== known.wake.revision) {
-      return { ok: false, error: { code: 'conflict', message: 'The wake changed.' } }
-    }
-    this.nonces.add(request.requestNonce)
-    if (known.wake.armed) return { ok: true, data: known }
-    const wake = { ...known.wake, armed: true, armedAt: '2026-11-15T11:00:00.000Z', revision: known.wake.revision + 1 }
-    return { ok: true, data: this.put({ folder: request.folder, chatId: request.chatId, wake }) }
-  }
 
   onEvent(listener: (event: ChatMailPushEvent) => void): () => void {
     this.listeners.add(listener)

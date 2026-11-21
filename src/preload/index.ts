@@ -43,7 +43,6 @@ const mail: ChatMailApi = {
   state: (request) => ipcRenderer.invoke('chatMail:state', request),
   read: (request) => ipcRenderer.invoke('chatMail:read', request),
   markSeen: (request) => ipcRenderer.invoke('chatMail:markSeen', request),
-  allowWake: (request) => ipcRenderer.invoke('chatMail:allowWake', request),
   onEvent: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, event: ChatMailPushEvent): void => {
       listener(event)

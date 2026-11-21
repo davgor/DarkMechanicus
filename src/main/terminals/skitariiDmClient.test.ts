@@ -23,8 +23,7 @@ import {
   type DmMailIdentity,
   type DmMailInboxPage,
   type DmMailPeersPage,
-  type DmMailStatusPage,
-  type DmMailWake
+  type DmMailStatusPage
 } from '../../../resources/skitarii/extension/dmClient'
 import { attachDmClient, type OmpApi } from '../../../resources/skitarii/extension/index'
 import type * as Shared from '../../shared/domain/agentMail'
@@ -206,8 +205,7 @@ describe('the DM client spawn', () => {
     ['send', 'send_agent_message'],
     ['read', 'read_agent_inbox'],
     ['ack', 'acknowledge_agent_messages'],
-    ['status', 'get_agent_mail_status'],
-    ['takeWake', 'take_agent_mail_wake']
+    ['status', 'get_agent_mail_status']
   ] as const)('maps %s to the CLI command %s', async (command, cliName) => {
     const spawn = vi.fn(() => fakeChild('{"ok":true,"data":{}}'))
     await createDmClient({ ...realDeps(), spawn }).call(command, {} as never)
@@ -417,7 +415,39 @@ expectTypeOf<DmMailAcceptance>().toEqualTypeOf<Shared.AgentMessageAcceptanceView
 expectTypeOf<DmMailInboxPage>().toEqualTypeOf<Shared.AgentInboxPage>()
 expectTypeOf<DmMailStatusPage>().toEqualTypeOf<Shared.AgentMailStatusPage>()
 expectTypeOf<DmMailAcknowledged>().toEqualTypeOf<Shared.AcknowledgeAgentMessagesResult>()
-expectTypeOf<DmMailWake>().toEqualTypeOf<Shared.AgentMailWakeResult>()
 expectTypeOf<DmMailCalls['send']['input']>().toEqualTypeOf<Shared.SendAgentMessageInput>()
 expectTypeOf<DmMailCalls['read']['input']>().toEqualTypeOf<Shared.ReadAgentInboxInput>()
 expectTypeOf<DmMailCalls['status']['input']>().toEqualTypeOf<Shared.AgentMailWindow>()
+
+describe('authenticated person-board host outbox', () => {
+  it('reads only the descriptor-bound recipient and rechecks its current mailbox grant before returning person bodies', async () => {
+    const messages = [{ id: 'board_one', text: '[Board message from the person]\nFull body\nincluding its tail.' }]
+    writeFileSync(join(root, 'userData', 'agents', 'omp', CHAT, 'context-outbox.json'),
+      JSON.stringify({ version: 1, chatId: CHAT, endpointId: 'me_recipient_a', messages }))
+    const spawn = vi.fn(() => fakeChild('{"ok":true,"data":{"endpointId":"me_recipient_a","name":"A","role":"worker","boundAt":"2026-11-20T00:00:00Z"}}'))
+    const result = await createDmClient({ ...realDeps(), spawn }).readBoard()
+    expect(result).toEqual({ ok: true, data: messages })
+    expect((spawn.mock.calls[0] as unknown as [string, string[]])[1].slice(-3)).toEqual(['call', 'get_agent_identity', '-'])
+  })
+
+  it('never returns pending person bodies under a revoked grant or a foreign recipient outbox', async () => {
+    const file = join(root, 'userData', 'agents', 'omp', CHAT, 'context-outbox.json')
+    const messages = [{ id: 'board_one', text: 'Private person body.' }]
+    writeFileSync(file, JSON.stringify({ version: 1, chatId: CHAT, endpointId: 'me_recipient_a', messages }))
+    const spawn = vi.fn(() => fakeChild('{"ok":false,"error":{"code":"unauthorized","message":"Grant revoked"}}', 1))
+    expect(await createDmClient({ ...realDeps(), spawn }).readBoard()).toMatchObject({ ok: false, error: { code: 'unauthorized' } })
+    writeFileSync(file, JSON.stringify({ version: 1, chatId: 'chat_other', endpointId: 'me_other', messages }))
+    expect(await createDmClient({ ...realDeps(), spawn }).readBoard()).toMatchObject({ ok: false, error: { code: 'context_unavailable' } })
+    expect(spawn).toHaveBeenCalledTimes(1)
+  })
+})
+
+it('does not expose recipient A person bodies through a valid A descriptor when the current grant authenticates mailbox B', async () => {
+  const messages = [{ id: 'board_a', text: 'Person body for recipient A only.' }]
+  writeFileSync(join(root, 'userData', 'agents', 'omp', CHAT, 'context-outbox.json'),
+    JSON.stringify({ version: 1, chatId: CHAT, endpointId: 'me_recipient_a', messages }))
+  const spawn = vi.fn(() => fakeChild('{"ok":true,"data":{"endpointId":"me_recipient_b","name":"B","role":"worker","boundAt":"2026-11-20T00:00:00Z"}}'))
+  const result = await createDmClient({ ...realDeps(chatEnv({ DM_SESSION_TOKEN: 'valid-grant-for-b' })), spawn }).readBoard()
+  expect(result).toMatchObject({ ok: false, error: { code: 'recipient_mismatch' } })
+  expect(JSON.stringify(result)).not.toContain(messages[0]!.text)
+})

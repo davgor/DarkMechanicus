@@ -46,7 +46,6 @@ import type {
   AgentIdentityView,
   AgentInboxPage,
   AgentMailStatusPage,
-  AgentMailWakeResult,
   AgentMailWindow,
   AgentMessageAcceptanceView,
   AgentPeersPage,
@@ -857,8 +856,6 @@ export interface CommandApi {
   acknowledgeAgentMessages(input: { messageIds: string[] }): Promise<AcknowledgeAgentMessagesResult>
   /** The pending count and one ascending page of unacknowledged message metadata, without bodies. */
   getAgentMailStatus(input: AgentMailWindow): Promise<AgentMailStatusPage>
-  /** Consumes the desktop-armed one-shot wake credit when mail is pending; never mints or rearms one. */
-  takeAgentMailWake(input?: Record<string, never>): Promise<AgentMailWakeResult>
 }
 
 export type CommandName = keyof CommandApi

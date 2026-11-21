@@ -4,9 +4,8 @@
  * opens. The inbox reads the chat's retained messages as plain text (never markup, links or terminal sequences),
  * with each sender's stable id, when it arrived, what it replies to and where it stands for the person and for the
  * agent. A sender that is a chat of this folder opens on an explicit click only. Reading acknowledges nothing for
- * the agent and **Mark shown messages seen** moves the person's own cursor only; the agent reads, sends and replies
- * with its own tools, never from here. **Allow one inbox wake** arms the chat's single wake credit: nothing here
- * starts, types into or restarts its terminal.
+ * the agent and **Mark shown messages seen** moves the person's own cursor only. Automatic delivery status shows
+ * proven full-body context insertion and truthful pending blockers, independently of explicit agent acknowledgement.
  */
 import { useContext, useEffect, useRef, useState } from 'react'
 import type { ChatRecord } from '../../../shared/agents/chat'
@@ -21,7 +20,7 @@ import { classNames } from '../components/classNames'
 import { useLiveTerminal } from './liveTerminals'
 import { AgentMailContext, useChatMail } from './useAgentMail'
 import { useInboxPages, useMailAction, type InboxPages } from './useInboxPages'
-import { WakeControl } from './WakeControl'
+import { DeliveryStatus } from './DeliveryStatus'
 import './agentInbox.css'
 
 interface AgentInboxProps {
@@ -274,7 +273,7 @@ function InboxDialog({ folder, chat, peers, state, onOpenChat, onClose }: InboxD
         </Button>
       ) : null}
       <SeenControl folder={folder} chatId={chat.id} pages={pages} state={state} />
-      <WakeControl folder={folder} chatId={chat.id} state={state} />
+      <DeliveryStatus state={state} />
     </Dialog>
   )
 }

@@ -21,7 +21,8 @@
  */
 import { spawn as nodeSpawn, type ChildProcess, type SpawnOptions } from 'node:child_process'
 import { readFile as nodeReadFile } from 'node:fs/promises'
-import { basename, dirname, isAbsolute } from 'node:path'
+import { basename, dirname, isAbsolute, join } from 'node:path'
+import { boardOutbox, CONTEXT_OUTBOX_FILE, type BoardContextBody, type BoardContextOutbox } from './contextDelivery'
 
 /** The one variable main passes an eligible OMP launch: the absolute path of its descriptor. */
 export const DM_CLIENT_DESCRIPTOR_ENV = 'DM_SKITARII_CLIENT_DESCRIPTOR'
@@ -48,8 +49,7 @@ const DM_MAIL_COMMANDS = {
   send: 'send_agent_message',
   read: 'read_agent_inbox',
   ack: 'acknowledge_agent_messages',
-  status: 'get_agent_mail_status',
-  takeWake: 'take_agent_mail_wake'
+  status: 'get_agent_mail_status'
 } as const
 
 export type DmMailCommand = keyof typeof DM_MAIL_COMMANDS
@@ -129,11 +129,6 @@ export interface DmMailAcknowledged {
   acknowledged: { messageId: string; acknowledgedAt: string; expiresAt: string }[]
 }
 
-export interface DmMailWake {
-  claimed: boolean
-  wakeAttemptId: string | null
-  pendingCount: number
-}
 
 /** Each command's input and the `data` of its successful result. */
 export interface DmMailCalls {
@@ -143,7 +138,6 @@ export interface DmMailCalls {
   read: { input: DmMailReadInput; output: DmMailInboxPage }
   ack: { input: { messageIds: string[] }; output: DmMailAcknowledged }
   status: { input: DmMailWindow; output: DmMailStatusPage }
-  takeWake: { input: Record<string, never>; output: DmMailWake }
 }
 
 /**
@@ -155,6 +149,8 @@ type DmClientErrorCode =
   | 'descriptor_missing'
   | 'descriptor_invalid'
   | 'descriptor_stale'
+  | 'context_unavailable'
+  | 'recipient_mismatch'
   | 'command_not_allowed'
   | 'invalid_input'
   | 'no_grant'
@@ -173,6 +169,8 @@ export type DmCallResult<T> = { ok: true; data: T } | { ok: false; error: DmClie
 export interface DmClient {
   /** Runs one mailbox command; never rejects. `signal` aborting kills the child and settles with `aborted`. */
   call<C extends DmMailCommand>(command: C, input: DmMailCalls[C]['input'], signal?: AbortSignal): Promise<DmCallResult<DmMailCalls[C]['output']>>
+  /** Person messages come only from this launch's private desktop outbox, after current mailbox authorization. */
+  readBoard(): Promise<DmCallResult<BoardContextBody[]>>
   /** Kills every running child (each call settles with `cancelled`) and resolves once all have exited. */
   cancelAll(): Promise<void>
 }
@@ -520,6 +518,28 @@ async function callOnce(deps: DmClientDeps, state: ClientState, request: Request
   return runChild({ child: child.value, token, limits: deps.limits ?? DM_CLIENT_LIMITS, signal: request.signal }, input, state.cancels)
 }
 
+async function readBoardOnce(deps: DmClientDeps, state: ClientState): Promise<DmCallResult<BoardContextBody[]>> {
+  const path = envValue(deps.env, deps.platform, DM_CLIENT_DESCRIPTOR_ENV)
+  const descriptor = await loadDescriptor(deps)
+  if (!descriptor.ok) return descriptor
+  if (path === undefined) return clientError('descriptor_missing', 'The recipient descriptor is unavailable.')
+  let outbox: BoardContextOutbox
+  try {
+    const text = await deps.readFile(join(dirname(dirname(path)), CONTEXT_OUTBOX_FILE))
+    outbox = boardOutbox(text, descriptor.value.chatId)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { ok: true, data: [] }
+    return clientError('context_unavailable', 'The person-message context outbox cannot be read for this recipient.')
+  }
+  if (outbox.messages.length === 0) return { ok: true, data: [] }
+  const identity = await callOnce(deps, state, { command: 'identity', input: {}, signal: undefined })
+  if (!identity.ok) return identity
+  if (!isRecord(identity.data) || identity.data.endpointId !== outbox.endpointId) {
+    return clientError('recipient_mismatch', 'The current mailbox grant does not belong to this person-message recipient.')
+  }
+  return { ok: true, data: outbox.messages }
+}
+
 export function createDmClient(deps: DmClientDeps): DmClient {
   const state: ClientState = { cancels: new Set(), cancelEpoch: 0 }
   const calls = new Set<Promise<unknown>>()
@@ -529,6 +549,12 @@ export function createDmClient(deps: DmClientDeps): DmClient {
       calls.add(call)
       void call.finally(() => calls.delete(call))
       return call as Promise<DmCallResult<never>>
+    },
+    readBoard: () => {
+      const call = readBoardOnce(deps, state)
+      calls.add(call)
+      void call.finally(() => calls.delete(call))
+      return call
     },
     cancelAll: async () => {
       state.cancelEpoch += 1

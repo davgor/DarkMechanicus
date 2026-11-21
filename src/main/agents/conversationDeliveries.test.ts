@@ -59,3 +59,50 @@ describe('conversation delivery ledger', () => {
     )
   })
 })
+
+describe('pending board bodies and observed peer proof', () => {
+  it('retains complete ordered board bodies across reload before any scheduling or receipt', () => {
+    const fs = memoryChatFs()
+    const first = createConversationDeliveries({ userData: USER_DATA, fs })
+    const pending = {
+      ...delivery(), source: 'board' as const, state: 'pending' as const,
+      text: '[Board message from the person]\nComplete body\nincluding its final line.'
+    }
+    first.record(pending)
+    first.record({ ...pending, messageId: 'msg_2', text: 'Independent next person body.' })
+    const restarted = createConversationDeliveries({ userData: USER_DATA, fs })
+    expect(restarted.pending()).toEqual([pending, { ...pending, messageId: 'msg_2', text: 'Independent next person body.' }])
+  })
+
+  it('keeps observed peer proof distinct from board identity, recipient and folder without storing peer bodies', () => {
+    const fs = memoryChatFs()
+    const first = createConversationDeliveries({ userData: USER_DATA, fs })
+    first.record({ ...delivery(), source: 'peer', bodyHash: 'proof-hash', entryId: 'host-entry' })
+    const restarted = createConversationDeliveries({ userData: USER_DATA, fs })
+    expect(restarted.proof(FOLDER, 'chat_1', 'peer', 'msg_1')).toMatchObject({ bodyHash: 'proof-hash', entryId: 'host-entry' })
+    expect(restarted.proof(FOLDER, 'chat_other', 'peer', 'msg_1')).toBeUndefined()
+    expect(restarted.proof(OTHER_FOLDER, 'chat_1', 'peer', 'msg_1')).toBeUndefined()
+    expect(restarted.proof(FOLDER, 'chat_1', 'board', 'msg_1')).toBeUndefined()
+    expect(restarted.forMessages(FOLDER, ['msg_1'])).toEqual(new Map())
+    expect(restarted.pending()).toEqual([])
+  })
+})
+
+it('surfaces ledger I/O failure without caching an empty inbox or appending over an unreadable tail', () => {
+  const fs = memoryChatFs()
+  const pending = { ...delivery(), source: 'board' as const, state: 'pending' as const, text: 'Retained full person body.' }
+  fs.files.set(FILE, JSON.stringify(pending) + '\n')
+  let blocked = true
+  const store = createConversationDeliveries({ userData: USER_DATA, fs: {
+    ...fs,
+    readFile(path) {
+      if (blocked) throw Object.assign(new Error('Ledger cannot be read'), { code: 'EACCES' })
+      return fs.readFile(path)
+    }
+  } })
+  expect(() => store.pending()).toThrow('Ledger cannot be read')
+  expect(() => store.record(delivery({ messageId: 'never-appended' }))).toThrow('Ledger cannot be read')
+  blocked = false
+  expect(store.pending()).toEqual([pending])
+  expect(fs.files.get(FILE)).not.toContain('never-appended')
+})

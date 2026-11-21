@@ -56,7 +56,7 @@ export function memoryChatFs(folders: readonly string[] = [REPO]): MemoryChatFs 
     readFile(path) {
       const data = files.get(path)
       if (data === undefined) {
-        throw new Error(`ENOENT: ${path}`)
+        throw Object.assign(new Error(`ENOENT: ${path}`), { code: 'ENOENT' })
       }
       return data
     },

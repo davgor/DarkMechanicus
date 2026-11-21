@@ -29,7 +29,7 @@ export const ID_PREFIXES = {
   attachment: 'im',
   mailEndpoint: 'me',
   mailMessage: 'mm',
-  /** One consumed wake credit: an attempt to wake a chat, never a delivery or read receipt. */
+  /** Reserved for persisted legacy wake-attempt ids; automatic context delivery creates none. */
   mailWake: 'mw',
   /** A SPACE metric observation in the measurement ledger. */
   metricObservation: 'mo',

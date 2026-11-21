@@ -43,27 +43,35 @@ function configFolder(query: ClaudeSessionQuery): string {
   return join(home, '.claude')
 }
 
-function isFile(path: string): boolean {
-  try {
-    return statSync(path).isFile()
-  } catch {
-    return false
+/** Exact main-minted session paths; unlike the startup existence probe, observation errors must not hide pending input. */
+export function claudeSessionFiles(query: ClaudeSessionQuery): string[] {
+  if (!UUID.test(query.sessionId)) return []
+  const projects = join(configFolder(query), 'projects')
+  const file = `${query.sessionId}.jsonl`
+  const own = join(projects, claudeProjectName(query.folder), file)
+  const exists = (path: string): boolean => {
+    try {
+      return statSync(path).isFile()
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+      return false
+    }
   }
-}
-
-function projectFolders(projects: string): string[] {
+  if (exists(own)) return [own]
+  let folders: string[]
   try {
-    return readdirSync(projects)
-  } catch {
+    folders = readdirSync(projects)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     return []
   }
+  return folders.map((project) => join(projects, project, file)).filter(exists)
 }
 
 export function claudeSessionExists(query: ClaudeSessionQuery): boolean {
-  if (!UUID.test(query.sessionId)) {
+  try {
+    return claudeSessionFiles(query).length > 0
+  } catch {
     return false
   }
-  const projects = join(configFolder(query), 'projects')
-  const file = `${query.sessionId}.jsonl`
-  return isFile(join(projects, claudeProjectName(query.folder), file)) || projectFolders(projects).some((project) => isFile(join(projects, project, file)))
 }

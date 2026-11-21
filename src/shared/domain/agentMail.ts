@@ -115,16 +115,6 @@ export interface AcknowledgeAgentMessagesResult {
   acknowledged: { messageId: string; acknowledgedAt: string; expiresAt: string }[]
 }
 
-/**
- * The outcome of taking the mailbox's wake credit. Only the call that consumes an armed credit while mail is pending
- * gets `claimed: true` and an attempt id; every other call, a retry after a lost response included, gets false. The
- * attempt id names an attempt to wake the chat, never a delivery or a read.
- */
-export interface AgentMailWakeResult {
-  claimed: boolean
-  wakeAttemptId: string | null
-  pendingCount: number
-}
 
 /** Whether this session has a usable mailbox, as get_capabilities reports it; never a promise that mail will work. */
 export type AgentMailboxStatus =
@@ -135,20 +125,8 @@ export type AgentMailboxStatus =
       reason: 'no_mail_capability' | 'no_grant' | 'unbound'
     }
 
-/**
- * The person's view of a mailbox's wake credit (desktop only). `revision` moves on every arm and every consumption;
- * an arming request names the revision it read. `lastAttempt` is the last consumed credit: the chat was *attempted*,
- * which says nothing about whether it woke, read or processed anything.
- */
-export interface AgentMailWakeState {
-  endpointId: string
-  revision: number
-  armed: boolean
-  armedAt: string | null
-  lastAttempt: { id: string; at: string; outcome: 'attempted' } | null
-}
 
-/** What the person's inbox view of one mailbox counts (desktop only), with its wake credit. */
+/** What the person's inbox view counts, independently of context delivery and agent acknowledgement. */
 export interface HumanAgentMailStateView {
   endpointId: string
   /** The person's own seen cursor, separate from the agent's acknowledgements. */
@@ -157,5 +135,4 @@ export interface HumanAgentMailStateView {
   pendingCount: number
   retainedCount: number
   retentionDays: number
-  wake: AgentMailWakeState
 }

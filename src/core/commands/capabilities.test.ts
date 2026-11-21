@@ -185,8 +185,7 @@ const PROBES: Record<CommandName, unknown> = {
   sendAgentMessage: { to: probeId('mailEndpoint'), clientMessageId: 'probe-1', body: 'probe' },
   readAgentInbox: {},
   acknowledgeAgentMessages: { messageIds: [probeId('mailMessage')] },
-  getAgentMailStatus: {},
-  takeAgentMailWake: {}
+  getAgentMailStatus: {}
 }
 
 const COMMAND_NAMES = Object.keys(PROBES) as CommandName[]

@@ -13,6 +13,7 @@
  * as the person decided project-less chats are. Every other request needs a tracked folder.
  */
 import { z } from 'zod'
+import { boardContextText, type BoardContextBody } from '../../../resources/skitarii/extension/contextDelivery'
 import { DomainError, toErrorShape } from '../../core/errors'
 import { attachmentRef, commentBody, LIMITS, parseInput, stableId } from '../../core/schemas'
 import { CHAT_ROLES, chatIdSchema, type ChatRecord } from '../../shared/agents/chat'
@@ -37,6 +38,7 @@ import type { AgentRegistry } from '../desktop/agentRegistry'
 import type { FolderRegistry } from '../desktop/folderRegistry'
 import { kickBackKanbanCard, startKanbanCard, type KanbanCards } from '../kanban/startKanbanCard'
 import type { ConversationDeliveries } from './conversationDeliveries'
+import type { AgentContextDelivery } from './agentContextDelivery'
 import { boardMessage, freshKickoff, type BoardMessageInput, type ConversationHistoryEntry } from './conversationMessage'
 import { resolveConversationChat, type ConversationReads, type ResolvedConversationChat } from './conversationTarget'
 import type { BoundTarget } from './boundThreads'
@@ -132,6 +134,8 @@ interface ConversationHandlerDeps {
   reads: ConversationReads
   deliveries: ConversationDeliveries
   defaultAgent(folder: string): AgentId | null
+  contextDelivery?: Pick<AgentContextDelivery, 'queueBoard' | 'hasBoardMessage'>
+  resume?: (chat: ChatRecord) => Promise<string | null>
   now?: () => string
 }
 
@@ -446,7 +450,34 @@ function listedResolvedChat(deps: ChatHandlerDeps, folder: string, resolved: Res
 }
 
 type ConversationDelivery = Omit<SendConversationResult, 'messageId'>
-type ConversationPrompt = ConversationDetails & Pick<BoardMessageInput, 'body' | 'attachmentIds'>
+type ConversationPrompt = ConversationDetails & Pick<BoardMessageInput, 'body' | 'attachmentIds'> & { messageId: string }
+
+async function scheduleBoardContext(
+  deps: ChatHandlerDeps,
+  chat: ChatRecord,
+  message: BoardContextBody,
+  activate: () => Promise<string | null>
+): Promise<ConversationDelivery> {
+  const delivery = deps.conversation.contextDelivery
+  if (delivery === undefined) {
+    return { chatId: chat.id, state: 'pending', problem: 'Automatic context delivery is unavailable; the saved person message has not been inserted.' }
+  }
+  try {
+    await delivery.queueBoard(chat, message)
+    if (delivery.hasBoardMessage(chat, message.id, message.text)) return { chatId: chat.id, state: 'delivered', problem: null }
+    const problem = await activate()
+    return delivery.hasBoardMessage(chat, message.id, message.text)
+      ? { chatId: chat.id, state: 'delivered', problem: null }
+      : { chatId: chat.id, state: 'pending', problem }
+  } catch (error) {
+    reportUnexpected(deps, error)
+    return { chatId: chat.id, state: 'pending', problem: errorMessage(error) }
+  }
+}
+
+function resumeForBoard(deps: ChatHandlerDeps, chat: ChatRecord): Promise<string | null> {
+  return deps.conversation.resume?.(chat) ?? Promise.resolve('Automatic resume is unavailable; the person message remains pending.')
+}
 
 async function pasteConversationMessage(
   deps: ChatHandlerDeps,
@@ -465,20 +496,10 @@ async function pasteConversationMessage(
     !isCardTarget(input.target) &&
     input.target.ticketId !== undefined &&
     (input.resolved.via === 'attempt' || input.resolved.via === 'run')
-  const problem = await terminalFailure(deps, () => deps.terminals.paste(chat, boardMessage({ ...input.prompt, relay })))
-  return problem === null
-    ? { chatId: chat.id, state: 'delivered', problem: null }
-    : { chatId: chat.id, state: 'failed', problem }
-}
-
-async function removeFailedConversation(deps: ChatHandlerDeps, chat: ChatRecord, problem: string): Promise<ConversationDelivery> {
-  try {
-    await deps.chats.deleteChat(chat)
-    return { chatId: null, state: 'failed', problem }
-  } catch (error) {
-    reportUnexpected(deps, error)
-    return { chatId: chat.id, state: 'failed', problem: `${problem} The failed chat could not be removed: ${errorMessage(error)}` }
-  }
+  const message = { id: input.prompt.messageId, text: boardMessage({ ...input.prompt, relay }) }
+  return scheduleBoardContext(deps, chat, message, () => deps.agents.get(chat.agent)?.kind === 'omp'
+    ? resumeForBoard(deps, chat)
+    : terminalFailure(deps, () => deps.terminals.paste(chat, boardContextText(message), message.id)))
 }
 
 async function openConversationChat(
@@ -495,8 +516,8 @@ async function openConversationChat(
       problem: 'No default agent is selected for this folder. Select one in Agents, then send another message.'
     }
   }
-  connectedAgent(deps.agents, agentId)
-  const kickoff = freshKickoff({ ...prompt, relay: false, history: prompt.history, runActive: prompt.runActive })
+  const agent = connectedAgent(deps.agents, agentId)
+  const message = { id: prompt.messageId, text: freshKickoff({ ...prompt, relay: false, history: prompt.history, runActive: prompt.runActive }) }
   let chat: ChatRecord
   try {
     chat = deps.chats.createChat({
@@ -506,15 +527,15 @@ async function openConversationChat(
       model: null,
       allowSave: true,
       title: prompt.title,
-      conversation: isCardTarget(request.target) ? { cardId: request.target.cardId } : { epicId: request.target.epicId },
-      firstPrompt: kickoff
+      conversation: isCardTarget(request.target) ? { cardId: request.target.cardId } : { epicId: request.target.epicId }
     })
   } catch (error) {
     reportUnexpected(deps, error)
     return { chatId: null, state: 'failed', problem: `The conversation chat could not be created: ${errorMessage(error)}` }
   }
-  const problem = await terminalFailure(deps, () => deps.terminals.start(chat, { kickoff }))
-  return problem === null ? { chatId: chat.id, state: 'opened', problem: null } : removeFailedConversation(deps, chat, problem)
+  return scheduleBoardContext(deps, chat, message, () => agent.kind === 'omp'
+    ? resumeForBoard(deps, chat)
+    : terminalFailure(deps, () => deps.terminals.paste(chat, boardContextText(message), message.id)))
 }
 
 async function deliverConversationMessage(
@@ -533,7 +554,7 @@ async function deliverConversationMessage(
     request.target
   )
   const details = await conversationDetails(deps, folder, request.target, messageId)
-  const prompt = { ...details, body: request.body, attachmentIds: request.attachments ?? [] }
+  const prompt = { ...details, body: request.body, attachmentIds: request.attachments ?? [], messageId }
   return resolved === null
     ? openConversationChat(deps, folder, request, prompt)
     : pasteConversationMessage(deps, { folder, target: request.target, prompt, resolved })
@@ -552,9 +573,11 @@ async function sendConversationMessage(deps: ChatHandlerDeps, input: unknown): P
     delivery = { chatId: null, state: 'failed', problem: errorMessage(error) }
   }
   deps.conversation.deliveries.record({
+    ...deps.conversation.deliveries.forMessages(folder, [messageId]).get(messageId),
     messageId,
     folder,
     ...delivery,
+    source: 'board',
     at: (deps.conversation.now ?? (() => new Date().toISOString()))()
   })
   if (delivery.chatId !== null) chatsChanged(deps, { folder, id: delivery.chatId })
@@ -599,7 +622,7 @@ function unavailableConversation(): ConversationHandlerDeps {
   return {
     workspace: unavailable,
     reads: { openAttemptId: async () => null, activeRunId: async () => null },
-    deliveries: { record: unavailable, forMessages: () => new Map() },
+    deliveries: { record: unavailable, forMessages: () => new Map(), pending: () => [], proof: () => undefined },
     defaultAgent: () => null
   }
 }

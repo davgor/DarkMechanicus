@@ -17,7 +17,7 @@ interface OmpContext extends MailContext {
   hasUI: boolean
   cwd: string
   /** OMP's read-only session manager; `getEntries()` is the entries loaded so far (`session-manager.ts`). */
-  sessionManager?: { getEntries: () => readonly { type?: string; message?: { role?: string } }[] }
+  sessionManager?: NonNullable<MailContext['sessionManager']> & { getEntries: () => readonly { type?: string; message?: { role?: string } }[] }
 }
 
 type Handler = (event: unknown, ctx: OmpContext) => unknown
@@ -66,7 +66,11 @@ export function reducedMotion(pi: OmpApi, lookup: Lookup | null): boolean {
  */
 function isResumed(ctx: OmpContext): boolean {
   try {
-    return ctx.sessionManager?.getEntries().some((e) => e.type === 'message' && (e.message?.role === 'user' || e.message?.role === 'assistant')) === true
+    return ctx.sessionManager?.getEntries().some((entry) => {
+      if (entry === null || typeof entry !== 'object' || !('type' in entry) || entry.type !== 'message' || !('message' in entry)) return false
+      const message = entry.message
+      return message !== null && typeof message === 'object' && 'role' in message && (message.role === 'user' || message.role === 'assistant')
+    }) === true
   } catch {
     return false
   }

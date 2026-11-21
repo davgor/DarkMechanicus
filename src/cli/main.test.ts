@@ -540,15 +540,14 @@ describe('dm when writing the answer fails', () => {
   })
 })
 
-/** The seven mail commands, their camelCase aliases and their input fields. */
+/** Mail commands, their camelCase aliases and their input fields. */
 const MAIL = [
   ['get_agent_identity', 'getAgentIdentity', []],
   ['list_agent_peers', 'listAgentPeers', ['afterId', 'limit']],
   ['send_agent_message', 'sendAgentMessage', ['body', 'clientMessageId', 'inReplyTo', 'to']],
   ['read_agent_inbox', 'readAgentInbox', ['afterSeq', 'limit', 'throughSeq', 'unacknowledgedOnly']],
   ['acknowledge_agent_messages', 'acknowledgeAgentMessages', ['messageIds']],
-  ['get_agent_mail_status', 'getAgentMailStatus', ['afterSeq', 'limit', 'throughSeq']],
-  ['take_agent_mail_wake', 'takeAgentMailWake', []]
+  ['get_agent_mail_status', 'getAgentMailStatus', ['afterSeq', 'limit', 'throughSeq']]
 ] as const
 
 /** A real repository with two desktop-bound chats; the CLI host opens real workspaces on it. */
@@ -609,16 +608,13 @@ describe('dm and agent mail on a real repository', () => {
       expect(payload(retry).data).toMatchObject({ messageId: (payload(first).data as { messageId: string }).messageId, duplicate: true })
       const inbox = await dm(harness, b.token, ['call', 'read_agent_inbox', '{"unacknowledgedOnly":true}'])
       expect(payload(inbox).data).toMatchObject({ messages: [{ body: 'Ready?', from: { endpointId: a.id, name: 'Chat chat-a' } }], snapshotHighWater: 1, hasMore: false })
-      // Only the status and wake polls select the restricted poll mode.
+      // Only status polls select the restricted poll mode.
       expect(first.opened[0]?.mailPoll).toBeUndefined()
       expect(inbox.opened[0]?.mailPoll).toBeUndefined()
       const status = await dm(harness, b.token, ['call', 'get_agent_mail_status'])
       expect(status.opened[0]?.mailPoll).toBe(true)
       expect(payload(status)).toMatchObject({ ok: true, data: { pendingCount: 1 } })
       expect(JSON.stringify(payload(status))).not.toContain('Ready?')
-      const wake = await dm(harness, b.token, ['call', 'takeAgentMailWake'])
-      expect(wake.opened[0]?.mailPoll).toBe(true)
-      expect(payload(wake)).toEqual({ ok: true, data: { claimed: false, wakeAttemptId: null, pendingCount: 1 } })
     } finally {
       harness.cleanup()
     }
