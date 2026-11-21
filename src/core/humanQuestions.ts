@@ -6,7 +6,7 @@ import { fail } from './errors'
 
 export const HUMAN_QUESTION_GUIDANCE = 'Ask in the conversation while the human is engaging with you. Use ask_human only when you need a human response to proceed AND the human is currently not engaging with you in this conversation. When both conditions hold and Telegram is enabled and paired, send the question once and use get_human_answer to read the reply. A normal pause between turns does not establish disengagement. Keep progress and completion updates in the conversation. If Telegram is unavailable, leave the question in the conversation.'
 
-export interface HumanAnswer { state: string; answer: string | null }
+interface HumanAnswer { state: string; answer: string | null }
 const directory = 'human-questions'
 const filename = 'questions.sqlite'
 export function questionStore(home: string): Db {

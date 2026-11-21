@@ -34,6 +34,37 @@ function boardFixture() {
   return { history, replies, ws, question }
 }
 
+function seedLegacyRoute(question: string): void {
+  // A previous app version could have already sent a card question before the upgrade.
+  const configPath = join(env.dir, 'telegram.enc')
+  const config = JSON.parse(readFileSync(configPath, 'utf8'))
+  config.routes[81] = { folder: 'folder', cardId: 'card', question }
+  writeFileSync(configPath, JSON.stringify(config))
+}
+
+function update(id: number, who: number, text: string, messageId = 81) {
+  return {
+    update_id: id, message: { chat: { type: 'private', id: who }, from: { id: who }, text, reply_to_message: { message_id: messageId } }
+  }
+}
+
+async function pairBot(handlers: Map<string, (...args: unknown[]) => unknown>, outbound: unknown[], queue: (update: unknown) => void) {
+  env.token = 'invalid'
+  await expect(handlers.get('telegram:pair')!()).rejects.toThrow('Invalid Telegram token')
+  env.token = '12345:' + 'a'.repeat(32)
+  env.encryption = false
+  await expect(handlers.get('telegram:pair')!()).rejects.toThrow('protected OS credential store')
+  env.encryption = true
+  const code = await handlers.get('telegram:pair')!()
+  queue(update(0, 18, '/start wrong'))
+  await vi.advanceTimersByTimeAsync(5000)
+  expect(outbound).toEqual([])
+  expect(await handlers.get('telegram:status')!()).toEqual({ configured: true, enabled: true, paired: false, issue: '' })
+  queue(update(1, 17, '/start ' + code))
+  await vi.advanceTimersByTimeAsync(5000)
+  expect(outbound).toEqual([]) // An @human card question alone says nothing about engagement.
+}
+
 it('pairs one private user and routes only their threaded reply to the original card', async () => {
   env.dir = mkdtempSync(join(tmpdir(), 'telegram-test-'))
   vi.useFakeTimers()
@@ -48,29 +79,9 @@ it('pairs one private user and routes only their threaded reply to the original 
   }))
   let stop = startTelegram(ipc, () => ['folder'], () => ws as unknown as Workspace, env.dir)
   try {
-    env.token = 'invalid'
-    await expect(handlers.get('telegram:pair')!()).rejects.toThrow('Invalid Telegram token')
-    env.token = '12345:' + 'a'.repeat(32)
-    env.encryption = false
-    await expect(handlers.get('telegram:pair')!()).rejects.toThrow('protected OS credential store')
-    env.encryption = true
-    const code = await handlers.get('telegram:pair')!()
-    const update = (id: number, who: number, text: string, messageId = 81) => ({
-      update_id: id, message: { chat: { type: 'private', id: who }, from: { id: who }, text, reply_to_message: { message_id: messageId } }
-    })
-    updates = [update(0, 18, '/start wrong')]
-    await vi.advanceTimersByTimeAsync(5000)
-    expect(outbound).toEqual([])
-    expect(await handlers.get('telegram:status')!()).toEqual({ configured: true, enabled: true, paired: false, issue: '' })
-    updates = [update(1, 17, '/start ' + code)]
-    await vi.advanceTimersByTimeAsync(5000)
-    expect(outbound).toEqual([]) // An @human card question alone says nothing about engagement.
+    await pairBot(handlers, outbound, u => { updates = [u] })
     stop()
-    // A previous app version could have already sent a card question before the upgrade.
-    const configPath = join(env.dir, 'telegram.enc')
-    const config = JSON.parse(readFileSync(configPath, 'utf8'))
-    config.routes[81] = { folder: 'folder', cardId: 'card', question: question.id }
-    writeFileSync(configPath, JSON.stringify(config))
+    seedLegacyRoute(question.id)
     stop = startTelegram(ipc, () => ['folder'], () => ws as unknown as Workspace, env.dir)
     updates = [update(2, 18, 'unpaired'), update(3, 17, 'Windows')]
     await vi.advanceTimersByTimeAsync(5000)

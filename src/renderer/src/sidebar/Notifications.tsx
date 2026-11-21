@@ -60,19 +60,29 @@ function Settings({ close }: { close(): void }): JSX.Element {
     } catch { setError('Could not change Telegram notifications.') }
     finally { setBusy(false) }
   }
+  const paired = status?.paired === true
   return <Dialog title="Notifications" description="Agents can reach you on Telegram when they need your answer and you are away from their conversation."
     onClose={close} actions={<Button onClick={close}>Close</Button>}>
     <section aria-label="Telegram" className="telegram-settings">
-      <div className="telegram-channel">
-        <div><h3>Telegram</h3><p role="status">{statusLabel(status)}</p></div>
-        <button type="button" role="switch" aria-label="Telegram notifications" aria-checked={!!status?.enabled}
-          className="telegram-switch" disabled={!status?.configured || busy} onClick={() => void toggle()} />
-      </div>
-      {!status?.paired && <p>Copy your BotFather token, then pair the bot with your private chat.</p>}
-      <Button size="sm" busy={busy} onClick={() => void pair()}>{status?.paired ? 'Pair another bot from clipboard' : 'Pair from clipboard'}</Button>
-      {code && !status?.paired && <p>Send <code>/start {code}</code> in your private bot chat within ten minutes.</p>}
+      <TelegramSwitch status={status} busy={busy} onToggle={() => void toggle()} />
+      {!paired && <p>Copy your BotFather token, then pair the bot with your private chat.</p>}
+      <Button size="sm" busy={busy} onClick={() => void pair()}>{paired ? 'Pair another bot from clipboard' : 'Pair from clipboard'}</Button>
+      {code && !paired && <p>Send <code>/start {code}</code> in your private bot chat within ten minutes.</p>}
       {status?.issue && <p role="status">{status.issue}</p>}
       {error && <p role="alert">{error}</p>}
     </section>
   </Dialog>
+}
+
+
+function TelegramSwitch({ status, busy, onToggle }: {
+  status: Awaited<ReturnType<typeof window.dm.telegramStatus>> | undefined
+  busy: boolean
+  onToggle(): void
+}): JSX.Element {
+  return <div className="telegram-channel">
+        <div><h3>Telegram</h3><p role="status">{statusLabel(status)}</p></div>
+        <button type="button" role="switch" aria-label="Telegram notifications" aria-checked={!!status?.enabled}
+          className="telegram-switch" disabled={!status?.configured || busy} onClick={() => onToggle()} />
+      </div>
 }

@@ -109,12 +109,16 @@ class TelegramHost {
       return
     }
     if (m.chat.id !== c.chat || !m.reply_to_message || c.enabled === false) return
+    await this.routeReply(c, m.reply_to_message.message_id, m.text, update.update_id)
+  }
+
+  private async routeReply(c: Config, messageId: number, text: string, updateId: number): Promise<void> {
     const answered = this.db.run(
       "UPDATE questions SET state='answered', answer=? WHERE recipient=? AND message=? AND state='sent'",
-      m.text, recipientKey(c), m.reply_to_message.message_id)
+      text, recipientKey(c), messageId)
     if (answered.changes) return
-    const route = c.routes[m.reply_to_message.message_id]
-    if (route) await this.reply(c, route, m.text, update.update_id)
+    const route = c.routes[messageId]
+    if (route) await this.reply(c, route, text, updateId)
   }
 
   private async reply(c: Config, route: Route, body: string, update: number): Promise<void> {
