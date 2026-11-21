@@ -15,17 +15,22 @@ function show(folder: typeof project) {
   const projects = new Map<string, { world: string; repository: string }>()
   const intervals = new Map<string, number>()
   const sources = new Map<string, string>()
+  const visits: { path: string; ticketStore?: string }[] = []
+  const published = new Map<string, string>()
   const api = {
     status: vi.fn().mockResolvedValue({ last: 1 }), add: async (world: string, repository: string, folder: string) => { projects.set(folder, { world, repository }) }, sync: vi.fn(),
     interval: async (root: string, minutes: number) => { intervals.set(root, minutes) },
-    convert: async (root: string, source: string) => { sources.set(source, root) }, pickConvert: vi.fn(), restore: vi.fn(), connect: vi.fn().mockResolvedValue(world.path), create: vi.fn()
+    convert: async (root: string, source: string) => { sources.set(source, root) }, pickConvert: vi.fn(), restore: vi.fn(), connect: vi.fn(async (source: string, remote: string, publish: boolean) => {
+      if (publish) published.set(remote, source)
+      return world.path
+    }), create: vi.fn()
   }
-  const open = vi.fn().mockResolvedValue(undefined)
+  const open = async (path: string) => { visits.push({ path, ticketStore: sources.get(project.path) }) }
   const initialize = vi.fn().mockResolvedValue(undefined)
   vi.stubGlobal('dm', { forge: api })
   vi.stubGlobal('github', { listRepositories: async () => ({ ok: true, data: [{ fullName: 'owner/Code' }] }) })
   render(<TicketSource folder={folder} folders={[project, world, member]} status={null} open={open} initialize={initialize} />)
-  return { api, open, initialize, projects, intervals, sources }
+  return { api, visits, published, initialize, projects, intervals, sources }
 }
 
 async function click(name: string) {
@@ -37,11 +42,11 @@ function enter(label: string, value: string) {
 }
 
 it('tracks searched repositories, converts projects and configures sync from the world', async () => {
-  const { api, open, projects, intervals, sources } = show(world)
+  const { api, visits, projects, intervals, sources } = show(world)
   await settle()
   expect(screen.getByRole('status').textContent).toContain('Last synced')
   await click('Tracked code')
-  expect(open).toHaveBeenCalledWith(member.path)
+  expect(visits.map(v => v.path)).toEqual([member.path])
   await click('Find GitHub repositories')
   expect(document.querySelector('datalist option')?.getAttribute('value')).toBe('owner/Code')
   enter('GitHub repository', 'owner/Code')
@@ -64,7 +69,7 @@ it('tracks searched repositories, converts projects and configures sync from the
 })
 
 it('initializes each store and distinguishes publishing from connecting', async () => {
-  const { api, open, initialize, sources } = show(project)
+  const { api, visits, initialize, sources } = show(project)
   await click('Start with SQLite only')
   await click('Start with self-contained repo')
   expect(initialize.mock.calls).toEqual([['db'], ['repo']])
@@ -75,17 +80,42 @@ it('initializes each store and distinguishes publishing from connecting', async 
   await click('Open existing Forge World')
   await click('Publish private Forge World')
   expect(api.connect.mock.calls).toEqual([[project.path, 'owner/world', false], [project.path, 'owner/world', true]])
-  expect(open).toHaveBeenCalledWith(world.path)
+  expect(visits.map(v => v.path)).toEqual([world.path, world.path])
   await click('Use this repository as a Forge World')
   expect(api.create).toHaveBeenCalledWith(project.path)
 })
 
+it('creates a private Forge World and migrates the current project before opening it', async () => {
+  const { published, visits, sources } = show({ ...project, initialized: true })
+  const create = screen.getByRole('option', { name: /Create a Forge World/ }) as HTMLOptionElement
+  enter('Ticket repository', create.value)
+  expect((screen.getByRole('button', { name: 'Create and migrate' }) as HTMLButtonElement).disabled).toBe(true)
+  enter('GitHub repository', 'owner/new-world')
+  await click('Create and migrate')
+  expect(published.get('owner/new-world')).toBe(project.path)
+  expect(sources.get(project.path)).toBe(world.path)
+  expect(visits).toEqual([{ path: world.path, ticketStore: world.path }])
+})
+
+it('keeps the published world selected when migration fails', async () => {
+  const { api, visits, published } = show(project)
+  const convert = vi.spyOn(api, 'convert').mockRejectedValueOnce(new Error('Commit the ticket records first'))
+  enter('Ticket repository', (screen.getByRole('option', { name: /Create a Forge World/ }) as HTMLOptionElement).value)
+  enter('GitHub repository', 'owner/new-world')
+  await click('Create and migrate')
+  expect(screen.getByRole('status').textContent).toBe('Commit the ticket records first')
+  expect((screen.getByLabelText('Ticket repository') as HTMLSelectElement).value).toBe(world.path)
+  expect(visits).toEqual([])
+  expect(published.get('owner/new-world')).toBe(project.path)
+  convert.mockRestore()
+})
+
 it('opens a restored code checkout and stays on the member when the picker is cancelled', async () => {
-  const { api, open } = show(member)
+  const { api, visits } = show(member)
   await click('Open Forge World')
   api.restore.mockResolvedValueOnce(project.path).mockResolvedValueOnce(null)
   await click('Move to SQLite only')
   await click('Move to self-contained repo')
   expect(api.restore.mock.calls).toEqual([[member.path, 'db'], [member.path, 'repo']])
-  expect(open.mock.calls).toEqual([[world.path], [project.path]])
+  expect(visits.map(v => v.path)).toEqual([world.path, project.path])
 })
