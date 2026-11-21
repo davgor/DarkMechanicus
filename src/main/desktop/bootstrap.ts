@@ -28,6 +28,7 @@ import type { Db } from '../../core/db/database'
 import { DomainError } from '../../core/errors'
 import { nodeFs } from '../../core/repo/nodeFs'
 import { resolveHomeDir } from '../../core/repo/storageMode'
+import { startTelegram } from '../telegram'
 import { openWorkspace, type Workspace } from '../../core/workspace'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { AgentDownloadProgress, BuiltInAgentKind, McpConfigView } from '../../shared/desktop/api'
@@ -917,7 +918,11 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   startKnowledge(ipc, registry)
   startAttachmentProtocol(registry, pool)
   refreshClaudeCodeEntries(registry)
-  const close = runLifecycle(pool, appDb)
+  const stopTelegram = startTelegram(ipc,
+    () => registry.list().filter(folder => folder.initialized && folder.available).map(folder => folder.path),
+    folder => desktopWorkspace(registry, pool, folder))
+  const closeStores = runLifecycle(pool, appDb)
+  const close = () => { stopTelegram(); closeStores() }
   startChats(ipc, { folders: registry, agents, chats, store, terminals, workspaces: pool, activity, mail, folderDefaults, deliveries, contextDelivery, resumeChat })
   startTerminals(ipc, { folders: registry, agents, store, terminals, logins })
   return { ...stoppingMailFirst(mail, quit, close), github: startSourceControl(ipc, registry) }

@@ -1,3 +1,4 @@
+import { Notifications } from './Notifications'
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 import type { StorageStatusView } from '../../../shared/domain/views'
@@ -56,11 +57,17 @@ function GithubLine(): JSX.Element | null {
 
 /** MCP connection, the Metrics dashboard link, export/commit state with Flush, and the branch-changed warning with Reconcile. */
 export function SidebarFooter(props: SidebarFooterProps): JSX.Element {
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem("footer-collapsed") === "true")
   const mcp = mcpFooterLine(props.status)
   const storage = storageFooterLine(props.status)
   const warning = branchWarning(props.status)
   return (
     <footer className="sidebar-footer">
+      <button className="footer-link" aria-expanded={!collapsed} onClick={() => {
+        localStorage.setItem('footer-collapsed', String(!collapsed))
+        setCollapsed(!collapsed)
+      }}>{collapsed ? 'Expand footer ▸' : 'Collapse footer ▾'}</button>
+      {!collapsed && <>
       <div className="footer-line">
         <Icon name="plug" size={15} />
         <span className="footer-key">MCP</span>
@@ -85,6 +92,7 @@ export function SidebarFooter(props: SidebarFooterProps): JSX.Element {
           </Button>
         ) : null}
       </div>
+      <Notifications />
       <GithubLine />
       {warning === null ? null : (
         <div className="footer-warning">
@@ -98,6 +106,7 @@ export function SidebarFooter(props: SidebarFooterProps): JSX.Element {
         </div>
       )}
       {props.children}
+      </>}
     </footer>
   )
 }
