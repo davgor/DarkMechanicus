@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 const identity = z.string().min(1).max(128).regex(/^[A-Za-z0-9_-]+$/)
 const text = z.string().trim().min(1).max(4000)
-export const toolingDiagnosticSchema = z.strictObject({
+const toolingDiagnosticSchema = z.strictObject({
   command: z.string().min(1).max(120), code: z.string().max(120), message: text,
   reproduction: text, expected: text,
   // Deliberately flat and bounded: never attach transcripts, files, environment or grant descriptors.
@@ -16,7 +16,6 @@ export const toolingRecoveryInputSchema = z.discriminatedUnion('action', [
   z.strictObject({ action: z.literal('resume'), incidentId: identity })
 ])
 export type ToolingRecoveryInput = z.infer<typeof toolingRecoveryInputSchema>
-export type ToolingDiagnostic = z.infer<typeof toolingDiagnosticSchema>
 export const toolingRecoveryResultSchema = z.strictObject({
   incidentId: identity, blocked: z.boolean(), cardId: z.string().nullable(), repairChatId: z.string().nullable(),
   sourceFolder: z.string().nullable(), callerAddress: z.string(), repairAddress: z.string().nullable(),

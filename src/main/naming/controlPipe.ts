@@ -174,6 +174,9 @@ class ControlConnection {
     if (!parsed.success) { this.finish(namingFailure('', 'invalid_request')); return }
     const request = parsed.data
     this.requestId = request.requestId
+    if (request.op === 'name_chat' && Buffer.byteLength(text) + 1 > NAMING_CONTROL.namingRequestBytes) {
+      this.finish(namingFailure(this.requestId, 'invalid_request')); return
+    }
     const deadline = this.owner.clock.now() + NAMING_CONTROL.serverMs
     let binding: NamingControlBinding
     try { binding = this.owner.options.authorize(request.token); binding.assertCurrent() } catch { this.finish(namingFailure(this.requestId, 'unauthorized')); return }

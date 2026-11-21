@@ -18,42 +18,47 @@ function context(chat: ChatRecord, generation = 'fixture-start'): NamingOperatio
   return { binding: { grantId: 'gr_fixture', folder: chat.folder, chatId: chat.id, generation, ...(chat.cardId === undefined ? {} : { cardId: chat.cardId }), signal: new AbortController().signal, assertCurrent() {}, assertRecovery() {} }, signal: new AbortController().signal, deadline: Infinity, remainingMs: () => 1000, assertActive() {}, publish: action => action() }
 }
 
+async function recoveryFixture(projectless: boolean) {
+  const source = createHarness(); const customer = createHarness(); harnesses.push(source, customer)
+  const sourceWs = source.open('desktop'); const customerWs = customer.open('desktop')
+  await sourceWs.initializeRepository({ name: 'Dark Mechanicus source fixture' }); await customerWs.initializeRepository({ name: 'Customer fixture' })
+  const userData = join(source.root, 'userData')
+  const store = createChatStore({ root: join(userData, 'agents', 'chats') })
+  const caller = store.createChat({ folder: projectless ? null : customer.root, agent: 'omp', model: null, role: 'orchestrator', allowSave: false, title: 'Unfinished original work' })
+  const ledger = createConversationDeliveries({ userData, onChanged() {} })
+  const delivery = createAgentContextDelivery({ userData, deliveries: ledger, agentKind: () => 'omp' })
+  const live = new Set([caller.id])
+  let entry = 0
+  const persist = (chat: ChatRecord, content: string, attribution: 'user' | 'agent'): void => {
+    const sessions = join(userData, 'agents', 'omp', chat.id, 'sessions'); mkdirSync(sessions, { recursive: true })
+    appendFileSync(join(sessions, '2026-11-21T00-00-00-000Z_01234567-89ab-4cde-8123-456789abcdef.jsonl'), JSON.stringify({ type: 'message', id: `fixture-entry-${++entry}`, message: { role: 'user', attribution, content } }) + '\n')
+  }
+  let desktop: DesktopToolingRecovery
+  const start = vi.fn(async (chat: ChatRecord, options: { kickoff: string }) => {
+    desktop.assertLaunch(chat)
+    persist(chat, options.kickoff, 'user'); store.updateChat(chat, { firstPromptDelivery: 'submitted', kickoffSent: true }); live.add(chat.id)
+    return { state: 'running' as const, pid: 123 }
+  })
+  desktop = createDesktopToolingRecovery({ userData, version: () => '1.0.0',
+    source: { requireAvailable: () => ({ path: source.root, target: { kind: 'darkmechanicus_source', projectId: sourceWs.ctx().projectId, projectName: 'Source fixture' } }) },
+    store, agents: { get: () => builtInAgent('omp') },
+    workspace: folder => folder === source.root ? sourceWs : customerWs,
+    resolveFolder: folder => folder === source.root || folder === customer.root ? folder : null,
+    callerFolders: chat => chat.folder === null ? [source.root, customer.root] : [chat.folder],
+    context: delivery, deliveries: ledger,
+    terminals: { start, isRunning: id => live.has(id), paste: vi.fn() },
+    resume: async chat => {
+      const received = await desktop.dispatch({ op: 'recovery_context', args: { chatId: chat.id, generation: 'fixture-start' } }, context(chat)) as { messages: { id: string; text: string }[] }
+      if (received.messages.length > 0) persist(chat, `${RECOVERY_DATA_NOTE}\n${JSON.stringify(received)}`, 'agent')
+      return null
+    }
+  })
+  return { source, sourceWs, customerWs, store, caller, start, desktop }
+}
+
 describe('connected desktop recovery with durable workspaces and host receipts', () => {
   it.each([false, true])('delivers bug once and bidirectional peer context while blocked (projectless=%s), without mailbox/grant transfer', async projectless => {
-    const source = createHarness(); const customer = createHarness(); harnesses.push(source, customer)
-    const sourceWs = source.open('desktop'); const customerWs = customer.open('desktop')
-    await sourceWs.initializeRepository({ name: 'Dark Mechanicus source fixture' }); await customerWs.initializeRepository({ name: 'Customer fixture' })
-    const userData = join(source.root, 'userData')
-    const store = createChatStore({ root: join(userData, 'agents', 'chats') })
-    const caller = store.createChat({ folder: projectless ? null : customer.root, agent: 'omp', model: null, role: 'orchestrator', allowSave: false, title: 'Unfinished original work' })
-    const ledger = createConversationDeliveries({ userData, onChanged() {} })
-    const delivery = createAgentContextDelivery({ userData, deliveries: ledger, agentKind: () => 'omp' })
-    const live = new Set([caller.id])
-    let entry = 0
-    const persist = (chat: ChatRecord, content: string, attribution: 'user' | 'agent'): void => {
-      const sessions = join(userData, 'agents', 'omp', chat.id, 'sessions'); mkdirSync(sessions, { recursive: true })
-      appendFileSync(join(sessions, '2026-11-21T00-00-00-000Z_01234567-89ab-4cde-8123-456789abcdef.jsonl'), JSON.stringify({ type: 'message', id: `fixture-entry-${++entry}`, message: { role: 'user', attribution, content } }) + '\n')
-    }
-    let desktop: DesktopToolingRecovery
-    const start = vi.fn(async (chat: ChatRecord, options: { kickoff: string }) => {
-      desktop.assertLaunch(chat)
-      persist(chat, options.kickoff, 'user'); store.updateChat(chat, { firstPromptDelivery: 'submitted', kickoffSent: true }); live.add(chat.id)
-      return { state: 'running' as const, pid: 123 }
-    })
-    desktop = createDesktopToolingRecovery({ userData, version: () => '1.0.0',
-      source: { requireAvailable: () => ({ path: source.root, target: { kind: 'darkmechanicus_source', projectId: sourceWs.ctx().projectId, projectName: 'Source fixture' } }) },
-      store, agents: { get: () => builtInAgent('omp') },
-      workspace: folder => folder === source.root ? sourceWs : customerWs,
-      resolveFolder: folder => folder === source.root || folder === customer.root ? folder : null,
-      callerFolders: chat => chat.folder === null ? [source.root, customer.root] : [chat.folder],
-      context: delivery, deliveries: ledger,
-      terminals: { start, isRunning: id => live.has(id), paste: vi.fn() },
-      resume: async chat => {
-        const received = await desktop.dispatch({ op: 'recovery_context', args: { chatId: chat.id, generation: 'fixture-start' } }, context(chat)) as { messages: { id: string; text: string }[] }
-        if (received.messages.length > 0) persist(chat, `${RECOVERY_DATA_NOTE}\n${JSON.stringify(received)}`, 'agent')
-        return null
-      }
-    })
+    const { source, sourceWs, customerWs, store, caller, start, desktop } = await recoveryFixture(projectless)
     let originalGrantRevoked = false
     const originalContext = context(caller)
     originalContext.binding.assertCurrent = () => { if (originalGrantRevoked) throw new Error('Old caller generation is revoked') }

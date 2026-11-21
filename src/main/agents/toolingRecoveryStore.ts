@@ -1,12 +1,12 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { z } from 'zod'
-import { toolingDiagnosticSchema } from '../../shared/agents/toolingRecovery'
+import { toolingRecoveryInputSchema } from '../../shared/agents/toolingRecovery'
 
 const message = z.object({ id: z.string(), text: z.string(), recipient: z.enum(['caller', 'repair']) })
 const incidentSchema = z.object({
   id: z.string(), callerIncidentId: z.string(), caller: z.object({ folder: z.string().nullable(), id: z.string() }),
-  callerGeneration: z.string(), version: z.string(), diagnostic: toolingDiagnosticSchema,
+  callerGeneration: z.string(), version: z.string(), diagnostic: toolingRecoveryInputSchema.options[0].shape.diagnostic,
   blocked: z.boolean(), held: z.boolean(), sourceFolder: z.string().nullable(), sourceIdentity: z.string().nullable(), cardId: z.string().nullable(),
   repairChatId: z.string().nullable(), startup: z.enum(['not_started', 'running', 'failed']),
   // Set before issuing a startup: a crash may have spawned a process, so never blindly replay it.

@@ -1,7 +1,7 @@
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { createChatStore } from './chatStore'
 import { createToolingRecovery } from './toolingRecovery'
 import { createRecoveryStore } from './toolingRecoveryStore'
@@ -14,7 +14,7 @@ afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: 
 const diagnostic = { command: 'get_ticket', code: 'internal_error', message: 'Failure token=private-fixture-secret', reproduction: 'Read the saved ticket', expected: 'Return its packet', arguments: { ticketId: 'tk_fixture', authorization: 'private-fixture-secret' } }
 const escalation: ToolingRecoveryInput = { action: 'escalate', incidentId: 'fixture-incident', diagnostic }
 function fixture(role: 'planner' | 'orchestrator' = 'planner') {
-  const root = mkdtempSync(join(tmpdir(), 'dm901-recovery-')); roots.push(root)
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm901-recovery-'))); roots.push(root)
   const sourceFolder = join(root, 'source'); mkdirSync(sourceFolder)
   const store = createChatStore({ root: join(root, 'chats') })
   const caller = store.createChat({ folder: root, agent: 'omp', role, model: null, allowSave: false, title: 'Unfinished original task' })
@@ -50,7 +50,6 @@ function fixture(role: 'planner' | 'orchestrator' = 'planner') {
   return { root, sourceFolder, store, caller, events, source, cards, receipts, messages, deps, context, service: createToolingRecovery(deps), setVersion: (next: string) => { version = next } }
 }
 
-describe('single-call connected tooling recovery', () => {
   it.each(['planner', 'orchestrator'] as const)('interrupts unfinished %s work before filing and starts a card-bound repair with proven input and two-way routes', async role => {
     const f = fixture(role)
     const result = await f.service(escalation, f.context())
@@ -156,7 +155,6 @@ describe('single-call connected tooling recovery', () => {
     expect(stopped).toMatchObject({ startup: 'failed', blocked: true, connection: 'unavailable' })
     expect(stopped.problem).toContain('Source replaced during native auth')
   })
-})
 
 it('retains unsupported-host diagnostics before any hold, source access, card, chat or agent launch', async () => {
   const f = fixture()

@@ -3,7 +3,7 @@ import { redactedJson } from '../storedSecrets'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 23
+export const SCHEMA_VERSION = 24
 
 export interface Migration {
   version: number

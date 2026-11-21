@@ -1,9 +1,10 @@
 import { z } from 'zod'
 import { toolingRecoveryInputSchema, toolingRecoveryResultSchema } from './toolingRecovery'
+import { DESKTOP_CONTROL_LIMITS, serializedCredentialWithinBound } from '../../../resources/skitarii/extension/controlLimits'
 
 /** Generation-bound local desktop control; each operation has its own server-side authority. */
 export const NAMING_CONTROL = {
-  version: 1, requestBytes: 32_768, responseBytes: 8192,
+  version: 1, ...DESKTOP_CONTROL_LIMITS,
   connections: 32, queuedPerChat: 8, frameMs: 2_000, serverMs: 20_000, clientMs: 25_000
 } as const
 const text = z.string().min(1).max(256).refine((value) => !/[\p{Cc}\u2028\u2029]/u.test(value))
@@ -19,7 +20,7 @@ const recoveryContextSchema = z.strictObject({ op: z.literal('recovery_context')
 }) })
 export const namingOperationSchema = z.discriminatedUnion('op', [nameOperationSchema, recoveryOperationSchema, recoveryContextSchema])
 export type NamingOperation = z.infer<typeof namingOperationSchema>
-const authority = { version: z.literal(1), requestId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/), token: z.string().min(1).max(1024) }
+const authority = { version: z.literal(1), requestId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/), token: z.string().min(1).max(1024).refine(serializedCredentialWithinBound) }
 export const namingRequestSchema = z.discriminatedUnion('op', [nameOperationSchema.extend(authority), recoveryOperationSchema.extend(authority), recoveryContextSchema.extend(authority)])
 export type NamingRequest = z.infer<typeof namingRequestSchema>
 export const namingErrorCodeSchema = z.enum([

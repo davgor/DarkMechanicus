@@ -45,3 +45,14 @@ describe('recovery-only host control', () => {
     await client.cancelAll()
   })
 })
+
+it('refuses JSON-expanded credentials for context and recovery before any socket or generic child', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'dm901-credential-')); roots.push(root)
+  const descriptor = await writeRecoveryClientDescriptor({ userData: root, chatId: 'credential-fixture', generation: 'fixture-generation', address: 'unreachable-fixture-address' })
+  const spawn = vi.fn<DmClientDeps['spawn']>()
+  const client = createDmClient({ env: { DM_SKITARII_CLIENT_DESCRIPTOR: descriptor, DM_SESSION_TOKEN: '\x01'.repeat(1024) }, platform: process.platform, readFile: async path => readFileSync(path, 'utf8'), spawn })
+  expect(await client.readRecovery!()).toMatchObject({ ok: false, error: { source: 'client', code: 'invalid_input' } })
+  expect(await client.run('recover_tooling', { action: 'status', incidentId: 'fixture' })).toMatchObject({ ok: false, error: { source: 'client', code: 'invalid_input' } })
+  expect(spawn).not.toHaveBeenCalled()
+  await client.cancelAll()
+})

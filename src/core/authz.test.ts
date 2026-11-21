@@ -17,6 +17,7 @@ const PLANNER_ONLY: Capability[] = ['project.definition_of_done']
 const PLANNER_SHARED: Capability[] = [
   'read',
   'chat.name',
+  'tooling.recover',
   'repo.init',
   'repo.flush',
   'repo.reconcile',
@@ -79,6 +80,7 @@ const REVIEWER: Capability[] = ['read', 'chat.name', 'attempt.review', 'comment.
 const DESKTOP: Capability[] = [
   'read',
   'chat.name',
+  'tooling.recover',
   'grant.issue',
   'grant.revoke',
   'repo.init',

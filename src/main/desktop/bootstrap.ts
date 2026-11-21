@@ -391,6 +391,34 @@ function chatRunCommands(folders: Pick<FolderRegistry, 'resolve'>, workspaces: P
   }
 }
 
+interface ChatProcessOptions {
+  folders: Pick<FolderRegistry, 'resolve' | 'list'>
+  agents: Pick<AgentRegistry, 'get'>
+  workspaces: Pick<WorkspacePool, 'get'>
+  activity: ActivityBindings
+  sourceCheckouts: SourceCheckouts
+}
+interface ChatQuitOptions {
+  grants: ChatGrants
+  yoloRuntime: ReturnType<typeof createYoloDesktopRuntime>
+  ready: Promise<void>
+  pipe(): ControlPipe | null
+  terminals: ChatProcesses['terminals']
+  logins: ChatProcesses['logins']
+}
+function chatQuit({ grants, yoloRuntime, ready, pipe, terminals, logins }: ChatQuitOptions): ChatProcesses['quit'] {
+  return {
+    busy: () => terminals.busy() || logins.busy(),
+    dispose: async () => {
+      grants.dispose()
+      await yoloRuntime.dispose()
+      await ready.catch(() => {})
+      await pipe()?.close()
+      await Promise.all([terminals.dispose(), logins.dispose()])
+    }
+  }
+}
+
 /**
  * The agent chats (`userData/agents/chats`) with the connected agents, each run in its terminal. When an
  * orchestrator chat's agent turns out to be signed out, the run it orchestrates is paused with the reason
@@ -398,13 +426,7 @@ function chatRunCommands(folders: Pick<FolderRegistry, 'resolve'>, workspaces: P
  * terminals and the sign-in terminals load node-pty at the first start, so an app where it cannot run still opens.
  * Deleting a chat forgets the bindings old chats stored (`activity`).
  */
-function createChatProcesses(
-  folders: Pick<FolderRegistry, 'resolve' | 'list'>,
-  agents: Pick<AgentRegistry, 'get'>,
-  workspaces: Pick<WorkspacePool, 'get'>,
-  activity: ActivityBindings,
-  sourceCheckouts: SourceCheckouts
-): ChatProcesses {
+function createChatProcesses({ folders, agents, workspaces, activity, sourceCheckouts }: ChatProcessOptions): ChatProcesses {
   const yoloRuntime = createYoloDesktopRuntime(join(app.getPath('userData'), 'yolo-desktop-instance.json'))
   // One store for all: it keeps each folder's index in memory, so two would write over each other's records.
   const store = createChatStore({ root: join(app.getPath('userData'), 'agents', 'chats') })
@@ -421,9 +443,7 @@ function createChatProcesses(
     desktopReady: () => namingReady,
     desktopFence: yoloRuntime.fence,
     yoloReady: () => yoloRuntime.ready,
-    log: (line) => {
-      logger.warn(line)
-    }
+    log: line => logger.warn(line)
   })
   void yoloRuntime.ready.catch((error: unknown) => logger.error('YOLO desktop proof transport failed:', error))
   const reachFolders = (): string[] => folders.list().flatMap((folder) => (folder.initialized && folder.available ? [folder.path] : []))
@@ -445,16 +465,7 @@ function createChatProcesses(
   }).then(pipe => { namingPipe = pipe })
   // Observe startup failure immediately; each attempted chat launch still receives the real rejection.
   void namingReady.catch((error: unknown) => logger.error('Chat naming transport failed:', error))
-  const quit = {
-    busy: () => terminals.busy() || logins.busy(),
-    dispose: async () => {
-      grants.dispose()
-      await yoloRuntime.dispose()
-      await namingReady.catch(() => {})
-      await namingPipe?.close()
-      await Promise.all([terminals.dispose(), logins.dispose()])
-    }
-  }
+  const quit = chatQuit({ grants, yoloRuntime, ready: namingReady, pipe: () => namingPipe, terminals, logins })
   const chats = endingTerminals(records, terminals)
   recoverChats(folders, chats)
   const mail = createChatMail({ folders, store, workspaces, contextDelivery, resumeChat, boardTransport, recovery })
@@ -906,7 +917,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   // Which threads of old chats acted on which runs and attempts, as they stored it next to the chats.
   const activity = createActivityBindings({ file: join(app.getPath('userData'), 'agents', 'activity-bindings.jsonl') })
   const sourceCheckouts = startSourceCheckout(ipc, registry)
-  const { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder } = createChatProcesses(registry, agents, pool, activity, sourceCheckouts)
+  const { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder } = createChatProcesses({ folders: registry, agents, workspaces: pool, activity, sourceCheckouts })
   const handlers = createDesktopHandlers({
     registry,
     pool,
@@ -932,9 +943,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
       writeMcpServer(repoPath, claudeCodeServer(mcpConfigFor(repoPath), { role, allowSave }), { replace }),
     previewBoardRemoval: (repoPath) => previewBoardRemoval(repoPath),
     removeBoardFiles: (repoPath, confirmed) => removeBoardFiles(repoPath, confirmed),
-    onUnexpectedError: (error) => {
-      logger.error('Desktop command failed:', error)
-    }
+    onUnexpectedError: error => logger.error('Desktop command failed:', error)
   })
   registerDesktopIpc(ipc, handlers)
   registerYoloIpc(ipc, createYoloHandlers({ registry, grants, confirm: confirmYolo }))

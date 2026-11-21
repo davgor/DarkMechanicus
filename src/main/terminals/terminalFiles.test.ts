@@ -345,17 +345,20 @@ describe('writeDmClientDescriptor: the private file a launch’s mail client rea
       args: [cliFor(folder).args[0], '--repo', folder],
       cwd: folder,
       env: { ELECTRON_RUN_AS_NODE: '1', DARKMECHANICUS_HOME: join(userData, 'home') },
+      recoveryAddress: '\\\\.\\pipe\\naming',
       inherit: ['PATH', 'HOME', 'USER', 'LOGNAME', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TZ', 'TMPDIR', 'TEMP', 'TMP', 'PATHEXT', 'SystemRoot', 'windir', 'SystemDrive', 'USERPROFILE', 'USERNAME', 'APPDATA', 'LOCALAPPDATA', 'ProgramData', 'HOMEDRIVE', 'HOMEPATH']
     })
   })
 
-  it('never writes the grant, the naming address or a shell command, and the extension accepts what it writes', async () => {
+  it('pins only the typed recovery address outside child environment, never a grant or shell command', async () => {
     for (const platform of ['win32', 'darwin'] as const) {
       const path = await write(`gen-${platform}`, platform)
       const text = readFileSync(path, 'utf8')
       expect(text).not.toContain('grant-token')
-      expect(text).not.toMatch(/DM_SESSION_TOKEN|DM_DESKTOP_PIPE|pipe|cmd\.exe|\/bin\/sh/)
-      expect(parseDmClientDescriptor(path, text)).toMatchObject({ ok: true, value: { generation: `gen-${platform}` } })
+      const parsed = parseDmClientDescriptor(path, text)
+      expect(parsed).toMatchObject({ ok: true, value: { generation: `gen-${platform}`, recoveryAddress: '\\\\.\\pipe\\naming', command: cliFor(folder).command } })
+      expect(JSON.parse(text).env).toEqual({ ELECTRON_RUN_AS_NODE: '1', DARKMECHANICUS_HOME: join(userData, 'home') })
+      expect(JSON.parse(text)).not.toHaveProperty('token')
     }
   })
 

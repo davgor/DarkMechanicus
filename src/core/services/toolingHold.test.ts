@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, expect, it } from 'vitest'
 import { createHarness, type Harness } from '../../test/workspaceHarness'
 import { bindToolingGrant, holdToolingWorkflow, releaseToolingWorkflow, retireToolingWorkflow } from './toolingHold'
 import { claim, startedRun } from '../../test/execution'
@@ -10,7 +10,6 @@ import { makeBundle } from '../../test/bundles'
 
 const harnesses: Harness[] = []
 afterEach(() => { for (const harness of harnesses.splice(0)) harness.cleanup() })
-describe('tooling interruption authority', () => {
   it('blocks unrelated planner mutations while leaving reads, heartbeat and repair communication available across a new grant', async () => {
     const h = createHarness(); harnesses.push(h)
     const desktop = h.open('desktop'); await desktop.initializeRepository({ name: 'fixture', keyPrefix: 'FIX' })
@@ -101,4 +100,3 @@ describe('tooling interruption authority', () => {
     expect(getRun(ctx, { runId: run.runId })?.state).toBe('paused')
     expect(resumeRun(ctx, { runId: run.runId }).state).toBe('running')
   })
-})

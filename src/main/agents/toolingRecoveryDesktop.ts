@@ -1,16 +1,16 @@
 import type { Workspace } from '../../core/workspace'
 import { holdToolingWorkflow, releaseToolingWorkflow } from '../../core/services/toolingHold'
-import { NamingControlError } from '../../shared/agents/chatNaming'
+import { NamingControlError, type NamingOperation } from '../../shared/agents/chatNaming'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { AgentRegistry } from '../desktop/agentRegistry'
 import type { SourceCheckouts } from '../desktop/sourceCheckout'
-import type { NamingDispatcher } from '../naming/controlPipe'
+import type { NamingDispatcher, NamingOperationContext } from '../naming/controlPipe'
 import type { TerminalSessions } from '../terminals/terminalSessions'
 import type { AgentContextDelivery } from './agentContextDelivery'
-import type { ConversationDeliveries } from './conversationDeliveries'
+import type { ConversationDeliveries, ConversationDelivery } from './conversationDeliveries'
 import type { ChatStore } from './chatStore'
 import { createToolingRecovery } from './toolingRecovery'
-import { createRecoveryStore } from './toolingRecoveryStore'
+import { createRecoveryStore, type RecoveryIncident, type RecoveryStore } from './toolingRecoveryStore'
 
 interface DesktopRecoveryDeps {
   userData: string
@@ -27,97 +27,122 @@ interface DesktopRecoveryDeps {
   resume(chat: ChatRecord): Promise<string | null>
 }
 export interface DesktopToolingRecovery { dispatch: NamingDispatcher; poll(folder: string): Promise<void>; assertLaunch(chat: ChatRecord): void }
-/** No ad-hoc child process, role switch or transferable grant: normal terminal startup owns the repair lifecycle. */
-export function createDesktopToolingRecovery(deps: DesktopRecoveryDeps): DesktopToolingRecovery {
-  const launchGuards = new Map<string, () => void>()
-  const assertLaunch = (chat: ChatRecord): void => {
+class DesktopRecovery implements DesktopToolingRecovery {
+  readonly #launchGuards = new Map<string, () => void>()
+  readonly dispatch: NamingDispatcher
+
+  constructor(private readonly deps: DesktopRecoveryDeps) {
+    try { this.dispatch = this.#createDispatch() } catch {
+      // Optional recovery corruption must not prevent boot or silently become an empty journal.
+      this.dispatch = () => { throw new NamingControlError('operation_unavailable') }
+    }
+  }
+  assertLaunch(chat: ChatRecord): void {
     if (chat.repairIncidentId === undefined) return
-    const guard = launchGuards.get(chat.id)
+    const guard = this.#launchGuards.get(chat.id)
     if (guard === undefined) throw new Error('Repair restart needs a live caller handoff; replay the same incident, never create another repair.')
     guard()
   }
-  const reconcile = async (folder: string): Promise<void> => {
-    if (folder !== 'projectless' && deps.resolveFolder(folder) !== folder) return
-    for (const entry of deps.deliveries.pending()) {
-      if (entry.source !== 'recovery' || entry.folder !== folder || entry.chatId === null || entry.text === undefined) continue
-      const chat = deps.store.getChat({ folder: folder === 'projectless' ? null : folder, id: entry.chatId })
-      if (chat === null) continue
-      if (chat.repairIncidentId !== undefined) assertLaunch(chat)
-      const message = { id: entry.messageId, text: entry.text }
-      if (deps.context.hasRecoveryMessage(chat, message)) { await deps.context.queueRecovery(chat, message); continue }
-      const kind = deps.agents.get(chat.agent)?.kind
-      if (kind === 'omp') {
-        await deps.resume(chat)
-      } else if (kind === 'claude' && !entry.inputUncertain) {
-        // Persist ambiguity before physical input; replay requires an exact host receipt, never a paste return value.
-        deps.deliveries.record({ ...entry, inputUncertain: true, at: new Date().toISOString() })
-        await deps.terminals.paste(chat, entry.text)
-      }
+  async poll(folder: string): Promise<void> {
+    await this.#reconcile(folder)
+    await this.#reconcile('projectless')
+  }
+  async #reconcile(folder: string): Promise<void> {
+    if (folder !== 'projectless' && this.deps.resolveFolder(folder) !== folder) return
+    for (const entry of this.deps.deliveries.pending()) {
+      if (entry.source === 'recovery' && entry.folder === folder) await this.#reconcileEntry(entry)
     }
   }
-  let dispatch: NamingDispatcher
-  try {
-    const incidents = createRecoveryStore({ userData: deps.userData })
+  async #reconcileEntry(entry: ConversationDelivery): Promise<void> {
+    if (entry.chatId === null || entry.text === undefined) return
+    const chat = this.deps.store.getChat({ folder: entry.folder === 'projectless' ? null : entry.folder, id: entry.chatId })
+    if (chat === null) return
+    this.assertLaunch(chat)
+    const message = { id: entry.messageId, text: entry.text }
+    if (this.deps.context.hasRecoveryMessage(chat, message)) { await this.deps.context.queueRecovery(chat, message); return }
+    const kind = this.deps.agents.get(chat.agent)?.kind
+    if (kind === 'omp') await this.deps.resume(chat)
+    else if (kind === 'claude' && !entry.inputUncertain) {
+      // Persist ambiguity before input; only an exact host receipt permits replay.
+      this.deps.deliveries.record({ ...entry, inputUncertain: true, at: new Date().toISOString() })
+      await this.deps.terminals.paste(chat, entry.text)
+    }
+  }
+  #transportProblem(chat: ChatRecord): string | null {
+    const kind = this.deps.agents.get(chat.agent)?.kind
+    return kind === 'omp' || kind === 'claude' ? null :
+      'This selected host has no verified tooling-recovery context transport. OMP and Claude are supported. The diagnostic is retained; no hold, repair card or chat was created. Choose a supported host explicitly before replaying this incident; no provider/model was substituted.'
+  }
+  async #createCard(folder: string, input: { title: string; body: string; idempotencyKey: string }): Promise<string> {
+    return (await this.deps.workspace(folder).createKanbanCard({ ...input,
+      acceptanceCriteria: [
+        { text: 'Behavioral regression proves the diagnosed tooling failure is repaired.' },
+        { text: 'Required verification and independent review pass; repair is integrated under existing protections.' },
+        { text: 'Report deployed runtime availability or the remaining caller blocker without human-only outcome approval.' }
+      ], expectedArtifacts: ['Regression tests, implementation, verification and independent review evidence'] })).id
+  }
+  async #hold(chat: ChatRecord, incidentId: string): Promise<void> {
+    for (const folder of this.deps.callerFolders(chat)) {
+      holdToolingWorkflow(this.deps.workspace(folder).ctx(), { id: chat.id, incidentId,
+        ...(chat.runId === undefined ? {} : { runId: chat.runId }), ...(chat.cardId === undefined ? {} : { cardId: chat.cardId }) })
+    }
+  }
+  async #release(chat: ChatRecord, incidentId: string): Promise<void> {
+    for (const folder of this.deps.callerFolders(chat)) releaseToolingWorkflow(this.deps.workspace(folder).ctx(), { id: chat.id, incidentId })
+  }
+  async #wake(chat: ChatRecord): Promise<string | null> {
+    await this.#reconcile(chat.folder ?? 'projectless')
+    return this.deps.resume(chat)
+  }
+  #contextSide(incident: RecoveryIncident, chat: ChatRecord): 'caller' | 'repair' {
+    if (incident.caller.id === chat.id && incident.caller.folder === chat.folder) return 'caller'
+    if (incident.repairChatId === chat.id && incident.sourceFolder === chat.folder) return 'repair'
+    throw new NamingControlError('unauthorized')
+  }
+  #readContext(incidents: RecoveryStore, operation: Extract<NamingOperation, { op: 'recovery_context' }>, context: NamingOperationContext): { messages: { id: string; text: string }[] } {
+    context.assertActive()
+    if (operation.args.chatId !== context.binding.chatId || operation.args.generation !== context.binding.generation) throw new NamingControlError('unauthorized')
+    const chat = this.deps.store.getChat({ folder: context.binding.folder, id: context.binding.chatId })
+    if (chat === null) throw new NamingControlError('not_found')
+    const incidentId = chat.repairIncidentId ?? chat.toolingIncidentId
+    if (incidentId == null) return { messages: [] }
+    const incident = incidents.get(incidentId)
+    if (incident === null) throw new NamingControlError('operation_unavailable')
+    const side = this.#contextSide(incident, chat)
+    const messages = incident.messages.filter(message => message.recipient === side && !this.deps.context.hasRecoveryMessage(chat, message))
+    return { messages: messages.slice(0, 1).map(message => ({ id: message.id, text: message.text })) }
+  }
+  #createDispatch(): NamingDispatcher {
+    const incidents = createRecoveryStore({ userData: this.deps.userData })
     const recovery = createToolingRecovery({
-      source: deps.source, store: deps.store, incidents, version: deps.version,
-      transportProblem: chat => {
-        const kind = deps.agents.get(chat.agent)?.kind
-        return kind === 'omp' || kind === 'claude' ? null :
-          'This selected host has no verified tooling-recovery context transport. OMP and Claude are supported. The diagnostic is retained; no hold, repair card or chat was created. Choose a supported host explicitly before replaying this incident; no provider/model was substituted.'
-      },
-      createCard: async (folder, input) => (await deps.workspace(folder).createKanbanCard({ ...input,
-        acceptanceCriteria: [
-          { text: 'Behavioral regression proves the diagnosed tooling failure is repaired.' },
-          { text: 'Required verification and independent review pass; repair is integrated under existing protections.' },
-          { text: 'Report deployed runtime availability or the remaining caller blocker without human-only outcome approval.' }
-        ], expectedArtifacts: ['Regression tests, implementation, verification and independent review evidence'] })).id,
-      play: async (folder, cardId) => { await deps.workspace(folder).playKanbanCard({ cardId }) },
-      hold: async (chat, incidentId) => {
-        for (const folder of deps.callerFolders(chat)) {
-          holdToolingWorkflow(deps.workspace(folder).ctx(), { id: chat.id, incidentId, ...(chat.runId === undefined ? {} : { runId: chat.runId }), ...(chat.cardId === undefined ? {} : { cardId: chat.cardId }) })
-        }
-      },
-      release: async (chat, incidentId) => {
-        for (const folder of deps.callerFolders(chat)) releaseToolingWorkflow(deps.workspace(folder).ctx(), { id: chat.id, incidentId })
-      },
-      authorizeLaunch: (chat, guard) => { launchGuards.set(chat.id, guard) },
+      source: this.deps.source, store: this.deps.store, incidents, version: this.deps.version,
+      transportProblem: chat => this.#transportProblem(chat),
+      createCard: (folder, input) => this.#createCard(folder, input),
+      play: async (folder, cardId) => { await this.deps.workspace(folder).playKanbanCard({ cardId }) },
+      hold: (chat, incidentId) => this.#hold(chat, incidentId),
+      release: (chat, incidentId) => this.#release(chat, incidentId),
+      authorizeLaunch: (chat, guard) => { this.#launchGuards.set(chat.id, guard) },
       start: (chat, prompt, guard) => {
-        launchGuards.set(chat.id, guard)
-        return deps.terminals.start(chat, { kickoff: prompt })
+        this.#launchGuards.set(chat.id, guard)
+        return this.deps.terminals.start(chat, { kickoff: prompt })
       },
-      running: chat => deps.terminals.isRunning(chat.id),
+      running: chat => this.deps.terminals.isRunning(chat.id),
       delivery: {
-        hasInput: (chat, text) => deps.context.hasInput(chat, text),
-        queue: (chat, message) => deps.context.queueRecovery(chat, message),
-        received: (chat, message) => deps.context.hasRecoveryMessage(chat, message),
-        wake: async chat => {
-          await reconcile(chat.folder ?? 'projectless')
-          return deps.resume(chat)
-        }
+        hasInput: (chat, text) => this.deps.context.hasInput(chat, text),
+        queue: (chat, message) => this.deps.context.queueRecovery(chat, message),
+        received: (chat, message) => this.deps.context.hasRecoveryMessage(chat, message),
+        wake: chat => this.#wake(chat)
       }
     })
-    dispatch = (operation, context) => {
-      if (operation.op === 'recovery_context') {
-        context.assertActive()
-        if (operation.args.chatId !== context.binding.chatId || operation.args.generation !== context.binding.generation) throw new NamingControlError('unauthorized')
-        const chat = deps.store.getChat({ folder: context.binding.folder, id: context.binding.chatId })
-        if (chat === null) throw new NamingControlError('not_found')
-        const incidentId = chat.repairIncidentId ?? chat.toolingIncidentId
-        if (incidentId == null) return { messages: [] }
-        const incident = incidents.get(incidentId)
-        if (incident === null) throw new NamingControlError('operation_unavailable')
-        const origin = incident.caller.id === chat.id && incident.caller.folder === chat.folder
-        const repair = incident.repairChatId === chat.id && incident.sourceFolder === chat.folder
-        if (!origin && !repair) throw new NamingControlError('unauthorized')
-        const messages = incident.messages.filter(message => message.recipient === (origin ? 'caller' : 'repair') && !deps.context.hasRecoveryMessage(chat, message))
-        return { messages: messages.slice(0, 1).map(message => ({ id: message.id, text: message.text })) }
-      }
+    return (operation, context) => {
+      if (operation.op === 'recovery_context') return this.#readContext(incidents, operation, context)
       if (operation.op !== 'recover_tooling') throw new NamingControlError('invalid_request')
       return recovery(operation.args, context)
     }
-  } catch {
-    // Optional recovery state must not prevent desktop boot or silently become an empty journal.
-    dispatch = () => { throw new NamingControlError('operation_unavailable') }
   }
-  return { dispatch, assertLaunch, poll: async folder => { await reconcile(folder); await reconcile('projectless') } }
+}
+
+/** Normal terminal startup owns the repair lifecycle; no ad-hoc process or transferable grant. */
+export function createDesktopToolingRecovery(deps: DesktopRecoveryDeps): DesktopToolingRecovery {
+  return new DesktopRecovery(deps)
 }

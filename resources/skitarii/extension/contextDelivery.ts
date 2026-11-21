@@ -147,12 +147,17 @@ export function boardContextReceived(entries: readonly unknown[], message: Board
     boardContextBodies(entry).some((body) => body.id === message.id && body.text === message.text))
 }
 
+function recoveryContent(entry: unknown): unknown {
+  if (!record(entry)) return null
+  if (entry.type === 'custom_message' && entry.customType === RECOVERY_DELIVERY_TYPE && entry.attribution === 'agent') return entry.content
+  const message = entry.message
+  if (entry.type !== 'message' || !record(message)) return null
+  return message.role === 'user' && message.attribution === 'agent' ? messageText(message.content) : null
+}
+
 /** Incident messages have no mailbox cursor or acknowledgment semantics, including project-less recipients. */
 export function recoveryContextBodies(entry: unknown): BoardContextBody[] {
-  if (!record(entry)) return []
-  let content: unknown
-  if (entry.type === 'custom_message' && entry.customType === RECOVERY_DELIVERY_TYPE && entry.attribution === 'agent') content = entry.content
-  else if (entry.type === 'message' && record(entry.message) && entry.message.role === 'user' && entry.message.attribution === 'agent') content = messageText(entry.message.content)
+  const content = recoveryContent(entry)
   if (typeof content !== 'string' || !content.startsWith(`${RECOVERY_DATA_NOTE}\n`)) return []
   try {
     const parsed: unknown = JSON.parse(content.slice(RECOVERY_DATA_NOTE.length + 1))

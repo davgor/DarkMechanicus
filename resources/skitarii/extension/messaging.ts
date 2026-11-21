@@ -91,7 +91,7 @@ export interface TypeBuilder {
 }
 
 export interface CustomHint {
-  customType: typeof INBOX_DELIVERY_TYPE | typeof BOARD_DELIVERY_TYPE
+  customType: typeof INBOX_DELIVERY_TYPE | typeof BOARD_DELIVERY_TYPE | typeof RECOVERY_DELIVERY_TYPE
   content: string
   display: false
   attribution: 'agent' | 'user'
@@ -487,8 +487,10 @@ export class MailWatcher {
     this.#flush()
     const generation = this.#generation
     const work = async (): Promise<void> => {
-      await this.#loadRecovery(generation)
-      this.#dispatch(this.#preparedRecovery(), generation, force)
+      if (this.#deps.client.readRecovery !== undefined) {
+        await this.#loadRecovery(generation)
+        this.#dispatch(this.#preparedRecovery(), generation, force)
+      }
       if (this.#skip > 0) { this.#skip -= 1; return }
       if (!(await this.#poll(generation))) return
       if (this.#deps.sendUserMessage === undefined || !(await this.#loadBodies(generation))) return
@@ -693,21 +695,22 @@ export class MailWatcher {
     return { customType: BOARD_DELIVERY_TYPE, attribution: 'user', display: false, content: boardContextPacket(bodies) }
   }
 
-  async #loadRecovery(generation: number): Promise<void> {
-    const recovery = await this.#deps.client.readRecovery?.()
-    if (generation !== this.#generation) return
-    if (recovery !== undefined && !recovery.ok) this.#failed(recovery.error)
-    else if (recovery?.ok) {
-      const received = (this.#contextEntries?.() ?? []).flatMap(entry => recoveryContextBodies(entry))
-      for (const message of recovery.data) {
-        if (received.some(body => body.id === message.id && body.text === message.text)) continue
-        this.#recoveryBodies.set(message.id, message)
-      }
+  #acceptRecovery(messages: BoardContextBody[]): void {
+    const received = (this.#contextEntries?.() ?? []).flatMap(entry => recoveryContextBodies(entry))
+    for (const message of messages) {
+      if (!received.some(body => body.id === message.id && body.text === message.text)) this.#recoveryBodies.set(message.id, message)
     }
   }
 
+  async #loadRecovery(generation: number): Promise<void> {
+    const recovery = await this.#deps.client.readRecovery?.()
+    if (generation !== this.#generation || recovery === undefined) return
+    if (!recovery.ok) this.#failed(recovery.error)
+    else this.#acceptRecovery(recovery.data)
+  }
+
   async #prepared(generation: number, prompt = '', includeQueued = false): Promise<PreparedDelivery> {
-    await this.#loadRecovery(generation)
+    if (this.#deps.client.readRecovery !== undefined) await this.#loadRecovery(generation)
     const peer = this.#preparedPeer(generation, prompt, includeQueued)
     const board = await this.#preparedBoard(generation, prompt, includeQueued)
     return generation === this.#generation ? { ...peer, ...board, ...this.#preparedRecovery() } : {}
