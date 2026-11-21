@@ -56,6 +56,8 @@ export const MCP_JSON = '{\n  "mcpServers": {\n    "darkmechanicus": { "command"
  * canned `responses` (or a `handlers` function), so tests assert on recorded state, not mocks.
  */
 export class FakeDm implements DmApi {
+  async telegramStatus() { return { configured: false, paired: false, issue: '' } }
+  async pairTelegram() { return 'pair-code' }
   chats = new FakeChats()
   terminals = idleTerminals()
   sourceCheckout = idleSourceCheckout()

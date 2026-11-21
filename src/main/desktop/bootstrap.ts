@@ -28,6 +28,7 @@ import type { Db } from '../../core/db/database'
 import { DomainError } from '../../core/errors'
 import { nodeFs } from '../../core/repo/nodeFs'
 import { resolveHomeDir } from '../../core/repo/storageMode'
+import { startTelegram } from '../telegram'
 import { openWorkspace, type Workspace } from '../../core/workspace'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { AgentDownloadProgress, BuiltInAgentKind, McpConfigView } from '../../shared/desktop/api'
@@ -872,6 +873,14 @@ function openFolderRegistry(): FolderRegistry {
  * `terminals:*`, `git:*` and `github:*` IPC handlers on `ipc` (the sender-guarded registrar from `guardIpc`) and the
  * background heartbeat/shutdown for open workspaces.
  */
+function telegramLifecycle(ipc: Pick<IpcMain, 'handle'>, registry: FolderRegistry, pool: WorkspacePool, appDb: Db) {
+  const stopTelegram = startTelegram(ipc,
+    () => registry.list().filter(folder => folder.initialized && folder.available).map(folder => folder.path),
+    folder => desktopWorkspace(registry, pool, folder))
+  const closeStores = runLifecycle(pool, appDb)
+  return () => { stopTelegram(); closeStores() }
+}
+
 export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick<IpcMain, 'handle'>): DesktopBridge {
   const appDb = openAppDatabase(app.getPath('userData'))
   const registry = openFolderRegistry()
@@ -917,7 +926,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   startKnowledge(ipc, registry)
   startAttachmentProtocol(registry, pool)
   refreshClaudeCodeEntries(registry)
-  const close = runLifecycle(pool, appDb)
+  const close = telegramLifecycle(ipc, registry, pool, appDb)
   startChats(ipc, { folders: registry, agents, chats, store, terminals, workspaces: pool, activity, mail, folderDefaults, deliveries, contextDelivery, resumeChat })
   startTerminals(ipc, { folders: registry, agents, store, terminals, logins })
   return { ...stoppingMailFirst(mail, quit, close), github: startSourceControl(ipc, registry) }
