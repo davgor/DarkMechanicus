@@ -41,6 +41,8 @@ interface ChatRecordsDeps {
   onError?: (error: unknown) => void
   /** Removes a project-less chat's scratch folder when the chat is deleted (`scratchFolder.ts`); without it nothing is removed. */
   removeScratch?: (chatId: string) => Promise<void>
+  /** Human deletion retires scoped workflow holds before removing the identity; failures keep deletion recoverable. */
+  beforeDelete?: (chat: ChatRecord) => void
 }
 
 /**
@@ -109,6 +111,7 @@ function createDeletions(deps: ChatRecordsDeps): (chat: ChatRecord) => Promise<v
     const deletion = (async () => {
       // First, and durably: a crash from here on finishes the deletion instead of provisioning the chat again.
       deps.mailboxes?.delete(chat)
+      deps.beforeDelete?.(chat)
       deps.activity?.forgetChat(chat)
       if (chat.agent === 'omp') {
         await deps.removeOmpFolder?.(chat.id)

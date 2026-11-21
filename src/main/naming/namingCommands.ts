@@ -12,7 +12,7 @@ const normalized = (value: string): string => value.toLowerCase().replace(/[^\p{
 export function createNamingDispatcher(deps: NamingDeps): NamingDispatcher {
   return (input, context) => {
     const parsed = namingOperationSchema.safeParse(input)
-    if (!parsed.success) throw new NamingControlError('invalid_request')
+    if (!parsed.success || parsed.data.op !== 'name_chat') throw new NamingControlError('invalid_request')
     const args = parsed.data.args
     const { binding } = context
     const ref = { folder: binding.folder, id: binding.chatId }

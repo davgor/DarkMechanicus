@@ -3,6 +3,7 @@
  * at most one active run, and every run is pinned to one saved plan revision.
  */
 import type { StartRunInput } from '../../shared/domain/api'
+import { toolingLeaseTimeGivenBack } from './toolingHold'
 import type { EpicBranch } from '../../shared/domain/bundle'
 import {
   ACTIVE_RUN_STATES,
@@ -451,7 +452,7 @@ export function leaseTimeGivenBack(ctx: Ctx, attempt: Pick<AttemptRow, 'id' | 'r
   return events
     .flatMap((event) => parseJson<{ attempts?: LeaseExtension[] }>(event.payload_json, {}).attempts ?? [])
     .filter((extension) => extension.attemptId === attempt.id)
-    .reduce((total, extension) => total + Date.parse(extension.to) - Date.parse(extension.from), 0)
+    .reduce((total, extension) => total + Date.parse(extension.to) - Date.parse(extension.from), toolingLeaseTimeGivenBack(ctx, attempt.id, 'run', since))
 }
 
 /**
@@ -498,6 +499,9 @@ export function resumeRun(ctx: Ctx, input: { runId: string }): RunView {
   return ctx.db.tx(() => {
     const run = requireOwnedRun(ctx, input.runId)
     requireRunState(run, ['paused'], 'resume')
+    if (ctx.db.get('SELECT 1 FROM tooling_holds WHERE run_id = ?', run.id) !== undefined) {
+      fail('invalid_state', 'This run is tooling-blocked; only verified incident recovery can resume it.')
+    }
     if (run.pause_reason === SIGNED_OUT_PAUSE_REASON) {
       requireCapability(ctx.session, 'run.resume_signed_out', SIGNED_OUT_RESUME_MESSAGE)
     }

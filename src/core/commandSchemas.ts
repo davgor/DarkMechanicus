@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { nameChatArgsSchema } from '../shared/agents/chatNaming'
+import { toolingRecoveryInputSchema } from '../shared/agents/toolingRecovery'
 import { REASONING_EFFORTS, TICKET_SIZES } from '../shared/domain/bundle'
 import { KNOWLEDGE_EVENTS, type KnowledgeEvent } from './knowledge/events'
 import { repositoryName } from './repo/portable'
@@ -183,6 +184,7 @@ const person = z.string().min(1).max(200).optional()
 
 export const COMMAND_SCHEMAS = {
   nameChat: nameChatArgsSchema,
+  recoverTooling: toolingRecoveryInputSchema,
   /** `repo`: in a folder of repositories, the repository whose checks these are (required there, refused otherwise). */
   setDefinitionOfDone: z.strictObject({ checks: definitionOfDoneChecks, repo: repositoryName.optional() }),
   switchStorageMode: z.strictObject({ mode: z.enum(STORAGE_MODES), confirmed: z.literal(true) }),

@@ -123,6 +123,13 @@ export function cliInstructions(options: InstructionOptions): string {
     saving,
     'The effective permission is always get_capabilities, not this startup text. Acquired Allow save never permits approving other requests, checkpoints, retry grants or card outcomes.',
     'Save applies only to plan changes. An authorized single card must not wait on an unsolicited epic or its Save; supervisory alarms do not change that authorization.',
+    ...(options.role === 'planner' || options.role === 'orchestrator' ? [
+      'On a Dark Mechanicus tooling defect, interrupt unrelated work immediately with one recover_tooling call: {action:"escalate",incidentId:"stable-incident-id",diagnostic:{command:"failed_dm_command",code:"observed_code",message:"sanitized failure",reproduction:"steps",expected:"expected result",arguments:{}}}. Never copy tokens, credentials, transcripts or private project contents. Authorization and consent refusals are not tooling repair authority.',
+      'This gates the associated initialized Dark Mechanicus source checkout and starts a dedicated repair orchestrator, not merely queued Play. Check card/chat, startup, prompt and connection outcomes separately; pending/uncertain is not success. Replay the identical incident after partial failure, never recursively escalate repair failures.',
+      'Verified automatic recovery context supports OMP and Claude. An unsupported selected host is refused before hold/card/chat creation; its diagnostic remains retained and no provider/model is substituted. Shared command access is not proof that an unsupported host can receive repair context.',
+      'Use recover_tooling action message with incidentId, stable messageId and text for direct peer questions/answers/progress while blocked, even cross-project or project-less. No generic mailbox or repository grants are transferred. Keep heartbeats and peer communication live; do not finish or accept the interrupted original work.',
+      'Only the repair chat reports action available with deployed version/evidence; the restarted caller uses action resume. The server requires a changed application runtime and new live generation, not source merge or agent assertion alone. Human card/checkpoint approval stays human-only.'
+    ] : []),
     '',
     'To attach a screenshot, save it as a PNG or JPEG in the project, the temp folder or the screenshots folder, run `add_attachment` with its `path`, a `label` and a `purpose` of `evidence` or `reference`, and pass the returned id in the `attachments` of the record. On Windows, put the JSON in a file and run `call <command> --args-file <path>`.',
     '',

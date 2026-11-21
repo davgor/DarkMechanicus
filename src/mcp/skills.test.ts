@@ -595,8 +595,7 @@ const ROLE_RULES: [string, string, string[]][] = [
       '`create_corrections`',
       'writes DRAFT work',
       'Nothing here saves, adopts, starts or approves',
-      'A low grade never authorizes work by itself',
-      'routed by the person in the desktop app'
+      'A low grade never authorizes work by itself'
     ]
   ],
   [

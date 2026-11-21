@@ -98,7 +98,7 @@ import { ompSessionId, writeOmpFiles } from './ompSession'
 import { writeClaudeSettings } from './claudeSettingsFile'
 import type { PtyExit, PtyHost, PtyProcess } from './ptyHost'
 import { terminalLaunchSpec, type TerminalLaunchSpec } from './terminalLaunchSpec'
-import { removeDmClientDescriptor, writeDmClientDescriptor, writeTerminalFiles, type TerminalFiles } from './terminalFiles'
+import { removeDmClientDescriptor, writeDmClientDescriptor, writeRecoveryClientDescriptor, writeTerminalFiles, type TerminalFiles } from './terminalFiles'
 import { createTerminalScreen, type TerminalScreen } from './terminalScreen'
 
 /** How often a running PTY's folder is checked again. */
@@ -199,6 +199,8 @@ export interface TerminalSessions {
   /** Kills the PTYs of every chat of a removed agent, and cancels their starts. */
   endAgent(id: AgentId): Promise<void>
   /** True while a PTY runs, a start is under way, or a revoke or kill has not settled. */
+  /** Observed live PTY only; a queued start or stored chat is not a running agent. */
+  isRunning(chatId: string): boolean
   busy(): boolean
   /** Quit: see the module comment. */
   dispose(): Promise<void>
@@ -277,6 +279,8 @@ export interface TerminalSessionsDeps {
   onChatChanged?: (ref: ChatRef) => void
   /** Durably reserves uncertain board input BEFORE any physical write; false means already observed or reserved. */
   beforeContextPaste?: (chat: ChatRecord, messageId: string, content: string) => boolean
+  /** Recovery startup checks exact source identity and the live initiating authority at every launch fence. */
+  assertRecoveryLaunch?: (chat: ChatRecord) => void
   /** Binds only a tracked live PTY, never a persisted historical grant id. */
   bindChatGrant?: (grantId: string, identity: { folder: string | null; chatId: string; generation: string; runId?: string; cardId?: string }) => void
 }
@@ -360,7 +364,7 @@ interface Starting {
 }
 
 interface Manager {
-  deps: Required<Omit<TerminalSessionsDeps, 'onError' | 'onChatChanged' | 'bindChatGrant' | 'beforeContextPaste'>> & Pick<TerminalSessionsDeps, 'onChatChanged' | 'bindChatGrant' | 'beforeContextPaste'>
+  deps: Required<Omit<TerminalSessionsDeps, 'onError' | 'onChatChanged' | 'bindChatGrant' | 'beforeContextPaste' | 'assertRecoveryLaunch'>> & Pick<TerminalSessionsDeps, 'onChatChanged' | 'bindChatGrant' | 'beforeContextPaste' | 'assertRecoveryLaunch'>
   onError: (error: unknown) => void
   entries: Map<string, Live | Starting>
   listeners: Map<string, Map<TerminalListener, Subscriber>>
@@ -915,6 +919,10 @@ function recheckFolder(context: StartContext): void {
   }
   try {
     launchFolder(context.manager, context.chat)
+    if (context.chat.repairIncidentId !== undefined) {
+      if (context.manager.deps.assertRecoveryLaunch === undefined) throw new Error('Repair startup authority is unavailable.')
+      context.manager.deps.assertRecoveryLaunch(context.chat)
+    }
   } catch (error) {
     throw new FolderRefused(messageOf(error))
   }
@@ -1031,11 +1039,15 @@ function dropDmClient(manager: Manager, path: string): Promise<void> {
  */
 async function withDmClient(context: StartContext, files: TerminalFiles, issued: IssuedGrants, generation: string): Promise<TerminalFiles> {
   const { manager, chat, agent, folder } = context
-  if (agent.kind !== 'omp' || files.omp === undefined || issued.endpointId === null) {
+  if (agent.kind !== 'omp' || files.omp === undefined) {
     return files
   }
   const { userData, platform } = manager.deps
-  const dmClient = await writeDmClientDescriptor({ userData, chatId: chat.id, generation, folder, cli: issued.cli, platform })
+  const address = issued.cli.env['DM_DESKTOP_PIPE']
+  if (issued.endpointId === null && address === undefined) return files
+  const dmClient = issued.endpointId === null
+    ? await writeRecoveryClientDescriptor({ userData, chatId: chat.id, generation, address: address! })
+    : await writeDmClientDescriptor({ userData, chatId: chat.id, generation, folder, cli: issued.cli, platform })
   return { ...files, omp: { ...files.omp, dmClient } }
 }
 
@@ -1429,6 +1441,7 @@ export function createTerminalSessions(deps: TerminalSessionsDeps): TerminalSess
     deleteChat: (ref, remove) => deleteChat(manager, ref, remove),
     releaseFolder: (folder, forget) => releaseFolder(manager, folder, forget),
     endAgent: (id) => endAgent(manager, id),
+    isRunning: (chatId) => running(chatId) !== null,
     busy: () => manager.entries.size > 0 || manager.pending.size > 0,
     dispose: () => dispose(manager)
   }

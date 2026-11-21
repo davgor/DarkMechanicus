@@ -264,12 +264,14 @@ function written(change: (d: Record<string, unknown>) => void, path = descriptor
 }
 
 describe('the DM client descriptor', () => {
-  it('holds the pinned runtime, script, folder and inherited names, and never the grant or the naming address', () => {
+  it('pins runtime, script, folder, inherited names and typed recovery address without a grant or child control environment', () => {
     const text = readFileSync(descriptor, 'utf8')
     expect(JSON.parse(text)).toMatchObject({ version: 1, chatId: CHAT, generation: GENERATION, folder, command: process.execPath, args: [script, '--repo', folder], cwd: folder, env: { ELECTRON_RUN_AS_NODE: '1', DARKMECHANICUS_HOME: home } })
     expect(text).not.toContain(TOKEN)
     expect(text).not.toContain('DM_SESSION_TOKEN')
-    expect(text).not.toContain('pipe')
+    expect(JSON.parse(text)).toMatchObject({ recoveryAddress: '\\\\.\\pipe\\naming', env: { ELECTRON_RUN_AS_NODE: '1', DARKMECHANICUS_HOME: home } })
+    expect(JSON.parse(text).env).not.toHaveProperty('DM_DESKTOP_PIPE')
+    expect(JSON.parse(text)).not.toHaveProperty('token')
     expect(parseDmClientDescriptor(descriptor, text).ok).toBe(true)
   })
 

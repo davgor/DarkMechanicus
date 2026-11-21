@@ -37,8 +37,8 @@ afterEach(() => {
 })
 
 describe('migrate on a fresh database', () => {
-  it('starts at schema version 0 and targets the v24 save permission storage contract', () => {
-    expect(SCHEMA_VERSION).toBe(24)
+  it('starts at version zero and targets the current migration contract', () => {
+    expect(SCHEMA_VERSION).toBe(Math.max(...MIGRATIONS.map(migration => migration.version)))
     expect(readSchemaVersion(freshDb())).toBe(0)
   })
 
@@ -46,7 +46,7 @@ describe('migrate on a fresh database', () => {
     const db = freshDb()
     expect(migrate(db)).toEqual({ from: 0, to: SCHEMA_VERSION })
     expect(readSchemaVersion(db)).toBe(SCHEMA_VERSION)
-    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(24)
+    expect(db.get<{ user_version: number }>('PRAGMA user_version')?.user_version).toBe(SCHEMA_VERSION)
   })
 })
 
@@ -89,6 +89,10 @@ describe('the schema a fresh database ends up with', () => {
       'sprint_reports',
       'sync_state',
       'ticket_status',
+      'tooling_chat_grants',
+      'tooling_held_attempts',
+      'tooling_holds',
+      'tooling_lease_returns',
       'transfer_items',
       'transfers',
       'yolo_audit',
@@ -139,8 +143,8 @@ describe('the indexes a fresh database ends up with', () => {
 describe('migrate when already current', () => {
   it('is a no-op the second time', () => {
     const db = migratedDb()
-    expect(migrate(db)).toEqual({ from: 24, to: 24 })
-    expect(readSchemaVersion(db)).toBe(24)
+    expect(migrate(db)).toEqual({ from: SCHEMA_VERSION, to: SCHEMA_VERSION })
+    expect(readSchemaVersion(db)).toBe(SCHEMA_VERSION)
   })
 
   it('checks a current database without taking the write lock, which every open and mailbox poll would wait on', () => {
@@ -158,11 +162,11 @@ describe('migrate when already current', () => {
         }
       }
     })
-    expect(migrate(watched)).toEqual({ from: 24, to: 24 })
+    expect(migrate(watched)).toEqual({ from: SCHEMA_VERSION, to: SCHEMA_VERSION })
     expect(transactions).toBe(0)
     // Positive control: a database behind the target still migrates under the lock.
-    watched.exec('PRAGMA user_version = 23')
-    expect(migrate(watched, MIGRATIONS.filter((migration) => migration.version !== 24).concat({ version: 24, sql: '' }))).toEqual({ from: 23, to: 24 })
+    watched.exec(`PRAGMA user_version = ${SCHEMA_VERSION - 1}`)
+    expect(migrate(watched, MIGRATIONS.filter(migration => migration.version !== SCHEMA_VERSION).concat({ version: SCHEMA_VERSION, sql: '' }))).toEqual({ from: SCHEMA_VERSION - 1, to: SCHEMA_VERSION })
     expect(transactions).toBe(1)
   })
 
@@ -182,19 +186,19 @@ describe('migrate refuses newer databases', () => {
     expect(error).toBeInstanceOf(DomainError)
     expect((error as DomainError).code).toBe('incompatible_schema')
     expect((error as DomainError).message).toBe(
-      'Database schema v25 is newer than this build supports (v24). Update Dark Mechanicus.'
+      `Database schema v${SCHEMA_VERSION + 1} is newer than this build supports (v${SCHEMA_VERSION}). Update Dark Mechanicus.`
     )
-    expect((error as DomainError).details).toEqual({ found: 25, supported: 24 })
-    expect(readSchemaVersion(db)).toBe(25)
+    expect((error as DomainError).details).toEqual({ found: SCHEMA_VERSION + 1, supported: SCHEMA_VERSION })
+    expect(readSchemaVersion(db)).toBe(SCHEMA_VERSION + 1)
     expect(objectNames(db, 'table')).toEqual([])
   })
 
   it('refuses a migrated database that a newer build has upgraded', () => {
     const db = migratedDb()
-    db.exec('PRAGMA user_version = 25')
+    db.exec(`PRAGMA user_version = ${SCHEMA_VERSION + 1}`)
     const error = thrownBy(() => migrate(db))
     expect((error as DomainError).code).toBe('incompatible_schema')
-    expect((error as DomainError).details).toEqual({ found: 25, supported: 24 })
+    expect((error as DomainError).details).toEqual({ found: SCHEMA_VERSION + 1, supported: SCHEMA_VERSION })
     expect(objectNames(db, 'table')).toContain('epics')
   })
 
@@ -1354,7 +1358,7 @@ describe('v23 elevation storage compatibility', () => {
     insertAttachment(db, 'old-image', { kind: 'kanban_message', id: 'ke1' })
     const grants = db.all('SELECT * FROM grants')
     const images = db.all('SELECT * FROM attachments')
-    expect(migrate(db)).toEqual({ from: 22, to: 24 })
+    expect(migrate(db)).toEqual({ from: 22, to: SCHEMA_VERSION })
     expect(db.all('SELECT * FROM grants')).toEqual(grants)
     expect(db.all('SELECT * FROM attachments')).toEqual(images)
     expect(db.all('SELECT * FROM yolo_elevations')).toEqual([])
@@ -1378,7 +1382,7 @@ describe('v24 save permission compatibility', () => {
     for (const [id, capabilities] of [['ss_saving', '["read","plan.save"]'], ['ss_restricted', '["read"]']] as const) {
       db.run("INSERT INTO sessions (id, role, label, capabilities_json, transport, started_at, last_seen_at) VALUES (?, 'orchestrator', 'Existing session', ?, 'stdio', 't', 't')", id, capabilities)
     }
-    expect(migrate(db)).toEqual({ from: 23, to: 24 })
+    expect(migrate(db)).toEqual({ from: 23, to: SCHEMA_VERSION })
     expect(db.all('SELECT id, launch_capabilities_json FROM sessions ORDER BY id')).toEqual([
       { id: 'ss_restricted', launch_capabilities_json: '["read"]' },
       { id: 'ss_saving', launch_capabilities_json: '["read","plan.save"]' }

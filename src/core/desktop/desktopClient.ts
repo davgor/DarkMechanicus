@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { createConnection, type Socket } from 'node:net'
 import { NAMING_CONTROL, NamingControlError, namingFailure, namingOperationSchema, namingReplySchema, namingRequestSchema, type NamingOperation, type NamingReply } from '../../shared/agents/chatNaming'
 import { createControlFrame } from './controlFrame'
+import { serializedCredentialWithinBound } from '../../../resources/skitarii/extension/controlLimits'
 
 interface DesktopClientOptions {
   /** Chat PTYs receive these two values; no desktop/window identity comes from a caller. */
@@ -16,20 +17,28 @@ export interface DesktopClient {
 }
 interface Prepared { requestId: string; address: string; wire: string }
 
+function inheritedAuthority(options: DesktopClientOptions, requestId: string): { address: string; token: string } | { reply: NamingReply } {
+  const env = options.env ?? process.env
+  const address = env['DM_DESKTOP_PIPE']
+  if (address === undefined || address === '') return { reply: namingFailure(requestId, 'desktop_unavailable') }
+  const token = env['DM_SESSION_TOKEN']
+  if (token === undefined || token.trim() === '' || token.length > 1024) return { reply: namingFailure(requestId, 'unauthorized') }
+  if (!serializedCredentialWithinBound(token)) return { reply: namingFailure(requestId, 'invalid_request') }
+  return { address, token }
+}
+
 function prepare(options: DesktopClientOptions, operation: NamingOperation): Prepared | { reply: NamingReply } {
   const requestId = (options.requestId ?? randomUUID)()
   const parsedOperation = namingOperationSchema.safeParse(operation)
-  if (!parsedOperation.success) { return { reply: namingFailure(requestId, 'invalid_request') } }
-  const env = options.env ?? process.env
-  const address = env['DM_DESKTOP_PIPE']
-  if (address === undefined || address === '') { return { reply: namingFailure(requestId, 'desktop_unavailable') } }
-  const token = env['DM_SESSION_TOKEN']
-  if (token === undefined || token.trim() === '') { return { reply: namingFailure(requestId, 'unauthorized') } }
-  const parsed = namingRequestSchema.safeParse({ version: 1, requestId, token, ...parsedOperation.data })
-  if (!parsed.success) { return { reply: namingFailure(requestId, 'unauthorized') } }
+  if (!parsedOperation.success) return { reply: namingFailure(requestId, 'invalid_request') }
+  const authority = inheritedAuthority(options, requestId)
+  if ('reply' in authority) return authority
+  const parsed = namingRequestSchema.safeParse({ version: 1, requestId, token: authority.token, ...parsedOperation.data })
+  if (!parsed.success) return { reply: namingFailure(requestId, 'unauthorized') }
   const wire = JSON.stringify(parsed.data) + '\n'
-  if (Buffer.byteLength(wire) > NAMING_CONTROL.requestBytes) { return { reply: namingFailure(requestId, 'invalid_request') } }
-  return { requestId, address, wire }
+  const limit = operation.op === 'name_chat' ? NAMING_CONTROL.namingRequestBytes : NAMING_CONTROL.requestBytes
+  if (Buffer.byteLength(wire) > limit) return { reply: namingFailure(requestId, 'invalid_request') }
+  return { requestId, address: authority.address, wire }
 }
 
 function transport(options: DesktopClientOptions, prepared: Prepared, signal?: AbortSignal): Promise<NamingReply> {

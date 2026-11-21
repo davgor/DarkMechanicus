@@ -3,7 +3,7 @@ import { redactedJson } from '../storedSecrets'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 24
+export const SCHEMA_VERSION = 25
 
 export interface Migration {
   version: number
@@ -996,6 +996,35 @@ CREATE INDEX save_permission_grant ON save_permission_requests(grant_id, status)
 CREATE INDEX save_permission_session ON save_permission_requests(session_id, status);
 `
 
+/** Machine-local, incident-scoped workflow interruption; no portable plan or claim is rewritten. */
+const V25 = `
+CREATE TABLE tooling_chat_grants (
+  grant_id TEXT PRIMARY KEY REFERENCES grants(id),
+  chat_id TEXT NOT NULL
+);
+CREATE TABLE tooling_holds (
+  chat_id TEXT PRIMARY KEY,
+  incident_id TEXT NOT NULL,
+  run_id TEXT,
+  card_id TEXT,
+  held_at TEXT NOT NULL,
+  previous_run_state TEXT
+);
+CREATE TABLE tooling_held_attempts (
+  incident_id TEXT NOT NULL,
+  attempt_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  PRIMARY KEY (incident_id, attempt_id, kind)
+);
+CREATE TABLE tooling_lease_returns (
+  attempt_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  at TEXT NOT NULL,
+  granted_at TEXT NOT NULL,
+  ms INTEGER NOT NULL
+);
+`
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, sql: V1 },
   { version: 2, sql: V2 },
@@ -1020,7 +1049,8 @@ export const MIGRATIONS: Migration[] = [
   { version: 21, sql: V21 },
   { version: 22, sql: V22 },
   { version: 23, sql: V23 },
-  { version: 24, sql: V24 }
+  { version: 24, sql: V24 },
+  { version: 25, sql: V25 }
 ]
 
 export function readSchemaVersion(db: Db): number {

@@ -79,6 +79,7 @@ const PLANNER_SHARED_TOOLS = [
   ...COMMENT_TOOLS,
   ...ATTACHMENT_WRITE_TOOLS,
   ...MAIL_TOOLS,
+  'recover_tooling',
   'initialize_repository',
   'flush_portable_state',
   'reconcile_repository',
