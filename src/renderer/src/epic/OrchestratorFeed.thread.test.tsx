@@ -116,15 +116,17 @@ describe('the live feed of a run orchestrated in a chat', () => {
     expect(chats.callsOf('read')).toEqual([[{ folder: FOLDER, chatId: 'chat_o' }]])
   })
 
-  it('reads the chat once and follows nothing: an old transcript no longer changes', async () => {
+  it('keeps the historical transcript unchanged when chat metadata changes', async () => {
     const feed = await openFeed(backendWith([said('a', 45, 'Planning the sprint')]))
+    chats.transcripts.chat_o = [said('later', 0, 'A later store value must not replace this historical transcript')]
 
     act(() => chats.emit({ type: 'chats_changed', folder: FOLDER, chatId: 'chat_o' }))
     await settle()
 
     expect(chats.callsOf('read')).toHaveLength(1)
-    expect(chats.subscribers()).toBe(0)
     expect(within(feed).getByText('Planning the sprint')).toBeTruthy()
+    expect(within(feed).queryByText('A later store value must not replace this historical transcript')).toBeNull()
+    expect(host.openedChats).toEqual([])
   })
 
   it('shows a subagent the chat started as one row, not what happens inside it', async () => {
@@ -202,12 +204,14 @@ describe('the live feed approvals of the chat', () => {
 describe('the live feed of a run no chat orchestrates', () => {
   it('is the run entries alone: no chat is opened and there is no Open chat link', async () => {
     const feed = await openFeed(backendWith([said('a', 45, 'Planning the sprint')], []))
+    act(() => chats.emit({ type: 'chats_changed', folder: FOLDER, chatId: 'chat_o' }))
+    await settle()
 
     expect(rows(feed)).toHaveLength(2)
     expect(within(feed).queryByRole('button', { name: 'Open chat' })).toBe(null)
     expect(within(feed).queryByText('Planning the sprint')).toBe(null)
     expect(chats.callsOf('read')).toEqual([])
-    expect(chats.subscribers()).toBe(0)
+    expect(host.openedChats).toEqual([])
   })
 
   it('treats a run only a subagent thread is bound to as no orchestrating chat', async () => {
