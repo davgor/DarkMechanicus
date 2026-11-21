@@ -5,6 +5,8 @@ import { StorageModeSwitch } from '../home/StorageModeSwitch'
 import { callGithub } from '../api/github'
 import { Button } from '../components/Button'
 
+const CREATE_WORLD = 'create-forge-world'
+
 interface Props {
   folder: TrackedFolderView
   folders: readonly TrackedFolderView[]
@@ -42,10 +44,10 @@ function useTicketSource({ folder }: Props) {
   const search = <Button disabled={busy} onClick={() => void act(async () => {
     setRepos((await callGithub(window.github.listRepositories())).map(r => r.fullName))
   })}>Find GitHub repositories</Button>
-  const selector = (items: readonly TrackedFolderView[], label: string) => <label>{label} <select value={choice} onChange={e => setChoice(e.target.value)}>
-    <option value="">Select a folder</option>{items.map(f => <option key={f.path} value={f.path}>{f.name}</option>)}
+  const selector = (items: readonly TrackedFolderView[], label: string, allowCreate = false) => <label>{label} <select disabled={busy} value={choice} onChange={e => setChoice(e.target.value)}>
+    <option value="">Select a folder</option>{allowCreate && <option value={CREATE_WORLD}>Create a Forge World…</option>}{items.map(f => <option key={f.path} value={f.path}>{f.name}</option>)}
   </select></label>
-  return { api, defaultName, remote, repository, search, name, setName, busy, act, selector, choice, minutes, setMinutes, repos, message }
+  return { api, defaultName, remote, repository, search, name, setName, busy, act, selector, choice, setChoice, minutes, setMinutes, repos, message }
 }
 
 type Controls = ReturnType<typeof useTicketSource>
@@ -90,12 +92,23 @@ function ProjectSource({ folder, folders, open, status, initialize, controls }: 
         <Button disabled={busy} onClick={() => void act(() => initialize('repo'))}>Start with self-contained repo</Button>
       </div>}
       <h3>Forge World</h3>
-      {selector(folders.filter(f => f.forgeWorld), 'Ticket repository')}
+      {selector(folders.filter(f => f.forgeWorld), 'Ticket repository', true)}
+      {choice === CREATE_WORLD ? <>
+        {repository}
+        <p>Create a private GitHub repository, push this project’s tickets, and replace its managed files with a Forge World note.</p>
+        <Button disabled={busy || !remote.trim()} onClick={() => void act(async () => {
+          const root = await api!.connect(folder.path, remote.trim(), true)
+          controls.setChoice(root)
+          await api!.convert(root, folder.path)
+          await open(root)
+        })}>Create and migrate</Button>
+      </> : <>
       <Button disabled={busy || !choice} onClick={() => void act(() => api!.convert(choice, folder.path))}>Use Forge World storage</Button>
       <div className="button-row">{repository}{search}
         <Button disabled={busy || !remote} onClick={() => void act(async () => open(await api!.connect(folder.path, remote, false)))}>Open existing Forge World</Button>
         <Button disabled={busy || !remote} onClick={() => void act(async () => open(await api!.connect(folder.path, remote, true)))}>Publish private Forge World</Button>
       </div>
+      </>}
       {!folder.initialized && <Button disabled={busy} onClick={() => void act(() => api!.create(folder.path))}>Use this repository as a Forge World</Button>}
   </>
 }
