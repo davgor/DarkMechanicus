@@ -100,7 +100,6 @@ describe('the schema a fresh database ends up with', () => {
       'yolo_elevations'
     ])
   })
-
 })
 
 describe('the indexes a fresh database ends up with', () => {
