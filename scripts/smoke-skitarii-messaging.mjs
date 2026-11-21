@@ -384,7 +384,12 @@ function waitTurn(id, from, label) {
 }
 async function openChat(title) {
   const row = `Array.from(document.querySelectorAll('.chat-row-main')).find((row) => row.querySelector('.chat-row-title')?.textContent === ${J(title)})`
-  await until(`!!(${row})`, `chat row ${title}`)
+  await until(`(() => {
+    const toggle = document.querySelector('.agent-chats-toggle[aria-label="Chats of Skitarii"]')
+    if (!toggle) return false
+    if (toggle.getAttribute('aria-expanded') !== 'true') toggle.click()
+    return !!(${row})
+  })()`, `chat row ${title}`)
   await ev(`(${row}).click()`)
   await until(`document.querySelector('.terminal-pane h1')?.textContent === ${J(title)}`, `chat pane ${title}`)
 }
@@ -502,12 +507,35 @@ async function proveConversationRefresh(nonce, before) {
   await minimumScreenshot('DM-820-04-conversation-minimum.png', 'Actual delivered conversation at the emulated minimum renderer size derived from the owned native window minimum and measured decorations; no DOM or application state was changed.')
 }
 
-async function connectAndCreate() {
+async function setupFixtureUi() {
   writeFileSync(P.pick, P.repo)
-  await ev(`window.dm.pickFolder()`)
-  must('initialize-owned-repository', (await ev(`window.dm.command(${J(P.repo)}, 'initializeRepository', { mode:'repo' })`)).ok)
+  const choose = `Array.from(document.querySelectorAll('button')).find((button) => button.textContent.trim() === 'Choose folder')`
+  await until(`!!(${choose})`, 'real Choose folder control')
+  await ev(`(${choose}).click()`)
+  await until(`!!document.querySelector('.onboarding input[type="radio"][value="repo"]')`, 'actual repository onboarding')
+  await ev(`document.querySelector('.onboarding input[type="radio"][value="repo"]').click()`)
+  await ev(`(() => {
+    const label = Array.from(document.querySelectorAll('.onboarding-option-label')).find((node) => node.textContent.includes('.mcp.json'))
+    const input = label.querySelector('input[type="checkbox"]')
+    if (input.checked) input.click()
+  })()`)
+  const initialize = `Array.from(document.querySelectorAll('.onboarding button')).find((button) => button.textContent.trim() === 'Initialize folder')`
+  await ev(`(${initialize}).click()`)
+  await until(`!document.querySelector('.onboarding') && !!document.querySelector('button.kanban-row')`, 'visible initialized tracked folder')
+  must('initialize-owned-repository-through-real-ui', await ev(`!!document.querySelector('button.kanban-row')`))
+  must('fixture-does-not-write-extra-mcp-configuration', !existsSync(join(P.repo, '.mcp.json')))
+  await screenshot('DM-820-00-folder-ready.png', 'The actual Choose-folder and Initialize handlers visibly track and initialize the owned repository before actors are created.')
   writeFileSync(P.pick, P.launcher)
-  must('connect-real-native-through-owned-launcher', (await ev(`window.dm.findAgent('omp')`)).outcome === 'connected')
+  await ev(`document.querySelector('button[aria-label="Add an agent"]').click()`)
+  await until(`!!document.querySelector('button[aria-label="Find Skitarii"]')`, 'real Find Skitarii control')
+  await ev(`document.querySelector('button[aria-label="Find Skitarii"]').click()`)
+  await until(`Array.from(document.querySelectorAll('.sidebar-agents .agent-name')).some((node) => node.textContent === 'Skitarii')`, 'visible connected native agent')
+  must('connect-real-native-through-owned-launcher', await ev(`Array.from(document.querySelectorAll('.sidebar-agents .agent-name')).some((node) => node.textContent === 'Skitarii')`))
+  await screenshot('DM-820-00-agent-connected.png', 'The actual Find-agent handler visibly connects the normally authorized native executable through the owned launcher before actors start.')
+}
+
+async function connectAndCreate() {
+  await setupFixtureUi()
   await ev(`window.dm.setFolderDefaultAgent(${J({ folder: P.repo, agentId: 'omp' })})`)
   const a = await api('create', { folder: P.repo, agent: 'omp', role: 'worker', title: 'Alpha', model: MODEL })
   must('create-Alpha', a.ok)
@@ -628,6 +656,28 @@ async function explicitAckAndSeen() {
   await screenshot('DM-820-05-human-seen.png', 'Actual human mark-shown-seen action changes human cursor only; remaining unseen messages may be on the next page.')
   await closeInbox()
 }
+function preserveChatEvidence(label, id) {
+  const files = [
+    [contextFile(id), `${label}-provider-contexts.jsonl`],
+    [join(P.profile, 'agents', 'instructions', `${id}.md`), `${label}-actual-generated-guidance.txt`]
+  ]
+  for (const [path, file] of files) {
+    try {
+      if (!existsSync(path)) { check(`evidence-missing-${file}`, false); continue }
+      const text = readFileSync(path, 'utf8')
+      writeFileSync(join(OUTPUT, file), file.endsWith('.txt') ? scrub(text) : text)
+    } catch (error) { check(`evidence-unreadable-${file}`, false, { problem: scrub(error.message) }) }
+  }
+  try {
+    const native = entries(id)
+    if (native.length === 0) { check(`evidence-missing-${label}-native-session`, false); return }
+    const relevant = native.filter((entry) => J(entry).includes('DM820_'))
+    facts.evidenceSources ??= []
+    facts.evidenceSources.push({ chat: label, actualSessionEntries: native.length, exportedTaggedEntries: relevant.length })
+    writeFileSync(join(OUTPUT, `${label}-actual-session-excerpts.jsonl`), relevant.map((entry) => J(entry)).join('\n') + '\n')
+  } catch (error) { check(`evidence-unreadable-${label}-native-session`, false, { problem: scrub(error.message) }) }
+}
+
 function preserveEvidence() {
   const nativeDialogs = jsonLines(P.nativeDialogs)
   if (nativeDialogs.length > 0) writeFileSync(join(OUTPUT, 'refused-native-dialogs.jsonl'), scrub(nativeDialogs.map((entry) => J(entry)).join('\n')) + '\n')
@@ -637,11 +687,7 @@ function preserveEvidence() {
   })
   for (const [label, id] of Object.entries({ alpha: ids.a, beta: ids.b })) {
     if (!id) continue
-    if (existsSync(contextFile(id))) writeFileSync(join(OUTPUT, `${label}-provider-contexts.jsonl`), readFileSync(contextFile(id)))
-    const relevant = entries(id).filter((entry) => J(entry).includes('DM820_'))
-    writeFileSync(join(OUTPUT, `${label}-actual-session-excerpts.jsonl`), relevant.map((entry) => J(entry)).join('\n') + '\n')
-    const guidance = readFileSync(join(P.profile, 'agents', 'instructions', `${id}.md`), 'utf8')
-    writeFileSync(join(OUTPUT, `${label}-actual-generated-guidance.txt`), scrub(guidance))
+    preserveChatEvidence(label, id)
   }
 }
 let failure = null
