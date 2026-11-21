@@ -349,17 +349,18 @@ function watch(box: Mailbox, options: { send?: boolean; failNotify?: () => boole
 // --- the tools --------------------------------------------------------------------------------------------------------
 
 describe('Skitarii mail tools', () => {
-  it('registers the five native tools and dm_call: read approval to look, write approval to change anything, strict schemas', () => {
+  it('registers mail, general-command and direct recovery tools with their approval and strict-schema contracts', () => {
     const { pi, tools, handlers } = fakePi()
     attachMessaging(pi, createDmClient(realDeps()), fakeTimers())
-    expect(tools.map((tool) => tool.name)).toEqual([...MAIL_TOOL_NAMES, DM_CALL_TOOL_NAME])
+    expect(tools.map((tool) => tool.name)).toEqual([...MAIL_TOOL_NAMES, DM_CALL_TOOL_NAME, 'recover_tooling'])
     expect(Object.fromEntries(tools.map((tool) => [tool.name, tool.approval]))).toEqual({
       dm_agent_identity: 'read',
       dm_agent_peers: 'read',
       dm_message_send: 'write',
       dm_inbox_read: 'read',
       dm_inbox_ack: 'write',
-      dm_call: 'write'
+      dm_call: 'write',
+      recover_tooling: 'write'
     })
     for (const tool of tools) {
       expect(tool.loadMode).toBe('essential')
@@ -850,7 +851,7 @@ describe('Skitarii mail in the extension entry', () => {
   it('registers the tools and the watcher with the extension when OMP has them', async () => {
     const { pi, tools, handlers } = fakePi()
     await skitariiExtension(pi as never)
-    expect(tools.map((tool) => tool.name)).toEqual([...MAIL_TOOL_NAMES, DM_CALL_TOOL_NAME])
+    expect(tools.map((tool) => tool.name)).toEqual([...MAIL_TOOL_NAMES, DM_CALL_TOOL_NAME, 'recover_tooling'])
     expect(handlers.get('before_agent_start')).toHaveLength(2)
     // The mascot's, the watcher's and the client's.
     expect(handlers.get('session_shutdown')).toHaveLength(3)

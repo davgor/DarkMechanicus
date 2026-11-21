@@ -71,7 +71,7 @@ export interface ToolResult {
 }
 
 export interface MailToolDefinition {
-  name: (typeof MAIL_TOOL_NAMES)[number] | typeof DM_CALL_TOOL_NAME
+  name: (typeof MAIL_TOOL_NAMES)[number] | typeof DM_CALL_TOOL_NAME | 'recover_tooling'
   label: string
   description: string
   parameters: unknown
@@ -317,12 +317,12 @@ export const DM_CALL_UNSURE_NOTE =
 const isArgs = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 
 /** What `dm_call` answers for a refused or failed call: the CLI's own code and message, or the client's. */
-function dmCallFailure(error: DmClientError): ToolResult {
+function dmCallFailure(error: DmClientError, tool = DM_CALL_TOOL_NAME): ToolResult {
   if (error.source === 'dm') {
     return failure(`Dark Mechanicus refused the call:\n${inertJson({ ok: false, error: { code: error.code, message: error.message } })}`)
   }
   const unsure = UNSURE_OUTCOME.has(error.code) ? ` ${DM_CALL_UNSURE_NOTE}` : ''
-  return failure(`dm_call failed (client: ${codeText(error)}). ${inertJson(error.message)}${unsure}`)
+  return failure(`${tool} failed (client: ${codeText(error)}). ${inertJson(error.message)}${unsure}`)
 }
 
 /** Any Dark Mechanicus command, through the same client as the mail tools; the grant is the only authority. */
@@ -364,10 +364,81 @@ function toolResultId(entry: unknown): string | undefined {
   return message.role === 'toolResult' && typeof message.toolCallId === 'string' ? message.toolCallId : undefined
 }
 
-/** The five mail tools and `dm_call`, over `client`, with schemas from OMP's own builders. */
+const RECOVERY_FIELDS: Readonly<Record<string, readonly string[]>> = {
+  escalate: ['diagnostic'], status: [], message: ['messageId', 'text'], available: ['version', 'evidence'], resume: []
+}
+const RECOVERY_KEYS = ['action', 'incidentId', 'diagnostic', 'messageId', 'text', 'version', 'evidence']
+
+/** Native providers need known diagnostic properties, not an empty arbitrary-object schema. */
+function recoveryDiagnostic(raw: unknown): Checked<Record<string, unknown>> {
+  const string = (value: unknown): boolean => typeof value === 'string'
+  const checked = strict<Record<string, unknown>>(raw, {
+    command: string, code: string, message: string, reproduction: string, expected: string,
+    argumentsJson: (value) => value === null || typeof value === 'string'
+  }, ['command', 'code', 'message', 'reproduction', 'expected'])
+  if (!checked.ok) return checked
+  const { argumentsJson, ...diagnostic } = checked.value
+  if (typeof argumentsJson === 'string') {
+    try {
+      diagnostic.arguments = JSON.parse(argumentsJson) as unknown
+    } catch {
+      return invalid('diagnostic.argumentsJson must contain valid JSON for the shared bounded scalar-arguments object.')
+    }
+  }
+  return { ok: true, value: diagnostic }
+}
+
+/** Strip only irrelevant provider nulls; reject non-null data the selected action cannot consume. */
+function recoveryInput(params: unknown): Checked<Record<string, unknown>> {
+  if (!isArgs(params) || typeof params.action !== 'string' || !Object.hasOwn(RECOVERY_FIELDS, params.action)) return invalid('A supported recovery action is required.')
+  if (!isId(params.incidentId)) return invalid('A valid incidentId is required.')
+  const fields = RECOVERY_FIELDS[params.action]!
+  for (const [key, value] of Object.entries(params)) {
+    if (!RECOVERY_KEYS.includes(key)) return invalid(`Unknown argument "${displayName(key)}".`)
+    if (key !== 'action' && key !== 'incidentId' && !fields.includes(key) && value !== null && value !== undefined) return invalid(`Argument "${key}" does not belong to action "${params.action}".`)
+  }
+  const input: Record<string, unknown> = { action: params.action, incidentId: params.incidentId }
+  if (params.action === 'escalate') {
+    const diagnostic = recoveryDiagnostic(params.diagnostic)
+    return diagnostic.ok ? { ok: true, value: { ...input, diagnostic: diagnostic.value } } : diagnostic
+  }
+  for (const field of fields) {
+    if (typeof params[field] !== 'string' || params[field] === '') return invalid(`Argument "${field}" is required as a nonempty string.`)
+    input[field] = params[field]
+  }
+  return { ok: true, value: input }
+}
+
+function recoveryTool(client: DmClient, type: TypeBuilder): MailToolDefinition {
+  const text = (): unknown => type.String({ minLength: 1, maxLength: 4000 })
+  const diagnostic = type.Object({
+    command: type.String({ minLength: 1, maxLength: 120 }), code: type.String({ maxLength: 120 }),
+    message: text(), reproduction: text(), expected: text(),
+    argumentsJson: type.Optional(type.String({ description: 'Optional JSON object of at most 20 nonsecret scalar arguments. No transcripts, files, credentials or environment.', maxLength: 16000 }))
+  }, { additionalProperties: false })
+  return {
+    name: 'recover_tooling', label: 'Dark Mechanicus tooling recovery',
+    description: 'One direct tooling-recovery action under this live chat grant. escalate needs diagnostic; message needs messageId and text; available needs version and evidence; status/resume need only incidentId. No manual card/chat/connection setup. Never use dm_call or eval for this tool.',
+    parameters: type.Object({
+      action: type.String({ pattern: '^(escalate|status|message|available|resume)$', description: 'escalate, status, message, available, or resume.' }),
+      incidentId: type.String({ minLength: 1, maxLength: 128, pattern: ID.source }),
+      diagnostic: type.Optional(diagnostic), messageId: type.Optional(type.String({ minLength: 1, maxLength: 128, pattern: ID.source })),
+      text: type.Optional(text()), version: type.Optional(type.String({ minLength: 1, maxLength: 80 })), evidence: type.Optional(text())
+    }, { additionalProperties: false }),
+    ...WRITES,
+    execute: async (_id, params, signal) => {
+      const checked = recoveryInput(params)
+      if (!checked.ok) return failure(`recover_tooling refused the call: ${checked.message} Nothing was run.`)
+      const result = await client.run('recover_tooling', checked.value, signal)
+      return result.ok ? { content: [{ type: 'text', text: `${DM_CALL_DATA_NOTE}\n${inertJson(result.data)}` }] } : dmCallFailure(result.error, 'recover_tooling')
+    }
+  }
+}
+
+/** Mail, general commands and the explicitly shaped native recovery action over the same grant-bound client. */
 function mailTools(client: DmClient, type: TypeBuilder): MailToolDefinition[] {
   const kit = toolKit(client, type)
-  return [identityTool(kit), peersTool(kit), sendTool(kit), readTool(kit), ackTool(kit), dmCallTool(client, type)]
+  return [identityTool(kit), peersTool(kit), sendTool(kit), readTool(kit), ackTool(kit), dmCallTool(client, type), recoveryTool(client, type)]
 }
 
 // --- the watcher --------------------------------------------------------------------------------------------------
