@@ -74,12 +74,15 @@ class DesktopRecovery implements DesktopToolingRecovery {
     const problem = this.#restartProblem(chat)
     if (problem !== null) { this.#recordRestartPending(entry, problem); return }
     this.assertLaunch(chat)
+    await this.#resumePending(chat, entry, message.text)
+  }
+  async #resumePending(chat: ChatRecord, entry: ConversationDelivery, text: string): Promise<void> {
     const kind = this.deps.agents.get(chat.agent)?.kind
     if (kind === 'omp') await this.deps.resume(chat)
     else if (kind === 'claude' && !entry.inputUncertain) {
       // Persist ambiguity before input; only an exact host receipt permits replay.
       this.deps.deliveries.record({ ...entry, inputUncertain: true, at: new Date().toISOString() })
-      await this.deps.terminals.paste(chat, entry.text)
+      await this.deps.terminals.paste(chat, text)
     }
   }
   #restartProblem(chat: ChatRecord): string | null {

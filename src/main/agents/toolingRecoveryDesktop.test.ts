@@ -62,8 +62,8 @@ async function recoveryFixture(projectless: boolean, kind: 'omp' | 'claude' | 'c
     })
     return desktop
   }
-  restart()
-  return { source, sourceWs, customer, customerWs, store, caller, start, desktop, ledger, delivery, persist, resume, paste, resolveFolder, sourceCheckout, restart, live }
+  const initialDesktop = restart()
+  return { source, sourceWs, customer, customerWs, store, caller, start, desktop: initialDesktop, ledger, delivery, persist, resume, paste, resolveFolder, sourceCheckout, restart, live }
 }
 
 describe('connected desktop recovery with durable workspaces and host receipts', () => {
@@ -269,7 +269,14 @@ describe('independent pending recovery incidents after desktop restart', () => {
     expect(pending.messages[0]!.text).toContain('Later live data')
     await expect(desktop.poll(f.source.root)).resolves.toBeUndefined()
     const proof = f.ledger.proof(f.source.root, cold.repair.id, 'recovery', `recovery_${cold.incidentId}_caller_cold-answer`)
-    expect(proof).toMatchObject(receipted ? { state: 'delivered', problem: null, entryId: expect.any(String) } : { state: 'pending', problem: expect.stringContaining('live caller handoff'), text: expect.stringContaining('Retained cold incident answer') })
+    expect(proof).toMatchObject({
+      messageId: `recovery_${cold.incidentId}_caller_cold-answer`,
+      chatId: cold.repair.id,
+      text: expect.stringContaining('Retained cold incident answer'),
+      state: receipted ? 'delivered' : 'pending',
+      problem: receipted ? null : expect.stringContaining('live caller handoff')
+    })
+    expect(f.delivery.hasRecoveryMessage(cold.repair, { id: proof!.messageId, text: proof!.text! })).toBe(receipted)
     expect(f.delivery.hasRecoveryMessage(active.caller, pending.messages[0]!)).toBe(true)
     expect(f.resume.mock.calls.some(([chat]) => chat.id === cold.repair.id)).toBe(false)
     expect(() => desktop.assertLaunch(cold.repair)).toThrow('live caller handoff')
