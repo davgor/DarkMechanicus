@@ -1,0 +1,321 @@
+{
+  "card": {
+    "key": "DM-820",
+    "id": "kc_01m7wqy5gw8sqy7p1gavy2s2c1"
+  },
+  "deliveryTargetBranch": "main",
+  "verifiedCodeHead": "cd2511b1f33ed62135be128bc142cc03eacf97f1",
+  "productionBuildHead": "6f3dfd2c614acf2f3be11c6f1d30b14c78d8726b",
+  "fireguardBase": "739e22c4ca987d1cb2f92f80ddcb9cd1928565df",
+  "checks": [
+    {
+      "name": "build",
+      "status": "passed",
+      "detail": "npm run build at6f3dfd2c614acf2f3be11c6f1d30b14c78d8726b; bg68,11.03s. Actual main432/preload6/renderer641 modules built; only third-party Zod PURE-comment warnings."
+    },
+    {
+      "name": "typecheck",
+      "status": "passed",
+      "detail": "npm run typecheck at6f3dfd2c614acf2f3be11c6f1d30b14c78d8726b; bg69,30.28s. Node,renderer,Fireguard projects all passed after the causal renderer formatter extraction."
+    },
+    {
+      "name": "deadcode",
+      "status": "passed",
+      "detail": "npm run deadcode; frozen production, bg61,22.29s; no new dead exports. Existing Node DEP0190 shell-option warning only; no baseline refresh needed."
+    },
+    {
+      "name": "lint",
+      "status": "passed",
+      "detail": "npm run lint at6f3dfd2c614acf2f3be11c6f1d30b14c78d8726b; bg67 completed successfully after the causal deliveryLabel helper extraction. Original c4c7 complexity11 failure retained separately; no threshold/suppression change."
+    },
+    {
+      "name": "test",
+      "status": "passed",
+      "detail": "npm test at frozen production6f3 with committed T2 consumer-contract correction(d818) and H4 harness(d0b7). bg88,642.19s: main801files/13924passed,2files+61tests skipped; Fireguard unit25files/178passed,1skipped. Original bg73 two stale subscriber-count failures retained; replaced by verified historical/no-bound-chat behavior, no skip/retry/timeout change."
+    },
+    {
+      "name": "coverage",
+      "status": "passed",
+      "detail": "npm run coverage; bg93,695.49s.801files/13924passed,2files+61tests skipped. V8 statements97.84%(36470/37275),branches95.59%(24354/25477),functions97.14%(11925/12275),lines98.12%(32537/33158). Original thresholds unchanged; frozen production6f3 +T2 tests."
+    },
+    {
+      "name": "fireguard",
+      "status": "passed",
+      "detail": "npm run fireguard -- --json-out docs/verification/DM-820-fireguard.json; bg106,2042.17s. All hard gates passed in one committed-tree lane;100/100 flake runs,0failures; mutation86%,171killed/27survived of198changed-line mutants. Testedcd2511b1f33ed62135be128bc142cc03eacf97f1 against739e22c4ca987d1cb2f92f80ddcb9cd1928565df. Thresholds unchanged; no rerun."
+    }
+  ],
+  "criteria": [
+    {
+      "criterionId": "c1",
+      "met": true,
+      "note": "Automatic same-recipient activation verified by targeted lifecycle/native tests and actual Live06: idle,55already-pending before availability,stopped same-chat/app restart,independent arrival,and busy foreground boundary. No manual wake allowance."
+    },
+    {
+      "criterionId": "c2",
+      "met": true,
+      "note": "Actual first restart provider boundary has all55ordered full-body hashes(seq2–56),peer agent attribution and exact person user attribution. Busy first continuation contains both before unrelated response. Complete original bash content/callId/isError independently matches provider SHAfe2eb914d8171800c30425637bb733d524f8cf28bd21ec813109f90d8bb065d8. Native explicit read50+8/ack58 remains separate from human seen."
+    },
+    {
+      "criterionId": "c3",
+      "met": true,
+      "note": "Targeted authority/cancellation/recovery/ambiguous-input tests plus Live06 durable restart,same endpoint,dedupe identity and bounded no-loop proof. Actual pending→delivered panel uses body-free chats_changed,corecursor16→16,same DOM and preserved draft; acknowledgments and human seen remain independent."
+    },
+    {
+      "criterionId": "c4",
+      "met": true,
+      "note": "Tests-first regressions and all seven required verification checks passed; final real two-chat proof ran on actual built renderer/OMP18.20.2. Worker,parent,and independent reviewer inspected11actual PNGs; confirmed managed IDs included in final evidence. Obsolete API/UI/callers/docs removed; durable live and Fireguard reports recorded. Limits explicitly documented."
+    }
+  ],
+  "changedFiles": [
+    "docs/architecture.md",
+    "docs/design/skitarii-messaging.md",
+    "docs/project-guide.md",
+    "docs/runbooks/agents.md",
+    "docs/runbooks/cli.md",
+    "docs/runbooks/mcp-setup.md",
+    "docs/verification/DM-820-fireguard.json",
+    "docs/verification/DM-820-live-evidence.json",
+    "docs/verification/DM-820-sdk-contracts.json",
+    "docs/verification/DM-820-verification.json",
+    "resources/skitarii/extension/contextDelivery.ts",
+    "resources/skitarii/extension/dmClient.ts",
+    "resources/skitarii/extension/index.ts",
+    "resources/skitarii/extension/messaging.ts",
+    "scripts/smoke-skitarii-messaging.mjs",
+    "src/cli/main.test.ts",
+    "src/core/commandSchemas.ts",
+    "src/core/commands/agentMail.test.ts",
+    "src/core/commands/agentMail.ts",
+    "src/core/commands/capabilities.test.ts",
+    "src/core/commands/capabilities.ts",
+    "src/core/ids.ts",
+    "src/core/services/agentMail.test.ts",
+    "src/core/services/agentMail.ts",
+    "src/core/workspace.ts",
+    "src/main/agents/__mocks__/chatFixtures.ts",
+    "src/main/agents/agentContextDelivery.test.ts",
+    "src/main/agents/agentContextDelivery.ts",
+    "src/main/agents/agentMailDesktop.test.ts",
+    "src/main/agents/agentMailDesktop.ts",
+    "src/main/agents/chatHandlers.test.ts",
+    "src/main/agents/chatHandlers.ts",
+    "src/main/agents/chatIpc.test.ts",
+    "src/main/agents/chatIpc.ts",
+    "src/main/agents/cliInstructions.ts",
+    "src/main/agents/conversationDeliveries.test.ts",
+    "src/main/agents/conversationDeliveries.ts",
+    "src/main/desktop/bootstrap.ts",
+    "src/main/terminals/claudeSession.ts",
+    "src/main/terminals/skitariiDmClient.test.ts",
+    "src/main/terminals/skitariiMessaging.test.ts",
+    "src/main/terminals/terminalFiles.test.ts",
+    "src/main/terminals/terminalSessions.paste.test.ts",
+    "src/main/terminals/terminalSessions.ts",
+    "src/mcp/roles.test.ts",
+    "src/mcp/server.test.ts",
+    "src/mcp/server.ts",
+    "src/mcp/tools/agentMail.ts",
+    "src/mcp/validation.test.ts",
+    "src/preload/index.ts",
+    "src/renderer/src/__mocks__/fakeChatMail.ts",
+    "src/renderer/src/__mocks__/idleChats.ts",
+    "src/renderer/src/agents/AgentInbox.test.tsx",
+    "src/renderer/src/agents/AgentInbox.tsx",
+    "src/renderer/src/agents/DeliveryStatus.tsx",
+    "src/renderer/src/agents/TerminalPane.test.tsx",
+    "src/renderer/src/agents/WakeControl.tsx",
+    "src/renderer/src/conversation/ConversationPanel.test.tsx",
+    "src/renderer/src/conversation/ConversationPanel.tsx",
+    "src/renderer/src/conversation/conversationView.test.ts",
+    "src/renderer/src/conversation/conversationView.ts",
+    "src/renderer/src/epic/OrchestratorFeed.thread.test.tsx",
+    "src/shared/agents/chatApi.ts",
+    "src/shared/domain/agentMail.ts",
+    "src/shared/domain/api.ts",
+    "src/test/stubApi.ts"
+  ],
+  "liveEvidence": "docs/verification/DM-820-live-evidence.json",
+  "fireguardReport": "docs/verification/DM-820-fireguard.json",
+  "images": [
+    {
+      "file": "DM-820-01-unavailable-pending.png",
+      "id": "im_01m7yb92vzbvhvqdmx8950qr56",
+      "sha256": "10943bd1a607ebc3b9626fce67157380b63947be95a3069995333218b29b636e",
+      "mime": "image/png",
+      "width": 2139,
+      "height": 1296,
+      "label": "DM-820 Live06: unavailable recipient,55 pending",
+      "purpose": "evidence"
+    },
+    {
+      "file": "DM-820-00-agent-connected.png",
+      "id": "im_01m7ybabw795te6gha9afb19ys",
+      "sha256": "feb11f1256f5fb080940bdbeccc2158494c8c90020ad41e8d54f7789ba79f2a9",
+      "mime": "image/png",
+      "width": 2139,
+      "height": 1296,
+      "label": "DM-820 Live06: 00-agent-connected",
+      "purpose": "evidence"
+    },
+    {
+      "file": "DM-820-04-conversation-minimum.png",
+      "id": "im_01m7ybahbjb8a5k0yhz48ev3tg",
+      "sha256": "5e3810e174851c93d2cfd06defbb39ca01032ef4fcc3f15dd3cf7ee363643bf4",
+      "mime": "image/png",
+      "width": 1514,
+      "height": 965,
+      "label": "DM-820 Live06: 04-conversation-minimum",
+      "purpose": "evidence"
+    },
+    {
+      "file": "DM-820-03-conversation-pending.png",
+      "id": "im_01m7ybapxw2kb43jbsm7fxc1p9",
+      "sha256": "cf2e339a7842ede9b0f03f027379fb5e01217fc524cc7f4db4e0fe58110b5f9b",
+      "mime": "image/png",
+      "width": 2139,
+      "height": 1296,
+      "label": "DM-820 Live06: 03-conversation-pending",
+      "purpose": "evidence"
+    },
+    {
+      "file": "DM-820-00-folder-ready.png",
+      "id": "im_01m7ybavn93862qyc8wn4xa3pp",
+      "sha256": "f7ac1a829fe40170ca5d6d23e89ddd50a9c9683cc6b3cbe564a246b89f85a40f",
+      "mime": "image/png",
+      "width": 2139,
+      "height": 1296,
+      "label": "DM-820 Live06: 00-folder-ready",
+      "purpose": "evidence"
+    },
+    {
+      "file": "DM-820-02-automatic-delivered.png",
+      "id": "im_01m7ybjmt68f6b0h4rj5c32zag",
+      "sha256": "fbaef4e347120c7a51ac552de2979763c5b28216053d58520544d96030a827be",
+      "mime": "image/png",
+      "width": 2139,
+      "height": 1296,
+      "label": "DM-820 Live06: automatic delivery after restart",
+      "purpose": "evidence"
+    },
+    {
+      "file": "DM-820-04-conversation-delivered.png",
+      "id": "im_01m7ybkmcp6y2f9ez6kp3p2m8b",
+      "sha256": "95e72eef4a2984e963e8073a9fe1050bdba2d37fee0b07b74d559d2081ea2b61",
+      "mime": "image/png",
+      "width": 2139,
+      "height": 1296,
+      "label": "DM-820 Live06: 04-conversation-delivered",
+      "purpose": "evidence"
+    },
+    {
+      "file": "DM-820-03-busy-boundary.png",
+      "id": "im_01m7ybksgdtja7w25pjfxe47aj",
+      "sha256": "33fa67a7aa7281f8c7341f59165736bc782ae6b14d85fdc7341f13fe3dd98c52",
+      "mime": "image/png",
+      "width": 2139,
+      "height": 1296,
+      "label": "DM-820 Live06: 03-busy-boundary",
+      "purpose": "evidence"
+    },
+    {
+      "file": "DM-820-04-explicit-ack-unseen.png",
+      "id": "im_01m7ybkysamxjemef28n1rnkjj",
+      "sha256": "fe81941c450cffa8dd4eb2de9ee752a87b5b0e73c35752f86333663fbd32551e",
+      "mime": "image/png",
+      "width": 2139,
+      "height": 1296,
+      "label": "DM-820 Live06: 04-explicit-ack-unseen",
+      "purpose": "evidence"
+    },
+    {
+      "file": "DM-820-04-inbox-minimum.png",
+      "id": "im_01m7ybm45c96ydeq57j6vbd277",
+      "sha256": "0eaf16944082a31771d0a9f199eda5aefe0a075d760250bba7b15128c7d2bb94",
+      "mime": "image/png",
+      "width": 1514,
+      "height": 965,
+      "label": "DM-820 Live06: 04-inbox-minimum",
+      "purpose": "evidence"
+    },
+    {
+      "file": "DM-820-05-human-seen.png",
+      "id": "im_01m7ybm98chhy0b9m5xa171yks",
+      "sha256": "21e79f8470f20b86250e84e24738428a4403a2b7939541699ca024fa78038515",
+      "mime": "image/png",
+      "width": 2139,
+      "height": 1296,
+      "label": "DM-820 Live06: 05-human-seen",
+      "purpose": "evidence"
+    }
+  ],
+  "review": "Independent read-only source and Live06 review found no outstanding concrete defects; parent independently observed all gate outputs and recomputed complete native content hash.",
+  "preservedGateFailures": [
+    {
+      "name": "lint",
+      "status": "failed",
+      "detail": "npm run lint at c4c7f6ead3a801d29a0d0d8cbc59494d7f465432; bg64: src/renderer/src/conversation/conversationView.ts:32 deliveryLabel complexity11 exceeds configured10. Worker repairing the demonstrated source cause without suppression or threshold changes."
+    },
+    {
+      "name": "test",
+      "status": "failed",
+      "detail": "npm test; bg73,621.26s at frozen production6f3dfd2.803 files:800passed,1failed,2skipped.13922passed,2failed,61skipped. Only OrchestratorFeed.thread.test.tsx126/210 expected chats.subscribers()0 but received1 after required ConversationPanel subscription. Second fireguard/vitest.config.ts phase not reached due&&. Worker checking causal consumer contract; no rerun unchanged."
+    },
+    {
+      "name": "scoped-lint-H5-initial",
+      "status": "failed",
+      "detail": "Worker bg92: new assertBusyOutput complexity15 exceeded10. Causal facts-projection extraction; worker bg94 syntax+scoped lint passed without suppression/threshold change. Parent then requested exact sole content part and per-call result pairing; final H5 check/freeze pending."
+    }
+  ],
+  "preservedRuntimeHistory": [
+    {
+      "run": "01",
+      "passed": false,
+      "cause": "Harness backend setup bypassed real frontend folder/agent state; corrected to actual UI handlers."
+    },
+    {
+      "run": "02",
+      "passed": false,
+      "cause": "Default Source control tab did not mount onboarding; corrected actual Epics-tab navigation."
+    },
+    {
+      "run": "03",
+      "passed": false,
+      "cause": "Strict panel isolation checked after legitimate on-record actor reply; moved to receipt boundary before response."
+    },
+    {
+      "run": "04",
+      "passed": true,
+      "limit": "Behavioral assertions passed; untagged original output and producer actions missing from initial filtered export, repaired by H5."
+    },
+    {
+      "run": "05",
+      "passed": false,
+      "cause": "Actor selected actual PTY mode with31leading blank rows; original/provider hashes matched exactly. Requested deterministic direct pipe mode without trimming/weakening exact frame."
+    },
+    {
+      "run": "06",
+      "passed": true,
+      "seconds": 224.24,
+      "source": "cd2511b1f33ed62135be128bc142cc03eacf97f1"
+    }
+  ],
+  "limits": [
+    "Availability was launcher-gated, not live signed-out-provider or uncertain physical-paste recovery proof; those paths have targeted test evidence.",
+    "Live runtime: installed OMP18.20.2 only; no fabricated non-OMP runtime proof.",
+    "Minimum captures are1009x643@1.5 CDP renderer emulation, not native resizing. Conversation composer and Inbox automatic-delivery footer continue below scroll fold; minimum Inbox does not visually prove footer readability. Normal Inbox captures show the footer.",
+    "Duplicate acceptance and explicit acknowledgment rely on strict actual runtime assertions plus resulting UI/state; filtered canonical exports retain producer execution, not raw duplicate acceptance or acknowledgment call/result.",
+    "Raw capture inspected:false flags were not rewritten; actual image inspection is recorded separately here.",
+    "No card approval, plan save or push performed. Fireguard/final delivery checks are recorded separately."
+  ],
+  "verificationReuse": [
+    "Production source unchanged after6f3; later changes are the historical-feed test contract and proof harness/data. Final H6 syntax/scoped lint and actual Live06 cover the final harness.",
+    "Deadcode passed atcebb; subsequent production change only extracts a called private label formatter,with no export moves/deletions; no baseline refresh required.",
+    "Final reporting commits add verification data only; no code/test/harness changes after verifiedcd2511b1."
+  ],
+  "process": {
+    "humanApproval": false,
+    "pushed": false,
+    "tracking": "Native Dark Mechanicus commands only; no record files hand-edited.",
+    "workerAlarmBug": "DM-855 filed as requested; supervisory alarms did not terminate productive work."
+  }
+}

@@ -1,0 +1,318 @@
+{
+  "revision": {
+    "head": "cd2511b1f33ed62135be128bc142cc03eacf97f1",
+    "base": "739e22c4ca987d1cb2f92f80ddcb9cd1928565df"
+  },
+  "grade": {
+    "letter": "A",
+    "score": 93,
+    "reasons": [
+      "all hard gates passed"
+    ]
+  },
+  "gates": {
+    "ast": {
+      "name": "ast",
+      "pass": true,
+      "assertionCount": 1608,
+      "mockCount": 41,
+      "mockToAssertRatio": 0.025497512437810944,
+      "tautologicalCount": 19,
+      "tautologicalRatio": 0.01181592039800995,
+      "emptyTests": [],
+      "findings": []
+    },
+    "flake": {
+      "name": "flake",
+      "pass": true,
+      "runs": 100,
+      "configuredRuns": 100,
+      "failures": 0,
+      "flakeRate": 0,
+      "files": [
+        "src/cli/main.test.ts",
+        "src/core/commands/agentMail.test.ts",
+        "src/core/commands/capabilities.test.ts",
+        "src/core/services/agentMail.test.ts",
+        "src/main/agents/agentContextDelivery.test.ts",
+        "src/main/agents/agentMailDesktop.test.ts",
+        "src/main/agents/chatHandlers.test.ts",
+        "src/main/agents/chatIpc.test.ts",
+        "src/main/agents/conversationDeliveries.test.ts",
+        "src/main/terminals/skitariiDmClient.test.ts",
+        "src/main/terminals/skitariiMessaging.test.ts",
+        "src/main/terminals/terminalFiles.test.ts",
+        "src/main/terminals/terminalSessions.paste.test.ts",
+        "src/mcp/roles.test.ts",
+        "src/mcp/server.test.ts",
+        "src/mcp/validation.test.ts",
+        "src/renderer/src/agents/AgentInbox.test.tsx",
+        "src/renderer/src/agents/TerminalPane.test.tsx",
+        "src/renderer/src/conversation/ConversationPanel.test.tsx",
+        "src/renderer/src/conversation/conversationView.test.ts",
+        "src/renderer/src/epic/OrchestratorFeed.thread.test.tsx"
+      ],
+      "failedRuns": [],
+      "failFast": true
+    },
+    "mutation": {
+      "name": "mutation",
+      "pass": true,
+      "killed": 171,
+      "survived": 27,
+      "total": 198,
+      "score": 86,
+      "survivors": [
+        {
+          "file": "src/main/agents/agentContextDelivery.ts",
+          "line": 39,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/agents/agentContextDelivery.ts",
+          "line": 39,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/agents/agentContextDelivery.ts",
+          "line": 44,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/agents/agentContextDelivery.ts",
+          "line": 138,
+          "description": "return-value-tweak: invert boolean return to true"
+        },
+        {
+          "file": "src/main/agents/agentContextDelivery.ts",
+          "line": 195,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/agents/agentContextDelivery.ts",
+          "line": 195,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/agents/agentContextDelivery.ts",
+          "line": 229,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/agents/agentContextDelivery.ts",
+          "line": 235,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/main/agents/agentContextDelivery.ts",
+          "line": 268,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/main/agents/agentMailDesktop.ts",
+          "line": 300,
+          "description": "return-value-tweak: invert boolean return to false"
+        },
+        {
+          "file": "src/main/agents/agentMailDesktop.ts",
+          "line": 301,
+          "description": "return-value-tweak: invert boolean return to true"
+        },
+        {
+          "file": "src/main/agents/agentMailDesktop.ts",
+          "line": 303,
+          "description": "return-value-tweak: invert boolean return to true"
+        },
+        {
+          "file": "src/main/agents/agentMailDesktop.ts",
+          "line": 308,
+          "description": "return-value-tweak: invert boolean return to false"
+        },
+        {
+          "file": "src/main/agents/agentMailDesktop.ts",
+          "line": 330,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/agents/agentMailDesktop.ts",
+          "line": 330,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/main/agents/conversationDeliveries.ts",
+          "line": 80,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/main/agents/conversationDeliveries.ts",
+          "line": 80,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/main/agents/conversationDeliveries.ts",
+          "line": 81,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/main/desktop/bootstrap.ts",
+          "line": 470,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/main/terminals/claudeSession.ts",
+          "line": 57,
+          "description": "return-value-tweak: invert boolean return to true"
+        },
+        {
+          "file": "src/main/terminals/claudeSession.ts",
+          "line": 60,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/terminals/claudeSession.ts",
+          "line": 65,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/terminals/claudeSession.ts",
+          "line": 65,
+          "description": "operator-swap: swap operator to ==="
+        },
+        {
+          "file": "src/main/terminals/terminalSessions.ts",
+          "line": 595,
+          "description": "conditional-inversion: invert if condition"
+        },
+        {
+          "file": "src/main/terminals/terminalSessions.ts",
+          "line": 595,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/agents/DeliveryStatus.tsx",
+          "line": 11,
+          "description": "conditional-inversion: swap operator to !=="
+        },
+        {
+          "file": "src/renderer/src/conversation/ConversationPanel.tsx",
+          "line": 192,
+          "description": "operator-swap: swap operator to -"
+        }
+      ],
+      "modules": [
+        "src/core/commandSchemas.ts",
+        "src/core/commands/agentMail.ts",
+        "src/core/commands/capabilities.ts",
+        "src/core/ids.ts",
+        "src/core/services/agentMail.ts",
+        "src/core/workspace.ts",
+        "src/main/agents/agentContextDelivery.ts",
+        "src/main/agents/agentMailDesktop.ts",
+        "src/main/agents/chatHandlers.ts",
+        "src/main/agents/chatIpc.ts",
+        "src/main/agents/cliInstructions.ts",
+        "src/main/agents/conversationDeliveries.ts",
+        "src/main/desktop/bootstrap.ts",
+        "src/main/terminals/claudeSession.ts",
+        "src/main/terminals/terminalSessions.ts",
+        "src/mcp/server.ts",
+        "src/mcp/tools/agentMail.ts",
+        "src/preload/index.ts",
+        "src/renderer/src/agents/AgentInbox.tsx",
+        "src/renderer/src/agents/DeliveryStatus.tsx",
+        "src/renderer/src/conversation/ConversationPanel.tsx",
+        "src/renderer/src/conversation/conversationView.ts",
+        "src/shared/agents/chatApi.ts",
+        "src/shared/domain/agentMail.ts",
+        "src/shared/domain/api.ts"
+      ],
+      "moduleTests": {
+        "src/core/commandSchemas.ts": 12,
+        "src/core/commands/agentMail.ts": 10,
+        "src/core/commands/capabilities.ts": 12,
+        "src/core/ids.ts": 15,
+        "src/core/services/agentMail.ts": 11,
+        "src/core/workspace.ts": 10,
+        "src/main/agents/agentContextDelivery.ts": 4,
+        "src/main/agents/agentMailDesktop.ts": 3,
+        "src/main/agents/chatHandlers.ts": 4,
+        "src/main/agents/chatIpc.ts": 2,
+        "src/main/agents/cliInstructions.ts": 8,
+        "src/main/agents/conversationDeliveries.ts": 5,
+        "src/main/desktop/bootstrap.ts": 0,
+        "src/main/terminals/claudeSession.ts": 6,
+        "src/main/terminals/terminalSessions.ts": 6,
+        "src/mcp/server.ts": 3,
+        "src/mcp/tools/agentMail.ts": 3,
+        "src/preload/index.ts": 0,
+        "src/renderer/src/agents/AgentInbox.tsx": 2,
+        "src/renderer/src/agents/DeliveryStatus.tsx": 2,
+        "src/renderer/src/conversation/ConversationPanel.tsx": 2,
+        "src/renderer/src/conversation/conversationView.ts": 3,
+        "src/shared/agents/chatApi.ts": 15,
+        "src/shared/domain/agentMail.ts": 21,
+        "src/shared/domain/api.ts": 21
+      },
+      "unchangedLineMutants": 511
+    }
+  },
+  "scope": {
+    "baseRef": "739e22c4ca987d1cb2f92f80ddcb9cd1928565df",
+    "gradedTestFiles": [
+      "src/cli/main.test.ts",
+      "src/core/commands/agentMail.test.ts",
+      "src/core/commands/capabilities.test.ts",
+      "src/core/services/agentMail.test.ts",
+      "src/main/agents/agentContextDelivery.test.ts",
+      "src/main/agents/agentMailDesktop.test.ts",
+      "src/main/agents/chatHandlers.test.ts",
+      "src/main/agents/chatIpc.test.ts",
+      "src/main/agents/conversationDeliveries.test.ts",
+      "src/main/terminals/skitariiDmClient.test.ts",
+      "src/main/terminals/skitariiMessaging.test.ts",
+      "src/main/terminals/terminalFiles.test.ts",
+      "src/main/terminals/terminalSessions.paste.test.ts",
+      "src/mcp/roles.test.ts",
+      "src/mcp/server.test.ts",
+      "src/mcp/validation.test.ts",
+      "src/renderer/src/agents/AgentInbox.test.tsx",
+      "src/renderer/src/agents/TerminalPane.test.tsx",
+      "src/renderer/src/conversation/ConversationPanel.test.tsx",
+      "src/renderer/src/conversation/conversationView.test.ts",
+      "src/renderer/src/epic/OrchestratorFeed.thread.test.tsx"
+    ],
+    "changedModules": [
+      "src/core/commandSchemas.ts",
+      "src/core/commands/agentMail.ts",
+      "src/core/commands/capabilities.ts",
+      "src/core/ids.ts",
+      "src/core/services/agentMail.ts",
+      "src/core/workspace.ts",
+      "src/main/agents/agentContextDelivery.ts",
+      "src/main/agents/agentMailDesktop.ts",
+      "src/main/agents/chatHandlers.ts",
+      "src/main/agents/chatIpc.ts",
+      "src/main/agents/cliInstructions.ts",
+      "src/main/agents/conversationDeliveries.ts",
+      "src/main/desktop/bootstrap.ts",
+      "src/main/terminals/claudeSession.ts",
+      "src/main/terminals/terminalSessions.ts",
+      "src/mcp/server.ts",
+      "src/mcp/tools/agentMail.ts",
+      "src/preload/index.ts",
+      "src/renderer/src/agents/AgentInbox.tsx",
+      "src/renderer/src/agents/DeliveryStatus.tsx",
+      "src/renderer/src/conversation/ConversationPanel.tsx",
+      "src/renderer/src/conversation/conversationView.ts",
+      "src/shared/agents/chatApi.ts",
+      "src/shared/domain/agentMail.ts",
+      "src/shared/domain/api.ts"
+    ]
+  },
+  "execution": {
+    "lanes": 1,
+    "workspace": "committed",
+    "runner": "warm"
+  },
+  "skipped": false
+}
