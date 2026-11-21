@@ -174,7 +174,7 @@ A ticket's **Activity** tab and a run's **Orchestrator feed** show the command l
 
 ## Approvals
 
-Approvals are the CLI's own, asked and answered in its terminal; the app holds none. Claude Code runs in its default permission mode, with your Claude Code settings, and asks before edits, commands and other tools (a write into its memory folder asks too, see [Chats](#chats)). Autonomous runs with `--approval-mode always-ask`. Codex and Cursor apply their own approval policies. The app's own boundary stays the chat's `dm` grant: its role, and Allow save.
+Approvals are the CLI's own, asked and answered in its terminal; the app holds none. Claude Code runs in its default permission mode, with your Claude Code settings, and asks before edits, commands and other tools (a write into its memory folder asks too, see [Chats](#chats)). Autonomous runs with `--approval-mode always-ask`. Skitarii (OMP) chats get no `--approval-mode` from the app, so your own OMP `tools.approvalMode` applies. OMP's default is `yolo`, which runs every tool without asking. Set `always-ask` in your OMP config to be asked before every write and shell command. Why the app passes none, and what each mode allows: [`omp-cli.md`](../reports/omp-cli.md#11-approval-modes-dm-902). Codex and Cursor apply their own approval policies. The app's own boundary stays the chat's `dm` grant: its role, and Allow save.
 
 ## Subagents in a chat
 
@@ -205,7 +205,7 @@ A chat's role is one of the four Dark Mechanicus roles and is fixed when the cha
 | Worker | Does one ticket and reports back |
 | Reviewer | Checks finished work against its criteria |
 
-**Allow save** exists only for the planner and the orchestrator. It starts on, and while it is on the chat's `dm` grant is issued with save allowed, so the agent can save the plan itself. With it off, or for a worker or reviewer (which never get it, whatever a request says), the agent edits drafts and you press **Save** in the app. The role and the save permission match the `--role` and `--allow-save` flags [`mcp-setup.md`](mcp-setup.md#roles-and---allow-save) describes for an external host; agents can never approve a checkpoint, authorize auto-continue or grant a retry.
+**Allow save** exists only for the planner and the orchestrator. It starts on, and while it is on the chat's `dm` grant is issued with save allowed, so the agent can save the plan itself. With it off, or for a worker or reviewer (which never get it, whatever a request says), the agent edits drafts and you press **Save** in the app. One exception: an orchestrator saves the plan of an epic whose active run this machine owns, so it can fix the sprint it runs and adopt the revision itself; it must give a reason, which the run's activity shows ("Plan revision n adopted by the orchestrator: why"). You still approve at the sprint checkpoint. The role and the save permission match the `--role` and `--allow-save` flags [`mcp-setup.md`](mcp-setup.md#roles-and---allow-save) describes for an external host; agents can never approve a checkpoint, authorize auto-continue or grant a retry.
 
 ## Start a run with an agent, or leave it pending
 

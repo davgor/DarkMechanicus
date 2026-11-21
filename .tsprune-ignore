@@ -377,3 +377,6 @@ src/shared/domain/views.ts - SummaryReworkGap
 src/shared/domain/views.ts - UnavailableField
 src/shared/domain/views.ts - WorkerInfo
 src/test/realGit.ts - default
+src/core/plan/criterionWording.ts - CRITERION_NEEDS_PERSON
+src/core/plan/criterionWording.ts - criterionNeedsPerson
+src/shared/domain/bundle.ts - autoRetryLimitOf

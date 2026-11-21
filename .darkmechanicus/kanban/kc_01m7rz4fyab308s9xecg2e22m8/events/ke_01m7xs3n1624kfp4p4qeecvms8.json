@@ -1,0 +1,31 @@
+{
+  "actor": {
+    "label": "Desktop",
+    "role": "desktop"
+  },
+  "attemptId": "ka_01m7xemx8mysrq3wqt15fxqax9",
+  "cardId": "kc_01m7rz4fyab308s9xecg2e22m8",
+  "createdAt": "2026-11-21T00:46:40.678Z",
+  "format": "darkmechanicus.kanban-event",
+  "formatVersion": 1,
+  "id": "ke_01m7xs3n1624kfp4p4qeecvms8",
+  "kind": "approved",
+  "payload": {
+    "number": 8,
+    "summary": {
+      "approvedBy": "Desktop",
+      "commits": [
+        "8c33ddc5d3e9640ef6233ecbc39845a6f1aa60d6",
+        "db7bfef7b6a14baf647fc5fec8cbeb541ab3f3b5",
+        "767bbaa8ede1cc5604b92bacd59ef14d0fcc7a7b",
+        "3375c6833055db038c46964116f0f3b8eb16084f",
+        "9ba94e4e396c7ea3bc231cbccafed92948e68376",
+        "f040305e2fca0628b249e80e0743c38453bf9bc3",
+        "b74d540ca10142705f62f9460c0b19d76b5a8fec",
+        "27b4bf10308b9da1f2e7df79e165248ec0236878"
+      ],
+      "completedAt": "2026-11-21T00:46:40.678Z",
+      "outcome": "Existing accessible Retry fix 8c33ddc retained and verified. Timer supervision fix db7bfef7 is integrated: alarms inspect progress, never stop productive work solely for elapsed time. Reconciled upstream installation safeguards, trimmed the merged kernel without weakening contro…"
+    }
+  }
+}
