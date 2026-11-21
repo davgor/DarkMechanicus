@@ -31,10 +31,11 @@ class FakeXterm {
   readonly inputs: string[] = []
   readonly csi: { key: string; callback: (params: (number | number[])[]) => boolean }[] = []
   readonly parser = {
-    registerCsiHandler: (id: { prefix?: string; final: string }, callback: (params: (number | number[])[]) => boolean): IDisposable => {
-      this.csi.push({ key: `${id.prefix ?? ''}${id.final}`, callback })
+    registerCsiHandler: (id: { prefix?: string; intermediates?: string; final: string }, callback: (params: (number | number[])[]) => boolean): IDisposable => {
+      this.csi.push({ key: `${id.prefix ?? ''}${id.intermediates ?? ''}${id.final}`, callback })
       return { dispose: () => undefined }
-    }
+    },
+    registerDcsHandler: (): IDisposable => ({ dispose: () => undefined })
   }
   private readonly data = new Set<(data: string) => void>()
   keyHandler: ((event: KeyboardEvent) => boolean) | null = null

@@ -179,6 +179,14 @@ function track(manager: Manager, agentId: AgentId, pty: PtyProcess): Login {
     }),
     last: null
   }
+  const stopResponse = screen.onResponse((data) => {
+    if (login.exited || login.stopMessage !== null) return
+    try {
+      pty.write(data)
+    } catch (error) {
+      manager.onError(error)
+    }
+  })
   const stopData = pty.onData((data) => {
     screen.write(data, () => emit(manager, login, { kind: 'output', data }))
   })
@@ -186,6 +194,7 @@ function track(manager: Manager, agentId: AgentId, pty: PtyProcess): Login {
     login.exited = true
     reportEnded()
     stopData()
+    stopResponse()
     stopExit()
     // Asked now, while the group's id can only be the CLI's: ends what it left running in its process group.
     void killTree(manager, login)

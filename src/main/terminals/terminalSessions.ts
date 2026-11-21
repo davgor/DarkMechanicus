@@ -36,6 +36,9 @@
  * attach answers with its serialized snapshot and subscribes its listener at that same point in the output, so
  * the listener hears exactly what came after the snapshot; output reaches listeners once it is on the screen.
  * What a listener hears from an attach is held until that attach has answered.
+ * Main's persistent emulator also answers its supported terminal control queries directly to the PTY,
+ * independent of selection or attaches. Panes suppress those automatic replies (`terminalQueryResponses.ts`),
+ * so there is one response owner even for a query split across attach/detach. These are not user input.
  *
  * **Folder watch.** While a PTY runs its folder is checked again every minute, and when an attach finds it
  * running; a failed check stops it (tree killed, grant revoked) with the same `not_found` message.
@@ -773,6 +776,14 @@ function startLive(manager: Manager, chat: ChatRecord, started: Started): Live {
  */
 function wireLive(manager: Manager, live: Live, reportEnded: () => void, reportClosed: () => void): void {
   const { pty, screen, chat } = live
+  const stopResponse = screen.onResponse((data) => {
+    if (live.exited || live.stopMessage !== null) return
+    try {
+      pty.write(data)
+    } catch (error) {
+      manager.onError(error)
+    }
+  })
   const stopData = pty.onData((data) => {
     screen.write(data, () => {
       tookOutput(manager, live, data)
@@ -799,6 +810,7 @@ function wireLive(manager: Manager, live: Live, reportEnded: () => void, reportC
       void track(manager, pauseIfSignedOut(manager, chat))
     }
     stopData()
+    stopResponse()
     stopExit()
     closeAfterExit(manager, live, exit, reportClosed)
   })

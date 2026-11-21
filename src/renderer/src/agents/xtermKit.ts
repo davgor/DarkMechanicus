@@ -11,11 +11,12 @@ import { UnicodeGraphemesAddon } from '@xterm/addon-unicode-graphemes'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { Terminal } from '@xterm/xterm'
-import type { IDisposable, ITerminalAddon, ITerminalOptions } from '@xterm/xterm'
+import type { IDisposable, IParser, ITerminalAddon, ITerminalOptions } from '@xterm/xterm'
 import '@xterm/xterm/css/xterm.css'
 import { withInertStyleElements } from './inertStyles'
 import { modifiedEnter, type KeyModes } from './terminalKeys'
 import type { TerminalKit, TerminalSize, TerminalView } from './terminalView'
+import { suppressTerminalQueryResponses } from '../../../shared/agents/terminalQueryResponses'
 
 const FONT_SIZE = 13
 
@@ -32,9 +33,7 @@ interface XtermTerminal {
   onTitleChange(listener: (title: string) => void): IDisposable
   attachCustomKeyEventHandler(handler: (event: KeyboardEvent) => boolean): void
   input(data: string, wasUserInput?: boolean): void
-  readonly parser: {
-    registerCsiHandler(id: { prefix?: string; final: string }, callback: (params: CsiParams) => boolean): IDisposable
-  }
+  readonly parser: Pick<IParser, 'registerCsiHandler' | 'registerDcsHandler'>
   focus(): void
   dispose(): void
 }
@@ -188,6 +187,7 @@ export function createXtermKit(parts: XtermParts): TerminalKit {
       const fit = new parts.FitAddon()
       terminal.loadAddon(fit)
       loadContentAddons(parts, terminal, activate)
+      suppressTerminalQueryResponses(terminal.parser)
       terminal.attachCustomKeyEventHandler(keyHandler(terminal, trackKeyModes(terminal)))
       // Loaded before `open`, the addon sets its renderer as the terminal opens, so xterm never makes a DOM renderer.
       loadWebgl(parts, terminal, host.ownerDocument)
