@@ -225,3 +225,27 @@ describe('DM-267 c1: the Metrics link below the MCP line', () => {
     expect(screen.getByRole('button', { name: 'Metrics' }).hasAttribute('aria-current')).toBe(false)
   })
 })
+
+describe('sidebar footer disclosure', () => {
+  it('keeps the chevron inside the footer and restores the notification row when expanded', async () => {
+    renderFooter({ status: null })
+    await settle()
+    const footer = screen.getByRole('contentinfo')
+    const controls = within(footer)
+    const collapse = controls.getByRole('button', { name: 'Collapse footer' })
+    expect(collapse.getAttribute('aria-expanded')).toBe('true')
+    expect(collapse.querySelector('svg')?.getAttribute('data-icon')).toBe('chevron-down')
+
+    fireEvent.click(collapse)
+    const expand = controls.getByRole('button', { name: 'Expand footer' })
+    expect(expand.getAttribute('aria-expanded')).toBe('false')
+    expect(expand.querySelector('svg')?.getAttribute('data-icon')).toBe('chevron-right')
+    expect(controls.queryByRole('button', { name: 'Notifications' })).toBeNull()
+
+    fireEvent.click(expand)
+    const notifications = controls.getByRole('button', { name: 'Notifications' })
+    const bell = notifications.closest('.footer-line')?.firstElementChild
+    expect(bell?.getAttribute('data-icon')).toBe('bell')
+    expect(bell?.nextElementSibling).toBe(notifications)
+  })
+})
