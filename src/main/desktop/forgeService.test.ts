@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import type { IpcMain } from 'electron'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { openWorkspace } from '../../core/workspace'
 import { gitIn, scratchDir } from '../../test/gitScratch'
 import { createGitRunner } from '../git/runner'
@@ -29,12 +29,14 @@ function fixture() {
   }
   const real = createGitRunner()
   const published: string[] = []
+  const probes: string[] = []
   let picked: string | null = source
   const forge = startForge({ handle: (key, handler) => { handlers.set(key, handler) } }, {
     home, registry, pool, session: { getAccount: () => ({ login: 'example', host: 'github.com' }), getToken: () => null },
     pickDirectory: async () => picked, cleanup: () => undefined, publish: async name => { published.push(name) },
     onSynced: async () => undefined, onConflict: async () => { throw new Error('Unexpected conflict') },
     runner: { run: async req => {
+      if (req.args.includes('--show-toplevel')) probes.push(req.cwd)
       if (req.kind !== 'network') return real.run(req)
       if (req.args.includes('clone')) {
         const dir = req.args.at(-1)!
@@ -47,7 +49,7 @@ function fixture() {
       return { code: 0, stdout: '', stderr: '' }
     } }
   })
-  return { pool, source, world, home, registry, call, forge, published, pick(path: string | null) { picked = path },
+  return { pool, source, world, home, registry, call, forge, published, probes, pick(path: string | null) { picked = path },
     close() { forge.stop(); pool.closeAll(); scratch.cleanup() } }
 }
 
@@ -65,11 +67,38 @@ it('converts a real SQLite project, follows its source note and restores the sam
     expect(forgeKickoff(member)).toContain('https://github.com/example/software.git')
     expect(forgeKickoff(source)).toBe('')
     expect((await pool.get(member).getStorageStatus()).storage.mode).toBe('forge')
+    await expect(pool.get(member).switchStorageMode({ mode: 'db', confirmed: true })).rejects.toThrow('Ticket source control')
     expect((await pool.get(member).getKanbanCard({ cardId: card.id })).title).toBe('Keep me')
     await call('restore', member, 'repo')
     expect(existsSync(join(source, 'FORGE-WORLD.md'))).toBe(false)
     expect((await pool.get(source).getKanbanCard({ cardId: card.id })).title).toBe('Keep me')
   } finally { close() }
+})
+
+it('syncs only worlds at the configured interval and stops when the bridge closes', async () => {
+  vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+  const { world, call, forge, probes, close } = fixture()
+  try {
+    await call('create', world)
+    probes.length = 0
+    vi.advanceTimersByTime(15_000)
+    expect(probes).toEqual([world])
+    await call('sync', world)
+    vi.advanceTimersByTime(285_000)
+    expect(probes).toEqual([world])
+    vi.advanceTimersByTime(15_000)
+    expect(probes).toEqual([world, world])
+    await call('sync', world)
+    await call('interval', world, 1)
+    vi.advanceTimersByTime(45_000)
+    expect(probes).toHaveLength(2)
+    vi.advanceTimersByTime(15_000)
+    expect(probes).toEqual([world, world, world])
+    await call('sync', world)
+    forge.stop()
+    vi.advanceTimersByTime(300_000)
+    expect(probes).toHaveLength(3)
+  } finally { close(); vi.useRealTimers() }
 })
 
 it('publishes under the signed-in owner, reuses the checkout and resolves a tracked remote on open', async () => {
@@ -87,6 +116,7 @@ it('publishes under the signed-in owner, reuses the checkout and resolves a trac
     expect(await forge.openProject(root)).toBe(root)
     expect(await forge.openProject(source)).toBe(member)
     expect(registry.list().find(f => f.path === root)?.forgeWorld?.projects).toEqual([{ folder: 'Code', repository: 'https://github.com/example/software.git' }])
+    expect(registry.list().find(f => f.path === root)?.name).toBe('Forge World example')
     await expect(call('convert', root, member)).rejects.toThrow('source code project')
     await expect(call('convert', root, source)).rejects.toThrow('already exists')
     await expect(call('restore', root, 'repo')).rejects.toThrow('Select a Forge World project')

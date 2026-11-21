@@ -111,6 +111,7 @@ import { refreshMcpServer, writeMcpServer } from './mcpJsonFile'
 import { installClaudeSkills, type SkillDefinition } from './skillInstall'
 import { createSourceCheckouts, type SourceCheckouts } from './sourceCheckout'
 import { createSourceCheckoutHandlers, registerSourceCheckoutIpc } from './sourceCheckoutIpc'
+import { publishForgeRepository } from './forgePublish'
 import { forgeAgentSessions } from './forgeAgents'
 import { cleanupForgeSource } from './forgeCleanup'
 import { startForge } from './forgeService'
@@ -891,15 +892,7 @@ function startForgeBridge(ipc: Pick<IpcMain, 'handle'>, options: ForgeBridgeOpti
   const { registry, pool, github, skills } = options
   return startForge(ipc, {
     registry, pool, session: github, home: darkMechanicusHome(), pickDirectory, cleanup: source => cleanupForgeSource(source, skills),
-    publish: async name => {
-      const token = github.getToken()
-      if (!token) throw new Error('Sign into GitHub to publish a Forge World.')
-      const response = await net.fetch('https://api.github.com/user/repos', {
-        method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, private: true, auto_init: true })
-      })
-      if (!response.ok) throw new Error('GitHub could not create this private repository (' + response.status + ').')
-    },
+    publish: name => publishForgeRepository(name, github.getToken(), net.fetch.bind(net)),
     ...forgeAgentSessions(options)
   })
 }

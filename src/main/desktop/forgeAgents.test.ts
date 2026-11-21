@@ -5,6 +5,7 @@ import { createChatRecords } from '../agents/chatRecords'
 import { createChatStore } from '../agents/chatStore'
 import { scratchDir } from '../../test/gitScratch'
 import { forgeAgentSessions } from './forgeAgents'
+import { createForge, updateForge } from './forgeManifest'
 
 it('reuses the resolver record, stops its terminal and retains its archived history', async () => {
   const fixture = scratchDir('forge-agents-')
@@ -48,5 +49,21 @@ it('reuses the resolver record, stops its terminal and retains its archived hist
     expect(live.size).toBe(0)
     connected.pop()
     await expect(session.onConflict(root, null)).rejects.toThrow('Connect an agent')
+  } finally { fixture.cleanup() }
+})
+
+it('labels ticket launches with the repository owner and name even when its ticket folder is an alias', () => {
+  const fixture = scratchDir('forge-agent-target-')
+  const root = fixture.path
+  const member = join(root, 'Alias')
+  try {
+    createForge(root, 'example')
+    updateForge(root, w => w.projects.push({ folder: 'Alias', repository: 'example/actual-code' }))
+    mkdirSync(member)
+    const store = createChatStore({ root: join(root, 'chats') })
+    const agent = { folder: member, agent: 'claude', model: null, role: 'orchestrator' as const, allowSave: false }
+    expect(store.createChat({ ...agent, runId: 'rn_2' }).targetRepository).toBe('example/actual-code')
+    expect(store.createChat({ ...agent, cardId: 'kc_1' }).targetRepository).toBe('example/actual-code')
+    expect(store.createChat(agent).targetRepository).toBeUndefined()
   } finally { fixture.cleanup() }
 })

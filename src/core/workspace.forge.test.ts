@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it } from 'vitest'
 import { createHarness, type Harness } from '../test/workspaceHarness'
@@ -74,4 +75,23 @@ it('rejects stale pointers and recognizes only project folders listed by a valid
   }
   writeFileSync(manifest, '{"version":1,"projects":[{"folder":"Project"}]}')
   expect(isForgeMember(nodeFs, member)).toBe(true)
+})
+
+it('honors another live process holding a conversion and recovers the journal after its owner exits', async () => {
+  const { homeDir, root } = h
+  const member = join(homeDir, 'Forge', 'Project')
+  await expect(withForgeTransfer(homeDir, root, member, async (_phase, advance) => {
+    advance(1)
+    throw new Error('suspended')
+  })).rejects.toThrow('suspended')
+  const journals = join(homeDir, 'forge-bindings')
+  const file = join(journals, readdirSync(journals).find(f => f.endsWith('.move.json'))!)
+  const journal = JSON.parse(readFileSync(file, 'utf8'))
+  writeFileSync(file, JSON.stringify({ ...journal, pid: process.ppid }))
+  await expect(withForgeTransfer(homeDir, root, member, async () => null)).rejects.toThrow('owns this conversion')
+  const exited = spawnSync(process.execPath, ['-e', 'process.exit(0)'])
+  expect(exited.status).toBe(0)
+  writeFileSync(file, JSON.stringify({ ...journal, pid: exited.pid }))
+  expect(await withForgeTransfer(homeDir, root, member, async phase => phase)).toBe(1)
+  expect(existsSync(file)).toBe(false)
 })
