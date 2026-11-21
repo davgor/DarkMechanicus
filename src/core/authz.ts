@@ -2,9 +2,9 @@ import type { SessionRole } from '../shared/domain/views'
 import { fail } from './errors'
 
 export const CAPABILITIES = [
+  'tooling.recover',
   'read',
   'chat.name',
-  'tooling.recover',
   'repo.init',
   'repo.flush',
   'repo.reconcile',
@@ -120,9 +120,9 @@ export const HUMAN_ONLY_CAPABILITIES: readonly Capability[] = [
 
 /** What a planner and an orchestrator both hold. */
 const PLANNER_SHARED: Capability[] = [
+  'tooling.recover',
   'read',
   'chat.name',
-  'tooling.recover',
   'repo.init',
   'repo.flush',
   'repo.reconcile',
