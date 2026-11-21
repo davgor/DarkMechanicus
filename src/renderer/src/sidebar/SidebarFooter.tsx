@@ -63,10 +63,7 @@ export function SidebarFooter(props: SidebarFooterProps): JSX.Element {
   const warning = branchWarning(props.status)
   return (
     <footer className="sidebar-footer">
-      <button className="footer-link" aria-expanded={!collapsed} onClick={() => {
-        localStorage.setItem('footer-collapsed', String(!collapsed))
-        setCollapsed(!collapsed)
-      }}>{collapsed ? 'Expand footer ▸' : 'Collapse footer ▾'}</button>
+      <FooterToggle collapsed={collapsed} setCollapsed={setCollapsed} />
       {!collapsed && <>
       <div className="footer-line">
         <Icon name="plug" size={15} />
@@ -94,7 +91,22 @@ export function SidebarFooter(props: SidebarFooterProps): JSX.Element {
       </div>
       <Notifications />
       <GithubLine />
-      {warning === null ? null : (
+      <BranchWarning warning={warning} props={props} />
+      {props.children}
+      </>}
+    </footer>
+  )
+}
+
+function FooterToggle({ collapsed, setCollapsed }: { collapsed: boolean; setCollapsed(value: boolean): void }) {
+  return <button className="footer-link" aria-expanded={!collapsed} onClick={() => {
+        localStorage.setItem('footer-collapsed', String(!collapsed))
+        setCollapsed(!collapsed)
+      }}>{collapsed ? 'Expand footer ▸' : 'Collapse footer ▾'}</button>
+}
+
+function BranchWarning({ warning, props }: { warning: ReturnType<typeof branchWarning>; props: SidebarFooterProps }) {
+  return warning === null ? null : (
         <div className="footer-warning">
           <div className="footer-warning-text">
             <Icon name="warning" size={15} />
@@ -104,9 +116,5 @@ export function SidebarFooter(props: SidebarFooterProps): JSX.Element {
             Reconcile
           </Button>
         </div>
-      )}
-      {props.children}
-      </>}
-    </footer>
-  )
+      )
 }

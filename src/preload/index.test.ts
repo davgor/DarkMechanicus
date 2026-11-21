@@ -9,6 +9,7 @@ import { CHAT_EVENT_CHANNEL, CHAT_MAIL_EVENT_CHANNEL } from '../shared/agents/ch
 import { AUTO_UPDATE_EVENT_CHANNEL } from '../shared/autoUpdate/types'
 import { GIT_PROGRESS_CHANNEL } from '../shared/git/api'
 import { GITHUB_ACCOUNT_CHANGED_CHANNEL } from '../shared/github/api'
+import { registerTelegramIpc } from '../main/telegram'
 import { registerChatIpc, registerChatMailIpc } from '../main/agents/chatIpc'
 import type { ChatHandlers } from '../main/agents/chatHandlers'
 import type { ChatMailHandlers } from '../main/agents/agentMailDesktop'
@@ -95,6 +96,7 @@ beforeAll(() => {
   registerKnowledgeIpc(recorder(true), recordingHandlers<KnowledgeHandlers>())
   registerChatIpc(recorder(true), recordingHandlers<ChatHandlers>())
   registerChatMailIpc(recorder(true), recordingHandlers<ChatMailHandlers>())
+  registerTelegramIpc(recorder(false), () => ({}), async () => 'code')
   registerAutoUpdateHandlers(recorder(false))
   // Terminal handlers take the sender's frame, not the event, so these are checked by channel and payload only.
   registerTerminalIpc(recorder(false), recordingHandlers<TerminalHandlers>())

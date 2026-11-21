@@ -256,7 +256,7 @@ export interface YoloStatus {
 
 export interface DmApi {
   telegramStatus(): Promise<{ configured: boolean; paired: boolean; issue: string }>
-  pairTelegram(token: string): Promise<string>
+  pairTelegram(): Promise<string>
   /** Agent chats run by the main process: the `chats:*` channels and their push channel. */
   chats: ChatsApi
   /** Chat terminals: `terminals:attach`, and the port main posts for a running one. */
