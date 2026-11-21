@@ -152,3 +152,34 @@ describe('GrantsCard revoking', () => {
     expect(dm.callsOf('listGrants')).toHaveLength(2)
   })
 })
+
+describe('Allow save requests', () => {
+  it.each([
+    { decision: 'approved' as const, button: 'Allow save' },
+    { decision: 'denied' as const, button: 'Deny' }
+  ])('shows pending requests and records a human $decision decision on the intended request', async ({ decision, button }) => {
+    dm.responses.listGrants = []
+    dm.responses.listSavePermissionRequests = [{
+      id: 'sp_fixture', sessionId: 'ss_fixture', grantId: 'gr_fixture', requesterLabel: 'Existing orchestrator',
+      reason: 'Save the reviewed plan', status: 'pending', requestedAt: '2026-11-21T12:00:00.000Z',
+      decidedAt: null, decidedBySessionId: null, decisionReason: null
+    }]
+    dm.responses.decideSavePermission = {
+      id: 'sp_fixture', sessionId: 'ss_fixture', grantId: 'gr_fixture', requesterLabel: 'Existing orchestrator',
+      reason: 'Save the reviewed plan', status: decision, requestedAt: '2026-11-21T12:00:00.000Z',
+      decidedAt: '2026-11-21T12:01:00.000Z', decidedBySessionId: 'ss_desktop', decisionReason: 'Reviewed'
+    }
+    renderCard()
+    await settle()
+    expect(within(card()).getByText('Save the reviewed plan')).toBeTruthy()
+    fireEvent.change(within(card()).getByLabelText('Decision reason'), { target: { value: 'Reviewed' } })
+    expect((within(card()).getByRole('button', { name: button }) as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(within(card()).getByRole('button', { name: button }))
+    await settle()
+    expect(dm.callsOf('decideSavePermission')[0]?.input).toEqual({
+      requestId: 'sp_fixture', decision, reason: 'Reviewed'
+    })
+    expect(within(card()).getByText(decision)).toBeTruthy()
+    expect(within(card()).queryByRole('button', { name: 'Allow save' })).toBeNull()
+  })
+})

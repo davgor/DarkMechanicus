@@ -73,7 +73,7 @@ describe('a CLI session with a grant', () => {
 
   it('saves plans only when the grant says so', async () => {
     const desktop = await withDesktop()
-    const plain = harness.open('reader', { transport: 'cli', grantToken: await tokenFor(desktop, 'orchestrator') })
+    const plain = harness.open('reader', { transport: 'cli', grantToken: await tokenFor(desktop, 'orchestrator', { allowSave: false }) })
     expect((await plain.getCapabilities()).capabilities).not.toContain('plan.save')
     const saving = harness.open('reader', {
       transport: 'cli',

@@ -75,7 +75,7 @@ describe('start a transfer chat', () => {
       agent: 'claude',
       model: 'haiku',
       role: 'orchestrator',
-      allowSave: false,
+      allowSave: true,
       title: 'Linear transfer · Linear handoff',
       transferEpicId: EPIC_ID
     })
@@ -86,7 +86,7 @@ describe('start a transfer chat', () => {
     expect(chats()[0]?.kickoffSent).toBe(true)
   })
 
-  it('starts the agent with an orchestrator grant that may not save, the transfer guidance and no run guidance in its instructions', async () => {
+  it('starts the agent with an orchestrator grant that may save, the transfer guidance and no run guidance in its instructions', async () => {
     const { records, transfers } = rig('in_progress')
 
     const result = await startTransferChat({ transfers, chats: records, terminals: terminals.sessions }, request())
@@ -94,7 +94,6 @@ describe('start a transfer chat', () => {
     const instructions = readFileSync(argsOf()[argsOf().indexOf('--append-system-prompt-file') + 1] ?? '', 'utf8')
     expect(result.problem).toBeNull()
     expect(instructions).toContain('**orchestrator** grant')
-    expect(instructions).toContain('This chat may not save plans')
     expect(instructions).not.toContain('Orchestrating a Dark Mechanicus run')
     expect(instructions.endsWith(transferGuidance(EPIC_ID))).toBe(true)
   })
@@ -210,7 +209,7 @@ describe('start a transfer chat: a custom agent', () => {
 })
 
 describe('find a transfer chat', () => {
-  it('finds the chat again after an app restart, an orchestrator that may not save, and its kickoff is not given again', async () => {
+  it('finds the chat again after an app restart, an orchestrator that may save, and its kickoff is not given again', async () => {
     const { records, transfers } = rig()
     const started = await startTransferChat({ transfers, chats: records, terminals: terminals.sessions }, request())
     terminals.host.last().exit({ exitCode: 0, signal: null })
@@ -220,7 +219,7 @@ describe('find a transfer chat', () => {
     const reopened = createChatRecords({ store: terminals.reopenedStore(), agentFor: connectedAgents([builtInAgent('claude')]) })
     const found = findTransferChat(reopened, terminals.repo, EPIC_ID)
 
-    expect(found).toMatchObject({ id: started.chat?.id, role: 'orchestrator', allowSave: false, transferEpicId: EPIC_ID, title: 'Linear transfer · Linear handoff', kickoffSent: true })
+    expect(found).toMatchObject({ id: started.chat?.id, role: 'orchestrator', allowSave: true, transferEpicId: EPIC_ID, title: 'Linear transfer · Linear handoff', kickoffSent: true })
     expect(await terminals.sessions.start(found as ChatRecord, { kickoff: KICKOFF })).toMatchObject({ state: 'running' })
     expect(terminals.host.spawns).toHaveLength(2)
     expect(argsOf(1)).not.toContain(KICKOFF)

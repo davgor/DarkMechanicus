@@ -14,7 +14,7 @@ describe('parseMcpArgs defaults', () => {
     expect(parse([])).toEqual({
       repo: CWD,
       role: 'orchestrator',
-      allowSave: false,
+      allowSave: true,
       label: 'orchestrator via MCP',
       help: false
     })
@@ -95,9 +95,12 @@ describe('parseMcpArgs roles and switches', () => {
     )
   })
 
-  it('enables saving only with --allow-save', () => {
+  it('defaults orchestrators to saving while other roles require --allow-save', () => {
     expect(parse(['--allow-save']).allowSave).toBe(true)
-    expect(parse([]).allowSave).toBe(false)
+    expect(parse([]).allowSave).toBe(true)
+    expect(parse(['--role', 'planner']).allowSave).toBe(false)
+    expect(parse(['--role', 'worker']).allowSave).toBe(false)
+    expect(parse(['--no-allow-save']).allowSave).toBe(false)
   })
 
   it('rejects a value on a switch', () => {

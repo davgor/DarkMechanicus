@@ -98,7 +98,7 @@ export async function startOrchestratorRun(deps: OrchestratorStartDeps, request:
       agent,
       role: 'orchestrator',
       model: request.model ?? null,
-      allowSave: false,
+      allowSave: true,
       title: orchestratorTitle(epic.title),
       runId: run.id,
       // Recorded as the chat's first input, so a start that ends before they went delivers them once, later.

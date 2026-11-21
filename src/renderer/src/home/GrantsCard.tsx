@@ -5,6 +5,7 @@ import { useToasts } from '../app/toasts'
 import { Button } from '../components/Button'
 import { Icon } from '../components/Icon'
 import { formatShortDate } from '../sidebar/epicStatusLine'
+import { SavePermissionRequests } from './SavePermissionRequests'
 
 interface GrantsCardProps {
   folder: TrackedFolderView
@@ -76,12 +77,16 @@ function IssueForm({ busy, onIssue, onCancel }: IssueFormProps): JSX.Element {
   const [role, setRole] = useState<GrantableRole>('orchestrator')
   const [label, setLabel] = useState('dm CLI')
   const [minutes, setMinutes] = useState(8 * 60)
-  const [allowSave, setAllowSave] = useState(false)
+  const [allowSave, setAllowSave] = useState(true)
   const canSave = role === 'orchestrator' || role === 'planner'
   return (
     <div className="grant-form">
       <Field id={ids.role} label="Role">
-        <select id={ids.role} value={role} disabled={busy} onChange={(event) => setRole(event.target.value as GrantableRole)}>
+        <select id={ids.role} value={role} disabled={busy} onChange={(event) => {
+          const next = event.target.value as GrantableRole
+          setRole(next)
+          setAllowSave(next === 'orchestrator')
+        }}>
           {ROLES.map((option) => (
             <option key={option.role} value={option.role}>
               {option.label}
@@ -276,6 +281,7 @@ export function GrantsCard({ folder }: GrantsCardProps): JSX.Element {
           ))}
         </div>
       )}
+      <SavePermissionRequests folder={folder.path} />
       {issuing ? (
         <IssueForm
           busy={state.busy}

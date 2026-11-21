@@ -7,6 +7,26 @@ import { defineArglessTool, defineTool, registerTools } from './define'
 import { epicId } from './params'
 
 const DISCOVERY_TOOLS = [
+  defineTool({
+    name: 'request_save_permission',
+    description: 'An orchestrator without Allow save explicitly requests plan.save for this folder and its current grant (until expiry/revocation), or MCP session. Returns pending; requesting never grants permission. A person in Agent access, or a distinct orchestrator with original explicit Allow save, may approve or deny. Use list_save_permission_requests to observe the decision, then get_capabilities.',
+    kind: 'write',
+    input: { reason: z.string().trim().min(1).max(200_000) },
+    run: (api, input) => api.requestSavePermission(input)
+  }),
+  defineArglessTool({
+    name: 'list_save_permission_requests',
+    description: 'Lists this folder and machine’s Allow save requests with pending/approved/denied status and audited decision reason, actor and time. Approval grants only plan.save, never checkpoint, retry or card approval.',
+    kind: 'read',
+    run: (api) => api.listSavePermissionRequests()
+  }),
+  defineTool({
+    name: 'decide_save_permission',
+    description: 'Approve or deny a pending Allow save request. Server requires a person at the desktop or another current orchestrator with ORIGINAL explicit Allow save. Self/same-grant approval, derived authority, wrong roles and expired/revoked targets are refused. No general grant delegation; only plan.save in this folder for the intended grant/session.',
+    kind: 'write',
+    input: { requestId: z.string(), decision: z.enum(['approved', 'denied']), reason: z.string().trim().min(1).max(200_000) },
+    run: (api, input) => api.decideSavePermission(input)
+  }),
   defineArglessTool({
     name: 'get_capabilities',
     description:

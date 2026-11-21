@@ -182,13 +182,14 @@ describe('claudeCodeServer', () => {
     expect(claudeCodeServer(packaged, { role: 'planner', allowSave: true })).toEqual(SERVER)
   })
 
-  it('leaves out --allow-save when saving is not allowed', () => {
+  it('explicitly opts out when an orchestrator must not save', () => {
     expect(claudeCodeServer(packaged, { role: 'orchestrator', allowSave: false }).args).toEqual([
       '/Apps/dm/mcp.js',
       '--repo',
       '/repos/site',
       '--role',
       'orchestrator',
+      '--no-allow-save',
       '--label',
       'Claude Code'
     ])

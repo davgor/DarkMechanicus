@@ -265,7 +265,7 @@ describe('chat IPC: start an orchestrator', () => {
     expect(state.queued).toEqual([EPIC_ID])
     expect(result.problem).toBeNull()
     const chat = result.chat as ChatRecord
-    expect(chat).toMatchObject({ role: 'orchestrator', allowSave: false, runId: 'rn_2', title: 'Orchestrator · Agent chats', model: 'big' })
+    expect(chat).toMatchObject({ role: 'orchestrator', allowSave: true, runId: 'rn_2', title: 'Orchestrator · Agent chats', model: 'big' })
     expect(state.terminalStarts).toEqual([{ chatId: chat.id, kickoff: expect.stringContaining('Run: rn_2') }])
     expect(state.terminalStarts[0]?.kickoff).toContain('Branch: epic/agent-chats')
     expect(state.store.readTranscript(chat)?.items ?? []).toEqual([])
@@ -303,7 +303,7 @@ describe('chat IPC: start a transfer chat', () => {
 
     expect(result.problem).toBeNull()
     const chat = result.chat as ChatRecord
-    expect(chat).toMatchObject({ role: 'orchestrator', allowSave: false, transferEpicId: EPIC_ID, title: 'Linear transfer · Agent chats', model: 'big' })
+    expect(chat).toMatchObject({ role: 'orchestrator', allowSave: true, transferEpicId: EPIC_ID, title: 'Linear transfer · Agent chats', model: 'big' })
     expect(chat).not.toHaveProperty('runId')
     expect(state.terminalStarts).toEqual([{ chatId: chat.id, kickoff }])
     expect(state.store.readTranscript(chat)?.items ?? []).toEqual([])
@@ -343,7 +343,7 @@ describe('chat IPC: play a Kanban card and kick it back', () => {
     expect(state.kanbanCalls).toEqual([`play ${CARD_ID}`])
     expect(result.problem).toBeNull()
     const chat = result.chat as ChatRecord
-    expect(chat).toMatchObject({ role: 'orchestrator', allowSave: false, cardId: CARD_ID, title: 'Kanban · DM-42 Fix the flaky upload test', model: 'big' })
+    expect(chat).toMatchObject({ role: 'orchestrator', allowSave: true, cardId: CARD_ID, title: 'Kanban · DM-42 Fix the flaky upload test', model: 'big' })
     expect(state.terminalStarts).toEqual([{ chatId: chat.id, kickoff: expect.stringContaining(`claim_kanban_card with cardId ${CARD_ID}`) }])
     expect(state.terminalStarts[0]?.kickoff).toContain('Branch: feature/cards')
     expect(state.store.readTranscript(chat)?.items ?? []).toEqual([])

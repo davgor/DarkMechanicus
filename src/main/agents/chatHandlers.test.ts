@@ -247,7 +247,7 @@ describe('chat handlers: start an orchestrator', () => {
     expect(queue).toEqual([`getEpic ${REPO} ${EPIC_ID}`, `queueRun ${REPO} ${EPIC_ID}`])
     expect(calls[0]).toEqual([
       'createChat',
-      { folder: REPO, agent: 'codex', role: 'orchestrator', model: 'big', allowSave: false, title: 'Orchestrator · Agent chats', runId: 'rn_2' }
+      { folder: REPO, agent: 'codex', role: 'orchestrator', model: 'big', allowSave: true, title: 'Orchestrator · Agent chats', runId: 'rn_2' }
     ])
     expect(calls[1]?.slice(0, 2)).toEqual(['start', CHAT])
     expect(calls[1]?.[2]).toEqual({ kickoff: expect.stringContaining(EPIC_ID) })
@@ -306,7 +306,7 @@ describe('chat handlers: start an orchestrator with additional instructions', ()
     expect(started.kickoff).toContain(`Epic: Agent chats (${EPIC_ID})`)
     expect(started.kickoff).toContain('Additional instructions from the person')
     expect(started.kickoff).toContain('Run the UI tickets first.')
-    expect(created).toMatchObject({ runId: 'rn_2', allowSave: false, firstPrompt: started.kickoff })
+    expect(created).toMatchObject({ runId: 'rn_2', allowSave: true, firstPrompt: started.kickoff })
   })
 
   it('refuses blank, oversized or non-text instructions before anything is queued, and a transfer chat refuses them all', async () => {
@@ -340,7 +340,7 @@ describe('chat handlers: start a transfer chat', () => {
     expect(result).toEqual({ ok: true, data: { chat: CHAT, problem: null } })
     expect(reads).toEqual([`getEpic ${REPO} ${EPIC_ID}`, `getTransfer ${REPO} ${EPIC_ID}`])
     expect(calls).toEqual([
-      ['createChat', { folder: REPO, agent: 'codex', role: 'orchestrator', model: 'big', allowSave: false, title: 'Linear transfer · Agent chats', transferEpicId: EPIC_ID }],
+      ['createChat', { folder: REPO, agent: 'codex', role: 'orchestrator', model: 'big', allowSave: true, title: 'Linear transfer · Agent chats', transferEpicId: EPIC_ID }],
       ['start', CHAT, { kickoff: transferKickoff({ epicId: EPIC_ID, epicTitle: 'Agent chats' }) }]
     ])
   })
@@ -608,7 +608,7 @@ describe('chat handlers: play a Kanban card', () => {
     expect(result).toEqual({ ok: true, data: { card: CARD, chat: CHAT, problem: null } })
     expect(cards).toEqual([`play ${REPO} ${CARD_ID}`, `branch ${REPO}`])
     expect(calls).toEqual([
-      ['createChat', { folder: REPO, agent: 'claude', role: 'orchestrator', model: 'sonnet', allowSave: false, title: 'Kanban · DM-7 Fix the flaky upload test', cardId: CARD_ID }],
+      ['createChat', { folder: REPO, agent: 'claude', role: 'orchestrator', model: 'sonnet', allowSave: true, title: 'Kanban · DM-7 Fix the flaky upload test', cardId: CARD_ID }],
       ['start', CHAT, { kickoff: expect.stringContaining(`claim_kanban_card with cardId ${CARD_ID}`) }]
     ])
     expect(pushed).toEqual([CHANGED])
@@ -664,7 +664,7 @@ describe('chat handlers: play a Kanban card with additional instructions', () =>
     expect(started.kickoff).toContain(`claim_kanban_card with cardId ${CARD_ID}`)
     expect(started.kickoff).toContain('Additional instructions from the person')
     expect(started.kickoff.endsWith(`Use tabs.\n=== End of additional instructions ===`)).toBe(true)
-    expect(created).toMatchObject({ role: 'orchestrator', allowSave: false, firstPrompt: started.kickoff })
+    expect(created).toMatchObject({ role: 'orchestrator', allowSave: true, firstPrompt: started.kickoff })
   })
 
   it('refuses blank, oversized or non-text instructions before the card is played', async () => {

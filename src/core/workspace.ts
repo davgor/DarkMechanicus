@@ -34,6 +34,7 @@ import { assertStorageMigrationIdle, recoverStorageMigration, switchStorage } fr
 import { pruneStagedAttachments } from './services/attachments'
 import { MAIL_POLL_COMMANDS, openMailPollSession, touchMailPollSession } from './services/agentMail'
 import { assertGrantUsable, redeemGrant, type RedeemedGrant } from './services/grants'
+import { refreshSavePermission } from './services/savePermissions'
 import { auditYoloCommand, authorizeYoloCommand, type YoloCommandAdmission } from './services/yoloCommands'
 import type { FsAdapter, GitAdapter, RepoLayout } from './repo/types'
 import { parseInput } from './schemas'
@@ -254,7 +255,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
     if (this.options.transport === 'cli') {
       return this.granted === null ? [...UNGRANTED_CLI_CAPABILITIES] : [...this.granted.capabilities]
     }
-    return capabilitiesForRole(this.options.role, { allowSave: this.options.allowSave === true })
+    return capabilitiesForRole(this.options.role, { allowSave: this.options.allowSave ?? this.options.role === 'orchestrator' })
   }
 
   isInitialized(): boolean {
@@ -689,6 +690,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
       this.requireStore()
     }
     this.assertStillGranted()
+    if (this.store !== null) refreshSavePermission(this.store.ctx)
     const run = spec.run as (core: WorkspaceCore, input: unknown) => unknown
     const result = await this.runCommand(name, input, () => run(this, input))
     if (spec.mutates && this.store) {

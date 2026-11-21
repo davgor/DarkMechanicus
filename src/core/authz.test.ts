@@ -34,6 +34,7 @@ const PLANNER: Capability[] = [...PLANNER_SHARED, ...PLANNER_ONLY]
 
 const ORCHESTRATOR: Capability[] = [
   ...PLANNER_SHARED,
+  'plan.request_save',
   'epic.status',
   'epic.branch',
   'epic.transfer',
@@ -95,6 +96,8 @@ const DESKTOP: Capability[] = [
   'transfer.queue',
   'draft.edit',
   'plan.save',
+  'plan.request_save',
+  'plan.decide_save',
   'profile.write',
   'project.definition_of_done',
   'project.repositories',
@@ -356,7 +359,7 @@ describe('allowSave', () => {
     expect(capabilitiesForRole(role, {})).not.toContain('plan.save')
     const withSave = capabilitiesForRole(role, { allowSave: true })
     expect(withSave.filter((capability) => capability === 'plan.save')).toHaveLength(1)
-    expect(withSave).toHaveLength(capabilitiesForRole(role).length + 1)
+    expect(withSave.includes('plan.decide_save')).toBe(role === 'orchestrator')
   })
 
   it.each(['worker', 'reviewer'] as const)('never adds plan.save for the %s role', (role) => {

@@ -367,6 +367,8 @@ const DESKTOP_COMMANDS = [
   'issueGrant',
   'listGrants',
   'revokeGrant',
+  'listSavePermissionRequests',
+  'decideSavePermission',
   'listEpics',
   'createEpic',
   'getEpic',
