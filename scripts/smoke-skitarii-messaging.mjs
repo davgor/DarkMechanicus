@@ -499,10 +499,12 @@ async function proveConversationRefresh(nonce, before) {
     (${conversationBubble(nonce)}).scrollIntoView({ block:'center' })
     return result
   })()`)
-  must('open-panel-refresh-without-core-event-or-local-send', await coreEventCursor() === before)
+  facts.panelReceipt = { beforeCoreCursor: before, observed }
+  const after = await coreEventCursor()
+  facts.panelReceipt.afterCoreCursor = after
+  must('open-panel-refresh-without-core-event-or-local-send', after === before)
   must('open-panel-same-instance-draft-and-body-free-push', observed.samePanel && observed.draft === 'Harmless unsent DM820 draft' &&
     observed.events.some((event) => event.type === 'chats_changed' && event.folder === P.repo && event.chatId === ids.b))
-  facts.panelReceipt = { coreCursor: before, observed }
   await screenshot('DM-820-04-conversation-delivered.png', 'The same real card conversation updates automatically to Delivered to Beta without a core event, send, prop reset or lost draft.')
   await minimumScreenshot('DM-820-04-conversation-minimum.png', 'Actual delivered conversation at the emulated minimum renderer size derived from the owned native window minimum and measured decorations; no DOM or application state was changed.')
 }
@@ -635,9 +637,9 @@ async function independentAndBusy() {
   must('busy-original-tool-output-preserved-before-continuation', boundary.messages.some((entry) => entry.toolDone))
   assertPeers(boundary, busy, busyAccepted, 'busy-next-boundary')
   assertPerson(boundary, person.data.messageId, personHash, 'busy-next-boundary')
+  await proveConversationRefresh(personNonce, panelCursor)
   await waitTurn(ids.b, busyFrom, 'busy continuation')
   must('busy-real-response-knows-future-nonce', assistantTexts(ids.b, busyFrom).some((text) => text.includes(busy[0].body)))
-  await proveConversationRefresh(personNonce, panelCursor)
   const stable = contexts().length
   const duplicate = await produce(busy, 'duplicate')
   must('send-dedupe-keeps-message-identity', duplicate[0].duplicate === true && duplicate[0].messageId === busyAccepted[0].messageId)
