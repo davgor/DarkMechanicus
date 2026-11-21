@@ -1,3 +1,4 @@
+import { requireCapability } from '../authz'
 import { COMMAND_SCHEMAS } from '../commandSchemas'
 import type { Ctx } from '../context'
 import { filePaths, withKnowledgeContext } from '../knowledge/push'
@@ -87,7 +88,13 @@ const kanbanCommands = {
   submitKanbanCard: {
     schema: COMMAND_SCHEMAS.submitKanbanCard,
     mutates: true,
-    run: (core, input) => submitKanbanCard(core.ctx(), input)
+    run: async (core, input) => {
+      const ctx = core.ctx()
+      requireCapability(ctx.session, 'kanban.report')
+      const merge = input.evidence?.merge
+      const merged = merge?.branch === 'main' && await ctx.gitFor(null).isAncestor(merge.commit, 'refs/remotes/origin/main') === true
+      return submitKanbanCard(ctx, input, merged)
+    }
   },
   failKanbanCard: {
     schema: COMMAND_SCHEMAS.failKanbanCard,

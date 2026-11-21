@@ -114,7 +114,7 @@ export function orchestratorGuidance(): string {
     'The desktop app started this chat as the orchestrator of a run it queued; your first message names the epic, its branch (in a folder of repositories, the branch in each repository) and the run.',
     '',
     '1. Call get_capabilities first and confirm your role is orchestrator.',
-    '2. Call start_run for the epic. It picks up the queued run; if it says a run is already active, carry on with that run.',
+    '2. Read get_project for the saved project deliveryStandards. Call start_run for the epic. It picks up the queued run; if it says a run is already active, carry on with that run.',
     '3. Run the epic yourself, in this chat, following the orchestrator guidance below. Never do a ticket yourself: start a subagent as the worker for each one.',
     HANDOFF,
     '5. Keep going until the sprint checkpoint, where a person approves in the desktop app.',

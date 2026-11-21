@@ -1,3 +1,4 @@
+import type { StoredDeliveryPolicy } from '../shared/domain/deliveryPolicy'
 import type { SessionContext } from './authz'
 import type { GitAdapter } from './repo/types'
 import type { Clock } from './clock'
@@ -25,6 +26,8 @@ export interface Ctx {
   checkout(): { branch: string | null; commit: string | null }
   /** The Git adapter for child repository `repo` of a folder of repositories, or the root's for null (`WorkspaceCore.gitFor`). */
   gitFor(repo: string | null): GitAdapter
+  /** The current standards of the resolved project or Forge World member. */
+  deliveryStandards?(): StoredDeliveryPolicy | undefined
   /**
    * The project's Definition of Done as `.darkmechanicus/project.json` holds it right now (empty when it has none).
    * Read from the file on every call, so a change made by another session or by hand applies immediately.

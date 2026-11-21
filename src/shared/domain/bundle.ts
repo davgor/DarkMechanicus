@@ -148,7 +148,15 @@ export interface TicketBudget {
   basis?: BudgetBasis
 }
 
+export interface PlannedTestCase {
+  startingCondition: string
+  action: string
+  expectedResult: string
+  verificationMethod: string
+}
+
 export interface TicketContent {
+  testCases?: PlannedTestCase[]
   id: string
   /** Display key such as `DM-12`. Display only — identity is `id`. */
   key: string
@@ -188,6 +196,7 @@ export const CHECKPOINT_MODES = ['human', 'auto'] as const
 export type CheckpointMode = (typeof CHECKPOINT_MODES)[number]
 
 export interface SprintDef {
+  deploymentVerification?: string
   id: string
   /** 1-based position; sprints execute in ordinal order. */
   ordinal: number

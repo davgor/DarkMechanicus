@@ -1,3 +1,6 @@
+import { workStandards } from '../workStandards'
+import { itemWorkflow } from '../workflowPolicy'
+import { checkKanbanSubmission } from '../deliveryWorkflow'
 import { toolingLeaseTimeGivenBack } from '../toolingHold'
 /**
  * A Kanban card's lifecycle. Desktop Play or an authorized external launch queues the card; an orchestrator claims it,
@@ -22,7 +25,7 @@ import {
   type KanbanDoneSummary,
   type KanbanPacket
 } from '../../../shared/domain/kanban'
-import type { AttemptOutputs } from '../../../shared/domain/views'
+import type { AttemptEvidence, AttemptOutputs } from '../../../shared/domain/views'
 import { requireCapability } from '../../authz'
 import { CLAIM_TOKEN_MASK, maskWholeClaimTokens } from '../../claimTokenMask'
 import { addSeconds, isBefore } from '../../clock'
@@ -65,11 +68,13 @@ const REPORTING: KanbanPacket['reporting'] = {
 }
 
 /** The packet's reporting text: where to work, the kick-backs to address and the Definition of Done to report. */
-function reportingOf(branch: string | null, kickedBack: boolean, definitionOfDone: boolean): KanbanPacket['reporting'] {
-  const lines = [
-    branch === null ? 'Work on the checked-out branch.' : `Work on the checked-out branch ${branch}; cards get no branch of their own.`,
-    REPORTING.instructions
-  ]
+function reportingOf(branch: string | null, kickedBack: boolean, definitionOfDone: boolean, workflow?: 'default' | 'custom'): KanbanPacket['reporting'] {
+  const legacy = branch === null ? 'Work on the checked-out branch.' : `Work on the checked-out branch ${branch}; cards get no branch of their own.`
+  const workflowGuidance = {
+    default: 'Use a task branch for the PR, verify its checks, merge to main and record the PR, branch, commit and checks URL in evidence.merge.',
+    custom: 'Follow the Ticket standards pinned to this card for testing, branch, review and integration. Record how they were verified in evidence.notes.'
+  }
+  const lines = [workflow ? workflowGuidance[workflow] : legacy, REPORTING.instructions]
   if (kickedBack) {
     lines.push('A person kicked this card back before: address every comment in reviewComments, the latest last.')
   }
@@ -295,7 +300,9 @@ function packetOf(ctx: Ctx, cardId: string, claim: NewClaim): KanbanPacket {
   )
   const branch = ctx.checkout().branch
   const definitionOfDone = ctx.definitionOfDone()
+  const deliveryStandards = itemWorkflow(ctx, cardId, 'kanban', cardId)
   return {
+    ...(deliveryStandards && { deliveryStandards: { revision: deliveryStandards.revision, prompt: deliveryStandards.prompt } }),
     cardId: card.id,
     key: card.key,
     attemptId: claim.attemptId,
@@ -314,7 +321,7 @@ function packetOf(ctx: Ctx, cardId: string, claim: NewClaim): KanbanPacket {
     },
     branch,
     reviewComments,
-    reporting: reportingOf(branch, reviewComments.length > 0, definitionOfDone.length > 0),
+    reporting: reportingOf(branch, reviewComments.length > 0, definitionOfDone.length > 0, deliveryStandards?.workflow),
     definitionOfDone
   }
 }
@@ -405,12 +412,14 @@ export function heartbeatKanbanCard(ctx: Ctx, input: HeartbeatKanbanCardInput): 
       // A note is working data, not a transition: the desktop refreshes, and no kanban event is kept.
       appendEvent(ctx, { kind: 'kanban.progress', payload: { cardId: card.id, key: card.key, attemptId: row.id } })
     }
-    return toAttemptView(loadClaim(ctx, row.id))
+    const result = toAttemptView(loadClaim(ctx, row.id))
+    const rule = workStandards(ctx.db, 'kanban', card.id).find(s => s.kind === 'kanban' && s.id === card.id)
+    return rule ? { ...result, deliveryRequirements: rule } : result
   })
 }
 
 /** Stores the attempt's outputs and evidence, masked, and moves the card to Ready for review. */
-export function submitKanbanCard(ctx: Ctx, input: SubmitKanbanCardInput): KanbanAttemptView {
+export function submitKanbanCard(ctx: Ctx, input: SubmitKanbanCardInput, mergedToMain = false): KanbanAttemptView {
   requireCapability(ctx.session, 'kanban.report')
   settleLeases(ctx, input.attemptId)
   const scope = { command: 'submitKanbanCard', key: input.idempotencyKey, request: requestWithoutKey(input) }
@@ -422,6 +431,7 @@ export function submitKanbanCard(ctx: Ctx, input: SubmitKanbanCardInput): Kanban
     const outputs = maskedReport(normalizeOutputs(input.outputs), claim)
     // Claimed in this transaction: a refused image refuses the whole submission.
     const evidence = maskedReport(normalizeEvidence(claimEvidenceAttachments(ctx, input.evidence, { kind: 'kanban_attempt', id: row.id })), claim)
+    checkKanbanSubmission(itemWorkflow(ctx, row.card_id, 'kanban', row.card_id), evidence, mergedToMain)
     const usage = listYoloAudit(ctx, { runId: null, boundCardId: row.card_id })
     if (usage.length > 0) {
       const log = yoloEvidence(usage, evidence.notes.split('\n'))
@@ -508,6 +518,11 @@ export function approveKanbanCard(ctx: Ctx, input: { cardId: string; idempotency
     const { row, attempt } = reviewable(ctx, input.cardId)
     const now = ctx.clock.nowIso()
     const outputs = parseJson<AttemptOutputs | null>(attempt.outputs_json, null)
+    const rule = itemWorkflow(ctx, row.id, 'kanban', row.id)
+    const evidence = parseJson<AttemptEvidence | null>(attempt.evidence_json, null)
+    if (rule?.disposition === 'updated' && rule.revision !== evidence?.standardsRevision) {
+      fail('conflict', 'The card requirements changed after submission. Kick it back for evidence against the revised standards.')
+    }
     const summary: KanbanDoneSummary = {
       outcome: outcomeLine(outputs?.summary ?? ''),
       commits: outputs?.commits ?? [],

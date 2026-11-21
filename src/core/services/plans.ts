@@ -1,5 +1,6 @@
-import type { PlanBundle, TicketContent } from '../../shared/domain/bundle'
-import type { PlanView, RevisionSummaryView, SaveResultView, ValidationReport } from '../../shared/domain/views'
+import { effectivePlan } from './workStandards'
+import type { PlanBundle, SprintDef, TicketContent } from '../../shared/domain/bundle'
+import type { PlanView, RevisionSummaryView, SaveResultView, ValidationIssue, ValidationReport } from '../../shared/domain/views'
 import { requireCapability } from '../authz'
 import { contentHash } from '../canonical'
 import type { Ctx } from '../context'
@@ -13,6 +14,7 @@ import { activeRun, assertEpicOpen, type EpicRow, loadEpicRow } from './epics'
 import { appendEvent } from './events'
 import { requestWithoutKey, withIdempotency } from './idempotency'
 import { enqueueOutbox } from './outbox'
+import { pinPlanWorkflows } from './workflowPolicy'
 import { withRunWarnings } from './runWarnings'
 import { indexDocument } from './searchIndex'
 import { checkSavedTicketAttachments, claimSavedTicketAttachments } from './ticketAttachments'
@@ -149,8 +151,10 @@ function findSavedRevision(ctx: Ctx, epic: EpicRow, revisionId: string | undefin
 
 function savedView(ctx: Ctx, epic: EpicRow, revisionId: string | undefined): PlanView {
   const revision = findSavedRevision(ctx, epic, revisionId)
-  const bundle = parseBundle(revision.bundle_json)
+  const snapshot = parseBundle(revision.bundle_json)
+  const bundle = revisionId === undefined ? effectivePlan(ctx.db, epic.id, snapshot) : snapshot
   return {
+    ...(snapshot !== bundle && { snapshotContentHash: contentHash(snapshot) }),
     epicId: epic.id,
     view: 'saved',
     revisionId: revision.id,
@@ -182,10 +186,10 @@ export function readPlanBundle(
   view: 'saved' | 'draft'
 ): { bundle: PlanBundle; revisionId: string | null } {
   if (view === 'draft') {
-    return { bundle: parseBundle(requireDraft(ctx, epic).bundle_json), revisionId: null }
+    return { bundle: effectivePlan(ctx.db, epic.id, parseBundle(requireDraft(ctx, epic).bundle_json)), revisionId: null }
   }
   const revision = findSavedRevision(ctx, epic, undefined)
-  return { bundle: parseBundle(revision.bundle_json), revisionId: revision.id }
+  return { bundle: effectivePlan(ctx.db, epic.id, parseBundle(revision.bundle_json)), revisionId: revision.id }
 }
 
 function draftView(ctx: Ctx, epic: EpicRow): PlanView {
@@ -196,7 +200,9 @@ function draftView(ctx: Ctx, epic: EpicRow): PlanView {
     draft.base_revision_id
   )
   const completed = epic.status === 'completed'
+  const effective = effectivePlan(ctx.db, epic.id, bundle)
   return {
+    ...(effective !== bundle && { effectiveBundle: effective }),
     epicId: epic.id,
     view: 'draft',
     revisionId: null,
@@ -220,7 +226,49 @@ export function getPlan(
 ): PlanView {
   requireCapability(ctx.session, 'read')
   const epic = loadEpicRow(ctx, input.epicId)
-  return input.view === 'saved' ? savedView(ctx, epic, input.revisionId) : draftView(ctx, epic)
+  const view = input.view === 'saved' ? savedView(ctx, epic, input.revisionId) : draftView(ctx, epic)
+  const standards = ctx.deliveryStandards?.()
+  return standards ? { ...view, deliveryStandards: standards } : view
+}
+
+function changedItem<T>(previous: T | undefined, current: T): boolean {
+  return previous === undefined || contentHash(previous) !== contentHash(current)
+}
+
+function missingTicketCases(tickets: TicketContent[], previous: TicketContent[]): ValidationIssue[] {
+  const byId = new Map(previous.map(ticket => [ticket.id, ticket]))
+  const missing = tickets.filter(ticket =>
+    ticket.kind !== 'acceptance' && ticket.capability.workType === 'implementation' &&
+    !ticket.testCases?.length && changedItem(byId.get(ticket.id), ticket))
+  return missing.map(ticket => ({
+    code: 'missing_test_cases',
+    ticketIds: [ticket.id],
+    message: `${ticket.key} needs a test case with a starting condition, action, expected result and verification method.`
+  }))
+}
+
+function missingSprintVerification(sprints: SprintDef[], previous: SprintDef[]): ValidationIssue[] {
+  const byId = new Map(previous.map(sprint => [sprint.id, sprint]))
+  return sprints.filter(sprint =>
+    (!sprint.goal.trim() || !sprint.deploymentVerification) && changedItem(byId.get(sprint.id), sprint)
+  ).map(sprint => ({
+    code: 'missing_deployment_verification',
+    sprintIds: [sprint.id],
+    message: `Sprint ${sprint.ordinal} needs a deployable goal and instructions a person can follow to verify the deployed result.`
+  }))
+}
+
+/** New or revised work follows the configured prompts. Untouched historical work can be standardized separately. */
+export function validateProjectPlan(ctx: Ctx, bundle: PlanBundle, baseRevision: string | null): ValidationReport {
+  const report = validatePlan(bundle, { repositories: ctx.repositoryEntries() })
+  if (!ctx.deliveryStandards?.()?.policy.prompts) return report
+  const base = baseRevision ? loadRevisionBundle(ctx, baseRevision) : undefined
+  const errors = [
+    ...report.errors,
+    ...missingTicketCases(bundle.tickets, base?.tickets ?? []),
+    ...missingSprintVerification(bundle.sprints, base?.sprints ?? [])
+  ]
+  return { ...report, errors, valid: errors.length === 0 }
 }
 
 /** The plan's validation report; while a run executes the epic it also carries the run-aware warnings. */
@@ -228,7 +276,8 @@ export function validatePlanView(ctx: Ctx, input: { epicId: string; view: 'saved
   requireCapability(ctx.session, 'read')
   const epic = loadEpicRow(ctx, input.epicId)
   const { bundle } = readPlanBundle(ctx, epic, input.view)
-  return withRunWarnings(ctx, epic.id, bundle, validatePlan(bundle, { repositories: ctx.repositoryEntries() }))
+  const baseRevision = input.view === 'draft' ? requireDraft(ctx, epic).base_revision_id : findSavedRevision(ctx, epic, undefined).base_revision_id
+  return withRunWarnings(ctx, epic.id, bundle, validateProjectPlan(ctx, bundle, baseRevision))
 }
 
 function savableBundle(ctx: Ctx, epic: EpicRow, draft: DraftRow): PlanBundle {
@@ -239,7 +288,7 @@ function savableBundle(ctx: Ctx, epic: EpicRow, draft: DraftRow): PlanBundle {
     })
   }
   const bundle = parseBundle(draft.bundle_json)
-  const report = validatePlan(bundle, { repositories: ctx.repositoryEntries() })
+  const report = validateProjectPlan(ctx, bundle, draft.base_revision_id)
   const [first] = report.errors
   if (first) {
     fail('invalid_plan', `The plan has ${report.errors.length} error(s) that block saving. ${first.message}`, {
@@ -462,6 +511,8 @@ function markSaved(ctx: Ctx, revision: RevisionRow, bundle: PlanBundle): void {
   }
   // After ticket_status: a ticket owner resolves through it. Skips, never throws, so the snapshot entry completes.
   claimSavedTicketAttachments(ctx.db, bundle)
+  const base = revision.base_revision_id ? loadRevisionBundle(ctx, revision.base_revision_id) : null
+  pinPlanWorkflows(ctx, revision.epic_id, bundle, base)
 }
 
 /**

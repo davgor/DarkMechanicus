@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { baselineDeliveryPolicy } from '../../../shared/domain/standardsPrompts'
 import type { KanbanPacket } from '../../../shared/domain/kanban'
 import type { DefinitionOfDoneCheck, SessionRole } from '../../../shared/domain/views'
 import { captureError } from '../../../test/authoring'
@@ -60,6 +61,19 @@ function claimedCard(ctx: Board, leaseSeconds?: number): KanbanPacket {
   const cardId = playedCard(ctx)
   return claimKanbanCard(ctx.orchestrator, leaseSeconds === undefined ? { cardId } : { cardId, leaseSeconds })
 }
+
+it('holds a configured Kanban card until passing tests and a verified main merge are recorded', () => {
+  const ctx = board()
+  ctx.desktop.deliveryStandards = () => ({ revision: 1, policy: baselineDeliveryPolicy })
+  const packet = claimedCard(ctx)
+  const merge = { pullRequest: 'https://example.com/pr/18', checksUrl: 'https://example.com/checks/18', branch: 'main', commit: 'a'.repeat(40) }
+  const input = { attemptId: packet.attemptId, claimToken: token(packet), outputs: { summary: 'Shipped' },
+    evidence: { merge, checks: [{ name: 'card test', status: 'passed' as const, detail: '1 passed' }] } }
+  expect(() => submitKanbanCard(ctx.worker, input)).toThrow('origin/main')
+  expect(getKanbanCard(ctx.desktop, { cardId: packet.cardId }).lane).toBe('in_progress')
+  expect(submitKanbanCard(ctx.worker, input, true).evidence?.merge).toEqual(merge)
+  expect(getKanbanCard(ctx.desktop, { cardId: packet.cardId }).lane).toBe('ready_for_review')
+})
 
 function submit(ctx: Board, packet: KanbanPacket, summary = 'Made the upload test wait for the server.'): void {
   submitKanbanCard(ctx.worker, {

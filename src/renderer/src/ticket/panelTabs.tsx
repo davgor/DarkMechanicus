@@ -88,8 +88,13 @@ function Criteria({ detail, bundle, runner, onSelect }: OverviewTabProps): JSX.E
   if (!isAcceptanceTicket(detail.ticket)) {
     return <CriteriaChecklist detail={detail} />
   }
+  const verification = bundle.sprints.find(sprint => sprint.ticketIds.includes(detail.ticket.id))?.deploymentVerification
   return (
     <>
+      {verification &&
+        <section className="tp-section"><h3 className="ew-eyebrow">Verify after deployment</h3>
+          <p>{verification}</p>
+        </section>}
       <CoverageCriteria detail={detail} bundle={bundle} onSelect={onSelect} />
       <DefinitionOfDone runner={runner} detail={detail} bundle={bundle} />
     </>
@@ -129,6 +134,23 @@ export function OverviewTab(props: OverviewTabProps): JSX.Element {
   return (
     <>
       {detail.ticket.body.trim() === '' ? <p className="ew-muted">No description.</p> : <Markdown source={detail.ticket.body} />}
+      {detail.ticket.testCases?.length ? (
+        <section className="tp-section" aria-label="Planned test cases">
+          <h3 className="ew-eyebrow">Planned test cases</h3>
+          <ol>
+            {detail.ticket.testCases.map((test, index) => (
+              <li key={index}>
+                <dl className="tp-profile">
+                  <div><dt>Starting condition</dt><dd>{test.startingCondition}</dd></div>
+                  <div><dt>Action</dt><dd>{test.action}</dd></div>
+                  <div><dt>Expected result</dt><dd>{test.expectedResult}</dd></div>
+                  <div><dt>Verification</dt><dd>{test.verificationMethod}</dd></div>
+                </dl>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
       <Criteria {...props} />
       <TicketMaterials ticket={detail.ticket} folderKey={props.folderKey} />
       <CapabilityProfile detail={detail} />

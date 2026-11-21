@@ -233,6 +233,7 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 | Profiles: `save_profile` | yes | yes | | |
 | Definition of Done: `set_definition_of_done` | yes | | | |
 | Delivery standards: `set_delivery_standards` | yes | | | |
+| Standardize existing project work: `standardize_project_work` | yes (Allow save to apply changes) | | | |
 | Repository and drafts: `initialize_repository`, `rescan_repositories`, `flush_portable_state`, `reconcile_repository`, `create_epic`, `import_board`, `create_ticket`, `update_ticket`, `open_plan_draft`, `update_plan_draft`, `discard_plan_draft` | yes | yes | | |
 | Corrective work: `create_corrections` | yes | yes | | |
 | Kanban cards (`kanban.write`): `create_kanban_card`, `update_kanban_card` | yes | yes | | |
@@ -315,6 +316,14 @@ Moving a saved epic to a Linear project is the person's decision: they queue the
 | `submit_transfer_readback` | write | One part of the read-back from Linear; parts accumulate until `final: true`, which completes the epic on a full match or returns the mismatches. It takes no `idempotencyKey`: sending a part again is harmless, and a final part always ends the accumulation, so after a refusal the agent reads Linear back again from the start. |
 
 The whole flow, from the app's Transfer to Linear button to what completion records, is in [Transfer an epic to Linear](linear-transfer.md).
+
+## Project Delivery Standards
+
+Open the project and select **Delivery Standards** beside **Source control**. For a Forge World, expand the member whose tickets you want to configure. **Accept defaults** saves a copy of the four prompts. **Prepare with agent** opens a project-scoped conversation about its tests, merge process, deployment and evidence. You can also edit the prompts directly.
+
+The active ticket store records the approved prompts and their revision. For SQLite, commit and push the generated `.darkmechanicus-standards.json` in the source repository to share the setup decision and prompts with other checkouts. Tickets stay in the local database. For repository JSON and Forge World projects, share the ticket repository through its usual Git workflow.
+
+**Standardize tickets** asks whether the new revision should apply to existing work, including active assignments. The planner reviews each epic, sprint, ticket and Kanban card. An interrupted review resumes against the same revision. Completed records retain their original evidence, and criteria that the evidence cannot establish are listed for follow-up. Choose **Later** to leave existing assignments on their current revision.
 
 ## Tool results and errors
 

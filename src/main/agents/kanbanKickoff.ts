@@ -85,10 +85,10 @@ export function kanbanGuidance(cardId: string): string {
     '3. Start one worker subagent with three things written into the message you give it: the whole packet, the worker guidance below, and this rule: do not call submit_kanban_card or fail_kanban_card, report back to the orchestrator instead. ' +
       'The 5-minute check and 10-minute alarm are supervisory, not a worker deadline: productive workers continue on the same assignment and claim. Report progress/evidence, current operation, expected next result and blockers; investigate suspected stalled workers from evidence. A single card must not wait on an unsolicited epic or its Save. ' +
       'The claim token is a secret: give it only to the worker, and never put it in a commit, comment, report or note.',
-    '4. The worker works on the checked-out branch, commits there, calls heartbeat_kanban_card with a progress note every heartbeatIntervalSeconds, and reports back to you. It does not submit the card.',
+    '4. Use the checked-out branch for legacy cards. Follow the configured Ticket standards and packet reporting instructions for branch and integration. The worker commits the change, calls heartbeat_kanban_card with a progress note every heartbeatIntervalSeconds, and reports back to you. It does not submit the card.',
     '5. Review what the worker reports against the acceptance criteria of the card and the Definition of Done in the packet. Send it back to the worker until it meets them. ' +
       'Keep calling heartbeat_kanban_card yourself while you review, until you submit, so the claim does not expire.',
-    '6. Call submit_kanban_card with the outputs (summary, commits, changed files, branch) and evidence for each acceptance criterion. If the card cannot be done, call fail_kanban_card with the reason instead.',
+    '6. Call submit_kanban_card after the project’s Ticket standards are met. Under the default Ticket standards, record the PR, green checks and main merge in evidence.merge (pullRequest, branch, commit, checksUrl). Include the outputs (summary, commits, changed files, branch) and evidence for each acceptance criterion. If the card cannot be done, call fail_kanban_card with the reason instead.',
     '7. Stop. A person approves or kicks back the card in the desktop app.',
     `8. If a message later says the card was kicked back by a person, call claim_kanban_card with cardId ${card} again and carry the card once more, addressing every comment.`,
     '',

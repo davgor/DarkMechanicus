@@ -1128,6 +1128,7 @@ function upsertRevision(db: Db, snapshot: SnapshotRecord): void {
 }
 
 function upsertTicketStatuses(db: Db, files: EpicFiles): void {
+  db.run('UPDATE epics SET standards_json = ? WHERE id = ?', files.state.standards ? toJson(files.state.standards) : null, files.epicId)
   for (const [ticketId, status] of Object.entries(files.state.ticketStatuses)) {
     db.run(
       `INSERT INTO ticket_status (ticket_id, epic_id, status, revision, updated_at) VALUES (?, ?, ?, 1, ?)

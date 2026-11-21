@@ -8,4 +8,4 @@ scope.topics: [integration-worktree]
 priority: 80
 ---
 
-The epic feature branch is the integration target, and each sprint's work meets on a sprint integration branch first (pull `get_context` topic `integration-worktree` before you create it). Workers branch from the sprint integration branch, and you merge their accepted work into it. The epic branch receives one squashed commit per sprint, never a merge per ticket, and nothing goes into the default branch. You own merge order, conflict resolution, and the combined checks. Merging the epic into the default branch is a separate step for a person.
+Build the sprint on its integration branch (pull topic `integration-worktree`). Workers branch from it. Under default Ticket standards, review the named tests, integrate passing work and verify it before acceptance. You own merge order, conflicts and combined checks. The epic feature branch receives one squashed commit per sprint. Deliver the sprint under its pinned standards and merge permissions.

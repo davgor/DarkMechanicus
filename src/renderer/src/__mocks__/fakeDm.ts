@@ -66,6 +66,7 @@ export class FakeDm implements DmApi {
   folders: TrackedFolderView[] = []
   pickQueue: FolderPickResult[] = []
   responses: Partial<Record<CommandName, unknown>> = {
+    getProject: {},
     listEpics: [],
     searchHistory: [],
     listBranchEpics: [],

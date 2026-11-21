@@ -32,6 +32,7 @@ import { EpicWorkspace } from './epic/EpicWorkspace'
 import type { EpicWorkspaceProps } from './epic/EpicWorkspace'
 import type { OrchestrationHost } from './epic/orchestration'
 import { CloneDialog } from './clone/CloneDialog'
+import { DeliveryStandards } from './folder/DeliveryStandards'
 import { ForgeOpen } from './folder/ForgeOpen'
 import { TicketSource } from './folder/TicketSource'
 import { FolderPage } from './folder/FolderPage'
@@ -193,9 +194,20 @@ function FolderPane({ shell, scheduler, EpicView }: PaneProps): JSX.Element | nu
     return null
   }
   const { folder, tab } = view
+  const launchStandardsChat = async (project: TrackedFolderView, prompt: string) => {
+    const defaultId = await window.dm.folderDefaultAgent(project.path)
+    const agent = newChatAgent(defaultId, shell.agents.agents, shell.agents.statuses)
+    if (agent === null) {
+      shell.actions.openAddAgent()
+      return
+    }
+    const chat = await shell.actions.createChat(project, { agent, model: null, role: 'planner', allowSave: true, firstPrompt: prompt })
+    if (chat === null) throw new Error('Could not open the project delivery standards chat.')
+  }
   return (
     <FolderPage key={folder.path} folder={folder} tab={tab} onTab={(next) => shell.setFolderTab(folder.path, next)}>
-      {tab === 'tickets' || (folder.forgeWorld && tab === 'epics') ? <TicketSource key={folder.path} folder={folder} folders={shell.folders} status={shell.status} initialize={mode => shell.actions.initialize(folder, { mode, writeMcpConfig: false, importBoard: false })} open={async path => { await shell.reloadFolders(); shell.actions.selectFolder(path) }} /> : tab === 'source' ? <SourceControlView key={folder.path} folder={folder} scheduler={scheduler} /> : <EpicsPanel shell={shell} folder={folder} />}
+      <DeliveryStandards key={folder.path} folder={folder} folders={shell.folders} launch={launchStandardsChat} compact={tab !== 'standards'} />
+      {tab === 'standards' ? null : tab === 'tickets' || (folder.forgeWorld && tab === 'epics') ? <TicketSource key={folder.path} folder={folder} folders={shell.folders} status={shell.status} initialize={mode => shell.actions.initialize(folder, { mode, writeMcpConfig: false, importBoard: false })} open={async path => { await shell.reloadFolders(); shell.actions.selectFolder(path) }} /> : tab === 'source' ? <SourceControlView key={folder.path} folder={folder} scheduler={scheduler} /> : <EpicsPanel shell={shell} folder={folder} />}
     </FolderPage>
   )
 }

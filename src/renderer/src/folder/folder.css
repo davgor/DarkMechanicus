@@ -31,3 +31,18 @@
 .ticket-source input, .ticket-source select { max-width: 100%; min-height: 2rem; }
 .ticket-source p[role="status"] { overflow-wrap: anywhere; }
 .sidebar-tree details.bucket { margin-left: 1.1rem; }
+.standards-editor { max-width: 74rem; margin: 0 auto; padding: 1.75rem clamp(1rem, 3vw, 2.5rem) 2.5rem; }
+.standards-editor h2, .standards-setup h2 { color: var(--ink-display); margin: 0 0 .3rem; }
+.standards-heading p { margin: 0; }
+.standards-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: 1rem; margin: 1.25rem 0; }
+.standards-field { display: flex; flex-direction: column; gap: .4rem; padding: 1rem; background: var(--panel); border: 1px solid var(--line-soft); border-radius: 6px; }
+.standards-field strong { color: var(--ink-display); }
+.standards-field .muted { flex: 1; font-size: .84rem; }
+.standards-field textarea.input { width: 100%; min-height: 7rem; resize: vertical; line-height: 1.45; }
+.standards-setup, .standards-message { padding: 1rem clamp(1rem, 3vw, 2.5rem); }
+.standards-setup { border-bottom: 1px solid var(--line-soft); }
+.standards-setup h2 { font-size: 1rem; }
+.standards-setup .button-row { margin-top: .5rem; }
+.standards-member { margin-top: .75rem; border: 1px solid var(--line-soft); border-radius: 6px; }
+.standards-member summary { padding: .9rem 1.25rem; cursor: pointer; color: var(--ink-display); font-weight: 600; }
+.standards-member .standards-editor { padding: .5rem 1.25rem 1.25rem; }

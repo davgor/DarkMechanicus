@@ -234,7 +234,16 @@ export const ticketBudget = z
   })
   .refine((budget) => budget.tokens !== undefined || budget.activeMs !== undefined, 'A budget sets tokens, activeMs or both')
 
+const verificationText = z.string().trim().min(1).max(LIMITS.shortText)
+export const plannedTestCases = z.array(z.strictObject({
+  startingCondition: verificationText,
+  action: verificationText,
+  expectedResult: verificationText,
+  verificationMethod: verificationText
+})).max(LIMITS.criteria).optional()
+
 export const ticketInput = z.strictObject({
+  testCases: plannedTestCases,
   title: title.min(1),
   // `work` is the default and is never stored; see ticketContent.
   kind: z.enum(TICKET_KINDS).optional(),
@@ -271,6 +280,7 @@ export const ticketInput = z.strictObject({
 const concurrencyCap = z.number().int().min(1).max(1_000).nullable()
 
 export const sprintInput = z.strictObject({
+  deploymentVerification: verificationText.optional(),
   goal: shortText,
   entryCriteria: criterionInputs.optional(),
   exitCriteria: criterionInputs.optional(),
@@ -317,6 +327,7 @@ export const draftOps = z.array(draftOp).min(1).max(LIMITS.opsPerRequest)
 export const ticketKey = z.string().min(1).max(40).regex(/^[A-Za-z0-9]{1,12}-\d{1,9}$/)
 
 export const ticketContent = z.strictObject({
+  testCases: plannedTestCases,
   id: stableId,
   key: ticketKey,
   // No default, like `size`: a ticket without a kind is a work ticket and keeps its saved shape and hash.
@@ -341,6 +352,7 @@ export const ticketContent = z.strictObject({
 })
 
 export const sprintDef = z.strictObject({
+  deploymentVerification: verificationText.optional(),
   id: stableId,
   ordinal: z.number().int().min(1).max(LIMITS.sprints),
   goal: shortText,
@@ -472,7 +484,10 @@ export const heartbeatProgress = z.strictObject({
   step: z.string().max(LIMITS.progressStep).optional()
 })
 
+import { deliveryMerge, sprintDeployment } from './deliveryEvidenceSchema'
+
 export const attemptEvidenceInput = z.strictObject({
+  merge: deliveryMerge.optional(),
   checks: z.array(checkResult).max(LIMITS.listItems).optional(),
   criteria: z.array(criterionResult).max(LIMITS.criteria).optional(),
   notes: markdown.optional(),
@@ -678,6 +693,9 @@ const sprintRetroInput = z.strictObject({
 })
 
 export const sprintReportInput = z.strictObject({
+  deployment: sprintDeployment.optional(),
+  epicVerification: markdown.optional(),
+  standardsVerification: markdown.optional(),
   summary: markdown,
   accepted: textList.optional(),
   failed: textList.optional(),

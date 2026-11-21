@@ -1,7 +1,7 @@
 /** The pages of a folder: its Source control, and its Epics. */
-export type FolderTab = 'source' | 'epics' | 'tickets'
+export type FolderTab = 'source' | 'standards' | 'epics' | 'tickets'
 
-export const FOLDER_TABS: readonly FolderTab[] = ['source', 'epics', 'tickets']
+export const FOLDER_TABS: readonly FolderTab[] = ['source', 'standards', 'epics', 'tickets']
 
 const DEFAULT_FOLDER_TAB: FolderTab = 'source'
 

@@ -36,6 +36,7 @@ import {
   linearIdentifier,
   linearReadbackPart,
   linearUrl,
+  plannedTestCases,
   profileName,
   rowCheckEntries,
   sprintReportInput,
@@ -165,6 +166,8 @@ export const metricReports = z.array(metricReport).min(1).max(LEDGER_LIMITS.perC
  * A Kanban card's content: the ticket fields a card shares, with no kind, tags, capability or repository. Its
  * criteria never carry `covers`, which only an acceptance node uses.
  */
+import { deliveryIntegration } from './deliveryEvidenceSchema'
+
 const kanbanCardFields = {
   title: ticketInput.shape.title,
   body: ticketInput.shape.body,
@@ -193,6 +196,22 @@ export const COMMAND_SCHEMAS = {
   nameChat: nameChatArgsSchema,
   recoverTooling: toolingRecoveryInputSchema,
   /** `repo`: in a folder of repositories, the repository whose checks these are (required there, refused otherwise). */
+  standardizeProjectWork: z.strictObject({
+    expectedRevision: z.number().int().positive(),
+    includeInProgress: z.boolean(),
+    items: z.array(z.strictObject({
+      kind: z.enum(['epic', 'sprint', 'ticket', 'kanban']),
+      id: stableId,
+      epicId: stableId.optional(),
+      disposition: z.enum(['updated', 'compliant', 'follow_up']),
+      deploymentVerification: z.string().trim().min(1).max(4000).optional(),
+      testCases: plannedTestCases.unwrap().min(1).optional(),
+      requirements: z.string().trim().min(1).max(32_000).optional(),
+      tests: z.array(z.string().trim().min(1).max(4000)).min(1).max(100).optional(),
+      acceptanceCriteria: z.array(z.string().trim().min(1).max(4000)).min(1).max(100).optional(),
+      reason: z.string().trim().min(1).max(4000)
+    })).min(1).max(100).optional()
+  }),
   setDeliveryStandards: z.strictObject({ expectedRevision: z.number().int().nonnegative(), policy: deliveryPolicy }),
   setDefinitionOfDone: z.strictObject({ checks: definitionOfDoneChecks, repo: repositoryName.optional() }),
   switchStorageMode: z.strictObject({ mode: z.enum(STORAGE_MODES), confirmed: z.literal(true) }),
@@ -383,6 +402,7 @@ export const COMMAND_SCHEMAS = {
     idempotencyKey
   }),
   acceptAttempt: z.strictObject({
+    integration: deliveryIntegration.optional(),
     attemptId: stableId,
     notes: z.string().max(LIMITS.markdown).optional(),
     criteria: z.array(criterionResult).max(LIMITS.criteria).optional(),

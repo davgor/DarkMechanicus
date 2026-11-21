@@ -5,7 +5,11 @@ import type { IpcMain } from 'electron'
 import type { GitRunner } from '../git/runner'
 import type { CredentialSession } from '../git/credentials'
 import { bindForge, FORGE_POINTER, pendingForgeTransfer, withForgeTransfer } from '../../core/repo/forgeBinding'
-import { dbProjectDir } from '../../core/repo/storageMode'
+import { retireSqlitePolicy } from '../../core/repo/deliveryPolicy'
+import { readProject } from '../../core/repo/initialize'
+import { resolveLayout } from '../../core/repo/layout'
+import { nodeFs } from '../../core/repo/nodeFs'
+import { dbProjectDir, SQLITE_STANDARDS_FILE } from '../../core/repo/storageMode'
 import { assertStorageIdle } from '../../core/repo/storageMigration'
 import { requireTracked } from './handlers'
 import { FORGE_FILE, createForge, githubRemote, parseForge, projectName, updateForge } from './forgeManifest'
@@ -168,7 +172,7 @@ class ForgeService {
       if (phase === 0) { await this.checkSource(move); advance(1) }
       if (phase < 2) { await this.exportSource(move); advance(2) }
       if (phase < 3) { await this.sync(root, true); advance(3) }
-      if (phase < 4) { await this.retireSource(source); advance(4) }
+      if (phase < 4) { await this.retireSource(source, member); advance(4) }
       this.deps.cleanup(source)
       if (!existsSync(note)) writeFileSync(note, body, { flag: 'wx' })
       if (readFileSync(note, 'utf8') !== body) throw new Error('The source pointer changed during conversion.')
@@ -314,13 +318,17 @@ class ForgeService {
     }
     if (!this.worldAt(root).projects.some(p => p.folder === folder && p.repository === repository)) updateForge(root, w => w.projects.push({ folder, repository }))
   }
-  async retireSource(source: string) {
+  async retireSource(source: string, member: string) {
     const original = this.deps.pool.get(source)
     if (original.isInitialized() && (await original.getStorageStatus()).storage.mode === 'repo') {
       const result = await original.switchStorageMode({ mode: 'db', confirmed: true })
       if (result.cleanupPending) throw new Error('Reopen the source to finish the storage cleanup.')
     }
     this.deps.pool.close(source)
+    if (existsSync(join(source, SQLITE_STANDARDS_FILE))) {
+      const exported = readProject(resolveLayout(member), nodeFs)
+      retireSqlitePolicy({ layout: resolveLayout(source), fs: nodeFs }, exported?.deliveryStandards)
+    }
     const retained = dbProjectDir(source, this.deps.home)
     if (existsSync(retained)) renameSync(retained, retained + '.pre-forge-' + randomUUID())
   }

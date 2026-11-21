@@ -1,3 +1,4 @@
+import { verifyTicketIntegration } from '../services/deliveryWorkflow'
 import type { SubmitAttemptInput } from '../../shared/domain/api'
 import type { ReadinessView, RunView, SprintIncrement } from '../../shared/domain/views'
 import { requireCapability } from '../authz'
@@ -160,7 +161,12 @@ const executionCommands = {
   acceptAttempt: {
     schema: COMMAND_SCHEMAS.acceptAttempt,
     mutates: true,
-    run: (core, input) => withKnowledgeContext(core, acceptAttempt(core.ctx(), input), 'attempt.accepted')
+    run: async (core, input) => {
+      const ctx = core.ctx()
+      requireCapability(ctx.session, 'attempt.review')
+      const verified = await verifyTicketIntegration(ctx, input.attemptId, input.integration)
+      return withKnowledgeContext(core, acceptAttempt(ctx, input, verified), 'attempt.accepted')
+    }
   },
   rejectAttempt: {
     schema: COMMAND_SCHEMAS.rejectAttempt,

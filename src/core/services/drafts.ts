@@ -6,13 +6,12 @@ import type { Ctx } from '../context'
 import { toJson } from '../db/database'
 import { fail } from '../errors'
 import { applyDraftOps } from '../plan/draftOps'
-import { validatePlan } from '../plan/graph'
 import { createInitialBundle } from '../plan/normalize'
 import { draftDeps, initialPlanIds } from './draftDeps'
 import { assertEpicOpen, type EpicRow, loadEpicRow } from './epics'
 import { appendEvent } from './events'
 import { requestWithoutKey, withIdempotency } from './idempotency'
-import { assertDraftRevision, currentSavedBundle, type DraftRow, getPlan, loadDraftRow } from './plans'
+import { assertDraftRevision, currentSavedBundle, type DraftRow, getPlan, loadDraftRow, validateProjectPlan } from './plans'
 import { withRunWarnings } from './runWarnings'
 
 function insertDraft(ctx: Ctx, draft: { epicId: string; baseRevisionId: string | null; bundle: PlanBundle }): DraftRow {
@@ -116,7 +115,7 @@ export function updatePlanDraft(
     assertPersonEstimates(ctx, JSON.parse(draft.bundle_json) as PlanBundle, result.bundle)
     const draftRevision = writeDraft(ctx, draft, result.bundle)
     appendEvent(ctx, { kind: 'draft.updated', epicId: epic.id, payload: { draftRevision, ops: input.ops.length } })
-    const validation = withRunWarnings(ctx, epic.id, result.bundle, validatePlan(result.bundle, { repositories: ctx.repositoryEntries() }))
+    const validation = withRunWarnings(ctx, epic.id, result.bundle, validateProjectPlan(ctx, result.bundle, draft.base_revision_id))
     return { epicId: epic.id, draftRevision, refMap: result.refMap, validation }
   })
 }

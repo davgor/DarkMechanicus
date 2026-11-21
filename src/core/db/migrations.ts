@@ -3,7 +3,7 @@ import { redactedJson } from '../storedSecrets'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 25
+export const SCHEMA_VERSION = 26
 
 export interface Migration {
   version: number
@@ -1050,7 +1050,9 @@ export const MIGRATIONS: Migration[] = [
   { version: 22, sql: V22 },
   { version: 23, sql: V23 },
   { version: 24, sql: V24 },
-  { version: 25, sql: V25 }
+  { version: 25, sql: V25 },
+  { version: 26, sql: `ALTER TABLE epics ADD COLUMN standards_json TEXT;
+    ALTER TABLE kanban_cards ADD COLUMN standards_json TEXT;` }
 ]
 
 export function readSchemaVersion(db: Db): number {

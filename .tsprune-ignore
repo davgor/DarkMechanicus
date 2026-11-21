@@ -380,3 +380,7 @@ src/test/realGit.ts - default
 src/core/plan/criterionWording.ts - CRITERION_NEEDS_PERSON
 src/core/plan/criterionWording.ts - criterionNeedsPerson
 src/shared/domain/bundle.ts - autoRetryLimitOf
+src/shared/domain/standardization.ts - StandardizationPatch
+src/shared/domain/standardization.ts - StandardsNoticeRoute
+src/shared/domain/standardization.ts - StandardsNotice
+src/shared/domain/standardization.ts - StandardizationItem

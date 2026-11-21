@@ -12,7 +12,19 @@ interface CloseoutStandards {
   removeWorktree: boolean
 }
 
+export interface StandardsPrompts {
+  planned: string
+  ticket: string
+  sprint: string
+  epic: string
+}
+
+type StandardsSetupDecision = 'defaults' | 'agent' | 'edited'
+
 export interface DeliveryPolicy {
+  /** Absent on policies written before the four-prompt editor was introduced. */
+  prompts?: StandardsPrompts
+  setupDecision?: StandardsSetupDecision
   kanban: TicketStandards
   epicTicket: TicketStandards
   sprint: string

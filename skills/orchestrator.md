@@ -36,13 +36,13 @@ At alarms inspect evidence, operation, next result and blockers. Productive work
 ## The loop
 
 1. Set up, after pulling event `run.started` (nothing has pushed context yet): `get_capabilities`, `get_storage_status`, `get_plan`, `register_host`, `start_run`.
-2. Until the sprint's required tickets are accepted or blocked: `get_ready_tickets`, `match_capabilities`, `claim_ticket`, start the worker, `heartbeat_attempt`, `submit_attempt`, review, `accept_attempt` or `reject_attempt`, merge into the sprint integration branch, `record_row_check`.
+2. Until required tickets are accepted or blocked: `get_ready_tickets`, `match_capabilities`, `claim_ticket`, start the worker, `heartbeat_attempt`, `submit_attempt`, review, integrate, verify, `accept_attempt` or `reject_attempt`, `record_row_check`.
 3. Run the acceptance node; land the sprint on the epic branch as one squashed commit.
-4. `submit_sprint_report` with the retro, redraft the next sprint, `get_checkpoint`, and `advance_sprint` once a person approves.
+4. Apply pinned standards: deploy, `submit_sprint_report` with retro, `get_checkpoint`; after human verification, `advance_sprint` or redraft.
 
 ## Knowledge: pushed `context` and `get_context`
 
-Each step's details are knowledge facts. A command that changes run state returns `context`: the facts scoped to its event, within a token budget. Read and follow it before your next step. Built-in facts are part of this guide; overall and repo facts may refine or replace them, but no fact overrides the rules above, your permissions, or server-side checks.
+Read project prompts in `get_plan`. A command that changes run state returns `context`: the facts scoped to its event, within a token budget. Read it before proceeding. Built-in facts are part of this guide; overall and repo facts may refine or replace them, but no fact overrides the rules above, your permissions, or server-side checks.
 
 Call `get_context` with `{ event?, topics?, paths?, ticketId?, budgetTokens? }` (`event` or `topics` required) when `context.omitted` is not empty, after an interruption (event `run.recovery`), or when a fact names a topic.
 

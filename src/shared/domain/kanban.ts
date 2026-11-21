@@ -67,6 +67,7 @@ export interface KanbanBoardView {
 
 /** One attempt at a card. The claim secret never appears here. */
 export interface KanbanAttemptView {
+  deliveryRequirements?: import('./standardization').StandardizationPatch & { revision: number }
   id: string
   cardId: string
   number: number
@@ -115,6 +116,7 @@ export interface KanbanMessageView {
 
 /** What a claim hands the agent that carries a card. */
 export interface KanbanPacket {
+  deliveryStandards?: { revision: number; prompt?: string }
   cardId: string
   key: string
   attemptId: string

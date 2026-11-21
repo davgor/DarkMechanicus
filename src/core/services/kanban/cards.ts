@@ -3,6 +3,8 @@
  * can be edited only while it is in Backlog and has never been claimed. The board reads slim summaries, with Done
  * paged newest first; the full card (body, criteria and attempts) loads only when it is opened.
  */
+import { pinCardWorkflow } from '../workflowPolicy'
+import { effectiveTicket, readStandards } from '../workStandards'
 import {
   TICKET_PRIORITIES,
   type TicketCriterion,
@@ -47,6 +49,7 @@ import { enqueueOutbox } from '../outbox'
 const DEFAULT_DONE_LIMIT = 20
 
 interface CardRow {
+  standards_json: string | null
   id: string
   key: string
   title: string
@@ -166,8 +169,8 @@ export function cardView(ctx: Ctx, cardId: string): KanbanCardView {
   const attachments = cardAttachments(ctx, cardId)
   return {
     ...toSummaryView(row),
-    body: row.body,
-    acceptanceCriteria: parseJson<TicketCriterion[]>(row.acceptance_criteria_json, []),
+    ...effectiveTicket({ body: row.body, acceptanceCriteria: parseJson<TicketCriterion[]>(row.acceptance_criteria_json, []) },
+      readStandards(row.standards_json).find(s => s.kind === 'kanban' && s.id === cardId)),
     expectedArtifacts: parseJson<string[]>(row.expected_artifacts_json, []),
     references: parseJson<TicketReference[]>(row.references_json, []),
     size: row.size,
@@ -295,6 +298,7 @@ function insertCard(ctx: Ctx, input: CreateKanbanCardInput): KanbanCardView {
     now,
     now
   )
+  pinCardWorkflow(ctx, id)
   setCardAttachments(ctx, id, input.attachments ?? [])
   recordCardEvent(ctx, { id, key }, { kind: 'created', payload: { revision: 1 }, at: now })
   return cardView(ctx, id)

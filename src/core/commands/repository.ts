@@ -9,6 +9,7 @@ import { backupDatabase } from '../repo/backup'
 import { listBranchEpics } from '../repo/branchEpics'
 import { readProject } from '../repo/initialize'
 import type { RepositoryEntry } from '../repo/portable'
+import { standardizeProjectWork } from '../services/standardization'
 import { policyForStore, savePolicy } from '../repo/deliveryPolicy'
 import { rescanRepositories, writeDefinitionOfDone } from '../repo/projectConfig'
 import { getStorageStatus } from '../repo/storage'
@@ -63,9 +64,9 @@ function repositoryViews(entries: RepositoryEntry[]): RepositoryView[] {
 function projectView(core: WorkspaceCore): ProjectView {
   const project = core.project()
   // Read from the file each time, like the Definition of Done, so a rescan behind an open session shows.
-  const current = readProject(core.layout, core.fs) ?? project
+  const current = readProject(core.layout, core.fs) ?? fail('not_initialized', 'The active project store is unavailable. Reopen it before editing standards.')
   const repositories = current.repositories
-  const deliveryStandards = policyForStore(core.layout, core.ctx().db, current)
+  const deliveryStandards = policyForStore(core.layout, core.ctx().db, current, core.fs)
   return {
     ...(deliveryStandards && { deliveryStandards }),
     projectId: project.projectId,
@@ -119,6 +120,11 @@ const repositoryCommands = {
   getProject: {
     mutates: false,
     run: (core) => projectView(core)
+  },
+  standardizeProjectWork: {
+    schema: COMMAND_SCHEMAS.standardizeProjectWork,
+    mutates: true,
+    run: standardizeProjectWork
   },
   setDeliveryStandards: {
     schema: COMMAND_SCHEMAS.setDeliveryStandards,

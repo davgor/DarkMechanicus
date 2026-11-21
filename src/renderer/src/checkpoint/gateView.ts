@@ -325,6 +325,18 @@ function reportHeader(report: SprintReportView, context: ReportContext): string 
   return `SPRINT ${sprintDef?.ordinal ?? '?'} REPORT${goal} · WRITTEN BY ${author} ${when}`
 }
 
+function deliverySummary(content: SprintReportView['report']): string {
+  const paragraphs = [content.summary]
+  const rollout = content.deployment
+  if (rollout) paragraphs.push(
+    `Deployed ${rollout.version} to ${rollout.environment} (${rollout.commit}).`,
+    `Rollout verification: ${rollout.verification}`, `Verify this version: ${rollout.instructions}`, `Pull request: ${rollout.pullRequest}`
+  )
+  if (content.standardsVerification) paragraphs.push(`Sprint standards verification: ${content.standardsVerification}`)
+  if (content.epicVerification) paragraphs.push(`Epic verification: ${content.epicVerification}`)
+  return paragraphs.join('\n\n')
+}
+
 export function reportView(report: SprintReportView, context: ReportContext): ReportSections {
   const content = report.report
   const bundle = context.bundle
@@ -332,7 +344,7 @@ export function reportView(report: SprintReportView, context: ReportContext): Re
   const outcome = content.epicOutcome
   return {
     header: reportHeader(report, context),
-    summary: content.summary,
+    summary: deliverySummary(content),
     accepted: content.accepted.map((entry) => {
       const row = resolveRow(entry, bundle)
       return { ...row, detail: acceptedCommit(context.run, row.ticketId) }

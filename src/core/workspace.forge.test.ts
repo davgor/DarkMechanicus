@@ -6,7 +6,7 @@ import { createHarness, type Harness } from '../test/workspaceHarness'
 import { assertForgeTransferIdle, bindForge, boundForgeRoot, FORGE_POINTER, isForgeMember, pendingForgeTransfer, withForgeTransfer } from './repo/forgeBinding'
 import { nodeFs } from './repo/nodeFs'
 import { dbProjectDir } from './repo/storageMode'
-import { baselineDeliveryPolicy } from './deliveryPolicySchema'
+import { baselineDeliveryPolicy, defaultPrompts } from '../shared/domain/standardsPrompts'
 import { openWorkspace } from './workspace'
 import { bindToolingGrant, holdToolingWorkflow, retireToolingWorkflow } from './services/toolingHold'
 
@@ -110,4 +110,24 @@ it('honors another live process holding a conversion and recovers the journal af
   writeFileSync(file, JSON.stringify({ ...journal, pid: exited.pid }))
   expect(await withForgeTransfer(homeDir, root, member, async phase => phase)).toBe(1)
   expect(existsSync(file)).toBe(false)
+})
+
+it('isolates revisions and the edited prompt across two projects in a cloned Forge World', async () => {
+  const world = join(h.root, 'world')
+  const paths = ['First', 'Second'].map(name => join(world, name))
+  paths.forEach(path => mkdirSync(path, { recursive: true }))
+  writeFileSync(join(world, 'forge-world.json'), JSON.stringify({ version: 1, projects: [{ folder: 'First' }, { folder: 'Second' }] }))
+  const [first, second] = paths.map(root => h.open('desktop', { root, mode: 'repo' }))
+  const policy = { ...baselineDeliveryPolicy, setupDecision: 'defaults' as const }
+  for (const w of [first, second]) {
+    await w.initializeRepository({})
+    await w.setDeliveryStandards({ expectedRevision: 0, policy })
+  }
+  const custom = { ...policy, setupDecision: 'edited' as const, prompts: { ...defaultPrompts, ticket: 'Test the checkout flow with the bank simulator.' } }
+  await first.setDeliveryStandards({ expectedRevision: 1, policy: custom })
+  first.close()
+  second.close()
+  const reopened = paths.map(root => h.open('desktop', { root: h.cloneTracked(root) }))
+  expect((await reopened[0].getProject()).deliveryStandards).toEqual({ revision: 2, policy: custom })
+  expect((await reopened[1].getProject()).deliveryStandards).toEqual({ revision: 1, policy })
 })

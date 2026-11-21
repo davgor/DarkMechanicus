@@ -175,3 +175,12 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build
+      - name: Exercise delivery standards in the built desktop
+        if: github.event_name == 'pull_request'
+        run: node --import tsx scripts/native/deliveryStandardsEvidence.mjs
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'pull_request'
+        with:
+          name: delivery-standards-desktop
+          path: out/standards-evidence/*.png
+          if-no-files-found: error

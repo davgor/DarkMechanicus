@@ -2,6 +2,7 @@
  * The single command/query contract. The core Workspace implements it; MCP tools and desktop IPC
  * are thin adapters over it, so both entry points enforce identical rules.
  */
+import type { StandardizeProjectWorkInput, StandardizeProjectWorkResult } from './standardization'
 import type { DeliveryPolicy, StoredDeliveryPolicy } from './deliveryPolicy'
 import type { NameChatArgs } from '../agents/chatNaming'
 import type { ToolingRecoveryInput, ToolingRecoveryResult } from '../agents/toolingRecovery'
@@ -13,6 +14,7 @@ import type {
   CheckpointMode,
   EpicBranch,
   PlanPolicies,
+  PlannedTestCase,
   ReasoningEffort,
   RelationKind,
   TicketBudget,
@@ -153,6 +155,7 @@ export interface TicketCriterionInput extends CriterionInput {
 }
 
 export interface TicketInput {
+  testCases?: PlannedTestCase[]
   title: string
   /** `work` (the default) or `acceptance`. `work` is never stored: it clears the kind. */
   kind?: TicketKind
@@ -181,6 +184,7 @@ export interface TicketInput {
 }
 
 export interface SprintInput {
+  deploymentVerification?: string
   goal: string
   entryCriteria?: (CriterionInput | string)[]
   exitCriteria?: (CriterionInput | string)[]
@@ -444,6 +448,7 @@ export interface CommandApi {
    * and answers with the project as getProject shows it. Planner and desktop only; never commits. In a folder
    * of repositories `repo` is required and names the repository whose checks these are; a single repository refuses it.
    */
+  standardizeProjectWork(input: StandardizeProjectWorkInput): Promise<StandardizeProjectWorkResult>
   setDeliveryStandards(input: { expectedRevision: number; policy: DeliveryPolicy }): Promise<StoredDeliveryPolicy>
   setDefinitionOfDone(input: {
     checks: { name: string; command: string; description?: string }[]
@@ -656,6 +661,7 @@ export interface CommandApi {
   heartbeatAttempt(input: HeartbeatAttemptInput): Promise<AttemptView>
   submitAttempt(input: SubmitAttemptInput): Promise<AttemptView>
   acceptAttempt(input: {
+    integration?: import('./views').AttemptDecision['integration']
     attemptId: string
     notes?: string
     criteria?: CriterionResult[]

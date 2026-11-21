@@ -29,6 +29,7 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   recoverTooling: 'tooling.recover',
   getCapabilities: 'read',
   getProject: 'read',
+  standardizeProjectWork: 'project.definition_of_done',
   setDeliveryStandards: 'project.definition_of_done',
   setDefinitionOfDone: 'project.definition_of_done',
   rescanRepositories: 'project.repositories',
