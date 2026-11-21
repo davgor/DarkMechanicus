@@ -976,6 +976,35 @@ CREATE TRIGGER yolo_audit_no_delete BEFORE DELETE ON yolo_audit BEGIN SELECT RAI
 CREATE INDEX yolo_audit_run ON yolo_audit(run_id, id);
 `
 
+/** Machine-local, incident-scoped workflow interruption; no portable plan or claim is rewritten. */
+const V24 = `
+CREATE TABLE tooling_chat_grants (
+  grant_id TEXT PRIMARY KEY REFERENCES grants(id),
+  chat_id TEXT NOT NULL
+);
+CREATE TABLE tooling_holds (
+  chat_id TEXT PRIMARY KEY,
+  incident_id TEXT NOT NULL,
+  run_id TEXT,
+  card_id TEXT,
+  held_at TEXT NOT NULL,
+  previous_run_state TEXT
+);
+CREATE TABLE tooling_held_attempts (
+  incident_id TEXT NOT NULL,
+  attempt_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  PRIMARY KEY (incident_id, attempt_id, kind)
+);
+CREATE TABLE tooling_lease_returns (
+  attempt_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  at TEXT NOT NULL,
+  granted_at TEXT NOT NULL,
+  ms INTEGER NOT NULL
+);
+`
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, sql: V1 },
   { version: 2, sql: V2 },
@@ -999,7 +1028,8 @@ export const MIGRATIONS: Migration[] = [
   { version: 20, sql: V20 },
   { version: 21, sql: V21 },
   { version: 22, sql: V22 },
-  { version: 23, sql: V23 }
+  { version: 23, sql: V23 },
+  { version: 24, sql: V24 }
 ]
 
 export function readSchemaVersion(db: Db): number {

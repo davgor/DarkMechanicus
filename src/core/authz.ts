@@ -4,6 +4,7 @@ import { fail } from './errors'
 export const CAPABILITIES = [
   'read',
   'chat.name',
+  'tooling.recover',
   'repo.init',
   'repo.flush',
   'repo.reconcile',
@@ -119,6 +120,7 @@ export const HUMAN_ONLY_CAPABILITIES: readonly Capability[] = [
 const PLANNER_SHARED: Capability[] = [
   'read',
   'chat.name',
+  'tooling.recover',
   'repo.init',
   'repo.flush',
   'repo.reconcile',

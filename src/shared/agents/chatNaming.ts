@@ -1,8 +1,9 @@
 import { z } from 'zod'
+import { toolingRecoveryInputSchema, toolingRecoveryResultSchema } from './toolingRecovery'
 
-/** Naming metadata only. No UI, filesystem, navigation, or caller-selected target operations. */
+/** Generation-bound local desktop control; each operation has its own server-side authority. */
 export const NAMING_CONTROL = {
-  version: 1, requestBytes: 4096, responseBytes: 4096,
+  version: 1, requestBytes: 32_768, responseBytes: 8192,
   connections: 32, queuedPerChat: 8, frameMs: 2_000, serverMs: 20_000, clientMs: 25_000
 } as const
 const text = z.string().min(1).max(256).refine((value) => !/[\p{Cc}\u2028\u2029]/u.test(value))
@@ -11,11 +12,15 @@ export const nameChatArgsSchema = z.union([
   z.strictObject({ error: text })
 ])
 export type NameChatArgs = z.infer<typeof nameChatArgsSchema>
-export const namingOperationSchema = z.strictObject({ op: z.literal('name_chat'), args: nameChatArgsSchema })
+const nameOperationSchema = z.strictObject({ op: z.literal('name_chat'), args: nameChatArgsSchema })
+const recoveryOperationSchema = z.strictObject({ op: z.literal('recover_tooling'), args: toolingRecoveryInputSchema })
+const recoveryContextSchema = z.strictObject({ op: z.literal('recovery_context'), args: z.strictObject({
+  chatId: z.string().min(1).max(128), generation: z.string().min(1).max(128)
+}) })
+export const namingOperationSchema = z.discriminatedUnion('op', [nameOperationSchema, recoveryOperationSchema, recoveryContextSchema])
 export type NamingOperation = z.infer<typeof namingOperationSchema>
-export const namingRequestSchema = namingOperationSchema.extend({
-  version: z.literal(1), requestId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/), token: z.string().min(1).max(1024)
-})
+const authority = { version: z.literal(1), requestId: z.string().min(1).max(128).regex(/^[a-zA-Z0-9_-]+$/), token: z.string().min(1).max(1024) }
+export const namingRequestSchema = z.discriminatedUnion('op', [nameOperationSchema.extend(authority), recoveryOperationSchema.extend(authority), recoveryContextSchema.extend(authority)])
 export type NamingRequest = z.infer<typeof namingRequestSchema>
 export const namingErrorCodeSchema = z.enum([
   'desktop_unavailable', 'unauthorized', 'timeout', 'cancelled', 'invalid_request',
@@ -23,7 +28,10 @@ export const namingErrorCodeSchema = z.enum([
 ])
 export type NamingErrorCode = z.infer<typeof namingErrorCodeSchema>
 export const namingReplySchema = z.discriminatedUnion('ok', [
-  z.strictObject({ version: z.literal(1), requestId: z.string().max(128), ok: z.literal(true), data: z.strictObject({ applied: z.boolean() }) }),
+  z.strictObject({ version: z.literal(1), requestId: z.string().max(128), ok: z.literal(true), data: z.union([
+    z.strictObject({ applied: z.boolean() }), toolingRecoveryResultSchema,
+    z.strictObject({ messages: z.array(z.strictObject({ id: z.string(), text: z.string().max(6000) })).max(1) })
+  ]) }),
   z.strictObject({ version: z.literal(1), requestId: z.string().max(128), ok: z.literal(false), error: z.strictObject({ code: namingErrorCodeSchema, message: z.string().max(256) }) })
 ])
 export type NamingReply = z.infer<typeof namingReplySchema>

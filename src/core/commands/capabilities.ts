@@ -24,6 +24,7 @@ export const PER_CALL_COMMANDS: Readonly<Partial<Record<SessionRole, readonly Co
  */
 export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   nameChat: 'chat.name',
+  recoverTooling: 'tooling.recover',
   getCapabilities: 'read',
   getProject: 'read',
   setDefinitionOfDone: 'project.definition_of_done',

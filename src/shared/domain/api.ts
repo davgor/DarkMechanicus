@@ -3,6 +3,7 @@
  * are thin adapters over it, so both entry points enforce identical rules.
  */
 import type { NameChatArgs } from '../agents/chatNaming'
+import type { ToolingRecoveryInput, ToolingRecoveryResult } from '../agents/toolingRecovery'
 import type { CorrectionPlanView, CorrectionsInput, CorrectionsResultView, CreateCorrectionsInput } from './corrections'
 import type {
   CapabilityPatch,
@@ -429,6 +430,8 @@ export interface KickBackKanbanCardInput {
 export interface CommandApi {
   /** Selected-agent first-message metadata; target comes only from a live authenticated terminal binding. */
   nameChat(input: NameChatArgs): Promise<{ applied: boolean }>
+  /** Interrupt a tooling failure and establish an incident-only repair connection, never general Play authority. */
+  recoverTooling(input: ToolingRecoveryInput): Promise<ToolingRecoveryResult>
   // Discovery and repository lifecycle
   getCapabilities(): Promise<CapabilitiesView>
   getProject(): Promise<ProjectView>

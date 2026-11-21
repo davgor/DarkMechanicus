@@ -29,7 +29,7 @@
  * Like the client, this file imports nothing from OMP or npm: OMP runs it from the app's resources.
  */
 import { DM_COMMAND_NAME, type DmClient, type DmClientError, type DmMailCalls, type DmMailCommand, type DmMailMessage, type DmMailMessageMeta } from './dmClient'
-import { boardContextBodies, boardContextPacket, boardContextReceived, BOARD_DELIVERY_TYPE, DM_CALL_DATA_NOTE, DM_CALL_TOOL_NAME, INBOX_DELIVERY_TYPE, MAIL_DATA_NOTE, peerContextBodies, type BoardContextBody } from './contextDelivery'
+import { boardContextBodies, boardContextPacket, boardContextReceived, BOARD_DELIVERY_TYPE, DM_CALL_DATA_NOTE, DM_CALL_TOOL_NAME, INBOX_DELIVERY_TYPE, MAIL_DATA_NOTE, peerContextBodies, recoveryContextBodies, RECOVERY_DATA_NOTE, RECOVERY_DELIVERY_TYPE, type BoardContextBody } from './contextDelivery'
 import type { Timers } from './skitarii'
 
 export const MAIL_TOOL_NAMES = ['dm_agent_identity', 'dm_agent_peers', 'dm_message_send', 'dm_inbox_read', 'dm_inbox_ack'] as const
@@ -395,6 +395,7 @@ interface MailWatcherDeps {
 interface PreparedDelivery {
   peer?: { message: CustomHint; bodies: DmMailMessage[] }
   board?: { message: CustomHint; bodies: BoardContextBody[] }
+  recovery?: { message: CustomHint; bodies: BoardContextBody[] }
 }
 
 
@@ -417,6 +418,8 @@ export class MailWatcher {
   #received = new Map<string, { seq: number; body: string }>()
   #peerQueued = new Map<string, string>()
   #boardQueued = new Map<string, string>()
+  #recoveryBodies = new Map<string, BoardContextBody>()
+  #recoveryQueued = new Map<string, string>()
   #inFlightPrompts = new Set<string>()
   #busySends = new Set<Promise<void>>()
   #inboxReads = new Set<string>()
@@ -443,6 +446,8 @@ export class MailWatcher {
     this.#peerQueued.clear()
     this.#boardQueued.clear()
     this.#inFlightPrompts.clear()
+    this.#recoveryBodies.clear()
+    this.#recoveryQueued.clear()
     this.#busySends.clear()
     this.#inboxReads.clear()
     this.#bodyCursor = 0
@@ -480,9 +485,11 @@ export class MailWatcher {
   tick(force = false): Promise<void> {
     if (this.#running !== null || this.#ui === null) return this.#running ?? Promise.resolve()
     this.#flush()
-    if (this.#skip > 0) { this.#skip -= 1; return Promise.resolve() }
     const generation = this.#generation
     const work = async (): Promise<void> => {
+      await this.#loadRecovery(generation)
+      this.#dispatch(this.#preparedRecovery(), generation, force)
+      if (this.#skip > 0) { this.#skip -= 1; return }
       if (!(await this.#poll(generation))) return
       if (this.#deps.sendUserMessage === undefined || !(await this.#loadBodies(generation))) return
       this.#dispatch(await this.#prepared(generation), generation, force)
@@ -501,6 +508,7 @@ export class MailWatcher {
     }
     if (prepared.peer !== undefined && this.#inboxReads.size === 0) this.#sendPeer(prepared.peer)
     if (prepared.board !== undefined) this.#sendBoard(prepared.board)
+    if (prepared.recovery !== undefined) this.#sendRecovery(prepared.recovery)
   }
 
   #canDispatch(generation: number, force: boolean, idle: boolean): boolean {
@@ -510,6 +518,10 @@ export class MailWatcher {
 
   #dispatchIdle(prepared: PreparedDelivery): void {
     // Only a real user-attributed idle prompt prepares hooks; they add the complete peer batch before request one.
+    if (prepared.recovery !== undefined) {
+      this.#sendRecovery(prepared.recovery)
+      return
+    }
     if (prepared.board !== undefined) {
       this.#sendBoard(prepared.board)
       return
@@ -594,11 +606,16 @@ export class MailWatcher {
     // The native stop boundary has drained/discarded old asides; only actual receipts suppress recovery.
     this.#peerQueued.clear()
     this.#boardQueued.clear()
+    this.#recoveryQueued.clear()
     await this.tick(true)
   }
 
   #observe(entries: readonly unknown[]): void {
     for (const entry of entries) {
+      for (const body of recoveryContextBodies(entry)) {
+        this.#recoveryBodies.delete(body.id)
+        this.#recoveryQueued.set(body.id, body.text)
+      }
       const id = toolResultId(entry)
       if (id !== undefined) this.#inboxReads.delete(id)
       for (const message of peerContextBodies(entry)) {
@@ -676,10 +693,30 @@ export class MailWatcher {
     return { customType: BOARD_DELIVERY_TYPE, attribution: 'user', display: false, content: boardContextPacket(bodies) }
   }
 
+  async #loadRecovery(generation: number): Promise<void> {
+    const recovery = await this.#deps.client.readRecovery?.()
+    if (generation !== this.#generation) return
+    if (recovery !== undefined && !recovery.ok) this.#failed(recovery.error)
+    else if (recovery?.ok) {
+      const received = (this.#contextEntries?.() ?? []).flatMap(entry => recoveryContextBodies(entry))
+      for (const message of recovery.data) {
+        if (received.some(body => body.id === message.id && body.text === message.text)) continue
+        this.#recoveryBodies.set(message.id, message)
+      }
+    }
+  }
+
   async #prepared(generation: number, prompt = '', includeQueued = false): Promise<PreparedDelivery> {
+    await this.#loadRecovery(generation)
     const peer = this.#preparedPeer(generation, prompt, includeQueued)
     const board = await this.#preparedBoard(generation, prompt, includeQueued)
-    return generation === this.#generation ? { ...peer, ...board } : {}
+    return generation === this.#generation ? { ...peer, ...board, ...this.#preparedRecovery() } : {}
+  }
+
+  #preparedRecovery(): PreparedDelivery {
+    const bodies = [...this.#recoveryBodies.values()].filter(body => this.#recoveryQueued.get(body.id) !== body.text)
+    return bodies.length === 0 ? {} : { recovery: { bodies, message: { customType: RECOVERY_DELIVERY_TYPE, attribution: 'agent', display: false,
+      content: `${RECOVERY_DATA_NOTE}\n${inertJson({ messages: bodies })}` } } }
   }
 
   #preparedPeer(generation: number, prompt = '', includeQueued = false): PreparedDelivery {
@@ -728,6 +765,12 @@ export class MailWatcher {
     })) for (const body of packet.bodies) this.#boardQueued.set(body.id, body.text)
   }
 
+  #sendRecovery(packet: NonNullable<PreparedDelivery['recovery']>): void {
+    if (this.#send(packet.message, () => {
+      for (const body of packet.bodies) if (this.#recoveryQueued.get(body.id) === body.text) this.#recoveryQueued.delete(body.id)
+    })) for (const body of packet.bodies) this.#recoveryQueued.set(body.id, body.text)
+  }
+
   #send(message: CustomHint, failed: () => void): boolean {
     const send = this.#deps.sendUserMessage
     if (send === undefined) { this.#indicate('Skitarii mail unavailable (host context API missing)'); return false }
@@ -759,6 +802,11 @@ export class MailWatcher {
   }
 
   #messageReceived(message: CustomHint, entries: readonly unknown[]): boolean {
+    if (message.customType === RECOVERY_DELIVERY_TYPE) {
+      const bodies = recoveryContextBodies({ type: 'message', message: { role: 'user', attribution: 'agent', content: message.content } })
+      const received = entries.flatMap(entry => recoveryContextBodies(entry))
+      return bodies.length > 0 && bodies.every(body => received.some(entry => entry.id === body.id && entry.text === body.text))
+    }
     if (message.attribution === 'agent') {
       const peers = peerContextBodies({ type: 'message', message: { role: 'user', attribution: 'agent', content: message.content } })
       return peers.length > 0 && peers.every((body) => {

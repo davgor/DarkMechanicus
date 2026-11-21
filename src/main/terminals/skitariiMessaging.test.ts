@@ -38,6 +38,7 @@ import {
   type TypeBuilder
 } from '../../../resources/skitarii/extension/messaging'
 import { boardContextBodies, DM_CALL_DATA_NOTE, DM_CALL_TOOL_NAME, INBOX_DELIVERY_TYPE, MAIL_DATA_NOTE, peerContextBodies } from '../../../resources/skitarii/extension/contextDelivery'
+import { contextReceipts, RECOVERY_DATA_NOTE } from '../../../resources/skitarii/extension/contextDelivery'
 import { gate, settle } from './__mocks__/terminalSessionsRig'
 import type { Timers } from '../../../resources/skitarii/extension/skitarii'
 import { removeScratch } from '../../test/removeScratch'
@@ -1397,4 +1398,35 @@ it('does not let a stale second hook suppress delivery to a replacement session 
   expect(subject.people).toEqual([])
   expect(box.pending()).toBe(2)
   subject.watcher.stop()
+})
+
+describe('incident peer context independent of mailbox cursors', () => {
+  it.each([false, true])('delivers successive recovery bodies on fresh/projectless hosts, alongside ordinary mail (mailbox unavailable=%s)', async unavailable => {
+    const box = fakeMailbox()
+    const ordinary = mailboxClient(box, { fail: () => unavailable ? { ok: false, error: { source: 'dm', code: 'unauthorized', message: 'No generic projectless mailbox' } } : null })
+    let incoming = { id: 'recovery_first', text: 'First repair question: 漢字' }
+    const entries: unknown[] = []
+    const client: DmClient = { ...ordinary, readRecovery: async () => ({ ok: true, data: [incoming] }) }
+    const send: NonNullable<MailApi['sendUserMessage']> = async (content, options) => {
+      entries.push({ type: 'message', id: `entry_${entries.length}`, message: { role: 'user', attribution: options?.attribution, content } })
+    }
+    const watcher = new MailWatcher({ client, timers: fakeTimers(), sendUserMessage: send })
+    watcher.start(fakeUi(), entries, () => entries, () => false)
+    watcher.active(true)
+    try {
+      await watcher.tick()
+      const first = contextReceipts(entries.map(entry => JSON.stringify(entry)).join('\n'))
+      expect(first.recoveries.get(incoming.id)?.text).toBe(incoming.text)
+      expect(first.people.size).toBe(0)
+      incoming = { id: 'recovery_second', text: 'Second answer is independent of mailbox seq:1.' }
+      if (!unavailable) box.arrive(1)
+      await watcher.tick()
+      await watcher.tick()
+      const receipt = contextReceipts(entries.map(entry => JSON.stringify(entry)).join('\n'))
+      expect(receipt.recoveries.size).toBe(2)
+      expect(receipt.recoveries.get(incoming.id)?.text).toBe(incoming.text)
+      expect(receipt.peers.size).toBe(unavailable ? 0 : 1)
+      expect(entries.filter(entry => JSON.stringify(entry).includes(RECOVERY_DATA_NOTE))).toHaveLength(2)
+    } finally { watcher.stop() }
+  })
 })

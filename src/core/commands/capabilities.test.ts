@@ -39,6 +39,7 @@ const PROBE_REPORT = {
  */
 const PROBES: Record<CommandName, unknown> = {
   nameChat: { title: 'Semantic probe title' },
+  recoverTooling: { action: 'status', incidentId: 'probe-incident' },
   getCapabilities: undefined,
   getProject: undefined,
   setDefinitionOfDone: { checks: [] },

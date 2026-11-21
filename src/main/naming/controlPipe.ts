@@ -17,9 +17,13 @@ export interface NamingControlBinding {
   readonly folder: string | null
   readonly chatId: string
   readonly generation: string
+  readonly runId?: string
+  readonly cardId?: string
   readonly signal: AbortSignal
   /** Synchronous current DB grant/capability, generation check. */
   assertCurrent(): void
+  /** Narrow repair authority, rechecked independently of naming (not granted to workers/reviewers). */
+  assertRecovery?(): void
 }
 export interface NamingOperationContext {
   readonly binding: NamingControlBinding
@@ -208,7 +212,7 @@ class ControlOperation {
   private cancelWatch = (): void => {}
   private unbind = (): void => {}
   constructor(readonly connection: ControlConnection, readonly binding: NamingControlBinding, private readonly operation: NamingOperation, readonly deadline: number) {
-    this.key = JSON.stringify([binding.folder, binding.chatId])
+    this.key = JSON.stringify([binding.folder, binding.chatId, operation.op === 'recovery_context' ? 'recovery-read' : 'write'])
     this.context = {
       binding, signal: this.controller.signal, deadline,
       remainingMs: () => Math.max(0, deadline - connection.owner.clock.now()),
@@ -222,6 +226,10 @@ class ControlOperation {
       throw new NamingControlError('cancelled')
     }
     this.binding.assertCurrent()
+    if (this.operation.op === 'recover_tooling' || this.operation.op === 'recovery_context') {
+      if (this.binding.assertRecovery === undefined) throw new NamingControlError('unauthorized')
+      this.binding.assertRecovery()
+    }
   }
   watch(): void {
     const clock = this.connection.owner.clock
