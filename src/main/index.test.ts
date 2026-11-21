@@ -1,9 +1,11 @@
+import { routeAppLaunch } from './windowPolicy'
 import type { BrowserWindowConstructorOptions } from 'electron'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const startup = vi.hoisted(() => ({
+  ownsLock: true,
   ready: undefined as (() => void) | undefined,
   options: [] as BrowserWindowConstructorOptions[],
   dockIcons: [] as string[],
@@ -20,6 +22,7 @@ const startup = vi.hoisted(() => ({
 
 vi.mock('electron', () => ({
   app: {
+    requestSingleInstanceLock: () => startup.ownsLock,
     commandLine: { appendSwitch: (name: string, value: string) => startup.switches.push([name, value]) },
     whenReady: () => new Promise<void>((resolve) => { startup.ready = resolve }),
     get dock() {
@@ -69,6 +72,7 @@ vi.mock('./logger', () => ({ setupGlobalErrorLogging: () => {}, logger: { warn: 
 
 beforeEach(() => {
   vi.resetModules()
+  startup.ownsLock = true
   startup.ready = undefined
   startup.options = []
   startup.dockIcons = []
@@ -180,4 +184,23 @@ describe('desktop quit', () => {
 
     expect([prevented, startup.events, startup.quits]).toEqual([false, ['dispose chats', 'close stores'], 0])
   })
+})
+
+it('exits a duplicate desktop launch before registering handlers or creating a window', async () => {
+  startup.ownsLock = false
+  await import('./index')
+  expect(startup.quits).toBe(1)
+  expect(startup.ready).toBeUndefined()
+  expect(startup.listeners.size).toBe(0)
+  expect(startup.options).toHaveLength(0)
+})
+
+it('routes each MCP client headlessly even with the desktop already open', () => {
+  const mcpEntry = join(__dirname, 'mcp.js')
+  const actions = { serveMcp: vi.fn(), claimDesktop: vi.fn(), startDesktop: vi.fn(), quit: vi.fn() }
+  for (let i = 0; i < 75; i++) routeAppLaunch(mcpEntry, mcpEntry, actions)
+  expect(actions.serveMcp).toHaveBeenCalledTimes(75)
+  expect(actions.claimDesktop).not.toHaveBeenCalled()
+  expect(actions.startDesktop).not.toHaveBeenCalled()
+  expect(actions.quit).not.toHaveBeenCalled()
 })
