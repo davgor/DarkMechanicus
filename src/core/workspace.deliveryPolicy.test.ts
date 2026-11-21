@@ -31,6 +31,7 @@ it('keeps the selected policy and version in exactly the active ticket backend t
   expect(updated.revision).toBe(2)
   expect(updated.policy.epicCloseout.push).toBe(true)
   await w.switchStorageMode({ mode: 'db', confirmed: true })
+  expect(JSON.parse(readFileSync(join(h.root, SQLITE_STANDARDS_FILE), 'utf8')).standards).toEqual(updated)
   w.close()
   expect((await h.open('desktop').getProject()).deliveryStandards).toEqual(updated)
   expect(readFileSync(dbMarker, 'utf8')).not.toContain('deliveryStandards')

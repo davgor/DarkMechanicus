@@ -63,6 +63,7 @@ const EXPECTED_TABLES = [
   'checkpoints',
   'comments',
   'correction_links',
+  'delivery_context_notices',
   'drafts',
   'epics',
   'events',
@@ -97,6 +98,16 @@ const EXPECTED_TABLES = [
   'yolo_chat_bindings',
   'yolo_elevations'
 ]
+
+it('upgrades v26 standards storage without dropping its project records', () => {
+  const db = freshDb()
+  migrate(db, MIGRATIONS.filter(migration => migration.version <= 26))
+  db.run("INSERT INTO meta (key, value) VALUES ('test.policy', 'revision-6')")
+  expect(objectNames(db, 'table')).not.toContain('delivery_context_notices')
+  expect(migrate(db)).toEqual({ from: 26, to: SCHEMA_VERSION })
+  expect(objectNames(db, 'table')).toContain('delivery_context_notices')
+  expect(db.get("SELECT value FROM meta WHERE key='test.policy'")).toMatchObject({ value: 'revision-6' })
+})
 
 describe('the schema a fresh database ends up with', () => {
   it('creates every table of the schema', () => {

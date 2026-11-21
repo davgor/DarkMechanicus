@@ -95,3 +95,52 @@ it('delivers a revised card to its current worker and retains the approved contr
   expect((await w.standardizeProjectWork({ expectedRevision: 2, includeInProgress: true })).items)
     .toMatchObject([{ active: true, disposition: 'pending' }])
 })
+
+it('applies epic, sprint and ticket requirements to their own records before a worker claims the ticket', async () => {
+  const w = h.open('desktop')
+  await w.initializeRepository({ name: 'Restore service' })
+  const epic = await w.createEpic({ title: 'Restore from backup', intent: 'Recover a lost backup.' })
+  await dropAcceptanceNodes(w, epic.id)
+  const draft = await w.updatePlanDraft({ epicId: epic.id, ops: [
+    { op: 'add_ticket', sprint: '1', ticket: { title: 'Restore archive', body: 'Restore the archive.',
+      acceptanceCriteria: [{ id: 'd1', text: 'Keep permissions.' }, { id: 'd2', text: 'Keep owners.' }] } }
+  ] })
+  await w.savePlan({ epicId: epic.id, expectedDraftRevision: draft.draftRevision })
+  const original = await w.getPlan({ epicId: epic.id, view: 'saved' })
+  const ticket = original.bundle.tickets[0]!
+  const sprint = original.bundle.sprints[0]!
+  const saved = await w.setDeliveryStandards({ expectedRevision: 0, policy: baselineDeliveryPolicy })
+  const scope = { expectedRevision: saved.revision, includeInProgress: false }
+  const shared = { epicId: epic.id, disposition: 'updated' as const, reason: 'Drill must exercise the deployed restore command.' }
+  const changes: StandardizationPatch[] = [
+    { ...shared, kind: 'epic', id: epic.id, requirements: 'Hand off the restore report.', acceptanceCriteria: ['Report delivered.'] },
+    { ...shared, kind: 'sprint', id: sprint.id, requirements: 'Deploy the restore tool.', deploymentVerification: 'Install the released CLI and restore the fixture.' },
+    { ...shared, kind: 'ticket', id: ticket.id, requirements: 'Record the digest.', tests: ['Run the archive-corruption test.'],
+      acceptanceCriteria: ['Keep permissions.', 'Detect corruption.'] }
+  ]
+  await expect(w.standardizeProjectWork({ ...scope, items: [{ ...changes[0]!, deploymentVerification: 'Invalid epic field.' }] }))
+    .rejects.toThrow('requires a sprint')
+  await expect(w.standardizeProjectWork({ ...scope, items: [{ ...changes[0]!, testCases: [{
+    startingCondition: 'Backup exists.', action: 'Restore.', expectedResult: 'Done.', verificationMethod: 'Read output.'
+  }] }] })).rejects.toThrow('require a ticket or Kanban')
+  await w.standardizeProjectWork({ ...scope, items: changes })
+  await expect(w.standardizeProjectWork({ ...scope, items: [{ ...changes[2]!, requirements: 'Conflicting instructions.' }] }))
+    .rejects.toThrow('different decision')
+  const result = await w.getPlan({ epicId: epic.id, view: 'saved' })
+  expect(result.snapshotContentHash).toBe(original.contentHash)
+  expect(result.bundle.epic).toMatchObject({ intent: 'Recover a lost backup.\n\nHand off the restore report.',
+    successCriteria: [{ id: 'd1', text: 'Report delivered.' }] })
+  expect(result.bundle.sprints[0]).toMatchObject({ goal: expect.stringContaining('Deploy the restore tool.'),
+    deploymentVerification: 'Install the released CLI and restore the fixture.' })
+  expect(result.bundle.tickets[0]).toMatchObject({ id: ticket.id, body: expect.stringContaining('Run the archive-corruption test.'),
+    acceptanceCriteria: expect.arrayContaining([{ id: 'd3', text: 'Detect corruption.' }]) })
+  const raw = await w.getPlan({ epicId: epic.id, view: 'saved', revisionId: original.revisionId! })
+  expect(raw.bundle).toEqual(original.bundle)
+  const orchestrator = h.open('orchestrator')
+  const run = await orchestrator.startRun({ epicId: epic.id })
+  const { packet } = await orchestrator.claimTicket({ runId: run.id, ticketId: ticket.id, worker: { label: 'Restore worker' } })
+  expect(packet.sprint).toEqual({ id: sprint.id, ordinal: sprint.ordinal, goal: result.bundle.sprints[0]!.goal,
+    deploymentVerification: 'Install the released CLI and restore the fixture.' })
+  expect(packet.ticket).toMatchObject({ id: ticket.id, body: 'Restore the archive.\n\nRecord the digest.\n\n## Tests\n- Run the archive-corruption test.',
+    acceptanceCriteria: [{ id: 'd1', text: 'Keep permissions.' }, { id: 'd2', text: 'Keep owners.' }, { id: 'd3', text: 'Detect corruption.' }] })
+})

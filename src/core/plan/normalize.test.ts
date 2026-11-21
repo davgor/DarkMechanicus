@@ -789,3 +789,11 @@ describe('a ticket without a repository', () => {
     expect(patchTicket(targeted, { body: 'More' })).toEqual({ ...targeted, body: 'More' })
   })
 })
+
+it('retains a new sprint’s deploy verification across an unrelated edit and applies its replacement', () => {
+  const sprint = buildSprint({ goal: 'Install the release', deploymentVerification: 'Install v1 and open both members.' }, { id: 'sprint', ordinal: 1 })
+  expect(sprint.deploymentVerification).toBe('Install v1 and open both members.')
+  expect(patchSprint(sprint, { goal: 'Exercise the installed release' }).deploymentVerification).toBe(sprint.deploymentVerification)
+  expect(patchSprint(sprint, { deploymentVerification: 'Upgrade in place and inspect the restored revision.' }).deploymentVerification)
+    .toBe('Upgrade in place and inspect the restored revision.')
+})

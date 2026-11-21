@@ -34,11 +34,15 @@
 .standards-editor { max-width: 74rem; margin: 0 auto; padding: 1.75rem clamp(1rem, 3vw, 2.5rem) 2.5rem; }
 .standards-editor h2, .standards-setup h2 { color: var(--ink-display); margin: 0 0 .3rem; }
 .standards-heading p { margin: 0; }
-.standards-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: 1rem; margin: 1.25rem 0; }
-.standards-field { display: flex; flex-direction: column; gap: .4rem; padding: 1rem; background: var(--panel); border: 1px solid var(--line-soft); border-radius: 6px; }
+.standards-fields { display: flex; flex-direction: column; container-type: inline-size; margin: 1.25rem 0; }
+.standards-field { display: grid; grid-template-columns: minmax(10rem, 23%) minmax(0, 1fr); gap: 1.5rem; padding: .875rem 0; border-top: 1px solid var(--line-soft); }
+.standards-field-label { display: flex; flex-direction: column; gap: .35rem; padding-top: .3rem; }
 .standards-field strong { color: var(--ink-display); }
-.standards-field .muted { flex: 1; font-size: .84rem; }
-.standards-field textarea.input { width: 100%; min-height: 7rem; resize: vertical; line-height: 1.45; }
+.standards-field .muted { font-size: .84rem; }
+.standards-field textarea.input { width: 100%; min-width: 0; min-height: 6rem; resize: vertical; line-height: 1.45; }
+@container (max-width: 36rem) {
+  .standards-field { grid-template-columns: minmax(0, 1fr); gap: .5rem; }
+}
 .standards-setup, .standards-message { padding: 1rem clamp(1rem, 3vw, 2.5rem); }
 .standards-setup { border-bottom: 1px solid var(--line-soft); }
 .standards-setup h2 { font-size: 1rem; }

@@ -233,7 +233,7 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 | Profiles: `save_profile` | yes | yes | | |
 | Definition of Done: `set_definition_of_done` | yes | | | |
 | Delivery standards: `set_delivery_standards` | yes | | | |
-| Standardize existing project work: `standardize_project_work` | yes (Allow save to apply changes) | | | |
+| Standardize existing project work: `standardize_project_work` (Allow save required to apply changes) | yes | | | |
 | Repository and drafts: `initialize_repository`, `rescan_repositories`, `flush_portable_state`, `reconcile_repository`, `create_epic`, `import_board`, `create_ticket`, `update_ticket`, `open_plan_draft`, `update_plan_draft`, `discard_plan_draft` | yes | yes | | |
 | Corrective work: `create_corrections` | yes | yes | | |
 | Kanban cards (`kanban.write`): `create_kanban_card`, `update_kanban_card` | yes | yes | | |
@@ -255,7 +255,7 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 | Kanban launch and claim: `launch_kanban_cards`, `claim_kanban_card` | | yes | | |
 | Kanban reporting (`kanban.report`): `heartbeat_kanban_card`, `submit_kanban_card`, `fail_kanban_card` | | yes | yes | |
 | Agent mail (`mail.use`; listed, but always `unauthorized` over MCP): `get_agent_identity`, `list_agent_peers`, `send_agent_message`, `read_agent_inbox`, `acknowledge_agent_messages`, `get_agent_mail_status` | yes | yes | yes | yes |
-| **Total** | 78 (79 with `--allow-save`) | 113 (113 with `--allow-save`) | 67 | 63 |
+| **Total** | 79 (80 with `--allow-save`) | 113 (113 with `--allow-save`) | 67 | 63 |
 
 An `orchestrator` lists `save_plan` and the narrow permission decision tool with or without Allow save. Explicitly disabled sessions (`--no-allow-save`) gain general saving only after approval; their separate own-run saving rule remains. `decide_save_permission` always checks original explicit authority server-side, so acquired saving cannot delegate it. `--allow-save` has no effect for `worker` and `reviewer`. No role lists a tool for the desktop-only actions: no tool presses Play on a Kanban card, approves one or kicks one back (`kanban.play` and `kanban.review` belong to a person in the desktop app).
 

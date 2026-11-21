@@ -72,13 +72,15 @@ function withText(original: string, rule: AppliedStandard): string {
 
 function criteria<T extends Criterion>(existing: T[], rule: AppliedStandard): (T | Criterion)[] {
   const result: Criterion[] = [...existing]
-  for (const [index, text] of (rule.acceptanceCriteria ?? []).entries()) {
-    if (!result.some(c => c.text === text)) {
-      let number = index + 1
-      while (result.some(c => c.id === 'd' + number)) number++
-      const id = 'd' + number
-      result.push({ id, text })
-    }
+  const texts = new Set(existing.map(c => c.text))
+  const ids = new Set(existing.map(c => c.id))
+  let number = 1
+  for (const text of rule.acceptanceCriteria ?? []) {
+    if (texts.has(text)) continue
+    while (ids.has('d' + number)) number++
+    const id = 'd' + number++
+    texts.add(text)
+    result.push({ id, text })
   }
   return result
 }

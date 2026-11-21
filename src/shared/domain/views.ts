@@ -84,6 +84,7 @@ export interface RepositoryView {
 }
 
 export interface ProjectView {
+  assignedDeliveryRequirements?: string[]
   deliveryStandards?: StoredDeliveryPolicy
   projectId: string
   name: string

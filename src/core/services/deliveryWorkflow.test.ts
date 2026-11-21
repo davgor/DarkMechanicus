@@ -8,6 +8,7 @@ import { createKanbanCard } from './kanban/cards'
 import { acceptAttempt } from './attempts'
 import { getCheckpoint } from './checkpoints'
 import { getSprintReport, submitSprintReport } from './reports'
+import { encodeStandards, type AppliedStandard } from './workStandards'
 import { itemWorkflow, pinPlanWorkflows } from './workflowPolicy'
 import { checkKanbanSubmission, deliveryReportGap, verifyTicketIntegration } from './deliveryWorkflow'
 
@@ -49,6 +50,67 @@ describe('project delivery workflows', () => {
     expect(getCheckpoint(ctx, { runId })).toMatchObject({ policy: 'human', canAdvance: false })
   })
 
+})
+
+it('resolves only the claimed ticket and sprint when several items have different revised requirements', () => {
+  const ctx = configured()
+  const bundle = makeBundle([[1, 2], [3]])
+  const { runId, epicId } = startedRun(ctx, { bundle })
+  const rule = (kind: AppliedStandard['kind'], id: string, instructions: string): AppliedStandard => ({
+    id, kind, revision: 3, workflow: 'custom', disposition: 'updated', reason: 'Revised tests',
+    prompt: instructions, requirements: instructions, deploymentVerification: instructions
+  })
+  const rules = [
+    rule('ticket', tid(2), 'Other ticket'), rule('sprint', sid(2), 'Other sprint'),
+    rule('ticket', tid(1), 'Check staged settings'), rule('sprint', sid(1), 'Open the installed release')
+  ]
+  ctx.db.run('UPDATE epics SET standards_json = ? WHERE id = ?', JSON.stringify(encodeStandards(rules)), epicId)
+  const packet = claim(ctx, runId, 1).packet
+  expect(packet.deliveryStandards?.prompt).toBe('Check staged settings')
+  expect(packet.ticket.body).toContain('Check staged settings')
+  expect(packet.sprint).toMatchObject({ ordinal: 1, id: sid(1), deploymentVerification: 'Open the installed release' })
+  expect(packet.sprint.goal).toContain('Sprint 1 goal')
+})
+
+it('reassesses a final sprint report against newly applied epic review requirements before approval', () => {
+  const ctx = configured()
+  const bundle = makeBundle([[1]])
+  const { runId, epicId } = seedRun(ctx, { bundle })
+  submitSprintReport(ctx, { runId, sprintId: sid(1), report: { summary: 'Report created under legacy rules' } })
+  const rule: AppliedStandard = { kind: 'epic', id: epicId, revision: 2, workflow: 'custom',
+    disposition: 'updated', reason: 'New release audit', prompt: 'Verify signed release manifests.' }
+  ctx.db.run('UPDATE epics SET standards_json = ? WHERE id = ?', JSON.stringify(encodeStandards([rule])), epicId)
+  expect(getCheckpoint(ctx, { runId }).conditions.find(c => c.id === 'report_submitted')).toMatchObject({
+    met: false, detail: expect.stringContaining('epicVerification')
+  })
+})
+
+describe('ticket integration evidence', () => {
+  const branch = 'epic/isolated'
+  const workerCommit = 'b'.repeat(40)
+  const integrated = { commit, branch, verification: 'Integration tests passed' }
+
+  async function verify(options: { submitted?: boolean; target?: string; remoteContains?: boolean; commits: string[] }) {
+    const ctx = configured()
+    const { runId } = startedRun(ctx, { branch: { name: branch, repository: null, startCommit: null } })
+    const claimed = claim(ctx, runId, 1)
+    if (options.submitted !== false) submitClaim(ctx, claimed, { outputs: { summary: 'Worker revisions', commits: options.commits } })
+    const git = { isAncestor: async (left: string, right: string) =>
+      (left === commit && right === 'refs/heads/' + branch && options.remoteContains !== false) ||
+      (left === workerCommit && right === commit) }
+    return verifyTicketIntegration({ ...ctx, gitFor: () => git as ReturnType<typeof ctx.gitFor> },
+      claimed.attempt.id, { ...integrated, branch: options.target ?? branch })
+  }
+
+  it('accepts only submitted work with every worker revision reachable from the integrated revision on the bound ref', async () => {
+    expect(await verify({ commits: [workerCommit] })).toBe(true)
+    expect(await verify({ commits: [workerCommit], submitted: false })).toBe(false)
+    expect(await verify({ commits: [workerCommit], target: 'another-epic' })).toBe(false)
+    expect(await verify({ commits: [workerCommit], remoteContains: false })).toBe(false)
+    expect(await verify({ commits: [] })).toBe(false)
+    expect(await verify({ commits: [workerCommit, 'c'.repeat(40)] })).toBe(false)
+    expect(await verify({ commits: ['main'] })).toBe(false)
+  })
 })
 
 describe('delivery policy revisions', () => {

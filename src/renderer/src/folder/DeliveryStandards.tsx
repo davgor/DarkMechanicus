@@ -28,7 +28,7 @@ const controls = [
 function PromptFields({ prompts, disabled, change }: { prompts: Prompts; disabled: boolean; change(value: Prompts): void }) {
   return <div className="standards-fields">{controls.map(([key, name, help]) =>
     <label className="standards-field" key={key}>
-      <strong>{name}</strong><span className="muted">{help}</span>
+      <span className="standards-field-label"><strong>{name}</strong><span className="muted">{help}</span></span>
       <textarea aria-label={name} className="input" rows={5} maxLength={65536} disabled={disabled} value={prompts[key]}
         onChange={e => change({ ...prompts, [key]: e.target.value })} />
     </label>)}</div>

@@ -45,7 +45,9 @@ it('delivers a revised submitted ticket to its worker and run owner exactly once
   await planner.standardizeProjectWork(input)
   const replay = await planner.standardizeProjectWork(input)
   expect(replay.items.find(i => i.id === ticket.id)?.notifications).toEqual({ worker: 'inbox', orchestrator: 'inbox' })
+  expect((await unrelated.getProject()).assignedDeliveryRequirements).toBeUndefined()
   for (const recipient of [owner, worker]) {
+    expect((await recipient.getProject()).assignedDeliveryRequirements).toEqual([expect.stringContaining(change.tests![0])])
     const { messages } = await recipient.readAgentInbox({})
     expect(messages).toHaveLength(1)
     expect(messages[0]).toMatchObject({ from: { name: 'standards editor' }, body: expect.stringContaining(change.tests![0]) })
@@ -65,6 +67,7 @@ it('reports refresh delivery when the sender has no mailbox and avoids writing f
     requirements: 'Recover the most recent revision.', reason: 'Restore needs a defined version.' }
   const input = { expectedRevision: saved.revision, includeInProgress: true, items: [patch] }
   expect((await desktop.standardizeProjectWork(input)).items[0].notifications).toEqual({ worker: 'refresh', orchestrator: 'refresh' })
+  expect((await worker.getProject()).assignedDeliveryRequirements).toEqual([expect.stringContaining(patch.requirements!)])
   expect((await owner.readAgentInbox({})).messages).toEqual([])
   expect((await worker.readAgentInbox({})).messages).toEqual([])
 
@@ -74,4 +77,29 @@ it('reports refresh delivery when the sender has no mailbox and avoids writing f
   expect(second.items[0].notifications).toEqual({ worker: 'inbox', orchestrator: 'inbox' })
   expect((await worker.readAgentInbox({})).messages[0].body).toContain(patch.requirements)
   expect((await owner.readAgentInbox({})).messages[0].body).toContain(card.id)
+})
+
+it('bounds live context to four recent bodies and retires an assignment when it closes', async () => {
+  const owner = await chat('orchestrator', 'parallel cards')
+  const actions = []
+  for (let index = 0; index < 5; index++) {
+    const card = await desktop.createKanbanCard({ title: 'Release part ' + index })
+    await desktop.playKanbanCard({ cardId: card.id })
+    const claim = await owner.claimKanbanCard({ cardId: card.id })
+    actions.push({ card, claim })
+  }
+  const saved = await desktop.setDeliveryStandards({ expectedRevision: 0, policy: baselineDeliveryPolicy })
+  const items: StandardizationPatch[] = actions.map(({card}) => ({
+    kind: 'kanban', id: card.id, disposition: 'updated', reason: 'Release verification changed.',
+    requirements: 'Inspect the published build for ' + card.title
+  }))
+  await desktop.standardizeProjectWork({ expectedRevision: saved.revision, includeInProgress: true, items })
+  const context = (await owner.getProject()).assignedDeliveryRequirements!
+  expect(context).toHaveLength(5)
+  expect(context.at(-1)).toMatch(/^1 additional active work item/)
+  const { card, claim } = actions[0]
+  await owner.failKanbanCard({ attemptId: claim.attemptId, claimToken: claim.claimToken!, reason: 'Build withdrawn' })
+  const active = (await owner.getProject()).assignedDeliveryRequirements!
+  expect(active).toHaveLength(4)
+  expect(active.join(' ')).not.toContain(card.id)
 })

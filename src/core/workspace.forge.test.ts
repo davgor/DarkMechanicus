@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it } from 'vitest'
 import { createHarness, type Harness } from '../test/workspaceHarness'
 import { assertForgeTransferIdle, bindForge, boundForgeRoot, FORGE_POINTER, isForgeMember, pendingForgeTransfer, withForgeTransfer } from './repo/forgeBinding'
 import { nodeFs } from './repo/nodeFs'
-import { dbProjectDir } from './repo/storageMode'
+import { dbProjectDir, SQLITE_STANDARDS_FILE } from './repo/storageMode'
 import { baselineDeliveryPolicy, defaultPrompts } from '../shared/domain/standardsPrompts'
 import { openWorkspace } from './workspace'
 import { bindToolingGrant, holdToolingWorkflow, retireToolingWorkflow } from './services/toolingHold'
@@ -130,4 +130,22 @@ it('isolates revisions and the edited prompt across two projects in a cloned For
   const reopened = paths.map(root => h.open('desktop', { root: h.cloneTracked(root) }))
   expect((await reopened[0].getProject()).deliveryStandards).toEqual({ revision: 2, policy: custom })
   expect((await reopened[1].getProject()).deliveryStandards).toEqual({ revision: 1, policy })
+})
+
+it.each(['db', 'repo'] as const)('exports a configured Forge member to %s with standards in the destination store', async mode => {
+  const member = h.open('desktop', { mode: 'repo', transport: 'desktop' })
+  await member.initializeRepository({ name: 'Forge member' })
+  const policy = { ...baselineDeliveryPolicy, prompts: { ...defaultPrompts, epic: 'Review stability evidence' }, setupDecision: 'agent' as const }
+  const approved = await member.setDeliveryStandards({ expectedRevision: 0, policy })
+  const dest = join(h.homeDir, 'restored-code')
+  mkdirSync(dest)
+  member.exportForge!(dest, mode)
+  const sidecar = join(dest, SQLITE_STANDARDS_FILE)
+  if (mode === 'db') {
+    expect(JSON.parse(readFileSync(sidecar, 'utf8')).standards).toEqual(approved)
+    expect(existsSync(join(dest, '.darkmechanicus'))).toBe(false)
+  } else {
+    expect(existsSync(sidecar)).toBe(false)
+    expect(JSON.parse(readFileSync(join(dest, '.darkmechanicus/project.json'), 'utf8')).deliveryStandards).toEqual(approved)
+  }
 })
