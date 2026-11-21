@@ -28,6 +28,7 @@ function fixture(role: 'planner' | 'orchestrator' = 'planner') {
   const deps = {
     source, store, incidents: createRecoveryStore({ userData: root }),
     version: () => version,
+    transportProblem: vi.fn(() => null as string | null),
     createCard: vi.fn(async (_folder: string, input: { body: string }) => { events.push('card'); const card = { id: 'kc_fixture', body: input.body }; cards.push(card); return card.id }),
     play: vi.fn(async () => { events.push('play') }),
     hold: vi.fn(async () => { events.push('hold') }),
@@ -155,4 +156,16 @@ describe('single-call connected tooling recovery', () => {
     expect(stopped).toMatchObject({ startup: 'failed', blocked: true, connection: 'unavailable' })
     expect(stopped.problem).toContain('Source replaced during native auth')
   })
+})
+
+it('retains unsupported-host diagnostics before any hold, source access, card, chat or agent launch', async () => {
+  const f = fixture()
+  f.deps.transportProblem.mockReturnValue('Unsupported host: OMP and Claude have verified recovery context transports.')
+  const result = await f.service(escalation, f.context())
+  expect(result).toMatchObject({ blocked: true, startup: 'not_started', cardId: null, repairChatId: null, connection: 'unavailable' })
+  expect(result.problem).toContain('Unsupported host')
+  expect(f.source.requireAvailable).not.toHaveBeenCalled()
+  expect(f.events).toEqual([])
+  expect(f.store.getChat(f.caller)?.toolingIncidentId).toBeUndefined()
+  expect(f.deps.incidents.get(result.incidentId)).toMatchObject({ held: false, diagnostic: { command: 'get_ticket' } })
 })

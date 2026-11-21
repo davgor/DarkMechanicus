@@ -60,6 +60,11 @@ export function createDesktopToolingRecovery(deps: DesktopRecoveryDeps): Desktop
     const incidents = createRecoveryStore({ userData: deps.userData })
     const recovery = createToolingRecovery({
       source: deps.source, store: deps.store, incidents, version: deps.version,
+      transportProblem: chat => {
+        const kind = deps.agents.get(chat.agent)?.kind
+        return kind === 'omp' || kind === 'claude' ? null :
+          'This selected host has no verified tooling-recovery context transport. OMP and Claude are supported. The diagnostic is retained; no hold, repair card or chat was created. Choose a supported host explicitly before replaying this incident; no provider/model was substituted.'
+      },
       createCard: async (folder, input) => (await deps.workspace(folder).createKanbanCard({ ...input,
         acceptanceCriteria: [
           { text: 'Behavioral regression proves the diagnosed tooling failure is repaired.' },

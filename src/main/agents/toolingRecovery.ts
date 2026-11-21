@@ -15,6 +15,7 @@ export interface ToolingRecoveryDeps {
   store: ChatStore
   incidents: RecoveryStore
   version(): string
+  transportProblem(chat: ChatRecord): string | null
   createCard(folder: string, input: { title: string; body: string; idempotencyKey: string }): Promise<string>
   play(folder: string, cardId: string): Promise<void>
   hold(chat: ChatRecord, incidentId: string): Promise<void>
@@ -190,6 +191,12 @@ export function createToolingRecovery(deps: ToolingRecoveryDeps): (input: Toolin
           version: deps.version(), diagnostic, blocked: true, held: false, sourceFolder: null, sourceIdentity: null, cardId: null, repairChatId: null,
           startup: 'not_started', startAttempted: false, problem: null, messages: [], available: null }
         context.publish(() => save(incident!))
+      }
+      const transportProblem = deps.transportProblem(caller)
+      if (transportProblem !== null) {
+        incident.problem = transportProblem
+        save(incident)
+        return report(incident)
       }
       return launch(incident, caller, context)
     }
