@@ -512,7 +512,12 @@ async function setupFixtureUi() {
   const choose = `Array.from(document.querySelectorAll('button')).find((button) => button.textContent.trim() === 'Choose folder')`
   await until(`!!(${choose})`, 'real Choose folder control')
   await ev(`(${choose}).click()`)
-  await until(`!!document.querySelector('.onboarding input[type="radio"][value="repo"]')`, 'actual repository onboarding')
+  await until(`(() => {
+    const tab = document.querySelector('.folder-tabs [role="tab"][data-tab="epics"]')
+    if (!tab) return false
+    if (tab.getAttribute('aria-selected') !== 'true') tab.click()
+    return !!document.querySelector('.onboarding input[type="radio"][value="repo"]')
+  })()`, 'actual repository onboarding')
   await ev(`document.querySelector('.onboarding input[type="radio"][value="repo"]').click()`)
   await ev(`(() => {
     const label = Array.from(document.querySelectorAll('.onboarding-option-label')).find((node) => node.textContent.includes('.mcp.json'))
