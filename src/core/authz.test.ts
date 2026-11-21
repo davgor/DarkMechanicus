@@ -17,7 +17,7 @@ const PLANNER_ONLY: Capability[] = ['project.definition_of_done']
 const PLANNER_SHARED: Capability[] = [
   'tooling.recover',
   'read',
-  'chat.name',
+  'chat.name', 'human.ask',
   'repo.init',
   'repo.flush',
   'repo.reconcile',
@@ -66,7 +66,7 @@ const ORCHESTRATOR: Capability[] = [
 
 const WORKER: Capability[] = [
   'read',
-  'chat.name',
+  'chat.name', 'human.ask',
   'attempt.heartbeat',
   'attempt.submit',
   'attempt.fail',
@@ -76,12 +76,12 @@ const WORKER: Capability[] = [
   'metrics.report',
   'mail.use'
 ]
-const REVIEWER: Capability[] = ['read', 'chat.name', 'attempt.review', 'comment.write', 'attachment.write', 'metrics.report_run', 'mail.use']
+const REVIEWER: Capability[] = ['read', 'chat.name', 'human.ask', 'attempt.review', 'comment.write', 'attachment.write', 'metrics.report_run', 'mail.use']
 
 const DESKTOP: Capability[] = [
   'tooling.recover',
   'read',
-  'chat.name',
+  'chat.name', 'human.ask',
   'grant.issue',
   'grant.revoke',
   'repo.init',

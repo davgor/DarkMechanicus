@@ -1,12 +1,15 @@
 import { app, clipboard, safeStorage, type IpcMain } from 'electron'
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { randomBytes } from 'node:crypto'
+import { basename, join } from 'node:path'
+import { questionStore, publishChannel } from '../core/humanQuestions'
+import type { Db } from '../core/db/database'
+import { createHash, randomBytes } from 'node:crypto'
 import type { Workspace } from '../core/workspace'
 
 interface Route { folder: string; cardId: string; question: string }
 interface Config {
   token: string
+  enabled?: boolean
   chat?: number
   since: string
   offset: number
@@ -29,12 +32,20 @@ async function call<T>(token: string, method: string, body: object): Promise<T> 
   throw new Error('Telegram request failed. Check the token and connection.')
 }
 
+function recipientKey(c: Config): string {
+  return createHash('sha256').update(c.token + '/' + c.chat).digest('hex')
+}
+
 type FolderList = () => string[]
 type WorkspaceFor = (path: string) => Workspace
 
-export function registerTelegramIpc(ipc: Pick<IpcMain, 'handle'>, status: () => unknown, pair: () => Promise<string>): void {
+export function registerTelegramIpc(ipc: Pick<IpcMain, 'handle'>, status: () => unknown, pair: () => Promise<string>, setEnabled: (enabled: boolean) => void): void {
   ipc.handle('telegram:status', status)
   ipc.handle('telegram:pair', pair)
+  ipc.handle('telegram:setEnabled', (_event, enabled: unknown) => {
+    if (typeof enabled !== 'boolean') throw new Error('Expected a boolean.')
+    setEnabled(enabled)
+  })
 }
 
 class TelegramHost {
@@ -45,7 +56,7 @@ class TelegramHost {
   private code = ''
   private expires = 0
 
-  constructor(private folders: FolderList, private workspace: WorkspaceFor) {
+  constructor(private folders: FolderList, private workspace: WorkspaceFor, private db: Db) {
     try {
       if (existsSync(this.file)) this.config = JSON.parse(safeStorage.decryptString(readFileSync(this.file)))
     } catch { this.issue = 'Could not read Telegram configuration.' }
@@ -57,6 +68,16 @@ class TelegramHost {
     writeFileSync(this.file + '.tmp', safeStorage.encryptString(JSON.stringify(value)), { mode: 0o600 })
     renameSync(this.file + '.tmp', this.file)
     this.config = value
+    this.heartbeat()
+  }
+
+  heartbeat(): void {
+    publishChannel(this.db, !!this.config?.chat && this.config.enabled !== false && !this.stopped)
+  }
+
+  setEnabled(enabled: boolean): void {
+    if (!this.config) throw new Error('Pair Telegram first.')
+    this.save({ ...this.config, enabled, since: new Date().toISOString() })
   }
 
   async pair(): Promise<string> {
@@ -87,9 +108,17 @@ class TelegramHost {
       this.acceptPairing(c, m.chat.id, m.text)
       return
     }
-    if (m.chat.id !== c.chat || !m.reply_to_message) return
-    const route = c.routes[m.reply_to_message.message_id]
-    if (route) await this.reply(c, route, m.text, update.update_id)
+    if (m.chat.id !== c.chat || !m.reply_to_message || c.enabled === false) return
+    await this.routeReply(c, m.reply_to_message.message_id, m.text, update.update_id)
+  }
+
+  private async routeReply(c: Config, messageId: number, text: string, updateId: number): Promise<void> {
+    const answered = this.db.run(
+      "UPDATE questions SET state='answered', answer=? WHERE recipient=? AND message=? AND state='sent'",
+      text, recipientKey(c), messageId)
+    if (answered.changes) return
+    const route = c.routes[messageId]
+    if (route) await this.reply(c, route, text, updateId)
   }
 
   private async reply(c: Config, route: Route, body: string, update: number): Promise<void> {
@@ -101,18 +130,25 @@ class TelegramHost {
     }
   }
 
-  private async notify(c: Config, folder: string, card: { id: string; key: string; title: string }): Promise<void> {
-    const question = (await this.workspace(folder).listKanbanMessages({ cardId: card.id })).at(-1)
-    if (!question || question.createdAt < c.since || question.authorRole === 'desktop') return
-    if (!/\?|^@human\b/i.test(question.body) || !this.current(c)) return
-    if (Object.values(c.routes).some(r => r.question === question.id)) return
-    const sent = await call<{ message_id: number }>(c.token, 'sendMessage', {
-      chat_id: c.chat, text: (card.key + ' · ' + card.title + '\n\n' + question.body).slice(0, 4000),
-      reply_markup: { force_reply: true }
+  private async deliverQuestion(c: Config): Promise<void> {
+    const pending = this.db.tx(() => {
+      const row = this.db.get<{ id: string; repo: string; question: string }>(
+        "SELECT id,repo,question FROM questions WHERE state='queued' ORDER BY created LIMIT 1")
+      if (row) this.db.run("UPDATE questions SET state='sending' WHERE id=?", row.id)
+      return row
     })
-    if (!this.current(c)) return
-    c.routes[sent.message_id] = { folder, cardId: card.id, question: question.id }
-    this.save(c)
+    if (!pending) return
+    try {
+      const sent = await call<{ message_id: number }>(c.token, 'sendMessage', {
+        chat_id: c.chat, text: basename(pending.repo).slice(0, 200) + '\n\n' + pending.question,
+        reply_markup: { force_reply: true }
+      })
+      this.db.run("UPDATE questions SET state='sent', recipient=?, message=? WHERE id=?",
+        recipientKey(c), sent.message_id, pending.id)
+    } catch (error) {
+      this.db.run("UPDATE questions SET state='delivery_unknown' WHERE id=?", pending.id)
+      throw error
+    }
   }
 
   async tick(c: Config): Promise<void> {
@@ -124,26 +160,26 @@ class TelegramHost {
       c.offset = update.update_id + 1
       this.save(c)
     }
-    if (!c.chat) return
-    for (const folder of this.folders()) {
-      const { lanes } = await this.workspace(folder).listKanbanCards({})
-      for (const card of [...lanes.in_progress, ...lanes.ready_for_review]) {
-        if (card.updatedAt >= c.since) await this.notify(c, folder, card)
-      }
-    }
+    if (!c.chat || !this.current(c) || c.enabled === false) return
+    await this.deliverQuestion(c)
+
   }
 }
 
-export function startTelegram(ipc: Pick<IpcMain, 'handle'>, folders: FolderList, workspace: WorkspaceFor): () => void {
-  const host = new TelegramHost(folders, workspace)
-  registerTelegramIpc(ipc, () => ({ configured: !!host.config, paired: !!host.config?.chat, issue: host.issue }), () => host.pair())
+export function startTelegram(ipc: Pick<IpcMain, 'handle'>, folders: FolderList, workspace: WorkspaceFor, home: string): () => void {
+  const db = questionStore(home)
+  db.run("UPDATE questions SET state='delivery_unknown' WHERE state='sending'")
+  const host = new TelegramHost(folders, workspace, db)
+  host.heartbeat()
+  registerTelegramIpc(ipc, () => ({ configured: !!host.config, paired: !!host.config?.chat, enabled: !!host.config && host.config.enabled !== false, issue: host.issue }), () => host.pair(), enabled => host.setEnabled(enabled))
   let busy = false
   const timer = setInterval(async () => {
-    if (!host.config || busy) return
+    host.heartbeat()
+    if (!host.config || host.config.enabled === false || busy) return
     busy = true
     try { await host.tick(host.config); host.issue = '' } catch { host.issue = 'Notification sync failed. Retrying.' }
-    finally { busy = false }
+    finally { busy = false; if (host.stopped) db.close() }
   }, 5000)
   timer.unref()
-  return () => { host.stopped = true; clearInterval(timer) }
+  return () => { host.stopped = true; clearInterval(timer); host.heartbeat(); if (!busy) db.close() }
 }

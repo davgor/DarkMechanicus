@@ -4,7 +4,7 @@ import { fail } from './errors'
 export const CAPABILITIES = [
   'tooling.recover',
   'read',
-  'chat.name',
+  'chat.name', 'human.ask',
   'repo.init',
   'repo.flush',
   'repo.reconcile',
@@ -122,7 +122,7 @@ export const HUMAN_ONLY_CAPABILITIES: readonly Capability[] = [
 const PLANNER_SHARED: Capability[] = [
   'tooling.recover',
   'read',
-  'chat.name',
+  'chat.name', 'human.ask',
   'repo.init',
   'repo.flush',
   'repo.reconcile',
@@ -212,7 +212,7 @@ const ROLE_CAPABILITIES: Record<SessionRole, Capability[]> = {
   orchestrator: ORCHESTRATOR,
   worker: [
     'read',
-    'chat.name',
+    'chat.name', 'human.ask',
     'attempt.heartbeat',
     'attempt.submit',
     'attempt.fail',
@@ -222,7 +222,7 @@ const ROLE_CAPABILITIES: Record<SessionRole, Capability[]> = {
     'metrics.report',
     'mail.use'
   ],
-  reviewer: ['read', 'chat.name', 'attempt.review', 'comment.write', 'attachment.write', 'metrics.report_run', 'mail.use']
+  reviewer: ['read', 'chat.name', 'human.ask', 'attempt.review', 'comment.write', 'attachment.write', 'metrics.report_run', 'mail.use']
 }
 
 interface RoleOptions {

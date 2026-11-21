@@ -1,4 +1,5 @@
 import { agentMailCommands } from './agentMail'
+import { questionCommands } from './questions'
 import { chatNamingCommands } from './chatNaming'
 import { activityCommands } from './activity'
 import { attachmentCommands } from './attachments'
@@ -19,6 +20,7 @@ import type { CommandTable } from './types'
 
 /** Every CommandApi method: input schema, mutation flag, and the service call it maps to. */
 export const COMMANDS: CommandTable = {
+  ...questionCommands,
   ...chatNamingCommands,
   ...repositoryCommands,
   ...authoringCommands,

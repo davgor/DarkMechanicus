@@ -1,3 +1,4 @@
+import { HUMAN_QUESTION_GUIDANCE, telegramAvailable } from '../humanQuestions'
 import { join } from 'node:path'
 import { API_VERSION } from '../../shared/domain/api'
 import type { CapabilitiesView, ProjectView, RepositoryView } from '../../shared/domain/views'
@@ -8,6 +9,7 @@ import { backupDatabase } from '../repo/backup'
 import { listBranchEpics } from '../repo/branchEpics'
 import { readProject } from '../repo/initialize'
 import type { RepositoryEntry } from '../repo/portable'
+import { policyForStore, savePolicy } from '../repo/deliveryPolicy'
 import { rescanRepositories, writeDefinitionOfDone } from '../repo/projectConfig'
 import { getStorageStatus } from '../repo/storage'
 import { COMMAND_SCHEMAS } from '../commandSchemas'
@@ -30,6 +32,7 @@ function capabilitiesView(core: WorkspaceCore): CapabilitiesView {
     apiVersion: API_VERSION,
     schemaVersion: SCHEMA_VERSION,
     skillsVersion: SKILLS_VERSION,
+    humanQuestions: { available: telegramAvailable(core.homeDir), guidance: HUMAN_QUESTION_GUIDANCE },
     role: core.role,
     sessionId: core.sessionId(),
     capabilities: initialized ? [...core.ctx().session.capabilities] : core.roleCapabilities(),
@@ -60,8 +63,11 @@ function repositoryViews(entries: RepositoryEntry[]): RepositoryView[] {
 function projectView(core: WorkspaceCore): ProjectView {
   const project = core.project()
   // Read from the file each time, like the Definition of Done, so a rescan behind an open session shows.
-  const repositories = readProject(core.layout, core.fs)?.repositories
+  const current = readProject(core.layout, core.fs) ?? project
+  const repositories = current.repositories
+  const deliveryStandards = policyForStore(core.layout, core.ctx().db, current)
   return {
+    ...(deliveryStandards && { deliveryStandards }),
     projectId: project.projectId,
     name: project.name,
     keyPrefix: project.keyPrefix,
@@ -113,6 +119,15 @@ const repositoryCommands = {
   getProject: {
     mutates: false,
     run: (core) => projectView(core)
+  },
+  setDeliveryStandards: {
+    schema: COMMAND_SCHEMAS.setDeliveryStandards,
+    mutates: true,
+    run: (core, input) => {
+      const ctx = core.ctx()
+      requireCapability(ctx.session, 'project.definition_of_done')
+      return ctx.db.tx(() => savePolicy(core, ctx.db, input.expectedRevision, input.policy))
+    }
   },
   setDefinitionOfDone: {
     schema: COMMAND_SCHEMAS.setDefinitionOfDone,

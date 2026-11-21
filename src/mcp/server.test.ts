@@ -23,10 +23,13 @@ type Kind = 'read' | 'idempotent' | 'write' | 'destructive'
 
 /** Every tool the server exposes, the command it adapts, and how it is annotated. */
 const TOOLS: Record<string, { method: CommandName; kind: Kind }> = {
+  ask_human: { method: 'askHuman', kind: 'write' },
+  get_human_answer: { method: 'getHumanAnswer', kind: 'read' },
   name_chat: { method: 'nameChat', kind: 'write' },
   recover_tooling: { method: 'recoverTooling', kind: 'idempotent' },
   get_capabilities: { method: 'getCapabilities', kind: 'read' },
   get_project: { method: 'getProject', kind: 'read' },
+  set_delivery_standards: { method: 'setDeliveryStandards', kind: 'write' },
   set_definition_of_done: { method: 'setDefinitionOfDone', kind: 'idempotent' },
   rescan_repositories: { method: 'rescanRepositories', kind: 'idempotent' },
   list_projects: { method: 'getProject', kind: 'read' },
@@ -139,7 +142,7 @@ const TOOLS: Record<string, { method: CommandName; kind: Kind }> = {
 }
 
 /** Tools only a planner (or the desktop) holds the capability for: an orchestrator session does not list them. */
-const PLANNER_ONLY = ['set_definition_of_done']
+const PLANNER_ONLY = ['set_definition_of_done', 'set_delivery_standards']
 
 /** What an orchestrator allowed to save lists: every tool except the planner-only ones. */
 const ORCHESTRATOR_TOOLS = Object.fromEntries(Object.entries(TOOLS).filter(([name]) => !PLANNER_ONLY.includes(name)))

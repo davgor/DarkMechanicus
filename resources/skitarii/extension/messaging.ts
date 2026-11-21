@@ -334,9 +334,9 @@ function dmCallTool(client: DmClient, type: TypeBuilder): MailToolDefinition {
     name: DM_CALL_TOOL_NAME,
     label: 'Dark Mechanicus command',
     description:
-      'Run one Dark Mechanicus command with this chat\'s grant, instead of the dm CLI in bash: command is its name ' +
-      '(claim_ticket or claimTicket), args its JSON object (default {}). Start with get_capabilities; `dm --list` and ' +
-      '`dm --describe <command>` list the commands and their input. Returns the command\'s JSON data, or its error.',
+      'Run a Dark Mechanicus command with this chat grant. Start with get_capabilities. Ask in chat while the human is engaged. ' +
+      'Use ask_human only when Telegram is available, you need a response to proceed, and the human is disengaged from this chat. ' +
+      'Read their reply with get_human_answer. See dm --list and dm --describe <command> for inputs.',
     parameters: type.Object(
       {
         command: type.String({ description: 'The command name, such as get_capabilities.', minLength: 1, maxLength: 64, pattern: DM_COMMAND_NAME.source }),

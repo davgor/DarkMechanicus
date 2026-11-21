@@ -913,7 +913,7 @@ function openFolderRegistry(): FolderRegistry {
 function telegramLifecycle(ipc: Pick<IpcMain, 'handle'>, registry: FolderRegistry, pool: WorkspacePool, appDb: Db) {
   const stopTelegram = startTelegram(ipc,
     () => registry.list().filter(folder => folder.initialized && folder.available).map(folder => folder.path),
-    folder => desktopWorkspace(registry, pool, folder))
+    folder => desktopWorkspace(registry, pool, folder), darkMechanicusHome())
   const closeStores = runLifecycle(pool, appDb)
   return () => { stopTelegram(); closeStores() }
 }

@@ -2,6 +2,7 @@
  * The single command/query contract. The core Workspace implements it; MCP tools and desktop IPC
  * are thin adapters over it, so both entry points enforce identical rules.
  */
+import type { DeliveryPolicy, StoredDeliveryPolicy } from './deliveryPolicy'
 import type { NameChatArgs } from '../agents/chatNaming'
 import type { ToolingRecoveryInput, ToolingRecoveryResult } from '../agents/toolingRecovery'
 import type { SavePermissionRequestView } from './savePermissions'
@@ -430,6 +431,8 @@ export interface KickBackKanbanCardInput {
 
 export interface CommandApi {
   /** Selected-agent first-message metadata; target comes only from a live authenticated terminal binding. */
+  askHuman(input: { question: string; responseRequired: true; humanEngaged: false }): Promise<{ questionId: string; state: 'queued' }>
+  getHumanAnswer(input: { questionId: string }): Promise<{ state: string; answer: string | null }>
   nameChat(input: NameChatArgs): Promise<{ applied: boolean }>
   /** Interrupt a tooling failure and establish an incident-only repair connection, never general Play authority. */
   recoverTooling(input: ToolingRecoveryInput): Promise<ToolingRecoveryResult>
@@ -441,6 +444,7 @@ export interface CommandApi {
    * and answers with the project as getProject shows it. Planner and desktop only; never commits. In a folder
    * of repositories `repo` is required and names the repository whose checks these are; a single repository refuses it.
    */
+  setDeliveryStandards(input: { expectedRevision: number; policy: DeliveryPolicy }): Promise<StoredDeliveryPolicy>
   setDefinitionOfDone(input: {
     checks: { name: string; command: string; description?: string }[]
     repo?: string

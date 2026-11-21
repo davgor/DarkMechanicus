@@ -2,6 +2,7 @@
  * Read models returned by the command layer to both the desktop renderer and MCP clients.
  * Plain JSON-serializable data only.
  */
+import type { StoredDeliveryPolicy } from './deliveryPolicy'
 import type {
   CapabilityProfile,
   Criterion,
@@ -36,6 +37,7 @@ import type {
 export type SessionRole = 'desktop' | 'planner' | 'orchestrator' | 'worker' | 'reviewer' | 'reader'
 
 export interface CapabilitiesView {
+  humanQuestions?: { available: boolean; guidance: string }
   server: { name: string; version: string }
   apiVersion: number
   schemaVersion: number
@@ -82,6 +84,7 @@ export interface RepositoryView {
 }
 
 export interface ProjectView {
+  deliveryStandards?: StoredDeliveryPolicy
   projectId: string
   name: string
   keyPrefix: string

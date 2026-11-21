@@ -159,8 +159,28 @@ describe('Sidebar + menu', () => {
 })
 
 describe('Sidebar folders', () => {
+  it('keeps Forge Worlds separate when either section collapses', () => {
+    const world = folderView({ path: '/mars', name: 'Mars', forgeWorld: {
+      version: 1, owner: 'codex', syncMinutes: 5, projects: []
+    } })
+    renderSidebar([alpha, world, { ...beta, forgeParent: world.path }])
+    const folders = screen.getByRole('button', { name: 'Folders' })
+    const worlds = screen.getByRole('button', { name: 'Forge Worlds' })
+    expect(screen.queryByRole('button', { name: 'Actions for beta' })).toBeNull()
+    fireEvent.click(folders)
+    expect(folders.getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByRole('button', { name: 'Actions for alpha' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Mars' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Add a folder' })).toBeTruthy()
+    fireEvent.click(worlds)
+    fireEvent.click(folders)
+    expect(screen.queryByRole('button', { name: 'Mars' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Actions for alpha' })).toBeTruthy()
+  })
+
   it('lists every tracked folder with its epics or setup state', () => {
     renderSidebar([alpha, beta], { '/a': listOf('Shipping') })
+    expect(screen.queryByRole('button', { name: 'Forge Worlds' })).toBeNull()
     expect(screen.getByRole('navigation', { name: 'Folders and epics' })).toBeTruthy()
     expect(screen.getByText('Shipping')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Setup required' })).toBeTruthy()

@@ -1,3 +1,4 @@
+import { baselineDeliveryPolicy } from '../deliveryPolicySchema'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { CommandName } from '../../shared/domain/api'
 import { defaultCapabilityProfile } from '../../shared/domain/bundle'
@@ -38,10 +39,13 @@ const PROBE_REPORT = {
  * `not_found` (or succeeds harmlessly) right after its authorization check.
  */
 const PROBES: Record<CommandName, unknown> = {
+  askHuman: { question: 'Which target?', responseRequired: true, humanEngaged: false },
+  getHumanAnswer: { questionId: '22222222-2222-4222-8222-222222222222' },
   nameChat: { title: 'Semantic probe title' },
   recoverTooling: { action: 'status', incidentId: 'probe-incident' },
   getCapabilities: undefined,
   getProject: undefined,
+  setDeliveryStandards: { expectedRevision: 0, policy: baselineDeliveryPolicy },
   setDefinitionOfDone: { checks: [] },
   rescanRepositories: undefined,
   initializeRepository: {},

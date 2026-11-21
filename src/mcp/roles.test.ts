@@ -11,6 +11,7 @@ const INFO = { name: 'darkmechanicus', version: '1.2.3' }
 
 /** Read-only tools: every role sees them. */
 const READ_TOOLS = [
+  'get_human_answer',
   'get_capabilities',
   'get_project',
   'list_projects',
@@ -62,7 +63,7 @@ const READ_TOOLS = [
 ]
 
 /** Every role may comment. */
-const COMMENT_TOOLS = ['add_comment', 'add_kanban_message', 'name_chat']
+const COMMENT_TOOLS = ['ask_human', 'add_comment', 'add_kanban_message', 'name_chat']
 
 /** Every role that writes records may attach an image from a local path (attachment.write); the desktop refuses it. */
 const ATTACHMENT_WRITE_TOOLS = ['add_attachment']
@@ -100,7 +101,7 @@ const PLANNER_SHARED_TOOLS = [
 ]
 
 /** Only a planner (and the desktop) sets the Definition of Done: the orchestrator accepts work against it. */
-const PLANNER_ONLY_TOOLS = ['set_definition_of_done']
+const PLANNER_ONLY_TOOLS = ['set_definition_of_done', 'set_delivery_standards']
 
 const PLANNER_TOOLS = [...PLANNER_SHARED_TOOLS, ...PLANNER_ONLY_TOOLS]
 

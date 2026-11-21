@@ -15,6 +15,7 @@ const ANNOTATIONS = {
   read: { readOnlyHint: true, openWorldHint: false },
   idempotent: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   write: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  external: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
   destructive: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false }
 } as const satisfies Record<string, ToolAnnotations>
 

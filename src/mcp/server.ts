@@ -21,11 +21,15 @@ import { registerPlanningTools } from './tools/planning'
 import { registerProfileTools } from './tools/profiles'
 import { registerTransferTools } from './tools/transfers'
 
+import { registerQuestionTools } from './tools/questions'
+import { HUMAN_QUESTION_GUIDANCE } from '../core/humanQuestions'
+
 function buildInstructions(): string {
   return [
     'Dark Mechanicus coordinates planning and execution of agentic development work for one repository.',
     '',
     '- Call get_capabilities first. It shows your role and the capabilities it grants. Only the tools your role may call are listed; the others fail with `unauthorized`.',
+    HUMAN_QUESTION_GUIDANCE,
     '- Plans are edited as drafts (get_plan with view "draft", update_plan_draft, validate_plan). Execution reads only saved revisions, and changes only on save_plan. Orchestrators start with Allow save unless explicitly disabled (--no-allow-save). Existing orchestrators without it can request_save_permission and inspect list_save_permission_requests; only approval by a person in Agent access or a distinct originally authorized orchestrator enables general plan.save. Recheck get_capabilities after the decision. Own-run save authority remains separate; requests never grant checkpoint/retry/card approval.',
     '- A planner needs --allow-save to save plans; otherwise have the person review the draft and press Save in the desktop app.',
     '- Execution: register_host, start_run, get_ready_tickets, claim_ticket, then heartbeat_attempt while working and submit_attempt with outputs and evidence. After independent verification, accept_attempt or reject_attempt. The server computes readiness and it cannot be bypassed.',
@@ -57,6 +61,7 @@ export function createMcpServer(
 ): McpServer {
   const server = new McpServer(info, { instructions: buildInstructions() })
   grantTools(server, session)
+  registerQuestionTools(server, api)
   registerDiscoveryTools(server, api)
   registerKnowledgeTools(server, api)
   registerChatNamingTools(server, api)

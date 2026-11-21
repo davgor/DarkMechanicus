@@ -1,3 +1,4 @@
+import { deliveryPolicy } from './deliveryPolicySchema'
 import { z } from 'zod'
 import { nameChatArgsSchema } from '../shared/agents/chatNaming'
 import { toolingRecoveryInputSchema } from '../shared/agents/toolingRecovery'
@@ -183,9 +184,16 @@ const reportRevisionRef = { reportId: stableId, reportRevision: z.number().int()
 const person = z.string().min(1).max(200).optional()
 
 export const COMMAND_SCHEMAS = {
+  askHuman: z.strictObject({
+    question: z.string().trim().min(1).max(3500),
+    responseRequired: z.literal(true).describe('The agent needs this answer to proceed.'),
+    humanEngaged: z.literal(false).describe('The human is currently not engaging with this agent in this conversation.')
+  }),
+  getHumanAnswer: z.strictObject({ questionId: z.uuid() }),
   nameChat: nameChatArgsSchema,
   recoverTooling: toolingRecoveryInputSchema,
   /** `repo`: in a folder of repositories, the repository whose checks these are (required there, refused otherwise). */
+  setDeliveryStandards: z.strictObject({ expectedRevision: z.number().int().nonnegative(), policy: deliveryPolicy }),
   setDefinitionOfDone: z.strictObject({ checks: definitionOfDoneChecks, repo: repositoryName.optional() }),
   switchStorageMode: z.strictObject({ mode: z.enum(STORAGE_MODES), confirmed: z.literal(true) }),
   initializeRepository: z.strictObject({
