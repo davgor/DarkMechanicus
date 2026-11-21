@@ -400,6 +400,12 @@ function matchesBusyContent(content, expectedText) {
   return expectedText !== null && Array.isArray(content) && content.length === 1 &&
     content[0]?.type === 'text' && content[0].text === expectedText
 }
+function matchesBusyRequest(call) {
+  const args = call.arguments
+  return call.name === 'bash' && args.command === facts.busyRequest.command &&
+    args.timeout === facts.busyRequest.timeout && args.cwd === null && args.pty === false &&
+    args.async === false && args.name === null && args.ready === null
+}
 function busyOutputFacts(calls, original, observed) {
   const content = original?.message.content
   return { calls, original: original ?? null, observed: observed ?? null,
@@ -415,6 +421,7 @@ function assertBusyOutput(boundary) {
   const observed = boundary.messages.find((message) => message.bash?.toolCallId === original?.message.toolCallId)?.bash
   facts.busyOutput = JSON.parse(fixtureToolJson(busyOutputFacts(calls, original, observed)))
   must('busy-original-call-and-canonical-result', calls.length === 1 && originals.length === 1)
+  must('busy-requested-direct-pipe-foreground-mode', matchesBusyRequest(calls[0].call))
   must('busy-original-content-export-unmodified',
     sha(J(facts.busyOutput.original.message.content)) === facts.busyOutput.canonicalContentHash)
   must('busy-complete-canonical-content-preserved-before-continuation',
@@ -671,7 +678,10 @@ async function independentAndBusy() {
   assertPeers(await waitFor(() => contexts()[from], 'independent automatic request', 40_000), message, accepted, 'independent')
   await waitTurn(ids.b, before, 'independent response')
   const busyFrom = entries(ids.b).length
-  await typePrompt('Beta', ids.b, `Run this once in a foreground bash tool, not async: '${NODE.replaceAll('\\', '/')}' '${P.busy.replaceAll('\\', '/')}'. Wait for its real output, then report all newly arrived delivery tags. Do not read or acknowledge the inbox.`)
+  facts.busyRequest = { i: 'Running foreground delivery scenario',
+    command: `'${NODE.replaceAll('\\', '/')}' '${P.busy.replaceAll('\\', '/')}'`,
+    timeout: 300, cwd: null, pty: false, async: false, name: null, ready: null }
+  await typePrompt('Beta', ids.b, `Call the DIRECT bash tool exactly once with these exact arguments, not eval or another wrapper: ${J(facts.busyRequest)}. Wait for its real output, then report all newly arrived delivery tags. Do not read or acknowledge the inbox.`)
   await waitFor(() => existsSync(P.busyReady), 'actual foreground tool running', 60_000)
   const boundaryFrom = contexts().length
   const pid = ompProcess(ids.b).pid
