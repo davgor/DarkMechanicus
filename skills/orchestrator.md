@@ -19,6 +19,7 @@ Follow `skills/collaboration.md`. Plan through planner/graph-planner guides with
 - Submission is not acceptance and never unlocks downstream work.
 - An isolated ticket, meaning one coherent change with no prerequisites and nothing depending on it that one worker can finish in one attempt, goes on the folder's Kanban board with `create_kanban_card`, not into a new epic. Work that needs two or more tickets, ordering or sprints stays an epic. Agents create and edit cards; an authorized orchestrator may explicitly launch named cards, while only a person approves, kicks back or deletes cards. Follow-ups and bugs found during a sprint stay in that epic's plan or retro.
 - Flakes and timeouts are failures. A check that fails and then passes on a rerun has failed. Never rerun CI or a test to get green, and never accept, submit or merge on a rerun. Never raise a timeout, add retries or skip a test to make it pass: find out why it is slow or nondeterministic, fix that, and show the evidence. A worker or acceptance round that reports a check passing only on a rerun has failed that check.
+- Tooling failures: `recover_tooling`.
 
 ## Preflight and worker questions
 

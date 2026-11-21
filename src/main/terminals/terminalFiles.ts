@@ -222,7 +222,8 @@ function dmClientDescriptor(options: Omit<DmClientOptions, 'userData'>): DmClien
     args: [...runtime.args],
     cwd: options.folder,
     env: runtime.env,
-    inherit: options.platform === 'win32' ? [...DM_CLIENT_INHERITED, ...DM_CLIENT_INHERITED_WINDOWS] : [...DM_CLIENT_INHERITED]
+    inherit: options.platform === 'win32' ? [...DM_CLIENT_INHERITED, ...DM_CLIENT_INHERITED_WINDOWS] : [...DM_CLIENT_INHERITED],
+    ...(options.cli.env['DM_DESKTOP_PIPE'] === undefined ? {} : { recoveryAddress: options.cli.env['DM_DESKTOP_PIPE'] }),
   }
 }
 
@@ -238,6 +239,19 @@ export async function writeDmClientDescriptor(options: DmClientOptions): Promise
   // One launch of a chat runs at a time, so any other descriptor here is a dead launch's.
   await Promise.all(earlier.map((name) => rm(join(dir, name), { force: true, recursive: true })))
   await writePrivateFile(path, text, 0o600)
+  return path
+}
+
+/** Project-less recovery context only: deliberately not a valid generic DM client descriptor. */
+export async function writeRecoveryClientDescriptor(options: Pick<DmClientOptions, 'userData' | 'chatId' | 'generation'> & { address: string }): Promise<string> {
+  const path = dmClientDescriptorPath(options.userData, options.chatId, options.generation)
+  const dir = dirname(path)
+  const earlier = await readdir(dir).catch((error: unknown) => {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
+    throw error
+  })
+  await Promise.all(earlier.map(name => rm(join(dir, name), { force: true, recursive: true })))
+  await writePrivateFile(path, JSON.stringify({ version: 1, chatId: options.chatId, generation: options.generation, recoveryAddress: options.address }), 0o600)
   return path
 }
 

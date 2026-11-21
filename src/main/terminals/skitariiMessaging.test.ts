@@ -38,6 +38,7 @@ import {
   type TypeBuilder
 } from '../../../resources/skitarii/extension/messaging'
 import { boardContextBodies, DM_CALL_DATA_NOTE, DM_CALL_TOOL_NAME, INBOX_DELIVERY_TYPE, MAIL_DATA_NOTE, peerContextBodies } from '../../../resources/skitarii/extension/contextDelivery'
+import { contextReceipts, RECOVERY_DATA_NOTE } from '../../../resources/skitarii/extension/contextDelivery'
 import { gate, settle } from './__mocks__/terminalSessionsRig'
 import type { Timers } from '../../../resources/skitarii/extension/skitarii'
 import { removeScratch } from '../../test/removeScratch'
@@ -163,7 +164,9 @@ const fakeType: TypeBuilder = {
   Integer: (options) => ({ type: 'integer', ...options }),
   Boolean: (options) => ({ type: 'boolean', ...options }),
   Array: (items, options) => ({ type: 'array', items, ...options }),
-  Optional: (schema) => ({ optional: schema })
+  Optional: (schema) => ({ optional: schema }),
+  Null: () => ({ type: 'null' }),
+  Union: (schemas) => ({ anyOf: schemas })
 }
 
 type Handler = (event: unknown, ctx: MailContext) => unknown
@@ -348,17 +351,18 @@ function watch(box: Mailbox, options: { send?: boolean; failNotify?: () => boole
 // --- the tools --------------------------------------------------------------------------------------------------------
 
 describe('Skitarii mail tools', () => {
-  it('registers the five native tools and dm_call: read approval to look, write approval to change anything, strict schemas', () => {
+  it('registers mail, general-command and direct recovery tools with their approval and strict-schema contracts', () => {
     const { pi, tools, handlers } = fakePi()
     attachMessaging(pi, createDmClient(realDeps()), fakeTimers())
-    expect(tools.map((tool) => tool.name)).toEqual([...MAIL_TOOL_NAMES, DM_CALL_TOOL_NAME])
+    expect(tools.map((tool) => tool.name)).toEqual([...MAIL_TOOL_NAMES, DM_CALL_TOOL_NAME, 'recover_tooling'])
     expect(Object.fromEntries(tools.map((tool) => [tool.name, tool.approval]))).toEqual({
       dm_agent_identity: 'read',
       dm_agent_peers: 'read',
       dm_message_send: 'write',
       dm_inbox_read: 'read',
       dm_inbox_ack: 'write',
-      dm_call: 'write'
+      dm_call: 'write',
+      recover_tooling: 'write'
     })
     for (const tool of tools) {
       expect(tool.loadMode).toBe('essential')
@@ -391,6 +395,22 @@ describe('Skitarii mail tools', () => {
     expect(fixtureCalls().at(-1)).toEqual({ command: 'read_agent_inbox', input: { afterSeq: 1, throughSeq: 0, limit: 50 } })
   })
 
+})
+
+it('keeps legacy native mail working and visibly refuses recovery without public nullable schema builders', async () => {
+  const { pi, tools, emit } = fakePi()
+  const oldType = { ...fakeType }
+  delete oldType.Null
+  delete oldType.Union
+  pi.typebox = { Type: oldType }
+  const watcher = attachMessaging(pi, createDmClient(realDeps()), fakeTimers())
+  expect(watcher).not.toBeNull()
+  expect(tools.map(tool => tool.name)).toEqual([...MAIL_TOOL_NAMES, DM_CALL_TOOL_NAME])
+  const statuses: { key: string; text: string | undefined }[] = []
+  emit('session_start', main({ setStatus: (key, text) => statuses.push({ key, text }) }))
+  expect(statuses).toContainEqual({ key: 'skitarii-recovery', text: expect.stringContaining('unavailable') })
+  expect((await tools.find(tool => tool.name === 'dm_agent_identity')!.execute('legacy', {})).isError).toBeUndefined()
+  watcher?.stop()
 })
 
 describe('Skitarii mail tools: results and refusals', () => {
@@ -849,7 +869,7 @@ describe('Skitarii mail in the extension entry', () => {
   it('registers the tools and the watcher with the extension when OMP has them', async () => {
     const { pi, tools, handlers } = fakePi()
     await skitariiExtension(pi as never)
-    expect(tools.map((tool) => tool.name)).toEqual([...MAIL_TOOL_NAMES, DM_CALL_TOOL_NAME])
+    expect(tools.map((tool) => tool.name)).toEqual([...MAIL_TOOL_NAMES, DM_CALL_TOOL_NAME, 'recover_tooling'])
     expect(handlers.get('before_agent_start')).toHaveLength(2)
     // The mascot's, the watcher's and the client's.
     expect(handlers.get('session_shutdown')).toHaveLength(3)
@@ -1397,4 +1417,35 @@ it('does not let a stale second hook suppress delivery to a replacement session 
   expect(subject.people).toEqual([])
   expect(box.pending()).toBe(2)
   subject.watcher.stop()
+})
+
+describe('incident peer context independent of mailbox cursors', () => {
+  it.each([false, true])('delivers successive recovery bodies on fresh/projectless hosts, alongside ordinary mail (mailbox unavailable=%s)', async unavailable => {
+    const box = fakeMailbox()
+    const ordinary = mailboxClient(box, { fail: () => unavailable ? { ok: false, error: { source: 'dm', code: 'unauthorized', message: 'No generic projectless mailbox' } } : null })
+    let incoming = { id: 'recovery_first', text: 'First repair question: 漢字' }
+    const entries: unknown[] = []
+    const client: DmClient = { ...ordinary, readRecovery: async () => ({ ok: true, data: [incoming] }) }
+    const send: NonNullable<MailApi['sendUserMessage']> = async (content, options) => {
+      entries.push({ type: 'message', id: `entry_${entries.length}`, message: { role: 'user', attribution: options?.attribution, content } })
+    }
+    const watcher = new MailWatcher({ client, timers: fakeTimers(), sendUserMessage: send })
+    watcher.start(fakeUi(), entries, () => entries, () => false)
+    watcher.active(true)
+    try {
+      await watcher.tick()
+      const first = contextReceipts(entries.map(entry => JSON.stringify(entry)).join('\n'))
+      expect(first.recoveries.get(incoming.id)?.text).toBe(incoming.text)
+      expect(first.people.size).toBe(0)
+      incoming = { id: 'recovery_second', text: 'Second answer is independent of mailbox seq:1.' }
+      if (!unavailable) box.arrive(1)
+      await watcher.tick()
+      await watcher.tick()
+      const receipt = contextReceipts(entries.map(entry => JSON.stringify(entry)).join('\n'))
+      expect(receipt.recoveries.size).toBe(2)
+      expect(receipt.recoveries.get(incoming.id)?.text).toBe(incoming.text)
+      expect(receipt.peers.size).toBe(unavailable ? 0 : 1)
+      expect(entries.filter(entry => JSON.stringify(entry).includes(RECOVERY_DATA_NOTE))).toHaveLength(2)
+    } finally { watcher.stop() }
+  })
 })

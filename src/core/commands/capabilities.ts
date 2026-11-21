@@ -26,6 +26,7 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   askHuman: 'human.ask',
   getHumanAnswer: 'human.ask',
   nameChat: 'chat.name',
+  recoverTooling: 'tooling.recover',
   getCapabilities: 'read',
   getProject: 'read',
   setDeliveryStandards: 'project.definition_of_done',

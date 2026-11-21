@@ -1,6 +1,7 @@
 import { deliveryPolicy } from './deliveryPolicySchema'
 import { z } from 'zod'
 import { nameChatArgsSchema } from '../shared/agents/chatNaming'
+import { toolingRecoveryInputSchema } from '../shared/agents/toolingRecovery'
 import { REASONING_EFFORTS, TICKET_SIZES } from '../shared/domain/bundle'
 import { KNOWLEDGE_EVENTS, type KnowledgeEvent } from './knowledge/events'
 import { repositoryName } from './repo/portable'
@@ -190,6 +191,7 @@ export const COMMAND_SCHEMAS = {
   }),
   getHumanAnswer: z.strictObject({ questionId: z.uuid() }),
   nameChat: nameChatArgsSchema,
+  recoverTooling: toolingRecoveryInputSchema,
   /** `repo`: in a folder of repositories, the repository whose checks these are (required there, refused otherwise). */
   setDeliveryStandards: z.strictObject({ expectedRevision: z.number().int().nonnegative(), policy: deliveryPolicy }),
   setDefinitionOfDone: z.strictObject({ checks: definitionOfDoneChecks, repo: repositoryName.optional() }),

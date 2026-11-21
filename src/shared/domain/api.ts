@@ -4,6 +4,7 @@
  */
 import type { DeliveryPolicy, StoredDeliveryPolicy } from './deliveryPolicy'
 import type { NameChatArgs } from '../agents/chatNaming'
+import type { ToolingRecoveryInput, ToolingRecoveryResult } from '../agents/toolingRecovery'
 import type { SavePermissionRequestView } from './savePermissions'
 import type { CorrectionPlanView, CorrectionsInput, CorrectionsResultView, CreateCorrectionsInput } from './corrections'
 import type {
@@ -433,6 +434,8 @@ export interface CommandApi {
   askHuman(input: { question: string; responseRequired: true; humanEngaged: false }): Promise<{ questionId: string; state: 'queued' }>
   getHumanAnswer(input: { questionId: string }): Promise<{ state: string; answer: string | null }>
   nameChat(input: NameChatArgs): Promise<{ applied: boolean }>
+  /** Interrupt a tooling failure and establish an incident-only repair connection, never general Play authority. */
+  recoverTooling(input: ToolingRecoveryInput): Promise<ToolingRecoveryResult>
   // Discovery and repository lifecycle
   getCapabilities(): Promise<CapabilitiesView>
   getProject(): Promise<ProjectView>

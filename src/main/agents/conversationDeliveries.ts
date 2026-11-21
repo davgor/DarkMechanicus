@@ -9,7 +9,7 @@ const deliverySchema = z.object({
   state: z.enum(['pending', 'delivered', 'failed', 'opened']),
   problem: z.string().nullable(),
   at: z.string().min(1),
-  source: z.enum(['peer', 'board']).optional(),
+  source: z.enum(['peer', 'board', 'recovery']).optional(),
   text: z.string().optional(),
   bodyHash: z.string().optional(),
   entryId: z.string().optional(),
@@ -25,7 +25,7 @@ export interface ConversationDeliveries {
   /** Durable board bodies not yet proven in host context, oldest accepted first. */
   pending(): ConversationDelivery[]
   /** Observed proof is bound to source, recipient, folder and message identity. */
-  proof(folder: string, chatId: string, source: 'peer' | 'board', messageId: string): ConversationDelivery | undefined
+  proof(folder: string, chatId: string, source: 'peer' | 'board' | 'recovery', messageId: string): ConversationDelivery | undefined
 }
 
 interface Context {
@@ -37,8 +37,8 @@ interface Context {
   separator: string
 }
 
-function keyOf(folder: string, messageId: string, source: 'peer' | 'board' = 'board', chatId: string | null = null): string {
-  return source === 'peer' ? `${folder}\u0000peer\u0000${chatId}\u0000${messageId}` : `${folder}\u0000board\u0000${messageId}`
+function keyOf(folder: string, messageId: string, source: 'peer' | 'board' | 'recovery' = 'board', chatId: string | null = null): string {
+  return source === 'board' ? `${folder}\u0000board\u0000${messageId}` : `${folder}\u0000${source}\u0000${chatId}\u0000${messageId}`
 }
 
 function load(context: Context): Map<string, ConversationDelivery> {

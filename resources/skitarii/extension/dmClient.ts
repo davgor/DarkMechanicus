@@ -1,3 +1,4 @@
+import { callRecovery, readRecoveryContext } from './recoveryClient'
 /**
  * The Skitarii extension's mail client: runs the chat's own pinned `dm` CLI for one mailbox command at a time,
  * without a shell, and returns its JSON result.
@@ -193,6 +194,8 @@ export interface DmClient {
   run(command: string, input: unknown, signal?: AbortSignal): Promise<DmCallResult<unknown>>
   /** Person messages come only from this launch's private desktop outbox, after current mailbox authorization. */
   readBoard(): Promise<DmCallResult<BoardContextBody[]>>
+  /** Incident-scoped peer bodies from the same recipient-bound private outbox, never person authority. */
+  readRecovery?(): Promise<DmCallResult<BoardContextBody[]>>
   /** Kills every running child (each call settles with `cancelled`) and resolves once all have exited. */
   cancelAll(): Promise<void>
 }
@@ -231,6 +234,8 @@ export interface DmClientDescriptor {
   /** The runtime's own switches, set on the child alone: `ELECTRON_RUN_AS_NODE=1` and the Dark Mechanicus home. */
   env: { ELECTRON_RUN_AS_NODE?: '1'; DARKMECHANICUS_HOME?: string }
   /** Names of this process's variables the child inherits; nothing else is passed on. */
+  /** Optional recovery-only local control; conveys no generic mailbox or repository authority. */
+  recoveryAddress?: string
   inherit: string[]
 }
 
@@ -277,7 +282,8 @@ function pinnedArgsOk(d: Record<string, unknown>): boolean {
 
 function keysOk(d: Record<string, unknown>): boolean {
   const keys = Object.keys(d)
-  return keys.length === DESCRIPTOR_KEYS.length && DESCRIPTOR_KEYS.every((key) => keys.includes(key))
+  return keys.length === DESCRIPTOR_KEYS.length + (d.recoveryAddress === undefined ? 0 : 1) && DESCRIPTOR_KEYS.every((key) => keys.includes(key)) &&
+    (d.recoveryAddress === undefined || typeof d.recoveryAddress === 'string')
 }
 
 /** The shape main writes, exactly: no other key, absolute normalized paths, the CLI pinned to the folder. */
@@ -619,13 +625,16 @@ export function createDmClient(deps: DmClientDeps): DmClient {
   }
   return {
     call: (command, input, signal) => track({ kind: 'mail', command, input, signal }) as Promise<DmCallResult<never>>,
-    run: (command, input, signal) => track({ kind: 'run', command, input, signal }),
+    run: (command, input, signal) => command === 'recover_tooling' || command === 'recoverTooling'
+      ? callRecovery(deps, input, signal)
+      : track({ kind: 'run', command, input, signal }),
     readBoard: () => {
       const call = readBoardOnce(deps, state)
       calls.add(call)
       void call.finally(() => calls.delete(call))
       return call
     },
+    readRecovery: () => readRecoveryContext(deps),
     cancelAll: async () => {
       state.cancelEpoch += 1
       for (const stop of state.cancels) stop('cancelled')

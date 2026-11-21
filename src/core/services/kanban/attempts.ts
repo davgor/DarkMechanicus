@@ -1,3 +1,4 @@
+import { toolingLeaseTimeGivenBack } from '../toolingHold'
 /**
  * A Kanban card's lifecycle. Desktop Play or an authorized external launch queues the card; an orchestrator claims it,
  * with a lease and a secret like a plan attempt (`<attemptId>.<secret>` token, checked by `verifyClaimToken`); its agent heartbeats and
@@ -138,11 +139,15 @@ export function expireKanbanLeases(ctx: Ctx, cardId?: string): string[] {
     const leased = ctx.db.all<LeaseRow>(
       `SELECT a.id, a.card_id, c.key, a.number, a.lease_expires_at FROM kanban_attempts a JOIN kanban_cards c ON c.id = a.card_id
        WHERE a.state IN ('claimed', 'running') AND (? IS NULL OR a.card_id = ?) AND IFNULL(a.machine_id, ?) = ?
+         AND NOT EXISTS (SELECT 1 FROM tooling_held_attempts t JOIN tooling_holds h ON h.incident_id = t.incident_id
+           JOIN tooling_chat_grants cg ON cg.chat_id = h.chat_id JOIN grants g ON g.id = cg.grant_id
+           WHERE t.attempt_id = a.id AND t.kind = 'card' AND g.revoked_at IS NULL AND g.expires_at > ?)
        ORDER BY a.rowid`,
       cardId ?? null,
       cardId ?? null,
       ctx.machineId,
-      ctx.machineId
+      ctx.machineId,
+      now
     )
     const expired = leased.filter((row) => row.lease_expires_at !== null && isBefore(row.lease_expires_at, now))
     for (const row of expired) {
@@ -364,9 +369,9 @@ export function claimKanbanCard(ctx: Ctx, input: ClaimKanbanCardInput): KanbanPa
 }
 
 /** The length of the lease the claim holds: what its claim or its last heartbeat granted. */
-function heldLeaseSeconds(row: ClaimRow): number {
+function heldLeaseSeconds(ctx: Ctx, row: ClaimRow): number {
   const grantedAt = row.heartbeat_at ?? row.created_at
-  const seconds = row.lease_expires_at === null ? 0 : Math.round((Date.parse(row.lease_expires_at) - Date.parse(grantedAt)) / 1000)
+  const seconds = row.lease_expires_at === null ? 0 : Math.round((Date.parse(row.lease_expires_at) - Date.parse(grantedAt) - toolingLeaseTimeGivenBack(ctx, row.id, 'card', grantedAt)) / 1000)
   return seconds > 0 ? seconds : DEFAULT_POLICIES.leaseSeconds
 }
 
@@ -387,7 +392,7 @@ export function heartbeatKanbanCard(ctx: Ctx, input: HeartbeatKanbanCardInput): 
       input.progressNote === undefined ? null : maskNote(input.progressNote, input.claimToken).split(row.claim_secret).join(CLAIM_TOKEN_MASK)
     ctx.db.run(
       "UPDATE kanban_attempts SET state = 'running', lease_expires_at = ?, heartbeat_at = ?, progress_note = COALESCE(?, progress_note) WHERE id = ?",
-      addSeconds(now, heldLeaseSeconds(row)),
+      addSeconds(now, heldLeaseSeconds(ctx, row)),
       now,
       note,
       row.id

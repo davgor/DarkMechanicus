@@ -233,6 +233,35 @@ describe('chat records: mailboxes', () => {
     expect(store.getChat(halfDeleted)).toBeNull()
     expect(store.getChat(kept)?.title).toBe('Kept, renamed')
   })
+
+})
+
+it('keeps Forge and recovery metadata and retries failed hold retirement before deleting an archived identity', async () => {
+  const fs = memoryChatFs()
+  const store = memoryChatStore(fs)
+  const chat = store.createChat({ folder: REPO, agent: 'omp', model: null, role: 'orchestrator', allowSave: false, repairIncidentId: 'repair_forge' })
+  store.updateChat(chat, { archived: true, forgeResolver: '/forge', toolingIncidentId: 'blocked_forge' })
+  const restarted = memoryChatStore(fs)
+  expect(restarted.getChat(chat)).toMatchObject({ archived: true, forgeResolver: '/forge', repairIncidentId: 'repair_forge', toolingIncidentId: 'blocked_forge' })
+  const steps: string[] = []
+  let available = false
+  const records = createChatRecords({ store: restarted, agentFor: connectedAgents(),
+    mailboxes: recordingMailboxes(steps),
+    beforeDelete: ref => {
+      expect(restarted.getChat(ref)).not.toBeNull()
+      if (!available) throw new Error('Hold database unavailable')
+      steps.push('retired')
+    },
+    removeOmpFolder: async () => { steps.push('removed runtime') }
+  })
+  expect(records.listChats(REPO)).toEqual([])
+  await expect(records.deleteChat(chat)).rejects.toThrow('Hold database unavailable')
+  expect(restarted.getChat(chat)?.toolingIncidentId).toBe('blocked_forge')
+  expect(steps).not.toContain('removed runtime')
+  available = true
+  await records.deleteChat(chat)
+  expect(steps.slice(-2)).toEqual(['retired', 'removed runtime'])
+  expect(restarted.getChat(chat)).toBeNull()
 })
 
 describe('chat records: reading an old transcript', () => {

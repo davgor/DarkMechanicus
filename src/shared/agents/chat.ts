@@ -75,6 +75,10 @@ export const chatRecordSchema = z.object({
   transferEpicId: z.string().min(1).optional(),
   /** The Kanban card this chat carries, when Play started it; absent for every other chat and for chats stored before Kanban. */
   cardId: z.string().min(1).optional(),
+  /** Durable interruption marker; null only after server-verified runtime availability. */
+  toolingIncidentId: z.string().min(1).nullable().optional(),
+  /** Dedicated tooling repair scope; prevents recursive repair orchestration. */
+  repairIncidentId: z.string().min(1).optional(),
   /** The board conversation this chat answers; absent for every unbound chat and for chats stored before board conversations. */
   conversation: z
     .union([z.strictObject({ epicId: z.string().min(1) }), z.strictObject({ cardId: z.string().min(1) })])

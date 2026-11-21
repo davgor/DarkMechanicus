@@ -279,10 +279,14 @@ export function expireLeases(ctx: Ctx, runId?: string): string[] {
        FROM attempts a JOIN runs r ON r.id = a.run_id
        WHERE a.state IN ('claimed', 'running') AND (? IS NULL OR a.run_id = ?)
          AND NOT (r.state = 'paused' AND IFNULL(r.pause_reason, '') = ?)
+         AND NOT EXISTS (SELECT 1 FROM tooling_held_attempts t JOIN tooling_holds h ON h.incident_id = t.incident_id
+           JOIN tooling_chat_grants cg ON cg.chat_id = h.chat_id JOIN grants g ON g.id = cg.grant_id
+           WHERE t.attempt_id = a.id AND t.kind = 'run' AND g.revoked_at IS NULL AND g.expires_at > ?)
        ORDER BY a.rowid`,
       runId ?? null,
       runId ?? null,
-      SIGNED_OUT_PAUSE_REASON
+      SIGNED_OUT_PAUSE_REASON,
+      now
     )
     const expired = leased.filter((row) => row.lease_expires_at !== null && isBefore(row.lease_expires_at, now))
     for (const row of expired) {

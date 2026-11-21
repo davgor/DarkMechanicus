@@ -42,6 +42,7 @@ const PROBES: Record<CommandName, unknown> = {
   askHuman: { question: 'Which target?', responseRequired: true, humanEngaged: false },
   getHumanAnswer: { questionId: '22222222-2222-4222-8222-222222222222' },
   nameChat: { title: 'Semantic probe title' },
+  recoverTooling: { action: 'status', incidentId: 'probe-incident' },
   getCapabilities: undefined,
   getProject: undefined,
   setDeliveryStandards: { expectedRevision: 0, policy: baselineDeliveryPolicy },

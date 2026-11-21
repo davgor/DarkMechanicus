@@ -22,6 +22,7 @@ const COMMAND_FLAGS: Record<CommandName, true> = {
   askHuman: true,
   getHumanAnswer: true,
   nameChat: true,
+  recoverTooling: true,
   getProject: true,
   setDeliveryStandards: true,
   setDefinitionOfDone: true,

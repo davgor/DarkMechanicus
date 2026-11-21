@@ -36,6 +36,9 @@
  * attach answers with its serialized snapshot and subscribes its listener at that same point in the output, so
  * the listener hears exactly what came after the snapshot; output reaches listeners once it is on the screen.
  * What a listener hears from an attach is held until that attach has answered.
+ * Main's persistent emulator also answers its supported terminal control queries directly to the PTY,
+ * independent of selection or attaches. Panes suppress those automatic replies (`terminalQueryResponses.ts`),
+ * so there is one response owner even for a query split across attach/detach. These are not user input.
  *
  * **Folder watch.** While a PTY runs its folder is checked again every minute, and when an attach finds it
  * running; a failed check stops it (tree killed, grant revoked) with the same `not_found` message.
@@ -98,7 +101,7 @@ import { ompSessionId, writeOmpFiles } from './ompSession'
 import { writeClaudeSettings } from './claudeSettingsFile'
 import type { PtyExit, PtyHost, PtyProcess } from './ptyHost'
 import { terminalLaunchSpec, type TerminalLaunchSpec } from './terminalLaunchSpec'
-import { removeDmClientDescriptor, writeDmClientDescriptor, writeTerminalFiles, type TerminalFiles } from './terminalFiles'
+import { removeDmClientDescriptor, writeDmClientDescriptor, writeRecoveryClientDescriptor, writeTerminalFiles, type TerminalFiles } from './terminalFiles'
 import { createTerminalScreen, type TerminalScreen } from './terminalScreen'
 
 /** How often a running PTY's folder is checked again. */
@@ -199,6 +202,8 @@ export interface TerminalSessions {
   /** Kills the PTYs of every chat of a removed agent, and cancels their starts. */
   endAgent(id: AgentId): Promise<void>
   /** True while a PTY runs, a start is under way, or a revoke or kill has not settled. */
+  /** Observed live PTY only; a queued start or stored chat is not a running agent. */
+  isRunning(chatId: string): boolean
   busy(): boolean
   /** Quit: see the module comment. */
   dispose(): Promise<void>
@@ -277,6 +282,8 @@ export interface TerminalSessionsDeps {
   onChatChanged?: (ref: ChatRef) => void
   /** Durably reserves uncertain board input BEFORE any physical write; false means already observed or reserved. */
   beforeContextPaste?: (chat: ChatRecord, messageId: string, content: string) => boolean
+  /** Recovery startup checks exact source identity and the live initiating authority at every launch fence. */
+  assertRecoveryLaunch?: (chat: ChatRecord) => void
   /** Binds only a tracked live PTY, never a persisted historical grant id. */
   bindChatGrant?: (grantId: string, identity: { folder: string | null; chatId: string; generation: string; runId?: string; cardId?: string }) => void
 }
@@ -360,7 +367,7 @@ interface Starting {
 }
 
 interface Manager {
-  deps: Required<Omit<TerminalSessionsDeps, 'onError' | 'onChatChanged' | 'bindChatGrant' | 'beforeContextPaste'>> & Pick<TerminalSessionsDeps, 'onChatChanged' | 'bindChatGrant' | 'beforeContextPaste'>
+  deps: Required<Omit<TerminalSessionsDeps, 'onError' | 'onChatChanged' | 'bindChatGrant' | 'beforeContextPaste' | 'assertRecoveryLaunch'>> & Pick<TerminalSessionsDeps, 'onChatChanged' | 'bindChatGrant' | 'beforeContextPaste' | 'assertRecoveryLaunch'>
   onError: (error: unknown) => void
   entries: Map<string, Live | Starting>
   listeners: Map<string, Map<TerminalListener, Subscriber>>
@@ -769,6 +776,14 @@ function startLive(manager: Manager, chat: ChatRecord, started: Started): Live {
  */
 function wireLive(manager: Manager, live: Live, reportEnded: () => void, reportClosed: () => void): void {
   const { pty, screen, chat } = live
+  const stopResponse = screen.onResponse((data) => {
+    if (live.exited || live.stopMessage !== null) return
+    try {
+      pty.write(data)
+    } catch (error) {
+      manager.onError(error)
+    }
+  })
   const stopData = pty.onData((data) => {
     screen.write(data, () => {
       tookOutput(manager, live, data)
@@ -795,6 +810,7 @@ function wireLive(manager: Manager, live: Live, reportEnded: () => void, reportC
       void track(manager, pauseIfSignedOut(manager, chat))
     }
     stopData()
+    stopResponse()
     stopExit()
     closeAfterExit(manager, live, exit, reportClosed)
   })
@@ -915,6 +931,10 @@ function recheckFolder(context: StartContext): void {
   }
   try {
     launchFolder(context.manager, context.chat)
+    if (context.chat.repairIncidentId !== undefined) {
+      if (context.manager.deps.assertRecoveryLaunch === undefined) throw new Error('Repair startup authority is unavailable.')
+      context.manager.deps.assertRecoveryLaunch(context.chat)
+    }
   } catch (error) {
     throw new FolderRefused(messageOf(error))
   }
@@ -1031,11 +1051,15 @@ function dropDmClient(manager: Manager, path: string): Promise<void> {
  */
 async function withDmClient(context: StartContext, files: TerminalFiles, issued: IssuedGrants, generation: string): Promise<TerminalFiles> {
   const { manager, chat, agent, folder } = context
-  if (agent.kind !== 'omp' || files.omp === undefined || issued.endpointId === null) {
+  if (agent.kind !== 'omp' || files.omp === undefined) {
     return files
   }
   const { userData, platform } = manager.deps
-  const dmClient = await writeDmClientDescriptor({ userData, chatId: chat.id, generation, folder, cli: issued.cli, platform })
+  const address = issued.cli.env['DM_DESKTOP_PIPE']
+  if (issued.endpointId === null && address === undefined) return files
+  const dmClient = issued.endpointId === null
+    ? await writeRecoveryClientDescriptor({ userData, chatId: chat.id, generation, address: address! })
+    : await writeDmClientDescriptor({ userData, chatId: chat.id, generation, folder, cli: issued.cli, platform })
   return { ...files, omp: { ...files.omp, dmClient } }
 }
 
@@ -1429,6 +1453,7 @@ export function createTerminalSessions(deps: TerminalSessionsDeps): TerminalSess
     deleteChat: (ref, remove) => deleteChat(manager, ref, remove),
     releaseFolder: (folder, forget) => releaseFolder(manager, folder, forget),
     endAgent: (id) => endAgent(manager, id),
+    isRunning: (chatId) => running(chatId) !== null,
     busy: () => manager.entries.size > 0 || manager.pending.size > 0,
     dispose: () => dispose(manager)
   }

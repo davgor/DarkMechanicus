@@ -196,7 +196,7 @@ export function recoverStorageMigration(env: MigrationEnv): void {
   recover(env, journal.sourceMode)
 }
 
-function assertOtherSessionsClosed(deps: MigrationDeps): void {
+function assertOtherSessionsClosed(deps: Pick<MigrationDeps, 'db' | 'clock' | 'sessionId'>): void {
   const since = new Date(deps.clock.nowMs() - SESSION_ACTIVE_WINDOW_MS).toISOString()
   const others = deps.db.all<{ pid: number | null; last_seen_at: string }>(
     'SELECT pid, last_seen_at FROM sessions WHERE id <> ? AND ended_at IS NULL', deps.sessionId
@@ -206,8 +206,9 @@ function assertOtherSessionsClosed(deps: MigrationDeps): void {
   }
 }
 
-function assertIdle(deps: MigrationDeps): void {
+export function assertStorageIdle(deps: Pick<MigrationDeps, 'db' | 'clock' | 'sessionId'>): void {
   const { db } = deps
+  if (db.get('SELECT 1 FROM tooling_holds LIMIT 1')) fail('conflict', 'Resolve every tooling recovery hold before switching storage.')
   if (db.get("SELECT 1 FROM runs WHERE state IN ('queued','running','awaiting_checkpoint','paused') LIMIT 1")) {
     fail('conflict', 'Finish or cancel every active run before switching storage.')
   }
@@ -243,7 +244,7 @@ async function preflight(deps: MigrationDeps, mode: StorageMode): Promise<{ path
   const project = readProject(paths.source, deps.fs) ?? fail('not_initialized', 'Initialize the folder before switching storage.')
   if (project.repositories !== undefined && mode === 'repo') fail('invalid_input', 'A folder of repositories must remain database only.')
   await assertCleanRecords(deps)
-  assertIdle(deps)
+  assertStorageIdle(deps)
   assertVacantDestinations(deps, paths)
   assertContained(paths.source, deps.fs, paths.source.projectFile)
   if (deps.layout.mode === 'repo' && deps.fs.isSymlink(join(deps.repoRoot, '.gitignore'))) fail('unsafe_path', 'The repository .gitignore is a link; switching was refused.')
@@ -278,7 +279,7 @@ function importCanonical(deps: MigrationDeps, rebuilt: Db, source: RepoLayout): 
 
 function prepareDestination(deps: MigrationDeps, paths: MigrationPaths, project: ProjectRecord, retireSession = false): void {
   deps.db.tx(() => {
-    assertIdle(deps)
+    assertStorageIdle(deps)
     deps.fs.mkdirp(paths.staging.localDir)
     const snapshot = hydratedCheckpoint(deps, paths.source)
     const env = { fs: deps.fs, layout: paths.staging }
@@ -296,7 +297,7 @@ function prepareDestination(deps: MigrationDeps, paths: MigrationPaths, project:
       else rebuilt.run('DELETE FROM meta WHERE key = ?', META_KEYS.deliveryStandards)
       if (paths.target.mode === 'repo') exportMigrationRecords({ ...env, db: rebuilt, clock: deps.clock })
       else importCanonical(deps, rebuilt, paths.source)
-      assertIdle({ ...deps, db: rebuilt })
+      assertStorageIdle({ ...deps, db: rebuilt })
       if (retireSession) rebuilt.run('UPDATE sessions SET ended_at = ? WHERE id = ?', deps.clock.nowIso(), deps.sessionId)
       rebuilt.exec('PRAGMA wal_checkpoint(TRUNCATE)')
     } finally { rebuilt.close() }
@@ -319,7 +320,7 @@ function copyKnowledge(fs: FsAdapter, source: RepoLayout, staging: RepoLayout): 
 }
 
 export function exportForgeDestination(deps: MigrationDeps, member: string, mode: StorageMode): void {
-  assertIdle(deps)
+  assertStorageIdle(deps)
   const source = deps.layout
   const target = resolveLayout(member, { mode, homeDir: deps.homeDir })
   const staging = layoutUnder(member, mode, target.dmDir + '.preparing')

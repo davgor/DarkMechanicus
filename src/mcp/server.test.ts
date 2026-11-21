@@ -26,6 +26,7 @@ const TOOLS: Record<string, { method: CommandName; kind: Kind }> = {
   ask_human: { method: 'askHuman', kind: 'write' },
   get_human_answer: { method: 'getHumanAnswer', kind: 'read' },
   name_chat: { method: 'nameChat', kind: 'write' },
+  recover_tooling: { method: 'recoverTooling', kind: 'idempotent' },
   get_capabilities: { method: 'getCapabilities', kind: 'read' },
   get_project: { method: 'getProject', kind: 'read' },
   set_delivery_standards: { method: 'setDeliveryStandards', kind: 'write' },

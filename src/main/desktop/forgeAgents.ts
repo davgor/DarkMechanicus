@@ -1,3 +1,4 @@
+import type { ChatRecord } from '../../shared/agents/chat'
 import type { ChatRecords } from '../agents/chatRecords'
 import type { ChatStore } from '../agents/chatStore'
 import type { TerminalSessions } from '../terminals/terminalSessions'
@@ -10,9 +11,10 @@ interface ResolverOptions {
   agents: { list(): { id: string }[] }
   folderDefaults: Pick<FolderAgentDefaults, 'get'>
   registry: { list(): { path: string; forgeParent?: string }[] }
+  beforeArchive?: (chat: ChatRecord) => void
 }
 
-export function forgeAgentSessions({ store, chats, terminals, agents, folderDefaults, registry }: ResolverOptions) {
+export function forgeAgentSessions({ store, chats, terminals, agents, folderDefaults, registry, beforeArchive }: ResolverOptions) {
   return {
     onConflict: async (root: string, folder: string | null) => {
       const prior = store.listChats(folder).find(chat => chat.forgeResolver === root && !chat.archived)
@@ -30,7 +32,10 @@ export function forgeAgentSessions({ store, chats, terminals, agents, folderDefa
       for (const folder of [null, ...registry.list().filter(f => f.forgeParent === root).map(f => f.path)]) {
         for (const chat of store.listChats(folder).filter(c => c.forgeResolver === root && !c.archived)) {
           const ref = { folder, id: chat.id }
-          await terminals.deleteChat(ref, async () => { store.updateChat(ref, { archived: true }) })
+          await terminals.deleteChat(ref, async () => {
+            beforeArchive?.(chat)
+            store.updateChat(ref, { archived: true })
+          })
         }
       }
     }

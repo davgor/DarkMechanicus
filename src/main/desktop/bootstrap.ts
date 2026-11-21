@@ -8,6 +8,7 @@
  */
 import { createControlPipe, type ControlPipe } from '../naming/controlPipe'
 import { createNamingDispatcher } from '../naming/namingCommands'
+import { createDesktopToolingRecovery, type DesktopToolingRecovery } from '../agents/toolingRecoveryDesktop'
 import { existsSync } from 'node:fs'
 import {
   app,
@@ -25,6 +26,7 @@ import {
 } from 'electron'
 import { dirname, join, resolve } from 'node:path'
 import type { Db } from '../../core/db/database'
+import { retireToolingWorkflow } from '../../core/services/toolingHold'
 import { DomainError } from '../../core/errors'
 import { nodeFs } from '../../core/repo/nodeFs'
 import { resolveHomeDir } from '../../core/repo/storageMode'
@@ -350,6 +352,7 @@ interface TerminalDeps {
   reachFolders: TerminalSessionsDeps['reachFolders']
   agents: Pick<AgentRegistry, 'get'>
   beforeContextPaste: NonNullable<TerminalSessionsDeps['beforeContextPaste']>
+  assertRecoveryLaunch: NonNullable<TerminalSessionsDeps['assertRecoveryLaunch']>
 }
 
 /** The chat terminals and the sign-in terminals, over one PTY host loaded at the first start (an app where it cannot run still opens). */
@@ -369,6 +372,7 @@ function createTerminalProcesses(store: ChatStore, deps: TerminalDeps): Pick<Cha
     cliFor: cliConfigFor,
     ...deps.grants,
     beforeContextPaste: deps.beforeContextPaste,
+    assertRecoveryLaunch: deps.assertRecoveryLaunch,
     userData: app.getPath('userData'),
     ompExtension: skitariiExtensionPath({ packaged: app.isPackaged, appPath: app.getAppPath(), resourcesPath: process.resourcesPath }),
     onError: (error) => {
@@ -392,6 +396,34 @@ function chatRunCommands(folders: Pick<FolderRegistry, 'resolve'>, workspaces: P
   }
 }
 
+interface ChatProcessOptions {
+  folders: Pick<FolderRegistry, 'resolve' | 'list'>
+  agents: Pick<AgentRegistry, 'get'>
+  workspaces: Pick<WorkspacePool, 'get'>
+  activity: ActivityBindings
+  sourceCheckouts: SourceCheckouts
+}
+interface ChatQuitOptions {
+  grants: ChatGrants
+  yoloRuntime: ReturnType<typeof createYoloDesktopRuntime>
+  ready: Promise<void>
+  pipe(): ControlPipe | null
+  terminals: ChatProcesses['terminals']
+  logins: ChatProcesses['logins']
+}
+function chatQuit({ grants, yoloRuntime, ready, pipe, terminals, logins }: ChatQuitOptions): ChatProcesses['quit'] {
+  return {
+    busy: () => terminals.busy() || logins.busy(),
+    dispose: async () => {
+      grants.dispose()
+      await yoloRuntime.dispose()
+      await ready.catch(() => {})
+      await pipe()?.close()
+      await Promise.all([terminals.dispose(), logins.dispose()])
+    }
+  }
+}
+
 /**
  * The agent chats (`userData/agents/chats`) with the connected agents, each run in its terminal. When an
  * orchestrator chat's agent turns out to be signed out, the run it orchestrates is paused with the reason
@@ -399,12 +431,7 @@ function chatRunCommands(folders: Pick<FolderRegistry, 'resolve'>, workspaces: P
  * terminals and the sign-in terminals load node-pty at the first start, so an app where it cannot run still opens.
  * Deleting a chat forgets the bindings old chats stored (`activity`).
  */
-function createChatProcesses(
-  folders: Pick<FolderRegistry, 'resolve' | 'list'>,
-  agents: Pick<AgentRegistry, 'get'>,
-  workspaces: Pick<WorkspacePool, 'get'>,
-  activity: ActivityBindings
-): ChatProcesses {
+function createChatProcesses({ folders, agents, workspaces, activity, sourceCheckouts }: ChatProcessOptions): ChatProcesses {
   const yoloRuntime = createYoloDesktopRuntime(join(app.getPath('userData'), 'yolo-desktop-instance.json'))
   // One store for all: it keeps each folder's index in memory, so two would write over each other's records.
   const store = createChatStore({ root: join(app.getPath('userData'), 'agents', 'chats') })
@@ -425,28 +452,30 @@ function createChatProcesses(
       logger.warn(line)
     }
   })
-  namingReady = createControlPipe({ authorize: (token) => grants.authorizeNaming(token), dispatch: createNamingDispatcher({ store, push }) }).then((pipe) => { namingPipe = pipe })
-  // Observe startup failure immediately; each attempted chat launch still receives the real rejection.
-  void namingReady.catch((error: unknown) => logger.error('Chat naming transport failed:', error))
   void yoloRuntime.ready.catch((error: unknown) => logger.error('YOLO desktop proof transport failed:', error))
   const reachFolders = (): string[] => folders.list().flatMap((folder) => (folder.initialized && folder.available ? [folder.path] : []))
+  let recovery: DesktopToolingRecovery
   const { terminals, logins, deliveries, contextDelivery, resumeChat, boardTransport } = createContextTerminals(store, {
     grants: { ...grants, runs: chatRunCommands(folders, workspaces), onChatChanged: (ref) => push({ type: 'chats_changed', folder: ref.folder, chatId: ref.id }) },
-    folders: { trackedFolder: (path) => folders.resolve(path) }, reachFolders, agents
+    folders: { trackedFolder: (path) => folders.resolve(path) }, reachFolders, agents,
+    assertRecoveryLaunch: chat => recovery.assertLaunch(chat)
   }, push)
-  const quit = {
-    busy: () => terminals.busy() || logins.busy(),
-    dispose: async () => {
-      grants.dispose()
-      await yoloRuntime.dispose()
-      await namingReady.catch(() => {})
-      await namingPipe?.close()
-      await Promise.all([terminals.dispose(), logins.dispose()])
-    }
-  }
+  recovery = createDesktopToolingRecovery({
+    userData: app.getPath('userData'), version: () => app.getVersion(), source: sourceCheckouts, store, agents, terminals,
+    workspace: folder => desktopWorkspace(folders, workspaces, folder), resolveFolder: folder => folders.resolve(folder),
+    context: contextDelivery, deliveries, resume: resumeChat,
+    callerFolders: chat => chat.folder === null ? reachFolders() : [chat.folder],
+  })
+  const naming = createNamingDispatcher({ store, push })
+  namingReady = createControlPipe({ authorize: token => grants.authorizeNaming(token),
+    dispatch: (operation, context) => operation.op === 'name_chat' ? naming(operation, context) : recovery.dispatch(operation, context)
+  }).then(pipe => { namingPipe = pipe })
+  // Observe startup failure immediately; each attempted chat launch still receives the real rejection.
+  void namingReady.catch((error: unknown) => logger.error('Chat naming transport failed:', error))
+  const quit = chatQuit({ grants, yoloRuntime, ready: namingReady, pipe: () => namingPipe, terminals, logins })
   const chats = endingTerminals(records, terminals)
   recoverChats(folders, chats)
-  const mail = createChatMail({ folders, store, workspaces, contextDelivery, resumeChat, boardTransport })
+  const mail = createChatMail({ folders, store, workspaces, contextDelivery, resumeChat, boardTransport, recovery })
   return { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder: releasingFolders(terminals, mailboxes, store) }
 }
 
@@ -484,7 +513,7 @@ function createContextTerminals(
  */
 function createMailboxRecords(
   store: ChatStore,
-  deps: { folders: Pick<FolderRegistry, 'resolve'>; workspaces: Pick<WorkspacePool, 'get'>; agents: Pick<AgentRegistry, 'get'>; activity: ActivityBindings }
+  deps: { folders: Pick<FolderRegistry, 'resolve' | 'list'>; workspaces: Pick<WorkspacePool, 'get'>; agents: Pick<AgentRegistry, 'get'>; activity: ActivityBindings }
 ): { records: ChatRecords; mailboxes: ChatMailboxes } {
   const userData = app.getPath('userData')
   const mailboxes = createChatMailboxes({
@@ -502,11 +531,17 @@ function createMailboxRecords(
     removeOmpFolder: (id) => removeOmpFolder(userData, id),
     removeScratch: (id) => removeScratchFolder(userData, id),
     mailboxes,
+    beforeDelete: chat => retireChatHolds(chat, deps.folders, deps.workspaces),
     onError: (error) => {
       logger.error('Finishing a chat deletion failed:', error)
     }
   })
   return { records, mailboxes }
+}
+
+function retireChatHolds(chat: ChatRecord, folders: Pick<FolderRegistry, 'resolve' | 'list'>, workspaces: Pick<WorkspacePool, 'get'>): void {
+  const targets = chat.folder === null ? folders.list().flatMap(folder => folder.initialized && folder.available ? [folder.path] : []) : [chat.folder]
+  for (const folder of targets) retireToolingWorkflow(desktopWorkspace(folders, workspaces, folder).ctx(), chat.id)
 }
 
 /** Untrack's first step: the folder's terminals stopped and starts refused, then its chat mailboxes suspended, then `forget`. */
@@ -811,6 +846,7 @@ function createChatMail(services: {
   contextDelivery: AgentContextDelivery
   resumeChat: (chat: ChatRecord) => Promise<string | null>
   boardTransport: BoardContextTransport
+  recovery: { poll(folder: string): Promise<void> }
 }): AgentMailDesktop {
   return createAgentMailDesktop({
     registry: services.folders,
@@ -818,7 +854,10 @@ function createChatMail(services: {
     folders: () => services.folders.list().flatMap((folder) => folder.initialized && folder.available ? [folder.path] : []),
     contextFor: (folder) => desktopWorkspace(services.folders, services.workspaces, folder).ctx(),
     delivery: { hasMessage: (chat, message) => services.contextDelivery.hasMessage(chat, message), resume: services.resumeChat },
-    board: { poll: (folder) => services.contextDelivery.reconcileBoard(folder, services.boardTransport) },
+    board: { poll: async (folder) => {
+      await services.contextDelivery.reconcileBoard(folder, services.boardTransport)
+      await services.recovery.poll(folder)
+    } },
     push: createChatMailPush(() => BrowserWindow.getAllWindows()),
     onUnexpectedError: (error) => {
       logger.error('Chat mail request failed:', error)
@@ -893,7 +932,7 @@ function startForgeBridge(ipc: Pick<IpcMain, 'handle'>, options: ForgeBridgeOpti
   return startForge(ipc, {
     registry, pool, session: github, home: darkMechanicusHome(), pickDirectory, cleanup: source => cleanupForgeSource(source, skills),
     publish: name => publishForgeRepository(name, github.getToken(), net.fetch.bind(net)),
-    ...forgeAgentSessions(options)
+    ...forgeAgentSessions({ ...options, beforeArchive: chat => retireChatHolds(chat, registry, pool) })
   })
 }
 
@@ -948,14 +987,15 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   const folderDefaults = createFolderAgentDefaults({ db: appDb })
   // Which threads of old chats acted on which runs and attempts, as they stored it next to the chats.
   const activity = createActivityBindings({ file: join(app.getPath('userData'), 'agents', 'activity-bindings.jsonl') })
-  const { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder } = createChatProcesses(registry, agents, pool, activity)
+  const sourceCheckouts = startSourceCheckout(ipc, registry)
+  const { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder } = createChatProcesses({ folders: registry, agents, workspaces: pool, activity, sourceCheckouts })
   const github = startGithub(ipc)
   const forge = startForgeBridge(ipc, { registry, pool, github, skills, store, chats, terminals, agents, folderDefaults })
   startGit(forge.openProject, ipc, registry, github)
   const handlers = bridgeHandlers({ registry, pool, releaseFolder, mail, agents, folderDefaults, forge, installer, terminals, logins, skills })
   registerDesktopIpc(ipc, handlers)
   registerYoloIpc(ipc, createYoloHandlers({ registry, grants, confirm: confirmYolo }))
-  startCrossRepoCorrections(ipc, registry, pool, startSourceCheckout(ipc, registry))
+  startCrossRepoCorrections(ipc, registry, pool, sourceCheckouts)
   startKnowledge(ipc, registry)
   startAttachmentProtocol(registry, pool)
   refreshClaudeCodeEntries(registry)

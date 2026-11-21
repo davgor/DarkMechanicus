@@ -29,7 +29,7 @@
  * Like the client, this file imports nothing from OMP or npm: OMP runs it from the app's resources.
  */
 import { DM_COMMAND_NAME, type DmClient, type DmClientError, type DmMailCalls, type DmMailCommand, type DmMailMessage, type DmMailMessageMeta } from './dmClient'
-import { boardContextBodies, boardContextPacket, boardContextReceived, BOARD_DELIVERY_TYPE, DM_CALL_DATA_NOTE, DM_CALL_TOOL_NAME, INBOX_DELIVERY_TYPE, MAIL_DATA_NOTE, peerContextBodies, type BoardContextBody } from './contextDelivery'
+import { boardContextBodies, boardContextPacket, boardContextReceived, BOARD_DELIVERY_TYPE, DM_CALL_DATA_NOTE, DM_CALL_TOOL_NAME, INBOX_DELIVERY_TYPE, MAIL_DATA_NOTE, peerContextBodies, recoveryContextBodies, RECOVERY_DATA_NOTE, RECOVERY_DELIVERY_TYPE, type BoardContextBody } from './contextDelivery'
 import type { Timers } from './skitarii'
 
 export const MAIL_TOOL_NAMES = ['dm_agent_identity', 'dm_agent_peers', 'dm_message_send', 'dm_inbox_read', 'dm_inbox_ack'] as const
@@ -71,7 +71,7 @@ export interface ToolResult {
 }
 
 export interface MailToolDefinition {
-  name: (typeof MAIL_TOOL_NAMES)[number] | typeof DM_CALL_TOOL_NAME
+  name: (typeof MAIL_TOOL_NAMES)[number] | typeof DM_CALL_TOOL_NAME | 'recover_tooling'
   label: string
   description: string
   parameters: unknown
@@ -88,10 +88,13 @@ export interface TypeBuilder {
   Boolean: (options?: { description?: string }) => unknown
   Array: (items: unknown, options?: { description?: string; minItems?: number; maxItems?: number }) => unknown
   Optional: (schema: unknown) => unknown
+  /** Older hosts can still provide mail without the nullable schemas the direct recovery tool needs. */
+  Null?: () => unknown
+  Union?: (schemas: unknown[]) => unknown
 }
 
 export interface CustomHint {
-  customType: typeof INBOX_DELIVERY_TYPE | typeof BOARD_DELIVERY_TYPE
+  customType: typeof INBOX_DELIVERY_TYPE | typeof BOARD_DELIVERY_TYPE | typeof RECOVERY_DELIVERY_TYPE
   content: string
   display: false
   attribution: 'agent' | 'user'
@@ -317,12 +320,12 @@ export const DM_CALL_UNSURE_NOTE =
 const isArgs = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
 
 /** What `dm_call` answers for a refused or failed call: the CLI's own code and message, or the client's. */
-function dmCallFailure(error: DmClientError): ToolResult {
+function dmCallFailure(error: DmClientError, tool = DM_CALL_TOOL_NAME): ToolResult {
   if (error.source === 'dm') {
     return failure(`Dark Mechanicus refused the call:\n${inertJson({ ok: false, error: { code: error.code, message: error.message } })}`)
   }
   const unsure = UNSURE_OUTCOME.has(error.code) ? ` ${DM_CALL_UNSURE_NOTE}` : ''
-  return failure(`dm_call failed (client: ${codeText(error)}). ${inertJson(error.message)}${unsure}`)
+  return failure(`${tool} failed (client: ${codeText(error)}). ${inertJson(error.message)}${unsure}`)
 }
 
 /** Any Dark Mechanicus command, through the same client as the mail tools; the grant is the only authority. */
@@ -364,10 +367,100 @@ function toolResultId(entry: unknown): string | undefined {
   return message.role === 'toolResult' && typeof message.toolCallId === 'string' ? message.toolCallId : undefined
 }
 
-/** The five mail tools and `dm_call`, over `client`, with schemas from OMP's own builders. */
+const RECOVERY_FIELDS: Readonly<Record<string, readonly string[]>> = {
+  escalate: ['diagnostic'], status: [], message: ['messageId', 'text'], available: ['version', 'evidence'], resume: []
+}
+const RECOVERY_KEYS = ['action', 'incidentId', 'diagnostic', 'messageId', 'text', 'version', 'evidence']
+
+/** Native providers need known diagnostic properties, not an empty arbitrary-object schema. */
+function recoveryDiagnostic(raw: unknown): Checked<Record<string, unknown>> {
+  const string = (value: unknown): boolean => typeof value === 'string'
+  const checked = strict<Record<string, unknown>>(raw, {
+    command: string, code: string, message: string, reproduction: string, expected: string,
+    argumentsJson: (value) => value === null || typeof value === 'string'
+  }, ['command', 'code', 'message', 'reproduction', 'expected'])
+  if (!checked.ok) return checked
+  const { argumentsJson, ...diagnostic } = checked.value
+  if (typeof argumentsJson === 'string') {
+    try {
+      diagnostic.arguments = JSON.parse(argumentsJson) as unknown
+    } catch {
+      return invalid('diagnostic.argumentsJson must contain valid JSON for the shared bounded scalar-arguments object.')
+    }
+  }
+  return { ok: true, value: diagnostic }
+}
+
+function recoveryFieldProblem(params: Record<string, unknown>, fields: readonly string[]): string | null {
+  for (const [key, value] of Object.entries(params)) {
+    if (!RECOVERY_KEYS.includes(key)) return `Unknown argument "${displayName(key)}".`
+    if (key !== 'action' && key !== 'incidentId' && !fields.includes(key) && value !== null && value !== undefined) return `Argument "${key}" does not belong to action "${params.action}".`
+  }
+  return null
+}
+
+function recoveryActionInput(params: Record<string, unknown>, fields: readonly string[]): Checked<Record<string, unknown>> {
+  const input: Record<string, unknown> = { action: params.action, incidentId: params.incidentId }
+  if (params.action === 'escalate') {
+    const diagnostic = recoveryDiagnostic(params.diagnostic)
+    return diagnostic.ok ? { ok: true, value: { ...input, diagnostic: diagnostic.value } } : diagnostic
+  }
+  for (const field of fields) {
+    if (typeof params[field] !== 'string' || params[field] === '') return invalid(`Argument "${field}" is required as a nonempty string.`)
+    input[field] = params[field]
+  }
+  return { ok: true, value: input }
+}
+
+/** Strip only irrelevant provider nulls; reject non-null data the selected action cannot consume. */
+function recoveryInput(params: unknown): Checked<Record<string, unknown>> {
+  if (!isArgs(params) || typeof params.action !== 'string' || !Object.hasOwn(RECOVERY_FIELDS, params.action)) return invalid('A supported recovery action is required.')
+  if (!isId(params.incidentId)) return invalid('A valid incidentId is required.')
+  const fields = RECOVERY_FIELDS[params.action]!
+  const problem = recoveryFieldProblem(params, fields)
+  if (problem !== null) return invalid(problem)
+  return recoveryActionInput(params, fields)
+}
+
+type RecoveryTypeBuilder = TypeBuilder & Required<Pick<TypeBuilder, 'Null' | 'Union'>>
+
+function hasRecoverySchemas(type: TypeBuilder): type is RecoveryTypeBuilder {
+  return typeof type.Null === 'function' && typeof type.Union === 'function'
+}
+
+function recoveryTool(client: DmClient, type: RecoveryTypeBuilder): MailToolDefinition {
+  const text = (): unknown => type.String({ minLength: 1, maxLength: 4000 })
+  const nullable = (schema: unknown): unknown => type.Union([schema, type.Null()])
+  const diagnostic = type.Object({
+    command: type.String({ minLength: 1, maxLength: 120 }), code: type.String({ maxLength: 120 }),
+    message: text(), reproduction: text(), expected: text(),
+    argumentsJson: nullable(type.String({ description: 'Optional JSON object of at most 20 nonsecret scalar arguments; otherwise null. No transcripts, files, credentials or environment.', maxLength: 16000 }))
+  }, { additionalProperties: false })
+  return {
+    name: 'recover_tooling', label: 'Dark Mechanicus tooling recovery',
+    description: 'One direct tooling-recovery action under this live chat grant. escalate needs diagnostic; message needs messageId and text; available needs version and evidence; status/resume need only incidentId. Set EVERY unused field to null, never placeholder strings. No manual card/chat/connection setup. Never use dm_call or eval for this tool.',
+    parameters: type.Object({
+      action: type.String({ pattern: '^(escalate|status|message|available|resume)$', description: 'escalate, status, message, available, or resume.' }),
+      incidentId: type.String({ minLength: 1, maxLength: 128, pattern: ID.source }),
+      diagnostic: nullable(diagnostic), messageId: nullable(type.String({ minLength: 1, maxLength: 128, pattern: ID.source })),
+      text: nullable(text()), version: nullable(type.String({ minLength: 1, maxLength: 80 })), evidence: nullable(text())
+    }, { additionalProperties: false }),
+    ...WRITES,
+    execute: async (_id, params, signal) => {
+      const checked = recoveryInput(params)
+      if (!checked.ok) return failure(`recover_tooling refused the call: ${checked.message} Nothing was run.`)
+      const result = await client.run('recover_tooling', checked.value, signal)
+      return result.ok ? { content: [{ type: 'text', text: `${DM_CALL_DATA_NOTE}\n${inertJson(result.data)}` }] } : dmCallFailure(result.error, 'recover_tooling')
+    }
+  }
+}
+
+/** Mail, general commands and the explicitly shaped native recovery action over the same grant-bound client. */
 function mailTools(client: DmClient, type: TypeBuilder): MailToolDefinition[] {
   const kit = toolKit(client, type)
-  return [identityTool(kit), peersTool(kit), sendTool(kit), readTool(kit), ackTool(kit), dmCallTool(client, type)]
+  const tools = [identityTool(kit), peersTool(kit), sendTool(kit), readTool(kit), ackTool(kit), dmCallTool(client, type)]
+  if (hasRecoverySchemas(type)) tools.push(recoveryTool(client, type))
+  return tools
 }
 
 // --- the watcher --------------------------------------------------------------------------------------------------
@@ -395,6 +488,7 @@ interface MailWatcherDeps {
 interface PreparedDelivery {
   peer?: { message: CustomHint; bodies: DmMailMessage[] }
   board?: { message: CustomHint; bodies: BoardContextBody[] }
+  recovery?: { message: CustomHint; bodies: BoardContextBody[] }
 }
 
 
@@ -417,6 +511,8 @@ export class MailWatcher {
   #received = new Map<string, { seq: number; body: string }>()
   #peerQueued = new Map<string, string>()
   #boardQueued = new Map<string, string>()
+  #recoveryBodies = new Map<string, BoardContextBody>()
+  #recoveryQueued = new Map<string, string>()
   #inFlightPrompts = new Set<string>()
   #busySends = new Set<Promise<void>>()
   #inboxReads = new Set<string>()
@@ -443,6 +539,8 @@ export class MailWatcher {
     this.#peerQueued.clear()
     this.#boardQueued.clear()
     this.#inFlightPrompts.clear()
+    this.#recoveryBodies.clear()
+    this.#recoveryQueued.clear()
     this.#busySends.clear()
     this.#inboxReads.clear()
     this.#bodyCursor = 0
@@ -480,9 +578,13 @@ export class MailWatcher {
   tick(force = false): Promise<void> {
     if (this.#running !== null || this.#ui === null) return this.#running ?? Promise.resolve()
     this.#flush()
-    if (this.#skip > 0) { this.#skip -= 1; return Promise.resolve() }
     const generation = this.#generation
     const work = async (): Promise<void> => {
+      if (this.#deps.client.readRecovery !== undefined) {
+        await this.#loadRecovery(generation)
+        this.#dispatch(this.#preparedRecovery(), generation, force)
+      }
+      if (this.#skip > 0) { this.#skip -= 1; return }
       if (!(await this.#poll(generation))) return
       if (this.#deps.sendUserMessage === undefined || !(await this.#loadBodies(generation))) return
       this.#dispatch(await this.#prepared(generation), generation, force)
@@ -501,6 +603,7 @@ export class MailWatcher {
     }
     if (prepared.peer !== undefined && this.#inboxReads.size === 0) this.#sendPeer(prepared.peer)
     if (prepared.board !== undefined) this.#sendBoard(prepared.board)
+    if (prepared.recovery !== undefined) this.#sendRecovery(prepared.recovery)
   }
 
   #canDispatch(generation: number, force: boolean, idle: boolean): boolean {
@@ -510,6 +613,10 @@ export class MailWatcher {
 
   #dispatchIdle(prepared: PreparedDelivery): void {
     // Only a real user-attributed idle prompt prepares hooks; they add the complete peer batch before request one.
+    if (prepared.recovery !== undefined) {
+      this.#sendRecovery(prepared.recovery)
+      return
+    }
     if (prepared.board !== undefined) {
       this.#sendBoard(prepared.board)
       return
@@ -594,11 +701,16 @@ export class MailWatcher {
     // The native stop boundary has drained/discarded old asides; only actual receipts suppress recovery.
     this.#peerQueued.clear()
     this.#boardQueued.clear()
+    this.#recoveryQueued.clear()
     await this.tick(true)
   }
 
   #observe(entries: readonly unknown[]): void {
     for (const entry of entries) {
+      for (const body of recoveryContextBodies(entry)) {
+        this.#recoveryBodies.delete(body.id)
+        this.#recoveryQueued.set(body.id, body.text)
+      }
       const id = toolResultId(entry)
       if (id !== undefined) this.#inboxReads.delete(id)
       for (const message of peerContextBodies(entry)) {
@@ -676,10 +788,31 @@ export class MailWatcher {
     return { customType: BOARD_DELIVERY_TYPE, attribution: 'user', display: false, content: boardContextPacket(bodies) }
   }
 
+  #acceptRecovery(messages: BoardContextBody[]): void {
+    const received = (this.#contextEntries?.() ?? []).flatMap(entry => recoveryContextBodies(entry))
+    for (const message of messages) {
+      if (!received.some(body => body.id === message.id && body.text === message.text)) this.#recoveryBodies.set(message.id, message)
+    }
+  }
+
+  async #loadRecovery(generation: number): Promise<void> {
+    const recovery = await this.#deps.client.readRecovery?.()
+    if (generation !== this.#generation || recovery === undefined) return
+    if (!recovery.ok) this.#failed(recovery.error)
+    else this.#acceptRecovery(recovery.data)
+  }
+
   async #prepared(generation: number, prompt = '', includeQueued = false): Promise<PreparedDelivery> {
+    if (this.#deps.client.readRecovery !== undefined) await this.#loadRecovery(generation)
     const peer = this.#preparedPeer(generation, prompt, includeQueued)
     const board = await this.#preparedBoard(generation, prompt, includeQueued)
-    return generation === this.#generation ? { ...peer, ...board } : {}
+    return generation === this.#generation ? { ...peer, ...board, ...this.#preparedRecovery() } : {}
+  }
+
+  #preparedRecovery(): PreparedDelivery {
+    const bodies = [...this.#recoveryBodies.values()].filter(body => this.#recoveryQueued.get(body.id) !== body.text)
+    return bodies.length === 0 ? {} : { recovery: { bodies, message: { customType: RECOVERY_DELIVERY_TYPE, attribution: 'agent', display: false,
+      content: `${RECOVERY_DATA_NOTE}\n${inertJson({ messages: bodies })}` } } }
   }
 
   #preparedPeer(generation: number, prompt = '', includeQueued = false): PreparedDelivery {
@@ -728,6 +861,12 @@ export class MailWatcher {
     })) for (const body of packet.bodies) this.#boardQueued.set(body.id, body.text)
   }
 
+  #sendRecovery(packet: NonNullable<PreparedDelivery['recovery']>): void {
+    if (this.#send(packet.message, () => {
+      for (const body of packet.bodies) if (this.#recoveryQueued.get(body.id) === body.text) this.#recoveryQueued.delete(body.id)
+    })) for (const body of packet.bodies) this.#recoveryQueued.set(body.id, body.text)
+  }
+
   #send(message: CustomHint, failed: () => void): boolean {
     const send = this.#deps.sendUserMessage
     if (send === undefined) { this.#indicate('Skitarii mail unavailable (host context API missing)'); return false }
@@ -759,6 +898,11 @@ export class MailWatcher {
   }
 
   #messageReceived(message: CustomHint, entries: readonly unknown[]): boolean {
+    if (message.customType === RECOVERY_DELIVERY_TYPE) {
+      const bodies = recoveryContextBodies({ type: 'message', message: { role: 'user', attribution: 'agent', content: message.content } })
+      const received = entries.flatMap(entry => recoveryContextBodies(entry))
+      return bodies.length > 0 && bodies.every(body => received.some(entry => entry.id === body.id && entry.text === body.text))
+    }
     if (message.attribution === 'agent') {
       const peers = peerContextBodies({ type: 'message', message: { role: 'user', attribution: 'agent', content: message.content } })
       return peers.length > 0 && peers.every((body) => {
@@ -845,6 +989,9 @@ export function attachMessaging(pi: MailApi, client: DmClient, timers: Timers): 
   }
   const watcher = new MailWatcher({ client, timers, sendUserMessage: pi.sendUserMessage?.bind(pi) })
   registerMailTools(pi, client, support.type, watcher)
+  if (!hasRecoverySchemas(support.type)) pi.on('session_start', (_event, ctx) => {
+    if (ctx.hasUI && ctx.agent?.kind !== 'sub') ctx.ui.setStatus?.('skitarii-recovery', 'Tooling recovery unavailable: this OMP has no public nullable native-tool schemas')
+  })
   pi.on('session_start', (_event, ctx) => {
     const entries = (): readonly unknown[] => ctx.sessionManager?.getBranch?.() ?? ctx.sessionManager?.getEntries?.() ?? []
     if (ctx.agent?.kind === 'main') watcher.start(ctx.ui, entries(), entries, ctx.isIdle?.bind(ctx))

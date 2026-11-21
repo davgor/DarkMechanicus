@@ -8,6 +8,7 @@ import { nodeFs } from './repo/nodeFs'
 import { dbProjectDir } from './repo/storageMode'
 import { baselineDeliveryPolicy } from './deliveryPolicySchema'
 import { openWorkspace } from './workspace'
+import { bindToolingGrant, holdToolingWorkflow, retireToolingWorkflow } from './services/toolingHold'
 
 let h: Harness
 beforeEach(() => { h = createHarness() })
@@ -39,6 +40,17 @@ it('preserves ticket identity and opens a bound code project through its pointer
     expect(readFileSync(exported, 'utf8')).toContain(card.id)
     expect(readFileSync(join(member, '.darkmechanicus/knowledge/design/decisions.md'), 'utf8')).toBe('Keep the original design.')
     expect(JSON.parse(readFileSync(join(member, '.darkmechanicus/local/source-checkout.json'), 'utf8'))).toEqual({ checkout: h.root })
+    const grant = await workspace.issueGrant({ role: 'planner', label: 'Bound Forge planner' })
+    bindToolingGrant(workspace.ctx(), grant.grant.id, 'chat_forge')
+    holdToolingWorkflow(workspace.ctx(), { id: 'chat_forge', incidentId: 'forge_incident' })
+    const planner = openWorkspace({ repoRoot: h.root, homeDir: h.homeDir, transport: 'cli', role: 'planner', label: 'Bound planner', grantToken: grant.token })
+    try {
+      expect(planner.repoRoot).toBe(member)
+      expect((await planner.getKanbanCard({ cardId: card.id })).title).toBe('One shared card')
+      await expect(planner.createKanbanCard({ title: 'Blocked while repairing' })).rejects.toMatchObject({ code: 'invalid_state' })
+      retireToolingWorkflow(workspace.ctx(), 'chat_forge')
+      expect((await planner.createKanbanCard({ title: 'After human retirement' })).title).toBe('After human retirement')
+    } finally { planner.close() }
   } finally { workspace.close() }
 })
 
