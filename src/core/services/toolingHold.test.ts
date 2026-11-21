@@ -4,8 +4,8 @@ import { bindToolingGrant, holdToolingWorkflow, releaseToolingWorkflow, retireTo
 import { claim, startedRun } from '../../test/execution'
 import { withRole } from '../../test/testContext'
 import { heartbeatAttempt } from './attempts'
-import { expireLeases } from './execution'
-import { cancelRun, getRun, resumeRun, takeoverRun } from './runs'
+import { expireLeases, listAttempts } from './execution'
+import { cancelRun, getRun, pauseRun, resumeRun, takeoverRun } from './runs'
 import { makeBundle } from '../../test/bundles'
 
 const harnesses: Harness[] = []
@@ -100,3 +100,82 @@ afterEach(() => { for (const harness of harnesses.splice(0)) harness.cleanup() }
     expect(getRun(ctx, { runId: run.runId })?.state).toBe('paused')
     expect(resumeRun(ctx, { runId: run.runId }).state).toBe('running')
   })
+
+it.each([false, true])('returns only hold time since the last lease renewal (heartbeat during hold=%s)', async renewDuringHold => {
+  const h = createHarness(); harnesses.push(h)
+  const desktop = h.open('desktop'); await desktop.initializeRepository({ name: 'hold arithmetic' })
+  const ctx = { ...desktop.ctx(), clock: h.clock }; const agent = withRole(ctx, 'orchestrator')
+  const run = startedRun(ctx); const held = claim(agent, run.runId, 1, { leaseSeconds: 30 })
+  const grant = await desktop.issueGrant({ role: 'orchestrator', label: 'arithmetic owner' })
+  bindToolingGrant(ctx, grant.grant.id, 'chat_arithmetic')
+  h.clock.advanceSeconds(10)
+  const input = { attemptId: held.attempt.id, claimToken: held.packet.claimToken }
+  heartbeatAttempt(agent, input)
+  h.clock.advanceSeconds(10)
+  const target = { id: 'chat_arithmetic', incidentId: 'arithmetic', runId: run.runId }
+  holdToolingWorkflow(ctx, target)
+  h.clock.advanceSeconds(30)
+  holdToolingWorkflow(ctx, target)
+  expect(() => holdToolingWorkflow(ctx, { ...target, incidentId: 'different' })).toThrow('unresolved tooling hold')
+  h.clock.advanceSeconds(10)
+  if (renewDuringHold) heartbeatAttempt(agent, input)
+  h.clock.advanceSeconds(40)
+  releaseToolingWorkflow(ctx, target)
+  const released = listAttempts(ctx, { runId: run.runId })[0]!
+  expect(Date.parse(released.leaseExpiresAt!) - h.clock.nowMs()).toBe(renewDuringHold ? 30_000 : 20_000)
+  expect(getRun(ctx, { runId: run.runId })?.state).toBe('running')
+  releaseToolingWorkflow(ctx, target)
+  expect(listAttempts(ctx, { runId: run.runId })).toEqual([released])
+  expect(Date.parse(heartbeatAttempt(agent, input).leaseExpiresAt!) - h.clock.nowMs()).toBe(30_000)
+})
+
+it('extends only captured run claims on replay and keeps human resume blocked until verified release', async () => {
+  const h = createHarness(); harnesses.push(h)
+  const desktop = h.open('desktop'); await desktop.initializeRepository({ name: 'captured claims' })
+  const ctx = { ...desktop.ctx(), clock: h.clock }; const agent = withRole(ctx, 'orchestrator')
+  const run = startedRun(ctx)
+  const first = claim(agent, run.runId, 1, { leaseSeconds: 30 })
+  const grant = await desktop.issueGrant({ role: 'orchestrator', label: 'capture owner' })
+  bindToolingGrant(ctx, grant.grant.id, 'chat_capture')
+  const target = { id: 'chat_capture', incidentId: 'captured', runId: run.runId }
+  holdToolingWorkflow(ctx, target)
+  h.clock.advanceSeconds(10)
+  expect(() => resumeRun(ctx, { runId: run.runId })).toThrow('only verified incident recovery')
+  const unrelated = startedRun(ctx, { bundle: makeBundle([[3]]) })
+  const later = claim(agent, unrelated.runId, 3, { leaseSeconds: 30 })
+  holdToolingWorkflow(ctx, target)
+  h.clock.advanceSeconds(5)
+  releaseToolingWorkflow(ctx, target)
+  const attempts = listAttempts(ctx, { runId: run.runId })
+  expect(attempts.find(attempt => attempt.id === first.attempt.id)?.leaseExpiresAt).toBe(new Date(Date.parse(first.attempt.leaseExpiresAt!) + 15_000).toISOString())
+  expect(listAttempts(ctx, { runId: unrelated.runId })[0]?.leaseExpiresAt).toBe(later.attempt.leaseExpiresAt)
+})
+
+it('leaves a canceled held run canceled and refuses to revive canceled attempts', async () => {
+  const h = createHarness(); harnesses.push(h)
+  const desktop = h.open('desktop'); await desktop.initializeRepository({ name: 'cancel held run' })
+  const ctx = { ...desktop.ctx(), clock: h.clock }; const agent = withRole(ctx, 'orchestrator')
+  const run = startedRun(ctx); const held = claim(agent, run.runId, 1, { leaseSeconds: 30 })
+  const target = { id: 'chat_cancel', incidentId: 'cancel', runId: run.runId }
+  holdToolingWorkflow(ctx, target)
+  cancelRun(ctx, { runId: run.runId })
+  const canceled = listAttempts(ctx, { runId: run.runId })
+  h.clock.advanceSeconds(60)
+  releaseToolingWorkflow(ctx, target)
+  expect(getRun(ctx, { runId: run.runId })?.state).toBe('canceled')
+  expect(listAttempts(ctx, { runId: run.runId })).toEqual(canceled)
+  expect(() => heartbeatAttempt(agent, { attemptId: held.attempt.id, claimToken: held.packet.claimToken })).toThrow()
+})
+
+it('preserves a pre-existing human pause instead of treating repair release as permission to resume', async () => {
+  const h = createHarness(); harnesses.push(h)
+  const desktop = h.open('desktop'); await desktop.initializeRepository({ name: 'human paused run' })
+  const ctx = { ...desktop.ctx(), clock: h.clock }
+  const run = startedRun(ctx)
+  pauseRun(ctx, { runId: run.runId, reason: 'human inspection' })
+  const target = { id: 'chat_pause', incidentId: 'pause', runId: run.runId }
+  holdToolingWorkflow(ctx, target)
+  releaseToolingWorkflow(ctx, target)
+  expect(getRun(ctx, { runId: run.runId })).toMatchObject({ state: 'paused', pauseReason: 'human inspection' })
+  expect(resumeRun(ctx, { runId: run.runId }).state).toBe('running')
+})
