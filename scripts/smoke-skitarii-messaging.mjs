@@ -131,7 +131,7 @@ function writeObserver() {
   writeFileSync(P.observer, `import { appendFileSync, readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { join } from 'node:path'
-interface ContextMessage { role: string; content: unknown; attribution?: string; customType?: string; toolName?: string; isError?: boolean }
+interface ContextMessage { role: string; content: unknown; attribution?: string; customType?: string; toolName?: string; toolCallId?: string; isError?: boolean }
 interface ObserverApi { on(event: 'context', handler: (event: { messages: readonly ContextMessage[] }, ctx: { agent?: { kind?: string } }) => void): void }
 const chatId = JSON.parse(readFileSync(process.env.DM_SKITARII_CLIENT_DESCRIPTOR!, 'utf8')).chatId
 const hash = (text: string) => createHash('sha256').update(text).digest('hex')
@@ -162,7 +162,9 @@ export default function observe(pi: ObserverApi) {
     const messages = event.messages.map((message, index) => {
       const parts = texts(message.content)
       return { index, role: message.role, attribution: message.attribution, customType: message.customType,
-        tags: tags(parts.join('\\n')), toolDone: message.role === 'toolResult' && message.toolName === 'bash' && parts.some((text: string) => /^BUSY_DONE_ONLY\\r?$/m.test(text)),
+        tags: tags(parts.join('\\n')),
+        bash: message.role === 'toolResult' && message.toolName === 'bash' ?
+          { toolCallId: message.toolCallId, contentHash: hash(JSON.stringify(message.content)), isError: message.isError === true } : undefined,
         packets: parts.flatMap((text: string) => packet(text, message.role, message.toolName, message.isError === true)) }
     })
     appendFileSync(join(${J(P.contexts)}, chatId + '.jsonl'), JSON.stringify({ at: Date.now(), messages }) + '\\n')
@@ -367,6 +369,57 @@ function entries(id) {
   if (!existsSync(dir)) return []
   return readdirSync(dir).filter((file) => /^\d{4}-\d{2}-\d{2}T[\d-]+Z_[0-9a-f-]+\.jsonl$/i.test(file)).sort()
     .flatMap((file) => jsonLines(join(dir, file)))
+}
+function fixtureToolEvidence(native) {
+  const scripts = [P.producer, P.busy].map((path) => path.replaceAll('\\', '/'))
+  const calls = native.filter((entry) => entry.type === 'message' && entry.message.role === 'assistant')
+    .flatMap((entry) => entry.message.content.filter((part) => {
+      const command = part.arguments?.command ?? part.arguments?.code
+      return part.type === 'toolCall' && ['bash', 'eval'].includes(part.name) &&
+        typeof command === 'string' && scripts.some((path) => command.includes(path))
+    }).map((call) => ({ entryId: entry.id, parentId: entry.parentId, call })))
+  const callNames = new Map(calls.map(({ call }) => [call.id, call.name]))
+  const results = native.filter((entry) => entry.type === 'message' && entry.message.role === 'toolResult' &&
+    callNames.get(entry.message.toolCallId) === entry.message.toolName)
+  return { calls, results }
+}
+function fixtureToolJson(value) {
+  return J(value, (key, item) => {
+    if (/^(?:DM_SESSION_TOKEN|access_token|refresh_token|api_key|client_secret|authorization)$/i.test(key)) return '[redacted]'
+    return typeof item === 'string' ? scrub(item) : item
+  })
+}
+function expectedBusyText(details) {
+  if (!Number.isFinite(details?.wallTimeMs)) return null
+  // OMP18.20.2: tools/bash.ts#buildCompletedResult + tui/tools/bash.ts#formatWallTimeNotice.
+  const output = ['BUSY_DONE_ONLY\n']
+  if (details.wallTimeMs >= 1000) output.push('', `Wall time: ${(details.wallTimeMs / 1000).toFixed(2)} seconds`)
+  return output.join('\n')
+}
+function matchesBusyContent(content, expectedText) {
+  return expectedText !== null && Array.isArray(content) && content.length === 1 &&
+    content[0]?.type === 'text' && content[0].text === expectedText
+}
+function busyOutputFacts(calls, original, observed) {
+  const content = original?.message.content
+  return { calls, original: original ?? null, observed: observed ?? null,
+    canonicalContentHash: content ? sha(J(content)) : null, expectedText: expectedBusyText(original?.message.details) }
+}
+function assertBusyOutput(boundary) {
+  const evidence = fixtureToolEvidence(entries(ids.b))
+  const busyPath = P.busy.replaceAll('\\', '/')
+  const calls = evidence.calls.filter(({ call }) => call.name === 'bash' && call.arguments.command.includes(busyPath))
+  const callIds = new Set(calls.map(({ call }) => call.id))
+  const originals = evidence.results.filter((entry) => callIds.has(entry.message.toolCallId))
+  const original = originals[0]
+  const observed = boundary.messages.find((message) => message.bash?.toolCallId === original?.message.toolCallId)?.bash
+  facts.busyOutput = JSON.parse(fixtureToolJson(busyOutputFacts(calls, original, observed)))
+  must('busy-original-call-and-canonical-result', calls.length === 1 && originals.length === 1)
+  must('busy-original-content-export-unmodified',
+    sha(J(facts.busyOutput.original.message.content)) === facts.busyOutput.canonicalContentHash)
+  must('busy-complete-canonical-content-preserved-before-continuation',
+    observed?.contentHash === facts.busyOutput.canonicalContentHash && !observed?.isError && original.message.isError === false)
+  must('busy-known-stdout-exact-pinned-native-format', matchesBusyContent(original.message.content, facts.busyOutput.expectedText))
 }
 function assistantTexts(id, from = 0) {
   return entries(id).slice(from).filter((entry) => entry.type === 'message' && entry.message.role === 'assistant').map((entry) => J(entry.message))
@@ -634,7 +687,7 @@ async function independentAndBusy() {
   must('held-foreground-tool-has-no-early-provider-continuation', contexts().length === boundaryFrom)
   writeFileSync(P.busyRelease, 'release owned tool')
   const boundary = await waitFor(() => contexts()[boundaryFrom], 'FIRST provider boundary after real tool result', 60_000)
-  must('busy-original-tool-output-preserved-before-continuation', boundary.messages.some((entry) => entry.toolDone))
+  assertBusyOutput(boundary)
   assertPeers(boundary, busy, busyAccepted, 'busy-next-boundary')
   assertPerson(boundary, person.data.messageId, personHash, 'busy-next-boundary')
   await proveConversationRefresh(personNonce, panelCursor)
@@ -657,6 +710,7 @@ async function explicitAckAndSeen() {
   const after = await waitFor(async () => { const state = await mailState(); return state.pendingCount === 0 ? state : false }, 'explicit ack reflected')
   must('agent-ack-keeps-human-seen-separate', after.unseenCount === before.unseenCount)
   await showInbox('DM-820-04-explicit-ack-unseen.png', 'Actual explicit native acknowledgment: agent pending0, human unseen58, automatic context receipts unchanged.')
+  await minimumScreenshot('DM-820-04-inbox-minimum.png', 'Actual explicitly acknowledged Inbox at the honestly emulated minimum renderer size; full delivery status remains separate from human seen and agent acknowledgment.')
   await ev(`Array.from(document.querySelectorAll('[role="dialog"] button')).find((button) => button.textContent.trim().startsWith('Mark shown messages seen')).click()`)
   const seen = await waitFor(async () => { const state = await mailState(); return state.unseenCount < after.unseenCount ? state : false }, 'human seen update')
   must('human-seen-never-acknowledges', seen.unseenCount < after.unseenCount && seen.pendingCount === 0)
@@ -681,7 +735,19 @@ function preserveChatEvidence(label, id) {
     const relevant = native.filter((entry) => J(entry).includes('DM820_'))
     facts.evidenceSources ??= []
     facts.evidenceSources.push({ chat: label, actualSessionEntries: native.length, exportedTaggedEntries: relevant.length })
-    writeFileSync(join(OUTPUT, `${label}-actual-session-excerpts.jsonl`), relevant.map((entry) => J(entry)).join('\n') + '\n')
+    writeFileSync(join(OUTPUT, `${label}-actual-session-excerpts.jsonl`), relevant.map((entry) => fixtureToolJson(entry)).join('\n') + '\n')
+    const fixtureTools = fixtureToolEvidence(native)
+    facts.evidenceSources.at(-1).exportedFixtureCalls = fixtureTools.calls.length
+    facts.evidenceSources.at(-1).exportedFixtureResults = fixtureTools.results.length
+    const callResults = fixtureTools.calls.map(({ call }) => ({ toolCallId: call.id, toolName: call.name,
+      resultCount: fixtureTools.results.filter((entry) => entry.message.toolCallId === call.id && entry.message.toolName === call.name).length }))
+    facts.evidenceSources.at(-1).fixtureCallResults = callResults
+    check(`evidence-${label}-actual-fixture-tools-complete`,
+      callResults.length > 0 && callResults.every((call) => call.resultCount === 1))
+    writeFileSync(join(OUTPUT, `${label}-actual-fixture-tools.json`), fixtureToolJson({
+      source: 'actual canonical native session entries', chatId: id,
+      sourceDirectory: join(P.profile, 'agents', 'omp', id, 'sessions'), ...fixtureTools
+    }) + '\n')
   } catch (error) { check(`evidence-unreadable-${label}-native-session`, false, { problem: scrub(error.message) }) }
 }
 
