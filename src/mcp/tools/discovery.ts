@@ -1,4 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { baselineDeliveryPolicy, deliveryPolicy } from '../../core/deliveryPolicySchema'
 import { z } from 'zod'
 import { STORAGE_MODES } from '../../core/repo/storageMode'
 import { definitionOfDoneChecks } from '../../core/schemas'
@@ -37,9 +38,17 @@ const DISCOVERY_TOOLS = [
   defineArglessTool({
     name: 'get_project',
     description:
-      'Returns the project record (id, name, ticket key prefix, repository root) and its Definition of Done: the ordered checks (name, command, description) that the acceptance node of every sprint must report as passed, empty when the project has none. Fails with `not_initialized` until initialize_repository has run.',
+      'Returns the project record (id, name, ticket key prefix, repository root) and its Definition of Done: the ordered checks (name, command, description) that the acceptance node of every sprint must report as passed, empty when the project has none. Fails with `not_initialized` until initialize_repository has run.' +
+      ' Configured deliveryStandards include the current revision and policy. When absent, offer this Dark Mechanicus baseline for review: ' + JSON.stringify(baselineDeliveryPolicy),
     kind: 'read',
     run: (api) => api.getProject()
+  }),
+  defineTool({
+    name: 'set_delivery_standards',
+    description: 'Save reviewed project delivery standards using the current revision from get_project (zero for initial setup). Policy cannot grant privileges, approve checkpoints or authorize retries.',
+    kind: 'write',
+    input: { expectedRevision: z.number().int().nonnegative(), policy: deliveryPolicy },
+    run: (api, input) => api.setDeliveryStandards(input)
   }),
   defineTool({
     name: 'set_definition_of_done',

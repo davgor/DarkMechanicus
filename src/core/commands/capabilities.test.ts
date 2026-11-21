@@ -1,3 +1,4 @@
+import { baselineDeliveryPolicy } from '../deliveryPolicySchema'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { CommandName } from '../../shared/domain/api'
 import { defaultCapabilityProfile } from '../../shared/domain/bundle'
@@ -41,6 +42,7 @@ const PROBES: Record<CommandName, unknown> = {
   nameChat: { title: 'Semantic probe title' },
   getCapabilities: undefined,
   getProject: undefined,
+  setDeliveryStandards: { expectedRevision: 0, policy: baselineDeliveryPolicy },
   setDefinitionOfDone: { checks: [] },
   rescanRepositories: undefined,
   initializeRepository: {},

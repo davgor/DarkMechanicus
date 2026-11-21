@@ -6,6 +6,7 @@ import { createHarness, type Harness } from '../test/workspaceHarness'
 import { assertForgeTransferIdle, bindForge, boundForgeRoot, FORGE_POINTER, isForgeMember, pendingForgeTransfer, withForgeTransfer } from './repo/forgeBinding'
 import { nodeFs } from './repo/nodeFs'
 import { dbProjectDir } from './repo/storageMode'
+import { baselineDeliveryPolicy } from './deliveryPolicySchema'
 import { openWorkspace } from './workspace'
 
 let h: Harness
@@ -15,6 +16,7 @@ afterEach(() => h.cleanup())
 it('preserves ticket identity and opens a bound code project through its pointer', async () => {
   const source = h.open('desktop', { transport: 'desktop', mode: 'db' })
   await source.initializeRepository({ name: 'Source' })
+  const policy = await source.setDeliveryStandards({ expectedRevision: 0, policy: baselineDeliveryPolicy })
   const card = await source.createKanbanCard({ title: 'One shared card' })
   const docs = join(dbProjectDir(h.root, h.homeDir), 'knowledge', 'design')
   mkdirSync(docs, { recursive: true })
@@ -29,6 +31,8 @@ it('preserves ticket identity and opens a bound code project through its pointer
   const workspace = openWorkspace({ repoRoot: h.root, homeDir: h.homeDir, transport: 'desktop', role: 'desktop', label: 'Forge fixture', serverInfo: { name: 'fixture', version: '1' } })
   try {
     expect(workspace.repoRoot).toBe(member)
+    expect((await workspace.getProject()).deliveryStandards).toEqual(policy)
+    expect(JSON.parse(readFileSync(join(member, '.darkmechanicus/project.json'), 'utf8')).deliveryStandards).toEqual(policy)
     expect((await workspace.getKanbanCard({ cardId: card.id })).title).toBe('One shared card')
     const exported = join(member, '.darkmechanicus', 'kanban', card.id, 'card.json')
     expect(existsSync(exported)).toBe(true)

@@ -175,7 +175,7 @@ Roles are fixed at launch. Nothing a tool call says can change them.
 
 | Role | Can do |
 |------|--------|
-| `planner` | Read, create epics, edit drafts (including corrective DRAFT work from a retro's experiments, `create_corrections`), comment, save named capability profiles (`save_profile`), set the project's Definition of Done (`set_definition_of_done`). `save_plan` only with `--allow-save`. |
+| `planner` | Read, create epics, edit drafts (including corrective DRAFT work from a retro's experiments, `create_corrections`), comment, save named capability profiles (`save_profile`), set the project's Definition of Done (`set_definition_of_done`), and version project delivery standards (`set_delivery_standards`). `save_plan` only with `--allow-save`. |
 | `orchestrator` (default) | Everything a planner can except set the Definition of Done (it reads it with `get_project`, and holds work to it when it accepts), plus register hosts, start and control runs, claim tickets, review attempts, record usage for any attempt of its run and the run's overhead, submit sprint reports, record experiment statuses and results (`record_experiment_event`), redraft the next sprint from a retro (`redraft_next_sprint`), retry a ticket at its retry limit itself (`retry_ticket`, at most the plan's `autoRetryLimit` times per ticket over all the epic's runs, so a new run does not reset it), advance sprints, launch named Kanban cards, and carry out a Linear transfer the person queued (`epic.transfer`; see [Linear transfer](#linear-transfer)). With `--no-allow-save` it still saves the plan of an epic whose active run (queued, running, awaiting its checkpoint or paused) this machine owns, so it can fix the sprint it runs and adopt the revision (`adopt_revision` with a `reason`) without you. That save may not change the policies of the epic's latest saved revision, or remove a ticket with spent attempts in the run or move one to a later sprint, and it cannot adopt a revision that does either (so it cannot raise its own retry limits; past `autoRetryLimit`, retries are yours to grant). It edits such a ticket in place, splits work into new tickets, or retries it with `retry_ticket`. Never approves human checkpoints, retry grants or card outcomes. |
 | `worker` | Heartbeat, submit, and fail for the claim it holds; report that attempt's usage (`record_attempt_metrics` with its claim token); comment. |
 | `reviewer` | Accept or reject submitted attempts; report review overhead usage (`record_run_metrics`); comment. |
@@ -230,6 +230,7 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 | Comments, Kanban messages, images and chat names: `add_comment`, `add_kanban_message`, `add_attachment`, `name_chat` | yes | yes | yes | yes |
 | Profiles: `save_profile` | yes | yes | | |
 | Definition of Done: `set_definition_of_done` | yes | | | |
+| Delivery standards: `set_delivery_standards` | yes | | | |
 | Repository and drafts: `initialize_repository`, `rescan_repositories`, `flush_portable_state`, `reconcile_repository`, `create_epic`, `import_board`, `create_ticket`, `update_ticket`, `open_plan_draft`, `update_plan_draft`, `discard_plan_draft` | yes | yes | | |
 | Corrective work: `create_corrections` | yes | yes | | |
 | Kanban cards (`kanban.write`): `create_kanban_card`, `update_kanban_card` | yes | yes | | |
@@ -251,7 +252,7 @@ A session lists only the tools its role may call. Each tool adapts one command, 
 | Kanban launch and claim: `launch_kanban_cards`, `claim_kanban_card` | | yes | | |
 | Kanban reporting (`kanban.report`): `heartbeat_kanban_card`, `submit_kanban_card`, `fail_kanban_card` | | yes | yes | |
 | Agent mail (`mail.use`; listed, but always `unauthorized` over MCP): `get_agent_identity`, `list_agent_peers`, `send_agent_message`, `read_agent_inbox`, `acknowledge_agent_messages`, `get_agent_mail_status` | yes | yes | yes | yes |
-| **Total** | 74 (75 with `--allow-save`) | 110 (110 with `--allow-save`) | 65 | 61 |
+| **Total** | 75 (76 with `--allow-save`) | 110 (110 with `--allow-save`) | 65 | 61 |
 
 An `orchestrator` lists `save_plan` and the narrow permission decision tool with or without Allow save. Explicitly disabled sessions (`--no-allow-save`) gain general saving only after approval; their separate own-run saving rule remains. `decide_save_permission` always checks original explicit authority server-side, so acquired saving cannot delegate it. `--allow-save` has no effect for `worker` and `reviewer`. No role lists a tool for the desktop-only actions: no tool presses Play on a Kanban card, approves one or kicks one back (`kanban.play` and `kanban.review` belong to a person in the desktop app).
 

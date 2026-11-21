@@ -6,6 +6,7 @@ describe('meta keys', () => {
   it('pins the storage key of every meta entry', () => {
     expect(META_KEYS).toEqual({
       projectId: 'project_id',
+      deliveryStandards: 'delivery_standards',
       projectName: 'project_name',
       keyPrefix: 'key_prefix',
       machineId: 'machine_id',

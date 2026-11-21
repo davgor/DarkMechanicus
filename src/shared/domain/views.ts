@@ -2,6 +2,7 @@
  * Read models returned by the command layer to both the desktop renderer and MCP clients.
  * Plain JSON-serializable data only.
  */
+import type { StoredDeliveryPolicy } from './deliveryPolicy'
 import type {
   CapabilityProfile,
   Criterion,
@@ -82,6 +83,7 @@ export interface RepositoryView {
 }
 
 export interface ProjectView {
+  deliveryStandards?: StoredDeliveryPolicy
   projectId: string
   name: string
   keyPrefix: string

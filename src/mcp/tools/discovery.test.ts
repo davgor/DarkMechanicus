@@ -1,3 +1,4 @@
+import { baselineDeliveryPolicy } from '../../core/deliveryPolicySchema'
 import { describe, expect, it } from 'vitest'
 import { DomainError } from '../../core/errors'
 import type { CommandName } from '../../shared/domain/api'
@@ -21,6 +22,7 @@ const CASES: Case[] = [
   { tool: 'list_save_permission_requests', args: {}, method: 'listSavePermissionRequests', input: undefined },
   { tool: 'decide_save_permission', args: { requestId: sampleId('savePermission'), decision: 'denied', reason: 'Not approved' }, method: 'decideSavePermission', input: { requestId: sampleId('savePermission'), decision: 'denied', reason: 'Not approved' } },
   { tool: 'get_capabilities', args: {}, method: 'getCapabilities', input: undefined },
+  { tool: 'set_delivery_standards', args: { expectedRevision: 0, policy: baselineDeliveryPolicy }, method: 'setDeliveryStandards', input: { expectedRevision: 0, policy: baselineDeliveryPolicy } },
   { tool: 'get_project', args: {}, method: 'getProject', input: undefined },
   {
     tool: 'set_definition_of_done',
