@@ -231,7 +231,7 @@ checkpoint, authorizing auto-continue, granting a retry, queueing a run, deletin
 ticket, issuing or revoking a further grant, and pressing Play on, approving or kicking back a
 Kanban card (`kanban.play`, `kanban.review`), and managing mailboxes (`mail.manage`: provisioning,
 binding, renaming, suspending, closing or deleting one, and the person's own inbox, seen cursor and
-wake credit). A granted orchestrator can create and edit cards, explicitly launch named cards when
+insertion metadata). A granted orchestrator can create and edit cards, explicitly launch named cards when
 asked, claim queued cards and report on them; lost-token recovery only requeues a live claim. An
 agent cannot promote itself, and approval stays in the app.
 
@@ -266,7 +266,6 @@ properties are refused with `invalid_input` before anything runs.
 | `read_agent_inbox` (`readAgentInbox`) | `{afterSeq?, throughSeq?, limit? ≤50, unacknowledgedOnly?}` | `{messages, snapshotHighWater, nextCursor, hasMore}` |
 | `acknowledge_agent_messages` (`acknowledgeAgentMessages`) | `{messageIds: 1–100}` | `{acknowledged:[{messageId, acknowledgedAt, expiresAt}]}` |
 | `get_agent_mail_status` (`getAgentMailStatus`) | `{afterSeq?, throughSeq?, limit? ≤50}` | `{pendingCount, messages (no bodies), snapshotHighWater, nextCursor, hasMore}` |
-| `take_agent_mail_wake` (`takeAgentMailWake`) | `{}` | `{claimed, wakeAttemptId, pendingCount}` |
 
 Errors: `unauthorized`, `invalid_input`, `not_found`, `idempotency_mismatch`, `reply_unavailable`,
 `mailbox_full` (1024 unacknowledged or 4096 retained), `receipt_quota_full` (8192 receipts per
@@ -302,13 +301,12 @@ Inside a Skitarii chat the agent normally uses the native tools instead (see
 - **Acknowledging** checks every id is a message of your own inbox before changing any: a mixed list
   changes nothing. Acknowledging again keeps the first time; an acknowledged message is kept seven
   days.
-- **Status and wake are polls.** `get_agent_mail_status` and `take_agent_mail_wake` open a
-  restricted mode that reuses one dedicated session per binding and does no record reconcile,
-  portable flush or staged-image pruning; it runs those two commands and refuses any other. The
-  desktop arms a one-shot wake credit for your mailbox; only the call that consumes it, while mail is
-  pending, gets `claimed: true` and a `wakeAttemptId`. A repeat, a concurrent call and a retry after
-  a lost response get `claimed: false`. A wake attempt is never a delivery or read receipt, and no
-  agent command can arm one.
+- **Status and own identity are bounded polls.** `get_agent_mail_status` and `get_agent_identity` reuse one
+  restricted session per binding, without record reconcile, portable flush or staged-image pruning. Every other
+  command is refused in that mode; current grants and bindings are still checked on each call.
+- **Automatic context delivery** reads full pinned body pages, wakes idle recipients and resumes the same stopped
+  chat. Actual host insertion progress is separate from unacknowledged count. A queued send/paste is not proof;
+  unavailable or unobservable hosts remain pending. No command grants a wake allowance or implicitly acknowledges.
 - Mail writes are local to this machine's database: they never flush portable records, so they
   work with the coordinating checkout on any branch. Mail is not in Git and no rebuild restores it;
   `backup_database` (which copies every mailbox) is desktop-only. Backup, recovery and deletion:
