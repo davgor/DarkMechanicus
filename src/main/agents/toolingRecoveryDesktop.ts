@@ -27,6 +27,7 @@ interface DesktopRecoveryDeps {
   resume(chat: ChatRecord): Promise<string | null>
 }
 export interface DesktopToolingRecovery { dispatch: NamingDispatcher; poll(folder: string): Promise<void>; assertLaunch(chat: ChatRecord): void }
+const CALLER_REPLAY_REQUIRED = 'Repair restart needs a live caller handoff; replay the same incident, never create another repair.'
 class DesktopRecovery implements DesktopToolingRecovery {
   readonly #launchGuards = new Map<string, () => void>()
   readonly dispatch: NamingDispatcher
@@ -40,26 +41,39 @@ class DesktopRecovery implements DesktopToolingRecovery {
   assertLaunch(chat: ChatRecord): void {
     if (chat.repairIncidentId === undefined) return
     const guard = this.#launchGuards.get(chat.id)
-    if (guard === undefined) throw new Error('Repair restart needs a live caller handoff; replay the same incident, never create another repair.')
+    if (guard === undefined) throw new Error(CALLER_REPLAY_REQUIRED)
     guard()
   }
   async poll(folder: string): Promise<void> {
-    await this.#reconcile(folder)
-    await this.#reconcile('projectless')
+    const failures = await this.#reconcile(folder)
+    const projectless = folder === 'projectless' ? undefined : await this.#reconcile('projectless')
+    if (failures !== undefined && projectless !== undefined) failures.push(...projectless)
+    this.#throwFailures(failures ?? projectless)
   }
-  async #reconcile(folder: string): Promise<void> {
+  async #reconcile(folder: string, chatId?: string): Promise<unknown[] | undefined> {
     if (folder !== 'projectless' && this.deps.resolveFolder(folder) !== folder) return
+    let failures: unknown[] | undefined
     for (const entry of this.deps.deliveries.pending()) {
-      if (entry.source === 'recovery' && entry.folder === folder) await this.#reconcileEntry(entry)
+      if (entry.source !== 'recovery' || entry.folder !== folder || (chatId !== undefined && entry.chatId !== chatId)) continue
+      try { await this.#reconcileEntry(entry) } catch (error) { (failures ??= []).push(error) }
     }
+    return failures
+  }
+  #throwFailures(failures: unknown[] | undefined): void {
+    if (failures === undefined) return
+    if (failures.length === 1) throw failures[0]
+    throw new AggregateError(failures, 'Tooling recovery delivery reconciliation failed.')
   }
   async #reconcileEntry(entry: ConversationDelivery): Promise<void> {
     if (entry.chatId === null || entry.text === undefined) return
     const chat = this.deps.store.getChat({ folder: entry.folder === 'projectless' ? null : entry.folder, id: entry.chatId })
     if (chat === null) return
-    this.assertLaunch(chat)
+    // Observing an exact receipt needs no authority to restart its stopped recipient.
     const message = { id: entry.messageId, text: entry.text }
     if (this.deps.context.hasRecoveryMessage(chat, message)) { await this.deps.context.queueRecovery(chat, message); return }
+    const problem = this.#restartProblem(chat)
+    if (problem !== null) { this.#recordRestartPending(entry, problem); return }
+    this.assertLaunch(chat)
     const kind = this.deps.agents.get(chat.agent)?.kind
     if (kind === 'omp') await this.deps.resume(chat)
     else if (kind === 'claude' && !entry.inputUncertain) {
@@ -67,6 +81,12 @@ class DesktopRecovery implements DesktopToolingRecovery {
       this.deps.deliveries.record({ ...entry, inputUncertain: true, at: new Date().toISOString() })
       await this.deps.terminals.paste(chat, entry.text)
     }
+  }
+  #restartProblem(chat: ChatRecord): string | null {
+    return chat.repairIncidentId !== undefined && !this.#launchGuards.has(chat.id) ? CALLER_REPLAY_REQUIRED : null
+  }
+  #recordRestartPending(entry: ConversationDelivery, problem: string): void {
+    if (entry.problem !== problem) this.deps.deliveries.record({ ...entry, problem, at: new Date().toISOString() })
   }
   #transportProblem(chat: ChatRecord): string | null {
     const kind = this.deps.agents.get(chat.agent)?.kind
@@ -91,8 +111,8 @@ class DesktopRecovery implements DesktopToolingRecovery {
     for (const folder of this.deps.callerFolders(chat)) releaseToolingWorkflow(this.deps.workspace(folder).ctx(), { id: chat.id, incidentId })
   }
   async #wake(chat: ChatRecord): Promise<string | null> {
-    await this.#reconcile(chat.folder ?? 'projectless')
-    return this.deps.resume(chat)
+    this.#throwFailures(await this.#reconcile(chat.folder ?? 'projectless', chat.id))
+    return this.#restartProblem(chat) ?? this.deps.resume(chat)
   }
   #contextSide(incident: RecoveryIncident, chat: ChatRecord): 'caller' | 'repair' {
     if (incident.caller.id === chat.id && incident.caller.folder === chat.folder) return 'caller'

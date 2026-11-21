@@ -44,21 +44,26 @@ async function recoveryFixture(projectless: boolean, kind: 'omp' | 'claude' | 'c
   const resolveFolder = vi.fn((folder: string) => folder === source.root || folder === customer.root ? folder : null)
   const paste = vi.fn()
   const resume = vi.fn(async (chat: ChatRecord) => {
+    desktop.assertLaunch(chat)
     const received = await desktop.dispatch({ op: 'recovery_context', args: { chatId: chat.id, generation: 'fixture-start' } }, context(chat)) as { messages: { id: string; text: string }[] }
     if (received.messages.length > 0) persist(chat, `${RECOVERY_DATA_NOTE}\n${JSON.stringify(received)}`, 'agent')
     return null
   })
-  desktop = createDesktopToolingRecovery({ userData, version: () => '1.0.0',
-    source: sourceCheckout,
-    store, agents: { get: () => builtInAgent(kind) },
-    workspace: folder => folder === source.root ? sourceWs : customerWs,
-    resolveFolder,
-    callerFolders: chat => chat.folder === null ? [source.root, customer.root] : [chat.folder],
-    context: delivery, deliveries: ledger,
-    terminals: { start, isRunning: id => live.has(id), paste },
-    resume
-  })
-  return { source, sourceWs, customer, customerWs, store, caller, start, desktop, ledger, delivery, persist, resume, paste, resolveFolder, sourceCheckout }
+  const restart = (): DesktopToolingRecovery => {
+    desktop = createDesktopToolingRecovery({ userData, version: () => '1.0.0',
+      source: sourceCheckout,
+      store, agents: { get: () => builtInAgent(kind) },
+      workspace: folder => folder === source.root ? sourceWs : customerWs,
+      resolveFolder,
+      callerFolders: chat => chat.folder === null ? [source.root, customer.root] : [chat.folder],
+      context: delivery, deliveries: ledger,
+      terminals: { start, isRunning: id => live.has(id), paste },
+      resume
+    })
+    return desktop
+  }
+  restart()
+  return { source, sourceWs, customer, customerWs, store, caller, start, desktop, ledger, delivery, persist, resume, paste, resolveFolder, sourceCheckout, restart, live }
 }
 
 describe('connected desktop recovery with durable workspaces and host receipts', () => {
@@ -216,4 +221,127 @@ it('refuses a new desktop hold while the caller ticket root has a pending Forge 
     expect(f.start).not.toHaveBeenCalled()
     expect((await f.sourceWs.listKanbanCards({})).lanes.backlog).toEqual([])
   } finally { finish(); await transfer }
+})
+
+type RecoveryFixture = Awaited<ReturnType<typeof recoveryFixture>>
+
+async function fixtureIncident(f: RecoveryFixture, caller: ChatRecord, key: string) {
+  const result = await f.desktop.dispatch({ op: 'recover_tooling', args: { action: 'escalate', incidentId: key, diagnostic } }, context(caller)) as { incidentId: string; repairChatId: string }
+  return { ...result, caller, key, repair: f.store.getChat({ folder: f.source.root, id: result.repairChatId })! }
+}
+
+async function twoIncidentRestart(receipted: boolean) {
+  const f = await recoveryFixture(false)
+  const cold = await fixtureIncident(f, f.caller, 'cold-repair')
+  const caller = f.store.createChat({ folder: null, agent: 'omp', model: null, role: 'orchestrator', allowSave: false })
+  const active = await fixtureIncident(f, caller, 'live-repair')
+  await f.desktop.poll(f.source.root)
+  await f.desktop.poll(f.customer.root)
+  const deliver = f.resume.getMockImplementation()!
+  if (!receipted) f.resume.mockImplementation(async () => null)
+  await f.desktop.dispatch({ op: 'recover_tooling', args: { action: 'message', incidentId: cold.incidentId, messageId: 'cold-answer', text: 'Retained cold incident answer' } }, context(cold.caller))
+  f.resume.mockImplementation(deliver)
+  f.live.delete(cold.repair.id)
+  const desktop = f.restart()
+  await desktop.dispatch({ op: 'recover_tooling', args: { action: 'escalate', incidentId: active.key, diagnostic } }, context(active.caller, 'new-live-generation'))
+  f.resume.mockClear()
+  return { f, desktop, cold, active }
+}
+
+describe('independent pending recovery incidents after desktop restart', () => {
+  it.each([false, true])('delivers a valid live-incident message without an unrelated cold restart failure (receipted=%s)', async receipted => {
+    const { f, desktop, cold, active } = await twoIncidentRestart(receipted)
+    await expect(desktop.dispatch({ op: 'recover_tooling', args: { action: 'message', incidentId: active.incidentId, messageId: 'live-answer', text: 'Live incident answer' } }, context(active.caller))).resolves.toMatchObject({ messageDelivery: 'delivered', problem: null })
+    await expect(desktop.poll(f.source.root)).resolves.toBeUndefined()
+    expect(f.ledger.proof(f.source.root, active.repair.id, 'recovery', `recovery_${active.incidentId}_caller_live-answer`)).toMatchObject({ state: 'delivered', problem: null })
+    expect(() => desktop.assertLaunch(cold.repair)).toThrow('live caller handoff')
+    expect(f.resume.mock.calls.some(([chat]) => chat.id === cold.repair.id)).toBe(false)
+  })
+
+  it.each([false, true])('reconciles actual receipts or retains an explicit pending cold incident without stopping later deliveries (receipted=%s)', async receipted => {
+    const { f, desktop, cold, active } = await twoIncidentRestart(receipted)
+    const deliver = f.resume.getMockImplementation()!
+    f.resume.mockImplementation(async () => null)
+    await expect(desktop.dispatch({ op: 'recover_tooling', args: { action: 'message', incidentId: active.incidentId, messageId: 'later-live-entry', text: 'Later live data' } }, context(active.repair))).resolves.toMatchObject({ messageDelivery: 'pending' })
+    f.resume.mockImplementation(deliver)
+    const pending = desktop.dispatch({ op: 'recovery_context', args: { chatId: active.caller.id, generation: 'fixture-start' } }, context(active.caller)) as { messages: { id: string; text: string }[] }
+    expect(pending.messages).toHaveLength(1)
+    expect(pending.messages[0]!.text).toContain('Later live data')
+    await expect(desktop.poll(f.source.root)).resolves.toBeUndefined()
+    const proof = f.ledger.proof(f.source.root, cold.repair.id, 'recovery', `recovery_${cold.incidentId}_caller_cold-answer`)
+    expect(proof).toMatchObject(receipted ? { state: 'delivered', problem: null, entryId: expect.any(String) } : { state: 'pending', problem: expect.stringContaining('live caller handoff'), text: expect.stringContaining('Retained cold incident answer') })
+    expect(f.delivery.hasRecoveryMessage(active.caller, pending.messages[0]!)).toBe(true)
+    expect(f.resume.mock.calls.some(([chat]) => chat.id === cold.repair.id)).toBe(false)
+    expect(() => desktop.assertLaunch(cold.repair)).toThrow('live caller handoff')
+  })
+
+  it('returns explicit pending state instead of starting an unreplayed repair', async () => {
+    const { f, desktop, cold } = await twoIncidentRestart(false)
+    await expect(desktop.dispatch({ op: 'recover_tooling', args: { action: 'message', incidentId: cold.incidentId, messageId: 'waiting-for-replay', text: 'Keep this diagnostic pending' } }, context(cold.caller))).resolves.toMatchObject({ messageDelivery: 'pending', problem: expect.stringContaining('live caller handoff') })
+    expect(f.ledger.proof(f.source.root, cold.repair.id, 'recovery', `recovery_${cold.incidentId}_caller_waiting-for-replay`)).toMatchObject({ state: 'pending', problem: expect.stringContaining('live caller handoff') })
+    expect(f.resume.mock.calls.some(([chat]) => chat.id === cold.repair.id)).toBe(false)
+    expect(() => desktop.assertLaunch(cold.repair)).toThrow('live caller handoff')
+  })
+
+  it('still surfaces an unexpected current-recipient source guard failure', async () => {
+    const { f, desktop, active } = await twoIncidentRestart(false)
+    f.sourceCheckout.requireAvailable.mockImplementation(() => { throw new Error('Source inspection failed') })
+    await expect(desktop.dispatch({ op: 'recover_tooling', args: { action: 'message', incidentId: active.incidentId, messageId: 'source-failure', text: 'Retain this pending diagnostic' } }, context(active.caller))).rejects.toThrow('Source inspection failed')
+    expect(f.ledger.proof(f.source.root, active.repair.id, 'recovery', `recovery_${active.incidentId}_caller_source-failure`)).toMatchObject({ state: 'pending' })
+    expect(f.resume).not.toHaveBeenCalled()
+  })
+})
+
+async function installStaleCallerGuard(fixture: Awaited<ReturnType<typeof twoIncidentRestart>>, failure: Error) {
+  const { f, desktop, cold } = fixture
+  const deliver = f.resume.getMockImplementation()!
+  f.resume.mockImplementation(async () => null)
+  f.live.add(cold.repair.id)
+  const stale = context(cold.caller, 'previous-caller-generation')
+  await desktop.dispatch({ op: 'recover_tooling', args: { action: 'escalate', incidentId: cold.key, diagnostic } }, stale)
+  f.live.delete(cold.repair.id)
+  f.resume.mockImplementation(deliver)
+  stale.binding.assertCurrent = () => { throw failure }
+}
+
+describe('surfacing recovery failures after unrelated polling progress', () => {
+  it('delivers and acknowledges later same-source and projectless peers before rejecting an installed stale caller guard', async () => {
+    const fixture = await twoIncidentRestart(false)
+    const { f, desktop, active } = fixture
+    const failure = new Error('Previous caller generation is no longer current')
+    await installStaleCallerGuard(fixture, failure)
+    const deliver = f.resume.getMockImplementation()!
+    f.resume.mockImplementation(async () => null)
+    await desktop.dispatch({ op: 'recover_tooling', args: { action: 'message', incidentId: active.incidentId, messageId: 'source-peer', text: 'Live same-source message' } }, context(active.caller))
+    await desktop.dispatch({ op: 'recover_tooling', args: { action: 'message', incidentId: active.incidentId, messageId: 'projectless-peer', text: 'Live projectless message' } }, context(active.repair))
+    f.resume.mockImplementation(deliver)
+    const pending = [active.repair, active.caller].map(chat => {
+      // The in-process dispatcher erases operation-specific return types.
+      const received = desktop.dispatch({ op: 'recovery_context', args: { chatId: chat.id, generation: 'fixture-start' } }, context(chat)) as { messages: { id: string; text: string }[] }
+      expect(received.messages).toHaveLength(1)
+      return { chat, message: received.messages[0]! }
+    })
+    expect(pending.map(({ message }) => message.text)).toEqual([expect.stringContaining('Live same-source message'), expect.stringContaining('Live projectless message')])
+    await expect(desktop.poll(f.source.root)).rejects.toBe(failure)
+    for (const { chat, message } of pending) expect(f.delivery.hasRecoveryMessage(chat, message)).toBe(true)
+    await expect(desktop.poll(f.source.root)).rejects.toBe(failure)
+    for (const { chat, message } of pending) expect(f.ledger.proof(chat.folder ?? 'projectless', chat.id, 'recovery', message.id)).toMatchObject({ state: 'delivered', problem: null })
+  })
+
+  it('surfaces source and projectless failures together instead of dropping either original error', async () => {
+    const fixture = await twoIncidentRestart(false)
+    const { f, desktop, active } = fixture
+    const stale = new Error('Stale source repair caller')
+    const host = new Error('Projectless host unavailable')
+    await installStaleCallerGuard(fixture, stale)
+    const deliver = f.resume.getMockImplementation()!
+    f.resume.mockImplementation(async () => null)
+    await desktop.dispatch({ op: 'recover_tooling', args: { action: 'message', incidentId: active.incidentId, messageId: 'failing-host', text: 'Retain projectless context' } }, context(active.repair))
+    f.resume.mockImplementation(async chat => {
+      if (chat.id === active.caller.id) throw host
+      return deliver(chat)
+    })
+    await expect(desktop.poll(f.source.root)).rejects.toMatchObject({ message: 'Tooling recovery delivery reconciliation failed.', errors: [stale, host] })
+    expect(f.ledger.proof('projectless', active.caller.id, 'recovery', `recovery_${active.incidentId}_repair_failing-host`)).toMatchObject({ state: 'pending' })
+  })
 })
