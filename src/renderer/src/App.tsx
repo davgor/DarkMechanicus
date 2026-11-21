@@ -32,6 +32,8 @@ import { EpicWorkspace } from './epic/EpicWorkspace'
 import type { EpicWorkspaceProps } from './epic/EpicWorkspace'
 import type { OrchestrationHost } from './epic/orchestration'
 import { CloneDialog } from './clone/CloneDialog'
+import { ForgeOpen } from './folder/ForgeOpen'
+import { TicketSource } from './folder/TicketSource'
 import { FolderPage } from './folder/FolderPage'
 import { GithubAccountProvider } from './github/GithubAccount'
 import { FolderHome } from './home/FolderHome'
@@ -193,12 +195,20 @@ function FolderPane({ shell, scheduler, EpicView }: PaneProps): JSX.Element | nu
   const { folder, tab } = view
   return (
     <FolderPage key={folder.path} folder={folder} tab={tab} onTab={(next) => shell.setFolderTab(folder.path, next)}>
-      {tab === 'source' ? <SourceControlView key={folder.path} folder={folder} scheduler={scheduler} /> : <EpicsPanel shell={shell} folder={folder} />}
+      {tab === 'tickets' || (folder.forgeWorld && tab === 'epics') ? <TicketSource key={folder.path} folder={folder} folders={shell.folders} status={shell.status} initialize={mode => shell.actions.initialize(folder, { mode, writeMcpConfig: false, importBoard: false })} open={async path => { await shell.reloadFolders(); shell.actions.selectFolder(path) }} /> : tab === 'source' ? <SourceControlView key={folder.path} folder={folder} scheduler={scheduler} /> : <EpicsPanel shell={shell} folder={folder} />}
     </FolderPage>
   )
 }
 
 function MainPane(props: PaneProps): JSX.Element | null {
+  const view = props.shell.view
+  if ('folder' in view && view.folder?.forgeParent) {
+    return <ForgeOpen key={view.folder.path} root={view.folder.forgeParent}><MainContent {...props} /></ForgeOpen>
+  }
+  return <MainContent {...props} />
+}
+
+function MainContent(props: PaneProps): JSX.Element | null {
   const { shell } = props
   const { view, actions } = shell
   switch (view.kind) {

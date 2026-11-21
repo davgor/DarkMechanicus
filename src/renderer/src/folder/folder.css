@@ -23,3 +23,11 @@
   min-height: 0;
   overflow: auto;
 }
+
+.ticket-source .card { max-width: 64rem; padding: 1.5rem; }
+.ticket-source h3 { margin: 1.5rem 0 .6rem; }
+.ticket-source label { display: inline-flex; flex-direction: column; gap: .3rem; margin: .25rem .5rem .5rem 0; }
+.ticket-source .button-row { flex-wrap: wrap; align-items: end; }
+.ticket-source input, .ticket-source select { max-width: 100%; min-height: 2rem; }
+.ticket-source p[role="status"] { overflow-wrap: anywhere; }
+.sidebar-tree details.bucket { margin-left: 1.1rem; }

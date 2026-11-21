@@ -13,6 +13,9 @@ import type { CrossRepoCorrectionsApi } from './crossRepoCorrections'
 import type { SourceCheckoutApi } from './sourceCheckout'
 
 export interface TrackedFolderView {
+  forgeWorld?: import('./forgeWorld').ForgeWorld
+  forgeParent?: string
+  forgeIssue?: boolean
   /** Canonical real path; the registry key. */
   path: string
   /**
@@ -255,6 +258,7 @@ export interface YoloStatus {
 }
 
 export interface DmApi {
+  forge?: import('./forgeWorld').ForgeApi
   telegramStatus(): Promise<{ configured: boolean; paired: boolean; issue: string }>
   pairTelegram(): Promise<string>
   /** Agent chats run by the main process: the `chats:*` channels and their push channel. */

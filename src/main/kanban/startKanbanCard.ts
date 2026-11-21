@@ -1,3 +1,4 @@
+import { forgeKickoff } from '../desktop/forgeManifest'
 /**
  * Play and Kick back for a Kanban card, in main (`docs/design/chat-shells.md`, "The card chat Play opens"), mirroring
  * `startTransferChat`, so a failure part way leaves a state the person can read:
@@ -92,7 +93,7 @@ export async function startKanbanCard(deps: KanbanStartDeps, request: StartKanba
     return null
   })
 
-  const kickoff = kanbanKickoff({ cardId: card.id, key: card.key, title: card.title, branch, ...(request.instructions === undefined ? {} : { instructions: request.instructions }) })
+  const kickoff = kanbanKickoff({ cardId: card.id, key: card.key, title: card.title, branch, ...(request.instructions === undefined ? {} : { instructions: request.instructions }) }) + forgeKickoff(folder)
 
   let chat: ChatRecord
   try {

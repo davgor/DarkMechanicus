@@ -111,6 +111,8 @@ import { refreshMcpServer, writeMcpServer } from './mcpJsonFile'
 import { installClaudeSkills, type SkillDefinition } from './skillInstall'
 import { createSourceCheckouts, type SourceCheckouts } from './sourceCheckout'
 import { createSourceCheckoutHandlers, registerSourceCheckoutIpc } from './sourceCheckoutIpc'
+import { cleanupForgeSource } from './forgeCleanup'
+import { startForge } from './forgeService'
 import { createWorkspacePool, type WorkspacePool } from './workspacePool'
 
 /** How often each open desktop session is marked alive. */
@@ -666,7 +668,7 @@ function openAgentRegistry(appDb: Db): AgentRegistry {
 }
 
 /** Clones into the folder kept in `userData/clone.json`, chosen only with the native dialog, and tracks each finished clone. */
-function startClones(folders: Pick<FolderRegistry, 'track'>, runner: GitRunner, github: GithubBridge): Cloner {
+function startClones(openProject: (folder: string) => Promise<string>, folders: Pick<FolderRegistry, 'track'>, runner: GitRunner, github: GithubBridge): Cloner {
   return createCloner({
     runner,
     session: github,
@@ -674,7 +676,7 @@ function startClones(folders: Pick<FolderRegistry, 'track'>, runner: GitRunner, 
       file: join(app.getPath('userData'), 'clone.json'),
       pickDirectory: () => showOpenDialog(CLONE_PARENT_DIALOG)
     }),
-    registry: folders,
+    registry: folders, openProject,
     onProgress: createProgressBroadcaster(() => BrowserWindow.getAllWindows())
   })
 }
@@ -684,13 +686,13 @@ function startClones(folders: Pick<FolderRegistry, 'track'>, runner: GitRunner, 
  * chosen with the native dialog. Network operations authenticate with the GitHub session (in main: the token never
  * reaches a window) and broadcast their progress; pull requests are read through the session's API client.
  */
-function startGit(ipc: Pick<IpcMain, 'handle'>, folders: Pick<FolderRegistry, 'resolve' | 'track'>, github: GithubBridge): void {
+function startGit(openProject: (folder: string) => Promise<string>, ipc: Pick<IpcMain, 'handle'>, folders: Pick<FolderRegistry, 'resolve' | 'track'>, github: GithubBridge): void {
   const runner = createGitRunner()
   registerGitIpc(
     ipc,
     createGitHandlers({
       registry: folders,
-      clones: startClones(folders, runner, github),
+      clones: startClones(openProject, folders, runner, github),
       runner,
       trashItem: (path) => shell.trashItem(path),
       openPath: (path) => shell.openPath(path),
@@ -705,12 +707,6 @@ function startGit(ipc: Pick<IpcMain, 'handle'>, folders: Pick<FolderRegistry, 'r
 }
 
 /** GitHub sign-in first, then the git channels that use its session; returns the session for main's other code. */
-function startSourceControl(ipc: Pick<IpcMain, 'handle'>, folders: Pick<FolderRegistry, 'resolve' | 'track'>): GithubBridge {
-  const github = startGithub(ipc)
-  startGit(ipc, folders, github)
-  return github
-}
-
 /** GitHub calls go through Chromium's network stack, which follows the system proxy settings. */
 const githubFetch: HttpFetch = (url, request) => net.fetch(url, request)
 
@@ -881,24 +877,70 @@ function telegramLifecycle(ipc: Pick<IpcMain, 'handle'>, registry: FolderRegistr
   return () => { stopTelegram(); closeStores() }
 }
 
-export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick<IpcMain, 'handle'>): DesktopBridge {
-  const appDb = openAppDatabase(app.getPath('userData'))
-  const registry = openFolderRegistry()
-  const agents = openAgentRegistry(appDb)
-  const installer = createInstaller(agents)
-  const pool = openDesktopPool()
-  const folderDefaults = createFolderAgentDefaults({ db: appDb })
-  // Which threads of old chats acted on which runs and attempts, as they stored it next to the chats.
-  const activity = createActivityBindings({ file: join(app.getPath('userData'), 'agents', 'activity-bindings.jsonl') })
-  const { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder } = createChatProcesses(registry, agents, pool, activity)
-  const handlers = createDesktopHandlers({
+type ForgeBridgeOptions = Pick<ChatProcesses, 'chats' | 'store' | 'terminals'> & {
+  registry: FolderRegistry
+  pool: WorkspacePool
+  github: GithubBridge
+  skills: readonly SkillDefinition[]
+  agents: AgentRegistry
+  folderDefaults: ReturnType<typeof createFolderAgentDefaults>
+}
+
+function startForgeBridge(ipc: Pick<IpcMain, 'handle'>, options: ForgeBridgeOptions) {
+  const { registry, pool, github, skills, store, chats, terminals, agents, folderDefaults } = options
+  return startForge(ipc, {
+    registry, pool, session: github, home: darkMechanicusHome(), pickDirectory, cleanup: source => cleanupForgeSource(source, skills),
+    publish: async name => {
+      const token = github.getToken()
+      if (!token) throw new Error('Sign into GitHub to publish a Forge World.')
+      const response = await net.fetch('https://api.github.com/user/repos', {
+        method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, private: true, auto_init: true })
+      })
+      if (!response.ok) throw new Error('GitHub could not create this private repository (' + response.status + ').')
+    },
+    onConflict: async (root, folder) => {
+      const prior = store.listChats(folder).find(chat => chat.forgeResolver === root && !chat.archived)
+      const agent = (folder && folderDefaults.get(folder)) ?? agents.list()[0]?.id
+      if (!agent) throw new Error('Connect an agent to resolve Forge World conflicts.')
+      const kickoff = 'Resolve the ticket-file merge in the Forge World at ' + root +
+        '. Review both revisions, preserve ticket identities and valid references, resolve delete/edit conflicts autonomously, validate the resulting records, and finish the merge commit. The desktop sync will push and archive this session.'
+      const chat = prior ?? chats.createChat({ folder, agent, role: 'worker', allowSave: false, title: 'Resolve Forge World merge', firstPrompt: kickoff })
+      const ref = { folder, id: chat.id }
+      store.updateChat(ref, { forgeResolver: root })
+      const started = await terminals.start(ref, { kickoff })
+      if (started.state !== 'running') throw new Error(started.message)
+    },
+    onSynced: async root => {
+      for (const folder of [null, ...registry.list().filter(f => f.forgeParent === root).map(f => f.path)]) {
+        for (const chat of store.listChats(folder).filter(c => c.forgeResolver === root && !c.archived)) {
+          const ref = { folder, id: chat.id }
+          await terminals.deleteChat(ref, async () => { store.updateChat(ref, { archived: true }) })
+        }
+      }
+    }
+  })
+}
+
+type BridgeHandlerOptions = Pick<ForgeBridgeOptions, 'registry' | 'pool' | 'agents' | 'folderDefaults' | 'terminals' | 'skills'> &
+  Pick<ChatProcesses, 'releaseFolder' | 'mail' | 'logins'> & {
+    forge: ReturnType<typeof startForgeBridge>
+    installer: ReturnType<typeof createInstaller>
+  }
+
+function bridgeHandlers(options: BridgeHandlerOptions) {
+  const { registry, pool, releaseFolder, mail, agents, folderDefaults, forge, installer, terminals, logins, skills } = options
+  return createDesktopHandlers({
     registry,
     pool,
     releaseFolder,
     stopMailMonitor: (folder) => mail.stopFolder(folder),
     agents,
     folderDefaults,
-    pickDirectory,
+    pickDirectory: async () => {
+      const source = await pickDirectory()
+      return source ? forge.openProject(source) : null
+    },
     pickExecutable,
     probeAgent: probeExecutable,
     installAgent: (kind) => installer.download(kind),
@@ -920,6 +962,22 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
       logger.error('Desktop command failed:', error)
     }
   })
+}
+
+export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick<IpcMain, 'handle'>): DesktopBridge {
+  const appDb = openAppDatabase(app.getPath('userData'))
+  const registry = openFolderRegistry()
+  const agents = openAgentRegistry(appDb)
+  const installer = createInstaller(agents)
+  const pool = openDesktopPool()
+  const folderDefaults = createFolderAgentDefaults({ db: appDb })
+  // Which threads of old chats acted on which runs and attempts, as they stored it next to the chats.
+  const activity = createActivityBindings({ file: join(app.getPath('userData'), 'agents', 'activity-bindings.jsonl') })
+  const { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder } = createChatProcesses(registry, agents, pool, activity)
+  const github = startGithub(ipc)
+  const forge = startForgeBridge(ipc, { registry, pool, github, skills, store, chats, terminals, agents, folderDefaults })
+  startGit(forge.openProject, ipc, registry, github)
+  const handlers = bridgeHandlers({ registry, pool, releaseFolder, mail, agents, folderDefaults, forge, installer, terminals, logins, skills })
   registerDesktopIpc(ipc, handlers)
   registerYoloIpc(ipc, createYoloHandlers({ registry, grants, confirm: confirmYolo }))
   startCrossRepoCorrections(ipc, registry, pool, startSourceCheckout(ipc, registry))
@@ -929,5 +987,5 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   const close = telegramLifecycle(ipc, registry, pool, appDb)
   startChats(ipc, { folders: registry, agents, chats, store, terminals, workspaces: pool, activity, mail, folderDefaults, deliveries, contextDelivery, resumeChat })
   startTerminals(ipc, { folders: registry, agents, store, terminals, logins })
-  return { ...stoppingMailFirst(mail, quit, close), github: startSourceControl(ipc, registry) }
+  return { ...stoppingMailFirst(mail, quit, () => { forge.stop(); close() }), github }
 }

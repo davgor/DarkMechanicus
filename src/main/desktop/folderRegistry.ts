@@ -15,8 +15,9 @@ import {
   writeFileSync
 } from 'node:fs'
 import { randomBytes } from 'node:crypto'
-import { basename, dirname, isAbsolute, sep } from 'node:path'
+import { basename, dirname, isAbsolute, join, sep } from 'node:path'
 import { z } from 'zod'
+import { FORGE_FILE, parseForge } from './forgeManifest'
 import { DomainError } from '../../core/errors'
 import { detectChildRepos, isInsideGitRepository } from '../../core/repo/childRepos'
 import { resolveLayout } from '../../core/repo/layout'
@@ -40,6 +41,7 @@ export interface RegistryFs {
 }
 
 export interface FolderRegistry {
+  cacheForge?(path: string, world: NonNullable<TrackedFolderView['forgeWorld']>): void
   /** Tracked folders in insertion order, with availability and initialization read fresh. */
   list(): TrackedFolderView[]
   /** How the folder stores its records, read fresh; `repo` for a folder nothing has set up. */
@@ -102,6 +104,7 @@ interface RegistryContext {
   dmHome: string
   fs: RegistryFs
   now: () => string
+  worlds: Map<string, NonNullable<TrackedFolderView['forgeWorld']>>
   /** The attachment key of a folder: made on first use and kept for this run. */
   keyFor: (path: string) => string
 }
@@ -184,15 +187,30 @@ function toView(context: RegistryContext, entry: FolderEntry): TrackedFolderView
   const { fs, homeDir } = context
   const mode = storageModeOf(context, entry.path)
   const layout = resolveLayout(entry.path, { mode, homeDir: context.dmHome })
+  const manifest = join(entry.path, FORGE_FILE)
+  let forgeWorld: TrackedFolderView['forgeWorld']
+  let invalidForge = false
+  if (fs.exists(manifest)) {
+    try {
+      if (fs.isSymlink(manifest)) throw new Error('Linked manifest')
+      forgeWorld = parseForge(fs.readFile(manifest))
+      context.worlds.set(entry.path, forgeWorld)
+    } catch {
+      forgeWorld = context.worlds.get(entry.path)
+      invalidForge = !forgeWorld
+    }
+  }
   const initialized = fs.exists(layout.projectFile)
   return {
     path: entry.path,
     attachmentKey: context.keyFor(entry.path),
-    name: basename(entry.path) || entry.path,
+    name: forgeWorld ? 'Forge World ' + forgeWorld.owner : basename(entry.path) || entry.path,
+    ...(forgeWorld ? { forgeWorld } : {}),
+    ...(invalidForge ? { forgeIssue: true } : {}),
     displayPath: abbreviateHome(entry.path, homeDir),
     initialized,
     storageMode: mode,
-    available: fs.isDirectory(entry.path),
+    available: !invalidForge && fs.isDirectory(entry.path),
     addedAt: entry.addedAt,
     childRepositories: childRepositoriesOf(fs, entry.path, initialized)
   }
@@ -260,6 +278,19 @@ function untrackFolder(context: RegistryContext, state: RegistryState, path: str
   return state.entries.map((entry) => toView(context, entry))
 }
 
+function folderViews(context: RegistryContext, state: RegistryState): TrackedFolderView[] {
+  const entries = state.entries.map(entry => toView(context, entry))
+  const members = new Map<string, TrackedFolderView>()
+  for (const world of entries) {
+    for (const project of world.forgeWorld?.projects ?? []) {
+      const path = join(world.path, project.folder)
+      if (!context.fs.isDirectory(path) || context.fs.isSymlink(path)) continue
+      members.set(path, { ...toView(context, { path, addedAt: world.addedAt }), forgeParent: world.path })
+    }
+  }
+  return [...entries.filter(folder => !members.has(folder.path)), ...members.values()]
+}
+
 export function createFolderRegistry(options: {
   /** Absolute path of the registry JSON file. */
   file: string
@@ -274,6 +305,7 @@ export function createFolderRegistry(options: {
   const keys = new Map<string, string>()
   const context: RegistryContext = {
     file: options.file,
+    worlds: new Map(),
     homeDir: options.homeDir,
     dmHome: options.dmHome,
     fs: options.fs ?? nodeRegistryFs,
@@ -288,13 +320,23 @@ export function createFolderRegistry(options: {
     }
   }
   const state: RegistryState = { entries: loadEntries(context.fs, context.file) }
+  const views = () => folderViews(context, state)
+  function tracked(path: string): string | null {
+    const direct = findEntry(context.fs, state.entries, path)
+    if (direct) return direct.path
+    return views().find(folder => folder.forgeParent && folder.path === path)?.path ?? null
+  }
   return {
-    list: () => state.entries.map((entry) => toView(context, entry)),
-    pathForKey: (key) => state.entries.find((entry) => keys.get(entry.path) === key)?.path ?? null,
+    list: views,
+    cacheForge: (path, world) => { context.worlds.set(path, world) },
+    pathForKey: (key) => views().find((entry) => keys.get(entry.path) === key)?.path ?? null,
     storageMode: (path) => storageModeOf(context, findEntry(context.fs, state.entries, path)?.path ?? path),
-    track: (path) => trackFolder(context, state, path),
+    track: (path) => {
+      const member = views().find(folder => folder.forgeParent && folder.path === path)
+      return member ? { folder: member, added: false } : trackFolder(context, state, path)
+    },
     untrack: (path) => untrackFolder(context, state, path),
-    has: (path) => findEntry(context.fs, state.entries, path) !== undefined,
-    resolve: (path) => findEntry(context.fs, state.entries, path)?.path ?? null
+    has: path => tracked(path) !== null,
+    resolve: tracked
   }
 }

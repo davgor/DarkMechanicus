@@ -39,6 +39,7 @@ const SELECTION_STORAGE_KEY = 'dm.selection'
 const FOLDER_TABS_STORAGE_KEY = 'dm.folderTabs'
 
 export interface ShellModel {
+  reloadFolders(): Promise<void>
   folders: TrackedFolderView[]
   selection: Selection
   view: MainView
@@ -130,7 +131,7 @@ function shellView(input: {
     agentPane: selection.agentPane,
     agents,
     projectless,
-    folderTab: folderTabOf(folderTabs, selection.folderPath)
+    folderTab: selected?.forgeWorld && folderTabs[selected.path] === undefined ? 'tickets' : folderTabOf(folderTabs, selection.folderPath)
   })
 }
 
@@ -194,7 +195,7 @@ export function useShell(scheduler: Scheduler): ShellModel {
   })
 
   return {
-    folders: folders.folders,
+    folders: folders.folders, reloadFolders: folders.reload,
     selection,
     view: shellView({ folders, selected, selection, chats: knownChats(chats, selection.folderPath), projectless, agents: connected, folderTabs }),
     lists,

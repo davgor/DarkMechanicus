@@ -15,6 +15,9 @@ function sameFolder(a: TrackedFolderView, b: TrackedFolderView): boolean {
   return (
     a.path === b.path &&
     a.name === b.name &&
+    a.storageMode === b.storageMode &&
+    a.forgeParent === b.forgeParent &&
+    JSON.stringify(a.forgeWorld) === JSON.stringify(b.forgeWorld) &&
     a.displayPath === b.displayPath &&
     a.initialized === b.initialized &&
     a.available === b.available &&

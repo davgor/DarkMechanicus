@@ -48,6 +48,10 @@ export function useFolders(onError: (error: unknown) => void): FoldersModel {
   const pick = useCallback(async () => {
     const result = await window.dm.pickFolder()
     const picked = result.folder
+    if (picked?.forgeWorld || picked?.forgeParent) {
+      await reload()
+      return result
+    }
     if (picked !== null) {
       setState((previous) => ({
         ...previous,
@@ -55,7 +59,7 @@ export function useFolders(onError: (error: unknown) => void): FoldersModel {
       }))
     }
     return result
-  }, [])
+  }, [reload])
 
   const untrack = useCallback(async (path: string) => {
     const folders = await window.dm.untrackFolder(path)

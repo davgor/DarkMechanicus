@@ -275,7 +275,7 @@ function importCanonical(deps: MigrationDeps, rebuilt: Db, source: RepoLayout): 
   rebuilt.run('DELETE FROM meta WHERE key = ?', META_KEYS.checkoutBranch)
 }
 
-function prepareDestination(deps: MigrationDeps, paths: MigrationPaths, project: ProjectRecord): void {
+function prepareDestination(deps: MigrationDeps, paths: MigrationPaths, project: ProjectRecord, retireSession = false): void {
   deps.db.tx(() => {
     assertIdle(deps)
     deps.fs.mkdirp(paths.staging.localDir)
@@ -292,9 +292,45 @@ function prepareDestination(deps: MigrationDeps, paths: MigrationPaths, project:
       if (paths.target.mode === 'repo') exportMigrationRecords({ ...env, db: rebuilt, clock: deps.clock })
       else importCanonical(deps, rebuilt, paths.source)
       assertIdle({ ...deps, db: rebuilt })
+      if (retireSession) rebuilt.run('UPDATE sessions SET ended_at = ? WHERE id = ?', deps.clock.nowIso(), deps.sessionId)
       rebuilt.exec('PRAGMA wal_checkpoint(TRUNCATE)')
     } finally { rebuilt.close() }
   })
+}
+
+function copyKnowledge(fs: FsAdapter, source: RepoLayout, staging: RepoLayout): void {
+  function copy(path: string, target: string): void {
+    assertContained(source, fs, path)
+    assertContained(staging, fs, target)
+    if (fs.isDirectory(path)) {
+      fs.mkdirp(target)
+      for (const name of fs.readdir(path)) copy(join(path, name), join(target, name))
+    } else {
+      fs.writeFileBytes(target, fs.readFileBytes(path))
+      fs.fsyncFile(target)
+    }
+  }
+  if (fs.exists(source.knowledgeDir)) copy(source.knowledgeDir, staging.knowledgeDir)
+}
+
+export function exportForgeDestination(deps: MigrationDeps, member: string, mode: StorageMode): void {
+  assertIdle(deps)
+  const source = deps.layout
+  const target = resolveLayout(member, { mode, homeDir: deps.homeDir })
+  const staging = layoutUnder(member, mode, target.dmDir + '.preparing')
+  const paths = { source, target, staging, retired: source.dmDir + '.retired' }
+  assertDisjointPaths(deps, paths)
+  assertVacantDestinations(deps, paths)
+  const project = readProject(source, deps.fs) ?? fail('not_initialized', 'Initialize this project first.')
+  try {
+    const { repoRoot: _localRoot, ...portable } = project
+    prepareDestination(deps, paths, mode === 'db' ? { ...portable, repoRoot: member } : portable, true)
+    copyKnowledge(deps.fs, source, staging)
+    deps.fs.rename(staging.dmDir, target.dmDir)
+  } catch (error) {
+    removeTree(deps.fs, staging.dmDir)
+    throw error
+  }
 }
 
 function beginJournal(deps: MigrationDeps): string {

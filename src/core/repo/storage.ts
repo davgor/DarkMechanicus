@@ -1,3 +1,4 @@
+import { isForgeMember } from './forgeBinding'
 import type { StorageStatusView } from '../../shared/domain/views'
 import type { Clock } from '../clock'
 import type { Db } from '../db/database'
@@ -141,8 +142,8 @@ const NO_DATABASE: Omit<DatabaseStatus, 'branch'> = {
 }
 
 /** Where this project's records and database live, for the footer and `get_storage_status`. */
-function storageLocation(layout: RepoLayout): StorageStatusView['storage'] {
-  return { mode: layout.mode, projectDir: layout.dmDir, databasePath: layout.dbFile }
+function storageLocation(layout: RepoLayout, fs: StorageDeps['fs']): StorageStatusView['storage'] {
+  return { mode: isForgeMember(fs, layout.root) ? 'forge' : layout.mode, projectDir: layout.dmDir, databasePath: layout.dbFile }
 }
 
 /** Storage health for the desktop footer and `get_storage_status`; works before initialization. */
@@ -160,7 +161,7 @@ export async function getStorageStatus(deps: StorageDeps): Promise<StorageStatus
   return {
     initialized: project !== null,
     repoRoot: deps.layout.root,
-    storage: storageLocation(deps.layout),
+    storage: storageLocation(deps.layout, deps.fs),
     projectId: project?.projectId ?? null,
     projectName: project?.name ?? null,
     uncommittedRecordFiles,

@@ -69,6 +69,9 @@ export const chatRecordSchema = z.object({
   /** The run this chat orchestrates, when Dark Mechanicus started it for one; absent for every other chat and for chats stored before runs were recorded. */
   runId: z.string().min(1).optional(),
   /** The epic this chat moves to Linear, when Dark Mechanicus started it as a transfer chat; absent for every other chat and for chats stored before transfers. */
+  targetRepository: z.string().optional(),
+  forgeResolver: z.string().optional(),
+  archived: z.boolean().optional(),
   transferEpicId: z.string().min(1).optional(),
   /** The Kanban card this chat carries, when Play started it; absent for every other chat and for chats stored before Kanban. */
   cardId: z.string().min(1).optional(),

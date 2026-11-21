@@ -70,6 +70,7 @@ export function createCloneParentStore(options: { file: string; pickDirectory():
 
 interface CloneDeps extends NetworkDeps {
   parents: CloneParentStore
+  openProject?(path: string): Promise<string>
   registry: Pick<FolderRegistry, 'track'>
   /** Sends a progress event of a clone to the windows; its folder is the clone parent. */
   onProgress(event: GitProgressEvent): void
@@ -178,10 +179,11 @@ async function runGitClone(deps: CloneDeps, run: CloneRun): Promise<void> {
 
 /** Clones, then tracks; on any failure removes the target if this clone made it. */
 async function cloneInto(deps: CloneDeps, run: CloneRun): Promise<TrackedFolderView> {
-  const created = await claimTarget(run.target)
+  let created = await claimTarget(run.target)
   try {
     await runGitClone(deps, run)
-    return deps.registry.track(run.target).folder
+    created = false // The source clone succeeded even if ticket source reconciliation fails.
+    return deps.registry.track(await deps.openProject?.(run.target) ?? run.target).folder
   } catch (error) {
     if (created) {
       // Best effort: a folder that cannot be removed (held open on Windows) stays, and the clone's own error is reported.

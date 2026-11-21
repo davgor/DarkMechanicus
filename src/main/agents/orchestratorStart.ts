@@ -1,3 +1,4 @@
+import { forgeKickoff } from '../desktop/forgeManifest'
 /**
  * Starts an agent as the orchestrator of a run (`docs/design/chat-shells.md`, "The orchestrator chat Start run
  * opens"): queue the run, create an orchestrator chat for it, and start its terminal with the kickoff before
@@ -89,7 +90,7 @@ export async function startOrchestratorRun(deps: OrchestratorStartDeps, request:
     repositoryBranches: epic.repositoryBranches,
     runId: run.id,
     ...(request.instructions === undefined ? {} : { instructions: request.instructions })
-  })
+  }) + forgeKickoff(folder)
 
   let chat: ChatRecord
   try {
