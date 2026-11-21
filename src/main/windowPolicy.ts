@@ -1,4 +1,22 @@
-/** Pure helpers for Electron window lifecycle — kept free of Electron imports for mutation testing. */
+/** Pure helpers for Electron window lifecycle - kept free of Electron imports for mutation testing. */
+
+import { relative } from 'node:path'
+
+/** Route legacy packaged MCP invocations before touching the desktop singleton or focus. */
+export function routeAppLaunch(entry: string | undefined, mcpEntry: string, actions: {
+  serveMcp(): void
+  claimDesktop(): boolean
+  startDesktop(): void
+  quit(): void
+}): void {
+  if (entry && relative(mcpEntry, entry) === '') {
+    actions.serveMcp()
+  } else if (actions.claimDesktop()) {
+    actions.startDesktop()
+  } else {
+    actions.quit()
+  }
+}
 
 export function loadRendererContent(
   rendererUrl: string | undefined,
