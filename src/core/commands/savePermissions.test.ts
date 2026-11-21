@@ -18,7 +18,7 @@ async function agent(allowSave: boolean, role: 'orchestrator' | 'planner' | 'wor
   return { ...issued, api: harness.open('reader', { transport: 'cli', grantToken: issued.token }) }
 }
 
-describe('Allow save permission requests', () => {
+describe('Allow save defaults and human approval', () => {
   it('defaults new orchestrator grants to saving without elevating other roles', async () => {
     for (const role of ['orchestrator', 'planner', 'worker', 'reader', 'reviewer'] as const) {
       const issued = await desktop.issueGrant({ role, label: role })
@@ -50,6 +50,9 @@ describe('Allow save permission requests', () => {
     for (const forbidden of ['grant.issue', 'checkpoint.approve', 'ticket.retry_grant', 'kanban.review']) expect(caps).not.toContain(forbidden)
   })
 
+})
+
+describe('Allow save decision authority and session scope', () => {
   it('allows an explicitly saving other orchestrator, never self approval or transitive delegation', async () => {
     const target = await agent(false)
     const approver = await agent(true)
@@ -84,6 +87,9 @@ describe('Allow save permission requests', () => {
     expect((await harness.open('orchestrator', { transport: 'stdio', allowSave: false }).getCapabilities()).capabilities).not.toContain('plan.save')
   })
 
+})
+
+describe('Allow save refusal and pending-request audit', () => {
   it('refuses revoked targets and approvers and prevents requests from non-orchestrators', async () => {
     const target = await agent(false)
     const request = await target.api.requestSavePermission({ reason: 'Need save' })
@@ -109,6 +115,9 @@ describe('Allow save permission requests', () => {
     expect(next.status).toBe('pending')
   })
 
+})
+
+describe('Allow save grant and target liveness fences', () => {
   it('fences approval and its effects by expiry, revocation, machine and folder', async () => {
     const target = await agent(false)
     const request = await target.api.requestSavePermission({ reason: 'Need save' })
@@ -143,6 +152,9 @@ describe('Allow save permission requests', () => {
     await expect(desktop.decideSavePermission({ requestId: staleRequest.id, decision: 'approved', reason: 'Stale' })).rejects.toMatchObject({ code: 'unauthorized' })
   })
 
+})
+
+describe('Allow save MCP transport', () => {
   it('lists and executes MCP permission tools and saves immediately after approval without reconnecting', async () => {
     const target = harness.open('orchestrator', { transport: 'stdio', allowSave: false })
     const epic = await target.createEpic({ title: 'MCP save proof' })
@@ -163,6 +175,9 @@ describe('Allow save permission requests', () => {
     })
   })
 
+})
+
+describe('Allow save approved-session lifetime', () => {
   it('expires approved MCP-session saving when its live-session fence lapses, without reviving it on a command', async () => {
     const target = harness.open('orchestrator', { transport: 'stdio', allowSave: false })
     const epic = await target.createEpic({ title: 'Unrelated epic without an active run' })
