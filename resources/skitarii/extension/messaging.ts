@@ -540,9 +540,9 @@ export class MailWatcher {
     return preparation
   }
 
-  /** Board preparation has its own awaited authority boundary, independent of peer authorization and SDK context identity. */
-  async prepareBoardForTurn(prompt: string, preparing = true): Promise<PreparedDelivery> {
-    if (preparing) this.#preparing = true
+  /** The peer hook owns admission; an obsolete second hook cannot reopen a replaced session's preparation scope. */
+  async prepareBoardForTurn(prompt: string, mode: 'hook' | 'tool-result' = 'hook'): Promise<PreparedDelivery> {
+    if (mode === 'hook' && !this.#preparing) return {}
     const generation = this.#generation
     if (this.#running !== null) await this.#running
     if (generation !== this.#generation || this.#ui === null) return {}
@@ -565,7 +565,7 @@ export class MailWatcher {
     const prepared = await this.prepareForTurn('', false)
     if (generation !== this.#generation) return
     const packet = this.#toolPeerPacket(prepared.peer, current)
-    const board = (await this.prepareBoardForTurn('', false)).board
+    const board = (await this.prepareBoardForTurn('', 'tool-result')).board
     if (generation !== this.#generation) return
     if (board !== undefined) {
       const bodies = board.bodies.filter((body) => this.#boardQueued.get(body.id) !== body.text)

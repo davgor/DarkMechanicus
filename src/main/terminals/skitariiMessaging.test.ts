@@ -1369,3 +1369,32 @@ it('returns no stale hook packets or queued bodies after a held preparation is r
   expect(subject.sent).toEqual([])
   subject.watcher.stop()
 })
+
+it('does not let a stale second hook suppress delivery to a replacement session after a held peer preparation', async () => {
+  const box = fakeMailbox()
+  const options = { hold: true }
+  const subject = watch(box, options)
+  const boardReads = vi.spyOn(subject.client, 'readBoard')
+  subject.emit('session_start', main(subject.ui))
+  subject.client.release()
+  await subject.watcher.tick()
+  const before = boardReads.mock.calls.length
+  box.arrive(1)
+  const oldDispatch = Promise.all(subject.emit('before_agent_start', main(subject.ui), { prompt: 'Old held peer boundary.' }))
+  await Promise.resolve()
+  expect(subject.client.held).toHaveLength(1)
+  subject.watcher.stop()
+  options.hold = false
+  subject.watcher.start(subject.ui)
+  subject.client.release()
+  expect(await oldDispatch).toEqual([undefined, undefined])
+  expect(subject.sent).toEqual([])
+  const lateBoardReads = boardReads.mock.calls.length - before
+  box.arrive(1)
+  for (let tick = 0; tick < 6; tick += 1) await subject.watcher.tick()
+  expect(subject.sent[0]?.message.content).toContain(inertJson(box.messages[1]!.body))
+  expect(lateBoardReads).toBe(0)
+  expect(subject.people).toEqual([])
+  expect(box.pending()).toBe(2)
+  subject.watcher.stop()
+})
