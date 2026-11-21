@@ -82,8 +82,29 @@ function MemberSource({ folder, open, controls }: SourceProps) {
       })}>{mode === 'db' ? 'Move to SQLite only' : 'Move to self-contained repo'}</Button>)}</>
 }
 
+function ForgeDestination({ folder, open, controls }: Pick<SourceProps, 'folder' | 'open' | 'controls'>) {
+  const { api, remote, repository, search, busy, act, choice } = controls
+  if (choice === CREATE_WORLD) return <>
+        {repository}
+        <p>Create a private GitHub repository, push this project’s tickets, and replace its managed files with a Forge World note.</p>
+        <Button disabled={busy || !remote.trim()} onClick={() => void act(async () => {
+          const root = await api!.connect(folder.path, remote.trim(), true)
+          controls.setChoice(root)
+          await api!.convert(root, folder.path)
+          await open(root)
+        })}>Create and migrate</Button>
+  </>
+  return <>
+      <Button disabled={busy || !choice} onClick={() => void act(() => api!.convert(choice, folder.path))}>Use Forge World storage</Button>
+      <div className="button-row">{repository}{search}
+        <Button disabled={busy || !remote} onClick={() => void act(async () => open(await api!.connect(folder.path, remote, false)))}>Open existing Forge World</Button>
+        <Button disabled={busy || !remote} onClick={() => void act(async () => open(await api!.connect(folder.path, remote, true)))}>Publish private Forge World</Button>
+      </div>
+  </>
+}
+
 function ProjectSource({ folder, folders, open, status, initialize, controls }: SourceProps) {
-  const { api, remote, repository, search, busy, act, selector, choice } = controls
+  const { api, busy, act, selector } = controls
   return <>
       <p>Current store: {folder.initialized ? folder.storageMode === 'db' ? 'SQLite only' : 'Self-contained repo' : 'Unconfigured'}</p>
       {folder.initialized && status && <StorageModeSwitch status={status} />}
@@ -93,22 +114,7 @@ function ProjectSource({ folder, folders, open, status, initialize, controls }: 
       </div>}
       <h3>Forge World</h3>
       {selector(folders.filter(f => f.forgeWorld), 'Ticket repository', true)}
-      {choice === CREATE_WORLD ? <>
-        {repository}
-        <p>Create a private GitHub repository, push this project’s tickets, and replace its managed files with a Forge World note.</p>
-        <Button disabled={busy || !remote.trim()} onClick={() => void act(async () => {
-          const root = await api!.connect(folder.path, remote.trim(), true)
-          controls.setChoice(root)
-          await api!.convert(root, folder.path)
-          await open(root)
-        })}>Create and migrate</Button>
-      </> : <>
-      <Button disabled={busy || !choice} onClick={() => void act(() => api!.convert(choice, folder.path))}>Use Forge World storage</Button>
-      <div className="button-row">{repository}{search}
-        <Button disabled={busy || !remote} onClick={() => void act(async () => open(await api!.connect(folder.path, remote, false)))}>Open existing Forge World</Button>
-        <Button disabled={busy || !remote} onClick={() => void act(async () => open(await api!.connect(folder.path, remote, true)))}>Publish private Forge World</Button>
-      </div>
-      </>}
+      <ForgeDestination folder={folder} open={open} controls={controls} />
       {!folder.initialized && <Button disabled={busy} onClick={() => void act(() => api!.create(folder.path))}>Use this repository as a Forge World</Button>}
   </>
 }
