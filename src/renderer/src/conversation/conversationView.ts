@@ -29,12 +29,16 @@ function messageAuthor(message: ConversationMessage): { role: SessionRole; label
   return 'author' in message ? message.author : { role: message.authorRole, label: message.authorLabel }
 }
 
+function pendingDeliveryLabel(problem: string | null): string {
+  return problem === null ? 'Pending automatic delivery' : `Pending delivery: ${problem}`
+}
+
 function deliveryLabel(messageId: string, state: ConversationStateResult): string {
   const delivery = state.deliveries[messageId]
   if (delivery === undefined) return 'Delivery unknown'
   if (delivery.state === 'failed') return delivery.problem === null ? 'Delivery unknown' : `Not delivered: ${delivery.problem}`
   if (delivery.chatId !== null && !delivery.chatExists) return 'Chat deleted'
-  if (delivery.state === 'pending') return delivery.problem === null ? 'Pending automatic delivery' : `Pending delivery: ${delivery.problem}`
+  if (delivery.state === 'pending') return pendingDeliveryLabel(delivery.problem)
   if (delivery.state === 'opened') return 'Opened a new chat'
   if (state.chat !== null && state.chat.id === delivery.chatId) return `Delivered to ${state.chat.title}`
   return 'Delivery unknown'
