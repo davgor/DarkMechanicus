@@ -1,11 +1,11 @@
-# Skitarii messaging: direct messages, replies and inbox notifications (as built)
+# Skitarii messaging: automatic full-body context delivery
 
-- **Status:** as built, epic "Skitarii communications" sprint 1 (DM-507 … DM-513), documented by DM-514
+- **Status:** automatic context delivery implemented by DM-820; original mailbox design DM-507 … DM-514
 - **Related:** [`architecture.md` → Agent mail](../architecture.md#agent-mail),
   [`runbooks/cli.md` → Agent mail between Skitarii chats](../runbooks/cli.md#agent-mail-between-skitarii-chats),
   [`runbooks/agents.md` → Skitarii mail](../runbooks/agents.md#skitarii-mail),
   [storage decision 0002](../decisions/0002-storage-modes.md),
-  acceptance procedure [`verification/skitarii-messaging.md`](../verification/skitarii-messaging.md)
+  [current verification procedure](#verification)
 
 Skitarii (OMP) chats in one tracked folder, on one machine, can send each other durable direct messages and replies.
 This record says what was built, what it promises, and what it deliberately does not.
@@ -27,10 +27,11 @@ This record says what was built, what it promises, and what it deliberately does
 
 - **Same folder, same machine.** Peers are the other open Skitarii endpoints of this folder's database bound on this
   machine. There is no cross-folder, cross-machine or network delivery.
-- **Local only.** Mail lives only in the folder's SQLite database (`local/state.sqlite` in repository mode, the project
-  database in database-only mode). No portable record, Git file, outbox entry, event body or history index carries it.
+- **Local only.** Mailbox bodies live in the folder's SQLite database (`local/state.sqlite` in repository mode, the
+  project database in database-only mode), not portable records or Git. Delivered bodies also remain in the recipient's
+  normal host conversation. Machine-local insertion proofs contain message identity, body hash and host entry id.
 - **Who cannot have a mailbox.** A `dm` session without a grant, a reader grant, a grant the desktop never bound, and every
-  MCP (stdio) session (even one that inherited `DM_SESSION_TOKEN`) get `unauthorized` from all seven mail commands.
+  MCP (stdio) session (even one that inherited `DM_SESSION_TOKEN`) get `unauthorized` from all six mail commands.
   There is no generic MCP mailbox binding.
 - **Authority comes from the grant, never from the input.** No command takes your own endpoint, sender or session; every
   call re-checks the grant, binding and endpoint inside the same transaction as the operation.
@@ -63,6 +64,9 @@ This is at-most-once *acceptance* per key, not exactly-once *processing*: nothin
 ## Reading, acknowledging and seeing are separate
 
 - **Accepted** means the recipient's mailbox holds the message. It is not delivery to a model, reading or processing.
+- **Inserted in context** means an exact full body was observed in the correct recipient's actual host conversation.
+  Its machine-local proof is distinct from acceptance, acknowledgment and the person's seen cursor. Queuing text or
+  returning successfully from a send/paste API is not insertion proof, nor proof that a model processed or acted on it.
 - **Read** (`dm_inbox_read` / `read_agent_inbox`) returns bodies and never acknowledges.
 - **Acknowledged** is the agent's explicit `dm_inbox_ack` / `acknowledge_agent_messages` once it has handled a message.
   Only that stops the message counting as pending for the agent, and starts its seven-day expiry.
@@ -74,36 +78,49 @@ This is at-most-once *acceptance* per key, not exactly-once *processing*: nothin
 - **Replies** (`inReplyTo`) must answer a message still in your own inbox, sent to you by `to`. A reply to a message that
   expired, was purged (including by its chat's deletion) or never was is `reply_unavailable`.
 
-## Notifications: passive by default, one explicit wake
+## Automatic delivery and wake
 
-- **Notice and status.** In the main agent's session, the extension polls `get_agent_mail_status` every 2 s (one process
-  at a time). New arrivals become one OMP `ui.notify` naming up to three senders and a persistent status line
-  `Skitarii mail: N unread`. These paint the terminal; they are not processing, and there are no operating-system
-  notifications. A restart may repeat a notice.
-- **Passive reminder.** While mail is pending, the main agent's *next natural turn* (one the person or the run starts)
-  carries one constant reminder to check the inbox. It never contains peer text and never starts a turn: an idle model
-  stays idle until something else prompts it.
-- **Allow one inbox wake.** The person may arm one wake for a chat in the desktop inbox. It is explicit (only the desktop
-  can arm it, never an agent), non-accumulating (arming again while armed changes nothing) and one-shot. The extension
-  consumes the credit with `take_agent_mail_wake` *before* it sends one constant follow-up turn
-  (`deliverAs: 'followUp'`, queued behind a running turn), so the credit is spent even when that dispatch then fails
-  (OMP stopped, the turn errored). It is never refunded, retried or re-armed; the UI reports the wake as attempted, never
-  as read. Allowing a wake may spend model tokens.
-- Peer content reaches the model only as an inbox tool result. The reminder and the wake text are fixed,
-  extension-authored strings; they are the only text the extension injects as a custom message, which OMP maps to the
-  developer role (planning research of the OMP extension API).
+- **No manual allowance.** New peer mail automatically reaches its existing recipient chat. The desktop monitors every
+  eligible tracked folder without waiting for anyone to open Messages, and resumes the same stopped chat when needed;
+  it never substitutes a new chat. Automatic turns may spend model tokens.
+- **Complete bodies, not reminders.** The native main-session watcher reads a pinned snapshot through every body page
+  before an idle wake. Before an unrelated user continuation, awaited preparation returns the full pending peer batch.
+  Busy delivery uses native asides and the awaited tool-result boundary, preserving original tool output, including
+  failures. Peer packets explicitly retain agent attribution and the inert JSON task-data note.
+- **Person messages retain person authority.** Board conversations durably save the full pending person body before
+  scheduling a recipient. The private OMP outbox is bound to the stored chat and its expected mailbox endpoint; the
+  client authenticates its current own identity before exposing any person text. A trusted user-attributed idle prompt
+  prepares both authorities together, so simultaneous peer and person arrivals are in the first provider context.
+- **Independent arrivals and progress.** Newly accepted messages and later pages continue automatically. Exact message
+  ids and bodies, not a maximum cursor or unread count, determine insertion. Already inserted but unacknowledged mail
+  does not repeatedly wake the model. Sender `clientMessageId` deduplication remains unchanged.
+- **Unavailable and interrupted hosts.** Pending work survives app restart. Observed exact host entries are reconciled
+  before scheduling again; durable machine-local proof survives deletion of a previously observed transcript.
+  Unreadable context or pending storage is a visible blocker, never silently treated as empty. An uncertain physical
+  input attempt stays pending/unverified rather than blindly replaying it and creating endless turns.
+- **Notices and status remain metadata.** A main-session poll every 2 s paints terminal notices and the unread count.
+  Messages shows automatic insertion progress/blockers separately from unacknowledged-by-agent and unseen-by-you.
+  Opening the inbox never inserts terminal input, and neither insertion nor reading acknowledges anything.
 
 ## OMP compatibility
 
-- **Provenance.** Planning verified OMP's upstream extension types and lifecycle at **v18.18.0**. DM-511 built against,
-  and ran a no-model RPC smoke of, the installed **OMP 18.20.2** (Windows, 2026-11-15): tool registration
-  (`approval`, `loadMode: 'essential'`), `ctx.agent.kind`, `ui.notify`/`ui.setStatus`, `before_agent_start` and
-  `sendMessage(…, { deliverAs: 'followUp', triggerTurn: true })`. In 18.20.2 a wake turn does not fire
-  `before_agent_start`, so the wake text carries the hint itself.
-- **Unsupported APIs fail visibly.** Each host API is detected before use. An OMP without the tool API shows the status
-  `Skitarii mail unavailable: …` and registers no tools; without `sendMessage` the wake credit is never taken; a launch
-  without a mailbox shows `Skitarii mail unavailable (descriptor_missing)`. The mascot keeps working.
-- Windows is the only platform verified end to end; macOS and Linux paths are unit-tested only.
+- **Verified API contract:** OMP **18.20.2**, pinned upstream
+  [`7c49c11aa5bbaf3f418406583096168ad5b8c6dc`](https://github.com/can1357/oh-my-pi/tree/7c49c11aa5bbaf3f418406583096168ad5b8c6dc).
+  Native tools use `approval` and `loadMode: 'essential'`; the main agent is `ctx.agent.kind === 'main'`.
+  Two `before_agent_start` handlers return explicitly attributed peer/person messages. Agent-attributed idle wakes
+  skip that preparation, so their entire pinned peer batch must already be present in the initiating prompt.
+  `sendUserMessage` returns a promise, but an idle promise lasts for the whole turn: the watcher must not await it
+  from the same turn's preparation. Neither that promise nor void `sendMessage` constitutes a receipt.
+- **Actual SDK prerequisite probes:** [DM-820 SDK contracts](../verification/DM-820-sdk-contracts.json) record real
+  provider/context/persistence checks, including awaited tool-result content and asynchronous start notifications.
+  These are prerequisite evidence, not the complete feature's two-chat acceptance run.
+- **Unsupported APIs fail visibly.** Missing tool APIs show `Skitarii mail unavailable: …`; missing context APIs retain
+  pending bodies and show the real blocker. Missing descriptors or revoked/foreign grants do not expose another chat's
+  outbox. The mascot and supported ordinary chat routes keep working.
+- Peer mail remains OMP-only. Existing person-board routes to other CLIs remain available; canonical Claude user-role
+  session entries can prove insertion. A route without a verifiable host receipt is pending/unverified, not delivered.
+- Historical Windows mailbox verification does not establish the new automatic contract; use the procedure below.
+  macOS/Linux path coverage is unit-only unless accompanied by an actual platform run.
 
 ## Durability, backup and recovery
 
@@ -129,10 +146,25 @@ clone, or rebuilding the database from tracked records gives back no mail.
 - **Database-only projects move badly.** A database-only project is keyed by a digest of the folder path; moving or
   renaming the folder orphans the project and its mail with it (see [0002](../decisions/0002-storage-modes.md#known-limitations)).
 
+## Verification
+
+Build the intended integrated source head, then run `node scripts/smoke-skitarii-messaging.mjs` on Windows with the
+existing Node24/Electron/native dependencies and normally authorized installed OMP. Optional environment variables:
+`SKITARII_SMOKE_NODE`, `SKITARII_SMOKE_OMP`, `SKITARII_SMOKE_MODEL`, and a **fresh** `SKITARII_SMOKE_OUTPUT`.
+This makes real provider requests and may spend tokens. It does not export, import or copy credentials, change global
+OMP configuration, restart the installed app, or stop unowned processes.
+
+The owned fixture exercises peer/person idle, busy and stopped recipients; accepts 55 messages before recipient
+availability; restarts with both authorities pending; and checks the **first** actual provider context against exact
+ordered ids/full-body hashes and explicit attribution using an observation-only public context handler. It also checks
+independent arrivals, unchanged tool output, real unpredictable response tags, dedupe, explicit acknowledgment,
+separate human-seen progress, and the actual Inbox UI. Inspect and attach the captured native screenshots before
+claiming end-to-end acceptance. Historical DM-505 artifacts retain their original contract and are not new proof.
+
+
 ## Not claimed
 
 - Independently addressable subagents.
-- Exactly-once processing, delivery receipts or read receipts (a wake attempt is not a read receipt).
+- Exactly-once processing or read receipts to senders; observed local context insertion is not proof of handling.
 - Generic MCP mailbox binding.
-- Operating-system notifications, or waking an idle model without the person's explicit **Allow one inbox wake**.
 - Cross-folder, cross-machine or Git-carried mail.

@@ -1,0 +1,65 @@
+{
+  "card": "DM-820",
+  "scope": "SDK contract prerequisites only. These runs do not prove the DM-820 implementation, live two-chat delivery, screenshots, or the repository verification gate.",
+  "runtime": {
+    "platform": "Windows x64",
+    "executable": "C:/Users/davgo/AppData/Local/omp/omp.exe",
+    "observedVersion": "18.20.2",
+    "referenceSource": "https://github.com/can1357/oh-my-pi/tree/7c49c11aa5bbaf3f418406583096168ad5b8c6dc",
+    "referenceSourceProvenance": "The v18.20.2 GitHub tag resolves to this commit; no binary-hash equivalence is claimed.",
+    "providerModel": "openai-codex/gpt-6.1-sol"
+  },
+  "isolation": {
+    "authorization": "Existing normal OMP authorization; no credentials copied, exported, imported, printed, or reconfigured.",
+    "environmentRemoved": ["DM_SESSION_TOKEN", "DM_DESKTOP_PIPE", "DM_SKITARII_CLIENT_DESCRIPTOR", "ELECTRON_RUN_AS_NODE", "NODE_OPTIONS"],
+    "execution": "Attempt-owned scratch directories, extension discovery disabled, only explicit probe extensions loaded, no skills/rules/context-file discovery or title generation.",
+    "limits": { "maxTimeSeconds": 60, "maxCostUsd": 0.1 },
+    "cleanup": "Both throwaway probe source files were deleted after inspection of their actual outputs. Raw scratch traces and host sessions remain for local review."
+  },
+  "checks": [
+    {
+      "name": "normal-provider-auth",
+      "status": "passed",
+      "exitCode": 0,
+      "wallSeconds": 2.36,
+      "actualResponse": "DM820_NORMAL_AUTH_OK",
+      "warnings": ["Two repo-local MCP discovery subprocesses closed stdout before connecting. Provider access succeeded; MCP connectivity is not verified by this check."]
+    },
+    {
+      "name": "before-start-attribution-and-first-provider-context",
+      "status": "passed",
+      "exitCode": 0,
+      "wallSeconds": 6.12,
+      "actualResponse": "DM820_CONTEXT_API_OK",
+      "hostEntryTimestamp": "2026-11-21T01:01:49.669Z",
+      "observations": [
+        "Two real before_agent_start handlers returned separate message packets.",
+        "The first actual provider-context event contained the peer packet followed by the person packet; ctx.agent.kind was main.",
+        "Peer content DM820_PEER_BODY_92e19 retained agent attribution; person content DM820_PERSON_BODY_c0b37 retained user attribution.",
+        "The host JSONL persisted both packets as custom_message entries with matching full content and explicit attribution."
+      ],
+      "rawEvidenceDirectory": "C:/Users/davgo/AppData/Local/Temp/dm820-sdk-context-wHVcEx"
+    },
+    {
+      "name": "awaited-preflight-notification-race-and-tool-context",
+      "status": "passed",
+      "exitCode": 0,
+      "wallSeconds": 4.33,
+      "actualResponse": "DM820_TOOL_API_OK",
+      "hostEntryTimestamp": "2026-11-21T01:24:34.661Z",
+      "observations": [
+        "The real tool_call preflight ran before the registered tool executed.",
+        "The registered tool executed while an earlier asynchronous tool_execution_start observer was still pending: preflight=true, notificationCompleted=false.",
+        "The real tool_result handler preserved original failed-tool text DM820_ORIGINAL_TOOL_ERROR_c2b4 and appended DM820_INERT_PEER_BODY_3a61 in order.",
+        "The next actual provider context and persisted host toolResult both contained those exact two ordered text blocks with isError=true.",
+        "Native typebox schema construction and essential registered-tool availability worked."
+      ],
+      "rawEvidenceDirectory": "C:/Users/davgo/AppData/Local/Temp/dm820-sdk-tool-BHkTEk"
+    }
+  ],
+  "remainingVerification": [
+    "Actual DM-820 integrated build and authenticated two-chat lifecycle/body-delivery scenarios",
+    "Inspected actual inbox PNG/JPEG attachments and independent image/context review",
+    "All isolated-card Definition of Done checks plus Fireguard on the final committed integrated head"
+  ]
+}
