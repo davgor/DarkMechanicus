@@ -212,6 +212,9 @@ describe('terminal sessions: background control-query responses', () => {
       frontend.dispose()
     }
   })
+})
+
+describe('terminal sessions: query ownership during attachment changes', () => {
 
   it('orders response ownership with the attach snapshot and a detach before asynchronous parsing', async () => {
     const chat = rig.newChat()
@@ -261,6 +264,9 @@ describe('terminal sessions: background control-query responses', () => {
       frontend.dispose()
     }
   })
+})
+
+describe('terminal sessions: query response generation lifetime', () => {
 
   it('uses the resized screen and never answers for an exited generation', async () => {
     const chat = rig.newChat()

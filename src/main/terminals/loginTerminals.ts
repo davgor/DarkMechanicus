@@ -156,6 +156,18 @@ function stop(manager: Manager, login: Login, message: string): Promise<unknown>
   return killTree(manager, login)
 }
 
+/** The persistent sign-in emulator owns its query replies until this login is stopped or exits. */
+function respondToQueries(manager: Manager, login: Login): () => void {
+  return login.screen.onResponse((data) => {
+    if (login.exited || login.stopMessage !== null) return
+    try {
+      login.pty.write(data)
+    } catch (error) {
+      manager.onError(error)
+    }
+  })
+}
+
 /** Tracks a PTY just spawned; nothing here can fail, so no login runs untracked. */
 function track(manager: Manager, agentId: AgentId, pty: PtyProcess): Login {
   const screen = createTerminalScreen(START_COLS, START_ROWS)
@@ -179,14 +191,7 @@ function track(manager: Manager, agentId: AgentId, pty: PtyProcess): Login {
     }),
     last: null
   }
-  const stopResponse = screen.onResponse((data) => {
-    if (login.exited || login.stopMessage !== null) return
-    try {
-      pty.write(data)
-    } catch (error) {
-      manager.onError(error)
-    }
-  })
+  const stopResponse = respondToQueries(manager, login)
   const stopData = pty.onData((data) => {
     screen.write(data, () => emit(manager, login, { kind: 'output', data }))
   })
