@@ -28,7 +28,7 @@ function show(folder: typeof project) {
   const open = async (path: string) => { visits.push({ path, ticketStore: sources.get(project.path) }) }
   const initialize = vi.fn().mockResolvedValue(undefined)
   vi.stubGlobal('dm', { forge: api })
-  vi.stubGlobal('github', { listRepositories: async () => ({ ok: true, data: [{ fullName: 'owner/Code' }] }) })
+  vi.stubGlobal('github', { getAccount: async () => ({ ok: true, data: { login: 'owner' } }), onAccountChanged: () => () => {}, listRepositories: async () => ({ ok: true, data: [{ fullName: 'owner/Code' }] }) })
   render(<TicketSource folder={folder} folders={[project, world, member]} status={null} open={open} initialize={initialize} />)
   return { api, visits, published, initialize, projects, intervals, sources }
 }
@@ -89,10 +89,10 @@ it('creates a private Forge World and migrates the current project before openin
   const { published, visits, sources } = show({ ...project, initialized: true })
   const create = screen.getByRole('option', { name: /Create a Forge World/ }) as HTMLOptionElement
   enter('Ticket repository', create.value)
-  expect((screen.getByRole('button', { name: 'Create and migrate' }) as HTMLButtonElement).disabled).toBe(true)
-  enter('GitHub repository', 'owner/new-world')
+  await settle()
+  expect((screen.getByLabelText('GitHub repository') as HTMLInputElement).value).toBe('owner/Forge-World-owner')
   await click('Create and migrate')
-  expect(published.get('owner/new-world')).toBe(project.path)
+  expect(published.get('owner/Forge-World-owner')).toBe(project.path)
   expect(sources.get(project.path)).toBe(world.path)
   expect(visits).toEqual([{ path: world.path, ticketStore: world.path }])
 })

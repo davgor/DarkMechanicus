@@ -3,6 +3,7 @@ import type { TrackedFolderView } from '../../../shared/desktop/api'
 import type { StorageStatusView } from '../../../shared/domain/views'
 import { StorageModeSwitch } from '../home/StorageModeSwitch'
 import { callGithub } from '../api/github'
+import { useGithubAccount } from '../github/useGithubAccount'
 import { Button } from '../components/Button'
 
 const CREATE_WORLD = 'create-forge-world'
@@ -82,10 +83,13 @@ function MemberSource({ folder, open, controls }: SourceProps) {
       })}>{mode === 'db' ? 'Move to SQLite only' : 'Move to self-contained repo'}</Button>)}</>
 }
 
-function ForgeDestination({ folder, open, controls }: Pick<SourceProps, 'folder' | 'open' | 'controls'>) {
-  const { api, remote, repository, search, busy, act, choice } = controls
-  if (choice === CREATE_WORLD) return <>
-        {repository}
+function CreateForgeWorld({ folder, open, controls }: Pick<SourceProps, 'folder' | 'open' | 'controls'>) {
+  const { api, busy, act } = controls
+  const { account } = useGithubAccount()
+  const [edited, setEdited] = useState<string>()
+  const remote = edited ?? (account ? `${account.login}/Forge-World-${account.login}` : '')
+  return <>
+        <label>GitHub repository <input placeholder="owner/repository" value={remote} onChange={e => setEdited(e.target.value)} /></label>
         <p>Create a private GitHub repository, push this project’s tickets, and replace its managed files with a Forge World note.</p>
         <Button disabled={busy || !remote.trim()} onClick={() => void act(async () => {
           const root = await api!.connect(folder.path, remote.trim(), true)
@@ -94,6 +98,11 @@ function ForgeDestination({ folder, open, controls }: Pick<SourceProps, 'folder'
           await open(root)
         })}>Create and migrate</Button>
   </>
+}
+
+function ForgeDestination({ folder, open, controls }: Pick<SourceProps, 'folder' | 'open' | 'controls'>) {
+  const { api, remote, repository, search, busy, act, choice } = controls
+  if (choice === CREATE_WORLD) return <CreateForgeWorld folder={folder} open={open} controls={controls} />
   return <>
       <Button disabled={busy || !choice} onClick={() => void act(() => api!.convert(choice, folder.path))}>Use Forge World storage</Button>
       <div className="button-row">{repository}{search}
