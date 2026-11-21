@@ -12,6 +12,7 @@ import { listFor } from '../app/useEpicLists'
 import type { EpicListState } from '../app/useEpicLists'
 import brandIcon1x from '../assets/brand-icon-32.png'
 import brandIcon2x from '../assets/brand-icon-64.png'
+import { Button } from '../components/Button'
 import { Menu } from '../components/Menu'
 import { AgentsSection } from './AgentsSection'
 import { ForgeRow } from './ForgeRow'
@@ -118,46 +119,70 @@ function SidebarAgents(props: SidebarProps): JSX.Element {
   )
 }
 
+function FolderSection({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }): JSX.Element {
+  const [expanded, setExpanded] = useState(true)
+  return (
+    <section aria-label={title}>
+      <div className="sidebar-head">
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={expanded ? 'chevron-down' : 'chevron-right'}
+          aria-label={title}
+          aria-expanded={expanded}
+          onClick={() => setExpanded(!expanded)}
+        >
+          <span className="eyebrow">{title.toUpperCase()}</span>
+        </Button>
+        {action}
+      </div>
+      <div hidden={!expanded}>{children}</div>
+    </section>
+  )
+}
+
 /** The left panel: connected agents, tracked folders with their epic buckets and chats, then the status footer. */
 export function Sidebar(props: SidebarProps): JSX.Element {
   const { agentPane } = props.selection
+  const roots = props.folders.filter(folder => !folder.forgeParent)
+  const folders = roots.filter(folder => !folder.forgeWorld)
+  const worlds = roots.filter(folder => folder.forgeWorld)
   // While an agents screen is open no folder or epic is the current one.
   const folderSelection = agentPane === undefined ? props.selection : EMPTY_SELECTION
   return (
     <aside className="sidebar" aria-label="Tracked folders">
       <Brand version={props.version} />
       <SidebarAgents {...props} />
-      <div className="sidebar-head">
-        <span className="eyebrow">FOLDERS</span>
-        <AddFolderMenu onTrack={props.onTrack} onClone={props.onClone} />
-      </div>
       <nav className="sidebar-tree" aria-label="Folders and epics">
-        {props.folders.length === 0 ? (
-          <p className="sidebar-note">No folders yet. Use + to track one.</p>
-        ) : null}
-        {props.folders.filter(folder => !folder.forgeParent).map((folder) => folder.forgeWorld ? (
-          <ForgeRow key={folder.path} folder={folder} sidebar={props} />
-        ) : (
-          <FolderRow
-            key={folder.path}
-            folder={folder}
-            list={listFor(props.lists, folder.path)}
-            selection={folderSelection}
-            expansion={props.expansion}
-            chats={chatsFor(props.chats.lists, folder.path)}
-            statuses={props.agentStatuses}
-            agents={props.agents}
-            onSelectFolder={props.onSelectFolder}
-            onSelectEpic={props.onSelectEpic}
-            kanbanOpen={props.kanbanCounts[folder.path] ?? null}
-            onSelectKanban={props.onSelectKanban}
-            onStopTracking={props.onRequestUntrack}
-            onNewChat={props.chats.onNew}
-            onOpenChat={props.chats.onOpen}
-            onRenameChat={props.chats.onRename}
-            onDeleteChat={props.chats.onDelete}
-          />
-        ))}
+        <FolderSection title="Folders" action={<AddFolderMenu onTrack={props.onTrack} onClone={props.onClone} />}>
+          {folders.length === 0 && <p className="sidebar-note">No folders yet. Use + to track one.</p>}
+          {folders.map(folder => (
+            <FolderRow
+              key={folder.path}
+              folder={folder}
+              list={listFor(props.lists, folder.path)}
+              selection={folderSelection}
+              expansion={props.expansion}
+              chats={chatsFor(props.chats.lists, folder.path)}
+              statuses={props.agentStatuses}
+              agents={props.agents}
+              onSelectFolder={props.onSelectFolder}
+              onSelectEpic={props.onSelectEpic}
+              kanbanOpen={props.kanbanCounts[folder.path] ?? null}
+              onSelectKanban={props.onSelectKanban}
+              onStopTracking={props.onRequestUntrack}
+              onNewChat={props.chats.onNew}
+              onOpenChat={props.chats.onOpen}
+              onRenameChat={props.chats.onRename}
+              onDeleteChat={props.chats.onDelete}
+            />
+          ))}
+        </FolderSection>
+        {worlds.length > 0 && (
+          <FolderSection title="Forge Worlds">
+            {worlds.map(folder => <ForgeRow key={folder.path} folder={folder} sidebar={props} />)}
+          </FolderSection>
+        )}
       </nav>
       {props.footer}
     </aside>
