@@ -333,13 +333,18 @@ async function loadDescriptor(deps: DmClientDeps): Promise<Checked<DmClientDescr
   return parseDmClientDescriptor(path, text)
 }
 
-/** The child's environment: the descriptor's inherited names from this process, its runtime switches, then the grant. */
-function dmChildEnv(descriptor: DmClientDescriptor, env: DmClientDeps['env'], platform: NodeJS.Platform, token: string): Record<string, string> {
+/** Only naming calls receive the live desktop route; all other DM addresses remain scrubbed. */
+function dmChildEnv(descriptor: DmClientDescriptor, deps: DmClientDeps, token: string, cliName: string): Record<string, string> {
+  const { env, platform } = deps
   const wanted = new Set(descriptor.inherit.map((name) => (platform === 'win32' ? name.toUpperCase() : name)))
   const child: Record<string, string> = {}
   for (const [key, value] of Object.entries(env)) {
     const name = platform === 'win32' ? key.toUpperCase() : key
     if (value !== undefined && wanted.has(name) && !NEVER_INHERITED.test(key)) child[key] = value
+  }
+  if (cliName === 'name_chat' || cliName === 'nameChat') {
+    const address = envValue(env, platform, 'DM_DESKTOP_PIPE')
+    if (address !== undefined && address !== '') child['DM_DESKTOP_PIPE'] = address
   }
   return Object.assign(child, descriptor.env, { DM_SESSION_TOKEN: token })
 }
@@ -504,7 +509,7 @@ function startChild(deps: DmClientDeps, descriptor: DmClientDescriptor, cliName:
   try {
     const child = deps.spawn(descriptor.command, [...descriptor.args, 'call', cliName, '-'], {
       cwd: descriptor.cwd,
-      env: dmChildEnv(descriptor, deps.env, deps.platform, token),
+      env: dmChildEnv(descriptor, deps, token, cliName),
       shell: false,
       windowsHide: true,
       stdio: ['pipe', 'pipe', 'pipe']

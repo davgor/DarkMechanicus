@@ -1,6 +1,8 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, statSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { createRequire } from 'node:module'
+import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { runCli, type CliHost } from '../../cli/main'
 import { createMcpServer } from '../../mcp/server'
@@ -15,6 +17,8 @@ import { createChatGrants, type ChatGrants, type IssuedChatCli } from '../agents
 import { createChatRecords } from '../agents/chatRecords'
 import { createControlPipe, type ControlPipe } from './controlPipe'
 import { createNamingDispatcher } from './namingCommands'
+import { createDmClient, DM_CLIENT_DESCRIPTOR_ENV, nodeDmClientDeps } from '../../../resources/skitarii/extension/dmClient'
+import { writeDmClientDescriptor } from '../terminals/terminalFiles'
 
 let root: string
 let repo: string
@@ -25,7 +29,9 @@ let clock: TestClock
 const store = memoryChatStore()
 const records = createChatRecords({ store, agentFor: connectedAgents() })
 let issued: IssuedChatCli
+const push = vi.fn()
 beforeEach(async () => {
+  push.mockClear()
   root = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-name-')))
   repo = join(root, 'repo'); mkdirSync(repo)
   clock = createTestClock('2026-11-15T09:00:00.000Z')
@@ -33,7 +39,7 @@ beforeEach(async () => {
   await workspace.initializeRepository({ name: 'naming-test' })
   grants = createChatGrants({ workspaceFor: () => workspace, cliFor: () => ({ command: 'node', args: [], env: {} }), minutes: 60, log: () => {} })
   issued = await grants.issueChatCli(repo, { role: 'worker', allowSave: false, label: 'owned terminal' })
-  server = await createControlPipe({ authorize: token => grants.authorizeNaming(token), dispatch: createNamingDispatcher({ store, push: () => {} }) })
+  server = await createControlPipe({ authorize: token => grants.authorizeNaming(token), dispatch: createNamingDispatcher({ store, push }) })
 })
 afterEach(async () => { vi.unstubAllEnvs(); await server?.close(); grants?.dispose(); workspace?.close(); rmSync(root, { recursive: true, force: true }) })
 function client(token = issued.cli.env['DM_SESSION_TOKEN']) { return createDesktopClient({ env: { DM_DESKTOP_PIPE: server.address, DM_SESSION_TOKEN: token } }) }
@@ -52,6 +58,58 @@ it('persists selected-agent semantic naming only for the live bound first-messag
     expect(statSync(server.address).mode & 0o777).toBe(0o600)
     expect(statSync(dirname(server.address)).mode & 0o777).toBe(0o700)
   }
+})
+
+/** A real native child using the production desktop transport, not a descriptor/environment echo. */
+async function nativeClient(chatId: string, token = issued.cli.env['DM_SESSION_TOKEN']) {
+  const script = join(root, 'cli.js')
+  const loader = createRequire(import.meta.url).resolve('tsx/cjs/api')
+  const source = fileURLToPath(new URL('../../core/desktop/desktopClient.ts', import.meta.url))
+  writeFileSync(script, `
+const { readFileSync } = require('node:fs')
+const { createDesktopClient } = require(${JSON.stringify(loader)}).require(${JSON.stringify(source)}, __filename)
+const args = JSON.parse(readFileSync(0, 'utf8'))
+void createDesktopClient().request({ op: 'name_chat', args }).then(reply => {
+  process.stdout.write(JSON.stringify(reply.ok ? { ok: true, data: reply.data } : { ok: false, error: reply.error }))
+  process.exitCode = reply.ok ? 0 : 1
+})
+`)
+  const descriptor = await writeDmClientDescriptor({
+    userData: join(root, 'userData'), chatId, generation: 'pty-one', folder: repo, platform: process.platform,
+    cli: { command: process.execPath, args: [script, '--repo', repo], env: { ELECTRON_RUN_AS_NODE: '1' } }
+  })
+  return createDmClient({
+    ...nodeDmClientDeps(),
+    env: { ...process.env, [DM_CLIENT_DESCRIPTOR_ENV]: descriptor, DM_SESSION_TOKEN: token, DM_DESKTOP_PIPE: server.address }
+  })
+}
+
+it.each(['name_chat', 'nameChat'])('publishes a semantic title through native %s without changing or resubmitting the original prompt', async command => {
+  const firstPrompt = '  Could you investigate why sign-in keeps failing after expiry?\n\nPreserve the full refresh flow and fix its race.  '
+  const chat = bound(firstPrompt)
+  store.updateChat(chat, { firstPromptDelivery: 'submitted' })
+  const native = await nativeClient(chat.id)
+  expect(await native.run(command, { title: 'Repair expired-session refresh' })).toEqual({ ok: true, data: { applied: true } })
+  expect(store.getChat(chat)).toMatchObject({
+    title: 'Repair expired-session refresh', titleStatus: 'generated', firstPrompt, firstPromptDelivery: 'submitted'
+  })
+  expect(push).toHaveBeenCalledExactlyOnceWith({ type: 'chats_changed', folder: repo, chatId: chat.id })
+  expect(await native.run(command, { title: 'Later turn ignored' })).toEqual({ ok: true, data: { applied: false } })
+  expect(store.getChat(chat)?.title).toBe('Repair expired-session refresh')
+  expect(push).toHaveBeenCalledTimes(1)
+})
+
+it.each(['foreign', 'revoked', 'stale'])('rejects a %s native naming credential without changing the pending chat', async kind => {
+  const chat = bound()
+  const native = await nativeClient(chat.id, kind === 'foreign' ? 'foreign-token' : issued.cli.env['DM_SESSION_TOKEN'])
+  if (kind === 'revoked') await workspace.revokeGrant({ grantId: issued.grantId })
+  if (kind === 'stale') {
+    const next = await grants.issueChatCli(repo, { role: 'worker', allowSave: false, label: 'replacement' })
+    grants.bindChatGrant(next.grantId, { folder: repo, chatId: chat.id, generation: 'pty-two' })
+  }
+  expect(await native.run('name_chat', { title: 'Unauthorized replacement' })).toMatchObject({ ok: false, error: { source: 'dm', code: 'unauthorized' } })
+  expect(store.getChat(chat)).toMatchObject({ title: 'Naming chat…', titleStatus: 'pending', firstPrompt: chat.firstPrompt })
+  expect(push).not.toHaveBeenCalled()
 })
 it('never derives binding from historical grants and rejects foreign tokens', async () => {
   expect(await client().request({ op: 'name_chat', args: { title: 'Unauthorized title' } })).toMatchObject({ ok: false, error: { code: 'unauthorized' } })
