@@ -476,6 +476,41 @@ describe('the DM client run (dm_call)', () => {
   })
 })
 
+describe('native naming route isolation', () => {
+  it.each(['name_chat', 'nameChat'])('passes only the desktop address and current grant needed by %s', async command => {
+    const deps = realDeps()
+    const result = await createDmClient(deps).run(command, { title: 'Repair session refresh' })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const echo = result.data as Echo
+    expect(echo.env['DM_DESKTOP_PIPE']).toBe('naming-address')
+    expect(echo.env['DM_SESSION_TOKEN']).toBe('[redacted]')
+    for (const hidden of ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY', 'NODE_OPTIONS', 'BUN_INSPECT', DM_CLIENT_DESCRIPTOR_ENV]) {
+      expect(echo.env).not.toHaveProperty(hidden)
+    }
+    expectAllGone(deps.children)
+  })
+
+  it('does not pass the desktop address to an unrelated general command', async () => {
+    const result = await createDmClient(realDeps()).run('get_capabilities', {})
+    expect(result.ok).toBe(true)
+    if (result.ok) expect((result.data as Echo).env).not.toHaveProperty('DM_DESKTOP_PIPE')
+  })
+
+  it('uses Windows environment case folding without forwarding foreign DM variables', async () => {
+    const child = fakeChild('{"ok":true,"data":{}}')
+    const spawn = vi.fn(() => child)
+    await createDmClient({
+      ...realDeps(chatEnv({ DM_DESKTOP_PIPE: undefined, dm_desktop_pipe: 'owned-address', DM_FOREIGN_PIPE: 'foreign-address' })),
+      platform: 'win32', spawn
+    }).run('name_chat', { title: 'Repair session refresh' })
+    const options = (spawn.mock.calls[0] as unknown as [string, string[], { env: Record<string, string> }])[2]
+    expect(options.env['DM_DESKTOP_PIPE']).toBe('owned-address')
+    expect(options.env).not.toHaveProperty('dm_desktop_pipe')
+    expect(options.env).not.toHaveProperty('DM_FOREIGN_PIPE')
+  })
+})
+
 describe('the DM client run (dm_call): its bound', () => {
   afterEach(() => {
     vi.useRealTimers()

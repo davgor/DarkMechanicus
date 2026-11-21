@@ -116,6 +116,11 @@ async function quit() {
   assert.equal(result, 0)
 }
 try {
+  const nativeAgent = join(root, 'firstPromptAgent.cjs')
+  buildSync({
+    absWorkingDir: repo, entryPoints: [join(repo, 'scripts/native/main/firstPromptAgent.mjs')], outfile: nativeAgent,
+    bundle: true, platform: 'node', format: 'cjs', target: 'node24', loader: { '.md': 'text' }, logLevel: 'warning'
+  })
   const clone = spawnSync('git', ['clone', '--shared', '--no-checkout', repo, folder], { encoding: 'utf8', windowsHide: true })
   assert.equal(clone.status, 0, clone.stderr)
   // Credentials stay in memory in transit, then only in the disposable vendor home; no credential is an artifact.
@@ -135,7 +140,7 @@ try {
     (async()=>{const folder=${JSON.stringify(folder)},data=${JSON.stringify(userData)},home=${JSON.stringify(home)},dmHome=${JSON.stringify(dmHome)};
     const workspace=openWorkspace({repoRoot:folder,homeDir:dmHome,role:'desktop',transport:'desktop',label:'DM515 isolated proof'});
     await workspace.initializeRepository({mode:'db',name:'First prompt proof'});workspace.close();
-    const db=openAppDatabase(data);createAgentRegistry({db}).addCustom({id:'cu_01m7excm4q4w8k80je8vrvffej',displayName:'Disposable semantic agent',executablePath:${JSON.stringify(process.execPath)},args:[${JSON.stringify(join(repo, 'scripts/native/main/firstPromptAgent.mjs'))},'{instructions}',${JSON.stringify(delivery)}]});db.close();
+    const db=openAppDatabase(data);createAgentRegistry({db}).addCustom({id:'cu_01m7excm4q4w8k80je8vrvffej',displayName:'Disposable semantic agent',executablePath:${JSON.stringify(process.execPath)},args:[${JSON.stringify(nativeAgent)},'{instructions}',${JSON.stringify(delivery)},${JSON.stringify(join(root, 'native-descriptors'))},${JSON.stringify(require('electron'))},${JSON.stringify(join(repo, 'out/main/cli.js'))}]});db.close();
     createFolderRegistry({file:join(data,'folders.json'),homeDir:home,dmHome}).track(folder);
     const store=createChatStore({root:join(data,'agents','chats')});const historical=store.createChat({folder,agent:'cu_01m7excm4q4w8k80je8vrvffej',model:null,role:'worker',allowSave:false,title:'Explicit existing history'});
     const dir=join(data,'agents','chats',readdirSync(join(data,'agents','chats'))[0]);writeFileSync(join(dir,historical.id+'.jsonl'),JSON.stringify({id:'old-user',at:new Date().toISOString(),kind:'user_message',text:'Historical read-only question'})+'\\n');
@@ -161,7 +166,8 @@ try {
   await screenshot('02-full-prompt-popup.png')
   await evaluate(`{const f=document.querySelector('[role="dialog"] form');f.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));f.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));}`)
   await until(`document.querySelector('.terminal-pane h1') !== null`, 'opened terminal')
-  const chat = await until(`window.dm.chats.list(${JSON.stringify(folder)}).then(r=>r.data.find(c=>c.titleStatus==='generated'))`, 'genuine model-inferred title', 120_000)
+  const namingDeadline = Date.now() + 120_000
+  const chat = await until(`window.dm.chats.list(${JSON.stringify(folder)}).then(r=>r.data.find(c=>c.titleStatus==='generated'))`, 'genuine model-inferred title', namingDeadline - Date.now())
   assert(chat.title.split(/\s+/u).length <= 5)
   assert(!prompt.trim().toLowerCase().startsWith(chat.title.toLowerCase()))
   assert.equal(chat.firstPrompt, prompt)
@@ -171,9 +177,18 @@ try {
   assert(await evaluate(`Array.from(document.querySelectorAll('.chat-row-title')).some(e=>e.textContent===${JSON.stringify(chat.title)})`))
   assert(await evaluate(`!document.querySelector('textarea[aria-label="Prompt"]') && !Array.from(document.querySelectorAll('button')).some(e=>e.textContent==='Send prompt')`))
   await screenshot('03-semantic-title-terminal.png')
+  // Publication precedes the native CLI's close; await its receipt within the same naming deadline.
+  while (!readFileSync(delivery, 'utf8').includes('"event":"title-reply"')) {
+    assert(Date.now() < namingDeadline, 'Native naming completion receipt did not arrive.')
+    await new Promise((resolveResult) => setTimeout(resolveResult, 100))
+  }
   const messages = readFileSync(delivery, 'utf8').trim().split('\n').map((line) => JSON.parse(line))
   assert.deepEqual(messages.filter((event) => event.event === 'first-message').map((event) => event.prompt), [prompt])
   assert.deepEqual(messages.filter((event) => event.event === 'model-request').map((event) => event.prompt), [prompt])
+  assert.deepEqual(messages.filter((event) => event.event === 'title-reply').map((event) => ({ transport: event.transport, reply: event.reply })), [
+    { transport: 'native-dm-client', reply: { ok: true, data: { applied: true } } }
+  ])
+  record('native-naming-transport', 'Selected-model title passed through the production native DM client, a real CLI child, authenticated desktop pipe and persisted chat store.')
   record('popup-cancel-blank-and-double-submit', 'Cancel/Escape creates no chat; blank Start disabled; repeated submit creates exactly one chat.')
   record('real-selected-model-inference-and-full-delivery', { model, title: chat.title, firstMessageCount: 1, originalPrompt: prompt })
   await evaluate(`document.querySelector('.terminal-host .xterm-helper-textarea').focus()`)
