@@ -99,10 +99,22 @@ export function SidebarFooter(props: SidebarFooterProps): JSX.Element {
 }
 
 function FooterToggle({ collapsed, setCollapsed }: { collapsed: boolean; setCollapsed(value: boolean): void }) {
-  return <button className="footer-link" aria-expanded={!collapsed} onClick={() => {
+  const label = collapsed ? 'Expand footer' : 'Collapse footer'
+  return (
+    <button
+      type="button"
+      className="folder-chevron footer-toggle"
+      aria-label={label}
+      title={label}
+      aria-expanded={!collapsed}
+      onClick={() => {
         localStorage.setItem('footer-collapsed', String(!collapsed))
         setCollapsed(!collapsed)
-      }}>{collapsed ? 'Expand footer ▸' : 'Collapse footer ▾'}</button>
+      }}
+    >
+      <Icon name={collapsed ? 'chevron-right' : 'chevron-down'} size={14} />
+    </button>
+  )
 }
 
 function BranchWarning({ warning, props }: { warning: ReturnType<typeof branchWarning>; props: SidebarFooterProps }) {

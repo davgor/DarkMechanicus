@@ -1,10 +1,14 @@
 import { useEffect, useState } from 'react'
+import { Icon } from '../components/Icon'
 import { Dialog } from '../components/Dialog'
 
 export function Notifications(): JSX.Element {
   const [open, setOpen] = useState(false)
   return <>
-    <button className="footer-link" onClick={() => setOpen(true)}>Notifications</button>
+    <div className="footer-line">
+      <Icon name="bell" size={15} />
+      <button type="button" className="footer-link" onClick={() => setOpen(true)}>Notifications</button>
+    </div>
     {open && <Settings close={() => setOpen(false)} />}
   </>
 }
