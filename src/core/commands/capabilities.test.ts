@@ -39,6 +39,8 @@ const PROBE_REPORT = {
  * `not_found` (or succeeds harmlessly) right after its authorization check.
  */
 const PROBES: Record<CommandName, unknown> = {
+  askHuman: { question: 'Which target?', responseRequired: true, humanEngaged: false },
+  getHumanAnswer: { questionId: '22222222-2222-4222-8222-222222222222' },
   nameChat: { title: 'Semantic probe title' },
   getCapabilities: undefined,
   getProject: undefined,

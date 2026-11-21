@@ -1,3 +1,4 @@
+import { HUMAN_QUESTION_GUIDANCE, telegramAvailable } from '../humanQuestions'
 import { join } from 'node:path'
 import { API_VERSION } from '../../shared/domain/api'
 import type { CapabilitiesView, ProjectView, RepositoryView } from '../../shared/domain/views'
@@ -31,6 +32,7 @@ function capabilitiesView(core: WorkspaceCore): CapabilitiesView {
     apiVersion: API_VERSION,
     schemaVersion: SCHEMA_VERSION,
     skillsVersion: SKILLS_VERSION,
+    humanQuestions: { available: telegramAvailable(core.homeDir), guidance: HUMAN_QUESTION_GUIDANCE },
     role: core.role,
     sessionId: core.sessionId(),
     capabilities: initialized ? [...core.ctx().session.capabilities] : core.roleCapabilities(),

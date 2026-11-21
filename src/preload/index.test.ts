@@ -110,7 +110,7 @@ beforeAll(() => {
   registerKnowledgeIpc(recorder(true), recordingHandlers<KnowledgeHandlers>())
   registerChatIpc(recorder(true), recordingHandlers<ChatHandlers>())
   registerChatMailIpc(recorder(true), recordingHandlers<ChatMailHandlers>())
-  registerTelegramIpc(recorder(false), () => ({}), async () => 'code')
+  registerTelegramIpc(recorder(false), () => ({}), async () => 'code', () => {})
   registerAutoUpdateHandlers(recorder(false))
   // Terminal handlers take the sender's frame, not the event, so these are checked by channel and payload only.
   registerTerminalIpc(recorder(false), recordingHandlers<TerminalHandlers>())

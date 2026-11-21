@@ -2701,3 +2701,13 @@ summary.board-group-title::marker {
     columns: 1;
   }
 }
+
+.telegram-settings { display: grid; gap: 12px; justify-items: start; }
+.telegram-channel { display: flex; align-items: center; justify-content: space-between; gap: 24px; width: 100%; }
+.telegram-settings h3, .telegram-settings p { margin: 0; }
+.telegram-settings p { color: var(--muted); }
+.telegram-switch { width: 38px; height: 22px; padding: 2px; border: 1px solid var(--muted); border-radius: 14px; background: transparent; cursor: pointer; }
+.telegram-switch::before { content: ''; display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); }
+.telegram-switch[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
+.telegram-switch[aria-checked="true"]::before { transform: translateX(15px); background: var(--accent-ink); }
+.telegram-switch:disabled { opacity: .55; cursor: default; }

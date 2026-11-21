@@ -115,6 +115,7 @@ const dm: DmApi = {
     add: (folder, repository, name) => ipcRenderer.invoke('forge:add', folder, repository, name),
     interval: (folder, minutes) => ipcRenderer.invoke('forge:interval', folder, minutes)
   },
+  setTelegramEnabled: (enabled) => ipcRenderer.invoke('telegram:setEnabled', enabled),
   telegramStatus: () => ipcRenderer.invoke('telegram:status'),
   pairTelegram: () => ipcRenderer.invoke('telegram:pair'),
   chats,

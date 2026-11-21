@@ -31,7 +31,7 @@ const DISCOVERY_TOOLS = [
   defineArglessTool({
     name: 'get_capabilities',
     description:
-      'Call this first. Returns your session role and the capabilities it grants, the API, schema and skills versions, the repository root, and whether the repository is initialized. Tools outside your role fail with `unauthorized`.',
+      'Call this first. humanQuestions reports Telegram availability and when to use it for a required answer from a human who is away. Returns your session role and the capabilities it grants, the API, schema and skills versions, the repository root, and whether the repository is initialized. Tools outside your role fail with `unauthorized`.',
     kind: 'read',
     run: (api) => api.getCapabilities()
   }),
