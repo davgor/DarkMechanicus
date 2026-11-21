@@ -260,7 +260,8 @@ export interface YoloStatus {
 
 export interface DmApi {
   forge?: ForgeApi
-  telegramStatus(): Promise<{ configured: boolean; paired: boolean; issue: string }>
+  setTelegramEnabled(enabled: boolean): Promise<void>
+  telegramStatus(): Promise<{ configured: boolean; paired: boolean; enabled: boolean; issue: string }>
   pairTelegram(): Promise<string>
   /** Agent chats run by the main process: the `chats:*` channels and their push channel. */
   chats: ChatsApi

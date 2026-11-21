@@ -23,6 +23,8 @@ type Kind = 'read' | 'idempotent' | 'write' | 'destructive'
 
 /** Every tool the server exposes, the command it adapts, and how it is annotated. */
 const TOOLS: Record<string, { method: CommandName; kind: Kind }> = {
+  ask_human: { method: 'askHuman', kind: 'write' },
+  get_human_answer: { method: 'getHumanAnswer', kind: 'read' },
   name_chat: { method: 'nameChat', kind: 'write' },
   get_capabilities: { method: 'getCapabilities', kind: 'read' },
   get_project: { method: 'getProject', kind: 'read' },

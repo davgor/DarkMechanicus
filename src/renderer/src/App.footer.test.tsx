@@ -190,10 +190,17 @@ describe('footer notification controls', () => {
     expect(modal.getByText('Token configured, awaiting pairing')).toBeTruthy()
     fireEvent.click(modal.getByRole('button', { name: 'Close' }))
     expect(screen.queryByRole('dialog')).toBeNull()
-    h.dm.telegramStatus = async () => ({ configured: true, paired: true, issue: '' })
+    let enabled = true
+    h.dm.setTelegramEnabled = async value => { enabled = value }
+    h.dm.telegramStatus = async () => ({ configured: true, enabled, paired: true, issue: '' })
     fireEvent.click(sidebar().getByRole('button', { name: 'Notifications' }))
     await settle()
     expect(screen.getByText('Recipient paired')).toBeTruthy()
     expect(screen.queryByText('/start pair-code')).toBeNull()
+    const toggle = screen.getByRole('switch', { name: 'Telegram notifications' })
+    expect(toggle.getAttribute('aria-checked')).toBe('true')
+    fireEvent.click(toggle)
+    await settle()
+    expect(toggle.getAttribute('aria-checked')).toBe('false')
   })
 })

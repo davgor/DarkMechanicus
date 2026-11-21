@@ -37,6 +37,7 @@ import type {
 export type SessionRole = 'desktop' | 'planner' | 'orchestrator' | 'worker' | 'reviewer' | 'reader'
 
 export interface CapabilitiesView {
+  humanQuestions?: { available: boolean; guidance: string }
   server: { name: string; version: string }
   apiVersion: number
   schemaVersion: number

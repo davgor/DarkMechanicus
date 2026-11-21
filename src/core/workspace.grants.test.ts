@@ -114,6 +114,7 @@ describe('a grant decides what a CLI session may do', () => {
       'attempt.submit',
       'chat.name',
       'comment.write',
+      'human.ask',
       'kanban.report',
       'mail.use',
       'metrics.report',

@@ -23,6 +23,8 @@ export const PER_CALL_COMMANDS: Readonly<Partial<Record<SessionRole, readonly Co
  * `checkpoint.advance`, which the desktop holds too.
  */
 export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
+  askHuman: 'human.ask',
+  getHumanAnswer: 'human.ask',
   nameChat: 'chat.name',
   getCapabilities: 'read',
   getProject: 'read',
