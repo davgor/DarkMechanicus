@@ -6,7 +6,8 @@ import { prettyJson } from '../canonical'
 import type { Clock } from '../clock'
 import { type Db, openDatabase } from '../db/database'
 import { fail } from '../errors'
-import { META_KEYS } from '../meta'
+import { policyForStore } from './deliveryPolicy'
+import { setMeta, META_KEYS } from '../meta'
 import { SESSION_ACTIVE_WINDOW_MS } from '../services/sessions'
 import { loadStoredAttachment, placementOfAttachment } from './attachmentFiles'
 import { createFileHashCache } from './fileHashes'
@@ -281,7 +282,9 @@ function prepareDestination(deps: MigrationDeps, paths: MigrationPaths, project:
     deps.fs.mkdirp(paths.staging.localDir)
     const snapshot = hydratedCheckpoint(deps, paths.source)
     const env = { fs: deps.fs, layout: paths.staging }
-    writeFileSafely(env, paths.staging.projectFile, prettyJson(project))
+    const policy = policyForStore(deps.layout, deps.db, project)
+    const destinationProject = { ...project, deliveryStandards: paths.target.mode === 'repo' ? policy : undefined }
+    writeFileSafely(env, paths.staging.projectFile, prettyJson(destinationProject))
     writeFileSafely(env, paths.staging.machineFile, deps.fs.readFile(paths.source.machineFile))
     // Credentials and unsaved state stay ignored-local; this is not a new canonical portable format.
     writeFileSafely(env, paths.staging.gitignoreFile, 'local/\n')
@@ -289,6 +292,8 @@ function prepareDestination(deps: MigrationDeps, paths: MigrationPaths, project:
     writeFileSafely(env, checkpointFile, prettyJson(snapshot))
     const rebuilt = rebuildCheckpoint(paths.staging.dbFile, deps.fs.readFile(checkpointFile))
     try {
+      if (paths.target.mode === 'db' && policy) setMeta(rebuilt, META_KEYS.deliveryStandards, prettyJson(policy))
+      else rebuilt.run('DELETE FROM meta WHERE key = ?', META_KEYS.deliveryStandards)
       if (paths.target.mode === 'repo') exportMigrationRecords({ ...env, db: rebuilt, clock: deps.clock })
       else importCanonical(deps, rebuilt, paths.source)
       assertIdle({ ...deps, db: rebuilt })

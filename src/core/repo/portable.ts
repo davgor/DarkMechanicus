@@ -3,6 +3,7 @@
  * (size bound, merge-marker check, JSON, strict schema); builders produce the same validated shapes
  * from local database rows, so the finalizer never writes a record the importer would reject.
  */
+import { storedDeliveryPolicy } from '../deliveryPolicySchema'
 import { z } from 'zod'
 import { REASONING_EFFORTS, TICKET_PRIORITIES, TICKET_SIZES } from '../../shared/domain/bundle'
 import { KANBAN_EDITABLE_FIELDS } from '../../shared/domain/kanban'
@@ -108,6 +109,7 @@ const repositoryBranches = z
 
 export const projectRecord = z.strictObject({
   format: z.literal('darkmechanicus.project'),
+  deliveryStandards: storedDeliveryPolicy.optional(),
   formatVersion: z.literal(1),
   projectId: idOf('project'),
   name: z.string().min(1).max(200),

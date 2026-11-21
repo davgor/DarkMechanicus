@@ -26,6 +26,7 @@ export const COMMAND_CAPABILITIES: Readonly<Record<CommandName, Capability>> = {
   nameChat: 'chat.name',
   getCapabilities: 'read',
   getProject: 'read',
+  setDeliveryStandards: 'project.definition_of_done',
   setDefinitionOfDone: 'project.definition_of_done',
   rescanRepositories: 'project.repositories',
   initializeRepository: 'repo.init',

@@ -3,6 +3,7 @@ import type { Db } from './db/database'
 /** Keys of the local `meta` table (machine-local, never exported). */
 export const META_KEYS = {
   projectId: 'project_id',
+  deliveryStandards: 'delivery_standards',
   projectName: 'project_name',
   keyPrefix: 'key_prefix',
   machineId: 'machine_id',

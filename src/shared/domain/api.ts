@@ -2,6 +2,7 @@
  * The single command/query contract. The core Workspace implements it; MCP tools and desktop IPC
  * are thin adapters over it, so both entry points enforce identical rules.
  */
+import type { DeliveryPolicy, StoredDeliveryPolicy } from './deliveryPolicy'
 import type { NameChatArgs } from '../agents/chatNaming'
 import type { SavePermissionRequestView } from './savePermissions'
 import type { CorrectionPlanView, CorrectionsInput, CorrectionsResultView, CreateCorrectionsInput } from './corrections'
@@ -438,6 +439,7 @@ export interface CommandApi {
    * and answers with the project as getProject shows it. Planner and desktop only; never commits. In a folder
    * of repositories `repo` is required and names the repository whose checks these are; a single repository refuses it.
    */
+  setDeliveryStandards(input: { expectedRevision: number; policy: DeliveryPolicy }): Promise<StoredDeliveryPolicy>
   setDefinitionOfDone(input: {
     checks: { name: string; command: string; description?: string }[]
     repo?: string

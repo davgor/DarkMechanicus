@@ -99,7 +99,7 @@ const PLANNER_SHARED_TOOLS = [
 ]
 
 /** Only a planner (and the desktop) sets the Definition of Done: the orchestrator accepts work against it. */
-const PLANNER_ONLY_TOOLS = ['set_definition_of_done']
+const PLANNER_ONLY_TOOLS = ['set_definition_of_done', 'set_delivery_standards']
 
 const PLANNER_TOOLS = [...PLANNER_SHARED_TOOLS, ...PLANNER_ONLY_TOOLS]
 
