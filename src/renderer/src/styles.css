@@ -1285,6 +1285,11 @@ textarea.input {
   font-size: 12.5px;
 }
 
+.footer-toggle {
+  align-self: flex-end;
+  height: 28px;
+}
+
 .footer-line {
   display: flex;
   align-items: center;
