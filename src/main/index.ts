@@ -9,9 +9,7 @@ import { hardenWebContents, resolveAppUrl } from './desktop/navigation'
 import { guardIpc } from './ipcGuard'
 import { logger, setupGlobalErrorLogging } from './logger'
 import { disposeBeforeQuit } from './quitDisposal'
-import { applyColorProfile, loadRendererContent, onActivateCreateWindow, onLastWindowClosed, removeWindowMenuBar } from './windowPolicy'
-
-setupGlobalErrorLogging()
+import { applyColorProfile, loadRendererContent, onActivateCreateWindow, onLastWindowClosed, removeWindowMenuBar, routeAppLaunch } from './windowPolicy'
 
 /** The dev server in development (electron-vite sets it); otherwise the packaged page beside this bundle. */
 const rendererUrl = process.env['ELECTRON_RENDERER_URL']
@@ -71,48 +69,59 @@ function registerAppVersionHandler(ipc: Pick<IpcMain, 'handle'>): void {
   ipc.handle('app:getVersion', () => app.getVersion())
 }
 
-// Theme colours must render as the exact sRGB values (see applyColorProfile).
-applyColorProfile(app.commandLine)
-// Must run before the app is ready; the protocol handler itself is registered in startDesktopBridge.
-registerAttachmentScheme(protocol)
+function startDesktop(): void {
+  setupGlobalErrorLogging()
+  // Theme colours must render as the exact sRGB values (see applyColorProfile).
+  applyColorProfile(app.commandLine)
+  // Must run before the app is ready; the protocol handler itself is registered in startDesktopBridge.
+  registerAttachmentScheme(protocol)
 
-app.whenReady().then(() => {
-  app.dock?.setIcon(appIcon)
-  // Every IPC handler is registered through the guard: it answers only the app page's top frame.
-  const ipc = guardIpc(ipcMain, {
-    appUrl,
-    onRefused: (channel, senderUrl) => {
-      logger.warn(`Refused IPC call on ${channel} from ${senderUrl}`)
-    }
-  })
-  registerAppVersionHandler(ipc)
-  registerAutoUpdateHandlers(ipc)
-  initAutoUpdate()
-  const bridge = startDesktopBridge(SKILLS, ipc)
-  // Agent chat processes and chat terminals are children of this app: dispose every one before it
-  // exits, and only then close the workspaces and app.sqlite, exactly once.
-  disposeBeforeQuit(app, {
-    busy: () => bridge.chats.busy(),
-    dispose: () => bridge.chats.dispose(),
-    release: () => bridge.close(),
-    timeoutMs: QUIT_DISPOSE_TIMEOUT_MS,
-    onError: (error) => {
-      logger.error('Could not dispose agent chats or close the app stores on quit:', error)
-    }
-  })
-  // No File/Edit/View/Window bar in the window; macOS keeps its system menu for the edit shortcuts.
-  removeWindowMenuBar(process.platform, () => {
-    Menu.setApplicationMenu(null)
-  })
-  createMainWindow()
+  app.whenReady().then(() => {
+    app.dock?.setIcon(appIcon)
+    // Every IPC handler is registered through the guard: it answers only the app page's top frame.
+    const ipc = guardIpc(ipcMain, {
+      appUrl,
+      onRefused: (channel, senderUrl) => {
+        logger.warn(`Refused IPC call on ${channel} from ${senderUrl}`)
+      }
+    })
+    registerAppVersionHandler(ipc)
+    registerAutoUpdateHandlers(ipc)
+    initAutoUpdate()
+    const bridge = startDesktopBridge(SKILLS, ipc)
+    // Agent chat processes and chat terminals are children of this app: dispose every one before it
+    // exits, and only then close the workspaces and app.sqlite, exactly once.
+    disposeBeforeQuit(app, {
+      busy: () => bridge.chats.busy(),
+      dispose: () => bridge.chats.dispose(),
+      release: () => bridge.close(),
+      timeoutMs: QUIT_DISPOSE_TIMEOUT_MS,
+      onError: (error) => {
+        logger.error('Could not dispose agent chats or close the app stores on quit:', error)
+      }
+    })
+    // No File/Edit/View/Window bar in the window; macOS keeps its system menu for the edit shortcuts.
+    removeWindowMenuBar(process.platform, () => {
+      Menu.setApplicationMenu(null)
+    })
+    createMainWindow()
 
-  app.on('activate', () => {
-    onActivateCreateWindow(BrowserWindow.getAllWindows().length, createMainWindow)
+    app.on('activate', () => {
+      onActivateCreateWindow(BrowserWindow.getAllWindows().length, createMainWindow)
+    })
   })
-})
 
-app.on('window-all-closed', () => {
-  onLastWindowClosed(process.platform, () => {
-    app.quit()
+  app.on('window-all-closed', () => {
+    onLastWindowClosed(process.platform, () => {
+      app.quit()
+    })
   })
+}
+
+const mcpEntry = join(__dirname, 'mcp.js')
+routeAppLaunch(process.argv[1], mcpEntry, {
+  serveMcp: () => require(mcpEntry),
+  claimDesktop: () => app.requestSingleInstanceLock(),
+  startDesktop,
+  quit: () => app.quit()
 })

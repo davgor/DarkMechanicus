@@ -1,5 +1,6 @@
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { applyColorProfile, loadRendererContent, onActivateCreateWindow, onLastWindowClosed, removeWindowMenuBar } from './windowPolicy'
+import { applyColorProfile, loadRendererContent, onActivateCreateWindow, onLastWindowClosed, removeWindowMenuBar, routeAppLaunch } from './windowPolicy'
 
 describe('loadRendererContent', () => {
   it('loads the dev-server URL when provided', () => {
@@ -115,5 +116,39 @@ describe('applyColorProfile', () => {
       }
     })
     expect(switches).toEqual([['force-color-profile', 'srgb']])
+  })
+})
+
+describe('packaged launch routing', () => {
+  const bundledMcp = join(__dirname, 'mcp.js')
+
+  it('serves a burst of MCP clients without acquiring the desktop lock or starting a window', () => {
+    const sessions: number[] = []
+    const unexpected = (): never => { throw new Error('MCP launch entered the desktop path') }
+    for (let client = 1; client <= 75; client++) {
+      routeAppLaunch(bundledMcp, bundledMcp, {
+        serveMcp: () => { sessions.push(client) },
+        claimDesktop: unexpected,
+        startDesktop: unexpected,
+        quit: unexpected
+      })
+    }
+    expect(sessions).toEqual(Array.from({ length: 75 }, (_, i) => i + 1))
+  })
+
+  it('admits one desktop launch and quietly exits subsequent attempts, including unrelated script paths', () => {
+    let windows = 0
+    const events: string[] = []
+    const actions = {
+      serveMcp: () => { throw new Error('Unexpected MCP dispatch') },
+      claimDesktop: () => { events.push('lock'); return windows === 0 },
+      startDesktop: () => { windows++; events.push('window') },
+      quit: () => { events.push('quit') }
+    }
+    routeAppLaunch(undefined, bundledMcp, actions)
+    routeAppLaunch(join(__dirname, 'other', 'mcp.js'), bundledMcp, actions)
+    routeAppLaunch(undefined, bundledMcp, actions)
+    expect(windows).toBe(1)
+    expect(events).toEqual(['lock', 'window', 'lock', 'quit', 'lock', 'quit'])
   })
 })
