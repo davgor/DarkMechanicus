@@ -1,7 +1,7 @@
 /**
  * The person's side of chat mailboxes over real desktop workspaces, the real chat store on disk, real grants and real
  * agent CLI sessions: inbox reads and the seen cursor never acknowledge for the agent, counts follow retention, the
- * mailbox comes only from a tracked folder's own OMP chat, the wake credit is one-shot and revisioned, and the central
+ * mailbox comes only from a tracked folder's own OMP chat, automatic insertion progress is independent of ack/seen, and the central
  * monitor catches up, pushes metadata only, keeps one sweep in flight in bounded pages, discards late results of a
  * stopped folder and leaves no timer behind.
  */
@@ -11,7 +11,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HUMAN_ONLY_CAPABILITIES } from '../../core/authz'
 import { DomainError } from '../../core/errors'
-import { armAgentMailWake, readHumanAgentInbox } from '../../core/services/agentMail'
+import { readHumanAgentInbox } from '../../core/services/agentMail'
 import { openWorkspace, type Workspace } from '../../core/workspace'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { ChatMailPage, ChatMailPushEvent, ChatMailSnapshot, ChatMailState } from '../../shared/agents/chatApi'
@@ -75,7 +75,15 @@ interface Rig {
 }
 
 /** `realYield` keeps the service's own yield between pages instead of the rig's immediate one. */
-type RigOptions = Pick<AgentMailDesktopDeps, 'pageSize' | 'yieldPage' | 'onUnexpectedError'> & { newId?: () => string; realYield?: boolean }
+type RigOptions = Pick<AgentMailDesktopDeps, 'pageSize' | 'yieldPage' | 'onUnexpectedError' | 'board'> & {
+  newId?: () => string
+  realYield?: boolean
+  autoMonitor?: boolean
+  delivery?: {
+    hasMessage(chat: ChatRecord, message: { id: string; body: string }): boolean
+    resume(chat: ChatRecord): Promise<string | null>
+  }
+}
 
 async function rig(options: RigOptions = {}): Promise<Rig> {
   const clock = createTestClock('2026-04-01T09:00:00.000Z')
@@ -137,6 +145,9 @@ function watchedMail(
       return over.workspaceFor(folder).ctx()
     },
     push: (event) => pushes.push(event),
+    ...(options.autoMonitor ? { folders: () => [...over.tracked] } : {}),
+    ...(options.delivery === undefined ? {} : { delivery: options.delivery }),
+    ...(options.board === undefined ? {} : { board: options.board }),
     pageSize: options.pageSize,
     onUnexpectedError: options.onUnexpectedError,
     yieldPage: options.realYield === true ? undefined : (options.yieldPage ?? (() => Promise.resolve()))
@@ -181,6 +192,79 @@ async function settle(): Promise<void> {
   for (let i = 0; i < 5; i += 1) await new Promise<void>((resolve) => setImmediate(resolve))
 }
 
+describe('automatic monitoring without opening an inbox', () => {
+  it('discovers pending mail in every tracked folder without a snapshot request', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
+    const state = await rig({ autoMonitor: true })
+    const inbox = newOmp(state, repoB, 'Stopped recipient')
+    const sender = await state.agentOf(newOmp(state, repoB, 'Sender'))
+    await send(sender, inbox, ['must not depend on opening the inbox'])
+    await vi.advanceTimersByTimeAsync(2_000)
+    await settle()
+    expect(state.pushes).toContainEqual(expect.objectContaining({
+      type: 'mail_state',
+      state: expect.objectContaining({ folder: repoB, chatId: inbox.id, pendingCount: 1 })
+    }))
+  })
+
+  it('resumes the same stopped recipient, and never wakes already-inserted unacknowledged mail again', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
+    const received = new Map<string, string>()
+    const resumed: string[] = []
+    const state = await rig({
+      autoMonitor: true,
+      delivery: {
+        hasMessage: (_chat, message) => received.get(message.id) === message.body,
+        resume: async (chat) => { resumed.push(chat.id); return null }
+      }
+    })
+    const inbox = newOmp(state, repoA, 'Existing stopped recipient')
+    const sender = await state.agentOf(newOmp(state, repoA, 'Sender'))
+    await send(sender, inbox, ['first full body'])
+    await vi.advanceTimersByTimeAsync(2_000)
+    await settle()
+    expect(resumed).toEqual([inbox.id])
+    const page = readHumanAgentInbox(state.pool.get(repoA).ctx(), { endpointId: inbox.endpointId ?? '' })
+    for (const message of page.messages) received.set(message.id, message.body)
+    await vi.advanceTimersByTimeAsync(4_000)
+    await settle()
+    expect(resumed).toEqual([inbox.id])
+    expect((await stateOf(state, inbox)).pendingCount).toBe(1)
+    await send(sender, inbox, ['independent second full body'], 'second')
+    await vi.advanceTimersByTimeAsync(2_000)
+    await settle()
+    expect(resumed).toEqual([inbox.id, inbox.id])
+    expect(state.store.listChats(repoA).filter((chat) => chat.title === inbox.title)).toHaveLength(1)
+  })
+
+})
+
+describe('automatic monitoring while its recipient is unavailable', () => {
+  it('preserves undelivered bodies and exposes the real unavailable-runtime blocker until recovery', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
+    let problem: string | null = 'Sign in to the existing recipient runtime.'
+    const state = await rig({
+      autoMonitor: true,
+      delivery: { hasMessage: () => false, resume: async () => problem }
+    })
+    const inbox = newOmp(state, repoA, 'Unavailable recipient')
+    const sender = await state.agentOf(newOmp(state, repoA, 'Sender'))
+    await send(sender, inbox, ['retained while signed out'])
+    await vi.advanceTimersByTimeAsync(2_000)
+    await settle()
+    expect(await stateOf(state, inbox)).toMatchObject({
+      delivery: { pendingCount: 1, problem: 'Sign in to the existing recipient runtime.' },
+      pendingCount: 1
+    })
+    problem = null
+    await vi.advanceTimersByTimeAsync(2_000)
+    await settle()
+    expect(await stateOf(state, inbox)).toMatchObject({ delivery: { pendingCount: 1, problem: null } })
+    expect(readHumanAgentInbox(state.pool.get(repoA).ctx(), { endpointId: inbox.endpointId ?? '' }).messages[0]?.body)
+      .toBe('retained while signed out')
+  })
+})
+
 describe('the person’s inbox: read and seen without agent acknowledgement', () => {
   it('reads bodies and moves the seen cursor while the agent’s pending mail stays pending, and counts follow seven-day retention', async () => {
     const state = await rig()
@@ -191,7 +275,7 @@ describe('the person’s inbox: read and seen without agent acknowledgement', ()
     const snapshot = data(await state.mail.handlers.snapshot(repoA))
     const shown = snapshot.chats.find((chat) => chat.chatId === inbox.id)
     expect(shown && counts(shown)).toEqual({ humanSeenSeq: 0, unseenCount: 3, pendingCount: 3, retainedCount: 3 })
-    expect([shown?.retentionDays, shown?.wake]).toEqual([7, { revision: 0, armed: false, armedAt: null, lastAttempt: null }])
+    expect(shown?.retentionDays).toBe(7)
 
     const page = data(await state.mail.handlers.read({ folder: repoA, chatId: inbox.id, limit: 2 }))
     expect(page.messages.map((message) => [message.seq, message.body, message.acknowledgedAt])).toEqual([
@@ -255,7 +339,7 @@ describe('the person’s inbox: which mailbox', () => {
     // A chat of another folder, another CLI's chat and a deleted chat have no mailbox here.
     expect(code(await state.mail.handlers.state({ folder: repoA, chatId: elsewhere.id }))).toBe('not_found')
     expect(code(await state.mail.handlers.read({ folder: repoA, chatId: claude.id }))).toBe('not_found')
-    expect(code(await state.mail.handlers.allowWake({ folder: repoA, chatId: doomed.id, expectedRevision: 0, requestNonce: 'n1' }))).toBe('not_found')
+    expect(code(await state.mail.handlers.state({ folder: repoA, chatId: doomed.id }))).toBe('not_found')
     // The renderer never names an endpoint, and every request is a strict object.
     expect(code(await state.mail.handlers.read({ folder: repoA, chatId: inbox.id, endpointId: elsewhere.endpointId }))).toBe('invalid_input')
     expect(code(await state.mail.handlers.state({ folder: repoA, chatId: '../x' }))).toBe('invalid_input')
@@ -266,67 +350,16 @@ describe('the person’s inbox: which mailbox', () => {
     expect(data(await state.mail.handlers.snapshot(repoA)).chats.map((chat) => chat.chatId)).toEqual([inbox.id])
   })
 
-  it('keeps the person’s mail powers human-only: an agent session cannot read another inbox or arm a wake', async () => {
+  it('keeps the person’s mail powers human-only: an agent cannot inspect another inbox', async () => {
     const state = await rig()
     const inbox = newOmp(state, repoA, 'Inbox')
     const agent = await state.agentOf(newOmp(state, repoA, 'Agent'))
     expect(HUMAN_ONLY_CAPABILITIES).toContain('mail.manage')
 
     expect(() => readHumanAgentInbox(agent.ctx(), { endpointId: inbox.endpointId ?? '' })).toThrow(expect.objectContaining({ code: 'unauthorized' }))
-    expect(() => armAgentMailWake(agent.ctx(), { endpointId: inbox.endpointId ?? '', expectedRevision: 0, requestNonce: 'n1' })).toThrow(
-      expect.objectContaining({ code: 'unauthorized' })
-    )
   })
 })
 
-describe('Allow one inbox wake', () => {
-  it('arms one credit that never accumulates, is used once, and is never re-armed by a delayed duplicate', async () => {
-    const state = await rig()
-    const inbox = newOmp(state, repoA, 'Inbox')
-    const ref = { folder: repoA, chatId: inbox.id }
-    const sender = await state.agentOf(newOmp(state, repoA, 'Sender'))
-    const agent = await state.agentOf(inbox)
-
-    const armed = data(await state.mail.handlers.allowWake({ ...ref, expectedRevision: 0, requestNonce: 'click-1' }))
-    expect(armed.wake).toMatchObject({ revision: 1, armed: true, lastAttempt: null })
-    // Allow again while armed, with another click's nonce or a stale revision: the same armed credit.
-    expect(data(await state.mail.handlers.allowWake({ ...ref, expectedRevision: 0, requestNonce: 'click-2' })).wake).toEqual(armed.wake)
-    expect(data(await state.mail.handlers.allowWake({ ...ref, expectedRevision: 1, requestNonce: 'click-3' })).wake).toEqual(armed.wake)
-
-    // No mail: the credit stays; with mail the agent takes it exactly once.
-    expect(await agent.takeAgentMailWake({})).toMatchObject({ claimed: false })
-    await send(sender, inbox, ['wake up'])
-    const taken = await agent.takeAgentMailWake({})
-    expect(taken).toMatchObject({ claimed: true, pendingCount: 1 })
-    expect(await agent.takeAgentMailWake({})).toMatchObject({ claimed: false, wakeAttemptId: null })
-    const used = await stateOf(state, inbox)
-    expect(used.wake).toMatchObject({ revision: 2, armed: false, lastAttempt: { id: taken.wakeAttemptId, outcome: 'attempted' } })
-
-    // The first click arriving late, or any request naming the pre-consumption revision, is refused: no new credit.
-    expect(code(await state.mail.handlers.allowWake({ ...ref, expectedRevision: 0, requestNonce: 'click-1' }))).toBe('conflict')
-    expect(code(await state.mail.handlers.allowWake({ ...ref, expectedRevision: 1, requestNonce: 'click-4' }))).toBe('conflict')
-    expect((await stateOf(state, inbox)).wake.armed).toBe(false)
-    // A new deliberate Allow at the current revision arms the next one.
-    expect(data(await state.mail.handlers.allowWake({ ...ref, expectedRevision: 2, requestNonce: 'click-5' })).wake).toMatchObject({ revision: 3, armed: true })
-  })
-
-  it('arms with mail pending and leaves the stopped chat alone: monitoring never takes the credit or acknowledges', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-    const state = await rig()
-    const inbox = newOmp(state, repoA, 'Inbox')
-    const sender = await state.agentOf(newOmp(state, repoA, 'Sender'))
-    await send(sender, inbox, ['pending'])
-    data(await state.mail.handlers.snapshot(repoA))
-    data(await state.mail.handlers.allowWake({ folder: repoA, chatId: inbox.id, expectedRevision: 0, requestNonce: 'n1' }))
-
-    await vi.advanceTimersByTimeAsync(10_000)
-    await settle()
-
-    const after = await stateOf(state, inbox)
-    expect([after.pendingCount, after.wake.armed, after.wake.lastAttempt]).toEqual([1, true, null])
-    expect(state.store.getChat(inbox)?.grantIds ?? []).toEqual([])
-  })
-})
 
 describe('the central mail monitor', () => {
   it('catches up on mail that arrived before it started, then pushes only changed metadata and never a body', async () => {
@@ -575,5 +608,45 @@ describe('the person’s inbox page', () => {
 
     expect([first.messages.map((m) => m.body), first.hasMore]).toEqual([['a', 'b'], true])
     expect([second.messages.map((m) => m.body), second.hasMore]).toEqual([['c'], false])
+  })
+})
+
+describe('automatic context monitoring without an open inbox', () => {
+  it('monitors person-board pending work even when the tracked folder has no eligible peer mailbox', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
+    const boardPoll = vi.fn(async (_folder: string) => {})
+    const state = await rig({ autoMonitor: true, board: { poll: boardPoll } })
+    state.records.createChat({ folder: repoA, agent: 'claude', role: 'worker', title: 'Native recipient' })
+    await vi.advanceTimersByTimeAsync(2_000)
+    await settle()
+    expect(boardPoll.mock.calls.map(([folder]) => folder)).toEqual(expect.arrayContaining([repoA, repoB]))
+    state.mail.dispose()
+    const calls = boardPoll.mock.calls.length
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(boardPoll).toHaveBeenCalledTimes(calls)
+  })
+
+  it('exposes an unobservable transcript as a blocker without blindly resuming, then recovers on a later sweep', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
+    let inaccessible = true
+    const resume = vi.fn(async () => null)
+    const state = await rig({ autoMonitor: true, delivery: {
+      hasMessage: () => {
+        if (inaccessible) throw new Error('EACCES: recipient transcript is unreadable.')
+        return false
+      },
+      resume
+    } })
+    const inbox = newOmp(state, repoA, 'Blocked observer')
+    const sender = await state.agentOf(newOmp(state, repoA, 'Sender'))
+    await send(sender, inbox, ['Keep this complete pending body.'])
+    await vi.advanceTimersByTimeAsync(2_000)
+    await settle()
+    expect((await stateOf(state, inbox)).delivery).toMatchObject({ pendingCount: 1, problem: expect.stringContaining('EACCES') })
+    expect(resume).not.toHaveBeenCalled()
+    inaccessible = false
+    await vi.advanceTimersByTimeAsync(2_000)
+    await settle()
+    expect(resume).toHaveBeenCalledWith(expect.objectContaining({ id: inbox.id }))
   })
 })

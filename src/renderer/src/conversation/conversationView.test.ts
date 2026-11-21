@@ -44,6 +44,8 @@ describe('conversationItems delivery labels', () => {
 
   it.each([
     ['delivered', state({ deliveries: { mine: { chatId: 'chat_1', state: 'delivered', problem: null, chatExists: true } } }), 'Delivered to DM-696 worker'],
+    ['pending', state({ deliveries: { mine: { chatId: 'chat_1', state: 'pending', problem: null, chatExists: true } } }), 'Pending automatic delivery'],
+    ['blocked', state({ deliveries: { mine: { chatId: 'chat_1', state: 'pending', problem: 'Sign in first.', chatExists: true } } }), 'Pending delivery: Sign in first.'],
     ['failed', state({ deliveries: { mine: { chatId: 'chat_1', state: 'failed', problem: 'Terminal stopped.', chatExists: true } } }), 'Not delivered: Terminal stopped.'],
     ['opened', state({ deliveries: { mine: { chatId: 'chat_1', state: 'opened', problem: null, chatExists: true } } }), 'Opened a new chat'],
     ['deleted', state({ deliveries: { mine: { chatId: 'chat_1', state: 'delivered', problem: null, chatExists: false } } }), 'Chat deleted'],

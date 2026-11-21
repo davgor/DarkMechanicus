@@ -52,13 +52,6 @@ const AGENT_MAIL_TOOLS = [
     kind: 'read',
     schema: COMMAND_SCHEMAS.getAgentMailStatus,
     run: (api, input) => api.getAgentMailStatus(input)
-  }),
-  defineSchemaTool({
-    name: 'take_agent_mail_wake',
-    description: `Consumes the one-shot wake credit the desktop armed for your mailbox, when mail is pending. Only the call that consumes it gets claimed: true; it is an attempt to wake, never a delivery or read receipt.${OVER_MCP}`,
-    kind: 'write',
-    schema: COMMAND_SCHEMAS.takeAgentMailWake,
-    run: (api) => api.takeAgentMailWake({})
   })
 ]
 

@@ -1,6 +1,6 @@
 /**
  * The person's side of OMP chats' mailboxes, behind the `chatMail:*` channels, and the central metadata monitor that
- * keeps the app window's unread and wake badges current. A pure factory over injected dependencies (no Electron).
+ * keeps unread and automatic-delivery badges current. A pure factory over injected dependencies (no Electron).
  *
  * **Who and which mailbox.** Every request names a tracked folder and a chat id, never an endpoint id: the folder is
  * resolved to its canonical tracked path (an untracked or swapped folder is refused, `chatFolder`), the chat must be
@@ -12,25 +12,25 @@
  * moves forward only, and only up to the highest sequence an inbox page actually served to the window, so a message
  * that arrived after the window rendered stays unseen.
  *
- * **Wake.** Allow one inbox wake arms at most one credit per mailbox, revisioned and nonce-checked by the service; a
- * repeated Allow while armed returns the armed state. Nothing here starts, resumes or pastes into a chat terminal: a
- * stopped chat stays stopped whatever mail or credits it has, and a consumed or lost wake needs a new Allow.
+ * **Automatic delivery.** Every eligible tracked folder is monitored without opening Inbox. Exact host-body receipts,
+ * not acknowledgment or seen state, determine which messages still need the existing recipient chat resumed. The
+ * shared board monitor retains person bodies through unavailable hosts and restart; no replacement chat is created.
  *
- * **Monitor.** `snapshot(folder)` answers every mailbox of the folder (the catch-up after start or a missed push) and
- * keeps one poll per folder going: every 2 s, one sweep in flight, bounded pages read in one transaction each with the
- * event loop free between pages, a push only for a chat whose metadata changed. A sweep or snapshot whose folder was
- * stopped (untrack) or restarted meanwhile discards what it read. Pushes carry counts and wake state, never a body.
- * The monitor only reads human state: it never acknowledges, takes a wake credit or touches an agent's inbox.
+ * **Monitor.** `snapshot(folder)` catches up after start or a missed push. Each tracked folder has one poll every
+ * 2 s, one sweep in flight, bounded pages read in separate transactions with the event loop free between pages,
+ * and a push only for changed metadata. Resuming happens after those transactions finish. A sweep whose folder was
+ * stopped or restarted meanwhile discards its result. Pushes never carry bodies; polling never acknowledges or marks seen.
  */
 import { z } from 'zod'
 import type { Ctx } from '../../core/context'
 import { DomainError, fail } from '../../core/errors'
 import { parseInput } from '../../core/schemas'
-import { armAgentMailWake, getHumanAgentMailState, markHumanAgentMailSeen, readHumanAgentInbox } from '../../core/services/agentMail'
+import { getHumanAgentMailState, markHumanAgentMailSeen, readHumanAgentInbox } from '../../core/services/agentMail'
 import { AGENT_MAIL_LIMITS, getEndpoint } from '../../core/services/agentMailStore'
 import { chatIdSchema, type ChatRecord } from '../../shared/agents/chat'
 import type { ChatMailPage, ChatMailPushEvent, ChatMailSnapshot, ChatMailState } from '../../shared/agents/chatApi'
 import type { CommandResult } from '../../shared/desktop/api'
+import type { AgentMailMessageView } from '../../shared/domain/agentMail'
 import type { FolderRegistry } from '../desktop/folderRegistry'
 import { answer, chatFolder, folderSchema } from './chatHandlers'
 import { hasMailbox } from './chatMailboxes'
@@ -52,14 +52,21 @@ const readSchema = z.strictObject({
   unacknowledgedOnly: z.boolean().optional()
 })
 const seenSchema = z.strictObject({ ...refShape, throughSeq: seq.min(1) })
-const wakeSchema = z.strictObject({ ...refShape, expectedRevision: seq, requestNonce: z.string().min(1).max(128) })
 
 export interface AgentMailDesktopDeps {
   registry: Pick<FolderRegistry, 'resolve'>
   /** The chat records; read only (listing through it would provision). */
   store: Pick<ChatStore, 'getChat' | 'listChats'>
+  /** All eligible tracked folders, independent of which inbox the person opened. */
+  folders?: () => readonly string[]
   /** The person's context in the folder's held desktop workspace (never a fresh session). */
   contextFor: (folder: string) => Ctx
+  delivery?: {
+    hasMessage(chat: ChatRecord, message: AgentMailMessageView): boolean
+    resume(chat: ChatRecord): Promise<string | null>
+  }
+  /** Person-board work shares this unconditional tracked-folder monitor, including non-peer hosts. */
+  board?: { poll(folder: string): Promise<void> }
   /** Delivers metadata to the app window; without it nothing is pushed. */
   push?: (event: ChatMailPushEvent) => void
   /** Told about failures that are not DomainErrors (bugs, I/O), so main can log the stack. */
@@ -76,7 +83,6 @@ export interface ChatMailHandlers {
   state(request: unknown): Promise<CommandResult<ChatMailState>>
   read(request: unknown): Promise<CommandResult<ChatMailPage>>
   markSeen(request: unknown): Promise<CommandResult<ChatMailState>>
-  allowWake(request: unknown): Promise<CommandResult<ChatMailState>>
 }
 
 export interface AgentMailDesktop {
@@ -133,6 +139,9 @@ class ChatMailDesk {
   private readonly served = new Map<string, Map<string, number>>()
   private version = 0
   private disposed = false
+  private discoveryTimer: NodeJS.Timeout | null = null
+  private readonly deliveryProblems = new Map<string, string>()
+  private readonly unobservable = new Set<string>()
 
   private readonly deps: AgentMailDesktopDeps
 
@@ -141,6 +150,19 @@ class ChatMailDesk {
     this.pollMs = deps.pollMs ?? MAIL_POLL_MS
     this.pageSize = deps.pageSize ?? MAIL_PAGE_SIZE
     this.yieldPage = deps.yieldPage ?? (() => new Promise<void>((resolve) => setImmediate(resolve)))
+    if (deps.folders !== undefined) {
+      this.discoveryTimer = setInterval(() => this.discoverFolders(), this.pollMs)
+    }
+  }
+
+  private discoverFolders(): void {
+    if (this.disposed) return
+    for (const folder of this.deps.folders?.() ?? []) {
+      if (this.watches.has(folder)) continue
+      const watch: FolderWatch = { timer: null, last: new Map() }
+      this.watches.set(folder, watch)
+      void this.poll(folder, watch)
+    }
   }
 
   mailbox(input: { folder: string; chatId: string }): ChatMailbox {
@@ -155,7 +177,9 @@ class ChatMailDesk {
 
   stateOf(box: Pick<ChatMailbox, 'ctx' | 'folder' | 'endpointId'> & { chatId: string }): ChatMailState {
     const view = getHumanAgentMailState(box.ctx, { endpointId: box.endpointId })
-    const { revision, armed, armedAt, lastAttempt } = view.wake
+    const chat = this.deps.store.getChat({ folder: box.folder, id: box.chatId })
+    if (chat === null) fail('not_found', NO_MAILBOX)
+    const delivery = this.deliveryState(box, chat)
     return {
       folder: box.folder,
       chatId: box.chatId,
@@ -164,9 +188,40 @@ class ChatMailDesk {
       pendingCount: view.pendingCount,
       retainedCount: view.retainedCount,
       retentionDays: view.retentionDays,
-      wake: { revision, armed, armedAt, lastAttempt },
+      delivery,
       version: ++this.version
     }
+  }
+
+  private inspectPage(chat: ChatRecord, messages: ReturnType<typeof readHumanAgentInbox>['messages'], delivery: ChatMailState['delivery']): void {
+    for (const message of messages) {
+      try {
+        if (delivery.problem !== null || !this.deps.delivery?.hasMessage(chat, message)) delivery.pendingCount += 1
+        else delivery.deliveredCount += 1
+      } catch (error) {
+        delivery.pendingCount += 1
+        delivery.problem = error instanceof Error ? error.message : String(error)
+      }
+    }
+  }
+
+  private deliveryState(box: Pick<ChatMailbox, 'ctx' | 'folder' | 'endpointId'> & { chatId: string }, chat: ChatRecord): ChatMailState['delivery'] {
+    const delivery = { pendingCount: 0, deliveredCount: 0, problem: null as string | null }
+    let afterSeq = 0
+    let throughSeq: number | undefined
+    for (;;) {
+      const page = readHumanAgentInbox(box.ctx, { endpointId: box.endpointId, afterSeq, throughSeq, limit: AGENT_MAIL_LIMITS.pageSize })
+      this.inspectPage(chat, page.messages, delivery)
+      if (!page.hasMore) break
+      afterSeq = page.nextCursor
+      throughSeq = page.snapshotHighWater
+    }
+    const key = `${box.folder}\0${box.chatId}`
+    if (delivery.problem === null) this.unobservable.delete(key)
+    else this.unobservable.add(key)
+    delivery.problem ??= delivery.pendingCount === 0 ? null : this.deliveryProblems.get(key) ??
+      (this.deps.delivery === undefined ? 'The recipient host context transport is unavailable.' : null)
+    return delivery
   }
 
   /** One page of states in one transaction; a chat whose mailbox is gone (deleted meanwhile) is left out. */
@@ -225,20 +280,41 @@ class ChatMailDesk {
         this.stopFolder(folder)
         return
       }
+      await this.deps.board?.poll(folder)
+      if (this.watches.get(folder) !== watch) return
       const states = await this.sweep(folder, watch)
       if (states === null) return
-      const present = new Set(states.map((state) => state.chatId))
-      for (const state of states) this.publish(state)
-      for (const chatId of watch.last.keys()) {
-        if (!present.has(chatId)) {
-          watch.last.delete(chatId)
-          this.deps.push?.({ type: 'mail_removed', folder, chatId, version: ++this.version })
-        }
-      }
+      for (const state of states) if (!(await this.resumeUndelivered(folder, state, watch))) return
+      this.publishSweep(folder, states, watch)
     } catch (error) {
       if (!(error instanceof DomainError)) this.deps.onUnexpectedError?.(error)
     } finally {
       this.schedule(folder, watch)
+    }
+  }
+
+  private async resumeUndelivered(folder: string, state: ChatMailState, watch: FolderWatch): Promise<boolean> {
+    const delivery = this.deps.delivery
+    if (state.delivery.pendingCount === 0 || delivery === undefined || this.unobservable.has(`${folder}\0${state.chatId}`)) return true
+    const chat = this.deps.store.getChat({ folder, id: state.chatId })
+    if (chat === null) return true
+    if (this.watches.get(folder) !== watch) return false
+    const problem = await delivery.resume(chat)
+    if (this.watches.get(folder) !== watch) return false
+    const key = `${folder}\0${chat.id}`
+    if (problem === null) this.deliveryProblems.delete(key)
+    else this.deliveryProblems.set(key, problem)
+    state.delivery.problem = problem
+    return true
+  }
+
+  private publishSweep(folder: string, states: ChatMailState[], watch: FolderWatch): void {
+    const present = new Set(states.map((state) => state.chatId))
+    for (const state of states) this.publish(state)
+    for (const chatId of watch.last.keys()) {
+      if (present.has(chatId)) continue
+      watch.last.delete(chatId)
+      this.deps.push?.({ type: 'mail_removed', folder, chatId, version: ++this.version })
     }
   }
 
@@ -251,6 +327,8 @@ class ChatMailDesk {
 
   dispose(): void {
     this.disposed = true
+    if (this.discoveryTimer !== null) clearInterval(this.discoveryTimer)
+    this.discoveryTimer = null
     for (const folder of this.watches.keys()) this.stopFolder(folder)
   }
 
@@ -295,14 +373,6 @@ class ChatMailDesk {
     return state
   }
 
-  allowWake(input: unknown): ChatMailState {
-    const request = parseInput(wakeSchema, input, 'chat mail wake')
-    const box = this.mailbox(request)
-    armAgentMailWake(box.ctx, { endpointId: box.endpointId, expectedRevision: request.expectedRevision, requestNonce: request.requestNonce })
-    const state = this.stateOf({ ...box, chatId: box.chat.id })
-    this.publish(state)
-    return state
-  }
 }
 
 export function createAgentMailDesktop(deps: AgentMailDesktopDeps): AgentMailDesktop {
@@ -316,8 +386,7 @@ export function createAgentMailDesktop(deps: AgentMailDesktopDeps): AgentMailDes
           return desk.stateOf({ ...box, chatId: box.chat.id })
         }),
       read: (input) => answer(deps, () => desk.read(input)),
-      markSeen: (input) => answer(deps, () => desk.markSeen(input)),
-      allowWake: (input) => answer(deps, () => desk.allowWake(input))
+      markSeen: (input) => answer(deps, () => desk.markSeen(input))
     },
     stopFolder: (folder) => desk.stopFolder(folder),
     dispose: () => desk.dispose()

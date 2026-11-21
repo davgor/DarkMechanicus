@@ -146,7 +146,7 @@ export interface SendConversationRequest {
 export interface SendConversationResult {
   messageId: string
   chatId: string | null
-  state: 'delivered' | 'failed' | 'opened'
+  state: 'pending' | 'delivered' | 'failed' | 'opened'
   problem: string | null
 }
 
@@ -211,17 +211,6 @@ export type ChatPushEvent = { type: 'chats_changed'; folder: string | null; chat
 /** Main pushes every `ChatMailPushEvent` to the app window on this channel: mailbox metadata only, never a message body. */
 export const CHAT_MAIL_EVENT_CHANNEL = 'chatMail:event'
 
-/**
- * The one-shot wake credit of a chat's mailbox ("Allow one inbox wake"). At most one is armed at a time; `revision`
- * moves on every arm and every consumption. `lastAttempt` is the last consumed credit: the chat was *attempted*, which
- * says nothing about whether its agent woke, read or processed anything.
- */
-interface ChatMailWakeView {
-  revision: number
-  armed: boolean
-  armedAt: string | null
-  lastAttempt: { id: string; at: string; outcome: 'attempted' } | null
-}
 
 /**
  * The person's view of one OMP chat's mailbox, without any message body. Counts cover retained messages only (expired
@@ -238,7 +227,8 @@ export interface ChatMailState {
   pendingCount: number
   retainedCount: number
   retentionDays: number
-  wake: ChatMailWakeView
+  /** Observed full-body context insertion, separate from acknowledgement and the person's seen cursor. */
+  delivery: { pendingCount: number; deliveredCount: number; problem: string | null }
   /** Orders views of the same chat: keep the one with the highest version (snapshots, answers and pushes share one counter). */
   version: number
 }
@@ -267,15 +257,6 @@ export interface MarkChatMailSeenRequest extends ChatMailRef {
   throughSeq: number
 }
 
-/**
- * Arms the chat's one wake credit. `expectedRevision` is `wake.revision` as the window last showed it and
- * `requestNonce` is new for every click (1 to 128 of `A-Za-z0-9._:-`), so a delayed duplicate of a click whose credit
- * was already used is a `conflict`, never a second credit.
- */
-export interface AllowChatMailWakeRequest extends ChatMailRef {
-  expectedRevision: number
-  requestNonce: string
-}
 
 /** A chat's mailbox state changed, or the chat no longer has a mailbox (deleted). Metadata only. */
 export type ChatMailPushEvent =
@@ -297,8 +278,6 @@ export interface ChatMailApi {
   read(request: ReadChatMailRequest): Promise<CommandResult<ChatMailPage>>
   /** Forward only; the state after it. A message arriving meanwhile stays unseen. */
   markSeen(request: MarkChatMailSeenRequest): Promise<CommandResult<ChatMailState>>
-  /** Arms the one-shot wake credit (repeating while armed returns the armed state); never starts a stopped chat. */
-  allowWake(request: AllowChatMailWakeRequest): Promise<CommandResult<ChatMailState>>
   /** Subscribes to metadata pushes for monitored folders; returns the unsubscribe function. */
   onEvent(listener: (event: ChatMailPushEvent) => void): () => void
 }

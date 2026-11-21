@@ -16,7 +16,6 @@ export function idleChatMail(): ChatMailApi {
     state: refused,
     read: refused,
     markSeen: refused,
-    allowWake: refused,
     onEvent: () => () => {}
   }
 }

@@ -20,7 +20,7 @@ const MESSAGE = 'DM-42 was kicked back by a person: Cover the empty file.\nClaim
 let rig: TerminalRig
 
 beforeEach(() => {
-  rig = terminalRig()
+  rig = terminalRig({ deps: () => ({ beforeContextPaste: () => true }) })
 })
 
 afterEach(() => {
@@ -239,4 +239,46 @@ describe('terminal sessions: what a paste never does', () => {
     expect(pty.written).toEqual(pasteOf(MESSAGE).slice(0, 1))
     expect(rig.clock.pending).toBe(0)
   })
+})
+
+describe('terminal sessions: durable board input identity', () => {
+  it('queues one exact board input per live host, including while waiting and after input, and retries after that host exits', async () => {
+    const chat = rig.newChat('claude')
+    const { pty } = await startTerminal(rig, chat)
+    await rig.sessions.paste(chat, MESSAGE, 'board_one')
+    await rig.sessions.paste(chat, MESSAGE, 'board_one')
+    await draw(pty, 'Claude Code')
+    rig.clock.advance(SECOND + ENTER_DELAY)
+    await rig.sessions.paste(chat, MESSAGE, 'board_one')
+    rig.clock.advance(10 * SECOND)
+    expect(pty.written).toEqual(pasteOf(MESSAGE))
+    pty.exit({ exitCode: 1, signal: null })
+    await settle()
+    await rig.sessions.paste(chat, MESSAGE, 'board_one')
+    const next = rig.host.last()
+    expect(next.pid).not.toBe(pty.pid)
+    await draw(next, 'Claude Code resumed')
+    rig.clock.advance(SECOND + ENTER_DELAY)
+    expect(next.written).toEqual(pasteOf(MESSAGE))
+  })
+
+  it('refuses conflicting text for one queued board identity without changing ordinary manual paste behavior', async () => {
+    const chat = rig.newChat('claude')
+    await startTerminal(rig, chat)
+    await rig.sessions.paste(chat, MESSAGE, 'board_one')
+    expect(await rig.sessions.paste(chat, 'Different body.', 'board_one')).toMatchObject({ state: 'failed' })
+  })
+})
+
+it('writes no board input when its durable physical-attempt reservation fails', async () => {
+  rig.cleanup()
+  rig = terminalRig({ deps: () => ({ beforeContextPaste: () => { throw new Error('EACCES: pending ledger unavailable.') } }) })
+  const chat = rig.newChat('claude')
+  const { pty } = await startTerminal(rig, chat)
+  await rig.sessions.paste(chat, MESSAGE, 'board_reservation_failure')
+  await draw(pty, 'Claude Code')
+  rig.clock.advance(10 * SECOND)
+  await settle()
+  expect(pty.written).toEqual([])
+  expect(rig.errors).toEqual([expect.objectContaining({ message: expect.stringContaining('EACCES') })])
 })

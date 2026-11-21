@@ -3,7 +3,6 @@
  * desktop-bound grant speaks for, checked in the same transaction as the operation.
  */
 import { describe, expect, it } from 'vitest'
-import type { AgentMailWakeResult } from '../../shared/domain/agentMail'
 import type { GrantableRole } from '../../shared/domain/views'
 import { domainErrorOf } from '../../test/repoFixtures'
 import { createTestCtx, type TestCtx } from '../../test/testContext'
@@ -12,7 +11,6 @@ import { isStableId } from '../ids'
 import {
   acknowledgeAgentMessages,
   agentMailboxStatus,
-  armAgentMailWake,
   bindAgentMailEndpoint,
   closeAgentMailBinding,
   deleteAgentMailEndpoint,
@@ -29,8 +27,7 @@ import {
   renameAgentMailEndpoint,
   resumeAgentMailEndpoint,
   sendAgentMessage,
-  suspendAgentMailEndpoint,
-  takeAgentMailWake
+  suspendAgentMailEndpoint
 } from './agentMail'
 import { AGENT_MAIL_LIMITS, type MailEndpoint } from './agentMailStore'
 import { grantedCapabilities, issueGrant, revokeGrant } from './grants'
@@ -222,7 +219,6 @@ describe('authority is the current bound grant', () => {
       expect(domainErrorOf(() => getAgentIdentity(ctx)).code).toBe('unauthorized')
       expect(domainErrorOf(() => sendAgentMessage(ctx, { to: peer.endpoint.id, clientMessageId: 'x', body: 'x' })).code).toBe('unauthorized')
       expect(domainErrorOf(() => readAgentInbox(ctx)).code).toBe('unauthorized')
-      expect(domainErrorOf(() => takeAgentMailWake(ctx)).code).toBe('unauthorized')
     }
     expect(agentMailboxStatus(ungranted)).toEqual({ bound: false, reason: 'no_grant' })
     expect(agentMailboxStatus(reader.ctx)).toEqual({ bound: false, reason: 'no_mail_capability' })
@@ -294,7 +290,7 @@ describe('only the desktop manages mailboxes', () => {
     })
   })
 
-  it('keeps every management, human-inbox and wake-arming operation from agents', () => {
+  it('keeps every management and human-inbox operation from agents', () => {
     const { desktop, a, b } = world()
     const own = { endpointId: a.endpoint.id }
     const attempts: (() => unknown)[] = [
@@ -308,7 +304,6 @@ describe('only the desktop manages mailboxes', () => {
       () => readHumanAgentInbox(a.ctx, { endpointId: b.endpoint.id }),
       () => markHumanAgentMailSeen(a.ctx, { ...own, throughSeq: 0 }),
       () => getHumanAgentMailState(a.ctx, own),
-      () => armAgentMailWake(a.ctx, { ...own, expectedRevision: 0, requestNonce: 'n' }),
       () => pruneAgentMailPollSessions(a.ctx)
     ]
     for (const attempt of attempts) {
@@ -317,7 +312,6 @@ describe('only the desktop manages mailboxes', () => {
     expect(getAgentIdentity(b.ctx).endpointId).toBe(b.endpoint.id)
     // Positive control: the desktop holds the authority.
     expect(renameAgentMailEndpoint(desktop, { ...own, name: 'Renamed' }).name).toBe('Renamed')
-    expect(armAgentMailWake(desktop, { ...own, expectedRevision: 0, requestNonce: 'n' }).armed).toBe(true)
   })
 })
 
@@ -443,119 +437,6 @@ describe('the person’s inbox and seen cursor', () => {
   })
 })
 
-describe('the one-shot wake credit', () => {
-  it('is consumed once, only with pending mail, and a lost-response retry gets false', () => {
-    const { desktop, a, b } = world()
-    const target = { endpointId: b.endpoint.id }
-    expect(takeAgentMailWake(b.ctx)).toEqual({ claimed: false, wakeAttemptId: null, pendingCount: 0 })
-    expect(armAgentMailWake(desktop, { ...target, expectedRevision: 0, requestNonce: 'arm-1' })).toMatchObject({ revision: 1, armed: true })
-    // No pending mail: the credit is not spent.
-    expect(takeAgentMailWake(b.ctx).claimed).toBe(false)
-    send(a, b, 'wake-me')
-    const won = takeAgentMailWake(b.ctx)
-    expect(won.claimed).toBe(true)
-    expect(isStableId(won.wakeAttemptId ?? '', 'mailWake')).toBe(true)
-    expect(takeAgentMailWake(b.ctx)).toEqual({ claimed: false, wakeAttemptId: null, pendingCount: 1 })
-    expect(getHumanAgentMailState(desktop, target).wake).toEqual({
-      endpointId: b.endpoint.id,
-      revision: 2,
-      armed: false,
-      armedAt: null,
-      lastAttempt: { id: won.wakeAttemptId, at: expect.any(String), outcome: 'attempted' }
-    })
-  })
-
-  it('never accumulates, and a delayed duplicate arming request after consumption is a conflict, not a new credit', () => {
-    const { desktop, a, b } = world()
-    const target = { endpointId: b.endpoint.id }
-    send(a, b, 'pending')
-    const armed = armAgentMailWake(desktop, { ...target, expectedRevision: 0, requestNonce: 'arm-1' })
-    expect(armAgentMailWake(desktop, { ...target, expectedRevision: 0, requestNonce: 'arm-1' })).toEqual(armed)
-    expect(armAgentMailWake(desktop, { ...target, expectedRevision: 1, requestNonce: 'arm-2' })).toEqual(armed)
-    expect(takeAgentMailWake(b.ctx).claimed).toBe(true)
-    expect(takeAgentMailWake(b.ctx).claimed).toBe(false)
-    expect(domainErrorOf(() => armAgentMailWake(desktop, { ...target, expectedRevision: 0, requestNonce: 'arm-1' })).code).toBe('conflict')
-    expect(domainErrorOf(() => armAgentMailWake(desktop, { ...target, expectedRevision: 1, requestNonce: 'arm-3' })).code).toBe('conflict')
-    expect(takeAgentMailWake(b.ctx).claimed).toBe(false)
-    // A fresh request that read the current revision arms exactly one more credit.
-    expect(armAgentMailWake(desktop, { ...target, expectedRevision: 2, requestNonce: 'arm-4' })).toMatchObject({ revision: 3, armed: true })
-    expect(takeAgentMailWake(b.ctx).claimed).toBe(true)
-    expect(takeAgentMailWake(b.ctx).claimed).toBe(false)
-  })
-})
-
-describe('the wake credit is never minted by agents', () => {
-  it('is never minted by reads, acknowledgements, peer mail or a new session', () => {
-    const { desktop, a, b } = world()
-    send(a, b, 'one')
-    armAgentMailWake(desktop, { endpointId: b.endpoint.id, expectedRevision: 0, requestNonce: 'arm-1' })
-    expect(takeAgentMailWake(b.ctx).claimed).toBe(true)
-    const inbox = readAgentInbox(b.ctx)
-    getAgentMailStatus(b.ctx)
-    acknowledgeAgentMessages(b.ctx, { messageIds: inbox.messages.map((message) => message.id) })
-    send(a, b, 'two')
-    send(a, b, 'three')
-    const restarted: Ctx = {
-      ...b.ctx,
-      session: registerSession(desktop, { role: 'reviewer', label: 'dm CLI', transport: 'cli', pid: null, capabilities: grantedCapabilities('reviewer', false), grantId: b.grantId })
-    }
-    expect(takeAgentMailWake(restarted)).toEqual({ claimed: false, wakeAttemptId: null, pendingCount: 2 })
-    expect(takeAgentMailWake(b.ctx).claimed).toBe(false)
-  })
-
-  it('needs the current binding: a revoked grant cannot take an armed credit', () => {
-    const { desktop, a, b } = world()
-    send(a, b, 'one')
-    armAgentMailWake(desktop, { endpointId: b.endpoint.id, expectedRevision: 0, requestNonce: 'arm-1' })
-    revokeGrant(desktop, b.grantId)
-    expect(domainErrorOf(() => takeAgentMailWake(b.ctx)).code).toBe('unauthorized')
-    expect(getHumanAgentMailState(desktop, { endpointId: b.endpoint.id }).wake.armed).toBe(true)
-  })
-})
-
-describe('arming refuses a bad request before anything changes', () => {
-  it('refuses a malformed revision or nonce, and a mailbox that is not open', () => {
-    const { desktop, a, b } = world()
-    const target = { endpointId: b.endpoint.id }
-    send(a, b, 'pending')
-    for (const expectedRevision of [-1, 0.5, Number.NaN]) {
-      expect(domainErrorOf(() => armAgentMailWake(desktop, { ...target, expectedRevision, requestNonce: 'arm-1' })).code).toBe('invalid_input')
-    }
-    for (const requestNonce of ['', '-leading', 'has space', 'x'.repeat(129)]) {
-      expect(domainErrorOf(() => armAgentMailWake(desktop, { ...target, expectedRevision: 0, requestNonce })).code).toBe('invalid_input')
-    }
-    suspendAgentMailEndpoint(desktop, target)
-    expect(domainErrorOf(() => armAgentMailWake(desktop, { ...target, expectedRevision: 0, requestNonce: 'arm-1' })).code).toBe('invalid_state')
-    expect(getHumanAgentMailState(desktop, target).wake).toMatchObject({ revision: 0, armed: false })
-  })
-})
-
-describe('the wake claim is a conditional transition', () => {
-  it('gives false to a take whose read went stale before its write, so one credit wakes once', () => {
-    const { desktop, a, b } = world()
-    send(a, b, 'pending')
-    armAgentMailWake(desktop, { endpointId: b.endpoint.id, expectedRevision: 0, requestNonce: 'arm-1' })
-    const rival: { result?: AgentMailWakeResult } = {}
-    // Another taker consumes the credit between this take's read of the armed state and its conditional write.
-    const racing: Ctx = {
-      ...b.ctx,
-      ids: {
-        next: (kind) => {
-          rival.result ??= takeAgentMailWake(b.ctx)
-          return b.ctx.ids.next(kind)
-        },
-        secret: () => b.ctx.ids.secret()
-      }
-    }
-    expect(takeAgentMailWake(racing)).toEqual({ claimed: false, wakeAttemptId: null, pendingCount: 1 })
-    expect(rival.result?.claimed).toBe(true)
-    expect(getHumanAgentMailState(desktop, { endpointId: b.endpoint.id }).wake).toMatchObject({
-      revision: 2,
-      armed: false,
-      lastAttempt: { id: rival.result?.wakeAttemptId }
-    })
-  })
-})
 
 describe('probing for a mailbox', () => {
   it('surfaces a storage failure instead of reporting the session unbound', () => {

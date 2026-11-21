@@ -338,98 +338,40 @@ describe('AgentInbox: failed and late actions', () => {
   })
 })
 
-const wakeButton = (): HTMLElement => within(dialog()).getByRole('button', { name: 'Allow one inbox wake' })
-const wakeRegion = (): HTMLElement => within(dialog()).getByRole('region', { name: 'Inbox wake' })
-const wakeCalls = (): unknown[] => mail.calls.filter((call) => call.method === 'allowWake').map((call) => call.args[0])
 
-describe('AgentInbox: one inbox wake', () => {
-  it('discloses the cost and attempted-only meaning, and never starts a stopped chat', async () => {
+describe('AgentInbox: automatic delivery evidence', () => {
+  it('shows automatic full-body delivery without a permission button or manual terminal activation', async () => {
     await show()
     await openInbox()
-    const text = wakeRegion().textContent ?? ''
-    expect(text).toContain('No wake allowed')
-    expect(text).toContain('may spend model tokens')
-    expect(text).toContain('one fixed, trusted reminder')
-    expect(text).toContain('does not prove the agent read or processed anything')
-    expect(text).toContain('It never starts a stopped chat')
-    expect(text).toContain('can be used up without waking it; allow another then')
-    expect(text).toContain('This window has not seen this chat’s terminal running; if it is stopped, nothing here starts it.')
-    fireEvent.click(wakeButton())
-    await settle()
+    expect(within(dialog()).queryByRole('button', { name: 'Allow one inbox wake' })).toBeNull()
+    const region = within(dialog()).getByRole('region', { name: 'Automatic message delivery' })
+    expect(region.textContent).toContain('automatically')
+    expect(region.textContent).toContain('acknowledgement')
     expect(terminals.calls).toEqual([])
   })
 
-  it('arms one credit per click with the shown revision and a fresh nonce; a double click asks once', async () => {
-    await show()
-    await openInbox()
-    fireEvent.click(wakeButton())
-    fireEvent.click(wakeButton())
-    await settle()
-    const calls = wakeCalls() as { expectedRevision: number; requestNonce: string }[]
-    expect(calls).toHaveLength(1)
-    expect(calls[0]).toMatchObject({ folder: '/a', chatId: 'chat_a', expectedRevision: 0 })
-    expect(calls[0].requestNonce).toMatch(/^[A-Za-z0-9._:-]{1,128}$/)
-    expect(wakeRegion().textContent).toContain('Wake allowed')
-    expect(wakeButton().getAttribute('aria-disabled')).toBe('true')
-    fireEvent.click(wakeButton())
-    await settle()
-    expect(wakeCalls()).toHaveLength(1)
-  })
-
-  it('reports a wake request that never answers and reads the wake again, so it shows as it now stands', async () => {
-    vi.spyOn(mail, 'allowWake').mockRejectedValueOnce(new Error('ipc closed'))
-    await show()
-    await openInbox()
-    mail.put({ folder: '/a', chatId: 'chat_a', wake: { revision: 1, armed: true, armedAt: '2026-11-15T11:30:00.000Z', lastAttempt: null } })
-    fireEvent.click(wakeButton())
-    await settle()
-    expect(within(dialog()).getByRole('alert').textContent).toBe('No wake was allowed: The app did not answer.')
-    expect(mail.calls.at(-1)).toEqual({ method: 'state', args: [{ folder: '/a', chatId: 'chat_a' }] })
-    expect(wakeRegion().textContent).toContain('Wake allowed')
-  })
-})
-
-describe('AgentInbox: one inbox wake stays one', () => {
-  it('cannot be re-armed by mail, by a consumed credit or by showing the chat again: only another click arms', async () => {
-    const mounted = await show()
-    await openInbox()
-    fireEvent.click(wakeButton())
-    await settle()
-    act(() => {
-      mail.put({ folder: '/a', chatId: 'chat_a', unseenCount: 5, pendingCount: 5 }, true)
-      mail.put({ folder: '/a', chatId: 'chat_a', wake: { revision: 2, armed: false, armedAt: null, lastAttempt: { id: 'wk_1', at: '2026-11-15T12:00:00.000Z', outcome: 'attempted' } } }, true)
-      mail.put({ folder: '/a', chatId: 'chat_a', unseenCount: 6, pendingCount: 6 }, true)
+  it('keeps proven context delivery distinct from handling and the person seeing the message', async () => {
+    mail.put({
+      folder: '/a', chatId: CHAT.id, pendingCount: 2, unseenCount: 2,
+      delivery: { pendingCount: 0, deliveredCount: 2, problem: null }
     })
-    await settle()
-    expect(wakeRegion().textContent).toContain('Wake attempted')
-    expect(wakeRegion().textContent).toContain('That does not show its agent read or processed anything. No wake is allowed now.')
-    mounted.unmount()
-    render(inbox())
-    await settle()
-    await openInbox()
-    expect(wakeCalls()).toHaveLength(1)
-    fireEvent.click(wakeButton())
-    await settle()
-    expect(wakeCalls()).toHaveLength(2)
-    expect(wakeCalls()[1]).toMatchObject({ expectedRevision: 2 })
-  })
-
-  it('reports a stale click as allowing nothing and shows the wake as it now stands', async () => {
     await show()
     await openInbox()
-    mail.put({ folder: '/a', chatId: 'chat_a', wake: { revision: 4, armed: true, armedAt: '2026-11-15T11:30:00.000Z', lastAttempt: null } })
-    fireEvent.click(wakeButton())
-    await settle()
-    expect(within(dialog()).getByRole('alert').textContent).toBe('No wake was allowed: The wake changed.')
-    expect(wakeRegion().textContent).toContain('Wake allowed')
-    expect(wakeButton().getAttribute('aria-disabled')).toBe('true')
+    const region = within(dialog()).getByRole('region', { name: 'Automatic message delivery' })
+    expect(region.textContent).toContain('2 delivered into context')
+    expect(within(dialog()).getByText('Unacknowledged by its agent', { selector: 'dt' }).nextElementSibling?.textContent).toBe('2')
+    expect(within(dialog()).getByText('Unseen by you', { selector: 'dt' }).nextElementSibling?.textContent).toBe('2')
   })
 
-  it('disallows a wake once the chat’s mailbox is gone', async () => {
+  it('shows an actual unavailable-runtime blocker while full bodies remain pending', async () => {
+    mail.put({
+      folder: '/a', chatId: CHAT.id,
+      delivery: { pendingCount: 2, deliveredCount: 0, problem: 'Sign in to the existing recipient runtime.' }
+    })
     await show()
     await openInbox()
-    act(() => mail.remove('/a', 'chat_a'))
-    expect(within(dialog()).getByText('This chat no longer has a mailbox.')).toBeTruthy()
-    expect(wakeButton().getAttribute('aria-disabled')).toBe('true')
+    const region = within(dialog()).getByRole('region', { name: 'Automatic message delivery' })
+    expect(region.textContent).toContain('2 pending')
+    expect(within(region).getByRole('alert').textContent).toContain('Sign in to the existing recipient runtime.')
   })
 })

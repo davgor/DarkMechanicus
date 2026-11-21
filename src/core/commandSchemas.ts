@@ -584,7 +584,6 @@ export const COMMAND_SCHEMAS = {
   acknowledgeAgentMessages: z.strictObject({
     messageIds: z.array(stableId).min(1).max(AGENT_MAIL_LIMITS.ackBatch).describe('1 to 100 ids of messages in your own inbox; all or none are acknowledged.')
   }),
-  getAgentMailStatus: z.strictObject(mailWindow),
-  takeAgentMailWake: noInput
+  getAgentMailStatus: z.strictObject(mailWindow)
 }
 

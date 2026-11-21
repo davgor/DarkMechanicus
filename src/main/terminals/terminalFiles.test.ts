@@ -15,7 +15,8 @@ import { kanbanGuidance } from '../agents/kanbanKickoff'
 import { orchestratorGuidance, orchestratorKickoff } from '../agents/orchestratorKickoff'
 import { dmClientDescriptorPath, removeDmClientDescriptor, terminalFilePaths, terminalInstructions, writeDmClientDescriptor, writeTerminalFiles } from './terminalFiles'
 import { parseDmClientDescriptor } from '../../../resources/skitarii/extension/dmClient'
-import { DM_CALL_TOOL_NAME, MAIL_TOOL_NAMES } from '../../../resources/skitarii/extension/messaging'
+import { MAIL_TOOL_NAMES } from '../../../resources/skitarii/extension/messaging'
+import { DM_CALL_TOOL_NAME } from '../../../resources/skitarii/extension/contextDelivery'
 import { ompFilePaths } from './ompSession'
 import { terminalLaunchSpec } from './terminalLaunchSpec'
 
@@ -219,7 +220,6 @@ describe('writeTerminalFiles: Skitarii mail guidance', () => {
     expect(text).toContain('`descriptor_missing`')
     expect(text).toContain('your kickoff or a skill say to run')
     expect(text).toContain('read the state first')
-    expect(text).toContain('Leave `take_agent_mail_wake` to the Skitarii extension')
   })
 })
 

@@ -80,8 +80,8 @@ export interface OpenWorkspaceOptions {
   autoReconcile?: boolean
   serverInfo?: { name: string; version: string }
   /**
-   * Internal: the restricted mailbox-poll mode the `dm` CLI selects for `get_agent_mail_status` and
-   * `take_agent_mail_wake` only. It needs the `cli` transport and a grant bound to an open mailbox here; it reuses
+   * Internal: the restricted mailbox-poll mode the `dm` CLI selects for own identity and mailbox status reads.
+   * It needs the `cli` transport and a grant bound to an open mailbox here; it reuses
    * the binding's one dedicated poll session instead of registering a session per call, skips record reconcile,
    * portable flush and staged-image pruning, and refuses every other command before dispatching it. Migration and
    * the current grant and binding are still checked on every call.
@@ -698,13 +698,12 @@ export class RepositoryWorkspace implements WorkspaceCore {
   }
 
   /**
-   * A poll session runs its two commands and nothing else, refused before any input is even read. Both are
-   * synchronous service calls on the store (`requireStore` checks the storage): the poll and the session's last-seen
-   * mark commit together, and nothing is flushed.
+   * A poll session runs only its own identity and status queries, refused before any other command's input is read.
+   * The synchronous service query and the session's last-seen mark commit together; nothing is flushed.
    */
   private executePoll(name: CommandName, rawInput: unknown): unknown {
     if (!MAIL_POLL_COMMANDS.includes(name)) {
-      fail('unauthorized', 'A mailbox poll session may only run get_agent_mail_status and take_agent_mail_wake.', { command: name })
+      fail('unauthorized', 'A mailbox poll session may only read its own identity or mailbox status.', { command: name })
     }
     const spec = COMMANDS[name]
     const input = spec.schema ? parseInput(spec.schema, rawInput ?? {}, `${name} input`) : undefined

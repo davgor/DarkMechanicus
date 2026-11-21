@@ -188,6 +188,9 @@ function Composer(props: ConversationPanelProps & { onSent(result: SendConversat
 export function ConversationPanel(props: ConversationPanelProps): JSX.Element {
   const [refresh, setRefresh] = useState(0)
   const loaded = useConversation(props, refresh)
+  useEffect(() => window.dm.chats.onEvent((event) => {
+    if (event.type === 'chats_changed' && event.folder === props.folderPath) setRefresh((count) => count + 1)
+  }), [props.folderPath])
   return (
     <section className="conversation-panel" aria-label="Conversation panel">
       <AgentDestination state={loaded.state} onOpenChat={props.onOpenChat} />

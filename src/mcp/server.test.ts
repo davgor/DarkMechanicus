@@ -131,8 +131,7 @@ const TOOLS: Record<string, { method: CommandName; kind: Kind }> = {
   send_agent_message: { method: 'sendAgentMessage', kind: 'write' },
   read_agent_inbox: { method: 'readAgentInbox', kind: 'read' },
   acknowledge_agent_messages: { method: 'acknowledgeAgentMessages', kind: 'idempotent' },
-  get_agent_mail_status: { method: 'getAgentMailStatus', kind: 'read' },
-  take_agent_mail_wake: { method: 'takeAgentMailWake', kind: 'write' }
+  get_agent_mail_status: { method: 'getAgentMailStatus', kind: 'read' }
 }
 
 /** Tools only a planner (or the desktop) holds the capability for: an orchestrator session does not list them. */

@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { conversationMessage } from '../epic/__mocks__/fixtures'
 import { chatRecord } from '../__mocks__/fixtures'
 import { FakeChats } from '../__mocks__/fakeChats'
 import { FakeBackend } from '../epic/__mocks__/fakeBackend'
 import { ConversationPanel, type ConversationPanelProps } from './ConversationPanel'
 import { MAX_COMMENT_LENGTH, type ConversationMessage } from './conversationView'
+import type { ConversationStateResult } from '../../../shared/agents/chatApi'
 
 const TARGET = { epicId: 'ep_1', ticketId: 'tk_202' }
 const FOLDER_KEY = '00000000000000000000000000000001'
@@ -208,4 +209,34 @@ describe('ConversationPanel stale load errors', () => {
     expect(screen.queryByRole('alert')).toBeNull()
     expect(screen.getByText('Current thread')).toBeTruthy()
   })
+})
+
+it.each([
+  { before: null, after: 'delivered', problem: null, label: 'Delivered to DM-696 worker' },
+  { before: null, after: 'pending', problem: 'Sign in to the recipient.', label: 'Pending delivery: Sign in to the recipient.' },
+  { before: 'Sign in to the recipient.', after: 'delivered', problem: null, label: 'Delivered to DM-696 worker' }
+] as const)('refreshes an open conversation from $before to $after without sending or replacing props', async ({ before, after, problem, label }) => {
+  const chats = routedChats()
+  let state: ConversationStateResult = {
+    chat: { id: 'chat_1', title: 'DM-696 worker', via: 'conversation' },
+    deliveries: { cm_observed: { chatId: 'chat_1', state: 'pending', problem: before, chatExists: true } }
+  }
+  chats.conversationState = async () => ({ ok: true, data: state })
+  const load = vi.fn(async () => [message('cm_observed', 'Durable person request', '2026-01-01T00:00:00.000Z', true)])
+  renderPanel(load, chats)
+  const initial = before === null ? 'Pending automatic delivery' : `Pending delivery: ${before}`
+  await screen.findByText(initial)
+  fireEvent.change(screen.getByRole('textbox', { name: 'Message' }), { target: { value: 'Unsent draft stays here' } })
+  state = { ...state, deliveries: { cm_observed: { chatId: 'chat_1', state: after, problem, chatExists: true } } }
+  await act(async () => chats.emit({ type: 'chats_changed', folder: '/another-repo', chatId: 'chat_1' }))
+  expect(load).toHaveBeenCalledTimes(1)
+  expect(screen.getByText(initial)).toBeTruthy()
+  await act(async () => chats.emit({ type: 'chats_changed', folder: '/repo', chatId: 'chat_1' }))
+  expect(await screen.findByText(label)).toBeTruthy()
+  expect(load).toHaveBeenCalledTimes(2)
+  expect((screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement).value).toBe('Unsent draft stays here')
+  expect(chats.calls.some((call) => call.method === 'sendConversationMessage')).toBe(false)
+  expect(chats.subscribers()).toBe(1)
+  cleanup()
+  expect(chats.subscribers()).toBe(0)
 })

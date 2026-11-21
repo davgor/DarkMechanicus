@@ -29,13 +29,16 @@ import { DomainError } from '../../core/errors'
 import { nodeFs } from '../../core/repo/nodeFs'
 import { resolveHomeDir } from '../../core/repo/storageMode'
 import { openWorkspace, type Workspace } from '../../core/workspace'
+import type { ChatRecord } from '../../shared/agents/chat'
 import type { AgentDownloadProgress, BuiltInAgentKind, McpConfigView } from '../../shared/desktop/api'
 import { isActiveRunState, isLeasedAttemptState } from '../../shared/domain/status'
 import { createActivityBindings, type ActivityBindings } from '../agents/activityBindings'
 import { createChatGrants, type ChatGrants } from '../agents/chatGrants'
 import { createYoloDesktopRuntime } from '../../core/services/yoloFence'
 import { createChatHandlers } from '../agents/chatHandlers'
-import { createConversationDeliveries } from '../agents/conversationDeliveries'
+import { createConversationDeliveries, type ConversationDeliveries } from '../agents/conversationDeliveries'
+import { createAgentContextDelivery, resumeContextChat, type AgentContextDelivery, type BoardContextTransport } from '../agents/agentContextDelivery'
+import { boardContextText } from '../../../resources/skitarii/extension/contextDelivery'
 import type { ConversationReads } from '../agents/conversationTarget'
 import { createAgentMailDesktop, type AgentMailDesktop } from '../agents/agentMailDesktop'
 import { createChatMailPush, createChatPush, registerChatIpc, registerChatMailIpc } from '../agents/chatIpc'
@@ -329,6 +332,9 @@ interface ChatProcesses {
   /** The person's side of the chats' mailboxes and its per-folder monitors (`chatMail:*`). */
   mail: AgentMailDesktop
   grants: ChatGrants
+  deliveries: ConversationDeliveries
+  contextDelivery: AgentContextDelivery
+  resumeChat: (chat: ChatRecord) => Promise<string | null>
 }
 
 /** What the chat terminals run over besides the store: the grants and runs of the chats, the tracked folders, the agents. */
@@ -338,6 +344,7 @@ interface TerminalDeps {
   /** What a project-less chat reaches: the tracked folders set up for Dark Mechanicus. */
   reachFolders: TerminalSessionsDeps['reachFolders']
   agents: Pick<AgentRegistry, 'get'>
+  beforeContextPaste: NonNullable<TerminalSessionsDeps['beforeContextPaste']>
 }
 
 /** The chat terminals and the sign-in terminals, over one PTY host loaded at the first start (an app where it cannot run still opens). */
@@ -356,6 +363,7 @@ function createTerminalProcesses(store: ChatStore, deps: TerminalDeps): Pick<Cha
     checkAuth: (kind, executablePath) => getAgentAuthStatus(kind, executablePath, agentRunDeps()),
     cliFor: cliConfigFor,
     ...deps.grants,
+    beforeContextPaste: deps.beforeContextPaste,
     userData: app.getPath('userData'),
     ompExtension: skitariiExtensionPath({ packaged: app.isPackaged, appPath: app.getAppPath(), resourcesPath: process.resourcesPath }),
     onError: (error) => {
@@ -416,10 +424,11 @@ function createChatProcesses(
   // Observe startup failure immediately; each attempted chat launch still receives the real rejection.
   void namingReady.catch((error: unknown) => logger.error('Chat naming transport failed:', error))
   void yoloRuntime.ready.catch((error: unknown) => logger.error('YOLO desktop proof transport failed:', error))
-  const runs = chatRunCommands(folders, workspaces)
-  const launchFolders = { trackedFolder: (path: string) => folders.resolve(path) }
   const reachFolders = (): string[] => folders.list().flatMap((folder) => (folder.initialized && folder.available ? [folder.path] : []))
-  const { terminals, logins } = createTerminalProcesses(store, { grants: { ...grants, runs, onChatChanged: (ref) => push({ type: 'chats_changed', folder: ref.folder, chatId: ref.id }) }, folders: launchFolders, reachFolders, agents })
+  const { terminals, logins, deliveries, contextDelivery, resumeChat, boardTransport } = createContextTerminals(store, {
+    grants: { ...grants, runs: chatRunCommands(folders, workspaces), onChatChanged: (ref) => push({ type: 'chats_changed', folder: ref.folder, chatId: ref.id }) },
+    folders: { trackedFolder: (path) => folders.resolve(path) }, reachFolders, agents
+  }, push)
   const quit = {
     busy: () => terminals.busy() || logins.busy(),
     dispose: async () => {
@@ -432,8 +441,36 @@ function createChatProcesses(
   }
   const chats = endingTerminals(records, terminals)
   recoverChats(folders, chats)
-  const mail = createChatMail({ folders, store, workspaces })
-  return { chats, quit, store, terminals, logins, mail, grants, releaseFolder: releasingFolders(terminals, mailboxes, store) }
+  const mail = createChatMail({ folders, store, workspaces, contextDelivery, resumeChat, boardTransport })
+  return { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder: releasingFolders(terminals, mailboxes, store) }
+}
+
+/** The same observer, ledger and same-chat transport serve board messages, peer monitoring and native input. */
+function createContextTerminals(
+  store: ChatStore, options: Omit<Parameters<typeof createTerminalProcesses>[1], 'beforeContextPaste'>,
+  push: ReturnType<typeof createChatPush>
+) {
+  const userData = app.getPath('userData')
+  const deliveries = createConversationDeliveries({
+    userData, onChanged: (folder, chatId) => push({ type: 'chats_changed', folder, chatId })
+  })
+  const contextDelivery = createAgentContextDelivery({
+    userData, deliveries, agentKind: (chat) => options.agents.get(chat.agent)?.kind ?? 'custom'
+  })
+  const { terminals, logins } = createTerminalProcesses(store, {
+    ...options, beforeContextPaste: (chat, messageId, content) => contextDelivery.reserveBoardInput(chat, messageId, content)
+  })
+  const resumeChat = (chat: ChatRecord): Promise<string | null> => resumeContextChat(terminals, chat)
+  const boardTransport: BoardContextTransport = {
+    resolveFolder: (folder) => options.folders.trackedFolder(folder),
+    getChat: (ref) => store.getChat(ref),
+    resume: resumeChat,
+    paste: async (chat, message) => {
+      const result = await terminals.paste(chat, boardContextText(message), message.id)
+      return result.state === 'running' ? null : result.message
+    }
+  }
+  return { terminals, logins, deliveries, contextDelivery, resumeChat, boardTransport }
 }
 
 /**
@@ -528,11 +565,14 @@ interface ChatServices {
   activity: ActivityBindings
   mail: AgentMailDesktop
   folderDefaults: Pick<FolderAgentDefaults, 'get'>
+  deliveries: ConversationDeliveries
+  contextDelivery: AgentContextDelivery
+  resumeChat: (chat: ChatRecord) => Promise<string | null>
 }
 
 /** Serves the `chats:*` and `chatMail:*` channels over the chat records; Start run starts the orchestrator chat's terminal. */
 function startChats(ipc: Pick<IpcMain, 'handle'>, services: ChatServices): void {
-  const { folders, agents, chats, store, terminals, workspaces, activity, folderDefaults } = services
+  const { folders, agents, chats, store, terminals, workspaces, activity, folderDefaults, deliveries, contextDelivery, resumeChat } = services
   const reads = conversationReads(workspaces)
   const handlers = createChatHandlers({
     registry: folders,
@@ -546,7 +586,9 @@ function startChats(ipc: Pick<IpcMain, 'handle'>, services: ChatServices): void 
     conversation: {
       workspace: (folder) => workspaces.get(folder),
       reads,
-      deliveries: createConversationDeliveries({ userData: app.getPath('userData') }),
+      deliveries,
+      contextDelivery,
+      resume: resumeChat,
       defaultAgent: (folder) => folderDefaults.get(folder)
     },
     // The same desktop commands the Start run button runs, through the folder's own workspace.
@@ -760,14 +802,24 @@ function startCrossRepoCorrections(ipc: Pick<IpcMain, 'handle'>, registry: Folde
 }
 
 /**
- * The person's inbox, seen cursor and wake credit of OMP chats, as the person through each folder's held desktop
- * workspace, and the per-folder metadata monitor that pushes to the app window.
+ * The person's inbox and seen cursor, plus automatic same-chat context delivery, through each folder's held desktop
+ * workspace. The unconditional monitor also resumes durable pending board messages after a restart.
  */
-function createChatMail(services: { folders: Pick<FolderRegistry, 'resolve'>; store: ChatStore; workspaces: Pick<WorkspacePool, 'get'> }): AgentMailDesktop {
+function createChatMail(services: {
+  folders: Pick<FolderRegistry, 'resolve' | 'list'>
+  store: ChatStore
+  workspaces: Pick<WorkspacePool, 'get'>
+  contextDelivery: AgentContextDelivery
+  resumeChat: (chat: ChatRecord) => Promise<string | null>
+  boardTransport: BoardContextTransport
+}): AgentMailDesktop {
   return createAgentMailDesktop({
     registry: services.folders,
     store: services.store,
+    folders: () => services.folders.list().flatMap((folder) => folder.initialized && folder.available ? [folder.path] : []),
     contextFor: (folder) => desktopWorkspace(services.folders, services.workspaces, folder).ctx(),
+    delivery: { hasMessage: (chat, message) => services.contextDelivery.hasMessage(chat, message), resume: services.resumeChat },
+    board: { poll: (folder) => services.contextDelivery.reconcileBoard(folder, services.boardTransport) },
     push: createChatMailPush(() => BrowserWindow.getAllWindows()),
     onUnexpectedError: (error) => {
       logger.error('Chat mail request failed:', error)
@@ -829,7 +881,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   const folderDefaults = createFolderAgentDefaults({ db: appDb })
   // Which threads of old chats acted on which runs and attempts, as they stored it next to the chats.
   const activity = createActivityBindings({ file: join(app.getPath('userData'), 'agents', 'activity-bindings.jsonl') })
-  const { chats, quit, store, terminals, logins, mail, grants, releaseFolder } = createChatProcesses(registry, agents, pool, activity)
+  const { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder } = createChatProcesses(registry, agents, pool, activity)
   const handlers = createDesktopHandlers({
     registry,
     pool,
@@ -866,7 +918,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   startAttachmentProtocol(registry, pool)
   refreshClaudeCodeEntries(registry)
   const close = runLifecycle(pool, appDb)
-  startChats(ipc, { folders: registry, agents, chats, store, terminals, workspaces: pool, activity, mail, folderDefaults })
+  startChats(ipc, { folders: registry, agents, chats, store, terminals, workspaces: pool, activity, mail, folderDefaults, deliveries, contextDelivery, resumeChat })
   startTerminals(ipc, { folders: registry, agents, store, terminals, logins })
   return { ...stoppingMailFirst(mail, quit, close), github: startSourceControl(ipc, registry) }
 }

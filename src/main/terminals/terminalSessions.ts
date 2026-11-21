@@ -179,7 +179,7 @@ export interface TerminalSessions {
    * resume when the CLI has a session, never with the kickoff). Resolves once the text waits in a running PTY, or
    * with why it cannot: a PTY that exits or is stopped before its input is live drops it. Subscribes no one.
    */
-  paste(ref: ChatRef, text: string): Promise<TerminalStart>
+  paste(ref: ChatRef, text: string, contextId?: string): Promise<TerminalStart>
   /** Stops `listener` hearing the chat. */
   detach(chatId: string, listener: TerminalListener): void
   /** Input for the chat's running PTY, as typed; nothing when none runs. */
@@ -275,6 +275,8 @@ export interface TerminalSessionsDeps {
   timers?: TerminalTimers
   onError?: (error: unknown) => void
   onChatChanged?: (ref: ChatRef) => void
+  /** Durably reserves uncertain board input BEFORE any physical write; false means already observed or reserved. */
+  beforeContextPaste?: (chat: ChatRecord, messageId: string, content: string) => boolean
   /** Binds only a tracked live PTY, never a persisted historical grant id. */
   bindChatGrant?: (grantId: string, identity: { folder: string | null; chatId: string; generation: string; runId?: string; cardId?: string }) => void
 }
@@ -290,6 +292,7 @@ interface Paste {
   text: string
   /** Whether it carries the kickoff, so `kickoffSent` is stored once its Enter has gone. */
   kickoff: boolean
+  contextId?: string
 }
 
 /** A running PTY's pastes, written one at a time once its input is live and its screen has settled. */
@@ -335,6 +338,8 @@ interface Live {
   marksStarted: boolean
   /** Its pastes: the launch's `pasteFirst` first, then any `paste`; emptied once it is stopped or has exited. */
   pastes: PasteQueue
+  /** Board input reservations, not receipts; scoped to this live host so dropped input can retry after its exit. */
+  contextPastes?: Map<string, string>
   revoke: () => Promise<void>
   /** Ends the folder watch, the grant's renewal, the hold that keeps the computer awake, and the wait for the pastes. */
   stopWatch: () => void
@@ -355,7 +360,7 @@ interface Starting {
 }
 
 interface Manager {
-  deps: Required<Omit<TerminalSessionsDeps, 'onError' | 'onChatChanged' | 'bindChatGrant'>> & Pick<TerminalSessionsDeps, 'onChatChanged' | 'bindChatGrant'>
+  deps: Required<Omit<TerminalSessionsDeps, 'onError' | 'onChatChanged' | 'bindChatGrant' | 'beforeContextPaste'>> & Pick<TerminalSessionsDeps, 'onChatChanged' | 'bindChatGrant' | 'beforeContextPaste'>
   onError: (error: unknown) => void
   entries: Map<string, Live | Starting>
   listeners: Map<string, Map<TerminalListener, Subscriber>>
@@ -586,9 +591,32 @@ function bracketedPaste(text: string): string {
   return `${PASTE_START}${text.replace(/\r?\n/g, '\r').replace(/[^\P{Cc}\t\r]/gu, '')}${PASTE_END}`
 }
 
+function resumeWaitingPastes(manager: Manager, live: Live): void {
+  if (live.pastes.waiting.length === 0) return
+  live.pastes.cancel = manager.deps.timers.after(() => {
+    live.pastes.cancel = null
+    writePastes(manager, live)
+  }, 0)
+}
+
+function reserveContextPaste(manager: Manager, live: Live, next: Paste): boolean {
+  if (next.contextId === undefined) return true
+  try {
+    if (manager.deps.beforeContextPaste === undefined) throw new Error('The durable board-input transport is unavailable.')
+    const reserved = manager.deps.beforeContextPaste(live.chat, next.contextId, next.text)
+    if (!reserved) resumeWaitingPastes(manager, live)
+    return reserved
+  } catch (error) {
+    manager.onError(error)
+    void stop(manager, live, `The board input could not be recorded safely; no message was sent. ${messageOf(error)}`)
+    return false
+  }
+}
+
 /** Claims a first-message insertion before writing; ambiguous exits never replay it. */
 function submitPaste(manager: Manager, live: Live, next: Paste): void {
   const queue = live.pastes
+  if (!reserveContextPaste(manager, live, next)) return
   queue.entering = true
   if (next.kickoff && live.chat.firstPrompt !== undefined) {
     try {
@@ -1247,7 +1275,7 @@ async function pasteTarget(manager: Manager, chat: ChatRecord): Promise<Live | T
  * once: a PTY that ends again before the text could wait in it answers `failed`, so a CLI that exits at once is not
  * started over and over.
  */
-async function paste(manager: Manager, ref: ChatRef, text: string): Promise<TerminalStart> {
+async function paste(manager: Manager, ref: ChatRef, text: string, contextId?: string): Promise<TerminalStart> {
   for (let waitedOut = false; ; waitedOut = true) {
     if (manager.closing) {
       return { state: 'failed', message: QUITTING }
@@ -1262,15 +1290,28 @@ async function paste(manager: Manager, ref: ChatRef, text: string): Promise<Term
       return live
     }
     if (!live.exited && live.stopMessage === null) {
-      live.pastes.waiting.push({ text, kickoff: false })
-      writePastes(manager, live)
-      return { state: 'running', pid: live.pty.pid }
+      return queuePaste(manager, live, text, contextId)
     }
     if (waitedOut) {
       return { state: 'failed', message: live.stopMessage ?? EXITED_BEFORE_PASTE }
     }
     await live.closed
   }
+}
+
+function queuePaste(manager: Manager, live: Live, text: string, contextId?: string): TerminalStart {
+  if (contextId !== undefined) {
+    const queued = live.contextPastes?.get(contextId)
+    if (queued !== undefined) {
+      return queued === text ? { state: 'running', pid: live.pty.pid }
+        : { state: 'failed', message: 'The queued board message identity already belongs to different text.' }
+    }
+    live.contextPastes ??= new Map()
+    live.contextPastes.set(contextId, text)
+  }
+  live.pastes.waiting.push({ text, kickoff: false, contextId })
+  writePastes(manager, live)
+  return { state: 'running', pid: live.pty.pid }
 }
 
 /**
@@ -1377,7 +1418,7 @@ export function createTerminalSessions(deps: TerminalSessionsDeps): TerminalSess
         writeInput(manager, live, data)
       }
     },
-    paste: (ref, text) => paste(manager, ref, text),
+    paste: (ref, text, contextId) => paste(manager, ref, text, contextId),
     resize: (chatId, cols, rows) => {
       const live = running(chatId)
       if (live !== null) {

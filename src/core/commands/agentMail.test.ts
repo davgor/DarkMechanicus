@@ -13,7 +13,7 @@ import type { GrantableRole } from '../../shared/domain/views'
 import { createHarness, type Harness, TEST_STORAGE } from '../../test/workspaceHarness'
 import { createMemoryFs } from '../../test/memoryFs'
 import type { FsAdapter, GitAdapter } from '../repo/types'
-import { armAgentMailWake, bindAgentMailEndpoint, provisionAgentMailEndpoint } from '../services/agentMail'
+import { bindAgentMailEndpoint, provisionAgentMailEndpoint } from '../services/agentMail'
 import type { MailEndpoint } from '../services/agentMailStore'
 import type { Workspace } from '../workspace'
 import { COMMAND_CAPABILITIES } from './capabilities'
@@ -26,8 +26,7 @@ const MAIL_COMMANDS: CommandName[] = [
   'sendAgentMessage',
   'readAgentInbox',
   'acknowledgeAgentMessages',
-  'getAgentMailStatus',
-  'takeAgentMailWake'
+  'getAgentMailStatus'
 ]
 
 let harness: Harness
@@ -121,7 +120,6 @@ describe('mailbox command inputs', () => {
       ['getAgentIdentity', { endpointId: b.endpoint.id }],
       ['readAgentInbox', { endpointId: b.endpoint.id }],
       ['getAgentMailStatus', { endpointId: b.endpoint.id }],
-      ['takeAgentMailWake', { idempotencyKey: 'replay' }],
       ['acknowledgeAgentMessages', { messageIds: [] }],
       ['acknowledgeAgentMessages', { messageIds: Array.from({ length: 101 }, (_, index) => `mm_${String(index).padStart(26, '0')}`) }],
       ['sendAgentMessage', { ...send, body: 'x'.repeat(16 * 1024 + 1) }],
@@ -265,7 +263,7 @@ describe('the restricted mailbox-poll mode’s shared session', () => {
         id
       )
     const first = b.poll()
-    await first.takeAgentMailWake({})
+    await first.getAgentMailStatus({})
     const id = first.sessionId()
     first.close()
     const started = sessionRow(id)?.started_at
@@ -287,31 +285,22 @@ describe('the restricted mailbox-poll mode’s shared session', () => {
     expect(sessionRow(ordinaryId)?.ended_at).toBe(harness.clock.nowIso())
   })
 
-  it('consumes an armed wake credit once across polls', async () => {
-    const desktop = await withDesktop()
-    const a = await boundChat(desktop, 'chat-a')
-    const b = await boundChat(desktop, 'chat-b')
-    await a.cli().sendAgentMessage({ to: b.endpoint.id, clientMessageId: 'wake', body: 'x' })
-    armAgentMailWake(desktop.ctx(), { endpointId: b.endpoint.id, expectedRevision: 0, requestNonce: 'arm-1' })
-    expect((await b.poll().takeAgentMailWake({})).claimed).toBe(true)
-    expect((await b.poll().takeAgentMailWake({})).claimed).toBe(false)
-  })
 })
 
 describe('the restricted mailbox-poll mode’s whitelist', () => {
-  it('runs only status and wake, refusing every other command before dispatch', async () => {
+  it('runs only own identity and status reads, refusing every other command before dispatch', async () => {
     const desktop = await withDesktop()
     const a = await boundChat(desktop, 'chat-a')
     const b = await boundChat(desktop, 'chat-b')
     const poll = b.poll()
-    const others = (Object.keys(COMMANDS) as CommandName[]).filter((name) => name !== 'getAgentMailStatus' && name !== 'takeAgentMailWake')
+    const others = (Object.keys(COMMANDS) as CommandName[]).filter((name) => name !== 'getAgentMailStatus' && name !== 'getAgentIdentity')
     for (const name of others) {
       expect(await poll.execute(name, {}).then(() => 'ok', codeOf)).toBe('unauthorized')
     }
     await expect(poll.sendAgentMessage({ to: a.endpoint.id, clientMessageId: 'x', body: 'x' })).rejects.toMatchObject({ code: 'unauthorized' })
     expect(() => poll.heartbeat()).toThrow(/no heartbeat/)
     await expect(poll.getAgentMailStatus({})).resolves.toMatchObject({ pendingCount: 0 })
-    await expect(poll.takeAgentMailWake({})).resolves.toEqual({ claimed: false, wakeAttemptId: null, pendingCount: 0 })
+    await expect(poll.getAgentIdentity({})).resolves.toMatchObject({ endpointId: b.endpoint.id })
   })
 
   it('needs the CLI and a usable bound grant to open at all', async () => {
@@ -486,25 +475,23 @@ describe('separate processes sending into one mailbox database', () => {
 })
 
 describe('separate processes polling one mailbox database', () => {
-  it('maps concurrent polls from two processes to one dedicated session, and lets one of them take the wake credit', async () => {
+  it('maps concurrent status polls from two processes to one dedicated session', async () => {
     const desktop = await realTimeDesktop()
     const a = await boundChat(desktop, 'chat-a')
     const b = await boundChat(desktop, 'chat-b')
     await a.cli().sendAgentMessage({ to: b.endpoint.id, clientMessageId: 'wake', body: 'x' })
-    armAgentMailWake(desktop.ctx(), { endpointId: b.endpoint.id, expectedRevision: 0, requestNonce: 'arm-1' })
     const sessions = count(desktop, 'SELECT COUNT(*) AS n FROM sessions')
     const polls = script(
       b.token,
       `for (let i = 0; i < 15; i += 1) {
          out.push(await call({ mailPoll: true }, async (ws) => ({ status: await ws.getAgentMailStatus({}), session: ws.sessionId() })));
-         out.push(await call({ mailPoll: true }, async (ws) => ({ wake: await ws.takeAgentMailWake({}), session: ws.sessionId() })));
        }`
     )
-    const results = ((await inProcesses([polls, polls])) as { session: string; wake?: { claimed: boolean } }[][]).flat()
+    const results = ((await inProcesses([polls, polls])) as { session: string; status: { pendingCount: number } }[][]).flat()
     expect(new Set(results.map((result) => result.session)).size).toBe(1)
     expect(count(desktop, 'SELECT COUNT(*) AS n FROM sessions')).toBe(sessions + 1)
-    expect(results.filter((result) => result.wake?.claimed === true)).toHaveLength(1)
-    expect(results.filter((result) => result.wake !== undefined)).toHaveLength(30)
+    expect(results).toHaveLength(30)
+    expect(results.every((result) => result.status.pendingCount === 1)).toBe(true)
   })
 })
 

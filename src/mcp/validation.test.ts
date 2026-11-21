@@ -294,7 +294,6 @@ const REFUSED_MAIL_ARGUMENTS = [
   ['send_agent_message', { ...SEND, clientMessageId: ' leading space' }],
   ['send_agent_message', { ...SEND, idempotencyKey: 'k' }],
   ['get_agent_identity', { endpointId: PEER }],
-  ['take_agent_mail_wake', { endpointId: PEER }],
   ['read_agent_inbox', { endpointId: PEER }],
   ['read_agent_inbox', { afterSeq: -1 }],
   ['get_agent_mail_status', { limit: 51 }],
@@ -316,15 +315,13 @@ describe('agent mail arguments', () => {
   })
 
   it('pass well-formed arguments through unchanged (positive control)', async () => {
-    const api = createCannedApi({ sendAgentMessage: { marker: 'sent' }, acknowledgeAgentMessages: { marker: 'acked' }, takeAgentMailWake: { marker: 'woke' } })
+    const api = createCannedApi({ sendAgentMessage: { marker: 'sent' }, acknowledgeAgentMessages: { marker: 'acked' } })
     await withRig(build, api, async (rig) => {
       expect((await callTool(rig, 'send_agent_message', { ...SEND, inReplyTo: MESSAGE })).payload).toEqual({ ok: true, data: { marker: 'sent' } })
       expect((await callTool(rig, 'acknowledge_agent_messages', { messageIds: [MESSAGE] })).payload).toEqual({ ok: true, data: { marker: 'acked' } })
-      expect((await callTool(rig, 'take_agent_mail_wake', {})).payload).toEqual({ ok: true, data: { marker: 'woke' } })
       expect(api.calls).toEqual([
         { name: 'sendAgentMessage', input: { ...SEND, inReplyTo: MESSAGE } },
-        { name: 'acknowledgeAgentMessages', input: { messageIds: [MESSAGE] } },
-        { name: 'takeAgentMailWake', input: {} }
+        { name: 'acknowledgeAgentMessages', input: { messageIds: [MESSAGE] } }
       ])
     })
   })
@@ -333,7 +330,10 @@ describe('agent mail arguments', () => {
     await withRig(build, createStubApi(), async (rig) => {
       const { tools } = await rig.client.listTools()
       const mail = tools.filter((tool) => /agent_(identity|peers|message|inbox|messages|mail)/.test(tool.name))
-      expect(mail.map((tool) => tool.name).sort()).toHaveLength(7)
+      expect(mail.map((tool) => tool.name).sort()).toEqual([
+        'acknowledge_agent_messages', 'get_agent_identity', 'get_agent_mail_status',
+        'list_agent_peers', 'read_agent_inbox', 'send_agent_message'
+      ])
       for (const tool of mail) {
         expect(tool.inputSchema.additionalProperties).toBe(false)
         expect(Object.keys(tool.inputSchema.properties ?? {}).filter((key) => /from|sender|endpoint|grant|session/i.test(key))).toEqual([])

@@ -11,7 +11,7 @@
  * Every check runs after `BEGIN IMMEDIATE` and before the store reads its clock, so a revocation, expiry or closed
  * binding that commits first is always seen: there is no window between the authority check and the write.
  *
- * Endpoint and binding management, the person's inbox view, seen cursor and the wake credit belong to the desktop
+ * Endpoint and binding management, the person's inbox view and seen cursor belong to the desktop
  * (`mail.manage`, human-only). Agents cannot register, rebind or close any mailbox, their own or a peer's.
  *
  * Nothing here logs or emits events, and no error carries a message body or a peer's name.
@@ -22,8 +22,6 @@ import type {
   AgentInboxPage,
   AgentMailboxStatus,
   AgentMailStatusPage,
-  AgentMailWakeResult,
-  AgentMailWakeState,
   AgentMailWindow,
   AgentMessageAcceptanceView,
   AgentPeersPage,
@@ -67,7 +65,7 @@ import { assertGrantUsable } from './grants'
 const MAILBOX_ROLES: readonly GrantableRole[] = ['planner', 'orchestrator', 'worker', 'reviewer']
 
 /** The commands a restricted mailbox-poll session may run; anything else is refused before it is dispatched. */
-export const MAIL_POLL_COMMANDS: readonly CommandName[] = ['getAgentMailStatus', 'takeAgentMailWake']
+export const MAIL_POLL_COMMANDS: readonly CommandName[] = ['getAgentMailStatus', 'getAgentIdentity']
 
 /** One sentence for every reason a session has no mailbox, so probing cannot tell them apart. */
 const NO_MAILBOX =
@@ -245,53 +243,6 @@ export function getAgentMailStatus(ctx: Ctx, input: AgentMailWindow = {}): Agent
   })
 }
 
-interface WakeRow {
-  revision: number
-  armed: number
-  request_nonce: string | null
-  armed_at: string | null
-  attempt_id: string | null
-  attempted_at: string | null
-}
-
-function wakeRow(db: Db, endpointId: string): WakeRow | undefined {
-  return db.get<WakeRow>(
-    'SELECT revision, armed, request_nonce, armed_at, attempt_id, attempted_at FROM agent_mail_wakes WHERE endpoint_id = ?',
-    endpointId
-  )
-}
-
-/**
- * Takes the mailbox's one-shot wake credit: a conditional transition from armed to consumed that needs pending mail
- * and the current binding, in one transaction. Only the call that makes it gets `claimed: true`; a concurrent call, a
- * repeat and a retry after a lost response all get false, and nothing ever refunds or re-arms the credit. It takes no
- * idempotency key, so no positive answer is ever replayed.
- */
-export function takeAgentMailWake(ctx: Ctx): AgentMailWakeResult {
-  return asOwner(ctx, ({ endpoint }) => {
-    // An aggregate without GROUP BY always yields exactly one row.
-    const pending = ctx.db.get<{ n: number }>(
-      'SELECT COUNT(*) AS n FROM agent_mail_messages WHERE recipient_endpoint_id = ? AND acked_at IS NULL',
-      endpoint.id
-    )!.n
-    const wake = wakeRow(ctx.db, endpoint.id)
-    if (wake === undefined || wake.armed !== 1 || pending === 0) {
-      return { claimed: false, wakeAttemptId: null, pendingCount: pending }
-    }
-    const attemptId = ctx.ids.next('mailWake')
-    const taken = ctx.db.run(
-      `UPDATE agent_mail_wakes SET armed = 0, revision = revision + 1, attempt_id = ?, attempted_at = ?
-       WHERE endpoint_id = ? AND armed = 1 AND revision = ?`,
-      attemptId,
-      ctx.clock.nowIso(),
-      endpoint.id,
-      wake.revision
-    ).changes
-    return taken === 1
-      ? { claimed: true, wakeAttemptId: attemptId, pendingCount: pending }
-      : { claimed: false, wakeAttemptId: null, pendingCount: pending }
-  })
-}
 
 // --- dedicated poll sessions ---------------------------------------------------------------------------------------
 
@@ -516,7 +467,7 @@ export function pruneAgentMailPollSessions(ctx: Ctx): { removed: number; ended: 
   return ctx.db.tx(() => prunePollSessionBatch(ctx))
 }
 
-// --- the desktop: the person's inbox, seen cursor and wake credit --------------------------------------------------
+// --- the desktop: the person's inbox and seen cursor ---------------------------------------------------------------
 
 /** Desktop: one page of a mailbox with bodies, for the person. Reading neither acknowledges nor marks seen. */
 export function readHumanAgentInbox(ctx: Ctx, input: { endpointId: string } & ReadAgentInboxInput): AgentInboxPage {
@@ -539,68 +490,13 @@ export function markHumanAgentMailSeen(ctx: Ctx, input: { endpointId: string; th
   })
 }
 
-function wakeView(endpointId: string, row: WakeRow | undefined): AgentMailWakeState {
-  return {
-    endpointId,
-    revision: row?.revision ?? 0,
-    armed: row?.armed === 1,
-    armedAt: row?.armed === 1 ? row.armed_at : null,
-    lastAttempt:
-      row?.attempt_id != null && row.attempted_at !== null ? { id: row.attempt_id, at: row.attempted_at, outcome: 'attempted' } : null
-  }
-}
 
-/** Desktop: what the person's inbox view of a mailbox counts, and its wake credit. */
+/** Desktop: the person's retained, unseen and unacknowledged mailbox counts. */
 export function getHumanAgentMailState(ctx: Ctx, input: { endpointId: string }): HumanAgentMailStateView {
   requireManager(ctx)
   return ctx.db.tx(() => {
     requireLocalEndpoint(ctx, input.endpointId)
-    return { endpointId: input.endpointId, ...readHumanMailState(ctx, input.endpointId), wake: wakeView(input.endpointId, wakeRow(ctx.db, input.endpointId)) }
+    return { endpointId: input.endpointId, ...readHumanMailState(ctx, input.endpointId) }
   })
 }
 
-const REQUEST_NONCE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/
-
-/**
- * Desktop: arms an open mailbox's one-shot wake credit. Credits never accumulate: while one is armed every request,
- * this one repeated or another, gets that armed state back. Otherwise the request must name the current `revision`
- * (which every arm and every consumption moves on) and a nonce this endpoint has not just used, so a delayed duplicate
- * that arrives after its credit was consumed is a `conflict`, never a second credit.
- */
-export function armAgentMailWake(
-  ctx: Ctx,
-  input: { endpointId: string; expectedRevision: number; requestNonce: string }
-): AgentMailWakeState {
-  requireManager(ctx)
-  if (!Number.isSafeInteger(input.expectedRevision) || input.expectedRevision < 0) {
-    fail('invalid_input', 'expectedRevision must be a non-negative integer.', { field: 'expectedRevision' })
-  }
-  if (!REQUEST_NONCE.test(input.requestNonce)) {
-    fail('invalid_input', "requestNonce must be 1 to 128 letters, digits, '.', '_', ':' or '-'.", { field: 'requestNonce' })
-  }
-  return ctx.db.tx(() => {
-    const endpoint = requireLocalEndpoint(ctx, input.endpointId)
-    if (endpoint.state !== 'open') {
-      fail('invalid_state', 'Only an open mailbox can be woken.', { endpointId: endpoint.id, state: endpoint.state })
-    }
-    ctx.db.run('INSERT OR IGNORE INTO agent_mail_wakes (endpoint_id) VALUES (?)', endpoint.id)
-    // The endpoint exists in this transaction and every column has a default, so the row is there now.
-    const row = wakeRow(ctx.db, endpoint.id)!
-    if (row.armed === 1) {
-      return wakeView(endpoint.id, row)
-    }
-    if (row.request_nonce === input.requestNonce) {
-      fail('conflict', 'This wake request already armed a credit, which has been used.', { endpointId: endpoint.id, revision: row.revision })
-    }
-    if (row.revision !== input.expectedRevision) {
-      fail('conflict', 'The wake state has moved on since this request read it.', { endpointId: endpoint.id, revision: row.revision })
-    }
-    ctx.db.run(
-      'UPDATE agent_mail_wakes SET armed = 1, revision = revision + 1, request_nonce = ?, armed_at = ? WHERE endpoint_id = ?',
-      input.requestNonce,
-      ctx.clock.nowIso(),
-      endpoint.id
-    )
-    return wakeView(endpoint.id, wakeRow(ctx.db, endpoint.id))
-  })
-}

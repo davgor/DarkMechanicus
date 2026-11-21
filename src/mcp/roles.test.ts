@@ -70,7 +70,7 @@ const ATTACHMENT_WRITE_TOOLS = ['add_attachment']
 const MAIL_READ_TOOLS = ['get_agent_identity', 'list_agent_peers', 'read_agent_inbox', 'get_agent_mail_status']
 
 /** Every hosted role holds mail.use and lists these; a call still needs a desktop-bound dm CLI grant (see below). */
-const MAIL_TOOLS = [...MAIL_READ_TOOLS, 'send_agent_message', 'acknowledge_agent_messages', 'take_agent_mail_wake']
+const MAIL_TOOLS = [...MAIL_READ_TOOLS, 'send_agent_message', 'acknowledge_agent_messages']
 
 /** Tools a planner and an orchestrator both hold. */
 const PLANNER_SHARED_TOOLS = [

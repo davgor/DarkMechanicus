@@ -592,13 +592,13 @@ describe('TerminalPane: a Skitarii chat’s inbox', () => {
     expect(screen.getByRole('button', { name: 'Messages: 0 unseen by you, 1 unacknowledged by its agent' })).toBeTruthy()
   })
 
-  it('takes pushed mail and wake changes into the header without touching the terminal or its focus', async () => {
+  it('takes pushed mail and context-delivery changes into the header without touching the terminal or its focus', async () => {
     const mail = await showWithMail()
     const view = kit.latest()
     const focused = view.focused
     act(() => {
       mail.put({ folder: '/a', chatId: 'chat_o', unseenCount: 3, pendingCount: 3 }, true)
-      mail.put({ folder: '/a', chatId: 'chat_o', wake: { revision: 1, armed: true, armedAt: '2026-11-15T11:00:00.000Z', lastAttempt: null } }, true)
+      mail.put({ folder: '/a', chatId: 'chat_o', delivery: { pendingCount: 2, deliveredCount: 1, problem: null } }, true)
     })
     expect(screen.getByRole('button', { name: 'Messages: 3 unseen by you, 3 unacknowledged by its agent' })).toBeTruthy()
     expect(kit.views).toEqual([view])

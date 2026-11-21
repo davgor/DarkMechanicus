@@ -5,8 +5,7 @@ import {
   getAgentMailStatus,
   listAgentPeers,
   readAgentInbox,
-  sendAgentMessage,
-  takeAgentMailWake
+  sendAgentMessage
 } from '../services/agentMail'
 import type { CommandTable } from './types'
 
@@ -44,11 +43,6 @@ const agentMailCommands = {
     schema: COMMAND_SCHEMAS.getAgentMailStatus,
     mutates: false,
     run: (core, input) => getAgentMailStatus(core.ctx(), input)
-  },
-  takeAgentMailWake: {
-    schema: COMMAND_SCHEMAS.takeAgentMailWake,
-    mutates: false,
-    run: (core) => takeAgentMailWake(core.ctx())
   }
 } satisfies Partial<CommandTable>
 
