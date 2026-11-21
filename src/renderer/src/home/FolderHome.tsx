@@ -51,6 +51,7 @@ function SecondaryColumn(props: FolderHomeProps & { titles: Readonly<Record<stri
       />
       <RepositoriesCard folder={folder} />
       <StorageCard
+        forgeMember={!!folder.forgeParent}
         status={props.status}
         titles={props.titles}
         busy={props.busy}

@@ -801,7 +801,7 @@ export interface StorageStatusView {
   initialized: boolean
   repoRoot: string
   /** The project's storage mode and where its database lives. */
-  storage: StorageLocationView & { databasePath: string }
+  storage: Omit<StorageLocationView, 'mode'> & { mode: StorageMode | 'forge'; databasePath: string }
   projectId: string | null
   projectName: string | null
   schemaVersion: number | null

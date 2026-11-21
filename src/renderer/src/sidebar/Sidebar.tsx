@@ -14,6 +14,7 @@ import brandIcon1x from '../assets/brand-icon-32.png'
 import brandIcon2x from '../assets/brand-icon-64.png'
 import { Menu } from '../components/Menu'
 import { AgentsSection } from './AgentsSection'
+import { ForgeRow } from './ForgeRow'
 import { FolderRow } from './FolderRow'
 import type { Expansion } from './useExpansion'
 import type { KanbanCounts } from '../kanban/useKanbanCounts'
@@ -29,7 +30,7 @@ interface SidebarChats {
   onDelete(chat: ChatRecord): Promise<boolean>
 }
 
-interface SidebarProps {
+export interface SidebarProps {
   version: string
   folders: readonly TrackedFolderView[]
   lists: Record<string, EpicListState>
@@ -134,7 +135,9 @@ export function Sidebar(props: SidebarProps): JSX.Element {
         {props.folders.length === 0 ? (
           <p className="sidebar-note">No folders yet. Use + to track one.</p>
         ) : null}
-        {props.folders.map((folder) => (
+        {props.folders.filter(folder => !folder.forgeParent).map((folder) => folder.forgeWorld ? (
+          <ForgeRow key={folder.path} folder={folder} sidebar={props} />
+        ) : (
           <FolderRow
             key={folder.path}
             folder={folder}

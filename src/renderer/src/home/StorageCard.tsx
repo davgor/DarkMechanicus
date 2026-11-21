@@ -7,6 +7,7 @@ import { branchWarning, storageFooterLine } from '../sidebar/footerStatus'
 import { StorageModeSwitch } from './StorageModeSwitch'
 
 interface StorageCardProps {
+  forgeMember?: boolean
   status: StorageStatusView | null
   /** Epic titles by id, so conflicts can name the epic instead of its id. */
   titles: Readonly<Record<string, string>>
@@ -62,6 +63,7 @@ function imagesText({ count, bytes, missing }: NonNullable<StorageStatusView['at
 }
 
 const MODE_LABELS: Record<StorageStatusView['storage']['mode'], string> = {
+  forge: 'Forge World',
   repo: 'In this repository',
   db: 'Database only'
 }
@@ -174,7 +176,12 @@ function Details({ status, titles, onResolveConflict }: DetailsProps): JSX.Eleme
 }
 
 /** Where the folder's records stand: export state, branch, save queue, and Flush/Reconcile. */
-export function StorageCard({ status, titles, busy, onFlush, onReconcile, onResolveConflict }: StorageCardProps): JSX.Element {
+function SwitchRow({ status }: Pick<StorageCardProps, 'status'>) {
+  if (!status) return null
+  return <div className="button-row"><StorageModeSwitch key={`${status.repoRoot}:${status.storage.mode}`} status={status} /></div>
+}
+
+export function StorageCard({ forgeMember, status, titles, busy, onFlush, onReconcile, onResolveConflict }: StorageCardProps): JSX.Element {
   const warning = branchWarning(status)
   // Flush and Reconcile move repository record files, which a db project does not have.
   const databaseOnly = status?.storage.mode === 'db'
@@ -209,7 +216,7 @@ export function StorageCard({ status, titles, busy, onFlush, onReconcile, onReso
             : 'Flush writes pending changes to the repository files. Reconcile re-reads them after a pull, clone or branch switch.'}
         </p>
       )}
-      {status === null ? null : <div className="button-row"><StorageModeSwitch key={`${status.repoRoot}:${status.storage.mode}`} status={status} /></div>}
+      {forgeMember ? null : <SwitchRow status={status} />}
     </section>
   )
 }

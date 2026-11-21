@@ -18,6 +18,7 @@
  *
  * A record is masked for claim tokens before it is written.
  */
+import { forgeProjectFor } from '../desktop/forgeManifest'
 import { createHash, randomUUID } from 'node:crypto'
 import { appendFileSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
@@ -48,7 +49,7 @@ export type NewChat = Pick<ChatRecord, 'folder' | 'agent' | 'model' | 'role' | '
 /** Identifies a chat: its folder (any spelling; null for a project-less chat) and id. Every `ChatRecord` is one. */
 export type ChatRef = Pick<ChatRecord, 'folder' | 'id'>
 
-type ChatPatch = Partial<Pick<ChatRecord, 'title' | 'firstPromptDelivery' | 'titleStatus' | 'titleError' | 'model' | 'role' | 'allowSave' | 'sessionId' | 'cutShortMessageId' | 'grantIds' | 'endpointId' | 'sessionStarted' | 'kickoffSent'>>
+type ChatPatch = Partial<Pick<ChatRecord, 'archived' | 'forgeResolver' | 'title' | 'firstPromptDelivery' | 'titleStatus' | 'titleError' | 'model' | 'role' | 'allowSave' | 'sessionId' | 'cutShortMessageId' | 'grantIds' | 'endpointId' | 'sessionStarted' | 'kickoffSent'>>
 
 interface ChatTranscript {
   chat: ChatRecord
@@ -216,6 +217,12 @@ function requireChat(context: StoreContext, ref: ChatRef): { location: FolderLoc
   return { location, chat }
 }
 
+function chatTarget(input: NewChat) {
+  if (!input.folder || !(input.runId || input.cardId)) return {}
+  const project = forgeProjectFor(input.folder)
+  return { targetRepository: project ? new URL(project.repository).pathname.slice(1, -4) : input.folder.split(/[\\/]/).filter(Boolean).at(-1) }
+}
+
 function createChat(context: StoreContext, input: NewChat): ChatRecord {
   const location = locate(context, input.folder)
   const now = context.now()
@@ -233,6 +240,7 @@ function createChat(context: StoreContext, input: NewChat): ChatRecord {
     createdAt: now,
     updatedAt: now,
     sessionId: null,
+    ...chatTarget(input),
     ...(input.runId === undefined ? {} : { runId: input.runId }),
     ...(input.transferEpicId === undefined ? {} : { transferEpicId: input.transferEpicId }),
     ...(input.cardId === undefined ? {} : { cardId: input.cardId }),

@@ -152,7 +152,7 @@ function namesThisApp(args: readonly string[], repoRoot: string): boolean {
 }
 
 /** The entry's parts when this app wrote it (script, `--repo` this folder, the Claude Code label); else null. */
-function ownedEntry(entry: unknown, repoRoot: string): OwnedEntry | null {
+export function ownedEntry(entry: unknown, repoRoot: string): OwnedEntry | null {
   if (!isObject(entry) || typeof entry.command !== 'string' || !Array.isArray(entry.args)) {
     return null
   }

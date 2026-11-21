@@ -146,7 +146,7 @@ export function createChatRecords(deps: ChatRecordsDeps): ChatRecords {
   const finishDeletion = createDeletions(deps)
   return {
     listChats: (folder) => {
-      const chats = store.listChats(folder)
+      const chats = store.listChats(folder).filter(chat => !chat.archived)
       // Mailboxes live in a tracked folder's database: the project-less chats have none.
       if (mailboxes === undefined || folder === null) return chats
       const reconciled = mailboxes.reconcile(folder, chats)

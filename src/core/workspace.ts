@@ -20,6 +20,7 @@ import { migrate } from './db/migrations'
 import { fail } from './errors'
 import { createIdGenerator, type IdGenerator } from './ids'
 import { getMeta, META_KEYS, setMeta } from './meta'
+import { assertForgeTransferIdle, boundForgeRoot, isForgeMember } from './repo/forgeBinding'
 import { findRepositoryRoot } from './repo/discovery'
 import { createFileHashCache } from './repo/fileHashes'
 import { flushOutbox, type FlushScope } from './repo/finalizer'
@@ -30,7 +31,7 @@ import { resolveLayout } from './repo/layout'
 import { nodeFs } from './repo/nodeFs'
 import type { ProjectRecord } from './repo/portable'
 import { resolveHomeDir, resolveStorageMode, type StorageMode } from './repo/storageMode'
-import { assertStorageMigrationIdle, recoverStorageMigration, switchStorage } from './repo/storageMigration'
+import { assertStorageMigrationIdle, recoverStorageMigration, exportForgeDestination, switchStorage } from './repo/storageMigration'
 import { pruneStagedAttachments } from './services/attachments'
 import { MAIL_POLL_COMMANDS, openMailPollSession, touchMailPollSession } from './services/agentMail'
 import { assertGrantUsable, redeemGrant, type RedeemedGrant } from './services/grants'
@@ -92,6 +93,7 @@ export interface OpenWorkspaceOptions {
 
 /** One repository opened by one session. Implements the full command contract. */
 export interface Workspace extends CommandApi {
+  exportForge?(member: string, mode?: StorageMode): void
   readonly repoRoot: string
   sessionId(): string | null
   isInitialized(): boolean
@@ -213,10 +215,12 @@ export class RepositoryWorkspace implements WorkspaceCore {
     this.homeDir = options.homeDir ?? resolveHomeDir(process.env, homedir())
     // Always canonical: a database-only project is keyed by this path, so two spellings of one
     // folder must never resolve to two projects (or to none, which would set the checkout up).
-    this.repoRoot =
+    const codeRoot =
       options.transport === 'stdio'
         ? findRepositoryRoot(options.repoRoot, this.fs, this.homeDir)
         : canonicalRoot(options.repoRoot, this.fs)
+    assertForgeTransferIdle(this.fs, this.homeDir, codeRoot)
+    this.repoRoot = boundForgeRoot(this.fs, this.homeDir, codeRoot)
     recoverStorageMigration({ repoRoot: this.repoRoot, homeDir: this.homeDir, fs: this.fs })
     this.layout = this.layoutFor(options.mode ?? this.resolvedMode())
     this.git = options.git ?? createGitAdapter(this.repoRoot, { fs: this.fs })
@@ -314,6 +318,8 @@ export class RepositoryWorkspace implements WorkspaceCore {
   }
 
   private assertCurrentStorage(): void {
+    assertForgeTransferIdle(this.fs, this.homeDir, this.repoRoot)
+    if (boundForgeRoot(this.fs, this.homeDir, this.repoRoot) !== this.repoRoot) fail('conflict', 'Reconnect to the Forge World ticket store.')
     assertStorageMigrationIdle({ repoRoot: this.repoRoot, homeDir: this.homeDir, fs: this.fs })
     if (this.store !== null && this.resolvedMode() !== this.layout.mode) {
       fail('conflict', 'This folder’s storage mode changed in another session. Close and reconnect this session before continuing.')
@@ -569,16 +575,26 @@ export class RepositoryWorkspace implements WorkspaceCore {
 
   async switchStorageMode(mode: StorageMode): Promise<{ mode: StorageMode; projectDir: string; cleanupPending: boolean }> {
     const store = this.requireStore()
-    return switchStorage({
+    if (isForgeMember(this.fs, this.repoRoot)) fail('conflict', 'Use Ticket source control to move a Forge World project.')
+    return switchStorage(this.migrationDeps(store), mode)
+  }
+
+  exportForge(member: string, mode: StorageMode = 'repo'): void {
+    if (this.transport !== 'desktop') fail('unauthorized', 'Forge conversion requires the desktop app.')
+    exportForgeDestination(this.migrationDeps(this.requireStore()), member, mode)
+  }
+
+  private migrationDeps(store: Store) {
+    return {
       repoRoot: this.repoRoot, homeDir: this.homeDir, fs: this.fs,
       db: store.db, layout: this.layout, git: this.git, clock: this.clock, sessionId: store.ctx.session.id,
       detach: () => { store.db.close() },
-      attach: (layout, db) => {
+      attach: (layout: RepoLayout, db: Db) => {
         this.layout = layout
         store.db = db
         store.ctx.db = db
       }
-    }, mode)
+    }
   }
 
   reconcile(): ReconcileResultView {
@@ -743,6 +759,7 @@ export function openWorkspace(options: OpenWorkspaceOptions): Workspace {
     commands[name] = (input?: unknown) => core.execute(name, input)
   }
   const lifecycle = {
+    exportForge: (member: string, mode?: StorageMode) => core.exportForge(member, mode),
     repoRoot: core.repoRoot,
     sessionId: () => core.sessionId(),
     isInitialized: () => core.isInitialized(),

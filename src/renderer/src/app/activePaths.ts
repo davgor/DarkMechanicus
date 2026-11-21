@@ -11,6 +11,6 @@ export function activeFolderPaths(
 ): string[] {
   return folders
     .filter((folder) => folder.initialized && folder.available)
-    .filter((folder) => folder.path === selectedPath || isExpanded(folder.path))
+    .filter((folder) => folder.path === selectedPath || isExpanded(folder.forgeParent ?? folder.path))
     .map((folder) => folder.path)
 }

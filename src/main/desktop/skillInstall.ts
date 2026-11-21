@@ -94,7 +94,7 @@ function renderSkill(dirName: string, skill: SkillDefinition): string {
   return `---\nname: ${dirName}\ndescription: ${yamlText(skill.description)}\n---\n\n${body}`
 }
 
-function toTarget(repoRoot: string, skill: SkillDefinition): SkillTarget {
+export function toTarget(repoRoot: string, skill: SkillDefinition): SkillTarget {
   const dirName = `${DIR_PREFIX}${skill.name}`
   const dir = join(repoRoot, CLAUDE_DIR, SKILLS_DIR, dirName)
   return {

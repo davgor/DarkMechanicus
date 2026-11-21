@@ -10,9 +10,13 @@ import type { CommandApi, CommandName } from '../domain/api'
 import type { DomainErrorShape } from '../domain/errors'
 import type { BoardRemovalResultView, BoardRemovalView, StorageMode } from '../domain/views'
 import type { CrossRepoCorrectionsApi } from './crossRepoCorrections'
+import type { ForgeApi, ForgeWorld } from './forgeWorld'
 import type { SourceCheckoutApi } from './sourceCheckout'
 
 export interface TrackedFolderView {
+  forgeWorld?: ForgeWorld
+  forgeParent?: string
+  forgeIssue?: boolean
   /** Canonical real path; the registry key. */
   path: string
   /**
@@ -255,6 +259,7 @@ export interface YoloStatus {
 }
 
 export interface DmApi {
+  forge?: ForgeApi
   telegramStatus(): Promise<{ configured: boolean; paired: boolean; issue: string }>
   pairTelegram(): Promise<string>
   /** Agent chats run by the main process: the `chats:*` channels and their push channel. */

@@ -104,6 +104,17 @@ const crossRepoCorrections: CrossRepoCorrectionsApi = {
  * `sourceCheckout` the `sourceCheckout:*` channels; `crossRepoCorrections` the `corrections:*CrossRepo` channels.
  */
 const dm: DmApi = {
+  forge: {
+    connect: (folder, repository, publish) => ipcRenderer.invoke('forge:connect', folder, repository, publish),
+    restore: (member, mode) => ipcRenderer.invoke('forge:restore', member, mode),
+    pickConvert: world => ipcRenderer.invoke('forge:pickConvert', world),
+    convert: (world, source) => ipcRenderer.invoke('forge:convert', world, source),
+    status: folder => ipcRenderer.invoke('forge:status', folder),
+    sync: folder => ipcRenderer.invoke('forge:sync', folder),
+    create: (folder) => ipcRenderer.invoke('forge:create', folder),
+    add: (folder, repository, name) => ipcRenderer.invoke('forge:add', folder, repository, name),
+    interval: (folder, minutes) => ipcRenderer.invoke('forge:interval', folder, minutes)
+  },
   telegramStatus: () => ipcRenderer.invoke('telegram:status'),
   pairTelegram: () => ipcRenderer.invoke('telegram:pair'),
   chats,
