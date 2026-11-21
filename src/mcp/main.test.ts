@@ -89,13 +89,13 @@ describe('startMcpServer opening the workspace', () => {
     ])
   })
 
-  it('defaults to the orchestrator without save permission in the working directory', async () => {
+  it('defaults to the orchestrator with save permission in the working directory', async () => {
     const rig = await startRig([])
     expect(rig.opened[0]).toMatchObject({
       repoRoot: resolve('/cwd'),
       role: 'orchestrator',
       label: 'orchestrator via MCP',
-      allowSave: false
+      allowSave: true
     })
   })
 
@@ -137,11 +137,23 @@ describe('startMcpServer serving', () => {
     expect(rig.logs).toEqual(['darkmechanicus 1.2.3 ready: repo=/canonical role=planner save=allowed session=ss_stub'])
   })
 
-  it('says that an orchestrator without --allow-save saves only for its own active runs', async () => {
-    const rig = await startRig([], { sessionId: null })
-    expect(rig.logs[0]).toBe('darkmechanicus 1.2.3 ready: repo=/repo role=orchestrator save=own active runs only session=none')
+  it('serves saving and permission tools while preserving an explicit orchestrator opt-out', async () => {
+    const rig = await startRig(['--no-allow-save'])
+    expect(rig.opened[0]).toMatchObject({ role: 'orchestrator', allowSave: false })
+    const client = new Client({ name: 'restricted-orchestrator', version: '0.0.0' })
+    await client.connect(rig.clientTransport)
+    try {
+      const tools = (await client.listTools()).tools.map((tool) => tool.name)
+      expect(tools).toEqual(expect.arrayContaining(['save_plan', 'request_save_permission', 'list_save_permission_requests']))
+    } finally {
+      await client.close()
+      await rig.handle.close()
+    }
   })
 
+})
+
+describe('startMcpServer effective permission diagnostics', () => {
   it('reports the effective save permission and explains an --allow-save that cannot apply', async () => {
     const reviewer = await startRig(['--role', 'reviewer', '--allow-save'])
     expect(reviewer.logs).toEqual([
@@ -193,8 +205,8 @@ describe('startMcpServer tool list', () => {
     expect(saver.filter((name) => !planner.includes(name))).toEqual(['save_plan'])
   })
 
-  it('lists save_plan to an orchestrator without --allow-save, whose service decides per epic', async () => {
-    const orchestrator = await listedTools(['--role', 'orchestrator'])
+  it('lists save_plan to an explicitly opted-out orchestrator, whose service decides per call', async () => {
+    const orchestrator = await listedTools(['--role', 'orchestrator', '--no-allow-save'])
     const worker = await listedTools(['--role', 'worker'])
     expect([orchestrator.includes('save_plan'), worker.includes('save_plan')]).toEqual([true, false])
   })
