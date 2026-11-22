@@ -48,7 +48,7 @@ function fixture(seed?: { source: string; world: string }) {
     pickDirectory: async () => picked, cleanup: () => undefined, publish: async name => { published.push(name) },
     onSynced: async () => undefined, onConflict: async () => { throw new Error('Unexpected conflict') },
     runner: { run: async req => {
-      if (req.args.includes('--show-toplevel')) probes.push(req.cwd)
+      if (req.args.includes('push')) probes.push(req.cwd)
       if (req.kind !== 'network') return real.run(req)
       if (failingNetwork && req.args.includes(failingNetwork)) throw new Error('Injected network failure at ' + failingNetwork)
       if (req.args.includes('clone')) {
@@ -357,19 +357,19 @@ it('syncs only worlds at the configured interval and stops when the bridge close
     await call('create', world)
     probes.length = 0
     vi.advanceTimersByTime(15_000)
-    expect(probes).toEqual([world])
     await call('sync', world)
+    expect(probes).toEqual([world])
     vi.advanceTimersByTime(285_000)
     expect(probes).toEqual([world])
     vi.advanceTimersByTime(15_000)
-    expect(probes).toEqual([world, world])
     await call('sync', world)
+    expect(probes).toEqual([world, world])
     await call('interval', world, 1)
     vi.advanceTimersByTime(45_000)
     expect(probes).toHaveLength(2)
     vi.advanceTimersByTime(15_000)
-    expect(probes).toEqual([world, world, world])
     await call('sync', world)
+    expect(probes).toEqual([world, world, world])
     forge.stop()
     vi.advanceTimersByTime(300_000)
     expect(probes).toHaveLength(3)

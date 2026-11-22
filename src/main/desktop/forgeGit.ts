@@ -82,6 +82,10 @@ export class ForgeGit {
     }
     await this.inspectTree(root, 'HEAD')
     await validate()
+    // Reconciliation/health upgrades can create portable records after merging.
+    // Include those writes in this same sync rather than leaving them behind.
+    await this.commitRepository(root)
+    await this.inspectTree(root, 'HEAD')
     await this.run(root, ['push', url, 'HEAD:' + ref], url)
   }
 }

@@ -18,6 +18,7 @@ import { ensureForgeConfig, FORGE_CONFIG, readForgeReference } from '../../core/
 import { requireTracked } from './handlers'
 import { FORGE_FILE, createForge, githubRemote, parseForge, projectName, updateForge } from './forgeManifest'
 import { ForgeGit } from './forgeGit'
+import { ensureForgeWorld } from './forgeHealth'
 import type { FolderRegistry } from './folderRegistry'
 import type { WorkspacePool } from './workspacePool'
 
@@ -47,8 +48,27 @@ class ForgeService {
   private readonly last = new Map<string, number>()
   private readonly next = new Map<string, number>()
   private readonly errors = new Map<string, string>()
+  private readonly checking = new Map<string, Promise<void>>()
 
   constructor(private readonly deps: Services) { this.git = new ForgeGit(deps.session, deps.runner) }
+  ensure(root: string): Promise<void> {
+    const pending = this.checking.get(root)
+    if (pending) return pending
+    const work = ensureForgeWorld(root, { git: this.git, home: this.deps.home }).finally(() => this.checking.delete(root))
+    this.checking.set(root, work)
+    return work
+  }
+  async checkTracked(): Promise<void> {
+    for (const folder of this.deps.registry.list().filter(entry => entry.forgeWorld || entry.forgeIssue)) {
+      try { await this.ensure(folder.path); this.errors.delete(folder.path) }
+      catch (error) { this.errors.set(folder.path, error instanceof Error ? error.message : String(error)) }
+    }
+  }
+  async openWorld(folder: string): Promise<string> {
+    const root = realpathSync.native(folder)
+    await this.ensure(root)
+    return root
+  }
   rootOf(input: unknown) {
     const root = requireTracked(this.deps.registry, input)
     if (realpathSync.native(root) !== root) throw new Error('The tracked folder moved.')
@@ -67,7 +87,9 @@ class ForgeService {
     if (pending) return afterMutation ? pending.then(() => this.sync(root, true, transfer)) : pending
     const work = (async () => {
       try {
+        await this.ensure(root)
         await this.git.sync(root, async () => {
+          await this.ensure(root)
           for (const project of this.worldAt(root).projects) {
             const member = join(root, project.folder)
             if (this.deps.registry.resolve(member) && existsSync(join(member, '.darkmechanicus/project.json'))) {
@@ -448,7 +470,8 @@ class ForgeService {
 export function startForge(ipc: Pick<IpcMain, 'handle'>, deps: Services) {
   const service = new ForgeService(deps)
   service.register(ipc)
+  const ready = service.checkTracked()
   const timer = setInterval(() => service.tick(), 15_000)
   timer.unref()
-  return { openProject: (source: string) => service.openProject(source), stop: () => clearInterval(timer) }
+  return { ready, openWorld: (folder: string) => service.openWorld(folder), openProject: (source: string) => service.openProject(source), stop: () => clearInterval(timer) }
 }
