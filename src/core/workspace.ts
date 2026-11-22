@@ -16,13 +16,13 @@ import { createSystemClock, type Clock } from './clock'
 import { COMMANDS } from './commands/index'
 import type { WorkspaceCore } from './commands/types'
 import type { Ctx } from './context'
-import { openDatabase, type Db } from './db/database'
+import { guardTransactions, openDatabase, type Db } from './db/database'
 import { migrate } from './db/migrations'
-import { fail } from './errors'
+import { DomainError, fail } from './errors'
 import { policyForStore, portablePolicy, recoverSqlitePolicy } from './repo/deliveryPolicy'
 import { createIdGenerator, type IdGenerator } from './ids'
 import { getMeta, META_KEYS, setMeta } from './meta'
-import { assertForgeTransferIdle, boundForgeRoot, isForgeMember } from './repo/forgeBinding'
+import { assertForgeTransferIdle, boundForgeRoot, forgeBindingEpoch, isForgeMember } from './repo/forgeBinding'
 import { findRepositoryRoot } from './repo/discovery'
 import { createFileHashCache } from './repo/fileHashes'
 import { flushOutbox, type FlushScope } from './repo/finalizer'
@@ -95,7 +95,7 @@ export interface OpenWorkspaceOptions {
 
 /** One repository opened by one session. Implements the full command contract. */
 export interface Workspace extends CommandApi {
-  exportForge?(member: string, mode?: StorageMode): void
+  exportForge?(member: string, mode?: StorageMode, options?: { force: boolean }): void
   readonly repoRoot: string
   sessionId(): string | null
   isInitialized(): boolean
@@ -202,6 +202,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
     return this.options.transport
   }
   private store: Store | null = null
+  private readonly forgeEpoch: string | null
   private readonly commandContext = new AsyncLocalStorage<Ctx>()
   /** What the presented grant conferred, or null for a session that presented none. */
   private granted: RedeemedGrant | null = null
@@ -223,6 +224,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
         : canonicalRoot(options.repoRoot, this.fs)
     assertForgeTransferIdle(this.fs, this.homeDir, codeRoot)
     this.repoRoot = boundForgeRoot(this.fs, this.homeDir, codeRoot)
+    this.forgeEpoch = forgeBindingEpoch(this.fs, this.homeDir, this.repoRoot)
     recoverStorageMigration({ repoRoot: this.repoRoot, homeDir: this.homeDir, fs: this.fs })
     this.layout = this.layoutFor(options.mode ?? this.resolvedMode())
     this.git = options.git ?? createGitAdapter(this.repoRoot, { fs: this.fs })
@@ -298,6 +300,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
   }
 
   ctx(): Ctx {
+    this.assertCurrentStorage()
     return this.commandContext.getStore() ?? this.requireStore().ctx
   }
 
@@ -331,9 +334,14 @@ export class RepositoryWorkspace implements WorkspaceCore {
     }
   }
 
-  private assertCurrentStorage(): void {
+  private assertForgeStorage(): void {
     assertForgeTransferIdle(this.fs, this.homeDir, this.repoRoot)
+    if (forgeBindingEpoch(this.fs, this.homeDir, this.repoRoot) !== this.forgeEpoch) fail('conflict', 'Ticket storage changed. Reconnect before continuing.')
     if (boundForgeRoot(this.fs, this.homeDir, this.repoRoot) !== this.repoRoot) fail('conflict', 'Reconnect to the Forge World ticket store.')
+  }
+
+  private assertCurrentStorage(): void {
+    this.assertForgeStorage()
     assertStorageMigrationIdle({ repoRoot: this.repoRoot, homeDir: this.homeDir, fs: this.fs })
     if (this.store !== null && this.resolvedMode() !== this.layout.mode) {
       fail('conflict', 'This folder’s storage mode changed in another session. Close and reconnect this session before continuing.')
@@ -396,6 +404,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
   }
 
   private createStore(db: Db, project: ProjectRecord): Store {
+    db = guardTransactions(db, () => this.assertForgeStorage())
     migrate(db)
     bindProject(db, this.layout, project)
     if (this.isDesktopSession()) recoverSqlitePolicy(this, db)
@@ -599,20 +608,21 @@ export class RepositoryWorkspace implements WorkspaceCore {
     return switchStorage(this.migrationDeps(store), mode)
   }
 
-  exportForge(member: string, mode: StorageMode = 'repo'): void {
+  exportForge(member: string, mode: StorageMode = 'repo', options?: { force: boolean }): void {
     if (this.transport !== 'desktop') fail('unauthorized', 'Forge conversion requires the desktop app.')
-    exportForgeDestination(this.migrationDeps(this.requireStore()), member, mode)
+    exportForgeDestination(this.migrationDeps(this.requireStore()), member, mode, options?.force === true)
   }
 
   private migrationDeps(store: Store) {
     return {
       repoRoot: this.repoRoot, homeDir: this.homeDir, fs: this.fs,
+      ctx: store.ctx,
       db: store.db, layout: this.layout, git: this.git, clock: this.clock, sessionId: store.ctx.session.id,
       detach: () => { store.db.close() },
       attach: (layout: RepoLayout, db: Db) => {
         this.layout = layout
-        store.db = db
-        store.ctx.db = db
+        store.db = guardTransactions(db, () => this.assertForgeStorage())
+        store.ctx.db = store.db
       }
     }
   }
@@ -765,11 +775,16 @@ export class RepositoryWorkspace implements WorkspaceCore {
     try {
       // A poll session is shared by every poll of its binding: closing one poll never ends it.
       if (this.options.mailPoll !== true && this.resolvedMode() === this.layout.mode) {
-        endSession({ db: store.db, clock: this.clock }, store.ctx.session.id)
+        this.endCurrentSession(store)
       }
     } finally {
       store.db.close()
     }
+  }
+
+  private endCurrentSession(store: Store): void {
+    try { endSession({ db: store.db, clock: this.clock }, store.ctx.session.id) }
+    catch (error) { if (!(error instanceof DomainError && error.code === 'conflict')) throw error }
   }
 }
 
@@ -780,7 +795,7 @@ export function openWorkspace(options: OpenWorkspaceOptions): Workspace {
     commands[name] = (input?: unknown) => core.execute(name, input)
   }
   const lifecycle = {
-    exportForge: (member: string, mode?: StorageMode) => core.exportForge(member, mode),
+    exportForge: (member: string, mode?: StorageMode, options?: { force: boolean }) => core.exportForge(member, mode, options),
     repoRoot: core.repoRoot,
     sessionId: () => core.sessionId(),
     isInitialized: () => core.isInitialized(),

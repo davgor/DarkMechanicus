@@ -12,6 +12,7 @@ import { createWorkspacePool } from './workspacePool'
 import { bindToolingGrant, holdToolingWorkflow, retireToolingWorkflow } from '../../core/services/toolingHold'
 import { dbProjectDir } from '../../core/repo/storageMode'
 import { pendingForgeTransfer } from '../../core/repo/forgeBinding'
+import { nodeFs } from '../../core/repo/nodeFs'
 
 function fixture() {
   const scratch = scratchDir('forge-convert-')
@@ -34,6 +35,7 @@ function fixture() {
   const published: string[] = []
   const probes: string[] = []
   let picked: string | null = source
+  let failingNetwork: string | null = null
   const forge = startForge({ handle: (key, handler) => { handlers.set(key, handler) } }, {
     home, registry, pool, session: { getAccount: () => ({ login: 'example', host: 'github.com' }), getToken: () => null },
     pickDirectory: async () => picked, cleanup: () => undefined, publish: async name => { published.push(name) },
@@ -41,6 +43,7 @@ function fixture() {
     runner: { run: async req => {
       if (req.args.includes('--show-toplevel')) probes.push(req.cwd)
       if (req.kind !== 'network') return real.run(req)
+      if (failingNetwork && req.args.includes(failingNetwork)) throw new Error('Injected network failure at ' + failingNetwork)
       if (req.args.includes('clone')) {
         const dir = req.args.at(-1)!
         mkdirSync(dir)
@@ -53,8 +56,89 @@ function fixture() {
     } }
   })
   return { pool, source, world, home, registry, call, forge, published, probes, pick(path: string | null) { picked = path },
+    failNetwork(command: string | null) { failingNetwork = command },
     close() { forge.stop(); pool.closeAll(); scratch.cleanup() } }
 }
+
+it.each(['repo', 'db'] as const)('force converts %s live claims, keeps a private source backup and fences the old handle', async mode => {
+  const f = fixture()
+  const worker = openWorkspace({ repoRoot: f.source, homeDir: f.home, transport: 'in_process', role: 'orchestrator', label: 'Old worker', serverInfo: { name: 'fixture', version: '1' } })
+  try {
+    await f.pool.get(f.source).initializeRepository({ name: 'Force fixture', mode })
+    const card = await f.pool.get(f.source).createKanbanCard({ title: 'Live work' })
+    await f.pool.get(f.source).playKanbanCard({ cardId: card.id })
+    const claim = await worker.claimKanbanCard({ cardId: card.id })
+    await f.call('create', f.world)
+    await f.call('convert', f.world, f.source, { force: true })
+    const member = join(f.world, 'Software')
+    expect((await f.pool.get(member).getKanbanCard({ cardId: card.id })).lane).toBe('backlog')
+    expect(existsSync(join(member, '.darkmechanicus/local/pre-forge-source/project.json'))).toBe(true)
+    expect(existsSync(join(f.source, 'FORGE-WORLD.md'))).toBe(true)
+    await expect(worker.heartbeatKanbanCard({ attemptId: claim.attemptId, claimToken: claim.claimToken! })).rejects.toThrow('Reconnect')
+    const reconnected = openWorkspace({ repoRoot: f.source, homeDir: f.home, transport: 'in_process', role: 'orchestrator', label: 'Reconnected worker' })
+    try { expect((await reconnected.getKanbanCard({ cardId: card.id })).lane).toBe('backlog') }
+    finally { reconnected.close() }
+    expect(gitIn(f.world, 'ls-files').split('\n').some(p => p.includes('/local/'))).toBe(false)
+    if (process.platform === 'win32') await expect(f.call('restore', member, mode)).rejects.toThrow('Close every session')
+    await expect(worker.heartbeatKanbanCard({ attemptId: claim.attemptId, claimToken: claim.claimToken! })).rejects.toThrow('Reconnect')
+    worker.close()
+    expect(await f.call('restore', member, mode)).toBe(f.source)
+    expect((await f.pool.get(f.source).getKanbanCard({ cardId: card.id })).lane).toBe('backlog')
+    expect((await f.pool.get(f.source).getStorageStatus()).storage.mode).toBe(mode)
+  } finally { worker.close(); f.close() }
+})
+
+it('resumes force retirement after some portable paths have already moved to the verified backup', async () => {
+  const f = fixture()
+  const rename = nodeFs.rename
+  let fault: ReturnType<typeof vi.spyOn> | undefined
+  try {
+    const source = f.pool.get(f.source)
+    await source.initializeRepository({ name: 'Interrupted retirement', mode: 'repo' })
+    const card = await source.createKanbanCard({ title: 'Preserved through interruption' })
+    await f.call('create', f.world)
+    fault = vi.spyOn(nodeFs, 'rename').mockImplementation((from, to) => {
+      if (from === join(f.source, '.darkmechanicus/project.json')) throw new Error('Injected retirement interruption')
+      rename(from, to)
+    })
+    await expect(f.call('convert', f.world, f.source, { force: true })).rejects.toThrow('retirement interruption')
+    fault.mockRestore()
+    expect(pendingForgeTransfer(f.home, f.source)).toBe(join(f.world, 'Software'))
+    const backup = join(f.world, 'Software/.darkmechanicus/local/pre-forge-source')
+    expect(existsSync(join(backup, 'kanban', card.id, 'card.json'))).toBe(true)
+    expect(await f.forge.openProject(f.source)).toBe(join(f.world, 'Software'))
+    expect(existsSync(join(backup, 'project.json'))).toBe(true)
+    expect((await f.pool.get(join(f.world, 'Software')).getKanbanCard({ cardId: card.id })).title).toBe(card.title)
+    expect(pendingForgeTransfer(f.home, f.source)).toBeNull()
+  } finally { fault?.mockRestore(); f.close() }
+})
+
+it('restores source writes on a definite prepublish force failure and binds force intent across uncertain push recovery', async () => {
+  const f = fixture()
+  try {
+    const source = f.pool.get(f.source)
+    await source.initializeRepository({ name: 'Recovery fixture', mode: 'db' })
+    const card = await source.createKanbanCard({ title: 'Do not lose' })
+    await f.call('create', f.world)
+    const exportFailure = vi.spyOn(source, 'exportForge').mockImplementationOnce(() => { throw new Error('Injected export failure') })
+    await expect(f.call('convert', f.world, f.source, { force: true })).rejects.toThrow('Injected export')
+    exportFailure.mockRestore()
+    expect(pendingForgeTransfer(f.home, f.source)).toBeNull()
+    expect((await source.getKanbanCard({ cardId: card.id })).title).toBe('Do not lose')
+    await source.createKanbanCard({ title: 'Source remains writable' })
+    f.failNetwork('ls-remote')
+    await expect(f.call('convert', f.world, f.source, { force: true })).rejects.toThrow('Injected network')
+    expect(pendingForgeTransfer(f.home, f.source)).toBe(join(f.world, 'Software'))
+    await expect(source.createKanbanCard({ title: 'Blocked after sync began' })).rejects.toThrow('conversion is pending')
+    f.failNetwork('push')
+    await expect(f.call('convert', f.world, f.source, { force: true })).rejects.toThrow('Injected network')
+    expect(pendingForgeTransfer(f.home, f.source)).toBe(join(f.world, 'Software'))
+    await expect(f.call('convert', f.world, f.source)).rejects.toThrow('same migration option')
+    f.failNetwork(null)
+    expect(await f.forge.openProject(f.source)).toBe(join(f.world, 'Software'))
+    expect(pendingForgeTransfer(f.home, f.source)).toBeNull()
+  } finally { f.close() }
+})
 
 it('converts a real SQLite project, follows its source note and restores the same card to the code repo', async () => {
   const { pool, source, world, call, forge, close } = fixture()
@@ -173,6 +257,7 @@ it('refuses conversion and restoration of planner-only holds without moving tick
     await call('create', world)
     const member = join(world, 'Software')
     await expect(call('convert', world, source)).rejects.toThrow('tooling recovery')
+    await expect(call('convert', world, source, { force: true })).rejects.toThrow('tooling recovery')
     expect(original.ctx().db.all('SELECT chat_id, incident_id FROM tooling_holds')).toEqual([{ chat_id: 'chat_source', incident_id: 'source_incident' }])
     expect((await original.getKanbanCard({ cardId: card.id })).title).toBe('Unfinished planning')
     expect(registry.resolve(source)).toBe(source)

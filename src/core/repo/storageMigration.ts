@@ -4,6 +4,7 @@ import { basename, dirname, join, relative, resolve } from 'node:path'
 import { z } from 'zod'
 import { prettyJson } from '../canonical'
 import type { Clock } from '../clock'
+import type { Ctx } from '../context'
 import { type Db, openDatabase } from '../db/database'
 import { fail } from '../errors'
 import { policyForStore, publishSqlitePolicy, retireSqlitePolicy } from './deliveryPolicy'
@@ -17,6 +18,8 @@ import { readProject } from './initialize'
 import { layoutUnder, resolveLayout } from './layout'
 import { checkpointOf, rebuildCheckpoint } from './migrationCheckpoint'
 import { exportMigrationRecords } from './migrationExport'
+import { assertForgeForceSafe, restartForgeExecution, settleForgeExports } from './forgeForce'
+import { prepareForgeReconciliation } from './forgeReconciliation'
 import type { ProjectRecord } from './portable'
 import { assertContained, isStrictlyInside, ownedPaths } from './paths'
 import { projectKey, type StorageMode } from './storageMode'
@@ -27,6 +30,7 @@ const active = new Set<string>()
 
 interface MigrationEnv { repoRoot: string; homeDir: string; fs: FsAdapter }
 interface MigrationDeps extends MigrationEnv {
+  ctx: Ctx
   db: Db
   layout: RepoLayout
   git: GitAdapter
@@ -282,9 +286,11 @@ function importCanonical(deps: MigrationDeps, rebuilt: Db, source: RepoLayout): 
   rebuilt.run('DELETE FROM meta WHERE key = ?', META_KEYS.checkoutBranch)
 }
 
-function prepareDestination(deps: MigrationDeps, paths: MigrationPaths, project: ProjectRecord, retireSession = false): void {
+function prepareDestination(deps: MigrationDeps, paths: MigrationPaths, project: ProjectRecord, options: { retireSession?: boolean; force?: boolean } = {}): void {
+  const { retireSession = false, force = false } = options
   deps.db.tx(() => {
-    assertStorageIdle(deps)
+    if (force) assertForgeForceSafe(deps.db)
+    else assertStorageIdle(deps)
     deps.fs.mkdirp(paths.staging.localDir)
     const snapshot = hydratedCheckpoint(deps, paths.source)
     const env = { fs: deps.fs, layout: paths.staging }
@@ -298,9 +304,20 @@ function prepareDestination(deps: MigrationDeps, paths: MigrationPaths, project:
     writeFileSafely(env, checkpointFile, prettyJson(snapshot))
     const rebuilt = rebuildCheckpoint(paths.staging.dbFile, deps.fs.readFile(checkpointFile))
     try {
+      if (force) {
+        if (paths.source.mode === 'repo') {
+          prepareForgeReconciliation({ db: rebuilt, fs: deps.fs, source: paths.source, staging: paths.staging, clock: deps.clock })
+          importCanonical(deps, rebuilt, paths.staging)
+        }
+        assertForgeForceSafe(rebuilt)
+        restartForgeExecution({ ...deps.ctx, db: rebuilt })
+      }
       if (paths.target.mode === 'db' && policy) setMeta(rebuilt, META_KEYS.deliveryStandards, prettyJson(policy))
       else rebuilt.run('DELETE FROM meta WHERE key = ?', META_KEYS.deliveryStandards)
-      if (paths.target.mode === 'repo') exportMigrationRecords({ ...env, db: rebuilt, clock: deps.clock })
+      if (paths.target.mode === 'repo') {
+        const exported = exportMigrationRecords({ ...env, db: rebuilt, clock: deps.clock })
+        if (force) settleForgeExports(rebuilt, exported)
+      }
       else importCanonical(deps, rebuilt, paths.source)
       assertStorageIdle({ ...deps, db: rebuilt })
       if (retireSession) rebuilt.run('UPDATE sessions SET ended_at = ? WHERE id = ?', deps.clock.nowIso(), deps.sessionId)
@@ -325,8 +342,10 @@ function copyKnowledge(fs: FsAdapter, source: RepoLayout, staging: RepoLayout): 
   if (fs.exists(source.knowledgeDir)) copy(source.knowledgeDir, staging.knowledgeDir)
 }
 
-export function exportForgeDestination(deps: MigrationDeps, member: string, mode: StorageMode): void {
-  assertStorageIdle(deps)
+export function exportForgeDestination(deps: MigrationDeps, member: string, mode: StorageMode, force = false): void {
+  if (force && mode !== 'repo') fail('invalid_input', 'Force migration requires a Forge World destination.')
+  if (force) assertForgeForceSafe(deps.db)
+  else assertStorageIdle(deps)
   const source = deps.layout
   const target = resolveLayout(member, { mode, homeDir: deps.homeDir })
   const staging = layoutUnder(member, mode, target.dmDir + '.preparing')
@@ -336,7 +355,7 @@ export function exportForgeDestination(deps: MigrationDeps, member: string, mode
   const project = readProject(source, deps.fs) ?? fail('not_initialized', 'Initialize this project first.')
   try {
     const { repoRoot: _localRoot, ...portable } = project
-    prepareDestination(deps, paths, mode === 'db' ? { ...portable, repoRoot: member } : portable, true)
+    prepareDestination(deps, paths, mode === 'db' ? { ...portable, repoRoot: member } : portable, { retireSession: true, force })
     copyKnowledge(deps.fs, source, staging)
     deps.fs.rename(staging.dmDir, target.dmDir)
     if (mode === 'db' && project.deliveryStandards) {
