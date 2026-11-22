@@ -1,5 +1,5 @@
 import { gitIn, scratchDir } from '../../test/gitScratch'
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, expect, it } from 'vitest'
@@ -143,6 +143,28 @@ it('leaves branch-recovery conflicts on main without pushing or losing the prese
   expect(gitIn(first, 'show', 'accidental:README.md')).toBe('Branch work\n')
   expect(gitIn(first, 'ls-files', '-u')).toContain('README.md')
   expect(gitIn(bare, 'rev-parse', 'main')).toBe(published)
+})
+
+it.each(['nested-root', 'directory-manifest'] as const)('refuses unsafe main recovery for %s without committing, switching or publishing', async invalid => {
+  const { first, bare, client } = repositoryPair()
+  createForge(first, 'tester')
+  await client.sync(first, async () => undefined)
+  gitIn(first, 'switch', '-c', 'preserve-work')
+  writeFileSync(join(first, 'pending.txt'), 'Keep pending work')
+  let target = first
+  if (invalid === 'nested-root') {
+    target = join(first, 'Nested')
+    mkdirSync(target)
+    createForge(target, 'tester')
+  } else {
+    renameSync(join(first, 'forge-world.json'), join(first, 'original-manifest.json'))
+    mkdirSync(join(first, 'forge-world.json'))
+  }
+  const before = [gitIn(first, 'rev-parse', 'HEAD'), gitIn(first, 'ls-files', '--stage'), gitIn(first, 'status', '--porcelain')]
+  await expect(client.ensureMain(target)).rejects.toThrow(invalid === 'nested-root' ? 'must be the root' : 'Invalid Forge World manifest')
+  expect(gitIn(first, 'branch', '--show-current').trim()).toBe('preserve-work')
+  expect([gitIn(first, 'rev-parse', 'HEAD'), gitIn(first, 'ls-files', '--stage'), gitIn(first, 'status', '--porcelain')]).toEqual(before)
+  expect(gitIn(bare, 'rev-parse', 'main')).toBe(before[0])
 })
 
 it('finishes an ours-only resolved merge even when its staged tree is unchanged, preserving remote ancestry', async () => {

@@ -225,6 +225,47 @@ describe('chat grants: Forge World root ownership', () => {
 
 })
 
+describe('world mail grant issuance failures', () => {
+  it('refuses an empty reach without creating any project grant', async () => {
+    const state = await rig()
+    await expect(state.grants.issueReachCli([], GRANT, root)).rejects.toThrow('at least one tracked folder')
+    for (const folder of [alpha, beta]) expect(await state.pool.get(folder).listGrants()).toEqual([])
+  })
+
+  it('revokes a newly issued grant when its member workspace changes before mailbox binding', async () => {
+    const state = await rig()
+    const workspace = state.pool.get(alpha)
+    let calls = 0
+    const grants = createChatGrants({
+      workspaceFor: () => ++calls === 1 ? workspace : { ...workspace },
+      cliFor: folder => buildCliConfig({ execPath: '/bin/electron', appPath: '/app', repoPath: folder }),
+      minutes: 60, log: () => {},
+      recordWorldMailbox: () => { throw new Error('Must not record an untracked mailbox') }
+    })
+    await expect(grants.issueReachCli([targets()[0]!], GRANT, root, { id: 'chat_world', agent: 'omp', kind: 'omp', title: 'World' })).rejects.toThrow('no longer tracked')
+    expect((await workspace.listGrants()).every(grant => !grant.active)).toBe(true)
+    expect(workspace.ctx().db.all('SELECT * FROM agent_mail_endpoints')).toEqual([])
+  })
+
+  it('revokes every issued member grant when durable ownership recording fails for a later member', async () => {
+    const state = await rig()
+    const recorded: string[] = []
+    const grants = createChatGrants({
+      workspaceFor: folder => state.pool.get(folder),
+      cliFor: folder => buildCliConfig({ execPath: '/bin/electron', appPath: '/app', repoPath: folder }),
+      minutes: 60, log: () => {}, recordWorldMailbox: (_owner, folder) => {
+        if (folder === beta) throw new Error('Ledger disk full')
+        recorded.push(folder)
+      }
+    })
+    await expect(grants.issueReachCli(targets(), GRANT, root, { id: 'chat_world', agent: 'omp', kind: 'omp', title: 'World' })).rejects.toThrow('Ledger disk full')
+    expect(recorded).toEqual([alpha])
+    for (const folder of [alpha, beta]) expect((await state.pool.get(folder).listGrants()).every(grant => !grant.active)).toBe(true)
+    expect(() => cliSession(state, alpha, readFileSync(targets()[0]!.tokenFile, 'utf8').trim())).toThrow(expect.objectContaining({ code: 'unauthorized' }))
+    expect(state.pool.get(beta).ctx().db.all('SELECT * FROM agent_mail_endpoints')).toEqual([])
+  })
+})
+
 describe('chat grants: later starts and other chats', () => {
   it('binds a folder chat’s grant to its own folder, as before project-less chats', async () => {
     const state = await rig()

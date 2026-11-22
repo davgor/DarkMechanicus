@@ -4,7 +4,7 @@
  * bound before it is handed out; deletion is durable and finished after a crash; untrack suspends; and no stale start,
  * deletion or untrack ever resurrects a mailbox or leaves a usable grant behind.
  */
-import { mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -266,6 +266,101 @@ describe('Forge World mailbox cleanup after mappings disappear', () => {
       expect(state.endpoint({ ...other, folder })?.state).toBe('open')
     }
     expect(restarted.mailboxes.routes(archived)).toEqual([])
+  })
+})
+
+describe('Forge World durable deletion failures', () => {
+  it('keeps a failed deletion intent across restart and refuses a late binding without duplicating it', async () => {
+    let failing = false
+    const options = { membersFor: (folder: string) => folder === root ? [repoA] : undefined, contextFails: () => failing }
+    const state = await rig(options)
+    const chat = newOmp(state, root, 'Delete me')
+    failing = true
+    expect(() => state.mailboxes.delete(chat)).toThrow('database is locked')
+    const persisted = readFileSync(join(root, 'mailboxes.jsonl'), 'utf8')
+    const restarted = state.restart(options)
+    expect(() => restarted.mailboxes.delete(chat)).toThrow('database is locked')
+    expect(readFileSync(join(root, 'mailboxes.jsonl'), 'utf8')).toBe(persisted)
+    expect(() => restarted.mailboxes.recordRoute(root, repoA, chat.id)).toThrow('was deleted')
+    expect(restarted.mailboxes.routes(chat)).toEqual([])
+    failing = false
+    expect(restarted.mailboxes.reconcile(root, [chat]).deleting).toEqual([chat])
+    expect(state.endpoint({ ...chat, folder: repoA })?.state).toBe('deleted')
+  })
+
+  it('deletes a lost root chat endpoint without collecting a member chat or a live root', async () => {
+    const options = { membersFor: (folder: string) => folder === root ? [repoA] : undefined }
+    const state = await rig(options)
+    const lost = newOmp(state, root, 'Lost root')
+    const live = newOmp(state, root, 'Live root')
+    const member = newOmp(state, repoA, 'Member')
+    state.store.deleteChat(lost)
+    await state.restart(options).records.recoverFolder(root)
+    expect(state.endpoint({ ...lost, folder: repoA })?.state).toBe('deleted')
+    expect(state.endpoint({ ...live, folder: repoA })?.state).toBe('open')
+    expect(state.endpoint(member)?.state).toBe('open')
+  })
+})
+
+describe('Forge World route availability', () => {
+  it('omits unavailable and suspended routes, then resumes the same endpoint on reconciliation', async () => {
+    let failing = false
+    const state = await rig({ membersFor: folder => folder === root ? [repoA] : undefined, contextFails: () => failing })
+    const chat = newOmp(state, root, 'World')
+    const routes = state.mailboxes.routes(chat)
+    failing = true
+    expect(state.mailboxes.routes(chat)).toEqual([])
+    failing = false
+    state.mailboxes.suspendFolder(root, [chat])
+    expect(state.mailboxes.routes(chat)).toEqual([])
+    state.mailboxes.reconcile(root, [chat])
+    expect(state.mailboxes.routes(chat)).toEqual(routes)
+    expect(state.logged).toEqual([expect.stringContaining('read world mailbox routes')])
+  })
+
+  it('archives ordinary chats without touching another chat and gives unprovisioned chats no route', async () => {
+    const state = await rig()
+    const chat = newOmp(state, repoA, 'Archive')
+    const other = newOmp(state, repoA, 'Keep')
+    expect(state.mailboxes.routes(chat)).toEqual([{ folder: repoA, endpointId: chat.endpointId }])
+    expect(state.mailboxes.routes({ ...chat, endpointId: undefined })).toEqual([])
+    for (const excluded of [{ ...chat, folder: null }, { ...chat, agent: 'claude' }]) {
+      state.mailboxes.suspendChat(excluded)
+      expect(state.mailboxes.routes(excluded)).toEqual([])
+    }
+    state.mailboxes.suspendChat(chat)
+    state.mailboxes.recover(repoA, [{ ...chat, archived: true }, other])
+    expect(state.endpoint(chat)?.state).toBe('suspended')
+    expect(state.endpoint(other)?.state).toBe('open')
+  })
+})
+
+describe('legacy mailbox ledger recovery', () => {
+  it('retains valid legacy ownership while ignoring malformed records and deletes only its orphan', async () => {
+    const state = await rig()
+    const chat = newOmp(state, repoA, 'Legacy')
+    const foreign = provisionAgentMailEndpoint(state.pool.get(repoA).ctx(), { chatId: 'chat_foreign', name: 'Foreign' })
+    writeFileSync(join(root, 'mailboxes.jsonl'), JSON.stringify({ folder: repoA, chatId: chat.id }) + '\n')
+    appendFileSync(join(root, 'mailboxes.jsonl'), '{"folder":7,"chatId":"chat_foreign"}\n{"folder":"truncated"\n')
+    state.store.deleteChat(chat)
+    const restarted = state.restart()
+    await restarted.records.recoverFolder(repoA)
+    expect(state.endpoint(chat)?.state).toBe('deleted')
+    expect(findEndpointByChat(state.pool.get(repoA).ctx(), { machineId: state.pool.get(repoA).ctx().machineId, chatId: foreign.chatId })?.state).toBe('open')
+    expect(restarted.logged).toEqual([])
+  })
+})
+
+describe('world mailbox boundaries', () => {
+  it('never opens a mapped Forge World root as a member database', async () => {
+    const state = await rig({ membersFor: folder => folder === root ? [repoA] : undefined })
+    const chat = newOmp(state, root, 'World')
+    writeFileSync(join(repoA, 'forge-world.json'), '{}')
+    state.mailboxes.suspendFolder(root, [chat])
+    expect(state.mailboxes.routes(chat)).toEqual([])
+    state.mailboxes.reconcile(root, [chat])
+    expect(state.endpoint({ ...chat, folder: repoA })?.state).toBe('open')
+    expect(state.logged).toEqual([])
   })
 })
 

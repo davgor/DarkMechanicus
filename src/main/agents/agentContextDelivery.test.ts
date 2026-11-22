@@ -68,6 +68,36 @@ describe('world-scoped context receipts', () => {
 
 })
 
+describe('project receipt identity after persistence', () => {
+  it('does not reuse a durable project receipt for a changed sequence or body', () => {
+    const { root, file, delivery } = fixture()
+    const scoped = { ...PEER, project: '/world/Alpha' }
+    writeFileSync(file, insertedPeer(PEER.body, PEER, scoped.project))
+    expect(delivery.hasMessage(CHAT, scoped)).toBe(true)
+    const changedSequence = { ...scoped, seq: 2 }
+    const changedBody = { ...scoped, body: 'An independent complete body.' }
+    expect(delivery.hasMessage(CHAT, changedSequence)).toBe(false)
+    expect(delivery.hasMessage(CHAT, changedBody)).toBe(false)
+    rmSync(file)
+    const restarted = createAgentContextDelivery({ userData: root,
+      deliveries: createConversationDeliveries({ userData: root, onChanged: vi.fn() }), agentKind: () => 'omp' })
+    expect(restarted.hasMessage(CHAT, scoped)).toBe(true)
+    expect(restarted.hasMessage(CHAT, changedSequence)).toBe(false)
+    expect(restarted.hasMessage(CHAT, changedBody)).toBe(false)
+  })
+
+  it('observes a projectless receipt without storing it as another folder proof', () => {
+    const { file, delivery, ledger } = fixture()
+    const projectless = { ...CHAT, folder: null }
+    writeFileSync(file, insertedPeer())
+    expect(delivery.hasMessage(projectless, PEER)).toBe(true)
+    expect(ledger.proof(CHAT.folder!, CHAT.id, 'peer', PEER.id)).toBeUndefined()
+    rmSync(file)
+    expect(delivery.hasMessage(projectless, PEER)).toBe(false)
+    expect(delivery.hasMessage(CHAT, PEER)).toBe(false)
+  })
+})
+
 describe('authenticated full-body context receipts', () => {
   it('does not call queued or instruction-only metadata a body insertion', () => {
     const { file, delivery } = fixture()

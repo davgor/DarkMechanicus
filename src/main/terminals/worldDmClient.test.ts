@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -6,7 +6,7 @@ import { DM_CLIENT_DESCRIPTOR_ENV } from '../../../resources/skitarii/extension/
 import { parseWorldMailDescriptor, worldMailClients, type WorldMailDescriptor } from '../../../resources/skitarii/extension/worldDmClient'
 import { reachTargets } from '../agents/chatReach'
 import { buildCliConfig } from '../desktop/cliConfig'
-import { writeWorldMailDescriptor } from './terminalFiles'
+import { writeDmClientDescriptor, writeRecoveryClientDescriptor, writeWorldMailDescriptor } from './terminalFiles'
 
 const roots: string[] = []
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })
@@ -17,9 +17,10 @@ async function descriptor() {
   const folder = join(root, 'world')
   const userData = join(root, 'data')
   const reach = reachTargets(join(userData, 'agents', 'scratch', 'chat_world'), [join(folder, 'Alpha'), join(folder, 'Beta')])
-  const path = await writeWorldMailDescriptor({ userData, chatId: 'chat_world', generation: 'g1', folder,
-    cli: buildCliConfig({ appPath: root, execPath: join(root, 'electron'), repoPath: null }), platform: process.platform, reach })
-  return { path, text: readFileSync(path, 'utf8'), reach }
+  const options = { userData, chatId: 'chat_world', generation: 'g1', folder,
+    cli: buildCliConfig({ appPath: root, execPath: join(root, 'electron'), repoPath: null }), platform: process.platform, reach }
+  const path = await writeWorldMailDescriptor(options)
+  return { path, text: readFileSync(path, 'utf8'), reach, options }
 }
 
 describe('world mail descriptor producer and consumer', () => {
@@ -52,5 +53,28 @@ describe('world mail descriptor producer and consumer', () => {
       mutate(value)
       expect(parseWorldMailDescriptor(path, JSON.stringify(value))).toBeNull()
     }
+  })
+})
+
+describe('world descriptor generation cleanup', () => {
+  it('replaces a prior generation and pins recovery to the current desktop address', async () => {
+    const { path, options } = await descriptor()
+    const current = await writeWorldMailDescriptor({ ...options, generation: 'g2', cli: { ...options.cli, env: { ...options.cli.env, DM_DESKTOP_PIPE: 'desktop-current' } } })
+    expect(existsSync(path)).toBe(false)
+    expect(JSON.parse(readFileSync(current, 'utf8'))).toMatchObject({ generation: 'g2', recoveryAddress: 'desktop-current' })
+    const recovery = await writeRecoveryClientDescriptor({ ...options, generation: 'g3', address: 'recovery-current' })
+    expect(existsSync(current)).toBe(false)
+    expect(JSON.parse(readFileSync(recovery, 'utf8'))).toEqual({ version: 1, chatId: options.chatId, generation: 'g3', recoveryAddress: 'recovery-current' })
+  })
+
+  it('refuses corrupt descriptor directories instead of replacing unrelated files', async () => {
+    const { path, options } = await descriptor()
+    rmSync(dirname(path), { recursive: true })
+    writeFileSync(dirname(path), 'Keep this file')
+    await expect(writeWorldMailDescriptor(options)).rejects.toMatchObject({ code: 'ENOTDIR' })
+    await expect(writeRecoveryClientDescriptor({ ...options, address: 'desktop' })).rejects.toMatchObject({ code: 'ENOTDIR' })
+    const pinned = { ...options, cli: { ...options.cli, args: [...options.cli.args, '--repo', options.folder] } }
+    await expect(writeDmClientDescriptor(pinned)).rejects.toMatchObject({ code: 'ENOTDIR' })
+    expect(readFileSync(dirname(path), 'utf8')).toBe('Keep this file')
   })
 })
