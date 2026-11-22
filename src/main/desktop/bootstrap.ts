@@ -47,6 +47,7 @@ import { createAgentMailDesktop, type AgentMailDesktop } from '../agents/agentMa
 import { createChatMailPush, createChatPush, registerChatIpc, registerChatMailIpc } from '../agents/chatIpc'
 import { createChatRecords, type ChatRecords } from '../agents/chatRecords'
 import { createChatMailboxes, type ChatMailboxes } from '../agents/chatMailboxes'
+import { hasForgeManifest } from './forgeContext'
 import { removeScratchFolder } from '../agents/scratchFolder'
 import { createChatStore, nodeChatStoreFs, type ChatStore } from '../agents/chatStore'
 import { listBoundThreads } from '../agents/boundThreads'
@@ -335,7 +336,7 @@ interface ChatProcesses {
   /** The agents' sign-in terminals, for `agents:signIn`. */
   logins: LoginTerminals
   /** Untrack's first step (`DesktopHandlerDeps.releaseFolder`): the folder's terminals stopped, its chat mailboxes suspended. */
-  releaseFolder: (folder: string, forget: () => void) => Promise<void>
+  releaseFolder: (folder: string, forget: () => void, relatedFolders?: readonly string[]) => Promise<void>
   /** The person's side of the chats' mailboxes and its per-folder monitors (`chatMail:*`). */
   mail: AgentMailDesktop
   grants: ChatGrants
@@ -464,7 +465,7 @@ function createChatProcesses({ folders, agents, workspaces, activity, sourceChec
     userData: app.getPath('userData'), version: () => app.getVersion(), source: sourceCheckouts, store, agents, terminals,
     workspace: folder => desktopWorkspace(folders, workspaces, folder), resolveFolder: folder => folders.resolve(folder),
     context: contextDelivery, deliveries, resume: resumeChat,
-    callerFolders: chat => chat.folder === null ? reachFolders() : [chat.folder],
+    callerFolders: chat => chatWorkspaceFolders(chat, folders),
   })
   const naming = createNamingDispatcher({ store, push })
   namingReady = createControlPipe({ authorize: token => grants.authorizeNaming(token),
@@ -539,18 +540,26 @@ function createMailboxRecords(
   return { records, mailboxes }
 }
 
+/** Registry views retain validated member identities during a manifest merge conflict. */
+function chatWorkspaceFolders(chat: ChatRecord, folders: Pick<FolderRegistry, 'list'>): string[] {
+  const views = folders.list()
+  const available = views.filter(folder => folder.initialized && folder.available)
+  if (chat.folder === null) return available.map(folder => folder.path)
+  const world = views.find(folder => folder.path === chat.folder)?.forgeWorld !== undefined || hasForgeManifest(chat.folder)
+  return world ? available.filter(folder => folder.forgeParent === chat.folder).map(folder => folder.path) : [chat.folder]
+}
+
 function retireChatHolds(chat: ChatRecord, folders: Pick<FolderRegistry, 'resolve' | 'list'>, workspaces: Pick<WorkspacePool, 'get'>): void {
-  const targets = chat.folder === null ? folders.list().flatMap(folder => folder.initialized && folder.available ? [folder.path] : []) : [chat.folder]
-  for (const folder of targets) retireToolingWorkflow(desktopWorkspace(folders, workspaces, folder).ctx(), chat.id)
+  for (const folder of chatWorkspaceFolders(chat, folders)) retireToolingWorkflow(desktopWorkspace(folders, workspaces, folder).ctx(), chat.id)
 }
 
 /** Untrack's first step: the folder's terminals stopped and starts refused, then its chat mailboxes suspended, then `forget`. */
 function releasingFolders(terminals: TerminalSessions, mailboxes: ChatMailboxes, store: ChatStore): ChatProcesses['releaseFolder'] {
-  return (folder, forget) =>
+  return (folder, forget, relatedFolders = []) =>
     terminals.releaseFolder(folder, () => {
-      mailboxes.suspendFolder(folder, store.listChats(folder))
+      for (const path of [folder, ...relatedFolders]) mailboxes.suspendFolder(path, store.listChats(path))
       forget()
-    })
+    }, relatedFolders)
 }
 
 /** The desktop's own workspaces, one per tracked folder, opened on first use; an error in one is logged with its folder. */

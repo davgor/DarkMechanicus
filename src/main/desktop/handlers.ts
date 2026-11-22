@@ -55,7 +55,7 @@ export interface DesktopHandlerDeps extends AgentHandlerDeps, AgentAuthHooks, Fo
    * Untrack's first step: stops the folder's chat terminals and starts, suspends its chat mailboxes, and only then runs
    * `forget` (the untrack itself), with nothing of the folder allowed to start meanwhile (`terminalSessions.ts`).
    */
-  releaseFolder: (folder: string, forget: () => void) => Promise<void>
+  releaseFolder: (folder: string, forget: () => void, relatedFolders?: readonly string[]) => Promise<void>
   /**
    * Stops the folder's chat mail monitor (`agentMailDesktop.ts`) and forgets what it served. Untrack calls it before the
    * release starts and again right before the registry forgets the folder, so no poll reaches a closing workspace.
@@ -174,14 +174,19 @@ async function untrackFolder(deps: DesktopHandlerDeps, path: unknown): Promise<T
     return deps.registry.list()
   }
   let remaining: TrackedFolderView[] = []
-  deps.stopMailMonitor(tracked)
+  const members = deps.registry.list().filter(folder => folder.forgeParent === tracked).map(folder => folder.path)
+  const affected = [tracked, ...members]
+  for (const folder of affected) deps.stopMailMonitor(folder)
   await deps.releaseFolder(tracked, () => {
     // A snapshot during the release may have started it again; nothing can between here and the close.
-    deps.stopMailMonitor(tracked)
-    remaining = deps.registry.untrack(tracked)
-    deps.folderDefaults.set(tracked, null)
-    deps.pool.close(tracked)
-  })
+    for (const folder of affected) deps.stopMailMonitor(folder)
+    deps.registry.untrack(tracked)
+    remaining = deps.registry.list()
+    for (const folder of affected) {
+      deps.folderDefaults.set(folder, null)
+      deps.pool.close(folder)
+    }
+  }, members)
   return remaining
 }
 

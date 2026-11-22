@@ -182,6 +182,14 @@ Approvals are the CLI's own, asked and answered in its terminal; the app holds n
 
 A subagent's work shows wherever the CLI shows it, in its terminal. A chat's [Earlier conversation](#chats) shows the subagent threads it stored before chats became terminals, each under the tool call that started it with its state, read-only. A Skitarii chat's subagents share its grant and its mailbox: they cannot be messaged on their own (see [Skitarii mail](#skitarii-mail)).
 
+## Forge World agents and code repositories
+
+The sidebar groups each Forge World's work by project. Use **Agents +** on the world to start a chat across its projects, or under a project to start a chat for that project alone. A world chat starts in the world root and receives a separate grant in each available, initialized member project. Its selected role and Allow save setting apply to those grants; unrelated tracked projects are excluded. Removing a granted member or untracking the world stops the chat and revokes its grants. Restart to pick up newly added members.
+
+The world root has no project database or Skitarii mailbox. World-level agents use the per-project `dm --repo … --token-file …` commands in their launch instructions; project-level Skitarii agents retain their normal mailbox. Reach tokens remain in the chat's private scratch directory under app data, outside the synced world.
+
+Every Forge agent launch receives the current `forge-world.json` repository map and the portable `FORGE-REPOSITORIES.md` directions. Each manifest entry identifies a ticket folder and its GitHub code repository URL. An existing `.darkmechanicus/local/source-checkout.json` can supply a machine-local checkout hint; the agent verifies its Git origin before use. On a second computer, it clones a missing repository into a separate code directory only when the task needs that code. Opening a world does not clone every linked repository. Code edits and tests belong in the code checkout; Dark Mechanicus commands stay pinned to the ticket folder.
+
 ## Skitarii mail
 
 Skitarii (OMP) chats in one tracked folder, on this machine, message each other through durable, local-only mailboxes. Full design, bounds and trust model: [`design/skitarii-messaging.md`](../design/skitarii-messaging.md); the CLI commands: [`cli.md`](cli.md#agent-mail-between-skitarii-chats); the current [verification procedure](../design/skitarii-messaging.md#verification).
