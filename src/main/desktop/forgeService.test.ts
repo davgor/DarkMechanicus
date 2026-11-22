@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import type { IpcMain } from 'electron'
-import { expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, expect, it, onTestFailed, vi } from 'vitest'
+import { buildSync } from 'esbuild'
 import { openWorkspace } from '../../core/workspace'
 import { gitIn, scratchDir } from '../../test/gitScratch'
 import { createGitRunner } from '../git/runner'
@@ -63,22 +64,36 @@ function fixture() {
     close() { forge.stop(); pool.closeAll(); scratch.cleanup() } }
 }
 
-function interruptExport(f: ReturnType<typeof fixture>, point: 'reservation' | 'member' | 'staging' | 'checkpoint' | 'destination' | 'manifest') {
-  const workspace = new URL('../../core/workspace.ts', import.meta.url).href
-  const registryModule = new URL('./folderRegistry.ts', import.meta.url).href
-  const poolModule = new URL('./workspacePool.ts', import.meta.url).href
-  const service = new URL('./forgeService.ts', import.meta.url).href
-  const runner = new URL('../git/runner.ts', import.meta.url).href
-  const script = `
-    import { createRequire, syncBuiltinESMExports } from 'node:module';
-    import { openWorkspace } from ${JSON.stringify(workspace)};
-    import { createFolderRegistry } from ${JSON.stringify(registryModule)};
-    import { createWorkspacePool } from ${JSON.stringify(poolModule)};
-    import { startForge } from ${JSON.stringify(service)};
-    import { createGitRunner } from ${JSON.stringify(runner)};
-    const fs = createRequire(import.meta.url)('node:fs'); const rename = fs.renameSync; const mkdir = fs.mkdirSync;
-    const home = ${JSON.stringify(f.home)}, source = ${JSON.stringify(f.source)}, world = ${JSON.stringify(f.world)};
-    const point = ${JSON.stringify(point)};
+const sourceRoot = fileURLToPath(new URL('../../../', import.meta.url))
+let crashBundle: ReturnType<typeof scratchDir>
+
+// Compile the actual source checkout once. Every scenario still kills a separate process,
+// but does not start a TSX transformer for the whole application graph inside its timeout.
+beforeAll(() => {
+  crashBundle = scratchDir('forge-crash-bundle-')
+  buildSync({
+    stdin: { contents: crashFixtureSource(), resolveDir: sourceRoot },
+    outfile: join(crashBundle.path, 'crash.cjs'), bundle: true, platform: 'node', format: 'cjs',
+    packages: 'external', loader: { '.md': 'text' }, logLevel: 'warning',
+    // The disposable bundle resolves native dependencies from this test's checkout,
+    // including Fireguard snapshots, rather than from the temporary folder or user home.
+    banner: { js: `require = require('node:module').createRequire(${JSON.stringify(join(sourceRoot, 'package.json'))});` }
+  })
+})
+afterAll(() => crashBundle?.cleanup())
+
+function crashFixtureSource(): string {
+  return `
+    import { syncBuiltinESMExports } from 'node:module';
+    import { openWorkspace } from './src/core/workspace';
+    import { createFolderRegistry } from './src/main/desktop/folderRegistry';
+    import { createWorkspacePool } from './src/main/desktop/workspacePool';
+    import { startForge } from './src/main/desktop/forgeService';
+    import { createGitRunner } from './src/main/git/runner';
+    async function main() {
+    const fs = require('node:fs'); const rename = fs.renameSync; const mkdir = fs.mkdirSync;
+    const { home, source, world, point, spawnedAt } = JSON.parse(process.argv[2]);
+    process.stderr.write('Fixture modules loaded at ' + (Date.now() - spawnedAt) + 'ms\\n');
     fs.mkdirSync = (path, options) => {
       const result = mkdir(path, options);
       if (point === 'member' && String(path).replaceAll('\\\\', '/').endsWith('/TicketStore/Software')) process.exit(91);
@@ -101,28 +116,45 @@ function interruptExport(f: ReturnType<typeof fixture>, point: 'reservation' | '
       pickDirectory: async () => source, cleanup() {}, publish: async () => {}, onSynced: async () => {}, onConflict: async () => {},
       runner: { run: req => req.kind === 'network' ? Promise.resolve({code:0,stdout:'',stderr:''}) : real.run(req) }
     });
-    await handlers.get('forge:convert')({}, world, source, {force:true}); process.exit(92);`
-  return spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', script], {
-    cwd: fileURLToPath(new URL('../../../', import.meta.url)), encoding: 'utf8'
+    process.stderr.write('Conversion started at ' + (Date.now() - spawnedAt) + 'ms\\n');
+    await handlers.get('forge:convert')({}, world, source, {force:true}); process.exit(92);
+    }
+    void main();`
+}
+
+function interruptExport(f: ReturnType<typeof fixture>, point: 'reservation' | 'member' | 'staging' | 'checkpoint' | 'destination' | 'manifest') {
+  const spawnedAt = Date.now()
+  const result = spawnSync(process.execPath, [join(crashBundle.path, 'crash.cjs'), JSON.stringify({ home: f.home, source: f.source, world: f.world, point, spawnedAt })], {
+    cwd: sourceRoot, encoding: 'utf8', windowsHide: true
   })
+  return { ...result, stderr: result.stderr + `Child exited at ${Date.now() - spawnedAt}ms\n` }
 }
 
 it.each(['reservation', 'member', 'staging', 'checkpoint', 'destination', 'manifest'] as const)('resumes force exactly once after process death at %s', async point => {
+  const started = Date.now()
+  const timings: string[] = []
+  const mark = (phase: string) => timings.push(`${point}: ${phase} at ${Date.now() - started}ms`)
+  onTestFailed(() => { process.stderr.write(timings.join('\n') + '\n') })
   const f = fixture()
+  mark('fixture')
   try {
     const source = f.pool.get(f.source)
     await source.initializeRepository({ name: 'Crash recovery', mode: 'repo' })
     const card = await source.createKanbanCard({ title: 'Only one restart' })
     await source.playKanbanCard({ cardId: card.id })
+    mark('source ready')
     await f.call('create', f.world)
+    mark('world ready')
     f.pool.closeAll()
     const crashed = interruptExport(f, point)
+    mark('crashed: ' + crashed.stderr.trim())
     expect(crashed.status, crashed.stderr).toBe(91)
     expect(pendingForgeTransfer(f.home, f.source)).toBe(join(f.world, 'Software'))
     expect(() => f.pool.get(f.source)).toThrow('conversion is pending')
     expect(() => f.pool.get(join(f.world, 'Software'))).toThrow('conversion is pending')
     await expect(f.call('sync', f.world)).rejects.toThrow('conversion is pending')
     expect(await f.forge.openProject(f.source)).toBe(join(f.world, 'Software'))
+    mark('recovered')
     const dest = f.pool.get(join(f.world, 'Software'))
     expect((await dest.getKanbanCard({ cardId: card.id })).lane).toBe('backlog')
     expect(dest.ctx().db.get<{ n: number }>("SELECT COUNT(*) AS n FROM kanban_events WHERE card_id = ? AND kind = 'migration_restarted'", card.id)?.n).toBe(1)

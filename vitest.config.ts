@@ -28,6 +28,7 @@ const shared = {
  * belongs here.
  */
 const GIT_HEAVY = [
+  'src/main/desktop/forgeService.test.ts',
   'src/main/git/**/*.test.ts',
   'src/main/github/**/*.test.ts',
   'src/core/repo/git.test.ts',
