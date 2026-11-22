@@ -13,6 +13,9 @@ import { bindToolingGrant, holdToolingWorkflow, retireToolingWorkflow } from '..
 import { dbProjectDir } from '../../core/repo/storageMode'
 import { pendingForgeTransfer } from '../../core/repo/forgeBinding'
 import { nodeFs } from '../../core/repo/nodeFs'
+import { spawn, spawnSync } from 'node:child_process'
+import { once } from 'node:events'
+import { fileURLToPath } from 'node:url'
 
 function fixture() {
   const scratch = scratchDir('forge-convert-')
@@ -59,6 +62,132 @@ function fixture() {
     failNetwork(command: string | null) { failingNetwork = command },
     close() { forge.stop(); pool.closeAll(); scratch.cleanup() } }
 }
+
+function interruptExport(f: ReturnType<typeof fixture>, point: 'reservation' | 'member' | 'staging' | 'checkpoint' | 'destination' | 'manifest') {
+  const workspace = new URL('../../core/workspace.ts', import.meta.url).href
+  const registryModule = new URL('./folderRegistry.ts', import.meta.url).href
+  const poolModule = new URL('./workspacePool.ts', import.meta.url).href
+  const service = new URL('./forgeService.ts', import.meta.url).href
+  const runner = new URL('../git/runner.ts', import.meta.url).href
+  const script = `
+    import { createRequire, syncBuiltinESMExports } from 'node:module';
+    import { openWorkspace } from ${JSON.stringify(workspace)};
+    import { createFolderRegistry } from ${JSON.stringify(registryModule)};
+    import { createWorkspacePool } from ${JSON.stringify(poolModule)};
+    import { startForge } from ${JSON.stringify(service)};
+    import { createGitRunner } from ${JSON.stringify(runner)};
+    const fs = createRequire(import.meta.url)('node:fs'); const rename = fs.renameSync; const mkdir = fs.mkdirSync;
+    const home = ${JSON.stringify(f.home)}, source = ${JSON.stringify(f.source)}, world = ${JSON.stringify(f.world)};
+    const point = ${JSON.stringify(point)};
+    fs.mkdirSync = (path, options) => {
+      const result = mkdir(path, options);
+      if (point === 'member' && String(path).replaceAll('\\\\', '/').endsWith('/TicketStore/Software')) process.exit(91);
+      if (point === 'staging' && String(path).replaceAll('\\\\', '/').endsWith('/.darkmechanicus.preparing/local')) process.exit(91);
+      return result;
+    };
+    fs.renameSync = (from, to) => {
+      rename(from, to);
+      const path = String(to).replaceAll('\\\\', '/');
+      if ((point === 'reservation' && path.endsWith('.move.json') && JSON.parse(fs.readFileSync(to, 'utf8')).phase === 1) ||
+          (point === 'checkpoint' && path.endsWith('/.darkmechanicus.preparing/local/migration-records.json')) ||
+          (point === 'destination' && path.endsWith('/Software/.darkmechanicus')) ||
+          (point === 'manifest' && path.endsWith('/TicketStore/forge-world.json'))) process.exit(91);
+    }; syncBuiltinESMExports();
+    const registry = createFolderRegistry({ file: home + '/folders.json', dmHome: home, homeDir: home });
+    const pool = createWorkspacePool(repoRoot => openWorkspace({ repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Crash fixture' }));
+    const real = createGitRunner(); const handlers = new Map();
+    startForge({ handle: (key, handler) => handlers.set(key, handler) }, {
+      home, registry, pool, session: { getAccount: () => ({login:'example',host:'github.com'}), getToken: () => null },
+      pickDirectory: async () => source, cleanup() {}, publish: async () => {}, onSynced: async () => {}, onConflict: async () => {},
+      runner: { run: req => req.kind === 'network' ? Promise.resolve({code:0,stdout:'',stderr:''}) : real.run(req) }
+    });
+    await handlers.get('forge:convert')({}, world, source, {force:true}); process.exit(92);`
+  return spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', script], {
+    cwd: fileURLToPath(new URL('../../../', import.meta.url)), encoding: 'utf8'
+  })
+}
+
+it.each(['reservation', 'member', 'staging', 'checkpoint', 'destination', 'manifest'] as const)('resumes force exactly once after process death at %s', async point => {
+  const f = fixture()
+  try {
+    const source = f.pool.get(f.source)
+    await source.initializeRepository({ name: 'Crash recovery', mode: 'repo' })
+    const card = await source.createKanbanCard({ title: 'Only one restart' })
+    await source.playKanbanCard({ cardId: card.id })
+    await f.call('create', f.world)
+    f.pool.closeAll()
+    const crashed = interruptExport(f, point)
+    expect(crashed.status, crashed.stderr).toBe(91)
+    expect(pendingForgeTransfer(f.home, f.source)).toBe(join(f.world, 'Software'))
+    expect(() => f.pool.get(f.source)).toThrow('conversion is pending')
+    expect(() => f.pool.get(join(f.world, 'Software'))).toThrow('conversion is pending')
+    await expect(f.call('sync', f.world)).rejects.toThrow('conversion is pending')
+    expect(await f.forge.openProject(f.source)).toBe(join(f.world, 'Software'))
+    const dest = f.pool.get(join(f.world, 'Software'))
+    expect((await dest.getKanbanCard({ cardId: card.id })).lane).toBe('backlog')
+    expect(dest.ctx().db.get<{ n: number }>("SELECT COUNT(*) AS n FROM kanban_events WHERE card_id = ? AND kind = 'migration_restarted'", card.id)?.n).toBe(1)
+    expect(pendingForgeTransfer(f.home, f.source)).toBeNull()
+  } finally { f.close() }
+})
+
+it('requires a live foreign source process to exit before restoring, even after its SQLite handle closed', async () => {
+  const f = fixture()
+  const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore', windowsHide: true })
+  const exited = once(child, 'exit')
+  const worker = openWorkspace({ repoRoot: f.source, homeDir: f.home, role: 'orchestrator', transport: 'in_process', label: 'Legacy process', pid: child.pid })
+  try {
+    await f.pool.get(f.source).initializeRepository({ name: 'Legacy handle proof', mode: 'db' })
+    await worker.getProject()
+    await f.call('create', f.world)
+    await f.call('convert', f.world, f.source, { force: true })
+    worker.close()
+    const member = join(f.world, 'Software')
+    await expect(f.call('restore', member, 'db')).rejects.toThrow('other processes')
+    expect(existsSync(join(f.source, 'FORGE-WORLD.md'))).toBe(true)
+    child.kill()
+    await exited
+    expect(await f.call('restore', member, 'db')).toBe(f.source)
+  } finally { child.kill(); await exited; worker.close(); f.close() }
+})
+
+it.each(['receipt', 'unrelated', 'owner'] as const)('keeps a resumed %s integrity failure and its persistent fence for inspection', async changed => {
+  const f = fixture()
+  try {
+    await f.pool.get(f.source).initializeRepository({ name: 'Keep unverified destination', mode: 'repo' })
+    await f.pool.get(f.source).createKanbanCard({ title: 'Original remains' })
+    await f.call('create', f.world)
+    f.pool.closeAll()
+    const crashed = interruptExport(f, changed === 'receipt' ? 'manifest' : changed === 'owner' ? 'checkpoint' : 'reservation')
+    expect(crashed.status, crashed.stderr).toBe(91)
+    const member = join(f.world, 'Software')
+    let path: string
+    if (changed === 'unrelated') {
+      mkdirSync(member)
+      path = join(member, 'unrelated.txt')
+    } else {
+      path = join(member, changed === 'receipt' ? '.darkmechanicus/local/forge-export.json' : '.darkmechanicus.preparing/local/forge-owner.json')
+    }
+    const bytes = changed === 'unrelated' ? 'Unrelated data must survive' : JSON.stringify({ force: true, source: '/other', member, projectId: 'other' })
+    writeFileSync(path, bytes)
+    await expect(f.forge.openProject(f.source)).rejects.toThrow()
+    expect(readFileSync(path, 'utf8')).toBe(bytes)
+    expect(pendingForgeTransfer(f.home, f.source)).toBe(member)
+    await expect(f.call('sync', f.world)).rejects.toThrow('conversion is pending')
+    expect(existsSync(join(f.source, '.darkmechanicus/project.json'))).toBe(true)
+  } finally { f.close() }
+})
+
+it('directs an uninitialized force source to normal migration without creating a destination', async () => {
+  const f = fixture()
+  try {
+    await f.call('create', f.world)
+    await expect(f.call('convert', f.world, f.source, { force: true })).rejects.toThrow('normal migration')
+    expect(existsSync(join(f.world, 'Software'))).toBe(false)
+    expect(pendingForgeTransfer(f.home, f.source)).toBeNull()
+    await f.call('convert', f.world, f.source)
+    expect(existsSync(join(f.source, 'FORGE-WORLD.md'))).toBe(true)
+  } finally { f.close() }
+})
 
 it.each(['repo', 'db'] as const)('force converts %s live claims, keeps a private source backup and fences the old handle', async mode => {
   const f = fixture()

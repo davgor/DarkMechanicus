@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import { z } from 'zod'
 import { fail } from '../errors'
+import { openDatabase } from '../db/database'
 import { writeFileSafely } from './finalizer'
 import { layoutUnder, resolveLayout } from './layout'
 import { rebuildCheckpoint } from './migrationCheckpoint'
@@ -28,6 +29,22 @@ function movePortable(original: RepoLayout, destination: RepoLayout, backup: Rep
     if (fs.exists(to)) fail('conflict', 'Both original and backup portable records exist; the source was kept for inspection.')
     fs.rename(from, to)
   }
+}
+
+function processAlive(pid: number): boolean {
+  try { process.kill(pid, 0); return true }
+  catch (error) { return (error as NodeJS.ErrnoException).code !== 'ESRCH' }
+}
+
+/** An older runtime does not know binding epochs. Require those processes to exit
+ * before removing the pointer, even on platforms that can rename their open SQLite file. */
+function assertForeignSessionsClosed(original: RepoLayout): void {
+  assertContained(original, fs, original.dbFile)
+  const db = openDatabase(original.dbFile)
+  try {
+    const sessions = db.all<{ pid: number }>('SELECT DISTINCT pid FROM sessions WHERE ended_at IS NULL AND pid IS NOT NULL AND pid <> ?', process.pid)
+    if (sessions.some(session => processAlive(session.pid))) fail('conflict', 'Close every session in other processes using the original code repository, then retry the storage move.')
+  } finally { db.close() }
 }
 
 /** The original SQLite handle can remain open on Windows. Keep it ignored and fenced;
@@ -79,6 +96,7 @@ export function archiveRetiredForgeStore(home: string, source: string, member: s
   assertContained(destination, fs, archive)
   if (fs.exists(archive)) fail('conflict', 'A retained source archive already exists; inspect both stores before restoring.')
   if (!fs.exists(backup.projectFile) || !fs.exists(backup.dbFile)) fail('conflict', 'The original private backup is incomplete; the retained source was kept.')
+  assertForeignSessionsClosed(original)
   try { fs.rename(original.dmDir, archive) }
   catch { fail('conflict', 'Close every session using the original code repository, then retry the storage move. Its retired database remains safely archived in place.') }
 }

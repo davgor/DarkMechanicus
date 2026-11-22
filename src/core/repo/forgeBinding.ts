@@ -38,6 +38,28 @@ export function forgeBindingEpoch(fs: FsAdapter, home: string, source: string): 
   return fs.exists(file) ? contentHash(fs.readFile(file)) : null
 }
 
+function forceReservations(fs: FsAdapter, home: string) {
+  const dir = join(home, 'forge-bindings')
+  if (!fs.exists(dir)) return []
+  return fs.readdir(dir).filter(name => name.endsWith('.move.json')).flatMap(name => {
+    const file = join(dir, name)
+    const state = JSON.parse(fs.readFile(file))
+    return state.force === true && typeof state.target === 'string' ? [{ file, target: state.target as string }] : []
+  })
+}
+
+function ownsReservation(home: string, file: string): boolean {
+  const source = moving.getStore()
+  return source !== undefined && stateFile(home, source, 'move') === file
+}
+
+/** Survives app restart: ordinary background/manual sync cannot publish an unverified export. */
+export function assertForgeWorldSyncAllowed(fs: FsAdapter, home: string, root: string): void {
+  if (forceReservations(fs, home).some(reservation => dirname(reservation.target) === root && !ownsReservation(home, reservation.file))) {
+    fail('conflict', 'Forge World conversion is pending. Resume Force migrate before syncing.')
+  }
+}
+
 export function bindForge(home: string, source: string, member: string, note: string) {
   const file = stateFile(home, source, 'link')
   mkdirSync(dirname(file), { recursive: true })
@@ -68,6 +90,9 @@ export function boundForgeRoot(fs: FsAdapter, home: string, source: string): str
 export function assertForgeTransferIdle(fs: FsAdapter, home: string, source: string): void {
   if (moving.getStore() !== source && fs.exists(stateFile(home, source, 'move'))) {
     fail('conflict', 'Forge World conversion is pending. Resume it from Ticket source control.')
+  }
+  if (forceReservations(fs, home).some(reservation => reservation.target === source && !ownsReservation(home, reservation.file))) {
+    fail('conflict', 'Forge World conversion is pending. Resume it before opening the destination.')
   }
   if (moving.getStore() !== source && [join(source, '.darkmechanicus'), dbProjectDir(source, home)]
     .some(store => fs.exists(join(store, 'local', 'forge-retired.json'))) && boundForgeRoot(fs, home, source) === source) {

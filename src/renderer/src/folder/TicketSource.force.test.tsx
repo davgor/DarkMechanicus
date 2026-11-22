@@ -33,3 +33,18 @@ it.each([false, true])('requires explicit force confirmation on the world-side=%
   await settle()
   expect(convert).toHaveBeenLastCalledWith(world.path, source.path, {force:true})
 })
+
+it.each([false, true])('keeps normal initialization available but disables force for an uninitialized source, world-side=%s', async worldSide => {
+  const h = new AppHarness()
+  const source = folderView({ path: '/source', name: 'Software', initialized: false })
+  const world = folderView({ path: '/world', forgeWorld: { version: 1, owner: 'davgor', syncMinutes: 5, projects: [] } })
+  const convert = vi.fn().mockResolvedValue(undefined)
+  Object.assign(h.dm, { forge: { convert, status: async () => ({ last: null, error: null }) } })
+  render(<TicketSource folder={worldSide ? world : source} folders={[source, world]} status={null} initialize={async () => undefined} open={async () => undefined} />)
+  await settle()
+  fireEvent.change(screen.getByRole('combobox', { name: worldSide ? 'Project' : 'Ticket repository' }), { target: { value: worldSide ? source.path : world.path } })
+  expect((screen.getByRole('button', { name: 'Force migrate…' }) as HTMLButtonElement).disabled).toBe(true)
+  fireEvent.click(screen.getByRole('button', { name: worldSide ? 'Move tickets to Forge World' : 'Use Forge World storage' }))
+  await settle()
+  expect(convert).toHaveBeenCalledWith(world.path, source.path)
+})

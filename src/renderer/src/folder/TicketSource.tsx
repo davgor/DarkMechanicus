@@ -55,11 +55,11 @@ function useTicketSource({ folder }: Props) {
 type Controls = ReturnType<typeof useTicketSource>
 type SourceProps = Props & { controls: Controls }
 
-function ForceMigration({ world, source, controls }: { world: string; source: string; controls: Controls }) {
+function ForceMigration({ world, source, initialized, controls }: { world: string; source: string; initialized: boolean; controls: Controls }) {
   const [confirming, setConfirming] = useState(false)
   const { api, busy, act } = controls
   return <>
-    <Button disabled={busy || !world || !source} onClick={() => setConfirming(true)}>Force migrate…</Button>
+    <Button disabled={busy || !world || !source || !initialized} onClick={() => setConfirming(true)}>Force migrate…</Button>
     {confirming && <Dialog title="Force migrate and restart unfinished work?" onClose={() => setConfirming(false)}
       actions={<><Button onClick={() => setConfirming(false)}>Cancel</Button><Button onClick={() => {
         setConfirming(false)
@@ -84,7 +84,7 @@ function WorldSource({ folder, folders, open, controls }: SourceProps) {
       <p>After the tickets reach GitHub, conversion replaces managed files in the code repository with a Forge World note.</p>
       <Button disabled={busy} onClick={() => void act(() => api!.pickConvert(folder.path))}>Choose a local repository to convert</Button>
       <Button disabled={busy || !choice} onClick={() => void act(() => api!.convert(folder.path, choice))}>Move tickets to Forge World</Button>
-      <ForceMigration world={folder.path} source={choice} controls={controls} />
+      <ForceMigration world={folder.path} source={choice} initialized={folders.find(f => f.path === choice)?.initialized === true} controls={controls} />
       <h3>Ticket sync</h3>
       <label>Interval in minutes <input type="number" min="1" max="1440" value={minutes} onChange={e => setMinutes(Number(e.target.value))} /></label>
       <Button disabled={busy} onClick={() => void act(() => api!.interval(folder.path, minutes))}>Save interval</Button>
@@ -123,7 +123,7 @@ function ForgeDestination({ folder, open, controls }: Pick<SourceProps, 'folder'
   if (choice === CREATE_WORLD) return <CreateForgeWorld folder={folder} open={open} controls={controls} />
   return <>
       <Button disabled={busy || !choice} onClick={() => void act(() => api!.convert(choice, folder.path))}>Use Forge World storage</Button>
-      <ForceMigration world={choice} source={folder.path} controls={controls} />
+      <ForceMigration world={choice} source={folder.path} initialized={folder.initialized} controls={controls} />
       <div className="button-row">{repository}{search}
         <Button disabled={busy || !remote} onClick={() => void act(async () => open(await api!.connect(folder.path, remote, false)))}>Open existing Forge World</Button>
         <Button disabled={busy || !remote} onClick={() => void act(async () => open(await api!.connect(folder.path, remote, true)))}>Publish private Forge World</Button>

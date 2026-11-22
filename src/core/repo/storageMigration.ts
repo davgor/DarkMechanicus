@@ -20,6 +20,7 @@ import { checkpointOf, rebuildCheckpoint } from './migrationCheckpoint'
 import { exportMigrationRecords } from './migrationExport'
 import { assertForgeForceSafe, restartForgeExecution, settleForgeExports } from './forgeForce'
 import { prepareForgeReconciliation } from './forgeReconciliation'
+import { recordForgeExport, recordForgeExportOwner } from './forgeExportReceipt'
 import type { ProjectRecord } from './portable'
 import { assertContained, isStrictlyInside, ownedPaths } from './paths'
 import { projectKey, type StorageMode } from './storageMode'
@@ -286,6 +287,15 @@ function importCanonical(deps: MigrationDeps, rebuilt: Db, source: RepoLayout): 
   rebuilt.run('DELETE FROM meta WHERE key = ?', META_KEYS.checkoutBranch)
 }
 
+function restartDestination(deps: MigrationDeps, paths: MigrationPaths, rebuilt: Db): void {
+  if (paths.source.mode === 'repo') {
+    prepareForgeReconciliation({ db: rebuilt, fs: deps.fs, source: paths.source, staging: paths.staging, clock: deps.clock })
+    importCanonical(deps, rebuilt, paths.staging)
+  }
+  assertForgeForceSafe(rebuilt)
+  restartForgeExecution({ ...deps.ctx, db: rebuilt })
+}
+
 function prepareDestination(deps: MigrationDeps, paths: MigrationPaths, project: ProjectRecord, options: { retireSession?: boolean; force?: boolean } = {}): void {
   const { retireSession = false, force = false } = options
   deps.db.tx(() => {
@@ -294,6 +304,7 @@ function prepareDestination(deps: MigrationDeps, paths: MigrationPaths, project:
     deps.fs.mkdirp(paths.staging.localDir)
     const snapshot = hydratedCheckpoint(deps, paths.source)
     const env = { fs: deps.fs, layout: paths.staging }
+    if (force) recordForgeExportOwner({ ...env, source: deps.repoRoot }, project.projectId)
     const policy = policyForStore(deps.layout, deps.db, project, deps.fs)
     const destinationProject = { ...project, deliveryStandards: paths.target.mode === 'repo' ? policy : undefined }
     writeFileSafely(env, paths.staging.projectFile, prettyJson(destinationProject))
@@ -304,14 +315,7 @@ function prepareDestination(deps: MigrationDeps, paths: MigrationPaths, project:
     writeFileSafely(env, checkpointFile, prettyJson(snapshot))
     const rebuilt = rebuildCheckpoint(paths.staging.dbFile, deps.fs.readFile(checkpointFile))
     try {
-      if (force) {
-        if (paths.source.mode === 'repo') {
-          prepareForgeReconciliation({ db: rebuilt, fs: deps.fs, source: paths.source, staging: paths.staging, clock: deps.clock })
-          importCanonical(deps, rebuilt, paths.staging)
-        }
-        assertForgeForceSafe(rebuilt)
-        restartForgeExecution({ ...deps.ctx, db: rebuilt })
-      }
+      if (force) restartDestination(deps, paths, rebuilt)
       if (paths.target.mode === 'db' && policy) setMeta(rebuilt, META_KEYS.deliveryStandards, prettyJson(policy))
       else rebuilt.run('DELETE FROM meta WHERE key = ?', META_KEYS.deliveryStandards)
       if (paths.target.mode === 'repo') {
@@ -343,8 +347,10 @@ function copyKnowledge(fs: FsAdapter, source: RepoLayout, staging: RepoLayout): 
 }
 
 export function exportForgeDestination(deps: MigrationDeps, member: string, mode: StorageMode, force = false): void {
-  if (force && mode !== 'repo') fail('invalid_input', 'Force migration requires a Forge World destination.')
-  if (force) assertForgeForceSafe(deps.db)
+  if (force) {
+    if (mode !== 'repo') fail('invalid_input', 'Force migration requires a Forge World destination.')
+    assertForgeForceSafe(deps.db)
+  }
   else assertStorageIdle(deps)
   const source = deps.layout
   const target = resolveLayout(member, { mode, homeDir: deps.homeDir })
@@ -357,6 +363,7 @@ export function exportForgeDestination(deps: MigrationDeps, member: string, mode
     const { repoRoot: _localRoot, ...portable } = project
     prepareDestination(deps, paths, mode === 'db' ? { ...portable, repoRoot: member } : portable, { retireSession: true, force })
     copyKnowledge(deps.fs, source, staging)
+    if (force) recordForgeExport({ fs: deps.fs, layout: staging, source: deps.repoRoot })
     deps.fs.rename(staging.dmDir, target.dmDir)
     if (mode === 'db' && project.deliveryStandards) {
       publishSqlitePolicy({ layout: target, fs: deps.fs }, project.deliveryStandards)
