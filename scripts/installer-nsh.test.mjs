@@ -22,6 +22,21 @@ function find(installDir, inventory = '') {
   return result.status
 }
 
+// Scope the real native inventory to owned children without changing the installer's path predicate.
+function ownedInventory(running) {
+  const query = running.length ? `Microsoft.PowerShell.Management\\Get-Process -Id ${running.map(child => child.pid).join(',')}` : '@()'
+  return `function Get-Process { ${query} }; `
+}
+
+function nativeShellResult(installDir) {
+  const [, nativePath] = /StrCpy \$PowerShellPath "(\$WINDIR\\Sysnative[^"]+)"/.exec(INSTALLER_SCRIPT) ?? []
+  if (!nativePath) throw new Error('The installer must select native PowerShell on 64-bit Windows')
+  const shell = join(process.env.SystemRoot, 'SysWOW64', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+  const encoded = Buffer.from('[Console]::WriteLine([IntPtr]::Size * 8); ' + findCommand(installDir), 'utf16le').toString('base64')
+  const command = `& '${nativePath.replace('$WINDIR', process.env.SystemRoot)}' -NoProfile -NonInteractive -EncodedCommand ${encoded}; exit $LASTEXITCODE`
+  return spawnSync(shell, ['-NoProfile', '-NonInteractive', '-C', command], { encoding: 'utf8' })
+}
+
 // Native process discovery and the installer are Windows-only.
 describe.runIf(process.platform === 'win32')('installer.nsh: finding the app running from its install folder', () => {
   let installDir = ''
@@ -56,17 +71,10 @@ describe.runIf(process.platform === 'win32')('installer.nsh: finding the app run
 
   afterAll(() => { rmSync(emptyDir, { recursive: true, force: true }) })
 
-  // Restrict the native inventory to our children, so unrelated Node processes on the host cannot affect cardinality.
-  // The actual Get-Process cmdlet still reads their executable paths; the installer's predicate is unchanged.
-  function ownedInventory() {
-    const query = running.length ? `Microsoft.PowerShell.Management\\Get-Process -Id ${running.map(child => child.pid).join(',')}` : '@()'
-    return `function Get-Process { ${query} }; `
-  }
-
   it.each([0, 1, 2])('detects %i owned processes with real native process paths', async count => {
     for (let index = 0; index < count; index += 1) await start()
-    expect(find(installDir, ownedInventory())).toBe(count ? 0 : 1)
-    expect(find(emptyDir, ownedInventory())).toBe(1)
+    expect(find(installDir, ownedInventory(running))).toBe(count ? 0 : 1)
+    expect(find(emptyDir, ownedInventory(running))).toBe(1)
   })
 
   it('reads the unmodified native inventory and rejects an empty install folder', () => {
@@ -80,12 +88,7 @@ describe.runIf(process.platform === 'win32')('installer.nsh: finding the app run
   })
 
   it.runIf(process.arch === 'x64')('uses native PowerShell from a 32-bit installer to inspect a 64-bit process', () => {
-    const [, nativePath] = /StrCpy \$PowerShellPath "(\$WINDIR\\Sysnative[^"]+)"/.exec(INSTALLER_SCRIPT) ?? []
-    expect(nativePath).toBeDefined()
-    const shell = join(process.env.SystemRoot, 'SysWOW64', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
-    const encoded = Buffer.from('[Console]::WriteLine([IntPtr]::Size * 8); ' + findCommand(installDir), 'utf16le').toString('base64')
-    const command = `& '${nativePath.replace('$WINDIR', process.env.SystemRoot)}' -NoProfile -NonInteractive -EncodedCommand ${encoded}; exit $LASTEXITCODE`
-    const result = spawnSync(shell, ['-NoProfile', '-NonInteractive', '-C', command], { encoding: 'utf8' })
+    const result = nativeShellResult(installDir)
     // EncodedCommand may serialize first-use progress to stderr; inspect shell width and the detection result.
     expect({ status: result.status, bits: result.stdout.trim() }, result.stderr).toEqual({ status: 0, bits: '64' })
   })
