@@ -19,12 +19,12 @@ import { completeSavedRevision, getPlan, requestSave } from './plans'
 import { startRun } from './runs'
 import { checkSavedTicketAttachments } from './ticketAttachments'
 
-const REPO_ROOT = resolve(fileURLToPath(new URL('.', import.meta.url)), '../../..')
+const FIXTURE_ROOT = fileURLToPath(new URL('../../test/fixtures/portable-history', import.meta.url))
 
 /** Snapshots committed before the image-attachments epic: their tickets carry no `attachments` key. */
 const PRE_EPIC_SNAPSHOTS = [
-  '.darkmechanicus/epics/ep_01m3txy30qavmd5wewct90804g/snapshots/rv_01m3txzpv9ws6fbj6p211ghkn9.json',
-  '.darkmechanicus/epics/ep_01m418epbg8qkqa2e2krvdkqk5/snapshots/rv_01m464qr300pd5y24xgjt2qy14.json'
+  'epics/ep_01m3txy30qavmd5wewct90804g/snapshots/rv_01m3txzpv9ws6fbj6p211ghkn9.json',
+  'epics/ep_01m418epbg8qkqa2e2krvdkqk5/snapshots/rv_01m464qr300pd5y24xgjt2qy14.json'
 ]
 
 function stage(ctx: TestCtx, purpose: 'reference' | 'evidence' = 'reference'): string {
@@ -54,7 +54,7 @@ function editRefusal(ctx: TestCtx, epicId: string, ticket: string, attachments: 
 describe('saved plan hashes', () => {
   it('recomputes a pre-epic snapshot to its stored content hash', () => {
     for (const path of PRE_EPIC_SNAPSHOTS) {
-      const record = parseRecord(snapshotRecord, readFileSync(resolve(REPO_ROOT, path), 'utf8'), path)
+      const record = parseRecord(snapshotRecord, readFileSync(resolve(FIXTURE_ROOT, path), 'utf8'), path)
       expect(record.bundle.tickets.length).toBeGreaterThan(0)
       expect(record.bundle.tickets.some((ticket) => Object.hasOwn(ticket, 'attachments'))).toBe(false)
       expect(contentHash(record.bundle)).toBe(record.contentHash)

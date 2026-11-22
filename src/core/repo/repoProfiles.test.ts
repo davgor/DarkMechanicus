@@ -5,7 +5,8 @@ import { parseRecord, profileRecord } from './portable'
 import type { ProfileRecord } from './portable'
 import { prettyJson } from '../canonical'
 
-const profilesDir = resolve(__dirname, '../../..', '.darkmechanicus/profiles')
+/** Frozen portable examples, not the person's active Forge World profiles. */
+const profilesDir = resolve(__dirname, '../../test/fixtures/portable-history/profiles')
 
 function readAndParseProfile(filename: string): { record: ProfileRecord; text: string } {
   const path = resolve(profilesDir, filename)
