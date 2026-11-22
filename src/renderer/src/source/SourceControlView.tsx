@@ -5,12 +5,15 @@ import type { Scheduler } from '../app/scheduler'
 import { Button } from '../components/Button'
 import { RepositoryView } from './RepositoryView'
 import { useRepoState } from './useRepoState'
+import type { SourceTargetModel } from './useSourceTarget'
+import { RepositoryLink } from '../folder/FolderLocation'
 
 const GIT_DOWNLOADS = 'https://git-scm.com/downloads'
 
 interface SourceControlViewProps {
   folder: TrackedFolderView
   scheduler: Scheduler
+  target?: SourceTargetModel
 }
 
 function Notice(props: { title: string; children?: React.ReactNode }): JSX.Element {
@@ -51,7 +54,7 @@ function InitializeNotice({ folder, onDone }: { folder: string; onDone(): void }
 }
 
 /** The folder's Source control: its repository's changes and diffs, or what stands in the way of showing them. */
-export function SourceControlView({ folder, scheduler }: SourceControlViewProps): JSX.Element {
+function RepositorySourceView({ folder, scheduler }: SourceControlViewProps): JSX.Element {
   const repo = useRepoState({ folder: folder.path, scheduler })
   const { state } = repo
   if (state.status === 'loading') {
@@ -94,4 +97,20 @@ export function SourceControlView({ folder, scheduler }: SourceControlViewProps)
       ) : null}
     </div>
   )
+}
+
+/** A Forge member's source tab never treats its ticket directory as the code checkout. */
+export function SourceControlView(props: SourceControlViewProps): JSX.Element {
+  if (!props.folder.forgeParent) return <RepositorySourceView {...props} />
+  const state = props.target?.state
+  if (state === undefined || state.status === 'loading') return <div className="source-view" role="status"><p className="muted source-loading">Finding the local code repository…</p></div>
+  if (state.status === 'error') return <div className="source-view"><Notice title="Couldn’t locate the code repository"><p role="alert">{props.target?.error}</p><Button onClick={props.target?.refresh}>Refresh checkout</Button></Notice></div>
+  if (state.value.kind === 'available') return <RepositorySourceView key={state.value.path} {...props} />
+  return <div className="source-view"><Notice title="Code repository not available locally">
+    <p>{state.value.reason}</p>
+    <RepositoryLink repository={state.value.repository} />
+    <p className="repository-directions">{state.value.directions}</p>
+    <p className="muted">An agent can clone this repository when its task needs the code. Opening this page does not download it.</p>
+    <Button onClick={props.target?.refresh}>Refresh checkout</Button>
+  </Notice></div>
 }

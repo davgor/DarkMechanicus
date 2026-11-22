@@ -82,7 +82,7 @@ function useCloneProgress(setRunning: (update: (previous: RunningClone | null) =
 }
 
 /** Clones into the clone parent with a new operation id each time: progress, cancel, and the outcome. */
-export function useClone(onCloned: (folder: TrackedFolderView) => void): CloneModel {
+export function useClone(onCloned: (folder: TrackedFolderView) => void, mode?: 'forge-world'): CloneModel {
   const [parent, chooseParent] = useCloneParent()
   const [running, setRunning] = useState<RunningClone | null>(null)
   const [failure, setFailure] = useState<CloneFailure | null>(null)
@@ -110,7 +110,7 @@ export function useClone(onCloned: (folder: TrackedFolderView) => void): CloneMo
       if (folder !== undefined) cloned.current(folder)
       else if (error !== null) setFailure(failureOf(error, targetPath(parent, name)))
     }
-    window.git.clone({ operationId: clone.id, url, name }).then(
+    window.git.clone({ operationId: clone.id, url, name, ...(mode === undefined ? {} : { mode }) }).then(
       (result) => (result.ok ? settle(null, result.data) : settle(result.error)),
       () => settle(NO_ANSWER)
     )

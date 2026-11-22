@@ -90,14 +90,19 @@ function CloneFailureNotice({ failure }: { failure: CloneFailure }): JSX.Element
 }
 
 interface CloneDialogProps {
+  mode?: 'forge-world'
   onClose(): void
   /** The clone succeeded; main already tracks the folder. */
   onCloned(folder: TrackedFolderView): void
 }
 
+function cloneTitle(mode: 'forge-world' | undefined): string {
+  return mode === 'forge-world' ? 'Clone a Forge World' : 'Clone a repository'
+}
+
 /** Clones a repository from the account's GitHub list or a URL into the clone parent, with progress and Cancel. */
-export function CloneDialog({ onClose, onCloned }: CloneDialogProps): JSX.Element {
-  const clone = useClone(onCloned)
+export function CloneDialog({ onClose, onCloned, mode }: CloneDialogProps): JSX.Element {
+  const clone = useClone(onCloned, mode)
   const [tab, setTab] = useState<CloneTab>('github')
   const [picked, setPicked] = useState<GithubRepository | null>(null)
   const [url, setUrl] = useState('')
@@ -129,7 +134,7 @@ export function CloneDialog({ onClose, onCloned }: CloneDialogProps): JSX.Elemen
     </>
   )
   return (
-    <Dialog title="Clone a repository" onClose={close} actions={actions}>
+    <Dialog title={cloneTitle(mode)} onClose={close} actions={actions}>
       <CloneTabs tab={tab} onTab={switchTab} />
       <div className="clone-panel" role="tabpanel">
         {tab === 'github' ? (

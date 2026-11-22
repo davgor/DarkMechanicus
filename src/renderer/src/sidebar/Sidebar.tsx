@@ -45,9 +45,9 @@ export interface SidebarProps {
   /** Rendered at the bottom of the sidebar (status and update controls). */
   footer: ReactNode
   /** Tracks an existing folder through the native picker. */
-  onTrack(): void
+  onTrack(mode?: 'forge-world'): void
   /** Opens the clone dialog. */
-  onClone(): void
+  onClone(mode?: 'forge-world'): void
   /** Opens the add-agent pane. */
   onAddAgent(): void
   onSelectAgent(id: AgentId): void
@@ -85,18 +85,18 @@ function Brand({ version }: { version: string }): JSX.Element {
   )
 }
 
-/** The FOLDERS + button: track an existing folder, or clone a repository. */
-function AddFolderMenu({ onTrack, onClone }: Pick<SidebarProps, 'onTrack' | 'onClone'>): JSX.Element {
+/** The shared folder/world + button: track an existing folder, or clone a repository. */
+function AddFolderMenu({ onTrack, onClone, mode }: Pick<SidebarProps, 'onTrack' | 'onClone'> & { mode?: 'forge-world' }): JSX.Element {
   const [open, setOpen] = useState(false)
   return (
     <Menu
-      label="Add a folder"
+      label={mode === 'forge-world' ? 'Add a Forge World' : 'Add a folder'}
       icon="plus"
       open={open}
       onOpenChange={setOpen}
       items={[
-        { id: 'track', label: 'Add existing folder…', onSelect: onTrack },
-        { id: 'clone', label: 'Clone repository…', onSelect: onClone }
+        { id: 'track', label: 'Add existing folder…', onSelect: () => onTrack(mode) },
+        { id: 'clone', label: 'Clone repository…', onSelect: () => onClone(mode) }
       ]}
     />
   )
@@ -183,11 +183,9 @@ export function Sidebar(props: SidebarProps): JSX.Element {
       <Brand version={props.version} />
       <SidebarAgents {...props} />
       <nav className="sidebar-tree" aria-label="Folders and epics">
-        {worlds.length > 0 && (
-          <FolderSection title="Forge Worlds">
-            {worlds.map(folder => <SidebarFolder key={folder.path} folder={folder} props={props} selection={folderSelection} />)}
-          </FolderSection>
-        )}
+        <FolderSection title="Forge Worlds" action={<AddFolderMenu mode="forge-world" onTrack={props.onTrack} onClone={props.onClone} />}>
+          {worlds.map(folder => <SidebarFolder key={folder.path} folder={folder} props={props} selection={folderSelection} />)}
+        </FolderSection>
         <FolderSection title="Folders" action={<AddFolderMenu onTrack={props.onTrack} onClone={props.onClone} />}>
           {folders.length === 0 && <p className="sidebar-note">No folders yet. Use + to track one.</p>}
           {folders.map(folder => <SidebarFolder key={folder.path} folder={folder} props={props} selection={folderSelection} />)}

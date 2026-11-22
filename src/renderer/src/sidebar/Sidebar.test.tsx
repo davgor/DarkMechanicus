@@ -182,7 +182,7 @@ describe('Sidebar folders', () => {
 
   it('lists every tracked folder with its epics or setup state', () => {
     renderSidebar([alpha, beta], { '/a': listOf('Shipping') })
-    expect(screen.queryByRole('button', { name: 'Forge Worlds' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Forge Worlds' })).toBeTruthy()
     expect(screen.getByRole('navigation', { name: 'Folders and epics' })).toBeTruthy()
     expect(screen.getByText('Shipping')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Setup required' })).toBeTruthy()

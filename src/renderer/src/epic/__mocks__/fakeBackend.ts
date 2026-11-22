@@ -220,6 +220,10 @@ export class FakeBackend implements DmApi {
     return Promise.resolve()
   }
 
+  openTrackedFolder(): Promise<CommandResult<null>> {
+    return Promise.resolve({ ok: true, data: null })
+  }
+
   openExternal(url: string): Promise<boolean> {
     this.opened.push(url)
     return Promise.resolve(true)

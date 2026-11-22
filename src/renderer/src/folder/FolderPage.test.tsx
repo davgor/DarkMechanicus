@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
+import { FakeDm } from '../__mocks__/fakeDm'
+import { settle } from '../__mocks__/settle'
 import { folderView } from '../__mocks__/fixtures'
 import type { FolderTab } from '../app/folderTabs'
 import { FolderPage } from './FolderPage'
@@ -58,4 +60,17 @@ describe('FolderPage', () => {
     expect(screen.getByRole('tab', { name: 'Epics' }).getAttribute('tabindex')).toBe('0')
     expect(screen.getByRole('tab', { name: 'Source control' }).getAttribute('tabindex')).toBe('-1')
   })
+})
+
+it('opens the displayed local folder and reports native open failures', async () => {
+  const dm = new FakeDm()
+  window.dm = dm
+  renderPage()
+  fireEvent.click(screen.getByRole('button', { name: 'Open folder ~/code/alpha' }))
+  await settle()
+  expect(dm.openedFolders).toEqual([{ folder: folder.path, expectedPath: folder.path }])
+  dm.openFolderFailure = 'Folder is no longer available.'
+  fireEvent.click(screen.getByRole('button', { name: 'Open folder ~/code/alpha' }))
+  await settle()
+  expect(screen.getByRole('alert').textContent).toBe('Folder is no longer available.')
 })

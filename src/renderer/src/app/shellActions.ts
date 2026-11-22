@@ -56,7 +56,7 @@ interface ShellDeps {
     reportError(error: unknown): void
   }
   folders: {
-    pick(): Promise<FolderPickResult>
+    pick(mode?: 'forge-world'): Promise<FolderPickResult>
     untrack(path: string): Promise<void>
     reload(): Promise<void>
   }
@@ -109,7 +109,7 @@ export interface ShellActions {
   /** Opens one connected agent's page in place of the folder or epic view. */
   openAgent(id: AgentId): void
   changed(path: string): void
-  track(): Promise<void>
+  track(mode?: 'forge-world'): Promise<void>
   /** A clone finished and main tracks the new folder: reloads the folders and selects it. */
   cloned(folder: TrackedFolderView): Promise<void>
   untrack(path: string): Promise<void>
@@ -228,9 +228,9 @@ function linkActions(deps: ShellDeps): Pick<ShellActions, 'openTicket' | 'openTh
 
 function folderActions(deps: ShellDeps, selectFolder: (path: string) => void): Pick<ShellActions, 'track' | 'cloned' | 'untrack'> {
   return {
-    track: async () => {
+    track: async (mode) => {
       await guarded(deps, async () => {
-        const { folder, added } = await deps.folders.pick()
+        const { folder, added } = await deps.folders.pick(mode)
         if (folder === null) return
         selectFolder(folder.path)
         if (!added) deps.toasts.push('info', `${folder.name} is already tracked.`)
