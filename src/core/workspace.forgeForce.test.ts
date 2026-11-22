@@ -81,6 +81,23 @@ it.each(['directory', 'definition'])('regenerates a missing canonical card %s fr
   expect(f.source.ctx().db.get("SELECT 1 FROM outbox WHERE state = 'failed'")).toBeTruthy()
 })
 
+it.each(['epic_state', 'run_history'] as const)('reconstructs failed %s output while preserving accepted history and the source failure', async kind => {
+  const f = await activeProject('repo')
+  const paths = ownedPaths(resolveLayout(h.root))
+  const file = kind === 'epic_state' ? paths.epicStateFile(f.epic.id) : paths.runHistoryFile(f.run.id)
+  rmSync(file)
+  f.source.ctx().db.run("UPDATE outbox SET state = 'failed', last_error = 'Canonical output missing' WHERE kind = ?", kind)
+  const failed = f.source.ctx().db.all("SELECT * FROM outbox WHERE state = 'failed'")
+  expect(failed.length).toBeGreaterThan(0)
+  await withForgeTransfer(h.homeDir, h.root, f.member, async () => f.source.exportForge!(f.member, 'repo', { force: true }))
+  const dest = h.open('orchestrator', { root: f.member, git: createGitAdapter(f.member) })
+  expect((await dest.reconcileRepository()).rejected).toEqual([])
+  expect(await dest.getRun({ runId: f.run.id })).toMatchObject({ state: 'canceled', attempts: expect.arrayContaining([expect.objectContaining({ id: f.accepted.attempt.id, state: 'accepted' })]) })
+  expect(dest.ctx().db.all("SELECT * FROM outbox WHERE state <> 'done'")).toEqual([])
+  expect(f.source.ctx().db.all("SELECT * FROM outbox WHERE state = 'failed'")).toEqual(failed)
+  expect(existsSync(file)).toBe(false)
+})
+
 it('preserves a pending plan save and draft instead of treating it as a completed canonical export', async () => {
   const f = await activeProject('repo')
   const epic = await f.source.createEpic({ title: 'Pending save must remain pending' })
@@ -187,4 +204,44 @@ it.each(['malformed', 'conflict'] as const)('refuses %s canonical records and le
   await expect(withForgeTransfer(h.homeDir, h.root, f.member, async () => f.source.exportForge!(f.member, 'repo', { force: true }))).rejects.toThrow('could not be imported')
   expect(f.source.ctx().db.get('SELECT * FROM kanban_cards WHERE id = ?', f.card.id)).toEqual(before)
   expect(existsSync(join(f.member, '.darkmechanicus'))).toBe(false)
+})
+
+it.each(['sync conflict', 'open transfer'] as const)('keeps the source unchanged when a %s blocks force migration', async hold => {
+  const f = await activeProject('repo')
+  if (hold === 'sync conflict') {
+    f.source.ctx().db.run("UPDATE sync_state SET conflict = 'Unresolved remote edit' WHERE kind = 'kanban_card' AND entity_id = ?", f.card.id)
+  } else {
+    await f.agent.cancelRun({ runId: f.run.id, reason: 'Transfer fixture' })
+    await f.source.queueTransfer({ epicId: f.epic.id })
+  }
+  const before = await f.source.getRun({ runId: f.run.id })
+  await expect(withForgeTransfer(h.homeDir, h.root, f.member, async () => f.source.exportForge!(f.member, 'repo', { force: true }))).rejects.toThrow(hold === 'sync conflict' ? 'Resolve storage conflicts' : 'open plan transfer')
+  expect(await f.source.getRun({ runId: f.run.id })).toEqual(before)
+  expect(existsSync(join(f.member, '.darkmechanicus'))).toBe(false)
+})
+
+it.each(['unsaved comment', 'missing attachment identity'] as const)('does not silently settle an unreconstructable %s export', async kind => {
+  const f = await activeProject('repo')
+  if (kind === 'unsaved comment') {
+    const epic = await f.source.createEpic({ title: 'Unsaved plan remains private' })
+    const comment = await f.source.addComment({ epicId: epic.id, body: 'Never auto-save this plan to publish its comment' })
+    f.source.ctx().db.run("INSERT INTO outbox (kind, epic_id, entity_id, state, created_at) VALUES ('comment', ?, ?, 'failed', ?)", epic.id, comment.id, h.clock.nowIso())
+  } else {
+    f.source.ctx().db.run("INSERT INTO outbox (kind, state, created_at) VALUES ('attachment', 'failed', ?)", h.clock.nowIso())
+  }
+  const before = f.source.ctx().db.all("SELECT * FROM outbox WHERE state <> 'done'")
+  const drafts = f.source.ctx().db.all('SELECT * FROM drafts')
+  const comments = f.source.ctx().db.all('SELECT * FROM comments')
+  await expect(withForgeTransfer(h.homeDir, h.root, f.member, async () => f.source.exportForge!(f.member, 'repo', { force: true }))).rejects.toThrow('could not be reconstructed')
+  expect(f.source.ctx().db.all("SELECT * FROM outbox WHERE state <> 'done'")).toEqual(before)
+  expect(f.source.ctx().db.all('SELECT * FROM drafts')).toEqual(drafts)
+  expect(f.source.ctx().db.all('SELECT * FROM comments')).toEqual(comments)
+  expect(existsSync(join(f.member, '.darkmechanicus'))).toBe(false)
+})
+
+it('refuses force export to a database destination without altering the source', async () => {
+  const f = await activeProject('db')
+  const before = await f.source.getRun({ runId: f.run.id })
+  expect(() => f.source.exportForge!(f.member, 'db', { force: true })).toThrow('Forge World destination')
+  expect(await f.source.getRun({ runId: f.run.id })).toEqual(before)
 })

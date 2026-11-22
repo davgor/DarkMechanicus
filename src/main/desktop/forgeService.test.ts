@@ -189,6 +189,20 @@ it('directs an uninitialized force source to normal migration without creating a
   } finally { f.close() }
 })
 
+it.each([null, 'force', { force: false }, { force: true, unexpected: true }])('refuses malformed force IPC options %j without changing either store', async options => {
+  const f = fixture()
+  try {
+    const source = f.pool.get(f.source)
+    await source.initializeRepository({ name: 'IPC validation', mode: 'db' })
+    const before = await source.getProject()
+    await f.call('create', f.world)
+    await expect(f.call('convert', f.world, f.source, options)).rejects.toThrow('valid Forge migration option')
+    expect(await source.getProject()).toEqual(before)
+    expect(existsSync(join(f.world, 'Software'))).toBe(false)
+    expect(pendingForgeTransfer(f.home, f.source)).toBeNull()
+  } finally { f.close() }
+})
+
 it.each(['repo', 'db'] as const)('force converts %s live claims, keeps a private source backup and fences the old handle', async mode => {
   const f = fixture()
   const worker = openWorkspace({ repoRoot: f.source, homeDir: f.home, transport: 'in_process', role: 'orchestrator', label: 'Old worker', serverInfo: { name: 'fixture', version: '1' } })
