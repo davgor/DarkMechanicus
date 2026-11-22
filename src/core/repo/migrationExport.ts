@@ -1,7 +1,9 @@
 import { prettyJson } from '../canonical'
 import type { Clock } from '../clock'
 import type { Db } from '../db/database'
-import { loadStoredAttachment, placementOfAttachment, writeAttachmentFile } from './attachmentFiles'
+import { loadStoredAttachment, writeAttachmentFile } from './attachmentFiles'
+import { resolveAttachmentPlacement } from '../services/attachmentOwners'
+import { assertRecoveredArchiveBounds, exportRecoveredAttachment } from './recoveredAttachments'
 import { writeFileSafely } from './finalizer'
 import { ownedPaths } from './paths'
 import {
@@ -93,7 +95,12 @@ function exportImages(writer: MigrationExporter, savedEpics: ReadonlySet<string>
   const { paths } = writer
   for (const row of db.all<{ id: string }>('SELECT id FROM attachments WHERE owner_id IS NOT NULL ORDER BY id')) {
     const attachment = loadStoredAttachment(db, row.id)
-    const placement = placementOfAttachment(db, attachment)
+    const placement = resolveAttachmentPlacement(db, attachment.owner!)
+    if (placement === null) {
+      exportRecoveredAttachment(writer.deps, attachment.id)
+      writer.synced('attachment', attachment.id, attachment.sha256)
+      continue
+    }
     // An unsaved epic has no portable pointer to import its images against yet.
     if (placement.folder.kind === 'epic' && !savedEpics.has(placement.folder.id)) continue
     writeAttachmentFile(writer.deps, attachment, placement)
@@ -104,11 +111,12 @@ function exportImages(writer: MigrationExporter, savedEpics: ReadonlySet<string>
   }
 }
 
-/** Uses existing portable formats without saving drafts, incrementing revisions, or replaying historical events. */
+/** Exports canonical records and orphan-image recovery archives without saving drafts or replaying historical events. */
 export function exportMigrationRecords(deps: ExportDeps): ReadonlySet<string> {
   const writer = new MigrationExporter(deps)
   const savedEpics = exportEpics(writer)
   exportOtherRecords(writer, savedEpics)
   exportImages(writer, savedEpics)
+  assertRecoveredArchiveBounds(deps)
   return writer.exported
 }

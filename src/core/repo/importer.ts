@@ -36,6 +36,7 @@ import { assertContained, displayPath, ownedPaths } from './paths'
 import { insertOwnedRow, registerEvidenceAttachments, registerTicketAttachments, restoreAttachmentFiles } from './attachmentImport'
 import { applyKanban, type KanbanScan, scanKanban } from './kanbanImport'
 import { importObservations } from './observationImport'
+import { importRecoveredAttachments } from './recoveredAttachments'
 import { applyProfiles, type ProfileScan, scanProfiles } from './profileImport'
 import {
   buildRunHistoryRecord,
@@ -1608,6 +1609,7 @@ function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultVi
   const observationOutcome = importObservations(deps, now)
   registerEvidenceAttachments(deps.db, now)
   registerTicketAttachments(deps.db, now)
+  const recoveredAttachments = importRecoveredAttachments(deps)
   const attachmentOutcome = restoreAttachmentFiles(deps)
   storeConflicts(deps.db, plan.conflicts, now)
   const pausedRuns = branchChanged ? pauseActiveRuns(deps, now) : []
@@ -1622,7 +1624,8 @@ function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultVi
       ...profileOutcome.rejected,
       ...kanbanOutcome.rejected,
       ...observationOutcome.rejected,
-      ...attachmentOutcome.rejected
+      ...attachmentOutcome.rejected,
+      ...recoveredAttachments
     ],
     branchChanged,
     pausedRuns

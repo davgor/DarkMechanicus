@@ -119,6 +119,11 @@ function alreadyWritten(env: Env, target: string, sha256: string): boolean {
  * the bytes go to a temp file, are fsynced, renamed into place and read back; a mismatch removes the file and fails.
  */
 export function writeAttachmentFile(env: Env, attachment: StoredAttachment, placement: AttachmentPlacement): void {
+  writeAttachmentBytes(env, attachment, ownedPaths(env.layout).attachmentFile(placement.folder, attachment.sha256, attachment.mime))
+}
+
+/** Writes verified bytes to a caller's owned attachment path, including recovery archives. */
+export function writeAttachmentBytes(env: Env, attachment: StoredAttachment, target: string): void {
   if (attachment.data === null) {
     fail('not_found', `The bytes of attachment ${attachment.id} are not stored, so its file cannot be written.`, { id: attachment.id })
   }
@@ -127,7 +132,6 @@ export function writeAttachmentFile(env: Env, attachment: StoredAttachment, plac
       id: attachment.id
     })
   }
-  const target = ownedPaths(env.layout).attachmentFile(placement.folder, attachment.sha256, attachment.mime)
   if (alreadyWritten(env, target, attachment.sha256)) {
     return
   }
