@@ -94,6 +94,7 @@ export function chooseView(input: ViewInput): MainView {
 /** The selected folder's page, its epic, its Kanban board, its Metrics dashboard, or its chat. */
 function chooseFolderView(input: ViewInput, folder: TrackedFolderView): MainView {
   const tab = input.folderTab ?? 'source'
+  if (folder.forgeWorld) return chosenChat(input, folder, tab)
   if (!folder.initialized) {
     return { kind: 'folder', folder, tab }
   }
@@ -106,6 +107,10 @@ function chooseFolderView(input: ViewInput, folder: TrackedFolderView): MainView
   if (input.metrics === true) {
     return { kind: 'metrics', folder }
   }
+  return chosenChat(input, folder, tab)
+}
+
+function chosenChat(input: ViewInput, folder: TrackedFolderView, tab: FolderTab): MainView {
   return chooseChatView(folder, tab, input.chatId ?? null, input.chats ?? null)
 }
 

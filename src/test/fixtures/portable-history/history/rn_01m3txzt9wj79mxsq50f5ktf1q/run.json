@@ -1,0 +1,237 @@
+{
+  "activeSprintId": null,
+  "attempts": [
+    {
+      "createdAt": "2026-10-01T05:13:40.477Z",
+      "decidedAt": "2026-10-01T05:14:08.086Z",
+      "decision": {
+        "decidedBy": "Claude Code (orchestrator)",
+        "notes": "Orchestrator review (same session as the worker, so not independent). Re-checked list_epics: epic present with 2 tickets. Saved revision 1 and the queued run could only come from the desktop, which confirms the epic was visible there.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "ep_01m3txy30qavmd5wewct90804g 'MCP connection test', ticketCount 2, sprintCount 1",
+            "name": "list_epics contains epic",
+            "status": "passed"
+          },
+          {
+            "detail": "ss_01m3txs8cszadspzsd81328dt0 role=desktop active=true",
+            "name": "desktop session active",
+            "status": "passed"
+          },
+          {
+            "detail": "revision 1 saved 05:11:23Z; run queued (queueing is desktop-only)",
+            "name": "desktop-only actions taken on epic",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Confirmed via list_epics and desktop-only save/queue."
+          }
+        ],
+        "notes": ""
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m3ty3wbx2tfbac4r970t19dn",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": null,
+        "changedFiles": [],
+        "commits": [],
+        "summary": "Verified the epic is listed. list_epics returns 'MCP connection test' (ep_01m3txy30qavmd5wewct90804g) with 2 tickets and 1 sprint. Saved revision 1 exists (rv_01m3txzpv9ws6fbj6p211ghkn9) and run rn_01m3txzt9wj79mxsq50f5ktf1q was queued; both are desktop-only actions (the MCP planner session that created the epic ran with save=not allowed), so a person found and acted on the epic in the desktop app. No repository changes."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m3txzpv9ws6fbj6p211ghkn9",
+      "state": "accepted",
+      "submittedAt": "2026-10-01T05:14:00.270Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:56464122ff94445a56c68558a46936f9cf758210ac97a30e49cb51eb6cc672b4",
+      "ticketId": "tk_01m3txy30tjnwv2m5kjebfq0aj",
+      "updatedAt": "2026-10-01T05:14:08.086Z",
+      "worker": {
+        "catalogRevision": "2026-10-01.1",
+        "hostId": "claude-code-macbook",
+        "label": "Claude Code (in-session)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Verification-only ticket (read server state, no code changes). The orchestrator's own Opus session does it directly; a separate worker would add cost and latency for no quality gain.",
+        "sessionId": null
+      }
+    },
+    {
+      "createdAt": "2026-10-01T05:14:17.910Z",
+      "decidedAt": "2026-10-01T05:14:28.860Z",
+      "decision": {
+        "decidedBy": "Claude Code (orchestrator)",
+        "notes": "Orchestrator review (same session as the worker, so not independent). Re-checked list_revisions and list_epics: revision 1 saved and current, no draft outstanding.",
+        "outcome": "accepted",
+        "reasons": []
+      },
+      "evidence": {
+        "checks": [
+          {
+            "detail": "rv_01m3txzpv9ws6fbj6p211ghkn9 number=1 state=saved isCurrent=true",
+            "name": "revision saved",
+            "status": "passed"
+          },
+          {
+            "detail": "hasDraft=false draftRevision=null pendingSave=false",
+            "name": "no open draft",
+            "status": "passed"
+          },
+          {
+            "detail": "creating planner session reported save=not allowed and listed no save_plan tool",
+            "name": "save not possible over MCP",
+            "status": "passed"
+          }
+        ],
+        "criteria": [
+          {
+            "criterionId": "c1",
+            "met": true,
+            "note": "Confirmed via list_revisions / list_epics."
+          }
+        ],
+        "notes": ""
+      },
+      "failure": null,
+      "fencingToken": 1,
+      "id": "at_01m3ty50xpq2wmen80xmv84q77",
+      "kind": "work",
+      "number": 1,
+      "outputs": {
+        "artifacts": [],
+        "branch": null,
+        "changedFiles": [],
+        "commits": [],
+        "summary": "Verified the draft was saved from the desktop. list_revisions shows revision 1 (rv_01m3txzpv9ws6fbj6p211ghkn9) state=saved at 05:11:23Z and current; list_epics shows hasDraft=false, pendingSave=false. The only MCP session that touched the draft was a planner launched without --allow-save (save=not allowed), so the save was done by a person in the desktop app. No repository changes."
+      },
+      "reconciledAt": null,
+      "revisionId": "rv_01m3txzpv9ws6fbj6p211ghkn9",
+      "state": "accepted",
+      "submittedAt": "2026-10-01T05:14:28.595Z",
+      "supersededAt": null,
+      "ticketContentHash": "sha256:e6099db09242c73802c972a66bc48275b02ea22003a83dd7fa02583f67324642",
+      "ticketId": "tk_01m3txy30tvtfbzj1ecax0dvb0",
+      "updatedAt": "2026-10-01T05:14:28.860Z",
+      "worker": {
+        "catalogRevision": "2026-10-01.1",
+        "hostId": "claude-code-macbook",
+        "label": "Claude Code (in-session)",
+        "modelId": "claude-opus-5-5",
+        "rationale": "Verification-only ticket (read revision state, no code changes); done directly by the orchestrator's own Opus session.",
+        "sessionId": null
+      }
+    }
+  ],
+  "checkpoints": [
+    {
+      "decidedAt": "2026-10-01T05:19:45.466Z",
+      "decidedBy": "ss_01m3txs8cszadspzsd81328dt0",
+      "id": "ck_01m3tyf0str28jcrhq2wtszr5t",
+      "outcome": "completed",
+      "policy": "human",
+      "reportId": "rp_01m3ty66d960gb6z5bt9y4th60",
+      "sprintId": "sp_01m3txy30q8sb4f7ekx20btcr6"
+    }
+  ],
+  "createdAt": "2026-10-01T05:11:27.292Z",
+  "endedAt": "2026-10-01T05:19:45.466Z",
+  "epicId": "ep_01m3txy30qavmd5wewct90804g",
+  "format": "darkmechanicus.run",
+  "formatVersion": 1,
+  "host": {
+    "label": "Claude Code",
+    "type": "claude-code"
+  },
+  "hostCatalogId": "hc_01m3ty2z6resq0a60z1sk7n45v",
+  "number": 1,
+  "ownerMachineId": "mc_01m3txs8ccqdybpr4wd3wygaxw",
+  "pauseReason": null,
+  "reports": [
+    {
+      "content": {
+        "accepted": [
+          "DM-1 Confirm epic is visible in the app: verified via list_epics; desktop-only save and queue confirm it was visible in the app",
+          "DM-2 Save or discard the draft: revision 1 saved from the desktop, no draft outstanding"
+        ],
+        "blocked": [],
+        "changes": {
+          "commits": [],
+          "files": []
+        },
+        "checks": [
+          {
+            "detail": "55 tools, 6 prompts; temp repo epic saved, one ticket accepted, comment round-trip",
+            "name": "installed-app MCP smoke (npm run smoke:mcp)",
+            "status": "passed"
+          },
+          {
+            "detail": "validate_plan view=draft: valid, no errors or warnings",
+            "name": "draft plan validation",
+            "status": "passed"
+          },
+          {
+            "detail": "DM-2 stayed waiting until DM-1 was accepted",
+            "name": "dependency gating",
+            "status": "passed"
+          }
+        ],
+        "epicOutcome": {
+          "successCriteria": [
+            {
+              "criterionId": "s1",
+              "met": true,
+              "note": "Epic and both tickets listed (DM-1 accepted); the person saved and queued it from the desktop."
+            },
+            {
+              "criterionId": "s2",
+              "met": true,
+              "note": "Draft saved as revision 1 from the desktop (DM-2 accepted)."
+            }
+          ],
+          "summary": "The MCP authoring and execution path works end to end with the installed app: an agent can create epics and tickets, a person saves and queues in the desktop, and an agent can execute the run up to the human checkpoint."
+        },
+        "exitCriteria": [],
+        "failed": [],
+        "followUps": [
+          {
+            "body": "Add the packaged-app server (ELECTRON_RUN_AS_NODE=1, --repo this checkout, --role orchestrator) to the local Claude Code MCP config so sessions get native tools.",
+            "title": "Register darkmechanicus MCP server in Claude Code"
+          },
+          {
+            "body": "Launch a --role reviewer server for accept/reject so review is independent of the worker.",
+            "title": "Use a separate reviewer session for real epics"
+          }
+        ],
+        "risks": [
+          "Reviews were not independent: the orchestrator session did the work and accepted it. Fine for a connectivity test, not for real tickets.",
+          "Claude Code drove the server through an ad-hoc MCP client script; the darkmechanicus server is not yet registered as an MCP server in Claude Code, so agents in a normal session do not see the tools.",
+          "Host catalog lists models without context windows (unknown, left null).",
+          "get_storage_status reports 7 uncommitted record files under .darkmechanicus; they move between machines only once committed."
+        ],
+        "summary": "Sprint 1 confirmed the full MCP loop from an external agent host (Claude Code) against the installed v0.8.0 app. A planner session created the epic and both tickets as a draft; a person saved revision 1 and queued the run in the desktop. An orchestrator session registered a host catalog, picked up the queued run, and claimed, submitted, and accepted DM-1 then DM-2 in dependency order. Both tickets were verification-only and changed no repository files. Nothing failed or is blocked."
+      },
+      "contentHash": "sha256:b0e8d703b5b92ef6c8d2cc9c758aaf7444cccd345f0530a4a43ecefd0f02b998",
+      "createdAt": "2026-10-01T05:14:56.297Z",
+      "id": "rp_01m3ty66d960gb6z5bt9y4th60",
+      "reportRevision": 1,
+      "sprintId": "sp_01m3txy30q8sb4f7ekx20btcr6",
+      "submittedBy": "Claude Code (orchestrator)"
+    }
+  ],
+  "revisionId": "rv_01m3txzpv9ws6fbj6p211ghkn9",
+  "runId": "rn_01m3txzt9wj79mxsq50f5ktf1q",
+  "skillVersion": "1.1.0",
+  "startedAt": "2026-10-01T05:13:16.919Z",
+  "state": "completed",
+  "updatedAt": "2026-10-01T05:19:45.466Z"
+}

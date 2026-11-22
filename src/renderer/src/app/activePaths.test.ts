@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { folderView } from '../__mocks__/fixtures'
-import { activeFolderPaths } from './activePaths'
+import { activeChatPaths, activeFolderPaths } from './activePaths'
 
 const a = folderView({ path: '/a' })
 const b = folderView({ path: '/b' })
@@ -28,4 +28,16 @@ describe('activeFolderPaths', () => {
   it('is empty without folders', () => {
     expect(activeFolderPaths([], null, () => true)).toEqual([])
   })
+})
+
+it('loads Forge root chats separately and respects both world and project disclosure state', () => {
+  const world = folderView({ path: '/world', initialized: false, forgeWorld: { version: 1, owner: 'codex', projects: [], syncMinutes: 5 } })
+  const member = folderView({ path: '/world/a', forgeParent: world.path })
+  const folders = [world, member, a]
+  expect(activeFolderPaths(folders, null, () => true)).toEqual(['/world/a', '/a'])
+  expect(activeChatPaths(folders, null, () => true)).toEqual(['/world', '/world/a', '/a'])
+  expect(activeFolderPaths(folders, null, path => path !== member.path)).toEqual(['/a'])
+  expect(activeChatPaths(folders, null, path => path !== world.path)).toEqual(['/a'])
+  expect(activeChatPaths(folders, world.path, () => false)).toEqual(['/world'])
+  expect(activeFolderPaths(folders, member.path, () => false)).toEqual(['/world/a'])
 })

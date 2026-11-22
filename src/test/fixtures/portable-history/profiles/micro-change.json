@@ -1,0 +1,43 @@
+{
+  "capability": {
+    "constraints": {
+      "dataLocation": null,
+      "environments": [],
+      "maxCostUsd": null,
+      "maxDurationMinutes": null
+    },
+    "context": {
+      "estimatedInputTokens": null,
+      "requiredArtifacts": []
+    },
+    "modalities": [
+      "text"
+    ],
+    "preferences": {
+      "autonomy": null,
+      "cost": "low",
+      "latency": null,
+      "modelOverride": null,
+      "quality": null
+    },
+    "reasoning": {
+      "effort": "low",
+      "level": "routine",
+      "rationale": "One obvious change in one or two files with one targeted test."
+    },
+    "skills": [],
+    "tools": [
+      "repo_read",
+      "repo_write",
+      "shell",
+      "test_execution"
+    ],
+    "workType": "implementation"
+  },
+  "createdAt": "2026-10-03T21:51:43.073Z",
+  "description": "One obvious change in one or two files with one targeted test.",
+  "format": "darkmechanicus.profile",
+  "formatVersion": 1,
+  "name": "micro-change",
+  "updatedAt": "2026-10-03T21:51:43.073Z"
+}

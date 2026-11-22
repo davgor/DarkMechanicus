@@ -43,6 +43,7 @@ import {
 import { AGENT_MAIL_LIMITS, findEndpointByChat, listOpenEndpoints, type MailEndpoint } from '../../core/services/agentMailStore'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { ChatStore, ChatStoreFs } from './chatStore'
+import { hasForgeManifest } from '../desktop/forgeContext'
 
 /** What a mailbox is provisioned for: the chat's id, its stored agent id, and its title as the display name. */
 export type MailboxChat = Pick<ChatRecord, 'id' | 'agent' | 'title'>
@@ -213,7 +214,7 @@ class ChatMailboxRegistry implements ChatMailboxes {
   }
 
   delete(chat: ChatRecord): void {
-    if (chat.folder === null || !hasMailbox(chat)) return
+    if (chat.folder === null || !hasMailbox(chat) || hasForgeManifest(chat.folder)) return
     let ctx: Ctx
     try {
       ctx = this.deps.contextFor(chat.folder)
@@ -225,6 +226,7 @@ class ChatMailboxRegistry implements ChatMailboxes {
   }
 
   suspendFolder(folder: string, chats: readonly ChatRecord[]): void {
+    if (hasForgeManifest(folder)) return
     const eligible = chats.filter((chat) => hasMailbox(chat))
     if (eligible.length === 0) return
     const ctx = this.contextOrNull(folder, 'suspend chat mailboxes')
@@ -245,6 +247,7 @@ class ChatMailboxRegistry implements ChatMailboxes {
   /** The folder's context, or null (logged unless the folder simply has no database). */
   private contextOrNull(folder: string, doing: string): Ctx | null {
     try {
+      if (hasForgeManifest(folder)) return null
       return this.deps.contextFor(folder)
     } catch (error) {
       if (!notInitialized(error)) this.deps.log(`Could not ${doing} in ${folder}: ${messageOf(error)}`)

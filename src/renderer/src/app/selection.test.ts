@@ -238,3 +238,18 @@ describe('DM-267 c3: the Metrics dashboard selection persists and restores', () 
     expect(resolveSelection({ ...dashboard, folderPath: '/gone' }, [beta], true)).toEqual({ folderPath: '/b', epicId: null })
   })
 })
+
+it('keeps a selected Forge root chat without pretending the root is an initialized project', () => {
+  const world = folderView({ path: '/world', initialized: false, forgeWorld: { version: 1, owner: 'codex', projects: [], syncMinutes: 5 } })
+  const chat = chatRecord({ id: 'chat_world', folder: world.path })
+  expect(resolveSelection({ folderPath: world.path, epicId: null, chatId: chat.id }, [world], true, { chats: [chat] })).toEqual({ folderPath: world.path, epicId: null, chatId: chat.id })
+})
+
+it('restores a valid card only with its folder board selection', () => {
+  const stored = { folderPath: '/a', epicId: null, kanban: true as const, kanbanCardId: 'kc_alpha' }
+  expect(isSelection(stored)).toBe(true)
+  expect(resolveSelection(stored, [alpha], true)).toEqual(stored)
+  expect(isSelection({ ...stored, kanbanCardId: 123 })).toBe(false)
+  expect(isSelection({ ...stored, kanban: undefined })).toBe(false)
+  expect(resolveSelection(stored, [beta], true)).toEqual({ folderPath: '/b', epicId: null })
+})

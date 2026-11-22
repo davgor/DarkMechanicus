@@ -24,12 +24,13 @@ interface SyncDeps {
 
 export interface Sync {
   /** Runs `operation` in the repository `folder` is in and returns the state afterwards. */
-  run(operation: SyncOperation, folder: string, operationId: string): Promise<RepoState>
+  run(operation: SyncOperation, folder: string, operationId: string, identityFolder?: string): Promise<RepoState>
   /** Aborts the running operation `operationId` in `folder`, which then fails `cancelled`; false if none runs. */
   cancel(folder: string, operationId: string): boolean
 }
 
 interface Run {
+  identityFolder: string
   operation: SyncOperation
   folder: string
   operationId: string
@@ -128,7 +129,7 @@ async function runOperation(deps: SyncDeps, run: Run): Promise<RepoState> {
       redact: auth.redact,
       signal: run.signal,
       onProgress: progressSink((progress) => {
-        deps.onProgress({ folder: run.folder, operationId: run.operationId, operation: run.operation, ...progress })
+        deps.onProgress({ folder: run.identityFolder, operationId: run.operationId, operation: run.operation, ...progress })
       })
     })
   } catch (error) {
@@ -143,8 +144,8 @@ export function createSync(deps: SyncDeps): Sync {
   const running = new Map<string, AbortController>()
   const keyOf = (folder: string, operationId: string): string => `${folder}\0${operationId}`
   return {
-    async run(operation, folder, operationId) {
-      const key = keyOf(folder, operationId)
+    async run(operation, folder, operationId, identityFolder = folder) {
+      const key = keyOf(identityFolder, operationId)
       if (running.has(key)) {
         throw new GitInputError('An operation with that id is already running.')
       }
@@ -157,7 +158,7 @@ export function createSync(deps: SyncDeps): Sync {
         }
       }
       try {
-        return await runOperation(deps, { operation, folder, operationId, signal: controller.signal, gitDone: forget })
+        return await runOperation(deps, { operation, folder, identityFolder, operationId, signal: controller.signal, gitDone: forget })
       } finally {
         forget()
       }

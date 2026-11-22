@@ -42,6 +42,8 @@ import { KanbanBoard } from './kanban/KanbanBoard'
 import { MetricsDashboard } from './metrics/MetricsDashboard'
 import { OnboardingView } from './onboarding/OnboardingView'
 import { SourceControlView } from './source/SourceControlView'
+import { useSourceTarget, type SourceTargetModel } from './source/useSourceTarget'
+import type { FolderTab } from './app/folderTabs'
 import { Sidebar } from './sidebar/Sidebar'
 import { SidebarFooter } from './sidebar/SidebarFooter'
 import { UntrackDialog } from './sidebar/UntrackDialog'
@@ -187,6 +189,7 @@ function EpicsPanel({ shell, folder }: { shell: ShellModel; folder: TrackedFolde
 /** An open folder: either one of its epics, or the folder page with its Source control and Epics tabs. */
 function FolderPane({ shell, scheduler, EpicView }: PaneProps): JSX.Element | null {
   const { view } = shell
+  const sourceTarget = useSourceTarget(view.kind === 'folder' ? view.folder : null, scheduler)
   if (view.kind === 'epic') {
     return <EpicPane shell={shell} EpicView={EpicView} folder={view.folder} epicId={view.epicId} />
   }
@@ -205,19 +208,50 @@ function FolderPane({ shell, scheduler, EpicView }: PaneProps): JSX.Element | nu
     if (chat === null) throw new Error('Could not open the project delivery standards chat.')
   }
   return (
-    <FolderPage key={folder.path} folder={folder} tab={tab} onTab={(next) => shell.setFolderTab(folder.path, next)}>
-      <DeliveryStandards key={folder.path} folder={folder} folders={shell.folders} launch={launchStandardsChat} compact={tab !== 'standards'} />
-      {tab === 'standards' ? null : tab === 'tickets' || (folder.forgeWorld && tab === 'epics') ? <TicketSource key={folder.path} folder={folder} folders={shell.folders} status={shell.status} initialize={mode => shell.actions.initialize(folder, { mode, writeMcpConfig: false, importBoard: false })} open={async path => { await shell.reloadFolders(); shell.actions.selectFolder(path) }} /> : tab === 'source' ? <SourceControlView key={folder.path} folder={folder} scheduler={scheduler} /> : <EpicsPanel shell={shell} folder={folder} />}
+    <FolderPage key={folder.path} folder={folder} sourceTarget={sourceTarget} tab={tab} onTab={(next) => shell.setFolderTab(folder.path, next)}>
+      <FolderContents shell={shell} folder={folder} tab={tab} scheduler={scheduler} sourceTarget={sourceTarget} launch={launchStandardsChat} />
     </FolderPage>
   )
 }
 
+interface FolderContentsProps {
+  shell: ShellModel
+  folder: TrackedFolderView
+  tab: FolderTab
+  scheduler: Scheduler
+  sourceTarget: SourceTargetModel
+  launch(project: TrackedFolderView, prompt: string): Promise<void>
+}
+
+function FolderContents(props: FolderContentsProps): JSX.Element {
+  const { shell, folder, tab, scheduler, sourceTarget } = props
+  if (folder.forgeParent && tab === 'source') return <SourceControlView folder={folder} scheduler={scheduler} target={sourceTarget} />
+  const contents = <>
+    <DeliveryStandards key={folder.path} folder={folder} folders={shell.folders} launch={props.launch} compact={tab !== 'standards'} />
+    <FolderTabContent {...props} />
+  </>
+  return folder.forgeParent ? <ForgeOpen root={folder.forgeParent}>{contents}</ForgeOpen> : contents
+}
+
+function FolderTabContent({ shell, folder, tab, scheduler, sourceTarget }: FolderContentsProps): JSX.Element | null {
+  if (tab === 'standards') return null
+  if (tab === 'source') return <SourceControlView folder={folder} scheduler={scheduler} target={sourceTarget} />
+  if (tab === 'tickets' || (folder.forgeWorld && tab === 'epics')) return <TicketSource key={folder.path} folder={folder} folders={shell.folders} status={shell.status} initialize={mode => shell.actions.initialize(folder, { mode, writeMcpConfig: false, importBoard: false })} open={async path => { await shell.reloadFolders(); shell.actions.selectFolder(path) }} />
+  return <EpicsPanel shell={shell} folder={folder} />
+}
+
 function MainPane(props: PaneProps): JSX.Element | null {
   const view = props.shell.view
-  if ('folder' in view && view.folder?.forgeParent) {
+  if ('folder' in view && view.folder?.forgeParent && view.kind !== 'folder') {
     return <ForgeOpen key={view.folder.path} root={view.folder.forgeParent}><MainContent {...props} /></ForgeOpen>
   }
   return <MainContent {...props} />
+}
+
+function KanbanPane({ folder, shell }: { folder: TrackedFolderView; shell: ShellModel }): JSX.Element {
+  return <KanbanBoard folder={folder} refreshToken={shell.folderToken(folder.path)} host={orchestrationFor(shell, folder)}
+    selectedCardId={shell.selection.kanbanCardId ?? null} onOpenCard={id => shell.actions.selectKanban(folder.path, id)}
+    onCloseCard={() => shell.actions.selectKanban(folder.path)} onChanged={() => shell.actions.changed(folder.path)} />
 }
 
 function MainContent(props: PaneProps): JSX.Element | null {
@@ -237,7 +271,7 @@ function MainContent(props: PaneProps): JSX.Element | null {
     case 'projectless-chat':
       return <ChatPane key={view.chat.id} shell={shell} folder={null} chat={view.chat} scheduler={props.scheduler} terminalKit={props.terminalKit} />
     case 'kanban':
-      return <KanbanBoard key={view.folder.path} folder={view.folder} refreshToken={shell.folderToken(view.folder.path)} host={orchestrationFor(shell, view.folder)} onChanged={() => actions.changed(view.folder.path)} />
+      return <KanbanPane key={view.folder.path} folder={view.folder} shell={shell} />
     case 'metrics':
       return (
         <MetricsDashboard
@@ -299,9 +333,10 @@ async function startNewChat(shell: ShellModel, folder: TrackedFolderView, starti
 }
 
 /** The clone dialog; a finished clone opens the new folder on its Source control tab. */
-function CloneHost({ shell, onClose }: { shell: ShellModel; onClose(): void }): JSX.Element {
+function CloneHost({ shell, onClose, mode }: { shell: ShellModel; onClose(): void; mode?: 'forge-world' }): JSX.Element {
   return (
     <CloneDialog
+      mode={mode}
       onClose={onClose}
       onCloned={(folder) => {
         onClose()
@@ -353,7 +388,7 @@ interface ShellSidebarProps {
   /** Summon pressed on an agent's row: ask for the first prompt of a project-less chat with it. */
   onSummon(agent: AgentId): void
   /** Opens the clone dialog. */
-  onClone(): void
+  onClone(mode?: 'forge-world'): void
   onRequestUntrack(folder: TrackedFolderView): void
 }
 
@@ -372,7 +407,7 @@ function ShellSidebar({ shell, version, onNewChat, onSummon, onClone, onRequestU
       chats={sidebarChats(shell, (path) => onNewChat(findFolder(shell.folders, path)))}
       agentChats={{ list: shell.allChats, onOpen: actions.openChat, onRename: shell.chats.rename, onDelete: shell.chats.remove, onSummon }}
       footer={<ShellFooter shell={shell} />}
-      onTrack={() => void actions.track()}
+      onTrack={mode => void actions.track(mode)}
       onClone={onClone}
       onAddAgent={actions.openAddAgent}
       onSelectAgent={actions.openAgent}
@@ -380,6 +415,7 @@ function ShellSidebar({ shell, version, onNewChat, onSummon, onClone, onRequestU
       onSelectFolder={actions.selectFolder}
       onSelectEpic={actions.selectEpic}
       kanbanCounts={shell.kanbanCounts}
+      kanbanCards={shell.kanbanCards}
       onSelectKanban={actions.selectKanban}
       onRequestUntrack={onRequestUntrack}
     />
@@ -416,7 +452,7 @@ function Shell({ scheduler, EpicView, terminalKit }: { scheduler: Scheduler; Epi
   const [firstPrompt, setFirstPrompt] = useState<FirstPromptRequest | null>(null)
   const signIn = useSignInView(shell.selection)
   const signingIn = signIn.request !== null
-  const [cloning, setCloning] = useState(false)
+  const [cloning, setCloning] = useState<'repository' | 'forge-world' | null>(null)
   const { actions } = shell
   return (
     <SignInContext.Provider value={signIn.open}>
@@ -426,16 +462,16 @@ function Shell({ scheduler, EpicView, terminalKit }: { scheduler: Scheduler; Epi
               if (folder !== null && firstPrompt === null) void startNewChat(shell, folder, startingChats.current, (agent) => setFirstPrompt({ folder, agent }))
             }} onSummon={(agent) => {
               if (firstPrompt === null) setFirstPrompt({ folder: null, agent })
-            }} onClone={() => setCloning(true)} onRequestUntrack={setPending} />
+            }} onClone={mode => setCloning(mode ?? 'repository')} onRequestUntrack={setPending} />
           <main className="app-main" aria-label="Workspace">
             {signIn.request === null ? null : <SignInView request={signIn.request} kit={terminalKit} scheduler={scheduler} onBack={signIn.close} />}
             {/* Kept while the sign-in view shows, hidden, so Back returns to the screen (and any dialog on it) as it was. */}
             <div className="main-view" hidden={signingIn}>
-              <MainPane shell={shell} EpicView={EpicView} scheduler={scheduler} terminalKit={terminalKit} onRequestUntrack={setPending} onClone={() => setCloning(true)} />
+              <MainPane shell={shell} EpicView={EpicView} scheduler={scheduler} terminalKit={terminalKit} onRequestUntrack={setPending} onClone={() => setCloning('repository')} />
             </div>
           </main>
           <UpdateBanner />
-          {cloning ? <CloneHost shell={shell} onClose={() => setCloning(false)} /> : null}
+          {cloning === null ? null : <CloneHost shell={shell} mode={cloning === 'forge-world' ? cloning : undefined} onClose={() => setCloning(null)} />}
           {firstPrompt === null ? null : <FirstPromptHost shell={shell} request={firstPrompt} onClose={() => setFirstPrompt(null)} />}
           {pending === null ? null : (
             <UntrackDialog

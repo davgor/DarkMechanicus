@@ -25,6 +25,7 @@ import { kanbanGuidance } from '../agents/kanbanKickoff'
 import { orchestratorGuidance } from '../agents/orchestratorKickoff'
 import { skillBody } from '../../mcp/skills'
 import { dmClientRuntime } from '../desktop/cliConfig'
+import { forgeAgentContext, forgeWorldAt } from '../desktop/forgeContext'
 import { DM_LAUNCHER_NAME, dmLauncherScript, pinnedCliScript, writeDmLauncher } from './dmLauncher'
 import { ompFilePaths } from './ompSession'
 import { writePrivateFile } from './privateFile'
@@ -53,6 +54,8 @@ export function terminalFilePaths(userData: string, chatId: string, platform: No
 }
 
 interface InstructionOptions {
+  forgeWorld?: boolean
+  repositoryContext?: string
   cli: DarkMechanicusCli
   role: ChatRole
   allowSave: boolean
@@ -109,8 +112,10 @@ function taskGuidance(options: InstructionOptions): string[] {
 export function terminalInstructions(options: InstructionOptions): string {
   const dm = options.launcherDir === null ? options.cli : { command: posix.join(options.launcherDir, DM_LAUNCHER_NAME), args: [], env: {} }
   const sections = [
-    cliInstructions({ cli: dm, role: options.role, allowSave: options.allowSave, noLauncher: options.launcherDir === null, ...(options.reach === undefined ? {} : { reach: options.reach }) }),
+    cliInstructions({ cli: dm, role: options.role, allowSave: options.allowSave, noLauncher: options.launcherDir === null, ...(options.reach === undefined ? {} : { reach: options.reach }), ...(options.forgeWorld === undefined ? {} : { forgeWorld: options.forgeWorld }) }),
     skillBody('collaboration'),
+    ...(options.repositoryContext ? [options.repositoryContext] : []),
+    ...(options.forgeWorld ? ['This world-level chat has no project mailbox. Use the per-project dm commands above; open a project-level agent when its Skitarii mailbox is needed.'] : []),
     ...taskGuidance(options)
   ]
   // A project-less chat that reaches no folder has no dm line to name itself with.
@@ -128,6 +133,8 @@ export function terminalInstructions(options: InstructionOptions): string {
 }
 
 interface WriteOptions {
+  /** A trusted conflict resolver may start with unreadable repository metadata, on its existing scope. */
+  forgeResolver?: boolean
   userData: string
   chatId: string
   platform: NodeJS.Platform
@@ -159,6 +166,8 @@ export async function writeTerminalFiles(options: WriteOptions): Promise<Termina
   }
   const { cli, role, allowSave, orchestratesRun, transferEpicId, cardId, conversation, nameFirstPrompt, skitariiMail, reach } = options
   const text = terminalInstructions({
+    forgeWorld: reach !== undefined && forgeWorldAt(options.folder) !== undefined,
+    repositoryContext: forgeAgentContext(options.folder, options.forgeResolver),
     cli,
     role,
     allowSave,

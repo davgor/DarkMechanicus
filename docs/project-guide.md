@@ -69,6 +69,30 @@ Details, scopes and troubleshooting: [Sign in to GitHub](../docs/runbooks/github
 AI/agent delivery rules: [`.ai-instructions.md`](../.ai-instructions.md) and
 [`.claude/skills/delivery-standards/SKILL.md`](../.claude/skills/delivery-standards/SKILL.md).
 
+## Forge World repository discovery
+
+When a code repository moves its tickets into a Forge World, Dark Mechanicus leaves `.forge-world.json` in the code repository:
+
+```json
+{
+  "version": 1,
+  "worldRepository": "https://github.com/owner/Forge-World.git",
+  "projectFolder": "MyProject"
+}
+```
+
+Commit this file with the code so it travels to another computer. Opening that code repository in Dark Mechanicus retrieves or reuses the named Forge World, verifies that its project points back to the code repository's GitHub origin, and connects the checkout to those tickets. It does not initialize a second ticket store in the code repository. GitHub sign-in must allow access to a private world.
+
+Existing `FORGE-WORLD.md` pointers remain supported and gain the JSON configuration when opened. If both files exist, they must identify the same world and project; conflicting files are left unchanged for correction. Restoring tickets to local storage removes both pointers. Local checkout paths and agent credentials stay on the current computer.
+
+Forge World sync commits and pushes all tracked and nonignored files in the dedicated world repository, including recovered attachments, documentation, repository directions, and deletions. `.darkmechanicus/local/` is always private, even if it is accidentally staged. Ordinary Git ignore rules continue to exclude local scratch files.
+
+At startup, Dark Mechanicus checks every tracked Forge World independently. The same health check runs when a world is opened or synced, including after creating or converting projects. It validates the manifest, member ticket metadata, and any available local code checkout. Missing local code is normal on another computer and does not trigger cloning. A verified old checkout gains missing portable configuration and legacy pointers; conflicting paths, repository URLs, or pointers are reported in that world's sync status and are not overwritten. Missing manifest mappings are recovered only when an existing local checkout and its portable pointer identify the exact world and project.
+
+`FORGE-REPOSITORIES.md` contains a versioned, marked section maintained by the app. Future versions can update that section while preserving custom prose before and after it; a fully custom guide receives a separate maintained section. Malformed section markers require correction rather than a destructive rewrite. Existing valid local bindings keep their identity on repeated checks.
+
+Development contract: new Forge requirements belong in the shared `ensureForgeWorld` health path and its startup, existing-world upgrade, idempotence, and second-computer tests. Extend the marked instructions there when guidance changes. Do not implement upgrades only in new-world creation, depend on the developer's live Forge World, or guess missing repository mappings.
+
 ## Planning workflow
 
 This repository is planned and run in Dark Mechanicus itself. Its epics, tickets, plan revisions, history, and comments are the portable records in [`.darkmechanicus/`](../.darkmechanicus/), tracked in Git next to the code.

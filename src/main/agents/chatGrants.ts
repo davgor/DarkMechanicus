@@ -80,7 +80,7 @@ export interface ChatGrants {
   /** Binds the grant to the chat's mailbox when `chat` has one (see the module comment). */
   issueChatCli(folder: string, grant: GrantOptions, chat?: GrantChat): Promise<IssuedChatCli>
   /** One grant per target folder, each token written to its file; refused (and none left usable) when any fails. */
-  issueReachCli(targets: readonly ReachTarget[], grant: GrantOptions): Promise<IssuedReachCli>
+  issueReachCli(targets: readonly ReachTarget[], grant: GrantOptions, ownerFolder?: string): Promise<IssuedReachCli>
   /** Never throws: a grant it cannot revoke is logged. */
   revokeChatGrant(grantId: string): Promise<void>
   /** Moves a held grant's expiry to `minutes` from now. Never throws: a renewal that fails is logged. */
@@ -92,8 +92,8 @@ interface HeldGrant {
   expiresAt: string
   /** The canonical folder the grant was issued in. */
   folder: string
-  /** Whether it was issued to a project-less chat, which only a project-less chat's terminal may be bound by. */
-  projectless: boolean
+  /** The owning chat's canonical folder (world root for scoped reach), or null for a project-less chat. */
+  ownerFolder: string | null
   tokenHash: string
   live: NamingControlBinding | null
   lifetime: AbortController
@@ -118,7 +118,7 @@ async function through(held: HeldGrant, act: (workspace: Workspace) => Promise<u
 
 /** Whether a terminal of a chat in `chatFolder` may be bound by the grant: a folder chat's by a grant of its own folder, a project-less chat's only by one issued to it. */
 function ownedBy(grant: HeldGrant, chatFolder: string | null): boolean {
-  return chatFolder === null ? grant.projectless : !grant.projectless && realpathSync.native(chatFolder) === grant.folder
+  return (chatFolder === null ? null : realpathSync.native(chatFolder)) === grant.ownerFolder
 }
 
 function yoloConfirmation(parent: GrantView, held: HeldGrant, binding: NamingControlBinding, expiresAt: string): string {
@@ -139,7 +139,7 @@ class ChatGrantRegistry implements ChatGrants {
     grant.live = null
   }
   private assertBinding(grantId: string, grant: HeldGrant, binding: NamingControlBinding, naming = true): void {
-    if (this.held.get(grantId) !== grant || grant.live !== binding || binding.signal.aborted || grant.workspace.sessionId() === null || realpathSync.native(grant.folder) !== grant.folder) {
+    if (this.held.get(grantId) !== grant || grant.live !== binding || binding.signal.aborted || grant.workspace.sessionId() === null || realpathSync.native(grant.folder) !== grant.folder || !ownedBy(grant, binding.folder)) {
       throw new NamingControlError('unauthorized')
     }
     const ctx = grant.workspace.ctx()
@@ -147,10 +147,10 @@ class ChatGrantRegistry implements ChatGrants {
     else assertGrantUsable(ctx, grantId)
   }
   /** Issues one grant in the folder's workspace and holds it; answers it with its token and that workspace. */
-  private async issueHeld(folder: string, grant: GrantOptions, projectless: boolean, mailbox: boolean): Promise<{ grantId: string; token: string; workspace: Workspace }> {
+  private async issueHeld(folder: string, grant: GrantOptions, ownerFolder: string | null, mailbox: boolean): Promise<{ grantId: string; token: string; workspace: Workspace }> {
     const workspace = this.deps.workspaceFor(folder)
     const issued = await workspace.issueGrant({ role: grant.role, label: grant.label, allowSave: grant.allowSave, minutes: this.deps.minutes })
-    this.held.set(issued.grant.id, { workspace, expiresAt: issued.grant.expiresAt, folder: realpathSync.native(folder), projectless, tokenHash: hashToken(issued.token), live: null, lifetime: new AbortController(), mailbox })
+    this.held.set(issued.grant.id, { workspace, expiresAt: issued.grant.expiresAt, folder: realpathSync.native(folder), ownerFolder, tokenHash: hashToken(issued.token), live: null, lifetime: new AbortController(), mailbox })
     return { grantId: issued.grant.id, token: issued.token, workspace }
   }
   /** The invocation with `token` as its grant and the naming transport's address, nothing else of either kind. */
@@ -164,7 +164,7 @@ class ChatGrantRegistry implements ChatGrants {
   async issueChatCli(folder: string, grant: GrantOptions, chat?: GrantChat): Promise<IssuedChatCli> {
     await this.deps.desktopReady?.()
     const mailbox = chat !== undefined && hasMailbox(chat, chat.kind)
-    const issued = await this.issueHeld(folder, grant, false, mailbox)
+    const issued = await this.issueHeld(folder, grant, realpathSync.native(folder), mailbox)
     let endpointId: string | null = null
     if (mailbox) {
       try {
@@ -185,15 +185,16 @@ class ChatGrantRegistry implements ChatGrants {
    * pinned to no folder, so a call names its folder and token file and the first token alone reaches nothing else.
    * A project-less chat has no mailbox: none of its grants is bound to one.
    */
-  async issueReachCli(targets: readonly ReachTarget[], grant: GrantOptions): Promise<IssuedReachCli> {
+  async issueReachCli(targets: readonly ReachTarget[], grant: GrantOptions, ownerFolder?: string): Promise<IssuedReachCli> {
     if (targets.length === 0) {
       throw new Error('A project-less chat needs at least one tracked folder to hold a grant in.')
     }
     await this.deps.desktopReady?.()
+    const owner = ownerFolder === undefined ? null : realpathSync.native(ownerFolder)
     const issued: { grantId: string; token: string }[] = []
     try {
       for (const target of targets) {
-        const held = await this.issueHeld(target.folder, grant, true, false)
+        const held = await this.issueHeld(target.folder, grant, owner, false)
         issued.push(held)
         await writePrivateFile(target.tokenFile, `${held.token}\n`, 0o600)
       }
@@ -219,7 +220,7 @@ class ChatGrantRegistry implements ChatGrants {
   bindChatGrant(grantId: string, identity: LiveIdentity): void {
     const grant = this.bindable(grantId, identity)
     const binding: NamingControlBinding = {
-      grantId, folder: identity.folder === null ? null : grant.folder, chatId: identity.chatId, generation: identity.generation,
+      grantId, folder: grant.ownerFolder, chatId: identity.chatId, generation: identity.generation,
       ...(identity.runId === undefined ? {} : { runId: identity.runId }),
       ...(identity.cardId === undefined ? {} : { cardId: identity.cardId }),
       signal: grant.lifetime.signal, assertCurrent: () => this.assertBinding(grantId, grant, binding),
@@ -341,7 +342,7 @@ export function createChatGrants(deps: ChatGrantsDeps): ChatGrants {
   const registry = new ChatGrantRegistry(deps)
   // Terminal dependencies spread this interface; retain the registry receiver.
   return {
-    issueReachCli: (targets, grant) => registry.issueReachCli(targets, grant),
+    issueReachCli: (targets, grant, ownerFolder) => registry.issueReachCli(targets, grant, ownerFolder),
     issueChatCli: (folder, grant, chat) => registry.issueChatCli(folder, grant, chat),
     revokeChatGrant: (id) => registry.revokeChatGrant(id),
     renewChatGrant: (id) => registry.renewChatGrant(id),

@@ -90,6 +90,7 @@ import type { AgentAuthStatus, AgentId, AgentView, BuiltInAgentKind } from '../.
 import { SIGNED_OUT_PAUSE_REASON, type RunState } from '../../shared/domain/status'
 import type { GrantChat, IssuedChatCli } from '../agents/chatGrants'
 import { reachTargets, type ReachTarget } from '../agents/chatReach'
+import { forgeReachFolders } from '../desktop/forgeContext'
 import type { ChatRef, ChatStore } from '../agents/chatStore'
 import { resolveLaunchFolder, type LaunchFolderDeps } from '../agents/launchFolder'
 import { ensureScratchFolder } from '../agents/scratchFolder'
@@ -198,7 +199,7 @@ export interface TerminalSessions {
    * Untrack: refuses every start of the folder's chats, stops their PTYs and cancels their starts, waits until their
    * kills and revokes have settled, then runs `forget` (the untrack itself) before starts are let through again.
    */
-  releaseFolder(folder: string, forget: () => void): Promise<void>
+  releaseFolder(folder: string, forget: () => void, relatedFolders?: readonly string[]): Promise<void>
   /** Kills the PTYs of every chat of a removed agent, and cancels their starts. */
   endAgent(id: AgentId): Promise<void>
   /** True while a PTY runs, a start is under way, or a revoke or kill has not settled. */
@@ -257,7 +258,7 @@ export interface TerminalSessionsDeps {
   /** Issues the chat's grant, bound to its mailbox when it has one, before anything is spawned (`chatGrants.ts`). */
   issueChatCli: (folder: string, grant: GrantOptions, chat: GrantChat) => Promise<IssuedChatCli>
   /** A project-less chat's grants, one per target folder, each token written to its file, bound to no mailbox (`chatGrants.ts`). */
-  issueReachCli: (targets: readonly ReachTarget[], grant: GrantOptions) => Promise<{ cli: DarkMechanicusCli; grantIds: string[] }>
+  issueReachCli: (targets: readonly ReachTarget[], grant: GrantOptions, ownerFolder?: string) => Promise<{ cli: DarkMechanicusCli; grantIds: string[] }>
   /** The canonical paths of the tracked folders set up for Dark Mechanicus: what a project-less chat reaches. */
   reachFolders: () => string[]
   /** Never throws (`chatGrants.ts`). */
@@ -320,6 +321,8 @@ interface PasteQueue {
 
 /** A chat whose PTY is running (or has just exited and is still putting its last output on the screen). */
 interface Live {
+  /** Member projects granted to a world-level chat, stopped if any is untracked. */
+  scopeFolders: readonly string[]
   readonly generation: string
   /** The launch's mail client descriptor (`writeDmClientDescriptor`), removed when it ends; null when it has none. */
   readonly dmClient: string | null
@@ -356,6 +359,7 @@ type StartOutcome = { state: 'running'; live: Live } | { state: NotStartedState;
 
 /** A start under way. */
 interface Starting {
+  scopeFolders: readonly string[]
   kind: 'starting'
   agentId: AgentId
   /** The chat's canonical folder, for `releaseFolder`; null for a project-less chat, which no untrack releases. */
@@ -482,6 +486,7 @@ async function writeStartFiles(context: StartContext): Promise<TerminalFiles> {
   const { userData, platform } = manager.deps
   const cli = manager.deps.cliFor(reach === undefined ? folder : null)
   const files = await writeTerminalFiles({
+    forgeResolver: chat.forgeResolver !== undefined,
     userData,
     chatId: chat.id,
     platform,
@@ -528,10 +533,27 @@ function launchFolder(manager: Manager, chat: ChatRecord): string {
   return chat.folder === null ? ensureScratchFolder(manager.deps.userData, chat.id) : resolveLaunchFolder({ folder: chat.folder }, manager.deps.folders)
 }
 
+function launchReach(manager: Manager, chat: ChatRecord, folder: string): readonly ReachTarget[] | undefined {
+  const scoped = chat.folder === null ? manager.deps.reachFolders() : forgeReachFolders(folder, manager.deps.reachFolders())
+  return scoped === undefined ? undefined : reachTargets(ensureScratchFolder(manager.deps.userData, chat.id), scoped)
+}
+
+function worldScope(chat: ChatRecord, reach: readonly ReachTarget[] | undefined): readonly string[] {
+  return chat.folder !== null && reach !== undefined ? reach.map(target => target.folder) : []
+}
+
+/** A world chat may keep its original member grants only while those members remain in scope. */
+function assertForgeScope(manager: Manager, chat: ChatRecord, members: readonly string[]): void {
+  if (chat.folder === null || members.length === 0) return
+  const current = forgeReachFolders(chat.folder, manager.deps.reachFolders())
+  if (current === undefined || members.some(folder => !current.includes(folder) || manager.releasing.has(folder))) throw new Error(UNTRACKED)
+}
+
 /** Whether the chat's folder still passes the launch check; a running PTY is stopped with its message when not. */
 function folderStillValid(manager: Manager, live: Live): string | null {
   try {
     launchFolder(manager, live.chat)
+    assertForgeScope(manager, live.chat, live.scopeFolders)
     return null
   } catch (error) {
     const message = messageOf(error)
@@ -715,6 +737,7 @@ function pasteSawOutput(manager: Manager, live: Live, data: string): void {
 }
 
 interface Started {
+  scopeFolders: readonly string[]
   pty: PtyProcess
   screen: TerminalScreen
   grantIds: readonly string[]
@@ -746,6 +769,7 @@ function startLive(manager: Manager, chat: ChatRecord, started: Started): Live {
   })
   let revoked: Promise<void> | null = null
   const live: Live = {
+    scopeFolders: started.scopeFolders,
     kind: 'live',
     generation: started.generation,
     dmClient: started.dmClient,
@@ -931,6 +955,7 @@ function recheckFolder(context: StartContext): void {
   }
   try {
     launchFolder(context.manager, context.chat)
+    assertForgeScope(context.manager, context.chat, context.starting.scopeFolders)
     if (context.chat.repairIncidentId !== undefined) {
       if (context.manager.deps.assertRecoveryLaunch === undefined) throw new Error('Repair startup authority is unavailable.')
       context.manager.deps.assertRecoveryLaunch(context.chat)
@@ -965,7 +990,7 @@ async function runStart(context: StartContext, step: Step): Promise<StartOutcome
       ? manager.deps.issueChatCli(folder, grant, identity).then(({ cli, grantId, endpointId }) => ({ cli, grantIds: [grantId], endpointId }))
       : context.reach.length === 0
         ? Promise.resolve({ cli: manager.deps.cliFor(null), grantIds: [], endpointId: null })
-        : manager.deps.issueReachCli(context.reach, grant).then(({ cli, grantIds }) => ({ cli, grantIds, endpointId: null }))
+        : manager.deps.issueReachCli(context.reach, grant, chat.folder ?? undefined).then(({ cli, grantIds }) => ({ cli, grantIds, endpointId: null }))
   const issued = await step(issuing, ({ grantIds }) => {
     revokeAll(grantIds)
   })
@@ -1126,7 +1151,7 @@ async function spawnLaunch(context: StartContext, files: TerminalFiles, issued: 
   }
   const marksStarted = marksSessionStarted(agent, chat)
   const firstPaste = spec.pasteFirst === null ? null : { text: spec.pasteFirst, kickoff: spec.kickoffIn === 'paste' }
-  const live = startLive(manager, chat, { pty, screen, grantIds: issued.grantIds, resumed: spec.resumed, marksStarted, firstPaste, generation, dmClient })
+  const live = startLive(manager, chat, { pty, screen, grantIds: issued.grantIds, resumed: spec.resumed, marksStarted, firstPaste, generation, dmClient, scopeFolders: context.starting.scopeFolders })
   bindGrants(manager, live, issued.grantIds)
   if (firstArgument) finishArgumentPrompt(manager, chat, live)
   return live
@@ -1153,12 +1178,13 @@ function beginStart(manager: Manager, found: ChatRecord, options: AttachOptions 
     return { state: 'refused', message: UNTRACKED }
   }
   let folder: string
+  let reach: readonly ReachTarget[] | undefined
   try {
     folder = launchFolder(manager, chat)
+    reach = launchReach(manager, chat, folder)
   } catch (error) {
     return { state: 'refused', message: messageOf(error) }
   }
-  const reach = chat.folder === null ? reachTargets(folder, manager.deps.reachFolders()) : undefined
   const agent = manager.deps.agentFor(chat.agent)
   if (agent === null) {
     return { state: 'refused', message: `No connected agent has the id ${chat.agent}. Connect it under Agents first.` }
@@ -1170,6 +1196,7 @@ function beginStart(manager: Manager, found: ChatRecord, options: AttachOptions 
     chat = manager.deps.store.updateChat(chat, { sessionId: null, sessionStarted: false })
   }
   const starting: Starting = {
+    scopeFolders: worldScope(chat, reach),
     kind: 'starting',
     agentId: agent.id,
     folder: chat.folder,
@@ -1381,10 +1408,14 @@ async function endAgent(manager: Manager, id: AgentId): Promise<void> {
 }
 
 /** `TerminalSessions.releaseFolder`. */
-async function releaseFolder(manager: Manager, folder: string, forget: () => void): Promise<void> {
-  manager.releasing.add(folder)
+async function releaseFolder(manager: Manager, folder: string, forget: () => void, relatedFolders: readonly string[] = []): Promise<void> {
+  const affected = new Set([folder, ...relatedFolders])
+  for (const path of affected) manager.releasing.add(path)
   try {
-    const inFolder = [...manager.entries.values()].filter((entry) => (entry.kind === 'live' ? entry.chat.folder : entry.folder) === folder)
+    const inFolder = [...manager.entries.values()].filter((entry) => {
+      const owner = entry.kind === 'live' ? entry.chat.folder : entry.folder
+      return (owner !== null && affected.has(owner)) || entry.scopeFolders.some(path => affected.has(path))
+    })
     await Promise.all(
       inFolder.map(async (entry) => {
         const ended = await endEntry(manager, entry, UNTRACKED)
@@ -1395,7 +1426,7 @@ async function releaseFolder(manager: Manager, folder: string, forget: () => voi
     )
     forget()
   } finally {
-    manager.releasing.delete(folder)
+    for (const path of affected) manager.releasing.delete(path)
   }
 }
 
@@ -1451,7 +1482,7 @@ export function createTerminalSessions(deps: TerminalSessionsDeps): TerminalSess
       }
     },
     deleteChat: (ref, remove) => deleteChat(manager, ref, remove),
-    releaseFolder: (folder, forget) => releaseFolder(manager, folder, forget),
+    releaseFolder: (folder, forget, relatedFolders) => releaseFolder(manager, folder, forget, relatedFolders),
     endAgent: (id) => endAgent(manager, id),
     isRunning: (chatId) => running(chatId) !== null,
     busy: () => manager.entries.size > 0 || manager.pending.size > 0,

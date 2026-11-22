@@ -28,6 +28,10 @@ function createFakeIpcMain(): {
 function recordingHandlers(): { handlers: GitHandlers; calls: unknown[][] } {
   const calls: unknown[][] = []
   const handlers: GitHandlers = {
+    getTarget: async folder => {
+      calls.push(['getTarget', folder])
+      return { ok: true, data: { kind: 'available', path: '/code', displayPath: '/code' } }
+    },
     getState: async (folder) => {
       calls.push(['getState', folder])
       return { ok: true, data: { kind: 'not_repository' } }
@@ -129,6 +133,7 @@ function branchHandlers(calls: unknown[][]): Pick<GitHandlers, BranchMethod> {
 }
 
 const CHANNELS = [
+  'git:getTarget',
   'git:cancelOperation',
   'git:chooseCloneParent',
   'git:clone',
@@ -157,6 +162,7 @@ describe('registerGitIpc', () => {
     registerGitIpc(ipc, handlers)
 
     expect(ipc.channels()).toEqual([...CHANNELS].sort())
+    await ipc.invoke('git:getTarget', '/member', 'stray')
     await ipc.invoke('git:getState', '/a')
     await ipc.invoke('git:getWorkingDiff', '/a', { path: 'x' })
     await ipc.invoke('git:initRepository', '/b')
@@ -171,6 +177,7 @@ describe('registerGitIpc', () => {
     await ipc.invoke('git:push', '/a', { operationId: 'p' })
     await ipc.invoke('git:cancelOperation', '/a', 'p')
     expect(calls).toEqual([
+      ['getTarget', '/member'],
       ['getState', '/a'],
       ['getWorkingDiff', '/a', { path: 'x' }],
       ['initRepository', '/b'],

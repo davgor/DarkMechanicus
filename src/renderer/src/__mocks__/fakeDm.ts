@@ -81,6 +81,13 @@ export class FakeDm implements DmApi {
   commandCalls: CommandCall[] = []
   calls: string[] = []
   copied: string[] = []
+  openedFolders: Array<{ folder: string; expectedPath?: string }> = []
+  openFolderFailure: string | null = null
+  openTrackedFolder(folder: string, expectedPath?: string): Promise<CommandResult<null>> {
+    this.openedFolders.push({ folder, expectedPath })
+    return Promise.resolve(this.openFolderFailure === null ? { ok: true, data: null } : { ok: false, error: { code: 'invalid_input', message: this.openFolderFailure } })
+  }
+
   /** URLs passed to openExternal, oldest first. */
   opened: string[] = []
   skillInstalls: string[] = []
@@ -114,7 +121,9 @@ export class FakeDm implements DmApi {
     return this.answer('listFolders', () => [...this.folders])
   }
 
-  pickFolder(): Promise<FolderPickResult> {
+  pickModes: Array<'forge-world' | undefined> = []
+  pickFolder(mode?: 'forge-world'): Promise<FolderPickResult> {
+    this.pickModes.push(mode)
     return this.answer('pickFolder', () => this.pickQueue.shift() ?? { folder: null, added: false })
   }
 

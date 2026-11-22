@@ -8,7 +8,7 @@ import { posix } from 'node:path'
 import { z } from 'zod'
 import { DomainError } from '../../core/errors'
 import { parseInput } from '../../core/schemas'
-import type { CommitMessage, CommitRequest, DiscardRequest, GitErrorShape, GitProgressEvent, GitResult, WorkingDiffRequest } from '../../shared/git/api'
+import type { CommitMessage, CommitRequest, DiscardRequest, GitErrorShape, GitProgressEvent, GitResult, SourceControlTarget, WorkingDiffRequest } from '../../shared/git/api'
 import type { FileDiff } from '../../shared/git/diff'
 import type { CommitDiffRequest, CommitFile, HistoryPage, HistoryRequest } from '../../shared/git/history'
 import type { BranchList, BranchNameCheck, StashInfo } from '../../shared/git/branches'
@@ -35,6 +35,7 @@ import type { GitRunner } from './runner'
 import { discardStash, listStashes, restoreStash } from './stash'
 import { readRepository, readRepoState } from './status'
 import { createSync, type SyncOperation } from './sync'
+import { sourceControlTarget } from './target'
 
 /** Windows long-path maximum; bounds path strings from the renderer. */
 const MAX_PATH_LENGTH = 32_767
@@ -73,7 +74,7 @@ const commitDiffRequestSchema = z.strictObject({ oid: oidSchema, path: pathSchem
 const operationIdSchema = z.string().min(1).max(200)
 const syncRequestSchema = z.strictObject({ operationId: operationIdSchema })
 /** A clone: the renderer names the URL and the new folder's name, never the folder it goes into. */
-const cloneRequestSchema = z.strictObject({ operationId: operationIdSchema, url: z.string().max(4096), name: z.string().max(1024) })
+const cloneRequestSchema = z.strictObject({ operationId: operationIdSchema, url: z.string().max(4096), name: z.string().max(1024), mode: z.literal('forge-world').optional() })
 /** Generous for a branch name (git and `checkBranchName` set the real limits); it only bounds the payload. */
 const branchNameSchema = z.string().max(1024)
 const createBranchSchema = z.strictObject({ name: branchNameSchema, startPoint: z.enum(['current', 'default']) })
@@ -89,7 +90,7 @@ const pullRequestsSchema = z.strictObject({ refresh: z.boolean().optional() }).o
 const checkoutPullRequestSchema = z.strictObject({ number: z.number().int().min(1).max(2_147_483_647), uncommitted: z.enum(['stash', 'bring']) })
 
 interface GitHandlerDeps {
-  registry: Pick<FolderRegistry, 'resolve'>
+  registry: Pick<FolderRegistry, 'resolve'> & Partial<Pick<FolderRegistry, 'list'>>
   /** Clones into the folder chosen with main's dialog; without it, the clone channels answer that cloning is unavailable. */
   clones?: Cloner
   runner: GitRunner
@@ -109,6 +110,7 @@ interface GitHandlerDeps {
 
 /** Arguments are `unknown` because they come straight from IPC. */
 export interface GitHandlers {
+  getTarget(folder: unknown): Promise<GitResult<SourceControlTarget>>
   getState(folder: unknown): Promise<GitResult<RepoState>>
   getWorkingDiff(folder: unknown, request: unknown): Promise<GitResult<FileDiff>>
   initRepository(folder: unknown): Promise<GitResult<RepoState>>
@@ -187,6 +189,7 @@ function report(error: unknown, onUnexpectedError: (error: unknown) => void): Gi
   if (error instanceof Refusal) {
     return { ok: false, error: error.shape }
   }
+  if (error instanceof DomainError) return { ok: false, error: { code: error.code === 'unauthorized' ? 'unauthorized' : 'invalid_input', message: error.message } }
   if (error instanceof GitInputError) {
     return { ok: false, error: { code: 'invalid_input', message: error.message } }
   }
@@ -236,30 +239,32 @@ async function initFolder(runner: GitRunner, folder: string): Promise<RepoState>
   return readRepoState(runner, folder)
 }
 
+type ResolveTarget = (folder: unknown) => Promise<string>
+
 type Guarded = <T>(work: () => Promise<T>) => Promise<GitResult<T>>
 type Locked = OperationLocks['run']
 
 function createHistoryHandlers(
-  registry: Pick<FolderRegistry, 'resolve'>,
+  target: ResolveTarget,
   runner: GitRunner,
   guarded: Guarded
 ): Pick<GitHandlers, 'getHistory' | 'getCommitFiles' | 'getCommitDiff'> {
   return {
     getHistory: (folder, request) =>
       guarded(async () => {
-        const tracked = requireTracked(registry, folder)
+        const tracked = await target(folder)
         const parsed: HistoryRequest = invalid(historyRequestSchema, request, 'request')
         return getHistory(runner, await requireRepository(runner, tracked), parsed)
       }),
     getCommitFiles: (folder, oid) =>
       guarded(async () => {
-        const tracked = requireTracked(registry, folder)
+        const tracked = await target(folder)
         const parsed = invalid(oidSchema, oid, 'commit id')
         return getCommitFiles(runner, await requireRepository(runner, tracked), parsed)
       }),
     getCommitDiff: (folder, request) =>
       guarded(async () => {
-        const tracked = requireTracked(registry, folder)
+        const tracked = await target(folder)
         const parsed = invalid(commitDiffRequestSchema, request, 'request')
         try {
           pathArgs(parsed.oldPath === null ? [parsed.path] : [parsed.path, parsed.oldPath])
@@ -272,14 +277,15 @@ function createHistoryHandlers(
   }
 }
 
-function createSyncHandlers(deps: GitHandlerDeps, guarded: Guarded, writes: Writes): Pick<GitHandlers, 'fetch' | 'pull' | 'push' | 'cancelOperation'> {
+function createSyncHandlers(deps: GitHandlerDeps, target: ResolveTarget, guarded: Guarded, writes: Writes): Pick<GitHandlers, 'fetch' | 'pull' | 'push' | 'cancelOperation'> {
   const { registry, clones } = deps
   const sync = createSync({ runner: deps.runner, session: deps.session, onProgress: deps.onProgress })
   const operation = (name: SyncOperation): GitHandlers['fetch'] => (folder, request) =>
     guarded(async () => {
-      const tracked = requireTracked(registry, folder)
+      const tracked = await target(folder)
       const { operationId } = invalid(syncRequestSchema, request, 'request')
-      return writes.locked(tracked, () => sync.run(name, tracked, operationId))
+      const identity = requireTracked(registry, folder)
+      return writes.locked(tracked, () => sync.run(name, tracked, operationId, identity))
     })
   return {
     fetch: operation('fetch'),
@@ -348,10 +354,10 @@ type WithRequest = <R, T>(
 ) => (folder: unknown, request: unknown) => Promise<GitResult<T>>
 
 /** A handler of a tracked folder and one request, validated against `schema`. */
-function requestHandlers(registry: Pick<FolderRegistry, 'resolve'>, guarded: Guarded): WithRequest {
+function requestHandlers(target: ResolveTarget, guarded: Guarded): WithRequest {
   return (schema, what, work) => (folder, request) =>
     guarded(async () => {
-      const tracked = requireTracked(registry, folder)
+      const tracked = await target(folder)
       return work(tracked, invalid(schema, request, what))
     })
 }
@@ -367,33 +373,33 @@ interface Writes {
   folder: WithFolder
 }
 
-function createWrites(registry: Pick<FolderRegistry, 'resolve'>, runner: GitRunner, guarded: Guarded): Writes {
+function createWrites(target: ResolveTarget, runner: GitRunner, guarded: Guarded): Writes {
   const locks = createOperationLocks(runner)
   const locked: Locked = (folder, work) => locks.run(folder, work)
-  const withRequest = requestHandlers(registry, guarded)
+  const withRequest = requestHandlers(target, guarded)
   return {
     locked,
     request: (schema, what, work) => withRequest(schema, what, (tracked, request) => locked(tracked, () => work(tracked, request))),
     folder: (work) => (folder) =>
-      guarded(() => {
-        const tracked = requireTracked(registry, folder)
+      guarded(async () => {
+        const tracked = await target(folder)
         return locked(tracked, () => work(tracked))
       })
   }
 }
 
-function createBranchHandlers(deps: GitHandlerDeps, guarded: Guarded, writes: Writes): Pick<GitHandlers, BranchMethod> {
-  const { registry, runner, session } = deps
-  const withRequest = requestHandlers(registry, guarded)
+function createBranchHandlers(deps: GitHandlerDeps, target: ResolveTarget, guarded: Guarded, writes: Writes): Pick<GitHandlers, BranchMethod> {
+  const { runner, session } = deps
+  const withRequest = requestHandlers(target, guarded)
   return {
-    listBranches: (folder) => guarded(() => listBranches(runner, requireTracked(registry, folder))),
+    listBranches: (folder) => guarded(async () => listBranches(runner, await target(folder))),
     checkBranchName: withRequest(branchNameSchema, 'branch name', (tracked, name) => checkBranchName(runner, tracked, name)),
     createBranch: writes.request(createBranchSchema, 'request', (tracked, request) => createBranch(runner, tracked, request)),
     switchBranch: writes.request(switchBranchSchema, 'request', (tracked, request) => switchBranch(runner, tracked, request)),
     renameBranch: writes.request(renameBranchSchema, 'request', (tracked, request) => renameBranch(runner, tracked, request)),
     deleteBranch: writes.request(deleteBranchSchema, 'request', (tracked, request) => deleteBranch({ runner, session }, tracked, request)),
     mergeIntoCurrent: writes.request(mergeBranchSchema, 'request', (tracked, request) => mergeIntoCurrent(runner, tracked, request)),
-    listStashes: (folder) => guarded(() => listStashes(runner, requireTracked(registry, folder))),
+    listStashes: (folder) => guarded(async () => listStashes(runner, await target(folder))),
     restoreStash: writes.request(stashRefSchema, 'stash', (tracked, ref) => restoreStash(runner, tracked, ref)),
     discardStash: writes.request(stashRefSchema, 'stash', (tracked, ref) => discardStash(runner, tracked, ref))
   }
@@ -401,11 +407,11 @@ function createBranchHandlers(deps: GitHandlerDeps, guarded: Guarded, writes: Wr
 
 type ConflictMethod = 'getConflicts' | 'resolveWith' | 'markResolved' | 'abortMerge' | 'commitMerge' | 'abortOperation' | 'openInEditor'
 
-function createConflictHandlers(deps: GitHandlerDeps, guarded: Guarded, writes: Writes): Pick<GitHandlers, ConflictMethod> {
-  const { registry, runner } = deps
-  const withRequest = requestHandlers(registry, guarded)
+function createConflictHandlers(deps: GitHandlerDeps, target: ResolveTarget, guarded: Guarded, writes: Writes): Pick<GitHandlers, ConflictMethod> {
+  const { runner } = deps
+  const withRequest = requestHandlers(target, guarded)
   return {
-    getConflicts: (folder) => guarded(() => getConflicts(runner, requireTracked(registry, folder))),
+    getConflicts: (folder) => guarded(async () => getConflicts(runner, await target(folder))),
     resolveWith: writes.request(resolveSchema, 'request', (tracked, request) => resolveWith(runner, tracked, request)),
     markResolved: writes.request(markResolvedSchema, 'request', (tracked, request) => markResolved(runner, tracked, request)),
     abortMerge: writes.folder((tracked) => abortMerge(runner, tracked)),
@@ -417,20 +423,20 @@ function createConflictHandlers(deps: GitHandlerDeps, guarded: Guarded, writes: 
 
 type PullRequestMethod = 'getPullRequests' | 'checkoutPullRequest' | 'getCompareUrl' | 'getCommitUrl'
 
-function createPullRequestHandlers(deps: GitHandlerDeps, guarded: Guarded, writes: Writes): Pick<GitHandlers, PullRequestMethod> {
-  const { registry, runner } = deps
+function createPullRequestHandlers(deps: GitHandlerDeps, target: ResolveTarget, guarded: Guarded, writes: Writes): Pick<GitHandlers, PullRequestMethod> {
+  const { runner } = deps
   const pullRequests = createPullRequests({ runner, session: deps.session, client: deps.client })
-  const withRequest = requestHandlers(registry, guarded)
+  const withRequest = requestHandlers(target, guarded)
   return {
     getPullRequests: withRequest(pullRequestsSchema, 'request', (tracked, request) => pullRequests.get(tracked, request?.refresh === true)),
     checkoutPullRequest: writes.request(checkoutPullRequestSchema, 'request', (tracked, request) => pullRequests.checkout(tracked, request)),
-    getCompareUrl: (folder) => guarded(() => pullRequests.compareUrl(requireTracked(registry, folder))),
+    getCompareUrl: (folder) => guarded(async () => pullRequests.compareUrl(await target(folder))),
     getCommitUrl: withRequest(oidSchema, 'commit id', (tracked, oid) => pullRequests.commitUrl(tracked, oid))
   }
 }
 
 export function createGitHandlers(deps: GitHandlerDeps): GitHandlers {
-  const { registry, runner } = deps
+  const { runner } = deps
 
   async function guarded<T>(work: () => Promise<T>): Promise<GitResult<T>> {
     try {
@@ -439,36 +445,43 @@ export function createGitHandlers(deps: GitHandlerDeps): GitHandlers {
       return report(error, deps.onUnexpectedError)
     }
   }
-  const writes = createWrites(registry, runner, guarded)
+  const getTarget = (folder: unknown) => sourceControlTarget(requireTracked(deps.registry, folder), runner, deps.registry.list?.())
+  const target: ResolveTarget = async folder => {
+    const resolved = await getTarget(folder)
+    if (resolved.kind === 'unavailable') throw new Refusal({ code: 'checkout_unavailable', message: resolved.reason })
+    return resolved.path
+  }
+  const writes = createWrites(target, runner, guarded)
 
   return {
-    getState: (folder) => guarded(() => readRepoState(runner, requireTracked(registry, folder))),
+    getTarget: folder => guarded(() => getTarget(folder)),
+    getState: (folder) => guarded(async () => readRepoState(runner, await target(folder))),
     getWorkingDiff: (folder, request) =>
       guarded(async () => {
-        const tracked = requireTracked(registry, folder)
+        const tracked = await target(folder)
         const parsed = parseDiffRequest(request)
         const { root, change } = await requireChange(runner, tracked, parsed.path)
         return readWorkingDiff(runner, root, change, parsed.force === undefined ? {} : { force: parsed.force })
       }),
-    initRepository: (folder) => guarded(() => initFolder(runner, requireTracked(registry, folder))),
+    initRepository: (folder) => guarded(async () => initFolder(runner, await target(folder))),
     commit: (folder, request) =>
       guarded(async () => {
-        const tracked = requireTracked(registry, folder)
+        const tracked = await target(folder)
         const parsed: CommitRequest = invalid(commitRequestSchema, request, 'request')
         return writes.locked(tracked, () => commitFiles(runner, tracked, parsed))
       }),
     undoLastCommit: writes.folder((tracked) => undoLastCommit(runner, tracked)),
     discardChanges: (folder, request) =>
       guarded(async () => {
-        const tracked = requireTracked(registry, folder)
+        const tracked = await target(folder)
         const parsed: DiscardRequest = invalid(discardRequestSchema, request, 'request')
         return writes.locked(tracked, () => discardFiles(runner, tracked, parsed, deps.trashItem))
       }),
-    ...createHistoryHandlers(registry, runner, guarded),
-    ...createSyncHandlers(deps, guarded, writes),
+    ...createHistoryHandlers(target, runner, guarded),
+    ...createSyncHandlers(deps, target, guarded, writes),
     ...createCloneHandlers(deps.clones, guarded),
-    ...createBranchHandlers(deps, guarded, writes),
-    ...createConflictHandlers(deps, guarded, writes),
-    ...createPullRequestHandlers(deps, guarded, writes)
+    ...createBranchHandlers(deps, target, guarded, writes),
+    ...createConflictHandlers(deps, target, guarded, writes),
+    ...createPullRequestHandlers(deps, target, guarded, writes)
   }
 }

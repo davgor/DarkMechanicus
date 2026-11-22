@@ -9,7 +9,7 @@ export interface FoldersModel {
   loaded: boolean
   reload(): Promise<void>
   /** Opens the native picker; adds or selects the chosen folder. `folder` is null when canceled. */
-  pick(): Promise<FolderPickResult>
+  pick(mode?: 'forge-world'): Promise<FolderPickResult>
   /** Stops tracking a folder; repository data is untouched. */
   untrack(path: string): Promise<void>
 }
@@ -45,8 +45,8 @@ export function useFolders(onError: (error: unknown) => void): FoldersModel {
     return () => window.removeEventListener('focus', refresh)
   }, [reload])
 
-  const pick = useCallback(async () => {
-    const result = await window.dm.pickFolder()
+  const pick = useCallback(async (mode?: 'forge-world') => {
+    const result = await (mode === undefined ? window.dm.pickFolder() : window.dm.pickFolder(mode))
     const picked = result.folder
     if (picked?.forgeWorld || picked?.forgeParent) {
       await reload()

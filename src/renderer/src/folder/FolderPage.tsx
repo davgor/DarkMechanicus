@@ -4,11 +4,14 @@ import type { TrackedFolderView } from '../../../shared/desktop/api'
 import { FOLDER_TABS } from '../app/folderTabs'
 import type { FolderTab } from '../app/folderTabs'
 import './folder.css'
+import { FolderLocation } from './FolderLocation'
+import type { SourceTargetModel } from '../source/useSourceTarget'
 
 const LABELS: Record<FolderTab, string> = { source: 'Source control', standards: 'Delivery Standards', epics: 'Epics', tickets: 'Ticket source control' }
 
 interface FolderPageProps {
   folder: TrackedFolderView
+  sourceTarget?: SourceTargetModel
   tab: FolderTab
   onTab(tab: FolderTab): void
   /** The panel of the chosen tab. */
@@ -25,7 +28,7 @@ function targetTab(key: string, current: FolderTab): FolderTab | null {
 }
 
 /** A folder's page: its header, the Source control and Epics tabs, and the panel of the chosen one. */
-export function FolderPage({ folder, tab, onTab, children }: FolderPageProps): JSX.Element {
+export function FolderPage({ folder, tab, onTab, children, sourceTarget }: FolderPageProps): JSX.Element {
   const id = useId()
   const strip = useRef<HTMLDivElement>(null)
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
@@ -42,7 +45,7 @@ export function FolderPage({ folder, tab, onTab, children }: FolderPageProps): J
       <header className="folder-header">
         <span className="eyebrow">FOLDER</span>
         <h1 className="display">{folder.name}</h1>
-        <span className="mono muted">{folder.displayPath}</span>
+        <FolderLocation folder={folder} target={sourceTarget} />
       </header>
       <div ref={strip} className="tp-tabs folder-tabs" role="tablist" aria-label="Folder sections" onKeyDown={onKeyDown}>
         {FOLDER_TABS.map((name) => (

@@ -18,6 +18,8 @@ export interface Selection {
   chatId?: string
   /** The folder's Kanban board, shown in place of its home; absent means no board. Only set with `epicId` null and no chat. */
   kanban?: true
+  /** The card selected on this folder's board. */
+  kanbanCardId?: string
   /** The folder's Metrics dashboard, shown in place of its home; absent means no dashboard. Only set with `epicId` null, no chat and no board. */
   metrics?: true
 }
@@ -40,7 +42,11 @@ function isAgentPane(value: unknown): value is AgentPane {
   )
 }
 
-type StoredShape = { folderPath?: unknown; epicId?: unknown; agentPane?: unknown; chatId?: unknown; kanban?: unknown; metrics?: unknown }
+type StoredShape = { folderPath?: unknown; epicId?: unknown; agentPane?: unknown; chatId?: unknown; kanban?: unknown; kanbanCardId?: unknown; metrics?: unknown }
+
+function hasValidCard(candidate: StoredShape): boolean {
+  return candidate.kanbanCardId === undefined || (candidate.kanban === true && typeof candidate.kanbanCardId === 'string')
+}
 
 /** The screens a stored selection may name over its folder are well formed: an agents screen, a chat, the board, the dashboard. */
 function hasValidScreens(candidate: StoredShape): boolean {
@@ -48,6 +54,7 @@ function hasValidScreens(candidate: StoredShape): boolean {
     (candidate.agentPane === undefined || isAgentPane(candidate.agentPane)) &&
     (candidate.chatId === undefined || typeof candidate.chatId === 'string') &&
     (candidate.kanban === undefined || candidate.kanban === true) &&
+    hasValidCard(candidate) &&
     (candidate.metrics === undefined || candidate.metrics === true)
   )
 }
@@ -84,15 +91,19 @@ function resolveFolder(
     const first = folders[0]
     return first ? { folderPath: first.path, epicId: null } : EMPTY_SELECTION
   }
-  if (!folder.initialized || !folder.available) {
+  if (!folder.available || (!folder.initialized && !folder.forgeWorld)) {
     return { folderPath: folder.path, epicId: null }
   }
-  const chatId = keptChatId(stored, chats)
+  return keptFolderScreens(stored, folder, keptChatId(stored, chats))
+}
+
+function keptFolderScreens(stored: Selection, folder: TrackedFolderView, chatId: string | undefined): Selection {
+  const base: Selection = { folderPath: folder.path, epicId: null, ...(chatId === undefined ? {} : { chatId }) }
+  if (folder.forgeWorld) return base
   return {
-    folderPath: folder.path,
+    ...base,
     epicId: stored.epicId,
-    ...(chatId === undefined ? {} : { chatId }),
-    ...(stored.kanban === true ? { kanban: true as const } : {}),
+    ...(stored.kanban === true ? { kanban: true as const, ...(stored.kanbanCardId === undefined ? {} : { kanbanCardId: stored.kanbanCardId }) } : {}),
     ...(stored.metrics === true ? { metrics: true as const } : {})
   }
 }

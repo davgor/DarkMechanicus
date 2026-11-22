@@ -1,4 +1,6 @@
-import { basename } from 'node:path'
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { basename, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DomainError } from '../../core/errors'
 import type { Workspace } from '../../core/workspace'
@@ -12,6 +14,8 @@ import {
 import type { BoardImportView, BoardOpenEpicView, BoardRemovalResultView, BoardRemovalView } from '../../shared/domain/views'
 import { idleAgentDeps } from '../../test/idleAgents'
 import { createDesktopHandlers, firstPickedDirectory, type DesktopHandlerDeps } from './handlers'
+import { createFolderRegistry } from './folderRegistry'
+import { createForge, updateForge } from './forgeManifest'
 
 /** Commands that exist on a Workspace but are agent-only: the desktop must not reach them. */
 const AGENT_ONLY_COMMANDS = [
@@ -257,6 +261,16 @@ describe('listFolders', () => {
 })
 
 describe('pickFolder', () => {
+  it('forwards Forge-only mode to the trusted picker and refuses invalid modes before opening it', async () => {
+    const world = createWorld()
+    const modes: unknown[] = []
+    const handlers = createDesktopHandlers({ ...world.deps, pickDirectory: async mode => { modes.push(mode); throw new Error('Not a Forge World') } })
+    await expect(handlers.pickFolder('forge-world')).rejects.toThrow('Not a Forge World')
+    expect(world.tracked).toEqual([])
+    expect(modes).toEqual(['forge-world'])
+    await expect(handlers.pickFolder('/untrusted/path')).rejects.toMatchObject({ code: 'invalid_input' })
+    expect(modes).toEqual(['forge-world'])
+  })
   it('reports a cancelled dialog without touching the registry', async () => {
     const world = createWorld({ picks: [null] })
     const handlers = createDesktopHandlers(world.deps)
@@ -358,6 +372,40 @@ describe('untrackFolder', () => {
 })
 
 describe('untrackFolder and the mail monitor', () => {
+  it('releases a world and its trusted members together, then closes every affected pool and monitor', async () => {
+    const root = '/world'
+    const member = '/world/Project'
+    const unrelated = '/other/Project'
+    const world = createWorld({ tracked: [root, member, unrelated] })
+    const stopped: string[] = []
+    const released: string[][] = []
+    const cleared: string[] = []
+    const registry = { ...world.deps.registry,
+      list: () => world.tracked.map(path => path === member ? { ...view(path), forgeParent: root } : view(path)),
+      untrack: (path: string) => {
+        expect(released).toEqual([[root, member]])
+        world.deps.registry.untrack(path)
+        // This fake stores expanded views; the real registry derives these members from the root.
+        world.deps.registry.untrack(member)
+        return world.tracked.map(view)
+      }
+    }
+    const handlers = createDesktopHandlers({ ...world.deps, registry,
+      stopMailMonitor: folder => { stopped.push(folder) },
+      folderDefaults: { ...world.deps.folderDefaults, set: folder => { cleared.push(folder) } },
+      releaseFolder: async (folder, forget, related = []) => {
+        released.push([folder, ...related])
+        expect(world.closed).toEqual([])
+        forget()
+      }
+    })
+    expect(await handlers.untrackFolder(root)).toEqual([view(unrelated)])
+    expect(released).toEqual([[root, member]])
+    expect(stopped).toEqual([root, member, root, member])
+    expect(cleared).toEqual([root, member])
+    expect(world.closed).toEqual([root, member])
+  })
+
   it('stops no mail monitor for a folder that is not tracked', async () => {
     const world = createWorld({ tracked: ['/repos/a'] })
     const stopped: string[] = []
@@ -365,6 +413,68 @@ describe('untrackFolder and the mail monitor', () => {
 
     await handlers.untrackFolder('/repos/stranger')
     expect(stopped).toEqual([])
+  })
+})
+
+describe('untracking Forge World registry entries', () => {
+  it('drops synthesized members after a member was opened again, persisting the result without deleting data', async () => {
+    const scratch = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-world-untrack-')))
+    try {
+      const root = join(scratch, 'World')
+      const member = join(root, 'Project')
+      const synthetic = join(root, 'Synthetic')
+      const unrelated = join(scratch, 'Other')
+      for (const path of [member, synthetic, unrelated]) mkdirSync(path, { recursive: true })
+      createForge(root, 'example')
+      updateForge(root, world => { world.projects = ['Project', 'Synthetic'].map(folder => ({ folder, repository: 'example/' + folder })) })
+      const options = { file: join(scratch, 'folders.json'), homeDir: scratch, dmHome: join(scratch, 'dm') }
+      const registry = createFolderRegistry(options)
+      registry.track(root)
+      expect(registry.track(member).added).toBe(false)
+      registry.track(unrelated)
+      expect(registry.list().filter(folder => folder.forgeParent === root).map(folder => folder.path).sort()).toEqual([member, synthetic].sort())
+      const world = createWorld()
+      const handlers = createDesktopHandlers({ ...world.deps, registry })
+      expect((await handlers.untrackFolder(root)).map(folder => folder.path)).toEqual([unrelated])
+      expect(createFolderRegistry(options).list().map(folder => folder.path)).toEqual([unrelated])
+      expect(registry.resolve(member)).toBeNull()
+      expect(registry.resolve(synthetic)).toBeNull()
+      expect(world.closed.sort()).toEqual([root, member, synthetic].sort())
+      expect(existsSync(join(root, 'forge-world.json'))).toBe(true)
+      expect(existsSync(member)).toBe(true)
+    } finally { rmSync(scratch, { recursive: true, force: true }) }
+  })
+})
+
+describe('opening tracked folder headers', () => {
+  it('opens only the freshly authorized displayed target and refuses arbitrary or stale paths', async () => {
+    const scratch = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-open-folder-')))
+    try {
+      const code = join(scratch, 'code')
+      mkdirSync(code)
+      const world = createWorld({ tracked: [scratch] })
+      const opened: string[] = []
+      const handlers = createDesktopHandlers({ ...world.deps,
+        folderTarget: async () => ({ kind: 'available', path: code, displayPath: code }),
+        openPath: async path => { opened.push(path); return '' }
+      })
+      expect(await handlers.openTrackedFolder(scratch, code)).toEqual({ ok: true, data: null })
+      expect(await handlers.openTrackedFolder(code, code)).toMatchObject({ ok: false, error: { code: 'unauthorized' } })
+      expect(await handlers.openTrackedFolder(scratch, '/arbitrary')).toMatchObject({ ok: false, error: { code: 'invalid_state' } })
+      expect(await handlers.openTrackedFolder(scratch, 42)).toMatchObject({ ok: false, error: { code: 'invalid_input' } })
+      expect(opened).toEqual([code])
+    } finally { rmSync(scratch, { recursive: true, force: true }) }
+  })
+
+  it('reports an unavailable code checkout and never falls back to opening the ticket directory', async () => {
+    const world = createWorld({ tracked: ['/ticket/project'] })
+    const opened: string[] = []
+    const handlers = createDesktopHandlers({ ...world.deps,
+      folderTarget: async () => ({ kind: 'unavailable', repository: 'https://github.com/example/code.git', reason: 'Code is not downloaded', directions: 'Clone when needed' }),
+      openPath: async path => { opened.push(path); return '' }
+    })
+    expect(await handlers.openTrackedFolder('/ticket/project')).toMatchObject({ ok: false, error: { code: 'not_found', message: 'Code is not downloaded' } })
+    expect(opened).toEqual([])
   })
 })
 

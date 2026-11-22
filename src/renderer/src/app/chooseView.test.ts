@@ -151,3 +151,9 @@ describe('DM-267 c1: the Metrics dashboard view', () => {
     expect(chooseView({ loaded: true, folder: ready, epicId: null, metrics: false }).kind).toBe('folder')
   })
 })
+
+it('opens chats of a Forge root without a project database', () => {
+  const world = folderView({ path: '/world', initialized: false, forgeWorld: { version: 1, owner: 'codex', projects: [], syncMinutes: 5 } })
+  const chat = chatRecord({ id: 'chat_world', folder: world.path })
+  expect(chooseView({ loaded: true, folder: world, epicId: null, chatId: chat.id, chats: [chat] })).toEqual({ kind: 'chat', folder: world, chat })
+})
