@@ -1,13 +1,16 @@
 import { randomUUID } from 'node:crypto'
-import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmdirSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, rmdirSync, unlinkSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 import type { IpcMain } from 'electron'
 import type { GitRunner } from '../git/runner'
 import type { CredentialSession } from '../git/credentials'
-import { bindForge, FORGE_POINTER, pendingForgeTransfer, withForgeTransfer } from '../../core/repo/forgeBinding'
+import { assertForgeWorldSyncAllowed, bindForge, FORGE_POINTER, pendingForgeForce, pendingForgeTransfer, withForgeTransfer } from '../../core/repo/forgeBinding'
+import { assertForgeForceSafe } from '../../core/repo/forgeForce'
+import { archiveRetiredForgeStore, retireForcedStore } from '../../core/repo/forgeRetirement'
+import { verifyForgeExport, verifyForgeExportOwner } from '../../core/repo/forgeExportReceipt'
 import { retireSqlitePolicy } from '../../core/repo/deliveryPolicy'
 import { readProject } from '../../core/repo/initialize'
-import { resolveLayout } from '../../core/repo/layout'
+import { layoutUnder, resolveLayout } from '../../core/repo/layout'
 import { nodeFs } from '../../core/repo/nodeFs'
 import { dbProjectDir, SQLITE_STANDARDS_FILE } from '../../core/repo/storageMode'
 import { assertStorageIdle } from '../../core/repo/storageMigration'
@@ -46,6 +49,7 @@ class ForgeService {
   private readonly git: ForgeGit
   private readonly resolving = new Set<string>()
   private readonly active = new Map<string, Promise<void>>()
+  private readonly transferring = new Set<string>()
   private readonly last = new Map<string, number>()
   private readonly next = new Map<string, number>()
   private readonly errors = new Map<string, string>()
@@ -61,9 +65,12 @@ class ForgeService {
     if (lstatSync(file).isSymbolicLink()) throw new Error('Invalid Forge World manifest.')
     return parseForge(readFileSync(file, 'utf8'))
   }
-  sync(root: string, afterMutation = false): Promise<void> {
+  sync(root: string, afterMutation = false, transfer = false): Promise<void> {
+    try { assertForgeWorldSyncAllowed(nodeFs, this.deps.home, root) }
+    catch (error) { return Promise.reject(error) }
+    if (this.transferring.has(root) && !transfer) return Promise.reject(new Error('Resume the pending Forge World conversion before syncing.'))
     const pending = this.active.get(root)
-    if (pending) return afterMutation ? pending.then(() => this.sync(root)) : pending
+    if (pending) return afterMutation ? pending.then(() => this.sync(root, true, transfer)) : pending
     const work = (async () => {
       try {
         await this.git.sync(root, async () => {
@@ -121,7 +128,7 @@ class ForgeService {
   async openProject(source: string): Promise<string> {
     const pending = pendingForgeTransfer(this.deps.home, source)
     if (pending && existsSync(join(dirname(pending), FORGE_FILE))) {
-      await this.convert(dirname(pending), source)
+      await this.convert(dirname(pending), source, pendingForgeForce(this.deps.home, source))
       return pending
     }
     const note = join(source, POINTER)
@@ -154,14 +161,18 @@ class ForgeService {
     updateForge(root, w => w.projects.push({ folder, repository: url }))
     await this.sync(root, true)
   }
-  async convert(root: string, source: string) {
+  async convert(root: string, source: string, force = false) {
     this.worldAt(root)
     if (root === source || this.deps.registry.list().some(f => f.path === source && (f.forgeWorld || f.forgeParent))) throw new Error('Select a source code project.')
     const folder = projectName(basename(source))
     const repository = githubRemote((await this.git.run(source, ['remote', 'get-url', 'origin'])).stdout.trim())
     const remote = githubRemote((await this.git.run(root, ['remote', 'get-url', 'origin'])).stdout.trim())
     const member = join(root, folder)
-    await withForgeTransfer(this.deps.home, source, member, async (phase, advance) => {
+    if (force && this.transferring.has(root)) throw new Error('This Forge World conversion is already running.')
+    if (force) this.transferring.add(root)
+    try {
+    if (force) await this.active.get(root)
+    await withForgeTransfer(this.deps.home, source, { target: member, force }, async (phase, advance) => {
       const note = join(source, POINTER)
       const body = [
         '# Ticket source control', '', 'Forge World: ' + remote, 'Project folder: ' + folder, '',
@@ -169,16 +180,89 @@ class ForgeService {
         'The root forge-world.json contains all linked project folders and their repository URLs.', ''
       ].join('\n')
       const move = { root, member, source, folder, repository }
-      if (phase === 0) { await this.checkSource(move); advance(1) }
-      if (phase < 2) { await this.exportSource(move); advance(2) }
-      if (phase < 3) { await this.sync(root, true); advance(3) }
-      if (phase < 4) { await this.retireSource(source, member); advance(4) }
+      if (force) await this.forceMove(move, phase, advance)
+      else {
+        if (phase === 0) { await this.checkSource(move); advance(1) }
+        if (phase < 2) { await this.exportSource(move); advance(2) }
+        if (phase < 3) { await this.sync(root, true); advance(3) }
+        if (phase < 4) { await this.retireSource(source, member); advance(4) }
+      }
       this.deps.cleanup(source)
       if (!existsSync(note)) writeFileSync(note, body, { flag: 'wx' })
       if (readFileSync(note, 'utf8') !== body) throw new Error('The source pointer changed during conversion.')
       bindForge(this.deps.home, source, member, body)
       this.deps.registry.untrack(source)
     })
+    } finally { if (force) this.transferring.delete(root) }
+  }
+
+  async forceMove(move: ForgeMove, phase: number, advance: (n: number) => void) {
+    assertForgeWorldSyncAllowed(nodeFs, this.deps.home, move.root)
+    let freshExport = false
+    let publicationStarted = phase >= 2
+    try {
+      if (phase === 0) {
+        await this.checkSource(move, true)
+        advance(1)
+        try { mkdirSync(move.member) }
+        catch (error) { advance(0); throw error }
+        freshExport = true
+      }
+      if (phase < 2) await this.resumeForceExport(move, () => { freshExport = false })
+      if (phase < 3) {
+        // Sync can commit before it reaches the network. Once begun, keep both stores fenced
+        // until reconciliation succeeds; rolling back only the worktree would leave publishable history.
+        advance(2)
+        publicationStarted = true
+        await this.sync(move.root, true, true)
+        advance(3)
+      }
+      if (phase < 4) { await this.retireForcedSource(move); advance(4) }
+    } catch (error) {
+      if (freshExport) {
+        this.rollbackForceExport(move)
+        advance(0)
+      }
+      if (publicationStarted) throw new Error(`${error instanceof Error ? error.message : String(error)} Conversion remains pending; resume Force migrate to reconcile both stores safely.`)
+      throw error
+    }
+  }
+
+  async resumeForceExport(move: ForgeMove, beforeVerify: () => void) {
+    if (!existsSync(move.member)) mkdirSync(move.member)
+    if (realpathSync.native(move.member) !== move.member) throw new Error('The reserved export folder moved; the source was kept.')
+    if (readdirSync(move.member).some(name => name !== '.darkmechanicus' && name !== '.darkmechanicus.preparing')) throw new Error('The reserved folder contains unrelated files; they were kept for inspection.')
+    const preparing = join(move.member, '.darkmechanicus.preparing')
+    if (existsSync(preparing)) {
+      if (realpathSync.native(move.member) !== move.member || realpathSync.native(preparing) !== preparing) throw new Error('The reserved export folder moved; the source was kept.')
+      const original = this.deps.pool.get(move.source)
+      verifyForgeExportOwner({ fs: nodeFs, layout: layoutUnder(move.member, 'repo', preparing), source: move.source }, original.ctx().projectId)
+      rmSync(preparing, { recursive: true })
+    }
+    await this.exportSource(move, true, beforeVerify)
+  }
+
+  rollbackForceExport(move: ForgeMove) {
+    this.deps.pool.close(move.member)
+    // The durable reservation follows an exclusive mkdir of a previously vacant member.
+    if (existsSync(move.member)) {
+      if (realpathSync.native(move.member) !== move.member || dirname(move.member) !== move.root) throw new Error('The reserved export folder moved; the source was kept.')
+      rmSync(move.member, { recursive: true })
+    }
+    updateForge(move.root, world => { world.projects = world.projects.filter(project => project.folder !== move.folder || project.repository !== move.repository) })
+  }
+
+  async retireForcedSource({ source, member }: ForgeMove) {
+    const original = this.deps.pool.get(source)
+    const mode = original.isInitialized() ? (await original.getStorageStatus()).storage.mode : undefined
+    if (mode === 'forge') throw new Error('The source is already a Forge World member.')
+    if (mode) assertForgeForceSafe(original.ctx().db)
+    this.deps.pool.close(source)
+    retireForcedStore(this.deps.home, source, member, mode)
+    if (existsSync(join(source, SQLITE_STANDARDS_FILE))) {
+      const exported = readProject(resolveLayout(member), nodeFs)
+      retireSqlitePolicy({ layout: resolveLayout(source), fs: nodeFs }, exported?.deliveryStandards)
+    }
   }
   async restore(root: string, member: string, source: string, mode: 'db' | 'repo') {
     const note = join(source, POINTER)
@@ -193,6 +277,8 @@ class ForgeService {
         assertStorageIdle({ db: ctx.db, clock: ctx.clock, sessionId: ctx.session.id })
         await this.sync(root)
         await this.deps.pool.get(member).flushPortableState()
+        this.deps.pool.close(source)
+        archiveRetiredForgeStore(this.deps.home, source, member)
         if (existsSync(join(source, '.darkmechanicus')) || existsSync(dbProjectDir(source, this.deps.home))) throw new Error('The destination already contains a ticket store.')
         advance(1)
       }
@@ -230,7 +316,10 @@ class ForgeService {
       }
       return this.checkout(url, true)
     })
-    ipc.handle('forge:convert', (_e, world, source) => this.convert(this.rootOf(world), this.rootOf(source)))
+    ipc.handle('forge:convert', (_e, world, source, options) => {
+      if (options !== undefined && (options === null || typeof options !== 'object' || options.force !== true || Object.keys(options).some(key => key !== 'force'))) throw new Error('Choose a valid Forge migration option.')
+      return this.convert(this.rootOf(world), this.rootOf(source), options?.force === true)
+    })
     ipc.handle('forge:restore', async (_e, memberFolder, mode) => {
       if (mode !== 'db' && mode !== 'repo') throw new Error('Choose SQLite only or self-contained repo.')
       const member = this.rootOf(memberFolder)
@@ -293,11 +382,15 @@ class ForgeService {
     }
     return source
   }
-  async checkSource({ root, member, source, folder, repository }: ForgeMove) {
+  async checkSource({ root, member, source, folder, repository }: ForgeMove, force = false) {
     if (existsSync(join(source, POINTER)) || existsSync(member) || this.worldAt(root).projects.some(p => p.folder.toLowerCase() === folder.toLowerCase() || p.repository.toLowerCase() === repository.toLowerCase())) throw new Error('This Forge World project or pointer already exists.')
     const original = this.deps.pool.get(source)
-    if (!original.isInitialized()) return
+    if (!original.isInitialized()) {
+      if (force) throw new Error('Use normal migration for an uninitialized project.')
+      return
+    }
     const ctx = original.ctx()
+    if (force) { assertForgeForceSafe(ctx.db); return }
     assertStorageIdle({ db: ctx.db, clock: ctx.clock, sessionId: ctx.session.id })
     const flushed = await original.flushPortableState()
     if (flushed.failed) throw new Error('Flush pending ticket records before converting.')
@@ -308,13 +401,17 @@ class ForgeService {
     ensureReconciled(await original.reconcileRepository())
     if ((await original.getStorageStatus()).storage.mode === 'repo' && (await this.git.run(source, ['status', '--porcelain', '--', '.darkmechanicus'])).stdout.trim()) throw new Error('Commit the current Dark Mechanicus records before converting.')
   }
-  async exportSource({ root, member, source, folder, repository }: ForgeMove) {
+  async exportSource({ root, member, source, folder, repository }: ForgeMove, force = false, beforeVerify?: () => void) {
     if (!existsSync(member)) mkdirSync(member)
     if (realpathSync.native(member) !== member) throw new Error('The ticket folder moved during conversion.')
     const original = this.deps.pool.get(source)
     if (!existsSync(join(member, '.darkmechanicus/project.json'))) {
-      if (original.isInitialized()) original.exportForge!(member)
+      if (original.isInitialized()) original.exportForge!(member, 'repo', { force })
       else await this.deps.pool.get(member).initializeRepository({ name: folder, mode: 'repo' })
+    }
+    if (force) {
+      beforeVerify?.()
+      verifyForgeExport({ fs: nodeFs, layout: resolveLayout(member), source }, original.ctx().projectId)
     }
     if (!this.worldAt(root).projects.some(p => p.folder === folder && p.repository === repository)) updateForge(root, w => w.projects.push({ folder, repository }))
   }

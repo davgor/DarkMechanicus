@@ -22,6 +22,9 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
+      - name: Prepare native installer test compiler
+        if: matrix.config == 'vitest.config.ts'
+        run: node scripts/prepareInstallerTests.mjs
       - name: Run disjoint Vitest shard
         run: node node_modules/vitest/vitest.mjs run --config ${{ matrix.config }} --shard ${{ matrix.shard }}/2 --maxWorkers 2 --reporter default --reporter json --outputFile "${{ github.workspace }}/test-shard.json"
       - uses: actions/upload-artifact@v4
@@ -51,6 +54,8 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
+      - name: Prepare native installer test compiler
+        run: node scripts/prepareInstallerTests.mjs
       - name: Require coverage thresholds
         run: npm run coverage -- --maxWorkers 2
         env:

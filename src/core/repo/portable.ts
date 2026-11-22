@@ -633,6 +633,7 @@ export const kanbanEventRecord = z.discriminatedUnion('kind', [
   cardEvent('created', z.strictObject({ revision: positiveInt })),
   cardEvent('updated', z.strictObject({ revision: positiveInt, fields: z.array(z.enum(KANBAN_EDITABLE_FIELDS)).max(KANBAN_EDITABLE_FIELDS.length) })),
   cardEvent('played', z.strictObject({})),
+  cardEvent('migration_restarted', z.strictObject({ reason: shortText })),
   cardEvent(
     'message',
     z.strictObject({

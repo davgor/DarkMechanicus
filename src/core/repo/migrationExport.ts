@@ -16,6 +16,7 @@ interface ExportDeps { db: Db; fs: FsAdapter; layout: RepoLayout; clock: Clock }
 
 class MigrationExporter {
   readonly paths
+  readonly exported = new Set<string>()
   constructor(readonly deps: ExportDeps) { this.paths = ownedPaths(deps.layout) }
 
   write(path: string, record: unknown): string {
@@ -25,6 +26,7 @@ class MigrationExporter {
   }
 
   synced(kind: string, id: string, hash: string, generation = 1): void {
+    this.exported.add(`${kind}:${id}`)
     this.deps.db.run(`INSERT INTO sync_state (kind, entity_id, exported_hash, imported_hash, generation, updated_at)
       VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(kind, entity_id) DO UPDATE SET
       exported_hash = excluded.exported_hash, imported_hash = excluded.imported_hash,
@@ -103,9 +105,10 @@ function exportImages(writer: MigrationExporter, savedEpics: ReadonlySet<string>
 }
 
 /** Uses existing portable formats without saving drafts, incrementing revisions, or replaying historical events. */
-export function exportMigrationRecords(deps: ExportDeps): void {
+export function exportMigrationRecords(deps: ExportDeps): ReadonlySet<string> {
   const writer = new MigrationExporter(deps)
   const savedEpics = exportEpics(writer)
   exportOtherRecords(writer, savedEpics)
   exportImages(writer, savedEpics)
+  return writer.exported
 }

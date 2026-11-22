@@ -14,7 +14,7 @@ export interface ForgeApi {
   connect(folder: string, repository: string, publish: boolean): Promise<string>
   restore(member: string, mode: 'db' | 'repo'): Promise<string | null>
   pickConvert(world: string): Promise<void>
-  convert(world: string, source: string): Promise<void>
+  convert(world: string, source: string, options?: { force: true }): Promise<void>
   status(folder: string): Promise<{ last: number | null; error: string | null }>
   sync(folder: string): Promise<void>
   create(folder: string): Promise<void>

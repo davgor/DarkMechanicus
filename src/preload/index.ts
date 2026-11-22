@@ -108,7 +108,9 @@ const dm: DmApi = {
     connect: (folder, repository, publish) => ipcRenderer.invoke('forge:connect', folder, repository, publish),
     restore: (member, mode) => ipcRenderer.invoke('forge:restore', member, mode),
     pickConvert: world => ipcRenderer.invoke('forge:pickConvert', world),
-    convert: (world, source) => ipcRenderer.invoke('forge:convert', world, source),
+    convert: (world, source, options) => options === undefined
+      ? ipcRenderer.invoke('forge:convert', world, source)
+      : ipcRenderer.invoke('forge:convert', world, source, options),
     status: folder => ipcRenderer.invoke('forge:status', folder),
     sync: folder => ipcRenderer.invoke('forge:sync', folder),
     create: (folder) => ipcRenderer.invoke('forge:create', folder),

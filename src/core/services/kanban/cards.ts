@@ -249,7 +249,10 @@ interface CardEvent {
 export function recordCardEvent(ctx: Ctx, card: { id: string; key: string }, event: CardEvent): string {
   const eventId = ctx.ids.next('kanbanEvent')
   const attemptId = event.attemptId ?? null
-  const createdAt = event.at ?? ctx.clock.nowIso()
+  const requestedAt = event.at ?? ctx.clock.nowIso()
+  // A fresh Play/claim must sort after a migration restart even within the same clock tick.
+  const restart = ctx.db.get<{ at: string | null }>("SELECT MAX(created_at) AS at FROM kanban_events WHERE card_id = ? AND kind = 'migration_restarted'", card.id)?.at
+  const createdAt = restart && requestedAt <= restart ? new Date(Date.parse(restart) + 1).toISOString() : requestedAt
   ctx.db.run(
     `INSERT INTO kanban_events (id, card_id, kind, attempt_id, actor_role, actor_label, payload_json, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,

@@ -373,7 +373,8 @@ const STREAM_STEP: Record<KanbanEventRecord['kind'], number> = {
   lease_expired: 6,
   approved: 7,
   kicked_back: 7,
-  message: 8
+  message: 8,
+  migration_restarted: 9
 }
 
 function byStreamOrder(a: KanbanEventRecord, b: KanbanEventRecord): number {
@@ -619,13 +620,15 @@ function doneOf(latest: RebuiltAttempt | undefined): { at: string | null; summar
 /** The card's own columns from its stream: lane, pending Play, Done summary, last change and content revision. */
 function rebuildCard(db: Db, cardId: string, events: KanbanEventRecord[], attempts: RebuiltAttempt[]): void {
   const latest = attempts[attempts.length - 1]
-  const play = pendingPlay(events, latest)
+  const restart = events.reduce((last, event, index) => event.kind === 'migration_restarted' ? index : last, -1)
+  const restarted = restart >= 0 && !events.slice(restart + 1).some(event => event.kind === 'claimed')
+  const play = pendingPlay(restart < 0 ? events : events.slice(restart + 1), restarted ? undefined : latest)
   const done = doneOf(latest)
   const lastAt = events.reduce((at, event) => (event.kind !== 'message' && event.createdAt > at ? event.createdAt : at), '')
   db.run(
     `UPDATE kanban_cards SET lane = ?, play_requested_at = ?, play_requested_by = ?, completed_at = ?, summary_json = ?,
        compacted_at = ?, updated_at = MAX(updated_at, ?), revision = MAX(revision, ?) WHERE id = ?`,
-    laneOf(latest),
+    restarted ? 'backlog' : laneOf(latest),
     play?.createdAt ?? null,
     play?.actor.label ?? null,
     done.at,

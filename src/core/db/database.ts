@@ -152,6 +152,17 @@ export function openDatabase(path: string, options: OpenDatabaseOptions = {}): D
   return new SqliteDb(path, options)
 }
 
+/** Check a workspace's storage fence after acquiring its write lock, including callers
+ * that retained a context across asynchronous verification or waited behind another process. */
+export function guardTransactions(db: Db, guard: () => void): Db {
+  return {
+    path: db.path,
+    get: db.get.bind(db), all: db.all.bind(db), run: db.run.bind(db), exec: db.exec.bind(db),
+    inTransaction: db.inTransaction.bind(db), close: db.close.bind(db),
+    tx: fn => db.tx(() => { guard(); return fn() })
+  }
+}
+
 /** Parses a JSON column; null/empty columns map to `fallback`. */
 export function parseJson<T>(text: string | null | undefined, fallback: T): T {
   if (text === null || text === undefined || text === '') {
