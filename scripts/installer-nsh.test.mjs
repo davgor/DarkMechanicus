@@ -1,76 +1,92 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { once } from 'node:events'
-import { copyFileSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { basename, dirname, join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const INSTALLER_SCRIPT = readFileSync(join(ROOT, 'build', 'installer.nsh'), 'utf8')
 
-/** The PowerShell the installer runs to find the app's processes, as NSIS hands it over for one install folder. */
+/** The PowerShell the installer runs, with NSIS's variable escaping expanded. */
 function findCommand(installDir) {
   const [, command] = /-C "([^"]+)"/.exec(INSTALLER_SCRIPT) ?? []
   return command.replaceAll('$$', '$').replaceAll('$INSTDIR', () => installDir)
 }
 
-/** The installer's answer: 0 when something runs from the install folder, 1 when nothing does. */
-function find(installDir) {
-  return spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-C', findCommand(installDir)]).status
+function find(installDir, inventory = '') {
+  const started = performance.now()
+  const result = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-C', inventory + findCommand(installDir)], { encoding: 'utf8' })
+  console.info('Installer process query', { elapsedMs: performance.now() - started, status: result.status, stderr: result.stderr })
+  return result.status
 }
 
-// The installer runs only on Windows, where the query reads processes through Get-CimInstance.
+// Native process discovery and the installer are Windows-only.
 describe.runIf(process.platform === 'win32')('installer.nsh: finding the app running from its install folder', () => {
   let installDir = ''
-  let appExe = ''
+  let emptyDir = ''
   const running = []
 
-  /** Starts one long-running process from the install folder, as a lone Dark Mechanicus MCP server would run. */
   async function start() {
-    const child = spawn(appExe, ['-n', '3600', '127.0.0.1'], { stdio: 'ignore' })
+    const started = performance.now()
+    // Reuse an installed executable: copying one into temp makes its first launch depend on antivirus scanning.
+    const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' })
     running.push(child)
     await once(child, 'spawn')
+    console.info('Installer fixture spawn', { elapsedMs: performance.now() - started, pid: child.pid })
   }
 
   beforeAll(() => {
-    // The long name: Windows reports a process's path in full, never as a temp folder's 8.3 short name.
-    installDir = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-install-')))
-    // Any executable inside the folder stands in for the app: the query matches on the process's path only. Windows'
-    // 45 KB PING.EXE starts in about 20 ms; a copy of the 92 MB node.exe took 400-520 ms to start (an antivirus scans a
-    // new executable on first launch), which on a busy CI runner pushed this test past its timeout.
-    const ping = join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'PING.EXE')
-    appExe = join(installDir, basename(ping))
-    copyFileSync(ping, appExe)
+    installDir = dirname(realpathSync.native(process.execPath))
+    emptyDir = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-install-empty-')))
   })
 
   afterEach(async () => {
+    const started = performance.now()
     for (const child of running.splice(0)) {
-      child.kill()
       if (child.exitCode === null && child.signalCode === null) {
-        await once(child, 'exit')
+        const exited = once(child, 'exit')
+        child.kill()
+        await exited
       }
     }
+    console.info('Installer fixture cleanup', { elapsedMs: performance.now() - started })
   })
 
-  afterAll(() => {
-    rmSync(installDir, { recursive: true, force: true, maxRetries: 10 })
+  afterAll(() => { rmSync(emptyDir, { recursive: true, force: true }) })
+
+  // Restrict the native inventory to our children, so unrelated Node processes on the host cannot affect cardinality.
+  // The actual Get-Process cmdlet still reads their executable paths; the installer's predicate is unchanged.
+  function ownedInventory() {
+    const query = running.length ? `Microsoft.PowerShell.Management\\Get-Process -Id ${running.map(child => child.pid).join(',')}` : '@()'
+    return `function Get-Process { ${query} }; `
+  }
+
+  it.each([0, 1, 2])('detects %i owned processes with real native process paths', async count => {
+    for (let index = 0; index < count; index += 1) await start()
+    expect(find(installDir, ownedInventory())).toBe(count ? 0 : 1)
+    expect(find(emptyDir, ownedInventory())).toBe(1)
   })
 
-  it('finds the app when exactly one of its processes is left', async () => {
-    await start()
-
+  it('reads the unmodified native inventory and rejects an empty install folder', () => {
     expect(find(installDir)).toBe(0)
+    expect(find(emptyDir)).toBe(1)
   })
 
-  it('finds the app while several of its processes run', async () => {
-    await start()
-    await start()
-
-    expect(find(installDir)).toBe(0)
+  it('finds a single process without CIM or a scalar Count property', () => {
+    const inventory = `function Get-CimInstance { throw 'CIM provider is unavailable' }; function Get-Process { [pscustomobject]@{ Path='C:\\Fixture\\app.exe'; Count=$null } }; `
+    expect(find('C:\\Fixture', inventory)).toBe(0)
   })
 
-  it('finds nothing once every process from the install folder has exited', () => {
-    expect(find(installDir)).toBe(1)
+  it.runIf(process.arch === 'x64')('uses native PowerShell from a 32-bit installer to inspect a 64-bit process', () => {
+    const [, nativePath] = /StrCpy \$PowerShellPath "(\$WINDIR\\Sysnative[^"]+)"/.exec(INSTALLER_SCRIPT) ?? []
+    expect(nativePath).toBeDefined()
+    const shell = join(process.env.SystemRoot, 'SysWOW64', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+    const encoded = Buffer.from('[Console]::WriteLine([IntPtr]::Size * 8); ' + findCommand(installDir), 'utf16le').toString('base64')
+    const command = `& '${nativePath.replace('$WINDIR', process.env.SystemRoot)}' -NoProfile -NonInteractive -EncodedCommand ${encoded}; exit $LASTEXITCODE`
+    const result = spawnSync(shell, ['-NoProfile', '-NonInteractive', '-C', command], { encoding: 'utf8' })
+    // EncodedCommand may serialize first-use progress to stderr; inspect shell width and the detection result.
+    expect({ status: result.status, bits: result.stdout.trim() }, result.stderr).toEqual({ status: 0, bits: '64' })
   })
 })

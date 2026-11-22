@@ -4,13 +4,14 @@
 ; .Count, which reads nothing when there is exactly one (a lone CimInstance has no Count). It then installs over that
 ; process's open DarkMechanicus.exe and app.asar, which Windows refuses, and leaves the old exe beside the new Electron
 ; files: an app that crashes on start. An agent session's Dark Mechanicus MCP server is often that one process.
-; This is electron-builder's check with the processes counted as an array; closing and then killing them is unchanged.
+; Count native processes as an array without starting a CIM/WMI provider; closing and killing them is unchanged.
 !include "getProcessInfo.nsh"
+!include "x64.nsh"
 Var pid
 
 !macro FIND_INSTALLED_PROCESS _FILE _RETURN
   ${if} $IsPowerShellAvailable == 0
-    nsExec::Exec `"$PowerShellPath" -NoProfile -NonInteractive -C "if (@(Get-CimInstance -ClassName Win32_Process | ? {$$_.Path -and $$_.Path.StartsWith('$INSTDIR', 'CurrentCultureIgnoreCase')}).Count -gt 0) { exit 0 } else { exit 1 }"`
+    nsExec::Exec `"$PowerShellPath" -NoProfile -NonInteractive -C "if (@(Get-Process | ? {$$_.Path -and $$_.Path.StartsWith('$INSTDIR', 'CurrentCultureIgnoreCase')}).Count -gt 0) { exit 0 } else { exit 1 }"`
     Pop ${_RETURN}
   ${else}
     !insertmacro FIND_PROCESS "${_FILE}" ${_RETURN}
@@ -18,6 +19,11 @@ Var pid
 !macroend
 
 !macro customCheckAppRunning
+  ; NSIS is 32-bit. Its redirected System32 PowerShell cannot read 64-bit process paths.
+  ; Keep the inherited System32 path on a 32-bit OS, and use the native shell on 64-bit Windows.
+  ${if} ${RunningX64}
+    StrCpy $PowerShellPath "$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe"
+  ${endIf}
   !insertmacro IS_POWERSHELL_AVAILABLE
   ${GetProcessInfo} 0 $pid $1 $2 $3 $4
   ${if} $3 != "${APP_EXECUTABLE_FILENAME}"
