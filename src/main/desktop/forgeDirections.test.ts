@@ -19,6 +19,8 @@ it('upgrades an old managed section while preserving custom prose and leaving th
   expect(current).toContain('Keep this after.')
   expect(current).toContain(begin)
   expect(current).toContain(FORGE_REPOSITORY_GUIDANCE)
+  expect(current).toContain('Keep this Forge World repository on main')
+  expect(current).toContain('Feature branches and worktrees belong in the code checkout')
   expect(current).not.toContain('Outdated generated directions.')
   ensureForgeDirections(fixture.path)
   expect(readFileSync(file, 'utf8')).toBe(current)

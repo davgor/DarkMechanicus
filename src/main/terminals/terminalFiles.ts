@@ -26,6 +26,7 @@ import { orchestratorGuidance } from '../agents/orchestratorKickoff'
 import { skillBody } from '../../mcp/skills'
 import { dmClientRuntime } from '../desktop/cliConfig'
 import { forgeAgentContext, forgeWorldAt } from '../desktop/forgeContext'
+import type { WorldMailDescriptor } from '../../../resources/skitarii/extension/worldDmClient'
 import { DM_LAUNCHER_NAME, dmLauncherScript, pinnedCliScript, writeDmLauncher } from './dmLauncher'
 import { ompFilePaths } from './ompSession'
 import { writePrivateFile } from './privateFile'
@@ -98,6 +99,7 @@ function conversationGuidance(conversation: ConversationTarget): string {
 function taskGuidance(options: InstructionOptions): string[] {
   return [
     ...(options.skitariiMail === true ? [skitariiMailGuidance()] : []),
+    ...(options.skitariiMail === true && options.forgeWorld === true ? ['## Forge World mail\n\nThis chat has one local mailbox per available member project. Native dm_agent_identity and dm_agent_peers list them with project names. Set the project argument on dm_message_send, dm_inbox_read, dm_inbox_ack and dm_call to select that member. Inbox sequence cursors and message ids belong to their project; retain the project when replying or acknowledging. A project selector never adds a grant. Read get_project for the chosen member before planning or delivering work.'] : []),
     ...(options.orchestratesRun ? [orchestratorGuidance()] : []),
     ...(options.transferEpicId === undefined ? [] : [transferGuidance(options.transferEpicId)]),
     ...(options.cardId === undefined ? [] : [kanbanGuidance(options.cardId)]),
@@ -157,6 +159,10 @@ interface WriteOptions {
 }
 
 /** Writes the chat's instructions and, on macOS, its launcher, before a start; returns where they are. */
+function isWorldLaunch(options: WriteOptions): boolean {
+  return options.reach !== undefined && (options.forgeResolver === true || forgeWorldAt(options.folder) !== undefined)
+}
+
 export async function writeTerminalFiles(options: WriteOptions): Promise<TerminalFiles> {
   const files = terminalFilePaths(options.userData, options.chatId, options.platform)
   const pin = options.reach === undefined ? options.folder : null
@@ -166,7 +172,7 @@ export async function writeTerminalFiles(options: WriteOptions): Promise<Termina
   }
   const { cli, role, allowSave, orchestratesRun, transferEpicId, cardId, conversation, nameFirstPrompt, skitariiMail, reach } = options
   const text = terminalInstructions({
-    forgeWorld: reach !== undefined && forgeWorldAt(options.folder) !== undefined,
+    forgeWorld: isWorldLaunch(options),
     repositoryContext: forgeAgentContext(options.folder, options.forgeResolver),
     cli,
     role,
@@ -261,6 +267,27 @@ export async function writeRecoveryClientDescriptor(options: Pick<DmClientOption
   })
   await Promise.all(earlier.map(name => rm(join(dir, name), { force: true, recursive: true })))
   await writePrivateFile(path, JSON.stringify({ version: 1, chatId: options.chatId, generation: options.generation, recoveryAddress: options.address }), 0o600)
+  return path
+}
+
+/** Each world route keeps its own folder pin and token file; no grant is copied into the descriptor. */
+export async function writeWorldMailDescriptor(options: DmClientOptions & { reach: readonly ReachTarget[] }): Promise<string> {
+  const path = dmClientDescriptorPath(options.userData, options.chatId, options.generation)
+  const descriptor: WorldMailDescriptor = {
+    version: 1, kind: 'forge-world', chatId: options.chatId, generation: options.generation, folder: options.folder,
+    routes: options.reach.map(target => ({
+      project: posix.basename(target.folder.replaceAll('\\', '/')),
+      tokenFile: target.tokenFile,
+      descriptor: dmClientDescriptor({ ...options, folder: target.folder, cli: { ...options.cli, args: [...options.cli.args, '--repo', target.folder] } }),
+    })),
+    ...(options.cli.env.DM_DESKTOP_PIPE === undefined ? {} : { recoveryAddress: options.cli.env.DM_DESKTOP_PIPE }),
+  }
+  const earlier = await readdir(dirname(path)).catch((error: unknown) => {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return []
+    throw error
+  })
+  await Promise.all(earlier.map(name => rm(join(dirname(path), name), { force: true, recursive: true })))
+  await writePrivateFile(path, JSON.stringify(descriptor), 0o600)
   return path
 }
 

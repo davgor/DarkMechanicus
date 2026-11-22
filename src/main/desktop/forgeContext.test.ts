@@ -70,3 +70,13 @@ describe('Forge agent repository context', () => {
     expect(first).not.toContain(root)
   })
 })
+
+it('confines conflict fallback to canonical direct members supplied by the desktop and still tracked', () => {
+  const nested = join(member, 'nested')
+  mkdirSync(nested)
+  const outside = join(root, '..')
+  writeFileSync(join(root, 'forge-world.json'), '<<<<<<< conflicted manifest')
+  expect(() => forgeReachFolders(root, [member, nested, outside])).toThrow()
+  expect(forgeReachFolders(root, [member, nested, outside], [member, nested, outside])).toEqual([member])
+  expect(forgeReachFolders(root, [nested], [member])).toEqual([])
+})

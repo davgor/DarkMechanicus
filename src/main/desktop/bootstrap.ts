@@ -47,7 +47,7 @@ import { createAgentMailDesktop, type AgentMailDesktop } from '../agents/agentMa
 import { createChatMailPush, createChatPush, registerChatIpc, registerChatMailIpc } from '../agents/chatIpc'
 import { createChatRecords, type ChatRecords } from '../agents/chatRecords'
 import { createChatMailboxes, type ChatMailboxes } from '../agents/chatMailboxes'
-import { hasForgeManifest } from './forgeContext'
+import { forgeReachFolders, hasForgeManifest } from './forgeContext'
 import { removeScratchFolder } from '../agents/scratchFolder'
 import { createChatStore, nodeChatStoreFs, type ChatStore } from '../agents/chatStore'
 import { listBoundThreads } from '../agents/boundThreads'
@@ -340,6 +340,7 @@ interface ChatProcesses {
   releaseFolder: (folder: string, forget: () => void, relatedFolders?: readonly string[]) => Promise<void>
   /** The person's side of the chats' mailboxes and its per-folder monitors (`chatMail:*`). */
   mail: AgentMailDesktop
+  suspendChatMail(chat: ChatRecord): void
   grants: ChatGrants
   deliveries: ConversationDeliveries
   contextDelivery: AgentContextDelivery
@@ -352,6 +353,7 @@ interface TerminalDeps {
   folders: TerminalSessionsDeps['folders']
   /** What a project-less chat reaches: the tracked folders set up for Dark Mechanicus. */
   reachFolders: TerminalSessionsDeps['reachFolders']
+  forgeResolverFolders: NonNullable<TerminalSessionsDeps['forgeResolverFolders']>
   agents: Pick<AgentRegistry, 'get'>
   beforeContextPaste: NonNullable<TerminalSessionsDeps['beforeContextPaste']>
   assertRecoveryLaunch: NonNullable<TerminalSessionsDeps['assertRecoveryLaunch']>
@@ -370,6 +372,7 @@ function createTerminalProcesses(store: ChatStore, deps: TerminalDeps): Pick<Cha
     agentFor: (id) => deps.agents.get(id),
     folders: deps.folders,
     reachFolders: deps.reachFolders,
+    forgeResolverFolders: deps.forgeResolverFolders,
     checkAuth: (kind, executablePath) => getAgentAuthStatus(kind, executablePath, agentRunDeps()),
     cliFor: cliConfigFor,
     ...deps.grants,
@@ -443,6 +446,7 @@ function createChatProcesses({ folders, agents, workspaces, activity, sourceChec
   let namingReady: Promise<void>
   // Revoked through the workspace each grant was issued in, even after its folder moved.
   const grants = createChatGrants({
+    recordWorldMailbox: (owner, member, chatId) => mailboxes.recordRoute(owner, member, chatId),
     workspaceFor: (folder) => desktopWorkspace(folders, workspaces, folder),
     cliFor: cliConfigFor,
     minutes: CHAT_GRANT_MINUTES,
@@ -456,10 +460,11 @@ function createChatProcesses({ folders, agents, workspaces, activity, sourceChec
   })
   void yoloRuntime.ready.catch((error: unknown) => logger.error('YOLO desktop proof transport failed:', error))
   const reachFolders = (): string[] => folders.list().flatMap((folder) => (folder.initialized && folder.available ? [folder.path] : []))
+  const forgeResolverFolders = (root: string): string[] => folders.list().flatMap(folder => folder.forgeParent === root && folder.available && folder.initialized ? [folder.path] : [])
   let recovery: DesktopToolingRecovery
   const { terminals, logins, deliveries, contextDelivery, resumeChat, boardTransport } = createContextTerminals(store, {
     grants: { ...grants, runs: chatRunCommands(folders, workspaces), onChatChanged: (ref) => push({ type: 'chats_changed', folder: ref.folder, chatId: ref.id }) },
-    folders: { trackedFolder: (path) => folders.resolve(path) }, reachFolders, agents,
+    folders: { trackedFolder: (path) => folders.resolve(path) }, reachFolders, forgeResolverFolders, agents,
     assertRecoveryLaunch: chat => recovery.assertLaunch(chat)
   }, push)
   recovery = createDesktopToolingRecovery({
@@ -477,8 +482,9 @@ function createChatProcesses({ folders, agents, workspaces, activity, sourceChec
   const quit = chatQuit({ grants, yoloRuntime, ready: namingReady, pipe: () => namingPipe, terminals, logins })
   const chats = endingTerminals(records, terminals)
   recoverChats(folders, chats)
-  const mail = createChatMail({ folders, store, workspaces, contextDelivery, resumeChat, boardTransport, recovery })
-  return { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder: releasingFolders(terminals, mailboxes, store) }
+  const mail = createChatMail({ folders, store, mailboxes, workspaces, contextDelivery, resumeChat, boardTransport, recovery })
+  return { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat,
+    suspendChatMail: chat => mailboxes.suspendChat(chat), releaseFolder: releasingFolders(terminals, mailboxes, store) }
 }
 
 /** The same observer, ledger and same-chat transport serve board messages, peer monitoring and native input. */
@@ -520,6 +526,7 @@ function createMailboxRecords(
   const userData = app.getPath('userData')
   const mailboxes = createChatMailboxes({
     contextFor: (folder) => desktopWorkspace(deps.folders, deps.workspaces, folder).ctx(),
+    membersFor: folder => forgeReachFolders(folder, deps.folders.list().filter(member => member.initialized && member.available).map(member => member.path)),
     store,
     ledger: { file: join(userData, 'agents', 'mailboxes.jsonl'), fs: nodeChatStoreFs },
     log: (line) => {
@@ -852,6 +859,7 @@ function startCrossRepoCorrections(ipc: Pick<IpcMain, 'handle'>, registry: Folde
 function createChatMail(services: {
   folders: Pick<FolderRegistry, 'resolve' | 'list'>
   store: ChatStore
+  mailboxes: ChatMailboxes
   workspaces: Pick<WorkspacePool, 'get'>
   contextDelivery: AgentContextDelivery
   resumeChat: (chat: ChatRecord) => Promise<string | null>
@@ -861,6 +869,13 @@ function createChatMail(services: {
   return createAgentMailDesktop({
     registry: services.folders,
     store: services.store,
+    routedChats: (member) => {
+      const tracked = services.folders.list()
+      const parent = tracked.find(folder => folder.path === member)?.forgeParent
+      const world = tracked.find(folder => folder.path === parent && folder.available && (folder.forgeWorld || folder.forgeIssue))
+      return world === undefined ? [] : services.store.listChats(world.path).flatMap(chat => services.mailboxes.routes(chat)
+        .filter(route => route.folder === member).map(route => ({ ...chat, endpointId: route.endpointId })))
+    },
     folders: () => services.folders.list().flatMap((folder) => folder.initialized && folder.available ? [folder.path] : []),
     contextFor: (folder) => desktopWorkspace(services.folders, services.workspaces, folder).ctx(),
     delivery: { hasMessage: (chat, message) => services.contextDelivery.hasMessage(chat, message), resume: services.resumeChat },
@@ -928,7 +943,7 @@ function telegramLifecycle(ipc: Pick<IpcMain, 'handle'>, registry: FolderRegistr
   return () => { stopTelegram(); closeStores() }
 }
 
-type ForgeBridgeOptions = Pick<ChatProcesses, 'chats' | 'store' | 'terminals'> & {
+type ForgeBridgeOptions = Pick<ChatProcesses, 'chats' | 'store' | 'terminals' | 'suspendChatMail'> & {
   registry: FolderRegistry
   pool: WorkspacePool
   github: GithubBridge
@@ -942,7 +957,7 @@ function startForgeBridge(ipc: Pick<IpcMain, 'handle'>, options: ForgeBridgeOpti
   return startForge(ipc, {
     registry, pool, session: github, home: darkMechanicusHome(), pickDirectory, cleanup: source => cleanupForgeSource(source, skills),
     publish: name => publishForgeRepository(name, github.getToken(), net.fetch.bind(net)),
-    ...forgeAgentSessions({ ...options, beforeArchive: chat => retireChatHolds(chat, registry, pool) })
+    ...forgeAgentSessions({ ...options, beforeArchive: chat => { retireChatHolds(chat, registry, pool); options.suspendChatMail(chat) } })
   })
 }
 
@@ -1002,9 +1017,9 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   // Which threads of old chats acted on which runs and attempts, as they stored it next to the chats.
   const activity = createActivityBindings({ file: join(app.getPath('userData'), 'agents', 'activity-bindings.jsonl') })
   const sourceCheckouts = startSourceCheckout(ipc, registry)
-  const { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder } = createChatProcesses({ folders: registry, agents, workspaces: pool, activity, sourceCheckouts })
+  const { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder, suspendChatMail } = createChatProcesses({ folders: registry, agents, workspaces: pool, activity, sourceCheckouts })
   const github = startGithub(ipc)
-  const forge = startForgeBridge(ipc, { registry, pool, github, skills, store, chats, terminals, agents, folderDefaults })
+  const forge = startForgeBridge(ipc, { registry, pool, github, skills, store, chats, terminals, agents, folderDefaults, suspendChatMail })
   startGit(forge, ipc, registry, github)
   const handlers = bridgeHandlers({ registry, pool, releaseFolder, mail, agents, folderDefaults, forge, installer, terminals, logins, skills })
   registerDesktopIpc(ipc, handlers)

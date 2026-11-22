@@ -19,16 +19,26 @@ export function forgeWorldAt(root: string): ForgeWorld | undefined {
 }
 
 /** Only initialized, available tracked members supplied by the desktop can receive grants. */
-export function forgeReachFolders(root: string, tracked: readonly string[]): string[] | undefined {
-  const world = forgeWorldAt(root)
-  if (!world) return undefined
+export function forgeReachFolders(root: string, tracked: readonly string[], conflictMembers?: readonly string[]): string[] | undefined {
+  const candidates = reachCandidates(root, conflictMembers)
+  if (!candidates) return undefined
   const allowed = new Set(tracked)
-  return world.projects.flatMap(project => {
-    const member = join(root, project.folder)
+  return candidates.flatMap(member => {
+    if (dirname(member) !== root) return []
     if (!existsSync(member) || lstatSync(member).isSymbolicLink()) return []
     const canonical = realpathSync.native(member)
-    return allowed.has(canonical) ? [canonical] : []
+    return canonical === member && allowed.has(canonical) ? [canonical] : []
   })
+}
+
+function reachCandidates(root: string, conflictMembers?: readonly string[]): readonly string[] | undefined {
+  try { return forgeWorldAt(root)?.projects.map(project => join(root, project.folder)) ?? conflictMembers }
+  catch (error) {
+    if (conflictMembers === undefined) throw error
+    const stat = lstatSync(join(root, FORGE_FILE))
+    if (!stat.isFile() || stat.isSymbolicLink()) throw error
+    return conflictMembers
+  }
 }
 
 function inside(root: string, path: string): boolean {

@@ -36,6 +36,8 @@ import { discardStash, listStashes, restoreStash } from './stash'
 import { readRepository, readRepoState } from './status'
 import { createSync, type SyncOperation } from './sync'
 import { sourceControlTarget } from './target'
+import { hasForgeManifest } from '../desktop/forgeContext'
+import { sameFolder } from '../../shared/git/paths'
 
 /** Windows long-path maximum; bounds path strings from the renderer. */
 const MAX_PATH_LENGTH = 32_767
@@ -388,15 +390,31 @@ function createWrites(target: ResolveTarget, runner: GitRunner, guarded: Guarded
   }
 }
 
+/** Apply after resolving the authorized source target: member code repositories keep their branches. */
+function requireBranchChanges(deps: GitHandlerDeps, tracked: string): void {
+  if (hasForgeManifest(tracked) || deps.registry.list?.().some(folder => folder.forgeWorld && sameFolder(folder.path, tracked))) {
+    throw new GitInputError('Forge Worlds stay on main. Create and switch branches in a project code repository instead.')
+  }
+}
+
 function createBranchHandlers(deps: GitHandlerDeps, target: ResolveTarget, guarded: Guarded, writes: Writes): Pick<GitHandlers, BranchMethod> {
   const { runner, session } = deps
   const withRequest = requestHandlers(target, guarded)
   return {
     listBranches: (folder) => guarded(async () => listBranches(runner, await target(folder))),
     checkBranchName: withRequest(branchNameSchema, 'branch name', (tracked, name) => checkBranchName(runner, tracked, name)),
-    createBranch: writes.request(createBranchSchema, 'request', (tracked, request) => createBranch(runner, tracked, request)),
-    switchBranch: writes.request(switchBranchSchema, 'request', (tracked, request) => switchBranch(runner, tracked, request)),
-    renameBranch: writes.request(renameBranchSchema, 'request', (tracked, request) => renameBranch(runner, tracked, request)),
+    createBranch: writes.request(createBranchSchema, 'request', (tracked, request) => {
+      requireBranchChanges(deps, tracked)
+      return createBranch(runner, tracked, request)
+    }),
+    switchBranch: writes.request(switchBranchSchema, 'request', (tracked, request) => {
+      if (request.name !== 'main') requireBranchChanges(deps, tracked)
+      return switchBranch(runner, tracked, request)
+    }),
+    renameBranch: writes.request(renameBranchSchema, 'request', (tracked, request) => {
+      requireBranchChanges(deps, tracked)
+      return renameBranch(runner, tracked, request)
+    }),
     deleteBranch: writes.request(deleteBranchSchema, 'request', (tracked, request) => deleteBranch({ runner, session }, tracked, request)),
     mergeIntoCurrent: writes.request(mergeBranchSchema, 'request', (tracked, request) => mergeIntoCurrent(runner, tracked, request)),
     listStashes: (folder) => guarded(async () => listStashes(runner, await target(folder))),
@@ -429,7 +447,10 @@ function createPullRequestHandlers(deps: GitHandlerDeps, target: ResolveTarget, 
   const withRequest = requestHandlers(target, guarded)
   return {
     getPullRequests: withRequest(pullRequestsSchema, 'request', (tracked, request) => pullRequests.get(tracked, request?.refresh === true)),
-    checkoutPullRequest: writes.request(checkoutPullRequestSchema, 'request', (tracked, request) => pullRequests.checkout(tracked, request)),
+    checkoutPullRequest: writes.request(checkoutPullRequestSchema, 'request', (tracked, request) => {
+      requireBranchChanges(deps, tracked)
+      return pullRequests.checkout(tracked, request)
+    }),
     getCompareUrl: (folder) => guarded(async () => pullRequests.compareUrl(await target(folder))),
     getCommitUrl: withRequest(oidSchema, 'commit id', (tracked, oid) => pullRequests.commitUrl(tracked, oid))
   }

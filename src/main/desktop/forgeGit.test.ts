@@ -1,5 +1,5 @@
 import { gitIn, scratchDir } from '../../test/gitScratch'
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, expect, it } from 'vitest'
@@ -90,4 +90,100 @@ it('syncs every repository file, recovered attachment and deletion between real 
   expect(readFileSync(join(store, 'project.json'), 'utf8')).toBe('{"changed":true}')
   expect(readFileSync(join(first, 'notes.txt'), 'utf8')).toBe('Updated notes')
   expect(existsSync(join(first, 'Demo', 'obsolete.md'))).toBe(false)
+})
+
+it('recovers a world branch onto main without losing either branch or publishing an extra branch', async () => {
+  const { bare, first, client } = repositoryPair()
+  createForge(first, 'tester')
+  await client.sync(first, async () => undefined)
+  gitIn(first, 'switch', '-c', 'accidental')
+  writeFileSync(join(first, 'branch.txt'), 'Committed branch work')
+  gitIn(first, 'add', 'branch.txt')
+  gitIn(first, 'commit', '-m', 'Preserve branch work')
+  const preserved = gitIn(first, 'rev-parse', 'HEAD').trim()
+  writeFileSync(join(first, 'uncommitted.txt'), 'Pending portable work')
+  await client.sync(first, async () => undefined)
+  expect(gitIn(first, 'branch', '--show-current').trim()).toBe('main')
+  expect(gitIn(first, 'merge-base', '--is-ancestor', preserved, 'main')).toBe('')
+  expect(readFileSync(join(first, 'branch.txt'), 'utf8')).toBe('Committed branch work')
+  expect(readFileSync(join(first, 'uncommitted.txt'), 'utf8')).toBe('Pending portable work')
+  expect(gitIn(bare, 'for-each-ref', '--format=%(refname)', 'refs/heads').trim()).toBe('refs/heads/main')
+  expect(gitIn(bare, 'rev-parse', 'main').trim()).toBe(gitIn(first, 'rev-parse', 'HEAD').trim())
+})
+
+it.each(['missing-main', 'detached'])('recovers %s onto main while retaining its committed tree', async mode => {
+  const { bare, first, client } = repositoryPair()
+  createForge(first, 'tester')
+  if (mode === 'missing-main') gitIn(first, 'symbolic-ref', 'HEAD', 'refs/heads/old-default')
+  else {
+    await client.sync(first, async () => undefined)
+    gitIn(first, 'checkout', '--detach')
+  }
+  writeFileSync(join(first, 'retained.txt'), 'Keep this content')
+  await client.sync(first, async () => undefined)
+  expect(gitIn(first, 'branch', '--show-current').trim()).toBe('main')
+  expect(gitIn(bare, 'show', 'main:retained.txt')).toBe('Keep this content')
+})
+
+it('leaves branch-recovery conflicts on main without pushing or losing the preserved branch', async () => {
+  const { bare, first, client } = repositoryPair()
+  createForge(first, 'tester')
+  writeFileSync(join(first, 'README.md'), 'Base\n')
+  await client.sync(first, async () => undefined)
+  gitIn(first, 'branch', 'accidental')
+  writeFileSync(join(first, 'README.md'), 'Main work\n')
+  gitIn(first, 'commit', '-am', 'Main work')
+  const main = gitIn(first, 'rev-parse', 'HEAD').trim()
+  gitIn(first, 'switch', 'accidental')
+  writeFileSync(join(first, 'README.md'), 'Branch work\n')
+  const published = gitIn(bare, 'rev-parse', 'main')
+  await expect(client.sync(first, async () => undefined)).rejects.toThrow()
+  expect(gitIn(first, 'branch', '--show-current').trim()).toBe('main')
+  expect(gitIn(first, 'rev-parse', 'HEAD').trim()).toBe(main)
+  expect(gitIn(first, 'show', 'accidental:README.md')).toBe('Branch work\n')
+  expect(gitIn(first, 'ls-files', '-u')).toContain('README.md')
+  expect(gitIn(bare, 'rev-parse', 'main')).toBe(published)
+})
+
+it.each(['nested-root', 'directory-manifest'] as const)('refuses unsafe main recovery for %s without committing, switching or publishing', async invalid => {
+  const { first, bare, client } = repositoryPair()
+  createForge(first, 'tester')
+  await client.sync(first, async () => undefined)
+  gitIn(first, 'switch', '-c', 'preserve-work')
+  writeFileSync(join(first, 'pending.txt'), 'Keep pending work')
+  let target = first
+  if (invalid === 'nested-root') {
+    target = join(first, 'Nested')
+    mkdirSync(target)
+    createForge(target, 'tester')
+  } else {
+    renameSync(join(first, 'forge-world.json'), join(first, 'original-manifest.json'))
+    mkdirSync(join(first, 'forge-world.json'))
+  }
+  const before = [gitIn(first, 'rev-parse', 'HEAD'), gitIn(first, 'ls-files', '--stage'), gitIn(first, 'status', '--porcelain')]
+  await expect(client.ensureMain(target)).rejects.toThrow(invalid === 'nested-root' ? 'must be the root' : 'Invalid Forge World manifest')
+  expect(gitIn(first, 'branch', '--show-current').trim()).toBe('preserve-work')
+  expect([gitIn(first, 'rev-parse', 'HEAD'), gitIn(first, 'ls-files', '--stage'), gitIn(first, 'status', '--porcelain')]).toEqual(before)
+  expect(gitIn(bare, 'rev-parse', 'main')).toBe(before[0])
+})
+
+it('finishes an ours-only resolved merge even when its staged tree is unchanged, preserving remote ancestry', async () => {
+  const { root, bare, first, second, client, setup } = repositoryPair()
+  createForge(first, 'tester')
+  writeFileSync(join(first, 'README.md'), 'Base\n')
+  await client.sync(first, async () => undefined)
+  gitIn(root, 'clone', bare, second)
+  setup(second)
+  writeFileSync(join(second, 'README.md'), 'Remote\n')
+  await client.sync(second, async () => undefined)
+  const remote = gitIn(second, 'rev-parse', 'HEAD').trim()
+  writeFileSync(join(first, 'README.md'), 'Local\n')
+  await expect(client.sync(first, async () => undefined)).rejects.toThrow()
+  gitIn(first, 'checkout', '--ours', 'README.md')
+  gitIn(first, 'add', 'README.md')
+  expect(gitIn(first, 'diff', '--cached', '--name-only')).toBe('')
+  await client.sync(first, async () => undefined)
+  expect(gitIn(first, 'merge-base', '--is-ancestor', remote, 'main')).toBe('')
+  expect(gitIn(bare, 'rev-parse', 'main').trim()).toBe(gitIn(first, 'rev-parse', 'HEAD').trim())
+  expect(gitIn(bare, 'show', 'main:README.md')).toBe('Local\n')
 })

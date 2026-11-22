@@ -11,6 +11,7 @@ import type { EpicListState } from '../app/useEpicLists'
 import { Button } from '../components/Button'
 import { classNames } from '../components/classNames'
 import { Icon } from '../components/Icon'
+import { SidebarSection } from './SidebarSection'
 import { boardConversationOf, ChatRow } from './ChatRow'
 
 /** Every chat that is not deleted, and what can be done with them from an agent's row. */
@@ -162,11 +163,7 @@ function ChatDialog({ pending, chats, onClose }: { pending: Pending; chats: Agen
 export function AgentsSection({ agents, statuses, selected, chats, onAdd, onSelect, onStatus }: AgentsSectionProps): JSX.Element {
   const [pending, setPending] = useState<Pending | null>(null)
   return (
-    <section className="sidebar-agents" aria-label="Agents">
-      <div className="sidebar-head">
-        <span className="eyebrow">AGENTS</span>
-        <Button variant="ghost" icon="plus" aria-label="Add an agent" onClick={onAdd} />
-      </div>
+    <SidebarSection title="Agents" className="sidebar-agents" action={<Button variant="ghost" icon="plus" aria-label="Add an agent" onClick={onAdd} />}>
       {agents.length === 0 ? (
         <p className="sidebar-note">No agents yet. Use + to add one.</p>
       ) : (
@@ -186,6 +183,6 @@ export function AgentsSection({ agents, statuses, selected, chats, onAdd, onSele
         </ul>
       )}
       {pending === null ? null : <ChatDialog pending={pending} chats={chats} onClose={() => setPending(null)} />}
-    </section>
+    </SidebarSection>
   )
 }

@@ -10,6 +10,8 @@ import frames from '../mascot/frames.json'
 import { attachProjectStandards } from './projectStandards'
 import { createDmClient, DM_CLIENT_DESCRIPTOR_ENV, nodeDmClientDeps, type DmClient } from './dmClient'
 import { attachMessaging, type MailApi, type MailContext } from './messaging'
+import { worldMailClients } from './worldDmClient'
+import { attachWorldMessaging } from './worldMessaging'
 import { Skitarii, type MascotFrames, type SkitariiUi, type Timers } from './skitarii'
 
 /** The slice of OMP's `ExtensionAPI` this extension uses (`packages/coding-agent/src/extensibility/extensions/types.ts`). */
@@ -102,9 +104,12 @@ export function attachDmClient(pi: OmpApi, client: DmClient): DmClient {
 
 export default async function skitariiExtension(pi: OmpApi): Promise<void> {
   attach(pi, await ompLookup())
-  const client = createDmClient(nodeDmClientDeps())
+  const deps = nodeDmClientDeps()
+  const client = createDmClient(deps)
+  const world = await worldMailClients(deps)
   // The watcher stops before the client cancels its children, so a cancelled poll is dropped, not shown as a failure.
-  attachMessaging(pi, client, PROCESS_TIMERS)
-  if (process.env[DM_CLIENT_DESCRIPTOR_ENV] && process.env.DM_SESSION_TOKEN) attachProjectStandards(pi, client)
+  if (world === null) attachMessaging(pi, client, PROCESS_TIMERS)
+  else attachWorldMessaging(pi, world, PROCESS_TIMERS)
+  if (world === null && process.env[DM_CLIENT_DESCRIPTOR_ENV] && process.env.DM_SESSION_TOKEN) attachProjectStandards(pi, client)
   attachDmClient(pi, client)
 }

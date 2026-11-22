@@ -17,6 +17,7 @@ import { createWorkspacePool, type WorkspacePool } from '../desktop/workspacePoo
 import { createChatGrants, type ChatGrants } from './chatGrants'
 
 interface Rig {
+  ids: ReturnType<typeof createSequentialIds>
   grants: ChatGrants
   pool: WorkspacePool
   clock: TestClock
@@ -65,12 +66,12 @@ async function rig(): Promise<Rig> {
     minutes: 12 * 60,
     log: () => {}
   })
-  return { grants, pool, clock, homeDir }
+  return { grants, pool, clock, homeDir, ids }
 }
 
 /** A `dm` CLI session in `folder` presenting `token`, as `dm --repo <folder> --token-file <file>` opens one. */
 function cliSession(state: Rig, folder: string, token: string): Workspace {
-  return openWorkspace({ repoRoot: folder, role: 'reader', label: 'dm CLI', transport: 'cli', grantToken: token, homeDir: state.homeDir, clock: state.clock, ids: createSequentialIds(), git, ...TEST_STORAGE })
+  return openWorkspace({ repoRoot: folder, role: 'reader', label: 'dm CLI', transport: 'cli', grantToken: token, homeDir: state.homeDir, clock: state.clock, ids: state.ids, git, ...TEST_STORAGE })
 }
 
 function targets(): { folder: string; tokenFile: string }[] {
@@ -161,6 +162,35 @@ describe('chat grants: a project-less chat’s grants revoked and bound for nami
   })
 })
 
+describe('chat grants: Forge World mail ownership', () => {
+  it('binds world mail in each member, receives replies independently, and preserves identity after restart', async () => {
+    const state = await rig()
+    const chat = { id: 'chat_world', agent: 'omp', kind: 'omp', title: 'World coordinator' }
+    const issued = await state.grants.issueReachCli(targets(), GRANT, root, chat)
+    const identities: string[] = []
+    for (const target of targets()) {
+      const world = cliSession(state, target.folder, readFileSync(target.tokenFile, 'utf8').trim())
+      const peerGrant = await state.grants.issueChatCli(target.folder, GRANT, { ...chat, id: 'chat_member', title: 'Member agent' })
+      const peer = cliSession(state, target.folder, peerGrant.cli.env.DM_SESSION_TOKEN!)
+      try {
+        const identity = await world.getAgentIdentity({})
+        identities.push(identity.endpointId)
+        await peer.sendAgentMessage({ to: identity.endpointId, clientMessageId: 'reply', body: target.folder })
+        expect((await world.readAgentInbox({})).messages.map(message => message.body)).toEqual([target.folder])
+        expect((await peer.listAgentPeers({})).peers).toContainEqual({ endpointId: identity.endpointId, name: 'World coordinator' })
+      } finally { world.close(); peer.close() }
+    }
+    await Promise.all(issued.grantIds.map(id => state.grants.revokeChatGrant(id)))
+    await state.grants.issueReachCli(targets(), GRANT, root, chat)
+    for (const [index, target] of targets().entries()) {
+      const world = cliSession(state, target.folder, readFileSync(target.tokenFile, 'utf8').trim())
+      try { expect((await world.getAgentIdentity({})).endpointId).toBe(identities[index]) }
+      finally { world.close() }
+    }
+  })
+
+})
+
 describe('chat grants: Forge World root ownership', () => {
   it.each(['planner', 'worker'] as const)('preserves the selected %s role and disabled Allow save in a world member grant', async role => {
     const state = await rig()
@@ -193,6 +223,47 @@ describe('chat grants: Forge World root ownership', () => {
     }
   })
 
+})
+
+describe('world mail grant issuance failures', () => {
+  it('refuses an empty reach without creating any project grant', async () => {
+    const state = await rig()
+    await expect(state.grants.issueReachCli([], GRANT, root)).rejects.toThrow('at least one tracked folder')
+    for (const folder of [alpha, beta]) expect(await state.pool.get(folder).listGrants()).toEqual([])
+  })
+
+  it('revokes a newly issued grant when its member workspace changes before mailbox binding', async () => {
+    const state = await rig()
+    const workspace = state.pool.get(alpha)
+    let calls = 0
+    const grants = createChatGrants({
+      workspaceFor: () => ++calls === 1 ? workspace : { ...workspace },
+      cliFor: folder => buildCliConfig({ execPath: '/bin/electron', appPath: '/app', repoPath: folder }),
+      minutes: 60, log: () => {},
+      recordWorldMailbox: () => { throw new Error('Must not record an untracked mailbox') }
+    })
+    await expect(grants.issueReachCli([targets()[0]!], GRANT, root, { id: 'chat_world', agent: 'omp', kind: 'omp', title: 'World' })).rejects.toThrow('no longer tracked')
+    expect((await workspace.listGrants()).every(grant => !grant.active)).toBe(true)
+    expect(workspace.ctx().db.all('SELECT * FROM agent_mail_endpoints')).toEqual([])
+  })
+
+  it('revokes every issued member grant when durable ownership recording fails for a later member', async () => {
+    const state = await rig()
+    const recorded: string[] = []
+    const grants = createChatGrants({
+      workspaceFor: folder => state.pool.get(folder),
+      cliFor: folder => buildCliConfig({ execPath: '/bin/electron', appPath: '/app', repoPath: folder }),
+      minutes: 60, log: () => {}, recordWorldMailbox: (_owner, folder) => {
+        if (folder === beta) throw new Error('Ledger disk full')
+        recorded.push(folder)
+      }
+    })
+    await expect(grants.issueReachCli(targets(), GRANT, root, { id: 'chat_world', agent: 'omp', kind: 'omp', title: 'World' })).rejects.toThrow('Ledger disk full')
+    expect(recorded).toEqual([alpha])
+    for (const folder of [alpha, beta]) expect((await state.pool.get(folder).listGrants()).every(grant => !grant.active)).toBe(true)
+    expect(() => cliSession(state, alpha, readFileSync(targets()[0]!.tokenFile, 'utf8').trim())).toThrow(expect.objectContaining({ code: 'unauthorized' }))
+    expect(state.pool.get(beta).ctx().db.all('SELECT * FROM agent_mail_endpoints')).toEqual([])
+  })
 })
 
 describe('chat grants: later starts and other chats', () => {

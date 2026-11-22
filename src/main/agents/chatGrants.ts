@@ -42,6 +42,8 @@ import { bindChatMailbox, hasMailbox, type MailboxChat } from './chatMailboxes'
 import type { ReachTarget } from './chatReach'
 
 interface ChatGrantsDeps {
+  /** Durable local ownership, before a world member mailbox is bound; throws to abort/revoke a failed start. */
+  recordWorldMailbox?: (ownerFolder: string, memberFolder: string, chatId: string) => void
   /** The desktop's workspace for a tracked folder; throws for one that is not. Asked only at issue. */
   workspaceFor: (folder: string) => Workspace
   /** The `dm` invocation pinned to `folder` (to none for null: a project-less chat's), before the grant's token is added. */
@@ -61,6 +63,9 @@ interface ChatGrantsDeps {
 interface GrantOptions { role: ChatRole; allowSave: boolean; label: string }
 /** The trusted chat a grant is issued for: its stored identity and title, and its connected agent's kind. */
 export type GrantChat = MailboxChat & { kind: string }
+function reachedMailbox(owner: string | null, chat?: GrantChat): GrantChat | undefined {
+  return owner !== null && chat !== undefined && hasMailbox(chat, chat.kind) ? chat : undefined
+}
 export interface IssuedChatCli {
   cli: DarkMechanicusCli
   grantId: string
@@ -80,7 +85,7 @@ export interface ChatGrants {
   /** Binds the grant to the chat's mailbox when `chat` has one (see the module comment). */
   issueChatCli(folder: string, grant: GrantOptions, chat?: GrantChat): Promise<IssuedChatCli>
   /** One grant per target folder, each token written to its file; refused (and none left usable) when any fails. */
-  issueReachCli(targets: readonly ReachTarget[], grant: GrantOptions, ownerFolder?: string): Promise<IssuedReachCli>
+  issueReachCli(targets: readonly ReachTarget[], grant: GrantOptions, ownerFolder?: string, chat?: GrantChat): Promise<IssuedReachCli>
   /** Never throws: a grant it cannot revoke is logged. */
   revokeChatGrant(grantId: string): Promise<void>
   /** Moves a held grant's expiry to `minutes` from now. Never throws: a renewal that fails is logged. */
@@ -185,17 +190,19 @@ class ChatGrantRegistry implements ChatGrants {
    * pinned to no folder, so a call names its folder and token file and the first token alone reaches nothing else.
    * A project-less chat has no mailbox: none of its grants is bound to one.
    */
-  async issueReachCli(targets: readonly ReachTarget[], grant: GrantOptions, ownerFolder?: string): Promise<IssuedReachCli> {
+  async issueReachCli(targets: readonly ReachTarget[], grant: GrantOptions, ownerFolder?: string, chat?: GrantChat): Promise<IssuedReachCli> {
     if (targets.length === 0) {
       throw new Error('A project-less chat needs at least one tracked folder to hold a grant in.')
     }
     await this.deps.desktopReady?.()
     const owner = ownerFolder === undefined ? null : realpathSync.native(ownerFolder)
+    const mailbox = reachedMailbox(owner, chat)
     const issued: { grantId: string; token: string }[] = []
     try {
       for (const target of targets) {
-        const held = await this.issueHeld(target.folder, grant, owner, false)
+        const held = await this.issueHeld(target.folder, grant, owner, mailbox !== undefined)
         issued.push(held)
+        this.bindReachedMailbox(target.folder, held, owner, mailbox)
         await writePrivateFile(target.tokenFile, `${held.token}\n`, 0o600)
       }
     } catch (error) {
@@ -203,6 +210,12 @@ class ChatGrantRegistry implements ChatGrants {
       throw error
     }
     return { cli: this.withGrant(this.deps.cliFor(null), issued[0]?.token ?? ''), grantIds: issued.map(({ grantId }) => grantId) }
+  }
+  private bindReachedMailbox(folder: string, held: { workspace: Workspace; grantId: string }, owner: string | null, chat?: GrantChat): void {
+    if (chat === undefined) return
+    if (this.deps.workspaceFor(folder) !== held.workspace) throw new DomainError('unauthorized', 'That folder is no longer tracked by Dark Mechanicus.')
+    this.deps.recordWorldMailbox?.(owner!, folder, chat.id)
+    bindChatMailbox(held.workspace.ctx(), chat, held.grantId)
   }
   /** The held grant a live terminal of the chat may be bound by, or `unauthorized`. */
   private bindable(grantId: string, identity: LiveIdentity): HeldGrant {
@@ -342,7 +355,7 @@ export function createChatGrants(deps: ChatGrantsDeps): ChatGrants {
   const registry = new ChatGrantRegistry(deps)
   // Terminal dependencies spread this interface; retain the registry receiver.
   return {
-    issueReachCli: (targets, grant, ownerFolder) => registry.issueReachCli(targets, grant, ownerFolder),
+    issueReachCli: (targets, grant, ownerFolder, chat) => registry.issueReachCli(targets, grant, ownerFolder, chat),
     issueChatCli: (folder, grant, chat) => registry.issueChatCli(folder, grant, chat),
     revokeChatGrant: (id) => registry.revokeChatGrant(id),
     renewChatGrant: (id) => registry.renewChatGrant(id),

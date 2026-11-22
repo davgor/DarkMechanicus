@@ -274,3 +274,28 @@ describe('SourceControlView refresh', () => {
     expect(scheduler.intervals()).toEqual([])
   })
 })
+
+
+describe('Forge World branch controls', () => {
+  it.each(['readable', 'unreadable'] as const)('locks the %s world root branch control and explains the main-only policy', async manifest => {
+    git.setState(FOLDER, status())
+    const root = folderView({ ...folder, ...(manifest === 'unreadable' ? { forgeIssue: true } : { forgeWorld: { version: 1 as const, owner: 'example', projects: [], syncMinutes: 5 } }) })
+    renderView(<SourceControlView folder={root} scheduler={scheduler} />)
+    await settle()
+    const branch = screen.getByRole('button', { name: /Current branch.*main/ })
+    expect(branch).toHaveProperty('disabled', true)
+    expect(screen.getByText('Forge Worlds stay on main.')).toBeTruthy()
+    fireEvent.click(branch)
+    expect(screen.queryByRole('listbox')).toBeNull()
+  })
+
+  it('retains normal branch controls for member code repositories', async () => {
+    git.setState(FOLDER, status())
+    const member = folderView({ ...folder, forgeParent: '/world' })
+    const target = { state: { status: 'ready' as const, value: { kind: 'available' as const, path: '/code', displayPath: '/code' } }, error: null, refresh: () => {} }
+    renderView(<SourceControlView folder={member} scheduler={scheduler} target={target} />)
+    await settle()
+    expect(screen.getByRole('button', { name: /Current branch.*main/ })).toHaveProperty('disabled', false)
+    expect(screen.queryByText('Forge Worlds stay on main.')).toBeNull()
+  })
+})

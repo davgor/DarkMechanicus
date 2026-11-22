@@ -39,7 +39,7 @@ describe('useKanbanCounts', () => {
     const view = mount()
     await settle()
     expect(errors).toEqual(['Folder is gone.'])
-    expect(view.result.current.counts).toEqual({})
+    expect(view.result.current).toEqual({})
   })
 
   it('keeps the newest count when an older read answers late', async () => {
@@ -48,11 +48,11 @@ describe('useKanbanCounts', () => {
     const view = mount()
     view.rerender({ tokens: tokensAt(1) })
     await settle()
-    expect(view.result.current.counts).toEqual({ '/a': 1 })
+    expect(view.result.current).toEqual({ '/a': 1 })
     board.open = cards(3)
     hold.resolve()
     await settle()
-    expect(view.result.current.counts).toEqual({ '/a': 1 })
+    expect(view.result.current).toEqual({ '/a': 1 })
     expect(dm.callsOf('listKanbanCards').map((call) => call.input)).toEqual([{ doneLimit: 1 }, { doneLimit: 1 }])
   })
 
@@ -66,7 +66,7 @@ describe('useKanbanCounts', () => {
     hold.resolve()
     await settle()
     expect(errors).toEqual([])
-    expect(view.result.current.counts).toEqual({ '/a': 2 })
+    expect(view.result.current).toEqual({ '/a': 2 })
   })
 })
 
@@ -83,8 +83,7 @@ describe('useKanbanCounts: what counts', () => {
     const view = mount()
     await settle()
 
-    expect(view.result.current.counts).toEqual({ '/a': 4 })
-    expect(view.result.current.cards['/a'].map(card => [card.id, card.lane])).toEqual([['kc_2', 'in_progress'], ['kc_3', 'in_progress'], ['kc_4', 'ready_for_review'], ['kc_1', 'backlog']])
+    expect(view.result.current).toEqual({ '/a': 4 })
     expect(dm.callsOf('listKanbanCards')).toHaveLength(1)
   })
 
@@ -93,21 +92,21 @@ describe('useKanbanCounts: what counts', () => {
     board.open = [card]
     const view = mount()
     await settle()
-    expect(view.result.current.counts).toEqual({ '/a': 1 })
+    expect(view.result.current).toEqual({ '/a': 1 })
     board.open = []
     board.done = [{ ...card, lane: 'done' }]
     view.rerender({ tokens: tokensAt(1) })
     await settle()
-    expect(view.result.current.counts).toEqual({ '/a': 0 })
+    expect(view.result.current).toEqual({ '/a': 0 })
     view.rerender({ tokens: tokensAt(2) })
     await settle()
-    expect(view.result.current.counts).toEqual({ '/a': 0 })
+    expect(view.result.current).toEqual({ '/a': 0 })
   })
 
   it('reports zero for an all-Done board with 45 historical cards spanning multiple pages', async () => {
     board.done = Array.from({ length: 45 }, (_, index) => doneCard(index + 1))
     const view = mount()
     await settle()
-    expect(view.result.current.counts).toEqual({ '/a': 0 })
+    expect(view.result.current).toEqual({ '/a': 0 })
   })
 })

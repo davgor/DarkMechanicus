@@ -4,7 +4,7 @@
  *
  * **Who and which mailbox.** Every request names a tracked folder and a chat id, never an endpoint id: the folder is
  * resolved to its canonical tracked path (an untracked or swapped folder is refused, `chatFolder`), the chat must be
- * an existing OMP chat with a mailbox stored on its record, and that endpoint must belong to this chat on this machine
+ * an existing OMP chat with its ordinary mailbox or a trusted world-to-member mailbox route, and that endpoint must belong to this chat on this machine
  * and not be deleted. Everything runs as the person through the folder's held desktop workspace (`mail.manage`,
  * human-only: no grant carries it) and the desktop service functions; never as, or on behalf of, an agent session.
  *
@@ -57,12 +57,14 @@ export interface AgentMailDesktopDeps {
   registry: Pick<FolderRegistry, 'resolve'>
   /** The chat records; read only (listing through it would provision). */
   store: Pick<ChatStore, 'getChat' | 'listChats'>
+  /** World-owned chats projected into this member's mailbox, retaining their root folder for wake/resume. */
+  routedChats?: (folder: string) => readonly ChatRecord[]
   /** All eligible tracked folders, independent of which inbox the person opened. */
   folders?: () => readonly string[]
   /** The person's context in the folder's held desktop workspace (never a fresh session). */
   contextFor: (folder: string) => Ctx
   delivery?: {
-    hasMessage(chat: ChatRecord, message: AgentMailMessageView): boolean
+    hasMessage(chat: ChatRecord, message: AgentMailMessageView & { project?: string }): boolean
     resume(chat: ChatRecord): Promise<string | null>
   }
   /** Person-board work shares this unconditional tracked-folder monitor, including non-peer hosts. */
@@ -109,9 +111,9 @@ interface ChatMailbox {
 
 const NO_MAILBOX = 'This chat has no mailbox.'
 
-/** The folder's mailbox chats in id order; ids are unique within a folder (the store keys its index by id). */
+/** The folder's ordinary and world-owned mailbox projections, in chat id order. */
 function eligible(chats: readonly ChatRecord[]): ChatRecord[] {
-  return chats.filter((chat) => hasMailbox(chat) && chat.endpointId !== undefined).sort((a, b) => (a.id < b.id ? -1 : 1))
+  return chats.filter((chat) => !chat.archived && hasMailbox(chat) && chat.endpointId !== undefined).sort((a, b) => (a.id < b.id ? -1 : 1))
 }
 
 /** The chat's own endpoint, open or suspended, on this machine; anything else is `not_found`. */
@@ -165,9 +167,13 @@ class ChatMailDesk {
     }
   }
 
+  private chatAt(folder: string, id: string): ChatRecord | null {
+    return this.deps.store.getChat({ folder, id }) ?? this.deps.routedChats?.(folder).find(chat => chat.id === id) ?? null
+  }
+
   mailbox(input: { folder: string; chatId: string }): ChatMailbox {
     const folder = chatFolder(this.deps, input.folder)
-    const chat = this.deps.store.getChat({ folder, id: input.chatId })
+    const chat = this.chatAt(folder, input.chatId)
     if (chat === null) {
       fail('not_found', NO_MAILBOX, { chatId: input.chatId })
     }
@@ -177,7 +183,7 @@ class ChatMailDesk {
 
   stateOf(box: Pick<ChatMailbox, 'ctx' | 'folder' | 'endpointId'> & { chatId: string }): ChatMailState {
     const view = getHumanAgentMailState(box.ctx, { endpointId: box.endpointId })
-    const chat = this.deps.store.getChat({ folder: box.folder, id: box.chatId })
+    const chat = this.chatAt(box.folder, box.chatId)
     if (chat === null) fail('not_found', NO_MAILBOX)
     const delivery = this.deliveryState(box, chat)
     return {
@@ -193,10 +199,11 @@ class ChatMailDesk {
     }
   }
 
-  private inspectPage(chat: ChatRecord, messages: ReturnType<typeof readHumanAgentInbox>['messages'], delivery: ChatMailState['delivery']): void {
+  private inspectPage(folder: string, chat: ChatRecord, messages: ReturnType<typeof readHumanAgentInbox>['messages'], delivery: ChatMailState['delivery']): void {
     for (const message of messages) {
       try {
-        if (delivery.problem !== null || !this.deps.delivery?.hasMessage(chat, message)) delivery.pendingCount += 1
+        const scoped = chat.folder === folder ? message : { ...message, project: folder }
+        if (delivery.problem !== null || !this.deps.delivery?.hasMessage(chat, scoped)) delivery.pendingCount += 1
         else delivery.deliveredCount += 1
       } catch (error) {
         delivery.pendingCount += 1
@@ -211,7 +218,7 @@ class ChatMailDesk {
     let throughSeq: number | undefined
     for (;;) {
       const page = readHumanAgentInbox(box.ctx, { endpointId: box.endpointId, afterSeq, throughSeq, limit: AGENT_MAIL_LIMITS.pageSize })
-      this.inspectPage(chat, page.messages, delivery)
+      this.inspectPage(box.folder, chat, page.messages, delivery)
       if (!page.hasMore) break
       afterSeq = page.nextCursor
       throughSeq = page.snapshotHighWater
@@ -254,7 +261,7 @@ class ChatMailDesk {
    * was stopped or replaced meanwhile: what was read belongs to a folder generation that no longer exists.
    */
   private async sweep(folder: string, watch: FolderWatch | undefined): Promise<ChatMailState[] | null> {
-    const chats = eligible(this.deps.store.listChats(folder))
+    const chats = eligible([...this.deps.store.listChats(folder), ...this.deps.routedChats?.(folder) ?? []])
     const states: ChatMailState[] = []
     for (let start = 0; start < chats.length; start += this.pageSize) {
       const page = this.readPage(folder, chats.slice(start, start + this.pageSize))
@@ -296,7 +303,7 @@ class ChatMailDesk {
   private async resumeUndelivered(folder: string, state: ChatMailState, watch: FolderWatch): Promise<boolean> {
     const delivery = this.deps.delivery
     if (state.delivery.pendingCount === 0 || delivery === undefined || this.unobservable.has(`${folder}\0${state.chatId}`)) return true
-    const chat = this.deps.store.getChat({ folder, id: state.chatId })
+    const chat = this.chatAt(folder, state.chatId)
     if (chat === null) return true
     if (this.watches.get(folder) !== watch) return false
     const problem = await delivery.resume(chat)

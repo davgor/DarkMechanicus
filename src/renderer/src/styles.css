@@ -1018,6 +1018,7 @@ textarea.input {
   min-height: 0;
   padding: 0 8px 8px;
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .sidebar-note {
@@ -1642,6 +1643,12 @@ textarea.input {
 /* The AGENTS section sits between the brand and FOLDERS and never scrolls: at most three rows. */
 .sidebar-agents {
   flex-shrink: 0;
+}
+
+/* Match the tree gutter without clipping agent chat menus or moving their controls. */
+.sidebar-agents > .sidebar-head {
+  overflow: hidden;
+  scrollbar-gutter: stable;
 }
 
 .agent-list {
@@ -2722,48 +2729,28 @@ summary.board-group-title::marker {
   flex-shrink: 0;
 }
 
-.sidebar-kanban-head {
-  display: flex;
-  align-items: stretch;
-  padding-left: 24px;
+/* Align section titles and actions with the AGENTS header outside the padded tree. */
+.sidebar-tree .sidebar-head {
+  padding-left: 10px;
+  padding-right: 2px;
 }
 
-.sidebar-kanban-toggle {
+.sidebar-section-toggle {
   display: inline-flex;
-  flex-shrink: 0;
   align-items: center;
-  justify-content: center;
-  width: 26px;
+  gap: 8px;
+  min-height: 32px;
   padding: 0;
   border: 0;
-  border-radius: 7px;
+  border-radius: 4px;
   color: var(--muted);
   background: transparent;
   cursor: pointer;
 }
 
-.sidebar-kanban-head .bucket-header {
-  padding-left: 2px;
-}
-
-.sidebar-kanban-toggle:hover {
+.sidebar-section-toggle:hover {
   color: var(--ink);
-  background: rgba(236, 230, 218, 0.04);
 }
 
-.sidebar-kanban-card {
-  min-height: 44px;
-}
-
-.sidebar-card-heading {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  min-width: 0;
-}
-
-.sidebar-card-heading > .mono {
-  flex-shrink: 0;
-  color: var(--muted);
-  font-size: 10px;
-}
+.forge-branch-lock { display: flex; align-items: center; gap: 12px; }
+.forge-branch-lock .branch-button:disabled { cursor: default; }

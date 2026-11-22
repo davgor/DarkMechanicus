@@ -9,7 +9,7 @@ import type { AgentMailStore } from '../agents/useAgentMail'
 import { chatsFor, useAllChats, useChats } from '../agents/useChats'
 import type { ChatListState, ChatsModel } from '../agents/useChats'
 import { useKanbanCounts } from '../kanban/useKanbanCounts'
-import type { KanbanCards, KanbanCounts } from '../kanban/useKanbanCounts'
+import type { KanbanCounts } from '../kanban/useKanbanCounts'
 import { bucketOfEpic } from '../sidebar/buckets'
 import { useExpansion } from '../sidebar/useExpansion'
 import type { Expansion } from '../sidebar/useExpansion'
@@ -46,7 +46,6 @@ export interface ShellModel {
   lists: Record<string, EpicListState>
   /** Open Kanban cards of every active folder, for the sidebar. */
   kanbanCounts: KanbanCounts
-  kanbanCards: KanbanCards
   /** Storage/MCP status of the selected folder, once it is initialized and loaded. */
   status: StorageStatusView | null
   expansion: Expansion
@@ -189,7 +188,7 @@ export function useShell(scheduler: Scheduler): ShellModel {
   const selected = findFolder(folders.folders, selection.folderPath)
   const feed = useEventFeed({ paths, selectedPath: selection.folderPath, scheduler, onError: toasts.reportError })
   const lists = useEpicLists({ paths, tokens: feed.tokens, onError: toasts.reportError })
-  const { counts: kanbanCounts, cards: kanbanCards } = useKanbanCounts({ paths, tokens: feed.tokens, onError: toasts.reportError })
+  const kanbanCounts = useKanbanCounts({ paths, tokens: feed.tokens, onError: toasts.reportError })
   const mail = useAgentMail(paths)
   const status = useFooterStatus(statusPathOf(selected), feed.tokens, scheduler, toasts.reportError)
 
@@ -211,7 +210,7 @@ export function useShell(scheduler: Scheduler): ShellModel {
     selection,
     view: shellView({ folders, selected, selection, chats: knownChats(chats, selection.folderPath), projectless, agents: connected, folderTabs }),
     lists,
-    kanbanCounts, kanbanCards,
+    kanbanCounts,
     status,
     expansion,
     agents,

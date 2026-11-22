@@ -1,4 +1,3 @@
-import type { KanbanCardSummaryView } from '../../../shared/domain/kanban'
 import { useEffect, useRef, useState } from 'react'
 import { runCommand } from '../api/dm'
 import { folderToken } from '../app/eventRouting'
@@ -7,8 +6,6 @@ import { useLatest } from '../app/useLatest'
 
 /** Open cards per folder path; a folder is absent until its board has loaded. */
 export type KanbanCounts = Record<string, number>
-export type KanbanCards = Record<string, KanbanCardSummaryView[]>
-interface SidebarBoards { counts: KanbanCounts; cards: KanbanCards }
 
 interface CountOptions {
   /** Folders that are set up and reachable; others have no board. */
@@ -18,12 +15,12 @@ interface CountOptions {
 }
 
 /**
- * Keeps the open cards and their count for every active folder current for the sidebar: fetches when a folder
+ * Keeps the open card count for every active folder current for the sidebar: fetches when a folder
  * becomes active or its event token moves (card writes emit workspace events), keeps the previous
- * cards meanwhile, and drops stale responses.
+ * count meanwhile, and drops stale responses.
  */
-export function useKanbanCounts(options: CountOptions): SidebarBoards {
-  const [boards, setBoards] = useState<SidebarBoards>({ counts: {}, cards: {} })
+export function useKanbanCounts(options: CountOptions): KanbanCounts {
+  const [counts, setCounts] = useState<KanbanCounts>({})
   const fetched = useRef(new Map<string, number>())
   const latest = useRef(new Map<string, object>())
   const onError = useLatest(options.onError)
@@ -37,9 +34,9 @@ export function useKanbanCounts(options: CountOptions): SidebarBoards {
       try {
         // Only the open lanes (Backlog, In progress, Ready for review) count, so one Done card is enough.
         const { lanes } = await runCommand(path, 'listKanbanCards', { doneLimit: 1 })
-        const cards = [...lanes.in_progress, ...lanes.ready_for_review, ...lanes.backlog]
+        const count = lanes.in_progress.length + lanes.ready_for_review.length + lanes.backlog.length
         if (latest.current.get(path) === ticket) {
-          setBoards((previous) => ({ counts: { ...previous.counts, [path]: cards.length }, cards: { ...previous.cards, [path]: cards } }))
+          setCounts(previous => ({ ...previous, [path]: count }))
         }
       } catch (error) {
         if (latest.current.get(path) === ticket) onError.current(error)
@@ -55,5 +52,5 @@ export function useKanbanCounts(options: CountOptions): SidebarBoards {
     // The joined key stands in for `paths` and `tokens`, which are new objects on every render.
   }, [stateKey, onError])
 
-  return boards
+  return counts
 }

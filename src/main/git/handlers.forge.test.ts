@@ -150,3 +150,31 @@ describe('Forge project history, branches and network identity', () => {
     expect(networkFolders.map(samePath)).toEqual([samePath(code)])
   })
 })
+
+
+describe('Forge World branch protection', () => {
+  it('refuses create, switch, rename and pull request checkout without changing the world', async () => {
+    const api = handlers()
+    gitIn(world, 'branch', 'topic')
+    const head = gitIn(world, 'rev-parse', 'HEAD')
+    const refusal = { ok: false, error: { code: 'invalid_input', message: expect.stringContaining('Forge Worlds stay on main') } }
+    expect(await api.createBranch(world, { name: 'new-topic', startPoint: 'current' })).toMatchObject(refusal)
+    expect(await api.switchBranch(world, { name: 'topic', uncommitted: 'bring' })).toMatchObject(refusal)
+    expect(await api.renameBranch(world, { from: 'main', to: 'renamed' })).toMatchObject(refusal)
+    expect(await api.checkoutPullRequest(world, { number: 1, uncommitted: 'bring' })).toMatchObject(refusal)
+    expect(gitIn(world, 'branch', '--show-current').trim()).toBe('main')
+    expect(gitIn(world, 'rev-parse', 'HEAD')).toBe(head)
+    expect(gitIn(world, 'branch', '--list', 'new-topic', 'renamed')).toBe('')
+  })
+
+  it('allows returning a world to main and keeps member code branch changes available', async () => {
+    const api = handlers()
+    gitIn(world, 'checkout', '-b', 'old-topic')
+    expect(await api.switchBranch(world, { name: 'main', uncommitted: 'bring' })).toMatchObject({ ok: true })
+    expect(await api.createBranch(member, { name: 'code-topic', startPoint: 'current' })).toMatchObject({ ok: true })
+    expect(await api.renameBranch(member, { from: 'code-topic', to: 'code-renamed' })).toMatchObject({ ok: true })
+    expect(await api.switchBranch(member, { name: 'main', uncommitted: 'bring' })).toMatchObject({ ok: true })
+    expect(gitIn(world, 'branch', '--show-current').trim()).toBe('main')
+    expect(gitIn(code, 'branch', '--list', 'code-renamed')).toContain('code-renamed')
+  })
+})
