@@ -98,6 +98,11 @@ profiles, Kanban records/events, run histories and owned images for `db` to `rep
 direction, the existing canonical JSON importer also reads the repository records into the staged
 database before verification completes, so a stale cache or checkpoint cannot override later
 canonical edits. Images held only as files are hydrated into the destination database before purge.
+Images whose owning attempt, comment, or other record has been deleted are preserved in
+`recovered-attachments/`: each image keeps its full metadata, original owner, creator and upload
+time alongside hash-verified bytes. Reconciliation restores these archives on a fresh clone
+without recreating deleted owners or assigning their evidence elsewhere. Conflicting metadata,
+unsafe paths, missing bytes and corrupt images still refuse migration or import.
 The fully imported destination is checked again for active runs, claimed attempts and queued work
 before cutover, not merely the possibly stale source cache.
 

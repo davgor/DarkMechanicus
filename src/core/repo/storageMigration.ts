@@ -11,6 +11,8 @@ import { policyForStore, publishSqlitePolicy, retireSqlitePolicy } from './deliv
 import { setMeta, META_KEYS } from '../meta'
 import { SESSION_ACTIVE_WINDOW_MS } from '../services/sessions'
 import { loadStoredAttachment, placementOfAttachment } from './attachmentFiles'
+import { resolveAttachmentPlacement } from '../services/attachmentOwners'
+import { readRecoveredAttachmentBytes } from './recoveredAttachments'
 import { createFileHashCache } from './fileHashes'
 import { reconcileRepository } from './importer'
 import { writeFileSafely } from './finalizer'
@@ -267,6 +269,10 @@ function hydratedCheckpoint(deps: MigrationDeps, source: RepoLayout) {
   for (const row of snapshot.tables.filter((table) => table.name === 'attachments').flatMap((table) => table.rows)) {
     if (row.data !== null || typeof row.id !== 'string') continue
     const attachment = loadStoredAttachment(deps.db, row.id)
+    if (attachment.owner !== null && resolveAttachmentPlacement(deps.db, attachment.owner) === null) {
+      row.data = { bytes: Buffer.from(readRecoveredAttachmentBytes({ ...deps, layout: source }, row.id)).toString('base64') }
+      continue
+    }
     const placement = placementOfAttachment(deps.db, attachment)
     const image = ownedPaths(source).attachmentFile(placement.folder, attachment.sha256, attachment.mime)
     assertContained(source, deps.fs, image)
