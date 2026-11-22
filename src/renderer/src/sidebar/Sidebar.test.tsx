@@ -159,13 +159,14 @@ describe('Sidebar + menu', () => {
 })
 
 describe('Sidebar folders', () => {
-  it('keeps Forge Worlds separate when either section collapses', () => {
+  it('places Forge Worlds before Folders and keeps both sections independently collapsible', () => {
     const world = folderView({ path: '/mars', name: 'Mars', forgeWorld: {
       version: 1, owner: 'codex', syncMinutes: 5, projects: []
     } })
     renderSidebar([alpha, world, { ...beta, forgeParent: world.path }])
     const folders = screen.getByRole('button', { name: 'Folders' })
     const worlds = screen.getByRole('button', { name: 'Forge Worlds' })
+    expect(screen.getAllByRole('button', { name: /^(Forge Worlds|Folders)$/ })).toEqual([worlds, folders])
     expect(screen.queryByRole('button', { name: 'Actions for beta' })).toBeNull()
     fireEvent.click(folders)
     expect(folders.getAttribute('aria-expanded')).toBe('false')
