@@ -6,6 +6,8 @@ import { contentHash } from '../canonical'
 import { fail } from '../errors'
 import { dbProjectDir, projectKey } from './storageMode'
 import type { FsAdapter } from './types'
+import { FORGE_CONFIG, readForgeReference } from './forgeReference'
+import { nodeFs } from './nodeFs'
 
 export const FORGE_POINTER = 'FORGE-WORLD.md'
 const moving = new AsyncLocalStorage<string>()
@@ -61,10 +63,12 @@ export function assertForgeWorldSyncAllowed(fs: FsAdapter, home: string, root: s
 }
 
 export function bindForge(home: string, source: string, member: string, note: string) {
+  const config = join(source, FORGE_CONFIG)
+  if (existsSync(config) || nodeFs.isSymlink(config)) readForgeReference(nodeFs, source)
   const file = stateFile(home, source, 'link')
   mkdirSync(dirname(file), { recursive: true })
   const temp = file + '.' + randomUUID()
-  writeFileSync(temp, JSON.stringify({ member, note: contentHash(note), epoch: randomUUID() }), { flag: 'wx' })
+  writeFileSync(temp, JSON.stringify({ member, note: contentHash(note), config: existsSync(config) ? contentHash(readFileSync(config, 'utf8')) : undefined, epoch: randomUUID() }), { flag: 'wx' })
   renameSync(temp, file)
   const local = join(member, '.darkmechanicus', 'local')
   if (existsSync(local) && realpathSync.native(local) === local) {
@@ -75,13 +79,23 @@ export function bindForge(home: string, source: string, member: string, note: st
   }
 }
 
-export function boundForgeRoot(fs: FsAdapter, home: string, source: string): string {
+function pointerHashes(fs: FsAdapter, source: string): { note: string; config: string | undefined } | null {
   const pointer = join(source, FORGE_POINTER)
-  if (!fs.exists(pointer) || moving.getStore() === source) return source
+  const config = join(source, FORGE_CONFIG)
+  if (![pointer, config].some(file => fs.exists(file) || fs.isSymlink(file))) return null
+  if (fs.exists(config) || fs.isSymlink(config)) readForgeReference(fs, source)
+  if (fs.isSymlink(pointer)) fail('conflict', 'Open this code repository in Dark Mechanicus to retrieve its Forge World before using tickets.')
+  return { note: contentHash(fs.exists(pointer) ? fs.readFile(pointer) : ''), config: fs.exists(config) ? contentHash(fs.readFile(config)) : undefined }
+}
+
+export function boundForgeRoot(fs: FsAdapter, home: string, source: string): string {
+  if (moving.getStore() === source) return source
+  const hashes = pointerHashes(fs, source)
+  if (hashes === null) return source
   const file = stateFile(home, source, 'link')
-  if (fs.exists(file) && !fs.isSymlink(pointer)) {
+  if (fs.exists(file)) {
     const binding = JSON.parse(fs.readFile(file))
-    if (binding.note === contentHash(fs.readFile(pointer)) && typeof binding.member === 'string' &&
+    if (binding.note === hashes.note && binding.config === hashes.config && typeof binding.member === 'string' &&
       fs.isDirectory(binding.member) && fs.realpath(binding.member) === binding.member) return binding.member
   }
   return fail('conflict', 'Open this code repository in Dark Mechanicus to retrieve its Forge World before using tickets.')
