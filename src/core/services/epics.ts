@@ -1,3 +1,4 @@
+import { effectiveEpic, workStandards } from './workStandards'
 import type { CreateEpicInput } from '../../shared/domain/api'
 import type { CorrectionProvenance, EpicBranch, EpicContent, EpicProvenance } from '../../shared/domain/bundle'
 import type { RunState, WorkStatus } from '../../shared/domain/status'
@@ -231,7 +232,8 @@ function toSummary(ctx: Ctx, row: EpicSourceRow): EpicSummaryView {
 function epicDetail(ctx: Ctx, epicId: string): EpicDetailView {
   const sql = epicSourceSql(`${SUMMARY_COLUMNS}, json_extract(s.bundle_json, '$.epic') AS epic_json`, 'WHERE e.id = ?')
   const row = ctx.db.get<EpicDetailRow>(sql, epicId) ?? fail('not_found', `Epic ${epicId} not found.`, { epicId })
-  const epic = parseJson<EpicContent | null>(row.epic_json, null)
+  const source = parseJson<EpicContent | null>(row.epic_json, null)
+  const epic = source && effectiveEpic(source, workStandards(ctx.db, 'epic', epicId).find(s => s.kind === 'epic' && s.id === epicId))
   return {
     ...toSummary(ctx, row),
     intent: epic?.intent ?? '',

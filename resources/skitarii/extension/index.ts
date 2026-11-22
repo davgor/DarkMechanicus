@@ -7,7 +7,8 @@
  * this file only wires OMP's events.
  */
 import frames from '../mascot/frames.json'
-import { createDmClient, nodeDmClientDeps, type DmClient } from './dmClient'
+import { attachProjectStandards } from './projectStandards'
+import { createDmClient, DM_CLIENT_DESCRIPTOR_ENV, nodeDmClientDeps, type DmClient } from './dmClient'
 import { attachMessaging, type MailApi, type MailContext } from './messaging'
 import { Skitarii, type MascotFrames, type SkitariiUi, type Timers } from './skitarii'
 
@@ -104,5 +105,6 @@ export default async function skitariiExtension(pi: OmpApi): Promise<void> {
   const client = createDmClient(nodeDmClientDeps())
   // The watcher stops before the client cancels its children, so a cancelled poll is dropped, not shown as a failure.
   attachMessaging(pi, client, PROCESS_TIMERS)
+  if (process.env[DM_CLIENT_DESCRIPTOR_ENV] && process.env.DM_SESSION_TOKEN) attachProjectStandards(pi, client)
   attachDmClient(pi, client)
 }

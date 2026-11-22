@@ -1,3 +1,5 @@
+import { deliveryReportGap } from './deliveryWorkflow'
+import { itemWorkflow } from './workflowPolicy'
 import type { CheckpointMode, Criterion, PlanBundle, SprintDef, TicketContent } from '../../shared/domain/bundle'
 import { isActiveRunState, isOpenAttemptState, type AttemptState } from '../../shared/domain/status'
 import type {
@@ -225,7 +227,9 @@ function incrementGate(input: GateInput, node: TicketContent): GateCondition {
   }
   const commit = verdict.commit.slice(0, 7)
   const problems = verdict.passed ? [] : [`Increment ${commit} failed verification: ${verdict.reasons.join(' ')}`]
-  const metDetail = `Increment ${commit} on ${verdict.branch} is one squashed commit on the epic branch`
+  const metDetail = verdict.checks.some(check => check.name === 'Integrated tickets')
+    ? `Increment ${commit} on ${verdict.branch} contains the integrated tickets`
+    : `Increment ${commit} on ${verdict.branch} is one squashed commit on the epic branch`
   return condition('increment_merged', INCREMENT_LABEL, problems, metDetail)
 }
 
@@ -247,7 +251,9 @@ function repositoryIncrementGate(touched: string[], node: TicketContent, verdict
       problems.push(`${repo}: increment ${verdict.commit.slice(0, 7)} failed verification: ${verdict.reasons.join(' ')}`)
     }
   }
-  const metDetail = `Increments in ${touched.join(', ')} are each one squashed commit on the repository's epic branch`
+  const metDetail = verdicts.some(verdict => verdict.checks.some(check => check.name === 'Integrated tickets'))
+    ? `Verified sprint increments on the epic branch in ${touched.join(', ')}`
+    : `Increments in ${touched.join(', ')} are each one squashed commit on the repository's epic branch`
   return condition('increment_merged', INCREMENT_LABEL, problems, metDetail)
 }
 
@@ -439,7 +445,8 @@ function evaluate(ctx: Ctx, run: RunRow): Evaluation {
   const bundle = loadBundle(ctx, run.revision_id)
   const sprints = sortedSprints(bundle)
   const index = activeSprintIndex(run, sprints)
-  const sprint = sprints[index]
+  const planned = sprints[index]
+  const sprint = itemWorkflow(ctx, run.epic_id, 'sprint', planned.id)?.workflow === 'default' ? { ...planned, checkpoint: { ...planned.checkpoint, mode: 'human' as const } } : planned
   const next = sprints[index + 1] ?? null
   const report = latestReport(ctx, run.id, sprint.id)
   const attempts = ctx.db.all<AttemptRow>(
@@ -451,7 +458,8 @@ function evaluate(ctx: Ctx, run: RunRow): Evaluation {
   const hasNode = acceptanceNodeOf(bundle, sprint.id) !== undefined
   const definition = hasNode ? sprintDefinition(ctx, sprint.id) : []
   const touched = hasNode && ctx.repositoryEntries() !== null ? touchedRepositories(ctx, sprint.id) : null
-  const stale = reportStaleness(ctx, { run, bundle, sprint, report })
+  const rolloutGap = report && deliveryReportGap(ctx, { epicId: run.epic_id, sprintId: sprint.id, final: next === null }, report.report)
+  const stale = rolloutGap ?? reportStaleness(ctx, { run, bundle, sprint, report })
   const input = { index: indexBundle(bundle), bundle, sprint, report, stale, plan: planState(ctx, run), run, attempts, definition, touched }
   const gates = evaluateGates(input, next === null)
   const grant = report === null ? null : findGrant(ctx, run, sprint, report)

@@ -118,6 +118,20 @@ function requireBoundEndpoint(deps: MailAuthorityDeps, grantId: string): OwnMail
   return { endpoint, binding }
 }
 
+/** Resolves a locally recorded work participant to its still-current grant and chat. The caller
+ * already owns the write transaction; sending still rechecks the sender's independent authority. */
+export function boundParticipantMailbox(ctx: Ctx, sessionId: string | undefined): string | undefined {
+  if (!sessionId) return undefined
+  const grantId = sessionGrantId(ctx.db, sessionId)
+  if (!grantId) return undefined
+  try {
+    return requireBoundEndpoint(ctx, grantId).endpoint.id
+  } catch (error) {
+    if (error instanceof DomainError && error.code === 'unauthorized') return undefined
+    throw error
+  }
+}
+
 /** The caller's own mailbox, checked inside the current transaction. */
 function requireMailbox(ctx: Ctx): OwnMailbox {
   requireCapability(ctx.session, 'mail.use')

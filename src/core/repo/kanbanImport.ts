@@ -321,6 +321,7 @@ function applyDefinition(db: Db, record: KanbanCardRecord): void {
     record.createdAt,
     record.updatedAt
   )
+  db.run('UPDATE kanban_cards SET standards_json = ? WHERE id = ?', record.standards ? toJson(record.standards) : null, record.id)
   syncCardAttachments(db, record)
 }
 

@@ -1,10 +1,11 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { COMMAND_SCHEMAS } from '../../core/commandSchemas'
 import { baselineDeliveryPolicy, deliveryPolicy } from '../../core/deliveryPolicySchema'
 import { z } from 'zod'
 import { STORAGE_MODES } from '../../core/repo/storageMode'
 import { definitionOfDoneChecks } from '../../core/schemas'
 import type { CommandApi } from '../../shared/domain/api'
-import { defineArglessTool, defineTool, registerTools } from './define'
+import { defineArglessTool, defineSchemaTool, defineTool, registerTools } from './define'
 import { epicId } from './params'
 
 const DISCOVERY_TOOLS = [
@@ -39,16 +40,23 @@ const DISCOVERY_TOOLS = [
     name: 'get_project',
     description:
       'Returns the project record (id, name, ticket key prefix, repository root) and its Definition of Done: the ordered checks (name, command, description) that the acceptance node of every sprint must report as passed, empty when the project has none. Fails with `not_initialized` until initialize_repository has run.' +
-      ' Configured deliveryStandards include the current revision and policy. When absent, offer this Dark Mechanicus baseline for review: ' + JSON.stringify(baselineDeliveryPolicy),
+      ' Read deliveryStandards on every planning, delivery or review task. Apply the saved Planned, Ticket, Sprint and Epic prompts to their corresponding work. Configured deliveryStandards include the current revision and policy. When absent, offer this Dark Mechanicus baseline for review: ' + JSON.stringify(baselineDeliveryPolicy),
     kind: 'read',
     run: (api) => api.getProject()
   }),
   defineTool({
     name: 'set_delivery_standards',
-    description: 'Save reviewed project delivery standards using the current revision from get_project (zero for initial setup). Policy cannot grant privileges, approve checkpoints or authorize retries.',
+    description: 'Save reviewed project delivery standards using the current revision from get_project (zero for initial setup). Review repository tests, CI, merge, deployment, observed runtimes and revision verification with the person. Show proposed prompt changes and save the agreed text with setupDecision agent. After saving ask: Apply these standards to all existing project work now, including items already in progress? Yes starts standardize_project_work for the saved revision; Later ends setup. Policy cannot grant privileges, approve checkpoints or authorize retries.',
     kind: 'write',
     input: { expectedRevision: z.number().int().nonnegative(), policy: deliveryPolicy },
     run: (api, input) => api.setDeliveryStandards(input)
+  }),
+  defineSchemaTool({
+    name: 'standardize_project_work',
+    description: 'Standardize all work in the selected project against a saved revision. Call without items for the full inventory. Inspect each pending item and its evidence, then submit batches of up to 100 with a specific rationale and concrete requirements. Set includeInProgress true only on explicit authorization. Writing requires Allow save. Preserve completed evidence and flag unsupported claims as follow_up. On resume, read the same revision and process pending items. Finish by reporting updated, compliant and follow_up items. Check notifications for active work: inbox means accepted for the assigned chat, current_chat identifies this session, and refresh means the participant must retrieve the revision. Report outstanding refresh deliveries.',
+    kind: 'idempotent',
+    schema: COMMAND_SCHEMAS.standardizeProjectWork,
+    run: (api, input) => api.standardizeProjectWork(input)
   }),
   defineTool({
     name: 'set_definition_of_done',

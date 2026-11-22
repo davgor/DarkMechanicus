@@ -6,8 +6,8 @@
  * database beside them, so the plan travels with the code.
  *
  * `db` keeps everything in one machine-local SQLite database **outside** the repository, under the
- * Dark Mechanicus home directory. The repository gains no files at all: no `.darkmechanicus/`, no
- * `.gitignore` entry, and no record file is ever written. It suits a checkout whose history should
+ * Dark Mechanicus home directory. Projects that configure delivery standards carry only a versioned standards file in their repository; no `.darkmechanicus/`, no
+ * `.gitignore` entry, and no ticket record is written there. It suits a checkout whose history should
  * not carry planning data, such as work for someone else.
  *
  * The mode of a folder is not configuration anyone has to keep in sync: a database-only project
@@ -34,6 +34,7 @@ export const HOME_ENV = 'DARKMECHANICUS_HOME'
 const HOME_DIR_NAME = '.darkmechanicus'
 const PROJECTS_DIR = 'projects'
 const PROJECT_FILE = 'project.json'
+export const SQLITE_STANDARDS_FILE = '.darkmechanicus-standards.json'
 
 const KEY_DIGEST_LENGTH = 16
 const MAX_SLUG_LENGTH = 24
@@ -96,10 +97,12 @@ interface StorageModeQuery {
 
 /**
  * The mode `repoRoot` is set up in: `db` once it has a project in the home directory, otherwise
- * `repo`. Only the home directory decides, so a `.darkmechanicus/` that arrives later in the
- * checkout (a clone, a colleague's commit) never silently takes over a database-only project;
+ * `repo`. A local database marker wins, so a `.darkmechanicus/` that arrives later in the
+ * checkout (a clone, a colleague's commit) never silently takes over a database-only project. A clone that brings only the SQLite standards file also defaults to database mode;
  * `initializeRepository` is what refuses to set a folder up both ways.
  */
 export function resolveStorageMode(query: StorageModeQuery): StorageMode {
-  return query.fs.exists(dbProjectFile(query.repoRoot, query.homeDir)) ? 'db' : 'repo'
+  if (query.fs.exists(dbProjectFile(query.repoRoot, query.homeDir))) return 'db'
+  if (query.fs.exists(join(query.repoRoot, '.darkmechanicus', PROJECT_FILE))) return 'repo'
+  return query.fs.exists(join(query.repoRoot, SQLITE_STANDARDS_FILE)) ? 'db' : 'repo'
 }

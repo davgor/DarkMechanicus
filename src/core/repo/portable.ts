@@ -3,6 +3,7 @@
  * (size bound, merge-marker check, JSON, strict schema); builders produce the same validated shapes
  * from local database rows, so the finalizer never writes a record the importer would reject.
  */
+import { appliedStandards, encodeStandards, readStandards } from '../services/workStandards'
 import { storedDeliveryPolicy } from '../deliveryPolicySchema'
 import { z } from 'zod'
 import { REASONING_EFFORTS, TICKET_PRIORITIES, TICKET_SIZES } from '../../shared/domain/bundle'
@@ -204,6 +205,7 @@ export const correctionProvenance = z
 
 export const epicStateRecord = z.strictObject({
   format: z.literal('darkmechanicus.epic-state'),
+  standards: appliedStandards.optional(),
   formatVersion: z.literal(1),
   epicId: idOf('epic'),
   title: z.string().min(1).max(LIMITS.title),
@@ -264,7 +266,11 @@ const attemptOutputs = z.strictObject({
   branch: z.string().max(255).nullable().default(null)
 })
 
+import { deliveryIntegration, deliveryMerge, sprintDeployment } from '../deliveryEvidenceSchema'
+
 const attemptEvidence = z.strictObject({
+  standardsRevision: z.number().int().positive().optional(),
+  merge: deliveryMerge.optional(),
   checks: z.array(checkResult).max(LIMITS.listItems).default([]),
   criteria: criterionResults.default([]),
   notes: markdown.default(''),
@@ -279,6 +285,8 @@ const attemptFailure = z.strictObject({
 })
 
 const attemptDecision = z.strictObject({
+  standardsRevision: z.number().int().positive().optional(),
+  integration: deliveryIntegration.optional(),
   outcome: z.enum(['accepted', 'rejected']),
   notes: markdown.default(''),
   reasons: textList.default([]),
@@ -358,6 +366,9 @@ const retroContent = z.strictObject({
 })
 
 const reportContent = z.strictObject({
+  deployment: sprintDeployment.optional(),
+  epicVerification: markdown.optional(),
+  standardsVerification: markdown.optional(),
   summary: markdown,
   accepted: textList.default([]),
   failed: textList.default([]),
@@ -562,6 +573,7 @@ export const attachmentSidecar = z.strictObject({
  */
 export const kanbanCardRecord = z.strictObject({
   format: z.literal('darkmechanicus.kanban-card'),
+  standards: appliedStandards.optional(),
   formatVersion: z.literal(1),
   id: idOf('kanbanCard'),
   key: ticketKey,
@@ -877,6 +889,7 @@ export function buildSnapshotRecord(db: Db, revisionId: string): SnapshotRecord 
 }
 
 interface EpicRow {
+  standards_json: string | null
   id: string
   title: string
   status: string
@@ -903,6 +916,7 @@ export function buildEpicStateRecord(
   )
   const record = {
     format: 'darkmechanicus.epic-state',
+    ...(epic.standards_json ? { standards: encodeStandards(readStandards(epic.standards_json)) } : {}),
     formatVersion: 1,
     epicId: epic.id,
     title: epic.title,
@@ -1227,6 +1241,7 @@ export function buildProfileRecord(db: Db, name: string): ProfileRecord {
 }
 
 interface KanbanCardRow {
+  standards_json: string | null
   id: string
   key: string
   title: string
@@ -1251,6 +1266,7 @@ export function buildKanbanCardRecord(db: Db, cardId: string, meta: { generation
   const attachments = listAttachmentRefs(db, { kind: 'kanban_card', id: cardId })
   const record = {
     format: 'darkmechanicus.kanban-card',
+    ...(row.standards_json ? { standards: encodeStandards(readStandards(row.standards_json)) } : {}),
     formatVersion: 1,
     id: row.id,
     key: row.key,

@@ -21,7 +21,7 @@ import { FORGE_FILE, parseForge } from './forgeManifest'
 import { DomainError } from '../../core/errors'
 import { detectChildRepos, isInsideGitRepository } from '../../core/repo/childRepos'
 import { resolveLayout } from '../../core/repo/layout'
-import { resolveStorageMode, type StorageMode } from '../../core/repo/storageMode'
+import { resolveStorageMode, SQLITE_STANDARDS_FILE, type StorageMode } from '../../core/repo/storageMode'
 import type { TrackedFolderView } from '../../shared/desktop/api'
 
 /** The filesystem surface the registry uses; tests inject fakes and faults through it. */
@@ -183,6 +183,10 @@ function childRepositoriesOf(fs: RegistryFs, path: string, initialized: boolean)
   }
 }
 
+function canRestoreSettings(fs: RegistryFs, mode: StorageMode, path: string): boolean {
+  return mode === 'db' && fs.exists(join(path, SQLITE_STANDARDS_FILE))
+}
+
 function toView(context: RegistryContext, entry: FolderEntry): TrackedFolderView {
   const { fs, homeDir } = context
   const mode = storageModeOf(context, entry.path)
@@ -200,7 +204,7 @@ function toView(context: RegistryContext, entry: FolderEntry): TrackedFolderView
       invalidForge = !forgeWorld
     }
   }
-  const initialized = fs.exists(layout.projectFile)
+  const initialized = fs.exists(layout.projectFile) || canRestoreSettings(fs, mode, entry.path)
   return {
     path: entry.path,
     attachmentKey: context.keyFor(entry.path),

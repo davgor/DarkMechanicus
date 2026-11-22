@@ -166,7 +166,7 @@ describe('knowledge pushed with ticket claims', () => {
     await agent.submitAttempt({ attemptId: work.attempt.id, claimToken: work.packet.claimToken, outputs: { summary: 'done' } })
     await agent.acceptAttempt({ attemptId: work.attempt.id })
     const claim = await agent.claimTicket({ runId: run.id, ticketId: node, worker: { label: 'w' } })
-    expect(protocolFacts(claim)).toEqual(['orchestrator.final-validation-ci'])
+    expect(protocolFacts(claim)).toEqual(['orchestrator.final-validation-ci', 'orchestrator.post-checkpoint-delivery'])
     expect(pushed(claim)).toEqual(['repo.acceptance.claimed'])
   })
 

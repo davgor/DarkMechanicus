@@ -1,3 +1,4 @@
+import { deliveryReportGap } from './deliveryWorkflow'
 import type { SprintReportInput } from '../../shared/domain/api'
 import type { PlanBundle, SprintDef } from '../../shared/domain/bundle'
 import type { RunState } from '../../shared/domain/status'
@@ -141,6 +142,9 @@ function listOr<T>(items: T[] | undefined): T[] {
 /** The stored content of a submitted report; `experiments` resolves the retro's experiments (see `experimentContext`). */
 function normalizeReport(input: SprintReportInput, bundle: PlanBundle, experiments: ExperimentContext): SprintReportContent {
   return {
+    ...(input.deployment && { deployment: input.deployment }),
+    ...(input.standardsVerification && { standardsVerification: input.standardsVerification }),
+    ...(input.epicVerification && { epicVerification: input.epicVerification }),
     summary: input.summary,
     accepted: listOr(input.accepted),
     failed: listOr(input.failed),
@@ -305,6 +309,8 @@ export function submitSprintReport(ctx: Ctx, input: SubmitSprintReportInput): Sp
     requireReportable(run)
     const bundle = loadBundle(ctx, run.revision_id)
     const sprint = requireActiveSprint(run, bundle, input.sprintId)
+    const gap = deliveryReportGap(ctx, { epicId: run.epic_id, sprintId: sprint.id, final: bundle.sprints.every(item => item.ordinal <= sprint.ordinal) }, input.report)
+    if (gap) fail('invalid_input', gap)
     const view = insertReport(ctx, run, sprint.id, (draft) => normalizeReport(input.report, bundle, experimentContext(ctx, run, sprint.id, draft)))
     if (run.state === 'running') {
       setRunState(ctx, run.id, 'awaiting_checkpoint')

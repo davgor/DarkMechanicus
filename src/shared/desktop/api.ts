@@ -360,6 +360,7 @@ export interface DmApi {
 const DESKTOP_COMMANDS = [
   'getCapabilities',
   'getProject',
+  'standardizeProjectWork',
   'setDeliveryStandards',
   'setDefinitionOfDone',
   'rescanRepositories',

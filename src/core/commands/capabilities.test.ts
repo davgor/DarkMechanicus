@@ -45,6 +45,7 @@ const PROBES: Record<CommandName, unknown> = {
   recoverTooling: { action: 'status', incidentId: 'probe-incident' },
   getCapabilities: undefined,
   getProject: undefined,
+  standardizeProjectWork: { expectedRevision: 1, includeInProgress: false },
   setDeliveryStandards: { expectedRevision: 0, policy: baselineDeliveryPolicy },
   setDefinitionOfDone: { checks: [] },
   rescanRepositories: undefined,
@@ -234,6 +235,14 @@ describe('declared command capabilities match what the services enforce', () => 
   beforeAll(async () => {
     harness = createHarness()
     await harness.open('desktop', { allowSave: false }).initializeRepository({ name: 'probe' })
+  })
+
+  it('requires Allow save to apply reviewed standards to existing work', async () => {
+    const planner = harness.open('planner', { allowSave: false })
+    await expect(planner.standardizeProjectWork({
+      expectedRevision: 1, includeInProgress: true,
+      items: [{ id: EPIC, kind: 'epic', reason: 'Reviewed existing evidence', disposition: 'compliant' }]
+    })).rejects.toMatchObject({ code: 'unauthorized' })
   })
 
   afterAll(() => {

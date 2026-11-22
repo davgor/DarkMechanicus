@@ -95,6 +95,15 @@ describe('increment_merged gate: when the acceptance node has no verified increm
 })
 
 describe('increment_merged gate: when the increment verified', () => {
+  it('distinguishes verified integrated tickets from a legacy squash in the checkpoint', () => {
+    const { ctx, run } = setup()
+    acceptTickets(ctx, run, [1, 2])
+    seedAttempt(ctx, run, { ticket: 3, state: 'accepted', increment: {
+      checks: [{ name: 'Integrated tickets', status: 'passed', detail: 'All submitted work is reachable.' }]
+    } })
+    expect(incrementGate(ctx, run)).toMatchObject({ met: true, detail: 'Increment ccccccc on epic/x contains the integrated tickets' })
+  })
+
   it('is met by the accepted node, and says which commit landed on which branch', () => {
     const { ctx, run } = setup()
     acceptTickets(ctx, run, [1, 2, 3])
@@ -203,6 +212,13 @@ function storeVerdicts(ctx: TestCtx, attemptId: string, verdicts: Partial<Sprint
 }
 
 describe('increment_merged gate in a folder of repositories', () => {
+  it('reports each repository verified by ticket integration', () => {
+    const { ctx, run, node } = folderSetup()
+    const checks = [{ name: 'Integrated tickets', status: 'passed' as const, detail: 'Verified at review' }]
+    storeVerdicts(ctx, node, [{ repo: 'alpha', checks }, { repo: 'beta', checks }])
+    expect(incrementGate(ctx, run)).toMatchObject({ met: true, detail: 'Verified sprint increments on the epic branch in alpha, beta' })
+  })
+
   it('is met when every touched repository has a passing verdict', () => {
     const { ctx, run, node } = folderSetup()
     storeVerdicts(ctx, node, [{ repo: 'alpha' }, { repo: 'beta', commit: 'd'.repeat(40) }])

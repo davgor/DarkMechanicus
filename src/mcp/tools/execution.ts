@@ -35,6 +35,8 @@ import {
   ticketId
 } from './params'
 
+import { deliveryIntegration } from '../../core/deliveryEvidenceSchema'
+
 const optionalLabel = z.string().max(LIMITS.label).nullable().optional()
 
 const START_RUN_INPUT = {
@@ -211,7 +213,7 @@ const ATTEMPT_TOOLS = [
   defineTool({
     name: 'submit_attempt',
     description:
-      'Submits the result of a claimed attempt: outputs (summary, artifacts, commits, changedFiles, branch) and evidence (checks with results, per-criterion met or not met with notes). Submission does not complete the ticket or unlock dependents; it waits for accept_attempt or reject_attempt. The acceptance node of a sprint also names the sprint increment, increment { branch, commit }: the commit that landed the sprint on the epic branch. It must be one squashed commit (exactly one parent) reachable from the epic branch, not part of the previous sprint\'s increment (for sprint 1: after the epic start commit), and none of the commits recorded by the sprint\'s accepted work may be reachable from the epic branch, which proves the sprint was squashed and not merged. The server verifies that against the repository when the submission arrives and records the verdict on the attempt (increment: passed, reasons, checks), whether it passed or not. A failed verdict does not reject the submission, but the checkpoint\'s increment_merged gate stays unmet until a submission whose increment passed is accepted, so reject a failed one with its reasons and resubmit. A work ticket that names an increment is refused with `invalid_input`, and an acceptance node that names none leaves the gate unmet.',
+      'Submits the result of a claimed attempt: outputs (summary, artifacts, commits, changedFiles, branch) and evidence (checks with results, per-criterion met or not met with notes). Submission does not complete the ticket or unlock dependents; it waits for accept_attempt or reject_attempt. The acceptance node of a sprint also names the sprint increment, increment { branch, commit }: the commit that landed the sprint on the epic branch. With the configured Dark Mechanicus Ticket standards the increment must contain all accepted ticket commits already integrated into the epic branch. Under legacy squash policy it must be one squashed commit (exactly one parent) reachable from the epic branch, not part of the previous sprint\'s increment (for sprint 1: after the epic start commit), and none of the commits recorded by the sprint\'s accepted work may be reachable from the epic branch, which proves the sprint was squashed and not merged. The server verifies that against the repository when the submission arrives and records the verdict on the attempt (increment: passed, reasons, checks), whether it passed or not. A failed verdict does not reject the submission, but the checkpoint\'s increment_merged gate stays unmet until a submission whose increment passed is accepted, so reject a failed one with its reasons and resubmit. A work ticket that names an increment is refused with `invalid_input`, and an acceptance node that names none leaves the gate unmet.',
     kind: 'write',
     input: {
       attemptId,
@@ -233,9 +235,10 @@ const ATTEMPT_TOOLS = [
   defineTool({
     name: 'accept_attempt',
     description:
-      'Accepts a submitted attempt after independently verifying each acceptance criterion against the evidence. Completes the ticket and unlocks its dependents. Pass your own per-criterion results in criteria.',
+      'Accepts a submitted attempt after independently verifying each acceptance criterion against the evidence. Under the Dark Mechanicus Ticket standards, pass integration { branch, commit, verification } naming the integrated revision on the bound epic branch and how you verified it. For custom standards record in notes how you verified their requirements. Review the worker’s named tests and coverage first. Completes the ticket and unlocks its dependents. Pass your own per-criterion results in criteria.',
     kind: 'write',
     input: {
+      integration: deliveryIntegration.optional(),
       attemptId,
       notes: markdown.optional(),
       criteria: z.array(criterionResult).max(LIMITS.criteria).optional(),

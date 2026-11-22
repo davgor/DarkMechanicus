@@ -7,6 +7,7 @@ import type { IncrementRef, SubmitAttemptInput } from '../../shared/domain/api'
 import type { EpicBranch, PlanBundle, SprintDef } from '../../shared/domain/bundle'
 import type { AttemptOutputs, DefinitionOfDoneCheck, SprintIncrement, SprintIncrementView } from '../../shared/domain/views'
 import { ACTIVE_RUN_STATES, type AttemptState, type RunState } from '../../shared/domain/status'
+import { workStandards } from './workStandards'
 import type { Ctx } from '../context'
 import { parseJson } from '../db/database'
 import { acceptanceNodeOf, isAcceptanceTicket, workTicketsOf } from '../plan/acceptance'
@@ -129,6 +130,14 @@ export function sprintDefinition(ctx: Ctx, sprintId: string): DefinitionOfDoneCh
   )
 }
 
+/** Legacy sprints verify a squash. Configured sprints verify the work whose ticket contract required integration. */
+function incrementWork(ctx: Ctx, epicId: string, ticketIds: string[], attempts: AttemptRow[]) {
+  const rules = workStandards(ctx.db, 'epic', epicId).filter(rule => rule.kind === 'ticket' && ticketIds.includes(rule.id))
+  const integrated = new Set(rules.filter(rule => rule.workflow === 'default').map(rule => rule.id))
+  const configured = rules.some(rule => rule.workflow !== undefined)
+  return { flags: configured ? { integratedTickets: true } : {}, workAttempts: configured ? attempts.filter(item => integrated.has(item.ticket_id)) : attempts }
+}
+
 /**
  * What verifying the increment named by this attempt needs, or null when the attempt is not on a sprint's
  * acceptance node (or does not exist). Read-only; the git questions come after. With `repo` (a folder of
@@ -153,6 +162,7 @@ export function incrementContextOf(ctx: Ctx, attemptId: string, repo: string | n
     'SELECT branch_json, repository_branches_json FROM epics WHERE id = ?',
     run.epic_id
   )
+  const { flags, workAttempts } = incrementWork(ctx, run.epic_id, sprint.ticketIds, attempts)
   const epicBranch =
     repo === null
       ? parseJson<EpicBranch | null>(epic?.branch_json, null)
@@ -161,7 +171,8 @@ export function incrementContextOf(ctx: Ctx, attemptId: string, repo: string | n
     sprintId: sprint.id,
     epicBranch,
     previous: previousIncrement(bundle, sprint, attempts, repo),
-    workCommits: acceptedWorkCommits(bundle, sprint, attempts, repo)
+    ...flags,
+    workCommits: acceptedWorkCommits(bundle, sprint, workAttempts, repo)
   }
 }
 

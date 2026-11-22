@@ -215,15 +215,15 @@ const SCHEMA_FINGERPRINTS: Record<string, string> = {
   get_ticket: '2e36fb18f2deeaf5',
   // Changed on purpose: ticket input gained the optional `repo` (string, or null to clear it in a patch), then a
   // description on `attachments`, then (DM-171) the optional planned `budget`, then (DM-183) the budget's `basis`.
-  create_ticket: 'f0a405f637e975f8',
-  update_ticket: 'a0034dc7f2a59fa3',
+  create_ticket: 'dbe25cebfe987301',
+  update_ticket: 'a71d432e629be73c',
   set_ticket_status: '2f0069162106363a',
   get_plan: '57dd5f19d19a669e',
   open_plan_draft: 'f7874c5f7d17c6c5',
   // Changed on purpose: the ticket input of add_ticket and update_ticket gained a description on `attachments`, then
   // (DM-171) the optional planned `budget`, then (DM-183) the budget's `basis`.
   // Changed on purpose: set_policies gained the optional autoRetryLimit (orchestrator retries per ticket over the epic's runs).
-  update_plan_draft: '2cf98e6a32e28467',
+  update_plan_draft: 'c01df936794e1763',
   validate_plan: '3b52b9b5157a2fba',
   save_plan: 'a77f363be76d0e70',
   discard_plan_draft: 'e242b76040271758',
@@ -236,11 +236,11 @@ const SCHEMA_FINGERPRINTS: Record<string, string> = {
   claim_ticket: '4e01c7293527281d',
   heartbeat_attempt: '00ab97ed57813ee0',
   // Changed on purpose: acceptance nodes in a folder of repositories submit `increments`, one per touched repository.
-  submit_attempt: '25c7bf5f9f8e0d2f',
-  accept_attempt: '1f6d74d0987c0a6e',
+  submit_attempt: '0f5c29bf69e7ecfa',
+  accept_attempt: 'ab2483e798caa59b',
   reject_attempt: 'a75cbd153cdd82ca',
   fail_attempt: '90e46283afbb645f',
-  reconcile_attempt: '051d91324e7620e7',
+  reconcile_attempt: '38fd644c92fad626',
   carry_forward_ticket: '96660ba8e2cc4f98',
   pause_run: 'be49650976f9ddba',
   resume_run: 'd481e0f29f2ca1c1',
@@ -248,7 +248,7 @@ const SCHEMA_FINGERPRINTS: Record<string, string> = {
   takeover_run: 'd481e0f29f2ca1c1',
   adopt_revision: '5930cb03c4ec0d02',
   // Changed on purpose: retro experiments state their concern and may size each piece of proposed work (DM-185).
-  submit_sprint_report: '925f676c145f0b42',
+  submit_sprint_report: 'c83ed92bf77f281f',
   get_sprint_report: '3fe78b4c15e34139',
   get_checkpoint: 'd481e0f29f2ca1c1',
   advance_sprint: 'faf1d60dc4eb197e',
@@ -265,6 +265,17 @@ describe('advertised input schemas', () => {
           .map((tool) => [tool.name, contentHash(tool.inputSchema).slice('sha256:'.length, 23)])
       )
       expect(fingerprints).toEqual(SCHEMA_FINGERPRINTS)
+    })
+  })
+
+  it('advertises optional delivery evidence so existing clients can still submit legacy work', async () => {
+    await withRig(build, createStubApi(), async (rig) => {
+      const { tools } = await rig.client.listTools()
+      const schema = (name: string) => tools.find(tool => tool.name === name)?.inputSchema
+      expect(schema('accept_attempt')?.properties).toHaveProperty('integration.properties.verification')
+      expect(schema('accept_attempt')?.required).not.toContain('integration')
+      expect(schema('submit_attempt')?.properties).toHaveProperty('evidence.properties.merge.properties.checksUrl')
+      expect(schema('submit_sprint_report')?.properties).toHaveProperty('report.properties.deployment.properties.version')
     })
   })
 

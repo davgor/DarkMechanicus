@@ -84,6 +84,7 @@ export interface RepositoryView {
 }
 
 export interface ProjectView {
+  assignedDeliveryRequirements?: string[]
   deliveryStandards?: StoredDeliveryPolicy
   projectId: string
   name: string
@@ -178,6 +179,11 @@ export interface PlanChange {
 }
 
 export interface PlanView {
+  /** Hash of the original saved snapshot when the current work has revised requirements. */
+  snapshotContentHash?: string
+  /** Draft source is editable. This view also includes the project's explicitly applied requirements. */
+  effectiveBundle?: PlanBundle
+  deliveryStandards?: StoredDeliveryPolicy
   epicId: string
   view: 'saved' | 'draft'
   revisionId: string | null
@@ -375,6 +381,8 @@ export interface CriterionResult {
 }
 
 export interface AttemptEvidence {
+  standardsRevision?: number
+  merge?: { pullRequest: string; checksUrl: string; commit: string; branch: string }
   checks: CheckResult[]
   criteria: CriterionResult[]
   notes: string
@@ -383,7 +391,7 @@ export interface AttemptEvidence {
 }
 
 /** Evidence as a submission names it: its images by their staged ids; the server stores their references. */
-export type AttemptEvidenceSubmission = Omit<Partial<AttemptEvidence>, 'attachments'> & { attachments?: string[] }
+export type AttemptEvidenceSubmission = Omit<Partial<AttemptEvidence>, 'attachments' | 'standardsRevision'> & { attachments?: string[] }
 
 export interface AttemptFailure {
   reason: string
@@ -392,6 +400,8 @@ export interface AttemptFailure {
 }
 
 export interface AttemptDecision {
+  standardsRevision?: number
+  integration?: { branch: string; commit: string; verification: string }
   outcome: 'accepted' | 'rejected'
   notes: string
   reasons: string[]
@@ -452,6 +462,7 @@ export interface SprintIncrementView {
 }
 
 export interface AttemptView {
+  deliveryRequirements?: import('./standardization').StandardizationPatch & { revision: number }
   id: string
   runId: string
   ticketId: string
@@ -536,6 +547,9 @@ export interface FollowUpProposal {
 }
 
 export interface SprintReportContent {
+  standardsVerification?: string
+  deployment?: { pullRequest: string; commit: string; version: string; environment: string; verification: string; instructions: string }
+  epicVerification?: string
   summary: string
   accepted: string[]
   failed: string[]
@@ -708,6 +722,7 @@ export interface PacketRepository {
 }
 
 export interface ExecutionPacket {
+  deliveryStandards?: { revision: number; prompt?: string }
   runId: string
   attemptId: string
   /**
@@ -720,7 +735,7 @@ export interface ExecutionPacket {
   heartbeatIntervalSeconds: number
   epic: { id: string; title: string; branch: EpicBranch | null }
   revisionId: string
-  sprint: { id: string; ordinal: number; goal: string }
+  sprint: { id: string; ordinal: number; goal: string; deploymentVerification?: string }
   ticket: TicketContent
   ticketContentHash: string
   /** The reasoning effort this claim was dispatched at, or null when the claim named none. */

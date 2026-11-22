@@ -27,6 +27,8 @@ Missing runtime or tool access must name the attempted tools, errors and remaini
 
 Fill every field from evidence:
 
+- For a sprint pinned to default delivery standards, verify the shipped revision before requesting its human checkpoint. Include `report.deployment` with the pull request, commit, version, environment, verification evidence and instructions the person can follow.
+- For a custom Sprint prompt, provide `report.standardsVerification` describing its verification. On the final report, use `report.epicVerification` to account for the pinned Epic criteria and evidence.
 - `summary`: 3 to 6 sentences on what the sprint achieved against its goal, and what did not.
 - `accepted`: one line per accepted ticket (key, title, the result in a phrase).
 - `failed`: one line per failed ticket with the reason and how many attempts were used.

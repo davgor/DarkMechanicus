@@ -5,7 +5,7 @@ import { FOLDER_TABS } from '../app/folderTabs'
 import type { FolderTab } from '../app/folderTabs'
 import './folder.css'
 
-const LABELS: Record<FolderTab, string> = { source: 'Source control', epics: 'Epics', tickets: 'Ticket source control' }
+const LABELS: Record<FolderTab, string> = { source: 'Source control', standards: 'Delivery Standards', epics: 'Epics', tickets: 'Ticket source control' }
 
 interface FolderPageProps {
   folder: TrackedFolderView

@@ -134,6 +134,7 @@ function ticketOrderChanged(before: string[], after: string[]): boolean {
 function sprintPhrases(before: SprintDef, after: SprintDef): Phrase[] {
   return [
     before.ordinal === after.ordinal ? null : `renumbered from Sprint ${before.ordinal}`,
+    changed(before.deploymentVerification ?? null, after.deploymentVerification ?? null, 'deployment verification edited'),
     changed(before.goal, after.goal, 'goal changed'),
     criteriaPhrase('entry criteria', before.entryCriteria, after.entryCriteria),
     criteriaPhrase('exit criteria', before.exitCriteria, after.exitCriteria),
@@ -213,6 +214,7 @@ function ticketPhrases(before: TicketContent, after: TicketContent): Phrase[] {
     arrow('key', before.key, after.key),
     before.title === after.title ? null : `title changed from "${before.title}"`,
     arrow('kind', before.kind ?? 'work', after.kind ?? 'work'),
+    changed(before.testCases ?? [], after.testCases ?? [], 'planned test cases edited'),
     changed(before.body, after.body, 'body edited'),
     criteriaPhrase('acceptance criteria', before.acceptanceCriteria, after.acceptanceCriteria),
     changed(before.tags, after.tags, 'tags changed'),

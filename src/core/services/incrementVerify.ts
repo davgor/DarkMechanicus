@@ -12,6 +12,7 @@ import type { GitAdapter } from '../repo/types'
 
 /** What verification needs to know about the sprint and the epic, read from the run before git is asked. */
 export interface IncrementContext {
+  integratedTickets?: boolean
   sprintId: string
   /** The epic's integration branch and start commit; null when no branch was bound. */
   epicBranch: EpicBranch | null
@@ -191,6 +192,16 @@ async function reachableFrom(git: GitAdapter, candidates: string[], ref: string)
   return answers
 }
 
+/** The named sprint revision must contain the work already integrated and verified at ticket acceptance. */
+async function integratedWorkCheck(subject: Subject): Promise<Check> {
+  const candidates = [...new Set(subject.workCommits)]
+  const answers = await reachableFrom(subject.git, candidates, subject.named.commit)
+  const missing = candidates.filter((_, i) => answers[i] !== true)
+  return missing.length
+    ? check('Integrated tickets', 'failed', 'The sprint revision does not contain verified ticket commits: ' + listed(missing))
+    : check('Integrated tickets', 'passed', 'The sprint revision contains all recorded ticket commits.')
+}
+
 function listed(ids: string[]): string {
   const shown = ids.slice(0, LISTED).map(short).join(', ')
   return ids.length > LISTED ? `${shown} and ${ids.length - LISTED} more` : shown
@@ -237,10 +248,10 @@ export async function verifyIncrement(
   const checks = [
     branchCheck(subject),
     existsCheck(subject),
-    parentCheck(subject),
+    ...(context.integratedTickets ? [] : [parentCheck(subject)]),
     await reachableCheck(subject),
     await baseCheck(subject),
-    await squashedCheck(subject)
+    context.integratedTickets ? await integratedWorkCheck(subject) : await squashedCheck(subject)
   ]
   const failed = checks.filter((item) => item.status === 'failed')
   return {

@@ -3,6 +3,8 @@
  * review decisions, failures with the plan's failure policy, reconciliation of expired leases, and
  * carry-forward of work completed earlier.
  */
+import { effectiveSprint, effectiveTicket, workStandards, type AppliedStandard } from './workStandards'
+import { checkTicketDecision } from './deliveryWorkflow'
 import { join } from 'node:path'
 import type { ClaimTicketInput, HeartbeatAttemptInput, SubmitAttemptInput } from '../../shared/domain/api'
 import type { EpicBranch, ReasoningEffort, TicketContent } from '../../shared/domain/bundle'
@@ -39,6 +41,7 @@ import { addSeconds } from '../clock'
 import type { Ctx } from '../context'
 import { parseJson, toJson } from '../db/database'
 import { fail } from '../errors'
+import { itemWorkflow } from './workflowPolicy'
 import { isAcceptanceTicket } from '../plan/acceptance'
 import { matchProfile } from '../plan/capabilities'
 import { LIMITS } from '../schemas'
@@ -150,9 +153,8 @@ export function normalizeOutputs(outputs: OutputsInput): AttemptOutputs {
 }
 
 export function normalizeEvidence(evidence: Partial<AttemptEvidence> | undefined): AttemptEvidence {
-  const normalized: AttemptEvidence = { checks: evidence?.checks ?? [], criteria: evidence?.criteria ?? [], notes: evidence?.notes ?? '' }
-  // Only a submission that names images carries the key: evidence without them keeps its stored shape and hash.
-  return evidence?.attachments === undefined ? normalized : { ...normalized, attachments: evidence.attachments }
+  const { checks = [], criteria = [], notes = '', ...details } = evidence ?? {}
+  return { checks, criteria, notes, ...details }
 }
 
 /** Re-indexes the attempt for history search and returns its current row. */
@@ -380,12 +382,25 @@ function reportingPart(ctx: Ctx, ticket: TicketContent, repositories: Repository
   }
 }
 
+function sprintPacket(parts: PacketParts, rule?: AppliedStandard): ExecutionPacket['sprint'] {
+  const raw = parts.context.bundle.sprints.find(item => item.id === parts.view.sprintId)
+  const sprint = raw && effectiveSprint(raw, rule)
+  return {
+    id: parts.view.sprintId, ordinal: sprint?.ordinal ?? 0, goal: sprint?.goal ?? '',
+    ...(sprint?.deploymentVerification && { deploymentVerification: sprint.deploymentVerification })
+  }
+}
+
 function executionPacket(ctx: Ctx, parts: PacketParts): ExecutionPacket {
   const { context, row, view } = parts
-  const sprint = context.bundle.sprints.find((item) => item.id === view.sprintId)
   const epic = ctx.db.get<{ branch_json: string | null }>('SELECT branch_json FROM epics WHERE id = ?', context.run.epic_id)
-  const ticket = ticketOf(context.bundle, row.ticket_id)
+  const rules = workStandards(ctx.db, 'epic', context.run.epic_id)
+  const applied = rules.find(s => s.kind === 'ticket' && s.id === row.ticket_id)
+  const ticket = effectiveTicket(ticketOf(context.bundle, row.ticket_id), applied)
+  const sprintRule = rules.find(s => s.kind === 'sprint' && s.id === view.sprintId)
+  const deliveryStandards = isAcceptanceTicket(ticket) ? sprintRule : applied
   return {
+    ...(deliveryStandards && { deliveryStandards: { revision: deliveryStandards.revision, prompt: deliveryStandards.prompt } }),
     runId: context.run.id,
     attemptId: row.id,
     claimToken: `${row.id}.${parts.secret}`,
@@ -398,7 +413,7 @@ function executionPacket(ctx: Ctx, parts: PacketParts): ExecutionPacket {
       branch: parseJson<EpicBranch | null>(epic?.branch_json, null)
     },
     revisionId: context.run.revision_id,
-    sprint: { id: view.sprintId, ordinal: sprint?.ordinal ?? 0, goal: sprint?.goal ?? '' },
+    sprint: sprintPacket(parts, sprintRule),
     ticket,
     ticketContentHash: row.ticket_content_hash,
     effort: parts.effort,
@@ -596,7 +611,10 @@ export function heartbeatAttempt(ctx: Ctx, input: HeartbeatAttemptInput): Attemp
     if (input.progress !== undefined) {
       recordProgress(ctx, row, input.claimToken, input.progress)
     }
-    return attemptView(loadAttempt(ctx, row.id))
+    const result = attemptView(loadAttempt(ctx, row.id))
+    const rules = workStandards(ctx.db, 'epic', requireRun(ctx, row.run_id).epic_id)
+    const rule = rules.find(s => s.kind === 'ticket' && s.id === row.ticket_id)
+    return rule ? { ...result, deliveryRequirements: rule } : result
   })
 }
 
@@ -741,7 +759,8 @@ function acceptedDefinition(ctx: Ctx, row: AttemptRow): Pick<AttemptDecision, 'r
 /** Accepts a submission: completes the ticket and unlocks its dependents. */
 export function acceptAttempt(
   ctx: Ctx,
-  input: { attemptId: string; notes?: string; criteria?: CriterionResult[]; idempotencyKey?: string }
+  input: { attemptId: string; integration?: AttemptDecision['integration']; notes?: string; criteria?: CriterionResult[]; idempotencyKey?: string },
+  verifiedIntegration = false
 ): AttemptView {
   requireCapability(ctx.session, 'attempt.review')
   return withIdempotency(ctx, { command: 'acceptAttempt', key: input.idempotencyKey, request: requestWithoutKey(input) }, () => {
@@ -757,9 +776,11 @@ export function acceptAttempt(
       reasons: [],
       decidedBy: ctx.session.label,
       criteria: input.criteria ?? [],
+      ...(input.integration && { integration: input.integration }),
       ...acceptedDefinition(ctx, row)
     }
     const evidence = mergeCriteria(parseJson<AttemptEvidence>(row.evidence_json, EMPTY_EVIDENCE), input.criteria ?? [])
+    checkTicketDecision(itemWorkflow(ctx, run.epic_id, 'ticket', row.ticket_id), decision, evidence.checks, verifiedIntegration)
     ctx.db.run(
       "UPDATE attempts SET state = 'accepted', decision_json = ?, evidence_json = ?, decided_at = ?, updated_at = ? WHERE id = ?",
       toJson(decision),

@@ -22,6 +22,10 @@ const CASES: Case[] = [
   { tool: 'list_save_permission_requests', args: {}, method: 'listSavePermissionRequests', input: undefined },
   { tool: 'decide_save_permission', args: { requestId: sampleId('savePermission'), decision: 'denied', reason: 'Not approved' }, method: 'decideSavePermission', input: { requestId: sampleId('savePermission'), decision: 'denied', reason: 'Not approved' } },
   { tool: 'get_capabilities', args: {}, method: 'getCapabilities', input: undefined },
+  {
+    tool: 'standardize_project_work', method: 'standardizeProjectWork',
+    args: { expectedRevision: 2, includeInProgress: true }, input: { expectedRevision: 2, includeInProgress: true }
+  },
   { tool: 'set_delivery_standards', args: { expectedRevision: 0, policy: baselineDeliveryPolicy }, method: 'setDeliveryStandards', input: { expectedRevision: 0, policy: baselineDeliveryPolicy } },
   { tool: 'get_project', args: {}, method: 'getProject', input: undefined },
   {
@@ -112,6 +116,15 @@ interface InvalidCase {
 }
 
 const INVALID: InvalidCase[] = [
+  { label: 'missing explicit in-progress choice', tool: 'standardize_project_work', args: { expectedRevision: 1 } },
+  { label: 'unsaved standards revision', tool: 'standardize_project_work', args: { expectedRevision: 0, includeInProgress: false } },
+  {
+    label: 'an incomplete behavioral test', tool: 'standardize_project_work',
+    args: { expectedRevision: 1, includeInProgress: true, items: [{
+      kind: 'ticket', id: sampleId('ticket'), disposition: 'updated', reason: 'Revise tests',
+      testCases: [{ startingCondition: 'Configured project', action: 'Save edit', expectedResult: 'Visible after reopening' }]
+    }] }
+  },
   { label: 'lowercase key prefix', tool: 'initialize_repository', args: { keyPrefix: 'dm' } },
   { label: 'overlong repository name', tool: 'initialize_repository', args: { name: 'n'.repeat(201) } },
   { label: 'empty search query', tool: 'search_history', args: { query: '' } },

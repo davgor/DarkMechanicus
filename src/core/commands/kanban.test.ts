@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { baselineDeliveryPolicy } from '../../shared/domain/standardsPrompts'
 import type { KanbanPacket } from '../../shared/domain/kanban'
 import type { PushedContext } from '../../shared/domain/knowledge'
 import { createHarness, type Harness } from '../../test/workspaceHarness'
@@ -139,6 +140,24 @@ async function claimed(leaseSeconds?: number): Promise<{ packet: KanbanPacket & 
 }
 
 describe('kanban card lifecycle commands', () => {
+  it('requires the submitted merge to be reachable on origin/main before human review', async () => {
+    await desktop.setDeliveryStandards({ expectedRevision: 0, policy: baselineDeliveryPolicy })
+    const { packet, claimToken } = await claimed()
+    const commit = '1'.repeat(40)
+    const worker = harness.open('worker', { git: { ...harness.git,
+      isAncestor: async (left, right) => left === commit && right === 'refs/remotes/origin/main' } })
+    const merge = { branch: 'main', commit, pullRequest: 'https://example.org/pr/1', checksUrl: 'https://example.org/checks/1' }
+    const submit = (branch: string, revision: string) => worker.submitKanbanCard({
+      attemptId: packet.attemptId, claimToken, outputs: { summary: 'Merged on main', commits: [revision] },
+      evidence: { merge: { ...merge, branch, commit: revision }, checks: [{ name: 'Acceptance', status: 'passed', detail: 'Verified' }] }
+    })
+    await expect(submit('feature', commit)).rejects.toThrow('origin/main')
+    await expect(submit('main', '2'.repeat(40))).rejects.toThrow('origin/main')
+    expect((await desktop.getKanbanCard({ cardId: packet.cardId })).lane).toBe('in_progress')
+    await submit('main', commit)
+    expect((await desktop.getKanbanCard({ cardId: packet.cardId })).lane).toBe('ready_for_review')
+  })
+
   it('carries a card across sessions: the person plays and approves, the orchestrator claims, the worker reports', async () => {
     const { packet, claimToken } = await claimed()
     expect(packet).toMatchObject({ key: 'KB-1', card: { title: 'Isolated fix' }, reviewComments: [] })

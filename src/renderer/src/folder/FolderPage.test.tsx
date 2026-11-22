@@ -31,8 +31,8 @@ describe('FolderPage', () => {
   it('lists the folder tabs and marks the chosen one', () => {
     renderPage('epics')
     const tabs = screen.getAllByRole('tab')
-    expect(tabs.map((tab) => tab.textContent)).toEqual(['Source control', 'Epics', 'Ticket source control'])
-    expect(tabs.map((tab) => tab.getAttribute('aria-selected'))).toEqual(['false', 'true', 'false'])
+    expect(tabs.map((tab) => tab.textContent)).toEqual(['Source control', 'Delivery Standards', 'Epics', 'Ticket source control'])
+    expect(tabs.map((tab) => tab.getAttribute('aria-selected'))).toEqual(['false', 'false', 'true', 'false'])
     expect(screen.getByRole('tablist', { name: 'Folder sections' })).toBeTruthy()
   })
 
@@ -50,7 +50,7 @@ describe('FolderPage', () => {
     fireEvent.keyDown(tab, { key: 'End' })
     fireEvent.keyDown(tab, { key: 'Home' })
     fireEvent.keyDown(tab, { key: 'a' })
-    expect(chosen).toEqual(['epics', 'tickets', 'tickets', 'source'])
+    expect(chosen).toEqual(['standards', 'tickets', 'tickets', 'source'])
   })
 
   it('only the chosen tab is in the tab order', () => {

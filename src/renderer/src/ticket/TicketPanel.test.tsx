@@ -107,6 +107,19 @@ describe('ticket panel overview', () => {
   })
 })
 
+it('shows the planned test cases for the selected ticket', async () => {
+  const backend = new FakeBackend()
+  backend.state.ticket.ticket.testCases = [{
+    startingCondition: 'Two managed repositories', action: 'Edit the first repository',
+    expectedResult: 'Only one revision changes', verificationMethod: 'Read back both prompts'
+  }]
+  renderPanel(backend)
+  const cases = await screen.findByRole('region', { name: 'Planned test cases' })
+  expect(Array.from(cases.querySelectorAll('dd'), item => item.textContent)).toEqual([
+    'Two managed repositories', 'Edit the first repository', 'Only one revision changes', 'Read back both prompts'
+  ])
+})
+
 describe('ticket panel repository', () => {
   it("shows the ticket's repository next to the key, and none for a ticket without one", async () => {
     const backend = new FakeBackend()

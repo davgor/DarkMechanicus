@@ -19,6 +19,7 @@ import type { Ctx } from './context'
 import { openDatabase, type Db } from './db/database'
 import { migrate } from './db/migrations'
 import { fail } from './errors'
+import { policyForStore, portablePolicy, recoverSqlitePolicy } from './repo/deliveryPolicy'
 import { createIdGenerator, type IdGenerator } from './ids'
 import { getMeta, META_KEYS, setMeta } from './meta'
 import { assertForgeTransferIdle, boundForgeRoot, isForgeMember } from './repo/forgeBinding'
@@ -229,7 +230,19 @@ export class RepositoryWorkspace implements WorkspaceCore {
     this.ids = options.ids ?? createIdGenerator(() => this.clock.nowMs())
     if (this.fs.exists(this.layout.projectFile)) {
       this.openStore()
+    } else if (this.canRestoreSqliteSettings()) {
+      // The checked-out settings carry the previous setup decision. The clone needs only its local ticket database.
+      this.initialize({ mode: 'db' })
     }
+  }
+
+  private isDesktopSession(): boolean {
+    return this.options.transport === 'desktop' && this.options.role === 'desktop'
+  }
+
+  private canRestoreSqliteSettings(): boolean {
+    return this.isDesktopSession() &&
+      this.layout.mode === 'db' && Boolean(portablePolicy(this))
   }
 
   /** How the folder is already set up, read from the home directory. */
@@ -348,6 +361,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
     const db = openDatabase(this.layout.dbFile, { synchronous: this.options.databaseSynchronous ?? 'full' })
     try {
       this.store = this.createStore(db, project)
+
       // Staged images nobody claimed within the retention window are dropped each time a workspace opens; a mailbox
       // poll, which runs every few seconds and touches nothing else, leaves that to ordinary sessions.
       if (this.options.mailPoll !== true) {
@@ -384,6 +398,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
   private createStore(db: Db, project: ProjectRecord): Store {
     migrate(db)
     bindProject(db, this.layout, project)
+    if (this.isDesktopSession()) recoverSqlitePolicy(this, db)
     const machineId = this.machineIdFor(db)
     if (getMeta(db, META_KEYS.machineId) !== machineId) {
       db.tx(() => setMeta(db, META_KEYS.machineId, machineId))
@@ -401,6 +416,10 @@ export class RepositoryWorkspace implements WorkspaceCore {
       assertBranch: () => this.assertBranch(),
       checkout: () => this.checkout(),
       gitFor: (repo) => this.gitFor(repo),
+      deliveryStandards: () => {
+        const current = readProject(this.layout, this.fs) ?? fail('not_initialized', 'Project configuration is unavailable.')
+        return policyForStore(this.layout, db, current, this.fs)
+      },
       definitionOfDone: () => this.definitionOfDone(),
       repositories: () => readProject(this.layout, this.fs)?.repositories?.map((entry) => entry.name) ?? null,
       repositoryEntries: () => readProject(this.layout, this.fs)?.repositories ?? null

@@ -78,6 +78,16 @@ describe('verifyIncrement: one squashed commit on the epic branch', () => {
     expect(result.checks.map((check) => check.status)).toEqual(Array(6).fill('passed'))
   })
 
+  it('verifies already integrated tickets against the named sprint revision', async () => {
+    const { repo, context } = scene()
+    context.integratedTickets = true
+    context.workCommits = work(repo, 'w1', ['ticket change'])
+    const before = repo.commit('integration work')
+    const merged = repo.merge('w1')
+    expect(await verify(scene(), before)).toMatchObject({ passed: false })
+    expect(await verify(scene(), merged)).toMatchObject({ passed: true })
+  })
+
   it('accepts an abbreviated commit and stores the full id', async () => {
     const { repo, context } = scene()
     context.workCommits = work(repo, 'w1', ['one'])

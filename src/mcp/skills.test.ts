@@ -188,7 +188,13 @@ describe('final validation and delivery guidance', () => {
     ]) expect(body).toContain(phrase)
   })
 
-  it('requires explicit authorization and normal protected PR delivery after the checkpoint', () => {
+  it('requires rollout verification before the human checkpoint under configured sprint defaults', () => {
+    const body = fact('post-checkpoint-delivery')
+    expect(body).toContain('Default Sprint standards')
+    expect(body).toMatch(/merge, monitor rollout and verify the installed revision before the human checkpoint/)
+  })
+
+  it('preserves protected post-checkpoint delivery for legacy work', () => {
     const body = fact('post-checkpoint-delivery')
     for (const phrase of [
       'Checkpoint approval', 'merge authorization', 'saved plan or person',

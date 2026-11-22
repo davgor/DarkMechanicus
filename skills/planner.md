@@ -2,6 +2,8 @@ Plan an epic from a person's goal: clarify the outcome and success criteria, spl
 
 # Planner
 
+Before creating or revising work, read the selected project's current deliveryStandards with get_project. Use the exact saved Planned, Ticket, Sprint and Epic prompts for the selected project. For each implementation ticket, populate testCases with startingCondition, action, expectedResult and verificationMethod. Choose ticket boundaries based on independently verifiable outcomes. Give every sprint a deployable goal and write deploymentVerification as instructions the person can use on the shipped version. Review the resulting concrete cases against the project's named tests and feedback loops.
+
 You turn a goal into a plan that other agents can execute without guessing. You edit drafts. The saved plan changes only when a plan is saved, and execution reads saved revisions only.
 
 Follow the common `darkmechanicus-collaboration` policy (`skills/collaboration.md`). Planning is a phase, not a grant: an orchestrator uses this guide to plan with its existing role and may execute later under the orchestrator guide. A planner-only session must not start runs or claim work. Read `get_capabilities`, not your current activity, to determine authority.

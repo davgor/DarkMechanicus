@@ -6,7 +6,7 @@ import { prettyJson } from '../canonical'
 import type { Clock } from '../clock'
 import { type Db, openDatabase } from '../db/database'
 import { fail } from '../errors'
-import { policyForStore } from './deliveryPolicy'
+import { policyForStore, publishSqlitePolicy, retireSqlitePolicy } from './deliveryPolicy'
 import { setMeta, META_KEYS } from '../meta'
 import { SESSION_ACTIVE_WINDOW_MS } from '../services/sessions'
 import { loadStoredAttachment, placementOfAttachment } from './attachmentFiles'
@@ -146,7 +146,11 @@ function recover(env: MigrationEnv, sourceMode: StorageMode): void {
   const paths = migrationPaths(env, sourceMode)
   assertDisjointPaths(env, paths)
   if (committed(env, sourceMode)) {
-    if (sourceMode === 'repo') purgeRepository(env, paths.source)
+    if (sourceMode === 'repo') {
+      const policy = readProject(paths.source, env.fs)?.deliveryStandards
+      if (policy) publishSqlitePolicy({ layout: paths.target, fs: env.fs }, policy)
+      purgeRepository(env, paths.source)
+    } else retireSqlitePolicy({ layout: paths.source, fs: env.fs }, readProject(paths.target, env.fs)?.deliveryStandards)
     removeTree(env.fs, paths.retired)
   } else {
     // A db -> repo export may already be published while the db marker still selects the untouched original.
@@ -283,7 +287,7 @@ function prepareDestination(deps: MigrationDeps, paths: MigrationPaths, project:
     deps.fs.mkdirp(paths.staging.localDir)
     const snapshot = hydratedCheckpoint(deps, paths.source)
     const env = { fs: deps.fs, layout: paths.staging }
-    const policy = policyForStore(deps.layout, deps.db, project)
+    const policy = policyForStore(deps.layout, deps.db, project, deps.fs)
     const destinationProject = { ...project, deliveryStandards: paths.target.mode === 'repo' ? policy : undefined }
     writeFileSafely(env, paths.staging.projectFile, prettyJson(destinationProject))
     writeFileSafely(env, paths.staging.machineFile, deps.fs.readFile(paths.source.machineFile))
@@ -301,6 +305,7 @@ function prepareDestination(deps: MigrationDeps, paths: MigrationPaths, project:
       if (retireSession) rebuilt.run('UPDATE sessions SET ended_at = ? WHERE id = ?', deps.clock.nowIso(), deps.sessionId)
       rebuilt.exec('PRAGMA wal_checkpoint(TRUNCATE)')
     } finally { rebuilt.close() }
+
   })
 }
 
@@ -333,6 +338,9 @@ export function exportForgeDestination(deps: MigrationDeps, member: string, mode
     prepareDestination(deps, paths, mode === 'db' ? { ...portable, repoRoot: member } : portable, true)
     copyKnowledge(deps.fs, source, staging)
     deps.fs.rename(staging.dmDir, target.dmDir)
+    if (mode === 'db' && project.deliveryStandards) {
+      publishSqlitePolicy({ layout: target, fs: deps.fs }, project.deliveryStandards)
+    }
   } catch (error) {
     removeTree(deps.fs, staging.dmDir)
     throw error

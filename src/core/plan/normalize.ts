@@ -147,6 +147,10 @@ function targetedTitle(input: TicketInput): { title: string; repo?: string } {
   return repo === undefined ? { title } : { title: withRepoPrefix(repo, descriptionOf(repo, title)), repo }
 }
 
+function plannedCases(input: Partial<TicketInput>): Pick<TicketContent, 'testCases'> {
+  return input.testCases === undefined ? {} : { testCases: input.testCases }
+}
+
 /**
  * Builds a new ticket. `attachments` are the refs of the images it shows, resolved by the draft ops from the input's ids
  * (the ids themselves are never stored); none, or an empty list, leaves the ticket without an `attachments` key.
@@ -161,6 +165,7 @@ export function buildTicket(
     key: identity.key,
     ...kindKey(input.kind),
     ...targetedTitle(input),
+    ...plannedCases(input),
     body: input.body ?? '',
     acceptanceCriteria: normalizeTicketCriteria(input.acceptanceCriteria ?? [], []),
     tags: normalizeTags(input.tags ?? []),
@@ -277,6 +282,7 @@ export function patchTicket(
 ): TicketContent {
   const patched: TicketContent = {
     ...ticket,
+    ...plannedCases(patch),
     body: patch.body ?? ticket.body,
     acceptanceCriteria:
       patch.acceptanceCriteria === undefined
@@ -305,6 +311,7 @@ export function buildSprint(input: SprintInput, identity: { id: string; ordinal:
   return {
     id: identity.id,
     ordinal: identity.ordinal,
+    ...(input.deploymentVerification !== undefined && { deploymentVerification: input.deploymentVerification }),
     goal: input.goal.trim(),
     ticketIds: [],
     entryCriteria: normalizeCriteria(input.entryCriteria ?? [], [], 'n'),
@@ -317,6 +324,7 @@ export function buildSprint(input: SprintInput, identity: { id: string; ordinal:
 export function patchSprint(sprint: SprintDef, patch: Partial<SprintInput>): SprintDef {
   return {
     ...sprint,
+    ...(patch.deploymentVerification !== undefined && { deploymentVerification: patch.deploymentVerification }),
     goal: patch.goal === undefined ? sprint.goal : patch.goal.trim(),
     entryCriteria:
       patch.entryCriteria === undefined

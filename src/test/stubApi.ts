@@ -24,6 +24,7 @@ const COMMAND_FLAGS: Record<CommandName, true> = {
   nameChat: true,
   recoverTooling: true,
   getProject: true,
+  standardizeProjectWork: true,
   setDeliveryStandards: true,
   setDefinitionOfDone: true,
   rescanRepositories: true,
