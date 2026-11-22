@@ -154,6 +154,11 @@ export function Sidebar(props: SidebarProps): JSX.Element {
       <Brand version={props.version} />
       <SidebarAgents {...props} />
       <nav className="sidebar-tree" aria-label="Folders and epics">
+        {worlds.length > 0 && (
+          <FolderSection title="Forge Worlds">
+            {worlds.map(folder => <ForgeRow key={folder.path} folder={folder} sidebar={props} />)}
+          </FolderSection>
+        )}
         <FolderSection title="Folders" action={<AddFolderMenu onTrack={props.onTrack} onClone={props.onClone} />}>
           {folders.length === 0 && <p className="sidebar-note">No folders yet. Use + to track one.</p>}
           {folders.map(folder => (
@@ -178,11 +183,6 @@ export function Sidebar(props: SidebarProps): JSX.Element {
             />
           ))}
         </FolderSection>
-        {worlds.length > 0 && (
-          <FolderSection title="Forge Worlds">
-            {worlds.map(folder => <ForgeRow key={folder.path} folder={folder} sidebar={props} />)}
-          </FolderSection>
-        )}
       </nav>
       {props.footer}
     </aside>
