@@ -18,7 +18,12 @@ import type { GithubErrorCode } from '../github/errors'
 import type { CheckoutPullRequestRequest, CompareUrl, PullRequestInfo, PullRequestsRequest } from '../github/pullRequests'
 import type { TrackedFolderView } from '../desktop/api'
 
-type GitResultErrorCode = GitErrorCode | GithubErrorCode | 'invalid_input' | 'unauthorized'
+type GitResultErrorCode = GitErrorCode | GithubErrorCode | 'invalid_input' | 'unauthorized' | 'checkout_unavailable'
+
+/** A tracked ticket identity can name a separately verified local code repository. */
+export type SourceControlTarget =
+  | { kind: 'available'; path: string; displayPath: string; repository?: string }
+  | { kind: 'unavailable'; repository: string; reason: string; directions: string }
 
 export interface GitErrorShape {
   code: GitResultErrorCode
@@ -46,6 +51,7 @@ interface SyncRequest {
  * The folder it goes into is always the one chosen with `chooseCloneParent`; the renderer cannot name another.
  */
 export interface CloneRequest extends SyncRequest {
+  mode?: 'forge-world'
   url: string
   name: string
 }
@@ -79,6 +85,7 @@ export interface CommitMessage {
 export const GIT_PROGRESS_CHANNEL = 'git:progress'
 
 export interface GitApi {
+  getTarget(folder: string): Promise<GitResult<SourceControlTarget>>
   getState(folder: string): Promise<GitResult<RepoState>>
   getWorkingDiff(folder: string, request: WorkingDiffRequest): Promise<GitResult<FileDiff>>
   initRepository(folder: string): Promise<GitResult<RepoState>>

@@ -85,15 +85,23 @@ function createRecordingAgentHandlers(calls: unknown[][]): AgentHandlers & Agent
 }
 
 /** Handlers that log each call as [name, ...args] and return a recognizable value. */
+function recordFolderOpening(calls: unknown[][]): DesktopHandlers['openTrackedFolder'] {
+  return async (folder, expectedPath) => {
+    calls.push(['openTrackedFolder', folder, expectedPath])
+    return { ok: true, data: null }
+  }
+}
+
 function createRecordingHandlers(): { handlers: DesktopHandlers; calls: unknown[][] } {
   const calls: unknown[][] = []
   const handlers: DesktopHandlers = {
+    openTrackedFolder: recordFolderOpening(calls),
     listFolders: async () => {
       calls.push(['listFolders'])
       return []
     },
-    pickFolder: async () => {
-      calls.push(['pickFolder'])
+    pickFolder: async (mode) => {
+      calls.push(['pickFolder', mode])
       return { folder: null, added: false }
     },
     untrackFolder: async (path) => {
@@ -104,10 +112,7 @@ function createRecordingHandlers(): { handlers: DesktopHandlers; calls: unknown[
       calls.push(['command', folder, name, input])
       return { ok: true, data: 'command-result' }
     },
-    getMcpConfig: async (folder) => {
-      calls.push(['getMcpConfig', folder])
-      return MCP_VIEW
-    },
+    getMcpConfig: async (folder) => { calls.push(['getMcpConfig', folder]); return MCP_VIEW },
     installSkills: async (folder) => {
       calls.push(['installSkills', folder])
       return { written: ['a'] }
@@ -154,6 +159,7 @@ const EXPECTED_CHANNELS = [
   'dm:installSkills',
   'dm:listFolders',
   'dm:openExternal',
+  'dm:openTrackedFolder',
   'dm:pickFolder',
   'dm:previewBoardRemoval',
   'dm:removeBoardFiles',
@@ -195,7 +201,8 @@ describe('registerDesktopIpc forwarding', () => {
     registerDesktopIpc(ipc, handlers)
 
     await ipc.invoke('dm:listFolders', 'stray')
-    await ipc.invoke('dm:pickFolder', 'stray')
+    await ipc.invoke('dm:pickFolder', 'forge-world', 'stray')
+    await ipc.invoke('dm:openTrackedFolder', '/member', '/code', 'stray')
     await ipc.invoke('dm:untrackFolder', '/repos/a', 'stray')
     await ipc.invoke('dm:command', '/repos/a', 'getEpic', { epicId: 'e' }, 'stray')
     await ipc.invoke('dm:getMcpConfig', '/repos/a', 'stray')
@@ -208,7 +215,8 @@ describe('registerDesktopIpc forwarding', () => {
 
     expect(calls).toEqual([
       ['listFolders'],
-      ['pickFolder'],
+      ['pickFolder', 'forge-world'],
+      ['openTrackedFolder', '/member', '/code'],
       ['untrackFolder', '/repos/a'],
       ['command', '/repos/a', 'getEpic', { epicId: 'e' }],
       ['getMcpConfig', '/repos/a'],

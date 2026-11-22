@@ -125,8 +125,9 @@ const dm: DmApi = {
   sourceCheckout,
   crossRepoCorrections,
   listFolders: () => ipcRenderer.invoke('dm:listFolders'),
-  pickFolder: () => ipcRenderer.invoke('dm:pickFolder'),
+  pickFolder: (mode) => ipcRenderer.invoke('dm:pickFolder', mode),
   untrackFolder: (path) => ipcRenderer.invoke('dm:untrackFolder', path),
+  openTrackedFolder: (folder, expectedPath) => ipcRenderer.invoke('dm:openTrackedFolder', folder, expectedPath),
   command: (folder, name, input) => ipcRenderer.invoke('dm:command', folder, name, input),
   getMcpConfig: (folder) => ipcRenderer.invoke('dm:getMcpConfig', folder),
   installSkills: (folder) => ipcRenderer.invoke('dm:installSkills', folder),
@@ -162,6 +163,7 @@ contextBridge.exposeInMainWorld('dm', dm)
 
 /** Source control: every method is one `git:*` IPC invoke; main validates each payload. */
 const git: GitApi = {
+  getTarget: (folder) => ipcRenderer.invoke('git:getTarget', folder),
   getState: (folder) => ipcRenderer.invoke('git:getState', folder),
   getWorkingDiff: (folder, request) => ipcRenderer.invoke('git:getWorkingDiff', folder, request),
   initRepository: (folder) => ipcRenderer.invoke('git:initRepository', folder),

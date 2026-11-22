@@ -261,6 +261,16 @@ describe('listFolders', () => {
 })
 
 describe('pickFolder', () => {
+  it('forwards Forge-only mode to the trusted picker and refuses invalid modes before opening it', async () => {
+    const world = createWorld()
+    const modes: unknown[] = []
+    const handlers = createDesktopHandlers({ ...world.deps, pickDirectory: async mode => { modes.push(mode); throw new Error('Not a Forge World') } })
+    await expect(handlers.pickFolder('forge-world')).rejects.toThrow('Not a Forge World')
+    expect(world.tracked).toEqual([])
+    expect(modes).toEqual(['forge-world'])
+    await expect(handlers.pickFolder('/untrusted/path')).rejects.toMatchObject({ code: 'invalid_input' })
+    expect(modes).toEqual(['forge-world'])
+  })
   it('reports a cancelled dialog without touching the registry', async () => {
     const world = createWorld({ picks: [null] })
     const handlers = createDesktopHandlers(world.deps)
@@ -433,6 +443,38 @@ describe('untracking Forge World registry entries', () => {
       expect(existsSync(join(root, 'forge-world.json'))).toBe(true)
       expect(existsSync(member)).toBe(true)
     } finally { rmSync(scratch, { recursive: true, force: true }) }
+  })
+})
+
+describe('opening tracked folder headers', () => {
+  it('opens only the freshly authorized displayed target and refuses arbitrary or stale paths', async () => {
+    const scratch = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-open-folder-')))
+    try {
+      const code = join(scratch, 'code')
+      mkdirSync(code)
+      const world = createWorld({ tracked: [scratch] })
+      const opened: string[] = []
+      const handlers = createDesktopHandlers({ ...world.deps,
+        folderTarget: async () => ({ kind: 'available', path: code, displayPath: code }),
+        openPath: async path => { opened.push(path); return '' }
+      })
+      expect(await handlers.openTrackedFolder(scratch, code)).toEqual({ ok: true, data: null })
+      expect(await handlers.openTrackedFolder(code, code)).toMatchObject({ ok: false, error: { code: 'unauthorized' } })
+      expect(await handlers.openTrackedFolder(scratch, '/arbitrary')).toMatchObject({ ok: false, error: { code: 'invalid_state' } })
+      expect(await handlers.openTrackedFolder(scratch, 42)).toMatchObject({ ok: false, error: { code: 'invalid_input' } })
+      expect(opened).toEqual([code])
+    } finally { rmSync(scratch, { recursive: true, force: true }) }
+  })
+
+  it('reports an unavailable code checkout and never falls back to opening the ticket directory', async () => {
+    const world = createWorld({ tracked: ['/ticket/project'] })
+    const opened: string[] = []
+    const handlers = createDesktopHandlers({ ...world.deps,
+      folderTarget: async () => ({ kind: 'unavailable', repository: 'https://github.com/example/code.git', reason: 'Code is not downloaded', directions: 'Clone when needed' }),
+      openPath: async path => { opened.push(path); return '' }
+    })
+    expect(await handlers.openTrackedFolder('/ticket/project')).toMatchObject({ ok: false, error: { code: 'not_found', message: 'Code is not downloaded' } })
+    expect(opened).toEqual([])
   })
 })
 

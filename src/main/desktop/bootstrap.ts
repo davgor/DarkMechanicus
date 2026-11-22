@@ -54,6 +54,7 @@ import { listBoundThreads } from '../agents/boundThreads'
 import { findBoundTerminal, type GrantBindingReads } from '../agents/grantBindings'
 import { createCloneParentStore, createCloner, type Cloner } from '../git/clone'
 import { createGitHandlers } from '../git/handlers'
+import { sourceControlTarget } from '../git/target'
 import { createProgressBroadcaster, registerGitIpc } from '../git/ipc'
 import { createGitRunner, type GitRunner } from '../git/runner'
 import { createAccountStore } from '../github/accountStore'
@@ -714,7 +715,7 @@ function openAgentRegistry(appDb: Db): AgentRegistry {
 }
 
 /** Clones into the folder kept in `userData/clone.json`, chosen only with the native dialog, and tracks each finished clone. */
-function startClones(openProject: (folder: string) => Promise<string>, folders: Pick<FolderRegistry, 'track'>, runner: GitRunner, github: GithubBridge): Cloner {
+function startClones(forge: Pick<ReturnType<typeof startForge>, 'openProject' | 'openWorld'>, folders: Pick<FolderRegistry, 'track'>, runner: GitRunner, github: GithubBridge): Cloner {
   return createCloner({
     runner,
     session: github,
@@ -722,7 +723,7 @@ function startClones(openProject: (folder: string) => Promise<string>, folders: 
       file: join(app.getPath('userData'), 'clone.json'),
       pickDirectory: () => showOpenDialog(CLONE_PARENT_DIALOG)
     }),
-    registry: folders, openProject,
+    registry: folders, openProject: forge.openProject, openWorld: forge.openWorld,
     onProgress: createProgressBroadcaster(() => BrowserWindow.getAllWindows())
   })
 }
@@ -732,13 +733,13 @@ function startClones(openProject: (folder: string) => Promise<string>, folders: 
  * chosen with the native dialog. Network operations authenticate with the GitHub session (in main: the token never
  * reaches a window) and broadcast their progress; pull requests are read through the session's API client.
  */
-function startGit(openProject: (folder: string) => Promise<string>, ipc: Pick<IpcMain, 'handle'>, folders: Pick<FolderRegistry, 'resolve' | 'track'>, github: GithubBridge): void {
+function startGit(forge: Pick<ReturnType<typeof startForge>, 'openProject' | 'openWorld'>, ipc: Pick<IpcMain, 'handle'>, folders: Pick<FolderRegistry, 'resolve' | 'track' | 'list'>, github: GithubBridge): void {
   const runner = createGitRunner()
   registerGitIpc(
     ipc,
     createGitHandlers({
       registry: folders,
-      clones: startClones(openProject, folders, runner, github),
+      clones: startClones(forge, folders, runner, github),
       runner,
       trashItem: (path) => shell.trashItem(path),
       openPath: (path) => shell.openPath(path),
@@ -953,6 +954,7 @@ type BridgeHandlerOptions = Pick<ForgeBridgeOptions, 'registry' | 'pool' | 'agen
 
 function bridgeHandlers(options: BridgeHandlerOptions) {
   const { registry, pool, releaseFolder, mail, agents, folderDefaults, forge, installer, terminals, logins, skills } = options
+  const folderRunner = createGitRunner()
   return createDesktopHandlers({
     registry,
     pool,
@@ -960,9 +962,10 @@ function bridgeHandlers(options: BridgeHandlerOptions) {
     stopMailMonitor: (folder) => mail.stopFolder(folder),
     agents,
     folderDefaults,
-    pickDirectory: async () => {
+    pickDirectory: async (mode) => {
       const source = await pickDirectory()
-      return source ? forge.openProject(source) : null
+      if (!source) return null
+      return mode === 'forge-world' ? forge.openWorld(source) : forge.openProject(source)
     },
     pickExecutable,
     probeAgent: probeExecutable,
@@ -975,6 +978,8 @@ function bridgeHandlers(options: BridgeHandlerOptions) {
     },
     writeClipboard: (text) => clipboard.writeText(text),
     openExternal: (url) => shell.openExternal(url),
+    folderTarget: tracked => sourceControlTarget(tracked, folderRunner, registry.list()),
+    openPath: path => shell.openPath(path),
     mcpConfig: mcpConfigFor,
     installSkills: (repoPath) => ({ written: installClaudeSkills(repoPath, skills) }),
     connectClaudeCode: (repoPath, { role, allowSave, replace }) =>
@@ -1000,7 +1005,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   const { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder } = createChatProcesses({ folders: registry, agents, workspaces: pool, activity, sourceCheckouts })
   const github = startGithub(ipc)
   const forge = startForgeBridge(ipc, { registry, pool, github, skills, store, chats, terminals, agents, folderDefaults })
-  startGit(forge.openProject, ipc, registry, github)
+  startGit(forge, ipc, registry, github)
   const handlers = bridgeHandlers({ registry, pool, releaseFolder, mail, agents, folderDefaults, forge, installer, terminals, logins, skills })
   registerDesktopIpc(ipc, handlers)
   registerYoloIpc(ipc, createYoloHandlers({ registry, grants, confirm: confirmYolo }))
