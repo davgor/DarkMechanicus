@@ -4,6 +4,7 @@
  * here, and folders must be tracked before anything is opened, run, or written for them.
  */
 import { z } from 'zod'
+import { realpathSync, statSync } from 'node:fs'
 import { DomainError, toErrorShape } from '../../core/errors'
 import { parseInput } from '../../core/schemas'
 import type { Workspace } from '../../core/workspace'
@@ -26,6 +27,7 @@ import type { FolderRegistry } from './folderRegistry'
 import { createOmpThemeHandlers, type OmpThemeHandlers } from './ompTheme'
 import { normalizeExternalUrl } from './navigation'
 import type { WorkspacePool } from './workspacePool'
+import type { SourceControlTarget } from '../../shared/git/api'
 
 /** Windows long-path maximum; bounds path strings from the renderer. */
 const MAX_PATH_LENGTH = 32_767
@@ -55,16 +57,18 @@ export interface DesktopHandlerDeps extends AgentHandlerDeps, AgentAuthHooks, Fo
    * Untrack's first step: stops the folder's chat terminals and starts, suspends its chat mailboxes, and only then runs
    * `forget` (the untrack itself), with nothing of the folder allowed to start meanwhile (`terminalSessions.ts`).
    */
-  releaseFolder: (folder: string, forget: () => void) => Promise<void>
+  releaseFolder: (folder: string, forget: () => void, relatedFolders?: readonly string[]) => Promise<void>
   /**
    * Stops the folder's chat mail monitor (`agentMailDesktop.ts`) and forgets what it served. Untrack calls it before the
    * release starts and again right before the registry forgets the folder, so no poll reaches a closing workspace.
    */
   stopMailMonitor: (folder: string) => void
   /** Native folder picker; null when the person cancels. */
-  pickDirectory: () => Promise<string | null>
+  pickDirectory: (mode?: 'forge-world') => Promise<string | null>
   writeClipboard: (text: string) => void
   openExternal: (url: string) => Promise<void>
+  folderTarget?: (tracked: string) => Promise<SourceControlTarget>
+  openPath?: (path: string) => Promise<string>
   mcpConfig: (repoPath: string) => McpConfigView
   installSkills: (repoPath: string) => { written: string[] }
   /** Writes the `darkmechanicus` server into the repository's `.mcp.json`; never commits. */
@@ -82,8 +86,9 @@ export interface DesktopHandlerDeps extends AgentHandlerDeps, AgentAuthHooks, Fo
 /** Arguments are `unknown` because they come straight from IPC. */
 export interface DesktopHandlers extends AgentHandlers, AgentAuthHandlers, FolderDefaultHandlers, OmpThemeHandlers {
   listFolders(): Promise<TrackedFolderView[]>
-  pickFolder(): Promise<FolderPickResult>
+  pickFolder(mode?: unknown): Promise<FolderPickResult>
   untrackFolder(path: unknown): Promise<TrackedFolderView[]>
+  openTrackedFolder(folder: unknown, expectedPath?: unknown): Promise<CommandResult<null>>
   command(folder: unknown, name: unknown, input: unknown): Promise<CommandResult<unknown>>
   getMcpConfig(folder: unknown): Promise<McpConfigView>
   installSkills(folder: unknown): Promise<{ written: string[] }>
@@ -158,13 +163,29 @@ async function runCommand(deps: DesktopHandlerDeps, request: CommandRequest): Pr
   }
 }
 
-async function pickFolder(deps: DesktopHandlerDeps): Promise<FolderPickResult> {
-  const picked = await deps.pickDirectory()
+async function pickFolder(deps: DesktopHandlerDeps, input?: unknown): Promise<FolderPickResult> {
+  const mode = parseInput(z.literal('forge-world').optional(), input, 'folder mode')
+  const picked = await deps.pickDirectory(mode)
   if (picked === null) {
     return { folder: null, added: false }
   }
   const { folder, added } = deps.registry.track(picked)
   return { folder, added }
+}
+
+async function openTrackedFolder(deps: DesktopHandlerDeps, folder: unknown, expectedPath: unknown): Promise<CommandResult<null>> {
+  try {
+    const tracked = requireTracked(deps.registry, folder)
+    const expected = parseInput(folderSchema.optional(), expectedPath, 'displayed folder path')
+    if (!deps.folderTarget || !deps.openPath) throw new DomainError('unsupported_capability', 'Opening folders is unavailable.')
+    const target = await deps.folderTarget(tracked)
+    if (target.kind === 'unavailable') throw new DomainError('not_found', target.reason)
+    if (expected !== undefined && expected !== target.path) throw new DomainError('invalid_state', 'The linked folder changed. Refresh this page before opening it.')
+    if (!statSync(target.path).isDirectory() || realpathSync.native(target.path) !== target.path) throw new DomainError('not_found', 'The folder moved or was replaced. Refresh its location before opening it.')
+    const error = await deps.openPath(target.path)
+    if (error) throw new DomainError('invalid_state', error)
+    return { ok: true, data: null }
+  } catch (error) { return { ok: false, error: toErrorShape(error) } }
 }
 
 async function untrackFolder(deps: DesktopHandlerDeps, path: unknown): Promise<TrackedFolderView[]> {
@@ -174,14 +195,19 @@ async function untrackFolder(deps: DesktopHandlerDeps, path: unknown): Promise<T
     return deps.registry.list()
   }
   let remaining: TrackedFolderView[] = []
-  deps.stopMailMonitor(tracked)
+  const members = deps.registry.list().filter(folder => folder.forgeParent === tracked).map(folder => folder.path)
+  const affected = [tracked, ...members]
+  for (const folder of affected) deps.stopMailMonitor(folder)
   await deps.releaseFolder(tracked, () => {
     // A snapshot during the release may have started it again; nothing can between here and the close.
-    deps.stopMailMonitor(tracked)
-    remaining = deps.registry.untrack(tracked)
-    deps.folderDefaults.set(tracked, null)
-    deps.pool.close(tracked)
-  })
+    for (const folder of affected) deps.stopMailMonitor(folder)
+    deps.registry.untrack(tracked)
+    remaining = deps.registry.list()
+    for (const folder of affected) {
+      deps.folderDefaults.set(folder, null)
+      deps.pool.close(folder)
+    }
+  }, members)
   return remaining
 }
 
@@ -234,8 +260,9 @@ export function createDesktopHandlers(deps: DesktopHandlerDeps): DesktopHandlers
     ...createFolderDefaultHandlers(deps, (folder) => requireTracked(deps.registry, folder)),
     ...createOmpThemeHandlers(deps.ompAgentDir === undefined ? {} : { agentDir: deps.ompAgentDir }),
     listFolders: async () => deps.registry.list(),
-    pickFolder: () => pickFolder(deps),
+    pickFolder: (mode) => pickFolder(deps, mode),
     untrackFolder: (path) => untrackFolder(deps, path),
+    openTrackedFolder: (folder, expectedPath) => openTrackedFolder(deps, folder, expectedPath),
     command: (folder, name, input) => runCommand(deps, { folder, name, input }),
     getMcpConfig: async (folder) => deps.mcpConfig(requireTracked(deps.registry, folder)),
     installSkills: async (folder) => {

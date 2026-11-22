@@ -41,14 +41,15 @@ function fixture(seed?: { source: string; world: string }) {
   const real = createGitRunner()
   const published: string[] = []
   const probes: string[] = []
+  const syncReceipts: Array<() => void> = []
   let picked: string | null = source
   let failingNetwork: string | null = null
   const forge = startForge({ handle: (key, handler) => { handlers.set(key, handler) } }, {
     home, registry, pool, session: { getAccount: () => ({ login: 'example', host: 'github.com' }), getToken: () => null },
     pickDirectory: async () => picked, cleanup: () => undefined, publish: async name => { published.push(name) },
-    onSynced: async () => undefined, onConflict: async () => { throw new Error('Unexpected conflict') },
+    onSynced: async () => { syncReceipts.shift()?.() }, onConflict: async () => { throw new Error('Unexpected conflict') },
     runner: { run: async req => {
-      if (req.args.includes('--show-toplevel')) probes.push(req.cwd)
+      if (req.args.includes('push')) probes.push(req.cwd)
       if (req.kind !== 'network') return real.run(req)
       if (failingNetwork && req.args.includes(failingNetwork)) throw new Error('Injected network failure at ' + failingNetwork)
       if (req.args.includes('clone')) {
@@ -63,6 +64,7 @@ function fixture(seed?: { source: string; world: string }) {
     } }
   })
   return { pool, source, world, home, registry, call, forge, published, probes, pick(path: string | null) { picked = path },
+    nextSync: () => new Promise<void>(resolve => { syncReceipts.push(resolve) }),
     failNetwork(command: string | null) { failingNetwork = command },
     close() { forge.stop(); pool.closeAll(); scratch.cleanup() } }
 }
@@ -335,6 +337,7 @@ it('converts a real SQLite project, follows its source note and restores the sam
     await call('create', world)
     await call('convert', world, source)
     expect(readFileSync(join(source, 'FORGE-WORLD.md'), 'utf8')).toContain('example/tickets.git')
+    expect(JSON.parse(readFileSync(join(source, '.forge-world.json'), 'utf8'))).toEqual({ version: 1, worldRepository: 'https://github.com/example/tickets.git', projectFolder: 'Software' })
     const member = await forge.openProject(source)
     expect(member).toBe(join(world, 'Software'))
     expect(forgeKickoff(member)).toContain('https://github.com/example/software.git')
@@ -344,32 +347,36 @@ it('converts a real SQLite project, follows its source note and restores the sam
     expect((await pool.get(member).getKanbanCard({ cardId: card.id })).title).toBe('Keep me')
     await call('restore', member, 'repo')
     expect(existsSync(join(source, 'FORGE-WORLD.md'))).toBe(false)
+    expect(existsSync(join(source, '.forge-world.json'))).toBe(false)
     expect((await pool.get(source).getKanbanCard({ cardId: card.id })).title).toBe('Keep me')
   } finally { close() }
 })
 
 it('syncs only worlds at the configured interval and stops when the bridge closes', async () => {
   vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
-  const { world, call, forge, probes, close } = fixture()
+  const { world, call, forge, probes, nextSync, close } = fixture()
   try {
     await call('create', world)
     probes.length = 0
-    vi.advanceTimersByTime(15_000)
+    const first = nextSync()
+    await vi.advanceTimersByTimeAsync(15_000)
+    await first
     expect(probes).toEqual([world])
-    await call('sync', world)
-    vi.advanceTimersByTime(285_000)
+    await vi.advanceTimersByTimeAsync(285_000)
     expect(probes).toEqual([world])
-    vi.advanceTimersByTime(15_000)
+    const second = nextSync()
+    await vi.advanceTimersByTimeAsync(15_000)
+    await second
     expect(probes).toEqual([world, world])
-    await call('sync', world)
     await call('interval', world, 1)
-    vi.advanceTimersByTime(45_000)
+    await vi.advanceTimersByTimeAsync(45_000)
     expect(probes).toHaveLength(2)
-    vi.advanceTimersByTime(15_000)
+    const third = nextSync()
+    await vi.advanceTimersByTimeAsync(15_000)
+    await third
     expect(probes).toEqual([world, world, world])
-    await call('sync', world)
     forge.stop()
-    vi.advanceTimersByTime(300_000)
+    await vi.advanceTimersByTimeAsync(300_000)
     expect(probes).toHaveLength(3)
   } finally { close(); vi.useRealTimers() }
 })
@@ -414,8 +421,8 @@ it('moves an uninitialized checkout into a world, validates its pointer and rest
     writeFileSync(note, 'unrecognized')
     await expect(forge.openProject(source)).rejects.toThrow('Cannot read')
     writeFileSync(note, original.replace('Project folder: Software', 'Project folder: Missing'))
-    await expect(forge.openProject(source)).rejects.toThrow('does not contain')
-    await expect(call('restore', member, 'db')).rejects.toThrow('linked to this project')
+    await expect(forge.openProject(source)).rejects.toThrow('disagree')
+    await expect(call('restore', member, 'db')).rejects.toThrow('disagree')
     writeFileSync(note, original)
     pick(world)
     await expect(call('restore', member, 'db')).rejects.toThrow('linked code repository')

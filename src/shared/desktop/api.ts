@@ -272,8 +272,10 @@ export interface DmApi {
   /** Corrective work a folder's retro asks of the chosen Dark Mechanicus checkout: the `corrections:*CrossRepo` channels. */
   crossRepoCorrections: CrossRepoCorrectionsApi
   listFolders(): Promise<TrackedFolderView[]>
-  pickFolder(): Promise<FolderPickResult>
+  pickFolder(mode?: 'forge-world'): Promise<FolderPickResult>
   untrackFolder(path: string): Promise<TrackedFolderView[]>
+  /** Opens the authorized folder/code checkout; expectedPath detects a stale displayed mapping, never grants access. */
+  openTrackedFolder(folder: string, expectedPath?: string): Promise<CommandResult<null>>
   /** Main resolves the live identity and obtains a native person decision; no affirmative payload is accepted. */
   yolo(folder: string, grantId: string, action: 'enable' | 'revoke' | 'inspect'): Promise<YoloStatus>
   command<K extends CommandName>(

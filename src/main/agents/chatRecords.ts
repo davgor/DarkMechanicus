@@ -26,6 +26,7 @@ import type { AgentId, AgentView } from '../../shared/desktop/api'
 import type { ActivityBindings } from './activityBindings'
 import type { ChatRef, ChatStore, NewChat } from './chatStore'
 import type { ChatMailboxes } from './chatMailboxes'
+import { hasForgeManifest } from '../desktop/forgeContext'
 
 interface ChatRecordsDeps {
   store: ChatStore
@@ -116,9 +117,8 @@ function createDeletions(deps: ChatRecordsDeps): (chat: ChatRecord) => Promise<v
       if (chat.agent === 'omp') {
         await deps.removeOmpFolder?.(chat.id)
       }
-      if (chat.folder === null) {
-        await deps.removeScratch?.(chat.id)
-      }
+      // Multi-project chats keep their private reach tokens here even when their cwd is a Forge World.
+      if (chat.folder === null || hasForgeManifest(chat.folder)) await deps.removeScratch?.(chat.id)
       deps.store.deleteChat(chat)
     })().finally(() => finishing.delete(key))
     finishing.set(key, deletion)

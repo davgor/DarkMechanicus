@@ -47,12 +47,14 @@ import { createAgentMailDesktop, type AgentMailDesktop } from '../agents/agentMa
 import { createChatMailPush, createChatPush, registerChatIpc, registerChatMailIpc } from '../agents/chatIpc'
 import { createChatRecords, type ChatRecords } from '../agents/chatRecords'
 import { createChatMailboxes, type ChatMailboxes } from '../agents/chatMailboxes'
+import { hasForgeManifest } from './forgeContext'
 import { removeScratchFolder } from '../agents/scratchFolder'
 import { createChatStore, nodeChatStoreFs, type ChatStore } from '../agents/chatStore'
 import { listBoundThreads } from '../agents/boundThreads'
 import { findBoundTerminal, type GrantBindingReads } from '../agents/grantBindings'
 import { createCloneParentStore, createCloner, type Cloner } from '../git/clone'
 import { createGitHandlers } from '../git/handlers'
+import { sourceControlTarget } from '../git/target'
 import { createProgressBroadcaster, registerGitIpc } from '../git/ipc'
 import { createGitRunner, type GitRunner } from '../git/runner'
 import { createAccountStore } from '../github/accountStore'
@@ -335,7 +337,7 @@ interface ChatProcesses {
   /** The agents' sign-in terminals, for `agents:signIn`. */
   logins: LoginTerminals
   /** Untrack's first step (`DesktopHandlerDeps.releaseFolder`): the folder's terminals stopped, its chat mailboxes suspended. */
-  releaseFolder: (folder: string, forget: () => void) => Promise<void>
+  releaseFolder: (folder: string, forget: () => void, relatedFolders?: readonly string[]) => Promise<void>
   /** The person's side of the chats' mailboxes and its per-folder monitors (`chatMail:*`). */
   mail: AgentMailDesktop
   grants: ChatGrants
@@ -464,7 +466,7 @@ function createChatProcesses({ folders, agents, workspaces, activity, sourceChec
     userData: app.getPath('userData'), version: () => app.getVersion(), source: sourceCheckouts, store, agents, terminals,
     workspace: folder => desktopWorkspace(folders, workspaces, folder), resolveFolder: folder => folders.resolve(folder),
     context: contextDelivery, deliveries, resume: resumeChat,
-    callerFolders: chat => chat.folder === null ? reachFolders() : [chat.folder],
+    callerFolders: chat => chatWorkspaceFolders(chat, folders),
   })
   const naming = createNamingDispatcher({ store, push })
   namingReady = createControlPipe({ authorize: token => grants.authorizeNaming(token),
@@ -539,18 +541,26 @@ function createMailboxRecords(
   return { records, mailboxes }
 }
 
+/** Registry views retain validated member identities during a manifest merge conflict. */
+function chatWorkspaceFolders(chat: ChatRecord, folders: Pick<FolderRegistry, 'list'>): string[] {
+  const views = folders.list()
+  const available = views.filter(folder => folder.initialized && folder.available)
+  if (chat.folder === null) return available.map(folder => folder.path)
+  const world = views.find(folder => folder.path === chat.folder)?.forgeWorld !== undefined || hasForgeManifest(chat.folder)
+  return world ? available.filter(folder => folder.forgeParent === chat.folder).map(folder => folder.path) : [chat.folder]
+}
+
 function retireChatHolds(chat: ChatRecord, folders: Pick<FolderRegistry, 'resolve' | 'list'>, workspaces: Pick<WorkspacePool, 'get'>): void {
-  const targets = chat.folder === null ? folders.list().flatMap(folder => folder.initialized && folder.available ? [folder.path] : []) : [chat.folder]
-  for (const folder of targets) retireToolingWorkflow(desktopWorkspace(folders, workspaces, folder).ctx(), chat.id)
+  for (const folder of chatWorkspaceFolders(chat, folders)) retireToolingWorkflow(desktopWorkspace(folders, workspaces, folder).ctx(), chat.id)
 }
 
 /** Untrack's first step: the folder's terminals stopped and starts refused, then its chat mailboxes suspended, then `forget`. */
 function releasingFolders(terminals: TerminalSessions, mailboxes: ChatMailboxes, store: ChatStore): ChatProcesses['releaseFolder'] {
-  return (folder, forget) =>
+  return (folder, forget, relatedFolders = []) =>
     terminals.releaseFolder(folder, () => {
-      mailboxes.suspendFolder(folder, store.listChats(folder))
+      for (const path of [folder, ...relatedFolders]) mailboxes.suspendFolder(path, store.listChats(path))
       forget()
-    })
+    }, relatedFolders)
 }
 
 /** The desktop's own workspaces, one per tracked folder, opened on first use; an error in one is logged with its folder. */
@@ -705,7 +715,7 @@ function openAgentRegistry(appDb: Db): AgentRegistry {
 }
 
 /** Clones into the folder kept in `userData/clone.json`, chosen only with the native dialog, and tracks each finished clone. */
-function startClones(openProject: (folder: string) => Promise<string>, folders: Pick<FolderRegistry, 'track'>, runner: GitRunner, github: GithubBridge): Cloner {
+function startClones(forge: Pick<ReturnType<typeof startForge>, 'openProject' | 'openWorld'>, folders: Pick<FolderRegistry, 'track'>, runner: GitRunner, github: GithubBridge): Cloner {
   return createCloner({
     runner,
     session: github,
@@ -713,7 +723,7 @@ function startClones(openProject: (folder: string) => Promise<string>, folders: 
       file: join(app.getPath('userData'), 'clone.json'),
       pickDirectory: () => showOpenDialog(CLONE_PARENT_DIALOG)
     }),
-    registry: folders, openProject,
+    registry: folders, openProject: forge.openProject, openWorld: forge.openWorld,
     onProgress: createProgressBroadcaster(() => BrowserWindow.getAllWindows())
   })
 }
@@ -723,13 +733,13 @@ function startClones(openProject: (folder: string) => Promise<string>, folders: 
  * chosen with the native dialog. Network operations authenticate with the GitHub session (in main: the token never
  * reaches a window) and broadcast their progress; pull requests are read through the session's API client.
  */
-function startGit(openProject: (folder: string) => Promise<string>, ipc: Pick<IpcMain, 'handle'>, folders: Pick<FolderRegistry, 'resolve' | 'track'>, github: GithubBridge): void {
+function startGit(forge: Pick<ReturnType<typeof startForge>, 'openProject' | 'openWorld'>, ipc: Pick<IpcMain, 'handle'>, folders: Pick<FolderRegistry, 'resolve' | 'track' | 'list'>, github: GithubBridge): void {
   const runner = createGitRunner()
   registerGitIpc(
     ipc,
     createGitHandlers({
       registry: folders,
-      clones: startClones(openProject, folders, runner, github),
+      clones: startClones(forge, folders, runner, github),
       runner,
       trashItem: (path) => shell.trashItem(path),
       openPath: (path) => shell.openPath(path),
@@ -944,6 +954,7 @@ type BridgeHandlerOptions = Pick<ForgeBridgeOptions, 'registry' | 'pool' | 'agen
 
 function bridgeHandlers(options: BridgeHandlerOptions) {
   const { registry, pool, releaseFolder, mail, agents, folderDefaults, forge, installer, terminals, logins, skills } = options
+  const folderRunner = createGitRunner()
   return createDesktopHandlers({
     registry,
     pool,
@@ -951,9 +962,10 @@ function bridgeHandlers(options: BridgeHandlerOptions) {
     stopMailMonitor: (folder) => mail.stopFolder(folder),
     agents,
     folderDefaults,
-    pickDirectory: async () => {
+    pickDirectory: async (mode) => {
       const source = await pickDirectory()
-      return source ? forge.openProject(source) : null
+      if (!source) return null
+      return mode === 'forge-world' ? forge.openWorld(source) : forge.openProject(source)
     },
     pickExecutable,
     probeAgent: probeExecutable,
@@ -966,6 +978,8 @@ function bridgeHandlers(options: BridgeHandlerOptions) {
     },
     writeClipboard: (text) => clipboard.writeText(text),
     openExternal: (url) => shell.openExternal(url),
+    folderTarget: tracked => sourceControlTarget(tracked, folderRunner, registry.list()),
+    openPath: path => shell.openPath(path),
     mcpConfig: mcpConfigFor,
     installSkills: (repoPath) => ({ written: installClaudeSkills(repoPath, skills) }),
     connectClaudeCode: (repoPath, { role, allowSave, replace }) =>
@@ -991,7 +1005,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   const { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder } = createChatProcesses({ folders: registry, agents, workspaces: pool, activity, sourceCheckouts })
   const github = startGithub(ipc)
   const forge = startForgeBridge(ipc, { registry, pool, github, skills, store, chats, terminals, agents, folderDefaults })
-  startGit(forge.openProject, ipc, registry, github)
+  startGit(forge, ipc, registry, github)
   const handlers = bridgeHandlers({ registry, pool, releaseFolder, mail, agents, folderDefaults, forge, installer, terminals, logins, skills })
   registerDesktopIpc(ipc, handlers)
   registerYoloIpc(ipc, createYoloHandlers({ registry, grants, confirm: confirmYolo }))

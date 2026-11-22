@@ -15,6 +15,8 @@ export interface CloneRigOptions {
   allowFile?: boolean
   /** Called before the registry records a path; a test makes tracking fail by throwing. */
   track?(path: string): void
+  openWorld?(path: string): Promise<string>
+  openProject?(path: string): Promise<string>
   exitWaitMs?: number
 }
 
@@ -40,6 +42,8 @@ export function cloneRig(cleanups: Array<() => void>, options: CloneRigOptions =
   const tracked: string[] = []
   const events: GitProgressEvent[] = []
   const cloner = createCloner({
+    ...(options.openWorld === undefined ? {} : { openWorld: options.openWorld }),
+    ...(options.openProject === undefined ? {} : { openProject: options.openProject }),
     runner: options.runner ?? createGitRunner(),
     session: options.session ?? { getAccount: () => null, getToken: () => null },
     parents: createCloneParentStore({ file: join(dir.path, 'userData', 'clone.json'), pickDirectory: async () => parent }),

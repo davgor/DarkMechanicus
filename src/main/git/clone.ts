@@ -71,6 +71,8 @@ export function createCloneParentStore(options: { file: string; pickDirectory():
 interface CloneDeps extends NetworkDeps {
   parents: CloneParentStore
   openProject?(path: string): Promise<string>
+  /** Validates an actual Forge World before the caller registers a completed clone. */
+  openWorld?(path: string): Promise<string>
   registry: Pick<FolderRegistry, 'track'>
   /** Sends a progress event of a clone to the windows; its folder is the clone parent. */
   onProgress(event: GitProgressEvent): void
@@ -90,6 +92,7 @@ export interface Cloner {
 }
 
 interface CloneRun {
+  mode?: 'forge-world'
   source: string
   parent: string
   target: string
@@ -101,6 +104,7 @@ interface CloneRun {
 
 /** Where a request clones from and into, refused before anything runs when the URL, name or parent will not do. */
 function prepare(deps: CloneDeps, request: CloneRequest): Pick<CloneRun, 'source' | 'parent' | 'target'> {
+  if (request.mode === 'forge-world' && !deps.openWorld) throw new GitInputError('Forge World cloning is unavailable.')
   const source = cloneUrl(request.url, { allowFile: deps.allowFileProtocol === true })
   checkCloneName(request.name)
   const parent = deps.parents.get()
@@ -182,7 +186,8 @@ async function cloneInto(deps: CloneDeps, run: CloneRun): Promise<TrackedFolderV
   const created = await claimTarget(run.target)
   try {
     await runGitClone(deps, run)
-    return deps.registry.track(await deps.openProject?.(run.target) ?? run.target).folder
+    const target = run.mode === 'forge-world' ? await deps.openWorld!(run.target) : await deps.openProject?.(run.target) ?? run.target
+    return deps.registry.track(target).folder
   } catch (error) {
     if (created) {
       // Best effort: a folder that cannot be removed (held open on Windows) stays, and the clone's own error is reported.
@@ -217,7 +222,7 @@ export function createCloner(deps: CloneDeps): Cloner {
         running.delete(key)
       }
       try {
-        return await cloneInto(deps, { ...where, operationId: request.operationId, signal: controller.signal, gitDone })
+        return await cloneInto(deps, { ...where, ...(request.mode === undefined ? {} : { mode: request.mode }), operationId: request.operationId, signal: controller.signal, gitDone })
       } finally {
         gitDone()
         busy.delete(parent)

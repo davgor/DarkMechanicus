@@ -14,8 +14,8 @@ import { createSequentialIds, createTestClock } from '../test/testContext'
 import { createFakeGit, TEST_STORAGE } from '../test/workspaceHarness'
 import { idleAgentDeps } from '../test/idleAgents'
 
-/** The completed "MCP connection test" epic committed in this repository's portable state. */
-const TRACKED = fileURLToPath(new URL('../../.darkmechanicus', import.meta.url))
+/** Frozen historical records preserve completed-run import compatibility without reading live ticket storage. */
+const TRACKED = fileURLToPath(new URL('../test/fixtures/portable-history', import.meta.url))
 const EPIC = 'ep_01m3txy30qavmd5wewct90804g'
 const RUN = 'rn_01m3txzt9wj79mxsq50f5ktf1q'
 const SPRINT = 'sp_01m3txy30q8sb4f7ekx20btcr6'

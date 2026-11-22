@@ -9,11 +9,11 @@ import type { AgentMailStore } from '../agents/useAgentMail'
 import { chatsFor, useAllChats, useChats } from '../agents/useChats'
 import type { ChatListState, ChatsModel } from '../agents/useChats'
 import { useKanbanCounts } from '../kanban/useKanbanCounts'
-import type { KanbanCounts } from '../kanban/useKanbanCounts'
+import type { KanbanCards, KanbanCounts } from '../kanban/useKanbanCounts'
 import { bucketOfEpic } from '../sidebar/buckets'
 import { useExpansion } from '../sidebar/useExpansion'
 import type { Expansion } from '../sidebar/useExpansion'
-import { activeFolderPaths } from './activePaths'
+import { activeChatPaths, activeFolderPaths } from './activePaths'
 import { chooseView } from './chooseView'
 import type { MainView } from './chooseView'
 import { folderTabOf, isFolderTabs } from './folderTabs'
@@ -46,6 +46,7 @@ export interface ShellModel {
   lists: Record<string, EpicListState>
   /** Open Kanban cards of every active folder, for the sidebar. */
   kanbanCounts: KanbanCounts
+  kanbanCards: KanbanCards
   /** Storage/MCP status of the selected folder, once it is initialized and loaded. */
   status: StorageStatusView | null
   expansion: Expansion
@@ -79,7 +80,7 @@ const IDLE: Record<BusyKey, boolean> = { initialize: false, flush: false, reconc
 
 /** The folder whose storage status the footer shows, if it can have one. */
 function statusPathOf(folder: TrackedFolderView | null): string | null {
-  return folder !== null && folder.initialized && folder.available ? folder.path : null
+  return folder !== null && folder.initialized && folder.available && !folder.forgeWorld ? folder.path : null
 }
 
 /** The chats of the folder a stored selection names, or null while they are still loading (so the chat is kept as stored). */
@@ -104,7 +105,7 @@ function useSelection(
   const [stored, select] = usePersistentState(SELECTION_STORAGE_KEY, EMPTY_SELECTION, isSelection)
   const folderPath = resolveSelection(stored, folders.folders, folders.loaded, loaded).folderPath
   const paths = activeFolderPaths(folders.folders, folderPath, expansion.isFolderExpanded)
-  const chats = useChats({ paths, onError })
+  const chats = useChats({ paths: activeChatPaths(folders.folders, folderPath, expansion.isFolderExpanded), onError })
   const known = { ...loaded, chats: knownChats(chats, stored.folderPath) }
   return { selection: resolveSelection(stored, folders.folders, folders.loaded, known), select, paths, chats }
 }
@@ -158,6 +159,18 @@ function useEveryChat(folders: readonly TrackedFolderView[], onError: (error: un
   return { allChats, projectless: allChats.status === 'loading' ? null : allChats.chats.filter((chat) => chat.folder === null) }
 }
 
+/** Selecting work in a world also reveals its parent, even when opened from the global agent list. */
+function navigationExpansion(folders: readonly TrackedFolderView[], expansion: Expansion): Pick<Expansion, 'reveal' | 'revealAgents'> {
+  const revealParent = (path: string): void => {
+    const parent = folders.find(folder => folder.path === path)?.forgeParent
+    if (parent) expansion.reveal(parent, null)
+  }
+  return {
+    reveal: (path, bucket) => { revealParent(path); expansion.reveal(path, bucket) },
+    revealAgents: (path) => { revealParent(path); expansion.revealAgents(path) }
+  }
+}
+
 /**
  * All shell state in one place: tracked folders, the persisted selection and collapse state, epic
  * lists and storage status kept fresh by the event feed, and the actions the UI can take.
@@ -176,7 +189,7 @@ export function useShell(scheduler: Scheduler): ShellModel {
   const selected = findFolder(folders.folders, selection.folderPath)
   const feed = useEventFeed({ paths, selectedPath: selection.folderPath, scheduler, onError: toasts.reportError })
   const lists = useEpicLists({ paths, tokens: feed.tokens, onError: toasts.reportError })
-  const kanbanCounts = useKanbanCounts({ paths, tokens: feed.tokens, onError: toasts.reportError })
+  const { counts: kanbanCounts, cards: kanbanCards } = useKanbanCounts({ paths, tokens: feed.tokens, onError: toasts.reportError })
   const mail = useAgentMail(paths)
   const status = useFooterStatus(statusPathOf(selected), feed.tokens, scheduler, toasts.reportError)
 
@@ -185,8 +198,7 @@ export function useShell(scheduler: Scheduler): ShellModel {
     folders,
     select,
     land: setLanding,
-    reveal: expansion.reveal,
-    revealAgents: expansion.revealAgents,
+    ...navigationExpansion(folders.folders, expansion),
     chats: { create: chats.create },
     bucketOf: (path, epicId) => bucketOfEpic(listFor(lists, path).epics, epicId),
     refresh: feed.bumpFolder,
@@ -199,7 +211,7 @@ export function useShell(scheduler: Scheduler): ShellModel {
     selection,
     view: shellView({ folders, selected, selection, chats: knownChats(chats, selection.folderPath), projectless, agents: connected, folderTabs }),
     lists,
-    kanbanCounts,
+    kanbanCounts, kanbanCards,
     status,
     expansion,
     agents,

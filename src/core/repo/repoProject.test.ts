@@ -1,15 +1,15 @@
-/** This repository's own `.darkmechanicus/project.json`: the Definition of Done every sprint's acceptance node must prove. */
+/** A frozen historical project record: portable Definition of Done compatibility, independent of live ticket storage. */
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { prettyJson } from '../canonical'
 import { parseRecord, projectRecord } from './portable'
 
-const PROJECT_FILE = fileURLToPath(new URL('../../../.darkmechanicus/project.json', import.meta.url))
+const PROJECT_FILE = fileURLToPath(new URL('../../test/fixtures/portable-history/project.json', import.meta.url))
 const text = readFileSync(PROJECT_FILE, 'utf8').replace(/\r\n/g, '\n')
 const record = parseRecord(projectRecord, text, '.darkmechanicus/project.json')
 
-describe("this repository's project record", () => {
+describe('the historical project record fixture', () => {
   it('is valid, and keeps its identity', () => {
     expect(record).toMatchObject({ format: 'darkmechanicus.project', formatVersion: 1, keyPrefix: 'DM', name: 'DarkMechanicus' })
   })

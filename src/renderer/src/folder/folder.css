@@ -50,3 +50,23 @@
 .standards-member { margin-top: .75rem; border: 1px solid var(--line-soft); border-radius: 6px; }
 .standards-member summary { padding: .9rem 1.25rem; cursor: pointer; color: var(--ink-display); font-weight: 600; }
 .standards-member .standards-editor { padding: .5rem 1.25rem 1.25rem; }
+
+.folder-location {
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.folder-location:hover { color: var(--ink); }
+.folder-location:disabled { cursor: wait; }
+.folder-location-error { margin: .25rem 0 0; color: var(--danger); }
+.folder-location-missing { display: flex; flex-direction: column; gap: .3rem; overflow-wrap: anywhere; }
+.repository-directions { white-space: pre-wrap; overflow-wrap: anywhere; }

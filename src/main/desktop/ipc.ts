@@ -12,8 +12,9 @@ import type { YoloHandlers } from './yoloHandlers'
 
 export function registerDesktopIpc(ipcMain: Pick<IpcMain, 'handle'>, handlers: DesktopHandlers): void {
   ipcMain.handle('dm:listFolders', () => handlers.listFolders())
-  ipcMain.handle('dm:pickFolder', () => handlers.pickFolder())
+  ipcMain.handle('dm:pickFolder', (_event, mode: unknown) => handlers.pickFolder(mode))
   ipcMain.handle('dm:untrackFolder', (_event, path: unknown) => handlers.untrackFolder(path))
+  ipcMain.handle('dm:openTrackedFolder', (_event, folder: unknown, expectedPath: unknown) => handlers.openTrackedFolder(folder, expectedPath))
   ipcMain.handle('dm:command', (_event, folder: unknown, name: unknown, input: unknown) =>
     handlers.command(folder, name, input)
   )

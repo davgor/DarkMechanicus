@@ -10,7 +10,13 @@ export function activeFolderPaths(
   isExpanded: (path: string) => boolean
 ): string[] {
   return folders
-    .filter((folder) => folder.initialized && folder.available)
-    .filter((folder) => folder.path === selectedPath || isExpanded(folder.forgeParent ?? folder.path))
+    .filter((folder) => folder.initialized && folder.available && !folder.forgeWorld)
+    .filter((folder) => folder.path === selectedPath || isExpanded(folder.path) && (!folder.forgeParent || isExpanded(folder.forgeParent)))
     .map((folder) => folder.path)
+}
+
+/** Chats also belong to Forge roots, which have no project database to poll. */
+export function activeChatPaths(folders: readonly TrackedFolderView[], selectedPath: string | null, isExpanded: (path: string) => boolean): string[] {
+  const projects = new Set(activeFolderPaths(folders, selectedPath, isExpanded))
+  return folders.filter(folder => projects.has(folder.path) || (folder.forgeWorld && folder.available && (folder.path === selectedPath || isExpanded(folder.path)))).map(folder => folder.path)
 }

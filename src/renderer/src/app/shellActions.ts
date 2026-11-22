@@ -56,7 +56,7 @@ interface ShellDeps {
     reportError(error: unknown): void
   }
   folders: {
-    pick(): Promise<FolderPickResult>
+    pick(mode?: 'forge-world'): Promise<FolderPickResult>
     untrack(path: string): Promise<void>
     reload(): Promise<void>
   }
@@ -82,7 +82,7 @@ export interface ShellActions {
   selectFolder(path: string): void
   selectEpic(path: string, epicId: string): void
   /** Opens a folder's Kanban board in the main area. */
-  selectKanban(path: string): void
+  selectKanban(path: string, cardId?: string): void
   /** Opens a folder's Metrics dashboard in the main area. */
   selectMetrics(path: string): void
   /** Opens one of a folder's chats in the main area. */
@@ -109,7 +109,7 @@ export interface ShellActions {
   /** Opens one connected agent's page in place of the folder or epic view. */
   openAgent(id: AgentId): void
   changed(path: string): void
-  track(): Promise<void>
+  track(mode?: 'forge-world'): Promise<void>
   /** A clone finished and main tracks the new folder: reloads the folders and selects it. */
   cloned(folder: TrackedFolderView): Promise<void>
   untrack(path: string): Promise<void>
@@ -176,9 +176,9 @@ function selectionActions(deps: ShellDeps): SelectionActions {
       deps.land(null)
       showEpic(deps, path, epicId)
     },
-    selectKanban: (path) => {
+    selectKanban: (path, cardId) => {
       deps.land(null)
-      deps.select({ folderPath: path, epicId: null, kanban: true })
+      deps.select({ folderPath: path, epicId: null, kanban: true, ...(cardId === undefined ? {} : { kanbanCardId: cardId }) })
       deps.reveal(path, null)
     },
     selectMetrics: (path) => {
@@ -228,9 +228,9 @@ function linkActions(deps: ShellDeps): Pick<ShellActions, 'openTicket' | 'openTh
 
 function folderActions(deps: ShellDeps, selectFolder: (path: string) => void): Pick<ShellActions, 'track' | 'cloned' | 'untrack'> {
   return {
-    track: async () => {
+    track: async (mode) => {
       await guarded(deps, async () => {
-        const { folder, added } = await deps.folders.pick()
+        const { folder, added } = await deps.folders.pick(mode)
         if (folder === null) return
         selectFolder(folder.path)
         if (!added) deps.toasts.push('info', `${folder.name} is already tracked.`)

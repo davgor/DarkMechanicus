@@ -14,9 +14,11 @@ import { layoutUnder, resolveLayout } from '../../core/repo/layout'
 import { nodeFs } from '../../core/repo/nodeFs'
 import { dbProjectDir, SQLITE_STANDARDS_FILE } from '../../core/repo/storageMode'
 import { assertStorageIdle } from '../../core/repo/storageMigration'
+import { ensureForgeConfig, FORGE_CONFIG, readForgeReference } from '../../core/repo/forgeReference'
 import { requireTracked } from './handlers'
 import { FORGE_FILE, createForge, githubRemote, parseForge, projectName, updateForge } from './forgeManifest'
 import { ForgeGit } from './forgeGit'
+import { ensureForgeWorld } from './forgeHealth'
 import type { FolderRegistry } from './folderRegistry'
 import type { WorkspacePool } from './workspacePool'
 
@@ -38,13 +40,6 @@ function ensureReconciled(result: import('../../shared/domain/views').ReconcileR
   if (result.rejected.length || result.conflicts.length || result.profileConflicts.length || result.kanbanConflicts.length) throw new Error('Ticket records need reconciliation.')
 }
 
-function readPointer(note: string) {
-  if (lstatSync(note).isSymbolicLink()) throw new Error('Invalid Forge World pointer.')
-  const match = /^Forge World: (\S+)\r?\nProject folder: (.+?)\r?$/m.exec(readFileSync(note, 'utf8'))
-  if (!match) throw new Error('Cannot read the Forge World pointer for this project.')
-  return match
-}
-
 class ForgeService {
   private readonly git: ForgeGit
   private readonly resolving = new Set<string>()
@@ -53,8 +48,27 @@ class ForgeService {
   private readonly last = new Map<string, number>()
   private readonly next = new Map<string, number>()
   private readonly errors = new Map<string, string>()
+  private readonly checking = new Map<string, Promise<void>>()
 
   constructor(private readonly deps: Services) { this.git = new ForgeGit(deps.session, deps.runner) }
+  ensure(root: string): Promise<void> {
+    const pending = this.checking.get(root)
+    if (pending) return pending
+    const work = ensureForgeWorld(root, { git: this.git, home: this.deps.home }).finally(() => this.checking.delete(root))
+    this.checking.set(root, work)
+    return work
+  }
+  async checkTracked(): Promise<void> {
+    for (const folder of this.deps.registry.list().filter(entry => entry.forgeWorld || entry.forgeIssue)) {
+      try { await this.ensure(folder.path); this.errors.delete(folder.path) }
+      catch (error) { this.errors.set(folder.path, error instanceof Error ? error.message : String(error)) }
+    }
+  }
+  async openWorld(folder: string): Promise<string> {
+    const root = realpathSync.native(folder)
+    await this.ensure(root)
+    return root
+  }
   rootOf(input: unknown) {
     const root = requireTracked(this.deps.registry, input)
     if (realpathSync.native(root) !== root) throw new Error('The tracked folder moved.')
@@ -73,7 +87,9 @@ class ForgeService {
     if (pending) return afterMutation ? pending.then(() => this.sync(root, true, transfer)) : pending
     const work = (async () => {
       try {
+        await this.ensure(root)
         await this.git.sync(root, async () => {
+          await this.ensure(root)
           for (const project of this.worldAt(root).projects) {
             const member = join(root, project.folder)
             if (this.deps.registry.resolve(member) && existsSync(join(member, '.darkmechanicus/project.json'))) {
@@ -131,22 +147,30 @@ class ForgeService {
       await this.convert(dirname(pending), source, pendingForgeForce(this.deps.home, source))
       return pending
     }
-    const note = join(source, POINTER)
-    if (!existsSync(note)) return this.openUnlinked(source)
-    const match = readPointer(note)
+    const reference = readForgeReference(nodeFs, source)
+    if (!reference) return this.openUnlinked(source)
     const bound = this.deps.registry.list().filter(f => f.forgeWorld)
     for (const candidate of bound) {
-      const member = join(candidate.path, projectName(match[2]))
+      const member = join(candidate.path, reference.projectFolder)
       const target = pendingForgeTransfer(this.deps.home, member)
       if (target === source + '/repo' || target === source + '/db') {
         return this.restore(candidate.path, member, source, target.endsWith('/db') ? 'db' : 'repo')
       }
     }
-    const root = await this.checkout(match[1], false)
-    const project = this.worldAt(root).projects.find(p => p.folder === projectName(match[2]))
+    const root = await this.checkout(reference.worldRepository, false)
+    const project = this.worldAt(root).projects.find(p => p.folder === reference.projectFolder)
     if (!project) throw new Error('The Forge World does not contain this project.')
+    return this.linkProject(source, root, project)
+  }
+  async linkProject(source: string, root: string, project: { folder: string; repository: string }): Promise<string> {
+    const origin = githubRemote((await this.git.run(source, ['remote', 'get-url', 'origin'])).stdout.trim())
+    if (origin.toLowerCase() !== project.repository.toLowerCase()) throw new Error('Choose the linked code repository; its origin does not match this Forge World project.')
     const member = join(root, project.folder)
-    bindForge(this.deps.home, source, member, readFileSync(note, 'utf8'))
+    if (this.deps.registry.resolve(member) !== member || !existsSync(join(member, '.darkmechanicus/project.json'))) throw new Error('The Forge World project has no available ticket folder.')
+    const worldRepository = githubRemote((await this.git.run(root, ['remote', 'get-url', 'origin'])).stdout.trim())
+    ensureForgeConfig(source, { version: 1, worldRepository, projectFolder: project.folder })
+    const note = join(source, POINTER)
+    bindForge(this.deps.home, source, member, existsSync(note) ? readFileSync(note, 'utf8') : '')
     return member
   }
   async add(root: string, repository: string, name: string) {
@@ -190,6 +214,7 @@ class ForgeService {
       this.deps.cleanup(source)
       if (!existsSync(note)) writeFileSync(note, body, { flag: 'wx' })
       if (readFileSync(note, 'utf8') !== body) throw new Error('The source pointer changed during conversion.')
+      ensureForgeConfig(source, { version: 1, worldRepository: remote, projectFolder: folder })
       bindForge(this.deps.home, source, member, body)
       this.deps.registry.untrack(source)
     })
@@ -267,10 +292,10 @@ class ForgeService {
   async restore(root: string, member: string, source: string, mode: 'db' | 'repo') {
     const note = join(source, POINTER)
     const remote = githubRemote((await this.git.run(root, ['remote', 'get-url', 'origin'])).stdout.trim())
-    const text = existsSync(note) ? readFileSync(note, 'utf8') : ''
+    const reference = readForgeReference(nodeFs, source)
     const linked = this.worldAt(root).projects.find(p => p.folder === basename(member))
-    if (!text && (!linked || githubRemote((await this.git.run(source, ['remote', 'get-url', 'origin'])).stdout.trim()).toLowerCase() !== linked.repository.toLowerCase())) throw new Error('Select the linked code repository.')
-    if (text && (!text.split(/\r?\n/).includes('Forge World: ' + remote) || !text.split(/\r?\n/).includes('Project folder: ' + basename(member)))) throw new Error('Choose the code checkout linked to this project.')
+    if (!reference && (!linked || githubRemote((await this.git.run(source, ['remote', 'get-url', 'origin'])).stdout.trim()).toLowerCase() !== linked.repository.toLowerCase())) throw new Error('Select the linked code repository.')
+    if (reference && (reference.worldRepository.toLowerCase() !== remote.toLowerCase() || reference.projectFolder !== basename(member))) throw new Error('Choose the code checkout linked to this project.')
     await withForgeTransfer(this.deps.home, member, source + '/' + mode, async (phase, advance) => {
       if (phase === 0) {
         const ctx = this.deps.pool.get(member).ctx()
@@ -293,6 +318,8 @@ class ForgeService {
       }
       await this.sync(root, true)
       if (existsSync(note)) unlinkSync(note)
+      const config = join(source, FORGE_CONFIG)
+      if (existsSync(config)) unlinkSync(config)
       this.deps.registry.track(source)
     })
     return source
@@ -378,12 +405,12 @@ class ForgeService {
     try { url = githubRemote(origin.stdout.trim()).toLowerCase() } catch { return source }
     for (const world of worlds) {
       const linked = world.forgeWorld?.projects.find(project => project.repository.toLowerCase() === url)
-      if (linked) { await this.sync(world.path); return join(world.path, linked.folder) }
+      if (linked) { await this.sync(world.path); return this.linkProject(source, world.path, linked) }
     }
     return source
   }
   async checkSource({ root, member, source, folder, repository }: ForgeMove, force = false) {
-    if (existsSync(join(source, POINTER)) || existsSync(member) || this.worldAt(root).projects.some(p => p.folder.toLowerCase() === folder.toLowerCase() || p.repository.toLowerCase() === repository.toLowerCase())) throw new Error('This Forge World project or pointer already exists.')
+    if (existsSync(join(source, POINTER)) || existsSync(join(source, FORGE_CONFIG)) || existsSync(member) || this.worldAt(root).projects.some(p => p.folder.toLowerCase() === folder.toLowerCase() || p.repository.toLowerCase() === repository.toLowerCase())) throw new Error('This Forge World project or pointer already exists.')
     const original = this.deps.pool.get(source)
     if (!original.isInitialized()) {
       if (force) throw new Error('Use normal migration for an uninitialized project.')
@@ -443,7 +470,8 @@ class ForgeService {
 export function startForge(ipc: Pick<IpcMain, 'handle'>, deps: Services) {
   const service = new ForgeService(deps)
   service.register(ipc)
+  const ready = service.checkTracked()
   const timer = setInterval(() => service.tick(), 15_000)
   timer.unref()
-  return { openProject: (source: string) => service.openProject(source), stop: () => clearInterval(timer) }
+  return { ready, openWorld: (folder: string) => service.openWorld(folder), openProject: (source: string) => service.openProject(source), stop: () => clearInterval(timer) }
 }

@@ -8,6 +8,7 @@ import { GIT_PROGRESS_CHANNEL, type GitProgressEvent } from '../../shared/git/ap
 import type { GitHandlers } from './handlers'
 
 export function registerGitIpc(ipcMain: Pick<IpcMain, 'handle'>, handlers: GitHandlers): void {
+  ipcMain.handle('git:getTarget', (_event, folder: unknown) => handlers.getTarget(folder))
   ipcMain.handle('git:getState', (_event, folder: unknown) => handlers.getState(folder))
   ipcMain.handle('git:getWorkingDiff', (_event, folder: unknown, request: unknown) => handlers.getWorkingDiff(folder, request))
   ipcMain.handle('git:initRepository', (_event, folder: unknown) => handlers.initRepository(folder))

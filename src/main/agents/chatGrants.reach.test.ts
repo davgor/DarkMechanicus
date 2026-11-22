@@ -161,6 +161,40 @@ describe('chat grants: a project-less chat’s grants revoked and bound for nami
   })
 })
 
+describe('chat grants: Forge World root ownership', () => {
+  it.each(['planner', 'worker'] as const)('preserves the selected %s role and disabled Allow save in a world member grant', async role => {
+    const state = await rig()
+    const issued = await state.grants.issueReachCli([targets()[0]!], { role, allowSave: false, label: 'World work' }, root)
+    const token = readFileSync(targets()[0]!.tokenFile, 'utf8').trim()
+    const session = cliSession(state, alpha, token)
+    try {
+      const capabilities = await session.getCapabilities()
+      expect(capabilities.role).toBe(role)
+      expect(capabilities.capabilities).not.toContain('plan.save')
+    } finally { session.close() }
+    await state.grants.revokeChatGrant(issued.grantIds[0]!)
+  })
+
+  it('binds a world reach grant only to its root chat identity, renews it in the member, and revokes it there', async () => {
+    const state = await rig()
+    const issued = await state.grants.issueReachCli(targets(), GRANT, root)
+    for (const grantId of issued.grantIds) {
+      expect(() => state.grants.bindChatGrant(grantId, { folder: null, chatId: 'chat_world', generation: 'g1' })).toThrow(NamingControlError)
+      expect(() => state.grants.bindChatGrant(grantId, { folder: alpha, chatId: 'chat_world', generation: 'g1' })).toThrow(NamingControlError)
+      state.grants.bindChatGrant(grantId, { folder: root, chatId: 'chat_world', generation: 'g1' })
+      await state.grants.renewChatGrant(grantId)
+    }
+    for (const target of targets()) {
+      expect(state.grants.authorizeNaming(readFileSync(target.tokenFile, 'utf8').trim())).toMatchObject({ folder: root, chatId: 'chat_world' })
+    }
+    await Promise.all(issued.grantIds.map(id => state.grants.revokeChatGrant(id)))
+    for (const target of targets()) {
+      expect(() => cliSession(state, target.folder, readFileSync(target.tokenFile, 'utf8').trim())).toThrow(expect.objectContaining({ code: 'unauthorized' }))
+    }
+  })
+
+})
+
 describe('chat grants: later starts and other chats', () => {
   it('binds a folder chat’s grant to its own folder, as before project-less chats', async () => {
     const state = await rig()

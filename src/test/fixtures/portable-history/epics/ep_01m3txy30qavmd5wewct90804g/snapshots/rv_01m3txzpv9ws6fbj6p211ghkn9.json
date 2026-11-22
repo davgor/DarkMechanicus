@@ -1,0 +1,160 @@
+{
+  "baseRevisionId": null,
+  "bundle": {
+    "edges": [
+      {
+        "from": "tk_01m3txy30tjnwv2m5kjebfq0aj",
+        "to": "tk_01m3txy30tvtfbzj1ecax0dvb0"
+      }
+    ],
+    "epic": {
+      "intent": "Created by Claude Code over MCP to confirm an agent can author epics. Safe to discard.",
+      "ownerRole": null,
+      "successCriteria": [
+        {
+          "id": "s1",
+          "text": "Epic and tickets appear in the desktop app"
+        },
+        {
+          "id": "s2",
+          "text": "A person can Save or discard the draft"
+        }
+      ],
+      "title": "MCP connection test"
+    },
+    "formatVersion": 1,
+    "policies": {
+      "leaseSeconds": 900,
+      "maxConcurrency": null,
+      "onTicketFailure": "continue_independent",
+      "retryLimit": 3
+    },
+    "rationale": "",
+    "relations": [],
+    "sprints": [
+      {
+        "checkpoint": {
+          "mode": "human"
+        },
+        "concurrencyCap": null,
+        "entryCriteria": [],
+        "exitCriteria": [],
+        "goal": "",
+        "id": "sp_01m3txy30q8sb4f7ekx20btcr6",
+        "ordinal": 1,
+        "ticketIds": [
+          "tk_01m3txy30tjnwv2m5kjebfq0aj",
+          "tk_01m3txy30tvtfbzj1ecax0dvb0"
+        ]
+      }
+    ],
+    "tickets": [
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Epic shows in the epic list"
+          }
+        ],
+        "body": "",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m3txy30tjnwv2m5kjebfq0aj",
+        "key": "DM-1",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [],
+        "title": "Confirm epic is visible in the app"
+      },
+      {
+        "acceptanceCriteria": [
+          {
+            "id": "c1",
+            "text": "Draft saved or discarded from the desktop"
+          }
+        ],
+        "body": "",
+        "capability": {
+          "constraints": {
+            "dataLocation": null,
+            "environments": [],
+            "maxCostUsd": null,
+            "maxDurationMinutes": null
+          },
+          "context": {
+            "estimatedInputTokens": null,
+            "requiredArtifacts": []
+          },
+          "modalities": [
+            "text"
+          ],
+          "preferences": {
+            "autonomy": null,
+            "cost": null,
+            "latency": null,
+            "modelOverride": null,
+            "quality": null
+          },
+          "reasoning": {
+            "level": "multi_step",
+            "rationale": ""
+          },
+          "skills": [],
+          "tools": [
+            "repo_read",
+            "repo_write"
+          ],
+          "workType": "implementation"
+        },
+        "expectedArtifacts": [],
+        "id": "tk_01m3txy30tvtfbzj1ecax0dvb0",
+        "key": "DM-2",
+        "optional": false,
+        "priority": "normal",
+        "references": [],
+        "tags": [],
+        "title": "Save or discard the draft"
+      }
+    ]
+  },
+  "contentHash": "sha256:c052780122fb60803fd440e33f7137b68a85c324f73038692cb8f0782525528d",
+  "createdAt": "2026-10-01T05:11:23.753Z",
+  "epicId": "ep_01m3txy30qavmd5wewct90804g",
+  "format": "darkmechanicus.plan-snapshot",
+  "formatVersion": 1,
+  "number": 1,
+  "revisionId": "rv_01m3txzpv9ws6fbj6p211ghkn9",
+  "savedAt": "2026-10-01T05:11:23.753Z"
+}

@@ -99,8 +99,11 @@ const wireArgs: Record<string, (args: unknown[]) => unknown[]> = {
   'dm.terminals.attach': ([folder, chatId]) => [{ folder, chatId }]
 }
 
-beforeAll(() => {
-  startForge(recorder(false), recordingHandlers<Parameters<typeof startForge>[1]>()).stop()
+beforeAll(async () => {
+  const deps = recordingHandlers<Parameters<typeof startForge>[1]>()
+  const forge = startForge(recorder(false), { ...deps, registry: { ...deps.registry, list: () => [] } })
+  forge.stop()
+  await forge.ready
   registerGitIpc(recorder(true), recordingHandlers<GitHandlers>())
   registerGithubIpc(recorder(true), recordingHandlers<GithubHandlers>())
   registerDesktopIpc(recorder(true), recordingHandlers<DesktopHandlers>())
