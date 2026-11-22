@@ -91,7 +91,7 @@ describe('storage mode migration', () => {
     expect(existsSync(join(harness.root, '.darkmechanicus'))).toBe(false)
   })
 
-  it.each(['queued', 'running', 'awaiting_checkpoint', 'paused'])('refuses an active %s run without touching either store', async (state) => {
+  it.each(['queued', 'running', 'awaiting_checkpoint'])('refuses an active %s run without touching either store', async (state) => {
     const workspace = await populated()
     workspace.ctx().db.run('UPDATE runs SET state = ?', state)
     const before = records(workspace.ctx().db)
