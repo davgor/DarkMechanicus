@@ -43,6 +43,7 @@ function ensureReconciled(result: import('../../shared/domain/views').ReconcileR
 class ForgeService {
   private readonly git: ForgeGit
   private readonly resolving = new Set<string>()
+  private readonly polling = new Set<string>()
   private readonly active = new Map<string, Promise<void>>()
   private readonly transferring = new Set<string>()
   private readonly last = new Map<string, number>()
@@ -52,9 +53,11 @@ class ForgeService {
 
   constructor(private readonly deps: Services) { this.git = new ForgeGit(deps.session, deps.runner) }
   ensure(root: string): Promise<void> {
+    try { assertForgeWorldSyncAllowed(nodeFs, this.deps.home, root) }
+    catch (error) { return Promise.reject(error) }
     const pending = this.checking.get(root)
     if (pending) return pending
-    const work = ensureForgeWorld(root, { git: this.git, home: this.deps.home }).finally(() => this.checking.delete(root))
+    const work = this.git.ensureMain(root).then(() => ensureForgeWorld(root, { git: this.git, home: this.deps.home })).finally(() => this.checking.delete(root))
     this.checking.set(root, work)
     return work
   }
@@ -106,18 +109,38 @@ class ForgeService {
         this.errors.set(root, error instanceof Error ? error.message : String(error))
         const conflicts = (await this.git.run(root, ['diff', '--name-only', '--diff-filter=U', '-z'])).stdout.split('\0').filter(Boolean)
         if (conflicts.length) {
-          const head = parseForge((await this.git.run(root, ['show', 'HEAD:' + FORGE_FILE])).stdout)
-          if (!conflicts.every(path => path === FORGE_FILE || head.projects.some(p => path.startsWith(p.folder + '/.darkmechanicus/')))) throw error
-          this.deps.registry.cacheForge?.(root, head)
-          const project = head.projects.find(p => this.deps.registry.resolve(join(root, p.folder)))
-          await this.deps.onConflict(root, project ? join(root, project.folder) : null)
           this.resolving.add(root)
+          await this.startResolver(root)
         }
         throw error
       }
     })().finally(() => this.active.delete(root))
     this.active.set(root, work)
     return work
+  }
+  async startResolver(root: string): Promise<void> {
+    assertForgeWorldSyncAllowed(nodeFs, this.deps.home, root)
+    // Every portable repository file is synced, so every safe conflict needs a resolver.
+    // Inspect every index stage before using HEAD as the trusted fallback grant scope.
+    await this.git.inspectCheckout(root)
+    const head = parseForge((await this.git.run(root, ['show', 'HEAD:' + FORGE_FILE])).stdout)
+    this.deps.registry.cacheForge?.(root, head)
+    try { await this.deps.onConflict(root, root) }
+    catch (error) {
+      this.errors.set(root, error instanceof Error ? error.message : String(error))
+      throw error
+    }
+  }
+
+  async pollResolution(root: string): Promise<void> {
+    this.polling.add(root)
+    try {
+      const unresolved = await this.git.run(root, ['ls-files', '-u'])
+      if (unresolved.stdout) await this.startResolver(root)
+      else await this.sync(root)
+    } catch (error) {
+      this.errors.set(root, error instanceof Error ? error.message : String(error))
+    } finally { this.polling.delete(root) }
   }
   async checkout(repository: string, adopt: boolean) {
     const url = githubRemote(repository)
@@ -368,14 +391,16 @@ class ForgeService {
     ipc.handle('forge:sync', (_e, folder) => this.sync(this.rootOf(folder)))
     ipc.handle('forge:status', (_e, folder) => { const root = this.rootOf(folder); return { last: this.last.get(root) ?? null, error: this.errors.get(root) ?? null } })
   }
-  tick() {
+  pollResolvers() {
     for (const root of this.resolving) {
-      if (!this.active.has(root)) void this.git.run(root, ['ls-files', '-u']).then(result => {
-        if (!result.stdout) return this.sync(root)
-      }).catch(() => undefined)
+      if (!this.deps.registry.has(root)) { this.resolving.delete(root); continue }
+      if (!this.active.has(root) && !this.polling.has(root)) void this.pollResolution(root)
     }
+  }
+  tick() {
+    this.pollResolvers()
     for (const folder of this.deps.registry.list()) {
-      if ((!folder.forgeWorld && !folder.forgeIssue) || Date.now() < (this.next.get(folder.path) ?? 0)) continue
+      if (this.resolving.has(folder.path) || (!folder.forgeWorld && !folder.forgeIssue) || Date.now() < (this.next.get(folder.path) ?? 0)) continue
       this.next.set(folder.path, Date.now() + (folder.forgeWorld?.syncMinutes ?? 5) * 60_000)
       void this.sync(folder.path).catch(() => undefined)
     }

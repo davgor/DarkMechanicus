@@ -170,6 +170,9 @@ function recordingMailboxes(steps: string[], options: { refuseDelete?: () => boo
     deleting: chats.filter((chat) => options.deleting?.has(chat.id) === true)
   })
   return {
+    routes: () => [],
+    recordRoute: () => {},
+    suspendChat: () => {},
     reconcile: (_folder, chats) => {
       steps.push(`reconcile ${chats.map((chat) => chat.id).join()}`)
       return split(chats)

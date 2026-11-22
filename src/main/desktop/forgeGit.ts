@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { lstatSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { credentialArgs, type CredentialSession } from '../git/credentials'
 import { createGitRunner, type GitRunner } from '../git/runner'
@@ -64,7 +64,9 @@ export class ForgeGit {
     const pathspec = paths.join('\0') + '\0'
     await this.run(root, ['--literal-pathspecs', 'add', '-A', '--pathspec-from-file=-', '--pathspec-file-nul'], undefined, { stdin: pathspec })
     inspectEntries((await this.run(root, ['ls-files', '--stage', '-z'])).stdout)
-    if ((await this.run(root, ['diff', '--cached', '--quiet'], undefined, { acceptExitCodes: [0, 1] })).code === 1) {
+    const changed = (await this.run(root, ['diff', '--cached', '--quiet'], undefined, { acceptExitCodes: [0, 1] })).code === 1
+    const merging = !changed && (await this.run(root, ['rev-parse', '--verify', '--quiet', 'MERGE_HEAD'], undefined, { acceptExitCodes: [0, 1] })).code === 0
+    if (changed || merging) {
       const user = this.session.getAccount()?.login
       const identity = user && (await this.run(root, ['var', 'GIT_AUTHOR_IDENT'], undefined, { acceptExitCodes: [0, 128] })).code !== 0
         ? ['-c', 'user.name=' + user, '-c', 'user.email=' + user + '@users.noreply.github.com'] : []
@@ -72,16 +74,33 @@ export class ForgeGit {
     }
   }
 
+  /** Keep the dedicated ticket repository on main while retaining all off-branch work. */
+  async ensureMain(root: string): Promise<void> {
+    const branch = await this.run(root, ['symbolic-ref', '--quiet', '--short', 'HEAD'], undefined, { acceptExitCodes: [0, 1] })
+    if (branch.stdout.trim() === 'main') return
+    const gitRoot = (await this.run(root, ['rev-parse', '--show-toplevel'])).stdout.trim()
+    if (relative(gitRoot, root) !== '') throw new Error('The Forge World must be the root of its ticket repository.')
+    const manifest = lstatSync(join(root, FORGE_FILE))
+    if (!manifest.isFile() || manifest.isSymbolicLink()) throw new Error('Invalid Forge World manifest.')
+    parseForge(readFileSync(join(root, FORGE_FILE), 'utf8'))
+    await this.inspectCheckout(root)
+    await this.commitRepository(root)
+    const prior = (await this.run(root, ['rev-parse', 'HEAD'])).stdout.trim()
+    const main = await this.run(root, ['show-ref', '--verify', '--quiet', 'refs/heads/main'], undefined, { acceptExitCodes: [0, 1] })
+    await this.run(root, main.code === 0 ? ['switch', 'main'] : ['switch', '-c', 'main'])
+    if (main.code === 0) await this.run(root, ['merge', '--no-edit', prior])
+  }
+
   async sync(root: string, validate: () => Promise<void>) {
     const gitRoot = (await this.run(root, ['rev-parse', '--show-toplevel'])).stdout.trim()
     if (relative(gitRoot, root) !== '') throw new Error('The Forge World must be the root of its ticket repository.')
     parseForge(readFileSync(join(root, FORGE_FILE), 'utf8'))
     const url = githubRemote((await this.run(root, ['remote', 'get-url', 'origin'])).stdout.trim())
-    const branch = (await this.run(root, ['symbolic-ref', '--short', 'HEAD'])).stdout.trim()
+    await this.ensureMain(root)
     if ((await this.run(root, ['rev-parse', '--verify', 'HEAD'], undefined, { acceptExitCodes: [0, 128] })).code === 0) await this.inspectTree(root, 'HEAD')
     ensureForgeDirections(root)
     await this.commitRepository(root)
-    const ref = 'refs/heads/' + branch
+    const ref = 'refs/heads/main'
     if ((await this.run(root, ['ls-remote', '--heads', url, ref], url)).stdout.trim()) {
       await this.run(root, ['fetch', '--no-tags', url, ref], url)
       await this.inspectTree(root, 'FETCH_HEAD')

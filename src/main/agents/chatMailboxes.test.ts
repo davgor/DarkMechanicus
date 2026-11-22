@@ -67,6 +67,7 @@ interface Rig {
 }
 
 interface RigOptions {
+  membersFor?: (folder: string) => readonly string[] | undefined
   storeFs?: ChatStoreFs
   contextFails?: () => boolean
   /** What a failing context throws; `database is locked` by default. */
@@ -102,11 +103,10 @@ async function rig(options: RigOptions = {}): Promise<Rig> {
   return build({ pool, tracked: new Set([repoA, repoB]), openAgent }, options)
 }
 
-function build(desktop: Desktop, options: RigOptions): Rig {
+function trackedWorkspace(desktop: Desktop, options: RigOptions): (folder: string) => Workspace {
   const { pool, tracked } = desktop
-  const logged: string[] = []
   const wrapped = new WeakMap<Workspace, Workspace>()
-  const workspaceFor = (folder: string): Workspace => {
+  return (folder: string): Workspace => {
     if (!tracked.has(folder)) throw new DomainError('unauthorized', 'That folder is not tracked by Dark Mechanicus.')
     const workspace = pool.get(folder)
     if (options.wrap === undefined) return workspace
@@ -114,8 +114,15 @@ function build(desktop: Desktop, options: RigOptions): Rig {
     wrapped.set(workspace, known)
     return known
   }
+}
+
+function build(desktop: Desktop, options: RigOptions): Rig {
+  const { pool, tracked } = desktop
+  const logged: string[] = []
+  const workspaceFor = trackedWorkspace(desktop, options)
   const store = createChatStore({ root: join(root, 'chats'), fs: options.storeFs ?? nodeChatStoreFs, ...(options.newId === undefined ? {} : { newId: options.newId }) })
   const mailboxes = createChatMailboxes({
+    ...(options.membersFor === undefined ? {} : { membersFor: options.membersFor }),
     contextFor: (folder) => {
       if (options.contextFails?.() === true) throw options.contextError ?? new Error('database is locked')
       return workspaceFor(folder).ctx()
@@ -131,6 +138,7 @@ function build(desktop: Desktop, options: RigOptions): Rig {
     ...(options.removeOmpFolder === undefined ? {} : { removeOmpFolder: options.removeOmpFolder })
   })
   const grants = createChatGrants({
+    recordWorldMailbox: (owner, member, chatId) => mailboxes.recordRoute(owner, member, chatId),
     workspaceFor,
     cliFor: (folder) => buildCliConfig({ execPath: '/bin/electron', appPath: '/app', repoPath: folder }),
     minutes: 12 * 60,
@@ -166,6 +174,100 @@ async function issueFor(grants: ChatGrants, chat: ChatRecord, kind: string): Pro
 function newOmp(state: Rig, folder: string, title: string): ChatRecord {
   return state.records.createChat({ folder, agent: 'omp', role: 'worker', title })
 }
+
+describe('Forge World mailbox lifecycle', () => {
+  it('owns separate member endpoints, keeps a root identity, and suspends removed routes across restart', async () => {
+    let members = [repoA, repoB]
+    const options = { membersFor: (folder: string) => folder === root ? members : undefined }
+    const state = await rig(options)
+    const chat = newOmp(state, root, 'World work')
+    expect(chat.endpointId).toBeUndefined()
+    const routes = state.mailboxes.routes(chat)
+    expect(routes.map(route => route.folder)).toEqual([repoA, repoB])
+    state.records.renameChat(chat, 'Renamed world')
+    for (const folder of members) expect(state.endpoint({ ...chat, folder })?.name).toBe('Renamed world')
+    // Listing ordinary project chats must not collect the root chat's member endpoint as an orphan.
+    await state.records.recoverFolder(repoA)
+    expect(state.endpoint({ ...chat, folder: repoA })?.state).toBe('open')
+    members = [repoB]
+    const restarted = state.restart(options)
+    restarted.mailboxes.recover(root, [chat])
+    expect(restarted.mailboxes.routes(chat)).toEqual([routes[1]])
+    expect(state.endpoint({ ...chat, folder: repoA })?.state).toBe('suspended')
+    restarted.mailboxes.delete(chat)
+    for (const folder of [repoA, repoB]) expect(state.endpoint({ ...chat, folder })?.state).toBe('deleted')
+  })
+
+  it('suspends root-owned endpoints when a member alone is untracked', async () => {
+    const state = await rig({ membersFor: folder => folder === root ? [repoA, repoB] : undefined })
+    const chat = newOmp(state, root, 'World work')
+    state.mailboxes.suspendFolder(repoA, [])
+    expect(state.endpoint({ ...chat, folder: repoA })?.state).toBe('suspended')
+    expect(state.endpoint({ ...chat, folder: repoB })?.state).toBe('open')
+  })
+
+  it('withholds routes without suspending stored endpoints while the manifest is unreadable', async () => {
+    let broken = false
+    const state = await rig({ membersFor: folder => {
+      if (folder !== root) return undefined
+      if (broken) throw new Error('merge conflict')
+      return [repoA, repoB]
+    } })
+    const chat = newOmp(state, root, 'World work')
+    broken = true
+    state.mailboxes.reconcile(root, [chat])
+    expect(state.mailboxes.routes(chat)).toEqual([])
+    expect(state.endpoint({ ...chat, folder: repoA })?.state).toBe('open')
+    expect(state.endpoint({ ...chat, folder: repoB })?.state).toBe('open')
+  })
+})
+
+describe('Forge World mailbox cleanup after mappings disappear', () => {
+  it('records deletion for an untracked member and drains it before that member is readded', async () => {
+    let members = [repoA, repoB]
+    const options = { membersFor: (folder: string) => folder === root ? members : undefined }
+    const state = await rig(options)
+    const chat = newOmp(state, root, 'World work')
+    state.tracked.delete(repoA)
+    members = [repoB]
+    expect(() => state.mailboxes.delete(chat)).not.toThrow()
+    expect(state.endpoint({ ...chat, folder: repoA })?.state).toBe('open')
+    state.tracked.add(repoA)
+    const restarted = state.restart(options)
+    await restarted.records.recoverFolder(repoA)
+    expect(state.endpoint({ ...chat, folder: repoA })?.state).toBe('deleted')
+    members = [repoA, repoB]
+    expect(restarted.mailboxes.reconcile(root, [chat]).deleting).toEqual([chat])
+    expect(restarted.mailboxes.routes(chat)).toEqual([])
+  })
+
+  it('records a conflict resolver binding even when the current manifest cannot be read', async () => {
+    const state = await rig({ membersFor: folder => { if (folder === root) throw new Error('merge conflict'); return undefined } })
+    const chat = newOmp(state, root, 'Conflict resolver')
+    const target = { folder: repoA, tokenFile: join(root, 'private', 'grant.token') }
+    const issued = await state.grants.issueReachCli([target], { role: 'worker', allowSave: false, label: 'Resolver' }, root, { ...chat, kind: 'omp' })
+    expect(state.endpoint({ ...chat, folder: repoA })?.state).toBe('open')
+    await state.grants.revokeChatGrant(issued.grantIds[0]!)
+    state.mailboxes.delete(chat)
+    expect(state.endpoint({ ...chat, folder: repoA })?.state).toBe('deleted')
+  })
+
+  it('keeps archived root mailboxes suspended across recovery and leaves another chat open', async () => {
+    const options = { membersFor: (folder: string) => folder === root ? [repoA, repoB] : undefined }
+    const state = await rig(options)
+    const chat = newOmp(state, root, 'Archived resolver')
+    const other = newOmp(state, root, 'Live world work')
+    state.mailboxes.suspendChat(chat)
+    const archived = { ...chat, archived: true }
+    const restarted = state.restart(options)
+    restarted.mailboxes.recover(root, [archived, other])
+    for (const folder of [repoA, repoB]) {
+      expect(state.endpoint({ ...chat, folder })?.state).toBe('suspended')
+      expect(state.endpoint({ ...other, folder })?.state).toBe('open')
+    }
+    expect(restarted.mailboxes.routes(archived)).toEqual([])
+  })
+})
 
 /** Grants in the folder's database that are still usable (not revoked). */
 function liveGrants(state: Rig, folder: string): string[] {

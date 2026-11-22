@@ -25,6 +25,16 @@ This record says what was built, what it promises, and what it deliberately does
 
 ## Scope and trust
 
+### Forge World chats
+
+A root Skitarii chat holds one grant and mailbox in each available initialized member. The root itself has no project database or invented shared endpoint. Its private launch descriptor contains a validated runtime/folder pin and token-file reference for each member; tokens stay in the chat's app-data scratch directory. Every call rereads the route and its own grant file. Changing or removing that launch descriptor invalidates the routes. Project-less chats remain recovery-only and gain no mail authority.
+
+Native mail tools accept an optional `project` selector on world chats. Identity and peer discovery without a selector return project-labelled results; send/read/ack and workflow calls require a selector when more than one project is available. The existing one-project API stays unchanged. Each member watcher owns its own sequence cursor, and body-bearing context records include the canonical member folder. Persisted receipts are keyed by both that folder and message id so identical ids or sequence numbers in two member databases cannot suppress one another. Mail remains inside each member's database: root and member agents can reply using their existing grants, with no cross-database delivery operation.
+
+The local ownership ledger distinguishes the root chat's owner folder from each mailbox folder. Ordinary member recovery does not mistake root-owned endpoints for deleted local chats. Rename and root deletion fan out to owned members; untracking a member suspends its root-owned endpoints too. Removed mappings stop routing, including after app restart. An unreadable conflicted manifest withholds routes without deleting or suspending known mailboxes. The desktop monitor resumes and verifies the owning root chat while recording progress in the member that holds the mail.
+
+### Project mailbox boundary
+
 - **Same folder, same machine.** Peers are the other open Skitarii endpoints of this folder's database bound on this
   machine. There is no cross-folder, cross-machine or network delivery.
 - **Local only.** Mailbox bodies live in the folder's SQLite database (`local/state.sqlite` in repository mode, the

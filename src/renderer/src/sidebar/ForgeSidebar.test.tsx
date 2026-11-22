@@ -24,13 +24,13 @@ function setup(selection: SidebarProps['selection'] = { folderPath: null, epicId
   const cards: string[] = []
   function View(): JSX.Element {
     return <Sidebar version="0.1" folders={[world, project, elsewhere]} selection={selection}
-      lists={{ [project.path]: { status: 'ready', epics: [epicSummary({ title: 'Ship Alpha' })], error: null } }}
+      lists={{ [project.path]: { status: 'ready', epics: [epicSummary({ title: 'Ship Alpha' })], error: null }, [elsewhere.path]: { status: 'ready', epics: [], error: null } }}
       agents={[]} agentStatuses={{}} expansion={useExpansion()} footer={null}
       chats={{ lists: { [world.path]: { status: 'ready', chats: [rootChat] }, [project.path]: { status: 'ready', chats: [memberChat] }, [elsewhere.path]: { status: 'ready', chats: [otherChat] } }, onNew: path => created.push(path), onOpen: (path, id) => opened.push(`${path}:${id}`), onRename: async () => true, onDelete: async () => true }}
       agentChats={{ list: { status: 'ready', chats: [rootChat, memberChat, otherChat] }, onOpen: chat => opened.push(`global:${chat.id}`), onSummon: () => undefined, onRename: async () => true, onDelete: async () => true }}
       onTrack={() => undefined} onClone={() => undefined} onAddAgent={() => undefined} onSelectAgent={() => undefined} onAgentStatus={() => undefined}
       onSelectFolder={() => undefined} onSelectEpic={() => undefined} onRequestUntrack={() => undefined}
-      kanbanCounts={{ [project.path]: 1 }} kanbanCards={{ [project.path]: [card] }} onSelectKanban={(path, id) => cards.push(`${path}:${id ?? 'board'}`)} />
+      kanbanCounts={{ [project.path]: 1 }} onSelectKanban={(path, id) => cards.push(`${path}:${id ?? 'board'}`)} />
   }
   const rendered = render(<View />)
   return { ...rendered, opened, created, cards }
@@ -66,15 +66,36 @@ describe('Forge sidebar navigation', () => {
     expect(view.opened).toEqual(['/world:chat_root', '/world/alpha:chat_member'])
   })
 
-  it('opens a compact card in its project and keeps a separate board entry when collapsed', () => {
+})
+
+describe('Forge board quick links', () => {
+  it('shows one selected board quick link without a Kanban disclosure or nested cards', () => {
     const view = setup({ folderPath: project.path, epicId: null, kanban: true, kanbanCardId: card.id })
-    const button = screen.getByRole('button', { name: /DM-21 Repair launch In progress/ })
-    expect(button.getAttribute('aria-current')).toBe('true')
-    fireEvent.click(button)
-    expect(view.cards).toEqual(['/world/alpha:kc_alpha'])
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse Kanban in Alpha' }))
-    expect(screen.queryByText('Repair launch')).toBeNull()
+    const worlds = screen.getByRole('region', { name: 'Forge Worlds' })
+    const board = within(worlds).getByRole('button', { name: 'Kanban, 1 open card' })
+    expect(board.getAttribute('aria-current')).toBe('true')
+    expect(within(worlds).queryByRole('button', { name: /(?:Collapse|Expand) Kanban/ })).toBeNull()
+    expect(within(worlds).queryByText('Repair launch')).toBeNull()
+    expect(worlds.querySelectorAll('.is-selected')).toHaveLength(1)
+    fireEvent.click(board)
+    expect(view.cards).toEqual(['/world/alpha:board'])
+  })
+
+  it('keeps each project board link scoped to its project, including regular folders', () => {
+    const view = setup()
     fireEvent.click(screen.getByRole('button', { name: 'Kanban, 1 open card' }))
-    expect(view.cards).toEqual(['/world/alpha:kc_alpha', '/world/alpha:board'])
+    fireEvent.click(within(screen.getByRole('region', { name: 'Folders' })).getByRole('button', { name: 'Kanban' }))
+    expect(view.cards).toEqual(['/world/alpha:board', '/elsewhere:board'])
+  })
+
+  it('places section labels before their disclosure icons while preserving collapse controls', () => {
+    setup()
+    for (const title of ['Agents', 'Forge Worlds', 'Folders']) {
+      const toggle = screen.getByRole('button', { name: title })
+      expect(toggle.firstElementChild?.textContent).toBe(title.toUpperCase())
+      expect(toggle.getAttribute('aria-expanded')).toBe('true')
+      fireEvent.click(toggle)
+      expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    }
   })
 })

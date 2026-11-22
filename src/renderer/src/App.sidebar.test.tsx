@@ -279,22 +279,21 @@ describe('App stop tracking', () => {
   })
 })
 
-it('opens a sidebar card directly, keeps its selection through reload and closes back to the board', async () => {
+it('uses one sidebar board quick link and clears a previously open card when it is selected', async () => {
   seed()
   const card = cardView({ id: 'kc_direct', key: 'DM-37', title: 'Direct card' })
   h.dm.responses.listKanbanCards = { lanes: { backlog: [card], in_progress: [], ready_for_review: [], done: [] }, doneTotal: 0, doneNextCursor: null }
   h.dm.responses.getKanbanCard = card
-  h.mount()
-  await settle()
-  fireEvent.click(sidebar().getByRole('button', { name: 'DM-37 Direct card Backlog' }))
-  await settle()
-  expect(h.dm.callsOf('getKanbanCard').at(-1)).toMatchObject({ folder: '/a', input: { cardId: card.id } })
-  expect(document.querySelectorAll('.kanban-lanes > .kanban-lane')).toHaveLength(4)
-  cleanup()
+  window.localStorage.setItem('dm.selection', JSON.stringify({ folderPath: '/a', epicId: null, kanban: true, kanbanCardId: card.id }))
   h.mount()
   await settle()
   expect(within(screen.getByRole('main', { name: 'Workspace' })).getByRole('button', { name: 'Close' })).toBeTruthy()
-  fireEvent.click(within(screen.getByRole('main', { name: 'Workspace' })).getByRole('button', { name: 'Close' }))
-  expect(document.querySelector('.kanban-card-panel')).toBeNull()
+  expect(sidebar().queryByText('Direct card')).toBeNull()
+  expect(sidebar().queryByRole('button', { name: /(?:Collapse|Expand) Kanban/ })).toBeNull()
+  expect(document.querySelectorAll('.sidebar-tree .is-selected')).toHaveLength(1)
+  fireEvent.click(sidebar().getByRole('button', { name: 'Kanban, 1 open card' }))
+  await settle()
+  expect(screen.queryByRole('button', { name: 'Close' })).toBeNull()
+  expect(document.querySelectorAll('.kanban-lanes > .kanban-lane')).toHaveLength(4)
   expect(JSON.parse(window.localStorage.getItem('dm.selection') ?? '{}')).toEqual({ folderPath: '/a', epicId: null, kanban: true })
 })

@@ -210,6 +210,8 @@ export interface DmClientDeps {
   limits?: Readonly<DmClientLimits>
   /** `run`'s limits; `DM_RUN_LIMITS` unless a test gives others. */
   runLimits?: Readonly<DmClientLimits>
+  /** A world-member route reads its own private grant file at every call; never another member's ambient token. */
+  token?: () => Promise<string>
 }
 
 export function nodeDmClientDeps(): DmClientDeps {
@@ -564,7 +566,9 @@ async function prepare(deps: DmClientDeps, request: Request): Promise<Checked<Pr
   if (!input.ok) return input
   const descriptor = await loadDescriptor(deps)
   if (!descriptor.ok) return descriptor
-  const token = envValue(deps.env, deps.platform, 'DM_SESSION_TOKEN')?.trim() ?? ''
+  let token: string
+  try { token = (deps.token === undefined ? envValue(deps.env, deps.platform, 'DM_SESSION_TOKEN') ?? '' : await deps.token()).trim() }
+  catch { return clientError('no_grant', 'This project grant is no longer available; restart the chat.') }
   if (token === '') return clientError('no_grant', 'This chat holds no Dark Mechanicus grant.')
   return { ok: true, value: { descriptor: descriptor.value, token, input: input.value, cliName: cliName.value } }
 }

@@ -4,8 +4,8 @@ import { join } from 'node:path'
 
 export const FORGE_DIRECTIONS = 'FORGE-REPOSITORIES.md'
 
-/** Portable guidance reads the manifest instead of duplicating links that can become stale. */
-export const FORGE_REPOSITORY_GUIDANCE = [
+/** Frozen unmarked guide from the first Forge release, recognized during upgrades. */
+const legacyGuidance = [
   'This Forge World stores tickets, plans and history. Its project folders are ticket stores, not source-code checkouts.',
   'Read forge-world.json: each projects entry names the ticket folder in folder and its GitHub clone URL in repository. Read the current manifest whenever projects change.',
   'Obtain a repository only when the task needs its code. Reuse a local checkout after verifying its Git origin matches the repository URL.',
@@ -14,6 +14,9 @@ export const FORGE_REPOSITORY_GUIDANCE = [
   'After cloning, keep code edits and code tests in the code checkout, and use the ticket folder for Dark Mechanicus commands. Follow the code repository’s own setup instructions. Record the checkout only in the machine-local source-checkout.json, never in the portable manifest.',
   'Opening this Forge World does not download every code repository. The agent clones only the repositories needed for the current task.'
 ].join('\n\n')
+
+/** Portable guidance reads the manifest instead of duplicating links that can become stale. */
+export const FORGE_REPOSITORY_GUIDANCE = legacyGuidance + '\n\nKeep this Forge World repository on main. Do not create or switch ticket-world branches. Feature branches and worktrees belong in the code checkout; the desktop commits, pulls and pushes this world on main.'
 
 const start = '<!-- darkmechanicus:forge-repositories:v1:start -->'
 const end = '<!-- darkmechanicus:forge-repositories:end -->'
@@ -26,8 +29,8 @@ function currentDirections(existing: string): string {
     if (matches?.length !== 1 || existing.replace(managed, '').includes('<!-- darkmechanicus:forge-repositories:')) throw new Error('The Forge World directions have a malformed managed section. Repair its markers before updating.')
     return existing.replace(managed, block)
   }
-  const oldGenerated = '# Forge World repositories\n\n' + FORGE_REPOSITORY_GUIDANCE + '\n'
-  if (existing.replace(/\r\n/g, '\n') === oldGenerated || existing === '') return '# Forge World repositories\n\n' + block + '\n'
+  const unmarked = [legacyGuidance, FORGE_REPOSITORY_GUIDANCE].map(text => '# Forge World repositories\n\n' + text + '\n')
+  if (unmarked.includes(existing.replace(/\r\n/g, '\n')) || existing === '') return '# Forge World repositories\n\n' + block + '\n'
   return existing + '\n\n' + block + '\n'
 }
 

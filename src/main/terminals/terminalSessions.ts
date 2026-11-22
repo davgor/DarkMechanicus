@@ -102,7 +102,7 @@ import { ompSessionId, writeOmpFiles } from './ompSession'
 import { writeClaudeSettings } from './claudeSettingsFile'
 import type { PtyExit, PtyHost, PtyProcess } from './ptyHost'
 import { terminalLaunchSpec, type TerminalLaunchSpec } from './terminalLaunchSpec'
-import { removeDmClientDescriptor, writeDmClientDescriptor, writeRecoveryClientDescriptor, writeTerminalFiles, type TerminalFiles } from './terminalFiles'
+import { removeDmClientDescriptor, writeDmClientDescriptor, writeRecoveryClientDescriptor, writeWorldMailDescriptor, writeTerminalFiles, type TerminalFiles } from './terminalFiles'
 import { createTerminalScreen, type TerminalScreen } from './terminalScreen'
 
 /** How often a running PTY's folder is checked again. */
@@ -258,9 +258,11 @@ export interface TerminalSessionsDeps {
   /** Issues the chat's grant, bound to its mailbox when it has one, before anything is spawned (`chatGrants.ts`). */
   issueChatCli: (folder: string, grant: GrantOptions, chat: GrantChat) => Promise<IssuedChatCli>
   /** A project-less chat's grants, one per target folder, each token written to its file, bound to no mailbox (`chatGrants.ts`). */
-  issueReachCli: (targets: readonly ReachTarget[], grant: GrantOptions, ownerFolder?: string) => Promise<{ cli: DarkMechanicusCli; grantIds: string[] }>
+  issueReachCli: (targets: readonly ReachTarget[], grant: GrantOptions, ownerFolder?: string, chat?: GrantChat) => Promise<{ cli: DarkMechanicusCli; grantIds: string[] }>
   /** The canonical paths of the tracked folders set up for Dark Mechanicus: what a project-less chat reaches. */
   reachFolders: () => string[]
+  /** Desktop-validated HEAD members, used only by a world-root conflict resolver. */
+  forgeResolverFolders?: (root: string) => readonly string[]
   /** Never throws (`chatGrants.ts`). */
   revokeChatGrant: (grantId: string) => Promise<void>
   /** Moves a running PTY's grant's expiry on; never throws (`chatGrants.ts`). */
@@ -371,7 +373,7 @@ interface Starting {
 }
 
 interface Manager {
-  deps: Required<Omit<TerminalSessionsDeps, 'onError' | 'onChatChanged' | 'bindChatGrant' | 'beforeContextPaste' | 'assertRecoveryLaunch'>> & Pick<TerminalSessionsDeps, 'onChatChanged' | 'bindChatGrant' | 'beforeContextPaste' | 'assertRecoveryLaunch'>
+  deps: Required<Omit<TerminalSessionsDeps, 'onError' | 'onChatChanged' | 'bindChatGrant' | 'beforeContextPaste' | 'assertRecoveryLaunch' | 'forgeResolverFolders'>> & Pick<TerminalSessionsDeps, 'onChatChanged' | 'bindChatGrant' | 'beforeContextPaste' | 'assertRecoveryLaunch' | 'forgeResolverFolders'>
   onError: (error: unknown) => void
   entries: Map<string, Live | Starting>
   listeners: Map<string, Map<TerminalListener, Subscriber>>
@@ -481,6 +483,10 @@ function killTree(manager: Manager, live: Live): Promise<unknown> {
  * write issues nothing. The instructions and, on macOS, the chat's `dm` launcher; for Claude also its settings
  * file with the memory guards (`claudeSettingsFile.ts`), passed as `files.claudeSettings`.
  */
+function hasLaunchMailbox(context: StartContext): boolean {
+  return context.agent.kind === 'omp' && (context.reach === undefined || context.chat.folder !== null)
+}
+
 async function writeStartFiles(context: StartContext): Promise<TerminalFiles> {
   const { manager, chat, agent, folder, reach, newSession: fresh } = context
   const { userData, platform } = manager.deps
@@ -497,7 +503,7 @@ async function writeStartFiles(context: StartContext): Promise<TerminalFiles> {
     orchestratesRun: chat.runId !== undefined,
     nameFirstPrompt: chat.titleStatus === 'pending',
     // A project-less chat has no mailbox, so no mail guidance.
-    skitariiMail: agent.kind === 'omp' && reach === undefined,
+    skitariiMail: hasLaunchMailbox(context),
     ...(chat.transferEpicId === undefined ? {} : { transferEpicId: chat.transferEpicId }),
     ...(chat.cardId === undefined ? {} : { cardId: chat.cardId }),
     conversation: chat.conversation,
@@ -534,8 +540,13 @@ function launchFolder(manager: Manager, chat: ChatRecord): string {
 }
 
 function launchReach(manager: Manager, chat: ChatRecord, folder: string): readonly ReachTarget[] | undefined {
-  const scoped = chat.folder === null ? manager.deps.reachFolders() : forgeReachFolders(folder, manager.deps.reachFolders())
+  const scoped = chat.folder === null ? manager.deps.reachFolders() : forgeScope(manager, chat, folder)
   return scoped === undefined ? undefined : reachTargets(ensureScratchFolder(manager.deps.userData, chat.id), scoped)
+}
+
+function forgeScope(manager: Manager, chat: ChatRecord, folder: string): string[] | undefined {
+  const cached = chat.forgeResolver === folder ? manager.deps.forgeResolverFolders?.(folder) : undefined
+  return forgeReachFolders(folder, manager.deps.reachFolders(), cached)
 }
 
 function worldScope(chat: ChatRecord, reach: readonly ReachTarget[] | undefined): readonly string[] {
@@ -545,7 +556,7 @@ function worldScope(chat: ChatRecord, reach: readonly ReachTarget[] | undefined)
 /** A world chat may keep its original member grants only while those members remain in scope. */
 function assertForgeScope(manager: Manager, chat: ChatRecord, members: readonly string[]): void {
   if (chat.folder === null || members.length === 0) return
-  const current = forgeReachFolders(chat.folder, manager.deps.reachFolders())
+  const current = forgeScope(manager, chat, chat.folder)
   if (current === undefined || members.some(folder => !current.includes(folder) || manager.releasing.has(folder))) throw new Error(UNTRACKED)
 }
 
@@ -990,7 +1001,7 @@ async function runStart(context: StartContext, step: Step): Promise<StartOutcome
       ? manager.deps.issueChatCli(folder, grant, identity).then(({ cli, grantId, endpointId }) => ({ cli, grantIds: [grantId], endpointId }))
       : context.reach.length === 0
         ? Promise.resolve({ cli: manager.deps.cliFor(null), grantIds: [], endpointId: null })
-        : manager.deps.issueReachCli(context.reach, grant, chat.folder ?? undefined).then(({ cli, grantIds }) => ({ cli, grantIds, endpointId: null }))
+        : manager.deps.issueReachCli(context.reach, grant, chat.folder ?? undefined, chat.folder === null ? undefined : identity).then(({ cli, grantIds }) => ({ cli, grantIds, endpointId: null }))
   const issued = await step(issuing, ({ grantIds }) => {
     revokeAll(grantIds)
   })
@@ -1080,6 +1091,10 @@ async function withDmClient(context: StartContext, files: TerminalFiles, issued:
     return files
   }
   const { userData, platform } = manager.deps
+  if (chat.folder !== null && context.reach !== undefined) {
+    const dmClient = await writeWorldMailDescriptor({ userData, chatId: chat.id, generation, folder, cli: issued.cli, platform, reach: context.reach })
+    return { ...files, omp: { ...files.omp, dmClient } }
+  }
   const address = issued.cli.env['DM_DESKTOP_PIPE']
   if (issued.endpointId === null && address === undefined) return files
   const dmClient = issued.endpointId === null
@@ -1292,8 +1307,10 @@ async function attach(manager: Manager, ref: ChatRef, listener: TerminalListener
   }
 }
 
-/** `TerminalSessions.start`: a PTY that already runs (or has just exited) answers as running, and gets no kickoff. */
+/** A running PTY gets no duplicate kickoff; an exited one finishes cleanup before a fresh start. */
 async function start(manager: Manager, ref: ChatRef, options: StartOptions): Promise<TerminalStart> {
+  const previous = manager.entries.get(ref.id)
+  if (previous?.kind === 'live' && previous.exited) await previous.closed
   if (manager.closing) {
     return { state: 'failed', message: QUITTING }
   }

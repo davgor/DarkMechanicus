@@ -95,44 +95,67 @@ function deleteChatMailbox(ctx: Ctx, chat: MailboxChat): void {
 /** The (folder, chat id) pairs this installation provisioned, from an append-only JSON-lines file. */
 interface MailboxLedger {
   /** The chat ids this installation provisioned in `folder`; empty for none. */
-  owned(folder: string): ReadonlySet<string>
-  add(folder: string, chatId: string): void
+  owned(folder: string, owner?: string): ReadonlySet<string>
+  folders(owner: string): readonly string[]
+  allOwned(folder: string): ReadonlySet<string>
+  deleting(folder: string): ReadonlySet<string>
+  markDeleted(folder: string, chatId: string, owner: string): void
+  add(folder: string, chatId: string, owner?: string): void
 }
 
-function openLedger(fs: ChatStoreFs, file: string): MailboxLedger {
-  let byFolder: Map<string, Set<string>> | null = null
-  const load = (): Map<string, Set<string>> => {
-    if (byFolder !== null) return byFolder
-    const loaded = new Map<string, Set<string>>()
+function ledgerEntry(line: string): { folder: string; chatId: string; owner: string; deleted: boolean } | null {
+  const entry = JSON.parse(line) as { folder?: unknown; chatId?: unknown; owner?: unknown; deleted?: unknown }
+  if (typeof entry.folder !== 'string' || typeof entry.chatId !== 'string') return null
+  return { folder: entry.folder, chatId: entry.chatId, owner: typeof entry.owner === 'string' ? entry.owner : entry.folder, deleted: entry.deleted === true }
+}
+
+class LocalMailboxLedger implements MailboxLedger {
+  private loaded = false
+  private readonly byFolder = new Map<string, Set<string>>()
+  private readonly ownerFolders = new Map<string, Set<string>>()
+  private readonly folderChats = new Map<string, Set<string>>()
+  private readonly deleted = new Map<string, Set<string>>()
+  constructor(private readonly fs: ChatStoreFs, private readonly file: string) {}
+  private key(folder: string, owner = folder): string { return JSON.stringify([owner, folder]) }
+  private remember(entry: NonNullable<ReturnType<typeof ledgerEntry>>): void {
+    const key = this.key(entry.folder, entry.owner)
+    this.byFolder.set(key, (this.byFolder.get(key) ?? new Set()).add(entry.chatId))
+    this.ownerFolders.set(entry.owner, (this.ownerFolders.get(entry.owner) ?? new Set()).add(entry.folder))
+    this.folderChats.set(entry.folder, (this.folderChats.get(entry.folder) ?? new Set()).add(entry.chatId))
+    if (entry.deleted) this.deleted.set(entry.folder, (this.deleted.get(entry.folder) ?? new Set()).add(entry.chatId))
+  }
+  private load(): void {
+    if (this.loaded) return
     let text = ''
     try {
-      text = fs.readFile(file)
+      text = this.fs.readFile(this.file)
     } catch {
       // No ledger yet: this installation has provisioned nothing.
     }
     for (const line of text.split('\n')) {
       try {
-        const entry = JSON.parse(line) as { folder?: unknown; chatId?: unknown }
-        if (typeof entry.folder === 'string' && typeof entry.chatId === 'string') {
-          loaded.set(entry.folder, (loaded.get(entry.folder) ?? new Set()).add(entry.chatId))
-        }
+        const entry = ledgerEntry(line)
+        if (entry !== null) this.remember(entry)
       } catch {
         // A blank or truncated line is skipped; a pair it lost is added again the next time it is provisioned.
       }
     }
-    byFolder = loaded
-    return loaded
+    this.loaded = true
   }
-  return {
-    owned: (folder) => load().get(folder) ?? new Set(),
-    add: (folder, chatId) => {
-      const ledger = load()
-      if (ledger.get(folder)?.has(chatId) === true) return
-      fs.mkdirp(join(file, '..'))
-      // A fresh line even after a truncated tail: a cut line only loses itself.
-      fs.appendFile(file, `\n${JSON.stringify({ folder, chatId })}\n`)
-      ledger.set(folder, (ledger.get(folder) ?? new Set()).add(chatId))
-    }
+  owned(folder: string, owner = folder): ReadonlySet<string> { this.load(); return this.byFolder.get(this.key(folder, owner)) ?? new Set() }
+  folders(owner: string): readonly string[] { this.load(); return [...this.ownerFolders.get(owner) ?? []] }
+  allOwned(folder: string): ReadonlySet<string> { this.load(); return this.folderChats.get(folder) ?? new Set() }
+  deleting(folder: string): ReadonlySet<string> { this.load(); return this.deleted.get(folder) ?? new Set() }
+  private append(entry: NonNullable<ReturnType<typeof ledgerEntry>>): void {
+    this.fs.mkdirp(join(this.file, '..'))
+    this.fs.appendFile(this.file, `\n${JSON.stringify(entry)}\n`)
+    this.remember(entry)
+  }
+  markDeleted(folder: string, chatId: string, owner: string): void {
+    if (!this.deleting(folder).has(chatId)) this.append({ folder, chatId, owner, deleted: true })
+  }
+  add(folder: string, chatId: string, owner = folder): void {
+    if (!this.owned(folder, owner).has(chatId)) this.append({ folder, chatId, owner, deleted: false })
   }
 }
 
@@ -146,6 +169,12 @@ interface ReconciledChats {
 
 /** The chats' mailboxes, as main manages them (see the module comment). */
 export interface ChatMailboxes {
+  /** Persist ownership before a trusted root start binds a member endpoint, including conflict repair starts. */
+  recordRoute(ownerFolder: string, memberFolder: string, chatId: string): void
+  /** Archive suspension without changing any neighboring chat. */
+  suspendChat(chat: ChatRecord): void
+  /** Current usable member endpoints, without manufacturing a singular identity on a world chat. */
+  routes(chat: ChatRecord): readonly { folder: string; endpointId: string }[]
   /** Provisions (and resumes) the OMP chats' mailboxes and stores their ids; never throws: a failure is logged and the chats are returned as they are. */
   reconcile(folder: string, chats: readonly ChatRecord[]): ReconciledChats
   /** `reconcile`, then deletes the open mailboxes this installation provisioned for chats that no longer exist. Never throws. */
@@ -159,6 +188,8 @@ export interface ChatMailboxes {
 }
 
 interface ChatMailboxesDeps {
+  /** Initialized tracked members for a world; undefined for an ordinary folder. */
+  membersFor?: (folder: string) => readonly string[] | undefined
   /** The folder's desktop workspace context (`mail.manage`); throws for a folder that is not tracked. */
   contextFor: (folder: string) => Ctx
   store: Pick<ChatStore, 'recordEndpoint'>
@@ -182,17 +213,50 @@ type Reconciled = ReconciledChats & { ctx: Ctx | null | undefined }
 
 class ChatMailboxRegistry implements ChatMailboxes {
   private readonly ledger: MailboxLedger
+  private readonly unreadable = new Set<string>()
 
   constructor(private readonly deps: ChatMailboxesDeps) {
-    this.ledger = openLedger(deps.ledger.fs, deps.ledger.file)
+    this.ledger = new LocalMailboxLedger(deps.ledger.fs, deps.ledger.file)
+  }
+
+  recordRoute(ownerFolder: string, memberFolder: string, chatId: string): void {
+    if (this.ledger.deleting(memberFolder).has(chatId)) throw new DomainError('invalid_state', 'This world chat mailbox was deleted.')
+    this.ledger.add(memberFolder, chatId, ownerFolder)
+  }
+
+  suspendChat(chat: ChatRecord): void {
+    if (chat.folder === null || !hasMailbox(chat)) return
+    const members = this.members(chat.folder)
+    const folders = members === undefined ? [chat.folder] : [...new Set([...members, ...this.ledger.folders(chat.folder)])]
+    for (const folder of folders) this.suspendAt(folder, [chat])
   }
 
   reconcile(folder: string, chats: readonly ChatRecord[]): ReconciledChats {
+    const members = this.members(folder)
+    if (members !== undefined) {
+      const deleting = new Set<string>()
+      for (const member of members) {
+        for (const chat of this.reconcileWithContext(member, chats, folder).deleting) deleting.add(chat.id)
+      }
+      // A removed member is no longer a mail route, even if its old endpoint remains locally readable.
+      if (!this.unreadable.has(folder)) for (const member of this.ledger.folders(folder).filter(path => !members.includes(path))) this.suspendAt(member, chats)
+      return { chats: chats.filter(chat => !deleting.has(chat.id)), deleting: chats.filter(chat => deleting.has(chat.id)) }
+    }
     const { chats: shown, deleting } = this.reconcileWithContext(folder, chats)
     return { chats: shown, deleting }
   }
 
   recover(folder: string, chats: readonly ChatRecord[]): ReconciledChats {
+    if (this.members(folder) !== undefined) {
+      const result = this.reconcile(folder, chats)
+      for (const member of this.ledger.folders(folder)) {
+        const known = new Set(chats.map(chat => chat.id))
+        const orphans = new Set([...this.ledger.owned(member, folder)].filter(id => !known.has(id)))
+        const ctx = this.contextOrNull(member, 'delete orphan world mailboxes')
+        if (ctx !== null && orphans.size > 0) this.deleteOrphans(ctx, member, orphans)
+      }
+      return result
+    }
     const { ctx, ...result } = this.reconcileWithContext(folder, chats)
     const known = new Set(chats.map((chat) => chat.id))
     const orphans = new Set([...this.ledger.owned(folder)].filter((chatId) => !known.has(chatId)))
@@ -203,6 +267,10 @@ class ChatMailboxRegistry implements ChatMailboxes {
   }
 
   rename(chat: ChatRecord): void {
+    if (chat.folder !== null && this.members(chat.folder) !== undefined) {
+      for (const route of this.routes(chat)) this.rename({ ...chat, folder: route.folder, endpointId: route.endpointId })
+      return
+    }
     if (chat.folder === null || !hasMailbox(chat) || chat.endpointId === undefined) return
     const ctx = this.contextOrNull(chat.folder, `rename the mailbox of chat ${chat.id}`)
     if (ctx === null) return
@@ -214,6 +282,10 @@ class ChatMailboxRegistry implements ChatMailboxes {
   }
 
   delete(chat: ChatRecord): void {
+    if (chat.folder !== null && this.members(chat.folder) !== undefined) {
+      for (const folder of new Set([...(this.members(chat.folder) ?? []), ...this.ledger.folders(chat.folder)])) this.deleteWorldRoute({ ...chat, folder: chat.folder }, folder)
+      return
+    }
     if (chat.folder === null || !hasMailbox(chat) || hasForgeManifest(chat.folder)) return
     let ctx: Ctx
     try {
@@ -225,7 +297,25 @@ class ChatMailboxRegistry implements ChatMailboxes {
     deleteChatMailbox(ctx, chat)
   }
 
+  private deleteWorldRoute(chat: ChatRecord & { folder: string }, folder: string): void {
+    this.ledger.markDeleted(folder, chat.id, chat.folder)
+    try { this.delete({ ...chat, folder }) }
+    catch (error) {
+      // The durable intent is drained when this member is tracked again, without opening an untracked database.
+      if (!(error instanceof DomainError && error.code === 'unauthorized')) throw error
+    }
+  }
+
   suspendFolder(folder: string, chats: readonly ChatRecord[]): void {
+    if (this.members(folder) !== undefined) {
+      for (const member of new Set([...(this.members(folder) ?? []), ...this.ledger.folders(folder)])) this.suspendAt(member, chats)
+      return
+    }
+    const owned = [...this.ledger.allOwned(folder)].map(id => ({ id, agent: MAILBOX_AGENT, title: 'Chat' }))
+    this.suspendAt(folder, [...chats, ...owned])
+  }
+
+  private suspendAt(folder: string, chats: readonly MailboxChat[]): void {
     if (hasForgeManifest(folder)) return
     const eligible = chats.filter((chat) => hasMailbox(chat))
     if (eligible.length === 0) return
@@ -244,6 +334,28 @@ class ChatMailboxRegistry implements ChatMailboxes {
     }
   }
 
+  private members(folder: string): readonly string[] | undefined {
+    const knownWorld = hasForgeManifest(folder) || this.ledger.folders(folder).some(member => member !== folder)
+    try {
+      const members = this.deps.membersFor?.(folder)
+      this.unreadable.delete(folder)
+      return members ?? (knownWorld ? [] : undefined)
+    } catch { this.unreadable.add(folder); return knownWorld ? [] : undefined }
+  }
+
+  routes(chat: ChatRecord): readonly { folder: string; endpointId: string }[] {
+    if (chat.folder === null || chat.archived || !hasMailbox(chat)) return []
+    const members = this.members(chat.folder)
+    if (members === undefined) return chat.endpointId === undefined ? [] : [{ folder: chat.folder, endpointId: chat.endpointId }]
+    return members.flatMap(folder => {
+      if (this.ledger.deleting(folder).has(chat.id)) return []
+      const ctx = this.contextOrNull(folder, 'read world mailbox routes')
+      if (ctx === null) return []
+      const endpoint = findEndpointByChat(ctx, { machineId: ctx.machineId, chatId: chat.id })
+      return endpoint?.state === 'open' ? [{ folder, endpointId: endpoint.id }] : []
+    })
+  }
+
   /** The folder's context, or null (logged unless the folder simply has no database). */
   private contextOrNull(folder: string, doing: string): Ctx | null {
     try {
@@ -255,14 +367,16 @@ class ChatMailboxRegistry implements ChatMailboxes {
     }
   }
 
-  private reconcileWithContext(folder: string, chats: readonly ChatRecord[]): Reconciled {
+  private reconcileWithContext(folder: string, chats: readonly ChatRecord[], owner = folder): Reconciled {
     const unchanged = { chats: [...chats], deleting: [] }
-    const eligible = chats.filter((chat) => hasMailbox(chat))
-    if (eligible.length === 0) return { ...unchanged, ctx: undefined }
+    const eligible = chats.filter((chat) => !chat.archived && hasMailbox(chat))
+    this.suspendAt(folder, chats.filter(chat => chat.archived))
+    if (eligible.length === 0 && this.ledger.deleting(folder).size === 0) return { ...unchanged, ctx: undefined }
     const ctx = this.contextOrNull(folder, 'provision chat mailboxes')
     if (ctx === null) return { ...unchanged, ctx }
     let provisioned: { endpoints: Map<string, string>; deleting: Set<string> }
     try {
+      for (const id of this.ledger.deleting(folder)) deleteChatMailbox(ctx, { id, agent: MAILBOX_AGENT, title: 'Deleted world chat' })
       provisioned = provisionAll(ctx, eligible)
     } catch (error) {
       this.deps.log(`Could not provision chat mailboxes in ${folder}: ${messageOf(error)}`)
@@ -273,15 +387,16 @@ class ChatMailboxRegistry implements ChatMailboxes {
     for (const chat of chats) {
       const endpointId = provisioned.endpoints.get(chat.id)
       if (provisioned.deleting.has(chat.id)) deleting.push(chat)
-      else shown.push(endpointId === undefined ? chat : this.record(folder, chat, endpointId))
+      else shown.push(endpointId === undefined ? chat : this.record(folder, chat, endpointId, owner))
     }
     return { chats: shown, deleting, ctx }
   }
 
   /** Stores the chat's mailbox id and its ledger pair; a write that fails is logged and leaves the record as it was. */
-  private record(folder: string, chat: ChatRecord, endpointId: string): ChatRecord {
+  private record(folder: string, chat: ChatRecord, endpointId: string, owner = folder): ChatRecord {
     try {
-      this.ledger.add(folder, chat.id)
+      this.ledger.add(folder, chat.id, owner)
+      if (owner !== folder) return chat
       return chat.endpointId === endpointId ? chat : this.deps.store.recordEndpoint(chat, endpointId)
     } catch (error) {
       // The endpoint is committed: the next provision of the same chat finds the same id.

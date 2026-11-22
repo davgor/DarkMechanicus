@@ -415,7 +415,6 @@ function ShellSidebar({ shell, version, onNewChat, onSummon, onClone, onRequestU
       onSelectFolder={actions.selectFolder}
       onSelectEpic={actions.selectEpic}
       kanbanCounts={shell.kanbanCounts}
-      kanbanCards={shell.kanbanCards}
       onSelectKanban={actions.selectKanban}
       onRequestUntrack={onRequestUntrack}
     />

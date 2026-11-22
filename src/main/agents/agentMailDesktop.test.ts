@@ -11,7 +11,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { HUMAN_ONLY_CAPABILITIES } from '../../core/authz'
 import { DomainError } from '../../core/errors'
-import { readHumanAgentInbox } from '../../core/services/agentMail'
+import { provisionAgentMailEndpoint, readHumanAgentInbox } from '../../core/services/agentMail'
 import { openWorkspace, type Workspace } from '../../core/workspace'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { ChatMailPage, ChatMailPushEvent, ChatMailSnapshot, ChatMailState } from '../../shared/agents/chatApi'
@@ -75,7 +75,7 @@ interface Rig {
 }
 
 /** `realYield` keeps the service's own yield between pages instead of the rig's immediate one. */
-type RigOptions = Pick<AgentMailDesktopDeps, 'pageSize' | 'yieldPage' | 'onUnexpectedError' | 'board'> & {
+type RigOptions = Pick<AgentMailDesktopDeps, 'pageSize' | 'yieldPage' | 'onUnexpectedError' | 'board' | 'routedChats'> & {
   newId?: () => string
   realYield?: boolean
   autoMonitor?: boolean
@@ -148,6 +148,7 @@ function watchedMail(
     ...(options.autoMonitor ? { folders: () => [...over.tracked] } : {}),
     ...(options.delivery === undefined ? {} : { delivery: options.delivery }),
     ...(options.board === undefined ? {} : { board: options.board }),
+    ...(options.routedChats === undefined ? {} : { routedChats: options.routedChats }),
     pageSize: options.pageSize,
     onUnexpectedError: options.onUnexpectedError,
     yieldPage: options.realYield === true ? undefined : (options.yieldPage ?? (() => Promise.resolve()))
@@ -191,6 +192,45 @@ async function stateOf(state: Rig, chat: ChatRecord): Promise<ChatMailState> {
 async function settle(): Promise<void> {
   for (let i = 0; i < 5; i += 1) await new Promise<void>((resolve) => setImmediate(resolve))
 }
+
+describe('world mailbox monitoring', () => {
+  it('monitors a world chat mailbox in its member and resumes the world owner without mixing project receipts', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
+    const routed = new Map<string, ChatRecord[]>()
+    const inspected: string[] = []
+    const resumed: ChatRecord[] = []
+    const state = await rig({
+      autoMonitor: true,
+      routedChats: folder => routed.get(folder) ?? [],
+      delivery: {
+        hasMessage: (_chat, message) => { inspected.push('project' in message ? String(message.project) : 'missing'); return false },
+        resume: async chat => { resumed.push(chat); return null }
+      }
+    })
+    const world = state.store.createChat({ folder: root, agent: 'omp', role: 'worker', model: null, allowSave: false, title: 'World owner' })
+    const endpoint = provisionAgentMailEndpoint(state.pool.get(repoA).ctx(), { chatId: world.id, name: world.title })
+    const projection = { ...world, endpointId: endpoint.id }
+    routed.set(repoA, [projection])
+    await send(await state.agentOf(newOmp(state, repoA, 'Member sender')), projection, ['for world owner'])
+    await vi.advanceTimersByTimeAsync(2_000)
+    await settle()
+    expect(resumed).toEqual([projection])
+    expect(resumed[0]?.folder).toBe(root)
+    expect(inspected).toContain(repoA)
+    expect(data(await state.mail.handlers.read({ folder: repoA, chatId: world.id })).messages.map(message => message.body)).toEqual(['for world owner'])
+    expect(code(await state.mail.handlers.read({ folder: repoB, chatId: world.id }))).toBe('not_found')
+    routed.set(repoA, [{ ...projection, archived: true }])
+    await vi.advanceTimersByTimeAsync(2_000)
+    await settle()
+    expect(resumed).toHaveLength(1)
+    routed.clear()
+    expect(code(await state.mail.handlers.read({ folder: repoA, chatId: world.id }))).toBe('not_found')
+    await vi.advanceTimersByTimeAsync(2_000)
+    await settle()
+    expect(resumed).toHaveLength(1)
+  })
+
+})
 
 describe('automatic monitoring without opening an inbox', () => {
   it('discovers pending mail in every tracked folder without a snapshot request', async () => {

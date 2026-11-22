@@ -110,7 +110,7 @@ export interface MailApi {
 const BUILDERS = ['Object', 'String', 'Integer', 'Boolean', 'Array', 'Optional'] as const
 
 /** What this OMP offers: tools need `registerTool` and the schema builders; the wake also needs `sendMessage`. */
-function mailSupport(pi: MailApi): { ok: true; type: TypeBuilder } | { ok: false; reason: string } {
+export function mailSupport(pi: MailApi): { ok: true; type: TypeBuilder } | { ok: false; reason: string } {
   if (typeof pi.registerTool !== 'function') return { ok: false, reason: 'this OMP cannot register extension tools' }
   const type = pi.typebox?.Type
   if (type === undefined || BUILDERS.some((name) => typeof type[name] !== 'function')) {
@@ -456,7 +456,7 @@ function recoveryTool(client: DmClient, type: RecoveryTypeBuilder): MailToolDefi
 }
 
 /** Mail, general commands and the explicitly shaped native recovery action over the same grant-bound client. */
-function mailTools(client: DmClient, type: TypeBuilder): MailToolDefinition[] {
+export function mailTools(client: DmClient, type: TypeBuilder): MailToolDefinition[] {
   const kit = toolKit(client, type)
   const tools = [identityTool(kit), peersTool(kit), sendTool(kit), readTool(kit), ackTool(kit), dmCallTool(client, type)]
   if (hasRecoverySchemas(type)) tools.push(recoveryTool(client, type))
@@ -480,6 +480,8 @@ interface Sweep {
 }
 
 interface MailWatcherDeps {
+  /** Canonical mailbox folder for a routed world chat, never a merged sequence cursor. */
+  project?: string
   client: DmClient
   timers: Timers
   sendUserMessage?: MailApi['sendUserMessage']
@@ -527,6 +529,7 @@ export class MailWatcher {
   #skip = 0
 
   constructor(deps: MailWatcherDeps) { this.#deps = deps }
+  #peerBodies(entry: unknown) { return peerContextBodies(entry).filter(body => body.project === this.#deps.project) }
   get pending(): number { return this.#pending }
   get notifiedThrough(): number { return this.#notifiedThrough }
 
@@ -660,7 +663,7 @@ export class MailWatcher {
   async forToolResult(currentEntry: unknown): Promise<CustomHint | undefined> {
     const generation = this.#generation
     const current = new Map<string, { seq: number; body: string }>()
-    for (const body of peerContextBodies(currentEntry)) {
+    for (const body of this.#peerBodies(currentEntry)) {
       current.set(body.id, body)
       // This result owns its bodies until the host commits them; queued is not a receipt.
       this.#peerQueued.set(body.id, body.body)
@@ -713,7 +716,7 @@ export class MailWatcher {
       }
       const id = toolResultId(entry)
       if (id !== undefined) this.#inboxReads.delete(id)
-      for (const message of peerContextBodies(entry)) {
+      for (const message of this.#peerBodies(entry)) {
         this.#received.set(message.id, message)
         const pending = this.#bodies.get(message.id)
         if (pending?.seq === message.seq && pending.body === message.body) {
@@ -781,7 +784,7 @@ export class MailWatcher {
 
   #peerPacket(bodies: DmMailMessage[]): CustomHint {
     return { customType: INBOX_DELIVERY_TYPE, attribution: 'agent', display: false,
-      content: `${MAIL_DATA_NOTE}\n${inertJson({ messages: bodies, snapshotHighWater: this.#horizon, nextCursor: this.#bodyCursor, hasMore: false })}` }
+      content: `${MAIL_DATA_NOTE}\n${inertJson({ ...(this.#deps.project === undefined ? {} : { project: this.#deps.project }), messages: bodies, snapshotHighWater: this.#horizon, nextCursor: this.#bodyCursor, hasMore: false })}` }
   }
 
   #boardPacket(bodies: BoardContextBody[]): CustomHint {
@@ -834,7 +837,7 @@ export class MailWatcher {
   #pendingPeers(prompt: string, includeQueued: boolean): DmMailMessage[] {
     if (this.#inboxReads.size > 0) return []
     const incoming = this.#inFlightPrompts.has(prompt)
-      ? peerContextBodies({ type: 'message', message: { role: 'user', attribution: 'agent', content: prompt } }) : []
+      ? this.#peerBodies({ type: 'message', message: { role: 'user', attribution: 'agent', content: prompt } }) : []
     return [...this.#bodies.values()].filter((body) =>
       (includeQueued || this.#peerQueued.get(body.id) !== body.body) &&
       !incoming.some((message) => message.id === body.id && message.seq === body.seq && message.body === body.body))
@@ -904,7 +907,7 @@ export class MailWatcher {
       return bodies.length > 0 && bodies.every(body => received.some(entry => entry.id === body.id && entry.text === body.text))
     }
     if (message.attribution === 'agent') {
-      const peers = peerContextBodies({ type: 'message', message: { role: 'user', attribution: 'agent', content: message.content } })
+      const peers = this.#peerBodies({ type: 'message', message: { role: 'user', attribution: 'agent', content: message.content } })
       return peers.length > 0 && peers.every((body) => {
         const received = this.#received.get(body.id)
         return received?.seq === body.seq && received.body === body.body
@@ -987,11 +990,17 @@ export function attachMessaging(pi: MailApi, client: DmClient, timers: Timers): 
     })
     return null
   }
-  const watcher = new MailWatcher({ client, timers, sendUserMessage: pi.sendUserMessage?.bind(pi) })
+  const watcher = attachMailWatcher(pi, client, timers)
   registerMailTools(pi, client, support.type, watcher)
   if (!hasRecoverySchemas(support.type)) pi.on('session_start', (_event, ctx) => {
     if (ctx.hasUI && ctx.agent?.kind !== 'sub') ctx.ui.setStatus?.('skitarii-recovery', 'Tooling recovery unavailable: this OMP has no public nullable native-tool schemas')
   })
+  return watcher
+}
+
+/** World chats install one watcher per member, while registering the project-selecting tools only once. */
+export function attachMailWatcher(pi: MailApi, client: DmClient, timers: Timers, project?: string): MailWatcher {
+  const watcher = new MailWatcher({ client, timers, sendUserMessage: pi.sendUserMessage?.bind(pi), ...(project === undefined ? {} : { project }) })
   pi.on('session_start', (_event, ctx) => {
     const entries = (): readonly unknown[] => ctx.sessionManager?.getBranch?.() ?? ctx.sessionManager?.getEntries?.() ?? []
     if (ctx.agent?.kind === 'main') watcher.start(ctx.ui, entries(), entries, ctx.isIdle?.bind(ctx))

@@ -30,10 +30,6 @@ export class FakeExpansion implements Expansion {
     return !(this.overrides.collapsedAgents ?? []).includes(path)
   }
 
-  isKanbanExpanded(): boolean { return true }
-
-  toggleKanban(path: string): void { this.toggled.push(`kanban:${path}`) }
-
   toggleAgents(path: string): void {
     this.toggled.push(`agents:${path}`)
   }

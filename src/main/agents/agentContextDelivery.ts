@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import { boardContextText, contextReceipts, CONTEXT_OUTBOX_FILE, type BoardContextBody, type ContextReceiptIndex, type PeerContextBody } from '../../../resources/skitarii/extension/contextDelivery'
+import { boardContextText, contextReceipts, peerContextKey, CONTEXT_OUTBOX_FILE, type BoardContextBody, type ContextReceiptIndex, type PeerContextBody } from '../../../resources/skitarii/extension/contextDelivery'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { AgentView } from '../../shared/desktop/api'
 import { claudeSessionFiles } from '../terminals/claudeSession'
@@ -172,13 +172,15 @@ class ContextDeliveryService implements AgentContextDelivery {
   }
 
   hasMessage(chat: ChatRecord, message: PeerContextBody): boolean {
-    const bodyHash = this.#hash(chat, 'peer', { id: message.id, seq: message.seq, body: message.body })
-    if (this.#observed(chat, 'peer', message.id, bodyHash)) return true
+    const messageId = peerContextKey(message)
+    const bodyHash = this.#hash(chat, 'peer', { id: message.id, seq: message.seq, body: message.body,
+      ...(message.project === undefined ? {} : { project: message.project }) })
+    if (this.#observed(chat, 'peer', messageId, bodyHash)) return true
     for (const receipts of this.#receiptsFor(chat)) {
-      const found = receipts.peers.get(message.id)
+      const found = receipts.peers.get(messageId)
       if (found?.seq !== message.seq || found.body !== message.body) continue
       if (chat.folder !== null) this.options.deliveries.record({ folder: chat.folder, chatId: chat.id, source: 'peer',
-        messageId: message.id, bodyHash, entryId: found.entryId, state: 'delivered', problem: null, at: this.#now() })
+        messageId, bodyHash, entryId: found.entryId, state: 'delivered', problem: null, at: this.#now() })
       return true
     }
     return false

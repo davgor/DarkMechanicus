@@ -93,7 +93,7 @@ function RepositorySourceView({ folder, scheduler }: SourceControlViewProps): JS
       ) : null}
       {value.kind === 'not_repository' ? <InitializeNotice folder={folder.path} onDone={repo.refresh} /> : null}
       {value.kind === 'repository' ? (
-        <RepositoryView folderPath={folder.path} status={value.status} version={repo.version} onRefresh={repo.refresh} scheduler={scheduler} />
+        <RepositoryView folderPath={folder.path} forgeWorld={folder.forgeWorld !== undefined || folder.forgeIssue === true} status={value.status} version={repo.version} onRefresh={repo.refresh} scheduler={scheduler} />
       ) : null}
     </div>
   )

@@ -19,8 +19,6 @@ export interface Expansion {
   isBucketExpanded(path: string, bucket: WorkStatus): boolean
   /** The Agents block (the folder's chats). */
   isAgentsExpanded(path: string): boolean
-  isKanbanExpanded(path: string): boolean
-  toggleKanban(path: string): void
   toggleFolder(path: string): void
   toggleBucket(path: string, bucket: WorkStatus): void
   toggleAgents(path: string): void
@@ -40,8 +38,6 @@ function buildExpansion(map: ExpansionMap, setMap: SetMap): Expansion {
   return {
     isFolderExpanded: (path) => folderOpen(path, map),
     isBucketExpanded: (path, bucket) => bucketOpen(path, bucket, map),
-    isKanbanExpanded: (path) => lookupExpanded(map, `kanban:${path}`, true),
-    toggleKanban: (path) => setMap(previous => ({ ...previous, [`kanban:${path}`]: !lookupExpanded(previous, `kanban:${path}`, true) })),
     isAgentsExpanded: (path) => lookupExpanded(map, agentsKey(path), AGENTS_DEFAULT),
     toggleFolder: (path) =>
       setMap((previous) => ({ ...previous, [folderKey(path)]: !folderOpen(path, previous) })),

@@ -16,8 +16,7 @@ import { BucketGroup } from './BucketGroup'
 import { groupEpics } from './buckets'
 import type { Bucket } from './buckets'
 import type { Expansion } from './useExpansion'
-import type { KanbanCardSummaryView } from '../../../shared/domain/kanban'
-import { KanbanList } from './KanbanList'
+import { KanbanLink } from './KanbanLink'
 
 interface FolderRowProps {
   folder: TrackedFolderView
@@ -34,7 +33,6 @@ interface FolderRowProps {
   onSelectEpic(path: string, epicId: string): void
   /** Cards open on the folder's Kanban board (Backlog, In progress and Ready for review); null until it has loaded. */
   kanbanOpen: number | null
-  kanbanCards?: readonly KanbanCardSummaryView[]
   onSelectKanban(path: string, cardId?: string): void
   children?: ReactNode
   onStopTracking(folder: TrackedFolderView): void
@@ -167,13 +165,7 @@ function Buckets(props: FolderRowProps): JSX.Element {
     <div className="buckets">
       {list.status === 'error' ? <p className="sidebar-note is-error">Could not refresh epics</p> : null}
       {buckets.filter((bucket) => bucket.id !== 'completed').map(group)}
-      <KanbanList
-        folder={folder}
-        cards={props.kanbanCards}
-        expanded={expansion.isKanbanExpanded(folder.path)}
-        onToggle={() => expansion.toggleKanban(folder.path)}
-        selectedCardId={selection.folderPath === folder.path && selection.kanban ? selection.kanbanCardId : undefined}
-        onSelectCard={(id) => props.onSelectKanban(folder.path, id)}
+      <KanbanLink
         open={props.kanbanOpen}
         selected={selection.folderPath === folder.path && selection.kanban === true}
         onSelect={() => props.onSelectKanban(folder.path)}

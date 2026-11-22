@@ -216,3 +216,17 @@ describe('AgentsSection versions', () => {
     expect(within(second as HTMLElement).getByText('Version unknown')).toBeTruthy()
   })
 })
+
+it('collapses the Agents section while keeping its add control available', () => {
+  const calls = renderSection([claude])
+  const toggle = screen.getByRole('button', { name: 'Agents' })
+  expect(toggle.getAttribute('aria-expanded')).toBe('true')
+  expect(toggle.firstElementChild?.textContent).toBe('AGENTS')
+  fireEvent.click(toggle)
+  expect(toggle.getAttribute('aria-expanded')).toBe('false')
+  expect(screen.queryByRole('button', { name: /^Claude Code/ })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Add an agent' }))
+  expect(calls.added).toBe(1)
+  fireEvent.click(toggle)
+  expect(screen.getByRole('button', { name: /^Claude Code/ })).toBeTruthy()
+})

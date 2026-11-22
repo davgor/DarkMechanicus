@@ -73,6 +73,16 @@ describe('terminal sessions: one PTY per chat', () => {
 
     expect([rig.host.spawns.length, pid === pty.pid, grantsIssued()]).toEqual([2, false, ['grant:gr_1', 'grant:gr_2']])
   })
+
+  it('background start waits for an exiting PTY and starts one fresh terminal for concurrent callers', async () => {
+    const chat = rig.newChat(CUSTOM_AGENT.id)
+    const { pty } = await startTerminal(rig, chat)
+    pty.exit()
+    const results = await Promise.all([rig.sessions.start(chat, { kickoff: 'Resolve merge' }), rig.sessions.start(chat, { kickoff: 'Resolve merge' })])
+    expect(rig.host.spawns).toHaveLength(2)
+    expect(results).toEqual([{ state: 'running', pid: rig.host.last().pid }, { state: 'running', pid: rig.host.last().pid }])
+    expect(rig.revoked).toEqual(['gr_1'])
+  })
 })
 
 describe('terminal sessions: what may start', () => {
