@@ -82,7 +82,7 @@ export interface ShellActions {
   selectFolder(path: string): void
   selectEpic(path: string, epicId: string): void
   /** Opens a folder's Kanban board in the main area. */
-  selectKanban(path: string): void
+  selectKanban(path: string, cardId?: string): void
   /** Opens a folder's Metrics dashboard in the main area. */
   selectMetrics(path: string): void
   /** Opens one of a folder's chats in the main area. */
@@ -176,9 +176,9 @@ function selectionActions(deps: ShellDeps): SelectionActions {
       deps.land(null)
       showEpic(deps, path, epicId)
     },
-    selectKanban: (path) => {
+    selectKanban: (path, cardId) => {
       deps.land(null)
-      deps.select({ folderPath: path, epicId: null, kanban: true })
+      deps.select({ folderPath: path, epicId: null, kanban: true, ...(cardId === undefined ? {} : { kanbanCardId: cardId }) })
       deps.reveal(path, null)
     },
     selectMetrics: (path) => {

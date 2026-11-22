@@ -494,3 +494,14 @@ describe('links from other screens', () => {
     expect(recorder.landings).toEqual([null, null, null, null, null, null])
   })
 })
+
+it('links to a Kanban card in its own folder and clears the card when the board entry is selected', () => {
+  recorder.actions().selectKanban('/world/alpha', 'kc_alpha')
+  recorder.actions().selectKanban('/world/beta', 'kc_beta')
+  recorder.actions().selectKanban('/world/beta')
+  expect(recorder.selections).toEqual([
+    { folderPath: '/world/alpha', epicId: null, kanban: true, kanbanCardId: 'kc_alpha' },
+    { folderPath: '/world/beta', epicId: null, kanban: true, kanbanCardId: 'kc_beta' },
+    { folderPath: '/world/beta', epicId: null, kanban: true }
+  ])
+})

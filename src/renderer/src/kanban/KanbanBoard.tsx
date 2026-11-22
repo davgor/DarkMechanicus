@@ -28,6 +28,9 @@ interface KanbanBoardProps {
   host: OrchestrationHost
   /** A card was clicked and its panel opened. */
   onOpenCard?(cardId: string): void
+  /** When supplied, navigation owns the selected card, including a closed panel (null). */
+  selectedCardId?: string | null
+  onCloseCard?(): void
   /** Refreshes the owning folder after a card mutation, including its sidebar open count. */
   onChanged?(): void
 }
@@ -253,11 +256,12 @@ function BoardLanes({ model, board, selectedId, onSelect, onEdit }: LanesProps):
  * Cards move only through their own transitions, never by hand. A click selects a card and opens its
  * panel beside the lanes (and tells `onOpenCard`); New card and Edit open the card form.
  */
-export function KanbanBoard({ folder, refreshToken, host, onOpenCard, onChanged }: KanbanBoardProps): JSX.Element {
+export function KanbanBoard({ folder, refreshToken, host, onOpenCard, onChanged, selectedCardId, onCloseCard }: KanbanBoardProps): JSX.Element {
   const model = useKanbanBoard(folder.path, refreshToken)
   const changed = onChanged ?? model.reload
   const forms = useBoardForms(folder.path, changed)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [localSelectedId, setSelectedId] = useState<string | null>(null)
+  const selectedId = selectedCardId === undefined ? localSelectedId : selectedCardId
   const problem = forms.problem ?? (model.error === null ? null : `Could not refresh the board: ${model.error}`)
   const select = (cardId: string): void => {
     setSelectedId(cardId)
@@ -291,7 +295,7 @@ export function KanbanBoard({ folder, refreshToken, host, onOpenCard, onChanged 
               refreshToken={refreshToken}
               host={host}
               onChanged={changed}
-              onClose={() => setSelectedId(null)}
+              onClose={() => { setSelectedId(null); onCloseCard?.() }}
             />
           )}
         </div>

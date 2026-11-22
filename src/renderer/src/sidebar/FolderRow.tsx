@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { ChatRecord } from '../../../shared/agents/chat'
 import type { AgentView, TrackedFolderView } from '../../../shared/desktop/api'
 import { waitingCount } from '../agents/chatList'
@@ -16,6 +16,8 @@ import { BucketGroup } from './BucketGroup'
 import { groupEpics } from './buckets'
 import type { Bucket } from './buckets'
 import type { Expansion } from './useExpansion'
+import type { KanbanCardSummaryView } from '../../../shared/domain/kanban'
+import { KanbanList } from './KanbanList'
 
 interface FolderRowProps {
   folder: TrackedFolderView
@@ -32,7 +34,9 @@ interface FolderRowProps {
   onSelectEpic(path: string, epicId: string): void
   /** Cards open on the folder's Kanban board (Backlog, In progress and Ready for review); null until it has loaded. */
   kanbanOpen: number | null
-  onSelectKanban(path: string): void
+  kanbanCards?: readonly KanbanCardSummaryView[]
+  onSelectKanban(path: string, cardId?: string): void
+  children?: ReactNode
   onStopTracking(folder: TrackedFolderView): void
   /** Starts the new-chat flow for the folder. */
   onNewChat(path: string): void
@@ -42,7 +46,7 @@ interface FolderRowProps {
 }
 
 /** A folder can hold epics only when it is reachable and initialized. */
-const canHoldEpics = (folder: TrackedFolderView): boolean => folder.available && folder.initialized
+const canHoldEpics = (folder: TrackedFolderView): boolean => folder.available && folder.initialized && !folder.forgeWorld
 
 /** A sidebar row that cannot read its project shows no repository count; the folder page reports the error. */
 const ignoreError = (): void => undefined
@@ -84,7 +88,7 @@ function FolderHeader(props: HeaderProps): JSX.Element {
       className={classNames('folder-row', highlighted && 'is-selected')}
       onContextMenu={(event) => {
         event.preventDefault()
-        setMenuOpen(true)
+        if (!folder.forgeParent) setMenuOpen(true)
       }}
     >
       <button
@@ -110,12 +114,12 @@ function FolderHeader(props: HeaderProps): JSX.Element {
           </span>
         ) : null}
       </button>
-      <Menu
+      {!folder.forgeParent ? <Menu
         label={`Actions for ${folder.name}`}
         open={menuOpen}
         onOpenChange={setMenuOpen}
         items={[{ id: 'stop', label: 'Stop tracking folder', onSelect: props.onStopTracking }]}
-      />
+      /> : null}
     </div>
   )
 }
@@ -141,31 +145,6 @@ function StatusRow({ label, selected, onSelect }: StatusRowProps): JSX.Element {
   )
 }
 
-interface KanbanRowProps {
-  open: number | null
-  selected: boolean
-  onSelect(): void
-}
-
-/** The folder's Kanban board, between the open epic buckets and Completed. */
-function KanbanRow({ open, selected, onSelect }: KanbanRowProps): JSX.Element {
-  return (
-    <div className="bucket">
-      <button
-        type="button"
-        className={classNames('bucket-header', 'kanban-row', selected && 'is-selected')}
-        aria-current={selected ? 'true' : undefined}
-        aria-label={open === null ? 'Kanban' : `Kanban, ${plural(open, 'open card')}`}
-        onClick={onSelect}
-      >
-        <Icon name="kanban" size={14} />
-        <span className="bucket-label">Kanban</span>
-        {open === null ? null : <span className="count-badge">{open}</span>}
-      </button>
-    </div>
-  )
-}
-
 function Buckets(props: FolderRowProps): JSX.Element {
   const { folder, list, selection, expansion } = props
   if (list.status === 'loading') {
@@ -188,7 +167,13 @@ function Buckets(props: FolderRowProps): JSX.Element {
     <div className="buckets">
       {list.status === 'error' ? <p className="sidebar-note is-error">Could not refresh epics</p> : null}
       {buckets.filter((bucket) => bucket.id !== 'completed').map(group)}
-      <KanbanRow
+      <KanbanList
+        folder={folder}
+        cards={props.kanbanCards}
+        expanded={expansion.isKanbanExpanded(folder.path)}
+        onToggle={() => expansion.toggleKanban(folder.path)}
+        selectedCardId={selection.folderPath === folder.path && selection.kanban ? selection.kanbanCardId : undefined}
+        onSelectCard={(id) => props.onSelectKanban(folder.path, id)}
         open={props.kanbanOpen}
         selected={selection.folderPath === folder.path && selection.kanban === true}
         onSelect={() => props.onSelectKanban(folder.path)}
@@ -230,6 +215,9 @@ function FolderBody(props: FolderRowProps & { folderSelected: boolean }): JSX.El
       />
     )
   }
+  if (folder.forgeWorld) {
+    return <><Agents {...props} />{props.children}</>
+  }
   if (!folder.initialized) {
     return (
       <StatusRow
@@ -262,7 +250,7 @@ export function FolderRow(props: FolderRowProps): JSX.Element {
       <FolderHeader
         folder={folder}
         expanded={expanded}
-        highlighted={folderSelected && canHoldEpics(folder)}
+        highlighted={folderSelected && folder.available && (folder.initialized || !!folder.forgeWorld)}
         waiting={waitingCount(props.chats.chats, props.statuses)}
         onToggle={() => expansion.toggleFolder(folder.path)}
         onSelect={() => props.onSelectFolder(folder.path)}

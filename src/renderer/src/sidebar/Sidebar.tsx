@@ -15,10 +15,9 @@ import brandIcon2x from '../assets/brand-icon-64.png'
 import { Button } from '../components/Button'
 import { Menu } from '../components/Menu'
 import { AgentsSection } from './AgentsSection'
-import { ForgeRow } from './ForgeRow'
 import { FolderRow } from './FolderRow'
 import type { Expansion } from './useExpansion'
-import type { KanbanCounts } from '../kanban/useKanbanCounts'
+import type { KanbanCards, KanbanCounts } from '../kanban/useKanbanCounts'
 
 /** The folders' chats and what can be done with them. */
 interface SidebarChats {
@@ -58,7 +57,8 @@ export interface SidebarProps {
   onSelectEpic(path: string, epicId: string): void
   /** Open Kanban cards per folder path; a folder is absent until its board has loaded. */
   kanbanCounts: KanbanCounts
-  onSelectKanban(path: string): void
+  kanbanCards?: KanbanCards
+  onSelectKanban(path: string, cardId?: string): void
   /** Asks the shell to confirm and stop tracking a folder. */
   onRequestUntrack(folder: TrackedFolderView): void
 }
@@ -141,6 +141,35 @@ function FolderSection({ title, action, children }: { title: string; action?: Re
   )
 }
 
+/** Worlds and projects share the same row, disclosure and folder-scoped agent controls. */
+function SidebarFolder({ folder, props, selection }: { folder: TrackedFolderView; props: SidebarProps; selection: Selection }): JSX.Element {
+  return (
+    <FolderRow
+      folder={folder}
+      list={listFor(props.lists, folder.path)}
+      selection={selection}
+      expansion={props.expansion}
+      chats={chatsFor(props.chats.lists, folder.path)}
+      statuses={props.agentStatuses}
+      agents={props.agents}
+      onSelectFolder={props.onSelectFolder}
+      onSelectEpic={props.onSelectEpic}
+      kanbanOpen={props.kanbanCounts[folder.path] ?? null}
+      kanbanCards={props.kanbanCards?.[folder.path]}
+      onSelectKanban={props.onSelectKanban}
+      onStopTracking={props.onRequestUntrack}
+      onNewChat={props.chats.onNew}
+      onOpenChat={props.chats.onOpen}
+      onRenameChat={props.chats.onRename}
+      onDeleteChat={props.chats.onDelete}
+    >
+      {folder.forgeWorld ? <div className="forge-projects">
+        {props.folders.filter(child => child.forgeParent === folder.path).map(child => <SidebarFolder key={child.path} folder={child} props={props} selection={selection} />)}
+      </div> : null}
+    </FolderRow>
+  )
+}
+
 /** The left panel: connected agents, tracked folders with their epic buckets and chats, then the status footer. */
 export function Sidebar(props: SidebarProps): JSX.Element {
   const { agentPane } = props.selection
@@ -156,32 +185,12 @@ export function Sidebar(props: SidebarProps): JSX.Element {
       <nav className="sidebar-tree" aria-label="Folders and epics">
         {worlds.length > 0 && (
           <FolderSection title="Forge Worlds">
-            {worlds.map(folder => <ForgeRow key={folder.path} folder={folder} sidebar={props} />)}
+            {worlds.map(folder => <SidebarFolder key={folder.path} folder={folder} props={props} selection={folderSelection} />)}
           </FolderSection>
         )}
         <FolderSection title="Folders" action={<AddFolderMenu onTrack={props.onTrack} onClone={props.onClone} />}>
           {folders.length === 0 && <p className="sidebar-note">No folders yet. Use + to track one.</p>}
-          {folders.map(folder => (
-            <FolderRow
-              key={folder.path}
-              folder={folder}
-              list={listFor(props.lists, folder.path)}
-              selection={folderSelection}
-              expansion={props.expansion}
-              chats={chatsFor(props.chats.lists, folder.path)}
-              statuses={props.agentStatuses}
-              agents={props.agents}
-              onSelectFolder={props.onSelectFolder}
-              onSelectEpic={props.onSelectEpic}
-              kanbanOpen={props.kanbanCounts[folder.path] ?? null}
-              onSelectKanban={props.onSelectKanban}
-              onStopTracking={props.onRequestUntrack}
-              onNewChat={props.chats.onNew}
-              onOpenChat={props.chats.onOpen}
-              onRenameChat={props.chats.onRename}
-              onDeleteChat={props.chats.onDelete}
-            />
-          ))}
+          {folders.map(folder => <SidebarFolder key={folder.path} folder={folder} props={props} selection={folderSelection} />)}
         </FolderSection>
       </nav>
       {props.footer}

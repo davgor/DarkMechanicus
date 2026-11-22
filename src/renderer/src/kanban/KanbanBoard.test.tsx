@@ -299,3 +299,21 @@ describe('KanbanBoard card form description', () => {
     expect(screen.getByRole('dialog').textContent).not.toContain('It starts in Backlog.')
   })
 })
+
+it('opens the externally selected sidebar card and follows another selection without changing the board columns', async () => {
+  board.open = [cardSummary({ id: 'kc_a', key: 'DM-7' }), cardSummary({ id: 'kc_b', key: 'DM-8' })]
+  dm.responses.getKanbanCard = cardView({ id: 'kc_a', key: 'DM-7' })
+  let closed = 0
+  const view = render(<KanbanBoard folder={folder} refreshToken={0} host={idleHost} selectedCardId="kc_a" onCloseCard={() => { closed += 1 }} />)
+  await settle()
+  expect(dm.callsOf('getKanbanCard').map(call => [call.folder, call.input])).toEqual([['/a', { cardId: 'kc_a' }]])
+  expect(screen.getByRole('button', { name: /^DM-7/ }).getAttribute('aria-pressed')).toBe('true')
+  dm.responses.getKanbanCard = cardView({ id: 'kc_b', key: 'DM-8' })
+  view.rerender(<KanbanBoard folder={folder} refreshToken={0} host={idleHost} selectedCardId="kc_b" onCloseCard={() => { closed += 1 }} />)
+  await settle()
+  expect(dm.callsOf('getKanbanCard').at(-1)?.input).toEqual({ cardId: 'kc_b' })
+  expect(screen.getByRole('button', { name: /^DM-8/ }).getAttribute('aria-pressed')).toBe('true')
+  expect(document.querySelectorAll('.kanban-lanes > .kanban-lane')).toHaveLength(4)
+  fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+  expect(closed).toBe(1)
+})

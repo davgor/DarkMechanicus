@@ -220,6 +220,12 @@ function MainPane(props: PaneProps): JSX.Element | null {
   return <MainContent {...props} />
 }
 
+function KanbanPane({ folder, shell }: { folder: TrackedFolderView; shell: ShellModel }): JSX.Element {
+  return <KanbanBoard folder={folder} refreshToken={shell.folderToken(folder.path)} host={orchestrationFor(shell, folder)}
+    selectedCardId={shell.selection.kanbanCardId ?? null} onOpenCard={id => shell.actions.selectKanban(folder.path, id)}
+    onCloseCard={() => shell.actions.selectKanban(folder.path)} onChanged={() => shell.actions.changed(folder.path)} />
+}
+
 function MainContent(props: PaneProps): JSX.Element | null {
   const { shell } = props
   const { view, actions } = shell
@@ -237,7 +243,7 @@ function MainContent(props: PaneProps): JSX.Element | null {
     case 'projectless-chat':
       return <ChatPane key={view.chat.id} shell={shell} folder={null} chat={view.chat} scheduler={props.scheduler} terminalKit={props.terminalKit} />
     case 'kanban':
-      return <KanbanBoard key={view.folder.path} folder={view.folder} refreshToken={shell.folderToken(view.folder.path)} host={orchestrationFor(shell, view.folder)} onChanged={() => actions.changed(view.folder.path)} />
+      return <KanbanPane key={view.folder.path} folder={view.folder} shell={shell} />
     case 'metrics':
       return (
         <MetricsDashboard
@@ -380,6 +386,7 @@ function ShellSidebar({ shell, version, onNewChat, onSummon, onClone, onRequestU
       onSelectFolder={actions.selectFolder}
       onSelectEpic={actions.selectEpic}
       kanbanCounts={shell.kanbanCounts}
+      kanbanCards={shell.kanbanCards}
       onSelectKanban={actions.selectKanban}
       onRequestUntrack={onRequestUntrack}
     />

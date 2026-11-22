@@ -2711,3 +2711,59 @@ summary.board-group-title::marker {
 .telegram-switch[aria-checked="true"] { background: var(--accent); border-color: var(--accent); }
 .telegram-switch[aria-checked="true"]::before { transform: translateX(15px); background: var(--accent-ink); }
 .telegram-switch:disabled { opacity: .55; cursor: default; }
+
+/* Each world adds one tree level; all project rows keep the shared folder/bucket rhythm. */
+.forge-projects {
+  margin-left: 18px;
+  min-width: 0;
+}
+
+.folder-chevron {
+  flex-shrink: 0;
+}
+
+.sidebar-kanban-head {
+  display: flex;
+  align-items: stretch;
+  padding-left: 24px;
+}
+
+.sidebar-kanban-toggle {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  color: var(--muted);
+  background: transparent;
+  cursor: pointer;
+}
+
+.sidebar-kanban-head .bucket-header {
+  padding-left: 2px;
+}
+
+.sidebar-kanban-toggle:hover {
+  color: var(--ink);
+  background: rgba(236, 230, 218, 0.04);
+}
+
+.sidebar-kanban-card {
+  min-height: 44px;
+}
+
+.sidebar-card-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sidebar-card-heading > .mono {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 10px;
+}
