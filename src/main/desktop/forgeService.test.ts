@@ -41,12 +41,13 @@ function fixture(seed?: { source: string; world: string }) {
   const real = createGitRunner()
   const published: string[] = []
   const probes: string[] = []
+  const syncReceipts: Array<() => void> = []
   let picked: string | null = source
   let failingNetwork: string | null = null
   const forge = startForge({ handle: (key, handler) => { handlers.set(key, handler) } }, {
     home, registry, pool, session: { getAccount: () => ({ login: 'example', host: 'github.com' }), getToken: () => null },
     pickDirectory: async () => picked, cleanup: () => undefined, publish: async name => { published.push(name) },
-    onSynced: async () => undefined, onConflict: async () => { throw new Error('Unexpected conflict') },
+    onSynced: async () => { syncReceipts.shift()?.() }, onConflict: async () => { throw new Error('Unexpected conflict') },
     runner: { run: async req => {
       if (req.args.includes('push')) probes.push(req.cwd)
       if (req.kind !== 'network') return real.run(req)
@@ -63,6 +64,7 @@ function fixture(seed?: { source: string; world: string }) {
     } }
   })
   return { pool, source, world, home, registry, call, forge, published, probes, pick(path: string | null) { picked = path },
+    nextSync: () => new Promise<void>(resolve => { syncReceipts.push(resolve) }),
     failNetwork(command: string | null) { failingNetwork = command },
     close() { forge.stop(); pool.closeAll(); scratch.cleanup() } }
 }
@@ -352,26 +354,29 @@ it('converts a real SQLite project, follows its source note and restores the sam
 
 it('syncs only worlds at the configured interval and stops when the bridge closes', async () => {
   vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
-  const { world, call, forge, probes, close } = fixture()
+  const { world, call, forge, probes, nextSync, close } = fixture()
   try {
     await call('create', world)
     probes.length = 0
-    vi.advanceTimersByTime(15_000)
-    await call('sync', world)
+    const first = nextSync()
+    await vi.advanceTimersByTimeAsync(15_000)
+    await first
     expect(probes).toEqual([world])
-    vi.advanceTimersByTime(285_000)
+    await vi.advanceTimersByTimeAsync(285_000)
     expect(probes).toEqual([world])
-    vi.advanceTimersByTime(15_000)
-    await call('sync', world)
+    const second = nextSync()
+    await vi.advanceTimersByTimeAsync(15_000)
+    await second
     expect(probes).toEqual([world, world])
     await call('interval', world, 1)
-    vi.advanceTimersByTime(45_000)
+    await vi.advanceTimersByTimeAsync(45_000)
     expect(probes).toHaveLength(2)
-    vi.advanceTimersByTime(15_000)
-    await call('sync', world)
+    const third = nextSync()
+    await vi.advanceTimersByTimeAsync(15_000)
+    await third
     expect(probes).toEqual([world, world, world])
     forge.stop()
-    vi.advanceTimersByTime(300_000)
+    await vi.advanceTimersByTimeAsync(300_000)
     expect(probes).toHaveLength(3)
   } finally { close(); vi.useRealTimers() }
 })

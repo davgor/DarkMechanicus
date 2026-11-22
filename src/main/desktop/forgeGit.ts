@@ -35,6 +35,16 @@ export class ForgeGit {
     inspectEntries(tree)
   }
 
+  /** Check imported/staged data before anything treats local hints as machine-owned. */
+  async inspectCheckout(root: string): Promise<void> {
+    const [head, index] = await Promise.all([
+      this.run(root, ['rev-parse', '--verify', 'HEAD'], undefined, { acceptExitCodes: [0, 128] }),
+      this.run(root, ['ls-files', '--stage', '-z'])
+    ])
+    inspectEntries(index.stdout)
+    if (head.code === 0) await this.inspectTree(root, 'HEAD')
+  }
+
   private async inspectOutgoing(root: string, range: string) {
     const history = (await this.run(root, ['log', '--format=', '--name-only', '--no-renames', '-z', range])).stdout
     if (history.split('\0').some(path => privateState(path.trimStart()))) {

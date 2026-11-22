@@ -86,6 +86,22 @@ it('refuses a checkout replaced by a directory link without writing into its new
   expect(existsSync(join(moved, FORGE_CONFIG))).toBe(false)
 })
 
+it.each(['staged', 'committed'] as const)('refuses a %s private checkout hint before repairing code configuration or bindings', async state => {
+  const f = await fixture(); oldBinding(f)
+  gitIn(f.root, 'add', '--force', 'Software/.darkmechanicus/local/source-checkout.json')
+  if (state === 'committed') {
+    gitIn(f.root, 'config', 'user.name', 'Health fixture')
+    gitIn(f.root, 'config', 'user.email', 'health@example.test')
+    gitIn(f.root, 'commit', '-m', 'Untrusted remote private hint')
+  }
+  const before = readFileSync(join(f.source, 'FORGE-WORLD.md'), 'utf8')
+  await expect(ensureForgeWorld(f.root, { git, home: f.home })).rejects.toThrow('machine-private')
+  expect(existsSync(join(f.source, FORGE_CONFIG))).toBe(false)
+  expect(existsSync(join(f.root, FORGE_DIRECTIONS))).toBe(false)
+  expect(forgeBindingEpoch(nodeFs, f.home, f.source)).toBeNull()
+  expect(readFileSync(join(f.source, 'FORGE-WORLD.md'), 'utf8')).toBe(before)
+})
+
 it('does not turn a code configuration or nested folder into a Forge World', async () => {
   const f = await fixture()
   writeFileSync(join(f.source, FORGE_CONFIG), JSON.stringify({ version: 1, worldRepository: worldUrl, projectFolder: 'Software' }))
