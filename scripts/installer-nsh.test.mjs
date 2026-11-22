@@ -31,10 +31,17 @@ function ownedInventory(running) {
 function nativeShellResult(installDir) {
   const [, nativePath] = /StrCpy \$PowerShellPath "(\$WINDIR\\Sysnative[^"]+)"/.exec(INSTALLER_SCRIPT) ?? []
   if (!nativePath) throw new Error('The installer must select native PowerShell on 64-bit Windows')
-  const shell = join(process.env.SystemRoot, 'SysWOW64', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
-  const encoded = Buffer.from('[Console]::WriteLine([IntPtr]::Size * 8); ' + findCommand(installDir), 'utf16le').toString('base64')
-  const command = `& '${nativePath.replace('$WINDIR', process.env.SystemRoot)}' -NoProfile -NonInteractive -EncodedCommand ${encoded}; exit $LASTEXITCODE`
-  return spawnSync(shell, ['-NoProfile', '-NonInteractive', '-C', command], { encoding: 'utf8' })
+  // NSIS is a native 32-bit launcher, not a second PowerShell/.NET runtime. Match that launch path.
+  const shell = join(process.env.SystemRoot, 'SysWOW64', 'cmd.exe')
+  const pe = readFileSync(shell)
+  if (pe.readUInt16LE(pe.readUInt32LE(0x3c) + 4) !== 0x14c) throw new Error('Expected a 32-bit launcher')
+  const diagnostic = "[Console]::WriteLine('native64entry='+[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()); [Console]::WriteLine('bits='+([IntPtr]::Size * 8)); "
+  const encoded = Buffer.from(diagnostic + findCommand(installDir), 'utf16le').toString('base64')
+  const command = `echo cmd32entry=%time% & "${nativePath.replace('$WINDIR', process.env.SystemRoot)}" -NoProfile -NonInteractive -EncodedCommand ${encoded}`
+  const started = performance.now()
+  const result = spawnSync(shell, ['/d', '/s', '/c', `"${command}"`], { encoding: 'utf8', windowsVerbatimArguments: true })
+  console.info('Installer native shell', { elapsedMs: performance.now() - started, status: result.status, signal: result.signal, error: result.error?.message, stdout: result.stdout, stderr: result.stderr })
+  return result
 }
 
 // Native process discovery and the installer are Windows-only.
@@ -90,6 +97,6 @@ describe.runIf(process.platform === 'win32')('installer.nsh: finding the app run
   it.runIf(process.arch === 'x64')('uses native PowerShell from a 32-bit installer to inspect a 64-bit process', () => {
     const result = nativeShellResult(installDir)
     // EncodedCommand may serialize first-use progress to stderr; inspect shell width and the detection result.
-    expect({ status: result.status, bits: result.stdout.trim() }, result.stderr).toEqual({ status: 0, bits: '64' })
+    expect({ status: result.status, bits: /bits=(\d+)/.exec(result.stdout)?.[1] }, result.stderr).toEqual({ status: 0, bits: '64' })
   })
 })
