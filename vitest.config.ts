@@ -28,7 +28,6 @@ const shared = {
  * belongs here.
  */
 const GIT_HEAVY = [
-  'src/main/desktop/forgeService.test.ts',
   'src/main/git/**/*.test.ts',
   'src/main/github/**/*.test.ts',
   'src/core/repo/git.test.ts',
@@ -44,6 +43,9 @@ const GIT_HEAVY = [
 
 /** Half the CPUs for the git-heavy group, never more than VITEST_MAX_WORKERS (Fireguard caps each of its lanes so). */
 const gitWorkers = Math.max(1, Math.min(Math.floor(availableParallelism() / 2), Number(process.env.VITEST_MAX_WORKERS) || Infinity))
+// Crash/recovery spans a child process and real Git publication. Under coverage,
+// concurrent Git-heavy files stalled individual commands for nearly the entire test bound.
+const FORGE_RECOVERY = ['src/main/desktop/forgeService.test.ts']
 
 export default defineConfig({
   test: {
@@ -54,7 +56,7 @@ export default defineConfig({
           ...shared,
           name: 'unit',
           include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'scripts/**/*.test.mjs'],
-          exclude: [...configDefaults.exclude, ...GIT_HEAVY]
+          exclude: [...configDefaults.exclude, ...GIT_HEAVY, ...FORGE_RECOVERY]
         }
       },
       {
@@ -65,6 +67,16 @@ export default defineConfig({
           include: GIT_HEAVY,
           maxWorkers: gitWorkers,
           sequence: { groupOrder: 1 }
+        }
+      },
+      {
+        define,
+        test: {
+          ...shared,
+          name: 'forge-recovery',
+          include: FORGE_RECOVERY,
+          maxWorkers: 1,
+          sequence: { groupOrder: 2 }
         }
       }
     ],

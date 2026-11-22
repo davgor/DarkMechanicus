@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import type { IpcMain } from 'electron'
-import { afterAll, beforeAll, expect, it, onTestFailed, vi } from 'vitest'
+import { afterAll, beforeAll, expect, it, onTestFailed, onTestFinished, vi } from 'vitest'
 import { buildSync } from 'esbuild'
 import { openWorkspace } from '../../core/workspace'
 import { gitIn, scratchDir } from '../../test/gitScratch'
@@ -18,7 +18,7 @@ import { spawn, spawnSync } from 'node:child_process'
 import { once } from 'node:events'
 import { fileURLToPath } from 'node:url'
 
-function fixture() {
+function fixture(seed?: { source: string; world: string }) {
   const scratch = scratchDir('forge-convert-')
   const home = join(scratch.path, 'home')
   const source = join(scratch.path, 'Software')
@@ -28,11 +28,14 @@ function fixture() {
   const handlers = new Map<string, Parameters<IpcMain['handle']>[1]>()
   const call = async (name: string, ...args: unknown[]) => handlers.get('forge:' + name)!({} as Electron.IpcMainInvokeEvent, ...args)
   for (const dir of [source, world]) {
-    mkdirSync(dir)
-    gitIn(dir, 'init', '-b', 'main')
-    gitIn(dir, 'config', 'user.name', 'Test')
-    gitIn(dir, 'config', 'user.email', 'test@example.test')
-    gitIn(dir, 'remote', 'add', 'origin', 'https://github.com/example/' + (dir === world ? 'tickets' : 'software') + '.git')
+    if (seed) cpSync(dir === world ? seed.world : seed.source, dir, { recursive: true })
+    else {
+      mkdirSync(dir)
+      gitIn(dir, 'init', '-b', 'main')
+      gitIn(dir, 'config', 'user.name', 'Test')
+      gitIn(dir, 'config', 'user.email', 'test@example.test')
+      gitIn(dir, 'remote', 'add', 'origin', 'https://github.com/example/' + (dir === world ? 'tickets' : 'software') + '.git')
+    }
     registry.track(dir)
   }
   const real = createGitRunner()
@@ -66,10 +69,28 @@ function fixture() {
 
 const sourceRoot = fileURLToPath(new URL('../../../', import.meta.url))
 let crashBundle: ReturnType<typeof scratchDir>
+let crashSeed: ReturnType<typeof fixture>
+let crashCardId: string
 
 // Compile the actual source checkout once. Every scenario still kills a separate process,
 // but does not start a TSX transformer for the whole application graph inside its timeout.
-beforeAll(() => {
+beforeAll(async () => {
+  const seedStarted = Date.now()
+  crashSeed = fixture()
+  const source = crashSeed.pool.get(crashSeed.source)
+  await source.initializeRepository({ name: 'Crash recovery', mode: 'repo' })
+  const card = await source.createKanbanCard({ title: 'Only one restart' })
+  crashCardId = card.id
+  await source.playKanbanCard({ cardId: card.id })
+  await crashSeed.call('create', crashSeed.world)
+  crashSeed.pool.closeAll()
+  crashSeed.forge.stop()
+  // Each case copies only these closed repositories. Home, registry, bindings and
+  // journals are fresh, and no conversion has run in this immutable seed.
+  expect(existsSync(join(crashSeed.world, 'Software'))).toBe(false)
+  expect(existsSync(join(crashSeed.source, 'FORGE-WORLD.md'))).toBe(false)
+  expect(pendingForgeTransfer(crashSeed.home, crashSeed.source)).toBeNull()
+  if (process.env.DM_FORGE_TEST_TIMINGS === '1') process.stderr.write(`Closed pre-migration seed prepared once in ${Date.now() - seedStarted}ms\n`)
   crashBundle = scratchDir('forge-crash-bundle-')
   buildSync({
     stdin: { contents: crashFixtureSource(), resolveDir: sourceRoot },
@@ -80,7 +101,7 @@ beforeAll(() => {
     banner: { js: `require = require('node:module').createRequire(${JSON.stringify(join(sourceRoot, 'package.json'))});` }
   })
 })
-afterAll(() => crashBundle?.cleanup())
+afterAll(() => { crashBundle?.cleanup(); crashSeed?.close() })
 
 function crashFixtureSource(): string {
   return `
@@ -134,18 +155,12 @@ it.each(['reservation', 'member', 'staging', 'checkpoint', 'destination', 'manif
   const started = Date.now()
   const timings: string[] = []
   const mark = (phase: string) => timings.push(`${point}: ${phase} at ${Date.now() - started}ms`)
-  onTestFailed(() => { process.stderr.write(timings.join('\n') + '\n') })
-  const f = fixture()
+  const emitTimings = () => { process.stderr.write(timings.join('\n') + '\n') }
+  onTestFailed(emitTimings)
+  if (process.env.DM_FORGE_TEST_TIMINGS === '1') onTestFinished(emitTimings)
+  const f = fixture(crashSeed)
   mark('fixture')
   try {
-    const source = f.pool.get(f.source)
-    await source.initializeRepository({ name: 'Crash recovery', mode: 'repo' })
-    const card = await source.createKanbanCard({ title: 'Only one restart' })
-    await source.playKanbanCard({ cardId: card.id })
-    mark('source ready')
-    await f.call('create', f.world)
-    mark('world ready')
-    f.pool.closeAll()
     const crashed = interruptExport(f, point)
     mark('crashed: ' + crashed.stderr.trim())
     expect(crashed.status, crashed.stderr).toBe(91)
@@ -156,8 +171,8 @@ it.each(['reservation', 'member', 'staging', 'checkpoint', 'destination', 'manif
     expect(await f.forge.openProject(f.source)).toBe(join(f.world, 'Software'))
     mark('recovered')
     const dest = f.pool.get(join(f.world, 'Software'))
-    expect((await dest.getKanbanCard({ cardId: card.id })).lane).toBe('backlog')
-    expect(dest.ctx().db.get<{ n: number }>("SELECT COUNT(*) AS n FROM kanban_events WHERE card_id = ? AND kind = 'migration_restarted'", card.id)?.n).toBe(1)
+    expect((await dest.getKanbanCard({ cardId: crashCardId })).lane).toBe('backlog')
+    expect(dest.ctx().db.get<{ n: number }>("SELECT COUNT(*) AS n FROM kanban_events WHERE card_id = ? AND kind = 'migration_restarted'", crashCardId)?.n).toBe(1)
     expect(pendingForgeTransfer(f.home, f.source)).toBeNull()
   } finally { f.close() }
 })
@@ -183,12 +198,8 @@ it('requires a live foreign source process to exit before restoring, even after 
 })
 
 it.each(['receipt', 'unrelated', 'owner'] as const)('keeps a resumed %s integrity failure and its persistent fence for inspection', async changed => {
-  const f = fixture()
+  const f = fixture(crashSeed)
   try {
-    await f.pool.get(f.source).initializeRepository({ name: 'Keep unverified destination', mode: 'repo' })
-    await f.pool.get(f.source).createKanbanCard({ title: 'Original remains' })
-    await f.call('create', f.world)
-    f.pool.closeAll()
     const crashed = interruptExport(f, changed === 'receipt' ? 'manifest' : changed === 'owner' ? 'checkpoint' : 'reservation')
     expect(crashed.status, crashed.stderr).toBe(91)
     const member = join(f.world, 'Software')
