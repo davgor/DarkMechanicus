@@ -91,6 +91,26 @@ describe('Forge project Source control targets', () => {
   })
 })
 
+describe('Forge project checkout trust after startup', () => {
+  it.each(['index', 'HEAD'] as const)('refuses a private checkout hint introduced into %s after an earlier successful lookup', async location => {
+    const api = handlers()
+    expect(await api.getTarget(member)).toMatchObject({ ok: true, data: { kind: 'available', path: code } })
+    const hint = 'Project/.darkmechanicus/local/source-checkout.json'
+    gitIn(world, 'add', '--force', hint)
+    if (location === 'HEAD') {
+      gitIn(world, 'commit', '-m', 'Unsafe imported private hint')
+      gitIn(world, 'rm', '--cached', hint)
+    }
+    const codeHead = gitIn(code, 'rev-parse', 'HEAD')
+    put(code, 'code.txt', 'must remain uncommitted\n')
+    expect(await api.getTarget(member)).toMatchObject({ ok: true, data: {
+      kind: 'unavailable', repository: 'https://github.com/example/code.git', reason: expect.stringContaining('tracked machine-private state')
+    } })
+    expect(await api.commit(member, { summary: 'Unsafe target', description: '', files: [{ path: 'code.txt', oldPath: null }] })).toMatchObject({ ok: false, error: { code: 'checkout_unavailable' } })
+    expect(gitIn(code, 'rev-parse', 'HEAD')).toBe(codeHead)
+  })
+})
+
 describe('Forge project history, branches and network identity', () => {
   it('reads code diffs/history and creates a code branch without changing the world branch', async () => {
     const api = handlers()

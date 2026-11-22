@@ -1,6 +1,6 @@
 import type { SourceControlTarget } from '../../shared/git/api'
 import type { TrackedFolderView } from '../../shared/desktop/api'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { GitInputError } from './errors'
 import { refuseSwappedFolder } from '../agents/launchFolder'
 import { hasForgeManifest } from '../desktop/forgeContext'
@@ -17,7 +17,9 @@ export async function sourceControlTarget(tracked: string, runner: GitRunner, fo
   if (!project) return { kind: 'available', path: tracked, displayPath: tracked }
   const unavailable = (reason: string): SourceControlTarget => ({ kind: 'unavailable', repository: project.repository, reason, directions: FORGE_REPOSITORY_GUIDANCE })
   try {
-    const checkout = await verifyForgeCheckout(tracked, project.repository, new ForgeGit({ getAccount: () => null, getToken: () => null }, runner))
+    const git = new ForgeGit({ getAccount: () => null, getToken: () => null }, runner)
+    await git.inspectCheckout(dirname(tracked))
+    const checkout = await verifyForgeCheckout(tracked, project.repository, git)
     return checkout === undefined
       ? unavailable('This code repository is not downloaded or linked on this computer. Open its local checkout in Dark Mechanicus after cloning it when needed.')
       : { kind: 'available', path: checkout, displayPath: checkout, repository: project.repository }
