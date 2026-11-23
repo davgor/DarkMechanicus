@@ -192,3 +192,24 @@ describe('App feed failures', () => {
     expect(screen.getByRole('alert').textContent).toContain('main process busy')
   })
 })
+
+it('replaces an active epic view when a folder registry push reports a new project at the same path', async () => {
+  let foldersChanged: () => void = () => undefined
+  const unsubscribe = (): void => { foldersChanged = () => undefined }
+  Object.assign(h.dm, {
+    onFoldersChanged: (receive: () => void) => {
+      foldersChanged = receive
+      return unsubscribe
+    }
+  })
+  const original = { ...h.dm.folders[0], projectIdentity: 'previous-project' }
+  h.dm.folders = [original]
+  await openEpicA()
+  const previousView = screen.getByTestId('epic-stub')
+  h.dm.folders = [{ ...original, projectIdentity: 'replacement-project' }]
+  act(() => foldersChanged())
+  await settle()
+  const currentView = screen.getByTestId('epic-stub')
+  expect(currentView).not.toBe(previousView)
+  expect(h.epicProps.at(-1)?.folder.projectIdentity).toBe('replacement-project')
+})

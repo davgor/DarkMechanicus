@@ -46,9 +46,14 @@ it('keeps a ready local editor editable while fetching and after the remote fail
   expect(screen.getByRole('status').textContent).toContain('Forge remote is offline')
   expect(draft.value).toBe('Still editing during sync')
   expect(h.sync).not.toHaveBeenCalled()
+  const manualSync = deferred()
+  h.sync.mockImplementationOnce(() => manualSync.promise)
   fireEvent.click(screen.getByRole('button', { name: 'Sync now' }))
-  await settle()
+  expect(screen.getByRole('status').textContent).toContain('in the background')
+  expect(screen.queryByRole('button', { name: 'Sync now' })).toBeNull()
   expect(h.sync).toHaveBeenCalledExactlyOnceWith('/world')
+  manualSync.resolve()
+  await settle()
   expect(draft.value).toBe('Still editing during sync')
 })
 
@@ -75,8 +80,13 @@ it('renders a warmed member on revisit while its local status rechecks', async (
 
 it('waits for a cold local import and removes vanished members', async () => {
   let reply: ForgeMemberStatus = { readiness: 'preparing', syncing: true, error: null }
-  const h = harness(async () => reply)
-  render(h.show('/world', '/world/member', 'Ticket draft'))
+  let statusBarrier: Promise<void> | undefined
+  const h = harness(async () => {
+    await statusBarrier
+    return reply
+  })
+  const show = () => h.show('/world', '/world/member', 'Ticket draft', 'member-version')
+  const first = render(show())
   await settle()
   expect(screen.getByRole('status').textContent).toContain('Preparing Forge World tickets')
   expect(screen.queryByRole('textbox')).toBeNull()
@@ -87,6 +97,15 @@ it('waits for a cold local import and removes vanished members', async () => {
   await h.poll()
   expect(screen.getByRole('status').textContent).toContain('no longer in the Forge World')
   expect(screen.queryByRole('textbox')).toBeNull()
+
+  first.unmount()
+  const removed = deferred()
+  statusBarrier = removed.promise
+  render(show())
+  expect(screen.queryByRole('textbox')).toBeNull()
+  removed.resolve()
+  await settle()
+  expect(screen.getByRole('status').textContent).toContain('no longer in the Forge World')
   expect(h.sync).not.toHaveBeenCalled()
 })
 
@@ -109,4 +128,50 @@ it('coalesces mounted status checks and fences a late reply from the previous wo
   expect(lane.mock.calls).toEqual([['/old', '/old/member'], ['/new', '/new/member']])
   expect(screen.queryByRole('textbox')).toBeNull()
   expect(screen.getByRole('status').textContent).toContain('Preparing local Forge World tickets')
+})
+
+it('keeps an open editor through a local status transport failure and checks status without initiating sync', async () => {
+  const memberStatus = vi.fn<() => Promise<ForgeMemberStatus>>().mockResolvedValue(ready)
+  const h = harness(memberStatus)
+  render(h.show('/world', '/world/member', 'Local ticket', 'verified-project'))
+  const ticket = await screen.findByRole<HTMLInputElement>('textbox', { name: 'Local ticket' })
+  fireEvent.change(ticket, { target: { value: 'Unapplied title' } })
+  memberStatus.mockRejectedValueOnce(new Error('The desktop status channel is unavailable'))
+  await h.poll()
+  expect(screen.getByRole('status').textContent).toContain('The desktop status channel is unavailable')
+  expect(screen.getByRole('textbox')).toBe(ticket)
+  expect(screen.queryByRole('button', { name: 'Sync now' })).toBeNull()
+
+  fireEvent.click(screen.getByRole('button', { name: 'Check status' }))
+  await settle()
+  expect(memberStatus).toHaveBeenCalledTimes(3)
+  expect(screen.queryByRole('status')).toBeNull()
+  expect(ticket.value).toBe('Unapplied title')
+  expect(h.sync).not.toHaveBeenCalled()
+})
+
+it('reports a missing Forge bridge without exposing an unverified ticket view', () => {
+  window.dm = new FakeDm()
+  render(<ForgeOpen root="/world" member="/world/member">Local ticket data</ForgeOpen>)
+  expect(screen.getByRole('status').textContent).toBe('Forge World status is unavailable.')
+  expect(screen.queryByText('Local ticket data')).toBeNull()
+  expect(screen.queryByRole('button')).toBeNull()
+})
+
+it('ignores a rejected status request from the project that was just left', async () => {
+  const previous = deferred()
+  const h = harness(async root => {
+    if (root === '/old') {
+      await previous.promise
+      throw new Error('The previous project lost its status connection')
+    }
+    return ready
+  })
+  const view = render(h.show('/old', '/old/member', 'Old ticket', 'old'))
+  view.rerender(h.show('/new', '/new/member', 'New ticket', 'new'))
+  const ticket = await screen.findByRole('textbox', { name: 'New ticket' })
+  previous.resolve()
+  await settle()
+  expect(screen.getByRole('textbox')).toBe(ticket)
+  expect(screen.queryByRole('status')).toBeNull()
 })

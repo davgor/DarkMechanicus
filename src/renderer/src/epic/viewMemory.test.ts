@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { cardSummary } from '../kanban/__mocks__/fixtures'
-import { editForm, initialEditor } from '../ticket/ticketForm'
+import { applyOutcome, editForm, initialEditor } from '../ticket/ticketForm'
 import { FakeBackend } from './__mocks__/fakeBackend'
 import { draftPlan } from './__mocks__/fixtures'
 import { loadWorkspace } from './workspaceLoad'
@@ -50,4 +50,39 @@ describe('view memory', () => {
     memory.remember('/a', 'ep_1', null)
     expect([memory.recall('/a', 'ep_1'), memory.recall('/b', 'ep_1')]).toEqual([null, 'saved'])
   })
+})
+
+it('drops the previous board and plan snapshots when a refresh exceeds the cache size limit', async () => {
+  const memory = createViewMemory()
+  const { id: cardId } = cardSummary()
+  const board = { lanes: { backlog: [cardSummary()], in_progress: [], ready_for_review: [], done: [] }, doneTotal: 0, doneNextCursor: null }
+  const largeBoard = { ...board, lanes: { ...board.lanes, backlog: Array.from({ length: 2001 }, (_, index) =>
+    cardSummary({ id: cardId + '_' + index, key: 'DM-' + (index + 1) })) } }
+  const data = await loadWorkspace(new FakeBackend().runner, 'ep_1')
+  const plan = data.saved!
+  const largePlan = { ...plan, bundle: { ...plan.bundle, tickets: Array.from({ length: 2001 }, (_, index) =>
+    ({ ...plan.bundle.tickets[0], id: 'tk_' + index, key: 'DM-' + (index + 1) })) } }
+  const initial = initialWorkspaceState()
+  memory.saveBoard('project', board)
+  memory.saveWorkspace('project', 'ep_1', workspaceReducer(initial, { type: 'load_succeeded', data, at: 1 }))
+  expect(memory.board('project')).toBe(board)
+  expect(memory.workspace('project', 'ep_1')?.data?.saved).toBe(plan)
+
+  memory.saveBoard('project', largeBoard)
+  memory.saveWorkspace('project', 'ep_1', workspaceReducer(initial, { type: 'load_succeeded', data: { ...data, saved: largePlan }, at: 2 }))
+  expect(memory.board('project')).toBeUndefined()
+  expect(memory.workspace('project', 'ep_1')).toBeUndefined()
+})
+
+it('keeps an unsuccessful Apply available on revisit and clears a successfully applied edit', () => {
+  const memory = createViewMemory()
+  const bundle = draftPlan().bundle
+  const ticketId = bundle.tickets[0].id
+  const initial = initialEditor(bundle, ticketId)
+  const edited = editForm(initial, { ...initial.form!, title: 'New title' })
+  const refused = applyOutcome(edited, { ok: false, code: 'internal', message: 'Draft could not be written' })
+  memory.saveEditor('project', 'ep_1', ticketId, refused)
+  expect(memory.editor('project', 'ep_1', ticketId)?.form?.title).toBe('New title')
+  memory.saveEditor('project', 'ep_1', ticketId, applyOutcome(edited, { ok: true }))
+  expect(memory.editor('project', 'ep_1', ticketId)).toBeUndefined()
 })

@@ -127,6 +127,27 @@ it('reopens its selected ticket and unapplied draft immediately, then retains th
   expect(screen.getByRole('button', { name: 'Apply' })).toBeTruthy()
 })
 
+it('evicts a previous plan after a project mismatch instead of showing it on a warmed revisit', async () => {
+  const h = renderWorkspace(withOtherEpic(new FakeBackend()))
+  expect(await screen.findByLabelText('Plan graph')).toBeTruthy()
+  const mismatch = 'The tracked folder now contains a different project.'
+  h.backend.fail('getEpic', 'project_mismatch', mismatch)
+  h.refresh(1)
+  expect(await screen.findByText(mismatch)).toBeTruthy()
+  expect(screen.queryByLabelText('Plan graph')).toBeNull()
+
+  h.openEpic('ep_2')
+  await screen.findByRole('heading', { name: 'Other epic' })
+  const pending = deferred()
+  h.backend.gates.getEpic = pending.promise
+  h.backend.state.epic = { ...h.backend.state.epic, title: 'Current project plan' }
+  h.openEpic('ep_1')
+  expect(screen.getByText('Loading epic…')).toBeTruthy()
+  expect(screen.queryByLabelText('Plan graph')).toBeNull()
+  act(() => pending.resolve())
+  expect(await screen.findByRole('heading', { name: 'Current project plan' })).toBeTruthy()
+})
+
 describe('rejected graph edits', () => {
   it("shows the server's concrete reason when a dependency edit is rejected", async () => {
     const h = await openDraftView()

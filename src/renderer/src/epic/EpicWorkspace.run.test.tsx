@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { deferred } from '../__mocks__/deferred'
+import { settle } from '../__mocks__/settle'
 import { installDomShims } from './__mocks__/domShims'
 import { FakeBackend, scenario } from './__mocks__/fakeBackend'
 import {
@@ -120,13 +122,13 @@ describe('checkpoint review in the workspace', () => {
   })
 })
 
-describe('completed epic overview in the workspace', () => {
-  function completedEpic(): FakeBackend {
-    return new FakeBackend(
-      scenario({ epic: mcpTestEpic(), saved: mcpTestPlan(), run: mcpTestRun(), checkpoint: null, reports: [mcpTestReport()] })
-    )
-  }
+function completedEpic(): FakeBackend {
+  return new FakeBackend(
+    scenario({ epic: mcpTestEpic(), saved: mcpTestPlan(), run: mcpTestRun(), checkpoint: null, reports: [mcpTestReport()] })
+  )
+}
 
+describe('completed epic overview in the workspace', () => {
   it('offers the overview of a completed epic from the run bar, read-only, and returns to the graph', async () => {
     const h = renderWorkspace(completedEpic())
     await screen.findByLabelText('Run')
@@ -162,6 +164,29 @@ describe('completed epic overview in the workspace', () => {
     expect(screen.queryByRole('button', { name: /Approve/ })).toBe(null)
     expect(within(runBar()).getByRole('button', { name: 'Open graph' })).toBeTruthy()
   })
+})
+
+it('keeps the graph open when a report requested from the former view arrives late', async () => {
+  const backend = completedEpic()
+  const pending = deferred()
+  backend.gates.getSprintReport = pending.promise
+  renderWorkspace(backend)
+  await screen.findByLabelText('Plan graph')
+  expect(backend.inputs('getSprintReport')).toEqual([])
+
+  fireEvent.click(within(runBar()).getByRole('button', { name: 'Epic report' }))
+  expect(screen.getByText('Loading epic report…')).toBeTruthy()
+  await settle()
+  expect(backend.inputs('getSprintReport')).toHaveLength(1)
+  fireEvent.click(within(runBar()).getByRole('button', { name: 'Open graph' }))
+  act(() => pending.resolve())
+  await settle()
+  expect(screen.getByLabelText('Plan graph')).toBeTruthy()
+  expect(screen.queryByLabelText('Epic overview')).toBeNull()
+
+  fireEvent.click(within(runBar()).getByRole('button', { name: 'Epic report' }))
+  expect(await screen.findByLabelText('Epic overview')).toBeTruthy()
+  expect(backend.inputs('getSprintReport')).toHaveLength(2)
 })
 
 describe('ticket review from the workspace', () => {
