@@ -105,6 +105,8 @@ export interface ForgeSetupConversationStatus {
   run?: {
     state: 'pending' | 'submitted' | 'uncertain' | 'failed'
     workflowSha256: string
+    /** The execution chat. The parent chatId continues to identify onboarding. */
+    chatId: string | null
   } | null
 }
 
