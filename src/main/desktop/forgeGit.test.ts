@@ -1,12 +1,13 @@
 import { gatedRunner } from '../../test/gatedRunner'
 import { gitIn, scratchDir } from '../../test/gitScratch'
+import { seedForgeFixture } from '../../test/forgeFixture'
 import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, expect, it } from 'vitest'
 import { createGitRunner, type GitRunner } from '../git/runner'
 import { ForgeGit } from './forgeGit'
-import { createForge, githubRemote, parseForge, updateForge } from './forgeManifest'
+import { createForge, githubRemote, parseForge } from './forgeManifest'
 
 const cleanups: Array<() => void> = []
 afterEach(() => { while (cleanups.length) cleanups.pop()?.() })
@@ -39,8 +40,7 @@ function repositoryPair() {
 }
 
 function portableFiles(first: string) {
-  createForge(first, 'tester')
-  updateForge(first, w => w.projects.push({ folder: 'Demo', repository: 'tester/Demo' }))
+  seedForgeFixture(first, 'tester', [{ folder: 'Demo', repository: 'tester/Demo' }])
   const store = join(first, 'Demo', '.darkmechanicus')
   mkdirSync(join(store, 'local'), { recursive: true })
   writeFileSync(join(store, '.gitignore'), 'local/\n')

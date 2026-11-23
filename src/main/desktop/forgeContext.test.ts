@@ -2,8 +2,9 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { seedForgeFixture } from '../../test/forgeFixture'
 import { writeTerminalFiles } from '../terminals/terminalFiles'
-import { createForge, updateForge } from './forgeManifest'
+import { updateForge } from './forgeManifest'
 import { forgeAgentContext, forgeReachFolders } from './forgeContext'
 import { ensureForgeDirections, FORGE_DIRECTIONS } from './forgeDirections'
 
@@ -13,8 +14,7 @@ beforeEach(() => {
   root = realpathSync.native(mkdtempSync(join(tmpdir(), 'dm-forge-context-')))
   member = join(root, 'Tickets')
   mkdirSync(member)
-  createForge(root, 'example')
-  updateForge(root, world => world.projects.push({ folder: 'Tickets', repository: 'example/source-code' }))
+  seedForgeFixture(root, 'example', [{ folder: 'Tickets', repository: 'example/source-code' }])
 })
 afterEach(() => rmSync(root, { recursive: true, force: true }))
 

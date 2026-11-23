@@ -7,6 +7,7 @@ import { boundForgeRoot, forgeBindingEpoch } from '../../core/repo/forgeBinding'
 import { FORGE_CONFIG } from '../../core/repo/forgeReference'
 import { nodeFs } from '../../core/repo/nodeFs'
 import { scratchDir, gitIn } from '../../test/gitScratch'
+import { seedForgeFixture } from '../../test/forgeFixture'
 import { ForgeGit } from './forgeGit'
 import { createForge, updateForge } from './forgeManifest'
 import { ensureForgeWorld } from './forgeHealth'
@@ -29,8 +30,7 @@ async function fixture() {
   cleanups.push(scratch.cleanup)
   const home = join(scratch.path, 'home'), root = join(scratch.path, 'world'), source = join(scratch.path, 'code'), member = join(root, 'Software')
   repo(root, worldUrl); repo(source, 'https://github.com/example/software.git')
-  createForge(root, 'example')
-  updateForge(root, world => { world.projects.push({ folder: 'Software', repository: 'https://github.com/example/software.git' }) })
+  seedForgeFixture(root, 'example', [{ folder: 'Software', repository: 'https://github.com/example/software.git' }])
   const workspace = openWorkspace({ repoRoot: member, homeDir: home, role: 'desktop', transport: 'desktop', label: 'Health fixture' })
   await workspace.initializeRepository({ mode: 'repo', name: 'Software' }); workspace.close()
   return { root, home, source, member }

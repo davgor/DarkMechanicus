@@ -8,7 +8,7 @@ import type { CommandResult, FolderPickResult } from '../../shared/desktop/api'
 import { ATTACHMENT_SCHEME } from '../../shared/desktop/attachmentUrl'
 import type { ForgeSetupConversationStatus, ForgeSetupProjectView } from '../../shared/desktop/forgeSetup'
 import { gitIn, scratchDir } from '../../test/gitScratch'
-import { createForge, updateForge } from './forgeManifest'
+import { seedForgeFixture } from '../../test/forgeFixture'
 import { pngBytes } from '../../test/images'
 import { FakePtyHost } from '../terminals/__mocks__/fakePtyHost'
 import { windowsCommandLine } from '../terminals/windowsCommandLine'
@@ -236,8 +236,7 @@ function forgeMember(root: string) {
   mkdirSync(join(member, '.darkmechanicus'), { recursive: true })
   gitIn(world, 'init', '-b', 'main')
   gitIn(world, 'remote', 'add', 'origin', 'https://github.com/example/tickets.git')
-  createForge(world, 'example')
-  updateForge(world, manifest => { manifest.projects.push({ folder: 'Software', repository: 'https://github.com/example/software.git' }) })
+  seedForgeFixture(world, 'example', [{ folder: 'Software', repository: 'https://github.com/example/software.git' }])
   writeFileSync(join(member, '.darkmechanicus', 'project.json'), JSON.stringify({
     format: 'darkmechanicus.project',
     formatVersion: 1,

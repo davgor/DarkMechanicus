@@ -2,9 +2,10 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { gitIn, scratchDir } from '../../test/gitScratch'
+import { seedForgeFixture } from '../../test/forgeFixture'
 import { createGitRunner } from '../git/runner'
 import { ForgeGit } from './forgeGit'
-import { createForge, updateForge } from './forgeManifest'
+import { createForge } from './forgeManifest'
 
 it('publishes all portable repository files after validation and refuses staged or committed private state', async () => {
   const fixture = scratchDir('forge-commit-')
@@ -15,8 +16,7 @@ it('publishes all portable repository files after validation and refuses staged 
     gitIn(root, 'config', 'user.name', 'Fixture')
     gitIn(root, 'config', 'user.email', 'fixture@example.test')
     gitIn(root, 'remote', 'add', 'origin', 'https://github.com/example/world.git')
-    createForge(root, 'example')
-    updateForge(root, w => w.projects.push({ folder: 'Demo', repository: 'example/Demo' }))
+    seedForgeFixture(root, 'example', [{ folder: 'Demo', repository: 'example/Demo' }])
     const store = join(root, 'Demo/.darkmechanicus')
     mkdirSync(join(store, 'local'), { recursive: true })
     writeFileSync(join(store, 'project.json'), '{}')

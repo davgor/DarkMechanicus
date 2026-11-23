@@ -9,9 +9,10 @@ import { bindForge, boundForgeRoot } from '../../core/repo/forgeBinding'
 import { nodeFs } from '../../core/repo/nodeFs'
 import { projectKey } from '../../core/repo/storageMode'
 import { gitIn, scratchDir } from '../../test/gitScratch'
+import { seedForgeFixture } from '../../test/forgeFixture'
 import { createGitRunner, type GitRunRequest } from '../git/runner'
 import { createFolderRegistry } from './folderRegistry'
-import { createForge, updateForge } from './forgeManifest'
+import { updateForge } from './forgeManifest'
 import { startForge } from './forgeService'
 import { createTestWorkspacePool as createWorkspacePool } from './__mocks__/projectWorkspaceFixture'
 
@@ -33,8 +34,7 @@ async function preparePortableSeed(root: string) {
   gitIn(source, 'remote', 'add', 'origin', codeUrl)
   gitIn(world, 'remote', 'add', 'origin', worldUrl)
   writeFileSync(join(source, FORGE_CONFIG), JSON.stringify(config))
-  createForge(world, 'example')
-  updateForge(world, manifest => { manifest.projects.push({ folder: 'Software', repository: codeUrl }) })
+  seedForgeFixture(world, 'example', [{ folder: 'Software', repository: codeUrl }])
   const member = join(world, 'Software')
   mkdirSync(member)
   const project = openWorkspace({ repoRoot: member, homeDir: join(root, 'seed-home'), transport: 'desktop', role: 'desktop', label: 'Portable seed' })
