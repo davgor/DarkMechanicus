@@ -21,7 +21,7 @@ async function boundedBody(response: Response, limit: number): Promise<Buffer> {
   const stream = response.body
   if (stream === null) throw new Error('GitHub returned no descriptor body.')
   if (Number(response.headers.get('content-length')) > limit) {
-    void stream.cancel()
+    void stream.cancel().catch(() => undefined)
     throw new Error('The descriptor response exceeds its byte limit.')
   }
   const reader = stream.getReader()
@@ -33,7 +33,7 @@ async function boundedBody(response: Response, limit: number): Promise<Buffer> {
       if (done) return Buffer.concat(parts, bytes)
       bytes += value.byteLength
       if (bytes > limit) {
-        void reader.cancel()
+        void reader.cancel().catch(() => undefined)
         throw new Error('The descriptor response exceeds its byte limit.')
       }
       parts.push(value)
