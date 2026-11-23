@@ -147,5 +147,6 @@ export interface ForgeSetupApi {
   saveWorkflow(member: string, input: ForgeSetupWorkflowEdit): Promise<ForgeSetupProjectView>
   refresh(member: string): Promise<ForgeSetupProjectView>
   prepare(member: string, agent?: string): Promise<ForgeSetupConversationStatus>
-  run(member: string, expectedSha256: string): Promise<ForgeSetupConversationStatus>
+  /** The checkout is the one the person reviewed. Main verifies its actual mapping before running setup. */
+  run(member: string, expectedSha256: string, expectedCheckout: string): Promise<ForgeSetupConversationStatus>
 }
