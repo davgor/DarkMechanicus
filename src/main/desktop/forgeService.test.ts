@@ -17,8 +17,8 @@ import { dbProjectDir } from '../../core/repo/storageMode'
 import { bindForge, pendingForgeTransfer } from '../../core/repo/forgeBinding'
 import { ensureForgeConfig } from '../../core/repo/forgeReference'
 import { nodeFs } from '../../core/repo/nodeFs'
-import { spawn, spawnSync } from 'node:child_process'
-import { once } from 'node:events'
+import { spawnSync } from 'node:child_process'
+import { withRetainedProcess } from '../../test/retainedProcess'
 import { fileURLToPath } from 'node:url'
 
 function initializeCheckout(dir: string, repository: string): void {
@@ -210,22 +210,24 @@ it.each(['reservation', 'member', 'staging', 'checkpoint', 'destination', 'manif
 
 it('requires a live foreign source process to exit before restoring, even after its SQLite handle closed', async () => {
   const f = fixture()
-  const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore', windowsHide: true })
-  const exited = once(child, 'exit')
-  const worker = openWorkspace({ repoRoot: f.source, homeDir: f.home, role: 'orchestrator', transport: 'in_process', label: 'Legacy process', pid: child.pid })
   try {
-    await f.pool.get(f.source).initializeRepository({ name: 'Legacy handle proof', mode: 'db' })
-    await worker.getProject()
-    await f.call('create', f.world)
-    await f.call('convert', f.world, f.source, { force: true })
-    worker.close()
-    const member = join(f.world, 'Software')
-    await expect(f.call('restore', member, 'db')).rejects.toThrow('other processes')
-    expect(existsSync(join(f.source, 'FORGE-WORLD.md'))).toBe(true)
-    child.kill()
-    await exited
-    expect(await f.call('restore', member, 'db')).toBe(f.source)
-  } finally { child.kill(); await exited; worker.close(); await f.close() }
+    await withRetainedProcess(async child => {
+      const worker = openWorkspace({ repoRoot: f.source, homeDir: f.home, role: 'orchestrator', transport: 'in_process', label: 'Legacy process', pid: child.pid })
+      try {
+        await f.pool.get(f.source).initializeRepository({ name: 'Legacy handle proof', mode: 'db' })
+        await worker.getProject()
+        const identity = `Owned legacy PID ${child.pid}, session ${worker.sessionId()}`
+        await f.call('create', f.world)
+        await f.call('convert', f.world, f.source, { force: true })
+        worker.close()
+        const member = join(f.world, 'Software')
+        await expect(f.call('restore', member, 'db'), `${identity}, phase ${child.phase}`).rejects.toThrow('other processes')
+        expect(existsSync(join(f.source, 'FORGE-WORLD.md'))).toBe(true)
+        await child.exit()
+        await expect(f.call('restore', member, 'db'), `${identity}, phase ${child.phase}`).resolves.toBe(f.source)
+      } finally { worker.close() }
+    })
+  } finally { await f.close() }
 })
 
 it.each(['receipt', 'unrelated', 'owner'] as const)('keeps a resumed %s integrity failure and its persistent fence for inspection', async changed => {
