@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import { scratchDir } from '../../test/gitScratch'
@@ -56,4 +56,38 @@ it('includes a real pending Electron conversion procedure without installing whe
   expect(existsSync(join(path, 'scripts', 'enable-electron.mjs'))).toBe(true)
   expect(existsSync(join(path, 'electron.vite.config.ts'))).toBe(false)
   expect(existsSync(join(path, 'node_modules'))).toBe(false)
+})
+
+it('requires the complete pinned asset closure for a custom recipe and refuses a different revision', () => {
+  const react = bundledForgeRecipes().recipes.find(recipe => recipe.id === 'boosterseat-react')!
+  const custom = { ...react, id: 'team.react', title: 'Team React', baseRecipeId: react.id }
+  expect(verifyForgeScaffold(custom)).toEqual(custom)
+  expect(() => verifyForgeScaffold({ ...custom, assets: custom.assets.slice(1) })).toThrow('missing required')
+  expect(() => verifyForgeScaffold({ ...custom, source: { ...custom.source, commit: 'a'.repeat(40) } })).toThrow('bundled BoosterSeat revision')
+  const world = bundledForgeRecipes().recipes.find(recipe => recipe.kind === 'world')!
+  expect(() => verifyForgeScaffold(world)).toThrow('Choose a code scaffold')
+})
+
+it('preserves an interrupted exact seed and refuses to overwrite a personal edit', async () => {
+  const root = target()
+  const recipe = bundledForgeRecipes().recipes.find(value => value.id === 'boosterseat-react')!
+  const files = await materializeForgeScaffold(root, recipe, context)
+  const known = files.find(value => value.path === 'package.json')!
+  const path = join(root, known.path)
+  const captured = statSync(path, { bigint: true }).mtimeNs
+  await materializeForgeScaffold(root, recipe, context)
+  expect(statSync(path, { bigint: true }).mtimeNs).toBe(captured)
+  const changed = known.content.replace(/^./, character => character === 'x' ? 'y' : 'x')
+  writeFileSync(path, changed)
+  await expect(materializeForgeScaffold(root, recipe, context)).rejects.toThrow('contains a different ' + known.path)
+  expect(readFileSync(path, 'utf8')).toBe(changed)
+})
+
+it('refuses a directory alias into another checkout and leaves its target untouched', async () => {
+  const root = target()
+  const unrelated = target()
+  const recipe = bundledForgeRecipes().recipes.find(value => value.id === 'boosterseat-react')!
+  symlinkSync(unrelated, join(root, '.github'), process.platform === 'win32' ? 'junction' : 'dir')
+  await expect(materializeForgeScaffold(root, recipe, context)).rejects.toThrow('ordinary directory')
+  expect(readdirSync(unrelated)).toEqual([])
 })

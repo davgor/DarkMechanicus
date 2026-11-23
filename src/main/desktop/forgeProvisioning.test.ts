@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import { scratchDir } from '../../test/gitScratch'
 import { createForgeProvisioning, type ForgeProvisioningWork } from './forgeProvisioning'
@@ -20,16 +20,17 @@ function fixture() {
   const file = join(scratch.path, 'provisioning.json')
   const calls: string[] = []
   const remotes = new Map<string, ForgePublishedRepository>()
-  const change = { account: accounts.owner, fail: '', refused: '', disappear: false, cancel: false, invalidParent: false,
-    beforeCreate: undefined as ((name: string) => Promise<void>) | undefined }
+  const change = { account: accounts.owner, fail: '', refused: '', disappear: false, cancel: false, invalidParent: false, signedOut: false,
+    beforeCreate: undefined as ((name: string) => Promise<void>) | undefined, beforePrepare: undefined as (() => Promise<void>) | undefined }
   const work: ForgeProvisioningWork = {
     async prepare() {
+      await change.beforePrepare?.()
       if (change.invalidParent) throw new Error('The checkout parent contains unrelated files.')
       return change.cancel ? null : { parent: scratch.path }
     },
     async assertCurrent() {},
     async account() { return change.account },
-    currentLogin: () => change.account.login,
+    currentLogin: () => change.signedOut ? null : change.account.login,
     async findRemote(_account, name) {
       calls.push('inspect ' + name)
       return change.disappear ? null : remotes.get(name) ?? null
@@ -53,6 +54,12 @@ function fixture() {
   }
   const operation = randomUUID()
   return { calls, remotes, start: () => createForgeProvisioning(file, work), change, file, operation }
+}
+
+function barrier() {
+  let open = () => {}
+  const promise = new Promise<void>(resolve => { open = resolve })
+  return { promise, open }
 }
 
 it('recovers a lost create response across a fresh journal reader without another POST', async () => {
@@ -184,4 +191,62 @@ it('waits for an issued remote operation on shutdown and leaves later phases ava
   expect(f.calls).toEqual(['inspect tickets', 'create tickets'])
   expect(await f.start().resumeProvision(f.operation)).toMatchObject({ state: 'complete' })
   expect(f.calls.filter(call => call === 'create tickets')).toHaveLength(1)
+})
+
+it('reports a live operation and leaves its restart receipt visible without posting twice on racing submits', async () => {
+  const f = fixture()
+  const bothPickers = barrier()
+  const picked = barrier()
+  const issued = barrier()
+  const confirmed = barrier()
+  let choices = 0
+  f.change.beforePrepare = async () => { if (++choices === 2) bothPickers.open(); await picked.promise }
+  f.change.beforeCreate = async () => { issued.open(); await confirmed.promise }
+  const active = f.start()
+  const first = active.provision(createRequest, f.operation)
+  const second = active.provision(createRequest, f.operation)
+  try {
+    await bothPickers.promise
+    picked.open()
+    await issued.promise
+    expect(await Promise.race([first, second])).toMatchObject({ id: f.operation, state: 'running' })
+    expect(await active.provisioning()).toMatchObject([{ id: f.operation, state: 'running' }])
+    expect(await f.start().provisioning()).toMatchObject([{ id: f.operation, state: 'needs-attention', message: expect.stringContaining('interrupted') }])
+    const competing = await active.provision(createRequest, randomUUID())
+    expect(competing).toMatchObject({ state: 'refused', message: expect.stringContaining('uses one of these repository names') })
+  } finally { picked.open(); confirmed.open(); await Promise.all([first, second]) }
+  expect(f.calls.filter(call => call.startsWith('create'))).toEqual(['create tickets', 'create code'])
+  f.change.signedOut = true
+  expect(await active.provisioning()).toEqual([])
+})
+
+it('blocks partial publication from a copied or malformed local creation marker', async () => {
+  const f = fixture()
+  const creation = f.start()
+  expect(await creation.provision({ world: createRequest.world }, f.operation)).toMatchObject({ state: 'complete' })
+  const world = join(dirname(f.file), 'world')
+  const other = join(dirname(f.file), 'another-world')
+  for (const root of [world, other]) {
+    mkdirSync(join(root, '.git'), { recursive: true })
+    writeFileSync(join(root, '.git', 'forge-provisioning'), f.operation + '\n')
+  }
+  expect(() => creation.assertWorldPublished(world)).not.toThrow()
+  expect(() => creation.assertWorldPublished(other)).toThrow('published Forge World checkout changed')
+  writeFileSync(join(other, '.git', 'forge-provisioning'), randomUUID() + '\n')
+  expect(() => creation.assertWorldPublished(other)).toThrow('creation receipt cannot be verified')
+  writeFileSync(join(other, '.git', 'forge-provisioning'), 'invalid local data')
+  expect(() => creation.assertWorldPublished(other)).toThrow('creation receipt cannot be verified')
+})
+
+it('rejects overlapping world and code names and missing operation receipts before effects', async () => {
+  const f = fixture()
+  const creation = f.start()
+  const duplicate = { ...createRequest, code: { ...createRequest.code, name: 'TICKETS' } }
+  await expect(creation.provision(duplicate, f.operation)).resolves.toMatchObject({ state: 'refused', message: expect.stringContaining('separate repository names') })
+  await expect(creation.provision({ world: { kind: 'existing', folder: '/known' } }, f.operation)).resolves.toMatchObject({
+    state: 'refused', message: expect.stringContaining('new code repository')
+  })
+  await expect(creation.resumeProvision(f.operation)).rejects.toThrow('operation no longer exists')
+  await expect(creation.resumeProvision('malformed')).rejects.toThrow('operation no longer exists')
+  expect(f.calls).toEqual([])
 })

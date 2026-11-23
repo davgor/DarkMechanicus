@@ -17,6 +17,7 @@ function fixturePublisher(remoteRoot: string) {
   const account = { id: 117, login: 'example' }
   const remotes = new Map<string, ForgePublishedRepository>()
   const created: string[] = []
+  const creation = { loseCodeResponse: true, initializer: (_name: string, _directory: string) => {} }
   const publisher: NonNullable<Parameters<typeof startForge>[1]['provisioning']>['publisher'] = {
     async account() { return account },
     async inspectRemote(_owner, url) { return remotes.get(basename(url, '.git')) ?? null },
@@ -29,27 +30,36 @@ function fixturePublisher(remoteRoot: string) {
         url: 'https://github.com/example/' + name + '.git' }
       created.push(name)
       remotes.set(name, receipt)
-      if (name === 'software') throw new Error('Lost POST response after creation')
+      creation.initializer(name, bare)
+      if (name === 'software' && creation.loseCodeResponse) throw new Error('Lost POST response after creation')
       return receipt
     }
   }
-  return { account, remotes, created, publisher }
+  return { account, remotes, created, publisher, creation }
 }
 
 function fixtureRunner(remoteRoot: string) {
   const real = createGitRunner()
   const network: string[] = []
   const gitCommands: (readonly string[])[] = []
-  const state = { offline: false }
+  const state = { offline: false, codePush: 'normal' as 'normal' | 'unreceived' | 'lost-response', upstream: true, codePushes: 0 }
   const runner: NonNullable<Parameters<typeof startForge>[1]['runner']> = {
     async run(request) {
       gitCommands.push(request.args)
+      if (!state.upstream && request.args.includes('--set-upstream-to=origin/main')) throw new Error('Local upstream configuration interrupted')
       if (request.kind !== 'network') return real.run(request)
       if (state.offline) throw new Error('Fixture Git remote is unavailable')
       network.push(request.cwd)
       const args = request.args.map(arg => arg.startsWith('https://github.com/example/') ? join(remoteRoot, basename(arg)) : arg)
-      return real.run({ ...request, args: ['-c', 'protocol.file.allow=always', ...args.filter((arg, index) =>
+      const codePush = args.includes('push') && args.includes(join(remoteRoot, 'software.git'))
+      if (codePush) {
+        state.codePushes++
+        if (state.codePush === 'unreceived') throw new Error('The Git server did not receive the code push')
+      }
+      const result = await real.run({ ...request, args: ['-c', 'protocol.file.allow=always', ...args.filter((arg, index) =>
         arg !== 'protocol.allow=never' && args[index + 1] !== 'protocol.allow=never')] })
+      if (codePush && state.codePush === 'lost-response') throw new Error('The Git server accepted the push before the response was lost')
+      return result
     }
   }
   return { runner, gitCommands, network, state }
@@ -64,7 +74,7 @@ function fixture() {
   const pool = createTestWorkspacePool(repoRoot => openWorkspace({ repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Fixture' }), home)
   const handlers = new Map<string, Parameters<IpcMain['handle']>[1]>()
   const invoke = async (name: string, ...args: unknown[]) => handlers.get(name)!({} as IpcMainInvokeEvent, ...args)
-  const { account, remotes, created, publisher } = fixturePublisher(scratch.path)
+  const { account, remotes, created, publisher, creation } = fixturePublisher(scratch.path)
   const { runner, gitCommands, network, state } = fixtureRunner(scratch.path)
   const notified: string[] = []
   const appTimer = vi.spyOn(globalThis, 'setInterval')
@@ -85,7 +95,8 @@ function fixture() {
   })
   const tick = appTimer.mock.calls.find(([, interval]) => interval === 15_000)?.[0]
   appTimer.mockRestore()
-  return { scratch, destination, registry, pool, remotes, created, notified, gitCommands, network, state, forge, invoke, tick }
+  const close = async () => { await forge.stop(); await pool.closeAll(); scratch.cleanup() }
+  return { scratch, destination, registry, pool, remotes, created, creation, notified, gitCommands, network, state, forge, invoke, tick, close }
 }
 
 it('creates and resumes a real private world, separate public code checkout and one durable ticket member', async () => {
@@ -136,4 +147,61 @@ it('creates and resumes a real private world, separate public code checkout and 
     await pool.closeAll()
     scratch.cleanup()
   }
+})
+
+it('resumes an existing-world code push from real remote refs without replaying a verified commit', async () => {
+  const f = fixture()
+  try {
+    await f.forge.ready
+    f.creation.loseCodeResponse = false
+    const worldOnly = await f.invoke('forgeSetup:provision', { world: { kind: 'new', name: 'tickets' } }, randomUUID()) as ForgeProvisionStatus
+    expect(worldOnly).toMatchObject({ state: 'complete' })
+    expect(f.notified).toEqual([])
+    const code = { world: { kind: 'existing', folder: worldOnly.world }, code: { name: 'software', visibility: 'private', recipeId: 'boosterseat-react' } }
+    const operation = randomUUID()
+    f.state.codePush = 'unreceived'
+    const interrupted = await f.invoke('forgeSetup:provision', code, operation)
+    expect(interrupted).toMatchObject({ phase: 'code-checkout', state: 'needs-attention', message: expect.stringContaining('has not confirmed the code push') })
+    const checkout = join(f.destination, 'software')
+    const commit = gitIn(checkout, 'rev-parse', 'HEAD').trim()
+    expect(f.state.codePushes).toBe(1)
+    f.state.codePush = 'lost-response'
+    f.state.upstream = false
+    expect(await f.invoke('forgeSetup:resumeProvision', operation)).toMatchObject({ state: 'needs-attention', message: 'Local upstream configuration interrupted' })
+    expect(gitIn(join(f.scratch.path, 'software.git'), 'rev-parse', 'HEAD').trim()).toBe(commit)
+    expect(f.state.codePushes).toBe(2)
+    f.state.upstream = true
+    const complete = await f.invoke('forgeSetup:resumeProvision', operation)
+    expect(complete).toMatchObject({ state: 'complete', world: worldOnly.world, member: join(worldOnly.world!, 'software'), checkout })
+    expect(f.state.codePushes).toBe(2)
+    expect(f.created).toEqual(['tickets', 'software'])
+    expect(f.remotes.get('software')?.visibility).toBe('private')
+    expect(f.notified).toEqual([join(worldOnly.world!, 'software')])
+  } finally { await f.close() }
+})
+
+it('preserves another commit in a newly created code remote and leaves publication pending', async () => {
+  const f = fixture()
+  try {
+    await f.forge.ready
+    f.creation.loseCodeResponse = false
+    let previous = ''
+    f.creation.initializer = (name, bare) => {
+      if (name !== 'software') return
+      const seed = join(f.scratch.path, 'unrelated-work')
+      mkdirSync(seed)
+      gitIn(seed, 'init', '--initial-branch=main')
+      gitIn(seed, 'commit', '--allow-empty', '-m', 'Another Git client published')
+      gitIn(seed, 'push', bare, 'HEAD:refs/heads/main')
+      previous = gitIn(seed, 'rev-parse', 'HEAD').trim()
+    }
+    const request = { world: { kind: 'new', name: 'tickets' }, code: { name: 'software', visibility: 'public', recipeId: 'boosterseat-react' } }
+    expect(await f.invoke('forgeSetup:provision', request, randomUUID())).toMatchObject({
+      state: 'needs-attention', phase: 'code-checkout', message: expect.stringContaining('already contains different work')
+    })
+    expect(previous).toMatch(/^[a-f0-9]{40}$/)
+    expect(gitIn(join(f.scratch.path, 'software.git'), 'rev-parse', 'HEAD').trim()).toBe(previous)
+    expect(f.state.codePushes).toBe(0)
+    expect(f.notified).toEqual([])
+  } finally { await f.close() }
 })
