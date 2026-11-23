@@ -17,6 +17,12 @@ interface Book {
   sha256: string | null
 }
 
+interface Draft {
+  recipe: ForgeRecipe
+  original: ForgeRecipe | null
+  expectedSha256: string | null
+}
+
 async function readBook(api: Props['api'], world: string): Promise<Book> {
   const saved = await api.recipebook(world)
   if (saved !== null) return saved
@@ -28,7 +34,7 @@ function copyRecipe(recipe: ForgeRecipe, book: Book): ForgeRecipe {
   const baseRecipeId = recipe.baseRecipeId ?? recipe.id
   const prefix = baseRecipeId.slice(0, 35) + '-copy'
   let id = prefix
-  for (let suffix = 2; book.value.recipes.some(item => item.id === id); suffix += 1) id = prefix + '-' + suffix
+  for (let suffix = 2; id === recipe.id || book.value.recipes.some(item => item.id === id); suffix += 1) id = prefix + '-' + suffix
   return { ...recipe, id, title: recipe.title + ' copy', baseRecipeId }
 }
 
@@ -43,6 +49,7 @@ function useRecipebook(api: Props['api'], world: string) {
   const [book, setBook] = useState<Book | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [load, setLoad] = useState(0)
+  const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const saving = useRef(false)
   useEffect(() => {
@@ -51,17 +58,17 @@ function useRecipebook(api: Props['api'], world: string) {
       if (current) { setBook(result); setError(null) }
     }, failure => {
       if (current) setError(errorMessage(failure))
-    })
+    }).finally(() => { if (current) setLoading(false) })
     return () => { current = false }
   }, [api, world, load])
 
-  const save = async (recipe: ForgeRecipe): Promise<ForgeSetupFile<ForgeRecipebook> | null> => {
-    if (book === null || saving.current) return null
+  const save = async (draft: Draft): Promise<ForgeSetupFile<ForgeRecipebook> | null> => {
+    if (book === null || draft.expectedSha256 !== book.sha256 || saving.current || loading) return null
     saving.current = true
     setBusy(true)
     setError(null)
     try {
-      const saved = await api.saveRecipebook(world, { expectedSha256: book.sha256, value: withRecipe(book, recipe) })
+      const saved = await api.saveRecipebook(world, { expectedSha256: draft.expectedSha256, value: withRecipe(book, draft.recipe) })
       setBook(saved)
       return saved
     } catch (failure) {
@@ -72,7 +79,8 @@ function useRecipebook(api: Props['api'], world: string) {
       setBusy(false)
     }
   }
-  return { book, error, busy, save, reload: () => setLoad(n => n + 1) }
+  function reload(): void { setLoading(true); setLoad(n => n + 1) }
+  return { book, error, busy, loading, save, reload }
 }
 
 function RecipePreview({ recipe }: { recipe: ForgeRecipe }): JSX.Element {
@@ -96,7 +104,7 @@ function RecipeFields({ recipe, change, busy }: { recipe: ForgeRecipe; change(re
 }
 
 function RecipePicker({ book, selection, select, edit }: {
-  book: Book; selection: string; select(id: string): void; edit(recipe: ForgeRecipe): void
+  book: Book; selection: string; select(id: string): void; edit(draft: Draft): void
 }): JSX.Element {
   const recipes = book.value.recipes
   const active = recipes.find(recipe => recipe.id === selection) ?? recipes[0]
@@ -109,32 +117,60 @@ function RecipePicker({ book, selection, select, edit }: {
     </label>
     <RecipePreview recipe={active} />
     <div className="button-row">
-      <Button onClick={() => edit(copyRecipe(active, book))}>Copy recipe</Button>
-      {active.baseRecipeId !== undefined && <Button onClick={() => edit(active)}>Edit recipe</Button>}
+      <Button onClick={() => edit({ recipe: copyRecipe(active, book), original: null, expectedSha256: book.sha256 })}>Copy recipe</Button>
+      {active.baseRecipeId !== undefined && <Button onClick={() => edit({ recipe: active, original: active, expectedSha256: book.sha256 })}>Edit recipe</Button>}
     </div>
   </>
 }
 
+function ReconcileRecipe({ book, draft, edit }: { book: Book; draft: Draft; edit(draft: Draft): void }): JSX.Element {
+  const latest = book.value.recipes.find(recipe => recipe.id === draft.recipe.id) ?? null
+  const unchanged = JSON.stringify(latest) === JSON.stringify(draft.original)
+  const reconcile = (): void => {
+    const recipe = unchanged ? draft.recipe : { ...copyRecipe(draft.recipe, book), title: draft.recipe.title }
+    edit({ recipe, original: unchanged ? latest : null, expectedSha256: book.sha256 })
+  }
+  return <section aria-label="Review updated recipes">
+    <p role="status">The saved recipe book changed. Review the latest version before saving your draft.</p>
+    {!unchanged && (latest === null ? <p>This recipe was removed from the saved book.</p> : <RecipePreview recipe={latest} />)}
+    <Button onClick={reconcile}>{unchanged ? 'Use latest recipe book' : 'Keep draft as a new copy'}</Button>
+  </section>
+}
+
+function RecipeDraftFields({ model, draft, edit }: { model: ReturnType<typeof useRecipebook>; draft: Draft; edit(draft: Draft): void }): JSX.Element {
+  const { book, busy, loading } = model
+  return <>
+    {book !== null && book.sha256 !== draft.expectedSha256 && <ReconcileRecipe book={book} draft={draft} edit={edit} />}
+    <RecipeFields recipe={draft.recipe} change={recipe => edit({ ...draft, recipe })} busy={busy || loading} />
+  </>
+}
+
 export function RecipebookDialog({ api, world, onClose }: Props): JSX.Element {
-  const { book, error, busy, save, reload } = useRecipebook(api, world)
+  const model = useRecipebook(api, world)
+  const { book, error, busy, loading, save, reload } = model
   const [selection, select] = useState('')
-  const [draft, edit] = useState<ForgeRecipe | null>(null)
+  const [draft, edit] = useState<Draft | null>(null)
   const close = (): void => { if (!busy) onClose() }
   const saveDraft = async (): Promise<void> => {
     if (draft !== null && await save(draft) !== null) {
-      select(draft.id)
+      select(draft.recipe.id)
       edit(null)
     }
   }
+  const canSave = draft !== null && validDraft(draft, book, loading)
   return <Dialog title="Recipe book" onClose={close} actions={
     draft === null ? <Button onClick={close}>Close</Button> : <>
       <Button onClick={() => edit(null)} disabled={busy}>Cancel edits</Button>
-      <Button variant="primary" busy={busy} disabled={!draft.title.trim() || !draft.description.trim()} onClick={() => void saveDraft()}>Save recipe</Button>
+      <Button variant="primary" busy={busy} disabled={!canSave} onClick={() => void saveDraft()}>Save recipe</Button>
     </>
   }>
-    {error !== null && <p role="alert" className="forge-error">{error}</p>}
-    {book === null && (error === null ? <p role="status">Loading recipes…</p> : <Button onClick={reload}>Reload recipes</Button>)}
-    {draft !== null && <RecipeFields recipe={draft} change={edit} busy={busy} />}
-    {draft === null && book !== null && <RecipePicker book={book} selection={selection} select={select} edit={edit} />}
+    {error !== null && <p role="alert" className="forge-error">{error} <Button disabled={loading} onClick={reload}>Reload saved recipes</Button></p>}
+    {loading && <p role="status">Loading recipes…</p>}
+    {draft !== null ? <RecipeDraftFields model={model} draft={draft} edit={edit} /> :
+      book !== null && <RecipePicker book={book} selection={selection} select={select} edit={edit} />}
   </Dialog>
+}
+
+function validDraft(draft: Draft, book: Book | null, loading: boolean): boolean {
+  return !loading && draft.expectedSha256 === book?.sha256 && Boolean(draft.recipe.title.trim() && draft.recipe.description.trim())
 }

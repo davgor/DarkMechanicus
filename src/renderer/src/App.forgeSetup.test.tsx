@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { ForgeProvisionStatus } from '../../shared/desktop/forgeSetup'
 import { AppHarness } from './__mocks__/appHarness'
@@ -46,7 +46,7 @@ it('cancels world creation without publication when the native checkout picker i
   type('World repository name', 'world')
   fireEvent.click(reopened.getByRole('button', { name: 'Create' }))
   await settle()
-  expect(setup.provision).toHaveBeenCalledExactlyOnceWith({ world: { kind: 'new', name: 'world' } })
+  expect(setup.provision).toHaveBeenCalledExactlyOnceWith({ world: { kind: 'new', name: 'world' } }, expect.any(String))
   expect(reopened.getByRole<HTMLButtonElement>('button', { name: 'Create' }).disabled).toBe(false)
   expect(h.dm.folders).toEqual([])
 })
@@ -57,10 +57,10 @@ it('resumes a published code repository by its existing intent with no second cr
     id: 'provision_1', request: { world: { kind: 'new', name: 'world' }, code: { name: 'code', recipeId: reactRecipe.id, visibility: 'private' }, agent: 'codex' },
     phase: 'code-checkout', state: 'needs-attention', world: forgeWorld.path, message: 'GitHub published code, but the local disk is full.'
   }
-  setup.provision.mockResolvedValueOnce(partial)
-  setup.resumeProvision.mockImplementation(async () => {
+  setup.provision.mockImplementationOnce(async (_request, id) => ({ ...partial, id }))
+  setup.resumeProvision.mockImplementation(async id => {
     h.dm.folders = [forgeWorld, forgeMember]
-    return { ...partial, state: 'complete', phase: 'complete', member: forgeMember.path, message: null }
+    return { ...partial, id, state: 'complete', phase: 'complete', member: forgeMember.path, message: null }
   })
   h.mount()
   await settle()
@@ -74,8 +74,8 @@ it('resumes a published code repository by its existing intent with no second cr
   expect(dialog.queryByRole('button', { name: 'Create' })).toBeNull()
   fireEvent.click(dialog.getByRole('button', { name: 'Resume creation' }))
   await settle()
-  expect(setup.provision).toHaveBeenCalledExactlyOnceWith(partial.request)
-  expect(setup.resumeProvision).toHaveBeenCalledExactlyOnceWith(partial.id)
+  expect(setup.provision).toHaveBeenCalledExactlyOnceWith(partial.request, expect.any(String))
+  expect(setup.resumeProvision).toHaveBeenCalledExactlyOnceWith(setup.provision.mock.calls[0][1])
   expect(await screen.findByRole('heading', { name: 'Alpha', level: 1 })).toBeTruthy()
 })
 
@@ -115,7 +115,7 @@ it('shows a stale YAML refusal without opening a terminal or running the newer r
   fireEvent.click(confirmation.getByRole('button', { name: 'Run setup' }))
   await settle()
   expect(screen.getByRole('alert').textContent).toContain('Workflow changed after review.')
-  expect(setup.run).toHaveBeenCalledExactlyOnceWith(forgeMember.path, workflowHash)
+  expect(setup.run).toHaveBeenCalledExactlyOnceWith(forgeMember.path, workflowHash, codePath)
   expect(window.localStorage.getItem('dm.selection')).not.toContain('chat_onboarding')
 })
 
@@ -144,15 +144,15 @@ it('keeps link-only import separate from setup while showing incomplete detectio
 it('offers the recorded creation intent when the first response was lost', async () => {
   const { h, setup } = harness()
   const request = { world: { kind: 'new' as const, name: 'world' } }
-  const partial: ForgeProvisionStatus = {
-    id: 'provision_lost', request, state: 'needs-attention', phase: 'world-remote', message: 'Verified the existing remote repository.'
+  const historical: ForgeProvisionStatus = {
+    id: 'historic_completed', request, state: 'complete', phase: 'complete', message: null, world: '/another-account/world'
   }
   const unrelated: ForgeProvisionStatus = {
-    ...partial, id: 'other_provision', request: { world: { kind: 'new', name: 'other-world' } },
-    message: 'Another world is waiting for checkout.'
+    id: 'other_provision', request: { world: { kind: 'new', name: 'other-world' } },
+    state: 'needs-attention', phase: 'world-checkout', message: 'Another world is waiting for checkout.'
   }
   setup.provision.mockImplementationOnce(async () => {
-    setup.provisioning.mockResolvedValue([unrelated])
+    setup.provisioning.mockResolvedValue([historical, unrelated])
     throw new Error('The creation response was interrupted.')
   })
   h.mount()
@@ -164,7 +164,11 @@ it('offers the recorded creation intent when the first response was lost', async
   expect(dialog.getByRole('button', { name: 'Check progress' })).toBeTruthy()
   expect(dialog.queryByRole('button', { name: 'Create' })).toBeNull()
   expect(dialog.queryByText('Another world is waiting for checkout.')).toBeNull()
-  setup.provisioning.mockResolvedValue([unrelated, partial])
+  const id = setup.provision.mock.calls[0][1]
+  expect(id).toMatch(/^[a-f0-9-]{36}$/i)
+  setup.provisioning.mockResolvedValue([historical, unrelated, {
+    ...historical, id, state: 'needs-attention', phase: 'world-remote', message: 'Verified the existing remote repository.'
+  }])
   fireEvent.click(dialog.getByRole('button', { name: 'Check progress' }))
   expect(await dialog.findByText('Verified the existing remote repository.')).toBeTruthy()
   expect(dialog.getByRole('button', { name: 'Resume creation' })).toBeTruthy()
@@ -177,7 +181,7 @@ it('offers the recorded creation intent when the first response was lost', async
   fireEvent.click(reopened.getByRole('button', { name: 'View creation for world' }))
   expect(reopened.getByText('Verified the existing remote repository.')).toBeTruthy()
   expect(reopened.queryByRole('button', { name: 'Create' })).toBeNull()
-  expect(setup.provision).toHaveBeenCalledExactlyOnceWith(request)
+  expect(setup.provision).toHaveBeenCalledExactlyOnceWith(request, id)
 })
 
 it('keeps local workflow edits when an import refresh changed the saved revision', async () => {
@@ -217,4 +221,91 @@ it('keeps creation editable after a definite refusal before publication', async 
   ])
   expect(setup.provisioning).toHaveBeenCalledTimes(reads)
   expect(setup.resumeProvision).not.toHaveBeenCalled()
+})
+
+it('lets native creation decide whether a saved name belongs to the current account', async () => {
+  const { h, setup } = harness()
+  setup.provisioning.mockResolvedValue([{
+    id: 'unrecoverable_world', request: { world: { kind: 'new', name: 'already-named' } },
+    state: 'needs-attention', phase: 'world-remote', message: 'A different GitHub repository has this name.'
+  }])
+  setup.provision.mockResolvedValueOnce({ state: 'refused', message: 'This account already has a saved creation. Resume it instead.' })
+  h.mount()
+  await settle()
+  const dialog = await startWorld()
+  expect(dialog.getByText('A different GitHub repository has this name.')).toBeTruthy()
+  fireEvent.click(dialog.getByRole('button', { name: 'New creation' }))
+  type('World repository name', 'Already-Named')
+  fireEvent.click(dialog.getByRole('button', { name: 'Create' }))
+  expect(await dialog.findByText('This account already has a saved creation. Resume it instead.')).toBeTruthy()
+  expect(dialog.getByLabelText<HTMLInputElement>('World repository name').value).toBe('Already-Named')
+  // A changed account is checked in main. The old saved entry has no account information.
+  h.github.account = { login: 'another-account', name: 'Another account' }
+  fireEvent.click(dialog.getByRole('button', { name: 'Create' }))
+  await settle()
+  expect(setup.provision.mock.calls).toEqual([
+    [{ world: { kind: 'new', name: 'Already-Named' } }, expect.any(String)],
+    [{ world: { kind: 'new', name: 'Already-Named' } }, expect.any(String)]
+  ])
+  expect(setup.provision.mock.calls[0][1]).not.toBe(setup.provision.mock.calls[1][1])
+  fireEvent.click(dialog.getByRole('button', { name: 'Saved creations' }))
+  expect(dialog.getByText('A different GitHub repository has this name.')).toBeTruthy()
+  expect(dialog.getByRole('button', { name: 'Resume creation' })).toBeTruthy()
+  expect(setup.resumeProvision).not.toHaveBeenCalled()
+})
+
+it('keeps a failed setup dispatch visible without opening its execution chat', async () => {
+  const { h, setup } = harness()
+  setup.run.mockResolvedValueOnce({ state: 'opened', chatId: 'chat_onboarding', message: null, run: {
+    state: 'failed', workflowSha256: workflowHash, chatId: 'chat_failed_setup'
+  } })
+  openMember(h)
+  h.dm.chats.chats.push(chatRecord({ id: 'chat_failed_setup', folder: forgeMember.path, title: 'Failed setup', agent: 'codex', role: 'planner' }))
+  await settle()
+  click('Set up environment')
+  click('Run setup')
+  expect(await screen.findByText('Setup could not be sent to the setup agent.')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Open setup chat' })).toBeNull()
+  expect(window.localStorage.getItem('dm.selection')).not.toContain('chat_failed_setup')
+  expect(h.dm.chats.callsOf('create')).toEqual([])
+})
+
+it('requires a fresh setup confirmation when the verified checkout changes', async () => {
+  const { h, setup } = harness()
+  openMember(h)
+  await settle()
+  click('Set up environment')
+  const dialog = within(screen.getByRole('dialog', { name: 'Set up environment' }))
+  expect(dialog.getByText(codePath)).toBeTruthy()
+  h.git.targets.set(forgeMember.path, { kind: 'available', path: '/code/alpha-replaced', displayPath: '~/code/alpha-replaced', repository })
+  act(() => h.scheduler.fireIntervals(5000))
+  await settle()
+  expect(dialog.getByText('The code checkout changed. Review the current checkout before running setup.')).toBeTruthy()
+  expect(dialog.getByRole<HTMLButtonElement>('button', { name: 'Run setup' }).disabled).toBe(true)
+  expect(setup.run).not.toHaveBeenCalled()
+  fireEvent.click(dialog.getByRole('button', { name: 'Cancel' }))
+  click('Set up environment')
+  const current = within(screen.getByRole('dialog', { name: 'Set up environment' }))
+  expect(current.getByText('/code/alpha-replaced')).toBeTruthy()
+  h.dm.chats.chats.push(chatRecord({ id: 'chat_setup', folder: forgeMember.path, title: 'Run Alpha setup', agent: 'codex', role: 'planner' }))
+  fireEvent.click(current.getByRole('button', { name: 'Run setup' }))
+  await settle()
+  expect(setup.run).toHaveBeenCalledExactlyOnceWith(forgeMember.path, workflowHash, '/code/alpha-replaced')
+  expect(window.localStorage.getItem('dm.selection')).toContain('chat_setup')
+  expect(h.dm.chats.callsOf('create')).toEqual([])
+})
+
+it('stops loading when the recipe book has no eligible code recipe', async () => {
+  const { h, setup } = harness()
+  const worldRecipe = { ...reactRecipe, kind: 'world' as const, id: 'world', title: 'Forge World' }
+  setup.recipebook.mockResolvedValue({ sha256: 'c'.repeat(64), value: { version: 1, recipes: [worldRecipe] } })
+  h.mount()
+  await settle()
+  const dialog = await startWorld()
+  type('World repository name', 'world')
+  fireEvent.click(dialog.getByRole('checkbox', { name: 'Create a code repository' }))
+  type('Code repository name', 'code')
+  expect(dialog.getByText('No code recipes are available.')).toBeTruthy()
+  expect(dialog.getByRole<HTMLButtonElement>('button', { name: 'Create' }).disabled).toBe(true)
+  expect(setup.provision).not.toHaveBeenCalled()
 })

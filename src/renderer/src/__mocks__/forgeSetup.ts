@@ -55,6 +55,6 @@ export function fakeForgeSetup() {
     refresh: vi.fn<ForgeSetupApi['refresh']>().mockResolvedValue(setupProject()),
     prepare: vi.fn<ForgeSetupApi['prepare']>().mockResolvedValue({ state: 'opened', chatId: 'chat_onboarding', message: null }),
     run: vi.fn<ForgeSetupApi['run']>().mockResolvedValue({ state: 'opened', chatId: 'chat_onboarding', message: null,
-      run: { state: 'submitted', workflowSha256: workflowHash } })
+      run: { state: 'submitted', workflowSha256: workflowHash, chatId: 'chat_setup' } })
   } satisfies ForgeSetupApi
 }

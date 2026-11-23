@@ -29,3 +29,31 @@ it('makes a custom recipe copy without editing the pinned recipe, and keeps the 
   expect(screen.getByRole('alert').textContent).toContain('The recipe book changed on disk.')
   expect(screen.getByLabelText<HTMLTextAreaElement>('Recipe notes').value).toBe('Use the existing development database.')
 })
+
+it('reviews a newer recipe book before retaining edits as a separate copy', async () => {
+  const api = fakeForgeSetup()
+  api.saveRecipebook.mockRejectedValueOnce(new Error('The recipe book changed on disk.'))
+  render(<RecipebookDialog api={api} world={forgeWorld.path} onClose={() => undefined} />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Copy recipe' }))
+  fireEvent.change(screen.getByLabelText('Recipe notes'), { target: { value: 'My local setup notes.' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }))
+  await settle()
+  const initial = api.saveRecipebook.mock.calls[0][1].value
+  const competing = { ...initial.recipes.at(-1)!, notes: 'Another person’s setup notes.' }
+  const current = { sha256: 'd'.repeat(64), value: { ...initial, recipes: [...initial.recipes.slice(0, -1), competing] } }
+  api.recipebook.mockResolvedValue(current)
+  api.saveRecipebook.mockImplementation(async (_world, edit) => ({ sha256: 'e'.repeat(64), value: edit.value }))
+
+  fireEvent.click(screen.getByRole('button', { name: 'Reload saved recipes' }))
+  await settle()
+  expect(screen.getByLabelText<HTMLTextAreaElement>('Recipe notes').value).toBe('My local setup notes.')
+  expect(screen.getByText('Another person’s setup notes.')).toBeTruthy()
+  expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Save recipe' }).disabled).toBe(true)
+  fireEvent.click(screen.getByRole('button', { name: 'Keep draft as a new copy' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }))
+  await settle()
+  const saved = api.saveRecipebook.mock.calls[1][1]
+  expect(saved.expectedSha256).toBe(current.sha256)
+  expect(saved.value.recipes.find(recipe => recipe.id === competing.id)).toEqual(competing)
+  expect(saved.value.recipes.find(recipe => recipe.notes === 'My local setup notes.')?.id).not.toBe(competing.id)
+})

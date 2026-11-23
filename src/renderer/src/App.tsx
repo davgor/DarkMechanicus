@@ -254,7 +254,9 @@ function FolderContents(props: FolderContentsProps): JSX.Element {
   const api = window.dm.forgeSetup
   const prepare = api === undefined ? undefined : async (project: TrackedFolderView) => {
     const status = await api.prepare(project.path)
-    if (status.chatId === null) throw new Error(status.message ?? 'Onboarding is preparing. Check Environment setup for progress.')
+    if (status.state !== 'opened' || status.chatId === null) {
+      throw new Error(status.message ?? 'Check Environment setup for onboarding progress.')
+    }
     await openForgeOnboarding(shell, project.path, status.chatId)
   }
   const contents = <>

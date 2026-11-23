@@ -36,14 +36,14 @@ const onboardingStates: Record<ForgeSetupConversationStatus['state'], string> = 
   preparing: 'Onboarding agent is preparing the workflow.',
   opened: 'The onboarding conversation includes workflow preparation and Delivery Standards.',
   'needs-attention': 'Onboarding needs attention.',
-  uncertain: 'Onboarding delivery is unconfirmed. Open the conversation to check.'
+  uncertain: 'Onboarding delivery is unconfirmed.'
 }
 
 const runStates: Record<NonNullable<ForgeSetupConversationStatus['run']>['state'], string> = {
-  pending: 'Setup is being sent to the onboarding agent.',
-  submitted: 'Setup sent to the agent. Check the conversation for local verification.',
-  uncertain: 'Setup delivery is unconfirmed. Check the conversation before sending again.',
-  failed: 'Setup could not be sent to the onboarding agent.'
+  pending: 'Setup is being sent to the setup agent.',
+  submitted: 'Setup was sent. Check the setup chat for results on this computer.',
+  uncertain: 'Setup delivery is unconfirmed.',
+  failed: 'Setup could not be sent to the setup agent.'
 }
 
 function WorkflowDetails({ file }: { file: ForgeSetupFile<ForgeSetupWorkflow> }): JSX.Element {
@@ -113,47 +113,71 @@ function WorkflowEditor({ draft, currentSha, busy, error, update, onSave, onClos
   </Dialog>
 }
 
-function SetupConfirmation({ revision, checkout, busy, onClose, onRun }: {
-  revision: number; checkout: string; busy: boolean; onClose(): void; onRun(): void
+function SetupConfirmation({ revision, checkout, busy, stale, onClose, onRun }: {
+  revision: number; checkout: string; busy: boolean; stale: string | null; onClose(): void; onRun(): void
 }): JSX.Element {
   return <Dialog title="Set up environment" onClose={onClose} actions={<>
     <Button onClick={onClose} disabled={busy}>Cancel</Button>
-    <Button variant="primary" onClick={onRun} busy={busy}>Run setup</Button>
+    <Button variant="primary" onClick={onRun} busy={busy} disabled={stale !== null}>Run setup</Button>
   </>}>
-    <p>The onboarding agent will follow workflow revision {revision} in this code checkout.</p>
+    <p>A setup agent will follow workflow revision {revision} in this code checkout.</p>
     <p className="forge-provenance"><code>{checkout}</code></p>
+    {stale !== null && <p role="status">{stale}</p>}
   </Dialog>
+}
+
+interface SetupTarget {
+  file: ForgeSetupFile<ForgeSetupWorkflow>
+  checkout: string
+}
+
+function confirmationChange(target: SetupTarget, view: ForgeSetupProjectView | null, checkout: string | null): string | null {
+  if (checkout !== target.checkout) return 'The code checkout changed. Review the current checkout before running setup.'
+  if (view?.value?.sha256 !== target.file.sha256) return 'The workflow changed. Review its current revision before running setup.'
+  if (view.state !== 'configured') return 'The workflow needs review before setup can run.'
+  return runAlreadyRequested(view.onboarding?.run, target.file.sha256) ? 'Setup was already requested. Check the setup chat.' : null
 }
 
 function useSetupActions({ api, member, checkout, scheduler, onOpenChat }: Props) {
   const model = useForgeProjectSetup(api, member, scheduler)
   const [draft, edit] = useState<ForgeSetupWorkflowEdit | null>(null)
-  const [confirmation, confirm] = useState<{ file: ForgeSetupFile<ForgeSetupWorkflow>; checkout: string } | null>(null)
+  const [confirmation, confirm] = useState<SetupTarget | null>(null)
   const file = model.view?.value
   const onboarding = model.view?.onboarding
+  const stale = confirmation === null ? null : confirmationChange(confirmation, model.view, checkout)
   const recordConversation = (status: ForgeSetupConversationStatus): void => {
     model.setView(previous => previous === null ? previous : { ...previous, onboarding: status })
   }
   const open = async (chatId: string): Promise<void> => { await model.act(() => onOpenChat(chatId), () => undefined) }
   const openChat = async (): Promise<void> => {
-    const existing = onboarding?.chatId
+    const existing = openedOnboarding(onboarding)
     if (existing) await open(existing)
     else {
       const result = await model.act(() => api.prepare(member), recordConversation)
-      if (result?.chatId) await open(result.chatId)
+      const chatId = openedOnboarding(result)
+      if (chatId) await open(chatId)
     }
   }
   const save = async (): Promise<void> => {
     if (draft !== null && await model.act(() => api.saveWorkflow(member, draft), model.setView)) edit(null)
   }
   const run = async (): Promise<void> => {
-    if (confirmation === null || confirmation.checkout !== checkout) return
-    const result = await model.act(() => api.run(member, confirmation.file.sha256), recordConversation)
+    if (confirmation === null || stale !== null) return
+    const result = await model.act(() => api.run(member, confirmation.file.sha256, confirmation.checkout), recordConversation)
     confirm(null)
-    if (result?.state === 'opened' && result.chatId) await open(result.chatId)
+    const chatId = submittedSetup(result)
+    if (chatId) await open(chatId)
   }
-  return { ...model, file, onboarding, draft, edit, confirmation, confirm, openChat, save, run,
+  return { ...model, file, onboarding, draft, edit, confirmation, confirm, stale, open, openChat, save, run,
     refresh: () => model.act(() => api.refresh(member), model.setView) }
+}
+
+function openedOnboarding(status?: ForgeSetupConversationStatus | null): string | null {
+  return status?.state === 'opened' ? status.chatId : null
+}
+
+function submittedSetup(status?: ForgeSetupConversationStatus | null): string | null {
+  return status?.run?.state === 'submitted' ? status.run.chatId : null
 }
 
 function runAlreadyRequested(run: ForgeSetupConversationStatus['run'], sha256: string): boolean {
@@ -162,7 +186,7 @@ function runAlreadyRequested(run: ForgeSetupConversationStatus['run'], sha256: s
 
 function OnboardingButton({ model }: { model: ReturnType<typeof useSetupActions> }): JSX.Element | null {
   const state = model.onboarding?.state
-  if (model.onboarding?.chatId) return <Button size="sm" disabled={model.busy} onClick={() => void model.openChat()}>Open onboarding</Button>
+  if (openedOnboarding(model.onboarding)) return <Button size="sm" disabled={model.busy} onClick={() => void model.openChat()}>Open onboarding</Button>
   if (model.view === null || state === 'preparing' || state === 'uncertain') return null
   return <Button size="sm" disabled={model.busy} onClick={() => void model.openChat()}>Prepare with agent</Button>
 }
@@ -175,8 +199,10 @@ function setupTarget(model: ReturnType<typeof useSetupActions>, checkout: string
 function SetupButtons({ model, checkout }: { model: ReturnType<typeof useSetupActions>; checkout: string | null }): JSX.Element {
   const { file, busy } = model
   const target = setupTarget(model, checkout)
+  const execution = submittedSetup(model.onboarding)
   return <div className="button-row">
     <OnboardingButton model={model} />
+    {execution && <Button size="sm" disabled={busy} onClick={() => void model.open(execution)}>Open setup chat</Button>}
     {file && <Button size="sm" disabled={busy} onClick={() => model.edit(initialDraft(file))}>Edit workflow</Button>}
     <Button size="sm" disabled={busy} onClick={() => void model.refresh()}>Refresh requirements</Button>
     <Button size="sm" variant="primary" disabled={busy || target === null} onClick={() => model.confirm(target)}>Set up environment</Button>
@@ -207,7 +233,7 @@ export function ProjectSetupPanel(props: Props): JSX.Element {
     <SetupButtons model={model} checkout={checkout} />
     {draft && <WorkflowEditor draft={draft} currentSha={file?.sha256} busy={busy} error={error}
       update={model.edit} onSave={() => void model.save()} onClose={closeEditor} />}
-    {confirmation && checkout === confirmation.checkout && <SetupConfirmation revision={confirmation.file.value.revision}
-      checkout={checkout} busy={busy} onClose={closeConfirmation} onRun={() => void model.run()} />}
+    {confirmation && <SetupConfirmation revision={confirmation.file.value.revision} checkout={confirmation.checkout}
+      busy={busy} stale={model.stale} onClose={closeConfirmation} onRun={() => void model.run()} />}
   </section>
 }
