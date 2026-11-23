@@ -9,6 +9,7 @@ export const FORGE_RECIPEBOOK_BYTES = 256 * 1024
 
 const credentials = /(?:https?:\/\/[^/\s]+@|\b(?:gh[pousr]_|github_pat_)[a-z0-9_]{16,}|\bbearer\s+[a-z0-9._-]{16,}|-----BEGIN [^-]*PRIVATE KEY-----|(?:^|[\s;&])(?:[A-Z0-9_]*(?:TOKEN|PASSWORD|SECRET|API_KEY))\s*=\s*['"]?[a-z0-9][a-z0-9_./+-]*)/i
 const privatePath = /(?:[a-z]:[\\/]users[\\/]|(?:^|[\s='"])[/](?:users|home)\/[^/\s]+|file:\/\/)/i
+const absoluteArgumentPath = /(?:^|[\s="'(,;])(?:[a-z]:)?[\\/]/i
 const device = /^(?:con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(?:\.|$)/i
 const shell = /^(?:sh|bash|dash|zsh|fish|ksh|cmd|command|powershell|pwsh|wsl)(?:\.(?:exe|cmd|bat|ps1))?$/i
 
@@ -21,7 +22,7 @@ function portablePath(value: string): boolean {
 const text = (max: number) => z.string().max(max)
   .refine((value) => !credentials.test(value) && !privatePath.test(value) && !value.includes('\0'))
 const requiredText = (max: number) => text(max).refine((value) => value.trim().length > 0)
-const id = z.string().regex(/^[a-z0-9][a-z0-9.-]{0,63}$/)
+export const forgeSetupId = z.string().regex(/^[a-z0-9][a-z0-9.-]{0,63}$/)
 const digest = z.string().regex(/^[a-f0-9]{64}$/)
 const gitDigest = z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/)
 const repository = z.string().max(300).refine((value) => {
@@ -31,14 +32,14 @@ const source = z.strictObject({ repository, commit: gitDigest })
 const path = text(240).refine(portablePath)
 const platforms = z.array(z.enum(['win32', 'darwin', 'linux'])).min(1).max(3)
   .refine((items) => new Set(items).size === items.length).optional()
-const stepIdentity = { id, title: requiredText(120), platforms }
+const stepIdentity = { id: forgeSetupId, title: requiredText(120), platforms }
 const steps = z.array(z.discriminatedUnion('kind', [
   z.strictObject({
     ...stepIdentity,
     kind: z.literal('command'),
     cwd: z.union([z.literal('.'), path]),
     program: text(64).refine((value) => /^[a-z0-9][a-z0-9._+-]*$/i.test(value) && !shell.test(value) && !device.test(value)),
-    args: z.array(text(512)).max(24)
+    args: z.array(text(512).refine((value) => !absoluteArgumentPath.test(value))).max(24)
   }),
   z.strictObject({ ...stepIdentity, kind: z.literal('instruction'), instruction: requiredText(4096) })
 ])).max(32).refine((items) => new Set(items.map((step) => step.id)).size === items.length)
@@ -66,7 +67,7 @@ const workflow = z.strictObject({
   version: z.literal(1),
   repository,
   revision: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
-  recipeId: id.optional(),
+  recipeId: forgeSetupId.optional(),
   detection,
   workflow: z.strictObject({ state: z.enum(['needs-discovery', 'configured']), basedOn: digest.nullable(), steps }),
   notes: text(8192).optional()
@@ -84,11 +85,11 @@ const assets = z.array(z.strictObject({ source: path, target: path, sha256: dige
 const recipebook = z.strictObject({
   version: z.literal(1),
   recipes: z.array(z.strictObject({
-    id, source, assets, steps,
+    id: forgeSetupId, source, assets, steps,
     title: requiredText(120),
     description: requiredText(1024),
     kind: z.enum(['world', 'scaffold', 'conversion']),
-    baseRecipeId: id.optional(),
+    baseRecipeId: forgeSetupId.optional(),
     notes: text(8192).optional()
   })).max(24)
 }).refine((value) => {

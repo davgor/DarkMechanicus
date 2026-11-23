@@ -77,6 +77,48 @@ const nodeVersion = /^(?:v?\d{1,3}(?:\.\d{1,3}){0,2}|(?:lts\/(?:\*|[a-z]{2,20})|
 const managerVersion = /^(npm|yarn|pnpm|bun)@(\d+\.\d+\.\d+(?:-(?:alpha|beta|rc|next)[\d.-]*)?)(?:\+sha(?:224|256|384|512)\.[a-f0-9]{56,128})?$/i
 const scriptName = /^(?:build|test|dev|start|lint|typecheck|verify|check|package|preview)(?::[a-z0-9.-]{1,24})?$/i
 
+type Version = [major: number, minor: number, patch: number]
+interface ReleasePrefix {
+  start: Version
+  end: Version
+}
+
+function numericPrefix(value: string): ReleasePrefix | null {
+  const match = /^v?(0|[1-9]\d{0,2})(?:\.(0|[1-9]\d{0,2})(?:\.(0|[1-9]\d{0,2}))?)?$/i.exec(value)
+  if (!match) return null
+  const major = Number(match[1])
+  const minor = Number(match[2] ?? '0')
+  const patch = Number(match[3] ?? '0')
+  const end: Version = match[2] === undefined ? [major + 1, 0, 0] :
+    match[3] === undefined ? [major, minor + 1, 0] : [major, minor, patch + 1]
+  return { start: [major, minor, patch], end }
+}
+
+function compareVersion(a: Version, b: Version): number {
+  return a[0] - b[0] || a[1] - b[1] || a[2] - b[2]
+}
+
+function disjointFromComparison(pin: ReleasePrefix, bound: ReleasePrefix, operator: string | undefined): boolean {
+  switch (operator) {
+    case '>=': return compareVersion(pin.end, bound.start) <= 0
+    case '>': return compareVersion(pin.end, bound.end) <= 0
+    case '<=': return compareVersion(pin.start, bound.end) >= 0
+    case '<': return compareVersion(pin.start, bound.start) >= 0
+    default: return compareVersion(pin.end, bound.start) <= 0 || compareVersion(pin.start, bound.end) >= 0
+  }
+}
+
+/** Prove conflicts for single numeric comparators. Keep compound ranges and moving aliases as evidence. */
+function nodePinsAgree(facts: ForgeSetupFact[], pins: Set<string>): boolean {
+  if (pins.size > 1) return false
+  const engine = facts.find((fact) => fact.kind === 'node' && fact.source === 'package.json')
+  const comparison = /^(>=|<=|>|<|=)?\s*(v?[\d.]+)$/i.exec(engine?.value ?? '')
+  if (!comparison) return true
+  const bound = numericPrefix(comparison[2])
+  const pin = numericPrefix(pins.values().next().value ?? '')
+  return !bound || !pin || !disjointFromComparison(pin, bound, comparison[1])
+}
+
 function addPackagePins(pkg: Record<string, unknown>, facts: ForgeSetupFact[]): boolean {
   const node = record(pkg.engines)?.node
   if (node !== undefined) {
@@ -127,7 +169,7 @@ function addNodePins(files: Map<string, string>, facts: ForgeSetupFact[]): boole
     facts.push({ kind: 'node', value: matches[0], source: path })
     pins.add(matches[0].toLowerCase().replace(/^v(?=\d)/, ''))
   }
-  return pins.size <= 1
+  return nodePinsAgree(facts, pins)
 }
 
 function addLockFacts(entries: Map<string, ForgeSetupTreeEntry>, facts: ForgeSetupFact[]): boolean {

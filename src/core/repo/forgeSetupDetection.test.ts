@@ -72,6 +72,26 @@ it('keeps an oversized numeric package-manager version out of portable facts', a
 })
 
 it.each([
+  { engine: '>=24', pin: '18', status: 'ambiguous' },
+  { engine: '<22.10', pin: '22.10.0', status: 'ambiguous' },
+  { engine: '>22', pin: '22', status: 'ambiguous' },
+  { engine: '<=22.9', pin: '22.9.1', status: 'detected' },
+  { engine: '24.1', pin: '24.2', status: 'ambiguous' },
+  { engine: '>=22.12', pin: '22', status: 'detected' },
+  { engine: '>=24', pin: 'lts/*', status: 'detected' },
+  { engine: '>=24 || <20', pin: '18', status: 'detected' }
+] as const)('retains $engine and $pin evidence without guessing pin overlap ($status)', async ({ engine, pin, status }) => {
+  const { reader } = fixture({
+    'package.json': JSON.stringify({ engines: { node: engine } }), '.nvmrc': pin + '\n'
+  })
+  const result = await discoverForgeSetup(repository, reader)
+  expect(result).toMatchObject({ status, source: { repository, commit }, facts: [
+    { kind: 'node', value: engine, source: 'package.json' }, { kind: 'node', value: pin, source: '.nvmrc' }
+  ] })
+  if (status === 'ambiguous') expect(result).toMatchObject({ reason: 'conflicting-requirements' })
+})
+
+it.each([
   { mode: '120000', type: 'blob', size: 12, reason: 'invalid-descriptor' },
   { mode: '160000', type: 'commit', size: 12, reason: 'invalid-descriptor' },
   { mode: '100644', type: 'blob', size: 999_999, reason: 'descriptor-limits' }
