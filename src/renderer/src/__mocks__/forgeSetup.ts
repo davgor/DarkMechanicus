@@ -10,7 +10,7 @@ export const forgeWorld = folderView({
 export const forgeMember = folderView({ path: '/tickets/world/Alpha', name: 'Alpha', forgeParent: forgeWorld.path })
 export const repository = 'https://github.com/fixture/alpha.git'
 export const codePath = '/code/alpha'
-export const checkoutRevision = 'a'.repeat(40)
+const checkoutRevision = 'a'.repeat(40)
 export const workflowHash = 'b'.repeat(64)
 export const recipebookHash = 'c'.repeat(64)
 
@@ -20,7 +20,7 @@ export const reactRecipe: ForgeRecipe = {
   assets: [], steps: [{ id: 'verify', kind: 'command', title: 'Build the project', cwd: '.', program: 'npm', args: ['run', 'build'] }]
 }
 
-export const electronRecipe: ForgeRecipe = {
+const electronRecipe: ForgeRecipe = {
   ...reactRecipe, id: 'electron', title: 'Electron', kind: 'conversion', description: 'Convert a React app to Electron.'
 }
 
