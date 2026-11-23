@@ -192,6 +192,14 @@ World-level agents can also use the per-project `dm --repo … --token-file …`
 
 Every Forge agent launch receives the current `forge-world.json` repository map and the portable `FORGE-REPOSITORIES.md` directions. Each manifest entry identifies a ticket folder and its GitHub code repository URL. An existing `.darkmechanicus/local/source-checkout.json` can supply a machine-local checkout hint; the agent verifies its Git origin before use. On a second computer, it clones a missing repository into a separate code directory only when the task needs that code. Opening a world does not clone every linked repository. Code edits and tests belong in the code checkout; Dark Mechanicus commands stay pinned to the ticket folder.
 
+### Preparing and running setup
+
+The world's `forge-recipes.yaml` contains portable recipes. Each member's `.darkmechanicus/knowledge/forge-setup/workflow.yaml` contains its detected prerequisites, source revision, agreed steps and notes. The adjacent `guide.md` explains what the data means on another machine. A configured workflow records the agreed steps. The execution conversation records this machine's build, tests and launch observations.
+
+Import starts one combined setup and Delivery Standards preparation conversation when its configured agent is available. The agent starts from an app-managed directory with its normal planner grant scoped to the ticket project. After the person agrees, the agent may edit only that member's setup `workflow.yaml`. It keeps generated repository and evidence fields, advances the revision, and re-reads the file immediately before saving. Resolve a changed revision with the person. Direct editing has no atomic revision check across editors. Use the desktop workflow editor when you need a save checked against an expected revision. Delivery Standards still use their normal command, revision and approval.
+
+**Set up environment** asks the same configured provider to execute the reviewed workflow in a linked execution conversation. It starts in the verified code checkout with a ticket-member grant. Its launch is bound to the confirmed checkout and workflow digest. Ambiguous delivery stays visible on the existing receipt. Opening the execution transcript cannot launch an installer again.
+
 ### Continuous Forge World sync
 
 Forge World repositories stay on `main`; member **code** repositories keep their normal branch workflow. Opening or syncing an older off-main world preserves its portable edits in a commit, switches to (or creates) `main`, and merges the preserved work. A conflict stays on `main` for repair; sync never discards work or force-pushes. The app's branch controls cannot create or switch a Forge World to another branch.

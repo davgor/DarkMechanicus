@@ -226,6 +226,9 @@ class ForgeSetupOnboarding {
     const code = this.deps.resolveCheckout(member)
     if (code.root !== expectedCheckout) throw new Error('The verified code checkout changed. Review and confirm its location before starting setup.')
     const intent = this.getIntent(member)
+    if (intent.execution?.sha256 === file.sha256 && intent.execution.checkout !== code.root) {
+      throw new Error('The existing setup receipt for this workflow belongs to another checkout.')
+    }
     if (this.active.has(member.identity)) return this.status(intent, 'Wait for the existing Forge setup request to settle.')
     return this.track(member.identity, this.runWorkflow(member, intent, file, code))
   }
@@ -377,13 +380,18 @@ class ForgeSetupOnboarding {
 
   private status(intent: SetupIntent, override?: string): ForgeSetupConversationStatus {
     const author = intent.onboarding
-    const delivery = this.delivery(intent, author, 'onboarding')
-    const pending = this.isPending(author)
     const chat = this.find(intent, author, 'onboarding')
-    const state = delivery === 'submitted' && chat !== undefined ? 'opened' : pending ? 'preparing'
-      : delivery === 'attempted' ? 'uncertain' : 'needs-attention'
+    const state = this.authoringState(intent, chat)
     return { state, chatId: chat?.id ?? author.chatId, run: this.runStatus(intent),
       message: override ?? author.message ?? intent.execution?.message ?? this.authoringMessage(state, author) }
+  }
+
+  private authoringState(intent: SetupIntent, chat: ChatRecord | undefined): ForgeSetupConversationStatus['state'] {
+    const author = intent.onboarding
+    const delivery = this.delivery(intent, author, 'onboarding')
+    if (delivery === 'submitted' && chat !== undefined) return 'opened'
+    if (this.isPending(author)) return 'preparing'
+    return delivery === 'attempted' ? 'uncertain' : 'needs-attention'
   }
 
   private authoringMessage(state: ForgeSetupConversationStatus['state'], author: SetupDelivery): string | null {
@@ -408,12 +416,7 @@ class ForgeSetupOnboarding {
     const tag = chat.forgeSetup
     if (tag === undefined) throw new Error('Forge setup launch authority is unavailable.')
     if (tag.mode === 'execution' && authorization === undefined) throw new Error('This installer conversation starts only from the explicit setup action.')
-    const member = this.deps.resolveMember(chat.folder)
-    const intent = this.intentFor(member)
-    if (intent?.id !== tag.intentId) throw new Error('The Forge setup intent no longer belongs to this ticket project.')
-    const receipt = tag.mode === 'onboarding' ? intent.onboarding : intent.execution
-    if (!receipt || receipt.id !== tag.stepId || receipt.chatId !== chat.id) throw new Error('The Forge setup conversation changed.')
-    this.checkChatAuthority(chat, receipt, tag.mode)
+    const { member, intent, receipt } = this.launchReceipt(chat, tag)
     const active = this.authorizations.get(receipt.id)
     if (active !== undefined && active.token === authorization && active.chatId === chat.id) return active.authorize()
     if (tag.mode === 'onboarding' && authorization === undefined && this.delivery(intent, receipt, tag.mode) === 'submitted') {
@@ -421,6 +424,16 @@ class ForgeSetupOnboarding {
       return this.authoringDirectory(intent)
     }
     throw new Error('Open the Forge setup controls to review this existing conversation. Its prompt was not replayed.')
+  }
+
+  private launchReceipt(chat: ChatRecord, tag: ChatTag) {
+    const member = this.deps.resolveMember(chat.folder)
+    const intent = this.intentFor(member)
+    if (intent?.id !== tag.intentId) throw new Error('The Forge setup intent no longer belongs to this ticket project.')
+    const receipt = tag.mode === 'onboarding' ? intent.onboarding : intent.execution
+    if (!receipt || receipt.id !== tag.stepId || receipt.chatId !== chat.id) throw new Error('The Forge setup conversation changed.')
+    this.checkChatAuthority(chat, receipt, tag.mode)
+    return { member, intent, receipt }
   }
 }
 

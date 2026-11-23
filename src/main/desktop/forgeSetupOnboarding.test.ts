@@ -12,6 +12,12 @@ import { createForgeSetupOnboarding, type ForgeSetupMember } from './forgeSetupO
 const cleanup: Array<() => void> = []
 afterEach(() => { for (const close of cleanup.splice(0)) close() })
 
+function configureWorkflow(member: string, repository: string, detection: ForgeSetupDetection) {
+  const value = refreshForgeSetupWorkflow(member, repository, detection)
+  return saveForgeSetupWorkflow(member, { expectedSha256: value.sha256, workflow: { state: 'configured',
+    steps: [{ id: 'dependencies', title: 'Install agreed dependencies', kind: 'command', cwd: '.', program: 'npm', args: ['ci'] }] } })
+}
+
 function fixture() {
   const scratch = scratchDir('forge-onboarding-')
   cleanup.push(scratch.cleanup)
@@ -56,11 +62,7 @@ function fixture() {
     store.updateChat(chat, { firstPromptDelivery: 'submitted' })
     return { state: 'running', pid: 400 }
   })
-  const configure = () => {
-    const value = refreshForgeSetupWorkflow(member, repository, detection)
-    return saveForgeSetupWorkflow(member, { expectedSha256: value.sha256, workflow: { state: 'configured',
-      steps: [{ id: 'dependencies', title: 'Install agreed dependencies', kind: 'command', cwd: '.', program: 'npm', args: ['ci'] }] } })
-  }
+  const configure = () => configureWorkflow(member, repository, detection)
   return { state, api, target, discover, starts, store, reopen, configure, pushed, checkout }
 }
 
@@ -106,6 +108,8 @@ it('binds explicit setup to reviewed YAML, canonical code and a separately guard
   expect(execution).toMatchObject({ role: 'planner', allowSave: false, firstPrompt: expect.stringContaining(workflow.sha256) })
   expect(() => f.reopen().assertLaunch(execution)).toThrow('explicit setup')
   expect(await f.reopen().run(f.target.member, workflow.sha256, f.checkout)).toEqual(setup)
+  f.state.checkout += '-moved'
+  await expect(f.reopen().run(f.target.member, workflow.sha256, f.state.checkout)).rejects.toThrow('receipt for this workflow belongs to another checkout')
   expect(f.starts).toHaveBeenCalledTimes(2)
 })
 

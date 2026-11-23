@@ -26,9 +26,13 @@ function allowedDirectories(files: Map<string, string>): Set<string> {
 function checkDirectory(root: string, files: Map<string, string>, directories: Set<string>, parent = ''): void {
   for (const entry of readdirSync(join(root, parent), { withFileTypes: true })) {
     const path = parent ? parent + '/' + entry.name : entry.name
-    if (parent === '' && path === '.git' && entry.isDirectory() && !entry.isSymbolicLink()) continue
-    if (entry.isDirectory() && !entry.isSymbolicLink() && directories.has(path)) checkDirectory(root, files, directories, path)
-    else if (!entry.isFile() || entry.isSymbolicLink() || !files.has(path)) throw new Error('The scaffold directory contains an unexpected file or folder.')
+    if (entry.isDirectory()) {
+      if (path === '.git') continue
+      if (!directories.has(path)) throw new Error('The scaffold directory contains an unexpected folder.')
+      checkDirectory(root, files, directories, path)
+    } else if (!entry.isFile() || !files.has(path)) {
+      throw new Error('The scaffold directory contains an unexpected file.')
+    }
   }
 }
 
