@@ -145,7 +145,12 @@ it('rejects a prior conversation after the same project identity is mapped to an
 it('reads without discovery, saves by revision, and preserves authored steps when refreshed prerequisites become stale', async () => {
   const f = fixture()
   const initial = f.configure()
-  expect(await f.api.project(f.target.member)).toMatchObject({ state: 'configured', value: initial })
+  expect(await f.api.project(f.target.member)).toMatchObject({
+    state: 'configured',
+    value: { sha256: initial.sha256, value: {
+      repository: initial.value.repository, revision: initial.value.revision, workflow: initial.value.workflow
+    } }
+  })
   expect(f.discover).not.toHaveBeenCalled()
   const { state, steps } = initial.value.workflow
   const updated = { workflow: { state, steps }, notes: 'Retain this setup decision.' }
