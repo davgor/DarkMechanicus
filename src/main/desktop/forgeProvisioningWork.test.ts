@@ -1,15 +1,14 @@
-import { execFileSync, type ChildProcess } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
-import { afterEach, beforeAll, expect, it, onTestFailed, vi } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { readLocalGitOrigin } from '../../core/repo/git'
 import { readForgeRecipebook, readForgeSetupWorkflow } from '../../core/repo/forgeSetupStorage'
 import { openWorkspace } from '../../core/workspace'
 import type { ForgeProvisionStatus } from '../../shared/desktop/forgeSetup'
 import { gitIn, scratchDir } from '../../test/gitScratch'
-import { createGitRunner, type GitRunRequest } from '../git/runner'
+import { createGitRunner } from '../git/runner'
 import { createTestWorkspacePool } from './__mocks__/projectWorkspaceFixture'
 import { createFolderRegistry } from './folderRegistry'
 import { ForgeGit } from './forgeGit'
@@ -18,101 +17,6 @@ import type { ForgeProvisionIntent } from './forgeProvisioning'
 import { createForgeProvisioningWork } from './forgeProvisioningWork'
 import type { ForgePublishedRepository } from './forgePublish'
 import { startForge } from './forgeService'
-
-const trace = vi.hoisted(() => ({ start: 0, spans: [] as Array<{ name: string; start: number; end?: number }> }))
-
-function span(name: string): () => void {
-  const start = trace.start
-  const timing: typeof trace.spans[number] = { name, start: Math.round(performance.now() - start) }
-  trace.spans.push(timing)
-  return () => { timing.end = Math.round(performance.now() - start) }
-}
-
-function reportTrace(test: string, reason: string): void {
-  const open = trace.spans.filter(timing => timing.end === undefined)
-  const slow = trace.spans.filter(timing => (timing.end ?? 0) - timing.start > 250)
-  const phases = trace.spans.filter(timing => !timing.name.startsWith('git:') && !timing.name.startsWith('guard:'))
-  const git = trace.spans.filter(timing => timing.name.startsWith('git:'))
-  const guards = trace.spans.filter(timing => timing.name.startsWith('guard:'))
-  const gitMs = git.reduce((sum, timing) => sum + (timing.end === undefined ? 0 : timing.end - timing.start), 0)
-  const guardMs = guards.reduce((sum, timing) => sum + (timing.end === undefined ? 0 : timing.end - timing.start), 0)
-  const commands: Record<string, { count: number; sumMs: number; maxMs: number }> = {}
-  for (const timing of git) {
-    const entry = commands[timing.name] ??= { count: 0, sumMs: 0, maxMs: 0 }
-    const elapsed = (timing.end ?? timing.start) - timing.start
-    entry.count++
-    entry.sumMs += elapsed
-    entry.maxMs = Math.max(entry.maxMs, elapsed)
-  }
-  process.stdout.write(JSON.stringify({ test, reason, wallMs: Math.round(performance.now() - trace.start), gitStarts: git.length, gitMs,
-    guardMs, commands, phases, open, slow }) + '\n')
-}
-
-function gitLabel(args: readonly string[]): string {
-  return args.find(arg => ['init', 'remote', 'rev-parse', 'ls-files', 'rev-list', 'ls-tree', 'add', 'commit',
-    'status', 'ls-remote', 'push', 'update-ref', 'branch', 'symbolic-ref', 'fetch', 'merge', 'diff', 'var', 'log', 'config'].includes(arg)) ?? '?'
-}
-
-function timedGuard(request: GitRunRequest): GitRunRequest {
-  const verify = request.beforeStart
-  if (verify === undefined) return request
-  return { ...request, beforeStart: () => {
-    const end = span('guard:' + gitLabel(request.args))
-    try { verify() }
-    finally { end() }
-  } }
-}
-
-function tracedChild(name: string, open: () => ChildProcess): ChildProcess {
-  const end = span(name)
-  try {
-    const child = open()
-    child.once('close', end)
-    return child
-  } catch (error) {
-    end()
-    throw error
-  }
-}
-
-vi.mock('node:child_process', async importOriginal => {
-  const actual = await importOriginal<typeof import('node:child_process')>()
-  return { ...actual,
-    execFileSync(command: string, args: string[], options: unknown) {
-      const end = span('git:sync:' + gitLabel(args))
-      try { return Reflect.apply(actual.execFileSync, undefined, [command, args, options]) }
-      finally { end() }
-    },
-    spawn(command: string, args: readonly string[], options: unknown) {
-      return tracedChild('git:child:' + gitLabel(args), () => Reflect.apply(actual.spawn, undefined, [command, args, options]))
-    },
-    execFile(command: string, args: readonly string[], ...options: unknown[]) {
-      return tracedChild('git:exec:' + gitLabel(args), () => Reflect.apply(actual.execFile, undefined, [command, args, ...options]))
-    }
-  }
-})
-
-async function timed<T>(name: string, effect: () => T | Promise<T>): Promise<T> {
-  const end = span(name)
-  try { return await effect() }
-  finally { end() }
-}
-
-afterEach(({ task }) => reportTrace(task.name, 'finished'))
-
-beforeAll(() => {
-  const pathKeys = Object.keys(process.env).filter(key => key.toUpperCase() === 'PATH')
-  if (process.platform !== 'win32') return
-  try {
-    const options = { encoding: 'utf8' as const, windowsHide: true, timeout: 3000 }
-    const resolved = execFileSync('where.exe', ['git.exe'], options)
-    const execPath = execFileSync('git', ['--exec-path'], options).trim()
-    process.stdout.write(JSON.stringify({ probe: 'worker Git resolution', pathKeys, git: resolved.trim().split(/\r?\n/),
-      execPath, execPathHasGit: existsSync(join(execPath, 'git.exe')) }) + '\n')
-  } catch (error) {
-    process.stdout.write(JSON.stringify({ probe: 'worker Git resolution', pathKeys, error: (error as NodeJS.ErrnoException).code }) + '\n')
-  }
-})
 
 vi.mock('../../core/repo/git', async importOriginal => {
   const actual = await importOriginal<typeof import('../../core/repo/git')>()
@@ -157,7 +61,6 @@ function fixtureRunner(remoteRoot: string) {
   }
   const runner: NonNullable<Parameters<typeof startForge>[1]['runner']> = {
     async run(request) {
-      request = timedGuard(request)
       gitCommands.push(request.args)
       if (!state.upstream && request.args.includes('--set-upstream-to=origin/main')) throw new Error('Local upstream configuration interrupted')
       if (request.kind !== 'network') return real.run(request)
@@ -177,27 +80,15 @@ function fixtureRunner(remoteRoot: string) {
   return { runner, gitCommands, network, state }
 }
 
-function tracedScratch() {
-  trace.start = performance.now()
-  trace.spans = []
-  onTestFailed(({ task }) => reportTrace(task.name, 'failed'))
-  const allocated = scratchDir('forge-provision-native-adapter-')
-  return { ...allocated, cleanup() {
-    const end = span('scratch cleanup (sync)')
-    try { allocated.cleanup() }
-    finally { end() }
-  } }
-}
-
 function fixture() {
-  const scratch = tracedScratch()
+  const scratch = scratchDir('forge-provision-native-adapter-')
   const home = join(scratch.path, 'home')
   const destination = join(scratch.path, 'code')
   mkdirSync(destination)
   const registry = createFolderRegistry({ file: join(home, 'folders.json'), dmHome: home, homeDir: home })
   const pool = createTestWorkspacePool(repoRoot => openWorkspace({ repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Fixture' }), home)
   const handlers = new Map<string, Parameters<IpcMain['handle']>[1]>()
-  const invoke = async (name: string, ...args: unknown[]) => timed(name, () => handlers.get(name)!({} as IpcMainInvokeEvent, ...args))
+  const invoke = async (name: string, ...args: unknown[]) => handlers.get(name)!({} as IpcMainInvokeEvent, ...args)
   const { account, remotes, created, publisher, creation } = fixturePublisher(scratch.path)
   const { runner, gitCommands, network, state } = fixtureRunner(scratch.path)
   const notified: string[] = []
@@ -224,11 +115,7 @@ function fixture() {
   })
   const tick = appTimer.mock.calls.find(([, interval]) => interval === 15_000)?.[0]
   appTimer.mockRestore()
-  const close = async () => {
-    await timed('forge stop', () => forge.stop())
-    await timed('workspace owner closeAll', () => pool.closeAll())
-    scratch.cleanup()
-  }
+  const close = async () => { await forge.stop(); await pool.closeAll(); scratch.cleanup() }
   return { scratch, home, destination, registry, pool, remotes, created, creation, discovery, notified, gitCommands, network, state,
     forge, invoke, tick, close, session, runner, publisher }
 }
