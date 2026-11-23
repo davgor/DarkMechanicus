@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync, lstatSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import {
+  FORGE_RECIPEBOOK_FILE, FORGE_SETUP_DIRECTORY, FORGE_SETUP_GUIDE_FILE, FORGE_SETUP_WORKFLOW_FILE
+} from '../../shared/desktop/forgeSetup'
 
 export const FORGE_DIRECTIONS = 'FORGE-REPOSITORIES.md'
 
@@ -15,10 +18,19 @@ const legacyGuidance = [
   'Opening this Forge World does not download every code repository. The agent clones only the repositories needed for the current task.'
 ].join('\n\n')
 
-/** Portable guidance reads the manifest instead of duplicating links that can become stale. */
-export const FORGE_REPOSITORY_GUIDANCE = legacyGuidance + '\n\nKeep this Forge World repository on main. Do not create or switch ticket-world branches. Feature branches and worktrees belong in the code checkout; the desktop commits, pulls and pushes this world on main.'
+const previousGuidance = legacyGuidance + '\n\nKeep this Forge World repository on main. Do not create or switch ticket-world branches. Feature branches and worktrees belong in the code checkout; the desktop commits, pulls and pushes this world on main.'
+const setupPath = '<member>/.darkmechanicus/knowledge/' + FORGE_SETUP_DIRECTORY + '/'
 
-const start = '<!-- darkmechanicus:forge-repositories:v1:start -->'
+/** Portable guidance reads the current manifest and member records from any checkout of the world. */
+export const FORGE_REPOSITORY_GUIDANCE = [
+  previousGuidance,
+  'Read `' + FORGE_RECIPEBOOK_FILE + '` at the Forge World root for the portable recipe book. For each project, read `' +
+    setupPath + FORGE_SETUP_GUIDE_FILE + '` and `' + setupPath + FORGE_SETUP_WORKFLOW_FILE + '` for its setup requirements and ordered steps.',
+  'If the workflow is missing or stale, use Prepare with agent or Open onboarding in Dark Mechanicus. That project conversation covers both the setup workflow and Delivery Standards.',
+  'A configured workflow records agreed steps. Verify the environment on this computer in the separate code checkout. Wait for the user to choose Run setup before executing the steps.'
+].join('\n\n')
+
+const start = '<!-- darkmechanicus:forge-repositories:v2:start -->'
 const end = '<!-- darkmechanicus:forge-repositories:end -->'
 const managed = /<!-- darkmechanicus:forge-repositories:v\d+:start -->[\s\S]*?<!-- darkmechanicus:forge-repositories:end -->/g
 
@@ -29,7 +41,7 @@ function currentDirections(existing: string): string {
     if (matches?.length !== 1 || existing.replace(managed, '').includes('<!-- darkmechanicus:forge-repositories:')) throw new Error('The Forge World directions have a malformed managed section. Repair its markers before updating.')
     return existing.replace(managed, block)
   }
-  const unmarked = [legacyGuidance, FORGE_REPOSITORY_GUIDANCE].map(text => '# Forge World repositories\n\n' + text + '\n')
+  const unmarked = [legacyGuidance, previousGuidance].map(text => '# Forge World repositories\n\n' + text + '\n')
   if (unmarked.includes(existing.replace(/\r\n/g, '\n')) || existing === '') return '# Forge World repositories\n\n' + block + '\n'
   return existing + '\n\n' + block + '\n'
 }

@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { writeTerminalFiles } from '../terminals/terminalFiles'
 import { createForge, updateForge } from './forgeManifest'
 import { forgeAgentContext, forgeReachFolders } from './forgeContext'
 import { ensureForgeDirections, FORGE_DIRECTIONS } from './forgeDirections'
@@ -17,21 +18,39 @@ beforeEach(() => {
 })
 afterEach(() => rmSync(root, { recursive: true, force: true }))
 
-describe('Forge agent repository context', () => {
-  it('describes a fresh machine from both root and member without cloning code or requiring a local binding', () => {
-    for (const folder of [root, member]) {
-      const text = forgeAgentContext(folder)
-      expect(text).toContain('https://github.com/example/source-code.git')
-      expect(text).toContain(JSON.stringify(member))
-      expect(text).toContain('only when the task needs its code')
-      expect(text).toContain('outside the Forge World')
-      expect(text).toContain('git clone --')
-      expect(text).not.toContain('Local code checkout:')
+it('writes ordinary root and member terminal instructions without cloning code or requiring a local binding', async () => {
+  ensureForgeDirections(root)
+  const guide = join(root, FORGE_DIRECTIONS)
+  const applicationData = join(root, 'fixture-user-data')
+  for (const folder of [root, member]) {
+    const world = folder === root
+    const cli = {
+      command: process.execPath,
+      args: [join(applicationData, 'cli.js'), ...(world ? [] : ['--repo', member])],
+      env: {}
     }
-    expect(existsSync(join(root, 'source-code'))).toBe(false)
-    expect(existsSync(join(root, '.darkmechanicus'))).toBe(false)
-  })
+    const files = await writeTerminalFiles({
+      userData: applicationData, chatId: world ? 'ch_world' : 'ch_member', platform: 'win32', folder,
+      cli, role: 'planner', allowSave: false, orchestratesRun: false, ...(world ? { reach: [] } : {})
+    })
+    const text = readFileSync(files.instructions, 'utf8')
+    expect(text).toContain('https://github.com/example/source-code.git')
+    expect(text).toContain(JSON.stringify(member))
+    expect(text).toContain('only when the task needs its code')
+    expect(text).toContain('outside the Forge World')
+    expect(text).toContain('git clone --')
+    expect(text).toContain(JSON.stringify(guide))
+    expect(text).toContain('forge-recipes.yaml')
+    expect(text).toContain('<member>/.darkmechanicus/knowledge/forge-setup/workflow.yaml')
+    expect(text).toContain('Delivery Standards')
+    expect(text).not.toContain('Local code checkout:')
+  }
+  expect(readFileSync(guide, 'utf8')).toContain('forge-recipes.yaml')
+  expect(existsSync(join(root, 'source-code'))).toBe(false)
+  expect(existsSync(join(root, '.darkmechanicus'))).toBe(false)
+})
 
+describe('Forge agent repository context', () => {
   it('uses a valid machine-local checkout hint, ignores a stale or ticket-store hint, and never exports it', () => {
     const checkout = join(root, '..', 'code-' + root.split(/[\\/]/).at(-1))
     mkdirSync(checkout)
