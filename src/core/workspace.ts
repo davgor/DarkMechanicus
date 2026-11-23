@@ -792,6 +792,10 @@ export class RepositoryWorkspace implements WorkspaceCore {
     if (this.options.mailPoll === true) {
       return this.executePoll(name, rawInput)
     }
+    return this.executeOrdinary(name, rawInput)
+  }
+
+  private async executeOrdinary(name: CommandName, rawInput: unknown): Promise<unknown> {
     const spec = COMMANDS[name]
     // Untrusted input is validated before anything else, whatever state the repository is in.
     const input = spec.schema ? parseInput(spec.schema, rawInput ?? {}, `${name} input`) : undefined
