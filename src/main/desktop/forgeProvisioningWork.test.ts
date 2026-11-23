@@ -7,8 +7,9 @@ import { readLocalGitOrigin } from '../../core/repo/git'
 import { readForgeRecipebook, readForgeSetupWorkflow } from '../../core/repo/forgeSetupStorage'
 import { openWorkspace } from '../../core/workspace'
 import type { ForgeProvisionStatus } from '../../shared/desktop/forgeSetup'
-import { gitIn, scratchDir } from '../../test/gitScratch'
-import { createGitRunner } from '../git/runner'
+import { ForgeFixtureTiming, forgeTimingForPath, gitTimingLabel } from '../../test/forgeFixtureTiming'
+import { gitIn as realGitIn, scratchDir } from '../../test/gitScratch'
+import { createGitRunner, type GitRunRequest } from '../git/runner'
 import { createTestWorkspacePool } from './__mocks__/projectWorkspaceFixture'
 import { createFolderRegistry } from './folderRegistry'
 import { ForgeGit } from './forgeGit'
@@ -20,8 +21,16 @@ import { startForge } from './forgeService'
 
 vi.mock('../../core/repo/git', async importOriginal => {
   const actual = await importOriginal<typeof import('../../core/repo/git')>()
-  return { ...actual, readLocalGitOrigin: vi.fn(actual.readLocalGitOrigin) }
+  return { ...actual, readLocalGitOrigin: vi.fn((path: string) => {
+    const trace = forgeTimingForPath(path)
+    return trace ? trace.observe('git:sync:readLocalGitOrigin', () => actual.readLocalGitOrigin(path)) : actual.readLocalGitOrigin(path)
+  }) }
 })
+
+function gitIn(path: string, ...args: string[]): string {
+  const trace = forgeTimingForPath(path)
+  return trace ? trace.observe('git:fixture:' + gitTimingLabel(args), () => realGitIn(path, ...args)) : realGitIn(path, ...args)
+}
 
 function fixturePublisher(remoteRoot: string) {
   const account = { id: 117, login: 'example' }
@@ -48,8 +57,15 @@ function fixturePublisher(remoteRoot: string) {
   return { account, remotes, created, publisher, creation }
 }
 
-function fixtureRunner(remoteRoot: string) {
+function fixtureRunner(remoteRoot: string, trace: ForgeFixtureTiming) {
   const real = createGitRunner()
+  const run = (request: GitRunRequest) => {
+    const label = `${request.kind}:${gitTimingLabel(request.args)}`
+    return trace.observe('git:run:' + label, () => real.run({ ...request, beforeStart: () => {
+      trace.mark('git:beforeStart:' + label)
+      if (request.beforeStart) trace.observe('git:guard:' + label, request.beforeStart)
+    } }))
+  }
   const network: string[] = []
   const gitCommands: (readonly string[])[] = []
   const state = { offline: false, codePush: 'normal' as 'normal' | 'unreceived' | 'lost-response', upstream: true, codePushes: 0,
@@ -63,7 +79,7 @@ function fixtureRunner(remoteRoot: string) {
     async run(request) {
       gitCommands.push(request.args)
       if (!state.upstream && request.args.includes('--set-upstream-to=origin/main')) throw new Error('Local upstream configuration interrupted')
-      if (request.kind !== 'network') return real.run(request)
+      if (request.kind !== 'network') return run(request)
       if (state.offline) throw new Error('Fixture Git remote is unavailable')
       network.push(request.cwd)
       const args = request.args.map(arg => arg.startsWith('https://github.com/example/') ? join(remoteRoot, basename(arg)) : arg)
@@ -71,7 +87,7 @@ function fixtureRunner(remoteRoot: string) {
       const codePush = push && args.includes(join(remoteRoot, 'software.git'))
       if (codePush) beforeCodePush(request.cwd)
       else if (push) state.beforeWorldPush(request.cwd)
-      const result = await real.run({ ...request, args: ['-c', 'protocol.file.allow=always', ...args.filter((arg, index) =>
+      const result = await run({ ...request, args: ['-c', 'protocol.file.allow=always', ...args.filter((arg, index) =>
         arg !== 'protocol.allow=never' && args[index + 1] !== 'protocol.allow=never')] })
       if (codePush && state.codePush === 'lost-response') throw new Error('The Git server accepted the push before the response was lost')
       return result
@@ -80,20 +96,46 @@ function fixtureRunner(remoteRoot: string) {
   return { runner, gitCommands, network, state }
 }
 
+function traceForgeTimer(trace: ForgeFixtureTiming) {
+  const original = globalThis.setInterval
+  return vi.spyOn(globalThis, 'setInterval').mockImplementation((callback, delay, ...args) => original(() => {
+    if (delay === 15_000) trace.mark('timer:forge tick')
+    callback(...args)
+  }, delay))
+}
+
+function tracedScratch() {
+  const allocated = scratchDir('forge-provision-native-adapter-')
+  const trace = new ForgeFixtureTiming(allocated.path)
+  return { trace, scratch: { path: allocated.path, cleanup: () => {
+    trace.observe('fixture:scratch cleanup', allocated.cleanup)
+    trace.finished()
+  } } }
+}
+
+function traceOwnerPool(pool: ReturnType<typeof createTestWorkspacePool>, trace: ForgeFixtureTiming) {
+  const { close, closeAll } = pool
+  pool.close = path => trace.observe('fixture:owner close', () => close(path))
+  pool.closeAll = () => trace.observe('fixture:owner pool close', closeAll)
+  return pool
+}
+
 function fixture() {
-  const scratch = scratchDir('forge-provision-native-adapter-')
+  const { trace, scratch } = tracedScratch()
   const home = join(scratch.path, 'home')
   const destination = join(scratch.path, 'code')
   mkdirSync(destination)
   const registry = createFolderRegistry({ file: join(home, 'folders.json'), dmHome: home, homeDir: home })
-  const pool = createTestWorkspacePool(repoRoot => openWorkspace({ repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Fixture' }), home)
+  const pool = traceOwnerPool(createTestWorkspacePool(repoRoot =>
+    openWorkspace({ repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Fixture' }), home), trace)
   const handlers = new Map<string, Parameters<IpcMain['handle']>[1]>()
-  const invoke = async (name: string, ...args: unknown[]) => handlers.get(name)!({} as IpcMainInvokeEvent, ...args)
+  const invoke = async (name: string, ...args: unknown[]) =>
+    trace.observe('ipc:' + name, () => handlers.get(name)!({} as IpcMainInvokeEvent, ...args))
   const { account, remotes, created, publisher, creation } = fixturePublisher(scratch.path)
-  const { runner, gitCommands, network, state } = fixtureRunner(scratch.path)
+  const { runner, gitCommands, network, state } = fixtureRunner(scratch.path, trace)
   const notified: string[] = []
   const discovery = { before: () => {} }
-  const appTimer = vi.spyOn(globalThis, 'setInterval')
+  const appTimer = traceForgeTimer(trace)
   const session = { getAccount: () => account, getToken: () => 'fixture-token' }
   const forge = startForge({ handle: (key, handler) => { handlers.set(key, handler) } }, {
     home, registry, pool, session,
@@ -115,6 +157,8 @@ function fixture() {
   })
   const tick = appTimer.mock.calls.find(([, interval]) => interval === 15_000)?.[0]
   appTimer.mockRestore()
+  const stop = forge.stop
+  forge.stop = () => trace.observe('fixture:forge stop', stop)
   const close = async () => { await forge.stop(); await pool.closeAll(); scratch.cleanup() }
   return { scratch, home, destination, registry, pool, remotes, created, creation, discovery, notified, gitCommands, network, state,
     forge, invoke, tick, close, session, runner, publisher }
