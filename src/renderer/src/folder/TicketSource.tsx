@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import type { TrackedFolderView } from '../../../shared/desktop/api'
+import type { AgentView, TrackedFolderView } from '../../../shared/desktop/api'
 import type { SourceCheckoutView } from '../../../shared/desktop/sourceCheckout'
 import type { StorageStatusView } from '../../../shared/domain/views'
 import { StorageModeSwitch } from '../home/StorageModeSwitch'
+import { DefaultAgentCard } from '../home/DefaultAgentCard'
 import { callGithub } from '../api/github'
 import { useGithubAccount } from '../github/useGithubAccount'
 import { Button } from '../components/Button'
@@ -15,6 +16,7 @@ interface Props {
   folder: TrackedFolderView
   folders: readonly TrackedFolderView[]
   status: StorageStatusView | null
+  agents?: readonly AgentView[]
   initialize(mode: 'repo' | 'db'): Promise<void>
   open(path: string): Promise<void>
   onCreateCode?(): void
@@ -85,7 +87,7 @@ function WorldSetupActions({ folder, onCreateCode }: Pick<Props, 'folder' | 'onC
   </div>
 }
 
-function WorldSource({ folder, folders, open, controls, onCreateCode }: SourceProps) {
+function WorldSource({ folder, folders, open, controls, onCreateCode, agents }: SourceProps) {
   const { api, defaultName, remote, repository, search, name, setName, busy, act, selector, choice, minutes, setMinutes } = controls
   return <>
       <h3>Tracked repositories</h3>
@@ -94,6 +96,7 @@ function WorldSource({ folder, folders, open, controls, onCreateCode }: SourcePr
       <div className="button-row">{repository}{search}<label>Project folder <input value={name} placeholder={defaultName} onChange={e => setName(e.target.value)} /></label>
         <Button disabled={busy || !remote} onClick={() => void act(() => api!.add(folder.path, remote, name || defaultName))}>Add repository</Button>
       </div>
+      {window.dm.forgeSetup !== undefined && agents && <DefaultAgentCard key={folder.path} folder={folder} agents={agents} />}
       <h3>Convert a local project</h3>
       {selector(folders.filter(f => !f.forgeWorld && !f.forgeParent), 'Project')}
       <p>After the tickets reach GitHub, conversion replaces managed files in the code repository with a Forge World note.</p>

@@ -41,11 +41,12 @@ function useStoredDefault(folderPath: string): [AgentId | null | undefined, (val
 export function DefaultAgentCard({ folder, agents }: DefaultAgentCardProps): JSX.Element {
   const id = useId()
   const [stored, write] = useStoredDefault(folder.path)
+  const world = Boolean(folder.forgeWorld)
   const missing = stored != null && !agents.some((agent) => agent.id === stored)
   return (
     <section className="card" aria-labelledby={id}>
       <h2 className="card-title" id={id}>
-        Default agent
+        {world ? 'Preferred agent for new imports' : 'Default agent'}
       </h2>
       <select
         aria-labelledby={id}
@@ -62,7 +63,8 @@ export function DefaultAgentCard({ folder, agents }: DefaultAgentCardProps): JSX
         ))}
         {missing ? <option value={stored}>{`${stored} (not connected)`}</option> : null}
       </select>
-      <p className="note">New chat opens this agent&apos;s CLI; Start run chooses it first.</p>
+      {world ? <p className="note">This agent prepares setup and Delivery Standards for newly imported projects.</p> :
+        <p className="note">New chat opens this agent&apos;s CLI; Start run chooses it first.</p>}
     </section>
   )
 }

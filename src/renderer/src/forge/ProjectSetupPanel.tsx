@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { stringify } from 'yaml'
 import type { ForgeSetupApi, ForgeSetupConversationStatus, ForgeSetupDetectionReason, ForgeSetupFile,
   ForgeSetupProjectView, ForgeSetupWorkflow, ForgeSetupWorkflowEdit } from '../../../shared/desktop/forgeSetup'
@@ -138,13 +138,23 @@ function confirmationChange(target: SetupTarget, view: ForgeSetupProjectView | n
   return runAlreadyRequested(view.onboarding?.run, target.file.sha256) ? 'Setup was already requested. Check the setup chat.' : null
 }
 
+function useSetupConfirmation(view: ForgeSetupProjectView | null, checkout: string | null) {
+  const [confirmation, setTarget] = useState<SetupTarget | null>(null)
+  const [invalidated, invalidate] = useState<string | null>(null)
+  const changed = confirmation === null ? null : confirmationChange(confirmation, view, checkout)
+  useEffect(() => {
+    if (changed !== null) invalidate(previous => previous ?? changed)
+  }, [changed])
+  const confirm = (target: SetupTarget | null): void => { setTarget(target); invalidate(null) }
+  return { confirmation, confirm, stale: invalidated ?? changed }
+}
+
 function useSetupActions({ api, member, checkout, scheduler, onOpenChat }: Props) {
   const model = useForgeProjectSetup(api, member, scheduler)
   const [draft, edit] = useState<ForgeSetupWorkflowEdit | null>(null)
-  const [confirmation, confirm] = useState<SetupTarget | null>(null)
+  const { confirmation, confirm, stale } = useSetupConfirmation(model.view, checkout)
   const file = model.view?.value
   const onboarding = model.view?.onboarding
-  const stale = confirmation === null ? null : confirmationChange(confirmation, model.view, checkout)
   const recordConversation = (status: ForgeSetupConversationStatus): void => {
     model.setView(previous => previous === null ? previous : { ...previous, onboarding: status })
   }
@@ -165,7 +175,7 @@ function useSetupActions({ api, member, checkout, scheduler, onOpenChat }: Props
     if (confirmation === null || stale !== null) return
     const result = await model.act(() => api.run(member, confirmation.file.sha256, confirmation.checkout), recordConversation)
     confirm(null)
-    const chatId = submittedSetup(result)
+    const chatId = submittedSetup(result, confirmation.file.sha256)
     if (chatId) await open(chatId)
   }
   return { ...model, file, onboarding, draft, edit, confirmation, confirm, stale, open, openChat, save, run,
@@ -176,8 +186,9 @@ function openedOnboarding(status?: ForgeSetupConversationStatus | null): string 
   return status?.state === 'opened' ? status.chatId : null
 }
 
-function submittedSetup(status?: ForgeSetupConversationStatus | null): string | null {
-  return status?.run?.state === 'submitted' ? status.run.chatId : null
+function submittedSetup(status?: ForgeSetupConversationStatus | null, approvedSha?: string): string | null {
+  const run = status?.run
+  return run?.state === 'submitted' && (approvedSha === undefined || run.workflowSha256 === approvedSha) ? run.chatId : null
 }
 
 function runAlreadyRequested(run: ForgeSetupConversationStatus['run'], sha256: string): boolean {

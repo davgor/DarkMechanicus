@@ -141,6 +141,24 @@ it('keeps link-only import separate from setup while showing incomplete detectio
   expect(screen.getByRole<HTMLButtonElement>('button', { name: 'Set up environment' }).disabled).toBe(true)
 })
 
+it('stores the onboarding default on a Forge World before any imported project exists', async () => {
+  const { h, setup } = harness()
+  h.dm.folders = [forgeWorld]
+  h.mount()
+  await settle()
+  const preferred = await screen.findByRole<HTMLSelectElement>('combobox', { name: 'Preferred agent for new imports' })
+  expect(preferred.value).toBe('')
+  expect(preferred.disabled).toBe(false)
+  fireEvent.change(preferred, { target: { value: 'codex' } })
+  await settle()
+  expect(h.dm.agentCalls.filter(call => call.method === 'setFolderDefaultAgent').map(call => call.args[0])).toEqual([
+    { folder: forgeWorld.path, agentId: 'codex' }
+  ])
+  expect(preferred.value).toBe('codex')
+  expect(setup.prepare).not.toHaveBeenCalled()
+  expect(setup.run).not.toHaveBeenCalled()
+})
+
 it('offers the recorded creation intent when the first response was lost', async () => {
   const { h, setup } = harness()
   const request = { world: { kind: 'new' as const, name: 'world' } }
@@ -288,16 +306,36 @@ it('requires a fresh setup confirmation when the verified checkout changes', asy
   expect(dialog.getByText('The code checkout changed. Review the current checkout before running setup.')).toBeTruthy()
   expect(dialog.getByRole<HTMLButtonElement>('button', { name: 'Run setup' }).disabled).toBe(true)
   expect(setup.run).not.toHaveBeenCalled()
+  h.git.targets.set(forgeMember.path, { kind: 'available', path: codePath, displayPath: '~/code/alpha', repository })
+  act(() => h.scheduler.fireIntervals(5000))
+  await settle()
+  expect(dialog.getByRole<HTMLButtonElement>('button', { name: 'Run setup' }).disabled).toBe(true)
   fireEvent.click(dialog.getByRole('button', { name: 'Cancel' }))
   click('Set up environment')
   const current = within(screen.getByRole('dialog', { name: 'Set up environment' }))
-  expect(current.getByText('/code/alpha-replaced')).toBeTruthy()
+  expect(current.getByText(codePath)).toBeTruthy()
   h.dm.chats.chats.push(chatRecord({ id: 'chat_setup', folder: forgeMember.path, title: 'Run Alpha setup', agent: 'codex', role: 'planner' }))
   fireEvent.click(current.getByRole('button', { name: 'Run setup' }))
   await settle()
-  expect(setup.run).toHaveBeenCalledExactlyOnceWith(forgeMember.path, workflowHash, '/code/alpha-replaced')
+  expect(setup.run).toHaveBeenCalledExactlyOnceWith(forgeMember.path, workflowHash, codePath)
   expect(window.localStorage.getItem('dm.selection')).toContain('chat_setup')
   expect(h.dm.chats.callsOf('create')).toEqual([])
+})
+
+it('does not present an older active setup chat as a new dispatch', async () => {
+  const { h, setup } = harness()
+  setup.run.mockResolvedValueOnce({ state: 'opened', chatId: 'chat_onboarding', message: 'An earlier setup attempt is still active.', run: {
+    state: 'submitted', workflowSha256: 'f'.repeat(64), chatId: 'chat_older_setup'
+  } })
+  openMember(h)
+  h.dm.chats.chats.push(chatRecord({ id: 'chat_older_setup', folder: forgeMember.path, title: 'Earlier setup', agent: 'codex', role: 'planner' }))
+  await settle()
+  click('Set up environment')
+  click('Run setup')
+  expect(await screen.findByText('An earlier setup attempt is still active.')).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Open setup chat' })).toBeTruthy()
+  expect(window.localStorage.getItem('dm.selection')).not.toContain('chat_older_setup')
+  expect(setup.run).toHaveBeenCalledExactlyOnceWith(forgeMember.path, workflowHash, codePath)
 })
 
 it('stops loading when the recipe book has no eligible code recipe', async () => {

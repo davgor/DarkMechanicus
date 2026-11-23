@@ -269,7 +269,7 @@ function FolderContents(props: FolderContentsProps): JSX.Element {
 function FolderTabContent({ shell, folder, tab, scheduler, sourceTarget }: FolderContentsProps): JSX.Element | null {
   if (tab === 'standards') return null
   if (tab === 'source') return <SourceControlView folder={folder} scheduler={scheduler} target={sourceTarget} />
-  if (tab === 'tickets' || (folder.forgeWorld && tab === 'epics')) return <TicketSource key={folder.path} folder={folder} folders={shell.folders} status={shell.status} initialize={mode => shell.actions.initialize(folder, { mode, writeMcpConfig: false, importBoard: false })} open={async path => { await shell.reloadFolders(); shell.actions.selectFolder(path) }} onCreateCode={() => props.onProvision(folder)} />
+  if (tab === 'tickets' || (folder.forgeWorld && tab === 'epics')) return <TicketSource key={folder.path} folder={folder} folders={shell.folders} status={shell.status} agents={shell.agents.agents} initialize={mode => shell.actions.initialize(folder, { mode, writeMcpConfig: false, importBoard: false })} open={async path => { await shell.reloadFolders(); shell.actions.selectFolder(path) }} onCreateCode={() => props.onProvision(folder)} />
   return <EpicsPanel shell={shell} folder={folder} />
 }
 
