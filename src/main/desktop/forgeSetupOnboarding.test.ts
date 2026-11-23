@@ -12,6 +12,12 @@ import { createForgeSetupOnboarding, type ForgeSetupMember, type ForgeSetupOnboa
 const cleanup: Array<() => void> = []
 afterEach(() => { for (const close of cleanup.splice(0)) close() })
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>(res => { resolve = res })
+  return { promise, resolve }
+}
+
 function configureWorkflow(member: string, repository: string, detection: ForgeSetupDetection) {
   const value = refreshForgeSetupWorkflow(member, repository, detection)
   return saveForgeSetupWorkflow(member, { expectedSha256: value.sha256, workflow: { state: 'configured',
@@ -268,4 +274,91 @@ it('refuses setup when onboarding has not opened and leaves corrupted local proo
   await expect(f.reopen().prepare(f.target.member)).rejects.toThrow('setup journal cannot be read')
   expect(readFileSync(f.file, 'utf8')).toBe(duplicate)
   expect(f.starts).not.toHaveBeenCalled()
+})
+
+it('admits only the recorded setup chat for the current ticket project', async () => {
+  const f = fixture()
+  f.state.agent = 'omp'
+  const prepared = await f.api.prepare(f.target.member)
+  const original = f.store.getChat({ folder: f.target.member, id: prepared.chatId! })!
+  expect(f.api.assertLaunch(original)).toContain('managed')
+
+  const request = { folder: f.target.member, agent: 'omp' as const, role: 'planner' as const, allowSave: true }
+  const ordinary = f.chat.create(request)
+  expect(() => f.api.assertLaunch(ordinary)).toThrow('launch authority is unavailable')
+  const copied = f.chat.create({ ...request, forgeSetup: original.forgeSetup })
+  expect(() => f.api.assertLaunch(copied)).toThrow('conversation changed')
+
+  f.target.identity = 'replacement-ticket-project'
+  expect(() => f.api.assertLaunch(original)).toThrow('no longer belongs to this ticket project')
+  expect(f.starts).toHaveBeenCalledTimes(1)
+})
+
+it('shares an in-flight onboarding request and keeps setup closed until the prompt is delivered', async () => {
+  const f = fixture()
+  f.state.agent = 'omp'
+  const yaml = f.configure()
+  const entered = deferred<ChatRecord>()
+  const release = deferred<void>()
+  f.starts.mockImplementationOnce(async (chat, authorization) => {
+    entered.resolve(chat)
+    await release.promise
+    f.api.assertLaunch(chat, authorization)
+    f.store.updateChat(chat, { firstPromptDelivery: 'submitted' })
+    return { state: 'running', pid: 400 }
+  })
+  const first = f.api.prepare(f.target.member)
+  const current = await Promise.race([entered.promise, first.then(() => { throw new Error('Onboarding did not reach terminal admission.') })])
+  const joined = f.api.prepare(f.target.member)
+  try {
+    expect(await f.api.run(f.target.member, yaml.sha256, f.checkout)).toMatchObject({
+      state: 'preparing', chatId: current.id, run: null, message: expect.stringContaining('Wait for the existing Forge setup request')
+    })
+  } finally {
+    release.resolve()
+    await Promise.all([first, joined])
+  }
+  expect(await first).toMatchObject({ state: 'opened', chatId: current.id })
+  expect(await joined).toEqual(await first)
+  expect(f.starts).toHaveBeenCalledTimes(1)
+  expect(f.chat.createChat).toHaveBeenCalledTimes(1)
+})
+
+it('keeps a live setup execution visible and blocks a newer workflow until it stops', async () => {
+  const f = fixture()
+  f.state.agent = 'omp'
+  await f.api.prepare(f.target.member)
+  const workflow = f.configure()
+  f.starts.mockImplementationOnce(async (chat, authorization) => {
+    expect(f.api.assertLaunch(chat, authorization)).toBe(f.checkout)
+    f.chat.runningChats.add(chat.id)
+    return { state: 'running', pid: 400 }
+  })
+  const started = await f.api.run(f.target.member, workflow.sha256, f.checkout)
+  expect(started).toMatchObject({ run: { state: 'pending', chatId: expect.any(String), workflowSha256: workflow.sha256 } })
+
+  const revised = saveForgeSetupWorkflow(f.target.member, {
+    expectedSha256: workflow.sha256, workflow: workflow.value.workflow, notes: 'Reviewed a new revision.'
+  })
+  expect(revised.sha256).not.toBe(workflow.sha256)
+  const result = await f.reopen().run(f.target.member, revised.sha256, f.checkout)
+  expect(result).toMatchObject({ run: started.run, message: expect.stringContaining('earlier setup execution is still active') })
+  expect(f.starts).toHaveBeenCalledTimes(2)
+  expect(f.chat.createChat).toHaveBeenCalledTimes(2)
+})
+
+it('keeps the original onboarding receipt and refuses to replace an archived conversation', async () => {
+  const f = fixture()
+  f.state.agent = 'omp'
+  f.starts.mockResolvedValueOnce({ state: 'refused', message: 'Agent permission was declined.' })
+  const original = await f.api.prepare(f.target.member)
+  expect(original).toMatchObject({ state: 'needs-attention', chatId: expect.any(String) })
+  const ref = { folder: f.target.member, id: original.chatId! }
+  f.store.updateChat(ref, { archived: true })
+  expect(await f.reopen().prepare(f.target.member)).toMatchObject({
+    state: 'needs-attention', chatId: original.chatId, message: expect.stringContaining('original conversation is unavailable')
+  })
+  expect(f.store.getChat(ref)?.archived).toBe(true)
+  expect(f.chat.createChat).toHaveBeenCalledTimes(1)
+  expect(f.starts).toHaveBeenCalledTimes(1)
 })
