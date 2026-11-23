@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import {
   type BigIntStats, closeSync, constants, fstatSync, fsyncSync, lstatSync, mkdirSync, openSync, readSync,
   renameSync, unlinkSync, writeFileSync
@@ -110,39 +110,48 @@ function assertRevision(current: { sha256: string } | null, expected: string | n
   if ((current?.sha256 ?? null) !== expected) fail('conflict', 'Forge setup file changed. Reload it before saving.')
 }
 
-/** An exclusive file serializes app writers. The final compare also detects editor changes during preparation. */
+function isOwnedTemporary(path: string, own: BigIntStats): boolean {
+  const actual = lstatSync(path, { bigint: true, throwIfNoEntry: false })
+  return actual?.isFile() === true && actual.ino === own.ino && actual.dev === own.dev
+}
+
+function discardTemporary(file: FilePath, path: string, own: BigIntStats): void {
+  try {
+    protectedPath(file, path)
+    if (isOwnedTemporary(path, own)) unlinkSync(path)
+  } catch {
+    // Preserve the write error. A leftover private temporary file cannot block a future write.
+  }
+}
+
+/** The desktop serializes writes. Check the prior bytes again immediately before atomic replacement. */
 function replaceText(file: FilePath, expected: string | null, text: string): TextFile {
   const sha256 = fingerprint(text)
   if (sha256 === expected) return { text, sha256 }
   protectedPath(file)
   mkdirSync(dirname(file.path), { recursive: true })
-  const pending = join(file.pendingDirectory, 'forge-setup-' + basename(file.path) + '.lock')
+  const pending = join(file.pendingDirectory, 'forge-setup-' + basename(file.path) + '.' + randomUUID() + '.tmp')
   protectedPath(file, pending)
   mkdirSync(file.pendingDirectory, { recursive: true })
   protectedPath(file, pending)
-  let fd: number
-  try { fd = openSync(pending, 'wx', 0o600) } catch (error) {
-    if (errorCode(error) === 'EEXIST') fail('busy', 'A Forge setup file write is already pending.')
-    throw error
-  }
-  let published = false
+  const fd = openSync(pending, 'wx', 0o600)
+  let own: BigIntStats | undefined
   try {
     try {
+      own = fstatSync(fd, { bigint: true })
       writeFileSync(fd, text, 'utf8')
       fsyncSync(fd)
     } finally { closeSync(fd) }
     assertRevision(boundedRead(file), expected)
     protectedPath(file, pending)
+    if (!isOwnedTemporary(pending, own)) fail('conflict', 'Forge setup temporary file changed while saving.')
     renameSync(pending, file.path)
-    published = true
+    own = undefined
     const result = boundedRead(file)
     if (result?.sha256 !== sha256) fail('conflict', 'Forge setup file changed while saving.')
     return result
   } finally {
-    if (!published) {
-      protectedPath(file, pending)
-      unlinkSync(pending)
-    }
+    if (own) discardTemporary(file, pending, own)
   }
 }
 
@@ -156,10 +165,9 @@ function workflowPath(target: Target): FilePath {
 
 function recipebookPath(root: string): FilePath {
   root = resolve(root)
-  const gitDir = join(root, '.git')
   return {
     layout: layoutUnder(root, 'repo', root), path: join(root, FORGE_RECIPEBOOK_FILE),
-    limit: FORGE_RECIPEBOOK_BYTES, pendingDirectory: nodeFs.isDirectory(gitDir) ? gitDir : root
+    limit: FORGE_RECIPEBOOK_BYTES, pendingDirectory: resolveLayout(root).localDir
   }
 }
 

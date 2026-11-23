@@ -1,8 +1,9 @@
 import { expect, it } from 'vitest'
-import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createTempRepo, linkDirectory } from '../../test/tempRepo'
 import { createHarness } from '../../test/workspaceHarness'
+import { gitIn } from '../../test/gitScratch'
 import type { ForgeSetupDetection } from '../../shared/desktop/forgeSetup'
 import { loadKnowledge } from '../knowledge/load'
 import { resolveLayout } from './layout'
@@ -72,6 +73,57 @@ it('refuses a linked knowledge directory and leaves its target untouched', () =>
     linkDirectory(temp.outside, temp.layout.knowledgeDir)
     expect(() => refreshForgeSetupWorkflow(temp.layout, repository, detected('a', '22'))).toThrow(/unsafe/i)
     expect(readdirSync(temp.outside)).toEqual([])
+  } finally { temp.cleanup() }
+})
+
+it('resumes a workflow write after an interrupted writer leaves incomplete private files', () => {
+  const temp = createTempRepo()
+  try {
+    mkdirSync(temp.layout.localDir, { recursive: true })
+    const interrupted = ['forge-setup-guide.md.lock', 'forge-setup-workflow.yaml.lock'].map((name) => join(temp.layout.localDir, name))
+    for (const path of interrupted) writeFileSync(path, 'incomplete write from a stopped process')
+
+    const initial = refreshForgeSetupWorkflow(temp.layout, repository, detected('a', '22'))
+    const refreshed = refreshForgeSetupWorkflow(temp.layout, repository, detected('b', '24'))
+    expect(refreshed.value.detection).toEqual(detected('b', '24'))
+    expect(readForgeSetupWorkflow(temp.layout)).toEqual(refreshed)
+    expect(() => saveForgeSetupWorkflow(temp.layout, {
+      expectedSha256: initial.sha256, workflow: initial.value.workflow
+    })).toThrow(/changed/i)
+    for (const path of interrupted) expect(readFileSync(path, 'utf8')).toBe('incomplete write from a stopped process')
+    expect(readdirSync(temp.layout.localDir).sort()).toEqual(['forge-setup-guide.md.lock', 'forge-setup-workflow.yaml.lock'])
+  } finally { temp.cleanup() }
+})
+
+it('keeps abandoned recipebook write artifacts private in an actual linked Git worktree', () => {
+  const temp = createTempRepo()
+  try {
+    gitIn(temp.root, 'init', '-q', '--initial-branch=main')
+    writeFileSync(join(temp.root, '.gitignore'), '**/.darkmechanicus/local/\n')
+    gitIn(temp.root, 'add', '.gitignore')
+    gitIn(temp.root, 'commit', '-qm', 'Initialize world')
+    gitIn(temp.root, 'worktree', 'add', '--detach', temp.outside)
+
+    const privateDir = resolveLayout(temp.outside).localDir
+    mkdirSync(privateDir, { recursive: true })
+    const artifact = 'forge-setup-forge-recipes.yaml.01234567-89ab-4def-8123-456789abcdef.tmp'
+    writeFileSync(join(privateDir, artifact), 'abandoned private recipebook bytes')
+    const initial = writeForgeRecipebook(temp.outside, null, { version: 1, recipes: [] })
+    expect(initial).toEqual(readForgeRecipebook(temp.outside))
+    expect(readdirSync(privateDir)).toEqual([artifact])
+    expect(gitIn(temp.outside, 'status', '--porcelain', '--untracked-files=all').trim()).toBe('?? forge-recipes.yaml')
+
+    const originalPrivateDir = join(temp.base, 'previous-local')
+    renameSync(privateDir, originalPrivateDir)
+    linkDirectory(originalPrivateDir, privateDir)
+    expect(() => writeForgeRecipebook(temp.outside, initial.sha256, {
+      version: 1, recipes: [{
+        id: 'custom', kind: 'world', title: 'Custom', description: 'An authored recipe',
+        source: { repository, commit: 'd'.repeat(40) }, assets: [], steps: []
+      }]
+    })).toThrow(/unsafe/i)
+    expect(readForgeRecipebook(temp.outside)).toEqual(initial)
+    expect(readdirSync(originalPrivateDir)).toEqual([artifact])
   } finally { temp.cleanup() }
 })
 
