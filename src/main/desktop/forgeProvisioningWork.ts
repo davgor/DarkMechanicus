@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto'
-import { lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
+import { accessSync, constants, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { assertForgeTransferIdle, bindForge, boundForgeRoot, forgeBindingEpoch, FORGE_POINTER } from '../../core/repo/forgeBinding'
-import { readLocalGitOrigin } from '../../core/repo/git'
+import { gitCheckoutStamp, readLocalGitOrigin } from '../../core/repo/git'
 import { readProject } from '../../core/repo/initialize'
 import { nodeFs } from '../../core/repo/nodeFs'
 import { resolveLayout } from '../../core/repo/layout'
@@ -37,6 +37,7 @@ interface ProvisioningOptions {
 
 type Receipt = { path: string; identity: string }
 type ProjectMapping = ForgeWorld['projects'][number]
+type OriginProof = { stamp: string; url: string }
 
 function vacantMapping(projects: ProjectMapping[], candidate: ProjectMapping, owned = false): boolean {
   const { folder, repository } = candidate
@@ -85,6 +86,26 @@ function origin(path: string): string {
   const current = readLocalGitOrigin(path)
   if (current === null) throw new Error('The checkout has no GitHub origin.')
   return githubRemote(current)
+}
+
+function discoveryDirectoryStamp(path: string): string | null {
+  const stat = lstatSync(path, { bigint: true, throwIfNoEntry: false })
+  if (stat?.isDirectory() !== true) return null
+  try { accessSync(path, constants.X_OK) } catch { return null }
+  return [stat.dev, stat.ino, stat.birthtimeNs, stat.ctimeNs, stat.mode, stat.uid, stat.gid].join(':')
+}
+
+/** Reuse origin proof only for an ordinary checkout with entirely local discovery metadata. */
+function originStamp(path: string): string | null {
+  const git = join(path, '.git')
+  const directory = discoveryDirectoryStamp(git)
+  if (directory === null) return null
+  const discovery = [path, join(git, 'objects'), join(git, 'refs')].map(discoveryDirectoryStamp)
+  if (discovery.includes(null)) return null
+  const head = nodeFs.fileStamp(join(git, 'HEAD'))
+  if (head === null || nodeFs.fileStamp(join(git, 'config')) === null) return null
+  if (['commondir', 'config.worktree'].some(name => lstatSync(join(git, name), { throwIfNoEntry: false }) !== undefined)) return null
+  return JSON.stringify([gitCheckoutStamp(path, false), directory, discovery, head])
 }
 
 function inner(parent: string, candidate: string): boolean {
@@ -163,6 +184,8 @@ function assertRemote(receipt: ForgePublishedRepository | null, url: string, id:
 const branch = 'refs/heads/main'
 
 class ProvisioningWork implements ForgeProvisioningWork {
+  private readonly originProofs = new WeakMap<ForgeProvisionIntent, Map<string, OriginProof>>()
+
   constructor(private readonly deps: ProvisioningOptions) {}
 
   account() { return this.deps.publisher.account() }
@@ -228,12 +251,27 @@ class ProvisioningWork implements ForgeProvisioningWork {
     return parent
   }
 
-  private checkWorld(world: NonNullable<ProvisionDestination['existingWorld']>, receipt: Receipt = world): void {
+  private currentOrigin(path: string, intent?: ForgeProvisionIntent): string {
+    if (intent === undefined) return origin(path)
+    const stamp = originStamp(path)
+    if (stamp === null) return origin(path)
+    const proved = this.originProofs.get(intent) ?? new Map<string, OriginProof>()
+    const prior = proved.get(path)
+    if (prior?.stamp === stamp) return prior.url
+    const url = origin(path)
+    if (originStamp(path) !== stamp) throw new Error('The checkout Git metadata changed while verifying its origin.')
+    proved.set(path, { stamp, url })
+    this.originProofs.set(intent, proved)
+    return url
+  }
+
+  private checkWorld(world: NonNullable<ProvisionDestination['existingWorld']>, intent?: ForgeProvisionIntent): void {
+    const receipt = intent?.world ?? world
     if (receipt.path !== world.path || receipt.identity !== world.identity) {
       throw new Error('The existing Forge World checkout receipt changed.')
     }
     checkDirectory(world)
-    if (this.trackedWorld(world.path).addedAt !== world.addedAt || origin(world.path).toLowerCase() !== world.url.toLowerCase()) {
+    if (this.trackedWorld(world.path).addedAt !== world.addedAt || this.currentOrigin(world.path, intent).toLowerCase() !== world.url.toLowerCase()) {
       throw new Error('The selected Forge World was untracked or its origin changed.')
     }
   }
@@ -243,31 +281,36 @@ class ProvisioningWork implements ForgeProvisioningWork {
     if (destination.parent !== undefined && dirStamp(destination.parent) !== destination.parentIdentity) {
       throw new Error('The selected parent folder changed during Forge creation.')
     }
-    if (destination.existingWorld !== undefined) this.checkWorld(destination.existingWorld, intent.world)
+    if (destination.existingWorld !== undefined) this.checkWorld(destination.existingWorld, intent)
     else if (intent.world !== undefined) {
       checkDirectory(intent.world)
       this.trackedWorld(intent.world.path)
-      if (origin(intent.world.path).toLowerCase() !== worldUrl(intent).toLowerCase()) throw new Error('The Forge World origin changed.')
+      if (this.currentOrigin(intent.world.path, intent).toLowerCase() !== worldUrl(intent).toLowerCase()) throw new Error('The Forge World origin changed.')
     }
     if (intent.checkout !== undefined) {
       checkDirectory(intent.checkout)
-      if (origin(intent.checkout.path).toLowerCase() !== codeRemote(intent)?.url.toLowerCase()) throw new Error('The code checkout origin changed.')
+      if (this.currentOrigin(intent.checkout.path, intent).toLowerCase() !== codeRemote(intent)?.url.toLowerCase()) throw new Error('The code checkout origin changed.')
     }
     if (intent.member !== undefined) this.checkMemberReceipt(intent, intent.member)
   }
 
   async assertCurrent(intent: ForgeProvisionIntent): Promise<void> {
+    // Phase and external publication admissions use Git's live discovery/ownership policy.
+    this.originProofs.delete(intent)
     this.localFence(intent)
     if (this.deps.session.getAccount()?.login.toLowerCase() !== intent.account.login.toLowerCase()) {
       throw new Error('Sign back into the GitHub account that started this operation.')
     }
   }
 
-  private networkFence(intent: ForgeProvisionIntent, receipt: Receipt): () => void {
+  private networkFence(intent: ForgeProvisionIntent, receipt: Receipt, expectedOrigin?: string): () => void {
     const token = this.deps.session.getToken()
     return () => {
       this.localFence(intent)
       checkDirectory(receipt)
+      if (expectedOrigin !== undefined && this.currentOrigin(receipt.path, intent).toLowerCase() !== expectedOrigin.toLowerCase()) {
+        throw new Error('The code checkout origin changed.')
+      }
       if (this.deps.session.getAccount()?.login.toLowerCase() !== intent.account.login.toLowerCase() ||
         this.deps.session.getToken() !== token) throw new Error('The GitHub account changed during Forge creation.')
     }
@@ -284,14 +327,14 @@ class ProvisioningWork implements ForgeProvisioningWork {
       await git.run(checkout.path, ['remote', 'add', 'origin', repository], undefined, { beforeStart: current })
     }
     current()
-    if (origin(checkout.path).toLowerCase() !== repository.toLowerCase()) throw new Error('The provisioning checkout origin changed.')
+    if (this.currentOrigin(checkout.path, intent).toLowerCase() !== repository.toLowerCase()) throw new Error('The provisioning checkout origin changed.')
   }
 
   async world(intent: ForgeProvisionIntent, remote: ForgePublishedRepository | undefined): Promise<Receipt> {
     if (intent.destination.existingWorld !== undefined) {
       const world = intent.destination.existingWorld
       assertRemote(await this.deps.publisher.inspectRemote(intent.account, world.url), world.url, world.remoteId)
-      this.checkWorld(world)
+      this.checkWorld(world, intent)
       return { path: world.path, identity: world.identity }
     }
     if (intent.request.world.kind !== 'new' || remote === undefined) throw new Error('The new Forge World is not confirmed.')
@@ -317,8 +360,11 @@ class ProvisioningWork implements ForgeProvisioningWork {
     this.localFence(intent)
     const checkout = claimDirectory(join(intent.destination.parent, requested.name), intent, 'git')
     await this.initializeGit(intent, checkout, remote.url)
-    const current = this.networkFence(intent, checkout)
-    const files = await materializeForgeScaffold(checkout.path, selected, { name: requested.name, repository: remote.url }, current)
+    const current = this.networkFence(intent, checkout, remote.url)
+    const files = await materializeForgeScaffold(checkout.path, selected, { name: requested.name, repository: remote.url }, () => {
+      this.originProofs.delete(intent)
+      current()
+    })
     current()
     const tickets = worldUrl(intent)
     const pointer = JSON.stringify({ version: 1, worldRepository: tickets, projectFolder: requested.name }, null, 2) + '\n'
@@ -391,6 +437,7 @@ class ProvisioningWork implements ForgeProvisioningWork {
     if (recipeHash(recipe) !== intent.destination.recipeHash) throw new Error('The selected recipe changed during Forge creation.')
     const detection = readForgeSetupWorkflow(temporary) === null ? await this.deps.discover(mapping.repository) : undefined
     const current = this.networkFence(intent, staged)
+    this.originProofs.delete(intent)
     current()
     mkdirSync(layout.localDir, { recursive: true })
     dirStamp(layout.localDir)

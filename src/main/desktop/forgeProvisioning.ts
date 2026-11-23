@@ -310,6 +310,8 @@ class Provisioning implements ForgeProvisioning {
       return this.recordRemote(intent, key, existing)
     }
     if (existing !== null) throw new Error('That GitHub repository already exists. Choose a new repository name.')
+    await this.work.assertCurrent(intent)
+    this.available()
     intent[key] = { state: 'requested' }
     this.save({ ...intent })
     let created: ForgePublishedRepository

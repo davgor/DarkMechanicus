@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { lstatSync, mkdirSync, readFileSync, renameSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
+import { readLocalGitOrigin } from '../../core/repo/git'
 import { writeForgeRecipebook } from '../../core/repo/forgeSetupStorage'
 import type { ForgeProvisionRequest } from '../../shared/desktop/forgeSetup'
 import { gitIn, scratchDir } from '../../test/gitScratch'
@@ -12,6 +13,11 @@ import type { ForgeProvisionIntent, ProvisionDestination } from './forgeProvisio
 import { createForgeProvisioningWork } from './forgeProvisioningWork'
 import type { ForgePublishedRepository } from './forgePublish'
 import { bundledForgeRecipes } from './forgeScaffold'
+
+vi.mock('../../core/repo/git', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../core/repo/git')>()
+  return { ...actual, readLocalGitOrigin: vi.fn(actual.readLocalGitOrigin) }
+})
 
 const account = { id: 42, login: 'fixture-owner' }
 const worldRemote: ForgePublishedRepository = { id: 600, name: 'mature-world', owner: 'team', ownerId: 141,
@@ -160,6 +166,74 @@ it('rejects a published receipt pointing at a different tracked clone of the sam
   await expect(f.work.assertCurrent(operation)).rejects.toThrow('Forge World checkout receipt changed')
   operation.world.path = f.world
   await expect(f.work.assertCurrent(operation)).rejects.toThrow('Forge World checkout receipt changed')
+})
+
+it('rejects changed origin, worktree, and Git discovery metadata during phase admission', async () => {
+  const f = fixture()
+  const destination = (await f.work.prepare(f.request, account))!
+  const operation = f.intent(destination)
+  const { path, identity } = destination.existingWorld!
+  operation.world = { path, identity }
+  const reads = vi.mocked(readLocalGitOrigin)
+  reads.mockClear()
+
+  await f.work.assertCurrent(operation)
+  expect(reads).toHaveBeenCalledExactlyOnceWith(f.world)
+  // A new phase must honor a Git admission refusal even if local metadata still matches.
+  reads.mockReturnValueOnce(null)
+  await expect(f.work.assertCurrent(operation)).rejects.toThrow('no GitHub origin')
+  expect(reads).toHaveBeenCalledTimes(2)
+
+  gitIn(f.world, 'remote', 'set-url', 'origin', 'https://github.com/team/replaced-world.git')
+  await expect(f.work.assertCurrent(operation)).rejects.toThrow('origin changed')
+  expect(reads).toHaveBeenCalledTimes(3)
+
+  gitIn(f.world, 'remote', 'set-url', 'origin', worldRemote.url)
+  gitIn(f.world, 'config', '--local', 'core.worktree', f.parent)
+  await expect(f.work.assertCurrent(operation)).rejects.toThrow('no GitHub origin')
+  expect(reads).toHaveBeenCalledTimes(4)
+
+  gitIn(f.world, 'config', '--local', '--unset', 'core.worktree')
+  await f.work.assertCurrent(operation)
+  const git = join(f.world, '.git')
+  renameSync(join(git, 'HEAD'), join(git, 'temporarily-disconnected-HEAD'))
+  await expect(f.work.assertCurrent(operation)).rejects.toThrow('no GitHub origin')
+  expect(reads).toHaveBeenCalledTimes(6)
+})
+
+it('rejects a checkout origin whose Git metadata changes during the real check', async () => {
+  const f = fixture()
+  const destination = (await f.work.prepare(f.request, account))!
+  const operation = f.intent(destination)
+  const reads = vi.mocked(readLocalGitOrigin)
+  const verify = reads.getMockImplementation()!
+  reads.mockImplementationOnce(path => {
+    const current = verify(path)
+    gitIn(path, 'remote', 'set-url', 'origin', 'https://github.com/team/replaced-while-checking.git')
+    return current
+  })
+  await expect(f.work.assertCurrent(operation)).rejects.toThrow('metadata changed while verifying its origin')
+  await expect(f.work.assertCurrent(operation)).rejects.toThrow('origin changed')
+})
+
+it('accepts a linked worktree and detects a later shared Git config change', async () => {
+  const f = fixture()
+  gitIn(f.world, 'add', '--', 'forge-world.json')
+  gitIn(f.world, 'commit', '-m', 'Seed the ticket world')
+  const linked = join(f.home, '..', 'linked-world')
+  gitIn(f.world, 'worktree', 'add', '-b', 'linked', linked)
+  f.registry.track(linked)
+  const request = { ...f.request, world: { kind: 'existing' as const, folder: linked } }
+  const operation = f.intent((await f.work.prepare(request, account))!)
+  const reads = vi.mocked(readLocalGitOrigin)
+  reads.mockClear()
+  await f.work.assertCurrent(operation)
+  await f.work.assertCurrent(operation)
+  expect(reads.mock.calls).toEqual([[linked], [linked]])
+
+  gitIn(f.world, 'remote', 'set-url', 'origin', 'https://github.com/team/replaced-shared.git')
+  await expect(f.work.assertCurrent(operation)).rejects.toThrow('origin changed')
+  expect(reads).toHaveBeenCalledTimes(3)
 })
 
 it('refuses a substituted code parent and an account change on an existing receipt', async () => {

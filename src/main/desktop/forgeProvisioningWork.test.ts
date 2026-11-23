@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { expect, it, vi } from 'vitest'
+import { readLocalGitOrigin } from '../../core/repo/git'
 import { readForgeRecipebook, readForgeSetupWorkflow } from '../../core/repo/forgeSetupStorage'
 import { openWorkspace } from '../../core/workspace'
 import type { ForgeProvisionStatus } from '../../shared/desktop/forgeSetup'
@@ -17,15 +18,20 @@ import { createForgeProvisioningWork } from './forgeProvisioningWork'
 import type { ForgePublishedRepository } from './forgePublish'
 import { startForge } from './forgeService'
 
+vi.mock('../../core/repo/git', async importOriginal => {
+  const actual = await importOriginal<typeof import('../../core/repo/git')>()
+  return { ...actual, readLocalGitOrigin: vi.fn(actual.readLocalGitOrigin) }
+})
+
 function fixturePublisher(remoteRoot: string) {
   const account = { id: 117, login: 'example' }
   const remotes = new Map<string, ForgePublishedRepository>()
   const created: string[] = []
-  const creation = { loseCodeResponse: true, initializer: (_name: string, _directory: string) => {} }
+  const creation = { loseCodeResponse: true, beforeFind: (_name: string) => {}, initializer: (_name: string, _directory: string) => {} }
   const publisher: NonNullable<Parameters<typeof startForge>[1]['provisioning']>['publisher'] = {
     async account() { return account },
     async inspectRemote(_owner, url) { return remotes.get(basename(url, '.git')) ?? null },
-    async findRemote(_owner, name) { return remotes.get(name) ?? null },
+    async findRemote(_owner, name) { creation.beforeFind(name); return remotes.get(name) ?? null },
     async createRemote({ account: owner, name, visibility, provenance }) {
       const bare = join(remoteRoot, name + '.git')
       mkdirSync(bare)
@@ -47,9 +53,10 @@ function fixtureRunner(remoteRoot: string) {
   const network: string[] = []
   const gitCommands: (readonly string[])[] = []
   const state = { offline: false, codePush: 'normal' as 'normal' | 'unreceived' | 'lost-response', upstream: true, codePushes: 0,
-    beforeWorldPush: (_root: string) => {} }
-  function beforeCodePush() {
+    beforeWorldPush: (_root: string) => {}, beforeCodePush: (_root: string) => {} }
+  function beforeCodePush(root: string) {
     state.codePushes++
+    state.beforeCodePush(root)
     if (state.codePush === 'unreceived') throw new Error('The Git server did not receive the code push')
   }
   const runner: NonNullable<Parameters<typeof startForge>[1]['runner']> = {
@@ -62,7 +69,7 @@ function fixtureRunner(remoteRoot: string) {
       const args = request.args.map(arg => arg.startsWith('https://github.com/example/') ? join(remoteRoot, basename(arg)) : arg)
       const push = args.includes('push')
       const codePush = push && args.includes(join(remoteRoot, 'software.git'))
-      if (codePush) beforeCodePush()
+      if (codePush) beforeCodePush(request.cwd)
       else if (push) state.beforeWorldPush(request.cwd)
       const result = await real.run({ ...request, args: ['-c', 'protocol.file.allow=always', ...args.filter((arg, index) =>
         arg !== 'protocol.allow=never' && args[index + 1] !== 'protocol.allow=never')] })
@@ -165,6 +172,8 @@ it('creates and resumes a real private world, separate public code checkout and 
 
 it('resumes an existing-world code push from real remote refs without replaying a verified commit', async () => {
   const f = fixture()
+  const originReads = vi.mocked(readLocalGitOrigin)
+  originReads.mockClear()
   try {
     const world = await preexistingWorld(f)
     expect(f.notified).toEqual([])
@@ -188,6 +197,7 @@ it('resumes an existing-world code push from real remote refs without replaying 
     expect(f.created).toEqual(['software'])
     expect(f.remotes.get('software')?.visibility).toBe('private')
     expect(f.notified).toEqual([join(world, 'software')])
+    expect(originReads.mock.calls.filter(([path]) => path === world).length).toBeLessThan(35)
   } finally { await f.close() }
 })
 
@@ -214,6 +224,36 @@ it('preserves another commit in a newly created code remote and leaves publicati
     expect(gitIn(join(f.scratch.path, 'software.git'), 'rev-parse', 'HEAD').trim()).toBe(previous)
     expect(f.state.codePushes).toBe(0)
     expect(f.notified).toEqual([])
+  } finally { await f.close() }
+})
+
+it('refuses to push staged code after its Git origin changes at the runner boundary', async () => {
+  const f = fixture()
+  try {
+    const world = await preexistingWorld(f)
+    f.state.beforeCodePush = root => gitIn(root, 'remote', 'set-url', 'origin', 'https://github.com/example/different-code.git')
+    expect(await f.invoke('forgeSetup:provision', codeFor(world), randomUUID())).toMatchObject({
+      state: 'needs-attention', phase: 'code-checkout', message: expect.stringContaining('checkout origin changed')
+    })
+    expect(gitIn(join(f.scratch.path, 'software.git'), 'branch', '--list')).toBe('')
+    expect(existsSync(join(world, 'software'))).toBe(false)
+    expect(f.notified).toEqual([])
+  } finally { await f.close() }
+})
+
+it('does not create code when the World origin changes during remote discovery', async () => {
+  const f = fixture()
+  try {
+    const world = await preexistingWorld(f)
+    f.creation.beforeFind = () => gitIn(world, 'remote', 'set-url', 'origin', 'https://github.com/example/replaced-world.git')
+    const operation = randomUUID()
+    expect(await f.invoke('forgeSetup:provision', codeFor(world), operation)).toMatchObject({
+      state: 'needs-attention', phase: 'code-remote', message: expect.stringContaining('origin changed')
+    })
+    expect(f.created).toEqual([])
+    const journal = JSON.parse(readFileSync(join(f.home, 'provisioning.json'), 'utf8')) as { entries: ForgeProvisionIntent[] }
+    expect(journal.entries.find(entry => entry.id === operation)?.codeRemote).toBeUndefined()
+    expect(existsSync(join(f.destination, 'software'))).toBe(false)
   } finally { await f.close() }
 })
 
