@@ -50,6 +50,7 @@ export interface SidebarProps {
   onTrack(mode?: 'forge-world'): void
   /** Opens the clone dialog. */
   onClone(mode?: 'forge-world'): void
+  onCreateForgeWorld?(): void
   /** Opens the add-agent pane. */
   onAddAgent(): void
   onSelectAgent(id: AgentId): void
@@ -87,7 +88,7 @@ function Brand({ version }: { version: string }): JSX.Element {
 }
 
 /** The shared folder/world + button: track an existing folder, or clone a repository. */
-function AddFolderMenu({ onTrack, onClone, mode }: Pick<SidebarProps, 'onTrack' | 'onClone'> & { mode?: 'forge-world' }): JSX.Element {
+function AddFolderMenu({ onTrack, onClone, onCreateForgeWorld, mode }: Pick<SidebarProps, 'onTrack' | 'onClone' | 'onCreateForgeWorld'> & { mode?: 'forge-world' }): JSX.Element {
   const [open, setOpen] = useState(false)
   return (
     <Menu
@@ -96,6 +97,7 @@ function AddFolderMenu({ onTrack, onClone, mode }: Pick<SidebarProps, 'onTrack' 
       open={open}
       onOpenChange={setOpen}
       items={[
+        ...(onCreateForgeWorld ? [{ id: 'create', label: 'Create a Forge World…', onSelect: onCreateForgeWorld }] : []),
         { id: 'track', label: 'Add existing folder…', onSelect: () => onTrack(mode) },
         { id: 'clone', label: 'Clone repository…', onSelect: () => onClone(mode) }
       ]}
@@ -165,7 +167,7 @@ export function Sidebar(props: SidebarProps): JSX.Element {
       <Brand version={props.version} />
       <SidebarAgents {...props} />
       <nav className="sidebar-tree" aria-label="Folders and epics">
-        <SidebarSection title="Forge Worlds" disclosure={sectionDisclosure(props, 'forge')} action={<AddFolderMenu mode="forge-world" onTrack={props.onTrack} onClone={props.onClone} />}>
+        <SidebarSection title="Forge Worlds" disclosure={sectionDisclosure(props, 'forge')} action={<AddFolderMenu mode="forge-world" onTrack={props.onTrack} onClone={props.onClone} onCreateForgeWorld={props.onCreateForgeWorld} />}>
           {worlds.map(folder => <SidebarFolder key={folder.path} folder={folder} props={props} selection={folderSelection} />)}
         </SidebarSection>
         <SidebarSection title="Folders" disclosure={sectionDisclosure(props, 'folders')} action={<AddFolderMenu onTrack={props.onTrack} onClone={props.onClone} />}>

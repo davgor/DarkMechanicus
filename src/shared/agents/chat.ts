@@ -71,6 +71,8 @@ export const chatRecordSchema = z.object({
   /** The epic this chat moves to Linear, when Dark Mechanicus started it as a transfer chat; absent for every other chat and for chats stored before transfers. */
   targetRepository: z.string().optional(),
   forgeResolver: z.string().optional(),
+  /** Local Forge setup authority. Renderer requests cannot set this field. */
+  forgeSetup: z.strictObject({ intentId: z.uuid(), mode: z.enum(['onboarding', 'execution']), stepId: z.uuid() }).optional(),
   archived: z.boolean().optional(),
   transferEpicId: z.string().min(1).optional(),
   /** The Kanban card this chat carries, when Play started it; absent for every other chat and for chats stored before Kanban. */

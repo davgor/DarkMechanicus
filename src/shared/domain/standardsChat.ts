@@ -1,5 +1,5 @@
-import type { StoredDeliveryPolicy } from '../../../shared/domain/deliveryPolicy'
-import { defaultPrompts } from '../../../shared/domain/standardsPrompts'
+import type { StoredDeliveryPolicy } from './deliveryPolicy'
+import { defaultPrompts } from './standardsPrompts'
 
 export const applyQuestion = 'Apply these standards to all existing project work now, including items already in progress?'
 

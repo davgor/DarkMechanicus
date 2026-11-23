@@ -2,8 +2,10 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { StoredDeliveryPolicy } from '../../../shared/domain/deliveryPolicy'
-import { defaultPrompts } from '../../../shared/domain/standardsPrompts'
+import { baselineDeliveryPolicy, defaultPrompts } from '../../../shared/domain/standardsPrompts'
+import { deferred } from '../__mocks__/deferred'
 import { folderView } from '../__mocks__/fixtures'
+import { settle } from '../__mocks__/settle'
 import { DeliveryStandards } from './DeliveryStandards'
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
@@ -71,4 +73,28 @@ it('surfaces a failed read before offering setup and recovers on explicit reload
   expect(screen.queryByText('Accept defaults')).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
   expect(await screen.findByRole('button', { name: 'Accept defaults' })).toBeTruthy()
+})
+
+it.each(['success', 'failure'] as const)('discards a delayed standards read %s after collapsing a different Forge member', async outcome => {
+  const h = harness()
+  const loading = deferred()
+  const policy = { ...baselineDeliveryPolicy, prompts: { ...defaultPrompts, ticket: 'Use the Editor project’s test matrix.' } }
+  h.records.set(second.path, { revision: 5, policy })
+  h.command.mockImplementationOnce(async () => {
+    await loading.promise
+    if (outcome === 'failure') throw new Error('Engine store unavailable')
+    return { ok: true, data: { deliveryStandards: { revision: 3, policy: baselineDeliveryPolicy } } }
+  })
+  h.show(world)
+  const engine = screen.getByText('Engine', { selector: 'summary' })
+  fireEvent.click(engine)
+  await waitFor(() => expect(h.command.mock.calls[0]?.slice(0, 2)).toEqual([first.path, 'getProject']))
+  fireEvent.click(engine)
+  fireEvent.click(screen.getByText('Editor', { selector: 'summary' }))
+  expect(await screen.findByText('Saved revision 5')).toBeTruthy()
+  loading.resolve()
+  await settle()
+  expect(screen.queryByText('Saved revision 3')).toBeNull()
+  expect(screen.queryByText(/Engine store unavailable/)).toBeNull()
+  expect(screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Ticket standards' }).value).toBe('Use the Editor project’s test matrix.')
 })

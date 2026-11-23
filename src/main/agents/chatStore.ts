@@ -44,7 +44,7 @@ export interface ChatStoreFs {
 
 /** What a caller supplies to start a chat; the store assigns the id, timestamps and session id. */
 export type NewChat = Pick<ChatRecord, 'folder' | 'agent' | 'model' | 'role' | 'allowSave'> &
-  Partial<Pick<ChatRecord, 'title' | 'runId' | 'transferEpicId' | 'cardId' | 'repairIncidentId' | 'conversation' | 'firstPrompt' | 'firstPromptDelivery' | 'titleStatus'>>
+  Partial<Pick<ChatRecord, 'title' | 'runId' | 'transferEpicId' | 'cardId' | 'repairIncidentId' | 'forgeSetup' | 'conversation' | 'firstPrompt' | 'firstPromptDelivery' | 'titleStatus'>>
 
 /** Identifies a chat: its folder (any spelling; null for a project-less chat) and id. Every `ChatRecord` is one. */
 export type ChatRef = Pick<ChatRecord, 'folder' | 'id'>
@@ -223,6 +223,13 @@ function chatTarget(input: NewChat) {
   return { targetRepository: project ? new URL(project.repository).pathname.slice(1, -4) : input.folder.split(/[\\/]/).filter(Boolean).at(-1) }
 }
 
+function dedicatedChatPurpose(input: NewChat): Partial<Pick<ChatRecord, 'repairIncidentId' | 'forgeSetup'>> {
+  return {
+    ...(input.repairIncidentId === undefined ? {} : { repairIncidentId: input.repairIncidentId }),
+    ...(input.forgeSetup === undefined ? {} : { forgeSetup: input.forgeSetup })
+  }
+}
+
 function createChat(context: StoreContext, input: NewChat): ChatRecord {
   const location = locate(context, input.folder)
   const now = context.now()
@@ -244,7 +251,7 @@ function createChat(context: StoreContext, input: NewChat): ChatRecord {
     ...(input.runId === undefined ? {} : { runId: input.runId }),
     ...(input.transferEpicId === undefined ? {} : { transferEpicId: input.transferEpicId }),
     ...(input.cardId === undefined ? {} : { cardId: input.cardId }),
-    ...(input.repairIncidentId === undefined ? {} : { repairIncidentId: input.repairIncidentId }),
+    ...dedicatedChatPurpose(input),
     ...(input.conversation === undefined ? {} : { conversation: input.conversation })
   })
 }

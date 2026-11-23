@@ -1,8 +1,8 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { IpcMain } from 'electron'
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, expect, it, vi } from 'vitest'
 import { openWorkspace } from '../../core/workspace'
 import { FORGE_CONFIG } from '../../core/repo/forgeReference'
 import { bindForge, boundForgeRoot } from '../../core/repo/forgeBinding'
@@ -18,6 +18,7 @@ import { createTestWorkspacePool as createWorkspacePool } from './__mocks__/proj
 const cleanups: Array<() => void | Promise<void>> = []
 afterEach(async () => { while (cleanups.length) await cleanups.pop()?.() })
 const worldUrl = 'https://github.com/example/world.git'
+const codeUrl = 'https://github.com/example/software.git'
 const config = { version: 1, worldRepository: worldUrl, projectFolder: 'Software' }
 function gitRepository(path: string) {
   mkdirSync(path)
@@ -25,6 +26,35 @@ function gitRepository(path: string) {
   gitIn(path, 'config', 'user.name', 'Bootstrap fixture')
   gitIn(path, 'config', 'user.email', 'fixture@example.test')
 }
+
+async function preparePortableSeed(root: string) {
+  const source = join(root, 'code'), world = join(root, 'world'), bare = join(root, 'remote.git')
+  gitRepository(source); gitRepository(world)
+  gitIn(source, 'remote', 'add', 'origin', codeUrl)
+  gitIn(world, 'remote', 'add', 'origin', worldUrl)
+  writeFileSync(join(source, FORGE_CONFIG), JSON.stringify(config))
+  createForge(world, 'example')
+  updateForge(world, manifest => { manifest.projects.push({ folder: 'Software', repository: codeUrl }) })
+  const member = join(world, 'Software')
+  mkdirSync(member)
+  const project = openWorkspace({ repoRoot: member, homeDir: join(root, 'seed-home'), transport: 'desktop', role: 'desktop', label: 'Portable seed' })
+  try {
+    await project.initializeRepository({ name: 'Software', mode: 'repo' })
+    const card = await project.createKanbanCard({ title: 'Portable task' })
+    gitIn(world, 'add', '-A')
+    gitIn(world, 'commit', '-m', 'Portable world')
+    gitIn(root, 'clone', '--bare', world, bare)
+    return { source, world, bare, card }
+  } finally { project.close() }
+}
+
+let portableSeed: Awaited<ReturnType<typeof preparePortableSeed>>
+beforeAll(async () => {
+  const scratch = scratchDir('forge-bootstrap-seed-')
+  try { portableSeed = await preparePortableSeed(scratch.path) }
+  catch (error) { scratch.cleanup(); throw error }
+  return scratch.cleanup
+})
 
 function fixtureTransport(bare: string) {
   const git = createGitRunner()
@@ -55,26 +85,18 @@ async function fixture(localWorld = false) {
   const scratch = scratchDir('forge-bootstrap-')
   cleanups.push(scratch.cleanup)
   const root = scratch.path, home = join(root, 'fresh-home'), source = join(root, 'code'), seed = join(root, 'seed'), bare = join(root, 'remote.git')
-  gitRepository(source); gitRepository(seed)
-  gitIn(source, 'remote', 'add', 'origin', 'https://github.com/example/software.git')
-  writeFileSync(join(source, FORGE_CONFIG), JSON.stringify(config))
-  createForge(seed, 'example')
-  updateForge(seed, world => { world.projects.push({ folder: 'Software', repository: 'https://github.com/example/software.git' }) })
+  cpSync(portableSeed.source, source, { recursive: true })
   const pool = createWorkspacePool(repoRoot => openWorkspace({ repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Bootstrap fixture' }), home)
   cleanups.push(() => pool.closeAll())
   const seededMember = join(seed, 'Software')
-  const project = pool.get(seededMember)
-  await project.initializeRepository({ name: 'Software', mode: 'repo' })
-  const card = await project.createKanbanCard({ title: 'Portable task' })
-  await pool.close(seededMember)
-  gitIn(seed, 'add', '-A'); gitIn(seed, 'commit', '-m', 'Portable world')
   const registry = createFolderRegistry({ file: join(home, 'folders.json'), homeDir: home, dmHome: home })
   registry.track(source)
   if (localWorld) {
-    gitIn(seed, 'remote', 'add', 'origin', worldUrl)
+    cpSync(portableSeed.world, seed, { recursive: true, filter: path => path !== join(portableSeed.world, 'Software', '.darkmechanicus', 'local') })
+    mkdirSync(join(seededMember, '.darkmechanicus', 'local'))
     registry.track(seed)
     bindForge(home, source, seededMember, '')
-  } else gitIn(root, 'clone', '--bare', seed, bare)
+  } else cpSync(portableSeed.bare, bare, { recursive: true })
   const transport = fixtureTransport(bare)
   const handlers = new Map<string, Parameters<IpcMain['handle']>[1]>()
   const forge = startForge({ handle: (name, handler) => { handlers.set(name, handler) } }, {
@@ -87,7 +109,7 @@ async function fixture(localWorld = false) {
   await forge.ready
   const call = async (name: string, ...args: unknown[]) => handlers.get('forge:' + name)!({} as Electron.IpcMainInvokeEvent, ...args)
   return {
-    source, home, forge, pool, registry, call, card, world: seed, member: seededMember,
+    source, home, forge, pool, registry, call, card: portableSeed.card, world: seed, member: seededMember,
     restore: (member: string) => call('restore', member, 'db'), ...transport
   }
 }
@@ -122,24 +144,26 @@ it('opens a config-only source checkout on a fresh machine, retrieves the world 
   expect(() => boundForgeRoot(nodeFs, f.home, f.source)).toThrow('retrieve its Forge World')
   const member = await f.forge.openProject(f.source)
   expect(member).toBe(join(f.home, 'forge-worlds', 'example', 'world', 'Software'))
+  expect(f.networkRequests.some(args => args.includes('clone') && args.includes(worldUrl))).toBe(true)
   expect((await f.pool.get(member).getKanbanCard({ cardId: f.card.id })).title).toBe('Portable task')
   expect(boundForgeRoot(nodeFs, f.home, f.source)).toBe(member)
   expect(JSON.parse(readFileSync(join(member, '.darkmechanicus/local/source-checkout.json'), 'utf8'))).toEqual({ checkout: f.source })
   expect(existsSync(join(f.source, '.darkmechanicus'))).toBe(false)
-  f.networkRequests.length = 0
-  f.offline(true)
-  expect(await f.forge.openProject(f.source)).toBe(member)
-  expect(f.networkRequests).toEqual([])
-  gitIn(f.source, 'remote', 'set-url', 'origin', 'https://github.com/example/other.git')
-  await expect(f.forge.openProject(f.source)).rejects.toThrow('linked code repository')
-  expect(f.networkRequests).toEqual([])
-  gitIn(f.source, 'remote', 'set-url', 'origin', 'https://github.com/example/software.git')
-  f.offline(false)
   expect(f.registry.list().filter(folder => folder.forgeWorld)).toHaveLength(1)
   await f.restore(member)
   expect(existsSync(join(f.source, FORGE_CONFIG))).toBe(false)
   expect(existsSync(join(f.source, 'FORGE-WORLD.md'))).toBe(false)
   expect((await f.pool.get(f.source).getKanbanCard({ cardId: f.card.id })).title).toBe('Portable task')
+})
+
+it('reopens a verified local binding offline and refuses a changed code origin without network access', async () => {
+  const f = await fixture(true)
+  f.offline(true)
+  expect(await f.forge.openProject(f.source)).toBe(f.member)
+  expect(f.networkRequests).toEqual([])
+  changeSourceOrigin(f)
+  await expect(f.forge.openProject(f.source)).rejects.toThrow('linked code repository')
+  expect(f.networkRequests).toEqual([])
 })
 
 it('retrieves from the configured remote instead of trusting a binding outside the tracked world', async () => {

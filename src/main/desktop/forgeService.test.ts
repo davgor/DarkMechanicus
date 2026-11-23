@@ -14,7 +14,8 @@ import { startForge } from './forgeService'
 import { createTestWorkspacePool as createWorkspacePool } from './__mocks__/projectWorkspaceFixture'
 import { bindToolingGrant, holdToolingWorkflow, retireToolingWorkflow } from '../../core/services/toolingHold'
 import { dbProjectDir } from '../../core/repo/storageMode'
-import { pendingForgeTransfer } from '../../core/repo/forgeBinding'
+import { bindForge, pendingForgeTransfer } from '../../core/repo/forgeBinding'
+import { ensureForgeConfig } from '../../core/repo/forgeReference'
 import { nodeFs } from '../../core/repo/nodeFs'
 import { spawn, spawnSync } from 'node:child_process'
 import { once } from 'node:events'
@@ -467,12 +468,30 @@ it('moves an uninitialized checkout into a world, validates its pointer and rest
   } finally { await close() }
 })
 
+async function seedLinkedTicket(f: ReturnType<typeof fixture>, title: string) {
+  await f.forge.ready
+  const folder = basename(f.source)
+  const member = join(f.world, folder)
+  mkdirSync(member)
+  const tickets = f.pool.get(member)
+  await tickets.initializeRepository({ name: folder, mode: 'repo' })
+  const card = await tickets.createKanbanCard({ title })
+  const worldRepository = 'https://github.com/example/tickets.git'
+  updateForge(f.world, world => world.projects.push({ folder, repository: 'https://github.com/example/software.git' }))
+  const note = `# Ticket source control\n\nForge World: ${worldRepository}\nProject folder: ${folder}\n`
+  writeFileSync(join(f.source, 'FORGE-WORLD.md'), note)
+  ensureForgeConfig(f.source, { version: 1, worldRepository, projectFolder: folder })
+  bindForge(f.home, f.source, member, note)
+  f.registry.untrack(f.source)
+  gitIn(f.world, 'add', '--', 'forge-world.json', folder)
+  gitIn(f.world, 'commit', '-m', 'Prepare an already linked ticket project')
+  return { member, card }
+}
+
 it('resumes a restore from the source pointer after the final publication was interrupted', async () => {
   const f = fixture(emptyWorldSeed)
-  const member = join(f.world, 'Software')
   try {
-    await f.call('pickConvert', f.world)
-    const card = await f.pool.get(member).createKanbanCard({ title: 'Restored after publication interruption' })
+    const { member, card } = await seedLinkedTicket(f, 'Restored after publication interruption')
     const memberStore = join(member, '.darkmechanicus')
     f.failNetwork(args => args.includes('push') && !existsSync(memberStore))
     await expect(f.call('restore', member, 'db')).rejects.toThrow('final restore publication')
@@ -491,7 +510,7 @@ it('resumes a restore from the source pointer after the final publication was in
 })
 
 it('refuses conversion and restoration of planner-only holds without moving ticket state or retiring the incident', async () => {
-  const { pool, source, world, home, registry, call, forge, close } = fixture()
+  const { pool, source, world, home, registry, call, forge, close } = fixture(emptyWorldSeed)
   try {
     const original = pool.get(source)
     await original.initializeRepository({ name: 'Held planner', mode: 'db' })
@@ -502,7 +521,6 @@ it('refuses conversion and restoration of planner-only holds without moving tick
     const planner = openWorkspace({ repoRoot: source, homeDir: home, role: 'planner', transport: 'cli', label: 'Planner', grantToken: grant.token })
     await expect(planner.createKanbanCard({ title: 'Premature progress' })).rejects.toMatchObject({ code: 'invalid_state' })
     planner.close()
-    await call('create', world)
     const member = join(world, 'Software')
     await expect(call('convert', world, source)).rejects.toThrow('tooling recovery')
     await expect(call('convert', world, source, { force: true })).rejects.toThrow('tooling recovery')

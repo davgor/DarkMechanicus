@@ -7,7 +7,7 @@ import { Button } from '../components/Button'
 import { Dialog } from '../components/Dialog'
 import { ForgeOpen } from './ForgeOpen'
 import { folderIdentity } from '../app/folderList'
-import { applyQuestion, standardsChat } from './standardsChat'
+import { applyQuestion, standardsChat } from '../../../shared/domain/standardsChat'
 
 type Prompts = typeof defaultPrompts
 type Launch = (project: TrackedFolderView, prompt: string) => Promise<void>
@@ -16,6 +16,7 @@ interface Props {
   folder: TrackedFolderView
   folders: readonly TrackedFolderView[]
   launch: Launch
+  onPrepare?: Launch
   compact?: boolean
 }
 
@@ -55,6 +56,7 @@ interface EditorProps {
   folder: TrackedFolderView
   saved?: StoredDeliveryPolicy
   launch: Launch
+  onPrepare?: Launch
   compact?: boolean
   onSave(value: StoredDeliveryPolicy): void
   reload(): void
@@ -99,12 +101,15 @@ function EditorActions({ model, saved, compact, prepare, confirm }: {
 }
 
 function Editor(props: EditorProps) {
-  const { folder, saved, launch, compact, reload } = props
+  const { folder, saved, launch, onPrepare, compact, reload } = props
   const model = useEditor(props)
   const { prompts, setPrompts, busy, error, perform } = model
   const [confirm, setConfirm] = useState(false)
   const revision = saved?.revision
-  const startChat = (task: 'prepare' | 'standardize') => void perform(() => launch(folder, standardsChat(task, saved)))
+  const startChat = (task: 'prepare' | 'standardize') => {
+    const open = task === 'prepare' && folder.forgeParent ? onPrepare ?? launch : launch
+    void perform(() => open(folder, standardsChat(task, saved)))
+  }
   if (compact && saved) return null
   return <section className={compact ? 'standards-setup' : 'standards-editor'} aria-label="Project delivery standards">
     <header className="standards-heading"><div>
@@ -129,21 +134,21 @@ function ProjectStandards(props: Omit<Props, 'folders'>) {
   return <Editor {...props} saved={policy.read.saved} key={policy.read.saved?.revision ?? 0} onSave={policy.saved} reload={policy.reload} />
 }
 
-function Member({ folder, launch, root }: Pick<Props, 'folder' | 'launch'> & { root: string }) {
+function Member({ folder, launch, onPrepare, root }: Pick<Props, 'folder' | 'launch' | 'onPrepare'> & { root: string }) {
   const [open, setOpen] = useState(false)
   return <details className="standards-member" onToggle={e => setOpen(e.currentTarget.open)}>
-    <summary>{folder.name}</summary>{open && <ForgeOpen root={root} member={folder.path} identity={folderIdentity(folder)}><ProjectStandards folder={folder} launch={launch} /></ForgeOpen>}
+    <summary>{folder.name}</summary>{open && <ForgeOpen root={root} member={folder.path} identity={folderIdentity(folder)}><ProjectStandards folder={folder} launch={launch} onPrepare={onPrepare} /></ForgeOpen>}
   </details>
 }
 
-export function DeliveryStandards({ folder, folders, launch, compact }: Props) {
+export function DeliveryStandards({ folder, folders, launch, onPrepare, compact }: Props) {
   if (folder.forgeWorld) {
     if (compact) return null
     const members = folders.filter(f => f.forgeParent === folder.path)
     return <div className="standards-editor"><h2>Delivery Standards</h2>
       {members.length === 0 ? <p>No managed projects.</p> : members.map(member =>
-        <Member key={folderIdentity(member)} root={folder.path} folder={member} launch={launch} />)}</div>
+        <Member key={folderIdentity(member)} root={folder.path} folder={member} launch={launch} onPrepare={onPrepare} />)}</div>
   }
   if (!folder.initialized) return compact ? null : <p className="standards-message">Choose a ticket store on the Ticket source control tab to configure delivery standards.</p>
-  return <ProjectStandards key={folder.path} folder={folder} launch={launch} compact={compact} />
+  return <ProjectStandards key={folder.path} folder={folder} launch={launch} onPrepare={onPrepare} compact={compact} />
 }

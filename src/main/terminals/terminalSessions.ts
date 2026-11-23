@@ -164,6 +164,7 @@ export interface AttachOptions {
 /** Start run's (and Transfer with agent's, and Play's) start: the kickoff, which goes with it when it is the chat's first (`kickoffSent` unset). */
 interface StartOptions {
   kickoff: string
+  forgeSetupAuthorization?: symbol
 }
 
 /** What `start` and `paste` answer: the PTY runs (it may have exited since), or why it did not start. */
@@ -287,6 +288,7 @@ export interface TerminalSessionsDeps {
   beforeContextPaste?: (chat: ChatRecord, messageId: string, content: string) => boolean
   /** Recovery startup checks exact source identity and the live initiating authority at every launch fence. */
   assertRecoveryLaunch?: (chat: ChatRecord) => string | void | Promise<string | void>
+  assertForgeSetupLaunch?: (chat: ChatRecord, authorization?: symbol) => string
   /** Binds only a tracked live PTY, never a persisted historical grant id. */
   bindChatGrant?: (grantId: string, identity: { folder: string | null; chatId: string; generation: string; runId?: string; cardId?: string }) => unknown
 }
@@ -373,7 +375,7 @@ interface Starting {
 }
 
 interface Manager {
-  deps: Required<Omit<TerminalSessionsDeps, 'onError' | 'onChatChanged' | 'bindChatGrant' | 'beforeContextPaste' | 'assertRecoveryLaunch' | 'forgeResolverFolders'>> & Pick<TerminalSessionsDeps, 'onChatChanged' | 'bindChatGrant' | 'beforeContextPaste' | 'assertRecoveryLaunch' | 'forgeResolverFolders'>
+  deps: Required<Omit<TerminalSessionsDeps, 'onError' | 'onChatChanged' | 'bindChatGrant' | 'beforeContextPaste' | 'assertRecoveryLaunch' | 'assertForgeSetupLaunch' | 'forgeResolverFolders'>> & Pick<TerminalSessionsDeps, 'onChatChanged' | 'bindChatGrant' | 'beforeContextPaste' | 'assertRecoveryLaunch' | 'assertForgeSetupLaunch' | 'forgeResolverFolders'>
   onError: (error: unknown) => void
   entries: Map<string, Live | Starting>
   listeners: Map<string, Map<TerminalListener, Subscriber>>
@@ -918,6 +920,7 @@ interface StartContext {
   reach: readonly ReachTarget[] | undefined
   starting: Starting
   kickoff: string | null
+  forgeSetupAuthorization?: symbol
   /** The start forgets the chat's earlier session (the pane's new session after a refused resume). */
   newSession: boolean
 }
@@ -969,15 +972,36 @@ function assertLocalStart(context: StartContext): void {
 async function recheckFolder(context: StartContext): Promise<string | undefined> {
   try {
     assertLocalStart(context)
-    if (context.chat.repairIncidentId === undefined) return undefined
-    const verify = context.manager.deps.assertRecoveryLaunch
-    if (verify === undefined) throw new Error('Repair startup authority is unavailable.')
-    const codeCheckout = await verify(context.chat)
+    const codeCheckout = await verifiedStartDirectory(context)
     assertLocalStart(context)
     return codeCheckout ?? undefined
   } catch (error) {
     throw new FolderRefused(messageOf(error))
   }
+}
+
+function verifiedStartDirectory(context: StartContext): string | void | Promise<string | void> {
+  const { chat, manager } = context
+  if (chat.forgeSetup !== undefined) return verifiedForgeSetupDirectory(context)
+  if (chat.repairIncidentId === undefined) return undefined
+  const verify = manager.deps.assertRecoveryLaunch
+  if (verify === undefined) throw new Error('Repair startup authority is unavailable.')
+  return verify(chat)
+}
+
+function verifiedForgeSetupDirectory(context: StartContext): string {
+  const verify = context.manager.deps.assertForgeSetupLaunch
+  if (verify === undefined) throw new Error('Forge setup launch authority is unavailable.')
+  return verify(context.chat, context.forgeSetupAuthorization)
+}
+
+function assertSpawnLocation(context: StartContext, expectedDirectory: string | undefined): void {
+  try {
+    assertLocalStart(context)
+    if (context.chat.forgeSetup !== undefined && verifiedForgeSetupDirectory(context) !== expectedDirectory) {
+      throw new Error('The Forge setup checkout changed before launch.')
+    }
+  } catch (error) { throw new FolderRefused(messageOf(error)) }
 }
 
 /** The steps before a spawn, in their order (see the module comment). */
@@ -1157,7 +1181,7 @@ async function spawnLaunch(context: StartContext, files: TerminalFiles, issued: 
     env: manager.deps.env,
     newSessionId: manager.deps.newSessionId
   })
-  try { assertLocalStart(context) } catch (error) { throw new FolderRefused(messageOf(error)) }
+  assertSpawnLocation(context, repairCheckout)
   const firstArgument = spec.kickoffIn === 'args' && chat.firstPrompt !== undefined
   recordLaunch(context, spec, issued, firstArgument)
   const screen = createTerminalScreen(START_COLS, START_ROWS)
@@ -1187,20 +1211,25 @@ function unsentFirstPrompt(chat: ChatRecord): string | null {
   return chat.firstPrompt ?? null
 }
 
+function startLocation(manager: Manager, chat: ChatRecord) {
+  const folder = launchFolder(manager, chat)
+  return { folder, reach: launchReach(manager, chat, folder) }
+}
+
 /** Begins the chat's start, or refuses it at once when its folder or agent fails; see `AttachOptions` and `StartOptions`. */
 function beginStart(manager: Manager, found: ChatRecord, options: AttachOptions & Partial<StartOptions>): Starting | { state: 'refused'; message: string } {
   let chat = found
+  const setupRefused = refuseSetupStart(chat, options)
+  if (setupRefused !== undefined) return setupRefused
   if (manager.deleting.has(chat.id)) {
     return { state: 'refused', message: DELETED }
   }
   if (releasing(manager, chat)) {
     return { state: 'refused', message: UNTRACKED }
   }
-  let folder: string
-  let reach: readonly ReachTarget[] | undefined
+  let location: ReturnType<typeof startLocation>
   try {
-    folder = launchFolder(manager, chat)
-    reach = launchReach(manager, chat, folder)
+    location = startLocation(manager, chat)
   } catch (error) {
     return { state: 'refused', message: messageOf(error) }
   }
@@ -1215,7 +1244,7 @@ function beginStart(manager: Manager, found: ChatRecord, options: AttachOptions 
     chat = manager.deps.store.updateChat(chat, { sessionId: null, sessionStarted: false })
   }
   const starting: Starting = {
-    scopeFolders: worldScope(chat, reach),
+    scopeFolders: worldScope(chat, location.reach),
     kind: 'starting',
     agentId: agent.id,
     folder: chat.folder,
@@ -1224,7 +1253,8 @@ function beginStart(manager: Manager, found: ChatRecord, options: AttachOptions 
     cancel: () => {}
   }
   manager.entries.set(chat.id, starting)
-  starting.done = startSteps({ manager, chat, agent, folder, reach, starting, kickoff: options.kickoff ?? unsentFirstPrompt(chat), newSession: options.newSession === true }).then((outcome) => {
+  starting.done = startSteps({ manager, chat, agent, ...location, starting, kickoff: options.kickoff ?? unsentFirstPrompt(chat),
+    newSession: options.newSession === true, forgeSetupAuthorization: options.forgeSetupAuthorization }).then((outcome) => {
     if (manager.entries.get(chat.id) === starting) {
       if (outcome.state === 'running' && !outcome.live.exited) {
         manager.entries.set(chat.id, outcome.live)
@@ -1236,6 +1266,15 @@ function beginStart(manager: Manager, found: ChatRecord, options: AttachOptions 
     return outcome
   })
   return starting
+}
+
+function refuseSetupStart(chat: ChatRecord, options: AttachOptions & Partial<StartOptions>): { state: 'refused'; message: string } | undefined {
+  if (chat.forgeSetup?.mode === 'execution' && options.forgeSetupAuthorization === undefined) {
+    return { state: 'refused', message: 'This installer conversation starts only from the explicit setup action.' }
+  }
+  if (chat.forgeSetup !== undefined && options.newSession === true) {
+    return { state: 'refused', message: 'This Forge conversation is bound to its original setup receipt.' }
+  }
 }
 
 /** The running PTY's snapshot, with `listener` subscribed at the same point of the output. */
@@ -1322,7 +1361,7 @@ async function start(manager: Manager, ref: ChatRef, options: StartOptions): Pro
   if (chat === null) {
     return { state: 'refused', message: noChat(ref) }
   }
-  const entry = manager.entries.get(chat.id) ?? beginStart(manager, chat, { kickoff: options.kickoff })
+  const entry = manager.entries.get(chat.id) ?? beginStart(manager, chat, options)
   if (!('kind' in entry)) {
     return entry
   }

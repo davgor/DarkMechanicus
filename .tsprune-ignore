@@ -138,6 +138,20 @@ src/shared/desktop/api.ts - DesktopCommandName
 src/shared/desktop/api.ts - KnowledgeDiagnosticView
 src/shared/desktop/api.ts - KnowledgeLayerName
 src/shared/desktop/attachmentUrl.ts - ATTACHMENT_SCHEME
+# Direct Node consumers of the shared Forge setup contract are outside tsconfig.web.json.
+src/shared/desktop/forgeSetup.ts - FORGE_RECIPEBOOK_FILE
+src/shared/desktop/forgeSetup.ts - FORGE_SETUP_DIRECTORY
+src/shared/desktop/forgeSetup.ts - FORGE_SETUP_FACT_VALUE_MAX
+src/shared/desktop/forgeSetup.ts - FORGE_SETUP_GUIDE_FILE
+src/shared/desktop/forgeSetup.ts - FORGE_SETUP_WORKFLOW_FILE
+src/shared/desktop/forgeSetup.ts - ForgeRecipeAsset
+src/shared/desktop/forgeSetup.ts - ForgeSetupDetection
+src/shared/desktop/forgeSetup.ts - ForgeSetupFact
+src/shared/desktop/forgeSetup.ts - ForgeSourceRevision
+# WorkflowSteps consumes this type in the renderer, outside tsconfig.node.json.
+src/shared/desktop/forgeSetup.ts - ForgeSetupPlatform
+# ForgeService uses the shared edit input through an inline import type.
+src/shared/desktop/forgeSetup.ts - ForgeRecipebookEdit
 src/shared/desktop/sourceCheckout.ts - SourceCheckoutProblem
 src/shared/desktop/sourceCheckout.ts - SourceCheckoutTarget
 src/shared/domain/agentMail.ts - AgentMailMessageView
@@ -384,3 +398,4 @@ src/shared/domain/standardization.ts - StandardizationPatch
 src/shared/domain/standardization.ts - StandardsNoticeRoute
 src/shared/domain/standardization.ts - StandardsNotice
 src/shared/domain/standardization.ts - StandardizationItem
+src/shared/domain/standardsChat.ts - applyQuestion

@@ -104,6 +104,18 @@ const crossRepoCorrections: CrossRepoCorrectionsApi = {
  * `sourceCheckout` the `sourceCheckout:*` channels; `crossRepoCorrections` the `corrections:*CrossRepo` channels.
  */
 const dm: DmApi = {
+  forgeSetup: {
+    provision: (input, operationId) => ipcRenderer.invoke('forgeSetup:provision', input, operationId),
+    provisioning: () => ipcRenderer.invoke('forgeSetup:provisioning'),
+    resumeProvision: id => ipcRenderer.invoke('forgeSetup:resumeProvision', id),
+    recipebook: world => ipcRenderer.invoke('forgeSetup:recipebook', world),
+    saveRecipebook: (world, edit) => ipcRenderer.invoke('forgeSetup:saveRecipebook', world, edit),
+    project: member => ipcRenderer.invoke('forgeSetup:project', member),
+    saveWorkflow: (member, edit) => ipcRenderer.invoke('forgeSetup:saveWorkflow', member, edit),
+    refresh: member => ipcRenderer.invoke('forgeSetup:refresh', member),
+    prepare: (member, agent) => ipcRenderer.invoke('forgeSetup:prepare', member, agent),
+    run: (member, expectedSha256, expectedCheckout) => ipcRenderer.invoke('forgeSetup:run', member, expectedSha256, expectedCheckout)
+  },
   forge: {
     memberStatus: (root, member) => ipcRenderer.invoke('forge:memberStatus', root, member),
     connect: (folder, repository, publish) => ipcRenderer.invoke('forge:connect', folder, repository, publish),
