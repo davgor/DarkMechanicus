@@ -6,6 +6,19 @@ CI builds with `electron-builder --publish never` (artifacts only). The deploy w
 
 `npm run package:win` and `npm run package:mac` first run `scripts/packaging-guard.mjs`, which fails when the checkout's `node_modules` is a symbolic link or a Windows junction (as in a worktree that borrows another checkout's dependencies): electron-builder leaves the hoisted dependencies out of `app.asar` through such a link, and the packaged app does not start. Package from a checkout with its own `node_modules` folder (`npm ci` there).
 
+## Local Windows EPERM during verification
+
+A local Windows test or coverage run can fail with `EPERM` during an atomic fixture rename. In DM-918 this occurred in the `forgeService.test.ts` force-retirement scenario while replacing `forge-world.json` from a UUID-named temporary file. The error alone does not establish antivirus interference, overlapping execution, or a harmless environment issue.
+
+Before deployment:
+
+1. Preserve the failed local command, full error/stack and source/destination paths, log location, tested commit SHA, and ticket/attempt identifier. Keep that local check **failed**; a CI pass never retroactively passes it.
+2. Review the failure evidence independently for source/test defects. Do not dismiss a reproducible defect as environmental. Record confirmed findings separately from hypotheses; a passing run does not establish the historical cause.
+3. Require independent, first-attempt verification on clean Windows CI runners for the **exact proposed revision**: both the `coverage` job (`npm run coverage -- --maxWorkers 2`, enforcing configured thresholds) and all Windows test shards behind the required `test` aggregate in [CI Checks](../../.github/workflows/pr-checks.yml) must pass, along with the remaining required gates. An earlier revision's green run is not verification of a later change.
+4. Record the CI run/job URLs, run attempt number, tested SHA, and test/coverage results alongside the local evidence, with **local** and **CI** statuses separate. Review those records before deployment; missing or failed exact-revision CI leaves verification incomplete.
+
+This procedure is not permission to rerun failing tests or CI until green, add retries, raise timeouts, skip tests, or conceal a reproducible source/test defect. Investigate and fix demonstrated defects with new evidence rather than treating every `EPERM` as harmless.
+
 ## Installers vs portable
 
 | Artifact | Auto-update | GitHub Release |
