@@ -15,7 +15,7 @@ it('opens a Forge World on ticket controls and routes each Kanban branch to its 
   } })
   const member = folderView({ path: '/world/Alpha', name: 'Alpha', forgeParent: root.path })
   h.dm.folders = [root, member]
-  Object.assign(h.dm, { forge: { status: vi.fn().mockResolvedValue({ last: null, error: null }), sync: vi.fn().mockResolvedValue(undefined) } })
+  Object.assign(h.dm, { forge: { memberStatus: async () => ({ readiness: 'ready', syncing: false, error: null }), status: vi.fn().mockResolvedValue({ last: null, error: null }), sync: vi.fn().mockResolvedValue(undefined) } })
   h.epics[member.path] = [epicSummary({ title: 'Forge backlog', status: 'backlog' })]
   h.mount()
   await settle()
@@ -31,6 +31,8 @@ it('opens a Forge World on ticket controls and routes each Kanban branch to its 
   fireEvent.click(nav.getByRole('button', { name: 'Kanban, 0 open cards' }))
   await settle()
   expect(window.localStorage.getItem('dm.selection')).toContain(member.path)
+  expect(screen.getByRole('heading', { name: 'Kanban' })).toBeTruthy()
+  expect(window.dm.forge?.sync).not.toHaveBeenCalled()
 })
 
 it('creates and reopens a world agent with its root identity without polling a root project database', async () => {

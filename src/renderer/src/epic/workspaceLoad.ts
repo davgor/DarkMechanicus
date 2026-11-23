@@ -44,7 +44,7 @@ async function executedPlan(runner: Runner, epicId: string, run: RunView, saved:
 }
 
 /** A completed run's overview: the plan it executed and each sprint's latest report, in sprint order. */
-async function loadOverview(runner: Runner, epicId: string, run: RunView | null, saved: PlanView | null): Promise<OverviewData | null> {
+export async function loadOverview(runner: Runner, epicId: string, run: RunView | null, saved: PlanView | null): Promise<OverviewData | null> {
   if (run === null || run.state !== 'completed') {
     return null
   }
@@ -56,15 +56,14 @@ async function loadOverview(runner: Runner, epicId: string, run: RunView | null,
   return { bundle, reports: reports.filter((report): report is SprintReportView => report !== null) }
 }
 
-/** Loads everything the epic workspace shows, skipping reads for things that do not exist. */
+/** Loads the active workspace. The completed run's report is read when opened. */
 export async function loadWorkspace(runner: Runner, epicId: string): Promise<WorkspaceData> {
   const epic = await runner('getEpic', { epicId })
   const { saved, draft, run } = await loadPlans(runner, epic)
   // A transfer needs a saved plan, and a completed epic has none open (a verified one is in its outcome).
   const transferable = epic.currentRevisionId !== null && epic.status !== 'completed'
-  const [checkpoint, overview, savedTickets, draftTickets, validation, transfer] = await Promise.all([
+  const [checkpoint, savedTickets, draftTickets, validation, transfer] = await Promise.all([
     loadCheckpoint(runner, run),
-    loadOverview(runner, epicId, run, saved),
     saved === null ? [] : runner('listTickets', { epicId, view: 'saved' }),
     draft === null ? [] : runner('listTickets', { epicId, view: 'draft' }),
     draft === null ? null : runner('validatePlan', { epicId, view: 'draft' }),
@@ -76,7 +75,6 @@ export async function loadWorkspace(runner: Runner, epicId: string): Promise<Wor
     draft,
     run,
     checkpoint: checkpoint ?? run?.checkpoint ?? null,
-    overview,
     savedTickets,
     draftTickets,
     validation,

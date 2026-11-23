@@ -1,7 +1,7 @@
 /** Attachment image files: written beside their owner's records before the record that points at them, and imported back. */
 import { createHash } from 'node:crypto'
 import { resolve } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { makeBundle, tid } from '../../test/bundles'
 import { jpegBytes, pngBytes } from '../../test/images'
 import { createStubGit, copyTracked, createRepoEnv, flush, importerDeps, initProject, type RepoEnv, saveRevision, stageRevision } from '../../test/repoEnv'
@@ -333,7 +333,8 @@ describe('ticket attachment import', () => {
 
     const target = createRepoEnv({ root: '/clone' })
     copyTracked(source, target)
-    const result = reconcileRepository(importerDeps(target, createStubGit('main')))
+    const deps = importerDeps(target, createStubGit('main'))
+    const result = reconcileRepository(deps)
     expect(result.rejected).toEqual([])
     expect(target.db.get('SELECT owner_kind, owner_id, created_by_label FROM attachments WHERE id = ?', id)).toEqual({
       owner_kind: 'ticket',
@@ -343,9 +344,67 @@ describe('ticket attachment import', () => {
     expect(stored(target, id).missing).toBe(0)
     expect(Buffer.from(stored(target, id).data ?? []).equals(bytes)).toBe(true)
     expect(listAttachmentRefs(target.db, { kind: 'ticket', id: tid(1) })).toEqual(refs)
-    reconcileRepository(importerDeps(target, createStubGit('main')))
-    expect(target.db.all('SELECT id FROM attachments')).toHaveLength(1)
+    // A database from before incremental registration can have saved references but no attachment rows.
+    target.db.run('DELETE FROM attachments WHERE id = ?', id)
+    target.db.run("DELETE FROM meta WHERE key = 'attachment_registration'")
+    expect(reconcileRepository(deps).rejected).toEqual([])
+    expect(stored(target, id)).toEqual({ missing: 0, data: new Uint8Array(bytes) })
+    const query = vi.spyOn(target.db, 'all')
+    try {
+      expect(reconcileRepository(deps).rejected).toEqual([])
+      const selections = query.mock.calls.map(([sql]) => sql)
+      expect(selections.some((sql) => sql.includes('bundle_json') || sql.includes('evidence_json'))).toBe(false)
+    } finally {
+      query.mockRestore()
+    }
   })
+})
+
+describe('incremental attachment validation', () => {
+  it('reads zero warm bodies, checks only a same-size changed copy, and retains the stored evidence', () => {
+    const f = importedFixture()
+    expect(f.reconcile().rejected).toEqual([])
+    const reads: string[] = []
+    const readBytes = f.target.fs.readFileBytes.bind(f.target.fs)
+    f.target.fs.readFileBytes = (path) => {
+      reads.push(path)
+      return readBytes(path)
+    }
+    expect(f.reconcile().rejected).toEqual([])
+    expect(reads).toEqual([])
+
+    const file = ownedPaths(f.target.layout).attachmentFile({ kind: 'run', id: RUN }, sha(f.bytes.run), 'image/png')
+    const changed = pngBytes(40, 30, 99)
+    expect(changed.byteLength).toBe(f.bytes.run.byteLength)
+    f.target.fs.putBytes(file, changed)
+    expect(f.reconcile().rejected).toEqual([expect.objectContaining({ message: expect.stringContaining('hash differs') })])
+    expect(reads).toEqual([file])
+    expect(stored(f.target, f.ids.run)).toEqual({ data: new Uint8Array(f.bytes.run), missing: 0 })
+
+    f.target.fs.remove(file)
+    expect(f.reconcile().rejected).toEqual([])
+    expect(reads).toEqual([file])
+    f.target.fs.putBytes(file, f.bytes.run)
+    expect(f.reconcile().rejected).toEqual([])
+    expect(f.reconcile().rejected).toEqual([])
+    expect(reads).toEqual([file, file])
+  })
+})
+
+it('publishes one refresh when an attachment arrives without an owning record change', () => {
+  const f = importedFixture()
+  const file = ownedPaths(f.target.layout).attachmentFile({ kind: 'epic', id: EPIC }, sha(f.bytes.ticket), 'image/png')
+  f.target.fs.remove(file)
+  f.reconcile()
+  const events = () => f.target.db.all<{ payload_json: string }>("SELECT payload_json FROM events WHERE kind = 'repository.reconciled' ORDER BY seq")
+  const before = events().length
+  f.target.fs.putBytes(file, f.bytes.ticket)
+
+  expect(f.reconcile()).toMatchObject({ imported: [], rejected: [] })
+  expect(stored(f.target, f.ids.ticket)).toEqual({ missing: 0, data: new Uint8Array(f.bytes.ticket) })
+  expect(f.reconcile()).toMatchObject({ imported: [], rejected: [] })
+  const published = events().slice(before).map((row) => JSON.parse(row.payload_json))
+  expect(published).toEqual([expect.objectContaining({ imported: [], changedEpics: [], refreshAll: true })])
 })
 
 describe('attachment import', () => {

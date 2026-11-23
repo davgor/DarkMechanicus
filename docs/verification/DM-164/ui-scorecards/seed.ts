@@ -242,7 +242,7 @@ async function main(): Promise<void> {
     else if (variant === 'report1') await stoppedAtReport1(m)
     else await failedIntegration(m)
   } finally {
-    m.close()
+    await m.cleanup()
   }
 }
 

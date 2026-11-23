@@ -10,7 +10,14 @@ export interface ForgeWorld {
   syncMinutes: number
 }
 
+export interface ForgeMemberStatus {
+  readiness: 'ready' | 'preparing' | 'removed'
+  syncing: boolean
+  error: string | null
+}
+
 export interface ForgeApi {
+  memberStatus(root: string, member: string): Promise<ForgeMemberStatus>
   connect(folder: string, repository: string, publish: boolean): Promise<string>
   restore(member: string, mode: 'db' | 'repo'): Promise<string | null>
   pickConvert(world: string): Promise<void>

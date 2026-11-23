@@ -17,7 +17,7 @@ import { getStorageStatus } from '../repo/storage'
 import { COMMAND_SCHEMAS } from '../commandSchemas'
 import { agentMailboxStatus } from '../services/agentMail'
 import { resolveEpicConflict } from '../services/epicConflict'
-import { appendEvent, listEvents } from '../services/events'
+import { appendEvent, latestSeq, listEvents } from '../services/events'
 import { issueGrant, listGrants, renewGrant, revokeGrant } from '../services/grants'
 import { searchHistory } from '../services/history'
 import { listSessions } from '../services/sessions'
@@ -281,6 +281,14 @@ const repositoryCommands = {
     schema: COMMAND_SCHEMAS.decideSavePermission,
     mutates: true,
     run: (core, input) => decideSavePermission(core.ctx(), input)
+  },
+  getEventHead: {
+    mutates: false,
+    run: (core) => {
+      const ctx = core.ctx()
+      requireCapability(ctx.session, 'read')
+      return latestSeq(ctx, 0)
+    }
   },
   listEvents: {
     schema: COMMAND_SCHEMAS.listEvents,

@@ -127,7 +127,7 @@ async function main(): Promise<void> {
       `${summary.epics.length} epics at ${SPRINT_START.slice(0, 7)}, distribution ${JSON.stringify(summary.distribution.byGradeStatus)}; tokens total ${summary.totals.tokens.total.value} (${summary.totals.tokens.total.state}, ${summary.totals.tokens.total.reason})`
     )
   } finally {
-    m.close()
+    await m.cleanup()
   }
   console.log(failures === 0 ? 'ALL CHECKS PASSED' : `${failures} FAILED`)
   process.exitCode = failures === 0 ? 0 : 1

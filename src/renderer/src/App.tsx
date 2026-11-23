@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ComponentProps, ComponentType } from 'react'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { AgentId, TrackedFolderView } from '../../shared/desktop/api'
+import { folderIdentity } from './app/folderList'
 import { epicLandingFor, threadLandingFor } from './app/landing'
 import { findFolder } from './app/selection'
 import type { Selection } from './app/selection'
@@ -29,6 +30,7 @@ import { xtermKit } from './agents/xtermKit'
 import { CheckForUpdatesButton } from './autoUpdate/CheckForUpdatesButton'
 import { UpdateBanner, useAppUpdate } from './autoUpdate/UpdateBanner'
 import { EpicWorkspace } from './epic/EpicWorkspace'
+import { createViewMemory, useViewMemory, ViewMemoryContext } from './epic/viewMemory'
 import type { EpicWorkspaceProps } from './epic/EpicWorkspace'
 import type { OrchestrationHost } from './epic/orchestration'
 import { CloneDialog } from './clone/CloneDialog'
@@ -106,7 +108,7 @@ function EpicPane({ shell, EpicView, folder, epicId }: EpicPaneProps): JSX.Eleme
   const onLanded = useCallback(() => actions.current.landed(), [actions])
   return (
     <EpicView
-      key={`${folder.path}:${epicId}`}
+      key={JSON.stringify([folderIdentity(folder), epicId])}
       folder={folder}
       epicId={epicId}
       refreshToken={shell.epicToken(folder.path, epicId)}
@@ -230,7 +232,7 @@ function FolderContents(props: FolderContentsProps): JSX.Element {
     <DeliveryStandards key={folder.path} folder={folder} folders={shell.folders} launch={props.launch} compact={tab !== 'standards'} />
     <FolderTabContent {...props} />
   </>
-  return folder.forgeParent ? <ForgeOpen root={folder.forgeParent}>{contents}</ForgeOpen> : contents
+  return folder.forgeParent ? <ForgeOpen identity={folderIdentity(folder)} root={folder.forgeParent} member={folder.path} scheduler={scheduler}>{contents}</ForgeOpen> : contents
 }
 
 function FolderTabContent({ shell, folder, tab, scheduler, sourceTarget }: FolderContentsProps): JSX.Element | null {
@@ -242,16 +244,16 @@ function FolderTabContent({ shell, folder, tab, scheduler, sourceTarget }: Folde
 
 function MainPane(props: PaneProps): JSX.Element | null {
   const view = props.shell.view
-  if ('folder' in view && view.folder?.forgeParent && view.kind !== 'folder') {
-    return <ForgeOpen key={view.folder.path} root={view.folder.forgeParent}><MainContent {...props} /></ForgeOpen>
+  if ((view.kind === 'epic' || view.kind === 'kanban' || view.kind === 'metrics') && view.folder.forgeParent) {
+    return <ForgeOpen identity={folderIdentity(view.folder)} root={view.folder.forgeParent} member={view.folder.path} scheduler={props.scheduler} fullHeight><MainContent {...props} /></ForgeOpen>
   }
   return <MainContent {...props} />
 }
 
 function KanbanPane({ folder, shell }: { folder: TrackedFolderView; shell: ShellModel }): JSX.Element {
-  return <KanbanBoard folder={folder} refreshToken={shell.folderToken(folder.path)} host={orchestrationFor(shell, folder)}
+  return <KanbanBoard folder={folder} refreshToken={shell.kanbanToken(folder.path)} host={orchestrationFor(shell, folder)}
     selectedCardId={shell.selection.kanbanCardId ?? null} onOpenCard={id => shell.actions.selectKanban(folder.path, id)}
-    onCloseCard={() => shell.actions.selectKanban(folder.path)} onChanged={() => shell.actions.changed(folder.path)} />
+    onCloseCard={() => shell.actions.selectKanban(folder.path)} onChanged={() => shell.refreshKanban(folder.path)} />
 }
 
 function MainContent(props: PaneProps): JSX.Element | null {
@@ -271,7 +273,7 @@ function MainContent(props: PaneProps): JSX.Element | null {
     case 'projectless-chat':
       return <ChatPane key={view.chat.id} shell={shell} folder={null} chat={view.chat} scheduler={props.scheduler} terminalKit={props.terminalKit} />
     case 'kanban':
-      return <KanbanPane key={view.folder.path} folder={view.folder} shell={shell} />
+      return <KanbanPane key={folderIdentity(view.folder)} folder={view.folder} shell={shell} />
     case 'metrics':
       return (
         <MetricsDashboard
@@ -404,6 +406,8 @@ function ShellSidebar({ shell, version, onNewChat, onSummon, onClone, onRequestU
       agents={shell.agents.agents}
       agentStatuses={shell.agents.statuses}
       expansion={shell.expansion}
+      sections={shell.sections}
+      setSection={shell.setSection}
       chats={sidebarChats(shell, (path) => onNewChat(findFolder(shell.folders, path)))}
       agentChats={{ list: shell.allChats, onOpen: actions.openChat, onRename: shell.chats.rename, onDelete: shell.chats.remove, onSummon }}
       footer={<ShellFooter shell={shell} />}
@@ -446,6 +450,10 @@ function FirstPromptHost({ shell, request, onClose }: { shell: ShellModel; reque
 function Shell({ scheduler, EpicView, terminalKit }: { scheduler: Scheduler; EpicView: EpicView; terminalKit: TerminalKit }): JSX.Element {
   const update = useAppUpdate()
   const shell = useShell(scheduler)
+  const views = useViewMemory()
+  useEffect(() => {
+    views.retain(new Set(shell.folders.map(folderIdentity)))
+  }, [views, shell.folders])
   const [pending, setPending] = useState<TrackedFolderView | null>(null)
   const startingChats = useRef(new Set<string>())
   const [firstPrompt, setFirstPrompt] = useState<FirstPromptRequest | null>(null)
@@ -491,11 +499,14 @@ function Shell({ scheduler, EpicView, terminalKit }: { scheduler: Scheduler; Epi
 export function App({ scheduler = browserScheduler, EpicView = EpicWorkspace, terminalKit = xtermKit }: AppProps): JSX.Element {
   // The page's chat terminals, so a chat's sidebar row shows its live PTY whichever chat is shown.
   const [liveTerminals] = useState(createLiveTerminals)
+  const [viewMemory] = useState(createViewMemory)
   return (
     <ToastProvider scheduler={scheduler}>
       <LiveTerminalsContext.Provider value={liveTerminals}>
         <GithubAccountProvider>
-          <Shell scheduler={scheduler} EpicView={EpicView} terminalKit={terminalKit} />
+          <ViewMemoryContext.Provider value={viewMemory}>
+            <Shell scheduler={scheduler} EpicView={EpicView} terminalKit={terminalKit} />
+          </ViewMemoryContext.Provider>
         </GithubAccountProvider>
       </LiveTerminalsContext.Provider>
     </ToastProvider>

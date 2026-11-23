@@ -1,51 +1,29 @@
 /**
- * The grants chat terminals run on. Each is revoked through the workspace it was issued in, held
- * since issue, never by finding its folder again: a folder renamed while its chat ran is no longer
- * at its path, but the workspace's open SQLite handle still reaches its `state.sqlite` on POSIX.
- *
- * The workspace is the desktop pool's, so it stays open until the folder is untracked or the app
- * has disposed its chats. One the pool has closed since is opened again in the folder it was issued
- * in, for the revoke only, and closed after. A grant that cannot be revoked either way is logged in
- * one line naming it and its expiry, and never throws: the session ending must not wait on it.
- *
- * While a chat runs its grant is renewed through the same workspace, to `minutes` from the renewal,
- * so a chat that runs for days keeps its role and one whose app died loses it within `minutes`. A
- * grant already revoked is renewed nothing; a renewal that fails is logged in one line, never thrown.
- *
- * An OMP chat's grant is bound to the chat's mailbox before it is returned, so before its CLI is spawned
- * (`chatMailboxes.ts`), and only while the folder is still tracked with the workspace the grant came from: a start
- * whose folder was untracked meanwhile binds nothing. A grant whose binding fails is revoked before the error is
- * thrown. Revoking a grant closes its binding first, through the same workspace; one that cannot be closed is logged.
- * No other grant (another CLI's chat, a project-less chat's, a grant issued outside a chat start) is ever bound.
- *
- * A project-less chat (`issueReachCli`) holds one grant per folder it reaches, each issued in that folder's own
- * workspace and checked there like any other: its token opens no other folder. Each token is written to its own
- * file (`chatReach.ts`), and the grants are revoked, renewed and bound for naming one by one, like a folder chat's.
- * A start that cannot issue all of them revokes the ones it did and fails.
+ * Chat credentials are stored in the project. Each live binding retains the same fenced project
+ * client across utility eviction. Every authority check and renewal uses the current durable grant.
+ * Terminal exit aborts the native binding before closing its mailbox and revoking the credential.
+ * Each member of a project's reach has a distinct grant, so one token cannot reach another store.
  */
 import { realpathSync } from 'node:fs'
-import { approveYolo, auditYolo, isYoloEligible, bindYoloChat, endYoloChat, listYoloAudit, revokeYolo, YOLO_CAPABILITIES } from '../../core/services/yolo'
+import { YOLO_CAPABILITIES } from '../../core/services/yolo'
 import type { YoloStatus } from '../../shared/desktop/api'
 import type { GrantView } from '../../shared/domain/views'
-import type { Ctx } from '../../core/context'
 import type { DesktopFence } from '../../core/services/yoloFence'
 import { DomainError } from '../../core/errors'
-import { closeAgentMailBinding } from '../../core/services/agentMail'
-import { assertGrantCapability, assertGrantUsable, hashToken } from '../../core/services/grants'
-import { bindToolingGrant } from '../../core/services/toolingHold'
+import { hashToken } from '../../core/services/grants'
 import { NamingControlError } from '../../shared/agents/chatNaming'
 import type { NamingControlBinding } from '../naming/controlPipe'
 import { writePrivateFile } from '../terminals/privateFile'
-import type { Workspace } from '../../core/workspace'
+import type { ProjectWorkspace } from '../desktop/workspaceClient'
 import type { ChatRole, DarkMechanicusCli } from '../../shared/agents/chat'
-import { bindChatMailbox, hasMailbox, type MailboxChat } from './chatMailboxes'
+import { hasMailbox, type MailboxChat } from './chatMailboxes'
 import type { ReachTarget } from './chatReach'
 
 interface ChatGrantsDeps {
   /** Durable local ownership, before a world member mailbox is bound; throws to abort/revoke a failed start. */
   recordWorldMailbox?: (ownerFolder: string, memberFolder: string, chatId: string) => void
   /** The desktop's workspace for a tracked folder; throws for one that is not. Asked only at issue. */
-  workspaceFor: (folder: string) => Workspace
+  workspaceFor: (folder: string) => ProjectWorkspace
   /** The `dm` invocation pinned to `folder` (to none for null: a project-less chat's), before the grant's token is added. */
   cliFor: (folder: string | null) => DarkMechanicusCli
   /** How long a chat's grant lasts. */
@@ -78,10 +56,10 @@ interface IssuedReachCli { cli: DarkMechanicusCli; grantIds: string[] }
 interface LiveIdentity { folder: string | null; chatId: string; generation: string; runId?: string; cardId?: string }
 
 export interface ChatGrants {
-  bindChatGrant(grantId: string, identity: LiveIdentity): void
+  bindChatGrant(grantId: string, identity: LiveIdentity): Promise<void>
   authorizeNaming(token: string): NamingControlBinding
   yolo(folder: string, grantId: string, action: 'enable' | 'revoke' | 'inspect', confirm: (detail: string) => Promise<boolean>): Promise<YoloStatus>
-  dispose(): void
+  dispose(): Promise<void>
   /** Binds the grant to the chat's mailbox when `chat` has one (see the module comment). */
   issueChatCli(folder: string, grant: GrantOptions, chat?: GrantChat): Promise<IssuedChatCli>
   /** One grant per target folder, each token written to its file; refused (and none left usable) when any fails. */
@@ -93,7 +71,7 @@ export interface ChatGrants {
 }
 
 interface HeldGrant {
-  workspace: Workspace
+  workspace: ProjectWorkspace
   expiresAt: string
   /** The canonical folder the grant was issued in. */
   folder: string
@@ -106,19 +84,6 @@ interface HeldGrant {
   mailbox: boolean
   runId?: string
   cardId?: string
-}
-
-async function through(held: HeldGrant, act: (workspace: Workspace) => Promise<unknown>): Promise<void> {
-  // A workspace with no session is one the pool closed since issue: the command opens it again in
-  // its folder, so it is closed again after rather than left open outside the pool.
-  const reopened = held.workspace.sessionId() === null
-  try {
-    await act(held.workspace)
-  } finally {
-    if (reopened) {
-      held.workspace.close()
-    }
-  }
 }
 
 /** Whether a terminal of a chat in `chatFolder` may be bound by the grant: a folder chat's by a grant of its own folder, a project-less chat's only by one issued to it. */
@@ -134,27 +99,25 @@ class ChatGrantRegistry implements ChatGrants {
   private readonly held = new Map<string, HeldGrant>()
   private readonly liveByHash = new Map<string, HeldGrant>()
   constructor(private readonly deps: ChatGrantsDeps) {}
-  private invalidate(grant: HeldGrant): void {
-    if (grant.live !== null) {
-      try { endYoloChat(grant.workspace.ctx(), grant.live.grantId) }
-      catch { this.deps.log(`Could not end YOLO binding for ${grant.live.grantId}; its fixed expiry still applies.`) }
-    }
+  private async invalidate(grant: HeldGrant): Promise<void> {
+    const live = grant.live
     grant.lifetime.abort()
     this.liveByHash.delete(grant.tokenHash)
     grant.live = null
+    if (live !== null) {
+      try { await grant.workspace.call('endYolo', live.grantId) }
+      catch { this.deps.log(`Could not end YOLO binding for ${live.grantId}; its fixed expiry still applies.`) }
+    }
   }
-  private assertBinding(grantId: string, grant: HeldGrant, binding: NamingControlBinding, naming = true): void {
-    if (this.held.get(grantId) !== grant || grant.live !== binding || binding.signal.aborted || grant.workspace.sessionId() === null || realpathSync.native(grant.folder) !== grant.folder || !ownedBy(grant, binding.folder)) {
+  private assertBinding(grantId: string, grant: HeldGrant, binding: NamingControlBinding): void {
+    if (this.held.get(grantId) !== grant || grant.live !== binding || binding.signal.aborted || !grant.workspace.current || realpathSync.native(grant.folder) !== grant.folder || !ownedBy(grant, binding.folder)) {
       throw new NamingControlError('unauthorized')
     }
-    const ctx = grant.workspace.ctx()
-    if (naming) assertGrantCapability({ db: ctx.db, clock: ctx.clock, machineId: ctx.machineId }, grantId, grant.tokenHash, 'chat.name')
-    else assertGrantUsable(ctx, grantId)
   }
   /** Issues one grant in the folder's workspace and holds it; answers it with its token and that workspace. */
-  private async issueHeld(folder: string, grant: GrantOptions, ownerFolder: string | null, mailbox: boolean): Promise<{ grantId: string; token: string; workspace: Workspace }> {
+  private async issueHeld(folder: string, grant: GrantOptions, ownerFolder: string | null, mailbox: boolean): Promise<{ grantId: string; token: string; workspace: ProjectWorkspace }> {
     const workspace = this.deps.workspaceFor(folder)
-    const issued = await workspace.issueGrant({ role: grant.role, label: grant.label, allowSave: grant.allowSave, minutes: this.deps.minutes })
+    const issued = await workspace.call('issueChatGrant', { role: grant.role, label: grant.label, allowSave: grant.allowSave, minutes: this.deps.minutes })
     this.held.set(issued.grant.id, { workspace, expiresAt: issued.grant.expiresAt, folder: realpathSync.native(folder), ownerFolder, tokenHash: hashToken(issued.token), live: null, lifetime: new AbortController(), mailbox })
     return { grantId: issued.grant.id, token: issued.token, workspace }
   }
@@ -177,7 +140,7 @@ class ChatGrantRegistry implements ChatGrants {
         if (this.deps.workspaceFor(folder) !== issued.workspace) {
           throw new DomainError('unauthorized', 'That folder is no longer tracked by Dark Mechanicus.')
         }
-        endpointId = bindChatMailbox(issued.workspace.ctx(), chat, issued.grantId)
+        endpointId = await issued.workspace.call('bindMailbox', chat, issued.grantId)
       } catch (error) {
         await this.revokeChatGrant(issued.grantId)
         throw error
@@ -202,7 +165,7 @@ class ChatGrantRegistry implements ChatGrants {
       for (const target of targets) {
         const held = await this.issueHeld(target.folder, grant, owner, mailbox !== undefined)
         issued.push(held)
-        this.bindReachedMailbox(target.folder, held, owner, mailbox)
+        await this.bindReachedMailbox(target.folder, held, owner, mailbox)
         await writePrivateFile(target.tokenFile, `${held.token}\n`, 0o600)
       }
     } catch (error) {
@@ -211,11 +174,11 @@ class ChatGrantRegistry implements ChatGrants {
     }
     return { cli: this.withGrant(this.deps.cliFor(null), issued[0]?.token ?? ''), grantIds: issued.map(({ grantId }) => grantId) }
   }
-  private bindReachedMailbox(folder: string, held: { workspace: Workspace; grantId: string }, owner: string | null, chat?: GrantChat): void {
+  private async bindReachedMailbox(folder: string, held: { workspace: ProjectWorkspace; grantId: string }, owner: string | null, chat?: GrantChat): Promise<void> {
     if (chat === undefined) return
     if (this.deps.workspaceFor(folder) !== held.workspace) throw new DomainError('unauthorized', 'That folder is no longer tracked by Dark Mechanicus.')
     this.deps.recordWorldMailbox?.(owner!, folder, chat.id)
-    bindChatMailbox(held.workspace.ctx(), chat, held.grantId)
+    await held.workspace.call('bindMailbox', chat, held.grantId)
   }
   /** The held grant a live terminal of the chat may be bound by, or `unauthorized`. */
   private bindable(grantId: string, identity: LiveIdentity): HeldGrant {
@@ -224,32 +187,33 @@ class ChatGrantRegistry implements ChatGrants {
     return grant
   }
   /** Ends the bindings of the chat's earlier starts; a project-less start binds each of its grants, all of one generation. */
-  private invalidateEarlierStarts(binding: NamingControlBinding): void {
+  private async invalidateEarlierStarts(binding: NamingControlBinding): Promise<void> {
     for (const previous of this.liveByHash.values()) {
       const live = previous.live
-      if (live?.folder === binding.folder && live.chatId === binding.chatId && live.generation !== binding.generation) this.invalidate(previous)
+      if (live?.folder === binding.folder && live.chatId === binding.chatId && live.generation !== binding.generation) await this.invalidate(previous)
     }
   }
-  bindChatGrant(grantId: string, identity: LiveIdentity): void {
+  async bindChatGrant(grantId: string, identity: LiveIdentity): Promise<void> {
     const grant = this.bindable(grantId, identity)
     const binding: NamingControlBinding = {
       grantId, folder: grant.ownerFolder, chatId: identity.chatId, generation: identity.generation,
       ...(identity.runId === undefined ? {} : { runId: identity.runId }),
       ...(identity.cardId === undefined ? {} : { cardId: identity.cardId }),
       signal: grant.lifetime.signal, assertCurrent: () => this.assertBinding(grantId, grant, binding),
-      assertRecovery: () => {
-        this.assertBinding(grantId, grant, binding, false)
-        const ctx = grant.workspace.ctx()
-        assertGrantCapability(ctx, grantId, grant.tokenHash, 'tooling.recover')
+      assertRecovery: () => this.assertBinding(grantId, grant, binding),
+      verifyAuthority: async (capability) => {
+        this.assertBinding(grantId, grant, binding)
+        try { await grant.workspace.call('verifyChatGrant', grantId, grant.tokenHash, capability) }
+        catch { throw new NamingControlError('unauthorized') }
+        this.assertBinding(grantId, grant, binding)
       },
     }
-    this.invalidateEarlierStarts(binding)
+    await this.invalidateEarlierStarts(binding)
     grant.live = binding
     this.liveByHash.set(grant.tokenHash, grant)
     grant.runId = identity.runId
     grant.cardId = identity.cardId
-    if (this.deps.desktopFence !== undefined) bindYoloChat(grant.workspace.ctx(), this.yoloBinding(grantId, grant, binding))
-    bindToolingGrant(grant.workspace.ctx(), grantId, identity.chatId)
+    await grant.workspace.call('bindChatGrant', grantId, identity.chatId, this.deps.desktopFence === undefined ? undefined : this.yoloBinding(grantId, grant, binding))
   }
   authorizeNaming(token: string): NamingControlBinding {
     const binding = this.liveByHash.get(hashToken(token))?.live
@@ -263,55 +227,50 @@ class ChatGrantRegistry implements ChatGrants {
     return { grantId, chatId: binding.chatId, generation: binding.generation, desktopId: fence.instance, desktopPid: fence.pid,
       fencePath: fence.path, proofEndpoint: fence.proofEndpoint, proofPublicKey: fence.proofPublicKey, runId: held.runId ?? null, ...(held.cardId === undefined ? {} : { cardId: held.cardId }) }
   }
-  private requireYoloGrant(workspace: Workspace, grantId: string): HeldGrant & { live: NamingControlBinding } {
+  private async requireYoloGrant(workspace: ProjectWorkspace, grantId: string): Promise<HeldGrant & { live: NamingControlBinding }> {
     const held = this.held.get(grantId)
     if (held === undefined || held.live === null || held.live.signal.aborted || held.workspace !== workspace) {
-      auditYolo(workspace.ctx(), { grantId, runId: null, capability: 'yolo.enable', command: 'yolo.enable', result: 'refused' })
+      await workspace.call('refuseYolo', grantId, null)
       throw new DomainError('unauthorized', 'Only an existing live chat in this folder can receive YOLO.')
     }
     return held as HeldGrant & { live: NamingControlBinding }
   }
-  private assertYoloCurrent(ctx: Ctx, grantId: string, held: HeldGrant, binding: NamingControlBinding): void {
-    try { this.assertBinding(grantId, held, binding, false) }
+  private async assertYoloCurrent(workspace: ProjectWorkspace, grantId: string, held: HeldGrant, binding: NamingControlBinding): Promise<void> {
+    try { this.assertBinding(grantId, held, binding); await workspace.call('verifyChatGrant', grantId, held.tokenHash, null); this.assertBinding(grantId, held, binding) }
     catch (error) {
-      auditYolo(ctx, { grantId, runId: held.runId ?? null, capability: 'yolo.enable', command: 'yolo.enable', result: 'refused' })
+      await workspace.call('refuseYolo', grantId, held.runId ?? null)
       throw error
     }
   }
-  private async enableYolo(workspace: Workspace, grantId: string, confirm: (detail: string) => Promise<boolean>): Promise<void> {
-    const ctx = workspace.ctx()
-    const held = this.requireYoloGrant(workspace, grantId)
+  private async enableYolo(workspace: ProjectWorkspace, grantId: string, confirm: (detail: string) => Promise<boolean>): Promise<void> {
+    const held = await this.requireYoloGrant(workspace, grantId)
     const binding = held.live
-    this.assertYoloCurrent(ctx, grantId, held, binding)
+    await this.assertYoloCurrent(workspace, grantId, held, binding)
     const scope = this.yoloBinding(grantId, held, binding)
     await this.deps.yoloReady?.()
     const parent = (await workspace.listGrants()).find((grant) => grant.id === grantId)
     if (!parent?.active) throw new DomainError('unauthorized', 'That grant is no longer active.')
-    const expiry = new Date(Math.min(ctx.clock.nowMs() + 24 * 60 * 60_000, Date.parse(parent.expiresAt))).toISOString()
+    const expiry = new Date(Math.min((await workspace.call('yoloTime')) + 24 * 60 * 60_000, Date.parse(parent.expiresAt))).toISOString()
     if (!await confirm(yoloConfirmation(parent, held, binding, expiry))) {
-      auditYolo(ctx, { grantId, runId: scope.runId, capability: 'yolo.enable', command: 'yolo.enable', result: 'refused' })
+      await workspace.call('refuseYolo', grantId, scope.runId)
       return
     }
-    this.assertYoloCurrent(ctx, grantId, held, binding)
-    approveYolo(ctx, scope, expiry)
+    await this.assertYoloCurrent(workspace, grantId, held, binding)
+    await workspace.call('approveYolo', scope, expiry)
   }
-  private yoloStatus(workspace: Workspace, grantId: string): YoloStatus {
-    const ctx = workspace.ctx()
-    const audit = listYoloAudit(ctx, { grantId })
+  private yoloStatus(workspace: ProjectWorkspace, grantId: string): Promise<YoloStatus> {
     const held = this.held.get(grantId)
-    if (!held || !held.live || held.live.signal.aborted || held.workspace !== workspace) return { live: false, expiresAt: null, audit }
-    const elevation = ctx.db.get<{ expires_at: string }>('SELECT expires_at FROM yolo_elevations WHERE grant_id = ?', grantId)
-    const active = isYoloEligible(ctx, grantId, 'plan.save', held.runId ?? null)
-    return { live: true, expiresAt: active ? elevation?.expires_at ?? null : null, audit }
+    const live = !!held?.live && !held.live.signal.aborted && held.workspace === workspace
+    return workspace.call('yoloStatus', grantId, live, held?.runId ?? null)
   }
   async yolo(folder: string, grantId: string, action: 'enable' | 'revoke' | 'inspect', confirm: (detail: string) => Promise<boolean>): Promise<YoloStatus> {
     const workspace = this.deps.workspaceFor(folder)
-    if (action === 'revoke') revokeYolo(workspace.ctx(), grantId)
+    if (action === 'revoke') await workspace.call('revokeYolo', grantId)
     if (action === 'enable') await this.enableYolo(workspace, grantId, confirm)
     return this.yoloStatus(workspace, grantId)
   }
-  dispose(): void {
-    for (const grant of this.held.values()) this.invalidate(grant)
+  async dispose(): Promise<void> {
+    await Promise.all([...this.held.values()].map(grant => this.invalidate(grant)))
   }
   async revokeChatGrant(grantId: string): Promise<void> {
     const grant = this.held.get(grantId)
@@ -319,19 +278,11 @@ class ChatGrantRegistry implements ChatGrants {
       this.deps.log(`Could not revoke chat grant ${grantId}: it was not issued by this app session.`)
       return
     }
-    this.invalidate(grant)
     this.held.delete(grantId)
+    await this.invalidate(grant)
     try {
-      await through(grant, async (workspace) => {
-        if (grant.mailbox) {
-          try {
-            closeAgentMailBinding(workspace.ctx(), { grantId })
-          } catch {
-            this.deps.log(`Could not close the mailbox binding of chat grant ${grantId}; revoking the grant still ends it.`)
-          }
-        }
-        await workspace.revokeGrant({ grantId })
-      })
+      const mailboxError = await grant.workspace.call('revokeChatGrant', grantId, grant.mailbox)
+      if (mailboxError) this.deps.log('Could not close the mailbox binding of chat grant ' + grantId + '; revoking the grant still ends it.')
     } catch {
       this.deps.log(`Could not revoke chat grant ${grantId}; it stays usable until it expires at ${grant.expiresAt}.`)
     }
@@ -342,9 +293,7 @@ class ChatGrantRegistry implements ChatGrants {
       return
     }
     try {
-      await through(grant, async (workspace) => {
-        grant.expiresAt = (await workspace.renewGrant({ grantId, minutes: this.deps.minutes })).expiresAt
-      })
+      grant.expiresAt = (await grant.workspace.renewGrant({ grantId, minutes: this.deps.minutes })).expiresAt
     } catch {
       this.deps.log(`Could not renew chat grant ${grantId}; it stays usable until it expires at ${grant.expiresAt}.`)
     }

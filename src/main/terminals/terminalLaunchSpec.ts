@@ -54,6 +54,8 @@ export interface TerminalLaunchInput {
   agent: Pick<AgentView, 'id' | 'kind' | 'executablePath' | 'args'>
   /** `resolveLaunchFolder`'s path; a project-less chat's scratch folder. */
   folder: string
+  /** A dedicated repair's verified code checkout. Its tickets still belong to folder. */
+  repairCheckout?: string
   /** The chat's `dm` invocation, pinned to `folder` (to none for a project-less chat), with its grant in `env` (`issueChatCli`, `issueReachCli`). */
   cli: DarkMechanicusCli
   /** A project-less chat's folders and token files (`chatReach.ts`); absent for a chat of a folder. */
@@ -420,9 +422,12 @@ function envFor(input: TerminalLaunchInput, launcherDir: string | null): Record<
   })
 }
 
+function workingDirectory(input: TerminalLaunchInput): string { return input.repairCheckout ?? input.folder }
+
 export function terminalLaunchSpec(input: TerminalLaunchInput): TerminalLaunchSpec {
   refuseMismatches(input)
   const { chat, agent, files, platform } = input
+  const cwd = workingDirectory(input)
   const literalPaste = literalPopupPaste(input)
   const launcherDir = platform === 'win32' ? null : files.launcherDir
   const env = envFor(input, launcherDir)
@@ -431,7 +436,7 @@ export function terminalLaunchSpec(input: TerminalLaunchInput): TerminalLaunchSp
   const model = checkedModel(input, dropped)
   const sessionId = checkedSessionId(input, dropped)
   const launch = KIND_LAUNCHES[agent.kind]({
-    folder: input.folder,
+    folder: cwd,
     instructionsPath: files.instructions,
     instructionsText: instructionsTextFor(input, launcherDir),
     claudeSettings: files.claudeSettings,
@@ -448,7 +453,7 @@ export function terminalLaunchSpec(input: TerminalLaunchInput): TerminalLaunchSp
   })
   return {
     ...commandLineFor(input, program, launch.args),
-    cwd: input.folder,
+    cwd,
     env,
     dropped,
     pasteFirst: literalPaste ?? launch.pasteFirst,

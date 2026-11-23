@@ -4,19 +4,17 @@
  * (`src/shared/desktop/sourceCheckout.ts`). The file keeps the portable target (the checkout's project identity) and
  * the machine-local path apart; only the target may ever reach a cross-repository record.
  *
- * A folder qualifies only when it is a tracked folder (folder registry canonicalization: a link, a trailing separator
- * or a `..` detour selects the same canonical path, so every alias gives one target), a Git checkout whose
- * `package.json` names the `dark-mechanicus` package and which holds its actual source files, and a set-up project
- * with a valid `project.json`. A matching folder name, an installed or built copy of the app, or an unrelated
- * repository never does. The association is revalidated on every read and by `requireAvailable` right before anything
- * writes there: a path that is gone, now leads elsewhere (a link or junction changed), is no longer tracked, or holds
- * another project is unavailable, with a recovery step. Nothing here clones, searches or redirects.
+ * The code must be a Git checkout with the Dark Mechanicus package and source files. A standalone checkout has its
+ * own tracked project. A Forge-linked checkout uses its verified, tracked member's project record and keeps the code
+ * outside the ticket repository. The association is revalidated by every read and before recovery or correction
+ * writes. A moved path, changed project, or unavailable mapping requires a new explicit choice.
  */
-import { dirname, isAbsolute, join, sep } from 'node:path'
+import { dirname, isAbsolute, join, resolve, sep } from 'node:path'
 import { z } from 'zod'
 import { DomainError } from '../../core/errors'
 import { isStableId } from '../../core/ids'
 import { resolveLayout } from '../../core/repo/layout'
+import { nodeFs } from '../../core/repo/nodeFs'
 import { projectRecord } from '../../core/repo/portable'
 import type { DomainErrorCode } from '../../shared/domain/errors'
 import type {
@@ -26,6 +24,7 @@ import type {
   SourceCheckoutView
 } from '../../shared/desktop/sourceCheckout'
 import { abbreviateHome, canonicalPath, nodeRegistryFs, type FolderRegistry, type RegistryFs } from './folderRegistry'
+import { forgeSourceMappingSchema, inspectForgeSource, privateForgeSourceHint, type ForgeSourceMapping } from './forgeSourceMapping'
 
 const FILE_VERSION = 1
 /** Windows long-path maximum, as for every folder path. */
@@ -62,7 +61,8 @@ const associationSchema = z.strictObject({
   target: targetSchema,
   local: z.strictObject({
     path: z.string().min(1).max(MAX_PATH_LENGTH).refine((value) => isAbsolute(value)),
-    associatedAt: z.iso.datetime({ offset: true })
+    associatedAt: z.iso.datetime({ offset: true }),
+    forge: forgeSourceMappingSchema.optional()
   })
 })
 
@@ -74,9 +74,12 @@ type Association = z.infer<typeof associationSchema>
 type Refusal = Extract<SourceCheckoutChoice, { outcome: 'refused' }>
 
 /** What a folder is, read fresh. */
-type Inspection = Refusal | { outcome: 'needs_initialization'; message: string; recovery: string } | { outcome: 'source'; target: SourceCheckoutTarget }
+type Inspection = Refusal | { outcome: 'needs_initialization'; message: string; recovery: string } |
+  { outcome: 'source'; target: SourceCheckoutTarget; forge?: ForgeSourceMapping }
 
-type Available = { ok: true; target: SourceCheckoutTarget; path: string }
+type SourceLocation = { target: SourceCheckoutTarget; path: string } &
+  ({ projectPath?: never; mappingIdentity?: never } | { projectPath: string; mappingIdentity: string })
+type Available = { ok: true; location: SourceLocation }
 
 /** The domain error code `requireAvailable` fails with, per problem. */
 const PROBLEM_CODES: Record<SourceCheckoutProblem, DomainErrorCode> = {
@@ -94,12 +97,16 @@ const PROBLEM_CODES: Record<SourceCheckoutProblem, DomainErrorCode> = {
 export interface SourceCheckouts {
   /** The association, revalidated now. */
   view(): SourceCheckoutView
+  /** One unambiguous, verified machine-local Forge hint, for the native chooser's starting folder. */
+  suggestedPath(): string | undefined
   /**
    * Why the folder at `path` (any alias; canonicalized here) cannot be the checkout as it is now: gone, an installed
    * app, not the Dark Mechanicus source, or a `project.json` that is not a project record. Null when it is the source
    * (set up or not). Reads only: a folder dialog choice is screened in full before it is tracked.
    */
   screen(path: string): Refusal | null
+  /** Inspect and associate a path explicitly returned by the native chooser. */
+  associatePicked(path: string, track: FolderRegistry['track']): SourceCheckoutChoice
   /**
    * Associates the tracked folder `path` (canonical) after revalidating it; `added` says whether choosing it also
    * tracked it. A folder that is the source but not set up is reported, not associated.
@@ -111,7 +118,7 @@ export interface SourceCheckouts {
    * The gate before anything is written to the checkout: revalidates the association and returns its canonical
    * path and portable target, or throws a DomainError naming the problem and its recovery.
    */
-  requireAvailable(): { path: string; target: SourceCheckoutTarget }
+  requireAvailable(): SourceLocation
 }
 
 interface Env {
@@ -188,13 +195,10 @@ function invalidProject(projectFile: string): Refusal {
   )
 }
 
-/** What a folder is, read fresh: `screenFolder`, then the project identity of a folder that passed it. */
-function inspect(env: Env, path: string): Inspection {
-  const refusal = screenFolder(env, path)
-  if (refusal !== null) {
-    return refusal
-  }
-  const layout = resolveLayout(path, { mode: env.registry.storageMode(path), homeDir: env.dmHome })
+function inspectProject(env: Env, path: string, forge?: ForgeSourceMapping): Inspection {
+  const layout = forge === undefined
+    ? resolveLayout(path, { mode: env.registry.storageMode(path), homeDir: env.dmHome })
+    : resolveLayout(forge.member)
   if (!env.fs.exists(layout.projectFile)) {
     return {
       outcome: 'needs_initialization',
@@ -212,7 +216,25 @@ function inspect(env: Env, path: string): Inspection {
   if (!project.success) {
     return invalidProject(layout.projectFile)
   }
-  return { outcome: 'source', target: { kind: 'darkmechanicus_source', projectId: project.data.projectId, projectName: project.data.name } }
+  return { outcome: 'source', target: { kind: 'darkmechanicus_source', projectId: project.data.projectId, projectName: project.data.name },
+    ...(forge === undefined ? {} : { forge }) }
+}
+
+/** What a folder is, read fresh: its code markers, optional Forge mapping, and the resulting project identity. */
+function inspect(env: Env, path: string): Inspection {
+  const refusal = screenFolder(env, path)
+  if (refusal !== null) return refusal
+  let forge: ForgeSourceMapping | undefined
+  try {
+    forge = inspectForgeSource(path, env.dmHome, env.registry.list)
+    if (forge !== undefined && ![['package.json'], ...SOURCE_FILES].every(parts => {
+      const file = join(path, ...parts)
+      return nodeFs.fileStamp(file) !== null && nodeFs.realpath(file) === file
+    })) return refused('not_dm_source', 'The Dark Mechanicus source files must be ordinary files in the code checkout.', CLONE_IT)
+  } catch (error) {
+    return refused('project_mismatch', error instanceof Error ? error.message : 'Cannot verify the Forge World checkout mapping.', RECHOOSE)
+  }
+  return inspectProject(env, path, forge)
 }
 
 function load(env: Env): Association | null {
@@ -257,7 +279,7 @@ function revalidate(env: Env, checkout: Association): Available | Refusal {
   if (canonical !== path) {
     return moved(path, canonical)
   }
-  if (env.registry.resolve(path) !== path) {
+  if (checkout.local.forge === undefined && env.registry.resolve(path) !== path) {
     return refused('untracked', `${path} is no longer tracked by Dark Mechanicus.`, RECHOOSE)
   }
   const inspection = inspect(env, path)
@@ -271,64 +293,135 @@ function revalidate(env: Env, checkout: Association): Available | Refusal {
   if (inspection.target.projectId !== expected) {
     return refused('project_mismatch', `${path} now holds project ${inspection.target.projectId}, not the associated ${expected}.`, RECHOOSE)
   }
-  return { ok: true, target: inspection.target, path }
+  if (JSON.stringify(inspection.forge) !== JSON.stringify(checkout.local.forge)) {
+    return refused('project_mismatch', 'The associated Forge World ticket folder or Git origin changed.', RECHOOSE)
+  }
+  const { target, forge } = inspection
+  return { ok: true, location: forge === undefined ? { path, target } :
+    { path, target, projectPath: forge.member, mappingIdentity: JSON.stringify(forge) } }
 }
 
 function viewOf(env: Env, checkout: Association | null): SourceCheckoutView {
   if (checkout === null) {
     return { status: 'none', target: null, local: null, problem: null, message: null, recovery: CHOOSE_FIRST }
   }
-  const local = { path: checkout.local.path, displayPath: abbreviateHome(checkout.local.path, env.homeDir), associatedAt: checkout.local.associatedAt }
+  const local = { path: checkout.local.path, displayPath: abbreviateHome(checkout.local.path, env.homeDir), associatedAt: checkout.local.associatedAt,
+    ...(checkout.local.forge === undefined ? {} : { projectPath: checkout.local.forge.member }) }
   const check = revalidate(env, checkout)
   if ('ok' in check) {
-    return { status: 'available', target: check.target, local, problem: null, message: null, recovery: null }
+    return { status: 'available', target: check.location.target, local, problem: null, message: null, recovery: null }
   }
   return { status: 'unavailable', target: checkout.target, local, problem: check.problem, message: check.message, recovery: check.recovery }
 }
 
-function associate(env: Env, path: string, added: boolean): SourceCheckoutChoice {
-  const canonical = canonicalPath(env.fs, path)
-  if (canonical === null) {
-    return missing(path)
-  }
-  if (canonical !== path) {
-    return moved(path, canonical)
-  }
-  const folder = env.registry.list().find((entry) => entry.path === path)
-  if (folder === undefined) {
-    return refused('untracked', `${path} is not tracked by Dark Mechanicus.`, RECHOOSE)
-  }
+type Selection = { forge?: ForgeSourceMapping; projectId?: string }
+
+function inspectSelection(env: Env, path: string, selected?: Selection): Inspection {
   const inspection = inspect(env, path)
-  if (inspection.outcome === 'refused') {
-    return inspection
+  if (inspection.outcome === 'refused') return inspection
+  const current = inspection.outcome === 'source' ? { forge: inspection.forge, projectId: inspection.target.projectId } : {}
+  if (selected === undefined && current.forge !== undefined) {
+    return refused('untracked', 'Choose the Forge-linked code checkout with the native folder dialog.', RECHOOSE)
   }
-  if (inspection.outcome === 'needs_initialization') {
-    return { ...inspection, folder, added }
+  if (selected !== undefined && (JSON.stringify(selected.forge) !== JSON.stringify(current.forge) || current.projectId !== selected.projectId)) {
+    return refused('project_mismatch', 'The checkout project or Forge World mapping changed while choosing it.', RECHOOSE)
   }
+  return inspection
+}
+
+function recordAssociation(env: Env, path: string, { target, forge }: Extract<Inspection, { outcome: 'source' }>): SourceCheckoutView {
   const stored = load(env)
-  const same = stored !== null && stored.local.path === path && stored.target.projectId === inspection.target.projectId
-  const checkout: Association = { target: inspection.target, local: { path, associatedAt: same ? stored.local.associatedAt : env.now() } }
+  const same = stored !== null && stored.local.path === path && stored.target.projectId === target.projectId &&
+    JSON.stringify(stored.local.forge) === JSON.stringify(forge)
+  const checkout: Association = { target, local: { path, associatedAt: same ? stored.local.associatedAt : env.now(),
+    ...(forge === undefined ? {} : { forge }) } }
   // Choosing the associated folder again (through any alias) writes nothing unless its project record was renamed.
   if (JSON.stringify(checkout) !== JSON.stringify(stored)) {
     save(env, checkout)
   }
-  return { outcome: 'associated', checkout: viewOf(env, checkout), folder, added }
+  return viewOf(env, checkout)
 }
 
-function requireAvailable(env: Env): { path: string; target: SourceCheckoutTarget } {
+function associate(env: Env, path: string, added: boolean, selected?: Selection): SourceCheckoutChoice {
+  const canonical = canonicalPath(env.fs, path)
+  if (canonical === null) return missing(path)
+  if (canonical !== path) return moved(path, canonical)
+  const inspection = inspectSelection(env, path, selected)
+  if (inspection.outcome === 'refused') return inspection
+  const forge = inspection.outcome === 'source' ? inspection.forge : undefined
+  const folder = env.registry.list().find(entry => entry.path === (forge?.member ?? path))
+  if (folder === undefined) return refused('untracked', `${path} is not tracked by Dark Mechanicus.`, RECHOOSE)
+  if (inspection.outcome === 'needs_initialization') return { ...inspection, folder, added }
+  return { outcome: 'associated', checkout: recordAssociation(env, path, inspection), folder, added: forge === undefined && added }
+}
+
+function requireAvailable(env: Env): SourceLocation {
   const checkout = load(env)
   if (checkout === null) {
     throw new DomainError('not_found', 'No Dark Mechanicus checkout is chosen on this machine.', { recovery: CHOOSE_FIRST })
   }
   const check = revalidate(env, checkout)
   if ('ok' in check) {
-    return { path: check.path, target: check.target }
+    return check.location
   }
   throw new DomainError(PROBLEM_CODES[check.problem], check.message, {
     problem: check.problem,
     path: checkout.local.path,
     recovery: check.recovery
   })
+}
+
+function verifiedHint(env: Env, folder: ReturnType<Env['registry']['list']>[number]): string | undefined {
+  if (!folder.forgeParent || !folder.initialized || !folder.available) return undefined
+  try {
+    const hint = privateForgeSourceHint(folder.path)
+    if (hint === undefined) return undefined
+    const checked = inspect(env, hint)
+    return checked.outcome === 'source' && checked.forge?.member === folder.path ? hint : undefined
+  } catch {
+    // Unverified hints cannot suggest a location.
+    return undefined
+  }
+}
+
+function suggestedPath(env: Env): string | undefined {
+  const candidates = new Set(env.registry.list().flatMap(folder => verifiedHint(env, folder) ?? []))
+  return candidates.size === 1 ? candidates.values().next().value : undefined
+}
+
+type Screened = Selection & { canonical: string }
+
+function ticketFolderRefusal(env: Env, path: string): Refusal | null {
+  const member = env.registry.list().find(folder => folder.path === path && folder.forgeParent !== undefined)
+  if (member === undefined) return null
+  const hint = verifiedHint(env, member)
+  const recovery = hint === undefined
+    ? 'Choose your existing Dark Mechanicus code checkout outside the Forge World. Clone the repository only if you do not have it locally.'
+    : `Choose the linked Dark Mechanicus code checkout at ${abbreviateHome(hint, env.homeDir)}.`
+  return refused('not_dm_source', `${path} is a Forge World ticket folder.`, recovery)
+}
+
+function screen(env: Env, path: string): Refusal | Screened {
+  const canonical = canonicalPath(env.fs, path)
+  if (canonical === null) return missing(path)
+  const member = ticketFolderRefusal(env, canonical)
+  if (member !== null) return member
+  const inspection = inspect(env, canonical)
+  if (inspection.outcome === 'refused') return inspection
+  if (inspection.outcome !== 'source') return { canonical }
+  if (inspection.forge !== undefined && canonical !== resolve(path)) return moved(path, canonical)
+  return { canonical, ...(inspection.forge === undefined ? {} : { forge: inspection.forge }), projectId: inspection.target.projectId }
+}
+
+function associatePicked(env: Env, path: string, track: FolderRegistry['track']): SourceCheckoutChoice {
+  const checked = screen(env, path)
+  if ('outcome' in checked) return checked
+  if (checked.forge !== undefined) return associate(env, checked.canonical, false, checked)
+  const { folder, added } = track(path)
+  const choice = folder.path === checked.canonical
+    ? associate(env, folder.path, added, checked)
+    : moved(checked.canonical, folder.path)
+  return choice.outcome === 'refused' && added ? { ...choice, folder, added } : choice
 }
 
 export function createSourceCheckouts(options: {
@@ -355,12 +448,9 @@ export function createSourceCheckouts(options: {
   }
   return {
     view: () => viewOf(env, load(env)),
-    screen: (path) => {
-      const canonical = canonicalPath(env.fs, path)
-      if (canonical === null) return missing(path)
-      const inspection = inspect(env, canonical)
-      return inspection.outcome === 'refused' ? inspection : null
-    },
+    suggestedPath: () => suggestedPath(env),
+    screen: (path) => { const result = screen(env, path); return 'outcome' in result ? result : null },
+    associatePicked: (path, track) => associatePicked(env, path, track),
     associate: (path, added) => associate(env, path, added),
     clear: () => {
       save(env, null)

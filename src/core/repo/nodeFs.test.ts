@@ -71,11 +71,11 @@ describe('nodeFs files', () => {
 })
 
 describe('nodeFs file stamps', () => {
-  it('stamps a regular file the same until its size, times, or inode change', () => {
+  it('stamps a regular file the same until its size, times, or file identity change', () => {
     const file = join(repo.root, 'record.json')
     writeFileSync(file, 'one')
     const stamp = nodeFs.fileStamp(file)
-    expect(stamp).toMatch(/^3:\d+:\d+:\d+$/)
+    expect(stamp).toMatch(/^3:\d+:\d+:\d+:\d+$/)
     expect(nodeFs.fileStamp(file)).toBe(stamp)
     utimesSync(file, new Date('2020-01-01T00:00:00Z'), new Date('2020-01-01T00:00:00Z'))
     const touched = nodeFs.fileStamp(file)

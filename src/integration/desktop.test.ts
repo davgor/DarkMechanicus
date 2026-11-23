@@ -10,7 +10,7 @@ import { createDesktopHandlers, type DesktopHandlers } from '../main/desktop/han
 import { buildMcpConfig } from '../main/desktop/mcpConfig'
 import { claudeCodeServer } from '../main/desktop/mcpJson'
 import { writeMcpServer } from '../main/desktop/mcpJsonFile'
-import { createWorkspacePool, type WorkspacePool } from '../main/desktop/workspacePool'
+import { createTestWorkspacePool as createWorkspacePool, type TestWorkspacePool as WorkspacePool } from '../main/desktop/__mocks__/projectWorkspaceFixture'
 import { defaultCapabilityProfile } from '../shared/domain/bundle'
 import type { BoardImportView } from '../shared/domain/views'
 import { createSequentialIds, createTestClock } from '../test/testContext'

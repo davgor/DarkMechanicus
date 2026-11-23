@@ -13,27 +13,12 @@
  * or saves, starts, adopts or approves anything.
  */
 import type { IpcMain } from 'electron'
-import type { Ctx } from '../../core/context'
+import type { ProjectWorkspace } from './workspaceClient'
 import { DomainError, fail, toErrorShape } from '../../core/errors'
 import { createCrossRepoCorrectionInput, crossRepoWithdrawInput, parseInput } from '../../core/schemas'
 import {
   type BegunCorrection,
-  beginCrossRepoCorrection,
   closedRequestRefusal,
-  crossRepoCorrectionLink,
-  crossRepoResults,
-  discardCrossRepoCorrection,
-  heldCorrection,
-  listCrossRepoCorrections,
-  materializeCrossRepoCorrection,
-  placeholderDeps,
-  plannedTickets,
-  previewCrossRepoSource,
-  previewCrossRepoTarget,
-  recordCrossRepoDelivery,
-  recordCrossRepoFailure,
-  recordCrossRepoResults,
-  requestedCrossRepoCorrection,
   type SourcePreview,
   type TargetPreview
 } from '../../core/services/crossRepoCorrections'
@@ -77,16 +62,16 @@ export interface CrossRepoCorrectionHandlers {
 const CHOOSE_CHECKOUT = 'Choose your Dark Mechanicus checkout (a Git clone of Dark Mechanicus on this machine) first.'
 
 /** The tracked source folder's open project; an untracked folder is `unauthorized`, one not set up `not_initialized`. */
-function sourceCtx(deps: BrokerDeps, folder: unknown): Ctx {
-  return deps.pool.get(requireTracked(deps.registry, folder)).ctx()
+function sourceCtx(deps: BrokerDeps, folder: unknown): ProjectWorkspace {
+  return deps.pool.get(requireTracked(deps.registry, folder))
 }
 
 /**
  * The target's project, open: the chosen checkout revalidated now (`requireAvailable`), it must still be the project the
  * request was made for, and the workspace opened at its path must be that project too. Throws before any target write.
  */
-function openTarget(deps: BrokerDeps, projectId: string): Ctx {
-  const { path, target } = deps.checkouts.requireAvailable()
+function openTarget(deps: BrokerDeps, projectId: string): ProjectWorkspace {
+  const { path, projectPath, target } = deps.checkouts.requireAvailable()
   if (target.projectId !== projectId) {
     fail(
       'project_mismatch',
@@ -94,15 +79,7 @@ function openTarget(deps: BrokerDeps, projectId: string): Ctx {
       { problem: 'stale_target', targetProjectId: projectId, chosenProjectId: target.projectId }
     )
   }
-  const ctx = deps.pool.get(path).ctx()
-  if (ctx.projectId !== target.projectId) {
-    fail(
-      'project_mismatch',
-      `The chosen checkout's Dark Mechanicus database belongs to project ${ctx.projectId}, not ${target.projectId}, which its project record names. Nothing was written to it.`,
-      { problem: 'stale_target', targetProjectId: target.projectId, databaseProjectId: ctx.projectId }
-    )
-  }
-  return ctx
+  return deps.pool.get(projectPath ?? path)
 }
 
 function detail(error: unknown, name: string): string | null {
@@ -117,7 +94,7 @@ function report(deps: BrokerDeps, error: unknown): void {
 /** One request on its way: the broker, the source project, and the receipt's key. */
 interface Delivery {
   deps: BrokerDeps
-  source: Ctx
+  source: ProjectWorkspace
   key: string
 }
 
@@ -137,10 +114,10 @@ function retryable(error: unknown): boolean {
 }
 
 /** Records a failed step on the receipt (code and problem only: an error's message may name a local path). */
-function failed(delivery: Delivery, step: CrossRepoCorrectionStep, error: unknown, target: CrossRepoTargetEpicView | null): CrossRepoCorrectionLinkView | null {
+async function failed(delivery: Delivery, step: CrossRepoCorrectionStep, error: unknown, target: CrossRepoTargetEpicView | null): Promise<CrossRepoCorrectionLinkView | null> {
   report(delivery.deps, error)
   try {
-    return recordCrossRepoFailure(delivery.source, delivery.key, { step, code: toErrorShape(error).code, problem: detail(error, 'problem'), target })
+    return await delivery.source.call('failCorrection', delivery.key, { step, code: toErrorShape(error).code, problem: detail(error, 'problem'), target })
   } catch (recordError) {
     // The source cannot be written either (the failed step may be that write): the result still reports the first failure.
     report(delivery.deps, recordError)
@@ -152,9 +129,9 @@ function failed(delivery: Delivery, step: CrossRepoCorrectionStep, error: unknow
  * Removes the receipt this very call wrote, once the target refused the request for good (or, for an experiment that
  * cannot be requested as it is, held no epic to link or could not be read), and throws that refusal.
  */
-function refused(delivery: Delivery, error: unknown): never {
+async function refused(delivery: Delivery, error: unknown): Promise<never> {
   try {
-    discardCrossRepoCorrection(delivery.source, delivery.key, 'refused')
+    await delivery.source.call('discardCorrection', delivery.key, 'refused')
   } catch (discardError) {
     report(delivery.deps, discardError)
   }
@@ -216,11 +193,11 @@ interface DeliveryOptions {
  * The target step failed: a request for an experiment that cannot be requested as it is wrote nothing here, so it is
  * refused with nothing kept; a final refusal of a receipt this call wrote removes it; else the failure is recorded.
  */
-function targetFailed(delivery: Delivery, begun: Omit<BegunCorrection, 'inserted'>, options: DeliveryOptions, error: unknown): CrossRepoCorrectionResult {
+async function targetFailed(delivery: Delivery, begun: Omit<BegunCorrection, 'inserted'>, options: DeliveryOptions, error: unknown): Promise<CrossRepoCorrectionResult> {
   if (begun.unsaved !== null && begun.closed !== null) throw closedRequestRefusal(begun.packet.provenance.source.experimentId, begun.closed)
-  if (options.inserted && !retryable(error)) refused(delivery, error)
+  if (options.inserted && !retryable(error)) await refused(delivery, error)
   if (begun.link.state === 'linked') return unconfirmed(begun.link, error)
-  const link = failed(delivery, 'target', error, null) ?? begun.link
+  const link = await failed(delivery, 'target', error, null) ?? begun.link
   return { progress: 'pending', changed: options.inserted, link, target: null, failure: failureOf('target', error), nextSteps: pendingSteps('target', error) }
 }
 
@@ -228,14 +205,14 @@ function targetFailed(delivery: Delivery, begun: Omit<BegunCorrection, 'inserted
  * The link step: nothing to write when a linked receipt already names the epic the target holds. A request that wrote
  * nothing here (`unsaved`) writes its receipt now, linked to the epic the target already held.
  */
-function linked(delivery: Delivery, begun: Omit<BegunCorrection, 'inserted'>, target: CrossRepoTargetEpicView): CrossRepoCorrectionResult {
+async function linked(delivery: Delivery, begun: Omit<BegunCorrection, 'inserted'>, target: CrossRepoTargetEpicView): Promise<CrossRepoCorrectionResult> {
   const same = begun.link.state === 'linked' && !target.created && target.epicId === begun.link.target?.epicId
   if (same) return { progress: 'linked', changed: false, link: begun.link, target, failure: null, nextSteps: targetSteps(target) }
   try {
-    const link = recordCrossRepoDelivery(delivery.source, delivery.key, target, begun.unsaved)
+    const link = await delivery.source.call('recordCorrection', delivery.key, target, begun.unsaved)
     return { progress: 'linked', changed: true, link, target, failure: null, nextSteps: targetSteps(target) }
   } catch (error) {
-    const link = failed(delivery, 'link', error, target) ?? begun.link
+    const link = await failed(delivery, 'link', error, target) ?? begun.link
     return { progress: 'target_created', changed: true, link, target, failure: failureOf('link', error), nextSteps: pendingSteps('link', error) }
   }
 }
@@ -244,19 +221,19 @@ function linked(delivery: Delivery, begun: Omit<BegunCorrection, 'inserted'>, ta
  * Delivers a request to the target and records the link: each step's failure is reported, never hidden. A linked
  * request is checked against the target too (nothing is written when it still holds the same epic).
  */
-function deliver(deps: BrokerDeps, source: Ctx, begun: Omit<BegunCorrection, 'inserted'>, options: DeliveryOptions): CrossRepoCorrectionResult {
+async function deliver(deps: BrokerDeps, source: ProjectWorkspace, begun: Omit<BegunCorrection, 'inserted'>, options: DeliveryOptions): Promise<CrossRepoCorrectionResult> {
   const delivery: Delivery = { deps, source, key: begun.link.key }
   const expected = options.recreate ? null : (begun.link.target?.epicId ?? null)
   let target: CrossRepoTargetEpicView
   try {
-    target = materializeCrossRepoCorrection(openTarget(deps, begun.link.targetProjectId), begun.packet, { expected, closed: begun.closed })
+    target = await openTarget(deps, begun.link.targetProjectId).call('materializeCorrection', begun.link.targetProjectId, begun.packet, { expected, closed: begun.closed })
   } catch (error) {
     return targetFailed(delivery, begun, options, error)
   }
   return linked(delivery, begun, target)
 }
 
-function create(deps: BrokerDeps, folder: unknown, raw: unknown): CrossRepoCorrectionResult {
+async function create(deps: BrokerDeps, folder: unknown, raw: unknown): Promise<CrossRepoCorrectionResult> {
   const source = sourceCtx(deps, folder)
   const input = parseInput(createCrossRepoCorrectionInput, raw, 'cross-repository correction') as CreateCrossRepoCorrectionInput
   const chosen = deps.checkouts.view().target ?? fail('not_found', 'No Dark Mechanicus checkout is chosen on this machine.', { recovery: CHOOSE_CHECKOUT })
@@ -268,13 +245,13 @@ function create(deps: BrokerDeps, folder: unknown, raw: unknown): CrossRepoCorre
       chosenProjectId: chosen.projectId
     })
   }
-  const begun = beginCrossRepoCorrection(source, input, chosen)
+  const begun = await source.call('beginCorrection', input, chosen)
   return deliver(deps, source, begun, { inserted: begun.inserted, recreate: input.recreate === true })
 }
 
-function retry(deps: BrokerDeps, folder: unknown, key: unknown): CrossRepoCorrectionResult {
+async function retry(deps: BrokerDeps, folder: unknown, key: unknown): Promise<CrossRepoCorrectionResult> {
   const source = sourceCtx(deps, folder)
-  return deliver(deps, source, requestedCrossRepoCorrection(source, { key: key as string }), { inserted: false, recreate: false })
+  return deliver(deps, source, await source.call('requestedCorrection', { key: key as string }), { inserted: false, recreate: false })
 }
 
 /**
@@ -286,14 +263,14 @@ function retry(deps: BrokerDeps, folder: unknown, key: unknown): CrossRepoCorrec
  * target hold it after all, a request with the same payload links to that epic again, and another checkout could get a
  * second one.
  */
-function withdraw(deps: BrokerDeps, folder: unknown, raw: unknown): CrossRepoWithdrawalView {
+async function withdraw(deps: BrokerDeps, folder: unknown, raw: unknown): Promise<CrossRepoWithdrawalView> {
   const source = sourceCtx(deps, folder)
   const input = parseInput(crossRepoWithdrawInput, raw, 'withdrawal')
-  const link = crossRepoCorrectionLink(source, { key: input.key })
+  const link = await source.call('correctionLink', { key: input.key })
   if (link.state === 'linked') {
     fail('conflict', `The request ${link.key} cannot be withdrawn: it is linked. Epic ${link.target?.epicId ?? '?'} of project ${link.targetProjectId} holds its work.`, { key: link.key })
   }
-  const check = heldByChosen(deps, link, link.target?.epicId ?? null)
+  const check = await heldByChosen(deps, link, link.target?.epicId ?? null)
   refuseHeld(link, check)
   if (!check.verified && input.confirmUnverified !== true) {
     fail(
@@ -302,7 +279,7 @@ function withdraw(deps: BrokerDeps, folder: unknown, raw: unknown): CrossRepoWit
       { key: link.key, problem: 'unverified' }
     )
   }
-  return { withdrawn: discardCrossRepoCorrection(source, link.key, 'withdrawn'), verified: check.verified }
+  return { withdrawn: await source.call('discardCorrection', link.key, 'withdrawn'), verified: check.verified }
 }
 
 /**
@@ -330,12 +307,12 @@ interface ChosenCheck {
 }
 
 /** What the chosen checkout holds under the request's key, and whether it could be checked (its project, readable). */
-function heldByChosen(deps: BrokerDeps, link: CrossRepoCorrectionLinkView, reached: string | null): ChosenCheck {
+async function heldByChosen(deps: BrokerDeps, link: CrossRepoCorrectionLinkView, reached: string | null): Promise<ChosenCheck> {
   const unverified: ChosenCheck = { verified: false, held: null, holdsReached: false }
   const view = deps.checkouts.view()
   if (view.status !== 'available' || view.target?.projectId !== link.targetProjectId) return unverified
   try {
-    return { verified: true, ...heldCorrection(openTarget(deps, link.targetProjectId), link.key, reached) }
+    return { verified: true, ...await openTarget(deps, link.targetProjectId).call('holdCorrection', link.targetProjectId, link.key, reached) }
   } catch (error) {
     report(deps, error)
     return unverified
@@ -343,11 +320,12 @@ function heldByChosen(deps: BrokerDeps, link: CrossRepoCorrectionLinkView, reach
 }
 
 function availabilityOf(view: SourceCheckoutView): CrossRepoTargetAvailability {
+  const path = view.local === null ? null : view.local.projectPath ?? view.local.path
   return {
     status: view.status,
     projectId: view.target?.projectId ?? null,
     projectName: view.target?.projectName ?? null,
-    path: view.local?.path ?? null,
+    path,
     displayPath: view.local?.displayPath ?? null,
     problem: view.problem,
     message: view.message,
@@ -392,11 +370,11 @@ function previewSteps(verdict: Verdict, availability: CrossRepoTargetAvailabilit
 }
 
 /** The target's answer for the packet, or why the chosen checkout could not be read (as its availability). */
-function readTarget(deps: BrokerDeps, side: SourcePreview, view: SourceCheckoutView): { read: TargetPreview | null; availability: CrossRepoTargetAvailability } {
+async function readTarget(deps: BrokerDeps, side: SourcePreview, view: SourceCheckoutView): Promise<{ read: TargetPreview | null; availability: CrossRepoTargetAvailability }> {
   const availability = availabilityOf(view)
   if (side.packet === null || view.status !== 'available') return { read: null, availability }
   try {
-    return { read: previewCrossRepoTarget(openTarget(deps, side.packet.provenance.target.projectId), side.packet), availability }
+    return { read: await openTarget(deps, side.packet.provenance.target.projectId).call('previewCorrectionTarget', side.packet.provenance.target.projectId, side.packet), availability }
   } catch (error) {
     report(deps, error)
     const shape = toErrorShape(error)
@@ -432,14 +410,6 @@ function verdictOf(side: SourcePreview, read: TargetPreview | null): Verdict {
   return { ...base, state: side.state === 'ready' && read.existing !== null ? 'created' : side.state }
 }
 
-/** The draft the target would hold: as the target plans it, else with placeholder keys, else none (no target chosen). */
-function draftOf(source: Ctx, side: SourcePreview, read: TargetPreview | null): Pick<CrossRepoCorrectionPreview, 'tickets' | 'dependencies' | 'validation'> {
-  if (read !== null) return { tickets: read.tickets, dependencies: read.dependencies, validation: read.validation }
-  if (side.packet === null) return { tickets: [], dependencies: [], validation: null }
-  const planned = plannedTickets(side.packet, placeholderDeps(source))
-  return { tickets: planned.tickets, dependencies: planned.dependencies, validation: null }
-}
-
 function requestOf(side: SourcePreview): Pick<CrossRepoCorrectionPreview, 'key' | 'payloadHash' | 'provenance'> {
   if (side.packet === null) return { key: null, payloadHash: null, provenance: null }
   const { provenance } = side.packet
@@ -462,11 +432,11 @@ function sourceSummary(from: SourcePreview['source']): CrossRepoCorrectionPrevie
 }
 
 /** Read only in both projects. Opening the target's workspace is the only effect, as for any tracked folder. */
-function preview(deps: BrokerDeps, folder: unknown, raw: unknown): CrossRepoCorrectionPreview {
+async function preview(deps: BrokerDeps, folder: unknown, raw: unknown): Promise<CrossRepoCorrectionPreview> {
   const source = sourceCtx(deps, folder)
   const view = deps.checkouts.view()
-  const side = previewCrossRepoSource(source, raw as CrossRepoCorrectionInput, view.target)
-  const { read, availability } = readTarget(deps, side, view)
+  const { side, draft } = await source.call('previewCorrection', raw as CrossRepoCorrectionInput, view.target)
+  const { read, availability } = await readTarget(deps, side, view)
   const verdict = verdictOf(side, read)
   return {
     source: sourceSummary(side.source),
@@ -476,7 +446,7 @@ function preview(deps: BrokerDeps, folder: unknown, raw: unknown): CrossRepoCorr
     target: availability,
     ...requestOf(side),
     epic: side.epic,
-    ...draftOf(source, side, read),
+    ...(read === null ? draft : { tickets: read.tickets, dependencies: read.dependencies, validation: read.validation }),
     link: side.link,
     nextSteps: previewSteps(verdict, availability, side.link)
   }
@@ -486,20 +456,20 @@ function preview(deps: BrokerDeps, folder: unknown, raw: unknown): CrossRepoCorr
  * Brings back what the target epic of a linked request holds for measuring the experiment: read through the chosen
  * checkout (`requireAvailable`, the same project), kept on the source's receipt. Nothing is written to the target.
  */
-function collect(deps: BrokerDeps, folder: unknown, key: unknown): CrossRepoCorrectionLinkView {
+async function collect(deps: BrokerDeps, folder: unknown, key: unknown): Promise<CrossRepoCorrectionLinkView> {
   const source = sourceCtx(deps, folder)
-  const link = crossRepoCorrectionLink(source, { key: key as string })
+  const link = await source.call('correctionLink', { key: key as string })
   if (link.state !== 'linked' || link.target === null) {
     fail('conflict', `The request ${link.key} is not linked to an epic yet: retry it to finish it before bringing back its results.`, { key: link.key })
   }
-  const read = crossRepoResults(openTarget(deps, link.targetProjectId), { key: link.key, epicId: link.target.epicId, experimentId: link.experimentId })
-  return recordCrossRepoResults(source, link.key, { ...read, readAt: source.clock.nowIso() })
+  const read = await openTarget(deps, link.targetProjectId).call('correctionResults', link.targetProjectId, { key: link.key, epicId: link.target.epicId, experimentId: link.experimentId })
+  return source.call('recordCorrectionResults', link.key, read)
 }
 
-/** Runs one request synchronously (so two clicks never interleave) and answers like `dm:command`. */
-function answer<T>(deps: BrokerDeps, run: () => T): CommandResult<T> {
+/** Answers like `dm:command`, including the detailed domain failure from the owner. */
+async function answer<T>(deps: BrokerDeps, run: () => Promise<T>): Promise<CommandResult<T>> {
   try {
-    return { ok: true, data: run() }
+    return { ok: true, data: await run() }
   } catch (error) {
     report(deps, error)
     return { ok: false, error: toErrorShape(error) }
@@ -507,13 +477,39 @@ function answer<T>(deps: BrokerDeps, run: () => T): CommandResult<T> {
 }
 
 export function createCrossRepoCorrectionHandlers(deps: BrokerDeps): CrossRepoCorrectionHandlers {
+  const lanes = new Map<string, Promise<void>>()
+  async function answerInOrder<T>(folder: unknown, run: () => Promise<T>): Promise<CommandResult<T>> {
+    return answer(deps, async () => {
+      const source = requireTracked(deps.registry, folder)
+      const local = deps.checkouts.view().local
+      const target = local?.projectPath ?? local?.path
+      const paths = [...new Set(target === undefined ? [source] : [source, target])].sort()
+      const previous = paths.map(path => lanes.get(path))
+      let release: () => void = () => undefined
+      const finished = new Promise<void>(resolve => { release = resolve })
+      for (const path of paths) lanes.set(path, finished)
+      try {
+        await Promise.all(previous)
+        return await run()
+      } finally {
+        release()
+        for (const path of paths) if (lanes.get(path) === finished) lanes.delete(path)
+      }
+    })
+  }
   return {
-    previewCrossRepoCorrection: async (folder, input) => answer(deps, () => preview(deps, folder, input)),
-    createCrossRepoCorrection: async (folder, input) => answer(deps, () => create(deps, folder, input)),
-    retryCrossRepoCorrection: async (folder, key) => answer(deps, () => retry(deps, folder, key)),
-    withdrawCrossRepoCorrection: async (folder, input) => answer(deps, () => withdraw(deps, folder, input)),
-    listCrossRepoCorrections: async (folder, filter) => answer(deps, () => listCrossRepoCorrections(sourceCtx(deps, folder), (filter ?? {}) as { reportId?: string })),
-    collectCrossRepoResults: async (folder, key) => answer(deps, () => collect(deps, folder, key))
+    previewCrossRepoCorrection: async (folder, input) => answerInOrder(folder, () => preview(deps, folder, input)),
+    createCrossRepoCorrection: async (folder, input) => answer(deps, async () => {
+      requireTracked(deps.registry, folder)
+      const parsed = parseInput(createCrossRepoCorrectionInput, input, 'cross-repository correction')
+      const result = await answerInOrder(folder, () => create(deps, folder, parsed))
+      if (!result.ok) throw new DomainError(result.error.code, result.error.message, result.error.details)
+      return result.data
+    }),
+    retryCrossRepoCorrection: async (folder, key) => answerInOrder(folder, () => retry(deps, folder, key)),
+    withdrawCrossRepoCorrection: async (folder, input) => answerInOrder(folder, () => withdraw(deps, folder, input)),
+    listCrossRepoCorrections: async (folder, filter) => answerInOrder(folder, () => sourceCtx(deps, folder).call('listCorrections', (filter ?? {}) as { reportId?: string })),
+    collectCrossRepoResults: async (folder, key) => answerInOrder(folder, () => collect(deps, folder, key))
   }
 }
 

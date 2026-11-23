@@ -55,17 +55,17 @@ describe('App event polling', () => {
     h.log('/a').append({ epicId: EPIC_A })
     h.log('/a').append({ epicId: EPIC_A })
     await openEpicA()
-    expect(stub()).toBe(`alpha|${EPIC_A}|0`)
+    expect(stub()).toBe(`alpha|${EPIC_A}|1`)
   })
 
   it('bumps only the refresh token of the epic named by an event', async () => {
     await openEpicA()
     h.log('/a').append({ epicId: EPIC_B })
     await pollEvents()
-    expect(stub()).toBe(`alpha|${EPIC_A}|0`)
+    expect(stub()).toBe(`alpha|${EPIC_A}|1`)
     h.log('/a').append({ epicId: EPIC_A })
     await pollEvents()
-    expect(stub()).toBe(`alpha|${EPIC_A}|1`)
+    expect(stub()).toBe(`alpha|${EPIC_A}|2`)
   })
 
   it('hands the epic view callbacks that stay the same while tokens change', async () => {
@@ -156,6 +156,31 @@ describe('App local refresh', () => {
   })
 })
 
+it('does not poll collapsed sections, but keeps the selected project and agent monitoring live', async () => {
+  h.dm.folders.push(folderView({ path: '/b', name: 'beta' }))
+  await openEpicA()
+  fireEvent.click(screen.getByRole('button', { name: 'Folders' }))
+  const otherBefore = h.dm.callsOf('listEvents').filter(call => call.folder === '/b').length
+  await poll()
+  expect(h.dm.callsOf('listEvents').filter(call => call.folder === '/b')).toHaveLength(otherBefore)
+  expect(h.dm.callsOf('listEvents').some(call => call.folder === '/a')).toBe(true)
+  expect(h.dm.chats.callsOf('list').some(([path]) => path === '/b')).toBe(true)
+})
+
+it('refreshes exact counts for external card changes and leaves the epic list untouched', async () => {
+  await openEpicA()
+  const before = h.dm.callsOf('listEpics').length
+  const countsBefore = h.dm.callsOf('getKanbanOpenCount').length
+  h.dm.responses.getKanbanOpenCount = 3
+  h.log('/a').append({ kind: 'kanban.created', epicId: null })
+  h.log('/a').append({ kind: 'kanban.created', epicId: null })
+  await pollEvents()
+  expect(sidebar().getByRole('button', { name: 'Kanban, 3 open cards' })).toBeTruthy()
+  expect(h.dm.callsOf('getKanbanOpenCount')).toHaveLength(countsBefore + 1)
+  expect(h.dm.callsOf('listEpics')).toHaveLength(before)
+  expect(h.dm.callsOf('listKanbanCards')).toEqual([])
+})
+
 describe('App feed failures', () => {
   it('reports an unreachable event feed once', async () => {
     h.dm.failures.listEvents = { code: 'internal', message: 'main process busy' }
@@ -166,4 +191,25 @@ describe('App feed failures', () => {
     expect(screen.getAllByRole('alert')).toHaveLength(1)
     expect(screen.getByRole('alert').textContent).toContain('main process busy')
   })
+})
+
+it('replaces an active epic view when a folder registry push reports a new project at the same path', async () => {
+  let foldersChanged: () => void = () => undefined
+  const unsubscribe = (): void => { foldersChanged = () => undefined }
+  Object.assign(h.dm, {
+    onFoldersChanged: (receive: () => void) => {
+      foldersChanged = receive
+      return unsubscribe
+    }
+  })
+  const original = { ...h.dm.folders[0], projectIdentity: 'previous-project' }
+  h.dm.folders = [original]
+  await openEpicA()
+  const previousView = screen.getByTestId('epic-stub')
+  h.dm.folders = [{ ...original, projectIdentity: 'replacement-project' }]
+  act(() => foldersChanged())
+  await settle()
+  const currentView = screen.getByTestId('epic-stub')
+  expect(currentView).not.toBe(previousView)
+  expect(h.epicProps.at(-1)?.folder.projectIdentity).toBe('replacement-project')
 })

@@ -33,6 +33,8 @@ export interface GitRunRequest {
   onExit?(): void
   /** Secrets (a token) to replace in stdout, stderr, progress lines and error details. */
   redact?: readonly string[]
+  /** Trusted main-process guard, evaluated after any queue wait and immediately before Git starts. */
+  beforeStart?: () => void
   acceptExitCodes?: readonly number[]
 }
 
@@ -215,6 +217,14 @@ class Execution {
       if (this.request.signal?.aborted) {
         this.markGone()
         this.finish(new GitError('cancelled', '', 'git operation cancelled'), false)
+        return
+      }
+      try {
+        this.request.beforeStart?.()
+      } catch (error) {
+        this.markGone()
+        this.release()
+        rejectRun(error)
         return
       }
       try {

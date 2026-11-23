@@ -589,7 +589,7 @@ const CHAT_MAIL_CHANNELS = ['chatMail:markSeen', 'chatMail:read', 'chatMail:snap
 
 /** Registers the mail service over dependencies `reached` stands for: nothing a refused request may reach. */
 function chatMailIpc(handle: Pick<IpcMain, 'handle'>['handle'], reached: () => never): void {
-  const mail = createAgentMailDesktop({ registry: { resolve: reached }, store: { getChat: reached, listChats: reached }, contextFor: reached })
+  const mail = createAgentMailDesktop({ registry: { resolve: reached }, store: { getChat: reached, listChats: reached }, workspaceFor: reached })
   registerChatMailIpc({ handle }, mail.handlers)
 }
 

@@ -14,7 +14,7 @@ export interface FsAdapter {
   /** Size in bytes, or -1 when the path does not exist. */
   fileSize(path: string): number
   /**
-   * An opaque version of a regular file (size, modification and change times, inode), compared
+   * An opaque version of a regular file (size, modification and change times, device, inode), compared
    * only for equality; null when the path is missing or not a regular file (a link is not followed).
    */
   fileStamp(path: string): string | null
@@ -40,6 +40,8 @@ export interface GitHead {
 }
 
 export interface GitAdapter {
+  /** A routed checkout can recheck its local mapping before a Git verdict is stored. */
+  assertCurrent?(): void
   /** Reads HEAD without spawning git; null when the root is not a Git checkout. */
   head(): GitHead | null
   /** Uncommitted (modified, added, deleted, untracked) files under `pathspec`; null if git is unavailable. */

@@ -4,7 +4,7 @@ import { attachmentUrl } from '../../shared/desktop/attachmentUrl'
 import { createHarness, type Harness } from '../../test/workspaceHarness'
 import { pngBytes } from '../../test/images'
 import { createAttachmentLookup, handleAttachmentRequest } from './attachmentProtocol'
-import { createWorkspacePool, type WorkspacePool } from './workspacePool'
+import { createTestWorkspacePool as createWorkspacePool, type TestWorkspacePool as WorkspacePool } from './__mocks__/projectWorkspaceFixture'
 
 const FOLDER_KEY = '0123456789abcdef0123456789abcdef'
 const UNKNOWN_KEY = 'ffffffffffffffffffffffffffffffff'
@@ -15,7 +15,7 @@ interface Fixture {
   pool: WorkspacePool
   imageId: string
   png: Buffer
-  fetch(folderKey: string, attachmentId: string): Response
+  fetch(folderKey: string, attachmentId: string): Promise<Response>
 }
 
 /** A real workspace behind a pool, wired like `startAttachmentProtocol` in bootstrap.ts. */
@@ -25,7 +25,7 @@ async function setup(): Promise<Fixture> {
   const pool = createWorkspacePool((root) => harness.open('desktop', { root }))
   const lookup = createAttachmentLookup({
     pathForKey: (key) => (key === FOLDER_KEY ? harness.root : null),
-    contextFor: (path) => pool.get(path).ctx()
+    read: (path, id) => pool.get(path).call('attachment', id)
   })
   const png = pngBytes(12, 8, 3)
   const imageId = createStagedAttachment(pool.get(harness.root).ctx(), { bytes: png, label: 'shot', purpose: 'reference' }).id
@@ -34,23 +34,23 @@ async function setup(): Promise<Fixture> {
     pool,
     imageId,
     png,
-    fetch: (folderKey, attachmentId) =>
-      handleAttachmentRequest(new Request(attachmentUrl(folderKey, attachmentId)), lookup)
+    fetch: async (folderKey, attachmentId) =>
+      await handleAttachmentRequest(new Request(attachmentUrl(folderKey, attachmentId)), lookup)
   }
 }
 
 describe('dm-attachment protocol against a real workspace', () => {
   let fixture: Fixture | undefined
 
-  afterEach(() => {
-    fixture?.pool.closeAll()
+  afterEach(async () => {
+    await fixture?.pool.closeAll()
     fixture?.harness.cleanup()
     fixture = undefined
   })
 
   it('serves the stored PNG bytes as image/png through the pool', async () => {
     fixture = await setup()
-    const response = fixture.fetch(FOLDER_KEY, fixture.imageId)
+    const response = await fixture.fetch(FOLDER_KEY, fixture.imageId)
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Type')).toBe('image/png')
     expect(Buffer.from(await response.arrayBuffer())).toEqual(fixture.png)
@@ -58,11 +58,11 @@ describe('dm-attachment protocol against a real workspace', () => {
 
   it('answers 404 for an unknown attachment id', async () => {
     fixture = await setup()
-    expect(fixture.fetch(FOLDER_KEY, UNKNOWN_ID).status).toBe(404)
+    expect((await fixture.fetch(FOLDER_KEY, UNKNOWN_ID)).status).toBe(404)
   })
 
   it('answers 404 for an unknown folder key', async () => {
     fixture = await setup()
-    expect(fixture.fetch(UNKNOWN_KEY, fixture.imageId).status).toBe(404)
+    expect((await fixture.fetch(UNKNOWN_KEY, fixture.imageId)).status).toBe(404)
   })
 })

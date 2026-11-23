@@ -7,10 +7,12 @@
  */
 import { createHash } from 'node:crypto'
 import { basename, join } from 'node:path'
-import type { AttachmentOwnerKind, AttachmentRef, SessionRole } from '../../shared/domain/views'
+import type { AttachmentMime, AttachmentOwnerKind, AttachmentRef, SessionRole } from '../../shared/domain/views'
+import { contentHash } from '../canonical'
 import { inspectImageBytes, MAX_IMAGE_BYTES } from '../attachments/intake'
 import type { Db } from '../db/database'
 import { attachmentRef } from '../schemas'
+import type { FileHashCache } from './fileHashes'
 import { ATTACHMENT_SIDECAR_NAME } from './attachmentFiles'
 import { attachmentSidecar } from './portable'
 import { resolveAttachmentPlacement } from '../services/attachmentOwners'
@@ -32,6 +34,7 @@ interface FileEnv {
 
 interface Env extends FileEnv {
   db: Db
+  fileHashes?: FileHashCache
 }
 
 interface AttachmentRejection {
@@ -40,14 +43,17 @@ interface AttachmentRejection {
 }
 
 interface AttachmentImportOutcome {
-  restored: number
-  missing: number
+  changed: boolean
   rejected: AttachmentRejection[]
 }
 
 interface VerifiedFile {
+  path: string
+  stamp: string | null
   bytes: Uint8Array
   mime: string
+  width: number
+  height: number
 }
 
 /** Who staged an image, as its sidecar says; a sidecar that is missing or invalid is simply absent. */
@@ -67,11 +73,15 @@ interface FolderScan {
   rejected: AttachmentRejection[]
 }
 
-interface PendingRow {
+interface AttachmentRow {
   id: string
   sha256: string
-  mime: string
+  mime: AttachmentMime
   bytes: number
+  width: number
+  height: number
+  missing: number
+  stored_bytes: number | null
   owner_kind: AttachmentOwnerKind
   owner_id: string
 }
@@ -103,13 +113,16 @@ function verifyFile(env: FileEnv, path: string, name: string, match: RegExpExecA
     if (env.fs.fileSize(path) > MAX_IMAGE_BYTES) {
       return `is larger than ${MAX_IMAGE_BYTES} bytes`
     }
+    const before = env.fs.fileStamp(path)
     const bytes = env.fs.readFileBytes(path)
     if (createHash('sha256').update(bytes).digest('hex') !== match[1]) {
       return `does not hold the bytes its name (${name}) says: the hash differs`
     }
     const inspected = inspectImageBytes(bytes)
     const declared = EXTENSION_MIME[match[2] as 'png' | 'jpg']
-    return inspected.mime === declared ? { bytes, mime: inspected.mime } : `is a ${inspected.mime} image named as ${declared}`
+    if (inspected.mime !== declared) return `is a ${inspected.mime} image named as ${declared}`
+    const stamp = env.fs.fileStamp(path)
+    return { path, stamp: before === stamp ? stamp : null, bytes, ...inspected }
   } catch (error: unknown) {
     return messageOf(error).replace(/\.$/, '')
   }
@@ -189,6 +202,7 @@ function scanAttachmentFolder(env: FileEnv, folder: AttachmentFolder): FolderSca
 }
 
 interface EvidenceRow {
+  rowid: number
   owner_id: string
   evidence_json: string
   submitted_at: string | null
@@ -200,25 +214,30 @@ interface EvidenceRow {
  * whose row exists is left as it is. A carry-forward attempt copies an earlier acceptance's evidence; the image belongs to
  * the attempt that submitted it, so the copy registers nothing. Runs after the records are applied, before the restore.
  */
-export function registerEvidenceAttachments(db: Db, now: string): void {
-  const sources: { owner: AttachmentOwnerKind; rows: EvidenceRow[] }[] = [
-    {
-      owner: 'attempt',
-      rows: db.all<EvidenceRow>(
-        "SELECT id AS owner_id, evidence_json, submitted_at FROM attempts WHERE kind = 'work' AND evidence_json LIKE '%\"attachments\"%'"
-      )
-    },
-    {
-      owner: 'kanban_attempt',
-      rows: db.all<EvidenceRow>(
-        "SELECT id AS owner_id, evidence_json, submitted_at FROM kanban_attempts WHERE evidence_json LIKE '%\"attachments\"%'"
-      )
+export function registerEvidenceAttachments(db: Db, now: string, scope?: { runs: string[]; cards: string[] }): void {
+  registerEvidence(db, now, 'attempt', scope?.runs)
+  registerEvidence(db, now, 'kanban_attempt', scope?.cards)
+}
+
+function registerEvidence(db: Db, now: string, owner: 'attempt' | 'kanban_attempt', scope: string[] | undefined): void {
+  if (scope?.length === 0) return
+  const ids = scope === undefined ? null : JSON.stringify(scope)
+  const from = owner === 'attempt'
+    ? { table: 'attempts', parent: 'run_id', filter: "AND kind = 'work'" }
+    : { table: 'kanban_attempts', parent: 'card_id', filter: '' }
+  let after = 0
+  for (;;) {
+    const rows = db.all<EvidenceRow>(
+      `SELECT rowid, id AS owner_id, evidence_json, submitted_at FROM ${from.table}
+       WHERE rowid > ? AND evidence_json LIKE '%"attachments"%' ${from.filter}
+         AND (? IS NULL OR ${from.parent} IN (SELECT value FROM json_each(?)))
+       ORDER BY rowid LIMIT 16`, after, ids, ids
+    )
+    for (const row of rows) {
+      registerRowImages(db, { owner, ownerId: row.owner_id, createdAt: row.submitted_at ?? now }, row.evidence_json)
+      after = row.rowid
     }
-  ]
-  for (const source of sources) {
-    for (const row of source.rows) {
-      registerRowImages(db, { owner: source.owner, ownerId: row.owner_id, createdAt: row.submitted_at ?? now }, row.evidence_json)
-    }
+    if (rows.length < 16) break
   }
 }
 
@@ -227,14 +246,24 @@ export function registerEvidenceAttachments(db: Db, now: string): void {
  * fills it from the epic's folder. Only a ticket the database tracks owns an image; a row that exists is left as it is.
  * Runs after the records are applied, before the restore.
  */
-export function registerTicketAttachments(db: Db, now: string): void {
-  const revisions = db.all<{ bundle_json: string; saved_at: string | null }>(
-    "SELECT bundle_json, saved_at FROM plan_revisions WHERE state = 'saved' AND bundle_json LIKE '%\"attachments\"%' ORDER BY number"
-  )
-  for (const revision of revisions) {
-    for (const ticket of namedTickets(revision.bundle_json)) {
-      registerTicketImages(db, ticket, revision.saved_at ?? now)
+export function registerTicketAttachments(db: Db, now: string, epics?: string[]): void {
+  if (epics?.length === 0) return
+  const ids = epics === undefined ? null : JSON.stringify(epics)
+  let cursor = { number: 0, rowid: 0 }
+  for (;;) {
+    const revisions = db.all<{ rowid: number; number: number; bundle_json: string; saved_at: string | null }>(
+      `SELECT rowid, number, bundle_json, saved_at FROM plan_revisions
+       WHERE state = 'saved' AND bundle_json LIKE '%"attachments"%'
+         AND (number, rowid) > (?, ?) AND (? IS NULL OR epic_id IN (SELECT value FROM json_each(?)))
+       ORDER BY number, rowid LIMIT 16`, cursor.number, cursor.rowid, ids, ids
+    )
+    for (const revision of revisions) {
+      for (const ticket of namedTickets(revision.bundle_json)) {
+        registerTicketImages(db, ticket, revision.saved_at ?? now)
+      }
+      cursor = revision
     }
+    if (revisions.length < 16) break
   }
 }
 
@@ -308,42 +337,87 @@ export function insertOwnedRow(db: Db, ref: AttachmentRef, owner: { owner: Attac
   )
 }
 
+function rowIdentity(row: AttachmentRow, path: string): string {
+  return contentHash([path, row.sha256, row.mime, row.bytes, row.width, row.height, row.owner_kind, row.owner_id])
+}
+
+function matchesImage(row: AttachmentRow, file: VerifiedFile): boolean {
+  return file.mime === row.mime && file.bytes.byteLength === row.bytes && file.width === row.width && file.height === row.height
+}
+
+function rememberImage(env: Env, row: AttachmentRow, file: VerifiedFile): void {
+  if (file.stamp !== null) env.fileHashes?.remember(`attachment:${row.id}`, file.stamp, rowIdentity(row, file.path))
+}
+
+/** Recheck a changed portable copy without replacing good evidence in SQLite. */
+function checkRestoredImage(env: Env, row: AttachmentRow, folder: AttachmentFolder, outcome: AttachmentImportOutcome): void {
+  const path = ownedPaths(env.layout).attachmentFile(folder, row.sha256, row.mime)
+  const shown = displayPath(env.layout, path)
+  try {
+    assertContained(env.layout, env.fs, path)
+    // A removed portable copy cannot invalidate the evidence already held in SQLite.
+    if (!env.fs.exists(path)) return
+    const stamp = env.fs.fileStamp(path)
+    if (stamp !== null && env.fileHashes?.get(`attachment:${row.id}`, stamp) === rowIdentity(row, path)) return
+    const name = basename(path)
+    const file = verifyFile(env, path, name, FILE_NAME.exec(name)!)
+    if (typeof file === 'string' || !matchesImage(row, file)) {
+      outcome.rejected.push({ path: shown, message: `${shown} ${typeof file === 'string' ? file : 'does not match its attachment metadata'}.` })
+      return
+    }
+    rememberImage(env, row, file)
+  } catch (error: unknown) {
+    outcome.rejected.push({ path: shown, message: messageOf(error) })
+  }
+}
+
 /**
- * Fills the bytes of every owned attachment that has none, from its owner's `attachments/` folder, and flags the ones
- * with no usable file as missing (a later reconcile that finds the file clears the flag). Runs after the records are
- * applied, inside the reconcile transaction, so each owner can be found.
+ * Fills the bytes of owned attachments from their portable copies and checks changed copies of already stored
+ * images. A missing or rejected copy never erases the locally stored evidence.
  */
 export function restoreAttachmentFiles(env: Env): AttachmentImportOutcome {
-  const outcome: AttachmentImportOutcome = { restored: 0, missing: 0, rejected: [] }
-  const rows = env.db.all<PendingRow>(
-    'SELECT id, sha256, mime, bytes, owner_kind, owner_id FROM attachments WHERE data IS NULL AND owner_kind IS NOT NULL ORDER BY rowid'
+  const outcome: AttachmentImportOutcome = { changed: false, rejected: [] }
+  const rows = env.db.all<AttachmentRow>(
+    `SELECT id, sha256, mime, bytes, width, height, missing, length(data) AS stored_bytes, owner_kind, owner_id
+     FROM attachments WHERE owner_kind IS NOT NULL ORDER BY rowid`
   )
   const scans = new Map<string, FolderScan>()
   for (const row of rows) {
     const placement = resolveAttachmentPlacement(env.db, { kind: row.owner_kind, id: row.owner_id })
-    let file: VerifiedFile | undefined
-    if (placement !== null) {
-      const key = `${placement.folder.kind}:${placement.folder.id}`
-      let scan = scans.get(key)
-      if (scan === undefined) {
-        scan = scanAttachmentFolder(env, placement.folder)
-        scans.set(key, scan)
-        outcome.rejected.push(...scan.rejected)
-      }
-      file = scan.files.get(row.sha256)
-      // The placeholder creator stays unless the sidecar of this very image (same id and hash) names a valid one.
-      const creator = scan.creators.get(row.id)
-      if (creator !== undefined && creator.sha256 === row.sha256) {
-        env.db.run('UPDATE attachments SET created_by_role = ?, created_by_label = ? WHERE id = ?', creator.role, creator.label, row.id)
-      }
+    if (row.stored_bytes !== null) {
+      if (placement !== null) checkRestoredImage(env, row, placement.folder, outcome)
+      continue
     }
-    if (file !== undefined && file.mime === row.mime && file.bytes.byteLength === row.bytes) {
+
+    const file = placement === null ? undefined : imageForPlaceholder(env, row, placement.folder, { scans, outcome })
+    if (file !== undefined && matchesImage(row, file)) {
       env.db.run('UPDATE attachments SET data = ?, missing = 0 WHERE id = ?', Buffer.from(file.bytes), row.id)
-      outcome.restored += 1
-    } else {
+      rememberImage(env, row, file)
+      outcome.changed = true
+    } else if (row.missing !== 1) {
       env.db.run('UPDATE attachments SET missing = 1 WHERE id = ?', row.id)
-      outcome.missing += 1
+      outcome.changed = true
     }
   }
   return outcome
+}
+
+function imageForPlaceholder(
+  env: Env, row: AttachmentRow, folder: AttachmentFolder, state: { scans: Map<string, FolderScan>; outcome: AttachmentImportOutcome }
+): VerifiedFile | undefined {
+  const { scans, outcome } = state
+  const key = `${folder.kind}:${folder.id}`
+  let scan = scans.get(key)
+  if (scan === undefined) {
+    scan = scanAttachmentFolder(env, folder)
+    scans.set(key, scan)
+    outcome.rejected.push(...scan.rejected)
+  }
+  const creator = scan.creators.get(row.id)
+  if (creator !== undefined && creator.sha256 === row.sha256) {
+    const updated = env.db.run(`UPDATE attachments SET created_by_role = ?, created_by_label = ? WHERE id = ?
+      AND (created_by_role <> ? OR created_by_label <> ?)`, creator.role, creator.label, row.id, creator.role, creator.label)
+    if (updated.changes > 0) outcome.changed = true
+  }
+  return scan.files.get(row.sha256)
 }

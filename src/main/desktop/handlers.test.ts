@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { DomainError } from '../../core/errors'
-import type { Workspace } from '../../core/workspace'
+import type { ProjectWorkspace as Workspace } from './workspaceClient'
 import {
   DESKTOP_COMMANDS,
   type ClaudeCodeConnectRequest,
@@ -152,7 +152,7 @@ function createPoolFake(
       }
       return options.workspace ?? echoWorkspace(path)
     },
-    close(path) {
+    async close(path) {
       log.closed.push(path)
     }
   }
@@ -214,7 +214,7 @@ function folderDeps(log: { opened: string[]; closed: string[] }, options: WorldO
   return {
     pool: createPoolFake(log, options),
     releaseFolder: async (_folder, forget) => {
-      forget()
+      await forget()
     },
     stopMailMonitor: () => {}
   }
@@ -309,6 +309,21 @@ describe('pickFolder', () => {
       message: 'Folder not found'
     })
   })
+})
+
+it('fences each world member before waiting for an earlier owner to drain', async () => {
+  const root = '/repos/world'
+  const members = [root + '/a', root + '/b']
+  const world = createWorld({ tracked: [root, ...members] })
+  const list = world.deps.registry.list
+  world.deps.registry.list = () => list().map(folder => members.includes(folder.path) ? { ...folder, forgeParent: root } : folder)
+  let resume = () => {}
+  const drain = new Promise<void>(resolve => { resume = resolve })
+  const reached: string[] = []
+  world.deps.pool.close = path => { reached.push(path); return path === root ? drain : Promise.resolve() }
+  const request = createDesktopHandlers(world.deps).untrackFolder(root)
+  try { expect(reached).toEqual([root, ...members]) }
+  finally { resume(); await request }
 })
 
 describe('untrackFolder', () => {

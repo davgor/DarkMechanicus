@@ -3,10 +3,10 @@
  * `before-quit` cannot wait for async work, so while processes are live the first quit is
  * prevented, they are disposed (each adapter kills its process tree with `killProcessTree` and
  * resolves once the tree is gone; bounded by `timeoutMs` so a stuck one cannot keep the app open),
- * `release` runs, and the quit is then repeated. With nothing live the quit goes straight through:
- * `dispose` still runs so nothing new starts, then `release`. Either way `release` runs exactly
- * once, and later `before-quit`s do nothing. Free of Electron runtime imports so it can be unit
- * tested.
+ * `release` runs, and the quit is then repeated. Callers with asynchronous store closure can
+ * also require this sequence when no chat is live. Otherwise, an idle quit starts both cleanup
+ * steps and goes through immediately. In either case `release` runs once, and later quit events
+ * pass through.
  */
 
 /** What this needs of Electron's `app`. */
@@ -20,7 +20,9 @@ interface QuitDisposalOptions {
   busy: () => boolean
   dispose: () => Promise<void>
   /** Closes what the app holds open (workspaces, `app.sqlite`); runs once, after `dispose`. */
-  release: () => void
+  release: () => void | Promise<void>
+  /** Defer an idle quit until stores have closed. */
+  waitForRelease?: boolean
   /** The longest the quit waits for `dispose`. */
   timeoutMs: number
   timer?: { set(callback: () => void, ms: number): unknown }
@@ -35,9 +37,9 @@ function waitAtMost(work: Promise<void>, options: QuitDisposalOptions): Promise<
   return Promise.race([work, timeout])
 }
 
-function releaseReportingErrors(options: QuitDisposalOptions): void {
+async function releaseReportingErrors(options: QuitDisposalOptions): Promise<void> {
   try {
-    options.release()
+    await options.release()
   } catch (error) {
     options.onError?.(error)
   }
@@ -50,7 +52,7 @@ async function disposeThenQuit(app: QuitApp, options: QuitDisposalOptions, letQu
   } catch (error) {
     options.onError?.(error)
   }
-  releaseReportingErrors(options)
+  await releaseReportingErrors(options)
   letQuit()
   app.quit()
 }
@@ -61,7 +63,7 @@ export function disposeBeforeQuit(app: QuitApp, options: QuitDisposalOptions): v
     if (state === 'done') {
       return
     }
-    if (state === 'running' && !options.busy()) {
+    if (state === 'running' && !options.busy() && !options.waitForRelease) {
       state = 'done'
       options.dispose().catch((error: unknown) => options.onError?.(error))
       releaseReportingErrors(options)

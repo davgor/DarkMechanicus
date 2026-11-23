@@ -6,10 +6,7 @@
 import type { Protocol } from 'electron'
 import type { AttachmentMime } from '../../shared/domain/views'
 import { ATTACHMENT_SCHEME } from '../../shared/desktop/attachmentUrl'
-import type { Ctx } from '../../core/context'
-import { DomainError } from '../../core/errors'
 import { isStableId } from '../../core/ids'
-import { getAttachment, readAttachmentBytes } from '../../core/services/attachments'
 
 /** A folder key is 16 random bytes in lowercase hex (`folderRegistry`). */
 const FOLDER_KEY_PATTERN = /^[0-9a-f]{32}$/
@@ -21,7 +18,7 @@ interface StoredImage {
 }
 
 /** The stored image for a folder key and an attachment id, or null when there is none to serve. */
-export type AttachmentLookup = (folderKey: string, attachmentId: string) => StoredImage | null
+export type AttachmentLookup = (folderKey: string, attachmentId: string) => StoredImage | null | Promise<StoredImage | null>
 
 interface AttachmentTarget {
   folderKey: string
@@ -59,7 +56,7 @@ function empty(status: number, headers: Record<string, string> = {}): Response {
  * Answers one `dm-attachment:` request: the stored bytes with their stored type for a known id, 404 for an
  * unknown, missing or malformed address, and 405 for any method but GET.
  */
-export function handleAttachmentRequest(request: Request, lookup: AttachmentLookup): Response {
+export async function handleAttachmentRequest(request: Request, lookup: AttachmentLookup): Promise<Response> {
   if (request.method !== 'GET') {
     return empty(405, { Allow: 'GET' })
   }
@@ -69,7 +66,7 @@ export function handleAttachmentRequest(request: Request, lookup: AttachmentLook
   }
   let image: StoredImage | null
   try {
-    image = lookup(target.folderKey, target.attachmentId)
+    image = await lookup(target.folderKey, target.attachmentId)
   } catch {
     image = null
   }
@@ -90,8 +87,7 @@ export function handleAttachmentRequest(request: Request, lookup: AttachmentLook
 interface AttachmentLookupDeps {
   /** The tracked folder a key names, or null. */
   pathForKey(folderKey: string): string | null
-  /** The core context of an open folder; throws when the folder cannot be opened. */
-  contextFor(path: string): Ctx
+  read(path: string, attachmentId: string): Promise<StoredImage | null>
 }
 
 /**
@@ -99,24 +95,11 @@ interface AttachmentLookupDeps {
  * missing all read as null; other failures propagate to the handler, which answers 404.
  */
 export function createAttachmentLookup(deps: AttachmentLookupDeps): AttachmentLookup {
-  return (folderKey, attachmentId) => {
+  return async (folderKey, attachmentId) => {
     const path = deps.pathForKey(folderKey)
-    if (path === null) {
-      return null
-    }
-    const ctx = deps.contextFor(path)
-    try {
-      const view = getAttachment(ctx, attachmentId)
-      if (view.missing) {
-        return null
-      }
-      return { bytes: readAttachmentBytes(ctx, attachmentId), mime: view.mime }
-    } catch (error) {
-      if (error instanceof DomainError) {
-        return null
-      }
-      throw error
-    }
+    if (path === null) return null
+    const image = await deps.read(path, attachmentId)
+    return deps.pathForKey(folderKey) === path ? image : null
   }
 }
 

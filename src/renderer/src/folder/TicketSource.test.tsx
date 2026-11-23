@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
+import type { SourceCheckoutApi } from '../../../shared/desktop/sourceCheckout'
 import { folderView } from '../__mocks__/fixtures'
+import { idleSourceCheckout } from '../__mocks__/idleSourceCheckout'
 import { settle } from '../__mocks__/settle'
 import { TicketSource } from './TicketSource'
 
@@ -11,7 +13,7 @@ const project = folderView({ path: '/code', initialized: false })
 const world = folderView({ path: '/world', forgeWorld: { version: 1, owner: 'owner', syncMinutes: 5, projects: [] } })
 const member = folderView({ path: '/world/Code', forgeParent: world.path, name: 'Tracked code' })
 
-function show(folder: typeof project) {
+function show(folder: typeof project, sourceCheckout: SourceCheckoutApi = idleSourceCheckout()) {
   const projects = new Map<string, { world: string; repository: string }>()
   const intervals = new Map<string, number>()
   const sources = new Map<string, string>()
@@ -27,10 +29,10 @@ function show(folder: typeof project) {
   }
   const open = async (path: string) => { visits.push({ path, ticketStore: sources.get(project.path) }) }
   const initialize = vi.fn().mockResolvedValue(undefined)
-  vi.stubGlobal('dm', { forge: api })
+  vi.stubGlobal('dm', { forge: api, sourceCheckout })
   vi.stubGlobal('github', { getAccount: async () => ({ ok: true, data: { login: 'owner' } }), onAccountChanged: () => () => {}, listRepositories: async () => ({ ok: true, data: [{ fullName: 'owner/Code' }] }) })
   render(<TicketSource folder={folder} folders={[project, world, member]} status={null} open={open} initialize={initialize} />)
-  return { api, visits, published, initialize, projects, intervals, sources }
+  return { api, visits, published, initialize, projects, intervals, sources, sourceCheckout }
 }
 
 async function click(name: string) {
@@ -118,4 +120,39 @@ it('opens a restored code checkout and stays on the member when the picker is ca
   await click('Move to self-contained repo')
   expect(api.restore.mock.calls).toEqual([[member.path, 'db'], [member.path, 'repo']])
   expect(visits.map(v => v.path)).toEqual([world.path, project.path])
+})
+
+it('uses the native recovery source dialog and displays the selected code checkout from a Forge member', async () => {
+  const { sourceCheckout, visits } = show(member)
+  const pick = vi.spyOn(sourceCheckout, 'pick').mockResolvedValueOnce({ outcome: 'cancelled' }).mockResolvedValueOnce({
+    outcome: 'associated', folder: member, added: false,
+    checkout: { status: 'available', target: { kind: 'darkmechanicus_source', projectId: 'pj_fixture', projectName: 'Dark Mechanicus' },
+      local: { path: '/local/dm-code', displayPath: '/local/dm-code', projectPath: member.path, associatedAt: '2026-01-01T00:00:00.000Z' },
+      problem: null, message: null, recovery: null }
+  })
+  await click('Choose Dark Mechanicus source checkout…')
+  expect(screen.queryByText('/local/dm-code')).toBeNull()
+  await click('Choose Dark Mechanicus source checkout…')
+  expect(screen.getByText('/local/dm-code')).toBeTruthy()
+  expect(pick.mock.calls).toEqual([[], []])
+  expect(visits).toEqual([])
+})
+
+it('keeps the tracked member when a missing code checkout is followed by a refused picker choice', async () => {
+  const checkout = idleSourceCheckout()
+  vi.spyOn(checkout, 'get').mockResolvedValue({
+    status: 'unavailable', target: null, local: null, problem: 'missing',
+    message: 'The selected code checkout moved.', recovery: 'Choose its new location.'
+  })
+  const pick = vi.spyOn(checkout, 'pick').mockResolvedValue({
+    outcome: 'refused', problem: 'not_dm_source', message: 'This is a Forge World ticket folder.',
+    recovery: 'Choose the linked code checkout.'
+  })
+  const { visits } = show(member, checkout)
+  expect(await screen.findByText('The selected code checkout moved.')).toBeTruthy()
+  await click('Choose Dark Mechanicus source checkout…')
+  expect(screen.getByRole('status').textContent).toBe('This is a Forge World ticket folder. Choose the linked code checkout.')
+  expect(screen.getByText('The selected code checkout moved.')).toBeTruthy()
+  expect(pick).toHaveBeenCalledExactlyOnceWith()
+  expect(visits).toEqual([])
 })

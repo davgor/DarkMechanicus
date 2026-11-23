@@ -22,11 +22,10 @@
  * stopped or restarted meanwhile discards its result. Pushes never carry bodies; polling never acknowledges or marks seen.
  */
 import { z } from 'zod'
-import type { Ctx } from '../../core/context'
+import type { ProjectWorkspace } from '../desktop/workspaceClient'
 import { DomainError, fail } from '../../core/errors'
 import { parseInput } from '../../core/schemas'
-import { getHumanAgentMailState, markHumanAgentMailSeen, readHumanAgentInbox } from '../../core/services/agentMail'
-import { AGENT_MAIL_LIMITS, getEndpoint } from '../../core/services/agentMailStore'
+import { AGENT_MAIL_LIMITS } from '../../core/services/agentMailStore'
 import { chatIdSchema, type ChatRecord } from '../../shared/agents/chat'
 import type { ChatMailPage, ChatMailPushEvent, ChatMailSnapshot, ChatMailState } from '../../shared/agents/chatApi'
 import type { CommandResult } from '../../shared/desktop/api'
@@ -58,11 +57,11 @@ export interface AgentMailDesktopDeps {
   /** The chat records; read only (listing through it would provision). */
   store: Pick<ChatStore, 'getChat' | 'listChats'>
   /** World-owned chats projected into this member's mailbox, retaining their root folder for wake/resume. */
-  routedChats?: (folder: string) => readonly ChatRecord[]
+  routedChats?: (folder: string, background?: boolean) => readonly ChatRecord[] | Promise<readonly ChatRecord[]>
   /** All eligible tracked folders, independent of which inbox the person opened. */
   folders?: () => readonly string[]
   /** The person's context in the folder's held desktop workspace (never a fresh session). */
-  contextFor: (folder: string) => Ctx
+  workspaceFor: (folder: string, background?: boolean) => ProjectWorkspace
   delivery?: {
     hasMessage(chat: ChatRecord, message: AgentMailMessageView & { project?: string }): boolean
     resume(chat: ChatRecord): Promise<string | null>
@@ -106,7 +105,7 @@ interface ChatMailbox {
   folder: string
   chat: ChatRecord
   endpointId: string
-  ctx: Ctx
+  workspace: ProjectWorkspace
 }
 
 const NO_MAILBOX = 'This chat has no mailbox.'
@@ -114,15 +113,6 @@ const NO_MAILBOX = 'This chat has no mailbox.'
 /** The folder's ordinary and world-owned mailbox projections, in chat id order. */
 function eligible(chats: readonly ChatRecord[]): ChatRecord[] {
   return chats.filter((chat) => !chat.archived && hasMailbox(chat) && chat.endpointId !== undefined).sort((a, b) => (a.id < b.id ? -1 : 1))
-}
-
-/** The chat's own endpoint, open or suspended, on this machine; anything else is `not_found`. */
-function checkedEndpoint(ctx: Ctx, chat: ChatRecord): string {
-  const endpoint = chat.endpointId === undefined || !hasMailbox(chat) ? null : getEndpoint(ctx, chat.endpointId)
-  if (endpoint === null || endpoint.chatId !== chat.id || endpoint.machineId !== ctx.machineId || endpoint.state === 'deleting' || endpoint.state === 'deleted') {
-    fail('not_found', NO_MAILBOX, { chatId: chat.id })
-  }
-  return endpoint.id
 }
 
 /** Strips the version so two reads of the same metadata compare equal. */
@@ -167,28 +157,25 @@ class ChatMailDesk {
     }
   }
 
-  private chatAt(folder: string, id: string): ChatRecord | null {
-    return this.deps.store.getChat({ folder, id }) ?? this.deps.routedChats?.(folder).find(chat => chat.id === id) ?? null
+  private async chatAt(folder: string, id: string, background = false): Promise<ChatRecord | null> {
+    return this.deps.store.getChat({ folder, id }) ?? (await this.deps.routedChats?.(folder, background))?.find(chat => chat.id === id) ?? null
   }
 
-  mailbox(input: { folder: string; chatId: string }): ChatMailbox {
+  async mailbox(input: { folder: string; chatId: string }): Promise<ChatMailbox> {
     const folder = chatFolder(this.deps, input.folder)
-    const chat = this.chatAt(folder, input.chatId)
-    if (chat === null) {
+    const chat = await this.chatAt(folder, input.chatId)
+    if (chat === null || !hasMailbox(chat) || chat.endpointId === undefined) {
       fail('not_found', NO_MAILBOX, { chatId: input.chatId })
     }
-    const ctx = this.deps.contextFor(folder)
-    return { folder, chat, endpointId: checkedEndpoint(ctx, chat), ctx }
+    return { folder, chat, endpointId: chat.endpointId, workspace: this.deps.workspaceFor(folder) }
   }
 
-  stateOf(box: Pick<ChatMailbox, 'ctx' | 'folder' | 'endpointId'> & { chatId: string }): ChatMailState {
-    const view = getHumanAgentMailState(box.ctx, { endpointId: box.endpointId })
-    const chat = this.chatAt(box.folder, box.chatId)
-    if (chat === null) fail('not_found', NO_MAILBOX)
-    const delivery = this.deliveryState(box, chat)
+  async stateOf(box: ChatMailbox): Promise<ChatMailState> {
+    const view = await box.workspace.call('mailState', box.chat)
+    const delivery = await this.deliveryState(box)
     return {
       folder: box.folder,
-      chatId: box.chatId,
+      chatId: box.chat.id,
       humanSeenSeq: view.humanSeenSeq,
       unseenCount: view.unseenCount,
       pendingCount: view.pendingCount,
@@ -199,7 +186,7 @@ class ChatMailDesk {
     }
   }
 
-  private inspectPage(folder: string, chat: ChatRecord, messages: ReturnType<typeof readHumanAgentInbox>['messages'], delivery: ChatMailState['delivery']): void {
+  private inspectPage(folder: string, chat: ChatRecord, messages: readonly AgentMailMessageView[], delivery: ChatMailState['delivery']): void {
     for (const message of messages) {
       try {
         const scoped = chat.folder === folder ? message : { ...message, project: folder }
@@ -212,18 +199,18 @@ class ChatMailDesk {
     }
   }
 
-  private deliveryState(box: Pick<ChatMailbox, 'ctx' | 'folder' | 'endpointId'> & { chatId: string }, chat: ChatRecord): ChatMailState['delivery'] {
+  private async deliveryState(box: ChatMailbox): Promise<ChatMailState['delivery']> {
     const delivery = { pendingCount: 0, deliveredCount: 0, problem: null as string | null }
     let afterSeq = 0
     let throughSeq: number | undefined
     for (;;) {
-      const page = readHumanAgentInbox(box.ctx, { endpointId: box.endpointId, afterSeq, throughSeq, limit: AGENT_MAIL_LIMITS.pageSize })
-      this.inspectPage(box.folder, chat, page.messages, delivery)
+      const page = await box.workspace.call('mailRead', box.chat, { afterSeq, throughSeq, limit: AGENT_MAIL_LIMITS.pageSize })
+      this.inspectPage(box.folder, box.chat, page.messages, delivery)
       if (!page.hasMore) break
       afterSeq = page.nextCursor
       throughSeq = page.snapshotHighWater
     }
-    const key = `${box.folder}\0${box.chatId}`
+    const key = `${box.folder}\0${box.chat.id}`
     if (delivery.problem === null) this.unobservable.delete(key)
     else this.unobservable.add(key)
     delivery.problem ??= delivery.pendingCount === 0 ? null : this.deliveryProblems.get(key) ??
@@ -231,19 +218,16 @@ class ChatMailDesk {
     return delivery
   }
 
-  /** One page of states in one transaction; a chat whose mailbox is gone (deleted meanwhile) is left out. */
-  private readPage(folder: string, chats: readonly ChatRecord[]): ChatMailState[] {
-    const ctx = this.deps.contextFor(folder)
-    return ctx.db.tx(() =>
-      chats.flatMap((chat) => {
-        try {
-          return [this.stateOf({ ctx, folder, chatId: chat.id, endpointId: checkedEndpoint(ctx, chat) })]
-        } catch (error) {
-          if (error instanceof DomainError && error.code === 'not_found') return []
-          throw error
-        }
-      })
-    )
+  /** Bounded pages preserve cancellation points and omit mailboxes removed since discovery. */
+  private async readPage(folder: string, chats: readonly ChatRecord[], background: boolean): Promise<ChatMailState[]> {
+    const workspace = this.deps.workspaceFor(folder, background)
+    const states: ChatMailState[] = []
+    for (const chat of chats) {
+      if (chat.endpointId === undefined) continue
+      try { states.push(await this.stateOf({ workspace, folder, chat, endpointId: chat.endpointId })) }
+      catch (error) { if (!(error instanceof DomainError && error.code === 'not_found')) throw error }
+    }
+    return states
   }
 
   /** Pushes the state when its metadata differs from what the folder's watch last published. */
@@ -260,11 +244,11 @@ class ChatMailDesk {
    * Reads every mailbox of the folder in bounded pages, yielding between pages. Returns null when the folder's watch
    * was stopped or replaced meanwhile: what was read belongs to a folder generation that no longer exists.
    */
-  private async sweep(folder: string, watch: FolderWatch | undefined): Promise<ChatMailState[] | null> {
-    const chats = eligible([...this.deps.store.listChats(folder), ...this.deps.routedChats?.(folder) ?? []])
+  private async sweep(folder: string, watch: FolderWatch | undefined, background = false): Promise<ChatMailState[] | null> {
+    const chats = eligible([...this.deps.store.listChats(folder), ...(await this.deps.routedChats?.(folder, background) ?? [])])
     const states: ChatMailState[] = []
     for (let start = 0; start < chats.length; start += this.pageSize) {
-      const page = this.readPage(folder, chats.slice(start, start + this.pageSize))
+      const page = await this.readPage(folder, chats.slice(start, start + this.pageSize), background)
       await this.yieldPage()
       if (this.watches.get(folder) !== watch) return null
       states.push(...page)
@@ -289,7 +273,7 @@ class ChatMailDesk {
       }
       await this.deps.board?.poll(folder)
       if (this.watches.get(folder) !== watch) return
-      const states = await this.sweep(folder, watch)
+      const states = await this.sweep(folder, watch, true)
       if (states === null) return
       for (const state of states) if (!(await this.resumeUndelivered(folder, state, watch))) return
       this.publishSweep(folder, states, watch)
@@ -303,7 +287,7 @@ class ChatMailDesk {
   private async resumeUndelivered(folder: string, state: ChatMailState, watch: FolderWatch): Promise<boolean> {
     const delivery = this.deps.delivery
     if (state.delivery.pendingCount === 0 || delivery === undefined || this.unobservable.has(`${folder}\0${state.chatId}`)) return true
-    const chat = this.chatAt(folder, state.chatId)
+    const chat = await this.chatAt(folder, state.chatId, true)
     if (chat === null) return true
     if (this.watches.get(folder) !== watch) return false
     const problem = await delivery.resume(chat)
@@ -357,10 +341,11 @@ class ChatMailDesk {
     return { folder, chats }
   }
 
-  read(input: unknown): ChatMailPage {
+  async read(input: unknown): Promise<ChatMailPage> {
     const { folder, chatId, ...window } = parseInput(readSchema, input, 'chat mail read')
-    const box = this.mailbox({ folder, chatId })
-    const page = readHumanAgentInbox(box.ctx, { endpointId: box.endpointId, ...window })
+    const box = await this.mailbox({ folder, chatId })
+    const page = await box.workspace.call('mailRead', box.chat, window)
+    if (this.deps.registry.resolve(box.folder) !== box.folder || !box.workspace.current) fail('unauthorized', 'This mailbox folder was closed.')
     const highest = page.messages.reduce((max, message) => Math.max(max, message.seq), 0)
     const folderServed = this.served.get(box.folder) ?? new Map<string, number>()
     folderServed.set(box.endpointId, Math.max(folderServed.get(box.endpointId) ?? 0, highest))
@@ -368,14 +353,14 @@ class ChatMailDesk {
     return page
   }
 
-  markSeen(input: unknown): ChatMailState {
+  async markSeen(input: unknown): Promise<ChatMailState> {
     const request = parseInput(seenSchema, input, 'chat mail seen')
-    const box = this.mailbox(request)
+    const box = await this.mailbox(request)
     if (request.throughSeq > (this.served.get(box.folder)?.get(box.endpointId) ?? 0)) {
       fail('invalid_input', 'Mark seen only up to a message this window was shown.', { field: 'throughSeq' })
     }
-    markHumanAgentMailSeen(box.ctx, { endpointId: box.endpointId, throughSeq: request.throughSeq })
-    const state = this.stateOf({ ...box, chatId: box.chat.id })
+    await box.workspace.call('mailSeen', box.chat, request.throughSeq)
+    const state = await this.stateOf(box)
     this.publish(state)
     return state
   }
@@ -388,10 +373,7 @@ export function createAgentMailDesktop(deps: AgentMailDesktopDeps): AgentMailDes
     handlers: {
       snapshot: (input) => answer(deps, () => desk.snapshot(input)),
       state: (input) =>
-        answer(deps, () => {
-          const box = desk.mailbox(parseInput(refSchema, input, 'chat mail request'))
-          return desk.stateOf({ ...box, chatId: box.chat.id })
-        }),
+        answer(deps, async () => desk.stateOf(await desk.mailbox(parseInput(refSchema, input, 'chat mail request')))),
       read: (input) => answer(deps, () => desk.read(input)),
       markSeen: (input) => answer(deps, () => desk.markSeen(input))
     },

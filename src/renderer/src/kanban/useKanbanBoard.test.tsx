@@ -71,6 +71,28 @@ describe('useKanbanBoard folder change', () => {
   })
 })
 
+it('shows a warmed board while checking the current store and fences a same-path rebind', async () => {
+  const hook = (identity: string) => renderHook(() => useKanbanBoard('/a', 0, undefined, identity))
+  board.open = [cardSummary({ key: 'DM-warm' })]
+  const first = hook('project-a')
+  await settle()
+  first.unmount()
+  const warmPending = dm.holdNext('listKanbanCards')
+  const warm = hook('project-a')
+  expect(keys(warm.result.current, 'backlog')).toEqual(['DM-warm'])
+  warm.unmount()
+  const nextPending = dm.holdNext('listKanbanCards')
+  const rebound = hook('project-b')
+  expect(rebound.result.current.board).toBeNull()
+  board.open = [cardSummary({ key: 'DM-new' })]
+  warmPending.resolve()
+  await settle()
+  expect(rebound.result.current.board).toBeNull()
+  nextPending.resolve()
+  await settle()
+  expect(keys(rebound.result.current, 'backlog')).toEqual(['DM-new'])
+})
+
 describe('useKanbanBoard Show more guards', () => {
   it('asks for nothing when Done has no further page', async () => {
     board.done = [doneCard(1)]

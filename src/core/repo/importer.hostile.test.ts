@@ -18,7 +18,7 @@ import {
 import { contentHash, prettyJson } from '../canonical'
 import { LIMITS } from '../schemas'
 import type { PlanBundle } from '../../shared/domain/bundle'
-import { reconcileRepository } from './importer'
+import { reconcileRepository, type ImporterDeps } from './importer'
 import { ownedPaths } from './paths'
 import { MAX_COMMENT_RECORD_BYTES, MAX_RECORD_BYTES, parseRecord, profileRecord } from './portable'
 import { MAX_PROFILE_BYTES, MAX_PROFILES } from './profileImport'
@@ -30,6 +30,7 @@ const RUN = idOf('run', 1)
 const OUTSIDE = resolve('/outside')
 
 interface Imported {
+  deps?: ImporterDeps
   target: RepoEnv
   before: Record<string, unknown[]>
   readsBefore: number
@@ -46,12 +47,13 @@ function imported(): Imported {
   flush(source)
   const target = createRepoEnv({ root: '/clone' })
   copyTracked(source, target)
-  expect(reconcileRepository(importerDeps(target, createStubGit('main'))).imported).toEqual([EPIC, RUN])
-  return { target, before: dumpDomain(target.db), readsBefore: target.fs.reads.length }
+  const deps = importerDeps(target, createStubGit('main'))
+  expect(reconcileRepository(deps).imported).toEqual([EPIC, RUN])
+  return { deps, target, before: dumpDomain(target.db), readsBefore: target.fs.reads.length }
 }
 
 function reconcile(state: Imported): ReturnType<typeof reconcileRepository> {
-  return reconcileRepository(importerDeps(state.target, createStubGit('main')))
+  return reconcileRepository(state.deps ?? importerDeps(state.target, createStubGit('main')))
 }
 
 function outsideReads(state: Imported): string[] {
@@ -116,12 +118,46 @@ describe('hostile directory names', () => {
   })
 })
 
+describe('warm history validation', () => {
+  it('rejects a same-size run replacement and imports the valid repair without losing history', () => {
+    const state = imported()
+    const path = paths(state).runHistoryFile(RUN)
+    const original = state.target.fs.get(path) ?? ''
+    const forged = original.replace('"state": "completed"', '"state": "bogus____"')
+    expect(forged).not.toBe(original)
+    expect(forged.length).toBe(original.length)
+    state.target.fs.put(path, forged)
+    const result = reconcile(state)
+    expect(result.rejected).toHaveLength(1)
+    expectUnchanged(state, result)
+    state.target.fs.put(path, original)
+    expect(reconcile(state)).toMatchObject({ rejected: [], unchanged: [EPIC, RUN] })
+  })
+
+  it('rejects an edited or deleted current snapshot with an unchanged epic state and pointer', () => {
+    const state = imported()
+    const path = paths(state).snapshotFile(EPIC, R1)
+    const original = state.target.fs.get(path) ?? ''
+    state.target.fs.put(path, original.replace('Test epic', 'Fake epic'))
+    let result = reconcile(state)
+    expect(result.rejected).toHaveLength(1)
+    expectUnchanged(state, result)
+
+    state.target.fs.remove(path)
+    result = reconcile(state)
+    expect(result.rejected.at(0)?.message).toContain('points to missing snapshot')
+    expectUnchanged(state, result)
+
+    state.target.fs.put(path, original)
+    expect(reconcile(state)).toMatchObject({ rejected: [], unchanged: [EPIC, RUN] })
+  })
+})
+
 describe('hostile links', () => {
   it('rejects a linked snapshots directory without reading outside', () => {
     const state = imported()
     state.target.fs.put(join(OUTSIDE, 'snaps', `${R1}.json`), state.target.fs.get(paths(state).snapshotFile(EPIC, R1)) ?? '')
     state.target.fs.symlink(paths(state).snapshotsDir(EPIC), join(OUTSIDE, 'snaps'))
-    touchEpic(state)
     const result = reconcile(state)
     expect(result.rejected).toEqual([{ path: EPIC_DIR, message: expect.stringContaining('symbolic links and junctions are not allowed') }])
     expectUnchanged(state, result)
@@ -250,14 +286,15 @@ describe('hostile sizes', () => {
 })
 
 describe('unchanged epics', () => {
-  it('does not re-read the snapshots of an epic whose tracked state is unchanged', () => {
+  it('revalidates changed snapshot bytes even when the epic state is unchanged', () => {
     const state = imported()
     const snapshot = paths(state).snapshotFile(EPIC, R1)
     state.target.fs.put(snapshot, '<<<<<<< HEAD\n')
     const result = reconcile(state)
-    expect(result).toMatchObject({ imported: [], unchanged: [EPIC, RUN], rejected: [] })
-    expect(state.target.fs.reads.slice(state.readsBefore)).not.toContain(snapshot)
-    expect(dumpDomain(state.target.db)).toEqual(state.before)
+    expect(result).toMatchObject({
+      imported: [], unchanged: [RUN], rejected: [{ path: EPIC_DIR, message: expect.stringContaining('unresolved merge conflict markers') }]
+    })
+    expectUnchanged(state, result)
   })
 
   it('rejects an oversized graph', () => {

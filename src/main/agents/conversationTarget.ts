@@ -1,7 +1,7 @@
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { ConversationTarget } from '../../shared/agents/chatApi'
 import type { BoundTarget } from './boundThreads'
-import type { ChatStore } from './chatStore'
+import type { ChatRecords } from './chatRecords'
 
 
 export interface ConversationReads {
@@ -13,7 +13,7 @@ export interface ConversationReads {
 
 interface ConversationDeps {
   reads: ConversationReads
-  store: Pick<ChatStore, 'listChats'>
+  store: Pick<ChatRecords, 'listChats'>
   boundTerminal(folder: string, target: BoundTarget): Promise<string | null>
 }
 
@@ -38,7 +38,7 @@ export async function resolveConversationChat(
   folder: string,
   target: ConversationTarget
 ): Promise<ResolvedConversationChat | null> {
-  const chats = deps.store.listChats(folder)
+  const chats = await deps.store.listChats(folder)
   if ('cardId' in target) {
     const play = newest(chats, (chat) => chat.cardId === target.cardId)
     if (play !== null) return { chatId: play.id, via: 'card_play' }

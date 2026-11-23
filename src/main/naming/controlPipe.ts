@@ -24,6 +24,7 @@ export interface NamingControlBinding {
   assertCurrent(): void
   /** Narrow repair authority, rechecked independently of naming (not granted to workers/reviewers). */
   assertRecovery?(): void
+  verifyAuthority?(capability: 'chat.name' | 'tooling.recover'): Promise<void>
 }
 export interface NamingOperationContext {
   readonly binding: NamingControlBinding
@@ -32,8 +33,9 @@ export interface NamingOperationContext {
   readonly deadline: number
   remainingMs(): number
   assertActive(): void
+  verifyActive?(): Promise<void>
   /** Chat metadata mutation must occur synchronously inside this final guard, never after an await. */
-  publish<T>(publication: () => T extends PromiseLike<unknown> ? never : T): T
+  publish<T>(publication: () => T extends PromiseLike<unknown> ? never : T): T | Promise<T>
 }
 export type NamingDispatcher = (operation: NamingOperation, context: NamingOperationContext) => Promise<unknown> | unknown
 interface ControlClock {
@@ -220,7 +222,8 @@ class ControlOperation {
       binding, signal: this.controller.signal, deadline,
       remainingMs: () => Math.max(0, deadline - connection.owner.clock.now()),
       assertActive: () => this.assertActive(),
-      publish: (publication) => { this.assertActive(); return publication() }
+      verifyActive: () => this.verifyActive(),
+      publish: async (publication) => { await this.verifyActive(); this.assertActive(); return publication() }
     }
   }
   private assertActive(): void {
@@ -234,6 +237,15 @@ class ControlOperation {
       this.binding.assertRecovery()
     }
   }
+  private async verifyActive(): Promise<void> {
+    this.assertActive()
+    const verify = this.binding.verifyAuthority
+    if (verify !== undefined) {
+      await verify('chat.name')
+      if (this.operation.op === 'recover_tooling' || this.operation.op === 'recovery_context') await verify('tooling.recover')
+    }
+    this.assertActive()
+  }
   watch(): void {
     const clock = this.connection.owner.clock
     this.cancelDeadline = clock.after(() => this.cancel('timeout'), Math.max(0, this.deadline - clock.now()))
@@ -241,8 +253,10 @@ class ControlOperation {
     this.binding.signal.addEventListener('abort', onAbort, { once: true })
     this.unbind = () => this.binding.signal.removeEventListener('abort', onAbort)
     const poll = (): void => {
-      try { this.assertActive() } catch (error) { this.cancel(errorCode(error)); return }
-      this.cancelWatch = clock.after(poll, 50)
+      void this.verifyActive().then(
+        () => { if (!this.controller.signal.aborted) this.cancelWatch = clock.after(poll, 50) },
+        (error: unknown) => { if (!this.controller.signal.aborted) this.cancel(errorCode(error)) }
+      )
     }
     this.cancelWatch = clock.after(poll, 50)
   }
@@ -259,14 +273,14 @@ class ControlOperation {
   }
   async start(): Promise<void> {
     try {
-      this.assertActive()
+      await this.verifyActive()
       let data: unknown
       {
         const dispatch = this.connection.owner.options.dispatch
         if (dispatch === undefined) { throw new NamingControlError('operation_unavailable') }
         data = await dispatch(this.operation, this.context)
       }
-      this.assertActive()
+      await this.verifyActive()
       this.connection.finish({ version: 1, requestId: this.connection.requestId, ok: true, data })
     } catch (error) { this.connection.finish(namingFailure(this.connection.requestId, errorCode(error))) } finally {
       this.controller.abort()

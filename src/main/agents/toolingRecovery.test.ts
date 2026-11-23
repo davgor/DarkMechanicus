@@ -8,6 +8,7 @@ import { createRecoveryStore } from './toolingRecoveryStore'
 import type { NamingOperationContext } from '../naming/controlPipe'
 import type { ToolingRecoveryInput } from '../../shared/agents/toolingRecovery'
 import type { ChatRecord } from '../../shared/agents/chat'
+import type { SourceCheckouts } from '../desktop/sourceCheckout'
 
 const roots: string[] = []
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })
@@ -19,7 +20,7 @@ function fixture(role: 'planner' | 'orchestrator' = 'planner') {
   const store = createChatStore({ root: join(root, 'chats') })
   const caller = store.createChat({ folder: root, agent: 'omp', role, model: null, allowSave: false, title: 'Unfinished original task' })
   const events: string[] = []
-  const source = { requireAvailable: vi.fn(() => ({ path: sourceFolder, target: { kind: 'darkmechanicus_source' as const, projectId: 'pj_fixture', projectName: 'Dark Mechanicus fixture' } })) }
+  const source = { requireAvailable: vi.fn<SourceCheckouts['requireAvailable']>(() => ({ path: sourceFolder, target: { kind: 'darkmechanicus_source', projectId: 'pj_fixture', projectName: 'Dark Mechanicus fixture' } })) }
   const cards: { id: string; body: string }[] = []
   const receipts = new Set<string>()
   const messages = new Map<string, { id: string; text: string }>()
@@ -34,7 +35,14 @@ function fixture(role: 'planner' | 'orchestrator' = 'planner') {
     hold: vi.fn(async () => { events.push('hold') }),
     release: vi.fn(async () => { events.push('release') }),
     authorizeLaunch: vi.fn(),
-    start: vi.fn(async (chat: ChatRecord, prompt: string, assertLaunch: () => void) => { assertLaunch(); events.push('start'); store.updateChat(chat, { firstPromptDelivery: 'submitted' }); receipts.add(chat.id + '\0' + prompt); live.add(chat.id); return { state: 'running' as const, pid: 123 } }),
+    start: vi.fn<Parameters<typeof createToolingRecovery>[0]['start']>(async (chat, prompt, assertLaunch) => {
+      await assertLaunch()
+      events.push('start')
+      store.updateChat(chat, { firstPromptDelivery: 'submitted' })
+      receipts.add(chat.id + '\0' + prompt)
+      live.add(chat.id)
+      return { state: 'running', pid: 123 }
+    }),
     running: vi.fn((chat: ChatRecord) => live.has(chat.id)),
     delivery: {
       hasInput: (chat: { id: string }, text: string) => receipts.has(chat.id + '\0' + text),
@@ -146,15 +154,54 @@ function fixture(role: 'planner' | 'orchestrator' = 'planner') {
     expect(refused).toMatchObject({ cardId: 'kc_fixture', repairChatId: null, startup: 'not_started', blocked: true })
     expect(f.deps.start).not.toHaveBeenCalled()
     const native = fixture()
-    native.deps.start.mockImplementationOnce(async (_chat, _prompt, guard: () => void) => {
+    native.deps.start.mockImplementationOnce(async (_chat, _prompt, guard) => {
       native.source.requireAvailable.mockImplementation(() => { throw new Error('Source replaced during native auth') })
-      guard()
+      await guard()
       return { state: 'running', pid: 123 }
     })
     const stopped = await native.service(escalation, native.context())
     expect(stopped).toMatchObject({ startup: 'failed', blocked: true, connection: 'unavailable' })
     expect(stopped.problem).toContain('Source replaced during native auth')
   })
+
+it('replays a held incident into one Forge member while pinning its separate code checkout and requiring a changed live runtime', async () => {
+  const f = fixture()
+  const initial = f.source.requireAvailable()
+  f.source.requireAvailable.mockImplementation(() => { throw new Error('Choose the source checkout first.') })
+  const held = await f.service(escalation, f.context())
+  expect(held).toMatchObject({ blocked: true, cardId: null, repairChatId: null })
+  const path = join(f.root, 'verified-code')
+  const mapping = { ...initial, path, projectPath: f.sourceFolder, mappingIdentity: 'verified world and code origin' }
+  f.source.requireAvailable.mockReturnValue(mapping)
+  const connected = await f.service(escalation, f.context())
+  expect(connected).toMatchObject({ incidentId: held.incidentId, blocked: true, sourceFolder: f.sourceFolder, connection: 'connected' })
+  const repair = f.store.getChat({ folder: f.sourceFolder, id: connected.repairChatId! })!
+  expect(repair).toMatchObject({ role: 'orchestrator', allowSave: false, cardId: connected.cardId })
+  expect(repair.firstPrompt).toContain('Use code checkout ' + JSON.stringify(path))
+  expect(repair.firstPrompt).toContain('grant belong to ticket folder ' + JSON.stringify(f.sourceFolder))
+  expect(f.cards[0].body).not.toContain(path)
+  expect(f.deps.createCard).toHaveBeenCalledExactlyOnceWith(f.sourceFolder, expect.objectContaining({ idempotencyKey: 'tooling-' + held.incidentId }))
+  expect(f.deps.play).toHaveBeenCalledExactlyOnceWith(f.sourceFolder, connected.cardId)
+
+  const replay = createToolingRecovery({ ...f.deps, incidents: createRecoveryStore({ userData: f.root }) })
+  for (const replacement of [{ ...mapping, path: join(f.root, 'other-clone') }, { ...mapping, projectPath: join(f.root, 'other-member') },
+    { ...mapping, mappingIdentity: 'substituted Git origin' }]) {
+    f.source.requireAvailable.mockReturnValue(replacement)
+    expect(await replay(escalation, f.context())).toMatchObject({ repairChatId: repair.id, blocked: true, problem: expect.stringContaining('identity changed') })
+  }
+  f.source.requireAvailable.mockReturnValue(mapping)
+  expect(await replay(escalation, f.context())).toMatchObject({ repairChatId: repair.id, connection: 'connected' })
+  expect(f.store.listChats(f.sourceFolder)).toHaveLength(1)
+  expect(f.deps.start).toHaveBeenCalledTimes(1)
+
+  const resume = { action: 'resume' as const, incidentId: held.incidentId }
+  expect(await replay(resume, f.context(f.caller.id, 'new-generation'))).toMatchObject({ blocked: true })
+  await replay({ action: 'available', incidentId: held.incidentId, version: '1.1.0', evidence: 'Reviewed deployment fixture' }, f.context(repair.id))
+  f.setVersion('1.1.0')
+  expect(await replay(resume, f.context())).toMatchObject({ blocked: true })
+  expect(await replay(resume, f.context(f.caller.id, 'new-generation'))).toMatchObject({ blocked: false })
+  expect(f.deps.release).toHaveBeenCalledTimes(1)
+})
 
 it('retains unsupported-host diagnostics before any hold, source access, card, chat or agent launch', async () => {
   const f = fixture()

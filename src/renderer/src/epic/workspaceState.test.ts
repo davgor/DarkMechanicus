@@ -5,7 +5,6 @@ import {
   epicDetail,
   mcpTestEpic,
   mcpTestPlan,
-  mcpTestReport,
   mcpTestRun,
   runView,
   savedPlan,
@@ -21,7 +20,6 @@ function data(patch: Partial<WorkspaceData> = {}): WorkspaceData {
     draft: draftPlan(),
     run: runView(),
     checkpoint: checkpointView(),
-    overview: null,
     savedTickets: [],
     draftTickets: [],
     validation: validation(),
@@ -39,7 +37,6 @@ function completed(): Partial<WorkspaceData> {
     draft: null,
     run: mcpTestRun(),
     checkpoint: null,
-    overview: { bundle: saved.bundle, reports: [mcpTestReport()] },
     validation: null
   }
 }
@@ -132,7 +129,7 @@ describe('completed epic overview state', () => {
   it('keeps the review open as the overview once the final approval completes the run', () => {
     const reviewing = workspaceReducer(loaded({ run: runView({ state: 'awaiting_checkpoint' }) }), { type: 'open_checkpoint' })
     const done = loaded(completed(), reviewing)
-    expect([done.checkpointOpen, done.data?.checkpoint, done.data?.overview?.reports.length]).toEqual([true, null, 1])
+    expect([done.checkpointOpen, done.data?.checkpoint, done.data?.run?.state]).toEqual([true, null, 'completed'])
     expect(loaded({}, done).checkpointOpen).toBe(true)
   })
 
@@ -142,8 +139,7 @@ describe('completed epic overview state', () => {
     const open = workspaceReducer(graph, { type: 'open_checkpoint' })
     expect(open.checkpointOpen).toBe(true)
     expect(workspaceReducer(open, { type: 'close_checkpoint' }).checkpointOpen).toBe(false)
-    expect(loaded({ checkpoint: null, overview: null }, open).checkpointOpen).toBe(false)
-    expect(loaded({ ...completed(), overview: null }, open).checkpointOpen).toBe(false)
+    expect(loaded({ checkpoint: null, run: runView({ state: 'canceled' }) }, open).checkpointOpen).toBe(false)
   })
 })
 

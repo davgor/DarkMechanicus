@@ -30,67 +30,15 @@
  * database, a lost index line) is deleted; an endpoint this installation never provisioned is left alone, never guessed.
  */
 import { join } from 'node:path'
-import type { Ctx } from '../../core/context'
 import { DomainError } from '../../core/errors'
-import {
-  bindAgentMailEndpoint,
-  deleteAgentMailEndpoint,
-  provisionAgentMailEndpoint,
-  renameAgentMailEndpoint,
-  resumeAgentMailEndpoint,
-  suspendAgentMailEndpoint
-} from '../../core/services/agentMail'
-import { AGENT_MAIL_LIMITS, findEndpointByChat, listOpenEndpoints, type MailEndpoint } from '../../core/services/agentMailStore'
+import type { ProjectWorkspace } from '../desktop/workspaceClient'
+import { hasMailbox, type MailboxChat } from './chatMailboxOperations'
+export { hasMailbox, type MailboxChat } from './chatMailboxOperations'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { ChatStore, ChatStoreFs } from './chatStore'
 import { hasForgeManifest } from '../desktop/forgeContext'
 
-/** What a mailbox is provisioned for: the chat's id, its stored agent id, and its title as the display name. */
-export type MailboxChat = Pick<ChatRecord, 'id' | 'agent' | 'title'>
-
-/** The only agent whose chats have mailboxes: the bundled Skitarii extension runs in OMP. */
 const MAILBOX_AGENT = 'omp'
-
-/** Whether the chat has a mailbox: an OMP chat by its stored agent id, and by the connected agent's `kind` when given. */
-export function hasMailbox(chat: Pick<ChatRecord, 'agent'>, kind?: string): boolean {
-  return chat.agent === MAILBOX_AGENT && (kind === undefined || kind === MAILBOX_AGENT)
-}
-
-/** The endpoint's display name: the chat's title, trimmed to the store's limit; an empty title reads as "Chat". */
-function mailboxName(title: string): string {
-  const name = title.trim().slice(0, AGENT_MAIL_LIMITS.nameChars).trim()
-  return name === '' ? 'Chat' : name
-}
-
-/**
- * The chat's open endpoint, created on first use; one suspended by an untrack is resumed (only main, trusted, calls
- * this). A deleting or deleted one throws `invalid_state`: a tombstone is never reopened.
- */
-function openChatMailbox(ctx: Ctx, chat: MailboxChat): MailEndpoint {
-  return ctx.db.tx(() => {
-    const endpoint = provisionAgentMailEndpoint(ctx, { chatId: chat.id, name: mailboxName(chat.title) })
-    return endpoint.state === 'suspended' ? resumeAgentMailEndpoint(ctx, { endpointId: endpoint.id }) : endpoint
-  })
-}
-
-/** Binds a fresh grant to the chat's open mailbox in one transaction; returns the endpoint's id. */
-export function bindChatMailbox(ctx: Ctx, chat: MailboxChat, grantId: string): string {
-  return ctx.db.tx(() => {
-    const endpoint = openChatMailbox(ctx, chat)
-    bindAgentMailEndpoint(ctx, { endpointId: endpoint.id, grantId })
-    return endpoint.id
-  })
-}
-
-/** Records the deletion durably (a tombstone even for a chat that never had a mailbox), then purges batch by batch until done. */
-function deleteChatMailbox(ctx: Ctx, chat: MailboxChat): void {
-  const endpoint =
-    findEndpointByChat(ctx, { machineId: ctx.machineId, chatId: chat.id }) ??
-    provisionAgentMailEndpoint(ctx, { chatId: chat.id, name: mailboxName(chat.title) })
-  while (!deleteAgentMailEndpoint(ctx, { endpointId: endpoint.id }).done) {
-    // One bounded purge batch per call; each commits on its own.
-  }
-}
 
 /** The (folder, chat id) pairs this installation provisioned, from an append-only JSON-lines file. */
 interface MailboxLedger {
@@ -168,30 +116,31 @@ interface ReconciledChats {
 }
 
 /** The chats' mailboxes, as main manages them (see the module comment). */
+type MailWork<T> = T | Promise<T>
+
 export interface ChatMailboxes {
   /** Persist ownership before a trusted root start binds a member endpoint, including conflict repair starts. */
   recordRoute(ownerFolder: string, memberFolder: string, chatId: string): void
   /** Archive suspension without changing any neighboring chat. */
-  suspendChat(chat: ChatRecord): void
+  suspendChat(chat: ChatRecord): MailWork<void>
   /** Current usable member endpoints, without manufacturing a singular identity on a world chat. */
-  routes(chat: ChatRecord): readonly { folder: string; endpointId: string }[]
+  routes(chat: ChatRecord, only?: string, background?: boolean): MailWork<readonly { folder: string; endpointId: string }[]>
   /** Provisions (and resumes) the OMP chats' mailboxes and stores their ids; never throws: a failure is logged and the chats are returned as they are. */
-  reconcile(folder: string, chats: readonly ChatRecord[]): ReconciledChats
+  reconcile(folder: string, chats: readonly ChatRecord[]): MailWork<ReconciledChats>
   /** `reconcile`, then deletes the open mailboxes this installation provisioned for chats that no longer exist. Never throws. */
-  recover(folder: string, chats: readonly ChatRecord[]): ReconciledChats
+  recover(folder: string, chats: readonly ChatRecord[]): MailWork<ReconciledChats>
   /** Renames the chat's mailbox to its title; never throws. */
-  rename(chat: ChatRecord): void
+  rename(chat: ChatRecord): MailWork<void>
   /** Deletes the chat's mailbox durably (see the module comment); throws when storage cannot record it. */
-  delete(chat: ChatRecord): void
+  delete(chat: ChatRecord): MailWork<void>
   /** Suspends the open mailboxes of the folder's chats (it is being untracked); their mail stays. Never throws. */
-  suspendFolder(folder: string, chats: readonly ChatRecord[]): void
+  suspendFolder(folder: string, chats: readonly ChatRecord[]): MailWork<void>
 }
 
 interface ChatMailboxesDeps {
   /** Initialized tracked members for a world; undefined for an ordinary folder. */
   membersFor?: (folder: string) => readonly string[] | undefined
-  /** The folder's desktop workspace context (`mail.manage`); throws for a folder that is not tracked. */
-  contextFor: (folder: string) => Ctx
+  workspaceFor: (folder: string, background?: boolean) => ProjectWorkspace
   store: Pick<ChatStore, 'recordEndpoint'>
   /** The ledger file and the filesystem it is on. */
   ledger: { file: string; fs: ChatStoreFs }
@@ -208,9 +157,6 @@ function notInitialized(error: unknown): boolean {
   return error instanceof DomainError && error.code === 'not_initialized'
 }
 
-/** `reconcile`'s result with the folder's context: undefined when no chat needed one, null when it could not be reached. */
-type Reconciled = ReconciledChats & { ctx: Ctx | null | undefined }
-
 class ChatMailboxRegistry implements ChatMailboxes {
   private readonly ledger: MailboxLedger
   private readonly unreadable = new Set<string>()
@@ -224,112 +170,97 @@ class ChatMailboxRegistry implements ChatMailboxes {
     this.ledger.add(memberFolder, chatId, ownerFolder)
   }
 
-  suspendChat(chat: ChatRecord): void {
+  async suspendChat(chat: ChatRecord): Promise<void> {
     if (chat.folder === null || !hasMailbox(chat)) return
     const members = this.members(chat.folder)
     const folders = members === undefined ? [chat.folder] : [...new Set([...members, ...this.ledger.folders(chat.folder)])]
-    for (const folder of folders) this.suspendAt(folder, [chat])
+    for (const folder of folders) await this.suspendAt(folder, [chat])
   }
 
-  reconcile(folder: string, chats: readonly ChatRecord[]): ReconciledChats {
+  async reconcile(folder: string, chats: readonly ChatRecord[]): Promise<ReconciledChats> {
     const members = this.members(folder)
     if (members !== undefined) {
       const deleting = new Set<string>()
       for (const member of members) {
-        for (const chat of this.reconcileWithContext(member, chats, folder).deleting) deleting.add(chat.id)
+        for (const chat of (await this.reconcileAt(member, chats, folder)).deleting) deleting.add(chat.id)
       }
       // A removed member is no longer a mail route, even if its old endpoint remains locally readable.
-      if (!this.unreadable.has(folder)) for (const member of this.ledger.folders(folder).filter(path => !members.includes(path))) this.suspendAt(member, chats)
+      if (!this.unreadable.has(folder)) for (const member of this.ledger.folders(folder).filter(path => !members.includes(path))) await this.suspendAt(member, chats)
       return { chats: chats.filter(chat => !deleting.has(chat.id)), deleting: chats.filter(chat => deleting.has(chat.id)) }
     }
-    const { chats: shown, deleting } = this.reconcileWithContext(folder, chats)
-    return { chats: shown, deleting }
+    return this.reconcileAt(folder, chats)
   }
 
-  recover(folder: string, chats: readonly ChatRecord[]): ReconciledChats {
-    if (this.members(folder) !== undefined) {
-      const result = this.reconcile(folder, chats)
-      for (const member of this.ledger.folders(folder)) {
-        const known = new Set(chats.map(chat => chat.id))
-        const orphans = new Set([...this.ledger.owned(member, folder)].filter(id => !known.has(id)))
-        const ctx = this.contextOrNull(member, 'delete orphan world mailboxes')
-        if (ctx !== null && orphans.size > 0) this.deleteOrphans(ctx, member, orphans)
-      }
-      return result
+  async recover(folder: string, chats: readonly ChatRecord[]): Promise<ReconciledChats> {
+    const result = await this.reconcile(folder, chats)
+    const targets = this.members(folder) === undefined ? [folder] : this.ledger.folders(folder)
+    const known = new Set(chats.map(chat => chat.id))
+    for (const target of targets) {
+      const orphans = [...this.ledger.owned(target, folder)].filter(id => !known.has(id))
+      if (!orphans.length) continue
+      try { await this.deps.workspaceFor(target).call('deleteOrphanMailboxes', orphans) }
+      catch (error) { this.logFailure(target, 'delete the mailboxes of deleted chats', error) }
     }
-    const { ctx, ...result } = this.reconcileWithContext(folder, chats)
-    const known = new Set(chats.map((chat) => chat.id))
-    const orphans = new Set([...this.ledger.owned(folder)].filter((chatId) => !known.has(chatId)))
-    if (orphans.size === 0) return result
-    const reached = ctx === undefined ? this.contextOrNull(folder, 'delete the mailboxes of deleted chats') : ctx
-    if (reached !== null) this.deleteOrphans(reached, folder, orphans)
     return result
   }
 
-  rename(chat: ChatRecord): void {
+  async rename(chat: ChatRecord): Promise<void> {
     if (chat.folder !== null && this.members(chat.folder) !== undefined) {
-      for (const route of this.routes(chat)) this.rename({ ...chat, folder: route.folder, endpointId: route.endpointId })
+      for (const route of await this.routes(chat)) await this.rename({ ...chat, folder: route.folder, endpointId: route.endpointId })
       return
     }
     if (chat.folder === null || !hasMailbox(chat) || chat.endpointId === undefined) return
-    const ctx = this.contextOrNull(chat.folder, `rename the mailbox of chat ${chat.id}`)
-    if (ctx === null) return
-    try {
-      renameAgentMailEndpoint(ctx, { endpointId: chat.endpointId, name: mailboxName(chat.title) })
-    } catch (error) {
-      this.deps.log(`Could not rename the mailbox of chat ${chat.id}: ${messageOf(error)}`)
-    }
+    let workspace: ProjectWorkspace
+    try { workspace = this.deps.workspaceFor(chat.folder) }
+    catch (error) { this.logFailure(chat.folder, 'rename the mailbox of chat ' + chat.id, error); return }
+    try { await workspace.call('renameMailbox', chat.endpointId, chat.title) }
+    catch (error) { this.deps.log('Could not rename the mailbox of chat ' + chat.id + ': ' + messageOf(error)) }
   }
 
-  delete(chat: ChatRecord): void {
+  async delete(chat: ChatRecord): Promise<void> {
     if (chat.folder !== null && this.members(chat.folder) !== undefined) {
-      for (const folder of new Set([...(this.members(chat.folder) ?? []), ...this.ledger.folders(chat.folder)])) this.deleteWorldRoute({ ...chat, folder: chat.folder }, folder)
+      for (const folder of new Set([...(this.members(chat.folder) ?? []), ...this.ledger.folders(chat.folder)])) await this.deleteWorldRoute({ ...chat, folder: chat.folder }, folder)
       return
     }
     if (chat.folder === null || !hasMailbox(chat) || hasForgeManifest(chat.folder)) return
-    let ctx: Ctx
-    try {
-      ctx = this.deps.contextFor(chat.folder)
-    } catch (error) {
-      if (notInitialized(error)) return
-      throw error
-    }
-    deleteChatMailbox(ctx, chat)
+    try { await this.deps.workspaceFor(chat.folder).call('deleteMailbox', chat) }
+    catch (error) { if (!notInitialized(error)) throw error }
   }
 
-  private deleteWorldRoute(chat: ChatRecord & { folder: string }, folder: string): void {
+  private async deleteWorldRoute(chat: ChatRecord & { folder: string }, folder: string): Promise<void> {
     this.ledger.markDeleted(folder, chat.id, chat.folder)
-    try { this.delete({ ...chat, folder }) }
+    try { await this.delete({ ...chat, folder }) }
     catch (error) {
       // The durable intent is drained when this member is tracked again, without opening an untracked database.
       if (!(error instanceof DomainError && error.code === 'unauthorized')) throw error
     }
   }
 
-  suspendFolder(folder: string, chats: readonly ChatRecord[]): void {
+  async suspendFolder(folder: string, chats: readonly ChatRecord[]): Promise<void> {
     if (this.members(folder) !== undefined) {
-      for (const member of new Set([...(this.members(folder) ?? []), ...this.ledger.folders(folder)])) this.suspendAt(member, chats)
+      for (const member of new Set([...(this.members(folder) ?? []), ...this.ledger.folders(folder)])) await this.suspendAt(member, chats)
       return
     }
     const owned = [...this.ledger.allOwned(folder)].map(id => ({ id, agent: MAILBOX_AGENT, title: 'Chat' }))
-    this.suspendAt(folder, [...chats, ...owned])
+    await this.suspendAt(folder, [...chats, ...owned])
   }
 
-  private suspendAt(folder: string, chats: readonly MailboxChat[]): void {
+  private async suspendAt(folder: string, chats: readonly MailboxChat[]): Promise<void> {
     if (hasForgeManifest(folder)) return
     const eligible = chats.filter((chat) => hasMailbox(chat))
     if (eligible.length === 0) return
-    const ctx = this.contextOrNull(folder, 'suspend chat mailboxes')
-    if (ctx === null) {
+    let workspace: ProjectWorkspace
+    try { workspace = this.deps.workspaceFor(folder) }
+    catch (error) {
+      this.logFailure(folder, 'suspend chat mailboxes', error)
       this.deps.log(`The chat mailboxes in ${folder} stay open: the folder's storage could not be reached to suspend them.`)
       return
     }
-    for (const chat of eligible) {
+    for (const chatId of new Set(eligible.map(chat => chat.id))) {
       try {
-        const endpoint = findEndpointByChat(ctx, { machineId: ctx.machineId, chatId: chat.id })
-        if (endpoint?.state === 'open') suspendAgentMailEndpoint(ctx, { endpointId: endpoint.id })
+        await workspace.call('suspendMailbox', chatId)
       } catch (error) {
-        this.deps.log(`Could not suspend the mailbox of chat ${chat.id}; it stays open: ${messageOf(error)}`)
+        this.deps.log(`Could not suspend the mailbox of chat ${chatId}; it stays open: ${messageOf(error)}`)
       }
     }
   }
@@ -343,53 +274,50 @@ class ChatMailboxRegistry implements ChatMailboxes {
     } catch { this.unreadable.add(folder); return knownWorld ? [] : undefined }
   }
 
-  routes(chat: ChatRecord): readonly { folder: string; endpointId: string }[] {
+  async routes(chat: ChatRecord, only?: string, background?: boolean): Promise<readonly { folder: string; endpointId: string }[]> {
     if (chat.folder === null || chat.archived || !hasMailbox(chat)) return []
     const members = this.members(chat.folder)
     if (members === undefined) return chat.endpointId === undefined ? [] : [{ folder: chat.folder, endpointId: chat.endpointId }]
-    return members.flatMap(folder => {
-      if (this.ledger.deleting(folder).has(chat.id)) return []
-      const ctx = this.contextOrNull(folder, 'read world mailbox routes')
-      if (ctx === null) return []
-      const endpoint = findEndpointByChat(ctx, { machineId: ctx.machineId, chatId: chat.id })
-      return endpoint?.state === 'open' ? [{ folder, endpointId: endpoint.id }] : []
-    })
-  }
-
-  /** The folder's context, or null (logged unless the folder simply has no database). */
-  private contextOrNull(folder: string, doing: string): Ctx | null {
-    try {
-      if (hasForgeManifest(folder)) return null
-      return this.deps.contextFor(folder)
-    } catch (error) {
-      if (!notInitialized(error)) this.deps.log(`Could not ${doing} in ${folder}: ${messageOf(error)}`)
-      return null
+    const routes: { folder: string; endpointId: string }[] = []
+    for (const folder of only === undefined ? members : members.filter(path => path === only)) {
+      const endpointId = await this.routeAt(folder, chat.id, background)
+      if (endpointId !== undefined) routes.push({ folder, endpointId })
     }
+    return routes
   }
 
-  private reconcileWithContext(folder: string, chats: readonly ChatRecord[], owner = folder): Reconciled {
+  private async routeAt(folder: string, chatId: string, background: boolean | undefined): Promise<string | undefined> {
+    if (hasForgeManifest(folder) || this.ledger.deleting(folder).has(chatId)) return undefined
+    try {
+      const [route] = await this.deps.workspaceFor(folder, background).call('listMailboxRoutes', [chatId])
+      return route?.endpointId
+    } catch (error) { this.logFailure(folder, 'read world mailbox routes', error); return undefined }
+  }
+
+  private logFailure(folder: string, doing: string, error: unknown): void {
+    if (!notInitialized(error)) this.deps.log('Could not ' + doing + ' in ' + folder + ': ' + messageOf(error))
+  }
+
+  private async reconcileAt(folder: string, chats: readonly ChatRecord[], owner = folder): Promise<ReconciledChats> {
     const unchanged = { chats: [...chats], deleting: [] }
-    const eligible = chats.filter((chat) => !chat.archived && hasMailbox(chat))
-    this.suspendAt(folder, chats.filter(chat => chat.archived))
-    if (eligible.length === 0 && this.ledger.deleting(folder).size === 0) return { ...unchanged, ctx: undefined }
-    const ctx = this.contextOrNull(folder, 'provision chat mailboxes')
-    if (ctx === null) return { ...unchanged, ctx }
-    let provisioned: { endpoints: Map<string, string>; deleting: Set<string> }
+    const eligible = chats.filter(chat => !chat.archived && hasMailbox(chat))
+    await this.suspendAt(folder, chats.filter(chat => chat.archived))
+    const pending = [...this.ledger.deleting(folder)]
+    if ((eligible.length === 0 && pending.length === 0) || hasForgeManifest(folder)) return unchanged
     try {
-      for (const id of this.ledger.deleting(folder)) deleteChatMailbox(ctx, { id, agent: MAILBOX_AGENT, title: 'Deleted world chat' })
-      provisioned = provisionAll(ctx, eligible)
+      const provisioned = await this.deps.workspaceFor(folder).call('provisionMailboxes', pending, eligible)
+      const shown: ChatRecord[] = []
+      const deleting: ChatRecord[] = []
+      for (const chat of chats) {
+        const endpointId = provisioned.endpoints.get(chat.id)
+        if (provisioned.deleting.has(chat.id)) deleting.push(chat)
+        else shown.push(endpointId === undefined ? chat : this.record(folder, chat, endpointId, owner))
+      }
+      return { chats: shown, deleting }
     } catch (error) {
-      this.deps.log(`Could not provision chat mailboxes in ${folder}: ${messageOf(error)}`)
-      return { ...unchanged, ctx }
+      this.logFailure(folder, 'provision chat mailboxes', error)
+      return unchanged
     }
-    const shown: ChatRecord[] = []
-    const deleting: ChatRecord[] = []
-    for (const chat of chats) {
-      const endpointId = provisioned.endpoints.get(chat.id)
-      if (provisioned.deleting.has(chat.id)) deleting.push(chat)
-      else shown.push(endpointId === undefined ? chat : this.record(folder, chat, endpointId, owner))
-    }
-    return { chats: shown, deleting, ctx }
   }
 
   /** Stores the chat's mailbox id and its ledger pair; a write that fails is logged and leaves the record as it was. */
@@ -405,38 +333,6 @@ class ChatMailboxRegistry implements ChatMailboxes {
     }
   }
 
-  /** Deletes this machine's open mailboxes of `orphans` (chats provisioned here whose records are gone); a failure is logged. */
-  private deleteOrphans(ctx: Ctx, folder: string, orphans: ReadonlySet<string>): void {
-    try {
-      let page = listOpenEndpoints(ctx)
-      for (;;) {
-        for (const endpoint of page.endpoints.filter((open) => open.machineId === ctx.machineId && orphans.has(open.chatId))) {
-          deleteChatMailbox(ctx, { id: endpoint.chatId, agent: MAILBOX_AGENT, title: endpoint.name })
-        }
-        if (!page.hasMore || page.nextAfterId === null) return
-        page = listOpenEndpoints(ctx, { afterId: page.nextAfterId })
-      }
-    } catch (error) {
-      this.deps.log(`Could not delete the mailboxes of deleted chats in ${folder}: ${messageOf(error)}`)
-    }
-  }
-}
-
-/** Provisions (and resumes) every chat's mailbox in one transaction, setting aside chats whose mailbox is deleting or deleted. */
-function provisionAll(ctx: Ctx, chats: readonly ChatRecord[]): { endpoints: Map<string, string>; deleting: Set<string> } {
-  const endpoints = new Map<string, string>()
-  const deleting = new Set<string>()
-  ctx.db.tx(() => {
-    for (const chat of chats) {
-      const state = findEndpointByChat(ctx, { machineId: ctx.machineId, chatId: chat.id })?.state
-      if (state === 'deleting' || state === 'deleted') {
-        deleting.add(chat.id)
-      } else {
-        endpoints.set(chat.id, openChatMailbox(ctx, chat).id)
-      }
-    }
-  })
-  return { endpoints, deleting }
 }
 
 export function createChatMailboxes(deps: ChatMailboxesDeps): ChatMailboxes {

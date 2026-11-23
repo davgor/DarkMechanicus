@@ -60,6 +60,19 @@ describe('KanbanBoard lanes', () => {
     expect(dm.callsOf('listKanbanCards').map((call) => [call.folder, call.input])).toEqual([['/a', { doneLimit: 20 }]])
   })
 
+  it('paginates a large open lane without changing lane counts or columns', async () => {
+    board.open = Array.from({ length: 1000 }, (_, index) => cardSummary({ id: `large-${index + 1}`, key: `KB-${index + 1}` }))
+    await show()
+    const backlog = within(lane(/^Backlog, 1000 cards$/))
+    expect(backlog.getAllByRole('listitem')).toHaveLength(40)
+    expect(backlog.getByText('1–40 of 1000')).toBeTruthy()
+    expect(screen.getAllByRole('region')).toHaveLength(4)
+    fireEvent.click(backlog.getByRole('button', { name: 'Next page of Backlog' }))
+    expect(backlog.getByText('41–80 of 1000')).toBeTruthy()
+    expect(backlog.getByRole('button', { name: /^KB-41/ })).toBeTruthy()
+    expect(backlog.queryByRole('button', { name: /^KB-1 / })).toBeNull()
+  })
+
   it('shows a slim card with key, title, priority, attempt badge and kick-backs', async () => {
     board.open = [
       cardSummary({ id: 'kc_a', key: 'DM-7', title: 'Fix login', lane: 'in_progress', priority: 'high', openAttempt: { number: 2, state: 'running' }, kickBackCount: 1 }),

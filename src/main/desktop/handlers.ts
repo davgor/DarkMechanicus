@@ -7,7 +7,7 @@ import { z } from 'zod'
 import { realpathSync, statSync } from 'node:fs'
 import { DomainError, toErrorShape } from '../../core/errors'
 import { parseInput } from '../../core/schemas'
-import type { Workspace } from '../../core/workspace'
+import type { ProjectWorkspace } from './workspaceClient'
 import type { BoardRemovalResultView, BoardRemovalView } from '../../shared/domain/views'
 import {
   CLAUDE_CODE_ROLES,
@@ -26,7 +26,6 @@ import { createFolderDefaultHandlers, type FolderDefaultHandlerDeps, type Folder
 import type { FolderRegistry } from './folderRegistry'
 import { createOmpThemeHandlers, type OmpThemeHandlers } from './ompTheme'
 import { normalizeExternalUrl } from './navigation'
-import type { WorkspacePool } from './workspacePool'
 import type { SourceControlTarget } from '../../shared/git/api'
 
 /** Windows long-path maximum; bounds path strings from the renderer. */
@@ -52,12 +51,12 @@ const claudeCodeRequestSchema = z.strictObject({
 
 export interface DesktopHandlerDeps extends AgentHandlerDeps, AgentAuthHooks, FolderDefaultHandlerDeps {
   registry: Pick<FolderRegistry, 'list' | 'track' | 'untrack' | 'resolve' | 'storageMode'>
-  pool: Pick<WorkspacePool, 'get' | 'close'>
+  pool: { get(path: string): Pick<ProjectWorkspace, DesktopCommandName>; close(path: string): void | Promise<void> }
   /**
    * Untrack's first step: stops the folder's chat terminals and starts, suspends its chat mailboxes, and only then runs
    * `forget` (the untrack itself), with nothing of the folder allowed to start meanwhile (`terminalSessions.ts`).
    */
-  releaseFolder: (folder: string, forget: () => void, relatedFolders?: readonly string[]) => Promise<void>
+  releaseFolder: (folder: string, forget: () => void | Promise<void>, relatedFolders?: readonly string[]) => Promise<void>
   /**
    * Stops the folder's chat mail monitor (`agentMailDesktop.ts`) and forgets what it served. Untrack calls it before the
    * release starts and again right before the registry forgets the folder, so no poll reaches a closing workspace.
@@ -143,7 +142,7 @@ function assertDesktopCommand(name: string): asserts name is DesktopCommandName 
   }
 }
 
-function invokeCommand(workspace: Workspace, name: DesktopCommandName, input: unknown): Promise<unknown> {
+function invokeCommand(workspace: Pick<ProjectWorkspace, DesktopCommandName>, name: DesktopCommandName, input: unknown): Promise<unknown> {
   const command = workspace[name] as WorkspaceCommand
   return command.call(workspace, input)
 }
@@ -198,15 +197,13 @@ async function untrackFolder(deps: DesktopHandlerDeps, path: unknown): Promise<T
   const members = deps.registry.list().filter(folder => folder.forgeParent === tracked).map(folder => folder.path)
   const affected = [tracked, ...members]
   for (const folder of affected) deps.stopMailMonitor(folder)
-  await deps.releaseFolder(tracked, () => {
+  await deps.releaseFolder(tracked, async () => {
     // A snapshot during the release may have started it again; nothing can between here and the close.
     for (const folder of affected) deps.stopMailMonitor(folder)
     deps.registry.untrack(tracked)
     remaining = deps.registry.list()
-    for (const folder of affected) {
-      deps.folderDefaults.set(folder, null)
-      deps.pool.close(folder)
-    }
+    for (const folder of affected) deps.folderDefaults.set(folder, null)
+    await Promise.all(affected.map(folder => deps.pool.close(folder)))
   }, members)
   return remaining
 }
@@ -230,7 +227,7 @@ async function openExternalUrl(deps: DesktopHandlerDeps, url: unknown): Promise<
  * Refuses while the board still has open epics that no import brought in: removing `board/` then
  * would lose them. The renderer only offers the removal once nothing is left to import.
  */
-async function assertBoardImported(workspace: Workspace): Promise<void> {
+async function assertBoardImported(workspace: Pick<ProjectWorkspace, 'previewBoardImport'>): Promise<void> {
   const board = await workspace.previewBoardImport()
   const waiting = board.open.filter((epic) => epic.state === 'new').length
   if (waiting > 0) {

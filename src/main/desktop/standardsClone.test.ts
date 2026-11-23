@@ -5,7 +5,7 @@ import { createHarness, type Harness } from '../../test/workspaceHarness'
 import { baselineDeliveryPolicy, defaultPrompts } from '../../shared/domain/standardsPrompts'
 import { dbProjectDir, SQLITE_STANDARDS_FILE } from '../../core/repo/storageMode'
 import { createFolderRegistry, type FolderRegistry } from './folderRegistry'
-import { createWorkspacePool, type WorkspacePool } from './workspacePool'
+import { createTestWorkspacePool as createWorkspacePool, type TestWorkspacePool as WorkspacePool } from './__mocks__/projectWorkspaceFixture'
 
 let h: Harness
 let registry: FolderRegistry
@@ -15,7 +15,7 @@ beforeEach(() => {
   registry = createFolderRegistry({ file: join(h.homeDir, 'folders.json'), homeDir: h.homeDir, dmHome: h.homeDir })
   pool = createWorkspacePool(root => h.open('desktop', { root, transport: 'desktop' }))
 })
-afterEach(() => { pool.closeAll(); h.cleanup() })
+afterEach(async () => { await pool.closeAll(); h.cleanup() })
 
 it('recovers the exact SQLite setup from a clone with a fresh local ticket database', async () => {
   const first = h.open('desktop', { mode: 'db' })
@@ -41,10 +41,10 @@ it('recovers the exact SQLite setup from a clone with a fresh local ticket datab
   expect((await second.setDeliveryStandards({ expectedRevision: 1, policy: saved.policy })).revision).toBe(1)
 })
 
-it('surfaces a damaged SQLite sidecar on a new machine before creating a local project', () => {
+it('surfaces a damaged SQLite sidecar on a new machine before creating a local project', async () => {
   writeFileSync(join(h.root, SQLITE_STANDARDS_FILE), '{truncated')
   const entry = registry.track(h.root).folder
   expect(entry).toMatchObject({ initialized: true, storageMode: 'db' })
-  expect(() => pool.get(entry.path)).toThrow(SQLITE_STANDARDS_FILE)
+  await expect(pool.get(entry.path).getStorageStatus()).rejects.toThrow(SQLITE_STANDARDS_FILE)
   expect(existsSync(join(dbProjectDir(h.root, h.homeDir), 'project.json'))).toBe(false)
 })

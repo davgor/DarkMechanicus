@@ -43,7 +43,7 @@ interface ChatRecordsDeps {
   /** Removes a project-less chat's scratch folder when the chat is deleted (`scratchFolder.ts`); without it nothing is removed. */
   removeScratch?: (chatId: string) => Promise<void>
   /** Human deletion retires scoped workflow holds before removing the identity; failures keep deletion recoverable. */
-  beforeDelete?: (chat: ChatRecord) => void
+  beforeDelete?: (chat: ChatRecord) => void | Promise<void>
 }
 
 /**
@@ -52,17 +52,19 @@ interface ChatRecordsDeps {
  */
 type NewChatRequest = Omit<CreateChatRequest, 'folder'> & Pick<ChatRecord, 'folder' | 'runId' | 'transferEpicId' | 'cardId' | 'conversation'>
 
+type ChatResult<T> = T | Promise<T>
+
 export interface ChatRecords {
   /** A folder's chats (null: the project-less chats), most recently updated first. */
-  listChats(folder: string | null): ChatRecord[]
+  listChats(folder: string | null): ChatResult<ChatRecord[]>
   /**
    * `runId` links the chat to the run it orchestrates, `transferEpicId` to the epic it moves to Linear, `cardId` to the
    * Kanban card it carries, and `conversation` to the board conversation it answers; only main sets them (the
    * `chats:create` request cannot).
    */
-  createChat(request: NewChatRequest): ChatRecord
+  createChat(request: NewChatRequest): ChatResult<ChatRecord>
   /** Changes the chat's title. */
-  renameChat(ref: ChatRef, title: string): ChatRecord
+  renameChat(ref: ChatRef, title: string): ChatResult<ChatRecord>
   /**
    * Deletes the chat's mailbox, removes its activity bindings (and a project-less chat's scratch folder), then the chat
    * and its transcript; throws `not_found` for an unknown chat.
@@ -111,8 +113,8 @@ function createDeletions(deps: ChatRecordsDeps): (chat: ChatRecord) => Promise<v
     if (under !== undefined) return under
     const deletion = (async () => {
       // First, and durably: a crash from here on finishes the deletion instead of provisioning the chat again.
-      deps.mailboxes?.delete(chat)
-      deps.beforeDelete?.(chat)
+      await deps.mailboxes?.delete(chat)
+      await deps.beforeDelete?.(chat)
       deps.activity?.forgetChat(chat)
       if (chat.agent === 'omp') {
         await deps.removeOmpFolder?.(chat.id)
@@ -144,40 +146,54 @@ function newChat(request: NewChatRequest): NewChat {
   return naming ? { ...input, title: 'Naming chat…', titleStatus: 'pending' } : input
 }
 
+export interface LocalChatRecords extends ChatRecords {
+  listChats(folder: string | null): ChatRecord[]
+  createChat(request: NewChatRequest): ChatRecord
+  renameChat(ref: ChatRef, title: string): ChatRecord
+}
+
+export function createChatRecords(deps: ChatRecordsDeps & { mailboxes?: undefined }): LocalChatRecords
+export function createChatRecords(deps: ChatRecordsDeps): ChatRecords
 export function createChatRecords(deps: ChatRecordsDeps): ChatRecords {
   const { store, mailboxes } = deps
   const finishDeletion = createDeletions(deps)
-  return {
-    listChats: (folder) => {
-      const chats = store.listChats(folder).filter(chat => !chat.archived)
-      // Mailboxes live in a tracked folder's database: the project-less chats have none.
-      if (mailboxes === undefined || folder === null) return chats
-      const reconciled = mailboxes.reconcile(folder, chats)
-      for (const chat of reconciled.deleting) {
-        finishDeletion(chat).catch((error: unknown) => deps.onError?.(error))
-      }
-      return reconciled.chats
-    },
-    createChat: (request) => {
-      const chat = store.createChat(newChat(request))
-      return mailboxes === undefined || chat.folder === null ? chat : mailboxes.reconcile(chat.folder, [chat]).chats[0] ?? chat
-    },
-    renameChat: (ref, title) => {
-      const renamed = store.updateChat(requireChat(store, ref), { title, titleStatus: 'manual' })
-      mailboxes?.rename(renamed)
-      return renamed
-    },
+  const local: LocalChatRecords = {
+    listChats: folder => store.listChats(folder).filter(chat => !chat.archived),
+    createChat: request => store.createChat(newChat(request)),
+    renameChat: (ref, title) => store.updateChat(requireChat(store, ref), { title, titleStatus: 'manual' }),
     deleteChat: async (ref) => finishDeletion(requireChat(store, ref)),
-    recoverFolder: async (folder) => {
-      if (mailboxes === undefined) return
-      const { deleting } = mailboxes.recover(folder, store.listChats(folder))
-      await Promise.all(deleting.map(finishDeletion))
-    },
+    recoverFolder: async () => {},
     readChat: (ref) => {
       const chat = requireChat(store, ref)
       const transcript = store.readTranscript(chat)
       return { chat: transcript?.chat ?? chat, items: settledItems(transcript?.items ?? []) }
     },
     agentName: (id) => deps.agentFor(id)?.displayName ?? (isBuiltInAgentKind(id) ? AGENT_DEFINITIONS[id].displayName : 'This agent')
+  }
+  if (mailboxes === undefined) return local
+  return {
+    ...local,
+    async listChats(folder) {
+      const chats = local.listChats(folder)
+      if (folder === null) return chats
+      const reconciled = await mailboxes.recover(folder, chats)
+      for (const chat of reconciled.deleting) {
+        finishDeletion(chat).catch((error: unknown) => deps.onError?.(error))
+      }
+      return reconciled.chats
+    },
+    async createChat(request) {
+      const chat = local.createChat(request)
+      return chat.folder === null ? chat : (await mailboxes.reconcile(chat.folder, [chat])).chats[0] ?? chat
+    },
+    async renameChat(ref, title) {
+      const chat = local.renameChat(ref, title)
+      await mailboxes.rename(chat)
+      return chat
+    },
+    async recoverFolder(folder) {
+      const { deleting } = await mailboxes.recover(folder, store.listChats(folder))
+      await Promise.all(deleting.map(finishDeletion))
+    }
   }
 }

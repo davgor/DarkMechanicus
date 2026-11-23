@@ -30,7 +30,7 @@ import type {
 } from '../../shared/agents/chatApi'
 import { agentIdSchema } from '../../shared/desktop/agentKinds'
 import type { AgentId, CommandResult } from '../../shared/desktop/api'
-import type { Workspace } from '../../core/workspace'
+import type { ProjectWorkspace } from '../desktop/workspaceClient'
 import type { KanbanMessageView } from '../../shared/domain/kanban'
 import type { CommentView } from '../../shared/domain/views'
 import { connectedAgent } from '../desktop/agentHandlers'
@@ -125,7 +125,7 @@ const conversationStateSchema = z.strictObject({
 })
 
 export type ConversationWorkspace = Pick<
-  Workspace,
+  ProjectWorkspace,
   'addComment' | 'listComments' | 'getEpic' | 'getTicket' | 'getKanbanCard' | 'addKanbanMessage' | 'listKanbanMessages'
 >
 
@@ -224,7 +224,7 @@ function chatRequest<T extends { folder: string | null; chatId: string }>(deps: 
  * Every chat that is not deleted: the chats of each tracked folder (a folder swapped for a symlink to another
  * directory is left out, as listing it alone is refused), then the project-less ones, most recently updated first.
  */
-function listAll(deps: ChatHandlerDeps): ChatRecord[] {
+async function listAll(deps: ChatHandlerDeps): Promise<ChatRecord[]> {
   const folders = deps.registry.list().flatMap(({ path }) => {
     try {
       return [chatFolder(deps, path)]
@@ -235,7 +235,7 @@ function listAll(deps: ChatHandlerDeps): ChatRecord[] {
       throw error
     }
   })
-  return [...folders.flatMap((folder) => deps.chats.listChats(folder)), ...deps.chats.listChats(null)].sort(byRecency)
+  return (await Promise.all([...folders, null].map(folder => deps.chats.listChats(folder)))).flat().sort(byRecency)
 }
 
 /** Validates the request and the folder before anything is queued; see `startOrchestratorRun` for what happens after. */
@@ -315,20 +315,20 @@ function chatsChanged(deps: ChatHandlerDeps, chat: ChatRef): void {
 }
 
 /** A chat in a tracked folder, or a project-less one: an orchestrator that may save, reaching every tracked folder. */
-function createChat(deps: ChatHandlerDeps, input: unknown): ChatRecord {
+async function createChat(deps: ChatHandlerDeps, input: unknown): Promise<ChatRecord> {
   const request = parseInput(z.union([createSchema, summonSchema]), input, 'new chat')
   connectedAgent(deps.agents, request.agent)
   const chat =
     request.folder === null
-      ? deps.chats.createChat({ ...request, role: 'orchestrator', allowSave: true })
-      : deps.chats.createChat({ ...request, folder: chatFolder(deps, request.folder) })
+      ? await deps.chats.createChat({ ...request, role: 'orchestrator', allowSave: true })
+      : await deps.chats.createChat({ ...request, folder: chatFolder(deps, request.folder) })
   chatsChanged(deps, chat)
   return chat
 }
 
-function renameChat(deps: ChatHandlerDeps, input: unknown): ChatRecord {
+async function renameChat(deps: ChatHandlerDeps, input: unknown): Promise<ChatRecord> {
   const { ref, request } = chatRequest(deps, renameSchema, input)
-  const chat = deps.chats.renameChat(ref, request.title)
+  const chat = await deps.chats.renameChat(ref, request.title)
   chatsChanged(deps, ref)
   return chat
 }
@@ -445,8 +445,8 @@ async function terminalFailure(deps: ChatHandlerDeps, action: () => Promise<Term
   }
 }
 
-function listedResolvedChat(deps: ChatHandlerDeps, folder: string, resolved: ResolvedConversationChat): ChatRecord | null {
-  return deps.chats.listChats(folder).find((chat) => chat.id === resolved.chatId) ?? null
+async function listedResolvedChat(deps: ChatHandlerDeps, folder: string, resolved: ResolvedConversationChat): Promise<ChatRecord | null> {
+  return (await deps.chats.listChats(folder)).find((chat) => chat.id === resolved.chatId) ?? null
 }
 
 type ConversationDelivery = Omit<SendConversationResult, 'messageId'>
@@ -488,7 +488,7 @@ async function pasteConversationMessage(
     resolved: ResolvedConversationChat
   }
 ): Promise<ConversationDelivery> {
-  const chat = listedResolvedChat(deps, input.folder, input.resolved)
+  const chat = await listedResolvedChat(deps, input.folder, input.resolved)
   if (chat === null) {
     return { chatId: input.resolved.chatId, state: 'failed', problem: 'The selected chat was deleted before the message could be delivered.' }
   }
@@ -520,7 +520,7 @@ async function openConversationChat(
   const message = { id: prompt.messageId, text: freshKickoff({ ...prompt, relay: false, history: prompt.history, runActive: prompt.runActive }) }
   let chat: ChatRecord
   try {
-    chat = deps.chats.createChat({
+    chat = await deps.chats.createChat({
       folder,
       agent: agentId,
       role: 'orchestrator',
@@ -596,7 +596,7 @@ async function conversationState(deps: ChatHandlerDeps, input: unknown): Promise
     folder,
     request.target
   )
-  const chats = deps.chats.listChats(folder)
+  const chats = await deps.chats.listChats(folder)
   const selected = resolved === null ? null : (chats.find((chat) => chat.id === resolved.chatId) ?? null)
   const deliveries: ConversationStateResult['deliveries'] = {}
   for (const [messageId, delivery] of deps.conversation.deliveries.forMessages(folder, request.messageIds)) {

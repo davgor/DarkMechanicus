@@ -181,10 +181,17 @@ const HUMAN_ONLY: CommandName[] = [
 ]
 
 /**
- * Read models for the desktop's activity panels and scorecard views: the app reads them, and no MCP tool adapts them
- * (the grading policy is documented for agents in docs/space-grading.md).
+ * Read models for the desktop's activity panels, scorecards and sidebar summaries. The grading policy is
+ * documented for agents in docs/space-grading.md.
  */
-const DESKTOP_READS: CommandName[] = ['getAttemptTimeline', 'getRunTimeline', 'listGrants', 'getGradingPolicy']
+const DESKTOP_READS: CommandName[] = [
+  'getAttemptTimeline',
+  'getRunTimeline',
+  'listGrants',
+  'getGradingPolicy',
+  'getEventHead',
+  'getKanbanOpenCount'
+]
 
 /**
  * Commands only the desktop app may call (an agent has a path-based equivalent): no MCP tool adapts them. An agent sets a

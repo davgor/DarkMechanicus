@@ -160,7 +160,7 @@ export function RunBar({ ws }: { ws: WorkspaceHandle }): JSX.Element | null {
             </li>
           ))}
         </ul>
-        <RunButtons ws={ws} actions={runActions(run, { checkpoint: ws.data.checkpoint !== null, overview: ws.data.overview !== null })} signedOut={signedOut} />
+        <RunButtons ws={ws} actions={runActions(run, { checkpoint: ws.data.checkpoint !== null, overview: run.state === 'completed' })} signedOut={signedOut} />
       </div>
       {signedOut === null ? null : <SignedOutLine ws={ws} note={signedOut} />}
       {orchestrator === null ? null : <OrchestratorLine ws={ws} note={orchestrator} />}

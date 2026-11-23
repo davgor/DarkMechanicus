@@ -18,7 +18,7 @@ import {
   submitAttempt
 } from '../services/attempts'
 import { getCheckpoint } from '../services/checkpoints'
-import { expireLeases, loadRunContext, runExecution } from '../services/execution'
+import { loadRunContext, runExecution } from '../services/execution'
 import { matchCapabilities, registerHost } from '../services/hosts'
 import { isRepositoryFolder } from '../services/epicBranches'
 import { incrementContextOf, repositoryIncrementsOf } from '../services/increments'
@@ -54,7 +54,6 @@ export function requireRunView(ctx: Ctx, runId: string): RunView {
 
 function readiness(ctx: Ctx, runId: string): ReadinessView {
   requireCapability(ctx.session, 'read')
-  ctx.db.tx(() => expireLeases(ctx, runId))
   const { run } = loadRunContext(ctx, runId)
   const snapshot = runExecution(ctx, runId)
   const active = snapshot.tickets.filter((ticket) => ticket.sprintId === run.active_sprint_id)
@@ -83,11 +82,16 @@ function readiness(ctx: Ctx, runId: string): ReadinessView {
  * increments are refused, which the submission then refuses. Read-only: nothing in the repository changes.
  * A folder of repositories' `increments` are verified one per repository, each with that repository's adapter.
  */
-async function verifiedIncrement(core: WorkspaceCore, input: SubmitAttemptInput): Promise<SprintIncrement | SprintIncrement[] | undefined> {
+interface IncrementProof {
+  verdict: SprintIncrement | SprintIncrement[]
+  assertCurrent?(): void
+}
+
+async function verifiedIncrement(core: WorkspaceCore, input: SubmitAttemptInput): Promise<IncrementProof | undefined> {
   requireCapability(core.ctx().session, 'attempt.submit')
   if (input.increments !== undefined) {
     const entries = repositoryIncrementsOf(core.ctx(), input.attemptId, input.increments)
-    return entries === null ? undefined : verifyRepositoryIncrements((repo) => core.gitFor(repo), entries, core.clock.nowIso())
+    return entries === null ? undefined : { verdict: await verifyRepositoryIncrements((repo) => core.gitFor(repo), entries, core.clock.nowIso()) }
   }
   const { increment } = input
   // A folder of repositories refuses a single increment; git is not asked about it.
@@ -95,7 +99,10 @@ async function verifiedIncrement(core: WorkspaceCore, input: SubmitAttemptInput)
     return undefined
   }
   const context = incrementContextOf(core.ctx(), input.attemptId)
-  return context === null ? undefined : verifyIncrement(core.git, context, increment, core.clock.nowIso())
+  if (context === null) return undefined
+  const git = core.gitFor(null)
+  const verdict = await verifyIncrement(git, context, increment, core.clock.nowIso())
+  return { verdict, assertCurrent: git.assertCurrent }
 }
 
 const executionCommands = {
@@ -154,8 +161,8 @@ const executionCommands = {
     schema: COMMAND_SCHEMAS.submitAttempt,
     mutates: true,
     run: async (core, input) => {
-      const verdict = await verifiedIncrement(core, input)
-      return submitAttempt(core.ctx(), input, verdict)
+      const proof = await verifiedIncrement(core, input)
+      return submitAttempt(core.ctx(), input, proof?.verdict, proof?.assertCurrent)
     }
   },
   acceptAttempt: {
@@ -165,7 +172,7 @@ const executionCommands = {
       const ctx = core.ctx()
       requireCapability(ctx.session, 'attempt.review')
       const verified = await verifyTicketIntegration(ctx, input.attemptId, input.integration)
-      return withKnowledgeContext(core, acceptAttempt(ctx, input, verified), 'attempt.accepted')
+      return withKnowledgeContext(core, acceptAttempt(ctx, input, verified.passed, verified.assertCurrent), 'attempt.accepted')
     }
   },
   rejectAttempt: {

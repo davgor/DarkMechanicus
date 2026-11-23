@@ -29,7 +29,7 @@ describe('project delivery workflows', () => {
     expect(() => acceptAttempt(ctx, input)).toThrow('integration branch')
     const tip = { ...ctx, gitFor: () => ({ isAncestor: async () => true } as unknown as ReturnType<typeof ctx.gitFor>) }
     const verified = await verifyTicketIntegration(tip, input.attemptId, input.integration)
-    expect(acceptAttempt(ctx, input, verified).decision?.integration).toEqual(input.integration)
+    expect(acceptAttempt(ctx, input, verified.passed, verified.assertCurrent).decision?.integration).toEqual(input.integration)
   })
 
   it('leaves the sprint running until deployment and final epic review are recorded, then requires a human checkpoint', () => {
@@ -98,8 +98,9 @@ describe('ticket integration evidence', () => {
     const git = { isAncestor: async (left: string, right: string) =>
       (left === commit && right === 'refs/heads/' + branch && options.remoteContains !== false) ||
       (left === workerCommit && right === commit) }
-    return verifyTicketIntegration({ ...ctx, gitFor: () => git as ReturnType<typeof ctx.gitFor> },
+    const proof = await verifyTicketIntegration({ ...ctx, gitFor: () => git as ReturnType<typeof ctx.gitFor> },
       claimed.attempt.id, { ...integrated, branch: options.target ?? branch })
+    return proof.passed
   }
 
   it('accepts only submitted work with every worker revision reachable from the integrated revision on the bound ref', async () => {

@@ -1,6 +1,6 @@
-import { cpSync, existsSync, mkdirSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, rmdirSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished } from 'vitest'
 import { makeBundle, sid, tid } from '../../test/bundles'
 import { domainErrorOf, idOf, insertAttempt, insertCheckpoint, insertComment, insertOutbox, insertReport, insertRowCheck, insertRun, T0 } from '../../test/repoFixtures'
 import {
@@ -19,7 +19,8 @@ import { createSaveHook } from '../../test/repoFixtures'
 import { createTempRepo, type TempRepo } from '../../test/tempRepo'
 import { createSequentialIds, createTestClock, createTestCtx, createTestDb, type TestCtx, withRole } from '../../test/testContext'
 import { contentHash, prettyJson } from '../canonical'
-import { getMeta, setMeta } from '../meta'
+import { guardTransactions } from '../db/database'
+import { getMeta, META_KEYS, setMeta } from '../meta'
 import { resolveEpicConflict, type EpicRecordsAccess } from '../services/epicConflict'
 import { cancelTransfer, queueTransfer, startTransfer } from '../services/transfers'
 import { createFileHashCache } from './fileHashes'
@@ -31,6 +32,7 @@ import { nodeFs } from './nodeFs'
 import { ownedPaths } from './paths'
 import { getStorageStatus } from './storage'
 import { buildEpicStateRecord, epicStateRecord, parseRecord, trackedCommentHash, trackedEpicHash, trackedRunHash } from './portable'
+import { hasValidatedRepositoryCache } from './validatedCache'
 
 const EPIC = idOf('epic', 1)
 const R1 = idOf('revision', 1)
@@ -277,6 +279,84 @@ describe('reconcileRepository bookkeeping', () => {
   })
 })
 
+function recordBodyReads(target: RepoEnv): string[] {
+  const bodyReads: string[] = []
+  const readFile = target.fs.readFile.bind(target.fs)
+  target.fs.readFile = (path) => {
+    bodyReads.push(path)
+    return readFile(path)
+  }
+  return bodyReads
+}
+
+describe('reconcileRepository cached history', () => {
+  it('reads no unchanged history bodies and uses stored snapshots when only epic state changes', () => {
+    const target = cloneOf(buildSource())
+    const deps = importerDeps(target, createStubGit('main'))
+    const paths = ownedPaths(target.layout)
+    const history = paths.runHistoryFile(RUN)
+    const snapshots = [paths.snapshotFile(EPIC, R1), paths.snapshotFile(EPIC, R2)]
+    const reads = recordBodyReads(target)
+    reconcileRepository(deps)
+    const start = reads.length
+    expect(reconcileRepository(deps).unchanged).toEqual([EPIC, RUN])
+    expect(reads.slice(start).filter((file) => [history, ...snapshots].includes(file))).toEqual([])
+
+    const state = paths.epicStateFile(EPIC)
+    target.fs.put(state, (target.fs.get(state) ?? '').replace('Test epic', 'Next epic'))
+    expect(reconcileRepository(deps)).toMatchObject({ imported: [EPIC], unchanged: [RUN], rejected: [] })
+    expect(reads.slice(start).filter((file) => [history, ...snapshots].includes(file))).toEqual([])
+    expect(target.db.get('SELECT title FROM epics WHERE id = ?', EPIC)).toEqual({ title: 'Next epic' })
+    expect(target.db.all('SELECT id FROM attempts ORDER BY id')).toEqual([{ id: A1 }, { id: A2 }])
+
+    const freshDb = createTestDb()
+    try {
+      expect(reconcileRepository({ ...deps, db: freshDb }).imported).toEqual([EPIC, RUN])
+      expect(dumpDomain(freshDb)).toMatchObject({ runs: target.db.all('SELECT * FROM runs'), attempts: target.db.all('SELECT * FROM attempts ORDER BY id') })
+    } finally {
+      freshDb.close()
+    }
+  })
+
+})
+
+describe('reconcileRepository writer admission', () => {
+  it('revalidates preparation after files and machine-local state change at writer admission', () => {
+    const target = cloneOf(buildSource())
+    const deps = importerDeps(target, createStubGit('main'))
+    const paths = ownedPaths(target.layout)
+    const file = paths.epicStateFile(EPIC)
+    const snapshot = paths.snapshotFile(EPIC, R2)
+    let parsedBeforeWriter = false
+    const readFile = target.fs.readFile.bind(target.fs)
+    target.fs.readFile = (path) => {
+      if (path === snapshot && !target.db.inTransaction()) parsedBeforeWriter = true
+      return readFile(path)
+    }
+    let intercepted = false
+    const guarded = guardTransactions(target.db, () => {
+      if (intercepted) return
+      intercepted = true
+      target.fs.put(file, (target.fs.get(file) ?? '').replace('Test epic', 'New title'))
+    })
+    expect(reconcileRepository({ ...deps, db: guarded })).toMatchObject({ imported: [EPIC, RUN], rejected: [] })
+    expect(parsedBeforeWriter).toBe(true)
+    expect(target.db.get('SELECT title FROM epics WHERE id = ?', EPIC)).toEqual({ title: 'New title' })
+
+    target.fs.put(file, (target.fs.get(file) ?? '').replace('New title', 'Pulled title'))
+    let addedConflict = false
+    const changed = guardTransactions(target.db, () => {
+      if (addedConflict) return
+      addedConflict = true
+      insertOutbox(target.db, { kind: 'epic_state', epicId: EPIC })
+    })
+    expect(reconcileRepository({ ...deps, db: changed })).toMatchObject({
+      imported: [], conflicts: [{ epicId: EPIC, message: expect.stringContaining('waiting to be exported') }]
+    })
+    expect(target.db.get('SELECT title FROM epics WHERE id = ?', EPIC)).toEqual({ title: 'New title' })
+  })
+})
+
 describe('reconcileRepository change detection', () => {
   it('treats an unchanged re-import as a quiet no-op', () => {
     const target = cloneOf(buildSource())
@@ -318,12 +398,15 @@ describe('reconcileRepository run updates', () => {
     source.db.run("UPDATE runs SET state = 'completed', ended_at = ? WHERE id = ?", T0, RUN)
     insertOutbox(source.db, { kind: 'run_history', runId: RUN })
     flush(source)
-    copyTracked(source, target)
+    const history = ownedPaths(target.layout).runHistoryFile(RUN)
+    target.fs.put(history, source.fs.get(ownedPaths(source.layout).runHistoryFile(RUN)) ?? '')
+    const reads = recordBodyReads(target)
     const result = reconcileRepository(deps)
+    expect(reads.filter((file) => file === history || file.includes('snapshots'))).toEqual([history])
     expect(result).toMatchObject({ imported: [RUN], unchanged: [EPIC], rejected: [], conflicts: [] })
     expect(target.db.get('SELECT state, ended_at, revision FROM runs WHERE id = ?', RUN)).toEqual({ state: 'completed', ended_at: T0, revision: 2 })
     const events = target.db.all<{ payload_json: string }>("SELECT payload_json FROM events WHERE kind = 'repository.reconciled' ORDER BY seq")
-    expect(JSON.parse(events[1]?.payload_json ?? '{}')).toEqual({ imported: [RUN], unchanged: 1, conflicts: 0, rejected: 0, branchChanged: false, pausedRuns: [] })
+    expect(JSON.parse(events[1]?.payload_json ?? '{}')).toEqual({ imported: [RUN], unchanged: 1, conflicts: 0, rejected: 0, branchChanged: false, pausedRuns: [], changedEpics: [EPIC], kanbanChanged: false })
   })
 })
 
@@ -1038,6 +1121,8 @@ describe('reconcileRepository comment conflicts', () => {
 })
 
 interface ReconciledPayload {
+  refreshAll?: true
+  conflicts: number
   imported: string[]
   rejected: number
   branchChanged: boolean
@@ -1051,8 +1136,44 @@ function reconciledEvents(env: RepoEnv): ReconciledPayload[] {
 
 const BAD_EPIC = { path: '.darkmechanicus/epics/ep_bad', message: 'Refusing to build a repository path from an invalid epic id.' }
 
+it('retains prior cache validation when a subsequent legacy import reports a problem', () => {
+  const target = cloneOf(buildSource())
+  const deps = importerDeps(target, createStubGit('main'))
+  reconcileRepository(deps)
+  // A prior version persisted the problem digest, without a separate proof of a clean pass.
+  target.db.run('DELETE FROM meta WHERE key = ?', META_KEYS.validatedRepositoryCache)
+  expect(hasValidatedRepositoryCache(target.db)).toBe(true)
+  target.fs.setReaddir(target.layout.epicsDir, [EPIC, 'ep_bad'])
+  expect(reconcileRepository(deps).rejected).toEqual([BAD_EPIC])
+  expect(hasValidatedRepositoryCache(target.db)).toBe(true)
+})
+
+it('recovers a legacy clean import followed by a rejected import from its durable event', () => {
+  const target = cloneOf(buildSource())
+  const deps = importerDeps(target, createStubGit('main'))
+  reconcileRepository(deps)
+  const clean = getMeta(target.db, META_KEYS.reconcileProblems)
+  target.fs.setReaddir(target.layout.epicsDir, [EPIC, 'ep_bad'])
+  expect(reconcileRepository(deps).rejected).toEqual([BAD_EPIC])
+  target.db.run('DELETE FROM meta WHERE key = ?', META_KEYS.validatedRepositoryCache)
+  expect(getMeta(target.db, META_KEYS.reconcileProblems)).not.toBe(clean)
+  expect(hasValidatedRepositoryCache(target.db)).toBe(true)
+  expect(reconcileRepository(deps).rejected).toEqual([BAD_EPIC])
+  expect(getMeta(target.db, META_KEYS.validatedRepositoryCache)).toBe('1')
+})
+
+it('keeps a partially rejected first import unvalidated even when it committed some usable rows', () => {
+  const target = cloneOf(buildSource())
+  const deps = importerDeps(target, createStubGit('main'))
+  target.fs.setReaddir(target.layout.epicsDir, [EPIC, 'ep_bad'])
+  expect(reconcileRepository(deps)).toMatchObject({ imported: [EPIC, RUN], rejected: [BAD_EPIC] })
+  expect(hasValidatedRepositoryCache(target.db)).toBe(false)
+  expect(reconcileRepository(deps).rejected).toEqual([BAD_EPIC])
+  expect(hasValidatedRepositoryCache(target.db)).toBe(false)
+})
+
 describe('reconcileRepository reconciled events', () => {
-  it('records a rejection that persists across heartbeats once, and again when it comes back', () => {
+  it('records rejection changes and clears once each across heartbeats', () => {
     const target = cloneOf(buildSource())
     const deps = importerDeps(target, createStubGit('main'))
     reconcileRepository(deps)
@@ -1064,10 +1185,11 @@ describe('reconcileRepository reconciled events', () => {
     expect(reconcileRepository(deps).rejected).toEqual([])
     target.fs.setReaddir(target.layout.epicsDir, [EPIC, 'ep_bad'])
     expect(reconcileRepository(deps).rejected).toEqual([BAD_EPIC])
-    expect(reconciledEvents(target).map((event) => [event.imported, event.rejected])).toEqual([
-      [[EPIC, RUN], 0],
-      [[], 1],
-      [[], 1]
+    expect(reconciledEvents(target).map((event) => [event.imported, event.rejected, event.refreshAll])).toEqual([
+      [[EPIC, RUN], 0, undefined],
+      [[], 1, true],
+      [[], 0, true],
+      [[], 1, true]
     ])
   })
 
@@ -1094,6 +1216,28 @@ describe('reconcileRepository reconciled events', () => {
       [[], 1, true]
     ])
   })
+})
+
+it('emits one refresh for a conflict-only epic change and one when the conflict clears', () => {
+  const target = cloneOf(buildSource())
+  const deps = importerDeps(target, createStubGit('main'))
+  reconcileRepository(deps)
+  insertOutbox(target.db, { kind: 'epic_state', epicId: EPIC })
+  const statePath = ownedPaths(target.layout).epicStateFile(EPIC)
+  const original = target.fs.get(statePath)!
+  target.fs.put(statePath, original.replace('Test epic', 'Pulled epic'))
+  expect(reconcileRepository(deps)).toMatchObject({ imported: [], conflicts: [{ epicId: EPIC }] })
+  reconcileRepository(deps)
+
+  target.fs.put(statePath, original)
+  expect(reconcileRepository(deps)).toMatchObject({ imported: [], conflicts: [], rejected: [] })
+  reconcileRepository(deps)
+  const events = reconciledEvents(target)
+  expect(events.slice(1)).toEqual([
+    expect.objectContaining({ imported: [], conflicts: 1, refreshAll: true }),
+    expect.objectContaining({ imported: [], conflicts: 0, refreshAll: true })
+  ])
+  expect(target.db.get("SELECT conflict FROM sync_state WHERE kind = 'epic' AND entity_id = ?", EPIC)).toEqual({ conflict: null })
 })
 
 describe('reconcileRepository comment text', () => {
@@ -1152,6 +1296,48 @@ describe('reconcileRepository leaves drafts alone', () => {
     copyTracked(source, target)
     expect(reconcileRepository(deps).imported).toEqual([EPIC])
     expect(target.db.all('SELECT * FROM drafts')).toEqual(draft)
+  })
+})
+
+describe('reconcileRepository cache validation on disk', () => {
+  it('requires a clean reconcile before a rejected checkout can reopen with a validated cache', () => {
+    const repo = createTempRepo()
+    onTestFinished(() => repo.cleanup())
+    const { layout } = repo
+    const clock = createTestClock()
+    initializeRepository({ layout, fs: nodeFs, ids: createSequentialIds(), clock }, { name: 'Cache readiness' })
+    const invalidEpic = join(layout.epicsDir, 'ep_bad')
+    mkdirSync(invalidEpic, { recursive: true })
+    const open = () => ({
+      db: createTestDb(layout.dbFile), layout, fs: nodeFs, clock, machineId: SOURCE_MACHINE,
+      git: createStubGit('main'), fileHashes: createFileHashCache()
+    })
+    const cold = open()
+    try {
+      expect(reconcileRepository(cold).rejected).toEqual([BAD_EPIC])
+      expect(hasValidatedRepositoryCache(cold.db)).toBe(false)
+    } finally {
+      cold.db.close()
+    }
+    const reopened = open()
+    try {
+      expect(existsSync(layout.dbFile)).toBe(true)
+      expect(hasValidatedRepositoryCache(reopened.db)).toBe(false)
+      expect(reconcileRepository(reopened).rejected).toEqual([BAD_EPIC])
+      rmdirSync(invalidEpic)
+      expect(reconcileRepository(reopened).rejected).toEqual([])
+      expect(hasValidatedRepositoryCache(reopened.db)).toBe(true)
+      mkdirSync(invalidEpic)
+      expect(reconcileRepository(reopened).rejected).toEqual([BAD_EPIC])
+    } finally {
+      reopened.db.close()
+    }
+    const warm = open()
+    try {
+      expect(hasValidatedRepositoryCache(warm.db)).toBe(true)
+    } finally {
+      warm.db.close()
+    }
   })
 })
 

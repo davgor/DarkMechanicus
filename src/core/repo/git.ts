@@ -1,4 +1,5 @@
 import { execFile, execFileSync } from 'node:child_process'
+import { lstatSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fail } from '../errors'
 import { nodeFs } from './nodeFs'
@@ -152,6 +153,51 @@ function defaultRunGitSync(root: string): RunGitSync {
       return { code: typeof status === 'number' ? status : GIT_FAILED, stdout: '' }
     }
   }
+}
+
+function directoryStamp(path: string): string {
+  const stat = lstatSync(path, { bigint: true })
+  if (!stat.isDirectory()) throw new Error('The local Git checkout directory changed.')
+  return `${path}:${stat.dev}:${stat.ino}:${stat.birthtimeNs}`
+}
+
+/** Cheap identity of a previously validated local Git checkout and its origin configuration. */
+export function gitCheckoutStamp(root: string, protectIndex: boolean): string {
+  const gitDir = resolveGitDir(nodeFs, root)
+  if (gitDir === null) throw new Error('The local Git checkout metadata is missing.')
+  const common = commonDirOf(nodeFs, gitDir) ?? gitDir
+  return JSON.stringify([
+    directoryStamp(root), directoryStamp(gitDir), directoryStamp(common),
+    nodeFs.fileStamp(join(root, '.git')), nodeFs.fileStamp(join(gitDir, 'commondir')),
+    nodeFs.fileStamp(join(common, 'config')), nodeFs.fileStamp(join(gitDir, 'config.worktree')),
+    protectIndex ? [nodeFs.fileStamp(join(gitDir, 'index')), readGitHead(nodeFs, root)] : null
+  ])
+}
+
+/** Reads an actual checkout's configured origin, without consulting URL rewrites or included configuration. */
+export function readLocalGitOrigin(root: string): string | null {
+  if (nodeFs.isSymlink(join(root, '.git'))) return null
+  const run = defaultRunGitSync(root)
+  const top = run(['rev-parse', '--show-toplevel'])
+  if (top.code !== 0 || nodeFs.realpath(top.stdout.trim()) !== root) return null
+  const origin = run(['config', '--local', '--no-includes', '--get-all', 'remote.origin.url'])
+  const urls = origin.stdout.trim().split(/\r?\n/)
+  return origin.code === 0 && urls.length === 1 && urls[0] !== '' ? urls[0] : null
+}
+
+/** A machine-private path must be absent from both the index and committed tree before it can be read. */
+export function isUntrackedLocalGitPath(root: string, path: string): boolean {
+  const run = defaultRunGitSync(root)
+  const index = run(['ls-files', '-z', '--', ':(icase,literal)' + path])
+  if (index.code !== 0 || index.stdout !== '') return false
+  if (readGitHead(nodeFs, root)?.commit === null) return true
+  // ls-tree only supports case-sensitive pathspecs. Check the names so case aliases cannot hide portable private state.
+  const head = run(['ls-tree', '-r', '-z', '--name-only', 'HEAD'])
+  const privatePath = path.toLowerCase()
+  return head.code === 0 && !head.stdout.split('\0').some(name => {
+    const lower = name.toLowerCase()
+    return lower === privatePath || lower.startsWith(privatePath + '/')
+  })
 }
 
 /** Refs and paths become git arguments: refuse anything git could read as an option. */

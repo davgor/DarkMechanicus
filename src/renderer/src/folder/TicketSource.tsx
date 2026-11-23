@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { TrackedFolderView } from '../../../shared/desktop/api'
+import type { SourceCheckoutView } from '../../../shared/desktop/sourceCheckout'
 import type { StorageStatusView } from '../../../shared/domain/views'
 import { StorageModeSwitch } from '../home/StorageModeSwitch'
 import { callGithub } from '../api/github'
@@ -147,6 +148,27 @@ function ProjectSource({ folder, folders, open, status, initialize, controls }: 
   </>
 }
 
+function RecoverySource({ controls }: { controls: Controls }) {
+  const { busy, act } = controls
+  const [checkout, setCheckout] = useState<SourceCheckoutView | null>(null)
+  const api = window.dm.sourceCheckout
+  useEffect(() => {
+    let current = true
+    void api.get().then(value => { if (current) setCheckout(value) }).catch(() => {})
+    return () => { current = false }
+  }, [api])
+  return <>
+    <h3>Tooling recovery source</h3>
+    {checkout?.status === 'available' && <p>{checkout.local?.displayPath}</p>}
+    {checkout?.status === 'unavailable' && <p>{checkout.message}</p>}
+    <Button disabled={busy} onClick={() => void act(async () => {
+      const choice = await api.pick()
+      if (choice.outcome === 'associated') setCheckout(choice.checkout)
+      else if (choice.outcome !== 'cancelled') throw new Error(choice.message + ' ' + choice.recovery)
+    })}>Choose Dark Mechanicus source checkout…</Button>
+  </>
+}
+
 export function TicketSource(props: Props): JSX.Element {
   const controls = useTicketSource(props)
   const { repos, message } = controls
@@ -157,6 +179,7 @@ export function TicketSource(props: Props): JSX.Element {
     <h2>{world ? folder.name : 'Ticket source control'}</h2>
     <datalist id="forge-repositories">{repos.map(r => <option key={r} value={r} />)}</datalist>
     <Source {...props} controls={controls} />
+    {!world && <RecoverySource controls={controls} />}
     {message && <p role="status">{message}</p>}
   </div></section>
 }

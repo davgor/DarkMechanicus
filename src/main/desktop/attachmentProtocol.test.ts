@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { Ctx } from '../../core/context'
-import { createStagedAttachment, type StagedAttachmentInput } from '../../core/services/attachments'
 import { pngBytes } from '../../test/images'
-import { createTestCtx } from '../../test/testContext'
 import { attachmentUrl } from '../../shared/desktop/attachmentUrl'
 import {
   createAttachmentLookup,
@@ -30,7 +27,7 @@ function knownLookup(): AttachmentLookup {
 
 describe('handleAttachmentRequest', () => {
   it('returns the stored bytes with the stored type, nosniff and an immutable cache for a known id', async () => {
-    const response = handleAttachmentRequest(request(attachmentUrl(FOLDER_KEY, ATTACHMENT_ID)), knownLookup())
+    const response = await handleAttachmentRequest(request(attachmentUrl(FOLDER_KEY, ATTACHMENT_ID)), knownLookup())
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Type')).toBe('image/png')
     expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
@@ -39,8 +36,8 @@ describe('handleAttachmentRequest', () => {
     expect(Buffer.from(await response.arrayBuffer())).toEqual(PNG)
   })
 
-  it('answers 404 for an unknown attachment id, with nosniff', () => {
-    const response = handleAttachmentRequest(
+  it('answers 404 for an unknown attachment id, with nosniff', async () => {
+    const response = await handleAttachmentRequest(
       request(attachmentUrl(FOLDER_KEY, 'im_00000000000000000000000009')),
       knownLookup()
     )
@@ -48,22 +45,22 @@ describe('handleAttachmentRequest', () => {
     expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff')
   })
 
-  it('answers 404 for an unknown folder key', () => {
-    const response = handleAttachmentRequest(
+  it('answers 404 for an unknown folder key', async () => {
+    const response = await handleAttachmentRequest(
       request(attachmentUrl('ffffffffffffffffffffffffffffffff', ATTACHMENT_ID)),
       knownLookup()
     )
     expect(response.status).toBe(404)
   })
 
-  it('answers 404 when the lookup finds nothing to serve (a missing image)', () => {
+  it('answers 404 when the lookup finds nothing to serve (a missing image)', async () => {
     const lookup = vi.fn<AttachmentLookup>(() => null)
-    expect(handleAttachmentRequest(request(attachmentUrl(FOLDER_KEY, ATTACHMENT_ID)), lookup).status).toBe(404)
+    expect((await handleAttachmentRequest(request(attachmentUrl(FOLDER_KEY, ATTACHMENT_ID)), lookup)).status).toBe(404)
     expect(lookup).toHaveBeenCalledWith(FOLDER_KEY, ATTACHMENT_ID)
   })
 
-  it('answers 404 when the lookup throws, and never a 500 with the error', () => {
-    const response = handleAttachmentRequest(
+  it('answers 404 when the lookup throws, and never a 500 with the error', async () => {
+    const response = await handleAttachmentRequest(
       request(attachmentUrl(FOLDER_KEY, ATTACHMENT_ID)),
       () => {
         throw new Error('database is closed')
@@ -75,9 +72,9 @@ describe('handleAttachmentRequest', () => {
 })
 
 describe('handleAttachmentRequest refusals', () => {
-  it.each(['POST', 'PUT', 'DELETE', 'HEAD'])('answers 405 for %s and never looks anything up', (method) => {
+  it.each(['POST', 'PUT', 'DELETE', 'HEAD'])('answers 405 for %s and never looks anything up', async (method) => {
     const lookup = vi.fn<AttachmentLookup>(knownLookup())
-    const response = handleAttachmentRequest(request(attachmentUrl(FOLDER_KEY, ATTACHMENT_ID), method), lookup)
+    const response = await handleAttachmentRequest(request(attachmentUrl(FOLDER_KEY, ATTACHMENT_ID), method), lookup)
     expect(response.status).toBe(405)
     expect(response.headers.get('Allow')).toBe('GET')
     expect(lookup).not.toHaveBeenCalled()
@@ -89,9 +86,9 @@ describe('handleAttachmentRequest refusals', () => {
     ['a non-attachment id', `dm-attachment://${FOLDER_KEY}/at_00000000000000000000000001`],
     ['an extra path segment', `dm-attachment://${FOLDER_KEY}/${ATTACHMENT_ID}/more`],
     ['no id', `dm-attachment://${FOLDER_KEY}/`]
-  ])('answers 404 without a lookup for %s', (_label, url) => {
+  ])('answers 404 without a lookup for %s', async (_label, url) => {
     const lookup = vi.fn<AttachmentLookup>(knownLookup())
-    expect(handleAttachmentRequest(request(url), lookup).status).toBe(404)
+    expect((await handleAttachmentRequest(request(url), lookup)).status).toBe(404)
     expect(lookup).not.toHaveBeenCalled()
   })
 })
@@ -122,58 +119,38 @@ describe('registerAttachmentScheme and registerAttachmentProtocol', () => {
     const handle = vi.fn()
     registerAttachmentProtocol({ handle } as never, knownLookup())
     expect(handle).toHaveBeenCalledWith('dm-attachment', expect.any(Function))
-    const [, handler] = handle.mock.calls[0] as [string, (request: Request) => Response]
-    const response = handler(request(attachmentUrl(FOLDER_KEY, ATTACHMENT_ID)))
+    const [, handler] = handle.mock.calls[0] as [string, (request: Request) => Promise<Response>]
+    const response = await handler(request(attachmentUrl(FOLDER_KEY, ATTACHMENT_ID)))
     expect(response.status).toBe(200)
   })
 })
 
 describe('createAttachmentLookup', () => {
-  const INPUT: StagedAttachmentInput = { bytes: PNG, label: 'shot', purpose: 'evidence' }
-
-  function stored(): { ctx: ReturnType<typeof createTestCtx>; id: string } {
-    const ctx = createTestCtx()
-    return { ctx, id: createStagedAttachment(ctx, INPUT).id }
-  }
-
-  it('reads the stored bytes and mime through the folder that the key names', () => {
-    const { ctx, id } = stored()
-    const contextFor = vi.fn(() => ctx)
-    const lookup = createAttachmentLookup({ pathForKey: (key) => (key === FOLDER_KEY ? '/repo' : null), contextFor })
-    expect(lookup(FOLDER_KEY, id)).toEqual({ bytes: PNG, mime: 'image/png' })
-    expect(contextFor).toHaveBeenCalledWith('/repo')
+  it('reads the stored bytes and mime through the tracked folder key', async () => {
+    const read = vi.fn(async () => ({ bytes: PNG, mime: 'image/png' as const }))
+    const lookup = createAttachmentLookup({ pathForKey: () => '/repo', read })
+    await expect(lookup(FOLDER_KEY, ATTACHMENT_ID)).resolves.toEqual({ bytes: PNG, mime: 'image/png' })
+    expect(read).toHaveBeenCalledWith('/repo', ATTACHMENT_ID)
   })
 
-  it('finds nothing for an untracked key without opening any workspace', () => {
-    const contextFor = vi.fn()
-    const lookup = createAttachmentLookup({ pathForKey: () => null, contextFor })
-    expect(lookup(FOLDER_KEY, ATTACHMENT_ID)).toBeNull()
-    expect(contextFor).not.toHaveBeenCalled()
+  it('finds nothing for an untracked key without opening a worker', async () => {
+    const read = vi.fn()
+    const lookup = createAttachmentLookup({ pathForKey: () => null, read })
+    await expect(lookup(FOLDER_KEY, ATTACHMENT_ID)).resolves.toBeNull()
+    expect(read).not.toHaveBeenCalled()
   })
 
-  it('finds nothing for an unknown id, and for an image flagged missing', () => {
-    const { ctx, id } = stored()
-    const lookup = createAttachmentLookup({ pathForKey: () => '/repo', contextFor: () => ctx })
-    expect(lookup(FOLDER_KEY, 'im_00000000000000000000000009')).toBeNull()
-    ctx.db.run('UPDATE attachments SET missing = 1 WHERE id = ?', id)
-    expect(lookup(FOLDER_KEY, id)).toBeNull()
+  it('discards bytes when the folder was untracked during the worker read', async () => {
+    let path: string | null = '/repo'
+    const lookup = createAttachmentLookup({ pathForKey: () => path, read: async () => {
+      path = null
+      return { bytes: PNG, mime: 'image/png' }
+    } })
+    await expect(lookup(FOLDER_KEY, ATTACHMENT_ID)).resolves.toBeNull()
   })
 
-  it('lets an unexpected failure through to the handler', () => {
-    const lookup = createAttachmentLookup({
-      pathForKey: () => '/repo',
-      contextFor: () => {
-        throw new Error('cannot open workspace')
-      }
-    })
-    expect(() => lookup(FOLDER_KEY, ATTACHMENT_ID)).toThrow('cannot open workspace')
-  })
-})
-
-describe('createAttachmentLookup failures that are not refusals', () => {
-  it('lets an unexpected error through to the handler', () => {
-    const broken = { db: { get: () => { throw new TypeError('database is gone') } } } as unknown as Ctx
-    const lookup = createAttachmentLookup({ pathForKey: () => '/folder', contextFor: () => broken })
-    expect(() => lookup(FOLDER_KEY, ATTACHMENT_ID)).toThrow('database is gone')
+  it('lets an unexpected failure through to the handler', async () => {
+    const lookup = createAttachmentLookup({ pathForKey: () => '/repo', read: async () => { throw new Error('database is gone') } })
+    await expect(lookup(FOLDER_KEY, ATTACHMENT_ID)).rejects.toThrow('database is gone')
   })
 })

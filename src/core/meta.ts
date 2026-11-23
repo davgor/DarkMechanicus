@@ -11,8 +11,12 @@ export const META_KEYS = {
   checkoutBranch: 'checkout_branch',
   lastFlushAt: 'last_flush_at',
   lastReconcileAt: 'last_reconcile_at',
+  /** Version of the portable attachment registration backfill completed in this database. */
+  attachmentRegistration: 'attachment_registration',
   /** Digest of the conflicts and rejections the last reconcile reported; repeating them records no event. */
-  reconcileProblems: 'reconcile_problems'
+  reconcileProblems: 'reconcile_problems',
+  /** The portable repository has completed a clean reconciliation into this database. */
+  validatedRepositoryCache: 'validated_repository_cache'
 } as const
 
 type MetaKey = (typeof META_KEYS)[keyof typeof META_KEYS]

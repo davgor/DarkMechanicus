@@ -3,6 +3,7 @@ import { baselineDeliveryPolicy } from '../../shared/domain/standardsPrompts'
 import type { KanbanPacket } from '../../shared/domain/kanban'
 import type { PushedContext } from '../../shared/domain/knowledge'
 import { createHarness, type Harness } from '../../test/workspaceHarness'
+import { openDatabase } from '../db/database'
 import { LIMITS } from '../schemas'
 import type { Workspace } from '../workspace'
 
@@ -29,6 +30,25 @@ afterEach(() => {
   harness.cleanup()
 })
 
+describe('Kanban card read contention', () => {
+  it('reads the committed card and board while a second connection owns the writer lock', async () => {
+    const card = await desktop.createKanbanCard({ title: 'Committed title' })
+    const reader = harness.open('reader')
+    reader.ctx().db.exec('PRAGMA busy_timeout = 0')
+    const writer = openDatabase(reader.ctx().db.path)
+    try {
+      writer.exec('BEGIN IMMEDIATE')
+      writer.run('UPDATE kanban_cards SET title = ? WHERE id = ?', 'Concurrent title', card.id)
+      expect(await reader.getKanbanCard({ cardId: card.id })).toMatchObject({ title: 'Committed title' })
+      expect((await reader.listKanbanCards({})).lanes.backlog).toEqual([expect.objectContaining({ id: card.id, title: 'Committed title' })])
+      writer.exec('COMMIT')
+      expect(await reader.getKanbanCard({ cardId: card.id })).toMatchObject({ title: 'Concurrent title' })
+    } finally {
+      writer.close()
+    }
+  })
+})
+
 describe('kanban card commands', () => {
   it('creates, edits, lists and reads a card across sessions', async () => {
     const planner = harness.open('planner')
@@ -50,6 +70,8 @@ describe('kanban card commands', () => {
     expect([edited.body, edited.revision]).toEqual(['Only this, carefully.', 2])
 
     const reader = harness.open('reader')
+    expect(await desktop.getKanbanOpenCount()).toBe(1)
+    expect(await reader.getEventHead()).toBeGreaterThan(0)
     const board = await reader.listKanbanCards({})
     expect(board.lanes.backlog).toEqual([
       {

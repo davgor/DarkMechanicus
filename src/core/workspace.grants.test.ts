@@ -139,6 +139,25 @@ describe('a grant decides what a CLI session may do', () => {
     expect(session).toMatchObject({ role: 'worker', grantId: grant.id })
   })
 
+})
+
+describe('atomic CLI grant audit', () => {
+  it('rolls back grant use when the session audit insert fails', async () => {
+    const desktop = await withDesktop()
+    const { grant, token } = await desktop.issueGrant({ role: 'worker', label: 'Audit rollback' })
+    const db = desktop.ctx().db
+    db.exec(`CREATE TRIGGER reject_test_cli_session BEFORE INSERT ON sessions WHEN NEW.transport = 'cli'
+      BEGIN SELECT RAISE(ABORT, 'session write refused'); END`)
+    expect(() => harness.open('reader', { transport: 'cli', grantToken: token })).toThrow('session write refused')
+    expect(db.get('SELECT last_used_at FROM grants WHERE id = ?', grant.id)).toEqual({ last_used_at: null })
+    expect(db.all('SELECT id FROM sessions WHERE grant_id = ?', grant.id)).toEqual([])
+    db.exec('DROP TRIGGER reject_test_cli_session')
+    const cli = harness.open('reader', { transport: 'cli', grantToken: token })
+    expect((await cli.getCapabilities()).role).toBe('worker')
+    expect(db.get('SELECT last_used_at FROM grants WHERE id = ?', grant.id)).toEqual({ last_used_at: harness.clock.nowIso() })
+    expect(db.all('SELECT grant_id FROM sessions WHERE grant_id = ?', grant.id)).toEqual([{ grant_id: grant.id }])
+  })
+
   it('leaves no grant on a session that presented none', async () => {
     await withDesktop()
     harness.open('reader', { transport: 'cli' })

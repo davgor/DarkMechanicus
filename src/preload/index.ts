@@ -105,6 +105,7 @@ const crossRepoCorrections: CrossRepoCorrectionsApi = {
  */
 const dm: DmApi = {
   forge: {
+    memberStatus: (root, member) => ipcRenderer.invoke('forge:memberStatus', root, member),
     connect: (folder, repository, publish) => ipcRenderer.invoke('forge:connect', folder, repository, publish),
     restore: (member, mode) => ipcRenderer.invoke('forge:restore', member, mode),
     pickConvert: world => ipcRenderer.invoke('forge:pickConvert', world),
@@ -125,6 +126,11 @@ const dm: DmApi = {
   sourceCheckout,
   crossRepoCorrections,
   listFolders: () => ipcRenderer.invoke('dm:listFolders'),
+  onFoldersChanged: (receive) => {
+    const handler = (): void => receive()
+    ipcRenderer.on('forge:foldersChanged', handler)
+    return () => ipcRenderer.removeListener('forge:foldersChanged', handler)
+  },
   pickFolder: (mode) => ipcRenderer.invoke('dm:pickFolder', mode),
   untrackFolder: (path) => ipcRenderer.invoke('dm:untrackFolder', path),
   openTrackedFolder: (folder, expectedPath) => ipcRenderer.invoke('dm:openTrackedFolder', folder, expectedPath),

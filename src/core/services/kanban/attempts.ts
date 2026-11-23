@@ -132,6 +132,23 @@ interface LeaseRow {
   lease_expires_at: string | null
 }
 
+function overdueLeases(ctx: Ctx, now: string, cardId?: string): LeaseRow[] {
+  const leased = ctx.db.all<LeaseRow>(
+    `SELECT a.id, a.card_id, c.key, a.number, a.lease_expires_at FROM kanban_attempts a JOIN kanban_cards c ON c.id = a.card_id
+     WHERE a.state IN ('claimed', 'running') AND (? IS NULL OR a.card_id = ?) AND IFNULL(a.machine_id, ?) = ?
+       AND NOT EXISTS (SELECT 1 FROM tooling_held_attempts t JOIN tooling_holds h ON h.incident_id = t.incident_id
+         JOIN tooling_chat_grants cg ON cg.chat_id = h.chat_id JOIN grants g ON g.id = cg.grant_id
+         WHERE t.attempt_id = a.id AND t.kind = 'card' AND g.revoked_at IS NULL AND g.expires_at > ?)
+     ORDER BY a.rowid`,
+    cardId ?? null,
+    cardId ?? null,
+    ctx.machineId,
+    ctx.machineId,
+    now
+  )
+  return leased.filter((row) => row.lease_expires_at !== null && isBefore(row.lease_expires_at, now))
+}
+
 /**
  * Lazily expires overdue card leases (optionally only one card's), as `expireLeases` does a run's: a `claimed` or
  * `running` attempt whose lease ended before now becomes `lease_expired`. The card stays In progress with no open
@@ -140,21 +157,9 @@ interface LeaseRow {
  */
 export function expireKanbanLeases(ctx: Ctx, cardId?: string): string[] {
   return ctx.db.tx(() => {
+    // A heartbeat or tooling hold may have committed while we waited for the lock.
     const now = ctx.clock.nowIso()
-    const leased = ctx.db.all<LeaseRow>(
-      `SELECT a.id, a.card_id, c.key, a.number, a.lease_expires_at FROM kanban_attempts a JOIN kanban_cards c ON c.id = a.card_id
-       WHERE a.state IN ('claimed', 'running') AND (? IS NULL OR a.card_id = ?) AND IFNULL(a.machine_id, ?) = ?
-         AND NOT EXISTS (SELECT 1 FROM tooling_held_attempts t JOIN tooling_holds h ON h.incident_id = t.incident_id
-           JOIN tooling_chat_grants cg ON cg.chat_id = h.chat_id JOIN grants g ON g.id = cg.grant_id
-           WHERE t.attempt_id = a.id AND t.kind = 'card' AND g.revoked_at IS NULL AND g.expires_at > ?)
-       ORDER BY a.rowid`,
-      cardId ?? null,
-      cardId ?? null,
-      ctx.machineId,
-      ctx.machineId,
-      now
-    )
-    const expired = leased.filter((row) => row.lease_expires_at !== null && isBefore(row.lease_expires_at, now))
+    const expired = overdueLeases(ctx, now, cardId)
     for (const row of expired) {
       ctx.db.run("UPDATE kanban_attempts SET state = 'lease_expired' WHERE id = ?", row.id)
       ctx.db.run('UPDATE kanban_cards SET updated_at = ? WHERE id = ?', now, row.card_id)
@@ -163,6 +168,11 @@ export function expireKanbanLeases(ctx: Ctx, cardId?: string): string[] {
     }
     return expired.map((row) => row.id)
   })
+}
+
+/** WAL readers check for due leases without reserving SQLite's writer slot. */
+export function expireKanbanLeasesOnRead(ctx: Ctx): string[] {
+  return overdueLeases(ctx, ctx.clock.nowIso()).length === 0 ? [] : expireKanbanLeases(ctx)
 }
 
 /**
@@ -419,7 +429,9 @@ export function heartbeatKanbanCard(ctx: Ctx, input: HeartbeatKanbanCardInput): 
 }
 
 /** Stores the attempt's outputs and evidence, masked, and moves the card to Ready for review. */
-export function submitKanbanCard(ctx: Ctx, input: SubmitKanbanCardInput, mergedToMain = false): KanbanAttemptView {
+export function submitKanbanCard(
+  ctx: Ctx, input: SubmitKanbanCardInput, mergedToMain = false, assertVerificationCurrent?: () => void
+): KanbanAttemptView {
   requireCapability(ctx.session, 'kanban.report')
   settleLeases(ctx, input.attemptId)
   const scope = { command: 'submitKanbanCard', key: input.idempotencyKey, request: requestWithoutKey(input) }
@@ -427,6 +439,7 @@ export function submitKanbanCard(ctx: Ctx, input: SubmitKanbanCardInput, mergedT
     const row = loadClaim(ctx, input.attemptId)
     requireOwnedAttempt(ctx, row)
     verifyCardClaim(ctx, row, input.claimToken)
+    assertVerificationCurrent?.()
     const claim = { token: input.claimToken, secret: row.claim_secret }
     const outputs = maskedReport(normalizeOutputs(input.outputs), claim)
     // Claimed in this transaction: a refused image refuses the whole submission.

@@ -39,6 +39,8 @@ export interface SidebarProps {
   agents: readonly AgentView[]
   agentStatuses: AgentStatuses
   expansion: Expansion
+  sections?: { forge: boolean; folders: boolean }
+  setSection?(section: 'forge' | 'folders', expanded: boolean): void
   chats: SidebarChats
   /** Every chat, listed under its agent in the AGENTS section, and summoning an agent with no project. */
   agentChats: Omit<ComponentProps<typeof AgentsSection>['chats'], 'folders' | 'epics' | 'selectedChatId'>
@@ -146,6 +148,10 @@ function SidebarFolder({ folder, props, selection }: { folder: TrackedFolderView
   )
 }
 
+function sectionDisclosure({ sections, setSection }: SidebarProps, section: 'forge' | 'folders') {
+  return sections && setSection ? { expanded: sections[section], change: (expanded: boolean) => setSection(section, expanded) } : undefined
+}
+
 /** The left panel: connected agents, tracked folders with their epic buckets and chats, then the status footer. */
 export function Sidebar(props: SidebarProps): JSX.Element {
   const { agentPane } = props.selection
@@ -159,10 +165,10 @@ export function Sidebar(props: SidebarProps): JSX.Element {
       <Brand version={props.version} />
       <SidebarAgents {...props} />
       <nav className="sidebar-tree" aria-label="Folders and epics">
-        <SidebarSection title="Forge Worlds" action={<AddFolderMenu mode="forge-world" onTrack={props.onTrack} onClone={props.onClone} />}>
+        <SidebarSection title="Forge Worlds" disclosure={sectionDisclosure(props, 'forge')} action={<AddFolderMenu mode="forge-world" onTrack={props.onTrack} onClone={props.onClone} />}>
           {worlds.map(folder => <SidebarFolder key={folder.path} folder={folder} props={props} selection={folderSelection} />)}
         </SidebarSection>
-        <SidebarSection title="Folders" action={<AddFolderMenu onTrack={props.onTrack} onClone={props.onClone} />}>
+        <SidebarSection title="Folders" disclosure={sectionDisclosure(props, 'folders')} action={<AddFolderMenu onTrack={props.onTrack} onClone={props.onClone} />}>
           {folders.length === 0 && <p className="sidebar-note">No folders yet. Use + to track one.</p>}
           {folders.map(folder => <SidebarFolder key={folder.path} folder={folder} props={props} selection={folderSelection} />)}
         </SidebarSection>

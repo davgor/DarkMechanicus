@@ -11,18 +11,27 @@ export function upsertFolder(
     : [...list, folder]
 }
 
+export function folderIdentity(folder: TrackedFolderView): string {
+  return JSON.stringify([folder.path, folder.projectIdentity, folder.attachmentKey, folder.addedAt, folder.storageMode, folder.forgeParent])
+}
+
 function sameFolder(a: TrackedFolderView, b: TrackedFolderView): boolean {
   return (
-    a.path === b.path &&
+    folderIdentity(a) === folderIdentity(b) &&
+    a.forgeIssue === b.forgeIssue &&
     a.name === b.name &&
-    a.storageMode === b.storageMode &&
-    a.forgeParent === b.forgeParent &&
     JSON.stringify(a.forgeWorld) === JSON.stringify(b.forgeWorld) &&
     a.displayPath === b.displayPath &&
     a.initialized === b.initialized &&
     a.available === b.available &&
-    a.addedAt === b.addedAt
+    JSON.stringify(a.childRepositories) === JSON.stringify(b.childRepositories)
   )
+}
+
+function identityWhileUnavailable(folder: TrackedFolderView, previous: TrackedFolderView | undefined): TrackedFolderView {
+  if (folder.available || folder.projectIdentity !== undefined || previous?.projectIdentity === undefined) return folder
+  const sameEntry = previous.addedAt === folder.addedAt && previous.attachmentKey === folder.attachmentKey
+  return sameEntry ? { ...folder, projectIdentity: previous.projectIdentity } : folder
 }
 
 /**
@@ -33,7 +42,12 @@ export function reconcileFolders(
   previous: TrackedFolderView[],
   next: TrackedFolderView[]
 ): TrackedFolderView[] {
-  const reused = next.map((folder) => previous.find((old) => sameFolder(old, folder)) ?? folder)
+  const byPath = new Map(previous.map(folder => [folder.path, folder]))
+  const reused = next.map(folder => {
+    const old = byPath.get(folder.path)
+    const current = identityWhileUnavailable(folder, old)
+    return old !== undefined && sameFolder(old, current) ? old : current
+  })
   const unchanged =
     reused.length === previous.length && reused.every((folder, index) => folder === previous[index])
   return unchanged ? previous : reused

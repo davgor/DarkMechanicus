@@ -1,3 +1,4 @@
+import { testWorkspace } from '../desktop/__mocks__/projectWorkspaceFixture'
 import { join } from 'node:path'
 import { createYoloDesktopRuntime } from '../../core/services/yoloFence'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -7,23 +8,25 @@ import { createChatGrants, type ChatGrants } from './chatGrants'
 
 let harness: Harness
 let workspace: Workspace
+let projectClient: ReturnType<typeof testWorkspace>
 let grants: ChatGrants
 let disposeRuntime: () => Promise<void>
 beforeEach(async () => {
   harness = createHarness()
   workspace = harness.open('desktop')
+  projectClient = testWorkspace(workspace)
   await workspace.initializeRepository({ name: 'Native decision boundary' })
   const runtime = createYoloDesktopRuntime(join(harness.homeDir, 'desktop-fence.json'))
   await runtime.ready
   disposeRuntime = runtime.dispose
-  grants = createChatGrants({ workspaceFor: () => workspace, cliFor: () => ({ command: 'node', args: [], env: {} }), minutes: 60, log: () => {},
+  grants = createChatGrants({ workspaceFor: () => projectClient, cliFor: () => ({ command: 'node', args: [], env: {} }), minutes: 60, log: () => {},
     desktopFence: runtime.fence })
 })
 afterEach(async () => { grants.dispose(); await disposeRuntime(); harness.cleanup() })
 
 async function live() {
   const issued = await grants.issueChatCli(harness.root, { role: 'worker', allowSave: false, label: 'A named existing chat' })
-  grants.bindChatGrant(issued.grantId, { folder: harness.root, chatId: 'chat-id', generation: 'start-id' })
+  await grants.bindChatGrant(issued.grantId, { folder: harness.root, chatId: 'chat-id', generation: 'start-id' })
   return issued.grantId
 }
 

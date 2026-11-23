@@ -7,7 +7,8 @@ import { createTestCtx, type TestCtx, withRole } from '../../../test/testContext
 import { updatePlanDraft } from '../drafts'
 import { createStagedAttachment } from '../attachments'
 import { createEpic } from '../epics'
-import { createKanbanCard, getKanbanCard, listKanbanCards, updateKanbanCard } from './cards'
+import { deleteKanbanCard } from './deletion'
+import { createKanbanCard, getKanbanCard, getKanbanOpenCount, listKanbanCards, updateKanbanCard } from './cards'
 
 /** A database holding nothing yet, with a planner session (planners may write cards). */
 function plannerCtx(): TestCtx {
@@ -65,6 +66,29 @@ function seedAttempt(
 function moveTo(ctx: TestCtx, cardId: string, lane: KanbanLane, completedAt: string | null = null): void {
   ctx.db.run('UPDATE kanban_cards SET lane = ?, completed_at = ? WHERE id = ?', lane, completedAt, cardId)
 }
+
+it('counts open card states exactly through inserts, moves and deletes, excluding Done history', () => {
+  const ctx = plannerCtx()
+  expect(getKanbanOpenCount(ctx)).toBe(0)
+  const backlog = createKanbanCard(ctx, { title: 'One' })
+  const working = createKanbanCard(ctx, { title: 'Two' })
+  const review = createKanbanCard(ctx, { title: 'Three' })
+  ctx.db.tx(() => {
+    for (let index = 0; index < 1000; index += 1) {
+      const history = createKanbanCard(ctx, { title: 'Completed card' })
+      moveTo(ctx, history.id, 'done', ctx.clock.nowIso())
+    }
+  })
+  moveTo(ctx, working.id, 'in_progress')
+  moveTo(ctx, review.id, 'ready_for_review')
+  expect(getKanbanOpenCount(ctx)).toBe(3)
+  moveTo(ctx, review.id, 'done', ctx.clock.nowIso())
+  deleteKanbanCard(withRole(ctx, 'desktop'), { cardId: backlog.id }, () => [])
+  expect(getKanbanOpenCount(ctx)).toBe(1)
+  expect(ctx.db.get<{ detail: string }>(
+    "EXPLAIN QUERY PLAN SELECT COUNT(*) AS count FROM kanban_cards WHERE lane IN ('backlog', 'in_progress', 'ready_for_review')"
+  )?.detail).toContain('kanban_cards_open_lanes')
+})
 
 describe('createKanbanCard', () => {
   it('stores a Backlog card with the first key, authored by the calling session, and returns its full view', () => {

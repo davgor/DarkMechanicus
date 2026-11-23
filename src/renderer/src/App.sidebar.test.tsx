@@ -33,6 +33,7 @@ const sidebar = (): ReturnType<typeof within> => within(screen.getByRole('comple
 describe('App sidebar buckets', () => {
   it('shows In progress, Backlog, Kanban and Completed in order with counts', async () => {
     seed()
+    h.dm.responses.getKanbanOpenCount = 2
     h.dm.responses.listKanbanCards = {
       lanes: { backlog: [cardSummary({ id: 'kc_1' })], in_progress: [cardSummary({ id: 'kc_2', lane: 'in_progress' })], ready_for_review: [], done: [doneCard(1)] },
       doneTotal: 1,
@@ -68,7 +69,7 @@ describe('App sidebar Kanban', () => {
 })
 
 describe('App sidebar Kanban mutation counts', () => {
-  it('updates the displayed open count immediately after approval and deletion, without an event poll', async () => {
+  it('updates the displayed open count immediately after approval and deletion, without waiting for the next interval', async () => {
     seed()
     const board = new FakeBoard(h.dm)
     let review = cardView({ id: 'kc_review', key: 'DM-7', lane: 'ready_for_review', openAttempt: { number: 1, state: 'submitted' } })
@@ -82,10 +83,12 @@ describe('App sidebar Kanban mutation counts', () => {
       review = { ...review, lane: 'done', openAttempt: null }
       board.open = board.open.filter((card) => card.id !== review.id)
       board.done.unshift(review)
+      h.log('/a').append({ kind: 'kanban.approved', epicId: null })
       return review
     }
     h.dm.handlers.deleteKanbanCard = () => {
       board.open = board.open.filter((card) => card.id !== 'kc_delete')
+      h.log('/a').append({ kind: 'kanban.deleted', epicId: null })
       return { cardId: 'kc_delete', key: 'DM-8', title: 'A card', removedPaths: [] }
     }
     h.mount()
@@ -128,7 +131,7 @@ describe('App sidebar epic rows', () => {
     await settle()
     fireEvent.click(sidebar().getByRole('button', { name: /Planning slice/ }))
     await settle()
-    expect(stub()).toBe(`alpha|${EPIC_A}|0`)
+    expect(stub()).toBe(`alpha|${EPIC_A}|1`)
     expect(sidebar().getByRole('button', { name: /Planning slice/ }).getAttribute('aria-current')).toBe('true')
     expect(sidebar().getByRole('button', { name: /Backlog idea/ }).getAttribute('aria-current')).toBeNull()
   })
@@ -141,7 +144,7 @@ describe('App sidebar epic rows', () => {
     await settle()
     fireEvent.click(screen.getByRole('button', { name: 'stub open other' }))
     await settle()
-    expect(stub()).toBe(`alpha|${EPIC_B}|0`)
+    expect(stub()).toBe(`alpha|${EPIC_B}|1`)
   })
 
 })
@@ -172,7 +175,7 @@ describe('App sidebar completed bucket', () => {
     expect(sidebar().getByRole('button', { name: 'Completed, 1 epic' }).getAttribute('aria-expanded')).toBe('false')
     fireEvent.click(within(screen.getByRole('main')).getByRole('button', { name: /Old work/ }))
     await settle()
-    expect(stub()).toBe(`alpha|${EPIC_C}|0`)
+    expect(stub()).toBe(`alpha|${EPIC_C}|1`)
     expect(sidebar().getByRole('button', { name: 'Completed, 1 epic' }).getAttribute('aria-expanded')).toBe('true')
     expect(sidebar().getByRole('button', { name: /Old work/ }).getAttribute('aria-current')).toBe('true')
   })
@@ -213,7 +216,7 @@ describe('App sidebar persistence', () => {
     first.unmount()
     h.mount()
     await settle()
-    expect(stub()).toBe(`alpha|${EPIC_B}|0`)
+    expect(stub()).toBe(`alpha|${EPIC_B}|1`)
   })
 })
 
@@ -283,6 +286,7 @@ it('uses one sidebar board quick link and clears a previously open card when it 
   seed()
   const card = cardView({ id: 'kc_direct', key: 'DM-37', title: 'Direct card' })
   h.dm.responses.listKanbanCards = { lanes: { backlog: [card], in_progress: [], ready_for_review: [], done: [] }, doneTotal: 0, doneNextCursor: null }
+  h.dm.responses.getKanbanOpenCount = 1
   h.dm.responses.getKanbanCard = card
   window.localStorage.setItem('dm.selection', JSON.stringify({ folderPath: '/a', epicId: null, kanban: true, kanbanCardId: card.id }))
   h.mount()

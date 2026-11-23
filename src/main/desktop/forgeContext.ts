@@ -1,22 +1,15 @@
 import { existsSync, lstatSync, readFileSync, realpathSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, sep } from 'node:path'
-import type { ForgeWorld } from '../../shared/desktop/forgeWorld'
+import { forgeWorldAt } from '../../core/repo/forgeManifest'
 import { FORGE_REPOSITORY_GUIDANCE, FORGE_DIRECTIONS } from './forgeDirections'
-import { FORGE_FILE, parseForge } from './forgeManifest'
+import { FORGE_FILE } from './forgeManifest'
 
 /** Lifecycle cleanup must recognize a world even while its manifest contains merge conflicts. */
 export function hasForgeManifest(root: string): boolean {
   return existsSync(join(root, FORGE_FILE))
 }
 
-/** Read an actual world root; a member folder never becomes a multi-project scope. */
-export function forgeWorldAt(root: string): ForgeWorld | undefined {
-  const file = join(root, FORGE_FILE)
-  if (!existsSync(file)) return undefined
-  const stat = lstatSync(file)
-  if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('Invalid Forge World manifest.')
-  return parseForge(readFileSync(file, 'utf8'))
-}
+export { forgeWorldAt } from '../../core/repo/forgeManifest'
 
 /** Only initialized, available tracked members supplied by the desktop can receive grants. */
 export function forgeReachFolders(root: string, tracked: readonly string[], conflictMembers?: readonly string[]): string[] | undefined {

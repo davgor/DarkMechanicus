@@ -13,7 +13,9 @@ describe('meta keys', () => {
       checkoutBranch: 'checkout_branch',
       lastFlushAt: 'last_flush_at',
       lastReconcileAt: 'last_reconcile_at',
-      reconcileProblems: 'reconcile_problems'
+      attachmentRegistration: 'attachment_registration',
+      reconcileProblems: 'reconcile_problems',
+      validatedRepositoryCache: 'validated_repository_cache'
     })
   })
 })

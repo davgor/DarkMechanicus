@@ -265,6 +265,24 @@ interface LeaseRow {
   epic_id: string
 }
 
+function overdueLeases(ctx: Ctx, now: string, runId?: string): LeaseRow[] {
+  const leased = ctx.db.all<LeaseRow>(
+    `SELECT a.id, a.run_id, a.ticket_id, a.lease_expires_at, r.epic_id
+     FROM attempts a JOIN runs r ON r.id = a.run_id
+     WHERE a.state IN ('claimed', 'running') AND (? IS NULL OR a.run_id = ?)
+       AND NOT (r.state = 'paused' AND IFNULL(r.pause_reason, '') = ?)
+       AND NOT EXISTS (SELECT 1 FROM tooling_held_attempts t JOIN tooling_holds h ON h.incident_id = t.incident_id
+         JOIN tooling_chat_grants cg ON cg.chat_id = h.chat_id JOIN grants g ON g.id = cg.grant_id
+         WHERE t.attempt_id = a.id AND t.kind = 'run' AND g.revoked_at IS NULL AND g.expires_at > ?)
+     ORDER BY a.rowid`,
+    runId ?? null,
+    runId ?? null,
+    SIGNED_OUT_PAUSE_REASON,
+    now
+  )
+  return leased.filter((row) => row.lease_expires_at !== null && isBefore(row.lease_expires_at, now))
+}
+
 /**
  * Lazily expires overdue leases (optionally only in one run): `claimed/running` attempts whose
  * lease ended before now become `lease_expired`, which requires reconciliation before a new claim.
@@ -273,22 +291,9 @@ interface LeaseRow {
  */
 export function expireLeases(ctx: Ctx, runId?: string): string[] {
   return ctx.db.tx(() => {
+    // A heartbeat or tooling hold may have committed while we waited for the lock.
     const now = ctx.clock.nowIso()
-    const leased = ctx.db.all<LeaseRow>(
-      `SELECT a.id, a.run_id, a.ticket_id, a.lease_expires_at, r.epic_id
-       FROM attempts a JOIN runs r ON r.id = a.run_id
-       WHERE a.state IN ('claimed', 'running') AND (? IS NULL OR a.run_id = ?)
-         AND NOT (r.state = 'paused' AND IFNULL(r.pause_reason, '') = ?)
-         AND NOT EXISTS (SELECT 1 FROM tooling_held_attempts t JOIN tooling_holds h ON h.incident_id = t.incident_id
-           JOIN tooling_chat_grants cg ON cg.chat_id = h.chat_id JOIN grants g ON g.id = cg.grant_id
-           WHERE t.attempt_id = a.id AND t.kind = 'run' AND g.revoked_at IS NULL AND g.expires_at > ?)
-       ORDER BY a.rowid`,
-      runId ?? null,
-      runId ?? null,
-      SIGNED_OUT_PAUSE_REASON,
-      now
-    )
-    const expired = leased.filter((row) => row.lease_expires_at !== null && isBefore(row.lease_expires_at, now))
+    const expired = overdueLeases(ctx, now, runId)
     for (const row of expired) {
       ctx.db.run("UPDATE attempts SET state = 'lease_expired', updated_at = ? WHERE id = ?", now, row.id)
       appendEvent(ctx, {
@@ -304,9 +309,14 @@ export function expireLeases(ctx: Ctx, runId?: string): string[] {
   })
 }
 
+/** WAL readers check for due leases without reserving SQLite's writer slot. */
+export function expireLeasesOnRead(ctx: Ctx, runId: string): string[] {
+  return overdueLeases(ctx, ctx.clock.nowIso(), runId).length === 0 ? [] : expireLeases(ctx, runId)
+}
+
 /** Expires the run's overdue leases, then computes its readiness. */
 export function runExecution(ctx: Ctx, runId: string): ExecutionSnapshot {
-  expireLeases(ctx, runId)
+  expireLeasesOnRead(ctx, runId)
   return executionOf(loadRunContext(ctx, runId))
 }
 

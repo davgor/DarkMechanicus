@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { defaultCapabilityProfile } from '../shared/domain/bundle'
 import { createHarness, type Harness } from '../test/workspaceHarness'
 import { pngBytes } from '../test/images'
+import { getMeta, META_KEYS } from './meta'
 import { nodeFs } from './repo/nodeFs'
 import { dbProjectDir, resolveStorageMode } from './repo/storageMode'
 import type { Db } from './db/database'
@@ -15,9 +16,16 @@ let harness: Harness
 beforeEach(() => { harness = createHarness() })
 afterEach(() => { harness.cleanup() })
 
-function records(db: Db): unknown {
+function records(db: Db, ...derivedKeys: string[]): unknown {
   const tables = db.all<{ name: string }>("SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'search_index_%' AND name <> 'sync_state' ORDER BY name")
-  return tables.map(({ name }) => [name, db.all(`SELECT * FROM "${name}"${name === 'meta' ? " WHERE key NOT IN ('checkout_branch', 'last_reconcile_at', 'reconcile_problems')" : ''}`).map((row) => JSON.stringify(row)).sort()])
+  const ignoredMeta = [META_KEYS.checkoutBranch, META_KEYS.lastReconcileAt, META_KEYS.reconcileProblems, ...derivedKeys]
+  const placeholders = ignoredMeta.map(() => '?').join(', ')
+  return tables.map(({ name }) => {
+    const rows = name === 'meta'
+      ? db.all(`SELECT * FROM meta WHERE key NOT IN (${placeholders})`, ...ignoredMeta)
+      : db.all(`SELECT * FROM "${name}"`)
+    return [name, rows.map((row) => JSON.stringify(row)).sort()]
+  })
 }
 
 function portableText(dir: string): string {
@@ -74,7 +82,12 @@ describe('storage mode migration', () => {
     expect(await workspace.getProject()).toEqual(projectBefore)
     await switchTo(workspace, 'db')
     expect(resolved()).toBe('db')
-    expect(records(workspace.ctx().db)).toEqual(before)
+    // The reverse migration verifies the portable records against the rebuilt database.
+    // Its derived cache markers should be present without changing any other stored row.
+    const rebuilt = workspace.ctx().db
+    const cacheMarkers = [META_KEYS.attachmentRegistration, META_KEYS.validatedRepositoryCache] as const
+    expect(cacheMarkers.map(key => getMeta(rebuilt, key))).toEqual(['1', '1'])
+    expect(records(rebuilt, ...cacheMarkers)).toEqual(before)
     expect(await workspace.getProject()).toEqual(projectBefore)
     expect(existsSync(dm)).toBe(false)
     expect(existsSync(join(dbProjectDir(harness.root, harness.homeDir), 'local', 'state.sqlite'))).toBe(true)

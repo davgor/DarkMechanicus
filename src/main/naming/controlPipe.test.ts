@@ -1,3 +1,4 @@
+import { testWorkspace } from '../desktop/__mocks__/projectWorkspaceFixture'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, statSync } from 'node:fs'
 import { createConnection, type Socket } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -17,6 +18,7 @@ import { createControlPipe, type ControlPipe, type NamingDispatcher, type Naming
 let root: string
 let repo: string
 let workspace: Workspace
+let projectClient: ReturnType<typeof testWorkspace>
 let grants: ChatGrants
 let clock: TestClock
 let logged: string[]
@@ -30,23 +32,24 @@ beforeEach(async () => {
   mkdirSync(repo)
   clock = createTestClock('2026-04-01T09:00:00.000Z')
   workspace = openWorkspace({ repoRoot: repo, homeDir: join(root, 'home'), role: 'desktop', label: 'test', transport: 'desktop', clock, git: createFakeGit({ branch: 'main', commit: 'b'.repeat(40), detached: false }) })
+  projectClient = testWorkspace(workspace)
   await workspace.initializeRepository({ name: 'transport-test' })
   logged = []
   servers = []
   sockets = []
   grants = createChatGrants({
-    workspaceFor: () => workspace,
+    workspaceFor: () => projectClient,
     cliFor: () => ({ command: 'node', args: [], env: {} }),
     minutes: 60, log: (line) => logged.push(line),
   })
   const grant = await grants.issueChatCli(repo, { role: 'worker', allowSave: false, label: 'worker' })
   issued = { token: grant.cli.env['DM_SESSION_TOKEN']!, grantId: grant.grantId }
-  grants.bindChatGrant(issued.grantId, { folder: repo, chatId: 'chat-one', generation: 'pty-one' })
+  await grants.bindChatGrant(issued.grantId, { folder: repo, chatId: 'chat-one', generation: 'pty-one' })
 })
 afterEach(async () => {
   for (const socket of sockets) { socket.destroy() }
   await Promise.all(servers.map((server) => server.close()))
-  grants.dispose()
+  await grants.dispose()
   workspace.close()
   rmSync(root, { recursive: true, force: true })
   vi.restoreAllMocks()
@@ -132,7 +135,7 @@ it('cancels an active handler on a subsequent extra frame with no late publicati
   const server = await endpoint(async (_operation, context) => {
     entered.open(context)
     await held.promise
-    context.publish(() => { published = true })
+    await context.publish(() => { published = true })
     return { applied: true }
   })
   const request = raw(server.address, [wire(NAME)], false)
@@ -176,7 +179,7 @@ it('expires blocked-active plus eight queued metadata operations at admission de
     calls += 1
     entered.open(context)
     await held.promise
-    context.publish(() => { published += 1 })
+    await context.publish(() => { published += 1 })
     return { applied: true }
   }, timers)
   const active = raw(server.address, [wire(NAME)])
@@ -220,7 +223,7 @@ it('treats a caller half-close as cancellation rather than authorizing detached 
   const held = gate<void>()
   let context: NamingOperationContext | undefined
   let published = false
-  const server = await endpoint(async (_operation, current) => { context = current; await held.promise; current.publish(() => { published = true }); return { applied: true } })
+  const server = await endpoint(async (_operation, current) => { context = current; await held.promise; await current.publish(() => { published = true }); return { applied: true } })
   const pending = raw(server.address, [wire(NAME)], true)
   // Windows named-pipe EOF may also close its read side, so a cancellation reply is not guaranteed.
   const reply = await pending.reply.catch(() => null)
@@ -257,7 +260,7 @@ it('cancels disconnected active work before final metadata publication', async (
   const server = await endpoint(async (_operation, context) => {
     entered.open(context)
     await held.promise
-    context.publish(() => { published = true })
+    await context.publish(() => { published = true })
     return { applied: true }
   })
   const socket = createConnection(server.address)
@@ -285,7 +288,7 @@ describe('live database authority over real sockets', () => {
     const server = await endpoint(async (_operation, context) => {
       entered.open(context)
       await held.promise
-      context.publish(() => { published = true })
+      await context.publish(() => { published = true })
       return { applied: true }
     })
     const pending = raw(server.address, [wire(NAME)])
@@ -294,7 +297,7 @@ describe('live database authority over real sockets', () => {
     if (reason === 'expiry') { clock.advanceSeconds(3601) }
     if (reason === 'machine') { workspace.ctx().db.run('UPDATE grants SET machine_id = ? WHERE id = ?', 'other-machine', issued.grantId) }
     if (reason === 'exit') { void grants.revokeChatGrant(issued.grantId) }
-    expect(() => context.publish(() => { published = true })).toThrow()
+    await expect(context.publish(() => { published = true })).rejects.toThrow()
     expect(await raw(server.address, [wire()]).reply).toMatchObject({ error: { code: 'unauthorized' } })
     await vi.waitFor(() => expect(context.signal.aborted).toBe(true))
     held.open()
@@ -309,18 +312,18 @@ describe('instance and generation isolation over real sockets', () => {
     expect(await raw(server.address, [wire(undefined, historical.cli.env['DM_SESSION_TOKEN']!)]).reply).toMatchObject({ error: { code: 'unauthorized' } })
     const otherRepo = join(root, 'other')
     mkdirSync(otherRepo)
-    expect(() => grants.bindChatGrant(historical.grantId, { folder: otherRepo, chatId: 'chat-one', generation: 'wrong' })).toThrow()
+    await expect(grants.bindChatGrant(historical.grantId, { folder: otherRepo, chatId: 'chat-one', generation: 'wrong' })).rejects.toThrow()
     const foreign = await workspace.issueGrant({ role: 'reader', label: 'not app-issued' })
     expect(await raw(server.address, [wire(undefined, foreign.token)]).reply).toMatchObject({ error: { code: 'unauthorized' } })
-    grants.bindChatGrant(historical.grantId, { folder: repo, chatId: 'chat-one', generation: 'pty-two' })
+    await grants.bindChatGrant(historical.grantId, { folder: repo, chatId: 'chat-one', generation: 'pty-two' })
     expect(await raw(server.address, [wire()]).reply).toMatchObject({ error: { code: 'unauthorized' } })
     expect(await raw(server.address, [wire(undefined, historical.cli.env['DM_SESSION_TOKEN']!)]).reply).toMatchObject({ error: { code: 'operation_unavailable' } })
-    grants.dispose()
+    await grants.dispose()
     expect(await raw(server.address, [wire(undefined, historical.cli.env['DM_SESSION_TOKEN']!)]).reply).toMatchObject({ error: { code: 'unauthorized' } })
   })
   it('rejects an old app token on a newly started instance even while its database grant remains usable', async () => {
     const replacement = createChatGrants({
-      workspaceFor: () => workspace, cliFor: () => ({ command: 'node', args: [], env: {} }),
+      workspaceFor: () => projectClient, cliFor: () => ({ command: 'node', args: [], env: {} }),
       minutes: 60, log: (line) => logged.push(line)
     })
     const server = await createControlPipe({ authorize: (token) => replacement.authorizeNaming(token) })
@@ -332,7 +335,8 @@ describe('instance and generation isolation over real sockets', () => {
   it('invalidates before a failing asynchronous revoke, without echoing the exception secret', async () => {
     let fail: (error: Error) => void = () => {}
     const revoke = new Promise<never>((_resolve, reject) => { fail = reject })
-    vi.spyOn(workspace, 'revokeGrant').mockImplementation(() => revoke)
+    const original = projectClient.call
+    vi.spyOn(projectClient, 'call').mockImplementation(((operation, ...args) => operation === 'revokeChatGrant' ? revoke : original(operation, ...args as never)) as typeof original)
     const server = await endpoint()
     const revoking = grants.revokeChatGrant(issued.grantId)
     expect(await raw(server.address, [wire()]).reply).toMatchObject({ error: { code: 'unauthorized' } })
@@ -348,7 +352,7 @@ it('cancels shutdown work, cleans timers/listeners and closes the real endpoint'
   const entered = gate<NamingOperationContext>()
   const held = gate<void>()
   let published = false
-  const server = await endpoint(async (_operation, context) => { entered.open(context); await held.promise; context.publish(() => { published = true }); return { applied: true } }, timers)
+  const server = await endpoint(async (_operation, context) => { entered.open(context); await held.promise; await context.publish(() => { published = true }); return { applied: true } }, timers)
   const request = raw(server.address, [wire(NAME)])
   const context = await entered.promise
   await server.close()
@@ -404,7 +408,7 @@ it('retires cooperative active work and queued mutations while shutdown also clo
     const cancelled = gate<void>()
     context.signal.addEventListener('abort', () => cancelled.open(), { once: true })
     await cancelled.promise
-    context.publish(() => { published = true })
+    await context.publish(() => { published = true })
     return { applied: true }
   }, timers)
   const active = raw(server.address, [wire(NAME)])
@@ -462,7 +466,7 @@ it('keeps serialized credentials and naming envelopes independently bounded befo
 
 it('admits an authenticated repair diagnostic larger than naming without enlarging naming authority', async () => {
   const planner = await grants.issueChatCli(repo, { role: 'planner', allowSave: false, label: 'repair caller' })
-  grants.bindChatGrant(planner.grantId, { folder: repo, chatId: 'repair-caller', generation: 'repair-generation' })
+  await grants.bindChatGrant(planner.grantId, { folder: repo, chatId: 'repair-caller', generation: 'repair-generation' })
   const dispatched = vi.fn(() => ({ applied: true }))
   const server = await endpoint(dispatched)
   const operation: NamingOperation = { op: 'recover_tooling', args: { action: 'escalate', incidentId: 'fixture',

@@ -10,14 +10,14 @@ interface NamingDeps {
 const normalized = (value: string): string => value.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').replace(/\s+/gu, ' ').trim()
 /** Authenticated metadata publication; manual and system titles always win at the final synchronous fence. */
 export function createNamingDispatcher(deps: NamingDeps): NamingDispatcher {
-  return (input, context) => {
+  return async (input, context) => {
     const parsed = namingOperationSchema.safeParse(input)
     if (!parsed.success || parsed.data.op !== 'name_chat') throw new NamingControlError('invalid_request')
     const args = parsed.data.args
     const { binding } = context
     const ref = { folder: binding.folder, id: binding.chatId }
     let applied = false
-    context.publish(() => {
+    await context.publish(() => {
       const chat = deps.store.getChat(ref)
       if (!chat) throw new NamingControlError('not_found')
       if (chat.titleStatus !== 'pending' || chat.firstPrompt === undefined || chat.runId !== undefined || chat.transferEpicId !== undefined || chat.cardId !== undefined) return

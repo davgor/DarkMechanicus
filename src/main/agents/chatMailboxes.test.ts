@@ -17,7 +17,7 @@ import type { ChatRecord } from '../../shared/agents/chat'
 import { createSequentialIds, createTestClock } from '../../test/testContext'
 import { createFakeGit, TEST_STORAGE } from '../../test/workspaceHarness'
 import { buildCliConfig } from '../desktop/cliConfig'
-import { createWorkspacePool, type WorkspacePool } from '../desktop/workspacePool'
+import { createTestWorkspacePool as createWorkspacePool, type TestWorkspacePool as WorkspacePool } from '../desktop/__mocks__/projectWorkspaceFixture'
 import { builtInAgent, connectedAgents, folderOf } from './__mocks__/chatFixtures'
 import { createChatGrants, type ChatGrants, type GrantChat } from './chatGrants'
 import { createChatMailboxes, type ChatMailboxes } from './chatMailboxes'
@@ -42,9 +42,9 @@ beforeEach(() => {
   pools = []
 })
 
-afterEach(() => {
+afterEach(async () => {
   for (const workspace of opened) workspace.close()
-  for (const pool of pools) pool.closeAll()
+  for (const pool of pools) await pool.closeAll()
   rmSync(root, { recursive: true, force: true })
 })
 
@@ -74,7 +74,7 @@ interface RigOptions {
   contextError?: unknown
   removeOmpFolder?: (chatId: string) => Promise<void>
   /** Wraps each pooled workspace, once, for a test that acts between its steps. */
-  wrap?: (workspace: Workspace) => Workspace
+  wrap?: (workspace: ReturnType<WorkspacePool['get']>) => ReturnType<WorkspacePool['get']>
   desktopReady?: () => Promise<void>
   newId?: () => string
 }
@@ -103,10 +103,10 @@ async function rig(options: RigOptions = {}): Promise<Rig> {
   return build({ pool, tracked: new Set([repoA, repoB]), openAgent }, options)
 }
 
-function trackedWorkspace(desktop: Desktop, options: RigOptions): (folder: string) => Workspace {
+function trackedWorkspace(desktop: Desktop, options: RigOptions): (folder: string) => ReturnType<WorkspacePool['get']> {
   const { pool, tracked } = desktop
-  const wrapped = new WeakMap<Workspace, Workspace>()
-  return (folder: string): Workspace => {
+  const wrapped = new WeakMap<ReturnType<WorkspacePool['get']>, ReturnType<WorkspacePool['get']>>()
+  return (folder: string) => {
     if (!tracked.has(folder)) throw new DomainError('unauthorized', 'That folder is not tracked by Dark Mechanicus.')
     const workspace = pool.get(folder)
     if (options.wrap === undefined) return workspace
@@ -123,9 +123,9 @@ function build(desktop: Desktop, options: RigOptions): Rig {
   const store = createChatStore({ root: join(root, 'chats'), fs: options.storeFs ?? nodeChatStoreFs, ...(options.newId === undefined ? {} : { newId: options.newId }) })
   const mailboxes = createChatMailboxes({
     ...(options.membersFor === undefined ? {} : { membersFor: options.membersFor }),
-    contextFor: (folder) => {
+    workspaceFor: (folder) => {
       if (options.contextFails?.() === true) throw options.contextError ?? new Error('database is locked')
-      return workspaceFor(folder).ctx()
+      return workspaceFor(folder)
     },
     store,
     ledger: { file: join(root, 'mailboxes.jsonl'), fs: nodeChatStoreFs },
@@ -171,8 +171,8 @@ async function issueFor(grants: ChatGrants, chat: ChatRecord, kind: string): Pro
   return { grantId: issued.grantId, token: issued.cli.env['DM_SESSION_TOKEN'] ?? '', endpointId: issued.endpointId }
 }
 
-function newOmp(state: Rig, folder: string, title: string): ChatRecord {
-  return state.records.createChat({ folder, agent: 'omp', role: 'worker', title })
+async function newOmp(state: Rig, folder: string, title: string): Promise<ChatRecord> {
+  return await state.records.createChat({ folder, agent: 'omp', role: 'worker', title })
 }
 
 describe('Forge World mailbox lifecycle', () => {
@@ -180,28 +180,28 @@ describe('Forge World mailbox lifecycle', () => {
     let members = [repoA, repoB]
     const options = { membersFor: (folder: string) => folder === root ? members : undefined }
     const state = await rig(options)
-    const chat = newOmp(state, root, 'World work')
+    const chat = await newOmp(state, root, 'World work')
     expect(chat.endpointId).toBeUndefined()
-    const routes = state.mailboxes.routes(chat)
+    const routes = await state.mailboxes.routes(chat)
     expect(routes.map(route => route.folder)).toEqual([repoA, repoB])
-    state.records.renameChat(chat, 'Renamed world')
+    await state.records.renameChat(chat, 'Renamed world')
     for (const folder of members) expect(state.endpoint({ ...chat, folder })?.name).toBe('Renamed world')
     // Listing ordinary project chats must not collect the root chat's member endpoint as an orphan.
     await state.records.recoverFolder(repoA)
     expect(state.endpoint({ ...chat, folder: repoA })?.state).toBe('open')
     members = [repoB]
     const restarted = state.restart(options)
-    restarted.mailboxes.recover(root, [chat])
-    expect(restarted.mailboxes.routes(chat)).toEqual([routes[1]])
+    await restarted.mailboxes.recover(root, [chat])
+    expect(await restarted.mailboxes.routes(chat)).toEqual([routes[1]])
     expect(state.endpoint({ ...chat, folder: repoA })?.state).toBe('suspended')
-    restarted.mailboxes.delete(chat)
+    await restarted.mailboxes.delete(chat)
     for (const folder of [repoA, repoB]) expect(state.endpoint({ ...chat, folder })?.state).toBe('deleted')
   })
 
   it('suspends root-owned endpoints when a member alone is untracked', async () => {
     const state = await rig({ membersFor: folder => folder === root ? [repoA, repoB] : undefined })
-    const chat = newOmp(state, root, 'World work')
-    state.mailboxes.suspendFolder(repoA, [])
+    const chat = await newOmp(state, root, 'World work')
+    await state.mailboxes.suspendFolder(repoA, [])
     expect(state.endpoint({ ...chat, folder: repoA })?.state).toBe('suspended')
     expect(state.endpoint({ ...chat, folder: repoB })?.state).toBe('open')
   })
@@ -213,10 +213,10 @@ describe('Forge World mailbox lifecycle', () => {
       if (broken) throw new Error('merge conflict')
       return [repoA, repoB]
     } })
-    const chat = newOmp(state, root, 'World work')
+    const chat = await newOmp(state, root, 'World work')
     broken = true
-    state.mailboxes.reconcile(root, [chat])
-    expect(state.mailboxes.routes(chat)).toEqual([])
+    await state.mailboxes.reconcile(root, [chat])
+    expect(await state.mailboxes.routes(chat)).toEqual([])
     expect(state.endpoint({ ...chat, folder: repoA })?.state).toBe('open')
     expect(state.endpoint({ ...chat, folder: repoB })?.state).toBe('open')
   })
@@ -227,45 +227,45 @@ describe('Forge World mailbox cleanup after mappings disappear', () => {
     let members = [repoA, repoB]
     const options = { membersFor: (folder: string) => folder === root ? members : undefined }
     const state = await rig(options)
-    const chat = newOmp(state, root, 'World work')
+    const chat = await newOmp(state, root, 'World work')
     state.tracked.delete(repoA)
     members = [repoB]
-    expect(() => state.mailboxes.delete(chat)).not.toThrow()
+    await expect(state.mailboxes.delete(chat)).resolves.toBeUndefined()
     expect(state.endpoint({ ...chat, folder: repoA })?.state).toBe('open')
     state.tracked.add(repoA)
     const restarted = state.restart(options)
     await restarted.records.recoverFolder(repoA)
     expect(state.endpoint({ ...chat, folder: repoA })?.state).toBe('deleted')
     members = [repoA, repoB]
-    expect(restarted.mailboxes.reconcile(root, [chat]).deleting).toEqual([chat])
-    expect(restarted.mailboxes.routes(chat)).toEqual([])
+    expect((await restarted.mailboxes.reconcile(root, [chat])).deleting).toEqual([chat])
+    expect(await restarted.mailboxes.routes(chat)).toEqual([])
   })
 
   it('records a conflict resolver binding even when the current manifest cannot be read', async () => {
     const state = await rig({ membersFor: folder => { if (folder === root) throw new Error('merge conflict'); return undefined } })
-    const chat = newOmp(state, root, 'Conflict resolver')
+    const chat = await newOmp(state, root, 'Conflict resolver')
     const target = { folder: repoA, tokenFile: join(root, 'private', 'grant.token') }
     const issued = await state.grants.issueReachCli([target], { role: 'worker', allowSave: false, label: 'Resolver' }, root, { ...chat, kind: 'omp' })
     expect(state.endpoint({ ...chat, folder: repoA })?.state).toBe('open')
     await state.grants.revokeChatGrant(issued.grantIds[0]!)
-    state.mailboxes.delete(chat)
+    await state.mailboxes.delete(chat)
     expect(state.endpoint({ ...chat, folder: repoA })?.state).toBe('deleted')
   })
 
   it('keeps archived root mailboxes suspended across recovery and leaves another chat open', async () => {
     const options = { membersFor: (folder: string) => folder === root ? [repoA, repoB] : undefined }
     const state = await rig(options)
-    const chat = newOmp(state, root, 'Archived resolver')
-    const other = newOmp(state, root, 'Live world work')
-    state.mailboxes.suspendChat(chat)
+    const chat = await newOmp(state, root, 'Archived resolver')
+    const other = await newOmp(state, root, 'Live world work')
+    await state.mailboxes.suspendChat(chat)
     const archived = { ...chat, archived: true }
     const restarted = state.restart(options)
-    restarted.mailboxes.recover(root, [archived, other])
+    await restarted.mailboxes.recover(root, [archived, other])
     for (const folder of [repoA, repoB]) {
       expect(state.endpoint({ ...chat, folder })?.state).toBe('suspended')
       expect(state.endpoint({ ...other, folder })?.state).toBe('open')
     }
-    expect(restarted.mailboxes.routes(archived)).toEqual([])
+    expect(await restarted.mailboxes.routes(archived)).toEqual([])
   })
 })
 
@@ -274,26 +274,26 @@ describe('Forge World durable deletion failures', () => {
     let failing = false
     const options = { membersFor: (folder: string) => folder === root ? [repoA] : undefined, contextFails: () => failing }
     const state = await rig(options)
-    const chat = newOmp(state, root, 'Delete me')
+    const chat = await newOmp(state, root, 'Delete me')
     failing = true
-    expect(() => state.mailboxes.delete(chat)).toThrow('database is locked')
+    await expect(state.mailboxes.delete(chat)).rejects.toThrow('database is locked')
     const persisted = readFileSync(join(root, 'mailboxes.jsonl'), 'utf8')
     const restarted = state.restart(options)
-    expect(() => restarted.mailboxes.delete(chat)).toThrow('database is locked')
+    await expect(restarted.mailboxes.delete(chat)).rejects.toThrow('database is locked')
     expect(readFileSync(join(root, 'mailboxes.jsonl'), 'utf8')).toBe(persisted)
     expect(() => restarted.mailboxes.recordRoute(root, repoA, chat.id)).toThrow('was deleted')
-    expect(restarted.mailboxes.routes(chat)).toEqual([])
+    expect(await restarted.mailboxes.routes(chat)).toEqual([])
     failing = false
-    expect(restarted.mailboxes.reconcile(root, [chat]).deleting).toEqual([chat])
+    expect((await restarted.mailboxes.reconcile(root, [chat])).deleting).toEqual([chat])
     expect(state.endpoint({ ...chat, folder: repoA })?.state).toBe('deleted')
   })
 
   it('deletes a lost root chat endpoint without collecting a member chat or a live root', async () => {
     const options = { membersFor: (folder: string) => folder === root ? [repoA] : undefined }
     const state = await rig(options)
-    const lost = newOmp(state, root, 'Lost root')
-    const live = newOmp(state, root, 'Live root')
-    const member = newOmp(state, repoA, 'Member')
+    const lost = await newOmp(state, root, 'Lost root')
+    const live = await newOmp(state, root, 'Live root')
+    const member = await newOmp(state, repoA, 'Member')
     state.store.deleteChat(lost)
     await state.restart(options).records.recoverFolder(root)
     expect(state.endpoint({ ...lost, folder: repoA })?.state).toBe('deleted')
@@ -306,30 +306,30 @@ describe('Forge World route availability', () => {
   it('omits unavailable and suspended routes, then resumes the same endpoint on reconciliation', async () => {
     let failing = false
     const state = await rig({ membersFor: folder => folder === root ? [repoA] : undefined, contextFails: () => failing })
-    const chat = newOmp(state, root, 'World')
-    const routes = state.mailboxes.routes(chat)
+    const chat = await newOmp(state, root, 'World')
+    const routes = await state.mailboxes.routes(chat)
     failing = true
-    expect(state.mailboxes.routes(chat)).toEqual([])
+    expect(await state.mailboxes.routes(chat)).toEqual([])
     failing = false
-    state.mailboxes.suspendFolder(root, [chat])
-    expect(state.mailboxes.routes(chat)).toEqual([])
-    state.mailboxes.reconcile(root, [chat])
-    expect(state.mailboxes.routes(chat)).toEqual(routes)
+    await state.mailboxes.suspendFolder(root, [chat])
+    expect(await state.mailboxes.routes(chat)).toEqual([])
+    await state.mailboxes.reconcile(root, [chat])
+    expect(await state.mailboxes.routes(chat)).toEqual(routes)
     expect(state.logged).toEqual([expect.stringContaining('read world mailbox routes')])
   })
 
   it('archives ordinary chats without touching another chat and gives unprovisioned chats no route', async () => {
     const state = await rig()
-    const chat = newOmp(state, repoA, 'Archive')
-    const other = newOmp(state, repoA, 'Keep')
-    expect(state.mailboxes.routes(chat)).toEqual([{ folder: repoA, endpointId: chat.endpointId }])
-    expect(state.mailboxes.routes({ ...chat, endpointId: undefined })).toEqual([])
+    const chat = await newOmp(state, repoA, 'Archive')
+    const other = await newOmp(state, repoA, 'Keep')
+    expect(await state.mailboxes.routes(chat)).toEqual([{ folder: repoA, endpointId: chat.endpointId }])
+    expect(await state.mailboxes.routes({ ...chat, endpointId: undefined })).toEqual([])
     for (const excluded of [{ ...chat, folder: null }, { ...chat, agent: 'claude' }]) {
-      state.mailboxes.suspendChat(excluded)
-      expect(state.mailboxes.routes(excluded)).toEqual([])
+      await state.mailboxes.suspendChat(excluded)
+      expect(await state.mailboxes.routes(excluded)).toEqual([])
     }
-    state.mailboxes.suspendChat(chat)
-    state.mailboxes.recover(repoA, [{ ...chat, archived: true }, other])
+    await state.mailboxes.suspendChat(chat)
+    await state.mailboxes.recover(repoA, [{ ...chat, archived: true }, other])
     expect(state.endpoint(chat)?.state).toBe('suspended')
     expect(state.endpoint(other)?.state).toBe('open')
   })
@@ -338,7 +338,7 @@ describe('Forge World route availability', () => {
 describe('legacy mailbox ledger recovery', () => {
   it('retains valid legacy ownership while ignoring malformed records and deletes only its orphan', async () => {
     const state = await rig()
-    const chat = newOmp(state, repoA, 'Legacy')
+    const chat = await newOmp(state, repoA, 'Legacy')
     const foreign = provisionAgentMailEndpoint(state.pool.get(repoA).ctx(), { chatId: 'chat_foreign', name: 'Foreign' })
     writeFileSync(join(root, 'mailboxes.jsonl'), JSON.stringify({ folder: repoA, chatId: chat.id }) + '\n')
     appendFileSync(join(root, 'mailboxes.jsonl'), '{"folder":7,"chatId":"chat_foreign"}\n{"folder":"truncated"\n')
@@ -354,11 +354,11 @@ describe('legacy mailbox ledger recovery', () => {
 describe('world mailbox boundaries', () => {
   it('never opens a mapped Forge World root as a member database', async () => {
     const state = await rig({ membersFor: folder => folder === root ? [repoA] : undefined })
-    const chat = newOmp(state, root, 'World')
+    const chat = await newOmp(state, root, 'World')
     writeFileSync(join(repoA, 'forge-world.json'), '{}')
-    state.mailboxes.suspendFolder(root, [chat])
-    expect(state.mailboxes.routes(chat)).toEqual([])
-    state.mailboxes.reconcile(root, [chat])
+    await state.mailboxes.suspendFolder(root, [chat])
+    expect(await state.mailboxes.routes(chat)).toEqual([])
+    await state.mailboxes.reconcile(root, [chat])
     expect(state.endpoint({ ...chat, folder: repoA })?.state).toBe('open')
     expect(state.logged).toEqual([])
   })
@@ -385,13 +385,13 @@ describe('chat mailboxes: stable and discoverable', () => {
     const custom = state.store.createChat({ folder: repoA, agent: CUSTOM_ID, model: null, role: 'worker', allowSave: false, title: 'Mine' })
     expect(legacy.endpointId).toBeUndefined()
 
-    const listed = state.records.listChats(repoA)
+    const listed = await state.records.listChats(repoA)
     const endpointId = listed.find((chat) => chat.id === legacy.id)?.endpointId
     expect(endpointId).toMatch(/^me_/)
     expect(listed.find((chat) => chat.id === claude.id)?.endpointId).toBeUndefined()
     expect(listed.find((chat) => chat.id === custom.id)?.endpointId).toBeUndefined()
 
-    const sender = newOmp(state, repoA, 'Sender')
+    const sender = await newOmp(state, repoA, 'Sender')
     const issued = await state.issue(sender)
     expect(issued.endpointId).toBe(sender.endpointId)
     const agent = state.agent(repoA, issued.token)
@@ -400,17 +400,17 @@ describe('chat mailboxes: stable and discoverable', () => {
     expect(messagesTo(state, repoA, endpointId ?? '')).toBe(1)
 
     // The same id on every list, after a restart, and in the index on disk.
-    expect(state.records.listChats(repoA).find((chat) => chat.id === legacy.id)?.endpointId).toBe(endpointId)
+    expect((await state.records.listChats(repoA)).find((chat) => chat.id === legacy.id)?.endpointId).toBe(endpointId)
     const again = state.restart()
-    expect(again.records.listChats(repoA).find((chat) => chat.id === legacy.id)?.endpointId).toBe(endpointId)
+    expect((await again.records.listChats(repoA)).find((chat) => chat.id === legacy.id)?.endpointId).toBe(endpointId)
     expect(again.store.getChat(legacy)?.endpointId).toBe(endpointId)
   })
 
   it('binds no grant of another CLI’s chat, a custom CLI or an external grant, and provisions nothing for them', async () => {
     const state = await rig()
-    const claude = state.records.createChat({ folder: repoA, agent: 'claude', role: 'worker', title: 'Claude' })
-    const custom = state.records.createChat({ folder: repoA, agent: CUSTOM_ID, role: 'worker', title: 'Mine' })
-    const omp = newOmp(state, repoA, 'Skitarius')
+    const claude = await state.records.createChat({ folder: repoA, agent: 'claude', role: 'worker', title: 'Claude' })
+    const custom = await state.records.createChat({ folder: repoA, agent: CUSTOM_ID, role: 'worker', title: 'Mine' })
+    const omp = await newOmp(state, repoA, 'Skitarius')
 
     const results = [await state.issue(claude, 'claude'), await state.issue(custom, 'custom'), await state.issue(omp, 'custom')]
     const external = await state.grants.issueChatCli(repoA, { role: 'worker', allowSave: false, label: 'External' })
@@ -426,16 +426,16 @@ describe('chat mailboxes: project-less chats', () => {
   it('gives a project-less OMP chat no mailbox: its records reach no folder’s database and its grants are bound to none', async () => {
     // Every mailbox call that reaches a folder's database fails, so one made for the project-less chat shows.
     const state = await rig({ contextFails: () => true, contextError: new Error('no folder’s database may be reached') })
-    const chat = state.records.createChat({ folder: null, agent: 'omp', role: 'orchestrator', title: 'Summoned' })
-    expect(state.records.listChats(null).map((listed) => listed.endpointId)).toEqual([undefined])
-    const renamed = state.records.renameChat(chat, 'Renamed')
+    const chat = await state.records.createChat({ folder: null, agent: 'omp', role: 'orchestrator', title: 'Summoned' })
+    expect((await state.records.listChats(null)).map((listed) => listed.endpointId)).toEqual([undefined])
+    const renamed = await state.records.renameChat(chat, 'Renamed')
 
     const reach = await state.grants.issueReachCli([{ folder: repoA, tokenFile: join(root, 'reach-a.token') }], { role: 'orchestrator', allowSave: true, label: renamed.title })
     expect(reach.grantIds.map((grantId) => getBinding(state.pool.get(repoA).ctx(), grantId))).toEqual([null])
     await state.records.deleteChat(renamed)
 
     expect(renamed.endpointId).toBeUndefined()
-    expect(state.records.listChats(null)).toEqual([])
+    expect(await state.records.listChats(null)).toEqual([])
     expect(state.logged).toEqual([])
   })
 })
@@ -443,15 +443,15 @@ describe('chat mailboxes: project-less chats', () => {
 describe('chat mailboxes: identity across restarts, folders and crashes', () => {
   it('keeps one mailbox and its unread mail through stop, restart and rename; old grants stay unbound', async () => {
     const state = await rig()
-    const chat = newOmp(state, repoA, 'Worker')
-    const peer = newOmp(state, repoA, 'Peer')
+    const chat = await newOmp(state, repoA, 'Worker')
+    const peer = await newOmp(state, repoA, 'Peer')
     const first = await state.issue(chat)
     const peerGrant = await state.issue(peer)
     await state.agent(repoA, peerGrant.token).sendAgentMessage({ to: chat.endpointId ?? '', clientMessageId: 'm1', body: 'Unread while you were away.' })
 
     // The terminal stops: its grant is revoked and its binding closed.
     await state.grants.revokeChatGrant(first.grantId)
-    const renamed = state.records.renameChat(chat, 'Worker, renamed')
+    const renamed = await state.records.renameChat(chat, 'Worker, renamed')
     const second = await state.issue(renamed)
 
     expect([first.endpointId, second.endpointId, renamed.endpointId]).toEqual([chat.endpointId, chat.endpointId, chat.endpointId])
@@ -465,8 +465,8 @@ describe('chat mailboxes: identity across restarts, folders and crashes', () => 
 
   it('isolates the same chat id in two folders: two mailboxes, and deleting one leaves the other', async () => {
     const state = await rig({ newId: () => 'chat_same' })
-    const inA = newOmp(state, repoA, 'Same')
-    const inB = newOmp(state, repoB, 'Same')
+    const inA = await newOmp(state, repoA, 'Same')
+    const inB = await newOmp(state, repoB, 'Same')
 
     expect(inA.id).toBe(inB.id)
     expect(inA.endpointId).not.toBe(inB.endpointId)
@@ -474,7 +474,7 @@ describe('chat mailboxes: identity across restarts, folders and crashes', () => 
 
     expect(state.endpoint(inA)?.state).toBe('deleted')
     expect(state.endpoint(inB)).toMatchObject({ id: inB.endpointId, state: 'open' })
-    expect(state.records.listChats(repoB).map((chat) => chat.endpointId)).toEqual([inB.endpointId])
+    expect((await state.records.listChats(repoB)).map((chat) => chat.endpointId)).toEqual([inB.endpointId])
   })
 
   it('finds the same endpoint after a crash between the SQLite commit and the index line', async () => {
@@ -488,21 +488,21 @@ describe('chat mailboxes: identity across restarts, folders and crashes', () => 
     const before = await rig({ storeFs: crashing })
     const chat = before.store.createChat({ folder: repoA, agent: 'omp', model: null, role: 'worker', allowSave: false, title: 'Crashy' })
 
-    expect(before.records.listChats(repoA)[0]?.endpointId).toBeUndefined()
+    expect((await before.records.listChats(repoA))[0]?.endpointId).toBeUndefined()
     const committed = before.endpoint(chat)
     expect(committed?.state).toBe('open')
     expect(before.logged).toEqual([expect.stringContaining(chat.id)])
 
     const after = before.restart()
-    expect(after.records.listChats(repoA)[0]?.endpointId).toBe(committed?.id)
+    expect((await after.records.listChats(repoA))[0]?.endpointId).toBe(committed?.id)
   })
 })
 
 describe('chat mailboxes: deletion', () => {
   it('closes the mailbox first, purges its received mail and leaves its sent mail with a deleted sender', async () => {
     const state = await rig()
-    const doomed = newOmp(state, repoA, 'Doomed')
-    const peer = newOmp(state, repoA, 'Peer')
+    const doomed = await newOmp(state, repoA, 'Doomed')
+    const peer = await newOmp(state, repoA, 'Peer')
     const doomedGrant = await state.issue(doomed)
     const peerGrant = await state.issue(peer)
     const doomedAgent = state.agent(repoA, doomedGrant.token)
@@ -526,7 +526,7 @@ describe('chat mailboxes: deletion', () => {
     // The project's lib target predates Promise.withResolvers; the terminal rig's gate is the same thing.
     const ready = gate<void>()
     const state = await rig({ desktopReady: () => ready.promise })
-    const chat = newOmp(state, repoA, 'Racing')
+    const chat = await newOmp(state, repoA, 'Racing')
 
     const issuing = state.issue(chat)
     await state.records.deleteChat(chat)
@@ -535,22 +535,22 @@ describe('chat mailboxes: deletion', () => {
     await expect(issuing).rejects.toMatchObject({ code: 'invalid_state' })
     expect(state.endpoint(chat)?.state).toBe('deleted')
     expect(liveGrants(state, repoA)).toEqual([])
-    expect(state.records.listChats(repoA)).toEqual([])
+    expect(await state.records.listChats(repoA)).toEqual([])
   })
 
   it('keeps a chat whose mailbox deletion storage cannot record, visible and deletable again', async () => {
     let failing = false
     const state = await rig({ contextFails: () => failing })
-    const chat = newOmp(state, repoA, 'Keep me')
+    const chat = await newOmp(state, repoA, 'Keep me')
     failing = true
 
     await expect(state.records.deleteChat(chat)).rejects.toThrow('database is locked')
     failing = false
-    expect(state.records.listChats(repoA).map((listed) => listed.id)).toEqual([chat.id])
+    expect((await state.records.listChats(repoA)).map((listed) => listed.id)).toEqual([chat.id])
     expect(state.endpoint(chat)?.state).toBe('open')
 
     await state.records.deleteChat(chat)
-    expect(state.records.listChats(repoA)).toEqual([])
+    expect(await state.records.listChats(repoA)).toEqual([])
     expect(state.endpoint(chat)?.state).toBe('deleted')
   })
 })
@@ -562,13 +562,13 @@ describe('chat mailboxes: recovery at startup', () => {
         throw new Error('The app crashed while removing the chat’s files.')
       }
     })
-    const chat = newOmp(state, repoA, 'Half deleted')
+    const chat = await newOmp(state, repoA, 'Half deleted')
     await expect(state.records.deleteChat(chat)).rejects.toThrow('crashed')
     expect(state.store.getChat(chat)).not.toBeNull()
 
     const removed: string[] = []
     const after = state.restart({ removeOmpFolder: async (chatId) => void removed.push(chatId) })
-    expect(after.mailboxes.reconcile(repoA, after.store.listChats(repoA))).toMatchObject({ chats: [], deleting: [expect.objectContaining({ id: chat.id })] })
+    expect(await after.mailboxes.reconcile(repoA, after.store.listChats(repoA))).toMatchObject({ chats: [], deleting: [expect.objectContaining({ id: chat.id })] })
     await after.records.recoverFolder(repoA)
 
     expect(after.store.getChat(chat)).toBeNull()
@@ -578,7 +578,7 @@ describe('chat mailboxes: recovery at startup', () => {
 
   it('deletes at startup the open mailbox this installation provisioned for a chat whose record is gone, and leaves one it never did', async () => {
     const state = await rig()
-    const lost = newOmp(state, repoA, 'Lost')
+    const lost = await newOmp(state, repoA, 'Lost')
     const ctx = state.pool.get(repoA).ctx()
     const foreign = provisionAgentMailEndpoint(ctx, { chatId: 'chat_of_another_installation', name: 'Foreign' })
     // The index lost the chat's lines (a restored or damaged index), while the database kept its mailbox open.
@@ -594,10 +594,10 @@ describe('chat mailboxes: recovery at startup', () => {
 describe('chat mailboxes: untrack and track again', () => {
   it('suspends on untrack and binds only a fresh grant after the folder is tracked again', async () => {
     const state = await rig()
-    const chat = newOmp(state, repoA, 'Suspended')
+    const chat = await newOmp(state, repoA, 'Suspended')
     const old = await state.issue(chat)
 
-    state.mailboxes.suspendFolder(repoA, state.store.listChats(repoA))
+    await state.mailboxes.suspendFolder(repoA, state.store.listChats(repoA))
     state.tracked.delete(repoA)
     state.pool.close(repoA)
     expect(state.endpoint(chat)?.state).toBe('suspended')
@@ -605,7 +605,7 @@ describe('chat mailboxes: untrack and track again', () => {
     await expect(state.agent(repoA, old.token).readAgentInbox({})).rejects.toMatchObject({ code: 'unauthorized' })
 
     state.tracked.add(repoA)
-    expect(state.records.listChats(repoA)[0]?.endpointId).toBe(chat.endpointId)
+    expect((await state.records.listChats(repoA))[0]?.endpointId).toBe(chat.endpointId)
     expect(state.endpoint(chat)?.state).toBe('open')
     // The old grant is still unexpired and unrevoked here, and still never binds again.
     expect(() => bindAgentMailEndpoint(state.pool.get(repoA).ctx(), { endpointId: chat.endpointId ?? '', grantId: old.grantId })).toThrow(
@@ -623,18 +623,19 @@ describe('chat mailboxes: untrack and track again', () => {
     state = await rig({
       wrap: (workspace) => ({
         ...workspace,
-        issueGrant: async (input: Parameters<Workspace['issueGrant']>[0]) => {
-          const issued = await workspace.issueGrant(input)
+        call: (async (operation, ...args) => {
+          const issued = await workspace.call(operation, ...args)
+          if (operation !== 'issueChatGrant') return issued
           // The person untracks the folder between the grant's issue and its binding.
           const self = state as Rig
-          self.mailboxes.suspendFolder(repoA, self.store.listChats(repoA))
+          await self.mailboxes.suspendFolder(repoA, self.store.listChats(repoA))
           self.tracked.delete(repoA)
           self.pool.close(repoA)
           return issued
-        }
+        }) as typeof workspace.call
       })
     })
-    const chat = newOmp(state, repoA, 'Untracked mid-start')
+    const chat = await newOmp(state, repoA, 'Untracked mid-start')
 
     await expect(state.issue(chat)).rejects.toMatchObject({ code: 'unauthorized' })
 
@@ -648,7 +649,7 @@ describe('chat mailboxes: names and never-provisioned chats', () => {
     const state = await rig()
     const blank = state.store.createChat({ folder: repoA, agent: 'omp', model: null, role: 'worker', allowSave: false, title: '   ' })
 
-    const endpointId = state.records.listChats(repoA)[0]?.endpointId
+    const endpointId = (await state.records.listChats(repoA))[0]?.endpointId
     expect(endpointId).toMatch(/^me_/)
     expect(state.endpoint(blank)).toMatchObject({ id: endpointId, name: 'Chat', state: 'open' })
     expect(state.logged).toEqual([])
@@ -675,14 +676,14 @@ describe('chat mailboxes: a tracked folder never set up for Dark Mechanicus', ()
     mkdirSync(bare)
     state.tracked.add(bare)
 
-    const chat = newOmp(state, bare, 'No database')
+    const chat = await newOmp(state, bare, 'No database')
     expect(chat.endpointId).toBeUndefined()
-    expect(state.records.listChats(bare).map((listed) => listed.endpointId)).toEqual([undefined])
-    expect(state.records.renameChat(chat, 'Still none').title).toBe('Still none')
+    expect((await state.records.listChats(bare)).map((listed) => listed.endpointId)).toEqual([undefined])
+    expect((await state.records.renameChat(chat, 'Still none')).title).toBe('Still none')
     await state.records.recoverFolder(bare)
     await state.records.deleteChat(chat)
 
-    expect(state.records.listChats(bare)).toEqual([])
+    expect(await state.records.listChats(bare)).toEqual([])
     expect(state.logged).toEqual([])
   })
 })
@@ -691,25 +692,25 @@ describe('chat mailboxes: storage that cannot be reached', () => {
   it('renames the chat but logs that its mailbox kept the old name, and a later rename catches up', async () => {
     let failing = false
     const state = await rig({ contextFails: () => failing })
-    const chat = newOmp(state, repoA, 'Before')
+    const chat = await newOmp(state, repoA, 'Before')
     failing = true
 
-    expect(state.records.renameChat(chat, 'After').title).toBe('After')
+    expect((await state.records.renameChat(chat, 'After')).title).toBe('After')
     failing = false
     expect(state.logged).toEqual([`Could not rename the mailbox of chat ${chat.id} in ${repoA}: database is locked`])
     expect(state.endpoint(chat)).toMatchObject({ id: chat.endpointId, name: 'Before' })
 
-    state.records.renameChat(chat, 'After, again')
+    await state.records.renameChat(chat, 'After, again')
     expect(state.endpoint(chat)).toMatchObject({ id: chat.endpointId, name: 'After, again' })
   })
 
   it('leaves the mailboxes open on untrack and says so, readably even for a thrown non-Error', async () => {
     let failing = false
     const state = await rig({ contextFails: () => failing, contextError: 'SQLITE_BUSY' })
-    const chat = newOmp(state, repoA, 'Stays open')
+    const chat = await newOmp(state, repoA, 'Stays open')
     failing = true
 
-    state.mailboxes.suspendFolder(repoA, state.store.listChats(repoA))
+    await state.mailboxes.suspendFolder(repoA, state.store.listChats(repoA))
     failing = false
 
     expect(state.logged).toEqual([
@@ -724,11 +725,11 @@ describe('chat mailboxes: storage that cannot be reached, for other chats and at
   it('never touches storage for a folder with no OMP chat: deleting, renaming and untracking its other chats just work', async () => {
     let failing = false
     const state = await rig({ contextFails: () => failing })
-    const claude = state.records.createChat({ folder: repoA, agent: 'claude', role: 'worker', title: 'Claude' })
+    const claude = await state.records.createChat({ folder: repoA, agent: 'claude', role: 'worker', title: 'Claude' })
     failing = true
 
-    expect(state.records.renameChat(claude, 'Claude, renamed').title).toBe('Claude, renamed')
-    state.mailboxes.suspendFolder(repoA, state.store.listChats(repoA))
+    expect((await state.records.renameChat(claude, 'Claude, renamed')).title).toBe('Claude, renamed')
+    await state.mailboxes.suspendFolder(repoA, state.store.listChats(repoA))
     await state.records.deleteChat(claude)
 
     expect(state.store.getChat(claude)).toBeNull()
@@ -738,7 +739,7 @@ describe('chat mailboxes: storage that cannot be reached, for other chats and at
   it('rethrows nothing at startup when storage is down, keeping orphaned mailboxes until it can delete them', async () => {
     let failing = false
     const state = await rig({ contextFails: () => failing })
-    const lost = newOmp(state, repoA, 'Lost')
+    const lost = await newOmp(state, repoA, 'Lost')
     state.store.deleteChat(lost)
     failing = true
 
@@ -756,22 +757,22 @@ describe('chat mailboxes: storage that cannot be reached, for other chats and at
 describe('chat mailboxes: orphans and half-deleted chats', () => {
   it('deletes an orphaned mailbox at startup while keeping the folder’s live chat and its mailbox', async () => {
     const state = await rig()
-    const live = newOmp(state, repoA, 'Live')
-    const lost = newOmp(state, repoA, 'Lost')
+    const live = await newOmp(state, repoA, 'Live')
+    const lost = await newOmp(state, repoA, 'Lost')
     state.store.deleteChat(lost)
 
     await state.restart().records.recoverFolder(repoA)
 
     expect(state.endpoint(lost)?.state).toBe('deleted')
     expect(state.endpoint(live)).toMatchObject({ id: live.endpointId, state: 'open' })
-    expect(state.records.listChats(repoA).map((chat) => chat.endpointId)).toEqual([live.endpointId])
+    expect((await state.records.listChats(repoA)).map((chat) => chat.endpointId)).toEqual([live.endpointId])
   })
 
   it('pages through every open mailbox at startup, so an orphan past the first page is deleted too', async () => {
     const state = await rig()
     const ctx = state.pool.get(repoA).ctx()
     const foreign = Array.from({ length: 50 }, (_, index) => provisionAgentMailEndpoint(ctx, { chatId: `chat_foreign_${index}`, name: `Foreign ${index}` }))
-    const lost = newOmp(state, repoA, 'Past the first page')
+    const lost = await newOmp(state, repoA, 'Past the first page')
     expect(foreign.every((endpoint) => endpoint.id < (lost.endpointId ?? ''))).toBe(true)
     state.store.deleteChat(lost)
 
@@ -787,10 +788,10 @@ describe('chat mailboxes: orphans and half-deleted chats', () => {
         throw new Error('The app crashed while removing the chat’s files.')
       }
     })
-    const chat = newOmp(state, repoA, 'Half deleted')
+    const chat = await newOmp(state, repoA, 'Half deleted')
     await expect(state.records.deleteChat(chat)).rejects.toThrow('crashed')
 
-    expect(state.records.renameChat(chat, 'Renamed too late').title).toBe('Renamed too late')
+    expect((await state.records.renameChat(chat, 'Renamed too late')).title).toBe('Renamed too late')
 
     expect(state.logged).toEqual([expect.stringMatching(new RegExp(`^Could not rename the mailbox of chat ${chat.id}: .*deleted`))])
     expect(state.endpoint(chat)).toMatchObject({ name: 'Half deleted', state: 'deleted' })
@@ -802,11 +803,11 @@ describe('chat mailboxes: orphans and half-deleted chats', () => {
         throw new Error('The app crashed while removing the chat’s files.')
       }
     })
-    const half = newOmp(state, repoA, 'Half deleted')
-    const open = newOmp(state, repoA, 'Open')
+    const half = await newOmp(state, repoA, 'Half deleted')
+    const open = await newOmp(state, repoA, 'Open')
     await expect(state.records.deleteChat(half)).rejects.toThrow('crashed')
 
-    state.mailboxes.suspendFolder(repoA, state.store.listChats(repoA))
+    await state.mailboxes.suspendFolder(repoA, state.store.listChats(repoA))
 
     expect([state.endpoint(half)?.state, state.endpoint(open)?.state]).toEqual(['deleted', 'suspended'])
     expect(state.logged).toEqual([])

@@ -6,6 +6,7 @@ import type { PlanBundle, TicketBudget } from '../../../shared/domain/bundle'
 import type { SetTicketBudgetResultView } from '../../../shared/domain/scoreReads'
 import type { RepositoryView } from '../../../shared/domain/views'
 import type { Runner } from '../epic/runner'
+import { useViewMemory } from '../epic/viewMemory'
 import { StatePill } from '../epic/StatePill'
 import type { Result } from '../epic/workspaceActions'
 import type { TicketBadge } from '../graph/graphModel'
@@ -29,6 +30,8 @@ interface TicketEditorProps {
   runner: Runner
   /** The folder's attachment key: the host of each image address. */
   folderKey: string
+  /** Cache scope for unapplied edits across workspace visits. */
+  workspaceIdentity?: string
   bundle: PlanBundle
   /** The folder's repositories, or null for a single repository (or while they load). */
   repositories: RepositoryView[] | null
@@ -58,8 +61,14 @@ interface Editor {
 }
 
 function useEditor(props: TicketEditorProps): Editor {
-  const { bundle, ticketId, applyOps, onRemoved } = props
-  const [state, setState] = useState(() => initialEditor(bundle, ticketId))
+  const { bundle, ticketId, applyOps, onRemoved, workspaceIdentity, epicId } = props
+  const memory = useViewMemory()
+  const [state, setState] = useState(() => (
+    workspaceIdentity === undefined ? undefined : memory.editor(workspaceIdentity, epicId, ticketId)
+  ) ?? initialEditor(bundle, ticketId))
+  useEffect(() => {
+    if (workspaceIdentity !== undefined) memory.saveEditor(workspaceIdentity, epicId, ticketId, state)
+  }, [memory, workspaceIdentity, epicId, ticketId, state])
   useEffect(() => setState((current) => syncEditor(current, bundle, ticketId)), [bundle, ticketId])
   const update = useCallback((form: TicketForm) => setState((current) => editForm(current, form)), [])
   const ops = state.form === null ? [] : formToOps(state.form, bundle, ticketId)

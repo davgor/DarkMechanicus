@@ -1,0 +1,135 @@
+{
+  "builtRevision": "f96d429a19657360c1649e51d565e822e1422535",
+  "launchWorktreeRevision": "06c27e4d9211c4ef1a65225baf662447497a2334",
+  "launchWorktreeDifference": "Performance report and owner JSONL only",
+  "builtMainSha256": "7e51ebfa64d9e039e65fcc029abf7718e476604267fb1066040cba1b3ac02edf",
+  "environment": {
+    "platform": "Windows x64",
+    "electron": "42.11.18",
+    "deviceScaleFactor": 1.5
+  },
+  "fixture": {
+    "completedEpics": 10,
+    "ticketsPerCompletedEpic": 1000,
+    "draftTickets": 85,
+    "kanbanBacklogCards": 86,
+    "remote": "Real HTTPS CONNECT held by a loopback proxy, then released with HTTP 502. Recovery redirected the fixture remote Git commands to a local bare repository at the Git provider boundary.",
+    "timing": "Elapsed wall time from a synthetic renderer click or navigation to the expected DOM state. Long tasks were observed in the renderer."
+  },
+  "observations": {
+    "historicalTickets": 10000,
+    "graphMountMs": 1283,
+    "graphNodes": 1004,
+    "graphLongTasksMs": [
+      63,
+      116
+    ],
+    "graphCommands": [
+      "previewBoardImport",
+      "getEpic",
+      "getPlan",
+      "getRun",
+      "listTickets",
+      "listComments"
+    ],
+    "graphZoomMs": 17,
+    "listMountMs": 39,
+    "listLongTasksMs": [],
+    "listPageMs": 11,
+    "listRows": 40,
+    "unrelatedSwitchMs": 11,
+    "draftDuringSyncMs": 985,
+    "kanbanColumns": 4,
+    "kanbanCards": 40,
+    "localProviderCommands": [
+      "ls-remote",
+      "fetch",
+      "push"
+    ],
+    "viewport": [
+      1440,
+      960
+    ],
+    "networkRequests": 1,
+    "otherRendererLongTasksMs": [],
+    "memberCommandCounts": {
+      "getEpic": 3,
+      "getEventHead": 1,
+      "getKanbanOpenCount": 1,
+      "getPlan": 3,
+      "getPlannedBaselines": 2,
+      "getProject": 9,
+      "getRun": 3,
+      "getStorageStatus": 2,
+      "listBranchEpics": 3,
+      "listComments": 4,
+      "listEpics": 1,
+      "listEvents": 6,
+      "listGrants": 3,
+      "listKanbanCards": 1,
+      "listProfiles": 2,
+      "listSavePermissionRequests": 3,
+      "listTickets": 3,
+      "previewBoardImport": 4,
+      "validatePlan": 2
+    }
+  },
+  "navigationStartedRemoteSync": false,
+  "unappliedEditSurvivedNavigationOfflineAndSuccess": true,
+  "sourcePicker": {
+    "boundary": "Deterministic native dialog replies to the production main handler. No OS picker window was captured.",
+    "outcomes": [
+      "Canceled without saving",
+      "Refused the ticket member and directed the person to the linked code checkout",
+      "Associated the existing code checkout with the original ticket member"
+    ],
+    "ticketProjectRecordUnchanged": true,
+    "createdDuplicateProject": false,
+    "failures": []
+  },
+  "fixturePreparationCorrection": "The first setup attempt omitted the required SQLite session label and transport and exited before Electron launched. The corrected fixture supplied both and passed.",
+  "screenshots": [
+    {
+      "file": "graph.png",
+      "description": "Default plan graph for a 1,000-ticket completed epic",
+      "widthPx": 2160,
+      "heightPx": 1440
+    },
+    {
+      "file": "epic-list.png",
+      "description": "First 40 of 1,000 plan tickets with pagination",
+      "widthPx": 2160,
+      "heightPx": 1440
+    },
+    {
+      "file": "draft-sync.png",
+      "description": "Editable draft workspace under the background sync banner",
+      "widthPx": 2160,
+      "heightPx": 1440
+    },
+    {
+      "file": "kanban.png",
+      "description": "Kanban during sync with four columns and page two of Backlog",
+      "widthPx": 2160,
+      "heightPx": 1440
+    },
+    {
+      "file": "kanban-compact.png",
+      "description": "The same Kanban board at 1152 × 760",
+      "widthPx": 1728,
+      "heightPx": 1140
+    },
+    {
+      "file": "editing-offline.png",
+      "description": "Offline sync error with the retained edit and enabled Apply button",
+      "widthPx": 2160,
+      "heightPx": 1440
+    },
+    {
+      "file": "editing-recovered.png",
+      "description": "The same retained edit after successful Git sync",
+      "widthPx": 2160,
+      "heightPx": 1440
+    }
+  ]
+}

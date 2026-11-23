@@ -122,7 +122,7 @@ describe('App creating epics', () => {
     expect(h.dm.callsOf('createEpic').map((call) => call.input)).toEqual([
       { title: 'Ship it', successCriteria: ['works', 'tested'] }
     ])
-    expect(screen.getByTestId('epic-stub').textContent).toBe(`alpha|${EPIC_A}|0`)
+    expect(screen.getByTestId('epic-stub').textContent).toBe(`alpha|${EPIC_A}|1`)
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(sidebar().getByRole('button', { name: /Ship it/ }).getAttribute('aria-current')).toBe('true')
   })

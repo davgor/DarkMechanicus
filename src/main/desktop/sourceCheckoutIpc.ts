@@ -20,7 +20,7 @@ interface SourceCheckoutHandlerDeps {
   checkouts: SourceCheckouts
   registry: Pick<FolderRegistry, 'resolve' | 'track'>
   /** The native folder dialog for choosing the checkout; null when the person cancels. */
-  pickDirectory: () => Promise<string | null>
+  pickDirectory: (suggestedPath?: string) => Promise<string | null>
 }
 
 /** Arguments are `unknown` because they come straight from IPC. */
@@ -32,17 +32,11 @@ export interface SourceCheckoutHandlers {
 }
 
 async function pick(deps: SourceCheckoutHandlerDeps): Promise<SourceCheckoutChoice> {
-  const picked = await deps.pickDirectory()
+  const picked = await deps.pickDirectory(deps.checkouts.suggestedPath())
   if (picked === null) {
     return { outcome: 'cancelled' }
   }
-  const refusal = deps.checkouts.screen(picked)
-  if (refusal !== null) {
-    return refusal
-  }
-  const { folder, added } = deps.registry.track(picked)
-  const choice = deps.checkouts.associate(folder.path, added)
-  return choice.outcome === 'refused' && added ? { ...choice, folder, added } : choice
+  return deps.checkouts.associatePicked(picked, deps.registry.track)
 }
 
 function associate(deps: SourceCheckoutHandlerDeps, folder: unknown): SourceCheckoutChoice {

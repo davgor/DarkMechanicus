@@ -1,6 +1,8 @@
 import './tones.css'
 import './epic.css'
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { folderIdentity } from '../app/folderList'
+import { errorMessage } from '../api/dm'
 import type { TrackedFolderView } from '../../../shared/desktop/api'
 import { isActiveRunState } from '../../../shared/domain/status'
 import type { CheckpointView, PlanView, RunView } from '../../../shared/domain/views'
@@ -37,6 +39,7 @@ import { useLanding } from './useLanding'
 import { useWorkspace, type WorkspaceHandle } from './useWorkspace'
 import { ValidationPanel } from './ValidationPanel'
 import { WorkspaceHeader } from './WorkspaceHeader'
+import { loadOverview } from './workspaceLoad'
 import { graphInputFor, planFor, type OverviewData } from './workspaceState'
 
 export interface EpicWorkspaceProps {
@@ -143,42 +146,52 @@ function CheckpointStage(props: { ws: WorkspaceHandle; checkpoint: CheckpointVie
   )
 }
 
-function OverviewStage(props: { ws: WorkspaceHandle; overview: OverviewData; run: RunView }): JSX.Element {
-  const { ws } = props
-  return (
+function OverviewStage({ ws, run }: { ws: WorkspaceHandle; run: RunView }): JSX.Element {
+  const { runner, epicId, data } = ws
+  const [result, setResult] = useState<{ overview: OverviewData | null; error: string | null }>({ overview: null, error: null })
+  useEffect(() => {
+    let active = true
+    void loadOverview(runner, epicId, run, data.saved).then(
+      overview => { if (active) setResult({ overview, error: null }) },
+      error => { if (active) setResult(previous => ({ ...previous, error: errorMessage(error) })) }
+    )
+    return () => { active = false }
+  }, [runner, epicId, run, data.saved])
+  const notice = result.error === null ? null : <p role="alert" className="ew-notice-error">{result.error}</p>
+  if (result.overview === null) return notice ?? <p role="status" className="ew-muted">Loading epic report…</p>
+  return <>{notice}
     <EpicOverview
       epic={ws.data.epic}
-      run={props.run}
-      overview={props.overview}
+      run={run}
+      overview={result.overview}
       now={ws.now}
       scores={scoreSource(ws)}
       corrections={correctionHost(ws)}
       onSelectTicket={(ticketId) => ws.dispatch({ type: 'select_ticket', ticketId })}
     />
-  )
+  </>
 }
 
 /** While open: the checkpoint review of an active run, or the overview of a completed one. */
 function reviewStage(ws: WorkspaceHandle): JSX.Element | null {
-  const { checkpoint, overview, run } = ws.data
+  const { checkpoint, run } = ws.data
   if (!ws.state.checkpointOpen || run === null) {
     return null
   }
   if (checkpoint !== null) {
     return <CheckpointStage ws={ws} checkpoint={checkpoint} run={run} />
   }
-  return overview === null ? null : <OverviewStage ws={ws} overview={overview} run={run} />
+  return run.state === 'completed' ? <OverviewStage key={run.id} ws={ws} run={run} /> : null
 }
 
 /** The plan of the shown view: the graph or the list. */
 function PlanContent({ ws, input }: { ws: WorkspaceHandle; input: GraphInput | null }): JSX.Element {
-  if (input === null) {
-    return <p className="ew-empty">This epic has no plan yet.</p>
-  }
+  const sections = useMemo(() => input === null || ws.state.layout !== 'list' ? [] : listSections(input), [input, ws.state.layout])
+  if (input === null) return <p className="ew-empty">This epic has no plan yet.</p>
   if (ws.state.layout === 'list') {
     return (
       <ListView
-        sections={listSections(input)}
+        sections={sections}
         selectedTicketId={ws.state.selectedTicketId}
         onSelect={(ticketId) => ws.dispatch({ type: 'select_ticket', ticketId })}
         onOpenActivity={(ticketId, attemptId) => ws.dispatch({ type: 'open_activity', ticketId, attemptId })}
@@ -230,6 +243,7 @@ function DraftEditorPanel(props: { ws: WorkspaceHandle; plan: PlanView; ticketId
       key={ticketId}
       runner={ws.runner}
       folderKey={ws.folder.attachmentKey}
+      workspaceIdentity={folderIdentity(ws.folder)}
       bundle={plan.bundle}
       repositories={repositories.status === 'ready' ? repositories.value : null}
       ticketId={ticketId}
@@ -391,6 +405,7 @@ function WorkspaceStatus(props: { error: string | null; onRetry(): void }): JSX.
 function WorkspaceBody(props: EpicWorkspaceProps): JSX.Element {
   const controller = useWorkspace({
     folderPath: props.folder.path,
+    identity: folderIdentity(props.folder),
     epicId: props.epicId,
     refreshToken: props.refreshToken,
     onChanged: props.onChanged,
@@ -426,5 +441,5 @@ function WorkspaceBody(props: EpicWorkspaceProps): JSX.Element {
 
 /** The epic workspace: plan graph or list, run and draft bars, ticket panel, checkpoint review. */
 export function EpicWorkspace(props: EpicWorkspaceProps): JSX.Element {
-  return <WorkspaceBody key={`${props.folder.path}\n${props.epicId}`} {...props} />
+  return <WorkspaceBody key={JSON.stringify([folderIdentity(props.folder), props.epicId])} {...props} />
 }
