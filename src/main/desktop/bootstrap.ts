@@ -457,7 +457,8 @@ function createChatProcesses({ folders, agents, workspaces, activity, sourceChec
     assertRecoveryLaunch: chat => recovery.assertLaunch(chat)
   }, push)
   recovery = createDesktopToolingRecovery({
-    userData: app.getPath('userData'), version: () => app.getVersion(), source: sourceCheckouts, store, agents, terminals,
+    userData: app.getPath('userData'), version: () => app.getVersion(),
+    source: { requireAvailable: sourceCheckouts.requireRecoveryCheckout }, store, agents, terminals,
     workspace: folder => desktopWorkspace(folders, workspaces, folder), resolveFolder: folder => folders.resolve(folder),
     context: contextDelivery, deliveries, resume: resumeChat,
     callerFolders: chat => chatWorkspaceFolders(chat, folders),

@@ -320,12 +320,12 @@ describe('DM-273: what a chosen folder and the stored association are, read as t
     expect(m.checkouts.screen(path)).toMatchObject({ problem: 'installed_app' })
   })
 
-  it('reads an association file of another shape as no association, and clearing with no file writes none', () => {
+  it('reads an association file of another shape as no association, and persists an explicit clear', () => {
     mkdirSync(m.userData, { recursive: true })
     writeFileSync(m.associationFile, JSON.stringify({ version: 1, checkout: { local: 'elsewhere' } }))
     expect(m.checkouts.view()).toMatchObject({ status: 'none', target: null })
     rmSync(m.associationFile)
     expect(m.checkouts.clear().status).toBe('none')
-    expect(m.association()).toBeNull()
+    expect(JSON.parse(m.association()!)).toEqual({ version: 1, checkout: null })
   })
 })
