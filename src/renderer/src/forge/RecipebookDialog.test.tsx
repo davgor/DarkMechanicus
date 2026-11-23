@@ -57,3 +57,22 @@ it('reviews a newer recipe book before retaining edits as a separate copy', asyn
   expect(saved.value.recipes.find(recipe => recipe.id === competing.id)).toEqual(competing)
   expect(saved.value.recipes.find(recipe => recipe.notes === 'My local setup notes.')?.id).not.toBe(competing.id)
 })
+
+it('recognizes that the exact draft was saved before its response was lost', async () => {
+  const api = fakeForgeSetup()
+  api.saveRecipebook.mockImplementationOnce(async (_world, edit) => {
+    const recipes = edit.value.recipes.map(({ notes, ...recipe }) => ({ notes, ...recipe }))
+    api.recipebook.mockResolvedValue({ sha256: 'd'.repeat(64), value: { ...edit.value, recipes } })
+    throw new Error('The save response was interrupted.')
+  })
+  render(<RecipebookDialog api={api} world={forgeWorld.path} onClose={() => undefined} />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Copy recipe' }))
+  fireEvent.change(screen.getByLabelText('Recipe notes'), { target: { value: 'These exact notes were saved.' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Reload saved recipes' }))
+  expect(await screen.findByText('This draft is already saved in the recipe book.')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Keep draft as a new copy' })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'View saved recipe' }))
+  expect(screen.getByText('These exact notes were saved.')).toBeTruthy()
+  expect(api.saveRecipebook).toHaveBeenCalledTimes(1)
+})

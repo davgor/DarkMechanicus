@@ -123,9 +123,24 @@ function RecipePicker({ book, selection, select, edit }: {
   </>
 }
 
-function ReconcileRecipe({ book, draft, edit }: { book: Book; draft: Draft; edit(draft: Draft): void }): JSX.Element {
+function recipeContents(recipe: ForgeRecipe | null): string {
+  // YAML validation can reorder object keys. Step and argument order still matters.
+  return JSON.stringify(recipe, (_key, value: unknown) => {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) return value
+    return Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right)))
+  })
+}
+
+function ReconcileRecipe({ book, draft, edit, saved }: {
+  book: Book; draft: Draft; edit(draft: Draft): void; saved(recipe: ForgeRecipe): void
+}): JSX.Element {
   const latest = book.value.recipes.find(recipe => recipe.id === draft.recipe.id) ?? null
-  const unchanged = JSON.stringify(latest) === JSON.stringify(draft.original)
+  const latestContents = recipeContents(latest)
+  if (latest !== null && latestContents === recipeContents(draft.recipe)) return <section aria-label="Recipe saved">
+    <p role="status">This draft is already saved in the recipe book.</p>
+    <Button onClick={() => saved(latest)}>View saved recipe</Button>
+  </section>
+  const unchanged = latestContents === recipeContents(draft.original)
   const reconcile = (): void => {
     const recipe = unchanged ? draft.recipe : { ...copyRecipe(draft.recipe, book), title: draft.recipe.title }
     edit({ recipe, original: unchanged ? latest : null, expectedSha256: book.sha256 })
@@ -137,10 +152,12 @@ function ReconcileRecipe({ book, draft, edit }: { book: Book; draft: Draft; edit
   </section>
 }
 
-function RecipeDraftFields({ model, draft, edit }: { model: ReturnType<typeof useRecipebook>; draft: Draft; edit(draft: Draft): void }): JSX.Element {
+function RecipeDraftFields({ model, draft, edit, saved }: {
+  model: ReturnType<typeof useRecipebook>; draft: Draft; edit(draft: Draft): void; saved(recipe: ForgeRecipe): void
+}): JSX.Element {
   const { book, busy, loading } = model
   return <>
-    {book !== null && book.sha256 !== draft.expectedSha256 && <ReconcileRecipe book={book} draft={draft} edit={edit} />}
+    {book !== null && book.sha256 !== draft.expectedSha256 && <ReconcileRecipe book={book} draft={draft} edit={edit} saved={saved} />}
     <RecipeFields recipe={draft.recipe} change={recipe => edit({ ...draft, recipe })} busy={busy || loading} />
   </>
 }
@@ -151,11 +168,9 @@ export function RecipebookDialog({ api, world, onClose }: Props): JSX.Element {
   const [selection, select] = useState('')
   const [draft, edit] = useState<Draft | null>(null)
   const close = (): void => { if (!busy) onClose() }
+  const finish = (recipe: ForgeRecipe): void => { select(recipe.id); edit(null) }
   const saveDraft = async (): Promise<void> => {
-    if (draft !== null && await save(draft) !== null) {
-      select(draft.recipe.id)
-      edit(null)
-    }
+    if (draft !== null && await save(draft) !== null) finish(draft.recipe)
   }
   const canSave = draft !== null && validDraft(draft, book, loading)
   return <Dialog title="Recipe book" onClose={close} actions={
@@ -166,7 +181,7 @@ export function RecipebookDialog({ api, world, onClose }: Props): JSX.Element {
   }>
     {error !== null && <p role="alert" className="forge-error">{error} <Button disabled={loading} onClick={reload}>Reload saved recipes</Button></p>}
     {loading && <p role="status">Loading recipes…</p>}
-    {draft !== null ? <RecipeDraftFields model={model} draft={draft} edit={edit} /> :
+    {draft !== null ? <RecipeDraftFields model={model} draft={draft} edit={edit} saved={finish} /> :
       book !== null && <RecipePicker book={book} selection={selection} select={select} edit={edit} />}
   </Dialog>
 }

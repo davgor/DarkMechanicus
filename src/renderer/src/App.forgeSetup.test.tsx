@@ -166,15 +166,20 @@ it('offers the recorded creation intent when the first response was lost', async
   expect(dialog.queryByText('Another world is waiting for checkout.')).toBeNull()
   const id = setup.provision.mock.calls[0][1]
   expect(id).toMatch(/^[a-f0-9-]{36}$/i)
+  fireEvent.click(dialog.getByRole('button', { name: 'Close' }))
+  const recovering = await startWorld()
+  expect(recovering.getByRole('button', { name: 'Check progress' })).toBeTruthy()
+  expect(recovering.queryByRole('button', { name: 'Create' })).toBeNull()
+  expect(recovering.queryByRole('button', { name: 'Resume creation' })).toBeNull()
   setup.provisioning.mockResolvedValue([historical, unrelated, {
     ...historical, id, state: 'needs-attention', phase: 'world-remote', message: 'Verified the existing remote repository.'
   }])
-  fireEvent.click(dialog.getByRole('button', { name: 'Check progress' }))
-  expect(await dialog.findByText('Verified the existing remote repository.')).toBeTruthy()
-  expect(dialog.getByRole('button', { name: 'Resume creation' })).toBeTruthy()
-  expect(dialog.queryByRole('button', { name: 'Create' })).toBeNull()
-  expect(dialog.queryByText('Another world is waiting for checkout.')).toBeNull()
-  fireEvent.click(dialog.getByRole('button', { name: 'Close' }))
+  fireEvent.click(recovering.getByRole('button', { name: 'Check progress' }))
+  expect(await recovering.findByText('Verified the existing remote repository.')).toBeTruthy()
+  expect(recovering.getByRole('button', { name: 'Resume creation' })).toBeTruthy()
+  expect(recovering.queryByRole('button', { name: 'Create' })).toBeNull()
+  expect(recovering.queryByText('Another world is waiting for checkout.')).toBeNull()
+  fireEvent.click(recovering.getByRole('button', { name: 'Close' }))
 
   const reopened = await startWorld()
   expect(reopened.getByRole('button', { name: 'View creation for other-world' })).toBeTruthy()

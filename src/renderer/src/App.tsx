@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ComponentProps, ComponentType } from 'react'
+import type { ComponentProps, ComponentType, RefObject } from 'react'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { AgentId, TrackedFolderView } from '../../shared/desktop/api'
 import { folderIdentity } from './app/folderList'
@@ -37,7 +37,7 @@ import { CloneDialog } from './clone/CloneDialog'
 import { DeliveryStandards } from './folder/DeliveryStandards'
 import { ForgeOpen } from './folder/ForgeOpen'
 import { ProjectSetupPanel } from './forge/ProjectSetupPanel'
-import { ProvisionDialog } from './forge/ProvisionDialog'
+import { ProvisionDialog, type ForgeProvisionAttempt } from './forge/ProvisionDialog'
 import { TicketSource } from './folder/TicketSource'
 import { FolderPage } from './folder/FolderPage'
 import { GithubAccountProvider } from './github/GithubAccount'
@@ -480,12 +480,12 @@ function FirstPromptHost({ shell, request, onClose }: { shell: ShellModel; reque
   )
 }
 
-function ProvisionHost({ shell, scheduler, world, close }: {
-  shell: ShellModel; scheduler: Scheduler; world?: TrackedFolderView; close(): void
+function ProvisionHost({ shell, scheduler, world, close, recovery }: {
+  shell: ShellModel; scheduler: Scheduler; world?: TrackedFolderView; close(): void; recovery: RefObject<ForgeProvisionAttempt | null>
 }): JSX.Element | null {
   const api = window.dm.forgeSetup
   if (api === undefined) return null
-  return <ProvisionDialog api={api} world={world} agents={shell.agents.agents} scheduler={scheduler} onClose={close} onProvisioned={status => {
+  return <ProvisionDialog api={api} world={world} agents={shell.agents.agents} scheduler={scheduler} onClose={close} recovery={recovery} onProvisioned={status => {
     const path = status.member ?? status.world
     close()
     if (path !== undefined) void shell.reloadFolders().then(() => shell.actions.selectFolder(path))
@@ -506,6 +506,7 @@ function Shell({ scheduler, EpicView, terminalKit }: { scheduler: Scheduler; Epi
   const signingIn = signIn.request !== null
   const [cloning, setCloning] = useState<'repository' | 'forge-world' | null>(null)
   const [provision, setProvision] = useState<{ world?: TrackedFolderView } | null>(null)
+  const provisionRecovery = useRef<ForgeProvisionAttempt | null>(null)
   const { actions } = shell
   return (
     <SignInContext.Provider value={signIn.open}>
@@ -527,7 +528,7 @@ function Shell({ scheduler, EpicView, terminalKit }: { scheduler: Scheduler; Epi
           </main>
           <UpdateBanner />
           {cloning === null ? null : <CloneHost shell={shell} mode={cloning === 'forge-world' ? cloning : undefined} onClose={() => setCloning(null)} />}
-          {provision && <ProvisionHost shell={shell} scheduler={scheduler} world={provision.world} close={() => setProvision(null)} />}
+          {provision && <ProvisionHost shell={shell} scheduler={scheduler} world={provision.world} recovery={provisionRecovery} close={() => setProvision(null)} />}
           {firstPrompt === null ? null : <FirstPromptHost shell={shell} request={firstPrompt} onClose={() => setFirstPrompt(null)} />}
           {pending && <UntrackDialog folder={pending} onCancel={() => setPending(null)} onConfirm={() => {
             void actions.untrack(pending.path)
