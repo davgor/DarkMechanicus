@@ -133,8 +133,11 @@ export interface ForgeProvisionStatus {
   checkout?: string
 }
 
+/** A refusal is certain only before any new journal entry or external effect. Null means the picker was cancelled. */
+export type ForgeProvisionResult = ForgeProvisionStatus | { state: 'refused'; message: string } | null
+
 export interface ForgeSetupApi {
-  provision(input: ForgeProvisionRequest): Promise<ForgeProvisionStatus | null>
+  provision(input: ForgeProvisionRequest): Promise<ForgeProvisionResult>
   provisioning(): Promise<ForgeProvisionStatus[]>
   resumeProvision(id: string): Promise<ForgeProvisionStatus>
   recipebook(world?: string): Promise<ForgeSetupFile<ForgeRecipebook> | null>
