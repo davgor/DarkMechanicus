@@ -99,11 +99,29 @@ const wireArgs: Record<string, (args: unknown[]) => unknown[]> = {
   'dm.terminals.attach': ([folder, chatId]) => [{ folder, chatId }]
 }
 
-beforeAll(async () => {
+async function recordForgeChannels(): Promise<void> {
   const deps = recordingHandlers<Parameters<typeof startForge>[1]>()
-  const forge = startForge(recorder(false), { ...deps, registry: { ...deps.registry, list: () => [] } })
-  forge.stop()
+  const setup = recordingHandlers<NonNullable<typeof deps.setup>>()
+  const forge = startForge(recorder(false), {
+    ...deps, registry: { ...deps.registry, list: () => [] },
+    provisioning: {
+      journal: 'forge-provisioning-fixture.json',
+      publisher: recordingHandlers(),
+      discover: async () => { throw new Error('This fixture only records Forge IPC registration.') }
+    },
+    setup: {
+      file: 'forge-onboarding-fixture.json', scratch: 'forge-onboarding-fixture',
+      preferred: setup.preferred, agent: setup.agent, getStandards: setup.getStandards, getChat: setup.getChat,
+      findChat: setup.findChat, createChat: setup.createChat, start: setup.start, hasInput: setup.hasInput,
+      running: setup.running, announce: setup.announce
+    }
+  })
+  await forge.stop()
   await forge.ready
+}
+
+beforeAll(async () => {
+  await recordForgeChannels()
   registerGitIpc(recorder(true), recordingHandlers<GitHandlers>())
   registerGithubIpc(recorder(true), recordingHandlers<GithubHandlers>())
   registerDesktopIpc(recorder(true), recordingHandlers<DesktopHandlers>())

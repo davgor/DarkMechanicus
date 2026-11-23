@@ -109,8 +109,9 @@ describe('ptyHelperPath', () => {
   })
 
   it('is the installed node-pty’s helper for this machine', () => {
+    const installedPackage = realpathSync.native(join(process.cwd(), 'node_modules', 'node-pty'))
     expect(installedPtyHelperPath()).toBe(
-      join(realpathSync.native(join(process.cwd(), 'node_modules')), 'node-pty', 'prebuilds', `${process.platform}-${process.arch}`, 'spawn-helper')
+      join(installedPackage, 'prebuilds', `${process.platform}-${process.arch}`, 'spawn-helper')
     )
   })
 })
