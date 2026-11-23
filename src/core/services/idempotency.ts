@@ -8,6 +8,19 @@ interface IdempotencyRow {
   response_json: string
 }
 
+/** Read-only exact replay for a held workflow: missing keys and mismatches never execute a command. */
+export function readIdempotentResponse<T>(
+  ctx: Ctx,
+  scope: { command: string; key: string | undefined; request: unknown }
+): T | undefined {
+  if (scope.key === undefined || scope.key === '') return undefined
+  const row = ctx.db.get<IdempotencyRow>(
+    'SELECT request_hash, response_json FROM idempotency WHERE command = ? AND key = ? AND request_hash = ?',
+    scope.command, scope.key, contentHash(scope.request)
+  )
+  return row === undefined ? undefined : JSON.parse(redactedJson(JSON.parse(row.response_json))) as T
+}
+
 /**
  * Runs `execute` inside one transaction. With an idempotency key, a repeat of the same request
  * returns the originally stored response instead of executing again; reusing the key for a

@@ -1,7 +1,10 @@
 import type { CommandName } from '../../shared/domain/api'
+import type { KanbanPacket } from '../../shared/domain/kanban'
+import { COMMAND_SCHEMAS } from '../commandSchemas'
 import { requireCapability } from '../authz'
 import type { Ctx } from '../context'
 import { fail } from '../errors'
+import { readIdempotentResponse, requestWithoutKey } from './idempotency'
 
 interface HoldTarget { id: string; incidentId: string; runId?: string; cardId?: string }
 interface HeldRun { state: string; owner_machine_id: string; pause_reason: string | null }
@@ -81,11 +84,55 @@ export function releaseToolingWorkflow(ctx: Ctx, target: HoldTarget): void {
     ctx.db.run('DELETE FROM tooling_holds WHERE chat_id = ? AND incident_id = ?', target.id, target.incidentId)
   })
 }
-/** Reads, mail, renewal and leased-worker heartbeats continue during the hold; unrelated progress cannot. */
-export function assertToolingCommand(ctx: Ctx, grantId: string, name: CommandName, mutates: boolean): void {
-  if (!mutates || ['heartbeatAttempt', 'heartbeatKanbanCard', 'sendAgentMessage', 'acknowledgeAgentMessages', 'consumeAgentMailWake'].includes(name)) return
-  const hold = ctx.db.get<{ incident_id: string }>('SELECT h.incident_id FROM tooling_holds h JOIN tooling_chat_grants g ON g.chat_id = h.chat_id WHERE g.grant_id = ?', grantId)
-  if (hold !== undefined) fail('invalid_state', 'This workflow is tooling-blocked. Continue incident communication and lease heartbeats; resume only after verified repair availability.', { incidentId: hold.incident_id })
+
+/** A held caller must not publish pending portable work, including during fresh CLI startup. */
+export function toolingWorkflowHeld(ctx: Ctx, grantId: string): boolean {
+  return ctx.db.get('SELECT 1 FROM tooling_holds h JOIN tooling_chat_grants g ON g.chat_id = h.chat_id WHERE g.grant_id = ?', grantId) !== undefined
+}
+
+/** Only the captured claim's original grant can inspect its exact, secret-free cached response. */
+function heldClaimReplay(ctx: Ctx, grantId: string, hold: { incident_id: string; card_id: string | null }, input: unknown): KanbanPacket | undefined {
+  const parsed = COMMAND_SCHEMAS.claimKanbanCard.safeParse(input)
+  if (!parsed.success || parsed.data.cardId !== hold.card_id) return undefined
+  const packet = readIdempotentResponse<KanbanPacket>(ctx, {
+    command: 'claimKanbanCard', key: parsed.data.idempotencyKey, request: requestWithoutKey(parsed.data)
+  })
+  if (packet === undefined) return undefined
+  const owned = ctx.db.get(
+    `SELECT 1 FROM tooling_held_attempts h
+     JOIN kanban_attempts a ON a.id = h.attempt_id
+     JOIN events e ON e.kind = 'kanban.claimed' AND json_extract(e.payload_json, '$.attemptId') = a.id
+     JOIN sessions s ON s.id = e.session_id
+     WHERE h.incident_id = ? AND h.kind = 'card' AND a.id = ? AND a.card_id = ?
+       AND a.machine_id = ? AND a.state IN ('claimed', 'running') AND s.grant_id = ?`,
+    hold.incident_id, packet.attemptId, hold.card_id, ctx.machineId, grantId
+  )
+  if (owned === undefined) return undefined
+  requireCapability(ctx.session, 'kanban.claim')
+  return {
+    ...packet, claimToken: null,
+    reporting: {
+      ...packet.reporting,
+      instructions: 'The original claim response was lost; this read-only replay never returns its token or renews its lease. '
+        + 'The tooling hold preserves the captured claim even without authenticated heartbeats. Wait for verified resume before recovery. '
+        + `After verified resume, an orchestrator can call fail_kanban_card with attemptId "${packet.attemptId}", a reason, and no claimToken, `
+        + 'then claim_kanban_card for this card with a new idempotency key. Never release or reclaim during the hold. '
+        + packet.reporting.instructions
+    }
+  }
+}
+
+/** Reads, mail, renewal and heartbeats continue; only an exact owned cached claim may bypass the mutation gate. */
+export function assertToolingCommand(
+  ctx: Ctx, grantId: string, command: { name: CommandName; mutates: boolean; input?: unknown }
+): KanbanPacket | undefined {
+  const { name, mutates, input } = command
+  if (!mutates || ['heartbeatAttempt', 'heartbeatKanbanCard', 'sendAgentMessage', 'acknowledgeAgentMessages', 'consumeAgentMailWake'].includes(name)) return undefined
+  const hold = ctx.db.get<{ incident_id: string; card_id: string | null }>('SELECT h.incident_id, h.card_id FROM tooling_holds h JOIN tooling_chat_grants g ON g.chat_id = h.chat_id WHERE g.grant_id = ?', grantId)
+  if (hold === undefined) return undefined
+  const replay = name === 'claimKanbanCard' ? heldClaimReplay(ctx, grantId, hold, input) : undefined
+  if (replay !== undefined) return replay
+  fail('invalid_state', 'This workflow is tooling-blocked. Continue incident communication and lease heartbeats; resume only after verified repair availability.', { incidentId: hold.incident_id })
 }
 
 /** Hold extensions do not enlarge the lease length kept by later heartbeats. */

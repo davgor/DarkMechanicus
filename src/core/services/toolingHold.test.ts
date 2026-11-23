@@ -7,6 +7,8 @@ import { heartbeatAttempt } from './attempts'
 import { expireLeases, listAttempts } from './execution'
 import { cancelRun, getRun, pauseRun, resumeRun, takeoverRun } from './runs'
 import { makeBundle } from '../../test/bundles'
+import { nodeFs } from '../repo/nodeFs'
+import { createKanbanCard } from './kanban/cards'
 
 const harnesses: Harness[] = []
 afterEach(() => { for (const harness of harnesses.splice(0)) harness.cleanup() })
@@ -90,6 +92,75 @@ afterEach(() => { for (const harness of harnesses.splice(0)) harness.cleanup() }
     expect(Date.parse(heartbeat.leaseExpiresAt!) - h.clock.nowMs()).toBe(leaseMs)
     expect((await desktop.getKanbanCard({ cardId: card.id })).lane).toBe('in_progress')
   })
+
+async function lostClaimHold() {
+  const h = createHarness(); harnesses.push(h)
+  const desktop = h.open('desktop'); await desktop.initializeRepository({ name: 'lost claim fixture' })
+  const grant = await desktop.issueGrant({ role: 'orchestrator', label: 'lost response caller' })
+  const caller = h.open('orchestrator', { grantToken: grant.token, transport: 'cli' })
+  const card = await desktop.createKanbanCard({ title: 'Preserve the lost response' })
+  await desktop.playKanbanCard({ cardId: card.id })
+  const request = { cardId: card.id, leaseSeconds: 60, idempotencyKey: 'lost-response' }
+  const first = await caller.claimKanbanCard(request)
+  const target = { id: 'lost-response-chat', incidentId: 'lost-response-incident', cardId: card.id }
+  bindToolingGrant(desktop.ctx(), grant.grant.id, target.id)
+  holdToolingWorkflow(desktop.ctx(), target)
+  // No authenticated heartbeat is possible when the caller never received its claim token.
+  h.clock.advanceSeconds(600)
+  return { h, desktop, grant, caller, card, request, first, target }
+}
+
+it('recovers only the original caller exact cached claim during a hold without publishing pending work', async () => {
+  const { h, desktop, grant, card, request, first, target } = await lostClaimHold()
+  const before = await desktop.getKanbanCard({ cardId: card.id })
+  // Leave an actual portable export pending: a held replay must not flush unrelated work.
+  createKanbanCard(desktop.ctx(), { title: 'Pending unrelated export' })
+  const pending = desktop.ctx().db.all('SELECT * FROM outbox ORDER BY id')
+  const writes: string[] = []
+  const reopened = h.open('orchestrator', {
+    grantToken: grant.token, transport: 'cli',
+    fs: { ...nodeFs, fsyncFile: () => undefined, writeFile: (path, text) => { writes.push(path); nodeFs.writeFile(path, text) } }
+  })
+  const replay = await reopened.claimKanbanCard(request)
+  expect(replay).toMatchObject({ attemptId: first.attemptId, claimToken: null, leaseExpiresAt: first.leaseExpiresAt })
+  expect(replay.reporting.instructions).toContain('fail_kanban_card')
+  expect(replay.reporting.instructions).toContain('verified resume')
+  expect(replay.reporting.instructions).toContain('new idempotency key')
+  expect(writes).toEqual([])
+  expect(await desktop.getKanbanCard({ cardId: card.id })).toEqual(before)
+  expect(desktop.ctx().db.all('SELECT * FROM outbox ORDER BY id')).toEqual(pending)
+  for (const input of [
+    { ...request, idempotencyKey: 'new-key' },
+    { ...request, leaseSeconds: 120 },
+    { cardId: card.id }
+  ]) await expect(reopened.claimKanbanCard(input)).rejects.toMatchObject({ code: 'invalid_state' })
+  const foreign = await desktop.issueGrant({ role: 'orchestrator', label: 'another caller' })
+  bindToolingGrant(desktop.ctx(), foreign.grant.id, target.id)
+  const other = h.open('orchestrator', { grantToken: foreign.token, transport: 'cli' })
+  await expect(other.claimKanbanCard(request)).rejects.toMatchObject({ code: 'invalid_state' })
+  await expect(reopened.failKanbanCard({ attemptId: first.attemptId, reason: 'Lost response' }))
+    .rejects.toMatchObject({ code: 'invalid_state' })
+  await expect(reopened.approveKanbanCard({ cardId: card.id })).rejects.toMatchObject({ code: 'invalid_state' })
+})
+
+it('preserves the unrenewed lease through verified resume and keeps replacement claims and human controls fenced', async () => {
+  const { h, desktop, grant, caller, card, request, first, target } = await lostClaimHold()
+  const replay = await caller.claimKanbanCard(request)
+  releaseToolingWorkflow(desktop.ctx(), target)
+  expect((await desktop.getKanbanCard({ cardId: card.id })).attempts[0]?.leaseExpiresAt)
+    .toBe(new Date(h.clock.nowMs() + 60_000).toISOString())
+  await caller.failKanbanCard({ attemptId: replay.attemptId, reason: 'Lost response after verified resume' })
+  const replacement = await caller.claimKanbanCard({ ...request, idempotencyKey: 'replacement' })
+  expect(replacement.attemptId).not.toBe(first.attemptId)
+  expect(replacement.claimToken).toBeTypeOf('string')
+  await expect(caller.heartbeatKanbanCard({ attemptId: first.attemptId, claimToken: first.claimToken ?? '' }))
+    .rejects.toMatchObject({ code: 'stale_claim' })
+  expect((await desktop.getKanbanCard({ cardId: card.id })).attempts.map(attempt => attempt.state))
+    .toEqual(['failed', 'claimed'])
+  await expect(caller.approveKanbanCard({ cardId: card.id })).rejects.toMatchObject({ code: 'unauthorized' })
+  await desktop.revokeGrant({ grantId: grant.grant.id })
+  await expect(caller.claimKanbanCard(request)).rejects.toMatchObject({ code: 'unauthorized' })
+})
   it('retires a deleted-origin hold without completing work or requiring the deceased identity for human recovery', async () => {
     const h = createHarness(); harnesses.push(h)
     const desktop = h.open('desktop'); await desktop.initializeRepository({ name: 'deleted origin fixture' })

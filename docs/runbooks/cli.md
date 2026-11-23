@@ -118,6 +118,13 @@ a submission awaiting human review. Ordinary failures with a token still require
 authorized launch before another claim. An expired claim cannot be released this way; an orchestrator
 can explicitly launch that named card again.
 
+During a tooling-recovery hold, the original claiming grant can still replay its **exact** cached
+claim request for the held card. This is read-only: it returns `claimToken: null` and recovery
+instructions, creates no attempt, renews no lease and flushes no records. A new key, changed request
+or another grant remains blocked. The hold preserves the captured claim even if the lost token
+prevents authenticated heartbeats. Wait for verified repair and resume before the tokenless
+release/reclaim sequence above; neither replay nor repair availability grants human approval.
+
 ## Attach an image: `add_attachment`
 
 An agent adds an image from a file on its own machine, then names the returned id on the record it belongs

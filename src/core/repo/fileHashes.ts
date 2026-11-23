@@ -69,17 +69,29 @@ interface TrackedText {
   read(): string
 }
 
+/** Metadata failures keep the containment refusal's precedence without a redundant walk on success. */
+function ownedFileStamp(env: HashEnv, path: string): string | null {
+  try {
+    return env.fs.fileStamp(path)
+  } catch (error) {
+    if (env.layout !== undefined) assertContained(env.layout, env.fs, path)
+    throw error
+  }
+}
+
 /**
  * The text and hash of a tracked file that is not synced, or null when it is. A file whose stamp
  * matches the one remembered with a synced hash is not read at all. The stamp is taken before the
  * read, so a change racing the read leaves a stamp that no longer matches and is read next time.
  */
 export function readUnlessSynced(env: HashEnv, path: string, tracked: TrackedText): { text: string; hash: string } | null {
-  if (env.layout !== undefined) assertContained(env.layout, env.fs, path)
-  const stamp = env.fs.fileStamp(path)
+  // lstat-only metadata carries no content. A miss's reader checks containment at use; a hit must
+  // check it here before the stored hash can be accepted. Do not duplicate the miss's full path walk.
+  const stamp = ownedFileStamp(env, path)
   const known = stamp === null ? null : env.fileHashes.get(path, stamp)
-  if (known !== null && tracked.synced(known)) {
-    return null
+  if (known !== null) {
+    if (env.layout !== undefined) assertContained(env.layout, env.fs, path)
+    if (tracked.synced(known)) return null
   }
   const text = tracked.read()
   const hash = tracked.hashOf(text)
