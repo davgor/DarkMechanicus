@@ -2,8 +2,9 @@ import type { IpcMainInvokeEvent } from 'electron'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
-import { bindForge } from '../../core/repo/forgeBinding'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { bindForge, forgeBindingEpoch } from '../../core/repo/forgeBinding'
+import { nodeFs } from '../../core/repo/nodeFs'
 import { projectKey } from '../../core/repo/storageMode'
 import { idleAgentDeps } from '../../test/idleAgents'
 import { gitIn, put } from '../../test/gitScratch'
@@ -11,7 +12,12 @@ import { sampleId } from '../../test/mcpHarness'
 import { createFolderRegistry, type FolderRegistry } from './folderRegistry'
 import { createDesktopHandlers } from './handlers'
 import { registerDesktopIpc } from './ipc'
-import { createSourceCheckouts } from './sourceCheckout'
+import { createSourceCheckouts, type SourceCheckouts } from './sourceCheckout'
+import { createChatStore } from '../agents/chatStore'
+import { createRecoveryStore } from '../agents/toolingRecoveryStore'
+import { createToolingRecovery } from '../agents/toolingRecovery'
+import { openWorkspace } from '../../core/workspace'
+import type { NamingOperationContext } from '../naming/controlPipe'
 import { createSourceCheckoutHandlers, registerSourceCheckoutIpc } from './sourceCheckoutIpc'
 
 type Listener = (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown
@@ -26,6 +32,7 @@ interface Machine {
   /** Folders the desktop handlers asked the workspace pool to open. */
   opened: string[]
   associationFile: string
+  checkouts: SourceCheckouts
   /** A renderer's `ipcRenderer.invoke` on a channel main registered. */
   invoke(channel: string, ...args: unknown[]): Promise<unknown>
 }
@@ -103,7 +110,7 @@ function machine(): Machine {
     suggested,
     dmHome: paths.dmHome,
     opened,
-    associationFile,
+    associationFile, checkouts,
     invoke: async (channel, ...args) => (listeners.get(channel) ?? never(`channel ${channel}`))({} as IpcMainInvokeEvent, ...args)
   }
 }
@@ -140,15 +147,15 @@ describe('sourceCheckout:associate takes only folders the person already tracks 
   })
 })
 
-function forgeSource(m: Machine) {
-  const world = join(m.root, 'forge-world')
+function forgeSource(m: Machine, suffix = '') {
+  const world = join(m.root, 'forge-world' + suffix)
   const member = join(world, 'DarkMechanicus')
-  const code = dmLookAlike(join(m.root, 'code'))
+  const code = dmLookAlike(join(m.root, 'code' + suffix))
   rmSync(join(code, '.git'), { recursive: true })
   const sourceRecord = join(code, '.darkmechanicus', 'project.json')
   const record = readFileSync(sourceRecord, 'utf8')
   rmSync(join(code, '.darkmechanicus'), { recursive: true })
-  const worldRepository = 'https://github.com/example/Forge-World.git'
+  const worldRepository = 'https://github.com/example/Forge-World' + suffix + '.git'
   const sourceRepository = 'https://github.com/example/DarkMechanicus.git'
   const writeReference = (worldUrl = worldRepository, projectFolder = 'DarkMechanicus') => put(code, '.forge-world.json', JSON.stringify({
     version: 1, worldRepository: worldUrl, projectFolder
@@ -376,4 +383,120 @@ describe('dm:command keeps workspace authorization for renderer paths (DM-189 c4
     expect(answer).toEqual({ ok: false, error: { code: 'unauthorized', message: 'That folder is not tracked by Dark Mechanicus.' } })
     expect({ opened: m.opened, setUp: existsSync(join(plain, '.darkmechanicus')) }).toEqual({ opened: [], setUp: false })
   })
+})
+
+it('uses the unique verified private link without changing the chooser or correction targeting', async () => {
+  const m = machine()
+  const f = forgeSource(m)
+  m.registry.track(f.world)
+  expect(m.checkouts.requireRecoveryCheckout()).toMatchObject({
+    path: f.code, projectPath: f.member, target: { projectId: sampleId('project', 7) }
+  })
+  expect(() => m.checkouts.requireAvailable()).toThrow('No Dark Mechanicus checkout')
+  expect(await m.invoke('sourceCheckout:get')).toMatchObject({ status: 'none' })
+  expect(existsSync(m.associationFile)).toBe(false)
+  expect(existsSync(f.sourceRecord)).toBe(false)
+  expect(m.opened).toEqual([])
+  expect(forgeBindingEpoch(nodeFs, m.dmHome, f.code)).toBeNull()
+  m.checkouts.clear()
+  expect(() => m.checkouts.requireRecoveryCheckout()).toThrow('No Dark Mechanicus checkout')
+})
+
+it('refuses stale, cleared, and corrupt explicit choices even beside a usable link', async () => {
+  const m = machine()
+  const f = forgeSource(m)
+  m.registry.track(f.world)
+  const standalone = dmLookAlike(join(m.root, 'chosen'))
+  m.registry.track(standalone)
+  expect(m.checkouts.associate(standalone, false)).toMatchObject({ outcome: 'associated' })
+  expect(m.checkouts.requireRecoveryCheckout().path).toBe(standalone)
+  m.registry.untrack(standalone)
+  expect(() => m.checkouts.requireRecoveryCheckout()).toThrow('no longer tracked')
+  m.checkouts.clear()
+  expect(() => m.checkouts.requireRecoveryCheckout()).toThrow('No Dark Mechanicus checkout')
+  writeFileSync(m.associationFile, '{truncated')
+  expect(() => m.checkouts.requireRecoveryCheckout()).toThrow('No Dark Mechanicus checkout')
+  expect(readFileSync(m.associationFile, 'utf8')).toBe('{truncated')
+  rmSync(m.associationFile)
+  mkdirSync(m.associationFile)
+  expect(() => m.checkouts.requireRecoveryCheckout()).toThrow('No Dark Mechanicus checkout')
+  rmdirSync(m.associationFile)
+  symlinkSync(join(m.root, 'missing-settings'), m.associationFile, 'junction')
+  expect(() => m.checkouts.requireRecoveryCheckout()).toThrow('No Dark Mechanicus checkout')
+})
+
+it('refuses two qualifying links and a remaining untracked or mismatched link', () => {
+  const m = machine()
+  const first = forgeSource(m)
+  const second = forgeSource(m, '-other')
+  m.registry.track(first.world)
+  m.registry.track(second.world)
+  expect(() => m.checkouts.requireRecoveryCheckout()).toThrow('More than one')
+  m.registry.untrack(first.world)
+  gitIn(second.code, 'remote', 'set-url', 'origin', 'https://github.com/example/unrelated.git')
+  expect(() => m.checkouts.requireRecoveryCheckout()).toThrow('No Dark Mechanicus checkout')
+  expect(existsSync(m.associationFile)).toBe(false)
+})
+
+function recoveryMachine(m: Machine, f: ReturnType<typeof forgeSource>) {
+  const workspace = openWorkspace({ repoRoot: f.member, homeDir: m.dmHome, role: 'desktop', transport: 'desktop', label: 'Recovery fixture' })
+  const store = createChatStore({ root: join(m.root, 'chats') })
+  const caller = store.createChat({ folder: null, agent: 'omp', role: 'planner', model: null, allowSave: false })
+  const signal = new AbortController().signal
+  const context: NamingOperationContext = {
+    binding: { folder: null, chatId: caller.id, grantId: 'fixture', generation: 'first', signal, assertCurrent() {} },
+    signal, deadline: Infinity, remainingMs: () => 1000, assertActive() {}, publish: effect => effect()
+  }
+  const promptInput = new Set<string>()
+  const messages = new Set<string>()
+  const hold = vi.fn(async () => {})
+  const start = vi.fn<Parameters<typeof createToolingRecovery>[0]['start']>(async (chat, prompt, verify) => {
+    expect(chat).toMatchObject({ folder: f.member, role: 'orchestrator', allowSave: false })
+    expect(await verify()).toBe(f.code)
+    promptInput.add(prompt)
+    return { state: 'running', pid: 42 }
+  })
+  const input = { action: 'escalate' as const, incidentId: 'held-incident', diagnostic: {
+    command: 'get_kanban_card', code: 'internal', message: 'Fixture lock', reproduction: 'Read the card', expected: 'See the card'
+  } }
+  const service = createToolingRecovery({
+    source: { requireAvailable: m.checkouts.requireRecoveryCheckout }, store, incidents: createRecoveryStore({ userData: m.root }),
+    version: () => '0.71.0-test', transportProblem: () => null, hold, release: async () => {},
+    createCard: async (folder, input) => {
+      expect(folder).toBe(f.member)
+      return (await workspace.createKanbanCard(input)).id
+    },
+    play: async (folder, cardId) => { expect(folder).toBe(f.member); await workspace.playKanbanCard({ cardId }) },
+    authorizeLaunch: () => undefined, start, running: () => start.mock.calls.length > 0,
+    delivery: {
+      hasInput: (_chat, prompt) => promptInput.has(prompt),
+      queue: async (_chat, message) => { messages.add(message.id) },
+      received: (_chat, message) => messages.has(message.id),
+      wake: async () => null
+    }
+  })
+  return { service, input, context, workspace, hold, start }
+}
+
+it('replays a held incident into its existing member and pins the dedicated launch to the separate checkout', async () => {
+  const m = machine()
+  const f = forgeSource(m)
+  m.registry.track(f.world)
+  const hint = readFileSync(f.hint)
+  rmSync(f.hint)
+  const { service, input, context, workspace, hold, start } = recoveryMachine(m, f)
+  try {
+    const blocked = await service(input, context)
+    expect(blocked).toMatchObject({ blocked: true, cardId: null, repairChatId: null })
+    writeFileSync(f.hint, hint)
+    const result = await service(input, context)
+    expect(result).toMatchObject({ incidentId: blocked.incidentId, sourceFolder: f.member, startup: 'running', connection: 'connected' })
+    expect(await service(input, context)).toMatchObject({ cardId: result.cardId, repairChatId: result.repairChatId })
+    const cards = Object.values((await workspace.listKanbanCards({})).lanes).flat()
+    expect(cards.map(card => card.id)).toEqual([result.cardId])
+    expect(hold).toHaveBeenCalledTimes(1)
+    expect(start).toHaveBeenCalledTimes(1)
+    expect(existsSync(f.sourceRecord)).toBe(false)
+    expect(existsSync(m.associationFile)).toBe(false)
+  } finally { workspace.close() }
 })
