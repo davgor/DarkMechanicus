@@ -2,6 +2,7 @@ import { execFile, execFileSync } from 'node:child_process'
 import { lstatSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { fail } from '../errors'
+import { gitOriginContext, queryLocalGitOrigin, type LocalGitOriginConfigCache } from './gitOriginConfig'
 import { nodeFs } from './nodeFs'
 import type { FsAdapter, GitAdapter, GitHead } from './types'
 
@@ -135,14 +136,14 @@ function defaultRunGit(root: string): RunGit {
     })
 }
 
-function defaultRunGitSync(root: string): RunGitSync {
+function defaultRunGitSync(root: string, env?: NodeJS.ProcessEnv, executable = 'git'): RunGitSync {
   return (args) => {
     try {
-      const stdout = execFileSync('git', ['-C', root, ...args], {
+      const stdout = execFileSync(executable, ['-C', root, ...args], {
         encoding: 'utf8',
         timeout: GIT_TIMEOUT_MS,
         maxBuffer: GIT_MAX_BUFFER,
-        env: gitEnv(),
+        env: env ?? gitEnv(),
         windowsHide: true,
         stdio: ['ignore', 'pipe', 'ignore']
       })
@@ -174,15 +175,25 @@ export function gitCheckoutStamp(root: string, protectIndex: boolean): string {
   ])
 }
 
-/** Reads an actual checkout's configured origin, without consulting URL rewrites or included configuration. */
-export function readLocalGitOrigin(root: string): string | null {
+function readLocalGitOriginLive(root: string): string | null {
   if (nodeFs.isSymlink(join(root, '.git'))) return null
   const run = defaultRunGitSync(root)
   const top = run(['rev-parse', '--show-toplevel'])
   if (top.code !== 0 || nodeFs.realpath(top.stdout.trim()) !== root) return null
-  const origin = run(['config', '--local', '--no-includes', '--get-all', 'remote.origin.url'])
-  const urls = origin.stdout.trim().split(/\r?\n/)
-  return origin.code === 0 && urls.length === 1 && urls[0] !== '' ? urls[0] : null
+  return queryLocalGitOrigin(run)
+}
+
+export function gitOriginExecutionStamp(): string { return gitOriginContext(gitEnv()).key }
+
+/** Reads an actual checkout's configured origin, without consulting URL rewrites or included configuration. */
+export function readLocalGitOrigin(root: string, configCache?: LocalGitOriginConfigCache): string | null {
+  if (configCache === undefined) return readLocalGitOriginLive(root)
+  const env = gitEnv()
+  const initial = gitOriginContext(env)
+  return configCache.read(root, {
+    initial, contextNow: () => gitOriginContext(gitEnv()),
+    run: defaultRunGitSync(root, env, initial.executable ?? 'git'), fallback: () => readLocalGitOriginLive(root)
+  })
 }
 
 /** A machine-private path must be absent from both the index and committed tree before it can be read. */

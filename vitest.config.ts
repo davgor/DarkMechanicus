@@ -36,6 +36,7 @@ const GIT_HEAVY = [
   'src/main/desktop/forgeService.setup.test.ts',
   'src/main/desktop/sourceCheckoutIpc.test.ts',
   'src/core/repo/git.test.ts',
+  'src/core/repo/gitOriginConfig.test.ts',
   'src/core/services/attemptsIncrement.test.ts',
   'src/core/services/incrementVerify.test.ts',
   'src/core/workspace.gitFor.test.ts',

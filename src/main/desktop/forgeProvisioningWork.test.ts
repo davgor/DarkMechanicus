@@ -21,9 +21,10 @@ import { startForge } from './forgeService'
 
 vi.mock('../../core/repo/git', async importOriginal => {
   const actual = await importOriginal<typeof import('../../core/repo/git')>()
-  return { ...actual, readLocalGitOrigin: vi.fn((path: string) => {
+  return { ...actual, readLocalGitOrigin: vi.fn((...query: Parameters<typeof actual.readLocalGitOrigin>) => {
+    const [path] = query
     const trace = forgeTimingForPath(path)
-    return trace ? trace.observe('git:sync:readLocalGitOrigin', () => actual.readLocalGitOrigin(path)) : actual.readLocalGitOrigin(path)
+    return trace ? trace.observe('git:sync:readLocalGitOrigin', () => actual.readLocalGitOrigin(...query)) : actual.readLocalGitOrigin(...query)
   }) }
 })
 

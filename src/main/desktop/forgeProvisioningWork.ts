@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto'
 import { accessSync, constants, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { assertForgeTransferIdle, bindForge, boundForgeRoot, forgeBindingEpoch, FORGE_POINTER } from '../../core/repo/forgeBinding'
-import { gitCheckoutStamp, readLocalGitOrigin } from '../../core/repo/git'
+import { gitCheckoutStamp, gitOriginExecutionStamp, readLocalGitOrigin } from '../../core/repo/git'
+import { LocalGitOriginConfigCache } from '../../core/repo/gitOriginConfig'
 import { readProject } from '../../core/repo/initialize'
 import { nodeFs } from '../../core/repo/nodeFs'
 import { resolveLayout } from '../../core/repo/layout'
@@ -82,8 +83,8 @@ function ensureManagedHome(path: string): void {
   dirStamp(path)
 }
 
-function origin(path: string): string | null {
-  const current = readLocalGitOrigin(path)
+function origin(path: string, cache?: LocalGitOriginConfigCache): string | null {
+  const current = cache === undefined ? readLocalGitOrigin(path) : readLocalGitOrigin(path, cache)
   return current === null ? null : githubRemote(current)
 }
 
@@ -104,7 +105,7 @@ function originStamp(path: string): string | null {
   const head = nodeFs.fileStamp(join(git, 'HEAD'))
   if (head === null || nodeFs.fileStamp(join(git, 'config')) === null) return null
   if (['commondir', 'config.worktree'].some(name => lstatSync(join(git, name), { throwIfNoEntry: false }) !== undefined)) return null
-  return JSON.stringify([gitCheckoutStamp(path, false), directory, discovery, head])
+  return JSON.stringify([gitCheckoutStamp(path, false), directory, discovery, head, gitOriginExecutionStamp()])
 }
 
 function inner(parent: string, candidate: string): boolean {
@@ -184,6 +185,7 @@ const branch = 'refs/heads/main'
 
 class ProvisioningWork implements ForgeProvisioningWork {
   private readonly originProofs = new WeakMap<ForgeProvisionIntent, Map<string, OriginProof>>()
+  private readonly originConfigs = new WeakMap<ForgeProvisionIntent, LocalGitOriginConfigCache>()
 
   constructor(private readonly deps: ProvisioningOptions) {}
 
@@ -263,7 +265,9 @@ class ProvisioningWork implements ForgeProvisioningWork {
     const proved = this.originProofs.get(intent) ?? new Map<string, OriginProof>()
     const prior = proved.get(path)
     if (prior?.stamp === stamp) return prior.url
-    const url = origin(path)
+    const config = this.originConfigs.get(intent) ?? new LocalGitOriginConfigCache(githubRemote)
+    this.originConfigs.set(intent, config)
+    const url = origin(path, config)
     if (originStamp(path) !== stamp) throw new Error('The checkout Git metadata changed while verifying its origin.')
     if (url !== null) {
       proved.set(path, { stamp, url })
