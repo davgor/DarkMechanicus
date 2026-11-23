@@ -2,6 +2,7 @@ import { closeSync, fsyncSync, linkSync, openSync, writeFileSync } from 'node:fs
 import { randomUUID } from 'node:crypto'
 import { basename, dirname, join, relative, resolve } from 'node:path'
 import { z } from 'zod'
+import type { ForgeSetupDetection } from '../../shared/desktop/forgeSetup'
 import { prettyJson } from '../canonical'
 import type { Clock } from '../clock'
 import type { Ctx } from '../context'
@@ -23,6 +24,7 @@ import { exportMigrationRecords } from './migrationExport'
 import { assertForgeForceSafe, restartForgeExecution, settleForgeExports } from './forgeForce'
 import { prepareForgeReconciliation } from './forgeReconciliation'
 import { recordForgeExport, recordForgeExportOwner } from './forgeExportReceipt'
+import { refreshForgeSetupWorkflow } from './forgeSetupStorage'
 import type { ProjectRecord } from './portable'
 import { assertContained, isStrictlyInside, ownedPaths } from './paths'
 import { projectKey, type StorageMode } from './storageMode'
@@ -352,12 +354,21 @@ function copyKnowledge(fs: FsAdapter, source: RepoLayout, staging: RepoLayout): 
   if (fs.exists(source.knowledgeDir)) copy(source.knowledgeDir, staging.knowledgeDir)
 }
 
-export function exportForgeDestination(deps: MigrationDeps, member: string, mode: StorageMode, force = false): void {
+export interface ForgeExportOptions {
+  force?: boolean
+  setup?: { repository: string; detection: ForgeSetupDetection }
+}
+
+function assertForgeExportAllowed(deps: MigrationDeps, mode: StorageMode, force: boolean): void {
   if (force) {
     if (mode !== 'repo') fail('invalid_input', 'Force migration requires a Forge World destination.')
     assertForgeForceSafe(deps.db)
   }
   else assertStorageIdle(deps)
+}
+
+export function exportForgeDestination(deps: MigrationDeps, member: string, mode: StorageMode, { force = false, setup }: ForgeExportOptions = {}): void {
+  assertForgeExportAllowed(deps, mode, force)
   const source = deps.layout
   const target = resolveLayout(member, { mode, homeDir: deps.homeDir })
   const staging = layoutUnder(member, mode, target.dmDir + '.preparing')
@@ -369,6 +380,7 @@ export function exportForgeDestination(deps: MigrationDeps, member: string, mode
     const { repoRoot: _localRoot, ...portable } = project
     prepareDestination(deps, paths, mode === 'db' ? { ...portable, repoRoot: member } : portable, { retireSession: true, force })
     copyKnowledge(deps.fs, source, staging)
+    if (setup !== undefined) refreshForgeSetupWorkflow(staging, setup.repository, setup.detection)
     if (force) recordForgeExport({ fs: deps.fs, layout: staging, source: deps.repoRoot })
     deps.fs.rename(staging.dmDir, target.dmDir)
     if (mode === 'db' && project.deliveryStandards) {

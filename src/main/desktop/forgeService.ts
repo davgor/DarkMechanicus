@@ -2,13 +2,15 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, rmdirSync, unlinkSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 import type { IpcMain } from 'electron'
+import type { ChatRecord } from '../../shared/agents/chat'
 import type { ForgeMemberStatus } from '../../shared/desktop/forgeWorld'
 import type { GitRunner } from '../git/runner'
 import type { CredentialSession } from '../git/credentials'
 import { DomainError } from '../../core/errors'
 import { assertForgeTransferIdle, assertForgeWorldSyncAllowed, bindForge, boundForgeRoot, FORGE_POINTER, pendingForgeForce, pendingForgeTransfer, withForgeTransfer } from '../../core/repo/forgeBinding'
+import { forgeCodeCheckout } from '../../core/repo/forgeCheckout'
 import { retireSqlitePolicy } from '../../core/repo/deliveryPolicy'
-import { readForgeRecipebook, writeForgeRecipebook } from '../../core/repo/forgeSetupStorage'
+import { readForgeRecipebook, readForgeSetupWorkflow, refreshForgeSetupWorkflow, writeForgeRecipebook } from '../../core/repo/forgeSetupStorage'
 import { gitCheckoutStamp } from '../../core/repo/git'
 import { readProject } from '../../core/repo/initialize'
 import { resolveLayout } from '../../core/repo/layout'
@@ -22,6 +24,7 @@ import { ForgeGit } from './forgeGit'
 import { createForgeProvisioning, type ForgeProvisioning } from './forgeProvisioning'
 import { bundledRecipebookFile, createForgeProvisioningWork } from './forgeProvisioningWork'
 import { bundledForgeRecipes, verifyForgeScaffold } from './forgeScaffold'
+import { createForgeSetupOnboarding, type ForgeSetupMember, type ForgeSetupOnboardingOptions } from './forgeSetupOnboarding'
 import { ensureForgeWorld } from './forgeHealth'
 import type { FolderRegistry } from './folderRegistry'
 import type { WorkspacePool } from './workspacePool'
@@ -41,6 +44,7 @@ interface Services {
   onFoldersChanged?(): void
   provisioning?: Pick<Parameters<typeof createForgeProvisioningWork>[0], 'publisher' | 'discover'> & { journal: string }
   onImported?(member: string, agent?: string): Promise<void>
+  setup?: Omit<ForgeSetupOnboardingOptions, 'resolveMember' | 'discover' | 'resolveCheckout' | 'mutate' | 'sync'>
 }
 interface MemberIdentity { key: string; identity: string }
 interface MemberPreparation { key: string | undefined; promise: Promise<void> }
@@ -62,6 +66,8 @@ function localForgeBinding(home: string, source: string): string | undefined {
 
 class ForgeService {
   private readonly git: ForgeGit
+  private readonly setup?: ReturnType<typeof createForgeSetupOnboarding>
+  private provisioning?: ForgeProvisioning
   private stopped = false
   private readonly resolving = new Set<string>()
   private readonly pending = new Map<string, Promise<void>>()
@@ -81,7 +87,40 @@ class ForgeService {
   private readonly errors = new Map<string, string>()
   private readonly checking = new Map<string, Promise<void>>()
 
-  constructor(private readonly deps: Services) { this.git = new ForgeGit(deps.session, deps.runner) }
+  constructor(private readonly deps: Services) {
+    this.git = new ForgeGit(deps.session, deps.runner)
+    if (deps.setup !== undefined && deps.provisioning !== undefined) {
+      this.setup = createForgeSetupOnboarding({
+        ...deps.setup, resolveMember: input => this.setupMember(input), discover: deps.provisioning.discover,
+        resolveCheckout: target => forgeCodeCheckout(target.member, deps.home, undefined),
+        mutate: (root, work) => this.withProvisioningWorld(root, work),
+        sync: root => { void this.sync(root, true).catch(() => undefined) }
+      })
+    }
+  }
+  private setupMember(input: unknown): ForgeSetupMember {
+    const member = this.rootOf(input)
+    const tracked = this.deps.registry.list().find(folder => folder.path === member)
+    const root = tracked?.forgeParent
+    const identity = tracked?.projectIdentity
+    if (!root || !identity || tracked.storageMode !== 'repo') throw new Error('Open a tracked and initialized Forge World project.')
+    const key = this.rootKey(root)
+    const repository = this.memberRepository(root, member)
+    const assertCurrent = () => {
+      this.assertSyncTarget(root, key)
+      assertForgeTransferIdle(nodeFs, this.deps.home, member)
+      if (this.identityOf(root, member) !== identity || this.memberRepository(root, member) !== repository) {
+        throw new Error('The Forge World member or its code mapping changed.')
+      }
+    }
+    assertCurrent()
+    return { member, root, repository, identity, assertCurrent }
+  }
+  private memberRepository(root: string, member: string): string {
+    const project = this.worldAt(root).projects.find(record => record.folder === basename(member))
+    if (project === undefined) throw new Error('The Forge World no longer maps this ticket project.')
+    return project.repository
+  }
   ensure(root: string): Promise<void> {
     try { assertForgeWorldSyncAllowed(nodeFs, this.deps.home, root) }
     catch (error) { return Promise.reject(error) }
@@ -138,6 +177,7 @@ class ForgeService {
   }
   private async relatedMutation<T>(root: string, change: () => Promise<T>): Promise<T> {
     this.assertNotProvisioning(root)
+    this.provisioning?.assertWorldPublished(root)
     this.relatedMutations.set(root, (this.relatedMutations.get(root) ?? 0) + 1)
     try { return await change() }
     finally {
@@ -149,7 +189,10 @@ class ForgeService {
   private assertSyncAdmission(root: string, transfer: boolean, guarded: boolean): void {
     if (this.stopped) throw new Error('Forge sync is stopping.')
     assertForgeWorldSyncAllowed(nodeFs, this.deps.home, root)
-    if (!guarded) this.assertNotProvisioning(root)
+    if (!guarded) {
+      this.assertNotProvisioning(root)
+      this.provisioning?.assertWorldPublished(root)
+    }
     if (this.transferring.has(root) && !transfer) throw new Error('Resume the pending Forge World conversion before syncing.')
   }
   sync(root: string, afterMutation = false, transfer = false, provisionCurrent?: () => void): Promise<void> {
@@ -349,7 +392,8 @@ class ForgeService {
   }
   async add(root: string, repository: string, name: string) {
     const member = await this.relatedMutation(root, () => this.addProject(root, repository, name))
-    await this.deps.onImported?.(member)
+    await this.imported(member)
+    await this.sync(root, true)
   }
   private async addProject(root: string, repository: string, name: string) {
     const world = this.worldAt(root)
@@ -361,12 +405,15 @@ class ForgeService {
     else throw new Error('The project folder already exists in this Forge World.')
     await this.deps.pool.get(member).initializeRepository({ name: folder, mode: 'repo' })
     updateForge(root, w => w.projects.push({ folder, repository: url }))
-    await this.sync(root, true)
     return member
   }
   async convert(root: string, source: string, force = false) {
     await this.relatedMutation(root, () => this.convertProject(root, source, force))
-    await this.deps.onImported?.(join(root, projectName(basename(source))))
+    await this.imported(join(root, projectName(basename(source))))
+  }
+  private async imported(member: string, agent?: string): Promise<void> {
+    await this.setup?.imported(member, agent)
+    await this.deps.onImported?.(member, agent)
   }
   private async convertProject(root: string, source: string, force: boolean) {
     this.worldAt(root)
@@ -513,13 +560,14 @@ class ForgeService {
     const options = this.deps.provisioning
     if (options === undefined) return undefined
     const { journal, ...adapter } = options
-    const { home, registry, pool, session, pickDirectory, onImported } = this.deps
+    const { home, registry, pool, session, pickDirectory } = this.deps
     const provisioning = createForgeProvisioning(journal, createForgeProvisioningWork({
       ...adapter, home, registry, pool, session, pickDirectory, git: this.git,
       withWorld: (root, change) => this.withProvisioningWorld(root, change),
       synchronize: (root, current) => this.sync(root, true, false, current),
-      onProject: onImported
+      onProject: (member, agent) => this.imported(member, agent)
     }))
+    this.provisioning = provisioning
     ipc.handle('forgeSetup:provision', (_event, request, operationId) => provisioning.provision(request, operationId))
     ipc.handle('forgeSetup:provisioning', () => provisioning.provisioning())
     ipc.handle('forgeSetup:resumeProvision', (_event, id) => provisioning.resumeProvision(id))
@@ -530,11 +578,26 @@ class ForgeService {
       return readForgeRecipebook(root)
     })
     ipc.handle('forgeSetup:saveRecipebook', (_event, folder, edit) => this.saveRecipebook(folder, edit))
+    this.registerSetup(ipc)
     return provisioning
+  }
+  private registerSetup(ipc: Pick<IpcMain, 'handle'>): void {
+    const setup = this.setup
+    if (setup === undefined) return
+    ipc.handle('forgeSetup:project', (_event, member) => setup.project(member))
+    ipc.handle('forgeSetup:saveWorkflow', (_event, member, edit) => setup.saveWorkflow(member, edit))
+    ipc.handle('forgeSetup:refresh', (_event, member) => setup.refresh(member))
+    ipc.handle('forgeSetup:prepare', (_event, member, agent) => setup.prepare(member, agent))
+    ipc.handle('forgeSetup:run', (_event, member, sha, checkout) => setup.run(member, sha, checkout))
+  }
+  assertSetupLaunch(chat: ChatRecord, authorization?: symbol): string {
+    if (this.setup === undefined) throw new Error('Forge setup launch authority is unavailable.')
+    return this.setup.assertLaunch(chat, authorization)
   }
   private async saveRecipebook(folder: unknown, edit: import('../../shared/desktop/forgeSetup').ForgeRecipebookEdit) {
     const root = this.rootOf(folder)
     this.worldAt(root)
+    this.provisioning?.assertWorldPublished(root)
     const saved = await this.withProvisioningWorld(root, async () => {
       const key = this.rootKey(root)
       const current = () => this.assertSyncTarget(root, key)
@@ -774,15 +837,22 @@ class ForgeService {
     if (!existsSync(member)) mkdirSync(member)
     if (realpathSync.native(member) !== member) throw new Error('The ticket folder moved during conversion.')
     const original = this.deps.pool.get(source)
-    if (!existsSync(join(member, '.darkmechanicus/project.json'))) {
-      if (await original.call('initialized')) await original.call('exportForge', member, 'repo', force)
-      else await this.deps.pool.get(member).initializeRepository({ name: folder, mode: 'repo' })
-    }
+    if (!existsSync(join(member, '.darkmechanicus/project.json'))) await this.initializeOrExport({ member, source, folder, repository }, force)
     if (force) {
       beforeVerify?.()
       await original.call('verifyForge', member, false)
     }
     if (!this.worldAt(root).projects.some(p => p.folder === folder && p.repository === repository)) updateForge(root, w => w.projects.push({ folder, repository }))
+  }
+  private async initializeOrExport({ member, source, folder, repository }: Omit<ForgeMove, 'root'>, force: boolean): Promise<void> {
+    const detection = this.setup === undefined ? undefined : await this.deps.provisioning?.discover(repository)
+    const original = this.deps.pool.get(source)
+    if (await original.call('initialized')) {
+      await original.call('exportForge', member, 'repo', force, detection === undefined ? undefined : { repository, detection })
+    } else {
+      await this.deps.pool.get(member).initializeRepository({ name: folder, mode: 'repo' })
+      if (detection !== undefined && readForgeSetupWorkflow(member) === null) refreshForgeSetupWorkflow(member, repository, detection)
+    }
   }
   async retireSource(source: string, member: string) {
     const original = this.deps.pool.get(source)
@@ -817,5 +887,6 @@ export function startForge(ipc: Pick<IpcMain, 'handle'>, deps: Services) {
   const timer = setInterval(() => service.tick(), 15_000)
   timer.unref()
   return { ready, openWorld: (folder: string) => service.openWorld(folder), openProject: (source: string) => service.openProject(source),
+    assertSetupLaunch: (chat: ChatRecord, authorization?: symbol) => service.assertSetupLaunch(chat, authorization),
     stop: () => { clearInterval(timer); service.stop(); return provisioning?.stop() } }
 }

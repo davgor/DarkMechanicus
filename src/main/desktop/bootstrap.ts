@@ -347,6 +347,7 @@ interface TerminalDeps {
   agents: Pick<AgentRegistry, 'get'>
   beforeContextPaste: NonNullable<TerminalSessionsDeps['beforeContextPaste']>
   assertRecoveryLaunch: NonNullable<TerminalSessionsDeps['assertRecoveryLaunch']>
+  assertForgeSetupLaunch: NonNullable<TerminalSessionsDeps['assertForgeSetupLaunch']>
 }
 
 /** The chat terminals and the sign-in terminals, over one PTY host loaded at the first start (an app where it cannot run still opens). */
@@ -368,6 +369,7 @@ function createTerminalProcesses(store: ChatStore, deps: TerminalDeps): Pick<Cha
     ...deps.grants,
     beforeContextPaste: deps.beforeContextPaste,
     assertRecoveryLaunch: deps.assertRecoveryLaunch,
+    assertForgeSetupLaunch: deps.assertForgeSetupLaunch,
     userData: app.getPath('userData'),
     ompExtension: skitariiExtensionPath({ packaged: app.isPackaged, appPath: app.getAppPath(), resourcesPath: process.resourcesPath }),
     onError: (error) => {
@@ -397,6 +399,7 @@ interface ChatProcessOptions {
   workspaces: Pick<WorkspacePool, 'get' | 'background'>
   activity: ActivityBindings
   sourceCheckouts: SourceCheckouts
+  assertForgeSetupLaunch: NonNullable<TerminalSessionsDeps['assertForgeSetupLaunch']>
 }
 interface ChatQuitOptions {
   grants: ChatGrants
@@ -425,7 +428,7 @@ function chatQuit({ grants, yoloRuntime, ready, pipe, terminals, logins }: ChatQ
  * terminals and the sign-in terminals load node-pty at the first start, so an app where it cannot run still opens.
  * Deleting a chat forgets the bindings old chats stored (`activity`).
  */
-function createChatProcesses({ folders, agents, workspaces, activity, sourceCheckouts }: ChatProcessOptions): ChatProcesses {
+function createChatProcesses({ folders, agents, workspaces, activity, sourceCheckouts, assertForgeSetupLaunch }: ChatProcessOptions): ChatProcesses {
   const yoloRuntime = createYoloDesktopRuntime(join(app.getPath('userData'), 'yolo-desktop-instance.json'))
   // One store for all: it keeps each folder's index in memory, so two would write over each other's records.
   const store = createChatStore({ root: join(app.getPath('userData'), 'agents', 'chats') })
@@ -454,7 +457,7 @@ function createChatProcesses({ folders, agents, workspaces, activity, sourceChec
   const { terminals, logins, deliveries, contextDelivery, resumeChat, boardTransport } = createContextTerminals(store, {
     grants: { ...grants, runs: chatRunCommands(folders, workspaces), onChatChanged: (ref) => push({ type: 'chats_changed', folder: ref.folder, chatId: ref.id }) },
     folders: { trackedFolder: (path) => folders.resolve(path) }, reachFolders, forgeResolverFolders, agents,
-    assertRecoveryLaunch: chat => recovery.assertLaunch(chat)
+    assertRecoveryLaunch: chat => recovery.assertLaunch(chat), assertForgeSetupLaunch
   }, push)
   recovery = createDesktopToolingRecovery({
     userData: app.getPath('userData'), version: () => app.getVersion(),
@@ -932,7 +935,7 @@ function telegramLifecycle(ipc: Pick<IpcMain, 'handle'>, registry: FolderRegistr
   return async () => { stopTelegram(); await closeStores() }
 }
 
-type ForgeBridgeOptions = Pick<ChatProcesses, 'chats' | 'store' | 'terminals' | 'suspendChatMail'> & {
+type ForgeBridgeOptions = Pick<ChatProcesses, 'chats' | 'store' | 'terminals' | 'contextDelivery' | 'suspendChatMail'> & {
   registry: FolderRegistry
   pool: WorkspacePool
   github: GithubBridge
@@ -954,8 +957,35 @@ function startForgeBridge(ipc: Pick<IpcMain, 'handle'>, options: ForgeBridgeOpti
       publisher: createForgeRepositoryPublisher(github, githubFetch),
       discover: repository => discoverGithubForgeSetup(repository, github, (url, request) => net.fetch(url, request))
     },
+    setup: forgeSetupChatOptions(options),
     ...forgeAgentSessions({ ...options, beforeArchive: async chat => { await retireChatHolds(chat, registry, pool); await options.suspendChatMail(chat) } })
   })
+}
+
+function forgeSetupChatOptions(
+  { registry, pool, agents, folderDefaults, store, chats, terminals, contextDelivery }: ForgeBridgeOptions
+): NonNullable<Parameters<typeof startForge>[1]['setup']> {
+  const push = createChatPush(() => BrowserWindow.getAllWindows())
+  const directory = join(app.getPath('userData'), 'forge')
+  return {
+    file: join(directory, 'onboarding.json'),
+    scratch: join(directory, 'onboarding'),
+    preferred: target => folderDefaults.get(target.member) ?? folderDefaults.get(target.root),
+    agent: id => {
+      const configured = agents.get(id)
+      return configured === null || configured.needsReview ? null :
+        JSON.stringify([configured.id, configured.kind, configured.executablePath, configured.version, configured.args])
+    },
+    getStandards: async member => (await desktopWorkspace(registry, pool, member).getProject()).deliveryStandards,
+    getChat: ref => store.getChat(ref),
+    findChat: (member, tag) => store.listChats(member).find(chat =>
+      chat.forgeSetup?.intentId === tag.intentId && chat.forgeSetup.stepId === tag.stepId && chat.forgeSetup.mode === tag.mode),
+    createChat: async request => chats.createChat(request),
+    start: (chat, authorization) => terminals.start(chat, { kickoff: chat.firstPrompt!, forgeSetupAuthorization: authorization }),
+    hasInput: (chat, text, cwd) => contextDelivery.hasInput({ ...chat, folder: cwd }, text),
+    running: chatId => terminals.isRunning(chatId),
+    announce: chat => push({ type: 'chats_changed', folder: chat.folder, chatId: chat.id })
+  }
 }
 
 type BridgeHandlerOptions = Pick<ForgeBridgeOptions, 'registry' | 'pool' | 'agents' | 'folderDefaults' | 'terminals' | 'skills'> &
@@ -1014,9 +1044,17 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   // Which threads of old chats acted on which runs and attempts, as they stored it next to the chats.
   const activity = createActivityBindings({ file: join(app.getPath('userData'), 'agents', 'activity-bindings.jsonl') })
   const sourceCheckouts = startSourceCheckout(ipc, registry)
-  const { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder, suspendChatMail } = createChatProcesses({ folders: registry, agents, workspaces: pool, activity, sourceCheckouts })
+  let verifySetup: TerminalSessionsDeps['assertForgeSetupLaunch']
+  const { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat, releaseFolder, suspendChatMail } = createChatProcesses({
+    folders: registry, agents, workspaces: pool, activity, sourceCheckouts,
+    assertForgeSetupLaunch: (chat, authorization) => {
+      if (verifySetup === undefined) throw new Error('Forge setup launch authority is unavailable.')
+      return verifySetup(chat, authorization)
+    }
+  })
   const github = startGithub(ipc)
-  const forge = startForgeBridge(ipc, { registry, pool, github, skills, store, chats, terminals, agents, folderDefaults, suspendChatMail })
+  const forge = startForgeBridge(ipc, { registry, pool, github, skills, store, chats, terminals, agents, folderDefaults, contextDelivery, suspendChatMail })
+  verifySetup = forge.assertSetupLaunch
   startGit(forge, ipc, registry, github)
   const handlers = bridgeHandlers({ registry, pool, releaseFolder, mail, agents, folderDefaults, forge, installer, terminals, logins, skills })
   registerDesktopIpc(ipc, handlers)

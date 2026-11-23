@@ -34,7 +34,7 @@ import { resolveLayout } from './repo/layout'
 import { nodeFs } from './repo/nodeFs'
 import type { ProjectRecord } from './repo/portable'
 import { resolveHomeDir, resolveStorageMode, type StorageMode } from './repo/storageMode'
-import { assertStorageMigrationIdle, recoverStorageMigration, exportForgeDestination, switchStorage } from './repo/storageMigration'
+import { assertStorageMigrationIdle, recoverStorageMigration, exportForgeDestination, switchStorage, type ForgeExportOptions } from './repo/storageMigration'
 import { pruneStagedAttachments } from './services/attachments'
 import { MAIL_POLL_COMMANDS, openMailPollSession, touchMailPollSession } from './services/agentMail'
 import { assertGrantUsable, redeemGrant, type RedeemedGrant } from './services/grants'
@@ -98,7 +98,7 @@ export interface OpenWorkspaceOptions {
 
 /** One repository opened by one session. Implements the full command contract. */
 export interface Workspace extends CommandApi {
-  exportForge?(member: string, mode?: StorageMode, options?: { force: boolean }): void
+  exportForge?(member: string, mode?: StorageMode, options?: ForgeExportOptions): void
   readonly repoRoot: string
   sessionId(): string | null
   isInitialized(): boolean
@@ -645,9 +645,9 @@ export class RepositoryWorkspace implements WorkspaceCore {
     return switchStorage(this.migrationDeps(store), mode)
   }
 
-  exportForge(member: string, mode: StorageMode = 'repo', options?: { force: boolean }): void {
+  exportForge(member: string, mode: StorageMode = 'repo', options?: ForgeExportOptions): void {
     if (this.transport !== 'desktop') fail('unauthorized', 'Forge conversion requires the desktop app.')
-    exportForgeDestination(this.migrationDeps(this.requireStore()), member, mode, options?.force === true)
+    exportForgeDestination(this.migrationDeps(this.requireStore()), member, mode, options)
   }
 
   private migrationDeps(store: Store) {
@@ -832,7 +832,7 @@ export function openWorkspace(options: OpenWorkspaceOptions): Workspace {
     commands[name] = (input?: unknown) => core.execute(name, input)
   }
   const lifecycle = {
-    exportForge: (member: string, mode?: StorageMode, options?: { force: boolean }) => core.exportForge(member, mode, options),
+    exportForge: (member: string, mode?: StorageMode, options?: ForgeExportOptions) => core.exportForge(member, mode, options),
     repoRoot: core.repoRoot,
     sessionId: () => core.sessionId(),
     isInitialized: () => core.isInitialized(),

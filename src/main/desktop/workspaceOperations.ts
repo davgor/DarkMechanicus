@@ -8,6 +8,7 @@ import { NATIVE_COMMANDS, type Work } from './workspaceClient'
 import { assertForgeForceSafe } from '../../core/repo/forgeForce'
 import { archiveRetiredForgeStore, retireForcedStore } from '../../core/repo/forgeRetirement'
 import { verifyForgeExport, verifyForgeExportOwner } from '../../core/repo/forgeExportReceipt'
+import type { ForgeExportOptions } from '../../core/repo/storageMigration'
 import { layoutUnder, resolveLayout } from '../../core/repo/layout'
 import { nodeFs } from '../../core/repo/nodeFs'
 import { hasValidatedRepositoryCache } from '../../core/repo/validatedCache'
@@ -168,8 +169,8 @@ function forgeOperations(workspace: Workspace, ctx: Context, home: string) {
       if (force) assertForgeForceSafe(context.db)
       else assertStorageIdle({ db: context.db, clock: context.clock, sessionId: context.session.id })
     },
-    exportForge(target: string, mode: StorageMode, force = false) {
-      workspace.exportForge?.(target, mode, { force })
+    exportForge(target: string, mode: StorageMode, force = false, setup?: ForgeExportOptions['setup']) {
+      workspace.exportForge?.(target, mode, { force, setup })
     },
     verifyForge(target: string, preparing: boolean) {
       const layout = preparing ? layoutUnder(target, 'repo', join(target, '.darkmechanicus.preparing')) : resolveLayout(target)

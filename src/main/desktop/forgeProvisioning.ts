@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
-import { dirname } from 'node:path'
+import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { z } from 'zod'
 import type { ForgeProvisionRequest, ForgeProvisionResult, ForgeProvisionStatus } from '../../shared/desktop/forgeSetup'
 import { projectName } from './forgeManifest'
@@ -64,6 +64,7 @@ export interface ForgeProvisioning {
   provision(input: unknown, operationId: unknown): Promise<ForgeProvisionResult>
   provisioning(): Promise<ForgeProvisionStatus[]>
   resumeProvision(id: unknown): Promise<ForgeProvisionStatus>
+  assertWorldPublished(root: string): void
   stop(): Promise<void>
 }
 
@@ -208,6 +209,18 @@ class Provisioning implements ForgeProvisioning {
     if (login === undefined) return []
     return [...this.journal().values()].reverse().filter(intent => intent.account.login.toLowerCase() === login)
       .map(intent => report(intent, this.active.has(intent.id)))
+  }
+
+  assertWorldPublished(root: string): void {
+    const file = join(root, '.git', 'forge-provisioning')
+    const stat = lstatSync(file, { throwIfNoEntry: false })
+    if (stat === undefined) return
+    if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== 37) throw new Error('The Forge creation receipt cannot be verified.')
+    const id = readFileSync(file, 'utf8').trim()
+    const intent = this.journal().get(id)
+    if (intent === undefined || intent.request.world.kind !== 'new') throw new Error('The Forge creation receipt cannot be verified.')
+    if (intent.state !== 'complete') throw new Error('Resume Forge World creation before syncing this repository.')
+    if (intent.world?.path !== root) throw new Error('The published Forge World checkout changed.')
   }
 
   async resumeProvision(raw: unknown): Promise<ForgeProvisionStatus> {

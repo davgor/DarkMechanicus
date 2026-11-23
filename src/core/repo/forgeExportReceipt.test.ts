@@ -5,8 +5,10 @@ import { createHarness, type Harness } from '../../test/workspaceHarness'
 import { openDatabase } from '../db/database'
 import { verifyForgeExport, verifyForgeExportOwner } from './forgeExportReceipt'
 import { withForgeTransfer } from './forgeBinding'
+import { forgeSetupWorkflowState, readForgeSetupWorkflow, refreshForgeSetupWorkflow, saveForgeSetupWorkflow } from './forgeSetupStorage'
 import { resolveLayout } from './layout'
 import { nodeFs } from './nodeFs'
+import type { ForgeSetupDetection } from '../../shared/desktop/forgeSetup'
 
 let h: Harness
 beforeEach(() => { h = createHarness() })
@@ -53,4 +55,25 @@ it.each(['identity', 'checkpoint', 'database', 'portable', 'receipt', 'project_i
   const messages = { identity: 'export changed', project_id: 'export changed', checkpoint: 'export changed', database: 'export changed', portable: 'export changed', missing_project: 'project is missing', missing_database: 'database is missing', missing_owner: 'no ownership marker', receipt: 'no ownership receipt' }
   expect(() => verify(env, source.ctx().projectId)).toThrow(messages[changed])
   expect(await source.getKanbanCard({ cardId: card.id })).toEqual(before)
+})
+
+it('includes refreshed setup evidence and authored steps in the original force export receipt', async () => {
+  const source = h.open('desktop', { mode: 'repo', transport: 'desktop' })
+  await source.initializeRepository({ name: 'Setup conversion' })
+  const repository = 'https://github.com/example/setup.git'
+  const detection: ForgeSetupDetection = { detectorVersion: 1, status: 'detected', source: { commit: '1'.repeat(40), repository },
+    facts: [{ kind: 'node', source: '.node-version', value: '22' }] }
+  const first = refreshForgeSetupWorkflow(h.root, repository, detection)
+  const steps = [{ kind: 'command' as const, id: 'setup', title: 'Install confirmed files', program: 'npm', cwd: '.', args: ['ci'] }]
+  const authored = saveForgeSetupWorkflow(h.root, { expectedSha256: first.sha256, workflow: { state: 'configured', steps }, notes: 'Keep this review' })
+  const member = join(h.homeDir, 'Setup')
+  mkdirSync(member)
+  await withForgeTransfer(h.homeDir, h.root, member, async () => source.exportForge!(member, 'repo', { force: true,
+    setup: { repository, detection: { ...detection, source: { commit: '2'.repeat(40), repository }, facts: [{ kind: 'node', source: '.node-version', value: '24' }] } }
+  }))
+  expect(() => verifyForgeExport({ fs: nodeFs, layout: resolveLayout(member), source: h.root }, source.ctx().projectId)).not.toThrow()
+  const moved = readForgeSetupWorkflow(member)
+  expect(moved?.value).toMatchObject({ workflow: { steps }, notes: 'Keep this review', detection: { facts: [{ value: '24' }] } })
+  expect(forgeSetupWorkflowState(moved)).toBe('stale')
+  expect(readForgeSetupWorkflow(h.root)).toEqual(authored)
 })

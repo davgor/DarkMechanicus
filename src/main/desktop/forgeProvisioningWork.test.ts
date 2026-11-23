@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { readForgeRecipebook, readForgeSetupWorkflow } from '../../core/repo/forgeSetupStorage'
 import { openWorkspace } from '../../core/workspace'
 import type { ForgeProvisionStatus } from '../../shared/desktop/forgeSetup'
@@ -28,7 +28,10 @@ it('creates and resumes a real private world, separate public code checkout and 
   const remotes = new Map<string, ForgePublishedRepository>()
   const created: string[] = []
   const notified: string[] = []
+  const network: string[] = []
+  const gitCommands: (readonly string[])[] = []
   let offline = false
+  const appTimer = vi.spyOn(globalThis, 'setInterval')
   const forge = startForge({ handle: (key, handler) => { handlers.set(key, handler) } }, {
     home, registry, pool, session: { getAccount: () => account, getToken: () => 'fixture-token' },
     pickDirectory: async () => destination, cleanup: () => undefined, publish: async () => { throw new Error('Unexpected legacy publish') },
@@ -59,19 +62,31 @@ it('creates and resumes a real private world, separate public code checkout and 
     },
     runner: {
       async run(request) {
+        gitCommands.push(request.args)
         if (request.kind !== 'network') return real.run(request)
         if (offline) throw new Error('Fixture Git remote is unavailable')
+        network.push(request.cwd)
         const args = request.args.map(arg => arg.startsWith('https://github.com/example/') ? join(scratch.path, basename(arg)) : arg)
         return real.run({ ...request, args: ['-c', 'protocol.file.allow=always', ...args.filter((arg, index) =>
           arg !== 'protocol.allow=never' && args[index + 1] !== 'protocol.allow=never')] })
       }
     }
   })
+  const tick = appTimer.mock.calls.find(([, interval]) => interval === 15_000)?.[0]
+  appTimer.mockRestore()
   try {
     await forge.ready
     const operation = randomUUID()
     const request = { world: { kind: 'new', name: 'tickets' }, code: { name: 'software', visibility: 'public', recipeId: 'boosterseat-react' } }
-    expect(await invoke('provision', request, operation)).toMatchObject({ id: operation, state: 'needs-attention', phase: 'code-remote' })
+    const partial = await invoke('provision', request, operation) as ForgeProvisionStatus
+    expect(partial).toMatchObject({ id: operation, state: 'needs-attention', phase: 'code-remote', world: expect.any(String) })
+    const sync = (folder: string) => handlers.get('forge:sync')!({} as IpcMainInvokeEvent, folder)
+    await expect(sync(partial.world!)).rejects.toThrow('Resume Forge World creation')
+    const commandsBeforeTick = gitCommands.length
+    expect(tick).toBeDefined()
+    tick!()
+    expect(gitCommands).toHaveLength(commandsBeforeTick)
+    expect(network).toEqual([])
     const result = await invoke('resumeProvision', operation) as ForgeProvisionStatus
     expect(result).toMatchObject({ id: operation, state: 'complete', message: null })
     const { world, member, checkout } = result as Required<ForgeProvisionStatus>
@@ -91,6 +106,7 @@ it('creates and resumes a real private world, separate public code checkout and 
     expect(existsSync(join(checkout, '.github', 'workflows'))).toBe(false)
     expect(existsSync(join(checkout, 'node_modules'))).toBe(false)
     expect(notified).toEqual([member])
+    await expect(sync(world)).resolves.toBeUndefined()
     const book = readForgeRecipebook(world)!
     book.value.recipes[1]!.notes = 'Use the reviewed application checks.'
     offline = true
