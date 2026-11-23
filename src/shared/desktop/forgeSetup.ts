@@ -33,8 +33,10 @@ export interface ForgeRecipe {
   kind: 'world' | 'scaffold' | 'conversion'
   description: string
   source: ForgeSourceRevision
+  baseRecipeId?: string
   assets: ForgeRecipeAsset[]
   steps: ForgeSetupStep[]
+  notes?: string
 }
 
 export interface ForgeRecipebook {
@@ -83,4 +85,63 @@ export interface ForgeSetupWorkflow {
 export interface ForgeSetupFile<T> {
   value: T
   sha256: string
+}
+
+export interface ForgeRecipebookEdit {
+  expectedSha256: string | null
+  value: ForgeRecipebook
+}
+
+export interface ForgeSetupWorkflowEdit {
+  expectedSha256: string
+  workflow: Pick<ForgeSetupWorkflow['workflow'], 'state' | 'steps'>
+  notes?: string
+}
+
+export interface ForgeSetupConversationStatus {
+  state: 'preparing' | 'opened' | 'needs-attention' | 'uncertain'
+  chatId: string | null
+  message: string | null
+  run?: {
+    state: 'pending' | 'submitted' | 'uncertain' | 'failed'
+    workflowSha256: string
+  } | null
+}
+
+export interface ForgeSetupProjectView {
+  member: string
+  repository: string
+  value: ForgeSetupFile<ForgeSetupWorkflow> | null
+  state: 'missing' | 'needs-discovery' | 'configured' | 'stale'
+  onboarding: ForgeSetupConversationStatus | null
+}
+
+export interface ForgeProvisionRequest {
+  world: { kind: 'new'; name: string } | { kind: 'existing'; folder: string }
+  code?: { name: string; visibility: 'private' | 'public'; recipeId: string }
+  agent?: string
+}
+
+export interface ForgeProvisionStatus {
+  id: string
+  request: ForgeProvisionRequest
+  phase: 'checking' | 'world-remote' | 'world-checkout' | 'code-remote' | 'code-checkout' | 'member' | 'publish' | 'complete'
+  state: 'running' | 'needs-attention' | 'complete'
+  message: string | null
+  world?: string
+  member?: string
+  checkout?: string
+}
+
+export interface ForgeSetupApi {
+  provision(input: ForgeProvisionRequest): Promise<ForgeProvisionStatus | null>
+  provisioning(): Promise<ForgeProvisionStatus[]>
+  resumeProvision(id: string): Promise<ForgeProvisionStatus>
+  recipebook(world?: string): Promise<ForgeSetupFile<ForgeRecipebook> | null>
+  saveRecipebook(world: string, input: ForgeRecipebookEdit): Promise<ForgeSetupFile<ForgeRecipebook>>
+  project(member: string): Promise<ForgeSetupProjectView>
+  saveWorkflow(member: string, input: ForgeSetupWorkflowEdit): Promise<ForgeSetupProjectView>
+  refresh(member: string): Promise<ForgeSetupProjectView>
+  prepare(member: string, agent?: string): Promise<ForgeSetupConversationStatus>
+  run(member: string, expectedSha256: string): Promise<ForgeSetupConversationStatus>
 }
