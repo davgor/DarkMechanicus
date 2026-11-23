@@ -12,10 +12,18 @@ afterEach(cleanup)
 const click = (name: string) => fireEvent.click(screen.getByRole('button', { name }))
 const write = (field: HTMLElement, value: string) => fireEvent.change(field, { target: { value } })
 
-function fixture(api = fakeForgeSetup(), checkout: string | null = codePath) {
+function undoCheck(checkbox: HTMLInputElement): void {
+  expect(checkbox.checked).toBe(false)
+  fireEvent.click(checkbox)
+  expect(checkbox.checked).toBe(true)
+  fireEvent.click(checkbox)
+  expect(checkbox.checked).toBe(false)
+}
+
+function fixture(api = fakeForgeSetup(), checkout: string | null = codePath, member = forgeMember.path) {
   const scheduler = new ManualScheduler()
   const openChat = vi.fn(async () => undefined)
-  const view = render(<ProjectSetupPanel api={api} member={forgeMember.path} checkout={checkout} scheduler={scheduler} onOpenChat={openChat} />)
+  const view = render(<ProjectSetupPanel api={api} member={member} checkout={checkout} scheduler={scheduler} onOpenChat={openChat} />)
   return { api, openChat, view, poll: () => act(() => scheduler.fireIntervals(5000)) }
 }
 
@@ -124,6 +132,28 @@ it('holds setup during a requirements refresh and ignores its failure after leav
   expect(screen.queryByText('The previous refresh lost its connection.')).toBeNull()
 })
 
+it('keeps a late workflow save with the previous project after switching members', async () => {
+  const { api, view } = fixture()
+  const saving = deferred()
+  api.saveWorkflow.mockImplementationOnce(() => saving.promise.then(() => revision('Saved in the previous project.')))
+  fireEvent.click(await screen.findByRole('button', { name: 'Edit workflow' }))
+  write(screen.getByLabelText('Setup notes'), 'Saved in the previous project.')
+  click('Save workflow')
+  view.unmount()
+  const member = '/tickets/world/Beta'
+  const next = revision('Workflow specific to the current project.')
+  next.value!.value.revision = 4
+  api.project.mockResolvedValue({ ...next, member })
+  fixture(api, '/code/beta', member)
+  expect(await screen.findByText('Requirements and workflow · Revision 4')).toBeTruthy()
+  saving.resolve()
+  await settle()
+  expect(api.saveWorkflow.mock.calls[0][0]).toBe(forgeMember.path)
+  expect(screen.getByText('Requirements and workflow · Revision 4')).toBeTruthy()
+  expect(screen.queryByText('Saved in the previous project.')).toBeNull()
+  expect(screen.queryByRole('dialog')).toBeNull()
+})
+
 it.each(['submitted', 'uncertain'] as const)('does not resend a %s execution', async state => {
   const api = fakeForgeSetup()
   api.project.mockResolvedValue(setupProject({ onboarding: { state: 'opened', chatId: 'chat_onboarding', message: null,
@@ -180,20 +210,19 @@ it('edits ordered commands and instructions with platform-specific choices befor
   const [install, manual, discarded] = screen.getAllByText(/^Step \d$/).map(name => within(name.closest('fieldset')!))
   write(install.getByLabelText('Step title'), 'Install for Windows')
   write(install.getByLabelText('Program'), 'msiexec')
-  write(install.getByLabelText('Arguments, one per line'), '/i')
-  write(install.getByLabelText('Arguments, one per line'), '')
-  write(install.getByLabelText('Arguments, one per line'), '/i\n./setup.msi\n/quiet')
+  const args = install.getByLabelText<HTMLTextAreaElement>('Arguments, one per line')
+  write(args, '/i')
+  write(args, '')
+  expect(args.value).toBe('')
+  write(args, '/i\n./setup.msi\n/quiet')
   fireEvent.click(install.getByRole('checkbox', { name: 'Windows' }))
-  fireEvent.click(install.getByRole('checkbox', { name: 'Linux' }))
-  fireEvent.click(install.getByRole('checkbox', { name: 'Linux' }))
+  undoCheck(install.getByRole<HTMLInputElement>('checkbox', { name: 'Linux' }))
   write(manual.getByLabelText('Step title'), 'Ask before continuing')
   write(manual.getByLabelText('Instructions'), 'Confirm the user has a license.')
-  fireEvent.click(manual.getByRole('checkbox', { name: 'macOS' }))
-  fireEvent.click(manual.getByRole('checkbox', { name: 'macOS' }))
+  undoCheck(manual.getByRole<HTMLInputElement>('checkbox', { name: 'macOS' }))
   fireEvent.click(manual.getByRole('button', { name: 'Move up' }))
   fireEvent.click(discarded.getByRole('button', { name: 'Remove step' }))
-  fireEvent.click(screen.getByRole('checkbox', { name: 'Setup steps are configured' }))
-  fireEvent.click(screen.getByRole('checkbox', { name: 'Setup steps are configured' }))
+  undoCheck(screen.getByRole<HTMLInputElement>('checkbox', { name: 'Setup steps are configured' }))
   click('Save workflow')
   await settle()
   const edit = api.saveWorkflow.mock.calls[0][1]

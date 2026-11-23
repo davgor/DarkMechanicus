@@ -518,6 +518,61 @@ it('does not navigate to a successful creation receipt from a different request'
   expect(window.localStorage.getItem('dm.selection') ?? '').not.toContain('/some-other-world')
 })
 
+it('ignores catalog and journal responses from a closed creation dialog', async () => {
+  const { h, setup } = harness()
+  const oldDialog = deferred()
+  setup.recipebook.mockImplementationOnce(async () => {
+    await oldDialog.promise
+    throw new Error('The prior catalog read failed.')
+  })
+  setup.provisioning.mockImplementationOnce(async () => {
+    await oldDialog.promise
+    throw new Error('The prior journal read failed.')
+  })
+  h.mount()
+  await settle()
+  const prior = await startWorld()
+  fireEvent.click(prior.getByRole('button', { name: 'Close' }))
+  const dialog = await startWorld()
+  type('World repository name', 'current-world')
+  fireEvent.click(dialog.getByRole('checkbox', { name: 'Create a code repository' }))
+  type('Code repository name', 'current-code')
+  oldDialog.resolve()
+  await settle()
+  expect(dialog.queryByText(/prior.*failed/)).toBeNull()
+  expect(dialog.getByRole<HTMLSelectElement>('combobox', { name: 'Recipe' }).value).toBe(reactRecipe.id)
+  expect(dialog.getByRole<HTMLButtonElement>('button', { name: 'Create' }).disabled).toBe(false)
+  expect(setup.provision).not.toHaveBeenCalled()
+})
+
+it('keeps the definitive creation result when an older running poll arrives afterward', async () => {
+  const { h, setup } = harness()
+  const publish = deferred()
+  const poll = deferred()
+  setup.provision.mockImplementationOnce(async (request, id) => {
+    await publish.promise
+    return { id, request, phase: 'world-checkout', state: 'needs-attention', message: 'Choose a writable checkout location.' }
+  })
+  h.mount()
+  await settle()
+  const dialog = await startWorld()
+  type('World repository name', 'world')
+  fireEvent.click(dialog.getByRole('button', { name: 'Create' }))
+  const [request, id] = setup.provision.mock.calls[0]
+  setup.provisioning.mockImplementationOnce(async () => {
+    await poll.promise
+    return [{ id, request, phase: 'world-remote', state: 'running', message: null }]
+  })
+  act(() => h.scheduler.fireIntervals(1200))
+  publish.resolve()
+  expect(await dialog.findByText('Choose a writable checkout location.')).toBeTruthy()
+  poll.resolve()
+  await settle()
+  expect(dialog.getByRole('button', { name: 'Resume creation' })).toBeTruthy()
+  expect(dialog.queryByText('Ticket repository publication')).toBeNull()
+  expect(setup.resumeProvision).not.toHaveBeenCalled()
+})
+
 it.each([null, 'The agent is waiting for attention.'])('reports an unconfirmed standards conversation without opening it (%s)', async message => {
   const { h, setup } = harness()
   setup.prepare.mockResolvedValueOnce({ state: 'uncertain', chatId: 'chat_onboarding', message })

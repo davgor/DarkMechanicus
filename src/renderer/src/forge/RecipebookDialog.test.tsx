@@ -136,3 +136,49 @@ it('rebases an unchanged custom recipe on a newer catalog without replacing anot
     version: 1, recipes: [reactRecipe, { ...custom, title: 'Updated local workflow' }, unrelated]
   } })
 })
+
+it('retains a removed custom recipe draft under a new ID after reviewing the conflict', async () => {
+  const api = fakeForgeSetup()
+  const removed = { ...reactRecipe, id: reactRecipe.id + '-copy', baseRecipeId: reactRecipe.id, title: 'Original custom recipe' }
+  api.recipebook.mockResolvedValue({ sha256: recipebookHash, value: { version: 1, recipes: [reactRecipe, removed] } })
+  api.saveRecipebook.mockRejectedValueOnce(new Error('The recipe book changed on disk.'))
+  api.saveRecipebook.mockImplementation(async (_world, edit) => ({ sha256: 'e'.repeat(64), value: edit.value }))
+  render(<RecipebookDialog api={api} world={forgeWorld.path} onClose={() => undefined} />)
+  fireEvent.change(await screen.findByRole('combobox', { name: 'Recipe' }), { target: { value: removed.id } })
+  fireEvent.click(screen.getByRole('button', { name: 'Edit recipe' }))
+  fireEvent.change(screen.getByLabelText('Recipe notes'), { target: { value: 'Keep these local setup decisions.' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }))
+  const updated = { sha256: 'd'.repeat(64), value: { version: 1 as const, recipes: [reactRecipe] } }
+  api.recipebook.mockResolvedValue(updated)
+  fireEvent.click(await screen.findByRole('button', { name: 'Reload saved recipes' }))
+  expect(await screen.findByText('This recipe was removed from the saved book.')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Keep draft as a new copy' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Save recipe' }))
+  await settle()
+  const saved = api.saveRecipebook.mock.calls[1][1]
+  expect(saved.expectedSha256).toBe(updated.sha256)
+  expect(saved.value.recipes.find(recipe => recipe.id === removed.id)).toBeUndefined()
+  expect(saved.value.recipes.find(recipe => recipe.notes === 'Keep these local setup decisions.')).toMatchObject({
+    title: removed.title, baseRecipeId: reactRecipe.id
+  })
+})
+
+it.each(['response', 'failure'] as const)('ignores a late recipe catalog %s from the previous world', async outcome => {
+  const api = fakeForgeSetup()
+  const previous = deferred()
+  const staleRecipe = { ...reactRecipe, title: 'Previous world’s recipe' }
+  const currentRecipe = { ...reactRecipe, title: 'Current world’s recipe' }
+  api.recipebook.mockImplementationOnce(async () => {
+    await previous.promise
+    if (outcome === 'failure') throw new Error('Previous world’s catalog was unavailable.')
+    return { sha256: 'e'.repeat(64), value: { version: 1, recipes: [staleRecipe] } }
+  }).mockResolvedValue({ sha256: recipebookHash, value: { version: 1, recipes: [currentRecipe] } })
+  const { rerender } = render(<RecipebookDialog api={api} world={forgeWorld.path} onClose={() => undefined} />)
+  rerender(<RecipebookDialog api={api} world="/tickets/other" onClose={() => undefined} />)
+  expect(await screen.findByRole('option', { name: currentRecipe.title })).toBeTruthy()
+  previous.resolve()
+  await settle()
+  expect(screen.getByRole('option', { name: currentRecipe.title })).toBeTruthy()
+  expect(screen.queryByRole('option', { name: staleRecipe.title })).toBeNull()
+  expect(screen.queryByRole('alert')).toBeNull()
+})
