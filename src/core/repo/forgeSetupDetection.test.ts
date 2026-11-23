@@ -172,6 +172,26 @@ it('refuses invalid head identities before requesting a tree', async () => {
   })
 })
 
+it('reports a package engine range even when the repository does not pin a specific Node release', async () => {
+  const { reader } = fixture({ 'package.json': '{"engines":{"node":">=22"}}' })
+  await expect(discoverForgeSetup(repository, reader)).resolves.toMatchObject({ status: 'detected', source: { repository, commit }, facts: [
+    { kind: 'node', source: 'package.json', value: '>=22' }
+  ] })
+})
+
+it('does not trust a truncated blob or start a cancelled descriptor request', async () => {
+  const candidate = fixture({ 'package.json': '{"engines":{"node":">=22"}}' })
+  candidate.reader.blob = async () => Buffer.from('{}')
+  await expect(discoverForgeSetup(repository, candidate.reader)).resolves.toMatchObject({
+    status: 'unavailable', reason: 'invalid-descriptor', source: { repository, commit }, facts: []
+  })
+  const cancelled = fixture({ 'package.json': '{}' })
+  await expect(discoverForgeSetup(repository, cancelled.reader, AbortSignal.abort())).resolves.toMatchObject({
+    status: 'unavailable', reason: 'source-unavailable', source: null, facts: []
+  })
+  expect(cancelled.calls).toEqual([])
+})
+
 it('rejects missing descriptor sizes and enforces the total budget before reading any blob', async () => {
   const missingSize = fixture({}, [{ path: 'package.json', mode: '100644', type: 'blob', sha: 'c'.repeat(40) }])
   await expect(discoverForgeSetup(repository, missingSize.reader)).resolves.toMatchObject({
