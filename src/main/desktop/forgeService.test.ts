@@ -3,7 +3,7 @@ import { basename, join } from 'node:path'
 import { ownedPaths } from '../../core/repo/paths'
 import { resolveLayout } from '../../core/repo/layout'
 import type { IpcMain } from 'electron'
-import { afterAll, beforeAll, expect, it, onTestFailed, onTestFinished, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, expect, it, onTestFailed, onTestFinished, vi } from 'vitest'
 import { buildSync } from 'esbuild'
 import { openWorkspace } from '../../core/workspace'
 import { gitIn, scratchDir } from '../../test/gitScratch'
@@ -20,6 +20,53 @@ import { nodeFs } from '../../core/repo/nodeFs'
 import { spawn, spawnSync } from 'node:child_process'
 import { once } from 'node:events'
 import { fileURLToPath } from 'node:url'
+
+const cost = vi.hoisted(() => ({ direct: 0, spawned: 0, directMs: 0, spawnedMs: 0 }))
+vi.mock('node:child_process', async importOriginal => {
+  const actual = await importOriginal<typeof import('node:child_process')>()
+  return { ...actual, execFileSync(file: string, args: string[], options: unknown) {
+    const start = performance.now()
+    try { return Reflect.apply(actual.execFileSync, undefined, [file, args, options]) }
+    finally {
+      if (file === 'git') {
+        cost.direct++
+        const elapsed = Math.round(performance.now() - start)
+        cost.directMs += elapsed
+        if (elapsed >= 250) process.stderr.write(JSON.stringify({ directGit: args.filter(arg => ['config', 'status', 'rev-parse', 'ls-files', 'init', 'remote'].includes(arg)), elapsed }) + '\n')
+      }
+    }
+  } }
+})
+
+function reportPhase(label: string, start: number, before: typeof cost) {
+  const directGitStarts = cost.direct - before.direct, asyncGitStarts = cost.spawned - before.spawned
+  process.stderr.write(JSON.stringify({ diagnostic: 'forge-service', phase: label, wallMs: Math.round(performance.now() - start),
+    gitStarts: directGitStarts + asyncGitStarts, gitMs: cost.directMs - before.directMs + cost.spawnedMs - before.spawnedMs,
+    directGitStarts, asyncGitStarts }) + '\n')
+}
+
+async function measured<T>(name: string, action: () => T | Promise<T>): Promise<T> {
+  const before = { ...cost }, start = performance.now()
+  try { return await action() } finally { reportPhase(name, start, before) }
+}
+
+let testStart = 0, testCost = { ...cost }
+beforeEach(() => { testStart = performance.now(); testCost = { ...cost } })
+afterEach(({ task }) => reportPhase(task.name, testStart, testCost))
+
+function measuredRunner() {
+  return createGitRunner({ spawn: (command, args, options) => {
+    const start = performance.now()
+    const child = spawn(command, args, options)
+    cost.spawned++
+    child.once('close', () => {
+      const elapsed = Math.round(performance.now() - start)
+      cost.spawnedMs += elapsed
+      if (elapsed >= 250) process.stderr.write(JSON.stringify({ spawnedGit: args.filter(arg => ['commit', 'config', 'status', 'rev-parse', 'ls-files', 'ls-tree', 'remote', 'diff'].includes(arg)), elapsed }) + '\n')
+    })
+    return child
+  } })
+}
 
 function initializeCheckout(dir: string, repository: string): void {
   mkdirSync(dir)
@@ -44,13 +91,13 @@ function fixture(seed?: { source: string; world: string }) {
   const registry = createFolderRegistry({ file: join(home, 'folders.json'), dmHome: home, homeDir: home })
   const pool = createWorkspacePool(repoRoot => openWorkspace({ repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Desktop fixture', serverInfo: { name: 'fixture', version: '1' } }), home)
   const handlers = new Map<string, Parameters<IpcMain['handle']>[1]>()
-  const call = async (name: string, ...args: unknown[]) => handlers.get('forge:' + name)!({} as Electron.IpcMainInvokeEvent, ...args)
+  const call = async (name: string, ...args: unknown[]) => measured('ipc:' + name, () => handlers.get('forge:' + name)!({} as Electron.IpcMainInvokeEvent, ...args))
   for (const dir of [source, world]) {
     if (seed) cpSync(dir === world ? seed.world : seed.source, dir, { recursive: true })
     else initializeCheckout(dir, dir === world ? 'tickets' : 'software')
     registry.track(dir)
   }
-  const real = createGitRunner()
+  const real = measuredRunner()
   const published: string[] = []
   const probes: string[] = []
   const syncReceipts: Array<() => void> = []
@@ -80,10 +127,10 @@ function fixture(seed?: { source: string; world: string }) {
     nextSync: () => new Promise<void>(resolve => { syncReceipts.push(resolve) }),
     failNetwork(command: NetworkFailure) { failingNetwork = command },
     async close() {
-      forge.stop()
-      await forge.ready
-      await pool.closeAll()
-      scratch.cleanup()
+      await measured('close:forgeStop', forge.stop)
+      await measured('close:forgeReady', () => forge.ready)
+      await measured('close:ownerDrain', () => pool.closeAll())
+      await measured('close:scratchRm', scratch.cleanup)
     } }
 }
 
@@ -281,28 +328,28 @@ it.each(['repo', 'db'] as const)('force converts %s live claims, keeps a private
   const f = fixture()
   const worker = openWorkspace({ repoRoot: f.source, homeDir: f.home, transport: 'in_process', role: 'orchestrator', label: 'Old worker', serverInfo: { name: 'fixture', version: '1' } })
   try {
-    await f.pool.get(f.source).initializeRepository({ name: 'Force fixture', mode })
-    const card = await f.pool.get(f.source).createKanbanCard({ title: 'Live work' })
-    await f.pool.get(f.source).playKanbanCard({ cardId: card.id })
-    const claim = await worker.claimKanbanCard({ cardId: card.id })
+    await measured('source:init', () => f.pool.get(f.source).initializeRepository({ name: 'Force fixture', mode }))
+    const card = await measured('source:card', () => f.pool.get(f.source).createKanbanCard({ title: 'Live work' }))
+    await measured('source:play', () => f.pool.get(f.source).playKanbanCard({ cardId: card.id }))
+    const claim = await measured('source:claimOld', () => worker.claimKanbanCard({ cardId: card.id }))
     await f.call('create', f.world)
     await f.call('convert', f.world, f.source, { force: true })
     const member = join(f.world, 'Software')
     expect((await f.pool.get(member).getKanbanCard({ cardId: card.id })).lane).toBe('backlog')
     expect(existsSync(join(member, '.darkmechanicus/local/pre-forge-source/project.json'))).toBe(true)
     expect(existsSync(join(f.source, 'FORGE-WORLD.md'))).toBe(true)
-    await expect(worker.heartbeatKanbanCard({ attemptId: claim.attemptId, claimToken: claim.claimToken! })).rejects.toThrow('Reconnect')
+    await expect(measured('source:heartbeatOld', () => worker.heartbeatKanbanCard({ attemptId: claim.attemptId, claimToken: claim.claimToken! }))).rejects.toThrow('Reconnect')
     const reconnected = openWorkspace({ repoRoot: f.source, homeDir: f.home, transport: 'in_process', role: 'orchestrator', label: 'Reconnected worker' })
-    try { expect((await reconnected.getKanbanCard({ cardId: card.id })).lane).toBe('backlog') }
-    finally { reconnected.close() }
+    try { expect((await measured('source:readReconnected', () => reconnected.getKanbanCard({ cardId: card.id }))).lane).toBe('backlog') }
+    finally { await measured('source:closeReconnected', () => reconnected.close()) }
     expect(gitIn(f.world, 'ls-files').split('\n').some(p => p.includes('/local/'))).toBe(false)
     if (process.platform === 'win32') await expect(f.call('restore', member, mode)).rejects.toThrow('Close every session')
     await expect(worker.heartbeatKanbanCard({ attemptId: claim.attemptId, claimToken: claim.claimToken! })).rejects.toThrow('Reconnect')
-    worker.close()
+    await measured('source:closeOld', () => worker.close())
     expect(await f.call('restore', member, mode)).toBe(f.source)
     expect((await f.pool.get(f.source).getKanbanCard({ cardId: card.id })).lane).toBe('backlog')
     expect((await f.pool.get(f.source).getStorageStatus()).storage.mode).toBe(mode)
-  } finally { worker.close(); await f.close() }
+  } finally { await measured('source:closeOldFinal', () => worker.close()); await f.close() }
 })
 
 it('resumes force retirement after some portable paths have already moved to the verified backup', async () => {
