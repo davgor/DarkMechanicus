@@ -14,12 +14,12 @@ import { win32 } from 'node:path'
 interface RealGitDeps {
   platform: NodeJS.Platform
   path: string
-  /** What `git --exec-path` prints: the folder holding the real git.exe. */
+  /** What `git --exec-path` prints: Git's helper directory. */
   execPath: () => string
   exists: (file: string) => boolean
 }
 
-/** `path` with git's exec-path folder first on Windows when that folder holds git.exe; otherwise `path` unchanged. */
+/** Put the real git.exe first on Windows, including distributions with no executable in libexec. */
 export function realGitFirst(deps: RealGitDeps): string {
   if (deps.platform !== 'win32') {
     return deps.path
@@ -31,7 +31,11 @@ export function realGitFirst(deps: RealGitDeps): string {
     // No git to ask: the tests that need it fail as they would have.
     return deps.path
   }
-  return deps.exists(win32.join(folder, 'git.exe')) ? `${folder}${win32.delimiter}${deps.path}` : deps.path
+  if (deps.exists(win32.join(folder, 'git.exe'))) return `${folder}${win32.delimiter}${deps.path}`
+  if (!win32.isAbsolute(folder) || win32.basename(folder).toLowerCase() !== 'git-core' ||
+      win32.basename(win32.dirname(folder)).toLowerCase() !== 'libexec') return deps.path
+  const bin = win32.resolve(folder, '..', '..', 'bin')
+  return deps.exists(win32.join(bin, 'git.exe')) ? `${bin}${win32.delimiter}${deps.path}` : deps.path
 }
 
 export default function setup(): void {
