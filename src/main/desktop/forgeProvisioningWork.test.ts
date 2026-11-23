@@ -187,7 +187,10 @@ it('resumes an existing-world code push from real remote refs without replaying 
     expect(f.state.codePushes).toBe(1)
     f.state.codePush = 'lost-response'
     f.state.upstream = false
+    const beforeResume = originReads.mock.calls.length
     expect(await f.invoke('forgeSetup:resumeProvision', operation)).toMatchObject({ state: 'needs-attention', message: 'Local upstream configuration interrupted' })
+    // Resume shares the verified origin from initialization until checkout metadata changes.
+    expect(originReads.mock.calls.slice(beforeResume).filter(([path]) => path === checkout).length).toBeLessThanOrEqual(3)
     expect(gitIn(join(f.scratch.path, 'software.git'), 'rev-parse', 'HEAD').trim()).toBe(commit)
     expect(f.state.codePushes).toBe(2)
     f.state.upstream = true
@@ -334,7 +337,17 @@ it('keeps a late conflicting mapping and staged ticket project separate, then re
     expect(f.notified).toEqual([])
     updateForge(world, manifest => { manifest.projects = [] })
     f.discovery.before = () => { throw new Error('Staged preparation evidence already exists') }
+    const originReads = vi.mocked(readLocalGitOrigin)
+    const beforeResume = originReads.mock.calls.length
+    const inspectRemote = f.publisher.inspectRemote
+    let readsBeforeWorldSync: number | undefined
+    f.publisher.inspectRemote = (owner, url) => {
+      readsBeforeWorldSync = originReads.mock.calls.length - beforeResume
+      return inspectRemote(owner, url)
+    }
     expect(await f.invoke('forgeSetup:resumeProvision', operation)).toMatchObject({ state: 'complete', member: join(world, 'software') })
+    // Promotion reuses admission proof until world sync begins.
+    expect(readsBeforeWorldSync).toBeLessThanOrEqual(7)
     expect(f.created).toEqual(['software'])
     expect(f.notified).toEqual([join(world, 'software')])
     await expect(replayOwnedMember(f, operation)).resolves.toMatchObject({ path: join(world, 'software') })
