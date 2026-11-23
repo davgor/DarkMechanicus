@@ -1138,6 +1138,112 @@ it('adds complete pinned peer bodies at the awaited native tool-result boundary 
   expect(box.pending()).toBe(55)
 })
 
+it('returns completed native readiness with peer bodies while recovery control is still pending', async () => {
+  const box = fakeMailbox()
+  const subject = fakePi()
+  const recovery = gate<DmCallResult<{ id: string; text: string }[]>>()
+  const ready = { runId: 'rn_ready', ready: [{ ticketId: 'tk_first' }], blocked: [], inFlight: [], capacity: { available: 1 } }
+  let recoveryReads = 0
+  const client: DmClient = {
+    ...mailboxClient(box, { run: async () => ({ ok: true, data: ready }) }),
+    readRecovery: () => { recoveryReads += 1; return recovery.promise }
+  }
+  const watcher = attachMessaging(subject.pi, client, fakeTimers())!
+  const ctx = { ...main(fakeUi()), isIdle: () => false }
+  let delivery: unknown[] | undefined
+  try {
+    subject.emit('session_start', ctx)
+    subject.emit('agent_start', ctx)
+    await settle()
+    box.arrive(1)
+    const result = await subject.tools.find(tool => tool.name === DM_CALL_TOOL_NAME)!
+      .execute('ready_call', { command: 'get_ready_tickets', args: { runId: ready.runId } })
+    const boundary = Promise.all(subject.emit('tool_result', ctx, {
+      toolName: DM_CALL_TOOL_NAME, toolCallId: 'ready_call', content: result.content, isError: false
+    })).then(value => { delivery = value })
+    // Drain runnable work, without releasing the independent desktop-control request.
+    await settle()
+    expect(delivery).toEqual([{ content: [
+      ...result.content,
+      { type: 'text', text: expect.stringContaining(inertJson(box.messages[0]?.body)) }
+    ] }])
+    expect(textOf(result)).toContain(inertJson(ready))
+    expect(box.pending()).toBe(1)
+    expect(recoveryReads).toBe(1)
+    recovery.open({ ok: true, data: [{ id: 'repair_message', text: 'Preserve this repair message.' }] })
+    await boundary
+    await watcher.tick()
+    expect(subject.sent.filter(entry => entry.message.content.includes('Preserve this repair message.'))).toHaveLength(1)
+  } finally {
+    recovery.open({ ok: true, data: [] })
+    await watcher.tick()
+    watcher.stop()
+  }
+})
+
+it('does not deliver a recovery reply from a stopped generation to its replacement', async () => {
+  const subject = fakePi()
+  const pending = gate<DmCallResult<{ id: string; text: string }[]>>()
+  let reads = 0
+  const client: DmClient = {
+    ...mailboxClient(fakeMailbox()),
+    readRecovery: () => ++reads === 1 ? pending.promise : Promise.resolve({
+      ok: true, data: [{ id: 'new_repair', text: 'Current generation repair.' }]
+    })
+  }
+  const watcher = attachMessaging(subject.pi, client, fakeTimers())!
+  const ctx = { ...main(fakeUi()), isIdle: () => false }
+  try {
+    subject.emit('session_start', ctx)
+    subject.emit('agent_start', ctx)
+    const oldTick = watcher.tick()
+    watcher.stop()
+    subject.emit('session_start', ctx)
+    subject.emit('agent_start', ctx)
+    pending.open({ ok: true, data: [{ id: 'old_repair', text: 'Previous generation repair.' }] })
+    await oldTick
+    await watcher.tick()
+    expect(subject.sent).toHaveLength(1)
+    expect(subject.sent[0]?.message.content).toContain('Current generation repair.')
+    expect(subject.sent[0]?.message.content).not.toContain('Previous generation repair.')
+  } finally {
+    pending.open({ ok: true, data: [] })
+    await watcher.tick()
+    watcher.stop()
+  }
+})
+
+it('reports a rejected recovery transport and releases its polling slot without losing later messages', async () => {
+  const subject = fakePi()
+  const failed = gate<void>()
+  const ui = fakeUi()
+  let reads = 0
+  const client: DmClient = {
+    ...mailboxClient(fakeMailbox()),
+    readRecovery: () => ++reads === 1
+      ? failed.promise.then(() => { throw new Error('Recovery transport disconnected.') })
+      : Promise.resolve({ ok: true, data: [{ id: 'repair_after_failure', text: 'Repair response after reconnect.' }] })
+  }
+  const watcher = attachMessaging(subject.pi, client, fakeTimers())!
+  const ctx = { ...main(ui), isIdle: () => false }
+  try {
+    subject.emit('session_start', ctx)
+    subject.emit('agent_start', ctx)
+    const first = watcher.tick()
+    await settle()
+    failed.open()
+    await first
+    expect(ui.statuses).toContain('Skitarii mail unavailable (process_failed)')
+    await watcher.tick()
+    expect(subject.sent).toHaveLength(1)
+    expect(subject.sent[0]?.message.content).toContain('Repair response after reconnect.')
+  } finally {
+    failed.open()
+    await watcher.tick()
+    watcher.stop()
+  }
+})
+
 it('does not dispatch a duplicate while a manual native read is executing or awaiting context commit', async () => {
   const box = fakeMailbox()
   const subject = watch(box)

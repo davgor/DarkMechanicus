@@ -501,6 +501,7 @@ export class MailWatcher {
   #handle: unknown = null
   #generation = 0
   #running: Promise<void> | null = null
+  #recoveryRunning: Promise<void> | null = null
   #preparation: Promise<boolean> | null = null
   #preparing = false
   #active = false
@@ -579,14 +580,27 @@ export class MailWatcher {
   }
 
   tick(force = false): Promise<void> {
+    return Promise.all([this.#tickRecovery(force), this.#tickMail(force)]).then(() => {})
+  }
+
+  /** Desktop recovery cannot hold completed tools or ordinary mailbox pickup behind its deadline. */
+  #tickRecovery(force: boolean): Promise<void> {
+    if (this.#recoveryRunning !== null || this.#ui === null || this.#deps.client.readRecovery === undefined) {
+      return this.#recoveryRunning ?? Promise.resolve()
+    }
+    const generation = this.#generation
+    const pending = this.#loadRecovery(generation)
+      .then(() => { this.#dispatch(this.#preparedRecovery(), generation, force) })
+      .finally(() => { if (this.#recoveryRunning === pending) this.#recoveryRunning = null })
+    this.#recoveryRunning = pending
+    return pending
+  }
+
+  #tickMail(force: boolean): Promise<void> {
     if (this.#running !== null || this.#ui === null) return this.#running ?? Promise.resolve()
     this.#flush()
     const generation = this.#generation
     const work = async (): Promise<void> => {
-      if (this.#deps.client.readRecovery !== undefined) {
-        await this.#loadRecovery(generation)
-        this.#dispatch(this.#preparedRecovery(), generation, force)
-      }
       if (this.#skip > 0) { this.#skip -= 1; return }
       if (!(await this.#poll(generation))) return
       if (this.#deps.sendUserMessage === undefined || !(await this.#loadBodies(generation))) return
@@ -799,17 +813,22 @@ export class MailWatcher {
   }
 
   async #loadRecovery(generation: number): Promise<void> {
-    const recovery = await this.#deps.client.readRecovery?.()
-    if (generation !== this.#generation || recovery === undefined) return
-    if (!recovery.ok) this.#failed(recovery.error)
-    else this.#acceptRecovery(recovery.data)
+    try {
+      const recovery = await this.#deps.client.readRecovery?.()
+      if (generation !== this.#generation || recovery === undefined) return
+      if (!recovery.ok) this.#failed(recovery.error)
+      else this.#acceptRecovery(recovery.data)
+    } catch {
+      if (generation === this.#generation) {
+        this.#failed({ source: 'client', code: 'process_failed', message: 'Recovery context pickup failed.' })
+      }
+    }
   }
 
   async #prepared(generation: number, prompt = '', includeQueued = false): Promise<PreparedDelivery> {
-    if (this.#deps.client.readRecovery !== undefined) await this.#loadRecovery(generation)
     const peer = this.#preparedPeer(generation, prompt, includeQueued)
     const board = await this.#preparedBoard(generation, prompt, includeQueued)
-    return generation === this.#generation ? { ...peer, ...board, ...this.#preparedRecovery() } : {}
+    return generation === this.#generation ? { ...peer, ...board } : {}
   }
 
   #preparedRecovery(): PreparedDelivery {
