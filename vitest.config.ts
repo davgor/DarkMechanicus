@@ -31,7 +31,6 @@ const GIT_HEAVY = [
   'src/core/workspace.forgeVerification.test.ts',
   'src/main/git/**/*.test.ts',
   'src/main/github/**/*.test.ts',
-  'src/main/desktop/forgeBootstrap.test.ts',
   'src/main/desktop/forgeGit.test.ts',
   'src/main/desktop/forgeResolver.test.ts',
   'src/main/desktop/forgeService.setup.test.ts',
@@ -49,9 +48,10 @@ const GIT_HEAVY = [
 
 /** Half the CPUs for the git-heavy group, never more than VITEST_MAX_WORKERS (Fireguard caps each of its lanes so). */
 const gitWorkers = Math.max(1, Math.min(Math.floor(availableParallelism() / 2), Number(process.env.VITEST_MAX_WORKERS) || Infinity))
-// Forge conversion and provisioning recovery perform repeated real Git publication within one test.
+// Forge bootstrap, conversion and provisioning recovery perform repeated real Git publication within one test.
 // Run them serially after the other Git suites to limit competing child-process launches.
 const FORGE_RECOVERY = [
+  'src/main/desktop/forgeBootstrap.test.ts',
   'src/main/desktop/forgeService.test.ts',
   'src/main/desktop/forgeProvisioningWork.test.ts'
 ]
