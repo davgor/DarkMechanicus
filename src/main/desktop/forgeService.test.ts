@@ -28,6 +28,13 @@ function initializeCheckout(dir: string, repository: string): void {
   gitIn(dir, 'remote', 'add', 'origin', 'https://github.com/example/' + repository + '.git')
 }
 
+type NetworkFailure = string | ((args: readonly string[]) => boolean) | null
+
+function networkFailureAt(failure: NetworkFailure, args: readonly string[]): string | undefined {
+  if (typeof failure === 'function') return failure(args) ? 'final restore publication' : undefined
+  return failure && args.includes(failure) ? failure : undefined
+}
+
 function fixture(seed?: { source: string; world: string }) {
   const scratch = scratchDir('forge-convert-')
   const home = join(scratch.path, 'home')
@@ -47,7 +54,7 @@ function fixture(seed?: { source: string; world: string }) {
   const probes: string[] = []
   const syncReceipts: Array<() => void> = []
   let picked: string | null = source
-  let failingNetwork: string | null = null
+  let failingNetwork: NetworkFailure = null
   const forge = startForge({ handle: (key, handler) => { handlers.set(key, handler) } }, {
     home, registry, pool, session: { getAccount: () => ({ login: 'example', host: 'github.com' }), getToken: () => null },
     pickDirectory: async () => picked, cleanup: () => undefined, publish: async name => { published.push(name) },
@@ -55,7 +62,8 @@ function fixture(seed?: { source: string; world: string }) {
     runner: { run: async req => {
       if (req.args.includes('push')) probes.push(req.cwd)
       if (req.kind !== 'network') return real.run(req)
-      if (failingNetwork && req.args.includes(failingNetwork)) throw new Error('Injected network failure at ' + failingNetwork)
+      const failure = networkFailureAt(failingNetwork, req.args)
+      if (failure !== undefined) throw new Error('Injected network failure at ' + failure)
       if (req.args.includes('clone')) {
         const dir = req.args.at(-1)!
         mkdirSync(dir)
@@ -69,7 +77,7 @@ function fixture(seed?: { source: string; world: string }) {
   })
   return { pool, source, world, home, registry, call, forge, published, probes, pick(path: string | null) { picked = path },
     nextSync: () => new Promise<void>(resolve => { syncReceipts.push(resolve) }),
-    failNetwork(command: string | null) { failingNetwork = command },
+    failNetwork(command: NetworkFailure) { failingNetwork = command },
     async close() {
       forge.stop()
       await forge.ready
@@ -457,6 +465,29 @@ it('moves an uninitialized checkout into a world, validates its pointer and rest
     expect(existsSync(note)).toBe(false)
     expect(existsSync(join(source, '.darkmechanicus'))).toBe(false)
   } finally { await close() }
+})
+
+it('resumes a restore from the source pointer after the final publication was interrupted', async () => {
+  const f = fixture(emptyWorldSeed)
+  const member = join(f.world, 'Software')
+  try {
+    await f.call('pickConvert', f.world)
+    const card = await f.pool.get(member).createKanbanCard({ title: 'Restored after publication interruption' })
+    const memberStore = join(member, '.darkmechanicus')
+    f.failNetwork(args => args.includes('push') && !existsSync(memberStore))
+    await expect(f.call('restore', member, 'db')).rejects.toThrow('final restore publication')
+    expect(existsSync(memberStore)).toBe(false)
+    expect(existsSync(join(f.source, 'FORGE-WORLD.md'))).toBe(true)
+    expect(pendingForgeTransfer(f.home, member)).toBe(f.source + '/db')
+    f.failNetwork(null)
+    expect(await f.forge.openProject(f.source)).toBe(f.source)
+    expect(pendingForgeTransfer(f.home, member)).toBeNull()
+    expect(existsSync(join(f.source, 'FORGE-WORLD.md'))).toBe(false)
+    expect(existsSync(join(f.source, '.forge-world.json'))).toBe(false)
+    const restored = f.pool.get(f.source)
+    expect(await restored.getKanbanCard({ cardId: card.id })).toMatchObject({ title: card.title })
+    expect((await restored.listKanbanCards({})).lanes.backlog.map(value => value.id)).toEqual([card.id])
+  } finally { await f.close() }
 })
 
 it('refuses conversion and restoration of planner-only holds without moving ticket state or retiring the incident', async () => {

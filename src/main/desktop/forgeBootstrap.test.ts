@@ -1,14 +1,15 @@
-import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { IpcMain } from 'electron'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { openWorkspace } from '../../core/workspace'
 import { FORGE_CONFIG } from '../../core/repo/forgeReference'
 import { bindForge, boundForgeRoot } from '../../core/repo/forgeBinding'
 import { nodeFs } from '../../core/repo/nodeFs'
+import { projectKey } from '../../core/repo/storageMode'
 import { gitIn, scratchDir } from '../../test/gitScratch'
-import { createGitRunner } from '../git/runner'
+import { createGitRunner, type GitRunRequest } from '../git/runner'
 import { createFolderRegistry } from './folderRegistry'
 import { createForge, updateForge } from './forgeManifest'
 import { startForge } from './forgeService'
@@ -25,7 +26,32 @@ function gitRepository(path: string) {
   gitIn(path, 'config', 'user.email', 'fixture@example.test')
 }
 
-async function fixture() {
+function fixtureTransport(bare: string) {
+  const git = createGitRunner()
+  const networkRequests: string[][] = []
+  let networkUnavailable = false
+  let localGitObserver: ((request: GitRunRequest) => void) | undefined
+  return {
+    networkRequests,
+    offline(value: boolean) { networkUnavailable = value },
+    afterLocalGit(observer: (request: GitRunRequest) => void) { localGitObserver = observer },
+    async run(request: GitRunRequest) {
+      if (request.kind !== 'network') {
+        const result = await git.run(request)
+        localGitObserver?.(request)
+        return result
+      }
+      networkRequests.push([...request.args])
+      if (networkUnavailable) throw new Error('The fixture remote is unavailable.')
+      return git.run({ ...request, args: [
+        '-c', 'url.' + pathToFileURL(bare).href + '.insteadOf=' + worldUrl,
+        ...request.args.map(arg => arg === 'protocol.allow=never' ? 'protocol.file.allow=always' : arg)
+      ] })
+    }
+  }
+}
+
+async function fixture(localWorld = false) {
   const scratch = scratchDir('forge-bootstrap-')
   cleanups.push(scratch.cleanup)
   const root = scratch.path, home = join(root, 'fresh-home'), source = join(root, 'code'), seed = join(root, 'seed'), bare = join(root, 'remote.git')
@@ -36,35 +62,58 @@ async function fixture() {
   updateForge(seed, world => { world.projects.push({ folder: 'Software', repository: 'https://github.com/example/software.git' }) })
   const pool = createWorkspacePool(repoRoot => openWorkspace({ repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Bootstrap fixture' }), home)
   cleanups.push(() => pool.closeAll())
-  const project = pool.get(join(seed, 'Software'))
+  const seededMember = join(seed, 'Software')
+  const project = pool.get(seededMember)
   await project.initializeRepository({ name: 'Software', mode: 'repo' })
   const card = await project.createKanbanCard({ title: 'Portable task' })
-  await pool.close(join(seed, 'Software'))
+  await pool.close(seededMember)
   gitIn(seed, 'add', '-A'); gitIn(seed, 'commit', '-m', 'Portable world')
-  gitIn(root, 'clone', '--bare', seed, bare)
   const registry = createFolderRegistry({ file: join(home, 'folders.json'), homeDir: home, dmHome: home })
   registry.track(source)
-  const runner = createGitRunner()
-  const networkRequests: string[][] = []
-  let networkUnavailable = false
+  if (localWorld) {
+    gitIn(seed, 'remote', 'add', 'origin', worldUrl)
+    registry.track(seed)
+    bindForge(home, source, seededMember, '')
+  } else gitIn(root, 'clone', '--bare', seed, bare)
+  const transport = fixtureTransport(bare)
   const handlers = new Map<string, Parameters<IpcMain['handle']>[1]>()
   const forge = startForge({ handle: (name, handler) => { handlers.set(name, handler) } }, {
     home, registry, pool, session: { getAccount: () => ({ login: 'example', host: 'github.com' }), getToken: () => null },
     pickDirectory: async () => source, cleanup: () => undefined, publish: async () => { throw new Error('Existing world only') },
     onConflict: async () => { throw new Error('Unexpected merge conflict') }, onSynced: async () => undefined,
-    runner: { run: async request => {
-      if (request.kind !== 'network') return runner.run(request)
-      networkRequests.push([...request.args])
-      if (networkUnavailable) throw new Error('The fixture remote is unavailable.')
-      return runner.run({ ...request, args: [
-        '-c', 'url.' + pathToFileURL(bare).href + '.insteadOf=' + worldUrl,
-        ...request.args.map(arg => arg === 'protocol.allow=never' ? 'protocol.file.allow=always' : arg)
-      ] })
-    } }
+    runner: transport
   })
   cleanups.push(forge.stop)
-  const restore = async (member: string) => handlers.get('forge:restore')!({} as Electron.IpcMainInvokeEvent, member, 'db')
-  return { source, home, forge, pool, registry, restore, card, networkRequests, offline(value: boolean) { networkUnavailable = value } }
+  await forge.ready
+  const call = async (name: string, ...args: unknown[]) => handlers.get('forge:' + name)!({} as Electron.IpcMainInvokeEvent, ...args)
+  return {
+    source, home, forge, pool, registry, call, card, world: seed, member: seededMember,
+    restore: (member: string) => call('restore', member, 'db'), ...transport
+  }
+}
+
+type Fixture = Awaited<ReturnType<typeof fixture>>
+
+function changeSourceOrigin({ source }: Fixture): void {
+  gitIn(source, 'remote', 'set-url', 'origin', 'https://github.com/example/other.git')
+}
+
+function rotateAttachment({ registry, world }: Fixture): void {
+  registry.untrack(world)
+  registry.track(world)
+}
+
+function changeProjectMapping({ world }: Fixture): void {
+  updateForge(world, manifest => { manifest.projects[0]!.repository = 'https://github.com/example/other.git' })
+}
+
+function secondSourceOrigin(f: Fixture, change: (f: Fixture) => void): () => boolean {
+  let count = 0
+  f.afterLocalGit(request => {
+    if (request.cwd !== f.source || !request.args.includes('get-url')) return
+    if (++count === 2) change(f)
+  })
+  return () => count === 2
 }
 
 it('opens a config-only source checkout on a fresh machine, retrieves the world and restores the same tickets', async () => {
@@ -104,6 +153,95 @@ it('retrieves from the configured remote instead of trusting a binding outside t
   expect(f.networkRequests).toHaveLength(1)
   expect(f.networkRequests[0]).toContain('clone')
   expect(f.registry.list().some(folder => folder.path === unrelated)).toBe(false)
+})
+
+it.each([
+  { subject: 'root attachment', change: rotateAttachment },
+  { subject: 'project mapping', change: changeProjectMapping },
+  { subject: 'code origin', change: changeSourceOrigin }
+])('refuses a local open when its $subject changes after Git has verified the source', async ({ change }) => {
+  const f = await fixture(true)
+  const crossedBoundary = secondSourceOrigin(f, change)
+  f.offline(true)
+  await expect(f.forge.openProject(f.source)).rejects.toMatchObject({
+    code: 'conflict', message: 'The Forge World project or its linked checkout changed while opening.'
+  })
+  expect(crossedBoundary()).toBe(true)
+  expect(f.networkRequests).toEqual([])
+})
+
+it('looks for the configured world if the bound world no longer has the expected origin', async () => {
+  const f = await fixture(true)
+  gitIn(f.world, 'remote', 'set-url', 'origin', 'https://github.com/example/wrong-world.git')
+  f.offline(true)
+  await expect(f.forge.openProject(f.source)).rejects.toThrow('remote is unavailable')
+  expect(f.networkRequests).toHaveLength(1)
+  expect(f.networkRequests[0]).toEqual(expect.arrayContaining(['clone', worldUrl]))
+})
+
+it('retrieves the configured world when the machine-local binding is unreadable', async () => {
+  const f = await fixture(true)
+  const binding = join(f.home, 'forge-bindings', projectKey(f.source) + '.link.json')
+  writeFileSync(binding, '{')
+  f.offline(true)
+  await expect(f.forge.openProject(f.source)).rejects.toThrow('remote is unavailable')
+  expect(f.networkRequests).toHaveLength(1)
+  expect(f.networkRequests[0]).toContain('ls-remote')
+})
+
+it('requires a verified checkout hint before opening a local binding offline', async () => {
+  const f = await fixture(true)
+  unlinkSync(join(f.member, '.darkmechanicus/local/source-checkout.json'))
+  expect(boundForgeRoot(nodeFs, f.home, f.source)).toBe(f.member)
+  f.offline(true)
+  await expect(f.forge.openProject(f.source)).rejects.toThrow('remote is unavailable')
+  expect(f.networkRequests).toHaveLength(1)
+  expect(f.networkRequests[0]).toContain('ls-remote')
+})
+
+it('refuses to substitute the old member for a different project named by the source', async () => {
+  const f = await fixture(true)
+  const pointer = join(f.source, 'FORGE-WORLD.md')
+  const note = readFileSync(pointer, 'utf8').replace('Project folder: Software', 'Project folder: Renamed')
+  writeFileSync(pointer, note)
+  writeFileSync(join(f.source, FORGE_CONFIG), JSON.stringify({ ...config, projectFolder: 'Renamed' }))
+  bindForge(f.home, f.source, f.member, note)
+  expect(boundForgeRoot(nodeFs, f.home, f.source)).toBe(f.member)
+  await expect(f.forge.openProject(f.source)).rejects.toThrow('different Forge World project')
+  expect(f.networkRequests).toEqual([])
+})
+
+it('reports a missing tracked world or removed manifest member without opening an owner', async () => {
+  const f = await fixture(true)
+  const reconcile = vi.spyOn(f.pool, 'reconcile')
+  const parked = f.world + '-moved'
+  renameSync(f.world, parked)
+  try {
+    expect(await f.call('memberStatus', f.world, f.member)).toEqual({ readiness: 'removed', syncing: false, error: null })
+  } finally { renameSync(parked, f.world) }
+  updateForge(f.world, manifest => { manifest.projects = [] })
+  expect(await f.call('memberStatus', f.world, f.member)).toEqual({ readiness: 'removed', syncing: false, error: null })
+  await expect(f.call('memberStatus', null, f.member)).rejects.toMatchObject({ code: 'invalid_input' })
+  expect(reconcile).not.toHaveBeenCalled()
+  expect(f.networkRequests).toEqual([])
+})
+
+it('reports incomplete member metadata and retains the health error across readiness reads', async () => {
+  const f = await fixture(true)
+  unlinkSync(join(f.member, '.darkmechanicus/project.json'))
+  expect(await f.call('memberStatus', f.world, f.member)).toEqual({ readiness: 'preparing', syncing: false, error: null })
+  rotateAttachment(f)
+  expect(await f.call('memberStatus', f.world, f.member)).toMatchObject({ readiness: 'preparing', syncing: true })
+  await expect(f.forge.openWorld(f.world)).rejects.toThrow('metadata is missing')
+  let checked = 0
+  f.afterLocalGit(() => { checked += 1 })
+  for (const _ of [1, 2]) {
+    expect(await f.call('memberStatus', f.world, f.member)).toMatchObject({
+      readiness: 'preparing', syncing: false, error: expect.stringContaining('metadata is missing')
+    })
+  }
+  expect(checked).toBe(0)
+  expect(f.networkRequests).toEqual([])
 })
 
 it('upgrades a valid legacy pointer without changing its text', async () => {
