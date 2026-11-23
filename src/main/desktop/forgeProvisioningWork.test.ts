@@ -58,7 +58,7 @@ function fixturePublisher(remoteRoot: string) {
   return { account, remotes, created, publisher, creation }
 }
 
-function fixtureRunner(remoteRoot: string, trace: ForgeFixtureTiming, diagnosticCheckout?: string) {
+function fixtureGitRuns(remoteRoot: string, trace: ForgeFixtureTiming, diagnosticCheckout?: string) {
   const real = createGitRunner()
   const staging: { operation: string; file: string; wrapperStartedAt: string; beforeStartAt?: string; childClosedAt?: string; wrapperSettledAt?: string }[] = []
   const reportStaging = (phase: 'failure' | 'finally') => {
@@ -81,7 +81,6 @@ function fixtureRunner(remoteRoot: string, trace: ForgeFixtureTiming, diagnostic
     })
     process.stdout.write(JSON.stringify({ forgeStagingDiagnostic: phase, commands }) + '\n')
   }
-  if (diagnosticCheckout !== undefined) onTestFailed(() => reportStaging('failure'))
   const run = (request: GitRunRequest) => {
     const operation = gitTimingLabel(request.args)
     const label = `${request.kind}:${operation}`
@@ -107,6 +106,12 @@ function fixtureRunner(remoteRoot: string, trace: ForgeFixtureTiming, diagnostic
     }
     return result
   }
+  return { run, reportStaging }
+}
+
+function fixtureRunner(remoteRoot: string, trace: ForgeFixtureTiming, diagnosticCheckout?: string) {
+  const { run, reportStaging } = fixtureGitRuns(remoteRoot, trace, diagnosticCheckout)
+  if (diagnosticCheckout !== undefined) onTestFailed(() => reportStaging('failure'))
   const network: string[] = []
   const gitCommands: (readonly string[])[] = []
   const state = { offline: false, codePush: 'normal' as 'normal' | 'unreceived' | 'lost-response', upstream: true, codePushes: 0,
