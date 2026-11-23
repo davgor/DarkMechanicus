@@ -137,7 +137,8 @@ export interface ForgeProvisionStatus {
 export type ForgeProvisionResult = ForgeProvisionStatus | { state: 'refused'; message: string } | null
 
 export interface ForgeSetupApi {
-  provision(input: ForgeProvisionRequest): Promise<ForgeProvisionResult>
+  /** A new client-generated UUID identifies this request even if its IPC reply is lost. */
+  provision(input: ForgeProvisionRequest, operationId: string): Promise<ForgeProvisionResult>
   provisioning(): Promise<ForgeProvisionStatus[]>
   resumeProvision(id: string): Promise<ForgeProvisionStatus>
   recipebook(world?: string): Promise<ForgeSetupFile<ForgeRecipebook> | null>
