@@ -278,14 +278,13 @@ it.each([null, 'force', { force: false }, { force: true, unexpected: true }])('r
 })
 
 it.each(['repo', 'db'] as const)('force converts %s live claims, keeps a private source backup and fences the old handle', async mode => {
-  const f = fixture()
+  const f = fixture(emptyWorldSeed)
   const worker = openWorkspace({ repoRoot: f.source, homeDir: f.home, transport: 'in_process', role: 'orchestrator', label: 'Old worker', serverInfo: { name: 'fixture', version: '1' } })
   try {
     await f.pool.get(f.source).initializeRepository({ name: 'Force fixture', mode })
     const card = await f.pool.get(f.source).createKanbanCard({ title: 'Live work' })
     await f.pool.get(f.source).playKanbanCard({ cardId: card.id })
     const claim = await worker.claimKanbanCard({ cardId: card.id })
-    await f.call('create', f.world)
     await f.call('convert', f.world, f.source, { force: true })
     const member = join(f.world, 'Software')
     expect((await f.pool.get(member).getKanbanCard({ cardId: card.id })).lane).toBe('backlog')
