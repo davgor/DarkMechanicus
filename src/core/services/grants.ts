@@ -232,13 +232,8 @@ export function assertGrantCapability(deps: RedeemDeps, grantId: string, tokenHa
   }, capability)
 }
 
-/**
- * Turns a token into the role and capabilities a session may run with, and records the use.
- * Fails with `unauthorized` for a token that is unknown, expired, revoked, or issued elsewhere —
- * all with the same message, so a caller cannot learn which by probing.
- */
-export function redeemGrant(deps: RedeemDeps, token: string): RedeemedGrant {
-  const now = deps.clock.nowIso()
+/** The same token validation serves audited sessions and the strictly read-only peer-discovery path. */
+function grantForToken(deps: RedeemDeps, token: string, now: string): RedeemedGrant {
   const row = deps.db.get<GrantRow & { token_hash: string }>(
     `SELECT id, role, allow_save, label, machine_id, token_hash, created_at, expires_at, revoked_at, last_used_at
      FROM grants WHERE token_hash = ?`,
@@ -249,12 +244,24 @@ export function redeemGrant(deps: RedeemDeps, token: string): RedeemedGrant {
   if (!usable) {
     fail('unauthorized', NOT_USABLE)
   }
-  deps.db.run('UPDATE grants SET last_used_at = ? WHERE id = ?', now, row.id)
   return {
     grantId: row.id,
     role: row.role,
     capabilities: grantedCapabilities(row.role, row.allow_save === 1)
   }
+}
+
+/** Authenticates without recording use; only a restricted, non-persistent peer reader uses this path. */
+export function authenticateGrant(deps: RedeemDeps, token: string): RedeemedGrant {
+  return grantForToken(deps, token, deps.clock.nowIso())
+}
+
+/** Turns a usable token into session authority and records its use under the caller's writer transaction. */
+export function redeemGrant(deps: RedeemDeps, token: string): RedeemedGrant {
+  const now = deps.clock.nowIso()
+  const grant = grantForToken(deps, token, now)
+  deps.db.run('UPDATE grants SET last_used_at = ? WHERE id = ?', now, grant.grantId)
+  return grant
 }
 
 /**

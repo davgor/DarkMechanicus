@@ -17,7 +17,7 @@ import { COMMANDS } from './commands/index'
 import type { WorkspaceCore } from './commands/types'
 import type { Ctx } from './context'
 import { guardTransactions, openDatabase, type Db } from './db/database'
-import { migrate } from './db/migrations'
+import { migrate, readSchemaVersion, SCHEMA_VERSION } from './db/migrations'
 import { DomainError, fail } from './errors'
 import { policyForStore, portablePolicy, recoverSqlitePolicy } from './repo/deliveryPolicy'
 import { createIdGenerator, type IdGenerator } from './ids'
@@ -37,7 +37,7 @@ import { resolveHomeDir, resolveStorageMode, type StorageMode } from './repo/sto
 import { assertStorageMigrationIdle, recoverStorageMigration, exportForgeDestination, switchStorage, type ForgeExportOptions } from './repo/storageMigration'
 import { pruneStagedAttachments } from './services/attachments'
 import { MAIL_POLL_COMMANDS, openMailPollSession, touchMailPollSession } from './services/agentMail'
-import { assertGrantUsable, redeemGrant, type RedeemedGrant } from './services/grants'
+import { assertGrantUsable, authenticateGrant, redeemGrant, type RedeemedGrant } from './services/grants'
 import { refreshSavePermission } from './services/savePermissions'
 import { auditYoloCommand, authorizeYoloCommand, type YoloCommandAdmission } from './services/yoloCommands'
 import type { FsAdapter, GitAdapter, RepoLayout } from './repo/types'
@@ -94,6 +94,8 @@ export interface OpenWorkspaceOptions {
    * the current grant and binding are still checked on every call.
    */
   mailPoll?: boolean
+  /** Internal CLI peer discovery only: ephemeral authenticated authority, no session/audit or record maintenance writes. */
+  mailRead?: boolean
 }
 
 /** One repository opened by one session. Implements the full command contract. */
@@ -173,11 +175,11 @@ function workspaceDesktopClient(options: OpenWorkspaceOptions): DesktopClient {
  * so it starts with none (built on first use, which a poll never makes).
  */
 function initialDesktopClient(options: OpenWorkspaceOptions): DesktopClient | null {
-  if (options.mailPoll !== true) {
+  if (options.mailPoll !== true && options.mailRead !== true) {
     return workspaceDesktopClient(options)
   }
   if (options.transport !== 'cli' || options.grantToken === undefined) {
-    fail('unauthorized', 'Mailbox polling needs the dm CLI and a grant bound to this chat’s mailbox.')
+    fail('unauthorized', 'Restricted mailbox access needs the dm CLI and a grant bound to this chat’s mailbox.')
   }
   return null
 }
@@ -238,7 +240,8 @@ export class RepositoryWorkspace implements WorkspaceCore {
     this.boundCodeRoot = roots.boundCodeRoot
     this.forgeCodeMember = roots.forgeCodeMember
     this.forgeEpoch = forgeBindingEpoch(this.fs, this.homeDir, this.repoRoot)
-    recoverStorageMigration({ repoRoot: this.repoRoot, homeDir: this.homeDir, fs: this.fs })
+    if (options.mailRead === true) assertStorageMigrationIdle({ repoRoot: this.repoRoot, homeDir: this.homeDir, fs: this.fs })
+    else recoverStorageMigration({ repoRoot: this.repoRoot, homeDir: this.homeDir, fs: this.fs })
     this.layout = this.layoutFor(options.mode ?? this.resolvedMode())
     this.git = options.git ?? createGitAdapter(this.repoRoot, { fs: this.fs })
     this.clock = options.clock ?? createSystemClock()
@@ -301,7 +304,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
   }
 
   sessionId(): string | null {
-    return this.store?.ctx.session.id ?? null
+    return this.options.mailRead === true ? null : this.store?.ctx.session.id ?? null
   }
 
   project(): ProjectRecord {
@@ -376,16 +379,16 @@ export class RepositoryWorkspace implements WorkspaceCore {
       fail('not_initialized', `${this.repoRoot} has no valid project record at ${this.layout.projectFile}.`)
     }
     // A poll only ever opens the existing database its grant was bound in, so it never creates the local directory.
-    if (this.options.mailPoll !== true) {
+    if (this.options.mailPoll !== true && this.options.mailRead !== true) {
       this.fs.mkdirp(this.layout.localDir)
     }
-    const db = openDatabase(this.layout.dbFile, { synchronous: this.options.databaseSynchronous ?? 'full' })
+    const db = openDatabase(this.layout.dbFile, { synchronous: this.options.databaseSynchronous ?? 'full', readOnly: this.options.mailRead === true })
     try {
       this.store = this.createStore(db, project)
 
       // Staged images nobody claimed within the retention window are dropped each time a workspace opens; a mailbox
       // poll, which runs every few seconds and touches nothing else, leaves that to ordinary sessions.
-      if (this.options.mailPoll !== true) {
+      if (this.options.mailPoll !== true && this.options.mailRead !== true) {
         pruneStagedAttachments(this.store.ctx)
       }
     } catch (error: unknown) {
@@ -396,7 +399,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
   }
 
   private finishOpen(): void {
-    if (this.options.mailPoll === true || (this.isDesktopSession() && this.options.deferOpenReconcile === true)) return
+    if (this.options.mailPoll === true || this.options.mailRead === true || (this.isDesktopSession() && this.options.deferOpenReconcile === true)) return
     // A branch that moved while closed is never acknowledged silently: reconcile stays explicit.
     // A db project has nothing tracked to reconcile at all.
     if (this.layout.mode === 'repo' && this.options.autoReconcile !== false && !this.branchChanged()) {
@@ -420,8 +423,13 @@ export class RepositoryWorkspace implements WorkspaceCore {
 
   private createStore(db: Db, project: ProjectRecord): Store {
     db = guardTransactions(db, () => this.assertForgeStorage())
-    migrate(db)
-    bindProject(db, this.layout, project)
+    if (this.options.mailRead === true) {
+      if (readSchemaVersion(db) !== SCHEMA_VERSION) fail('incompatible_schema', 'Open the project in the desktop app to update its database before listing peers.')
+      if (getMeta(db, META_KEYS.projectId) !== project.projectId) fail('project_mismatch', mismatchAdvice(this.layout))
+    } else {
+      migrate(db)
+      bindProject(db, this.layout, project)
+    }
     if (this.isDesktopSession()) recoverSqlitePolicy(this, db)
     const machineId = this.machineIdFor(db)
     if (getMeta(db, META_KEYS.machineId) !== machineId) {
@@ -429,7 +437,10 @@ export class RepositoryWorkspace implements WorkspaceCore {
     }
     // Grant use and its session audit commit together under the ordinary session writer lock.
     const grantSession = this.options.mailPoll === true || (this.options.transport === 'cli' && this.options.grantToken !== undefined)
-    const session = grantSession ? db.tx(() => this.openSession(db, machineId)) : this.openSession(db, machineId)
+    // A peer reader authenticates inside the same snapshot as its command, never by creating an audit session.
+    const session: SessionContext = this.options.mailRead === true
+      ? { id: this.ids.next('session'), role: 'reader', label: this.options.label, capabilities: new Set() }
+      : grantSession ? db.tx(() => this.openSession(db, machineId)) : this.openSession(db, machineId)
     const ctx: Ctx = {
       db,
       clock: this.clock,
@@ -452,11 +463,25 @@ export class RepositoryWorkspace implements WorkspaceCore {
     return { db, project, ctx }
   }
 
+  private openPeerReader(db: Db, machineId: string): SessionContext {
+    const token = this.options.grantToken
+    if (token === undefined) fail('unauthorized', 'Peer discovery needs an authenticated CLI grant.')
+    this.granted = authenticateGrant({ db, clock: this.clock, machineId }, token)
+    return {
+      id: this.ids.next('session'), role: this.granted.role, label: this.options.label,
+      capabilities: new Set(this.granted.capabilities.filter((capability) => capability === 'mail.use')),
+      mailRead: { grantId: this.granted.grantId }
+    }
+  }
+
   /**
    * This machine's id. An ordinary open reads (and on first use creates) `local/machine.json`; a mailbox poll takes
    * the copy every ordinary open records in the database beside it, and reads the file only when there is none.
    */
   private machineIdFor(db: Db): string {
+    if (this.options.mailRead === true) {
+      return getMeta(db, META_KEYS.machineId) ?? fail('unauthorized', 'Peer discovery requires an existing local mailbox database.')
+    }
     const recorded = this.options.mailPoll === true ? getMeta(db, META_KEYS.machineId) : null
     return recorded ?? ensureMachineId({ layout: this.layout, fs: this.fs, ids: this.ids, clock: this.clock })
   }
@@ -701,8 +726,8 @@ export class RepositoryWorkspace implements WorkspaceCore {
   }
 
   heartbeat(): void {
-    if (this.options.mailPoll === true) {
-      fail('unauthorized', 'A mailbox poll session has no heartbeat: it only answers status and wake polls.')
+    if (this.options.mailPoll === true || this.options.mailRead === true) {
+      fail('unauthorized', 'A restricted mailbox session has no heartbeat.')
     }
     this.assertCurrentStorage()
     if (!this.store) {
@@ -762,6 +787,16 @@ export class RepositoryWorkspace implements WorkspaceCore {
   }
 
   async execute(name: CommandName, rawInput: unknown): Promise<unknown> {
+    if (this.options.mailRead === true) {
+      if (name !== 'listAgentPeers') fail('unauthorized', 'A peer reader may only list agent peers.', { command: name })
+      const spec = COMMANDS.listAgentPeers
+      const input = parseInput(spec.schema, rawInput ?? {}, `${name} input`)
+      const store = this.requireStore()
+      return store.db.tx(() => {
+        store.ctx.session = this.openPeerReader(store.db, store.ctx.machineId)
+        return spec.run(this, input)
+      }, 'read')
+    }
     if (this.options.mailPoll === true) {
       return this.executePoll(name, rawInput)
     }
@@ -811,7 +846,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
     this.store = null
     try {
       // A poll session is shared by every poll of its binding: closing one poll never ends it.
-      if (this.options.mailPoll !== true && this.resolvedMode() === this.layout.mode) {
+      if (this.options.mailPoll !== true && this.options.mailRead !== true && this.resolvedMode() === this.layout.mode) {
         this.endCurrentSession(store)
       }
     } finally {

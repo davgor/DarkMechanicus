@@ -245,6 +245,8 @@ export interface SessionContext {
   role: SessionRole
   label: string
   capabilities: ReadonlySet<Capability>
+  /** Internal ephemeral peer-reader authority, derived only from an authenticated CLI token; never an input field. */
+  readonly mailRead?: { readonly grantId: string }
 }
 
 /** Throws `unauthorized` unless the session holds the capability; `message` replaces the default sentence when the caller can say more. */
