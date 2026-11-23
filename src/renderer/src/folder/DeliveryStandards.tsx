@@ -7,7 +7,7 @@ import { Button } from '../components/Button'
 import { Dialog } from '../components/Dialog'
 import { ForgeOpen } from './ForgeOpen'
 import { folderIdentity } from '../app/folderList'
-import { applyQuestion, standardsChat } from './standardsChat'
+import { applyQuestion, standardsChat } from '../../../shared/domain/standardsChat'
 
 type Prompts = typeof defaultPrompts
 type Launch = (project: TrackedFolderView, prompt: string) => Promise<void>
