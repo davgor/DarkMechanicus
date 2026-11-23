@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
-import { expect, it, vi } from 'vitest'
+import { expect, it, onTestFailed, vi } from 'vitest'
 import { readLocalGitOrigin } from '../../core/repo/git'
 import { readForgeRecipebook, readForgeSetupWorkflow } from '../../core/repo/forgeSetupStorage'
 import { openWorkspace } from '../../core/workspace'
@@ -58,14 +58,54 @@ function fixturePublisher(remoteRoot: string) {
   return { account, remotes, created, publisher, creation }
 }
 
-function fixtureRunner(remoteRoot: string, trace: ForgeFixtureTiming) {
+function fixtureRunner(remoteRoot: string, trace: ForgeFixtureTiming, diagnosticCheckout?: string) {
   const real = createGitRunner()
+  const staging: { operation: string; file: string; wrapperStartedAt: string; beforeStartAt?: string; childClosedAt?: string; wrapperSettledAt?: string }[] = []
+  const reportStaging = (phase: 'failure' | 'finally') => {
+    const commands = staging.map(command => {
+      let events: Record<string, unknown>[] = []
+      let traceReadFailed = false
+      try {
+        events = readFileSync(command.file, 'utf8').split(/\r?\n/).flatMap(line => {
+          try { return [JSON.parse(line) as Record<string, unknown>] } catch { return [] }
+        })
+      } catch { traceReadFailed = true }
+      const config = events.filter(event => event.event === 'def_param' &&
+        ['core.fsync', 'core.fsyncobjectfiles', 'core.fsyncmethod'].includes(String(event.param).toLowerCase()))
+      const lifecycle = events.filter(event => ['version', 'start', 'exit', 'atexit'].includes(String(event.event)))
+      const regions = events.filter(event => event.category === 'fsync' ||
+        ['region_enter', 'region_leave'].includes(String(event.event))).slice(-20)
+      const fields = ['event', 'time', 't_abs', 't_rel', 'argv', 'category', 'label', 'param', 'value', 'code', 'name', 'count']
+      return { ...command, traceReadFailed, traceEvents: events.length,
+        events: [...config, ...lifecycle, ...regions].map(event => Object.fromEntries(fields.filter(field => event[field] !== undefined).map(field => [field, event[field]]))) }
+    })
+    process.stdout.write(JSON.stringify({ forgeStagingDiagnostic: phase, commands }) + '\n')
+  }
+  if (diagnosticCheckout !== undefined) onTestFailed(() => reportStaging('failure'))
   const run = (request: GitRunRequest) => {
-    const label = `${request.kind}:${gitTimingLabel(request.args)}`
-    return trace.observe('git:run:' + label, () => real.run({ ...request, beforeStart: () => {
-      trace.mark('git:beforeStart:' + label)
-      if (request.beforeStart) trace.observe('git:guard:' + label, request.beforeStart)
-    } }))
+    const operation = gitTimingLabel(request.args)
+    const label = `${request.kind}:${operation}`
+    const diagnostic: (typeof staging)[number] | undefined = request.cwd === diagnosticCheckout && request.kind === 'write' &&
+      ['add', 'commit'].includes(operation) && staging.length < 2
+      ? { operation, file: join(remoteRoot, 'git-staging-' + randomUUID() + '.trace2.jsonl'), wrapperStartedAt: new Date().toISOString() }
+      : undefined
+    if (diagnostic) staging.push(diagnostic)
+    const result = trace.observe('git:run:' + label, () => real.run({ ...request,
+      ...(diagnostic ? {
+        env: { ...request.env, GIT_TRACE2_EVENT: diagnostic.file, GIT_TRACE2_CONFIG_PARAMS: 'core.fsync,core.fsyncObjectFiles,core.fsyncMethod' },
+        onExit: () => { diagnostic.childClosedAt = new Date().toISOString(); request.onExit?.() }
+      } : {}),
+      beforeStart: () => {
+        if (diagnostic) diagnostic.beforeStartAt = new Date().toISOString()
+        trace.mark('git:beforeStart:' + label)
+        if (request.beforeStart) trace.observe('git:guard:' + label, request.beforeStart)
+      }
+    }))
+    if (diagnostic) {
+      const settled = () => { diagnostic.wrapperSettledAt = new Date().toISOString() }
+      void result.then(settled, settled)
+    }
+    return result
   }
   const network: string[] = []
   const gitCommands: (readonly string[])[] = []
@@ -94,7 +134,7 @@ function fixtureRunner(remoteRoot: string, trace: ForgeFixtureTiming) {
       return result
     }
   }
-  return { runner, gitCommands, network, state }
+  return { runner, gitCommands, network, state, reportStaging }
 }
 
 function traceForgeTimer(trace: ForgeFixtureTiming) {
@@ -121,7 +161,7 @@ function traceOwnerPool(pool: ReturnType<typeof createTestWorkspacePool>, trace:
   return pool
 }
 
-function fixture() {
+function fixture(stagingDiagnostics = false) {
   const { trace, scratch } = tracedScratch()
   const home = join(scratch.path, 'home')
   const destination = join(scratch.path, 'code')
@@ -133,7 +173,8 @@ function fixture() {
   const invoke = async (name: string, ...args: unknown[]) =>
     trace.observe('ipc:' + name, () => handlers.get(name)!({} as IpcMainInvokeEvent, ...args))
   const { account, remotes, created, publisher, creation } = fixturePublisher(scratch.path)
-  const { runner, gitCommands, network, state } = fixtureRunner(scratch.path, trace)
+  const { runner, gitCommands, network, state, reportStaging } = fixtureRunner(scratch.path, trace,
+    stagingDiagnostics ? join(destination, 'software') : undefined)
   const notified: string[] = []
   const discovery = { before: () => {} }
   const appTimer = traceForgeTimer(trace)
@@ -162,11 +203,11 @@ function fixture() {
   forge.stop = () => trace.observe('fixture:forge stop', stop)
   const close = async () => { await forge.stop(); await pool.closeAll(); scratch.cleanup() }
   return { scratch, home, destination, registry, pool, remotes, created, creation, discovery, notified, gitCommands, network, state,
-    forge, invoke, tick, close, session, runner, publisher }
+    forge, invoke, tick, close, session, runner, publisher, reportStaging }
 }
 
 it('creates and resumes a real private world, separate public code checkout and one durable ticket member', async () => {
-  const { scratch, destination, registry, pool, remotes, created, notified, gitCommands, network, state, forge, invoke, tick } = fixture()
+  const { scratch, destination, registry, pool, remotes, created, notified, gitCommands, network, state, forge, invoke, tick, reportStaging } = fixture(true)
   try {
     await forge.ready
     const operation = randomUUID()
@@ -209,6 +250,7 @@ it('creates and resumes a real private world, separate public code checkout and 
     await expect(sync(world)).rejects.toThrow('Fixture Git remote is unavailable')
     expect(await invoke('forge:status', world)).toMatchObject({ error: 'Fixture Git remote is unavailable' })
   } finally {
+    reportStaging('finally')
     await forge.stop()
     await pool.closeAll()
     scratch.cleanup()
