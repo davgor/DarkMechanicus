@@ -1,6 +1,6 @@
 import { isAlias, isNode, isPair, isScalar, parseDocument, stringify, visit } from 'yaml'
 import { z } from 'zod'
-import type { ForgeRecipebook, ForgeSetupWorkflow } from '../../shared/desktop/forgeSetup'
+import { FORGE_SETUP_FACT_VALUE_MAX, type ForgeRecipebook, type ForgeSetupWorkflow } from '../../shared/desktop/forgeSetup'
 import { fail } from '../errors'
 import { githubRemote } from './forgeManifest'
 
@@ -48,7 +48,7 @@ const detectionFields = {
   source: source.nullable(),
   facts: z.array(z.strictObject({
     kind: z.enum(['node', 'package-manager', 'lockfile', 'electron', 'script']),
-    value: requiredText(120),
+    value: requiredText(FORGE_SETUP_FACT_VALUE_MAX),
     source: path
   })).max(64)
 }

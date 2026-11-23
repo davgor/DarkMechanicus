@@ -62,6 +62,15 @@ it('reports unsupported, offline and competing lock evidence without claiming se
   expect(locks.calls).toHaveLength(3)
 })
 
+it('keeps an oversized numeric package-manager version out of portable facts', async () => {
+  const manifest = JSON.stringify({ packageManager: 'npm@' + '1'.repeat(120) + '.1.1' })
+  const { reader } = fixture({ 'package.json': manifest, 'package-lock.json': 'lock body is ignored' })
+  await expect(discoverForgeSetup(repository, reader)).resolves.toMatchObject({
+    status: 'ambiguous', reason: 'conflicting-requirements', source: { repository, commit },
+    facts: [{ kind: 'lockfile', value: 'npm', source: 'package-lock.json' }]
+  })
+})
+
 it.each([
   { mode: '120000', type: 'blob', size: 12, reason: 'invalid-descriptor' },
   { mode: '160000', type: 'commit', size: 12, reason: 'invalid-descriptor' },

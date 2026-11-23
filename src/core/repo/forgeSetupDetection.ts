@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
-import type {
-  ForgeSetupDetection, ForgeSetupDetectionReason, ForgeSetupFact, ForgeSourceRevision
+import {
+  FORGE_SETUP_FACT_VALUE_MAX, type ForgeSetupDetection, type ForgeSetupDetectionReason, type ForgeSetupFact, type ForgeSourceRevision
 } from '../../shared/desktop/forgeSetup'
 import { githubRemote } from './forgeManifest'
 
@@ -86,7 +86,9 @@ function addPackagePins(pkg: Record<string, unknown>, facts: ForgeSetupFact[]): 
   const manager = typeof pkg.packageManager === 'string' ? managerVersion.exec(pkg.packageManager) : null
   if (pkg.packageManager !== undefined) {
     if (!manager) return false
-    facts.push({ kind: 'package-manager', value: manager[1].toLowerCase() + '@' + manager[2], source: 'package.json' })
+    const value = manager[1].toLowerCase() + '@' + manager[2]
+    if (value.length > FORGE_SETUP_FACT_VALUE_MAX) return false
+    facts.push({ kind: 'package-manager', value, source: 'package.json' })
   }
   return true
 }

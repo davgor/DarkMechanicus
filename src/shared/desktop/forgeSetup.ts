@@ -2,6 +2,7 @@ export const FORGE_RECIPEBOOK_FILE = 'forge-recipes.yaml'
 export const FORGE_SETUP_DIRECTORY = 'forge-setup'
 export const FORGE_SETUP_WORKFLOW_FILE = 'workflow.yaml'
 export const FORGE_SETUP_GUIDE_FILE = 'guide.md'
+export const FORGE_SETUP_FACT_VALUE_MAX = 120
 
 export type ForgeSetupPlatform = 'win32' | 'darwin' | 'linux'
 
