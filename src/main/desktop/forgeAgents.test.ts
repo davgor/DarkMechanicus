@@ -5,7 +5,7 @@ import { createChatRecords } from '../agents/chatRecords'
 import { createChatStore } from '../agents/chatStore'
 import { scratchDir } from '../../test/gitScratch'
 import { forgeAgentSessions } from './forgeAgents'
-import { createForge, updateForge } from './forgeManifest'
+import { seedForgeFixture } from '../../test/forgeFixture'
 import { createHarness } from '../../test/workspaceHarness'
 import { holdToolingWorkflow, retireToolingWorkflow } from '../../core/services/toolingHold'
 
@@ -79,8 +79,7 @@ it('labels ticket launches with the repository owner and name even when its tick
   const root = fixture.path
   const member = join(root, 'Alias')
   try {
-    createForge(root, 'example')
-    updateForge(root, w => w.projects.push({ folder: 'Alias', repository: 'example/actual-code' }))
+    seedForgeFixture(root, 'example', [{ folder: 'Alias', repository: 'example/actual-code' }])
     mkdirSync(member)
     const store = createChatStore({ root: join(root, 'chats') })
     const agent = { folder: member, agent: 'claude', model: null, role: 'orchestrator' as const, allowSave: false }

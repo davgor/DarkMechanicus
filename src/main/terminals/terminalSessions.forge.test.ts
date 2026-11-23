@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { DM_CLIENT_DESCRIPTOR_ENV } from '../../../resources/skitarii/extension/dmClient'
 import { parseWorldMailDescriptor } from '../../../resources/skitarii/extension/worldDmClient'
 import { builtInAgent } from '../agents/__mocks__/chatFixtures'
-import { createForge, updateForge } from '../desktop/forgeManifest'
+import { seedForgeFixture } from '../../test/forgeFixture'
 import { eventually, recorder, startTerminal, terminalRig, type TerminalRig } from './__mocks__/terminalSessionsRig'
 
 let rig: TerminalRig
@@ -16,8 +16,7 @@ beforeEach(() => {
   other = join(rig.root, 'Other')
   mkdirSync(member)
   mkdirSync(other)
-  createForge(rig.repo, 'example')
-  updateForge(rig.repo, world => world.projects.push({ folder: 'Tickets', repository: 'example/code' }))
+  seedForgeFixture(rig.repo, 'example', [{ folder: 'Tickets', repository: 'example/code' }])
   rig.tracked.add(member)
   rig.tracked.add(other)
   rig.reach = [member, other]

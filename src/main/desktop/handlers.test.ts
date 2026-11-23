@@ -15,7 +15,7 @@ import type { BoardImportView, BoardOpenEpicView, BoardRemovalResultView, BoardR
 import { idleAgentDeps } from '../../test/idleAgents'
 import { createDesktopHandlers, firstPickedDirectory, type DesktopHandlerDeps } from './handlers'
 import { createFolderRegistry } from './folderRegistry'
-import { createForge, updateForge } from './forgeManifest'
+import { seedForgeFixture } from '../../test/forgeFixture'
 
 /** Commands that exist on a Workspace but are agent-only: the desktop must not reach them. */
 const AGENT_ONLY_COMMANDS = [
@@ -440,8 +440,7 @@ describe('untracking Forge World registry entries', () => {
       const synthetic = join(root, 'Synthetic')
       const unrelated = join(scratch, 'Other')
       for (const path of [member, synthetic, unrelated]) mkdirSync(path, { recursive: true })
-      createForge(root, 'example')
-      updateForge(root, world => { world.projects = ['Project', 'Synthetic'].map(folder => ({ folder, repository: 'example/' + folder })) })
+      seedForgeFixture(root, 'example', ['Project', 'Synthetic'].map(folder => ({ folder, repository: 'example/' + folder })))
       const options = { file: join(scratch, 'folders.json'), homeDir: scratch, dmHome: join(scratch, 'dm') }
       const registry = createFolderRegistry(options)
       registry.track(root)

@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { gitIn, put, samePath, scratchDir } from '../../test/gitScratch'
+import { seedForgeFixture } from '../../test/forgeFixture'
 import { createGitHandlers } from './handlers'
 import { createGitRunner, type GitRunner } from './runner'
 import { GitError } from './errors'
@@ -25,10 +26,7 @@ beforeEach(() => {
   }
   gitIn(world, 'remote', 'add', 'origin', 'https://github.com/example/world.git')
   gitIn(code, 'remote', 'add', 'origin', 'https://github.com/example/code.git')
-  // Seed the final fixture once; handler tests do not need a hard-link creation followed by immediate replacement.
-  put(world, 'forge-world.json', JSON.stringify({
-    version: 1, owner: 'example', projects: [{ folder: 'Project', repository: 'example/code' }], syncMinutes: 5
-  }) + '\n')
+  seedForgeFixture(world, 'example', [{ folder: 'Project', repository: 'example/code' }])
   put(world, '.gitignore', '*/.darkmechanicus/local/\n')
   put(member, '.darkmechanicus/local/source-checkout.json', JSON.stringify({ checkout: code }))
   put(world, 'ticket.txt', 'ticket baseline\n')
