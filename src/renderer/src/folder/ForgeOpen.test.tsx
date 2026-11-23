@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
-import type { ForgeMemberStatus } from '../../../shared/desktop/forgeWorld'
+import type { ForgeApi, ForgeMemberStatus } from '../../../shared/desktop/forgeWorld'
 import { deferred } from '../__mocks__/deferred'
 import { FakeDm } from '../__mocks__/fakeDm'
 import { ManualScheduler } from '../__mocks__/manualScheduler'
@@ -14,7 +14,7 @@ const ready: ForgeMemberStatus = { readiness: 'ready', syncing: false, error: nu
 
 function harness(memberStatus: (root: string, member: string) => Promise<ForgeMemberStatus>) {
   const scheduler = new ManualScheduler()
-  const sync = vi.fn(async () => undefined)
+  const sync = vi.fn<ForgeApi['sync']>(async () => undefined)
   const dm = new FakeDm()
   Object.assign(dm, { forge: { memberStatus, sync } })
   window.dm = dm
