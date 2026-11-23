@@ -7,7 +7,7 @@ import type { ForgeProvisionRequest } from '../../shared/desktop/forgeSetup'
 import { gitIn, scratchDir } from '../../test/gitScratch'
 import { createFolderRegistry } from './folderRegistry'
 import { ForgeGit } from './forgeGit'
-import { createForge } from './forgeManifest'
+import { createForge, updateForge } from './forgeManifest'
 import type { ForgeProvisionIntent, ProvisionDestination } from './forgeProvisioning'
 import { createForgeProvisioningWork } from './forgeProvisioningWork'
 import type { ForgePublishedRepository } from './forgePublish'
@@ -131,6 +131,15 @@ it('revalidates the world origin after the native picker and refuses a new attac
   f.state.addedAt = '2026-01-02T01:00:00.000Z'
   f.registry.track(f.world)
   await expect(f.work.assertCurrent(operation)).rejects.toThrow('untracked or its origin changed')
+})
+
+it('checks the latest mapping after the native picker before recording creation intent', async () => {
+  const f = fixture()
+  f.state.beforePick = () => updateForge(f.world, manifest => {
+    manifest.projects.push({ folder: 'ExistingAlias', repository: 'https://github.com/fixture-owner/software.git' })
+  })
+  await expect(f.work.prepare(f.request, account)).rejects.toThrow('already maps this folder or repository')
+  expect(f.pickDirectory).toHaveBeenCalledOnce()
 })
 
 it('refuses a substituted code parent and an account change on an existing receipt', async () => {

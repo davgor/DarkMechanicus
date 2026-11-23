@@ -10,10 +10,11 @@ import { FORGE_CONFIG } from '../../core/repo/forgeReference'
 import { encodeForgeRecipebook } from '../../core/repo/forgeSetupFormat'
 import { readForgeRecipebook, readForgeSetupWorkflow, refreshForgeSetupWorkflow, writeForgeRecipebook } from '../../core/repo/forgeSetupStorage'
 import type { ForgeProvisionRequest, ForgeRecipe, ForgeSetupDetection } from '../../shared/desktop/forgeSetup'
+import type { ForgeWorld } from '../../shared/desktop/forgeWorld'
 import type { CredentialSession } from '../git/credentials'
 import type { FolderRegistry } from './folderRegistry'
 import type { ForgeGit } from './forgeGit'
-import { createForge, githubRemote, updateForge } from './forgeManifest'
+import { createForge, FORGE_FILE, githubRemote, parseForge, updateForge } from './forgeManifest'
 import type { createForgeRepositoryPublisher, ForgeProvisionAccount, ForgePublishedRepository } from './forgePublish'
 import type { ForgeProvisionIntent, ForgeProvisioningWork, ProvisionDestination } from './forgeProvisioning'
 import { bundledForgeRecipes, materializeForgeScaffold, verifyForgeScaffold } from './forgeScaffold'
@@ -35,6 +36,22 @@ interface ProvisioningOptions {
 }
 
 type Receipt = { path: string; identity: string }
+type ProjectMapping = ForgeWorld['projects'][number]
+
+function vacantMapping(projects: ProjectMapping[], candidate: ProjectMapping, owned = false): boolean {
+  const { folder, repository } = candidate
+  const existing = projects.filter(project => project.folder.toLowerCase() === folder.toLowerCase() ||
+    project.repository.toLowerCase() === repository.toLowerCase())
+  if (existing.length === 0) return true
+  if (owned && existing.length === 1 && existing[0].folder === folder && existing[0].repository === repository) return false
+  throw new Error('The Forge World already maps this folder or repository.')
+}
+
+function checkMapping(root: string, mapping: ProjectMapping, owned = false): void {
+  const file = join(root, FORGE_FILE)
+  if (!lstatSync(file).isFile()) throw new Error('The Forge World manifest must be an ordinary file.')
+  vacantMapping(parseForge(readFileSync(file, 'utf8')).projects, mapping, owned)
+}
 
 function dirStamp(path: string): string {
   const stat = lstatSync(path, { bigint: true })
@@ -179,7 +196,12 @@ class ProvisioningWork implements ForgeProvisioningWork {
     const tickets = existingWorld?.path ?? join(this.deps.home, 'forge-worlds', account.login)
     const parent = this.checkoutParent(picked, request.code.name, tickets)
     const parentIdentity = dirStamp(parent)
-    if (existingWorld !== undefined) this.checkWorld(existingWorld)
+    if (existingWorld !== undefined) {
+      this.checkWorld(existingWorld)
+      checkMapping(existingWorld.path, {
+        folder: request.code.name, repository: 'https://github.com/' + account.login + '/' + request.code.name + '.git'
+      })
+    }
     return { parent, parentIdentity, existingWorld, recipeHash: recipeHash(recipe) }
   }
 
@@ -338,7 +360,7 @@ class ProvisioningWork implements ForgeProvisioningWork {
     }
   }
 
-  private async seedMember(intent: ForgeProvisionIntent, member: string, remote: ForgePublishedRepository): Promise<Receipt> {
+  private async seedMember(intent: ForgeProvisionIntent, member: string, mapping: ProjectMapping): Promise<Receipt> {
     const code = intent.request.code!
     const temporary = join(dirname(dirname(member)), '.forge-member-' + intent.id)
     const staged = claimDirectory(temporary, intent, 'member')
@@ -351,15 +373,17 @@ class ProvisioningWork implements ForgeProvisioningWork {
     if (project === null) throw new Error('The ticket project could not be initialized.')
     const recipe = this.selectedRecipe(intent.destination.existingWorld?.path, code.recipeId)
     if (recipeHash(recipe) !== intent.destination.recipeHash) throw new Error('The selected recipe changed during Forge creation.')
-    const detection = readForgeSetupWorkflow(temporary) === null ? await this.deps.discover(remote.url) : undefined
+    const detection = readForgeSetupWorkflow(temporary) === null ? await this.deps.discover(mapping.repository) : undefined
     const current = this.networkFence(intent, staged)
     current()
     mkdirSync(layout.localDir, { recursive: true })
     dirStamp(layout.localDir)
     exactFile(join(layout.localDir, 'source-checkout.json'), JSON.stringify({ checkout: intent.checkout?.path }) + '\n')
     if (detection !== undefined) {
-      refreshForgeSetupWorkflow(temporary, remote.url, detection, { recipeId: recipe.id, steps: recipe.steps })
+      refreshForgeSetupWorkflow(temporary, mapping.repository, detection, { recipeId: recipe.id, steps: recipe.steps })
     }
+    // Keep a staged project out of the live world if an editor changed its manifest during discovery.
+    checkMapping(dirname(member), mapping)
     renameSync(temporary, member)
     return { path: member, identity: project.projectId }
   }
@@ -382,14 +406,14 @@ class ProvisioningWork implements ForgeProvisioningWork {
       this.localFence(intent)
       const folder = intent.request.code!.name
       const path = join(root, folder)
-      const member = this.existingMember(intent, path) ?? await this.seedMember(intent, path, remote)
+      const mapping = { folder, repository: remote.url }
+      const ownedMember = this.existingMember(intent, path)
+      checkMapping(root, mapping, ownedMember !== undefined)
+      const member = ownedMember ?? await this.seedMember(intent, path, mapping)
       this.localFence(intent)
       this.checkMember(member)
       updateForge(root, world => {
-        const existing = world.projects.find(project => project.folder.toLowerCase() === folder.toLowerCase() ||
-          project.repository.toLowerCase() === remote.url.toLowerCase())
-        if (!existing) world.projects.push({ folder, repository: remote.url })
-        else if (existing.repository !== remote.url || existing.folder !== folder) throw new Error('The Forge World already maps this folder or repository.')
+        if (vacantMapping(world.projects, mapping, true)) world.projects.push(mapping)
       })
       const { home } = this.deps
       const epoch = forgeBindingEpoch(nodeFs, home, checkout)

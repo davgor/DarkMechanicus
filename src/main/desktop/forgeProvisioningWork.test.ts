@@ -10,6 +10,10 @@ import { gitIn, scratchDir } from '../../test/gitScratch'
 import { createGitRunner } from '../git/runner'
 import { createTestWorkspacePool } from './__mocks__/projectWorkspaceFixture'
 import { createFolderRegistry } from './folderRegistry'
+import { ForgeGit } from './forgeGit'
+import { parseForge, updateForge } from './forgeManifest'
+import type { ForgeProvisionIntent } from './forgeProvisioning'
+import { createForgeProvisioningWork } from './forgeProvisioningWork'
 import type { ForgePublishedRepository } from './forgePublish'
 import { startForge } from './forgeService'
 
@@ -77,18 +81,23 @@ function fixture() {
   const { account, remotes, created, publisher, creation } = fixturePublisher(scratch.path)
   const { runner, gitCommands, network, state } = fixtureRunner(scratch.path)
   const notified: string[] = []
+  const discovery = { before: () => {} }
   const appTimer = vi.spyOn(globalThis, 'setInterval')
+  const session = { getAccount: () => account, getToken: () => 'fixture-token' }
   const forge = startForge({ handle: (key, handler) => { handlers.set(key, handler) } }, {
-    home, registry, pool, session: { getAccount: () => account, getToken: () => 'fixture-token' },
+    home, registry, pool, session,
     pickDirectory: async () => destination, cleanup: () => undefined, publish: async () => { throw new Error('Unexpected legacy publish') },
     onSynced: async () => {}, onConflict: async () => { throw new Error('Unexpected conflict') },
     onImported: async member => { notified.push(member) },
     provisioning: {
       journal: join(home, 'provisioning.json'),
-      discover: async repository => ({
-        detectorVersion: 1, status: 'detected', source: { repository, commit: gitIn(join(scratch.path, 'software.git'), 'rev-parse', 'HEAD').trim() },
-        facts: [{ kind: 'lockfile', value: 'npm', source: 'package-lock.json' }]
-      }),
+      discover: async repository => {
+        discovery.before()
+        return {
+          detectorVersion: 1, status: 'detected', source: { repository, commit: gitIn(join(scratch.path, 'software.git'), 'rev-parse', 'HEAD').trim() },
+          facts: [{ kind: 'lockfile', value: 'npm', source: 'package-lock.json' }]
+        }
+      },
       publisher
     },
     runner
@@ -96,7 +105,8 @@ function fixture() {
   const tick = appTimer.mock.calls.find(([, interval]) => interval === 15_000)?.[0]
   appTimer.mockRestore()
   const close = async () => { await forge.stop(); await pool.closeAll(); scratch.cleanup() }
-  return { scratch, destination, registry, pool, remotes, created, creation, notified, gitCommands, network, state, forge, invoke, tick, close }
+  return { scratch, home, destination, registry, pool, remotes, created, creation, discovery, notified, gitCommands, network, state,
+    forge, invoke, tick, close, session, runner, publisher }
 }
 
 it('creates and resumes a real private world, separate public code checkout and one durable ticket member', async () => {
@@ -203,5 +213,72 @@ it('preserves another commit in a newly created code remote and leaves publicati
     expect(gitIn(join(f.scratch.path, 'software.git'), 'rev-parse', 'HEAD').trim()).toBe(previous)
     expect(f.state.codePushes).toBe(0)
     expect(f.notified).toEqual([])
+  } finally { await f.close() }
+})
+
+const linkedSoftware = { folder: 'PriorAlias', repository: 'https://github.com/example/software.git' }
+
+async function worldForMapping(f: ReturnType<typeof fixture>) {
+  await f.forge.ready
+  f.creation.loseCodeResponse = false
+  const status = await f.invoke('forgeSetup:provision', { world: { kind: 'new', name: 'tickets' } }, randomUUID()) as ForgeProvisionStatus
+  expect(status).toMatchObject({ state: 'complete', world: expect.any(String) })
+  return status.world!
+}
+
+function codeFor(world: string) {
+  return { world: { kind: 'existing', folder: world }, code: { name: 'software', visibility: 'public', recipeId: 'boosterseat-react' } }
+}
+
+async function replayOwnedMember(f: ReturnType<typeof fixture>, operation: string) {
+  const journal = JSON.parse(readFileSync(join(f.home, 'provisioning.json'), 'utf8')) as { entries: ForgeProvisionIntent[] }
+  const retained = journal.entries.find(entry => entry.id === operation)!
+  const work = createForgeProvisioningWork({
+    home: f.home, registry: f.registry, pool: f.pool, session: f.session, publisher: f.publisher, git: new ForgeGit(f.session, f.runner),
+    pickDirectory: async () => { throw new Error('An owned member cannot require a new picker.') },
+    discover: async () => { throw new Error('An owned member cannot require new descriptor discovery.') },
+    withWorld: async (_world, effect) => effect(),
+    synchronize: async () => { throw new Error('Member replay should not publish the world directly.') }
+  })
+  return work.member({ ...retained, member: undefined, phase: 'member', state: 'running' }, f.remotes.get('software')!)
+}
+
+it('refuses a remote URL already mapped under another member before creating code or opening a local checkout', async () => {
+  const f = fixture()
+  try {
+    const world = await worldForMapping(f)
+    await f.invoke('forge:add', world, linkedSoftware.repository, linkedSoftware.folder)
+    expect(await f.invoke('forgeSetup:provision', codeFor(world), randomUUID())).toMatchObject({
+      state: 'refused', message: expect.stringContaining('already maps this folder or repository')
+    })
+    expect(f.created).toEqual(['tickets'])
+    expect(existsSync(join(f.destination, 'software'))).toBe(false)
+    const current = parseForge(readFileSync(join(world, 'forge-world.json'), 'utf8'))
+    expect(current.projects).toEqual([linkedSoftware])
+  } finally { await f.close() }
+})
+
+it('keeps a late conflicting mapping and staged ticket project separate, then resumes the owned receipt after repair', async () => {
+  const f = fixture()
+  try {
+    const world = await worldForMapping(f)
+    f.discovery.before = () => updateForge(world, manifest => { manifest.projects.push(linkedSoftware) })
+    const operation = randomUUID()
+    expect(await f.invoke('forgeSetup:provision', codeFor(world), operation)).toMatchObject({
+      state: 'needs-attention', phase: 'member', message: expect.stringContaining('already maps this folder or repository')
+    })
+    expect(existsSync(join(world, 'software'))).toBe(false)
+    expect(parseForge(readFileSync(join(world, 'forge-world.json'), 'utf8')).projects).toEqual([linkedSoftware])
+    expect(f.created).toEqual(['tickets', 'software'])
+    expect(f.notified).toEqual([])
+    updateForge(world, manifest => { manifest.projects = [] })
+    f.discovery.before = () => { throw new Error('Staged preparation evidence already exists') }
+    expect(await f.invoke('forgeSetup:resumeProvision', operation)).toMatchObject({ state: 'complete', member: join(world, 'software') })
+    expect(f.created).toEqual(['tickets', 'software'])
+    expect(f.notified).toEqual([join(world, 'software')])
+    await expect(replayOwnedMember(f, operation)).resolves.toMatchObject({ path: join(world, 'software') })
+    updateForge(world, manifest => { manifest.projects.push(linkedSoftware) })
+    await expect(replayOwnedMember(f, operation)).rejects.toThrow('already maps this folder or repository')
+    expect(parseForge(readFileSync(join(world, 'forge-world.json'), 'utf8')).projects).toHaveLength(2)
   } finally { await f.close() }
 })
