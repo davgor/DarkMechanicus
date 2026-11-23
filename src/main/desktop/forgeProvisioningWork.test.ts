@@ -46,7 +46,12 @@ function fixtureRunner(remoteRoot: string) {
   const real = createGitRunner()
   const network: string[] = []
   const gitCommands: (readonly string[])[] = []
-  const state = { offline: false, codePush: 'normal' as 'normal' | 'unreceived' | 'lost-response', upstream: true, codePushes: 0 }
+  const state = { offline: false, codePush: 'normal' as 'normal' | 'unreceived' | 'lost-response', upstream: true, codePushes: 0,
+    beforeWorldPush: (_root: string) => {} }
+  function beforeCodePush() {
+    state.codePushes++
+    if (state.codePush === 'unreceived') throw new Error('The Git server did not receive the code push')
+  }
   const runner: NonNullable<Parameters<typeof startForge>[1]['runner']> = {
     async run(request) {
       gitCommands.push(request.args)
@@ -55,11 +60,10 @@ function fixtureRunner(remoteRoot: string) {
       if (state.offline) throw new Error('Fixture Git remote is unavailable')
       network.push(request.cwd)
       const args = request.args.map(arg => arg.startsWith('https://github.com/example/') ? join(remoteRoot, basename(arg)) : arg)
-      const codePush = args.includes('push') && args.includes(join(remoteRoot, 'software.git'))
-      if (codePush) {
-        state.codePushes++
-        if (state.codePush === 'unreceived') throw new Error('The Git server did not receive the code push')
-      }
+      const push = args.includes('push')
+      const codePush = push && args.includes(join(remoteRoot, 'software.git'))
+      if (codePush) beforeCodePush()
+      else if (push) state.beforeWorldPush(request.cwd)
       const result = await real.run({ ...request, args: ['-c', 'protocol.file.allow=always', ...args.filter((arg, index) =>
         arg !== 'protocol.allow=never' && args[index + 1] !== 'protocol.allow=never')] })
       if (codePush && state.codePush === 'lost-response') throw new Error('The Git server accepted the push before the response was lost')
@@ -280,5 +284,38 @@ it('keeps a late conflicting mapping and staged ticket project separate, then re
     updateForge(world, manifest => { manifest.projects.push(linkedSoftware) })
     await expect(replayOwnedMember(f, operation)).rejects.toThrow('already maps this folder or repository')
     expect(parseForge(readFileSync(join(world, 'forge-world.json'), 'utf8')).projects).toHaveLength(2)
+  } finally { await f.close() }
+})
+
+it('preserves the recorded member when its mapping changes at the actual World push boundary', async () => {
+  const f = fixture()
+  try {
+    await f.forge.ready
+    f.creation.loseCodeResponse = false
+    const operation = randomUUID()
+    const bare = join(f.scratch.path, 'tickets.git')
+    f.state.beforeWorldPush = root => {
+      updateForge(root, manifest => { manifest.projects.push(linkedSoftware) })
+      gitIn(root, 'add', '--', 'forge-world.json')
+      gitIn(root, 'commit', '-m', 'Edit the world mapping before publication')
+    }
+    const request = { world: { kind: 'new', name: 'tickets' }, code: { name: 'software', visibility: 'private', recipeId: 'boosterseat-react' } }
+    const interrupted = await f.invoke('forgeSetup:provision', request, operation) as ForgeProvisionStatus
+    expect(gitIn(bare, 'branch', '--list')).toBe('')
+    expect(interrupted).toMatchObject({ state: 'needs-attention', phase: 'publish', message: expect.stringContaining('already maps'), member: expect.any(String) })
+    expect(f.notified).toEqual([])
+
+    const world = interrupted.world!
+    updateForge(world, manifest => { manifest.projects = [] })
+    const networkBeforeResume = f.network.length
+    f.state.beforeWorldPush = () => { throw new Error('A record without its mapping must not start a push') }
+    expect(await f.invoke('forgeSetup:resumeProvision', operation)).toMatchObject({
+      state: 'needs-attention', message: expect.stringContaining('no longer maps the confirmed code repository')
+    })
+    expect(f.network).toHaveLength(networkBeforeResume)
+    expect(f.created).toEqual(['tickets', 'software'])
+    expect(f.state.codePushes).toBe(1)
+    expect(readForgeSetupWorkflow(interrupted.member!)).not.toBeNull()
+    expect(f.notified).toEqual([])
   } finally { await f.close() }
 })

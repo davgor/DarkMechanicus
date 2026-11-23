@@ -47,10 +47,10 @@ function vacantMapping(projects: ProjectMapping[], candidate: ProjectMapping, ow
   throw new Error('The Forge World already maps this folder or repository.')
 }
 
-function checkMapping(root: string, mapping: ProjectMapping, owned = false): void {
+function checkMapping(root: string, mapping: ProjectMapping, owned = false): boolean {
   const file = join(root, FORGE_FILE)
   if (!lstatSync(file).isFile()) throw new Error('The Forge World manifest must be an ordinary file.')
-  vacantMapping(parseForge(readFileSync(file, 'utf8')).projects, mapping, owned)
+  return vacantMapping(parseForge(readFileSync(file, 'utf8')).projects, mapping, owned)
 }
 
 function dirStamp(path: string): string {
@@ -250,7 +250,7 @@ class ProvisioningWork implements ForgeProvisioningWork {
       checkDirectory(intent.checkout)
       if (origin(intent.checkout.path).toLowerCase() !== codeRemote(intent)?.url.toLowerCase()) throw new Error('The code checkout origin changed.')
     }
-    if (intent.member !== undefined) this.checkMember(intent.member)
+    if (intent.member !== undefined) this.checkMemberReceipt(intent, intent.member)
   }
 
   async assertCurrent(intent: ForgeProvisionIntent): Promise<void> {
@@ -353,6 +353,19 @@ class ProvisioningWork implements ForgeProvisioningWork {
     if (project === null || project.projectId !== member.identity) throw new Error('The prepared ticket project changed.')
   }
 
+  private checkMemberReceipt(intent: ForgeProvisionIntent, member: Receipt): void {
+    const root = intent.world?.path
+    const folder = intent.request.code?.name
+    const repository = codeRemote(intent)?.url
+    if (root === undefined || folder === undefined || repository === undefined || member.path !== join(root, folder)) {
+      throw new Error('The prepared ticket project receipt changed.')
+    }
+    this.checkMember(member)
+    if (checkMapping(root, { folder, repository }, true)) {
+      throw new Error('The Forge World no longer maps the confirmed code repository to this ticket project.')
+    }
+  }
+
   private checkPublishedRemote(actual: ForgePublishedRepository | null, expected: ForgePublishedRepository): void {
     const remote = assertRemote(actual, expected.url, expected.id)
     if (remote.ownerId !== expected.ownerId || remote.visibility !== expected.visibility || remote.provenance !== expected.provenance) {
@@ -437,6 +450,7 @@ class ProvisioningWork implements ForgeProvisioningWork {
       const head = await this.deps.git.run(world.path, ['rev-parse', 'HEAD'], undefined, { beforeStart: current })
       const remote = await this.deps.git.run(world.path, ['ls-remote', '--heads', url, branch], url, { beforeStart: current })
       if (remote.stdout.trim() !== head.stdout.trim() + '\t' + branch) throw new Error('GitHub has not confirmed the published Forge World commit.')
+      current()
     })
     if (intent.member !== undefined) await this.deps.onProject?.(intent.member.path, intent.request.agent)
   }
