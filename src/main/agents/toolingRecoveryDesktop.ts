@@ -1,5 +1,4 @@
-import type { Workspace } from '../../core/workspace'
-import { holdToolingWorkflow, releaseToolingWorkflow } from '../../core/services/toolingHold'
+import type { ProjectWorkspace } from '../desktop/workspaceClient'
 import { NamingControlError, type NamingOperation } from '../../shared/agents/chatNaming'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { AgentRegistry } from '../desktop/agentRegistry'
@@ -18,7 +17,7 @@ interface DesktopRecoveryDeps {
   source: Pick<SourceCheckouts, 'requireAvailable'>
   store: ChatStore
   agents: Pick<AgentRegistry, 'get'>
-  workspace(folder: string): Workspace
+  workspace(folder: string): ProjectWorkspace
   resolveFolder(folder: string): string | null
   callerFolders(chat: ChatRecord): readonly string[]
   terminals: Pick<TerminalSessions, 'start' | 'isRunning' | 'paste'>
@@ -26,10 +25,10 @@ interface DesktopRecoveryDeps {
   deliveries: ConversationDeliveries
   resume(chat: ChatRecord): Promise<string | null>
 }
-export interface DesktopToolingRecovery { dispatch: NamingDispatcher; poll(folder: string): Promise<void>; assertLaunch(chat: ChatRecord): void }
+export interface DesktopToolingRecovery { dispatch: NamingDispatcher; poll(folder: string): Promise<void>; assertLaunch(chat: ChatRecord): Promise<string | undefined> }
 const CALLER_REPLAY_REQUIRED = 'Repair restart needs a live caller handoff; replay the same incident, never create another repair.'
 class DesktopRecovery implements DesktopToolingRecovery {
-  readonly #launchGuards = new Map<string, () => void>()
+  readonly #launchGuards = new Map<string, () => Promise<string>>()
   readonly dispatch: NamingDispatcher
 
   constructor(private readonly deps: DesktopRecoveryDeps) {
@@ -38,11 +37,11 @@ class DesktopRecovery implements DesktopToolingRecovery {
       this.dispatch = () => { throw new NamingControlError('operation_unavailable') }
     }
   }
-  assertLaunch(chat: ChatRecord): void {
+  async assertLaunch(chat: ChatRecord): Promise<string | undefined> {
     if (chat.repairIncidentId === undefined) return
     const guard = this.#launchGuards.get(chat.id)
     if (guard === undefined) throw new Error(CALLER_REPLAY_REQUIRED)
-    guard()
+    return guard()
   }
   async poll(folder: string): Promise<void> {
     const failures = await this.#reconcile(folder)
@@ -73,7 +72,7 @@ class DesktopRecovery implements DesktopToolingRecovery {
     if (this.deps.context.hasRecoveryMessage(chat, message)) { await this.deps.context.queueRecovery(chat, message); return }
     const problem = this.#restartProblem(chat)
     if (problem !== null) { this.#recordRestartPending(entry, problem); return }
-    this.assertLaunch(chat)
+    await this.assertLaunch(chat)
     await this.#resumePending(chat, entry, message.text)
   }
   async #resumePending(chat: ChatRecord, entry: ConversationDelivery, text: string): Promise<void> {
@@ -106,12 +105,12 @@ class DesktopRecovery implements DesktopToolingRecovery {
   }
   async #hold(chat: ChatRecord, incidentId: string): Promise<void> {
     for (const folder of this.deps.callerFolders(chat)) {
-      holdToolingWorkflow(this.deps.workspace(folder).ctx(), { id: chat.id, incidentId,
+      await this.deps.workspace(folder).call('holdTooling', { id: chat.id, incidentId,
         ...(chat.runId === undefined ? {} : { runId: chat.runId }), ...(chat.cardId === undefined ? {} : { cardId: chat.cardId }) })
     }
   }
   async #release(chat: ChatRecord, incidentId: string): Promise<void> {
-    for (const folder of this.deps.callerFolders(chat)) releaseToolingWorkflow(this.deps.workspace(folder).ctx(), { id: chat.id, incidentId })
+    for (const folder of this.deps.callerFolders(chat)) await this.deps.workspace(folder).call('releaseTooling', { id: chat.id, incidentId })
   }
   async #wake(chat: ChatRecord): Promise<string | null> {
     this.#throwFailures(await this.#reconcile(chat.folder ?? 'projectless', chat.id))

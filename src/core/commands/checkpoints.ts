@@ -12,7 +12,7 @@ import {
   grantRetry
 } from '../services/checkpoints'
 import { createCorrections, previewCorrections } from '../services/corrections'
-import { expireLeases } from '../services/execution'
+import { expireLeasesOnRead } from '../services/execution'
 import { getExperiment, recordExperimentEvent } from '../services/experiments'
 import { redraftNextSprint } from '../services/redraft'
 import { getSprintReport, submitSprintReport } from '../services/reports'
@@ -22,7 +22,7 @@ import type { CommandTable } from './types'
 
 /** Gates read attempt states as stored, so overdue leases are expired before evaluating them. */
 function swept(ctx: Ctx, runId: string): Ctx {
-  ctx.db.tx(() => expireLeases(ctx, runId))
+  expireLeasesOnRead(ctx, runId)
   return ctx
 }
 

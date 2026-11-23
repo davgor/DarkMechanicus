@@ -19,7 +19,7 @@ import type { CommandResult } from '../../shared/desktop/api'
 import { createSequentialIds, createTestClock, type TestClock } from '../../test/testContext'
 import { createFakeGit, TEST_STORAGE } from '../../test/workspaceHarness'
 import { buildCliConfig } from '../desktop/cliConfig'
-import { createWorkspacePool, type WorkspacePool } from '../desktop/workspacePool'
+import { createTestWorkspacePool as createWorkspacePool, type TestWorkspacePool as WorkspacePool } from '../desktop/__mocks__/projectWorkspaceFixture'
 import { gate, type Gate } from '../terminals/__mocks__/terminalSessionsRig'
 import { builtInAgent, connectedAgents, folderOf } from './__mocks__/chatFixtures'
 import { createAgentMailDesktop, type AgentMailDesktop, type AgentMailDesktopDeps } from './agentMailDesktop'
@@ -50,12 +50,12 @@ beforeEach(() => {
   services = []
 })
 
-afterEach(() => {
+afterEach(async () => {
   // Before the real timers return, so a monitor's fake timer is cleared on the fake clock that holds it.
   for (const service of services) service.dispose()
   vi.useRealTimers()
   for (const workspace of opened) workspace.close()
-  for (const pool of pools) pool.closeAll()
+  for (const pool of pools) await pool.closeAll()
   rmSync(root, { recursive: true, force: true })
 })
 
@@ -95,13 +95,13 @@ async function rig(options: RigOptions = {}): Promise<Rig> {
   await pool.get(repoA).initializeRepository({ name: 'a' })
   await pool.get(repoB).initializeRepository({ name: 'b' })
   const tracked = new Set([repoA, repoB])
-  const workspaceFor = (folder: string): Workspace => {
+  const workspaceFor = (folder: string) => {
     if (!tracked.has(folder)) throw new DomainError('unauthorized', 'That folder is not tracked by Dark Mechanicus.')
     return pool.get(folder)
   }
   const store = createChatStore({ root: join(root, 'chats'), ...(options.newId === undefined ? {} : { newId: options.newId }) })
   const mailboxes = createChatMailboxes({
-    contextFor: (folder) => workspaceFor(folder).ctx(),
+    workspaceFor,
     store,
     ledger: { file: join(root, 'mailboxes.jsonl'), fs: nodeChatStoreFs },
     log: () => {}
@@ -126,7 +126,7 @@ async function rig(options: RigOptions = {}): Promise<Rig> {
 
 /** The service under test over the rig's store and desktop workspaces, counting lookups and recording every push. */
 function watchedMail(
-  over: { store: ChatStore; tracked: Set<string>; workspaceFor: (folder: string) => Workspace },
+  over: { store: ChatStore; tracked: Set<string>; workspaceFor: (folder: string) => ReturnType<WorkspacePool['get']> },
   options: RigOptions
 ): Pick<Rig, 'mail' | 'pushes' | 'counts'> {
   const pushes: ChatMailPushEvent[] = []
@@ -140,9 +140,9 @@ function watchedMail(
         return over.store.listChats(folder)
       }
     },
-    contextFor: (folder) => {
+    workspaceFor: (folder) => {
       counts.contexts += 1
-      return over.workspaceFor(folder).ctx()
+      return over.workspaceFor(folder)
     },
     push: (event) => pushes.push(event),
     ...(options.autoMonitor ? { folders: () => [...over.tracked] } : {}),
@@ -157,8 +157,8 @@ function watchedMail(
   return { mail, pushes, counts }
 }
 
-function newOmp(state: Rig, folder: string, title: string): ChatRecord {
-  return state.records.createChat({ folder, agent: 'omp', role: 'worker', title })
+async function newOmp(state: Rig, folder: string, title: string): Promise<ChatRecord> {
+  return await state.records.createChat({ folder, agent: 'omp', role: 'worker', title })
 }
 
 function data<T>(result: CommandResult<T>): T {
@@ -211,7 +211,7 @@ describe('world mailbox monitoring', () => {
     const endpoint = provisionAgentMailEndpoint(state.pool.get(repoA).ctx(), { chatId: world.id, name: world.title })
     const projection = { ...world, endpointId: endpoint.id }
     routed.set(repoA, [projection])
-    await send(await state.agentOf(newOmp(state, repoA, 'Member sender')), projection, ['for world owner'])
+    await send(await state.agentOf(await newOmp(state, repoA, 'Member sender')), projection, ['for world owner'])
     await vi.advanceTimersByTimeAsync(2_000)
     await settle()
     expect(resumed).toEqual([projection])
@@ -236,8 +236,8 @@ describe('automatic monitoring without opening an inbox', () => {
   it('discovers pending mail in every tracked folder without a snapshot request', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
     const state = await rig({ autoMonitor: true })
-    const inbox = newOmp(state, repoB, 'Stopped recipient')
-    const sender = await state.agentOf(newOmp(state, repoB, 'Sender'))
+    const inbox = await newOmp(state, repoB, 'Stopped recipient')
+    const sender = await state.agentOf(await newOmp(state, repoB, 'Sender'))
     await send(sender, inbox, ['must not depend on opening the inbox'])
     await vi.advanceTimersByTimeAsync(2_000)
     await settle()
@@ -258,8 +258,8 @@ describe('automatic monitoring without opening an inbox', () => {
         resume: async (chat) => { resumed.push(chat.id); return null }
       }
     })
-    const inbox = newOmp(state, repoA, 'Existing stopped recipient')
-    const sender = await state.agentOf(newOmp(state, repoA, 'Sender'))
+    const inbox = await newOmp(state, repoA, 'Existing stopped recipient')
+    const sender = await state.agentOf(await newOmp(state, repoA, 'Sender'))
     await send(sender, inbox, ['first full body'])
     await vi.advanceTimersByTimeAsync(2_000)
     await settle()
@@ -287,8 +287,8 @@ describe('automatic monitoring while its recipient is unavailable', () => {
       autoMonitor: true,
       delivery: { hasMessage: () => false, resume: async () => problem }
     })
-    const inbox = newOmp(state, repoA, 'Unavailable recipient')
-    const sender = await state.agentOf(newOmp(state, repoA, 'Sender'))
+    const inbox = await newOmp(state, repoA, 'Unavailable recipient')
+    const sender = await state.agentOf(await newOmp(state, repoA, 'Sender'))
     await send(sender, inbox, ['retained while signed out'])
     await vi.advanceTimersByTimeAsync(2_000)
     await settle()
@@ -308,8 +308,8 @@ describe('automatic monitoring while its recipient is unavailable', () => {
 describe('the person’s inbox: read and seen without agent acknowledgement', () => {
   it('reads bodies and moves the seen cursor while the agent’s pending mail stays pending, and counts follow seven-day retention', async () => {
     const state = await rig()
-    const inbox = newOmp(state, repoA, 'Inbox')
-    const sender = await state.agentOf(newOmp(state, repoA, 'Sender'))
+    const inbox = await newOmp(state, repoA, 'Inbox')
+    const sender = await state.agentOf(await newOmp(state, repoA, 'Sender'))
     await send(sender, inbox, ['first body', 'second body', 'third body'])
 
     const snapshot = data(await state.mail.handlers.snapshot(repoA))
@@ -343,8 +343,8 @@ describe('the person’s inbox: read and seen without agent acknowledgement', ()
 
   it('keeps a message that arrived after the window rendered unseen, refuses a sequence never shown and never moves back', async () => {
     const state = await rig()
-    const inbox = newOmp(state, repoA, 'Inbox')
-    const sender = await state.agentOf(newOmp(state, repoA, 'Sender'))
+    const inbox = await newOmp(state, repoA, 'Inbox')
+    const sender = await state.agentOf(await newOmp(state, repoA, 'Sender'))
     await send(sender, inbox, ['one', 'two'])
     const ref = { folder: repoA, chatId: inbox.id }
 
@@ -365,10 +365,10 @@ describe('the person’s inbox: read and seen without agent acknowledgement', ()
 describe('the person’s inbox: which mailbox', () => {
   it('derives the mailbox from a tracked folder’s own OMP chat and refuses every other target or shape', async () => {
     const state = await rig()
-    const inbox = newOmp(state, repoA, 'Inbox')
-    const elsewhere = newOmp(state, repoB, 'Elsewhere')
-    const claude = state.records.createChat({ folder: repoA, agent: 'claude', role: 'worker', title: 'Claude' })
-    const doomed = newOmp(state, repoA, 'Doomed')
+    const inbox = await newOmp(state, repoA, 'Inbox')
+    const elsewhere = await newOmp(state, repoB, 'Elsewhere')
+    const claude = await state.records.createChat({ folder: repoA, agent: 'claude', role: 'worker', title: 'Claude' })
+    const doomed = await newOmp(state, repoA, 'Doomed')
     await state.records.deleteChat(doomed)
     const untracked = join(root, 'untracked')
     mkdirSync(untracked)
@@ -392,8 +392,8 @@ describe('the person’s inbox: which mailbox', () => {
 
   it('keeps the person’s mail powers human-only: an agent cannot inspect another inbox', async () => {
     const state = await rig()
-    const inbox = newOmp(state, repoA, 'Inbox')
-    const agent = await state.agentOf(newOmp(state, repoA, 'Agent'))
+    const inbox = await newOmp(state, repoA, 'Inbox')
+    const agent = await state.agentOf(await newOmp(state, repoA, 'Agent'))
     expect(HUMAN_ONLY_CAPABILITIES).toContain('mail.manage')
 
     expect(() => readHumanAgentInbox(agent.ctx(), { endpointId: inbox.endpointId ?? '' })).toThrow(expect.objectContaining({ code: 'unauthorized' }))
@@ -405,8 +405,8 @@ describe('the central mail monitor', () => {
   it('catches up on mail that arrived before it started, then pushes only changed metadata and never a body', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const state = await rig()
-    const inbox = newOmp(state, repoA, 'Inbox')
-    const sender = await state.agentOf(newOmp(state, repoA, 'Sender'))
+    const inbox = await newOmp(state, repoA, 'Inbox')
+    const sender = await state.agentOf(await newOmp(state, repoA, 'Sender'))
     await send(sender, inbox, ['secret body before start'])
 
     const snapshot: ChatMailSnapshot = data(await state.mail.handlers.snapshot(repoA))
@@ -436,9 +436,9 @@ describe('the central mail monitor', () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const ids = ['chat_same', 'chat_same', 'chat_sender']
     const state = await rig({ newId: () => ids.shift() ?? 'chat_other' })
-    const inA = newOmp(state, repoA, 'Twin A')
-    const inB = newOmp(state, repoB, 'Twin B')
-    const sender = await state.agentOf(newOmp(state, repoA, 'Sender'))
+    const inA = await newOmp(state, repoA, 'Twin A')
+    const inB = await newOmp(state, repoB, 'Twin B')
+    const sender = await state.agentOf(await newOmp(state, repoA, 'Sender'))
     expect([inA.id, inB.id]).toEqual(['chat_same', 'chat_same'])
     data(await state.mail.handlers.snapshot(repoA))
     data(await state.mail.handlers.snapshot(repoB))
@@ -457,8 +457,9 @@ describe('the central mail monitor: pages, generations and timers', () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     let hold: Gate<void> | null = null
     const state = await rig({ pageSize: 2, yieldPage: () => hold?.promise ?? Promise.resolve() })
-    const chats = [1, 2, 3, 4].map((n) => newOmp(state, repoA, `Inbox ${n}`))
-    const sender = await state.agentOf(newOmp(state, repoA, 'Sender'))
+    const workerTimers = vi.getTimerCount()
+    const chats = await Promise.all([1, 2, 3, 4].map(async n => await newOmp(state, repoA, `Inbox ${n}`)))
+    const sender = await state.agentOf(await newOmp(state, repoA, 'Sender'))
     data(await state.mail.handlers.snapshot(repoA))
     // Five mailboxes in pages of two: three contexts, one per page transaction.
     state.counts.contexts = 0
@@ -466,7 +467,7 @@ describe('the central mail monitor: pages, generations and timers', () => {
     await settle()
     expect(state.counts.contexts).toBe(3)
 
-    await send(sender, chats[0] ?? newOmp(state, repoA, 'never'), ['late'])
+    await send(sender, chats[0] ?? (await newOmp(state, repoA, 'never')), ['late'])
     hold = gate<void>()
     state.counts.lists = 0
     await vi.advanceTimersByTimeAsync(2_000)
@@ -475,7 +476,7 @@ describe('the central mail monitor: pages, generations and timers', () => {
     await vi.advanceTimersByTimeAsync(20_000)
     await settle()
     expect(state.counts.lists).toBe(1)
-    expect(vi.getTimerCount()).toBe(0)
+    expect(vi.getTimerCount() - workerTimers).toBe(0)
 
     // Untracked and tracked again while the old sweep waits: its late page must not reach the new generation's watch.
     state.mail.stopFolder(repoA)
@@ -485,9 +486,9 @@ describe('the central mail monitor: pages, generations and timers', () => {
     await settle()
     expect(code(await restarted)).toBe('ok')
     expect(state.pushes).toEqual([])
-    expect(vi.getTimerCount()).toBe(1)
+    expect(vi.getTimerCount() - workerTimers).toBe(1)
     state.mail.dispose()
-    expect(vi.getTimerCount()).toBe(0)
+    expect(vi.getTimerCount() - workerTimers).toBe(0)
   })
 })
 
@@ -495,7 +496,7 @@ describe('the central mail monitor: stopping', () => {
   it('answers a snapshot whose folder stopped meanwhile with unauthorized, not the old folder’s data', async () => {
     let hold: Gate<void> | null = gate<void>()
     const state = await rig({ yieldPage: () => hold?.promise ?? Promise.resolve() })
-    newOmp(state, repoA, 'Inbox')
+    await newOmp(state, repoA, 'Inbox')
 
     const pending: Promise<CommandResult<ChatMailSnapshot>> = state.mail.handlers.snapshot(repoA)
     await settle()
@@ -509,26 +510,27 @@ describe('the central mail monitor: stopping', () => {
   it('leaves no timer after a stop or quit, and a quit app starts no monitor', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const state = await rig()
-    newOmp(state, repoA, 'Inbox')
-    newOmp(state, repoB, 'Other')
+    const workerTimers = vi.getTimerCount()
+    await newOmp(state, repoA, 'Inbox')
+    await newOmp(state, repoB, 'Other')
 
     data(await state.mail.handlers.snapshot(repoA))
     data(await state.mail.handlers.snapshot(repoB))
-    expect(vi.getTimerCount()).toBe(2)
+    expect(vi.getTimerCount() - workerTimers).toBe(2)
     state.mail.stopFolder(repoA)
-    expect(vi.getTimerCount()).toBe(1)
+    expect(vi.getTimerCount() - workerTimers).toBe(1)
     // A folder the registry forgot without a stop stops itself at its next poll.
     state.tracked.delete(repoB)
     await vi.advanceTimersByTimeAsync(2_000)
     await settle()
-    expect(vi.getTimerCount()).toBe(0)
+    expect(vi.getTimerCount() - workerTimers).toBe(0)
 
     data(await state.mail.handlers.snapshot(repoA))
     state.mail.dispose()
-    expect(vi.getTimerCount()).toBe(0)
+    expect(vi.getTimerCount() - workerTimers).toBe(0)
     const afterQuit: ChatMailSnapshot = data(await state.mail.handlers.snapshot(repoA))
     expect(afterQuit.chats).toHaveLength(1)
-    expect(vi.getTimerCount()).toBe(0)
+    expect(vi.getTimerCount() - workerTimers).toBe(0)
     await vi.advanceTimersByTimeAsync(10_000)
     expect(state.pushes).toEqual([])
   })
@@ -540,10 +542,10 @@ describe('the central mail monitor: a chat deleted mid-sweep', () => {
     let hold: Gate<void> | null = null
     const ids = ['chat_a', 'chat_b', 'chat_c', 'chat_s']
     const state = await rig({ pageSize: 1, newId: () => ids.shift() ?? 'chat_other', yieldPage: () => hold?.promise ?? Promise.resolve() })
-    newOmp(state, repoA, 'First')
-    const doomed = newOmp(state, repoA, 'Doomed')
-    const last = newOmp(state, repoA, 'Last')
-    const sender = await state.agentOf(newOmp(state, repoA, 'Sender'))
+    await newOmp(state, repoA, 'First')
+    const doomed = await newOmp(state, repoA, 'Doomed')
+    const last = await newOmp(state, repoA, 'Last')
+    const sender = await state.agentOf(await newOmp(state, repoA, 'Sender'))
     data(await state.mail.handlers.snapshot(repoA))
     await send(sender, last, ['after the delete'])
 
@@ -568,8 +570,8 @@ describe('the central mail monitor: failures', () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     const unexpected: unknown[] = []
     const state = await rig({ onUnexpectedError: (error) => unexpected.push(error) })
-    const inbox = newOmp(state, repoA, 'Inbox')
-    const sender = await state.agentOf(newOmp(state, repoA, 'Sender'))
+    const inbox = await newOmp(state, repoA, 'Inbox')
+    const sender = await state.agentOf(await newOmp(state, repoA, 'Sender'))
     data(await state.mail.handlers.snapshot(repoA))
     const db = state.pool.get(repoA).ctx().db
 
@@ -595,8 +597,9 @@ describe('the central mail monitor: failures', () => {
     let hold: Gate<void> | null = null
     const unexpected: unknown[] = []
     const state = await rig({ pageSize: 1, yieldPage: () => hold?.promise ?? Promise.resolve(), onUnexpectedError: (error) => unexpected.push(error) })
-    newOmp(state, repoA, 'First')
-    newOmp(state, repoA, 'Second')
+    const workerTimers = vi.getTimerCount()
+    await newOmp(state, repoA, 'First')
+    await newOmp(state, repoA, 'Second')
     data(await state.mail.handlers.snapshot(repoA))
 
     hold = gate<void>()
@@ -609,11 +612,11 @@ describe('the central mail monitor: failures', () => {
     await settle()
     expect(unexpected).toEqual([])
     expect(state.pushes).toEqual([])
-    expect(vi.getTimerCount()).toBe(1)
+    expect(vi.getTimerCount() - workerTimers).toBe(1)
 
     await vi.advanceTimersByTimeAsync(2_000)
     await settle()
-    expect(vi.getTimerCount()).toBe(0)
+    expect(vi.getTimerCount() - workerTimers).toBe(0)
     expect(unexpected).toEqual([])
   })
 })
@@ -621,8 +624,8 @@ describe('the central mail monitor: failures', () => {
 describe('the central mail monitor: yielding between pages', () => {
   it('lets the event loop run between pages by default, so a large folder never holds the window’s requests back', async () => {
     const state = await rig({ pageSize: 1, realYield: true })
-    newOmp(state, repoA, 'First')
-    newOmp(state, repoA, 'Second')
+    await newOmp(state, repoA, 'First')
+    await newOmp(state, repoA, 'Second')
     let ticked = false
     setImmediate(() => {
       ticked = true
@@ -637,8 +640,8 @@ describe('the central mail monitor: yielding between pages', () => {
 describe('the person’s inbox page', () => {
   it('pages with a pinned horizon so a later page skips no arrival', async () => {
     const state = await rig()
-    const inbox = newOmp(state, repoA, 'Inbox')
-    const sender = await state.agentOf(newOmp(state, repoA, 'Sender'))
+    const inbox = await newOmp(state, repoA, 'Inbox')
+    const sender = await state.agentOf(await newOmp(state, repoA, 'Sender'))
     await send(sender, inbox, ['a', 'b', 'c'])
     const ref = { folder: repoA, chatId: inbox.id }
 
@@ -656,7 +659,7 @@ describe('automatic context monitoring without an open inbox', () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
     const boardPoll = vi.fn(async (_folder: string) => {})
     const state = await rig({ autoMonitor: true, board: { poll: boardPoll } })
-    state.records.createChat({ folder: repoA, agent: 'claude', role: 'worker', title: 'Native recipient' })
+    await state.records.createChat({ folder: repoA, agent: 'claude', role: 'worker', title: 'Native recipient' })
     await vi.advanceTimersByTimeAsync(2_000)
     await settle()
     expect(boardPoll.mock.calls.map(([folder]) => folder)).toEqual(expect.arrayContaining([repoA, repoB]))
@@ -677,8 +680,8 @@ describe('automatic context monitoring without an open inbox', () => {
       },
       resume
     } })
-    const inbox = newOmp(state, repoA, 'Blocked observer')
-    const sender = await state.agentOf(newOmp(state, repoA, 'Sender'))
+    const inbox = await newOmp(state, repoA, 'Blocked observer')
+    const sender = await state.agentOf(await newOmp(state, repoA, 'Sender'))
     await send(sender, inbox, ['Keep this complete pending body.'])
     await vi.advanceTimersByTimeAsync(2_000)
     await settle()

@@ -70,8 +70,10 @@ async function afterLoop(loop: Awaited<ReturnType<typeof build>>) {
   // s4: the sealed Sprint 1 scorecard across a restart and a Git clone imported on another machine.
   const sealed = await m.bridge.call(p.path, 'getReportScorecard', { reportId: r.report.id })
   await p.desktop.flushPortableState()
-  m.pool.close(p.path)
+  const oldHandle = m.pool.get(p.path)
+  await m.pool.close(p.path)
   const restarted = await m.bridge.call(p.path, 'getReportScorecard', { reportId: r.report.id })
+  await expect(oldHandle.getReportScorecard({ reportId: r.report.id })).rejects.toMatchObject({ code: 'conflict' })
   p.repo.git('add', '.darkmechanicus')
   p.repo.git('commit', '--quiet', '-m', 'Dark Mechanicus records')
   const clone = join(m.root, 'shop-clone')
@@ -112,13 +114,13 @@ beforeAll(async () => {
   try {
     stages = await afterLoop(await build(m))
   } catch (error) {
-    m.cleanup()
+    await m.cleanup()
     throw error
   }
 }, 180_000)
 
-afterAll(() => {
-  stages?.m.cleanup()
+afterAll(async () => {
+  await stages?.m.cleanup()
 })
 
 /** The ledger's sums for the run: every attempt (rejected and retried ones included) and every overhead bucket. */

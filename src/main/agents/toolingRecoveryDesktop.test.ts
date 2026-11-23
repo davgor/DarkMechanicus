@@ -1,3 +1,4 @@
+import { testWorkspace } from '../desktop/__mocks__/projectWorkspaceFixture'
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -36,7 +37,7 @@ async function recoveryFixture(projectless: boolean, kind: 'omp' | 'claude' | 'c
   }
   let desktop: DesktopToolingRecovery
   const start = vi.fn(async (chat: ChatRecord, options: { kickoff: string }) => {
-    desktop.assertLaunch(chat)
+    await desktop.assertLaunch(chat)
     persist(chat, options.kickoff, 'user'); store.updateChat(chat, { firstPromptDelivery: 'submitted', kickoffSent: true }); live.add(chat.id)
     return { state: 'running' as const, pid: 123 }
   })
@@ -44,7 +45,7 @@ async function recoveryFixture(projectless: boolean, kind: 'omp' | 'claude' | 'c
   const resolveFolder = vi.fn((folder: string) => folder === source.root || folder === customer.root ? folder : null)
   const paste = vi.fn()
   const resume = vi.fn(async (chat: ChatRecord) => {
-    desktop.assertLaunch(chat)
+    await desktop.assertLaunch(chat)
     const received = await desktop.dispatch({ op: 'recovery_context', args: { chatId: chat.id, generation: 'fixture-start' } }, context(chat)) as { messages: { id: string; text: string }[] }
     if (received.messages.length > 0) persist(chat, `${RECOVERY_DATA_NOTE}\n${JSON.stringify(received)}`, 'agent')
     return null
@@ -53,7 +54,7 @@ async function recoveryFixture(projectless: boolean, kind: 'omp' | 'claude' | 'c
     desktop = createDesktopToolingRecovery({ userData, version: () => '1.0.0',
       source: sourceCheckout,
       store, agents: { get: () => builtInAgent(kind) },
-      workspace: folder => folder === source.root ? sourceWs : customerWs,
+      workspace: folder => testWorkspace(folder === source.root ? sourceWs : customerWs),
       resolveFolder,
       callerFolders: chat => chat.folder === null ? [source.root, customer.root] : [chat.folder],
       context: delivery, deliveries: ledger,
@@ -254,7 +255,7 @@ describe('independent pending recovery incidents after desktop restart', () => {
     await expect(desktop.dispatch({ op: 'recover_tooling', args: { action: 'message', incidentId: active.incidentId, messageId: 'live-answer', text: 'Live incident answer' } }, context(active.caller))).resolves.toMatchObject({ messageDelivery: 'delivered', problem: null })
     await expect(desktop.poll(f.source.root)).resolves.toBeUndefined()
     expect(f.ledger.proof(f.source.root, active.repair.id, 'recovery', `recovery_${active.incidentId}_caller_live-answer`)).toMatchObject({ state: 'delivered', problem: null })
-    expect(() => desktop.assertLaunch(cold.repair)).toThrow('live caller handoff')
+    await expect(desktop.assertLaunch(cold.repair)).rejects.toThrow('live caller handoff')
     expect(f.resume.mock.calls.some(([chat]) => chat.id === cold.repair.id)).toBe(false)
   })
 
@@ -279,7 +280,7 @@ describe('independent pending recovery incidents after desktop restart', () => {
     expect(f.delivery.hasRecoveryMessage(cold.repair, { id: proof!.messageId, text: proof!.text! })).toBe(receipted)
     expect(f.delivery.hasRecoveryMessage(active.caller, pending.messages[0]!)).toBe(true)
     expect(f.resume.mock.calls.some(([chat]) => chat.id === cold.repair.id)).toBe(false)
-    expect(() => desktop.assertLaunch(cold.repair)).toThrow('live caller handoff')
+    await expect(desktop.assertLaunch(cold.repair)).rejects.toThrow('live caller handoff')
   })
 
   it('returns explicit pending state instead of starting an unreplayed repair', async () => {
@@ -287,7 +288,7 @@ describe('independent pending recovery incidents after desktop restart', () => {
     await expect(desktop.dispatch({ op: 'recover_tooling', args: { action: 'message', incidentId: cold.incidentId, messageId: 'waiting-for-replay', text: 'Keep this diagnostic pending' } }, context(cold.caller))).resolves.toMatchObject({ messageDelivery: 'pending', problem: expect.stringContaining('live caller handoff') })
     expect(f.ledger.proof(f.source.root, cold.repair.id, 'recovery', `recovery_${cold.incidentId}_caller_waiting-for-replay`)).toMatchObject({ state: 'pending', problem: expect.stringContaining('live caller handoff') })
     expect(f.resume.mock.calls.some(([chat]) => chat.id === cold.repair.id)).toBe(false)
-    expect(() => desktop.assertLaunch(cold.repair)).toThrow('live caller handoff')
+    await expect(desktop.assertLaunch(cold.repair)).rejects.toThrow('live caller handoff')
   })
 
   it('still surfaces an unexpected current-recipient source guard failure', async () => {

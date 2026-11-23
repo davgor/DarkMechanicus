@@ -10,7 +10,7 @@ import { createGitRunner } from '../git/runner'
 import { createFolderRegistry } from './folderRegistry'
 import { createForge, updateForge } from './forgeManifest'
 import { startForge } from './forgeService'
-import { createWorkspacePool } from './workspacePool'
+import { createTestWorkspacePool as createWorkspacePool } from './__mocks__/projectWorkspaceFixture'
 
 function initializeOrigin(root: string) {
   mkdirSync(root)
@@ -28,7 +28,7 @@ function resolverFixture(options: { initializedWorld?: boolean; onConflict?: Par
   if (options.initializedWorld) createForge(root, 'owner')
   const registry = createFolderRegistry({ file: join(home, 'folders.json'), dmHome: home, homeDir: home })
   registry.track(root)
-  const pool = createWorkspacePool(repoRoot => openWorkspace({ repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Resolver fixture', serverInfo: { name: 'fixture', version: '1' } }))
+  const pool = createWorkspacePool(repoRoot => openWorkspace({ repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Resolver fixture', serverInfo: { name: 'fixture', version: '1' } }), home)
   const handlers = new Map<string, Parameters<IpcMain['handle']>[1]>()
   const call = async (name: string, ...args: unknown[]) => handlers.get('forge:' + name)!({} as Electron.IpcMainInvokeEvent, ...args)
   const events: string[] = []
@@ -274,7 +274,7 @@ it('leaves an off-main world and its index untouched when startup or open encoun
   const before = snapshot()
   const registry = createFolderRegistry({ file: join(home, 'folders.json'), dmHome: home, homeDir: home })
   registry.track(root)
-  const pool = createWorkspacePool(repoRoot => openWorkspace({ repoRoot, homeDir: home, role: 'desktop', transport: 'desktop', label: 'Reservation fixture' }))
+  const pool = createWorkspacePool(repoRoot => openWorkspace({ repoRoot, homeDir: home, role: 'desktop', transport: 'desktop', label: 'Reservation fixture' }), home)
   const forge = startForge({ handle: () => undefined }, {
     home, registry, pool, session: { getAccount: () => null, getToken: () => null },
     cleanup: () => undefined, pickDirectory: async () => null, publish: async () => undefined,

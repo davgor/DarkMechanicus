@@ -13,7 +13,7 @@ import { createSequentialIds, createTestClock, type TestClock } from '../../test
 import { createFakeGit, TEST_STORAGE } from '../../test/workspaceHarness'
 import { NamingControlError } from '../../shared/agents/chatNaming'
 import { buildCliConfig } from '../desktop/cliConfig'
-import { createWorkspacePool, type WorkspacePool } from '../desktop/workspacePool'
+import { createTestWorkspacePool as createWorkspacePool, type TestWorkspacePool as WorkspacePool } from '../desktop/__mocks__/projectWorkspaceFixture'
 import { createChatGrants, type ChatGrants } from './chatGrants'
 
 interface Rig {
@@ -38,8 +38,8 @@ beforeEach(() => {
   mkdirSync(beta)
 })
 
-afterEach(() => {
-  opened?.closeAll()
+afterEach(async () => {
+  await opened?.closeAll()
   opened = null
   rmSync(root, { recursive: true, force: true })
 })
@@ -143,7 +143,7 @@ describe('chat grants: a project-less chat’s grants revoked and bound for nami
     const state = await rig()
     const issued = await state.grants.issueReachCli(targets(), GRANT)
     for (const grantId of issued.grantIds) {
-      state.grants.bindChatGrant(grantId, { folder: null, chatId: 'chat_9', generation: 'g1' })
+      await state.grants.bindChatGrant(grantId, { folder: null, chatId: 'chat_9', generation: 'g1' })
     }
 
     for (const target of targets()) {
@@ -151,14 +151,14 @@ describe('chat grants: a project-less chat’s grants revoked and bound for nami
       expect(binding).toMatchObject({ folder: null, chatId: 'chat_9' })
     }
     const folderChat = await state.grants.issueChatCli(alpha, GRANT)
-    expect(() => state.grants.bindChatGrant(folderChat.grantId, { folder: null, chatId: 'chat_9', generation: 'g2' })).toThrow(NamingControlError)
+    await expect(state.grants.bindChatGrant(folderChat.grantId, { folder: null, chatId: 'chat_9', generation: 'g2' })).rejects.toThrow(NamingControlError)
   })
 
   it('refuses to bind a reach grant to a folder chat', async () => {
     const state = await rig()
     const issued = await state.grants.issueReachCli(targets(), GRANT)
 
-    expect(() => state.grants.bindChatGrant(issued.grantIds[0] ?? '', { folder: alpha, chatId: 'chat_9', generation: 'g1' })).toThrow(NamingControlError)
+    await expect(state.grants.bindChatGrant(issued.grantIds[0] ?? '', { folder: alpha, chatId: 'chat_9', generation: 'g1' })).rejects.toThrow(NamingControlError)
   })
 })
 
@@ -209,9 +209,9 @@ describe('chat grants: Forge World root ownership', () => {
     const state = await rig()
     const issued = await state.grants.issueReachCli(targets(), GRANT, root)
     for (const grantId of issued.grantIds) {
-      expect(() => state.grants.bindChatGrant(grantId, { folder: null, chatId: 'chat_world', generation: 'g1' })).toThrow(NamingControlError)
-      expect(() => state.grants.bindChatGrant(grantId, { folder: alpha, chatId: 'chat_world', generation: 'g1' })).toThrow(NamingControlError)
-      state.grants.bindChatGrant(grantId, { folder: root, chatId: 'chat_world', generation: 'g1' })
+      await expect(state.grants.bindChatGrant(grantId, { folder: null, chatId: 'chat_world', generation: 'g1' })).rejects.toThrow(NamingControlError)
+      await expect(state.grants.bindChatGrant(grantId, { folder: alpha, chatId: 'chat_world', generation: 'g1' })).rejects.toThrow(NamingControlError)
+      await state.grants.bindChatGrant(grantId, { folder: root, chatId: 'chat_world', generation: 'g1' })
       await state.grants.renewChatGrant(grantId)
     }
     for (const target of targets()) {
@@ -271,7 +271,7 @@ describe('chat grants: later starts and other chats', () => {
     const state = await rig()
     const issued = await state.grants.issueChatCli(alpha, GRANT)
 
-    state.grants.bindChatGrant(issued.grantId, { folder: alpha, chatId: 'chat_1', generation: 'g1' })
+    await state.grants.bindChatGrant(issued.grantId, { folder: alpha, chatId: 'chat_1', generation: 'g1' })
 
     expect(state.grants.authorizeNaming(issued.cli.env['DM_SESSION_TOKEN'] ?? '')).toMatchObject({ folder: alpha, chatId: 'chat_1' })
   })
@@ -283,11 +283,11 @@ describe('chat grants: later starts and other chats', () => {
     const firstToken = tokenOf(targets()[0] ?? { tokenFile: '' })
     const other = await state.grants.issueReachCli([targets()[1] ?? { folder: beta, tokenFile: '' }], GRANT)
     const otherToken = tokenOf(targets()[1] ?? { tokenFile: '' })
-    state.grants.bindChatGrant(first.grantIds[0] ?? '', { folder: null, chatId: 'chat_9', generation: 'g1' })
-    state.grants.bindChatGrant(other.grantIds[0] ?? '', { folder: null, chatId: 'chat_8', generation: 'g1' })
+    await state.grants.bindChatGrant(first.grantIds[0] ?? '', { folder: null, chatId: 'chat_9', generation: 'g1' })
+    await state.grants.bindChatGrant(other.grantIds[0] ?? '', { folder: null, chatId: 'chat_8', generation: 'g1' })
 
     const again = await state.grants.issueReachCli([{ folder: alpha, tokenFile: join(root, 'scratch', '.dm', 'again.token') }], GRANT)
-    state.grants.bindChatGrant(again.grantIds[0] ?? '', { folder: null, chatId: 'chat_9', generation: 'g2' })
+    await state.grants.bindChatGrant(again.grantIds[0] ?? '', { folder: null, chatId: 'chat_9', generation: 'g2' })
 
     expect(() => state.grants.authorizeNaming(firstToken)).toThrow(NamingControlError)
     expect(state.grants.authorizeNaming(otherToken)).toMatchObject({ chatId: 'chat_8' })

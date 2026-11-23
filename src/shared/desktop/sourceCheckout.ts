@@ -22,8 +22,10 @@ export interface SourceCheckoutTarget {
 
 /** Where this machine finds the target. Never exported or shared. */
 interface SourceCheckoutLocal {
-  /** Canonical real path; a tracked folder. */
+  /** Canonical real path of the code checkout. */
   path: string
+  /** Canonical tracked ticket folder when the checkout uses Forge World storage. */
+  projectPath?: string
   /** Path with the home directory abbreviated to `~`. */
   displayPath: string
   associatedAt: string
@@ -84,7 +86,7 @@ export interface SourceCheckoutApi {
   get(): Promise<SourceCheckoutView>
   /**
    * Opens the native folder dialog in main and associates the chosen folder once it validates; a Dark Mechanicus
-   * source folder that is not tracked yet is tracked first. Takes nothing: the renderer never names the path.
+   * standalone source folder that is not tracked yet is tracked first. Takes nothing: the renderer never names the path.
    */
   pick(): Promise<SourceCheckoutChoice>
   /** Associates a folder that is already tracked; any other path is refused with `unauthorized`. */

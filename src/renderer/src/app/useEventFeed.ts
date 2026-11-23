@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react'
 import type { Dispatch } from 'react'
 import { runCommand } from '../api/dm'
-import { createEventPoller } from './eventPoller'
-import type { EventPoller } from './eventPoller'
-import { EMPTY_TOKENS, routeEvents, tokenReducer } from './eventRouting'
-import type { TokenAction, Tokens } from './eventRouting'
+import { createEventPoller, type EventPoller } from './eventPoller'
+import { EMPTY_TOKENS, routeEvents, tokenReducer, type TokenAction, type Tokens } from './eventRouting'
 import type { Scheduler } from './scheduler'
 import { useLatest } from './useLatest'
 
@@ -12,85 +10,73 @@ export const SELECTED_POLL_MS = 1500
 export const BACKGROUND_POLL_MS = 5000
 
 interface FeedOptions {
-  /** Folders to watch: the selected one plus those expanded in the sidebar. */
   paths: readonly string[]
+  /** Opaque verified store identity by canonical path. */
+  identities?: ReadonlyMap<string, string>
   selectedPath: string | null
   scheduler: Scheduler
   onError(error: unknown): void
 }
 
-interface EventFeed {
-  tokens: Tokens
-  /** Forces a refresh of a folder's epic list and storage status, e.g. after a local mutation. */
-  bumpFolder(path: string): void
+interface FeedPoller {
+  identity: string
+  poller: EventPoller
 }
 
-interface Polling {
-  paths: readonly string[]
-  selectedPath: string | null
-  scheduler: Scheduler
-  pollers: Map<string, EventPoller>
-  dispatch: Dispatch<TokenAction>
-  onError(error: unknown): void
-}
-
-function pollerFor(path: string, polling: Polling): EventPoller {
-  const known = polling.pollers.get(path)
-  if (known) {
-    return known
-  }
-  const created = createEventPoller({
+function createFeedPoller(path: string, identity: string, dispatch: Dispatch<TokenAction>, onError: (error: unknown) => void): FeedPoller {
+  return { identity, poller: createEventPoller({
+    fetchHead: () => runCommand(path, 'getEventHead', undefined),
     fetchPage: (request) => runCommand(path, 'listEvents', request),
-    onEvents: (events) => polling.dispatch({ type: 'events', path, route: routeEvents(events) }),
-    onReady: () => polling.dispatch({ type: 'bump', path }),
-    onError: polling.onError
-  })
-  polling.pollers.set(path, created)
-  return created
+    onEvents: (events) => dispatch({ type: 'events', path, route: routeEvents(events) }),
+    onReady: () => dispatch({ type: 'baseline', path, identity }),
+    onError
+  }) }
 }
 
-/** Starts one interval per watched folder and returns a function that stops them all. */
-function startPolling(polling: Polling): () => void {
-  for (const known of Array.from(polling.pollers.keys())) {
-    if (!polling.paths.includes(known)) {
-      polling.pollers.delete(known)
-    }
-  }
-  const stops = polling.paths.map((path) => {
-    const poller = pollerFor(path, polling)
-    const every = path === polling.selectedPath ? SELECTED_POLL_MS : BACKGROUND_POLL_MS
-    void poller.tick()
-    return polling.scheduler.every(every, () => void poller.tick())
-  })
-  return () => stops.forEach((stop) => stop())
-}
-
-/**
- * Watches the event log of each active folder. New events bump the per-epic and per-folder
- * refresh tokens; consumers refetch when a token they depend on changes and never reset their
- * own unsaved state.
- */
-export function useEventFeed(options: FeedOptions): EventFeed {
+/** Watch only visible or selected projects. A closed/rebound project's replies are fenced. */
+export function useEventFeed({ paths, identities, selectedPath, scheduler, onError }: FeedOptions): {
+  tokens: Tokens
+  bumpFolder(path: string): void
+  pollNow(path: string): void
+} {
   const [tokens, dispatch] = useReducer(tokenReducer, EMPTY_TOKENS)
-  const pollers = useRef(new Map<string, EventPoller>())
-  const onError = useLatest(options.onError)
-  const { paths, selectedPath, scheduler } = options
-  const pathsKey = paths.join('\n')
+  const pollers = useRef(new Map<string, FeedPoller>())
+  const report = useLatest(onError)
+  const key = JSON.stringify(paths.map(path => [path, identities?.get(path) ?? path]))
 
-  useEffect(
-    () =>
-      startPolling({
-        paths,
-        selectedPath,
-        scheduler,
-        pollers: pollers.current,
-        dispatch,
-        onError: (error) => onError.current(error)
-      }),
-    // `paths` is represented by its joined key so a new array with the same members is not a change.
-    [pathsKey, selectedPath, scheduler, onError]
-  )
+  useEffect(() => {
+    const watched = new Map<string, string>(JSON.parse(key) as [string, string][])
+    for (const [path, entry] of pollers.current) {
+      if (watched.get(path) === entry.identity) continue
+      entry.poller.stop()
+      pollers.current.delete(path)
+      dispatch({ type: 'remove', path })
+    }
+    const stops = Array.from(watched, ([path, identity]) => {
+      let entry = pollers.current.get(path)
+      if (entry === undefined) {
+        entry = createFeedPoller(path, identity, dispatch, (error) => report.current(error))
+        pollers.current.set(path, entry)
+        void entry.poller.tick()
+      }
+      const poller = entry.poller
+      const every = path === selectedPath ? SELECTED_POLL_MS : BACKGROUND_POLL_MS
+      return scheduler.every(every, () => void poller.tick())
+    })
+    return () => stops.forEach(stop => stop())
+  }, [key, selectedPath, scheduler, report])
 
-  const bumpFolder = useCallback((path: string) => dispatch({ type: 'bump', path }), [])
-  return { tokens, bumpFolder }
+  useEffect(() => {
+    const current = pollers.current
+    return () => {
+      for (const entry of current.values()) entry.poller.stop()
+      current.clear()
+    }
+  }, [])
+
+  const bumpFolder = useCallback((path: string) => {
+    if (pollers.current.has(path)) dispatch({ type: 'bump', path })
+  }, [])
+  const pollNow = useCallback((path: string) => { void pollers.current.get(path)?.poller.tick() }, [])
+  return { tokens, bumpFolder, pollNow }
 }

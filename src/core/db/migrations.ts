@@ -3,7 +3,7 @@ import { redactedJson } from '../storedSecrets'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 27
+export const SCHEMA_VERSION = 28
 
 export interface Migration {
   version: number
@@ -1063,7 +1063,9 @@ export const MIGRATIONS: Migration[] = [
         revision INTEGER NOT NULL,
         body TEXT NOT NULL,
         PRIMARY KEY(endpoint_id,assignment_id,item_kind,item_id)
-      );` }
+      );` },
+  { version: 28, sql: `CREATE INDEX kanban_cards_open_lanes ON kanban_cards(lane)
+        WHERE lane IN ('backlog', 'in_progress', 'ready_for_review');` }
 ]
 
 export function readSchemaVersion(db: Db): number {

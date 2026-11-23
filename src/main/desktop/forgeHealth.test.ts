@@ -12,7 +12,7 @@ import { createForge, updateForge } from './forgeManifest'
 import { ensureForgeWorld } from './forgeHealth'
 import { FORGE_DIRECTIONS } from './forgeDirections'
 import { createFolderRegistry } from './folderRegistry'
-import { createWorkspacePool } from './workspacePool'
+import { createTestWorkspacePool as createWorkspacePool } from './__mocks__/projectWorkspaceFixture'
 import { startForge } from './forgeService'
 
 const cleanups: Array<() => void> = []
@@ -131,7 +131,7 @@ it('checks every tracked world on startup and reports one bad world without prev
   gitIn(bad.source, 'remote', 'set-url', 'origin', 'https://github.com/example/other.git')
   const registry = createFolderRegistry({ file: join(good.home, 'folders.json'), homeDir: good.home, dmHome: good.home })
   registry.track(bad.root); registry.track(good.root)
-  const pool = createWorkspacePool(repoRoot => openWorkspace({ repoRoot, homeDir: good.home, role: 'desktop', transport: 'desktop', label: 'Startup fixture' }))
+  const pool = createWorkspacePool(repoRoot => openWorkspace({ repoRoot, homeDir: good.home, role: 'desktop', transport: 'desktop', label: 'Startup fixture' }), good.home)
   const handlers = new Map<string, Parameters<IpcMain['handle']>[1]>()
   const forge = startForge({ handle: (name, handler) => { handlers.set(name, handler) } }, {
     registry, pool, home: good.home, session: { getAccount: () => null, getToken: () => null }, pickDirectory: async () => null,

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react'
 import { errorMessage, runCommand } from '../api/dm'
 import type { KanbanBoardView } from '../../../shared/domain/kanban'
+import { useViewMemory } from '../epic/viewMemory'
 import { useLatest } from '../app/useLatest'
 
 /** Done cards fetched per page, and per Show more. */
@@ -27,13 +28,52 @@ export interface KanbanBoardModel extends KanbanBoardState {
 
 const LOADING: KanbanBoardState = { status: 'loading', board: null, error: null, loadingMore: false }
 
+interface Paging {
+  path: string
+  current: MutableRefObject<KanbanBoardState>
+  report: MutableRefObject<((error: unknown) => void) | undefined>
+  latest: MutableRefObject<object>
+  setState(update: (previous: KanbanBoardState) => KanbanBoardState): void
+}
+
+function useDonePaging({ path, current, report, latest, setState }: Paging): () => void {
+  return useCallback(() => {
+    const cursor = current.current.board?.doneNextCursor ?? null
+    if (cursor === null || current.current.loadingMore) return
+    const ticket = latest.current
+    setState(previous => ({ ...previous, loadingMore: true }))
+    void runCommand(path, 'listKanbanCards', { doneLimit: DONE_PAGE, doneCursor: cursor }).then(
+      page => {
+        if (latest.current !== ticket) return
+        setState(previous => {
+          if (previous.board === null) return previous
+          const lanes = { ...previous.board.lanes, done: [...previous.board.lanes.done, ...page.lanes.done] }
+          return { ...previous, board: { ...page, lanes }, loadingMore: false }
+        })
+      },
+      error => {
+        if (latest.current !== ticket) return
+        setState(previous => ({ ...previous, loadingMore: false }))
+        report.current?.(error)
+      }
+    )
+  }, [path, current, report, latest, setState])
+}
+
 /**
  * One folder's board, kept current like `useEpicLists`: read on mount and whenever the folder's
  * event token moves (card writes emit workspace events) or `reload` is called. A refresh asks for as
  * many Done cards as are shown, so paging survives it; stale responses are dropped.
  */
-export function useKanbanBoard(path: string, refreshToken: number, onError?: (error: unknown) => void): KanbanBoardModel {
-  const [state, setState] = useState<KanbanBoardState>(LOADING)
+export function useKanbanBoard(path: string, refreshToken: number, onError?: (error: unknown) => void, projectIdentity?: string): KanbanBoardModel {
+  const memory = useViewMemory()
+  const identity = projectIdentity ?? path
+  const [stored, setStored] = useState<{ identity: string; state: KanbanBoardState } | null>(null)
+  const cached = projectIdentity === undefined ? undefined : memory.board(identity)
+  const state = stored?.identity === identity ? stored.state : cached === undefined ? LOADING : { ...LOADING, status: 'ready' as const, board: cached }
+  const setState = useCallback((update: (previous: KanbanBoardState) => KanbanBoardState) => {
+    setStored(previous => ({ identity, state: update(previous?.identity === identity ? previous.state : state) }))
+  }, [identity, state])
   const [reloads, setReloads] = useState(0)
   const current = useLatest(state)
   const report = useLatest(onError)
@@ -47,38 +87,20 @@ export function useKanbanBoard(path: string, refreshToken: number, onError?: (er
     const doneLimit = Math.min(DONE_LIMIT_MAX, Math.max(DONE_PAGE, shown))
     runCommand(path, 'listKanbanCards', { doneLimit }).then(
       (board) => {
-        if (latest.current === ticket) setState({ status: 'ready', board, error: null, loadingMore: false })
+        if (latest.current !== ticket) return
+        if (projectIdentity !== undefined) memory.saveBoard(identity, board)
+        setStored({ identity, state: { status: 'ready', board, error: null, loadingMore: false } })
       },
       (error: unknown) => {
         if (latest.current !== ticket) return
-        setState((previous) => ({ ...previous, status: 'error', error: errorMessage(error), loadingMore: false }))
+        setStored({ identity, state: { ...current.current, status: 'error', error: errorMessage(error), loadingMore: false } })
         report.current?.(error)
       }
     )
-  }, [path, refreshToken, reloads, current, report])
+    return () => { latest.current = {} }
+  }, [path, identity, projectIdentity, refreshToken, reloads, current, report, memory])
 
-  const showMore = useCallback((): void => {
-    const cursor = current.current.board?.doneNextCursor ?? null
-    if (cursor === null || current.current.loadingMore) return
-    const ticket = latest.current
-    setState((previous) => ({ ...previous, loadingMore: true }))
-    runCommand(path, 'listKanbanCards', { doneLimit: DONE_PAGE, doneCursor: cursor }).then(
-      (page) => {
-        if (latest.current !== ticket) return
-        setState((previous) => {
-          if (previous.board === null) return previous
-          const lanes = { ...previous.board.lanes, done: [...previous.board.lanes.done, ...page.lanes.done] }
-          const board = { lanes, doneTotal: page.doneTotal, doneNextCursor: page.doneNextCursor }
-          return { ...previous, board, loadingMore: false }
-        })
-      },
-      (error: unknown) => {
-        if (latest.current !== ticket) return
-        setState((previous) => ({ ...previous, loadingMore: false }))
-        report.current?.(error)
-      }
-    )
-  }, [path, current, report])
+  const showMore = useDonePaging({ path, current, report, latest, setState })
 
   const reload = useCallback((): void => setReloads((count) => count + 1), [])
 

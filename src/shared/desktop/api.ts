@@ -17,6 +17,8 @@ export interface TrackedFolderView {
   forgeWorld?: ForgeWorld
   forgeParent?: string
   forgeIssue?: boolean
+  /** Opaque ticket-store identity. A rebind invalidates any reads for the previous store. */
+  projectIdentity?: string
   /** Canonical real path; the registry key. */
   path: string
   /**
@@ -272,6 +274,7 @@ export interface DmApi {
   /** Corrective work a folder's retro asks of the chosen Dark Mechanicus checkout: the `corrections:*CrossRepo` channels. */
   crossRepoCorrections: CrossRepoCorrectionsApi
   listFolders(): Promise<TrackedFolderView[]>
+  onFoldersChanged?(receive: () => void): () => void
   pickFolder(mode?: 'forge-world'): Promise<FolderPickResult>
   untrackFolder(path: string): Promise<TrackedFolderView[]>
   /** Opens the authorized folder/code checkout; expectedPath detects a stale displayed mapping, never grants access. */
@@ -406,6 +409,7 @@ const DESKTOP_COMMANDS = [
   'createKanbanCard',
   'updateKanbanCard',
   'listKanbanCards',
+  'getKanbanOpenCount',
   'getKanbanCard',
   'listKanbanMessages',
   'playKanbanCard',
@@ -463,6 +467,7 @@ const DESKTOP_COMMANDS = [
   // The person marks an orchestrator retry as read; `retryTicket` is the orchestrator's alone, never the desktop's.
   'acknowledgeAutoRetry',
   'listEvents',
+  'getEventHead',
   'getAttemptTimeline',
   'getRunTimeline',
   // The person authorizes or withdraws a Linear transfer; an agent carries it out, so the rest are not here.

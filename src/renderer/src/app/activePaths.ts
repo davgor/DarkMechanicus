@@ -7,11 +7,12 @@ import type { TrackedFolderView } from '../../../shared/desktop/api'
 export function activeFolderPaths(
   folders: readonly TrackedFolderView[],
   selectedPath: string | null,
-  isExpanded: (path: string) => boolean
+  isExpanded: (path: string) => boolean,
+  sectionOpen: (forge: boolean) => boolean = () => true
 ): string[] {
   return folders
     .filter((folder) => folder.initialized && folder.available && !folder.forgeWorld)
-    .filter((folder) => folder.path === selectedPath || isExpanded(folder.path) && (!folder.forgeParent || isExpanded(folder.forgeParent)))
+    .filter((folder) => folder.path === selectedPath || sectionOpen(Boolean(folder.forgeParent)) && isExpanded(folder.path) && (!folder.forgeParent || isExpanded(folder.forgeParent)))
     .map((folder) => folder.path)
 }
 

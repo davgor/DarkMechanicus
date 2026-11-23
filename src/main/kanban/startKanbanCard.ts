@@ -97,7 +97,7 @@ export async function startKanbanCard(deps: KanbanStartDeps, request: StartKanba
 
   let chat: ChatRecord
   try {
-    chat = deps.chats.createChat({
+    chat = await deps.chats.createChat({
       folder,
       agent,
       role: 'orchestrator',
@@ -136,8 +136,7 @@ export async function kickBackKanbanCard(deps: KanbanStartDeps, request: KickBac
   const { folder, cardId, comment } = request
   const card = await deps.cards.kickBack(folder, { cardId, comment })
   // The newest chat Play started for the card, whatever was active since: an older one an earlier Play left behind no longer carries it.
-  const chat = deps.chats
-    .listChats(folder)
+  const chat = (await deps.chats.listChats(folder))
     .filter((candidate) => candidate.cardId === card.id)
     .reduce<ChatRecord | undefined>((newest, candidate) => (newest === undefined || candidate.createdAt > newest.createdAt ? candidate : newest), undefined)
   if (chat === undefined) {

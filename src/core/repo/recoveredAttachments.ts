@@ -3,12 +3,13 @@ import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import { z } from 'zod'
 import { inspectImageBytes, MAX_IMAGE_BYTES } from '../attachments/intake'
-import { canonicalJson, prettyJson } from '../canonical'
+import { canonicalJson, contentHash, prettyJson } from '../canonical'
 import type { Db } from '../db/database'
 import { fail } from '../errors'
 import { isStableId } from '../ids'
 import { attachmentRef } from '../schemas'
 import { insertOwnedRow } from './attachmentImport'
+import type { FileHashCache } from './fileHashes'
 import { ATTACHMENT_SIDECAR_NAME, loadStoredAttachment, writeAttachmentBytes } from './attachmentFiles'
 import { writeFileSafely } from './finalizer'
 import { assertContained, displayPath } from './paths'
@@ -26,23 +27,41 @@ const archiveSchema = z.strictObject({
   createdBy: attachmentSidecar.shape.createdBy, createdAt: attachmentSidecar.shape.createdAt
 })
 type Archive = z.infer<typeof archiveSchema>
-interface Env { db: Db; fs: FsAdapter; layout: RepoLayout }
+interface Env { db: Db; fs: FsAdapter; layout: RepoLayout; fileHashes?: FileHashCache }
 
 function directory(layout: RepoLayout): string { return join(layout.dmDir, 'recovered-attachments') }
 function imagePath(layout: RepoLayout, record: Archive): string {
   return join(directory(layout), `${record.attachment.sha256}.${record.attachment.mime === 'image/png' ? 'png' : 'jpg'}`)
 }
 
-function recordOf(db: Db, id: string): Archive {
-  const attachment = loadStoredAttachment(db, id)
-  const metadata = db.get<{ bytes: number; width: number; height: number; label: string; purpose: string }>(
-    'SELECT bytes, width, height, label, purpose FROM attachments WHERE id = ?', id
-  )!
-  return archiveSchema.parse({
+interface StoredArchive {
+  archive: Archive
+  missing: boolean
+  length: number | null
+}
+
+function storedArchive(db: Db, id: string): StoredArchive | null {
+  const row = db.get<{
+    sha256: string; mime: string; bytes: number; width: number; height: number; label: string; purpose: string
+    owner_kind: string | null; owner_id: string | null; created_by_role: string; created_by_label: string; created_at: string
+    missing: number; length: number | null
+  }>(
+    `SELECT sha256, mime, bytes, width, height, label, purpose, owner_kind, owner_id, created_by_role, created_by_label,
+       created_at, missing, length(data) AS length FROM attachments WHERE id = ?`, id
+  )
+  if (row === undefined) return null
+  const { sha256, mime, bytes, width, height, label, purpose } = row
+  const archive = archiveSchema.parse({
     format: 'darkmechanicus.recovered-attachment', formatVersion: 1,
-    attachment: { id, sha256: attachment.sha256, mime: attachment.mime, ...metadata }, owner: attachment.owner,
-    createdBy: attachment.createdBy, createdAt: attachment.createdAt
+    attachment: { id, sha256, mime, bytes, width, height, label, purpose },
+    owner: { kind: row.owner_kind, id: row.owner_id },
+    createdBy: { role: row.created_by_role, label: row.created_by_label }, createdAt: row.created_at
   })
+  return { archive, length: row.length, missing: row.missing !== 0 }
+}
+
+function recordOf(db: Db, id: string): Archive {
+  return storedArchive(db, id)?.archive ?? fail('not_found', `Attachment ${id} does not exist.`, { id })
 }
 
 function verifyBytes(record: Archive, bytes: Uint8Array): void {
@@ -89,26 +108,58 @@ export function readRecoveredAttachmentBytes(env: Env, id: string): Uint8Array {
   return readBytes(env, record)
 }
 
-function importOne(env: Env, path: string, id: string): void {
-  const record = readRecord(env, path, id)
-  const bytes = readBytes(env, record)
-  const exists = env.db.get<{ missing: number }>('SELECT missing FROM attachments WHERE id = ?', id)
-  if (!exists) {
+function archiveStamp(env: Env, sidecar: string, archive: Archive): string | null {
+  const image = imagePath(env.layout, archive)
+  assertContained(env.layout, env.fs, sidecar)
+  assertContained(env.layout, env.fs, image)
+  const recordStamp = env.fs.fileStamp(sidecar)
+  const imageStamp = env.fs.fileStamp(image)
+  return recordStamp === null || imageStamp === null ? null : contentHash([recordStamp, imageStamp])
+}
+
+function savedIdentity(row: StoredArchive | null, dataVersion: number): string | null {
+  if (row === null || row.missing || row.length !== row.archive.attachment.bytes) return null
+  return contentHash([row.archive, dataVersion])
+}
+
+function restoreArchive(env: Env, record: Archive, bytes: Uint8Array): boolean {
+  const { id } = record.attachment
+  const current = storedArchive(env.db, id)
+  if (current === null) {
     insertOwnedRow(env.db, record.attachment, { owner: record.owner.kind, ownerId: record.owner.id, createdAt: record.createdAt })
   } else {
-    const current = loadStoredAttachment(env.db, id)
-    const metadata = recordOf(env.db, id)
     // Canonical references register a placeholder before their image files restore its original creator.
-    const placeholder = current.data === null && current.createdBy.role === 'worker' && current.createdBy.label === 'imported'
-    const comparable = placeholder ? { ...metadata, createdBy: record.createdBy, createdAt: record.createdAt } : metadata
+    const { archive } = current
+    const placeholder = current.length === null && archive.createdBy.role === 'worker' && archive.createdBy.label === 'imported'
+    const comparable = placeholder ? { ...archive, createdBy: record.createdBy, createdAt: record.createdAt } : archive
     if (canonicalJson(comparable) !== canonicalJson(record)) fail('conflict', `Recovered attachment ${id} conflicts with existing attachment metadata or ownership.`)
-    if (current.data !== null) {
-      verifyBytes(record, current.data)
-      if (exists.missing === 0) return // Reconciliation must not rewrite every historical image on each heartbeat.
-    }
+    const data = loadStoredAttachment(env.db, id).data
+    if (data !== null) verifyBytes(record, data)
+    if (data !== null && !current.missing) return false
   }
   env.db.run('UPDATE attachments SET data = ?, missing = 0, created_by_role = ?, created_by_label = ?, created_at = ? WHERE id = ?',
     Buffer.from(bytes), record.createdBy.role, record.createdBy.label, record.createdAt, id)
+  return true
+}
+
+function importOne(env: Env, path: string, id: string, dataVersion: number): boolean {
+  const key = `recovered:v1:${id}`
+  const saved = storedArchive(env.db, id)
+  const identity = savedIdentity(saved, dataVersion)
+  if (saved !== null && identity !== null && env.fileHashes !== undefined) {
+    const stamp = archiveStamp(env, path, saved.archive)
+    if (stamp !== null && env.fileHashes.get(key, stamp) === identity) return false
+  }
+  return env.db.tx(() => {
+    const sidecarStamp = env.fs.fileStamp(path)
+    const record = readRecord(env, path, id)
+    const before = archiveStamp(env, path, record)
+    const changed = restoreArchive(env, record, readBytes(env, record))
+    if (before !== null && sidecarStamp !== null && sidecarStamp === env.fs.fileStamp(path) && before === archiveStamp(env, path, record)) {
+      env.fileHashes?.remember(key, before, contentHash([record, dataVersion]))
+    }
+    return changed
+  })
 }
 
 /** Shared by export and import: a successful migration must not publish an archive a clone refuses for its size. */
@@ -130,18 +181,26 @@ export function assertRecoveredArchiveBounds(env: Pick<Env, 'fs' | 'layout'>): s
 }
 
 /** Archives are immutable metadata, checked against any existing row. An owner restored later can use the same image. */
-export function importRecoveredAttachments(env: Env): { path: string; message: string }[] {
+export function importRecoveredAttachments(env: Env, onChange?: () => void): { path: string; message: string }[] {
   const rejected: { path: string; message: string }[] = []
+  let changed = false
   const dir = directory(env.layout)
   const reject = (path: string, error: unknown): void => { rejected.push({ path: displayPath(env.layout, path), message: error instanceof Error ? error.message : String(error) }) }
   try {
     const names = assertRecoveredArchiveBounds(env)
+    if (names.length === 0) return rejected
+    const dataVersion = env.db.get<{ data_version: number }>('PRAGMA data_version')!.data_version
     for (const name of names) {
       const match = ATTACHMENT_SIDECAR_NAME.exec(name)
       if (match === null) continue
       const path = join(dir, name)
-      try { env.db.tx(() => importOne(env, path, match[1]!)) } catch (error) { reject(path, error) }
+      try {
+        changed = importOne(env, path, match[1]!, dataVersion) || changed
+      } catch (error) {
+        reject(path, error)
+      }
     }
   } catch (error) { reject(dir, error) }
+  if (changed) onChange?.()
   return rejected
 }

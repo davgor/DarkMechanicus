@@ -1,3 +1,5 @@
+import { useMemo } from 'react'
+import { PageControls, usePage } from '../components/PageControls'
 import { WorkingHourglass } from '../graph/WorkingHourglass'
 import type { ListRow, ListSection } from './listSections'
 import { StateLabel } from './StatePill'
@@ -50,11 +52,34 @@ function Row(props: RowProps): JSX.Element {
   )
 }
 
+const TICKETS_PER_PAGE = 40
+
+function sectionOffsets(input: ListSection[], selectedId: string | null) {
+  let total = 0
+  let selected = -1
+  const sections = input.map(section => {
+    const offset = total
+    total += section.rows.length
+    if (selected === -1 && selectedId !== null) {
+      const index = section.rows.findIndex(row => row.id === selectedId)
+      if (index !== -1) selected = offset + index
+    }
+    return { section, offset }
+  })
+  return { sections, total, selected }
+}
+
 /** Supporting table view of the plan, grouped by sprint. */
 export function ListView(props: ListViewProps): JSX.Element {
+  const groups = useMemo(() => sectionOffsets(props.sections, props.selectedTicketId), [props.sections, props.selectedTicketId])
+  const page = usePage(groups.total, TICKETS_PER_PAGE, groups.selected)
+  const paged = groups.total > TICKETS_PER_PAGE
   return (
     <div className="ew-list" aria-label="Plan list">
-      {props.sections.map((section) => (
+      <PageControls page={page} label="plan tickets" />
+      {groups.sections.filter(({ section, offset }) =>
+        !paged || section.rows.length > 0 && offset < page.end && offset + section.rows.length > page.start
+      ).map(({ section, offset }) => (
         <section key={section.sprintId} className="ew-list-section" aria-label={section.heading}>
           <h2 className="ew-list-heading">
             <span className="ew-eyebrow">{section.heading}</span>
@@ -72,7 +97,7 @@ export function ListView(props: ListViewProps): JSX.Element {
               </tr>
             </thead>
             <tbody>
-              {section.rows.map((row) => (
+              {section.rows.slice(Math.max(0, page.start - offset), page.end - offset).map((row) => (
                 <Row
                   key={row.id}
                   row={row}

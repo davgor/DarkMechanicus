@@ -129,8 +129,11 @@ describe('completed epic overview in the workspace', () => {
 
   it('offers the overview of a completed epic from the run bar, read-only, and returns to the graph', async () => {
     const h = renderWorkspace(completedEpic())
+    await screen.findByLabelText('Run')
+    expect(h.backend.inputs('getSprintReport')).toEqual([])
     fireEvent.click(await within(await screen.findByLabelText('Run')).findByRole('button', { name: 'Epic report' }))
-    const overview = screen.getByLabelText('Epic overview')
+    const overview = await screen.findByLabelText('Epic overview')
+    expect(h.backend.inputs('getSprintReport')).toHaveLength(1)
     expect(within(overview).getByText(/^The MCP authoring and execution path works end to end/)).toBeTruthy()
     expect(within(overview).getByLabelText('Sprint 1 report').tagName).toBe('ARTICLE')
     expect(screen.queryByLabelText('Plan graph')).toBe(null)

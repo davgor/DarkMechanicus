@@ -1,3 +1,4 @@
+import { testWorkspace } from './__mocks__/projectWorkspaceFixture'
 import { join } from 'node:path'
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { afterEach, beforeEach, expect, it } from 'vitest'
@@ -16,14 +17,15 @@ const disposers: (() => Promise<void>)[] = []
 beforeEach(async () => {
   harness = createHarness()
   const workspace = harness.open('desktop')
+  const client = testWorkspace(workspace)
   await workspace.initializeRepository({ name: 'Native IPC fixture' })
   const runtime = createYoloDesktopRuntime(join(harness.homeDir, 'desktop.json'))
   await runtime.ready
   disposers.push(runtime.dispose)
-  grants = createChatGrants({ workspaceFor: () => workspace, cliFor: () => ({ command: 'node', args: [], env: {} }), minutes: 60, log: () => {}, desktopFence: runtime.fence })
+  grants = createChatGrants({ workspaceFor: () => client, cliFor: () => ({ command: 'node', args: [], env: {} }), minutes: 60, log: () => {}, desktopFence: runtime.fence })
   const issued = await grants.issueChatCli(harness.root, { role: 'worker', allowSave: false, label: 'Existing active worker' })
   grantId = issued.grantId
-  grants.bindChatGrant(grantId, { folder: harness.root, chatId: 'chat', generation: 'start' })
+  await grants.bindChatGrant(grantId, { folder: harness.root, chatId: 'chat', generation: 'start' })
   decisions = []
   const handlers = createYoloHandlers({ registry: { resolve: (folder) => folder === harness.root ? folder : null }, grants, confirm: async (detail) => { decisions.push(detail); return false } })
   const ipc: Pick<IpcMain, 'handle'> = { handle: (_channel, listener) => { invoke = (...args) => listener({} as IpcMainInvokeEvent, ...args) } }
@@ -52,6 +54,7 @@ it('refuses untracked folders and malformed affirmation payloads before native c
 it('initializes the desktop fence and healthy chat services without opening a failing tracked folder', async () => {
   const opened: string[] = []
   const workspace = harness.open('desktop')
+  const client = testWorkspace(workspace)
   const runtime = createYoloDesktopRuntime(join(harness.homeDir, 'next-desktop.json'))
   await runtime.ready
   disposers.push(runtime.dispose)
@@ -59,11 +62,11 @@ it('initializes the desktop fence and healthy chat services without opening a fa
   const next = createChatGrants({ workspaceFor: (folder) => {
     opened.push(folder)
     if (folder === '/broken-database') throw new Error('Unsupported schema in an unrelated tracked folder')
-    return workspace
+    return client
   }, cliFor: () => ({ command: 'node', args: [], env: {} }), minutes: 60, log: () => {}, desktopFence: fence })
   expect(opened).toEqual([])
   const healthy = await next.issueChatCli(harness.root, { role: 'worker', allowSave: false, label: 'Healthy chat' })
-  next.bindChatGrant(healthy.grantId, { folder: harness.root, chatId: 'healthy', generation: 'healthy-start' })
+  await next.bindChatGrant(healthy.grantId, { folder: harness.root, chatId: 'healthy', generation: 'healthy-start' })
   expect(await next.yolo(harness.root, healthy.grantId, 'inspect', async () => false)).toMatchObject({ live: true, expiresAt: null })
   await expect(next.yolo('/broken-database', grantId, 'enable', async () => true)).rejects.toThrow('Unsupported schema')
   next.dispose()

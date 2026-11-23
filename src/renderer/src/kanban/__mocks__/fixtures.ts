@@ -56,6 +56,7 @@ export class FakeBoard {
   private nextKey = 500
 
   constructor(dm: FakeDm) {
+    dm.handlers.getKanbanOpenCount = () => this.open.length
     dm.handlers.listKanbanCards = (input) => this.list(input as ListKanbanCardsInput)
     dm.handlers.createKanbanCard = (input) => this.create(input as CreateKanbanCardInput)
   }

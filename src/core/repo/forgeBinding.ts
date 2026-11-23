@@ -10,7 +10,32 @@ import { FORGE_CONFIG, readForgeReference } from './forgeReference'
 import { nodeFs } from './nodeFs'
 
 export const FORGE_POINTER = 'FORGE-WORLD.md'
-const moving = new AsyncLocalStorage<string>()
+export interface ForgeTransferAuthority {
+  source: string
+  target: string
+  lease: string
+}
+const moving = new AsyncLocalStorage<ForgeTransferAuthority & { pid: number }>()
+
+export function currentForgeTransfer(): ForgeTransferAuthority | undefined {
+  return moving.getStore()
+}
+
+/** The private workspace utility can act for the live desktop reservation for its exact endpoints. */
+export function withForgeOwnerAuthority<T>(options: { home: string; ownerPid: number; path: string; authority?: ForgeTransferAuthority }, action: () => T): T {
+  const { home, ownerPid, path, authority } = options
+  if (authority === undefined || ![authority.source, authority.target, authority.target.replace(/[/\\](repo|db)$/, '')].includes(path)) return action()
+  const reservation = { ...authority, pid: ownerPid }
+  assertReservation(home, reservation)
+  return moving.run(reservation, action)
+}
+
+function assertReservation(home: string, authority: ForgeTransferAuthority & { pid: number }): void {
+  const file = stateFile(home, authority.source, 'move')
+  if (!existsSync(file)) fail('conflict', 'The Forge conversion reservation ended.')
+  const state = JSON.parse(readFileSync(file, 'utf8'))
+  if (state.pid !== authority.pid || state.target !== authority.target || state.lease !== authority.lease) fail('conflict', 'The Forge conversion reservation changed.')
+}
 const owners = new Set<string>()
 function stateFile(home: string, source: string, kind: string) {
   return join(home, 'forge-bindings', projectKey(source) + '.' + kind + '.json')
@@ -51,8 +76,10 @@ function forceReservations(fs: FsAdapter, home: string) {
 }
 
 function ownsReservation(home: string, file: string): boolean {
-  const source = moving.getStore()
-  return source !== undefined && stateFile(home, source, 'move') === file
+  const active = moving.getStore()
+  if (active === undefined || stateFile(home, active.source, 'move') !== file) return false
+  assertReservation(home, active)
+  return true
 }
 
 /** Survives app restart: ordinary background/manual sync cannot publish an unverified export. */
@@ -89,7 +116,11 @@ function pointerHashes(fs: FsAdapter, source: string): { note: string; config: s
 }
 
 export function boundForgeRoot(fs: FsAdapter, home: string, source: string): string {
-  if (moving.getStore() === source) return source
+  const active = moving.getStore()
+  if (active?.source === source) {
+    assertReservation(home, active)
+    return source
+  }
   const hashes = pointerHashes(fs, source)
   if (hashes === null) return source
   const file = stateFile(home, source, 'link')
@@ -102,16 +133,21 @@ export function boundForgeRoot(fs: FsAdapter, home: string, source: string): str
 }
 
 export function assertForgeTransferIdle(fs: FsAdapter, home: string, source: string): void {
-  if (moving.getStore() !== source && fs.exists(stateFile(home, source, 'move'))) {
+  const active = moving.getStore()
+  const ownsSource = active?.source === source
+  if (ownsSource) assertReservation(home, active)
+  else if (fs.exists(stateFile(home, source, 'move'))) {
     fail('conflict', 'Forge World conversion is pending. Resume it from Ticket source control.')
   }
   if (forceReservations(fs, home).some(reservation => reservation.target === source && !ownsReservation(home, reservation.file))) {
     fail('conflict', 'Forge World conversion is pending. Resume it before opening the destination.')
   }
-  if (moving.getStore() !== source && [join(source, '.darkmechanicus'), dbProjectDir(source, home)]
-    .some(store => fs.exists(join(store, 'local', 'forge-retired.json'))) && boundForgeRoot(fs, home, source) === source) {
-    fail('conflict', 'This ticket store moved to a Forge World. Reconnect before continuing.')
-  }
+  if (!ownsSource && isRetiredSource(fs, home, source)) fail('conflict', 'This ticket store moved to a Forge World. Reconnect before continuing.')
+}
+
+function isRetiredSource(fs: FsAdapter, home: string, source: string): boolean {
+  return [join(source, '.darkmechanicus'), dbProjectDir(source, home)]
+    .some(store => fs.exists(join(store, 'local', 'forge-retired.json'))) && boundForgeRoot(fs, home, source) === source
 }
 
 function assertOwnerInactive(pid: number): void {
@@ -128,6 +164,7 @@ export async function withForgeTransfer<T>(home: string, source: string, destina
   if (owners.has(file)) throw new Error('This conversion is already running.')
   mkdirSync(dirname(file), { recursive: true })
   let phase = 0
+  const lease = randomUUID()
   if (existsSync(file)) {
     const state = JSON.parse(readFileSync(file, 'utf8'))
     if (state.target !== target) throw new Error('Resume the pending conversion to ' + state.target)
@@ -135,18 +172,18 @@ export async function withForgeTransfer<T>(home: string, source: string, destina
     assertOwnerInactive(state.pid)
     phase = state.phase
   } else {
-    writeFileSync(file, JSON.stringify({ pid: process.pid, target, phase, force }), { flag: 'wx' })
+    writeFileSync(file, JSON.stringify({ pid: process.pid, target, lease, phase, force }), { flag: 'wx' })
   }
   function advance(n: number) {
     const temp = file + '.' + randomUUID()
-    writeFileSync(temp, JSON.stringify({ pid: process.pid, target, phase: n, force }), { flag: 'wx' })
+    writeFileSync(temp, JSON.stringify({ pid: process.pid, target, lease, phase: n, force }), { flag: 'wx' })
     renameSync(temp, file)
     phase = n
   }
   owners.add(file)
   try {
     advance(phase)
-    const result = await moving.run(source, () => action(phase, advance))
+    const result = await moving.run({ source, target, lease, pid: process.pid }, () => action(phase, advance))
     unlinkSync(file)
     return result
   } catch (error) {

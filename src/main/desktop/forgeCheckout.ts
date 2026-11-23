@@ -1,39 +1,12 @@
-import { existsSync, lstatSync, readFileSync, realpathSync } from 'node:fs'
-import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
-import { z } from 'zod'
+import { realpathSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { readForgeCheckout } from '../../core/repo/forgeCheckout'
 import { readForgeReference } from '../../core/repo/forgeReference'
 import { nodeFs } from '../../core/repo/nodeFs'
 import type { ForgeGit } from './forgeGit'
 import { githubRemote } from './forgeManifest'
 
-function ordinaryDirectory(path: string): void {
-  const stat = lstatSync(path)
-  if (!stat.isDirectory() || stat.isSymbolicLink() || realpathSync.native(path) !== resolve(path)) throw new Error('The Forge World checkout path moved or uses a symbolic link. Reconnect its code repository.')
-}
-
-function hintedCheckout(file: string): string | undefined {
-  const stat = lstatSync(file, { throwIfNoEntry: false })
-  if (!stat) return undefined
-  if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('The Forge World checkout hint must be an ordinary file.')
-  const hint = z.strictObject({ checkout: z.string().refine(isAbsolute, 'The checkout hint needs an absolute local directory.') }).parse(JSON.parse(readFileSync(file, 'utf8')))
-  return resolve(hint.checkout)
-}
-
-/** Missing checkouts are normal on another computer; malformed hints are not trusted. */
-export function readForgeCheckout(member: string): string | undefined {
-  const local = join(member, '.darkmechanicus', 'local')
-  const file = join(local, 'source-checkout.json')
-  for (const path of [member, join(member, '.darkmechanicus'), local]) {
-    if (!existsSync(path)) return undefined
-    ordinaryDirectory(path)
-  }
-  const checkout = hintedCheckout(file)
-  if (!checkout || !existsSync(checkout)) return undefined
-  ordinaryDirectory(checkout)
-  const fromWorld = relative(dirname(member), checkout)
-  if (!isAbsolute(fromWorld) && fromWorld !== '..' && !fromWorld.startsWith('..' + sep)) throw new Error('The code checkout must be outside its Forge World ticket repository.')
-  return checkout
-}
+export { readForgeCheckout } from '../../core/repo/forgeCheckout'
 
 /** Shared by startup health and Source control; neither can silently select another repository. */
 export async function verifyForgeCheckout(member: string, repository: string, git: Pick<ForgeGit, 'run'>): Promise<string | undefined> {

@@ -5,7 +5,7 @@ import type { ChatItem, ChatRecord } from '../../shared/agents/chat'
 import { AT, builtInAgent, connectedAgents, memoryChatFs, memoryChatStore, REPO, storeItems, type MemoryChatFs } from './__mocks__/chatFixtures'
 import { ATTEMPT_A, ORCHESTRATOR_CHAT_ITEMS, RUN_ID } from './__mocks__/orchestratorChat'
 import { createActivityBindings } from './activityBindings'
-import { createChatRecords, type ChatRecords } from './chatRecords'
+import { createChatRecords, type LocalChatRecords } from './chatRecords'
 import type { ChatStore } from './chatStore'
 import type { ChatMailboxes } from './chatMailboxes'
 
@@ -14,7 +14,7 @@ const BINDINGS_FILE = resolve('/state/agents/activity-bindings.jsonl')
 interface Rig {
   fs: MemoryChatFs
   store: ChatStore
-  records: ChatRecords
+  records: LocalChatRecords
 }
 
 /** The chat records over `fs`: a second rig over the same `fs` stands for the app started again. */
@@ -24,7 +24,7 @@ function rig(fs: MemoryChatFs = memoryChatFs()): Rig {
   return { fs, store, records }
 }
 
-function newChat(records: ChatRecords): ChatRecord {
+function newChat(records: LocalChatRecords): ChatRecord {
   return records.createChat({ folder: REPO, agent: 'codex', role: 'orchestrator', title: 'Run the epic' })
 }
 
@@ -194,7 +194,7 @@ describe('chat records: mailboxes', () => {
     const store = memoryChatStore(fs)
     const activity = { forgetChat: (chat: ChatRecord) => void steps.push(`forget ${chat.id}`) }
     const records = createChatRecords({ store, agentFor: connectedAgents(), activity, mailboxes: recordingMailboxes(steps), removeOmpFolder: async (id) => void steps.push(`omp ${id}`) })
-    const chat = records.createChat({ folder: REPO, agent: 'omp', role: 'worker', title: 'Skitarius' })
+    const chat = await records.createChat({ folder: REPO, agent: 'omp', role: 'worker', title: 'Skitarius' })
     steps.length = 0
 
     await records.deleteChat(chat)
@@ -208,14 +208,14 @@ describe('chat records: mailboxes', () => {
     const steps: string[] = []
     const store = memoryChatStore(memoryChatFs())
     const records = createChatRecords({ store, agentFor: connectedAgents(), mailboxes: recordingMailboxes(steps, { refuseDelete: () => refusing }) })
-    const chat = records.createChat({ folder: REPO, agent: 'omp', role: 'worker', title: 'Stays' })
+    const chat = await records.createChat({ folder: REPO, agent: 'omp', role: 'worker', title: 'Stays' })
 
     await expect(records.deleteChat(chat)).rejects.toThrow('database is locked')
-    expect(records.listChats(REPO).map((listed) => listed.id)).toEqual([chat.id])
+    expect((await records.listChats(REPO)).map((listed) => listed.id)).toEqual([chat.id])
 
     refusing = false
     await records.deleteChat(chat)
-    expect(records.listChats(REPO)).toEqual([])
+    expect(await records.listChats(REPO)).toEqual([])
   })
 
   it('renames the mailbox with the chat, and leaves out and finishes a chat whose mailbox is already deleting', async () => {
@@ -223,12 +223,12 @@ describe('chat records: mailboxes', () => {
     const deleting = new Set<string>()
     const store = memoryChatStore(memoryChatFs())
     const records = createChatRecords({ store, agentFor: connectedAgents(), mailboxes: recordingMailboxes(steps, { deleting }) })
-    const kept = records.createChat({ folder: REPO, agent: 'omp', role: 'worker', title: 'Kept' })
-    const halfDeleted = records.createChat({ folder: REPO, agent: 'omp', role: 'worker', title: 'Half deleted' })
-    records.renameChat(kept, 'Kept, renamed')
+    const kept = await records.createChat({ folder: REPO, agent: 'omp', role: 'worker', title: 'Kept' })
+    const halfDeleted = await records.createChat({ folder: REPO, agent: 'omp', role: 'worker', title: 'Half deleted' })
+    await records.renameChat(kept, 'Kept, renamed')
     deleting.add(halfDeleted.id)
 
-    expect(records.listChats(REPO).map((chat) => chat.id)).toEqual([kept.id])
+    expect((await records.listChats(REPO)).map((chat) => chat.id)).toEqual([kept.id])
     await records.recoverFolder(REPO)
 
     expect(steps).toContain(`rename ${kept.id} Kept, renamed`)
@@ -257,7 +257,7 @@ it('keeps Forge and recovery metadata and retries failed hold retirement before 
     },
     removeOmpFolder: async () => { steps.push('removed runtime') }
   })
-  expect(records.listChats(REPO)).toEqual([])
+  expect(await records.listChats(REPO)).toEqual([])
   await expect(records.deleteChat(chat)).rejects.toThrow('Hold database unavailable')
   expect(restarted.getChat(chat)?.toolingIncidentId).toBe('blocked_forge')
   expect(steps).not.toContain('removed runtime')

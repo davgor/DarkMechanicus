@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FolderPickResult, TrackedFolderView } from '../../../shared/desktop/api'
 import { reconcileFolders, upsertFolder } from './folderList'
 import { useLatest } from './useLatest'
@@ -19,31 +19,39 @@ interface FolderState {
   loaded: boolean
 }
 
+/** Refresh after explicit registry changes and when the window notices external changes on refocus. */
+function refreshOnFolderChanges(reload: () => Promise<void>, invalidate: () => void): () => void {
+  const refresh = (): void => { void reload() }
+  refresh()
+  window.addEventListener('focus', refresh)
+  const unsubscribe = window.dm.onFoldersChanged?.(refresh)
+  return () => {
+    invalidate()
+    window.removeEventListener('focus', refresh)
+    unsubscribe?.()
+  }
+}
+
 /** The machine-local list of tracked folders. Rejections from pick/untrack are the caller's to handle. */
 export function useFolders(onError: (error: unknown) => void): FoldersModel {
   const [state, setState] = useState<FolderState>({ folders: [], loaded: false })
   const report = useLatest(onError)
+  const generation = useRef(0)
 
   const reload = useCallback(async () => {
+    const request = ++generation.current
     try {
       const folders = await window.dm.listFolders()
+      if (generation.current !== request) return
       setState((previous) => ({ folders: reconcileFolders(previous.folders, folders), loaded: true }))
     } catch (error) {
+      if (generation.current !== request) return
       setState((previous) => ({ ...previous, loaded: true }))
       report.current(error)
     }
   }, [report])
 
-  // Availability and initialization can change outside the app (an agent, a moved drive), so the
-  // list is also refreshed whenever the window regains focus.
-  useEffect(() => {
-    const refresh = (): void => {
-      void reload()
-    }
-    refresh()
-    window.addEventListener('focus', refresh)
-    return () => window.removeEventListener('focus', refresh)
-  }, [reload])
+  useEffect(() => refreshOnFolderChanges(reload, () => { generation.current += 1 }), [reload])
 
   const pick = useCallback(async (mode?: 'forge-world') => {
     const result = await (mode === undefined ? window.dm.pickFolder() : window.dm.pickFolder(mode))
@@ -53,6 +61,7 @@ export function useFolders(onError: (error: unknown) => void): FoldersModel {
       return result
     }
     if (picked !== null) {
+      generation.current += 1
       setState((previous) => ({
         ...previous,
         folders: reconcileFolders(previous.folders, upsertFolder(previous.folders, picked))
@@ -63,6 +72,7 @@ export function useFolders(onError: (error: unknown) => void): FoldersModel {
 
   const untrack = useCallback(async (path: string) => {
     const folders = await window.dm.untrackFolder(path)
+    generation.current += 1
     setState((previous) => ({ folders: reconcileFolders(previous.folders, folders), loaded: true }))
   }, [])
 

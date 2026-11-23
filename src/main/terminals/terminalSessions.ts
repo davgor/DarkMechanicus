@@ -199,7 +199,7 @@ export interface TerminalSessions {
    * Untrack: refuses every start of the folder's chats, stops their PTYs and cancels their starts, waits until their
    * kills and revokes have settled, then runs `forget` (the untrack itself) before starts are let through again.
    */
-  releaseFolder(folder: string, forget: () => void, relatedFolders?: readonly string[]): Promise<void>
+  releaseFolder(folder: string, forget: () => unknown, relatedFolders?: readonly string[]): Promise<void>
   /** Kills the PTYs of every chat of a removed agent, and cancels their starts. */
   endAgent(id: AgentId): Promise<void>
   /** True while a PTY runs, a start is under way, or a revoke or kill has not settled. */
@@ -286,9 +286,9 @@ export interface TerminalSessionsDeps {
   /** Durably reserves uncertain board input BEFORE any physical write; false means already observed or reserved. */
   beforeContextPaste?: (chat: ChatRecord, messageId: string, content: string) => boolean
   /** Recovery startup checks exact source identity and the live initiating authority at every launch fence. */
-  assertRecoveryLaunch?: (chat: ChatRecord) => void
+  assertRecoveryLaunch?: (chat: ChatRecord) => string | void | Promise<string | void>
   /** Binds only a tracked live PTY, never a persisted historical grant id. */
-  bindChatGrant?: (grantId: string, identity: { folder: string | null; chatId: string; generation: string; runId?: string; cardId?: string }) => void
+  bindChatGrant?: (grantId: string, identity: { folder: string | null; chatId: string; generation: string; runId?: string; cardId?: string }) => unknown
 }
 
 interface Subscriber {
@@ -487,7 +487,7 @@ function hasLaunchMailbox(context: StartContext): boolean {
   return context.agent.kind === 'omp' && (context.reach === undefined || context.chat.folder !== null)
 }
 
-async function writeStartFiles(context: StartContext): Promise<TerminalFiles> {
+async function writeStartFiles(context: StartContext, repairCheckout: string | undefined): Promise<TerminalFiles> {
   const { manager, chat, agent, folder, reach, newSession: fresh } = context
   const { userData, platform } = manager.deps
   const cli = manager.deps.cliFor(reach === undefined ? folder : null)
@@ -517,7 +517,7 @@ async function writeStartFiles(context: StartContext): Promise<TerminalFiles> {
   if (agent.kind !== 'claude') {
     return files
   }
-  return { ...files, claudeSettings: await writeClaudeSettings({ userData, chatId: chat.id, platform, folder, cli, home: homedir(), tmp: tmpdir(), ...(reach === undefined ? {} : { projectless: true as const }) }) }
+  return { ...files, claudeSettings: await writeClaudeSettings({ userData, chatId: chat.id, platform, folder, cli, repairCheckout, home: homedir(), tmp: tmpdir(), ...(reach === undefined ? {} : { projectless: true as const }) }) }
 }
 
 /** Stops a running PTY for `message`: the folder watch ends, the grant is revoked, and the tree is killed. Never rejects. */
@@ -960,17 +960,21 @@ function releasing(manager: Manager, chat: ChatRecord): boolean {
  * The launch check again, at a later step of a start: the folder can be moved, swapped or untracked while the
  * sign-in check runs (up to 30 s), and nothing may then be issued or started for it.
  */
-function recheckFolder(context: StartContext): void {
-  if (releasing(context.manager, context.chat)) {
-    throw new FolderRefused(UNTRACKED)
-  }
+function assertLocalStart(context: StartContext): void {
+  if (releasing(context.manager, context.chat)) throw new FolderRefused(UNTRACKED)
+  launchFolder(context.manager, context.chat)
+  assertForgeScope(context.manager, context.chat, context.starting.scopeFolders)
+}
+
+async function recheckFolder(context: StartContext): Promise<string | undefined> {
   try {
-    launchFolder(context.manager, context.chat)
-    assertForgeScope(context.manager, context.chat, context.starting.scopeFolders)
-    if (context.chat.repairIncidentId !== undefined) {
-      if (context.manager.deps.assertRecoveryLaunch === undefined) throw new Error('Repair startup authority is unavailable.')
-      context.manager.deps.assertRecoveryLaunch(context.chat)
-    }
+    assertLocalStart(context)
+    if (context.chat.repairIncidentId === undefined) return undefined
+    const verify = context.manager.deps.assertRecoveryLaunch
+    if (verify === undefined) throw new Error('Repair startup authority is unavailable.')
+    const codeCheckout = await verify(context.chat)
+    assertLocalStart(context)
+    return codeCheckout ?? undefined
   } catch (error) {
     throw new FolderRefused(messageOf(error))
   }
@@ -986,8 +990,9 @@ async function runStart(context: StartContext, step: Step): Promise<StartOutcome
     }
     starting.phase = 'preparing'
   }
-  const files = await step(writeStartFiles(context))
-  recheckFolder(context)
+  const repairCheckout = await step(recheckFolder(context))
+  const files = await step(writeStartFiles(context, repairCheckout))
+  await step(recheckFolder(context))
   const grant = { role: chat.role, allowSave: chat.allowSave, label: grantLabel(agent.displayName, chat.title) }
   const revokeAll = (grantIds: readonly string[]): void => {
     for (const grantId of grantIds) {
@@ -1032,12 +1037,12 @@ function marksSessionStarted(agent: AgentView, chat: ChatRecord): boolean {
  * The chat as the launch sees it. For OMP the session id is whatever its session file in the chat's own folder says
  * (the CLI mints it, so nothing is stored up front); a folder with no file means there is no session to resume.
  */
-function launchChat({ manager, chat, agent, folder }: StartContext, files: TerminalFiles): ChatRecord & { sessionStarted: boolean } {
+function launchChat({ manager, chat, agent, folder }: StartContext, files: TerminalFiles, repairCheckout: string | undefined): ChatRecord & { sessionStarted: boolean } {
   if (agent.kind === 'omp') {
     const found = files.omp === undefined ? null : ompSessionId(files.omp.sessionDir)
     return { ...chat, sessionId: found ?? chat.sessionId, sessionStarted: found !== null }
   }
-  return { ...chat, sessionStarted: sessionStarted(manager, chat, agent, folder) }
+  return { ...chat, sessionStarted: sessionStarted(manager, chat, agent, repairCheckout ?? folder) }
 }
 
 /** Whether the chat's CLI has a session a start resumes: Claude's session file, else the chat's flag. */
@@ -1118,16 +1123,14 @@ async function spawnWithGrant(context: StartContext, files: TerminalFiles, issue
   }
 }
 
-/** Binds each of the PTY's grants to it for naming; a binding that fails stops the PTY, and the failure is thrown. */
-function bindGrants(manager: Manager, live: Live, grantIds: readonly string[]): void {
-  const { chat } = live
-  try {
-    for (const grantId of grantIds) {
-      manager.deps.bindChatGrant?.(grantId, { folder: chat.folder, chatId: chat.id, generation: live.generation, ...(chat.runId === undefined ? {} : { runId: chat.runId }), ...(chat.cardId === undefined ? {} : { cardId: chat.cardId }) })
-    }
-  } catch (error) {
-    void stop(manager, live, 'The terminal could not bind its chat naming authority.')
-    throw error
+/** Binds the launch before its PTY can issue its first command. Failed starts revoke their grants. */
+async function bindGrants(manager: Manager, chat: ChatRecord, generation: string, grantIds: readonly string[]): Promise<void> {
+  for (const grantId of grantIds) {
+    await manager.deps.bindChatGrant?.(grantId, {
+      folder: chat.folder, chatId: chat.id, generation,
+      ...(chat.runId === undefined ? {} : { runId: chat.runId }),
+      ...(chat.cardId === undefined ? {} : { cardId: chat.cardId })
+    })
   }
 }
 
@@ -1138,11 +1141,15 @@ function bindGrants(manager: Manager, live: Live, grantIds: readonly string[]): 
 async function spawnLaunch(context: StartContext, files: TerminalFiles, issued: IssuedGrants, launch: { step: Step; generation: string; dmClient: string | null }): Promise<Live> {
   const { manager, chat, agent, folder, reach } = context
   const { step, generation, dmClient } = launch
+  const host = await step(manager.deps.host())
+  await step(bindGrants(manager, chat, generation, issued.grantIds))
+  const repairCheckout = await step(recheckFolder(context))
   const spec = terminalLaunchSpec({
-    chat: { ...launchChat(context, files), kickoffSent: chat.kickoffSent === true },
+    chat: { ...launchChat(context, files, repairCheckout), kickoffSent: chat.kickoffSent === true },
     kickoff: context.kickoff,
     agent,
     folder,
+    repairCheckout,
     cli: issued.cli,
     ...(reach === undefined ? {} : { reach }),
     files,
@@ -1150,9 +1157,7 @@ async function spawnLaunch(context: StartContext, files: TerminalFiles, issued: 
     env: manager.deps.env,
     newSessionId: manager.deps.newSessionId
   })
-  const host = await step(manager.deps.host())
-  // The last await is behind: from this check to the spawn nothing else runs.
-  recheckFolder(context)
+  try { assertLocalStart(context) } catch (error) { throw new FolderRefused(messageOf(error)) }
   const firstArgument = spec.kickoffIn === 'args' && chat.firstPrompt !== undefined
   recordLaunch(context, spec, issued, firstArgument)
   const screen = createTerminalScreen(START_COLS, START_ROWS)
@@ -1167,7 +1172,6 @@ async function spawnLaunch(context: StartContext, files: TerminalFiles, issued: 
   const marksStarted = marksSessionStarted(agent, chat)
   const firstPaste = spec.pasteFirst === null ? null : { text: spec.pasteFirst, kickoff: spec.kickoffIn === 'paste' }
   const live = startLive(manager, chat, { pty, screen, grantIds: issued.grantIds, resumed: spec.resumed, marksStarted, firstPaste, generation, dmClient, scopeFolders: context.starting.scopeFolders })
-  bindGrants(manager, live, issued.grantIds)
   if (firstArgument) finishArgumentPrompt(manager, chat, live)
   return live
 }
@@ -1425,7 +1429,7 @@ async function endAgent(manager: Manager, id: AgentId): Promise<void> {
 }
 
 /** `TerminalSessions.releaseFolder`. */
-async function releaseFolder(manager: Manager, folder: string, forget: () => void, relatedFolders: readonly string[] = []): Promise<void> {
+async function releaseFolder(manager: Manager, folder: string, forget: () => unknown, relatedFolders: readonly string[] = []): Promise<void> {
   const affected = new Set([folder, ...relatedFolders])
   for (const path of affected) manager.releasing.add(path)
   try {
@@ -1441,7 +1445,7 @@ async function releaseFolder(manager: Manager, folder: string, forget: () => voi
         }
       })
     )
-    forget()
+    await forget()
   } finally {
     for (const path of affected) manager.releasing.delete(path)
   }

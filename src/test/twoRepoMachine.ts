@@ -24,7 +24,7 @@ import { openWorkspace, type Workspace } from '../core/workspace'
 import { createCrossRepoCorrectionHandlers, type CrossRepoCorrectionHandlers } from '../main/desktop/crossRepoCorrections'
 import { createFolderRegistry, type FolderRegistry } from '../main/desktop/folderRegistry'
 import { createSourceCheckouts, type SourceCheckouts } from '../main/desktop/sourceCheckout'
-import { createWorkspacePool, type WorkspacePool } from '../main/desktop/workspacePool'
+import { createTestWorkspacePool as createWorkspacePool, type TestWorkspacePool as WorkspacePool } from '../main/desktop/__mocks__/projectWorkspaceFixture'
 import { createMcpServer } from '../mcp/server'
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { SessionRole } from '../shared/domain/views'
@@ -97,9 +97,10 @@ export interface TwoRepoMachine {
   mcp(side: Side, role: SessionRole): McpServer
   /** Makes the Dark Mechanicus checkout this machine's chosen one (DM-189's association). */
   chooseCheckout(): void
-  close(): void
-  /** Closes every session and removes the root (only when this machine made it). */
-  cleanup(): void
+  /** Closes project sessions so they can reopen on the next desktop request. */
+  close(): Promise<void>
+  /** Shuts down the pool, closes every session and removes the root (only when this machine made it). */
+  cleanup(): Promise<void>
 }
 
 interface MachineOptions {
@@ -219,10 +220,7 @@ export function twoRepoMachine(options: MachineOptions = {}): TwoRepoMachine {
   const projectName = options.projectName ?? 'shop'
   const project = trackSide(env, projectName, createGitRepo({ root: join(root, projectName) }), PROJECT_T0)
   const dm = trackSide(env, 'dm-checkout', (options.dmCheckout ?? markerRepository)(join(root, 'dm-checkout')), DM_T0)
-  const close = () => {
-    pool.closeAll()
-    open.closeAll()
-  }
+
   return {
     root,
     userData,
@@ -243,9 +241,13 @@ export function twoRepoMachine(options: MachineOptions = {}): TwoRepoMachine {
       const choice = checkouts.associate(dm.path, false)
       if (choice.outcome !== 'associated') throw new Error(`could not choose ${dm.path}: ${JSON.stringify(choice)}`)
     },
-    close,
-    cleanup: () => {
-      close()
+    close: async () => {
+      await Promise.all(registry.list().map(({ path }) => pool.close(path)))
+      open.closeAll()
+    },
+    cleanup: async () => {
+      await pool.closeAll()
+      open.closeAll()
       if (made) removeScratch(root)
     }
   }

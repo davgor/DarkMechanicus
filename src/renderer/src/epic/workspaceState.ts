@@ -32,8 +32,6 @@ export interface WorkspaceData {
   draft: PlanView | null
   run: RunView | null
   checkpoint: CheckpointView | null
-  /** Loaded once the run completed: the read-only overview of the finished epic. */
-  overview: OverviewData | null
   savedTickets: TicketSummaryView[]
   draftTickets: TicketSummaryView[]
   validation: ValidationReport | null
@@ -88,7 +86,7 @@ export interface WorkspaceState {
 export type WorkspaceAction =
   | { type: 'load_started' }
   | { type: 'load_succeeded'; data: WorkspaceData; at: number }
-  | { type: 'load_failed'; message: string }
+  | { type: 'load_failed'; message: string; unavailable?: boolean }
   /** The person picked a view: show it and remember the choice (unless `remember` is false, as when a link needs a view). */
   | { type: 'show_view'; view: PlanViewKind; remember?: boolean }
   /** Save or Discard ended the draft: show Saved and forget the choice, so the next draft opens by default. */
@@ -177,7 +175,7 @@ function loadSucceeded(state: WorkspaceState, data: WorkspaceData, at: number): 
     view,
     selectedTicketId: keepSelection(state.selectedTicketId, planFor(data, view)),
     // Approving the final checkpoint completes the run: its overview replaces the review in place.
-    checkpointOpen: state.checkpointOpen && (data.checkpoint !== null || data.overview !== null),
+    checkpointOpen: state.checkpointOpen && (data.checkpoint !== null || data.run?.state === 'completed'),
     validation: data.validation
   }
 }
@@ -194,7 +192,11 @@ function showView(state: WorkspaceState, view: PlanViewKind, chosenView: PlanVie
 const HANDLERS: Handlers = {
   load_started: (state) => ({ ...state, loading: true }),
   load_succeeded: (state, action) => loadSucceeded(state, action.data, action.at),
-  load_failed: (state, action) => ({ ...state, loading: false, loadError: action.message }),
+  load_failed: (state, action) => ({
+    ...(action.unavailable ? initialWorkspaceState(state.chosenView) : state),
+    loading: false,
+    loadError: action.message
+  }),
   show_view: (state, action) => showView(state, action.view, action.remember === false ? state.chosenView : action.view),
   draft_closed: (state) => showView(state, 'saved', null),
   show_layout: (state, action) => ({ ...state, layout: action.layout, scorecardOpen: false }),

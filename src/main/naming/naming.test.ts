@@ -1,3 +1,4 @@
+import { testWorkspace } from '../desktop/__mocks__/projectWorkspaceFixture'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
@@ -23,6 +24,7 @@ import { writeDmClientDescriptor } from '../terminals/terminalFiles'
 let root: string
 let repo: string
 let workspace: Workspace
+let projectClient: ReturnType<typeof testWorkspace>
 let grants: ChatGrants
 let server: ControlPipe
 let clock: TestClock
@@ -36,20 +38,21 @@ beforeEach(async () => {
   repo = join(root, 'repo'); mkdirSync(repo)
   clock = createTestClock('2026-11-15T09:00:00.000Z')
   workspace = openWorkspace({ repoRoot: repo, homeDir: join(root, 'home'), role: 'desktop', label: 'test', transport: 'desktop', clock, git: createFakeGit({ branch: 'main', commit: 'b'.repeat(40), detached: false }) })
+  projectClient = testWorkspace(workspace)
   await workspace.initializeRepository({ name: 'naming-test' })
-  grants = createChatGrants({ workspaceFor: () => workspace, cliFor: () => ({ command: 'node', args: [], env: {} }), minutes: 60, log: () => {} })
+  grants = createChatGrants({ workspaceFor: () => projectClient, cliFor: () => ({ command: 'node', args: [], env: {} }), minutes: 60, log: () => {} })
   issued = await grants.issueChatCli(repo, { role: 'worker', allowSave: false, label: 'owned terminal' })
   server = await createControlPipe({ authorize: token => grants.authorizeNaming(token), dispatch: createNamingDispatcher({ store, push }) })
 })
-afterEach(async () => { vi.unstubAllEnvs(); await server?.close(); grants?.dispose(); workspace?.close(); rmSync(root, { recursive: true, force: true }) })
+afterEach(async () => { vi.unstubAllEnvs(); await server?.close(); await grants?.dispose(); workspace?.close(); rmSync(root, { recursive: true, force: true }) })
 function client(token = issued.cli.env['DM_SESSION_TOKEN']) { return createDesktopClient({ env: { DM_DESKTOP_PIPE: server.address, DM_SESSION_TOKEN: token } }) }
-function bound(firstPrompt = 'Could you investigate why sign-in keeps failing after expiry and fix the refresh flow?') {
-  const chat = records.createChat({ folder: repo, agent: 'codex', role: 'worker', firstPrompt })
-  grants.bindChatGrant(issued.grantId, { folder: repo, chatId: chat.id, generation: 'pty-one' })
+async function bound(firstPrompt = 'Could you investigate why sign-in keeps failing after expiry and fix the refresh flow?') {
+  const chat = await records.createChat({ folder: repo, agent: 'codex', role: 'worker', firstPrompt })
+  await grants.bindChatGrant(issued.grantId, { folder: repo, chatId: chat.id, generation: 'pty-one' })
   return chat
 }
 it('persists selected-agent semantic naming only for the live bound first-message chat', async () => {
-  const chat = bound()
+  const chat = await bound()
   expect(await client().request({ op: 'name_chat', args: { title: 'Repair expired-session refresh' } })).toMatchObject({ ok: true, data: { applied: true } })
   expect(store.getChat(chat)).toMatchObject({ title: 'Repair expired-session refresh', titleStatus: 'generated', firstPrompt: chat.firstPrompt })
   expect(await client().request({ op: 'name_chat', args: { title: 'Later turn' } })).toMatchObject({ ok: true, data: { applied: false } })
@@ -86,7 +89,7 @@ void createDesktopClient().request({ op: 'name_chat', args }).then(reply => {
 
 it.each(['name_chat', 'nameChat'])('publishes a semantic title through native %s without changing or resubmitting the original prompt', async command => {
   const firstPrompt = '  Could you investigate why sign-in keeps failing after expiry?\n\nPreserve the full refresh flow and fix its race.  '
-  const chat = bound(firstPrompt)
+  const chat = await bound(firstPrompt)
   store.updateChat(chat, { firstPromptDelivery: 'submitted' })
   const native = await nativeClient(chat.id)
   expect(await native.run(command, { title: 'Repair expired-session refresh' })).toEqual({ ok: true, data: { applied: true } })
@@ -100,12 +103,12 @@ it.each(['name_chat', 'nameChat'])('publishes a semantic title through native %s
 })
 
 it.each(['foreign', 'revoked', 'stale'])('rejects a %s native naming credential without changing the pending chat', async kind => {
-  const chat = bound()
+  const chat = await bound()
   const native = await nativeClient(chat.id, kind === 'foreign' ? 'foreign-token' : issued.cli.env['DM_SESSION_TOKEN'])
   if (kind === 'revoked') await workspace.revokeGrant({ grantId: issued.grantId })
   if (kind === 'stale') {
     const next = await grants.issueChatCli(repo, { role: 'worker', allowSave: false, label: 'replacement' })
-    grants.bindChatGrant(next.grantId, { folder: repo, chatId: chat.id, generation: 'pty-two' })
+    await grants.bindChatGrant(next.grantId, { folder: repo, chatId: chat.id, generation: 'pty-two' })
   }
   expect(await native.run('name_chat', { title: 'Unauthorized replacement' })).toMatchObject({ ok: false, error: { source: 'dm', code: 'unauthorized' } })
   expect(store.getChat(chat)).toMatchObject({ title: 'Naming chat…', titleStatus: 'pending', firstPrompt: chat.firstPrompt })
@@ -113,11 +116,11 @@ it.each(['foreign', 'revoked', 'stale'])('rejects a %s native naming credential 
 })
 it('never derives binding from historical grants and rejects foreign tokens', async () => {
   expect(await client().request({ op: 'name_chat', args: { title: 'Unauthorized title' } })).toMatchObject({ ok: false, error: { code: 'unauthorized' } })
-  bound()
+  await bound()
   expect(await client('foreign').request({ op: 'name_chat', args: { title: 'Unauthorized title' } })).toMatchObject({ ok: false, error: { code: 'unauthorized' } })
 })
 it('rechecks current DB grant capability, revocation, expiry and machine binding', async () => {
-  const chat = bound()
+  const chat = await bound()
   const ctx = workspace.ctx()
   ctx.db.run('UPDATE grants SET role = ? WHERE id = ?', 'reader', issued.grantId)
   expect(await client().request({ op: 'name_chat', args: { title: 'Wrong role' } })).toMatchObject({ ok: false, error: { code: 'unauthorized' } })
@@ -129,31 +132,31 @@ it('rechecks current DB grant capability, revocation, expiry and machine binding
   expect(store.getChat(chat)?.titleStatus).toBe('pending')
 })
 it('invalidates an older exact chat generation synchronously before database revocation', async () => {
-  const chat = bound()
+  const chat = await bound()
   const previous = grants.authorizeNaming(issued.cli.env['DM_SESSION_TOKEN']!)
   const next = await grants.issueChatCli(repo, { role: 'worker', allowSave: false, label: 'replacement' })
-  grants.bindChatGrant(next.grantId, { folder: repo, chatId: chat.id, generation: 'pty-two' })
+  await grants.bindChatGrant(next.grantId, { folder: repo, chatId: chat.id, generation: 'pty-two' })
   expect(previous.signal.aborted).toBe(true)
   expect(() => previous.assertCurrent()).toThrow()
   expect(await client().request({ op: 'name_chat', args: { title: 'Old generation' } })).toMatchObject({ ok: false, error: { code: 'unauthorized' } })
   expect(await client(next.cli.env['DM_SESSION_TOKEN']).request({ op: 'name_chat', args: { title: 'Current generation' } })).toMatchObject({ ok: true, data: { applied: true } })
 })
 it('protects manual rename races, old chats and every system identity', async () => {
-  const chat = bound()
+  const chat = await bound()
   const response = client().request({ op: 'name_chat', args: { title: 'Delayed inference' } })
-  records.renameChat(chat, 'My explicit title')
+  await records.renameChat(chat, 'My explicit title')
   expect(await response).toMatchObject({ ok: true, data: { applied: false } })
   expect(store.getChat(chat)).toMatchObject({ title: 'My explicit title', titleStatus: 'manual' })
   for (const fields of [{}, { runId: 'run' }, { transferEpicId: 'epic' }, { cardId: 'card' }, { title: 'Explicit' }]) {
-    const protectedChat = records.createChat({ folder: repo, agent: 'codex', role: 'worker', ...fields })
+    const protectedChat = await records.createChat({ folder: repo, agent: 'codex', role: 'worker', ...fields })
     const grant = await grants.issueChatCli(repo, { role: 'worker', allowSave: false, label: 'protected' })
-    grants.bindChatGrant(grant.grantId, { folder: repo, chatId: protectedChat.id, generation: protectedChat.id })
+    await grants.bindChatGrant(grant.grantId, { folder: repo, chatId: protectedChat.id, generation: protectedChat.id })
     expect(await client(grant.cli.env['DM_SESSION_TOKEN']).request({ op: 'name_chat', args: { title: 'Do not apply' } })).toMatchObject({ ok: true, data: { applied: false } })
     expect(store.getChat(protectedChat)?.title).toBe(protectedChat.title)
   }
 })
 it('reports inference failure without inventing a prefix and leaves the full first message recoverable', async () => {
-  const chat = bound()
+  const chat = await bound()
   expect(await client().request({ op: 'name_chat', args: { error: 'The selected model refused inference.' } })).toMatchObject({ ok: true, data: { applied: true } })
   expect(store.getChat(chat)).toMatchObject({ firstPrompt: chat.firstPrompt, titleStatus: 'failed', titleError: 'The selected model refused inference.' })
 })
@@ -169,7 +172,7 @@ it('rejects caller-selected targets, every pane operation, long titles and ambig
 })
 
 it('routes real CLI token-file and MCP calls through the same authenticated metadata pipe', async () => {
-  const chat = bound()
+  const chat = await bound()
   vi.stubEnv('DM_DESKTOP_PIPE', server.address)
   vi.stubEnv('DM_SESSION_TOKEN', 'wrong-inherited-token')
   const stdout: string[] = [], stderr: string[] = []
@@ -199,34 +202,34 @@ it('routes real CLI token-file and MCP calls through the same authenticated meta
 })
 
 it('refuses pending-name metadata on system chats and rejects direct prompt-prefix titles without consuming inference', async () => {
-  const chat = bound()
+  const chat = await bound()
   expect(await client().request({ op: 'name_chat', args: { title: 'Could you investigate' } })).toMatchObject({ ok: false, error: { code: 'invalid_input' } })
   expect(store.getChat(chat)?.titleStatus).toBe('pending')
   for (const fields of [{ runId: 'run' }, { transferEpicId: 'epic' }, { cardId: 'card' }]) {
     const system = store.createChat({ folder: repo, agent: 'codex', model: null, role: 'worker', allowSave: false, firstPrompt: 'Investigate and repair the build', title: 'Keep this system identity', titleStatus: 'pending', ...fields })
     const grant = await grants.issueChatCli(repo, { role: 'worker', allowSave: false, label: 'system' })
-    grants.bindChatGrant(grant.grantId, { folder: repo, chatId: system.id, generation: system.id })
+    await grants.bindChatGrant(grant.grantId, { folder: repo, chatId: system.id, generation: system.id })
     expect(await client(grant.cli.env['DM_SESSION_TOKEN']).request({ op: 'name_chat', args: { title: 'Repair build pipeline' } })).toMatchObject({ ok: true, data: { applied: false } })
     expect(store.getChat(system)?.title).toBe('Keep this system identity')
   }
 })
 
 it('rejects a grant that expires after binding without altering the pending title', async () => {
-  const chat = bound()
+  const chat = await bound()
   clock.advanceSeconds(61 * 60)
   expect(await client().request({ op: 'name_chat', args: { title: 'Repair session refresh' } })).toMatchObject({ ok: false, error: { code: 'unauthorized' } })
   expect(store.getChat(chat)).toMatchObject({ titleStatus: 'pending', firstPrompt: chat.firstPrompt })
 })
 
 it('reports a removed bound chat without resurrecting it or naming another chat', async () => {
-  const chat = bound()
+  const chat = await bound()
   await records.deleteChat(chat)
   expect(await client().request({ op: 'name_chat', args: { title: 'Repair session refresh' } })).toMatchObject({ ok: false, error: { code: 'not_found' } })
   expect(store.getChat(chat)).toBeNull()
 })
 
 it('refuses a live binding whose credential no longer matches the current stored grant', async () => {
-  const chat = bound()
+  const chat = await bound()
   workspace.ctx().db.run('UPDATE grants SET token_hash = ? WHERE id = ?', 'replaced-credential', issued.grantId)
   expect(await client().request({ op: 'name_chat', args: { title: 'Stale credential mutation' } })).toMatchObject({ ok: false, error: { code: 'unauthorized' } })
   expect(store.getChat(chat)).toMatchObject({ title: chat.title, titleStatus: 'pending', firstPrompt: chat.firstPrompt })

@@ -168,6 +168,7 @@ describe('preload bridge subscriptions', () => {
       'dm.chats.onEvent': CHAT_EVENT_CHANNEL,
       'dm.chats.mail.onEvent': CHAT_MAIL_EVENT_CHANNEL,
       'dm.onAgentDownloadProgress': 'agents:downloadProgress',
+      'dm.onFoldersChanged': 'forge:foldersChanged',
       'git.onProgress': GIT_PROGRESS_CHANNEL,
       'github.onAccountChanged': GITHUB_ACCOUNT_CHANGED_CHANNEL
     }
@@ -180,7 +181,9 @@ describe('preload bridge subscriptions', () => {
       const listeners = bridge.listeners.get(expected[path])
       expect(listeners?.size, path).toBe(1)
       for (const listener of listeners ?? []) listener(fakeEvent, { payload: path })
-      expect(received, path).toEqual([[{ payload: path }]])
+      // Folder changes invalidate the registry without forwarding any payload.
+      const expectedArgs = path === 'dm.onFoldersChanged' ? [] : [{ payload: path }]
+      expect(received, path).toEqual([expectedArgs])
       unsubscribe()
       expect(listeners?.size, path).toBe(0)
     }

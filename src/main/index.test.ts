@@ -15,6 +15,7 @@ const startup = vi.hoisted(() => ({
   quits: 0,
   liveChats: 0,
   events: [] as string[],
+  storeRelease: undefined as Promise<void> | undefined,
   menus: [] as unknown[],
   switches: [] as [string, string][]
 }))
@@ -60,8 +61,9 @@ vi.mock('./desktop/bootstrap', () => ({
         startup.events.push('dispose chats')
       }
     },
-    close: () => {
+    close: async () => {
       startup.events.push('close stores')
+      await startup.storeRelease
     }
   })
 }))
@@ -82,6 +84,7 @@ beforeEach(() => {
   startup.quits = 0
   startup.liveChats = 0
   startup.events = []
+  startup.storeRelease = undefined
   startup.menus = []
   startup.switches = []
   vi.stubEnv('ELECTRON_RENDERER_URL', '')
@@ -173,15 +176,24 @@ describe('desktop quit', () => {
     expect([prevented, startup.events, startup.quits]).toEqual([true, ['dispose chats', 'close stores'], 1])
   })
 
-  it('closes the stores once on a quit with no live chat', async () => {
+  it('waits for the stores to close once before quitting with no live chat', async () => {
+    let finishClose!: () => void
+    startup.storeRelease = new Promise<void>(resolve => { finishClose = resolve })
     await import('./index')
     startup.ready!()
     await Promise.resolve()
 
-    const prevented = emitBeforeQuit()
-    emitBeforeQuit()
+    expect(emitBeforeQuit()).toBe(true)
+    await new Promise(resolve => setImmediate(resolve))
+    expect(emitBeforeQuit()).toBe(true)
+    expect(startup.events).toEqual(['dispose chats', 'close stores'])
+    expect(startup.quits).toBe(0)
 
-    expect([prevented, startup.events, startup.quits]).toEqual([false, ['dispose chats', 'close stores'], 0])
+    finishClose()
+    await new Promise(resolve => setImmediate(resolve))
+    expect(emitBeforeQuit()).toBe(false)
+    expect(startup.events).toEqual(['dispose chats', 'close stores'])
+    expect(startup.quits).toBe(1)
   })
 })
 

@@ -88,3 +88,18 @@ describe('readUnlessSynced', () => {
     expect(s.reads).toEqual(['v1'])
   })
 })
+
+
+it('evicts cold metadata at the entry and byte bounds', () => {
+  const cache = createFileHashCache()
+  for (let index = 0; index < 4_096; index += 1) cache.remember(String(index), 'stamp', 'hash')
+  expect(cache.get('0', 'stamp')).toBe('hash')
+  cache.remember('new', 'stamp', 'hash')
+  expect(cache.get('1', 'stamp')).toBeNull()
+  expect(cache.get('0', 'stamp')).toBe('hash')
+  const largeHash = 'x'.repeat(3 * 1024 * 1024)
+  cache.remember('large-1', 'stamp', largeHash)
+  cache.remember('large-2', 'stamp', largeHash)
+  expect(cache.get('large-1', 'stamp')).toBeNull()
+  expect(cache.get('large-2', 'stamp')).toBe(largeHash)
+})

@@ -7,6 +7,8 @@ import { errorMessage, runCommand } from '../api/dm'
 import { plural } from '../app/plural'
 import { Button } from '../components/Button'
 import { classNames } from '../components/classNames'
+import { PageControls, usePage } from '../components/PageControls'
+import { folderIdentity } from '../app/folderList'
 import { Icon } from '../components/Icon'
 import { formatShortDate } from '../sidebar/epicStatusLine'
 import type { OrchestrationHost } from '../epic/orchestration'
@@ -219,23 +221,37 @@ interface LanesProps {
 const editable = (card: KanbanCardSummaryView): boolean =>
   card.lane === 'backlog' && card.openAttempt === null && card.kickBackCount === 0 && !card.playPending
 
+const CARDS_PER_PAGE = 40
+
+function OpenLane({ lane, cards, selectedId, onSelect, onEdit }: {
+  lane: typeof OPEN_LANES[number]
+  cards: KanbanCardSummaryView[]
+} & Pick<LanesProps, 'selectedId' | 'onSelect' | 'onEdit'>): JSX.Element {
+  const selectedIndex = selectedId === null ? -1 : cards.findIndex(card => card.id === selectedId)
+  const page = usePage(cards.length, CARDS_PER_PAGE, selectedIndex)
+  return (
+    <Lane lane={lane} count={cards.length}>
+      <PageControls page={page} label={KANBAN_LANE_LABELS[lane]} />
+      <ul className="kanban-cards">
+        {cards.slice(page.start, page.end).map(card => (
+          <KanbanCard
+            key={card.id}
+            card={card}
+            selected={card.id === selectedId}
+            onSelect={() => onSelect(card.id)}
+            onEdit={editable(card) ? () => onEdit(card.id) : undefined}
+          />
+        ))}
+      </ul>
+    </Lane>
+  )
+}
+
 function BoardLanes({ model, board, selectedId, onSelect, onEdit }: LanesProps): JSX.Element {
   return (
     <div className="kanban-lanes">
-      {OPEN_LANES.map((lane) => (
-        <Lane key={lane} lane={lane} count={board.lanes[lane].length}>
-          <ul className="kanban-cards">
-            {board.lanes[lane].map((card) => (
-              <KanbanCard
-                key={card.id}
-                card={card}
-                selected={card.id === selectedId}
-                onSelect={() => onSelect(card.id)}
-                onEdit={editable(card) ? () => onEdit(card.id) : undefined}
-              />
-            ))}
-          </ul>
-        </Lane>
+      {OPEN_LANES.map(lane => (
+        <OpenLane key={lane} lane={lane} cards={board.lanes[lane]} selectedId={selectedId} onSelect={onSelect} onEdit={onEdit} />
       ))}
       <Lane lane="done" count={board.doneTotal}>
         <DoneRows
@@ -257,7 +273,7 @@ function BoardLanes({ model, board, selectedId, onSelect, onEdit }: LanesProps):
  * panel beside the lanes (and tells `onOpenCard`); New card and Edit open the card form.
  */
 export function KanbanBoard({ folder, refreshToken, host, onOpenCard, onChanged, selectedCardId, onCloseCard }: KanbanBoardProps): JSX.Element {
-  const model = useKanbanBoard(folder.path, refreshToken)
+  const model = useKanbanBoard(folder.path, refreshToken, undefined, folderIdentity(folder))
   const changed = onChanged ?? model.reload
   const forms = useBoardForms(folder.path, changed)
   const [localSelectedId, setSelectedId] = useState<string | null>(null)

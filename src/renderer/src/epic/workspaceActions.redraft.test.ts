@@ -18,7 +18,6 @@ function data(patch: Partial<WorkspaceData> = {}): WorkspaceData {
     draft: draftPlan(),
     run: runView({ state: 'awaiting_checkpoint' }),
     checkpoint: checkpointView(),
-    overview: null,
     savedTickets: [],
     draftTickets: [],
     validation: validation(),

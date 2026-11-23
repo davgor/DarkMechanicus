@@ -48,11 +48,12 @@ export function destinationView(target: CrossRepoTargetAvailability): Destinatio
 
 /** The checkout as `window.dm.sourceCheckout` sees it, in the same terms (before any preview is read). */
 export function checkoutTarget(view: SourceCheckoutView): CrossRepoTargetAvailability {
+  const path = view.local === null ? null : view.local.projectPath ?? view.local.path
   return {
     status: view.status,
     projectId: view.target?.projectId ?? null,
     projectName: view.target?.projectName ?? null,
-    path: view.local?.path ?? null,
+    path,
     displayPath: view.local?.displayPath ?? null,
     problem: view.problem,
     message: view.message,

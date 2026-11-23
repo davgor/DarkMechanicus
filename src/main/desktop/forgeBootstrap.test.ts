@@ -12,7 +12,7 @@ import { createGitRunner } from '../git/runner'
 import { createFolderRegistry } from './folderRegistry'
 import { createForge, updateForge } from './forgeManifest'
 import { startForge } from './forgeService'
-import { createWorkspacePool } from './workspacePool'
+import { createTestWorkspacePool as createWorkspacePool } from './__mocks__/projectWorkspaceFixture'
 
 const cleanups: Array<() => void> = []
 afterEach(() => { while (cleanups.length) cleanups.pop()?.() })
@@ -34,12 +34,12 @@ async function fixture() {
   writeFileSync(join(source, FORGE_CONFIG), JSON.stringify(config))
   createForge(seed, 'example')
   updateForge(seed, world => { world.projects.push({ folder: 'Software', repository: 'https://github.com/example/software.git' }) })
-  const pool = createWorkspacePool(repoRoot => openWorkspace({ repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Bootstrap fixture' }))
+  const pool = createWorkspacePool(repoRoot => openWorkspace({ repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Bootstrap fixture' }), home)
   cleanups.push(() => pool.closeAll())
   const project = pool.get(join(seed, 'Software'))
   await project.initializeRepository({ name: 'Software', mode: 'repo' })
   const card = await project.createKanbanCard({ title: 'Portable task' })
-  pool.closeAll()
+  await pool.close(join(seed, 'Software'))
   gitIn(seed, 'add', '-A'); gitIn(seed, 'commit', '-m', 'Portable world')
   gitIn(root, 'clone', '--bare', seed, bare)
   const registry = createFolderRegistry({ file: join(home, 'folders.json'), homeDir: home, dmHome: home })

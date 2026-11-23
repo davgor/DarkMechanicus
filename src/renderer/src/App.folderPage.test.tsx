@@ -91,7 +91,7 @@ describe('the folder page memory', () => {
     await start()
     fireEvent.click(sidebar().getByRole('button', { name: /Planning slice/ }))
     await settle()
-    expect(screen.getByTestId('epic-stub').textContent).toBe(`alpha|${EPIC_A}|0`)
+    expect(screen.getByTestId('epic-stub').textContent).toBe(`alpha|${EPIC_A}|1`)
     expect(screen.queryByRole('tablist', { name: 'Folder sections' })).toBeNull()
   })
 

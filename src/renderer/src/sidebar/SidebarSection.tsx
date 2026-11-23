@@ -6,11 +6,14 @@ interface Props {
   action?: ReactNode
   className?: string
   children: ReactNode
+  disclosure?: { expanded: boolean; change(expanded: boolean): void }
 }
 
 /** The three sidebar sections share one label, disclosure and always-available add control. */
-export function SidebarSection({ title, action, className, children }: Props): JSX.Element {
-  const [expanded, setExpanded] = useState(true)
+export function SidebarSection({ title, action, className, children, disclosure }: Props): JSX.Element {
+  const [local, setLocal] = useState(true)
+  const expanded = disclosure?.expanded ?? local
+  const setExpanded = disclosure?.change ?? setLocal
   const contentId = useId()
   return <section className={className} aria-label={title}>
     <div className="sidebar-head">

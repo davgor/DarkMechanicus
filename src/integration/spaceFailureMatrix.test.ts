@@ -20,8 +20,8 @@ import { type Side, type TwoRepoMachine, twoRepoMachine } from '../test/twoRepoM
 
 const machines: TwoRepoMachine[] = []
 
-afterEach(() => {
-  for (const m of machines.splice(0)) m.cleanup()
+afterEach(async () => {
+  for (const m of machines.splice(0)) await m.cleanup()
 })
 
 const budget = { tokens: 50_000, activeMs: 30 * MIN }
@@ -89,7 +89,7 @@ describe('missing and legacy data never become a complete grade (c2)', () => {
     machines.push(m)
     // A project whose records come from an older checkout (src/core/repo/__mocks__/legacy): its report froze nothing.
     cpSync(join(__dirname, '..', 'core', 'repo', '__mocks__', 'legacy'), join(m.project.path, '.darkmechanicus'), { recursive: true })
-    m.pool.close(m.project.path)
+    await m.pool.close(m.project.path)
     const imported = await m.project.desktop.reconcileRepository()
     const runId = 'rn_01m3txzt9wj79mxsq50f5ktf1q'
     const run = (await m.project.desktop.getRun({ runId })) ?? fail(`the legacy run was not imported: ${JSON.stringify(imported)}`)

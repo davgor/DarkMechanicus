@@ -9,13 +9,13 @@ import { mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync } from 'node:f
 import { DatabaseSync } from 'node:sqlite'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DomainError } from '../../core/errors'
 import { openWorkspace } from '../../core/workspace'
 import { createSequentialIds, createTestClock, type TestClock } from '../../test/testContext'
 import { createFakeGit, TEST_STORAGE } from '../../test/workspaceHarness'
 import { buildCliConfig } from '../desktop/cliConfig'
-import { createWorkspacePool, type WorkspacePool } from '../desktop/workspacePool'
+import { createTestWorkspacePool as createWorkspacePool, type TestWorkspacePool as WorkspacePool } from '../desktop/__mocks__/projectWorkspaceFixture'
 import { createChatGrants, type ChatGrants } from './chatGrants'
 
 /** The test clock's start plus the twelve hours a chat grant lasts. */
@@ -112,7 +112,7 @@ describe('chat grants: revoked through the workspace they were issued in', () =>
     renameSync(repo, moved)
 
     await state.grants.revokeChatGrant(grantId)
-    state.pool.closeAll()
+    await state.pool.closeAll()
 
     expect(grantsIn(moved)).toEqual([expect.objectContaining({ revoked_at: expect.any(String) })])
     expect(state.logged).toEqual([])
@@ -123,7 +123,7 @@ describe('chat grants: revoked through the workspace they were issued in', () =>
     const grantId = await liveChat(state)
     // What untracking a folder does: the registry forgets it and the pool closes its workspace.
     state.tracked.delete(repo)
-    state.pool.close(repo)
+    await state.pool.close(repo)
 
     await state.grants.revokeChatGrant(grantId)
 
@@ -137,7 +137,7 @@ describe('chat grants: revoked through the workspace they were issued in', () =>
     const issued = await state.grants.issueChatCli(repo, { role: 'worker', allowSave: false, label: 'OMP · Scout' }, { id: 'chat_scout', agent: 'omp', title: 'Scout', kind: 'omp' })
     expect(issued.endpointId).toMatch(/^me_/)
     state.tracked.delete(repo)
-    state.pool.close(repo)
+    await state.pool.close(repo)
 
     await state.grants.revokeChatGrant(issued.grantId)
 
@@ -160,7 +160,7 @@ describe('chat grants: a workspace that cannot be reached', () => {
     const state = await rig()
     const grantId = await liveChat(state)
     // The pool released the workspace before the chat's terminal ended, and the folder has moved since.
-    state.pool.closeAll()
+    await state.pool.closeAll()
     renameSync(repo, moved)
 
     await expect(state.grants.revokeChatGrant(grantId)).resolves.toBeUndefined()
@@ -197,7 +197,7 @@ describe('chat grants: renewed while the chat runs', () => {
     state.clock.advanceSeconds(11 * 60 * 60)
 
     await state.grants.renewChatGrant(grantId)
-    state.pool.closeAll()
+    await state.pool.closeAll()
 
     expect(grantsIn(repo)).toEqual([{ id: grantId, expires_at: '2026-04-02T08:00:00.000Z', revoked_at: null }])
     expect(state.logged).toEqual([])
@@ -209,7 +209,7 @@ describe('chat grants: renewed while the chat runs', () => {
     await state.grants.revokeChatGrant(grantId)
 
     await state.grants.renewChatGrant(grantId)
-    state.pool.closeAll()
+    await state.pool.closeAll()
 
     expect(grantsIn(repo)).toEqual([expect.objectContaining({ expires_at: EXPIRES_AT, revoked_at: expect.any(String) })])
     expect(state.logged).toEqual([])
@@ -223,11 +223,37 @@ describe('chat grants: renewed while the chat runs', () => {
 
     await expect(state.grants.renewChatGrant(grantId)).resolves.toBeUndefined()
     await state.grants.revokeChatGrant(grantId)
-    state.pool.closeAll()
+    await state.pool.closeAll()
 
     expect(state.logged).toHaveLength(1)
     expect(state.logged[0]).toContain(grantId)
     expect(state.logged[0]).not.toContain('\n')
     expect(grantsIn(repo)).toEqual([expect.objectContaining({ expires_at: EXPIRES_AT, revoked_at: expect.any(String) })])
   })
+})
+
+it('reopens the same durable chat grant and mailbox after idle eviction, then revokes it', async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+  const state = await rig()
+  try {
+    const issued = await state.grants.issueChatCli(repo, { role: 'orchestrator', allowSave: true, label: 'Long-lived Skitarii' }, {
+      id: 'chat_idle', agent: 'omp', title: 'Long-lived Skitarii', kind: 'omp'
+    })
+    await state.grants.bindChatGrant(issued.grantId, { folder: repo, chatId: 'chat_idle', generation: 'live-terminal' })
+    const old = state.pool.get(repo)
+    await old.call('holdTooling', { id: 'chat_idle', incidentId: 'incident_idle' })
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(openSessionsIn(repo)).toBe(0)
+    expect(state.pool.get(repo)).toBe(old)
+    const binding = state.grants.authorizeNaming(issued.cli.env['DM_SESSION_TOKEN'] ?? '')
+    await binding.verifyAuthority?.('chat.name')
+    expect(await old.call('listMailboxRoutes', ['chat_idle'])).toEqual([{ chatId: 'chat_idle', endpointId: issued.endpointId }])
+    expect(old.ctx().db.get('SELECT incident_id FROM tooling_holds WHERE chat_id = ?', 'chat_idle')).toEqual({ incident_id: 'incident_idle' })
+    await state.grants.revokeChatGrant(issued.grantId)
+    expect((await old.listGrants()).find(grant => grant.id === issued.grantId)?.active).toBe(false)
+    expect(binding.signal.aborted).toBe(true)
+  } finally {
+    await state.pool.closeAll()
+    vi.useRealTimers()
+  }
 })

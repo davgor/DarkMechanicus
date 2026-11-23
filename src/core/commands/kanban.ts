@@ -5,7 +5,7 @@ import { filePaths, withKnowledgeContext } from '../knowledge/push'
 import {
   approveKanbanCard,
   claimKanbanCard,
-  expireKanbanLeases,
+  expireKanbanLeasesOnRead,
   failKanbanCard,
   heartbeatKanbanCard,
   kickBackKanbanCard,
@@ -17,6 +17,7 @@ import {
   addKanbanMessage,
   createKanbanCard,
   getKanbanCard,
+  getKanbanOpenCount,
   listKanbanCards,
   listKanbanMessages,
   updateKanbanCard
@@ -27,7 +28,7 @@ import type { CommandTable } from './types'
 
 /** The board reads attempt states as stored, so overdue card leases are expired first, as run reads expire theirs. */
 function swept(ctx: Ctx): Ctx {
-  expireKanbanLeases(ctx)
+  expireKanbanLeasesOnRead(ctx)
   return ctx
 }
 
@@ -46,6 +47,10 @@ const kanbanCommands = {
     schema: COMMAND_SCHEMAS.listKanbanCards,
     mutates: false,
     run: (core, input) => listKanbanCards(swept(core.ctx()), input)
+  },
+  getKanbanOpenCount: {
+    mutates: false,
+    run: (core) => getKanbanOpenCount(core.ctx())
   },
   getKanbanCard: {
     schema: COMMAND_SCHEMAS.getKanbanCard,
@@ -92,8 +97,9 @@ const kanbanCommands = {
       const ctx = core.ctx()
       requireCapability(ctx.session, 'kanban.report')
       const merge = input.evidence?.merge
-      const merged = merge?.branch === 'main' && await ctx.gitFor(null).isAncestor(merge.commit, 'refs/remotes/origin/main') === true
-      return submitKanbanCard(ctx, input, merged)
+      const git = merge?.branch === 'main' ? ctx.gitFor(null) : null
+      const merged = git !== null && merge !== undefined && await git.isAncestor(merge.commit, 'refs/remotes/origin/main') === true
+      return submitKanbanCard(ctx, input, merged, merged ? git.assertCurrent : undefined)
     }
   },
   failKanbanCard: {

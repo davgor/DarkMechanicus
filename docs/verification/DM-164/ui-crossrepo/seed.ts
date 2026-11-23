@@ -75,7 +75,7 @@ async function main(): Promise<void> {
     writeFileSync(join(m.root, 'fixture.json'), `${JSON.stringify(fixture, null, 2)}\n`)
     console.log(`seeded ${m.root}`)
   } finally {
-    m.close()
+    await m.cleanup()
   }
 }
 

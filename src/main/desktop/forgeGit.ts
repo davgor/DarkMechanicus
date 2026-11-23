@@ -22,12 +22,12 @@ function inspectEntries(entries: string): void {
 export class ForgeGit {
   constructor(private readonly session: CredentialSession, private readonly runner: GitRunner = createGitRunner()) {}
 
-  run(root: string, args: string[], url?: string, options: { acceptExitCodes?: number[]; stdin?: string } = {}) {
+  run(root: string, args: string[], url?: string, options: { acceptExitCodes?: number[]; stdin?: string; beforeStart?: () => void } = {}) {
     const credentials = url ? credentialArgs(url, this.session) : null
     return this.runner.run({ cwd: root, kind: url ? 'network' : 'write', args: [
       '-c', 'core.hooksPath=/dev/null', '-c', 'protocol.allow=never', '-c', 'protocol.https.allow=always',
       ...(credentials?.args ?? []), ...args
-    ], stdin: options.stdin, env: credentials?.env, redact: credentials?.secrets, acceptExitCodes: options.acceptExitCodes })
+    ], stdin: options.stdin, env: credentials?.env, redact: credentials?.secrets, acceptExitCodes: options.acceptExitCodes, beforeStart: options.beforeStart })
   }
 
   async inspectTree(root: string, ref: string) {
@@ -91,7 +91,7 @@ export class ForgeGit {
     if (main.code === 0) await this.run(root, ['merge', '--no-edit', prior])
   }
 
-  async sync(root: string, validate: () => Promise<void>) {
+  async sync(root: string, validate: () => Promise<void>, beforePush?: () => void) {
     const gitRoot = (await this.run(root, ['rev-parse', '--show-toplevel'])).stdout.trim()
     if (relative(gitRoot, root) !== '') throw new Error('The Forge World must be the root of its ticket repository.')
     parseForge(readFileSync(join(root, FORGE_FILE), 'utf8'))
@@ -115,6 +115,7 @@ export class ForgeGit {
     // Include those writes in this same sync rather than leaving them behind.
     await this.commitRepository(root)
     await this.inspectTree(root, 'HEAD')
-    await this.run(root, ['push', url, 'HEAD:' + ref], url)
+    beforePush?.()
+    await this.run(root, ['push', url, 'HEAD:' + ref], url, { beforeStart: beforePush })
   }
 }

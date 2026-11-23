@@ -696,13 +696,14 @@ function submittedPayload(increment: SubmittedIncrement | undefined): Record<str
  * repository's in a folder of repositories; it is stored whether it passed or not, so a failed one keeps the sprint's
  * gate unmet and says why (one failed repository fails the node's increment).
  */
-export function submitAttempt(ctx: Ctx, input: SubmitAttemptInput, verified?: SubmittedIncrement): AttemptView {
+export function submitAttempt(ctx: Ctx, input: SubmitAttemptInput, verified?: SubmittedIncrement, assertVerificationCurrent?: () => void): AttemptView {
   requireCapability(ctx.session, 'attempt.submit')
   settleLeases(ctx, input.attemptId)
   return withIdempotency(ctx, { command: 'submitAttempt', key: input.idempotencyKey, request: requestWithoutKey(input) }, () => {
     const row = loadAttempt(ctx, input.attemptId)
     verifyClaim(ctx, row, input.claimToken)
     const increment = verdictOf(ctx, row, input, verified)
+    assertVerificationCurrent?.()
     // Claimed here, in the submission's transaction: a refused image refuses the whole submission.
     const evidence = claimEvidenceAttachments(ctx, input.evidence, { kind: 'attempt', id: row.id })
     storeSubmission(ctx, row, { ...input, evidence, increment })
@@ -760,11 +761,13 @@ function acceptedDefinition(ctx: Ctx, row: AttemptRow): Pick<AttemptDecision, 'r
 export function acceptAttempt(
   ctx: Ctx,
   input: { attemptId: string; integration?: AttemptDecision['integration']; notes?: string; criteria?: CriterionResult[]; idempotencyKey?: string },
-  verifiedIntegration = false
+  verifiedIntegration = false,
+  assertVerificationCurrent?: () => void
 ): AttemptView {
   requireCapability(ctx.session, 'attempt.review')
   return withIdempotency(ctx, { command: 'acceptAttempt', key: input.idempotencyKey, request: requestWithoutKey(input) }, () => {
     const { row, run } = reviewable(ctx, input.attemptId)
+    assertVerificationCurrent?.()
     const now = ctx.clock.nowIso()
     // The reviewer's own per-criterion results are kept on the decision as well as merged into the evidence, so
     // reviewer-checked criteria stay distinguishable from the worker's claims (`core/space/verification.ts`); the

@@ -303,6 +303,29 @@ describe('the output pipes of a git that has exited (fake spawn)', () => {
   })
 })
 
+it('checks a queued publication immediately before spawn and advances the queue after refusal', async () => {
+  const { spawn, calls } = fakeSpawn()
+  const runner = createGitRunner({ spawn })
+  const first = runner.run(req({ kind: 'write', args: ['add'] }))
+  const refusal = new Error('The project no longer owns publication.')
+  let current = true
+  const beforeStart = vi.fn(() => { if (!current) throw refusal })
+  const publication = runner.run(req({ kind: 'network', args: ['push'], beforeStart }))
+  const next = runner.run(req({ kind: 'write', args: ['status'] }))
+  expect(beforeStart).not.toHaveBeenCalled()
+  expect(calls).toHaveLength(1)
+
+  current = false
+  calls[0].child.close(0)
+  await first
+  await expect(publication).rejects.toBe(refusal)
+  await tick()
+  expect(beforeStart).toHaveBeenCalledOnce()
+  expect(calls.map(({ args }) => args.at(-1))).toEqual(['add', 'status'])
+  calls[1].child.close(0)
+  await next
+})
+
 describe('queue (fake spawn)', () => {
   it('runs writes and network operations for one repository one at a time, in order; reads are not held', async () => {
     const { spawn, calls } = fakeSpawn()

@@ -135,6 +135,7 @@ describe('the indexes a fresh database ends up with', () => {
       'experiment_events_run',
       'grants_active',
       'kanban_attempts_one_open_per_card',
+      'kanban_cards_open_lanes',
       'kanban_events_card',
       'metric_observations_attempt',
       'metric_observations_epic',

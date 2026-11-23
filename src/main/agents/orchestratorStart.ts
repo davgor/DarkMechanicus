@@ -94,7 +94,7 @@ export async function startOrchestratorRun(deps: OrchestratorStartDeps, request:
 
   let chat: ChatRecord
   try {
-    chat = deps.chats.createChat({
+    chat = await deps.chats.createChat({
       folder,
       agent,
       role: 'orchestrator',

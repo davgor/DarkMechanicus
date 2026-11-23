@@ -2,7 +2,7 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { connectedAgents, memoryChatFs, memoryChatStore, REPO, type MemoryChatFs } from './__mocks__/chatFixtures'
 import { createActivityBindings } from './activityBindings'
-import { createChatRecords, type ChatRecords } from './chatRecords'
+import { createChatRecords, type LocalChatRecords } from './chatRecords'
 
 const RUN_ID = 'rn_01m418epbg8qkqa2e2krvdkqk6'
 const BINDINGS_FILE = resolve('/state/agents/activity-bindings.jsonl')
@@ -26,7 +26,7 @@ describe('chat records: deleting next to the bindings old chats stored', () => {
   })
 })
 
-function rig(): { records: ChatRecords; removed: string[]; fs: MemoryChatFs } {
+function rig(): { records: LocalChatRecords; removed: string[]; fs: MemoryChatFs } {
   const fs = memoryChatFs()
   const removed: string[] = []
   const records = createChatRecords({

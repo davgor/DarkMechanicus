@@ -61,16 +61,31 @@ function boundBranch(ctx: Ctx, epicId: string): string | undefined {
   return parseJson<EpicBranch | null>(epic?.branch_json ?? null, null)?.name
 }
 
+interface TicketIntegrationProof {
+  passed: boolean
+  assertCurrent?(): void
+}
+
 /** Verify the submitted revisions against the run's bound epic branch before the acceptance transaction. */
-export async function verifyTicketIntegration(ctx: Ctx, id: string, integration: AttemptDecision['integration']): Promise<boolean> {
-  if (!integration) return false
+export async function verifyTicketIntegration(ctx: Ctx, id: string, integration: AttemptDecision['integration']): Promise<TicketIntegrationProof> {
+  if (!integration) return { passed: false }
   const row = loadAttempt(ctx, id)
-  if (row.state !== 'submitted') return false
+  if (row.state !== 'submitted') return { passed: false }
   const run = requireRun(ctx, row.run_id)
-  if (boundBranch(ctx, run.epic_id) !== integration.branch) return false
+  if (boundBranch(ctx, run.epic_id) !== integration.branch) return { passed: false }
   const ticket = ticketOf(loadBundle(ctx, row.revision_id), row.ticket_id)
   const commits = parseJson<AttemptOutputs | null>(row.outputs_json, null)?.commits ?? []
-  return landed(ctx.gitFor(ticket.repo ?? null), integration, commits)
+  const git = ctx.gitFor(ticket.repo ?? null)
+  if (!await landed(git, integration, commits)) return { passed: false }
+  return {
+    passed: true,
+    assertCurrent: () => {
+      git.assertCurrent?.()
+      if (loadAttempt(ctx, id).outputs_json !== row.outputs_json || boundBranch(ctx, run.epic_id) !== integration.branch) {
+        fail('conflict', 'The submitted commits or epic branch changed during verification. Verify the current delivery again.')
+      }
+    }
+  }
 }
 
 function deploymentGap(report: ReportEvidence): string | null {

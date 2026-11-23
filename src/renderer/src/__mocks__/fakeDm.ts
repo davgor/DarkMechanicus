@@ -68,6 +68,8 @@ export class FakeDm implements DmApi {
   responses: Partial<Record<CommandName, unknown>> = {
     getProject: {},
     listEpics: [],
+    getEventHead: 0,
+    getKanbanOpenCount: 0,
     searchHistory: [],
     listBranchEpics: [],
     listProfiles: [],

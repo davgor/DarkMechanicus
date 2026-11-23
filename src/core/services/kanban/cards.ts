@@ -441,6 +441,14 @@ export function listKanbanCards(ctx: Ctx, input: ListKanbanCardsInput): KanbanBo
   return { lanes, doneTotal, doneNextCursor: done.nextCursor }
 }
 
+/** An exact open-card count without reading summaries or waiting on a lease sweep. */
+export function getKanbanOpenCount(ctx: Ctx): number {
+  requireCapability(ctx.session, 'read')
+  return ctx.db.get<{ count: number }>(
+    "SELECT COUNT(*) AS count FROM kanban_cards WHERE lane IN ('backlog', 'in_progress', 'ready_for_review')"
+  )?.count ?? 0
+}
+
 /** The full card, with its body, criteria and every attempt oldest first. */
 export function getKanbanCard(ctx: Ctx, input: { cardId: string }): KanbanCardView {
   requireCapability(ctx.session, 'read')

@@ -51,6 +51,8 @@ interface ClaudeSettingsOptions {
   platform: NodeJS.Platform
   /** `resolveLaunchFolder`'s path (a project-less chat's scratch folder): the folder the hook resolves relative paths from. */
   folder: string
+  /** A dedicated repair's verified code checkout, from which relative file writes are resolved. */
+  repairCheckout?: string
   /** The chat's `dm` invocation, pinned to `folder` (to none for a project-less chat): its runtime runs the hook, whose script lies beside its own. */
   cli: Pick<DarkMechanicusCli, 'command' | 'args'>
   /** Set for a project-less chat, whose `dm` invocation is pinned to no folder. */
@@ -88,7 +90,7 @@ export function memoryHookLauncherScript(runtime: string, script: string, args: 
 function hookCommand(options: ClaudeSettingsOptions): { script: string; args: string[] } {
   const flavour = options.platform === 'win32' ? win32 : posix
   const script = flavour.join(flavour.dirname(pinnedCliScript(options.cli, options.projectless === true ? null : options.folder)), MEMORY_HOOK_SCRIPT)
-  return { script, args: [options.folder, options.home, options.tmp] }
+  return { script, args: [options.repairCheckout ?? options.folder, options.home, options.tmp] }
 }
 
 export function claudeSettings(options: ClaudeSettingsOptions): ClaudeSettings {

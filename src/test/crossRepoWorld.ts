@@ -1,3 +1,4 @@
+import { testWorkspace } from '../main/desktop/__mocks__/projectWorkspaceFixture'
 /**
  * Worlds for tests of the Dark Mechanicus source checkout (DM-189) and the cross-repository correction broker (DM-190).
  * Not shipped.
@@ -114,7 +115,7 @@ export function machine(): Machine {
     get: (path) => {
       const ctx = projects.get(path)
       if (ctx === undefined) throw new Error(`No project is open at ${path}.`)
-      return { ctx: () => ctx } as unknown as Workspace
+      return testWorkspace({ ctx: () => ctx, repoRoot: path } as Workspace)
     }
   }
   const unexpected: unknown[] = []

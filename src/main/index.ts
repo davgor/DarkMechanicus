@@ -95,6 +95,7 @@ function startDesktop(): void {
       busy: () => bridge.chats.busy(),
       dispose: () => bridge.chats.dispose(),
       release: () => bridge.close(),
+      waitForRelease: true,
       timeoutMs: QUIT_DISPOSE_TIMEOUT_MS,
       onError: (error) => {
         logger.error('Could not dispose agent chats or close the app stores on quit:', error)

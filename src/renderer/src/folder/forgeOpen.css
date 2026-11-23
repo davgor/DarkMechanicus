@@ -1,0 +1,25 @@
+.forge-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.forge-view-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.forge-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0.5rem 1rem;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--line-soft);
+  overflow-wrap: anywhere;
+}

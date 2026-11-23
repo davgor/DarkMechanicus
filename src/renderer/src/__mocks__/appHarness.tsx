@@ -38,6 +38,7 @@ export class AppHarness {
     this.dm.handlers.listEpics = (_input, folder) => this.epics[folder] ?? []
     this.dm.handlers.getStorageStatus = (_input, folder) =>
       this.statuses[folder] ?? storageStatus({ repoRoot: folder })
+    this.dm.handlers.getEventHead = (_input, folder) => this.log(folder).head()
     this.dm.handlers.listEvents = (input, folder) => this.log(folder).page(input as Parameters<EventLog['page']>[0])
     window.dm = this.dm
     window.autoUpdate = this.autoUpdate

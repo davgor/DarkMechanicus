@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { AgentView, TrackedFolderView } from '../../../shared/desktop/api'
 import type { StorageStatusView } from '../../../shared/domain/views'
 import type { ChatRecord } from '../../../shared/agents/chat'
@@ -18,7 +18,8 @@ import { chooseView } from './chooseView'
 import type { MainView } from './chooseView'
 import { folderTabOf, isFolderTabs } from './folderTabs'
 import type { FolderTab, FolderTabs } from './folderTabs'
-import { epicToken, folderToken } from './eventRouting'
+import { folderIdentity } from './folderList'
+import { epicToken, folderToken, kanbanToken } from './eventRouting'
 import type { Landing } from './landing'
 import type { Tokens } from './eventRouting'
 import { EMPTY_SELECTION, findFolder, isSelection, resolveSelection } from './selection'
@@ -69,7 +70,10 @@ export interface ShellModel {
   /** Refresh token for an epic view: changes whenever events touch that epic. */
   epicToken(folderPath: string, epicId: string): number
   /** Refresh token for a folder's views: changes whenever events touch the folder. */
-  folderToken(folderPath: string): number
+  kanbanToken(folderPath: string): number
+  refreshKanban(folderPath: string): void
+  sections: { forge: boolean; folders: boolean }
+  setSection(section: 'forge' | 'folders', expanded: boolean): void
 }
 
 /** Agent sessions and Git state change without events, so the footer status also refreshes on a timer. */
@@ -100,13 +104,12 @@ function useSelection(
   loaded: { agents: readonly AgentView[] | null; projectless: readonly ChatRecord[] | null },
   expansion: Expansion,
   onError: (error: unknown) => void
-): { selection: Selection; select(selection: Selection): void; paths: string[]; chats: ChatsModel } {
+): { selection: Selection; select(selection: Selection): void; chats: ChatsModel } {
   const [stored, select] = usePersistentState(SELECTION_STORAGE_KEY, EMPTY_SELECTION, isSelection)
   const folderPath = resolveSelection(stored, folders.folders, folders.loaded, loaded).folderPath
-  const paths = activeFolderPaths(folders.folders, folderPath, expansion.isFolderExpanded)
   const chats = useChats({ paths: activeChatPaths(folders.folders, folderPath, expansion.isFolderExpanded), onError })
   const known = { ...loaded, chats: knownChats(chats, stored.folderPath) }
-  return { selection: resolveSelection(stored, folders.folders, folders.loaded, known), select, paths, chats }
+  return { selection: resolveSelection(stored, folders.folders, folders.loaded, known), select, chats }
 }
 
 /** What the main area shows for the selection, with the data it was reconciled against. */
@@ -170,6 +173,24 @@ function navigationExpansion(folders: readonly TrackedFolderView[], expansion: E
   }
 }
 
+/** Only the selected project and visible sidebar sections need ticket polling. */
+function useFolderData(
+  { folders, selection, expansion }: { folders: readonly TrackedFolderView[]; selection: Selection; expansion: Expansion },
+  scheduler: Scheduler,
+  onError: (error: unknown) => void
+) {
+  const [sections, setSections] = useState({ forge: true, folders: true })
+  const selectedPath = selection.agentPane === undefined ? selection.folderPath : null
+  const paths = activeFolderPaths(folders, selectedPath, expansion.isFolderExpanded, forge => forge ? sections.forge : sections.folders)
+  const identities = useMemo(() => new Map(folders.map(folder => [folder.path, folderIdentity(folder)])), [folders])
+  const feed = useEventFeed({ paths, identities, selectedPath, scheduler, onError })
+  const ready = paths.filter(path => feed.tokens.ready[path] === identities.get(path))
+  const lists = useEpicLists({ paths: ready, identities, tokens: feed.tokens, onError })
+  const kanbanCounts = useKanbanCounts({ paths: ready, identities, tokens: feed.tokens, onError })
+  const setSection: ShellModel['setSection'] = (section, expanded) => setSections(previous => ({ ...previous, [section]: expanded }))
+  return { feed, lists, kanbanCounts, sections, setSection }
+}
+
 /**
  * All shell state in one place: tracked folders, the persisted selection and collapse state, epic
  * lists and storage status kept fresh by the event feed, and the actions the UI can take.
@@ -184,12 +205,10 @@ export function useShell(scheduler: Scheduler): ShellModel {
   const [landing, setLanding] = useState<Landing | null>(null)
   const [folderTabs, setFolderTab] = useFolderTabs()
   const { allChats, projectless } = useEveryChat(folders.folders, toasts.reportError)
-  const { selection, select, paths, chats } = useSelection(folders, { agents: connected, projectless }, expansion, toasts.reportError)
+  const { selection, select, chats } = useSelection(folders, { agents: connected, projectless }, expansion, toasts.reportError)
   const selected = findFolder(folders.folders, selection.folderPath)
-  const feed = useEventFeed({ paths, selectedPath: selection.folderPath, scheduler, onError: toasts.reportError })
-  const lists = useEpicLists({ paths, tokens: feed.tokens, onError: toasts.reportError })
-  const kanbanCounts = useKanbanCounts({ paths, tokens: feed.tokens, onError: toasts.reportError })
-  const mail = useAgentMail(paths)
+  const { feed, lists, kanbanCounts, sections, setSection } = useFolderData({ folders: folders.folders, selection, expansion }, scheduler, toasts.reportError)
+  const mail = useAgentMail(activeFolderPaths(folders.folders, selection.folderPath, expansion.isFolderExpanded))
   const status = useFooterStatus(statusPathOf(selected), feed.tokens, scheduler, toasts.reportError)
 
   const actions = createShellActions({
@@ -222,6 +241,9 @@ export function useShell(scheduler: Scheduler): ShellModel {
     landing,
     setFolderTab,
     epicToken: (path, epicId) => epicToken(feed.tokens, path, epicId),
-    folderToken: (path) => folderToken(feed.tokens, path)
+    kanbanToken: (path) => kanbanToken(feed.tokens, path),
+    refreshKanban: feed.pollNow,
+    sections,
+    setSection
   }
 }

@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import { existsSync, linkSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
-import { z } from 'zod'
+import { FORGE_FILE, parseForgeManifest } from '../../core/repo/forgeManifest'
 import type { ForgeWorld } from '../../shared/desktop/forgeWorld'
 import { checkCloneName } from '../git/cloneInput'
 
-export const FORGE_FILE = 'forge-world.json'
+export { FORGE_FILE, githubRemote } from '../../core/repo/forgeManifest'
 
 export function projectName(name: string): string {
   checkCloneName(name)
@@ -13,24 +13,8 @@ export function projectName(name: string): string {
   return name
 }
 
-export function githubRemote(input: string): string {
-  const match = /^(?:https:\/\/github\.com\/|git@github\.com:)?([\w-]+)\/([\w.-]+?)(?:\.git)?\/?$/i.exec(input)
-  if (!match || /^\.{1,2}$/.test(match[2])) throw new Error('Enter a GitHub repository in owner/name format.')
-  return 'https://github.com/' + match[1] + '/' + match[2] + '.git'
-}
-
-const schema = z.strictObject({
-  version: z.literal(1),
-  owner: z.string().regex(/^[\w-]{1,100}$/),
-  projects: z.array(z.strictObject({ folder: z.string().transform(projectName), repository: z.string().transform(githubRemote) })),
-  syncMinutes: z.number().int().min(1).max(1440)
-})
-
 export function parseForge(text: string): ForgeWorld {
-  const world = schema.parse(JSON.parse(text))
-  const names = world.projects.map(p => p.folder.toLowerCase())
-  if (new Set(names).size !== names.length) throw new Error('Duplicate Forge World project folder.')
-  return world
+  return parseForgeManifest(text, projectName)
 }
 
 export function forgeProjectFor(member: string) {

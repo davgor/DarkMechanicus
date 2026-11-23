@@ -1,9 +1,10 @@
+import { gatedRunner } from '../../test/gatedRunner'
 import { gitIn, scratchDir } from '../../test/gitScratch'
 import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, expect, it } from 'vitest'
-import { createGitRunner } from '../git/runner'
+import { createGitRunner, type GitRunner } from '../git/runner'
 import { ForgeGit } from './forgeGit'
 import { createForge, githubRemote, parseForge, updateForge } from './forgeManifest'
 
@@ -21,19 +22,20 @@ function repositoryPair() {
   gitIn(root, 'clone', bare, first)
   const url = 'https://github.com/tester/tickets.git'
   const real = createGitRunner()
-  const client = new ForgeGit({ getAccount: () => null, getToken: () => null }, {
+  const runner: GitRunner = {
     run: request => request.kind !== 'network' ? real.run(request) : real.run({ ...request, args: [
       '-c', 'url.' + pathToFileURL(bare).href + '.insteadOf=' + url,
       ...request.args.map(a => a === 'protocol.allow=never' ? 'protocol.file.allow=always' : a)
     ] })
-  })
+  }
+  const client = new ForgeGit({ getAccount: () => null, getToken: () => null }, runner)
   const setup = (cwd: string) => {
     gitIn(cwd, 'remote', 'set-url', 'origin', url)
     gitIn(cwd, 'config', 'user.email', 'forge@example.test')
     gitIn(cwd, 'config', 'user.name', 'Forge Test')
   }
   setup(first)
-  return { root, bare, first, second, client, setup }
+  return { root, bare, first, second, client, setup, runner }
 }
 
 function portableFiles(first: string) {
@@ -91,6 +93,34 @@ it('syncs every repository file, recovered attachment and deletion between real 
   expect(readFileSync(join(first, 'notes.txt'), 'utf8')).toBe('Updated notes')
   expect(existsSync(join(first, 'Demo', 'obsolete.md'))).toBe(false)
 })
+
+it.each(['post-reconcile inspection', 'queued push'] as const)(
+  'keeps local commits without publishing when the workspace closes during %s', async (boundary) => {
+    const { first, bare, client, runner } = repositoryPair()
+    createForge(first, 'tester')
+    await client.sync(first, async () => undefined)
+    const original = gitIn(bare, 'rev-parse', 'main')
+    let validated = false
+    let tracked = true
+    const gated = gatedRunner(runner, ({ args }) => validated && args.includes(boundary === 'queued push' ? 'push' : 'ls-tree'))
+    const workspace = new ForgeGit({ getAccount: () => null, getToken: () => null }, gated)
+    const sync = workspace.sync(first, async () => {
+      writeFileSync(join(first, 'post-import.txt'), 'Keep this local commit')
+      validated = true
+    }, () => {
+      if (!tracked) throw new Error('The Forge World was untracked before publishing.')
+    })
+    try {
+      expect(await Promise.race([gated.reached.then(() => true), sync.then(() => false)])).toBe(true)
+      expect(gitIn(first, 'show', 'HEAD:post-import.txt')).toBe('Keep this local commit')
+      tracked = false
+    } finally {
+      gated.release()
+    }
+    await expect(sync).rejects.toThrow('untracked before publishing')
+    expect(gitIn(bare, 'rev-parse', 'main')).toBe(original)
+  }
+)
 
 it('recovers a world branch onto main without losing either branch or publishing an extra branch', async () => {
   const { bare, first, client } = repositoryPair()

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { folderView } from '../__mocks__/fixtures'
 import type { TrackedFolderView } from '../../../shared/desktop/api'
-import { reconcileFolders, upsertFolder } from './folderList'
+import { folderIdentity, reconcileFolders, upsertFolder } from './folderList'
 
 const alpha = folderView({ path: '/a', name: 'a' })
 const beta = folderView({ path: '/b', name: 'b' })
@@ -50,6 +50,17 @@ describe('reconcileFolders', () => {
   ])('treats a different %s as a change', (_field, patch) => {
     const next = copy(alpha, patch)
     expect(reconcileFolders([alpha], [next])[0]).toBe(next)
+  })
+
+  it('remembers an inaccessible tracked store identity but recognizes a replacement once reachable', () => {
+    const before = copy(alpha, { projectIdentity: 'project-before' })
+    const [unavailable] = reconcileFolders([before], [copy(alpha, { available: false, initialized: false })])
+    expect(unavailable.available).toBe(false)
+    expect(folderIdentity(unavailable)).toBe(folderIdentity(before))
+    const replacement = copy(alpha, { projectIdentity: 'project-after' })
+    const [after] = reconcileFolders([unavailable], [replacement])
+    expect(after).toBe(replacement)
+    expect(folderIdentity(after)).not.toBe(folderIdentity(before))
   })
 
   it('treats a different path as a different folder', () => {

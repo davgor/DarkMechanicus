@@ -5,13 +5,18 @@ import type { DefinitionOfDoneCheck, SessionRole } from '../../../shared/domain/
 import { captureError } from '../../../test/authoring'
 import { pngBytes } from '../../../test/images'
 import { createSequentialIds, createTestCtx, type TestCtx, withRole } from '../../../test/testContext'
+import { addSeconds } from '../../clock'
+import { guardTransactions } from '../../db/database'
 import type { IdGenerator } from '../../ids'
 import { LIMITS } from '../../schemas'
+import { issueGrant } from '../grants'
+import { bindToolingGrant, holdToolingWorkflow } from '../toolingHold'
 import { createStagedAttachment, getAttachment } from '../attachments'
 import {
   approveKanbanCard,
   claimKanbanCard,
   expireKanbanLeases,
+  expireKanbanLeasesOnRead,
   failKanbanCard,
   heartbeatKanbanCard,
   kickBackKanbanCard,
@@ -779,6 +784,43 @@ describe('who may do what', () => {
     expect(captureError(() => claimKanbanCard(ctx.worker, { cardId })).code).toBe('unauthorized')
     expect(attemptCount(ctx.desktop)).toBe(0)
   })
+})
+
+describe('lease expiry racing a renewal', () => {
+  it('rechecks a due lease after a concurrent renewal and records its later expiry once', () => {
+    const ctx = board()
+    const packet = claimedCard(ctx, 60)
+    ctx.desktop.clock.advanceSeconds(61)
+    const db = ctx.desktop.db
+    let renew = true
+    const guarded = guardTransactions(db, () => {
+      if (!renew) return
+      renew = false
+      db.run('UPDATE kanban_attempts SET lease_expires_at = ? WHERE id = ?', addSeconds(ctx.desktop.clock.nowIso(), 60), packet.attemptId)
+    })
+    const sweeping = { ...ctx.desktop, db: guarded }
+    expect(expireKanbanLeasesOnRead(sweeping)).toEqual([])
+    expect(attemptRow(ctx.desktop, packet.attemptId)).toMatchObject({ state: 'claimed' })
+    ctx.desktop.clock.advanceSeconds(61)
+    expect(expireKanbanLeasesOnRead(sweeping)).toEqual([packet.attemptId])
+    expect(expireKanbanLeasesOnRead(sweeping)).toEqual([])
+    expect(kanbanEvents(ctx.desktop).filter(([kind]) => kind === 'lease_expired')).toEqual([['lease_expired', packet.attemptId]])
+  })
+})
+
+it('rechecks a due lease after a tooling hold became active before lock acquisition', () => {
+  const ctx = board()
+  const packet = claimedCard(ctx, 60)
+  const { grant } = issueGrant(ctx.desktop, { role: 'orchestrator', label: 'Hold near sweep' })
+  const chat = 'chat_concurrent_hold'
+  bindToolingGrant(ctx.desktop, grant.id, chat)
+  ctx.desktop.clock.advanceSeconds(61)
+  const guarded = guardTransactions(ctx.desktop.db, () => holdToolingWorkflow(ctx.desktop, {
+    id: chat, incidentId: 'concurrent_hold', cardId: packet.cardId
+  }))
+  expect(expireKanbanLeasesOnRead({ ...ctx.desktop, db: guarded })).toEqual([])
+  expect(attemptRow(ctx.desktop, packet.attemptId)).toMatchObject({ state: 'claimed' })
+  expect(kanbanEvents(ctx.desktop).filter(([kind]) => kind === 'lease_expired')).toEqual([])
 })
 
 describe('lease expiry', () => {

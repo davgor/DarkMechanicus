@@ -12,14 +12,18 @@ import {
   realpathSync,
   renameSync,
   statSync,
-  writeFileSync
+  writeFileSync,
+  type BigIntStats
 } from 'node:fs'
-import { randomBytes } from 'node:crypto'
+import { createHash, randomBytes } from 'node:crypto'
 import { basename, dirname, isAbsolute, join, sep } from 'node:path'
 import { z } from 'zod'
 import { FORGE_FILE, parseForge } from './forgeManifest'
 import { DomainError } from '../../core/errors'
 import { detectChildRepos, isInsideGitRepository } from '../../core/repo/childRepos'
+import { forgeBindingEpoch } from '../../core/repo/forgeBinding'
+import { readProject } from '../../core/repo/initialize'
+import { nodeFs } from '../../core/repo/nodeFs'
 import { resolveLayout } from '../../core/repo/layout'
 import { resolveStorageMode, SQLITE_STANDARDS_FILE, type StorageMode } from '../../core/repo/storageMode'
 import type { TrackedFolderView } from '../../shared/desktop/api'
@@ -105,6 +109,7 @@ interface RegistryContext {
   fs: RegistryFs
   now: () => string
   worlds: Map<string, NonNullable<TrackedFolderView['forgeWorld']>>
+  projectKeys: Map<string, { stamp: string; identity: string | undefined }>
   /** The attachment key of a folder: made on first use and kept for this run. */
   keyFor: (path: string) => string
 }
@@ -187,26 +192,55 @@ function canRestoreSettings(fs: RegistryFs, mode: StorageMode, path: string): bo
   return mode === 'db' && fs.exists(join(path, SQLITE_STANDARDS_FILE))
 }
 
-function toView(context: RegistryContext, entry: FolderEntry): TrackedFolderView {
-  const { fs, homeDir } = context
-  const mode = storageModeOf(context, entry.path)
-  const layout = resolveLayout(entry.path, { mode, homeDir: context.dmHome })
-  const manifest = join(entry.path, FORGE_FILE)
+function projectIdentity(context: RegistryContext, layout: ReturnType<typeof resolveLayout>): string | undefined {
+  if (context.fs !== nodeRegistryFs) return undefined
+  try {
+    const root = statSync(layout.root, { bigint: true })
+    const file = lstatSync(layout.projectFile, { bigint: true })
+    if (!isProjectRecord(layout.projectFile, file)) return undefined
+    const epoch = forgeBindingEpoch(nodeFs, context.dmHome, layout.root)
+    const stamp = [root.dev, root.ino, file.ino, file.size, file.mtimeNs, file.ctimeNs, layout.mode, epoch].join('/')
+    const old = context.projectKeys.get(layout.root)
+    if (old?.stamp === stamp) return old.identity
+    const project = readProject(layout, nodeFs)
+    const identity = project ? createHash('sha256').update([root.dev, root.ino, layout.mode, project.projectId, epoch].join('/')).digest('hex') : undefined
+    context.projectKeys.set(layout.root, { stamp, identity })
+    return identity
+  } catch { return undefined }
+}
+
+function isProjectRecord(path: string, file: BigIntStats): boolean {
+  return file.isFile() && file.size <= 262_144n && realpathSync.native(path) === path
+}
+
+function readWorld(context: RegistryContext, path: string) {
+  const { fs } = context
+  const manifest = join(path, FORGE_FILE)
   let forgeWorld: TrackedFolderView['forgeWorld']
   let invalidForge = false
   if (fs.exists(manifest)) {
     try {
       if (fs.isSymlink(manifest)) throw new Error('Linked manifest')
       forgeWorld = parseForge(fs.readFile(manifest))
-      context.worlds.set(entry.path, forgeWorld)
+      context.worlds.set(path, forgeWorld)
     } catch {
-      forgeWorld = context.worlds.get(entry.path)
+      forgeWorld = context.worlds.get(path)
       invalidForge = !forgeWorld
     }
   }
+  return { forgeWorld, invalidForge }
+}
+
+function toView(context: RegistryContext, entry: FolderEntry): TrackedFolderView {
+  const { fs, homeDir } = context
+  const { forgeWorld, invalidForge } = readWorld(context, entry.path)
+  const mode = storageModeOf(context, entry.path)
+  const layout = resolveLayout(entry.path, { mode, homeDir: context.dmHome })
   const initialized = fs.exists(layout.projectFile) || canRestoreSettings(fs, mode, entry.path)
+  const identity = initialized ? projectIdentity(context, layout) : undefined
   return {
     path: entry.path,
+    ...(identity === undefined ? {} : { projectIdentity: identity }),
     attachmentKey: context.keyFor(entry.path),
     name: forgeWorld ? 'Forge World ' + forgeWorld.owner : basename(entry.path) || entry.path,
     ...(forgeWorld ? { forgeWorld } : {}),
@@ -295,6 +329,19 @@ function folderViews(context: RegistryContext, state: RegistryState): TrackedFol
   return [...entries.filter(folder => !members.has(folder.path)), ...members.values()]
 }
 
+function removeTracking(context: RegistryContext, state: RegistryState, keys: Map<string, string>, path: string): TrackedFolderView[] {
+  const removed = findEntry(context.fs, state.entries, path)
+  if (removed === undefined) return folderViews(context, state)
+  const affected = folderViews(context, state).filter(folder => folder.path === removed.path || folder.forgeParent === removed.path)
+  untrackFolder(context, state, removed.path)
+  for (const folder of affected) {
+    keys.delete(folder.path)
+    context.worlds.delete(folder.path)
+    context.projectKeys.delete(folder.path)
+  }
+  return folderViews(context, state)
+}
+
 export function createFolderRegistry(options: {
   /** Absolute path of the registry JSON file. */
   file: string
@@ -310,6 +357,7 @@ export function createFolderRegistry(options: {
   const context: RegistryContext = {
     file: options.file,
     worlds: new Map(),
+    projectKeys: new Map(),
     homeDir: options.homeDir,
     dmHome: options.dmHome,
     fs: options.fs ?? nodeRegistryFs,
@@ -339,7 +387,7 @@ export function createFolderRegistry(options: {
       const member = views().find(folder => folder.forgeParent && folder.path === path)
       return member ? { folder: member, added: false } : trackFolder(context, state, path)
     },
-    untrack: (path) => untrackFolder(context, state, path),
+    untrack: (path) => removeTracking(context, state, keys, path),
     has: path => tracked(path) !== null,
     resolve: tracked
   }

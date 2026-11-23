@@ -299,11 +299,13 @@ export function stagedAttachmentCutoff(nowIso: string): string {
  * when that plan is saved.
  */
 export function pruneStagedAttachments(ctx: Ctx, olderThan: string = stagedAttachmentCutoff(ctx.clock.nowIso())): number {
+  const unstaged = () => ctx.db
+    .all<{ id: string; created_at: string }>('SELECT id, created_at FROM attachments WHERE owner_kind IS NULL')
+    .filter((row) => isBefore(row.created_at, olderThan))
+  if (unstaged().length === 0) return 0
   return ctx.db.tx(() => {
     const planned = plannedAttachmentIds(ctx.db)
-    const stale = ctx.db
-      .all<{ id: string; created_at: string }>('SELECT id, created_at FROM attachments WHERE owner_kind IS NULL')
-      .filter((row) => isBefore(row.created_at, olderThan) && !planned.has(row.id))
+    const stale = unstaged().filter((row) => !planned.has(row.id))
     for (const row of stale) {
       ctx.db.run('DELETE FROM attachments WHERE id = ? AND owner_kind IS NULL', row.id)
     }

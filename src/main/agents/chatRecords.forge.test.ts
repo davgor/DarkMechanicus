@@ -22,16 +22,16 @@ it.each(['valid', 'conflicted'] as const)('manages root Skitarii chats with a %s
   const removed: string[] = []
   const mailboxes = createChatMailboxes({
     store, ledger: { file: join(root, 'private-mailboxes.jsonl'), fs: nodeChatStoreFs }, log: () => {},
-    contextFor: folder => { opened.push(folder); throw new Error('A Forge World has no project database') }
+    workspaceFor: folder => { opened.push(folder); throw new Error('A Forge World has no project database') }
   })
   const records = createChatRecords({ store, mailboxes, agentFor: connectedAgents([builtInAgent('omp')]), removeScratch: async id => { removed.push(id) } })
-  const chat = records.createChat({ folder: root, agent: 'omp', role: 'worker', title: 'World task' })
-  expect(records.listChats(root)).toEqual([chat])
+  const chat = await records.createChat({ folder: root, agent: 'omp', role: 'worker', title: 'World task' })
+  expect(await records.listChats(root)).toEqual([chat])
   await records.recoverFolder(root)
-  records.renameChat(chat, 'World work')
-  mailboxes.suspendFolder(root, [chat])
+  await records.renameChat(chat, 'World work')
+  await mailboxes.suspendFolder(root, [chat])
   await records.deleteChat(chat)
-  expect(records.listChats(root)).toEqual([])
+  expect(await records.listChats(root)).toEqual([])
   expect(opened).toEqual([])
   expect(removed).toEqual([chat.id])
   expect(existsSync(join(root, '.darkmechanicus'))).toBe(false)

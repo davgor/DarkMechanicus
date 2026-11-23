@@ -4,7 +4,7 @@ import { basename, join } from 'node:path'
 import { questionStore, publishChannel } from '../core/humanQuestions'
 import type { Db } from '../core/db/database'
 import { createHash, randomBytes } from 'node:crypto'
-import type { Workspace } from '../core/workspace'
+import type { ProjectWorkspace } from './desktop/workspaceClient'
 
 interface Route { folder: string; cardId: string; question: string }
 interface Config {
@@ -37,7 +37,7 @@ function recipientKey(c: Config): string {
 }
 
 type FolderList = () => string[]
-type WorkspaceFor = (path: string) => Workspace
+type WorkspaceFor = (path: string) => Pick<ProjectWorkspace, 'listKanbanMessages' | 'addKanbanMessage'>
 
 export function registerTelegramIpc(ipc: Pick<IpcMain, 'handle'>, status: () => unknown, pair: () => Promise<string>, setEnabled: (enabled: boolean) => void): void {
   ipc.handle('telegram:status', status)

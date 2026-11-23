@@ -217,7 +217,7 @@ describe('find a transfer chat', () => {
 
     // The chat records over a store opened again on the same files stand for the app starting again.
     const reopened = createChatRecords({ store: terminals.reopenedStore(), agentFor: connectedAgents([builtInAgent('claude')]) })
-    const found = findTransferChat(reopened, terminals.repo, EPIC_ID)
+    const found = await findTransferChat(reopened, terminals.repo, EPIC_ID)
 
     expect(found).toMatchObject({ id: started.chat?.id, role: 'orchestrator', allowSave: true, transferEpicId: EPIC_ID, title: 'Linear transfer · Linear handoff', kickoffSent: true })
     expect(await terminals.sessions.start(found as ChatRecord, { kickoff: KICKOFF })).toMatchObject({ state: 'running' })
@@ -231,11 +231,11 @@ describe('find a transfer chat', () => {
   it('finds none for another epic or a chat that was not started for a transfer', async () => {
     const { records, transfers } = rig()
     records.createChat({ folder: terminals.repo, agent: 'claude', role: 'orchestrator', allowSave: false, runId: 'rn_1' })
-    expect(findTransferChat(records, terminals.repo, EPIC_ID)).toBeNull()
+    expect(await findTransferChat(records, terminals.repo, EPIC_ID)).toBeNull()
 
     await startTransferChat({ transfers, chats: records, terminals: terminals.sessions }, request())
 
-    expect(findTransferChat(records, terminals.repo, 'ep_01m6772ffwkwr2a91fsqzfz1hf')).toBeNull()
+    expect(await findTransferChat(records, terminals.repo, 'ep_01m6772ffwkwr2a91fsqzfz1hf')).toBeNull()
   })
 })
 

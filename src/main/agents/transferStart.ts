@@ -93,7 +93,7 @@ export async function startTransferChat(deps: TransferStartDeps, request: StartT
 
   let chat: ChatRecord
   try {
-    chat = deps.chats.createChat({
+    chat = await deps.chats.createChat({
       folder,
       agent,
       role: 'orchestrator',
@@ -116,8 +116,8 @@ export async function startTransferChat(deps: TransferStartDeps, request: StartT
 }
 
 /** The most recently updated chat of the (canonical) folder started for the epic's transfer, or null. */
-export function findTransferChat(chats: Pick<ChatRecords, 'listChats'>, folder: string, epicId: string): ChatRecord | null {
-  return chats.listChats(folder).find((chat) => chat.transferEpicId === epicId) ?? null
+export async function findTransferChat(chats: Pick<ChatRecords, 'listChats'>, folder: string, epicId: string): Promise<ChatRecord | null> {
+  return (await chats.listChats(folder)).find((chat) => chat.transferEpicId === epicId) ?? null
 }
 
 /** The transfer kickoff for an agent started elsewhere: the same text a transfer chat's terminal is first given. */

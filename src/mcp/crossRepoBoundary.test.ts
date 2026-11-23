@@ -1,3 +1,4 @@
+import { testWorkspace } from '../main/desktop/__mocks__/projectWorkspaceFixture'
 /**
  * Repository-bound sessions gain no write outside their repository (DM-190 c4): corrective work for the Dark
  * Mechanicus source is written only by the desktop's cross-repository broker, which no role, command or MCP tool
@@ -100,7 +101,7 @@ describe('the cross-repository broker never takes its target from the renderer (
     const consulted: string[] = []
     const broker = createCrossRepoCorrectionHandlers({
       registry: { resolve: (path) => (path === harness.root ? path : null) },
-      pool: { get: () => desktop },
+      pool: { get: () => testWorkspace(desktop) },
       checkouts: {
         view: () => (consulted.push('view'), { status: 'none', target: null, local: null, problem: null, message: null, recovery: null }),
         requireAvailable: () => (consulted.push('requireAvailable'), { path: harness.root, target: { kind: 'darkmechanicus_source', projectId: sampleId('project', 2), projectName: 'x' } })

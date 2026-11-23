@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { deferred } from '../__mocks__/deferred'
+import { settle } from '../__mocks__/settle'
 import { installDomShims } from './__mocks__/domShims'
 import { FakeBackend, scenario } from './__mocks__/fakeBackend'
 import { draftPlan, epicDetail, runView } from './__mocks__/fixtures'
@@ -101,6 +103,28 @@ describe('returning to an epic', () => {
     await waitFor(() => expect(h.backend.inputs('getEpic').filter((input) => (input as { epicId: string }).epicId === 'ep_1')).toHaveLength(4))
     expect(shownRevision()).toBe('REV 4 · SAVED')
   })
+})
+
+it('reopens its selected ticket and unapplied draft immediately, then retains them after a refresh', async () => {
+  const h = await openDraftView(withOtherEpic(new FakeBackend(scenario({ epic: epicDetail({ hasDraft: true }), draft: draftPlan() }))))
+  fireEvent.click(screen.getByRole('button', { name: 'List' }))
+  fireEvent.click(screen.getByRole('button', { name: 'DM-202' }))
+  const editor = screen.getByRole('complementary', { name: 'Edit ticket DM-202' })
+  fireEvent.change(within(editor).getByRole('textbox', { name: 'Title' }), { target: { value: 'Keep this local edit' } })
+  h.openEpic('ep_2')
+  await screen.findByRole('heading', { name: 'Other epic' })
+  const blocked = deferred()
+  h.backend.gates.getEpic = blocked.promise
+  h.openEpic('ep_1')
+  expect(screen.getByRole('heading', { name: 'Planning vertical slice' })).toBeTruthy()
+  const restored = within(screen.getByRole('complementary', { name: 'Edit ticket DM-202' })).getByRole<HTMLInputElement>('textbox', { name: 'Title' })
+  expect(restored.value).toBe('Keep this local edit')
+  h.backend.state.epic = { ...h.backend.state.epic, title: 'Refreshed from another writer' }
+  act(() => blocked.resolve())
+  await settle()
+  expect(await screen.findByRole('heading', { name: 'Refreshed from another writer' })).toBeTruthy()
+  expect(restored.value).toBe('Keep this local edit')
+  expect(screen.getByRole('button', { name: 'Apply' })).toBeTruthy()
 })
 
 describe('rejected graph edits', () => {

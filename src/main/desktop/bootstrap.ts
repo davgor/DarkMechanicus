@@ -9,7 +9,7 @@
 import { createControlPipe, type ControlPipe } from '../naming/controlPipe'
 import { createNamingDispatcher } from '../naming/namingCommands'
 import { createDesktopToolingRecovery, type DesktopToolingRecovery } from '../agents/toolingRecoveryDesktop'
-import { existsSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import {
   app,
   BrowserWindow,
@@ -26,12 +26,11 @@ import {
 } from 'electron'
 import { dirname, join, resolve } from 'node:path'
 import type { Db } from '../../core/db/database'
-import { retireToolingWorkflow } from '../../core/services/toolingHold'
 import { DomainError } from '../../core/errors'
 import { nodeFs } from '../../core/repo/nodeFs'
 import { resolveHomeDir } from '../../core/repo/storageMode'
 import { startTelegram } from '../telegram'
-import { openWorkspace, type Workspace } from '../../core/workspace'
+import { boundForgeRoot, currentForgeTransfer } from '../../core/repo/forgeBinding'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { AgentDownloadProgress, BuiltInAgentKind, McpConfigView } from '../../shared/desktop/api'
 import { isActiveRunState, isLeasedAttemptState } from '../../shared/domain/status'
@@ -120,6 +119,8 @@ import { forgeAgentSessions } from './forgeAgents'
 import { cleanupForgeSource } from './forgeCleanup'
 import { startForge } from './forgeService'
 import { createWorkspacePool, type WorkspacePool } from './workspacePool'
+import { openUtilityWorkspace } from './utilityWorkspace'
+import type { ProjectWorkspace } from './workspaceClient'
 
 /** How often each open desktop session is marked alive. */
 const HEARTBEAT_INTERVAL_MS = 15_000
@@ -287,18 +288,6 @@ function refreshClaudeCodeEntries(registry: FolderRegistry): void {
   }
 }
 
-function openDesktopWorkspace(repoRoot: string): Workspace {
-  return openWorkspace({
-    repoRoot,
-    role: 'desktop',
-    label: 'Desktop',
-    transport: 'desktop',
-    pid: process.pid,
-    homeDir: darkMechanicusHome(),
-    serverInfo: { name: 'darkmechanicus-desktop', version: app.getVersion() }
-  })
-}
-
 /** Main's GitHub session for its sync, clone and pull request code: the account, its token, and an API client bound to them. */
 type GithubBridge = Pick<GithubSession, 'getAccount' | 'getToken'> & {
   /** A 401 through it signs the account out (if the rejected token is still the stored one) and returns `auth_required`. */
@@ -312,17 +301,17 @@ type GithubBridge = Pick<GithubSession, 'getAccount' | 'getToken'> & {
  */
 interface DesktopBridge {
   chats: { busy: () => boolean; dispose: () => Promise<void> }
-  close: () => void
+  close: () => Promise<void>
   github: GithubBridge
 }
 
 /** The desktop's own workspace for a tracked folder; the run commands of a chat never reach a folder that is not tracked. */
-function desktopWorkspace(folders: Pick<FolderRegistry, 'resolve'>, workspaces: Pick<WorkspacePool, 'get'>, folder: string): Workspace {
+function desktopWorkspace(folders: Pick<FolderRegistry, 'resolve'>, workspaces: Pick<WorkspacePool, 'get' | 'background'>, folder: string, background = false): ProjectWorkspace {
   const tracked = folders.resolve(folder)
   if (tracked === null) {
     throw new DomainError('unauthorized', 'That folder is not tracked by Dark Mechanicus.')
   }
-  return workspaces.get(tracked)
+  return background ? workspaces.background(tracked) : workspaces.get(tracked)
 }
 
 /** The agent chats: their records, and the terminals (one PTY per chat) over the same store and one set of grants. */
@@ -337,10 +326,10 @@ interface ChatProcesses {
   /** The agents' sign-in terminals, for `agents:signIn`. */
   logins: LoginTerminals
   /** Untrack's first step (`DesktopHandlerDeps.releaseFolder`): the folder's terminals stopped, its chat mailboxes suspended. */
-  releaseFolder: (folder: string, forget: () => void, relatedFolders?: readonly string[]) => Promise<void>
+  releaseFolder: (folder: string, forget: () => void | Promise<void>, relatedFolders?: readonly string[]) => Promise<void>
   /** The person's side of the chats' mailboxes and its per-folder monitors (`chatMail:*`). */
   mail: AgentMailDesktop
-  suspendChatMail(chat: ChatRecord): void
+  suspendChatMail(chat: ChatRecord): Promise<void>
   grants: ChatGrants
   deliveries: ConversationDeliveries
   contextDelivery: AgentContextDelivery
@@ -394,7 +383,7 @@ function createTerminalProcesses(store: ChatStore, deps: TerminalDeps): Pick<Cha
   return { terminals, logins }
 }
 
-function chatRunCommands(folders: Pick<FolderRegistry, 'resolve'>, workspaces: Pick<WorkspacePool, 'get'>): TerminalSessionsDeps['runs'] {
+function chatRunCommands(folders: Pick<FolderRegistry, 'resolve'>, workspaces: Pick<WorkspacePool, 'get' | 'background'>): TerminalSessionsDeps['runs'] {
   return {
     getRun: async (folder, runId) => desktopWorkspace(folders, workspaces, folder).getRun({ runId }),
     pauseRun: async (folder, input) => desktopWorkspace(folders, workspaces, folder).pauseRun(input)
@@ -404,7 +393,7 @@ function chatRunCommands(folders: Pick<FolderRegistry, 'resolve'>, workspaces: P
 interface ChatProcessOptions {
   folders: Pick<FolderRegistry, 'resolve' | 'list'>
   agents: Pick<AgentRegistry, 'get'>
-  workspaces: Pick<WorkspacePool, 'get'>
+  workspaces: Pick<WorkspacePool, 'get' | 'background'>
   activity: ActivityBindings
   sourceCheckouts: SourceCheckouts
 }
@@ -420,11 +409,10 @@ function chatQuit({ grants, yoloRuntime, ready, pipe, terminals, logins }: ChatQ
   return {
     busy: () => terminals.busy() || logins.busy(),
     dispose: async () => {
-      grants.dispose()
-      await yoloRuntime.dispose()
-      await ready.catch(() => {})
-      await pipe()?.close()
-      await Promise.all([terminals.dispose(), logins.dispose()])
+      await Promise.all([
+        grants.dispose(), yoloRuntime.dispose(), terminals.dispose(), logins.dispose(),
+        ready.catch(() => {}).then(() => pipe()?.close())
+      ])
     }
   }
 }
@@ -481,10 +469,9 @@ function createChatProcesses({ folders, agents, workspaces, activity, sourceChec
   void namingReady.catch((error: unknown) => logger.error('Chat naming transport failed:', error))
   const quit = chatQuit({ grants, yoloRuntime, ready: namingReady, pipe: () => namingPipe, terminals, logins })
   const chats = endingTerminals(records, terminals)
-  recoverChats(folders, chats)
   const mail = createChatMail({ folders, store, mailboxes, workspaces, contextDelivery, resumeChat, boardTransport, recovery })
   return { chats, quit, store, terminals, logins, mail, grants, deliveries, contextDelivery, resumeChat,
-    suspendChatMail: chat => mailboxes.suspendChat(chat), releaseFolder: releasingFolders(terminals, mailboxes, store) }
+    suspendChatMail: async chat => { await mailboxes.suspendChat(chat) }, releaseFolder: releasingFolders(terminals, mailboxes, store) }
 }
 
 /** The same observer, ledger and same-chat transport serve board messages, peer monitoring and native input. */
@@ -521,11 +508,11 @@ function createContextTerminals(
  */
 function createMailboxRecords(
   store: ChatStore,
-  deps: { folders: Pick<FolderRegistry, 'resolve' | 'list'>; workspaces: Pick<WorkspacePool, 'get'>; agents: Pick<AgentRegistry, 'get'>; activity: ActivityBindings }
+  deps: { folders: Pick<FolderRegistry, 'resolve' | 'list'>; workspaces: Pick<WorkspacePool, 'get' | 'background'>; agents: Pick<AgentRegistry, 'get'>; activity: ActivityBindings }
 ): { records: ChatRecords; mailboxes: ChatMailboxes } {
   const userData = app.getPath('userData')
   const mailboxes = createChatMailboxes({
-    contextFor: (folder) => desktopWorkspace(deps.folders, deps.workspaces, folder).ctx(),
+    workspaceFor: (folder, background) => desktopWorkspace(deps.folders, deps.workspaces, folder, background),
     membersFor: folder => forgeReachFolders(folder, deps.folders.list().filter(member => member.initialized && member.available).map(member => member.path)),
     store,
     ledger: { file: join(userData, 'agents', 'mailboxes.jsonl'), fs: nodeChatStoreFs },
@@ -557,37 +544,32 @@ function chatWorkspaceFolders(chat: ChatRecord, folders: Pick<FolderRegistry, 'l
   return world ? available.filter(folder => folder.forgeParent === chat.folder).map(folder => folder.path) : [chat.folder]
 }
 
-function retireChatHolds(chat: ChatRecord, folders: Pick<FolderRegistry, 'resolve' | 'list'>, workspaces: Pick<WorkspacePool, 'get'>): void {
-  for (const folder of chatWorkspaceFolders(chat, folders)) retireToolingWorkflow(desktopWorkspace(folders, workspaces, folder).ctx(), chat.id)
+async function retireChatHolds(chat: ChatRecord, folders: Pick<FolderRegistry, 'resolve' | 'list'>, workspaces: Pick<WorkspacePool, 'get' | 'background'>): Promise<void> {
+  for (const folder of chatWorkspaceFolders(chat, folders)) await desktopWorkspace(folders, workspaces, folder).call('retireTooling', chat.id)
 }
 
 /** Untrack's first step: the folder's terminals stopped and starts refused, then its chat mailboxes suspended, then `forget`. */
 function releasingFolders(terminals: TerminalSessions, mailboxes: ChatMailboxes, store: ChatStore): ChatProcesses['releaseFolder'] {
   return (folder, forget, relatedFolders = []) =>
-    terminals.releaseFolder(folder, () => {
-      for (const path of [folder, ...relatedFolders]) mailboxes.suspendFolder(path, store.listChats(path))
-      forget()
+    terminals.releaseFolder(folder, async () => {
+      for (const path of [folder, ...relatedFolders]) await mailboxes.suspendFolder(path, store.listChats(path))
+      await forget()
     }, relatedFolders)
 }
 
 /** The desktop's own workspaces, one per tracked folder, opened on first use; an error in one is logged with its folder. */
 function openDesktopPool(): WorkspacePool {
-  return createWorkspacePool(openDesktopWorkspace, (path, error) => {
-    logger.error(`Workspace error for ${path}:`, error)
+  const home = darkMechanicusHome()
+  return createWorkspacePool({
+    open: generation => openUtilityWorkspace(generation, home, app.getVersion()),
+    canonical: path => boundForgeRoot(nodeFs, home, realpathSync.native(path)),
+    authority: currentForgeTransfer,
+    onError: (path, error) => logger.error('Workspace error for ' + path, error)
   })
 }
 
-/** Startup: each tracked folder's chat mailboxes provisioned, and every chat deletion a crash cut short finished. */
-function recoverChats(registry: Pick<FolderRegistry, 'list'>, chats: Pick<ChatRecords, 'recoverFolder'>): void {
-  for (const { path } of registry.list()) {
-    chats.recoverFolder(path).catch((error: unknown) => {
-      logger.error(`Recovering the chats of ${path} failed:`, error)
-    })
-  }
-}
-
 /** The command layer's timelines through the desktop's own workspace, for finding the chat an attempt or a run is bound to by grant. */
-function grantReads(workspaces: Pick<WorkspacePool, 'get'>): GrantBindingReads {
+function grantReads(workspaces: Pick<WorkspacePool, 'get' | 'background'>): GrantBindingReads {
   return {
     attemptTimeline: async (folder, attemptId) => workspaces.get(folder).getAttemptTimeline({ attemptId }),
     runTimeline: async (folder, runId, sinceSeq) => workspaces.get(folder).getRunTimeline({ runId, sinceSeq })
@@ -595,7 +577,7 @@ function grantReads(workspaces: Pick<WorkspacePool, 'get'>): GrantBindingReads {
 }
 
 /** The command-layer execution state used by board-conversation routing. */
-function conversationReads(workspaces: Pick<WorkspacePool, 'get'>): ConversationReads {
+function conversationReads(workspaces: Pick<WorkspacePool, 'get' | 'background'>): ConversationReads {
   return {
     openAttemptId: async (folder, epicId, ticketId) => {
       const ticket = await workspaces.get(folder).getTicket({ epicId, ticketId, view: 'saved' })
@@ -618,7 +600,7 @@ interface ChatServices {
   chats: ChatRecords
   store: ChatStore
   terminals: TerminalSessions
-  workspaces: Pick<WorkspacePool, 'get'>
+  workspaces: Pick<WorkspacePool, 'get' | 'background'>
   activity: ActivityBindings
   mail: AgentMailDesktop
   folderDefaults: Pick<FolderAgentDefaults, 'get'>
@@ -701,10 +683,12 @@ function startTerminals(ipc: Pick<IpcMain, 'handle'>, services: TerminalServices
 }
 
 /** Heartbeats open workspaces; the returned close releases them first and then the app-wide database. */
-function runLifecycle(pool: WorkspacePool, appDb: Db): () => void {
-  setInterval(() => pool.heartbeatAll(), HEARTBEAT_INTERVAL_MS)
-  return () => {
-    pool.closeAll()
+function runLifecycle(pool: WorkspacePool, appDb: Db): () => Promise<void> {
+  const timer = setInterval(() => pool.heartbeatAll(), HEARTBEAT_INTERVAL_MS)
+  timer.unref()
+  return async () => {
+    clearInterval(timer)
+    await pool.closeAll()
     appDb.close()
   }
 }
@@ -803,7 +787,7 @@ function startAttachmentProtocol(registry: FolderRegistry, pool: WorkspacePool):
     protocol,
     createAttachmentLookup({
       pathForKey: (key) => registry.pathForKey(key),
-      contextFor: (path) => pool.get(path).ctx()
+      read: (path, id) => pool.get(path).call('attachment', id)
     })
   )
 }
@@ -834,7 +818,8 @@ function startSourceCheckout(ipc: Pick<IpcMain, 'handle'>, registry: FolderRegis
   })
   registerSourceCheckoutIpc(
     ipc,
-    createSourceCheckoutHandlers({ checkouts, registry, pickDirectory: () => showOpenDialog(SOURCE_CHECKOUT_DIALOG) })
+    createSourceCheckoutHandlers({ checkouts, registry,
+      pickDirectory: (defaultPath) => showOpenDialog({ ...SOURCE_CHECKOUT_DIALOG, defaultPath }) })
   )
   return checkouts
 }
@@ -860,7 +845,7 @@ function createChatMail(services: {
   folders: Pick<FolderRegistry, 'resolve' | 'list'>
   store: ChatStore
   mailboxes: ChatMailboxes
-  workspaces: Pick<WorkspacePool, 'get'>
+  workspaces: Pick<WorkspacePool, 'get' | 'background'>
   contextDelivery: AgentContextDelivery
   resumeChat: (chat: ChatRecord) => Promise<string | null>
   boardTransport: BoardContextTransport
@@ -869,15 +854,17 @@ function createChatMail(services: {
   return createAgentMailDesktop({
     registry: services.folders,
     store: services.store,
-    routedChats: (member) => {
+    routedChats: async (member, background) => {
       const tracked = services.folders.list()
       const parent = tracked.find(folder => folder.path === member)?.forgeParent
       const world = tracked.find(folder => folder.path === parent && folder.available && (folder.forgeWorld || folder.forgeIssue))
-      return world === undefined ? [] : services.store.listChats(world.path).flatMap(chat => services.mailboxes.routes(chat)
-        .filter(route => route.folder === member).map(route => ({ ...chat, endpointId: route.endpointId })))
+      if (world === undefined) return []
+      const routes = await Promise.all(services.store.listChats(world.path).map(async chat =>
+        (await services.mailboxes.routes(chat, member, background)).map(route => ({ ...chat, endpointId: route.endpointId }))))
+      return routes.flat()
     },
     folders: () => services.folders.list().flatMap((folder) => folder.initialized && folder.available ? [folder.path] : []),
-    contextFor: (folder) => desktopWorkspace(services.folders, services.workspaces, folder).ctx(),
+    workspaceFor: (folder, background) => desktopWorkspace(services.folders, services.workspaces, folder, background),
     delivery: { hasMessage: (chat, message) => services.contextDelivery.hasMessage(chat, message), resume: services.resumeChat },
     board: { poll: async (folder) => {
       await services.contextDelivery.reconcileBoard(folder, services.boardTransport)
@@ -891,7 +878,7 @@ function createChatMail(services: {
 }
 
 /** The bridge's quit and close with the mail monitors stopped first: before the chats are disposed and before any workspace closes. */
-function stoppingMailFirst(mail: AgentMailDesktop, chats: DesktopBridge['chats'], close: () => void): Pick<DesktopBridge, 'chats' | 'close'> {
+function stoppingMailFirst(mail: AgentMailDesktop, chats: DesktopBridge['chats'], close: () => Promise<void>): Pick<DesktopBridge, 'chats' | 'close'> {
   return {
     chats: {
       busy: chats.busy,
@@ -900,9 +887,9 @@ function stoppingMailFirst(mail: AgentMailDesktop, chats: DesktopBridge['chats']
         return chats.dispose()
       }
     },
-    close: () => {
+    close: async () => {
       mail.dispose()
-      close()
+      await close()
     }
   }
 }
@@ -940,7 +927,7 @@ function telegramLifecycle(ipc: Pick<IpcMain, 'handle'>, registry: FolderRegistr
     () => registry.list().filter(folder => folder.initialized && folder.available).map(folder => folder.path),
     folder => desktopWorkspace(registry, pool, folder), darkMechanicusHome())
   const closeStores = runLifecycle(pool, appDb)
-  return () => { stopTelegram(); closeStores() }
+  return async () => { stopTelegram(); await closeStores() }
 }
 
 type ForgeBridgeOptions = Pick<ChatProcesses, 'chats' | 'store' | 'terminals' | 'suspendChatMail'> & {
@@ -956,8 +943,11 @@ function startForgeBridge(ipc: Pick<IpcMain, 'handle'>, options: ForgeBridgeOpti
   const { registry, pool, github, skills } = options
   return startForge(ipc, {
     registry, pool, session: github, home: darkMechanicusHome(), pickDirectory, cleanup: source => cleanupForgeSource(source, skills),
+    onFoldersChanged: () => {
+      for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('forge:foldersChanged')
+    },
     publish: name => publishForgeRepository(name, github.getToken(), net.fetch.bind(net)),
-    ...forgeAgentSessions({ ...options, beforeArchive: chat => { retireChatHolds(chat, registry, pool); options.suspendChatMail(chat) } })
+    ...forgeAgentSessions({ ...options, beforeArchive: async chat => { await retireChatHolds(chat, registry, pool); await options.suspendChatMail(chat) } })
   })
 }
 
@@ -1031,5 +1021,5 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   const close = telegramLifecycle(ipc, registry, pool, appDb)
   startChats(ipc, { folders: registry, agents, chats, store, terminals, workspaces: pool, activity, mail, folderDefaults, deliveries, contextDelivery, resumeChat })
   startTerminals(ipc, { folders: registry, agents, store, terminals, logins })
-  return { ...stoppingMailFirst(mail, quit, () => { forge.stop(); close() }), github }
+  return { ...stoppingMailFirst(mail, quit, async () => { forge.stop(); await close() }), github }
 }

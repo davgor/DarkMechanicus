@@ -22,7 +22,7 @@ function harness() {
     records.set(folder, next)
     return { ok: true, data: next }
   })
-  vi.stubGlobal('dm', { command, forge: { sync: async () => {} } })
+  vi.stubGlobal('dm', { command, forge: { memberStatus: async () => ({ readiness: 'ready', syncing: false, error: null }) } })
   const launch = vi.fn(async () => {})
   const show = (folder = first, compact = false) => render(<DeliveryStandards folder={folder} folders={[first, second]} launch={launch} compact={compact} />)
   return { show, records, command, launch }

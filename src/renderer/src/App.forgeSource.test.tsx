@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { AppHarness } from './__mocks__/appHarness'
 import { folderView } from './__mocks__/fixtures'
 import { settle } from './__mocks__/settle'
@@ -13,11 +13,11 @@ function harness(): AppHarness {
   window.localStorage.clear()
   const h = new AppHarness()
   h.dm.folders = [root, member]
-  Object.assign(h.dm, { forge: { status: async () => ({ last: null, error: null }), sync: async () => { throw new Error('Offline ticket remote') } } })
+  Object.assign(h.dm, { forge: { status: async () => ({ last: null, error: null }), memberStatus: async () => ({ readiness: 'ready', syncing: false, error: 'Offline ticket remote' }), sync: vi.fn() } })
   return h
 }
 
-it('opens the member normal folder page against local code despite failed ticket sync', async () => {
+it('keeps source and cached ticket views usable despite failed ticket sync', async () => {
   const h = harness()
   h.git.targets.set(member.path, { kind: 'available', path: '/code/Alpha', displayPath: '~/code/Alpha', repository: 'https://github.com/codex/Alpha.git' })
   h.mount()
@@ -35,7 +35,9 @@ it('opens the member normal folder page against local code despite failed ticket
   expect(h.git.calls.filter(call => call.method === 'getState').at(-1)?.folder).toBe(member.path)
   fireEvent.click(screen.getByRole('tab', { name: 'Epics' }))
   await settle()
-  expect(screen.getByRole('status').textContent).toContain('Offline ticket remote')
+  expect(screen.getByText('Offline ticket remote')).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'New epic' })).toBeTruthy()
+  expect(window.dm.forge?.sync).not.toHaveBeenCalled()
   expect(screen.getByRole('button', { name: 'Open folder ~/code/Alpha' })).toBeTruthy()
   fireEvent.click(screen.getByRole('tab', { name: 'Source control' }))
   await settle()

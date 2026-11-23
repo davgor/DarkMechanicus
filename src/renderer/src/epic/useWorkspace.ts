@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type Dispatch } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useState, type Dispatch } from 'react'
 import type { AgentView, TrackedFolderView } from '../../../shared/desktop/api'
 import { unwrapChat } from '../agents/chatCalls'
-import { errorMessage } from '../api/dm'
+import { CommandError, errorMessage } from '../api/dm'
 import type { Scheduler } from '../app/scheduler'
+import { useLatest } from '../app/useLatest'
 import { useClock } from './clock'
 import type { OrchestrationHost, StartOrchestrator, TransferChats } from './orchestration'
 import { bindRunner, type Runner } from './runner'
@@ -52,6 +53,7 @@ export interface WorkspaceHandle {
 
 interface WorkspaceInput {
   folderPath: string
+  identity: string
   epicId: string
   refreshToken: number
   onChanged(): void
@@ -84,7 +86,8 @@ function useWorkspaceLoad({ runner, epicId, refreshToken, reloadToken, dispatch 
       },
       (error: unknown) => {
         if (active) {
-          dispatch({ type: 'load_failed', message: errorMessage(error) })
+          const unavailable = error instanceof CommandError && ['not_found', 'not_initialized', 'project_mismatch', 'unsafe_path'].includes(error.code)
+          dispatch({ type: 'load_failed', message: errorMessage(error), unavailable })
         }
       }
     )
@@ -110,29 +113,34 @@ function transferChatsFor(folder: string, epicId: string): TransferChats {
  */
 export function useWorkspace(input: WorkspaceInput): WorkspaceController {
   const memory = useViewMemory()
-  const { folderPath, epicId, refreshToken } = input
+  const { folderPath, identity, epicId, refreshToken } = input
   const runner = useMemo(() => bindRunner(folderPath), [folderPath])
-  const [state, dispatch] = useReducer(workspaceReducer, memory.recall(folderPath, epicId), initialWorkspaceState)
+  const [state, dispatch] = useReducer(workspaceReducer, null, () => {
+    const snapshot = memory.workspace(identity, epicId)
+    return {
+      ...initialWorkspaceState(memory.recall(identity, epicId)),
+      ...snapshot,
+      validation: snapshot?.data?.validation ?? null
+    }
+  })
   const [reloadToken, setReloadToken] = useState<object>({})
-  const stateRef = useRef(state)
-  stateRef.current = state
-  const changedRef = useRef(input.onChanged)
-  changedRef.current = input.onChanged
-  const chatsChangedRef = useRef(input.onChatsChanged)
-  chatsChangedRef.current = input.onChatsChanged
-  const openChatRef = useRef(input.onOpenChat)
-  openChatRef.current = input.onOpenChat
-  const agentsRef = useRef(input.agents)
-  agentsRef.current = input.agents
+  const stateRef = useLatest(state)
+  const changedRef = useLatest(input.onChanged)
+  const chatsChangedRef = useLatest(input.onChatsChanged)
+  const openChatRef = useLatest(input.onOpenChat)
+  const agentsRef = useLatest(input.agents)
   const startOrchestrator = useMemo<StartOrchestrator>(
     () => (choice) => unwrapChat(window.dm.chats.startOrchestrator({ folder: folderPath, epicId, ...choice })),
     [folderPath, epicId]
   )
   const transferChats = useMemo(() => transferChatsFor(folderPath, epicId), [folderPath, epicId])
   const reload = useCallback(() => setReloadToken({}), [])
+  const { data, loadedAt, view, layout, chosenView, selectedTicketId, checkpointOpen, scorecardOpen } = state
   useEffect(() => {
-    memory.remember(folderPath, epicId, state.chosenView)
-  }, [memory, folderPath, epicId, state.chosenView])
+    memory.remember(identity, epicId, chosenView)
+    memory.saveWorkspace(identity, epicId, stateRef.current)
+    if (data?.draft === null) memory.discardEditors(identity, epicId)
+  }, [memory, identity, epicId, data, loadedAt, view, layout, chosenView, selectedTicketId, checkpointOpen, scorecardOpen, stateRef])
   useWorkspaceLoad({ runner, epicId, refreshToken, reloadToken, dispatch })
   const actions = useMemo(
     () =>
@@ -149,7 +157,7 @@ export function useWorkspace(input: WorkspaceInput): WorkspaceController {
         transferChats,
         onOpenChat: (chatId) => openChatRef.current(chatId)
       }),
-    [runner, epicId, startOrchestrator, transferChats, reload]
+    [runner, epicId, startOrchestrator, transferChats, reload, stateRef, changedRef, chatsChangedRef, openChatRef, agentsRef]
   )
   return { state, dispatch, actions, runner, reload }
 }

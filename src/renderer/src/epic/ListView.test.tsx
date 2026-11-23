@@ -25,6 +25,30 @@ function renderList(patch: Partial<GraphInput> = {}): { opened: string[] } {
   return { opened }
 }
 
+it('bounds a large sprint and lets keyboard-focusable page controls reach its last ticket', () => {
+  const source = listSections(input()).find(section => section.rows.length > 0)!
+  const first = source.rows[0]
+  const rows = Array.from({ length: 1000 }, (_, index) => ({
+    ...first, id: `large-${index + 1}`, key: `Large-${index + 1}`
+  }))
+  const selected: string[] = []
+  const show = (id: string | null) => <ListView sections={[{ ...source, rows }]} selectedTicketId={id}
+    onSelect={ticketId => selected.push(ticketId)} onOpenActivity={() => undefined} />
+  const view = render(show(null))
+  expect(screen.getAllByRole('row')).toHaveLength(41)
+  expect(screen.getByText('1–40 of 1000')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Next page of plan tickets' }))
+  expect(screen.getByRole('button', { name: 'Large-41' })).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Large-1' })).toBeNull()
+  view.rerender(show('large-1000'))
+  expect(screen.getByText('961–1000 of 1000')).toBeTruthy()
+  const last = screen.getByRole('button', { name: 'Large-1000' })
+  last.focus()
+  expect(document.activeElement).toBe(last)
+  fireEvent.click(last)
+  expect(selected).toEqual(['large-1000'])
+})
+
 describe('ListView hourglass', () => {
   it('shows an hourglass beside the state of the ticket whose latest attempt is open, and no other', () => {
     renderList()

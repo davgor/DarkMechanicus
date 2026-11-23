@@ -1,56 +1,59 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { runCommand } from '../api/dm'
-import { folderToken } from '../app/eventRouting'
-import type { Tokens } from '../app/eventRouting'
+import { kanbanCountToken, type Tokens } from '../app/eventRouting'
 import { useLatest } from '../app/useLatest'
 
 /** Open cards per folder path; a folder is absent until its board has loaded. */
 export type KanbanCounts = Record<string, number>
 
 interface CountOptions {
-  /** Folders that are set up and reachable; others have no board. */
   paths: readonly string[]
+  identities?: ReadonlyMap<string, string>
   tokens: Tokens
   onError(error: unknown): void
 }
 
-/**
- * Keeps the open card count for every active folder current for the sidebar: fetches when a folder
- * becomes active or its event token moves (card writes emit workspace events), keeps the previous
- * count meanwhile, and drops stale responses.
- */
-export function useKanbanCounts(options: CountOptions): KanbanCounts {
-  const [counts, setCounts] = useState<KanbanCounts>({})
-  const fetched = useRef(new Map<string, number>())
-  const latest = useRef(new Map<string, object>())
-  const onError = useLatest(options.onError)
-  const { paths, tokens } = options
-  const stateKey = paths.map((path) => `${path}\0${folderToken(tokens, path)}`).join('\n')
+interface CountRequest { identity: string; token: number }
+interface CountResult { identity: string; count: number }
+
+/** Reads one scalar per active store and keeps the last verified value during refresh. */
+export function useKanbanCounts({ paths, identities, tokens, onError }: CountOptions): KanbanCounts {
+  const [counts, setCounts] = useState<Record<string, CountResult>>({})
+  const latest = useRef(new Map<string, CountRequest>())
+  const report = useLatest(onError)
+  const key = JSON.stringify(paths.map(path => [path, identities?.get(path) ?? path, kanbanCountToken(tokens, path)]))
+  const wanted = useMemo(() => new Map(
+    (JSON.parse(key) as [string, string, number][]).map(([path, identity, token]) => [path, { identity, token }])
+  ), [key])
 
   useEffect(() => {
-    const load = async (path: string): Promise<void> => {
-      const ticket = {}
-      latest.current.set(path, ticket)
+    const requests = latest.current
+    for (const path of requests.keys()) if (!wanted.has(path)) requests.delete(path)
+    setCounts(previous => {
+      const retained = Object.entries(previous).filter(([path, item]) => wanted.get(path)?.identity === item.identity)
+      return retained.length === Object.keys(previous).length ? previous : Object.fromEntries(retained)
+    })
+    const load = async (path: string, request: CountRequest): Promise<void> => {
       try {
-        // Only the open lanes (Backlog, In progress, Ready for review) count, so one Done card is enough.
-        const { lanes } = await runCommand(path, 'listKanbanCards', { doneLimit: 1 })
-        const count = lanes.in_progress.length + lanes.ready_for_review.length + lanes.backlog.length
-        if (latest.current.get(path) === ticket) {
-          setCounts(previous => ({ ...previous, [path]: count }))
-        }
+        const count = await runCommand(path, 'getKanbanOpenCount', undefined)
+        if (requests.get(path) === request) setCounts(previous => ({ ...previous, [path]: { identity: request.identity, count } }))
       } catch (error) {
-        if (latest.current.get(path) === ticket) onError.current(error)
+        if (requests.get(path) === request) report.current(error)
       }
     }
-    for (const path of paths) {
-      const token = folderToken(tokens, path)
-      if (fetched.current.get(path) !== token) {
-        fetched.current.set(path, token)
-        void load(path)
-      }
+    for (const [path, request] of wanted) {
+      const pending = requests.get(path)
+      if (pending?.identity === request.identity && pending.token === request.token) continue
+      requests.set(path, request)
+      void load(path, request)
     }
-    // The joined key stands in for `paths` and `tokens`, which are new objects on every render.
-  }, [stateKey, onError])
+  }, [wanted, report])
 
-  return counts
+  useEffect(() => {
+    const requests = latest.current
+    return () => requests.clear()
+  }, [])
+  return Object.fromEntries(Object.entries(counts).flatMap(([path, { identity, count }]) =>
+    wanted.get(path)?.identity === identity ? [[path, count]] : []
+  ))
 }

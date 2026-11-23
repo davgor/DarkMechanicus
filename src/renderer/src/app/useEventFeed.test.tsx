@@ -6,7 +6,7 @@ import { FakeDm } from '../__mocks__/fakeDm'
 import { EPIC_A, EPIC_B } from '../__mocks__/fixtures'
 import { ManualScheduler } from '../__mocks__/manualScheduler'
 import { settle } from '../__mocks__/settle'
-import { epicToken, folderToken } from './eventRouting'
+import { epicToken, folderToken, kanbanCountToken } from './eventRouting'
 import { BACKGROUND_POLL_MS, SELECTED_POLL_MS, useEventFeed } from './useEventFeed'
 
 let dm: FakeDm
@@ -17,6 +17,7 @@ const logs = new Map<string, EventLog>()
 interface Props {
   paths: string[]
   selected: string | null
+  identities?: ReadonlyMap<string, string>
 }
 
 function logFor(path: string): EventLog {
@@ -32,6 +33,7 @@ beforeEach(() => {
   errors = []
   scheduler = new ManualScheduler()
   dm = new FakeDm()
+  dm.handlers.getEventHead = (_input, path) => logFor(path).head()
   dm.handlers.listEvents = (input, folder) => logFor(folder).page(input as Parameters<EventLog['page']>[0])
   window.dm = dm
 })
@@ -41,7 +43,7 @@ afterEach(cleanup)
 async function mount(props: Props): Promise<ReturnType<typeof renderHook<ReturnType<typeof useEventFeed>, Props>>> {
   const view = renderHook(
     (p: Props) =>
-      useEventFeed({ paths: p.paths, selectedPath: p.selected, scheduler, onError: (e) => errors.push(e) }),
+      useEventFeed({ paths: p.paths, identities: p.identities, selectedPath: p.selected, scheduler, onError: (e) => errors.push(e) }),
     { initialProps: props }
   )
   await settle()
@@ -81,7 +83,7 @@ describe('useEventFeed tokens', () => {
     logFor('/a').append({ epicId: EPIC_B })
     const view = await mount({ paths: ['/a'], selected: '/a' })
     expect(folderToken(view.result.current.tokens, '/a')).toBe(1)
-    expect(epicToken(view.result.current.tokens, '/a', EPIC_A)).toBe(0)
+    expect(epicToken(view.result.current.tokens, '/a', EPIC_A)).toBe(1)
   })
 
   it('bumps the affected epic and the folder when events arrive', async () => {
@@ -89,8 +91,8 @@ describe('useEventFeed tokens', () => {
     logFor('/a').append({ epicId: EPIC_A })
     await poll()
     const { tokens } = view.result.current
-    expect(epicToken(tokens, '/a', EPIC_A)).toBe(1)
-    expect(epicToken(tokens, '/a', EPIC_B)).toBe(0)
+    expect(epicToken(tokens, '/a', EPIC_A)).toBe(2)
+    expect(epicToken(tokens, '/a', EPIC_B)).toBe(1)
     expect(folderToken(tokens, '/a')).toBe(2)
   })
 
@@ -115,8 +117,8 @@ describe('useEventFeed tokens', () => {
     logFor('/b').append({ epicId: EPIC_B })
     view.rerender({ paths: ['/a', '/b'], selected: '/a' })
     await settle()
-    expect(folderToken(view.result.current.tokens, '/b')).toBe(2)
-    expect(epicToken(view.result.current.tokens, '/b', EPIC_B)).toBe(0)
+    expect(folderToken(view.result.current.tokens, '/b')).toBe(1)
+    expect(epicToken(view.result.current.tokens, '/b', EPIC_B)).toBe(1)
   })
 
   it('lets the shell bump a folder directly', async () => {
@@ -124,6 +126,19 @@ describe('useEventFeed tokens', () => {
     act(() => view.result.current.bumpFolder('/a'))
     expect(folderToken(view.result.current.tokens, '/a')).toBe(2)
   })
+})
+
+it('opens a replaced identity with a single head request and fences the late previous response', async () => {
+  const previous = dm.holdNext('getEventHead')
+  const view = await mount({ paths: ['/a'], selected: '/a', identities: new Map([['/a', 'old']]) })
+  view.rerender({ paths: ['/a'], selected: '/a', identities: new Map([['/a', 'new']]) })
+  await settle()
+  previous.resolve()
+  await settle()
+  expect(view.result.current.tokens.ready['/a']).toBe('new')
+  expect(dm.callsOf('getEventHead')).toHaveLength(2)
+  expect(dm.callsOf('listEvents')).toEqual([])
+  expect(kanbanCountToken(view.result.current.tokens, '/a')).toBe(1)
 })
 
 describe('useEventFeed failures', () => {

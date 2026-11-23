@@ -6,6 +6,7 @@ import { errorMessage, runCommand } from '../api/dm'
 import { Button } from '../components/Button'
 import { Dialog } from '../components/Dialog'
 import { ForgeOpen } from './ForgeOpen'
+import { folderIdentity } from '../app/folderList'
 import { applyQuestion, standardsChat } from './standardsChat'
 
 type Prompts = typeof defaultPrompts
@@ -128,10 +129,10 @@ function ProjectStandards(props: Omit<Props, 'folders'>) {
   return <Editor {...props} saved={policy.read.saved} key={policy.read.saved?.revision ?? 0} onSave={policy.saved} reload={policy.reload} />
 }
 
-function Member({ folder, launch }: Pick<Props, 'folder' | 'launch'>) {
+function Member({ folder, launch, root }: Pick<Props, 'folder' | 'launch'> & { root: string }) {
   const [open, setOpen] = useState(false)
   return <details className="standards-member" onToggle={e => setOpen(e.currentTarget.open)}>
-    <summary>{folder.name}</summary>{open && <ProjectStandards folder={folder} launch={launch} />}
+    <summary>{folder.name}</summary>{open && <ForgeOpen root={root} member={folder.path} identity={folderIdentity(folder)}><ProjectStandards folder={folder} launch={launch} /></ForgeOpen>}
   </details>
 }
 
@@ -140,9 +141,8 @@ export function DeliveryStandards({ folder, folders, launch, compact }: Props) {
     if (compact) return null
     const members = folders.filter(f => f.forgeParent === folder.path)
     return <div className="standards-editor"><h2>Delivery Standards</h2>
-      {members.length === 0 ? <p>No managed projects.</p> : <ForgeOpen root={folder.path}>
-        {members.map(member => <Member key={member.path} folder={member} launch={launch} />)}
-      </ForgeOpen>}</div>
+      {members.length === 0 ? <p>No managed projects.</p> : members.map(member =>
+        <Member key={folderIdentity(member)} root={folder.path} folder={member} launch={launch} />)}</div>
   }
   if (!folder.initialized) return compact ? null : <p className="standards-message">Choose a ticket store on the Ticket source control tab to configure delivery standards.</p>
   return <ProjectStandards key={folder.path} folder={folder} launch={launch} compact={compact} />

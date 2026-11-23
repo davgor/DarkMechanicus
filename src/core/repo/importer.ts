@@ -3,12 +3,10 @@
  *
  * Every tracked file is untrusted: owned paths come from validated ids with containment checks,
  * records pass size / merge-marker / schema checks, snapshots are hash-verified and graph-validated,
- * and cross-file references are checked before anything is applied. All staged changes are applied
- * in one transaction (per-item savepoints), so a rejected epic or run never changes what the
- * database already holds, and drafts are never touched. Named profiles are scanned and applied by
- * `profileImport.ts`, Kanban cards by `kanbanImport.ts` and metric observations by `observationImport.ts`, inside the
- * same transaction. Comment and profile files whose stamp is unchanged since this workspace last read them with a
- * synced hash are not read again (`fileHashes.ts`).
+ * and cross-file references are checked before anything is applied. Parse and plan before taking the
+ * writer lock, then recheck the observed files and database revision before a single atomic apply.
+ * Per-item savepoints preserve the local state of a rejected epic or run. Drafts are never touched.
+ * Verified hashes avoid opening unchanged bodies again when their stamps and database identities agree.
  * An epic whose local Linear transfer is open takes no other saved revision and no run from the files (`planTransferHolds`).
  */
 import { join } from 'node:path'
@@ -22,6 +20,7 @@ import type { Clock } from '../clock'
 import { type Db, parseJson, toJson } from '../db/database'
 import { fail } from '../errors'
 import { getMeta, META_KEYS, setMeta } from '../meta'
+import { rememberValidatedRepositoryCache } from './validatedCache'
 import { correctionHolderProblem, type CorrectionHolder, crossRepoEvidenceProblem } from '../plan/corrections'
 import { resultProblem, type ScorecardLookup, sourceProblem } from '../plan/experiments'
 import { validatePlan } from '../plan/graph'
@@ -36,6 +35,7 @@ import { assertContained, displayPath, ownedPaths } from './paths'
 import { insertOwnedRow, registerEvidenceAttachments, registerTicketAttachments, restoreAttachmentFiles } from './attachmentImport'
 import { applyKanban, type KanbanScan, scanKanban } from './kanbanImport'
 import { importObservations } from './observationImport'
+import { databaseRevision, observeRepository } from './reconcilePreparation'
 import { importRecoveredAttachments } from './recoveredAttachments'
 import { applyProfiles, type ProfileScan, scanProfiles } from './profileImport'
 import {
@@ -72,7 +72,7 @@ export interface ImporterDeps {
   machineId: string
   git: GitAdapter
   sessionId?: string | null
-  /** Hashes of comment and profile files as last read, kept by the workspace across reconciles. */
+  /** Bounded validation metadata kept by the workspace across reconciles. */
   fileHashes: FileHashCache
 }
 
@@ -217,35 +217,64 @@ function readSnapshot(deps: ImporterDeps, epicId: string, name: string): Snapsho
   return record
 }
 
-/** Bounds the memory one epic's snapshots can take, checked from file sizes before any is read. */
-function checkSnapshotBudget(deps: ImporterDeps, epicId: string, names: string[]): void {
-  const paths = ownedPaths(deps.layout)
-  let bytes = 0
-  for (const name of names) {
-    const file = paths.snapshotFile(epicId, name.slice(0, -JSON_SUFFIX.length))
-    assertContained(deps.layout, deps.fs, file)
-    bytes += Math.max(0, deps.fs.fileSize(file))
-  }
-  if (bytes > MAX_SNAPSHOT_BYTES_PER_EPIC) {
-    reject(displayPath(deps.layout, paths.snapshotsDir(epicId)), 'holds more than 256 MiB of snapshots')
-  }
+interface SavedSnapshot {
+  id: string
+  number: number
+  base_revision_id: string | null
+  content_hash: string
+  created_at: string
+  saved_at: string
 }
 
-function readSnapshots(deps: ImporterDeps, epicId: string): SnapshotRecord[] {
-  const dir = ownedPaths(deps.layout).snapshotsDir(epicId)
+type SnapshotInput = { record: SnapshotRecord; stored: boolean } | { saved: SavedSnapshot; stored: true }
+
+function snapshotIdentity(record: SnapshotRecord): string {
+  return contentHash([record.number, record.baseRevisionId, record.contentHash, record.createdAt, record.savedAt])
+}
+
+function savedIdentity(row: SavedSnapshot): string {
+  return contentHash([row.number, row.base_revision_id, row.content_hash, row.created_at, row.saved_at])
+}
+
+function readSnapshots(deps: ImporterDeps, epicId: string): SnapshotInput[] {
+  const paths = ownedPaths(deps.layout)
+  const dir = paths.snapshotsDir(epicId)
   assertContained(deps.layout, deps.fs, dir)
-  if (!deps.fs.isDirectory(dir)) {
-    reject(displayPath(deps.layout, dir), 'is missing')
-  }
-  const names = deps.fs
-    .readdir(dir)
-    .filter((name) => name.endsWith(JSON_SUFFIX))
-    .sort()
+  if (!deps.fs.isDirectory(dir)) reject(displayPath(deps.layout, dir), 'is missing')
+  const names = deps.fs.readdir(dir).filter((name) => name.endsWith(JSON_SUFFIX)).sort()
   if (names.length > MAX_SNAPSHOTS_PER_EPIC) {
     reject(displayPath(deps.layout, dir), `holds more than ${MAX_SNAPSHOTS_PER_EPIC} snapshots`)
   }
-  checkSnapshotBudget(deps, epicId, names)
-  return names.map((name) => readSnapshot(deps, epicId, name))
+  let bytes = 0
+  const files = names.map((name) => {
+    const id = name.slice(0, -JSON_SUFFIX.length)
+    const path = paths.snapshotFile(epicId, id)
+    assertContained(deps.layout, deps.fs, path)
+    bytes += Math.max(0, deps.fs.fileSize(path))
+    if (bytes > MAX_SNAPSHOT_BYTES_PER_EPIC) reject(displayPath(deps.layout, dir), 'holds more than 256 MiB of snapshots')
+    return { id, name, path, stamp: deps.fs.fileStamp(path) }
+  })
+  const saved = new Map(deps.db.all<SavedSnapshot>(
+    "SELECT id, number, base_revision_id, content_hash, created_at, saved_at FROM plan_revisions WHERE epic_id = ? AND state = 'saved'", epicId
+  ).map((row) => [row.id, row]))
+  return files.map(({ id, name, path, stamp }) => {
+    const row = saved.get(id)
+    if (row !== undefined && stamp !== null && deps.fileHashes.get(path, stamp) === savedIdentity(row)) {
+      return { saved: row, stored: true }
+    }
+    const record = readSnapshot(deps, epicId, name)
+    if (stamp !== null && stamp === deps.fs.fileStamp(path)) deps.fileHashes.remember(path, stamp, snapshotIdentity(record))
+    return { record, stored: row !== undefined && row.content_hash === record.contentHash && row.number === record.number }
+  })
+}
+
+function storedSnapshot(deps: ImporterDeps, epicId: string, row: SavedSnapshot): SnapshotRecord {
+  const body = deps.db.get<{ bundle_json: string }>('SELECT bundle_json FROM plan_revisions WHERE id = ?', row.id)!
+  return {
+    format: 'darkmechanicus.plan-snapshot', formatVersion: 1, epicId, revisionId: row.id, number: row.number,
+    baseRevisionId: row.base_revision_id, contentHash: row.content_hash, createdAt: row.created_at, savedAt: row.saved_at,
+    bundle: JSON.parse(body.bundle_json) as PlanBundle
+  }
 }
 
 function checkEpicFiles(files: Omit<EpicFiles, 'path' | 'trackedHash' | 'current'>, shown: { pointer: string; state: string }): SnapshotRecord {
@@ -271,45 +300,50 @@ function checkEpicFiles(files: Omit<EpicFiles, 'path' | 'trackedHash' | 'current
   return current
 }
 
-interface EpicTexts {
-  epicId: string
-  dir: string
-  pointerText: string
-  stateText: string
-  trackedHash: string
+/** Validates the pointer and the snapshot set even when only a snapshot changed. */
+function snapshotSeal(input: SnapshotInput): { id: string; hash: string; number: number } {
+  return 'saved' in input
+    ? { id: input.saved.id, hash: input.saved.content_hash, number: input.saved.number }
+    : { id: input.record.revisionId, hash: input.record.contentHash, number: input.record.number }
 }
 
-function parseEpicFiles(deps: ImporterDeps, texts: EpicTexts): EpicFiles {
-  const paths = ownedPaths(deps.layout)
-  const shown = {
-    pointer: displayPath(deps.layout, paths.epicPointerFile(texts.epicId)),
-    state: displayPath(deps.layout, paths.epicStateFile(texts.epicId))
-  }
-  const pointer = parseRecord(epicPointerRecord, texts.pointerText, shown.pointer)
-  const state = parseRecord(epicStateRecord, texts.stateText, shown.state)
-  const snapshots = readSnapshots(deps, texts.epicId)
-  const current = checkEpicFiles({ epicId: texts.epicId, pointer, state, snapshots }, shown)
-  return { epicId: texts.epicId, path: displayPath(deps.layout, texts.dir), pointer, state, snapshots, current, trackedHash: texts.trackedHash }
+function checkedSeals(pointer: EpicPointerRecord, shown: string, inputs: SnapshotInput[]): ReturnType<typeof snapshotSeal>[] {
+  const seals = inputs.map(snapshotSeal)
+  const pointed = seals.find((seal) => seal.id === pointer.revisionId)
+  if (pointed === undefined) reject(shown, `points to missing snapshot ${pointer.revisionId}`)
+  if (pointed.hash !== pointer.contentHash || pointed.number !== pointer.revisionNumber) reject(shown, 'does not match the snapshot it points to')
+  return seals
 }
 
-/**
- * Reads an epic's pointer and state; null when they match the last sync (nothing to import, so the
- * snapshots are not re-read on every heartbeat). Otherwise every file is parsed and validated.
- */
 function readEpicFiles(deps: ImporterDeps, epicId: string): EpicFiles | null {
   const paths = ownedPaths(deps.layout)
   const dir = paths.epicDir(epicId)
   assertContained(deps.layout, deps.fs, dir)
-  if (!deps.fs.isDirectory(dir)) {
-    reject(displayPath(deps.layout, dir), 'is not a directory')
-  }
-  const pointerText = requireText(deps, paths.epicPointerFile(epicId))
-  const stateText = requireText(deps, paths.epicStateFile(epicId))
+  if (!deps.fs.isDirectory(dir)) reject(displayPath(deps.layout, dir), 'is not a directory')
+  const pointerPath = paths.epicPointerFile(epicId)
+  const statePath = paths.epicStateFile(epicId)
+  const pointerText = requireText(deps, pointerPath)
+  const stateText = requireText(deps, statePath)
   const trackedHash = trackedEpicHash(pointerText, stateText)
-  if (matchesSync(deps.db, 'epic', epicId, trackedHash)) {
-    return null
+  const shown = { pointer: displayPath(deps.layout, pointerPath), state: displayPath(deps.layout, statePath) }
+  const pointer = parseRecord(epicPointerRecord, pointerText, shown.pointer)
+  const inputs = readSnapshots(deps, epicId)
+  const seals = checkedSeals(pointer, shown.pointer, inputs)
+  const synced = matchesSync(deps.db, 'epic', epicId, trackedHash)
+  const snapshotSet = contentHash(seals)
+  if (synced && inputs.every((input) => input.stored) && deps.fileHashes.get(statePath, snapshotSet) === trackedHash) return null
+  const state = parseRecord(epicStateRecord, stateText, shown.state)
+  const snapshots = inputs.map((input) => 'saved' in input ? storedSnapshot(deps, epicId, input.saved) : input.record)
+  const current = checkEpicFiles({ epicId, pointer, state, snapshots }, shown)
+  const files = { epicId, path: displayPath(deps.layout, dir), pointer, state, snapshots, current, trackedHash }
+  if (synced) {
+    // A user who chose the local revision may have left other validated snapshots in the checkout.
+    // Validate those files but keep the existing selection and history when the pointer is unchanged.
+    const clash = epicClash(deps.db, files)
+    if (clash !== null) fail('import_rejected', clash, { path: files.path })
   }
-  return parseEpicFiles(deps, { epicId, dir, pointerText, stateText, trackedHash })
+  deps.fileHashes.remember(statePath, snapshotSet, trackedHash)
+  return synced ? null : files
 }
 
 /**
@@ -365,13 +399,44 @@ function editedReport(reports: WrittenReport[]): string | null {
   return edited === undefined ? null : `holds report ${String(edited.id)}, whose content does not hash to its contentHash; a report's content is never edited`
 }
 
+/** Stamp the report sidecars too: a retained run hash cannot hide an edited or deleted scorecard. */
+function runStamp(deps: ImporterDeps, file: string, runId: string, reportIds: string[]): string | null {
+  assertContained(deps.layout, deps.fs, file)
+  const stamp = deps.fs.fileStamp(file)
+  if (stamp === null) return null
+  const stamps = [stamp]
+  for (const reportId of reportIds) {
+    const sidecar = ownedPaths(deps.layout).scorecardFile(runId, reportId)
+    assertContained(deps.layout, deps.fs, sidecar)
+    const sidecarStamp = deps.fs.fileStamp(sidecar)
+    if (sidecarStamp === null) return null
+    stamps.push(reportId, sidecarStamp)
+  }
+  return contentHash(stamps)
+}
+
+function validateRunScorecards(deps: ImporterDeps, input: { record: RunHistoryRecord; file: string; bodyStamp: string | null; hash: string }) {
+  const { record, file, bodyStamp, hash } = input
+  const reportIds = record.reports.filter((report) => report.scorecard !== undefined).map((report) => report.id).sort()
+  const before = runStamp(deps, file, record.runId, reportIds)
+  const scorecards = readScorecards(deps, record)
+  if (before !== null && bodyStamp !== null && bodyStamp === deps.fs.fileStamp(file) && before === runStamp(deps, file, record.runId, reportIds)) {
+    deps.fileHashes.remember(file, before, hash)
+  }
+  return scorecards
+}
+
 function readRunFiles(deps: ImporterDeps, runId: string): RunFiles | null {
   const file = ownedPaths(deps.layout).runHistoryFile(runId)
+  const savedReports = deps.db.all<{ id: string }>(
+    'SELECT id FROM sprint_reports WHERE run_id = ? AND scorecard_json IS NOT NULL ORDER BY id', runId
+  ).map((row) => row.id)
+  const stamp = runStamp(deps, file, runId, savedReports)
+  const known = stamp === null ? null : deps.fileHashes.get(file, stamp)
+  if (known !== null && matchesSync(deps.db, 'run', runId, known)) return null
+  const bodyStamp = deps.fs.fileStamp(file)
   const text = requireText(deps, file)
   const trackedHash = trackedRunHash(text)
-  if (matchesSync(deps.db, 'run', runId, trackedHash)) {
-    return null
-  }
   const shown = displayPath(deps.layout, file)
   const record = parseRecord(runHistoryRecord, text, shown)
   if (record.runId !== runId) {
@@ -384,7 +449,9 @@ function readRunFiles(deps: ImporterDeps, runId: string): RunFiles | null {
     reject(shown, edited)
   }
   const written = new Map(raw.reports.map((report) => [String(report.id), report.content]))
-  return { runId, path: shown, record, scorecards: readScorecards(deps, record), written, trackedHash }
+  const scorecards = validateRunScorecards(deps, { record, file, bodyStamp, hash: trackedHash })
+  if (matchesSync(deps.db, 'run', runId, trackedHash)) return null
+  return { runId, path: shown, record, scorecards, written, trackedHash }
 }
 
 interface ScanSink<T> {
@@ -1116,7 +1183,8 @@ function upsertRevision(db: Db, snapshot: SnapshotRecord): void {
     `INSERT INTO plan_revisions (id, epic_id, number, base_revision_id, content_hash, bundle_json, state, created_at,
        saved_at, created_by)
      VALUES (?, ?, ?, ?, ?, ?, 'saved', ?, ?, NULL)
-     ON CONFLICT(id) DO UPDATE SET state = 'saved', saved_at = COALESCE(plan_revisions.saved_at, excluded.saved_at)`,
+     ON CONFLICT(id) DO UPDATE SET state = 'saved', saved_at = COALESCE(plan_revisions.saved_at, excluded.saved_at)
+       WHERE plan_revisions.state <> 'saved' OR plan_revisions.saved_at IS NULL`,
     snapshot.revisionId,
     snapshot.epicId,
     snapshot.number,
@@ -1144,11 +1212,12 @@ function upsertTicketStatuses(db: Db, files: EpicFiles): void {
   }
 }
 
-function indexEpic(db: Db, files: EpicFiles): void {
+function indexEpic(db: Db, files: EpicFiles, reindexTickets: boolean): void {
   const { bundle } = files.current
   const intent = [bundle.epic.intent, ...bundle.epic.successCriteria.map((item) => item.text)]
   const body = [...intent, files.state.outcome?.summary ?? ''].filter((part) => part !== '').join('\n')
   indexDocument(db, { docType: 'epic', docId: files.epicId, epicId: files.epicId, title: files.state.title, body })
+  if (!reindexTickets) return
   db.run("DELETE FROM search_index WHERE doc_type = 'ticket' AND epic_id = ?", files.epicId)
   for (const ticket of bundle.tickets) {
     indexDocument(db, {
@@ -1163,13 +1232,14 @@ function indexEpic(db: Db, files: EpicFiles): void {
 }
 
 function applyEpic(db: Db, files: EpicFiles, now: string): void {
+  const previous = db.get<{ current_revision_id: string | null }>('SELECT current_revision_id FROM epics WHERE id = ?', files.epicId)
   upsertEpic(db, files)
   for (const snapshot of files.snapshots) {
     upsertRevision(db, snapshot)
   }
   upsertTicketStatuses(db, files)
   markSynced(db, { kind: 'epic', entityId: files.epicId, hash: files.trackedHash, generation: files.pointer.generation, now })
-  indexEpic(db, files)
+  indexEpic(db, files, previous?.current_revision_id !== files.pointer.revisionId)
 }
 
 function upsertRun(db: Db, record: RunHistoryRecord): void {
@@ -1489,15 +1559,21 @@ function pauseActiveRuns(deps: ImporterDeps, now: string): string[] {
 }
 
 /**
- * Transfer holds are worked out afresh on every reconcile, so one whose transfer closed (or whose held
- * records are gone) is dropped before this reconcile's conflicts are stored.
+ * A record validated as synced no longer has a tracked/local divergence. Transfer holds also need
+ * recomputation when their held files disappear. Conflicts on unread or rejected records are kept.
  */
-function storeConflicts(db: Db, conflicts: Conflict[], now: string): void {
+function storeConflicts(db: Db, conflicts: Conflict[], unchanged: string[], now: string): void {
   db.run(
-    "UPDATE sync_state SET conflict = NULL, updated_at = ? WHERE kind = 'epic' AND substr(conflict, 1, ?) = ?",
+    `UPDATE sync_state SET conflict = NULL, updated_at = ? WHERE conflict IS NOT NULL AND (
+       (kind = 'epic' AND substr(conflict, 1, ?) = ?)
+       OR (kind IN ('epic', 'run', 'comment') AND entity_id IN (SELECT value FROM json_each(?)))
+       OR (kind = 'profile' AND 'profile:' || entity_id IN (SELECT value FROM json_each(?)))
+     )`,
     now,
     TRANSFER_HOLD_PREFIX.length,
-    TRANSFER_HOLD_PREFIX
+    TRANSFER_HOLD_PREFIX,
+    JSON.stringify(unchanged),
+    JSON.stringify(unchanged)
   )
   for (const conflict of conflicts) {
     db.run(
@@ -1511,14 +1587,27 @@ function storeConflicts(db: Db, conflicts: Conflict[], now: string): void {
   }
 }
 
-function applyStaged(deps: ImporterDeps, plan: Plan, now: string): { imported: string[]; rejected: Rejection[] } {
+interface StagedOutcome {
+  imported: string[]
+  savedEpics: string[]
+  importedRuns: string[]
+  changedEpics: Set<string>
+  rejected: Rejection[]
+}
+
+function applyStaged(deps: ImporterDeps, plan: Plan, now: string): StagedOutcome {
   const rejected = [...plan.rejected]
   const imported: string[] = []
   const failedEpics = new Set<string>()
+  const changedEpics = new Set<string>()
+  const savedEpics: string[] = []
+  const importedRuns: string[] = []
   for (const files of plan.epics) {
     const applied = applyItem(deps.db, files.path, () => applyEpic(deps.db, files, now), rejected)
     if (applied) {
       imported.push(files.epicId)
+      savedEpics.push(files.epicId)
+      changedEpics.add(files.epicId)
     } else {
       failedEpics.add(files.epicId)
     }
@@ -1526,20 +1615,24 @@ function applyStaged(deps: ImporterDeps, plan: Plan, now: string): { imported: s
   for (const run of plan.runs.filter((item) => !failedEpics.has(item.record.epicId))) {
     if (applyItem(deps.db, run.path, () => applyRun(deps.db, run, { now, clock: deps.clock }), rejected)) {
       imported.push(run.runId)
+      importedRuns.push(run.runId)
+      changedEpics.add(run.record.epicId)
     }
   }
   for (const run of plan.eventMerges) {
     if (applyItem(deps.db, run.path, () => insertExperimentEvents(deps.db, run.record, deps.clock), rejected)) {
       imported.push(run.runId)
+      changedEpics.add(run.record.epicId)
     }
   }
-  applyComments(deps.db, plan, { now, failedEpics, imported, rejected })
-  return { imported, rejected }
+  applyComments(deps.db, plan, { now, failedEpics, imported, rejected, changedEpics })
+  return { imported, rejected, changedEpics, savedEpics, importedRuns }
 }
 
 interface CommentApply {
   now: string
   failedEpics: Set<string>
+  changedEpics: Set<string>
   imported: string[]
   rejected: Rejection[]
 }
@@ -1548,6 +1641,7 @@ function applyComments(db: Db, plan: Plan, apply: CommentApply): void {
   for (const file of plan.comments.filter((item) => !apply.failedEpics.has(item.epicId))) {
     if (applyItem(db, file.path, () => applyComment(db, file, apply.now), apply.rejected)) {
       apply.imported.push(file.commentId)
+      apply.changedEpics.add(file.epicId)
     }
   }
   for (const file of plan.syncedComments) {
@@ -1579,21 +1673,26 @@ interface ApplyContext {
 function problemsChanged(db: Db, result: ReconcileResultView): boolean {
   const { conflicts, profileConflicts, kanbanConflicts, rejected } = result
   const digest = contentHash({ conflicts, profileConflicts, kanbanConflicts, rejected })
-  const changed = getMeta(db, META_KEYS.reconcileProblems) !== digest
+  const previous = getMeta(db, META_KEYS.reconcileProblems)
+  if (previous === digest) return false
   setMeta(db, META_KEYS.reconcileProblems, digest)
-  return changed
+  return previous !== null || conflicts.length + profileConflicts.length + kanbanConflicts.length + rejected.length > 0
 }
 
 /**
  * Records a `repository.reconciled` event when the reconcile imported something, saw the branch
- * change, or reports conflicts or rejections other than those the previous reconcile reported.
+ * change, repairs stored attachments, or adds or clears a conflict or rejection.
  */
-function recordReconciled(deps: ImporterDeps, result: ReconcileResultView): void {
+function recordReconciled(deps: ImporterDeps, result: ReconcileResultView,
+  changes: { changedEpics: string[]; kanbanChanged: boolean; attachmentsChanged: boolean }): void {
   const { imported, rejected, branchChanged, pausedRuns } = result
   const conflicts = result.conflicts.length + result.profileConflicts.length + result.kanbanConflicts.length
-  const newProblems = problemsChanged(deps.db, result) && conflicts + rejected.length > 0
-  if (imported.length > 0 || branchChanged || newProblems) {
-    const payload = { imported, unchanged: result.unchanged.length, conflicts, rejected: rejected.length, branchChanged, pausedRuns }
+  const { changedEpics, kanbanChanged, attachmentsChanged } = changes
+  rememberValidatedRepositoryCache(deps.db, conflicts === 0 && rejected.length === 0)
+  const refreshAll = problemsChanged(deps.db, result) || attachmentsChanged
+  if (imported.length > 0 || branchChanged || refreshAll) {
+    const payload = { imported, unchanged: result.unchanged.length, conflicts, rejected: rejected.length, branchChanged, pausedRuns,
+      changedEpics, kanbanChanged, ...(refreshAll ? { refreshAll: true } : {}) }
     insertEvent(deps, { kind: 'repository.reconciled', payload })
   }
 }
@@ -1607,11 +1706,18 @@ function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultVi
   const kanbanOutcome = applyKanban(deps.db, kanban, now)
   // After epics and runs, so an observation of a run imported now resolves.
   const observationOutcome = importObservations(deps, now)
-  registerEvidenceAttachments(deps.db, now)
-  registerTicketAttachments(deps.db, now)
-  const recoveredAttachments = importRecoveredAttachments(deps)
+  if (getMeta(deps.db, META_KEYS.attachmentRegistration) !== '1') {
+    registerEvidenceAttachments(deps.db, now)
+    registerTicketAttachments(deps.db, now)
+    setMeta(deps.db, META_KEYS.attachmentRegistration, '1')
+  } else {
+    registerEvidenceAttachments(deps.db, now, { runs: staged.importedRuns, cards: kanbanOutcome.imported.map((key) => key.slice('kanban:'.length)) })
+    registerTicketAttachments(deps.db, now, staged.savedEpics)
+  }
+  let recoveredChanged = false
+  const recoveredAttachments = importRecoveredAttachments(deps, () => { recoveredChanged = true })
   const attachmentOutcome = restoreAttachmentFiles(deps)
-  storeConflicts(deps.db, plan.conflicts, now)
+  storeConflicts(deps.db, plan.conflicts, [...plan.unchanged, ...profiles.unchanged], now)
   const pausedRuns = branchChanged ? pauseActiveRuns(deps, now) : []
   const result: ReconcileResultView = {
     imported: [...staged.imported, ...profileOutcome.imported, ...kanbanOutcome.imported, ...observationOutcome.imported],
@@ -1630,8 +1736,12 @@ function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultVi
     branchChanged,
     pausedRuns
   }
-  recordReconciled(deps, result)
-  setMeta(deps.db, META_KEYS.checkoutBranch, context.current ?? '')
+  recordReconciled(deps, result, {
+    changedEpics: [...staged.changedEpics],
+    kanbanChanged: kanbanOutcome.imported.length > 0,
+    attachmentsChanged: attachmentOutcome.changed || recoveredChanged
+  })
+  if (branchChanged || getMeta(deps.db, META_KEYS.checkoutBranch) === null) setMeta(deps.db, META_KEYS.checkoutBranch, context.current ?? '')
   setMeta(deps.db, META_KEYS.lastReconcileAt, now)
   return result
 }
@@ -1654,28 +1764,41 @@ function nothingToReconcile(): ReconcileResultView {
   }
 }
 
+function prepare(deps: ImporterDeps): { context: ApplyContext; identity: string } {
+  const head = deps.git.head()
+  const current = head?.branch ?? null
+  const branchChanged = branchState(deps.db, current).changed
+  const project = requireProject(deps)
+  const checkout = checkoutKey(deps, project)
+  const identity = JSON.stringify([checkout, head])
+  // File stamps and the persisted sync hash still validate each entry after an ordinary same-branch pull.
+  deps.fileHashes.scope(deps.db, JSON.stringify([checkout, current, head?.detached ?? null]))
+  const plan = planImport(deps.db, scanRepository(deps), { projectId: project.projectId, machineId: deps.machineId })
+  const profiles = scanProfiles(deps)
+  const kanban = scanKanban(deps)
+  return { context: { project, plan, profiles, kanban, current, branchChanged }, identity }
+}
+
+function checkoutKey(deps: ImporterDeps, project: ProjectRecord): [RepoLayout['mode'], string, string] {
+  return [deps.layout.mode, deps.fs.realpath(deps.layout.root), project.projectId]
+}
+
 /**
- * Reconciles tracked records into the local database under the write lock (so no finalizer can be
- * mid-write while files are read). Throws `not_initialized` or `project_mismatch` without changing
- * anything; per-epic, per-run, per-profile and per-card problems (including an `epics/`, `history/`, `profiles` or
- * `kanban` that is a link, resolves outside, or is not a directory, which is then read as empty) are reported in
- * `rejected`/`conflicts`/`profileConflicts`/`kanbanConflicts` and leave those entities as they were.
- *
- * A `db` project has nothing to reconcile: its database *is* the record, so no file is read, the
- * checkout branch is never recorded, and moving the checkout never pauses a run — the plan is not
- * in the checkout to begin with.
+ * Most of a reconcile can run before taking SQLite's writer lock. SQLite and filesystem
+ * observations are checked again after BEGIN IMMEDIATE. If anything changed, rescan under the
+ * lock, as a finalizer or external process may have changed which inputs this database accepts.
+ * Database-only stores have no portable records to reconcile.
  */
 export function reconcileRepository(deps: ImporterDeps): ReconcileResultView {
-  if (deps.layout.mode === 'db') {
-    return nothingToReconcile()
-  }
+  if (deps.layout.mode === 'db') return nothingToReconcile()
+  if (deps.db.inTransaction()) return deps.db.tx(() => applyPlan(deps, prepare(deps).context))
+
+  const revision = databaseRevision(deps.db)
+  const observed = observeRepository(deps.fs)
+  const prepared = prepare({ ...deps, fs: observed.fs })
   return deps.db.tx(() => {
-    const current = deps.git.head()?.branch ?? null
-    const branchChanged = branchState(deps.db, current).changed
-    const project = requireProject(deps)
-    const plan = planImport(deps.db, scanRepository(deps), { projectId: project.projectId, machineId: deps.machineId })
-    const profiles = scanProfiles(deps)
-    const kanban = scanKanban(deps)
-    return applyPlan(deps, { project, plan, profiles, kanban, current, branchChanged })
+    const identity = JSON.stringify([checkoutKey(deps, requireProject(deps)), deps.git.head()])
+    const fresh = prepared.identity === identity && databaseRevision(deps.db) === revision && observed.unchanged()
+    return applyPlan(deps, fresh ? prepared.context : prepare(deps).context)
   })
 }

@@ -16,8 +16,8 @@ import { type TwoRepoMachine, twoRepoMachine } from '../test/twoRepoMachine'
 
 const machines: TwoRepoMachine[] = []
 
-afterEach(() => {
-  for (const m of machines.splice(0)) m.cleanup()
+afterEach(async () => {
+  for (const m of machines.splice(0)) await m.cleanup()
 })
 
 interface Reported {
@@ -108,13 +108,13 @@ describe('a missing target refuses the request and never redirects it (c3)', () 
     const projectId = m.dm.desktop.ctx().projectId
     expect(codeOf(await m.broker.createCrossRepoCorrection(m.project.path, { ...input, expectedTargetProjectId: projectId }))).toBe('not_found')
     m.chooseCheckout()
-    m.close()
+    await m.close()
     renameSync(m.dm.path, join(m.root, 'dm-away'))
     const pending = data(await m.broker.createCrossRepoCorrection(m.project.path, { ...input, expectedTargetProjectId: projectId }), 'create while away')
     expect(pending).toMatchObject({ progress: 'pending', target: null, failure: { step: 'target', retryable: true, error: { code: 'not_found' } } })
     expect(pending.link.lastError).toMatchObject({ step: 'target', code: 'not_found', problem: 'missing' })
     expect(await epicTitles(m, decoyPath)).toEqual([])
-    m.close()
+    await m.close()
     renameSync(join(m.root, 'dm-away'), m.dm.path)
     const retried = data(await m.broker.retryCrossRepoCorrection(m.project.path, pending.link.key), 'retry')
     expect(retried).toMatchObject({ progress: 'linked', target: { created: true } })

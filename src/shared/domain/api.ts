@@ -605,6 +605,8 @@ export interface CommandApi {
    * age; Done newest first and paged.
    */
   listKanbanCards(input: ListKanbanCardsInput): Promise<KanbanBoardView>
+  /** Exact number of cards in the three open lanes, without card summaries. */
+  getKanbanOpenCount(): Promise<number>
   /** The full card, with its body, criteria and every attempt. */
   getKanbanCard(input: { cardId: string }): Promise<KanbanCardView>
   /** Adds an append-only card message authored by the calling session, in any lane. */
@@ -830,6 +832,8 @@ export interface CommandApi {
   acknowledgeAutoRetry(input: { runId: string; ticketId: string; number: number }): Promise<AutoRetryView>
 
   // Events
+  /** The newest event sequence, or zero for an empty log. */
+  getEventHead(): Promise<number>
   listEvents(input: {
     sinceSeq?: number
     limit?: number

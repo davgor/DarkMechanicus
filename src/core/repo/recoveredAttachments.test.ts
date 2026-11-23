@@ -1,8 +1,10 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it } from 'vitest'
+import { openDatabase } from '../db/database'
 import { pngBytes, jpegBytes } from '../../test/images'
 import { createHarness, type Harness } from '../../test/workspaceHarness'
+import { createFileHashCache } from './fileHashes'
 import { nodeFs } from './nodeFs'
 import { resolveLayout } from './layout'
 import { assertRecoveredArchiveBounds, exportRecoveredAttachment, importRecoveredAttachments, readRecoveredAttachmentBytes } from './recoveredAttachments'
@@ -44,6 +46,53 @@ it('preserves JPEG bytes and clears a stale missing flag without changing the or
   expect(importRecoveredAttachments(f.env)).toEqual([])
   expect(readRecoveredAttachmentBytes(f.env, f.image.id)).toEqual(new Uint8Array(jpegBytes(3, 4)))
   expect(f.env.db.get('SELECT missing FROM attachments WHERE id = ?', f.image.id)).toEqual({ missing: 0 })
+})
+
+it('does not reload a verified archive until its input or authoritative storage changes', async () => {
+  const original = pngBytes(2, 3, 11)
+  const f = await fixture(original)
+  exportRecoveredAttachment(f.env, f.image.id)
+  const reads: string[] = []
+  const env = {
+    ...f.env,
+    fileHashes: createFileHashCache(),
+    fs: { ...nodeFs, readFileBytes: (path: string) => { reads.push(path); return nodeFs.readFileBytes(path) } }
+  }
+  expect(importRecoveredAttachments(env)).toEqual([])
+  expect(importRecoveredAttachments(env)).toEqual([])
+  expect(reads).toEqual([f.binary])
+
+  writeFileSync(f.binary, pngBytes(2, 3, 12))
+  expect(importRecoveredAttachments(env)).toEqual([expect.objectContaining({ message: expect.stringContaining('sha256') })])
+  writeFileSync(f.binary, original)
+  expect(importRecoveredAttachments(env)).toEqual([])
+  expect(importRecoveredAttachments(env)).toEqual([])
+  expect(reads).toHaveLength(3)
+
+  const external = openDatabase(f.env.db.path)
+  try {
+    external.run('UPDATE attachments SET data = ? WHERE id = ?', pngBytes(2, 3, 13), f.image.id)
+    expect(importRecoveredAttachments(env)).toEqual([expect.objectContaining({ message: expect.stringContaining('sha256') })])
+    expect(reads).toHaveLength(4)
+    external.run('UPDATE attachments SET data = ? WHERE id = ?', original, f.image.id)
+    expect(importRecoveredAttachments(env)).toEqual([])
+    expect(importRecoveredAttachments(env)).toEqual([])
+    expect(reads).toHaveLength(5)
+  } finally {
+    external.close()
+  }
+})
+
+it('refreshes retained views when a recovery archive alone repairs an image', async () => {
+  const f = await fixture()
+  exportRecoveredAttachment(f.env, f.image.id)
+  f.env.db.run('UPDATE attachments SET data = NULL, missing = 1 WHERE id = ?', f.image.id)
+  const events = () => f.env.db.all<{ payload_json: string }>("SELECT payload_json FROM events WHERE kind = 'repository.reconciled' ORDER BY seq")
+  const before = events().length
+  expect(await f.source.reconcileRepository()).toMatchObject({ imported: [], rejected: [] })
+  expect(await f.source.reconcileRepository()).toMatchObject({ imported: [], rejected: [] })
+  const published = events().slice(before).map((row) => JSON.parse(row.payload_json))
+  expect(published).toEqual([expect.objectContaining({ imported: [], changedEpics: [], refreshAll: true })])
 })
 
 it('refuses exporting a recovery record with missing bytes', async () => {

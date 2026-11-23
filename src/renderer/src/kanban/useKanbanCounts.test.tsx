@@ -3,7 +3,7 @@ import { cleanup, renderHook } from '@testing-library/react'
 import type { RenderHookResult } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { errorMessage } from '../api/dm'
-import type { Tokens } from '../app/eventRouting'
+import { EMPTY_TOKENS, type Tokens } from '../app/eventRouting'
 import { FakeDm } from '../__mocks__/fakeDm'
 import { settle } from '../__mocks__/settle'
 import { FakeBoard, cardSummary, doneCard } from './__mocks__/fixtures'
@@ -23,7 +23,7 @@ beforeEach(() => {
   errors = []
 })
 
-const tokensAt = (token: number): Tokens => ({ folders: { '/a': token }, epics: {} })
+const tokensAt = (token: number): Tokens => ({ ...EMPTY_TOKENS, counts: { '/a': token } })
 
 function mount(): RenderHookResult<ReturnType<typeof useKanbanCounts>, { tokens: Tokens }> {
   return renderHook((props: { tokens: Tokens }) => useKanbanCounts({ paths: ['/a'], tokens: props.tokens, onError: (error) => errors.push(errorMessage(error)) }), {
@@ -35,7 +35,7 @@ const cards = (count: number): FakeBoard['open'] => Array.from({ length: count }
 
 describe('useKanbanCounts', () => {
   it('reports a failed read and leaves the folder without a count', async () => {
-    dm.failures.listKanbanCards = { code: 'not_found', message: 'Folder is gone.' }
+    dm.failures.getKanbanOpenCount = { code: 'not_found', message: 'Folder is gone.' }
     const view = mount()
     await settle()
     expect(errors).toEqual(['Folder is gone.'])
@@ -44,7 +44,7 @@ describe('useKanbanCounts', () => {
 
   it('keeps the newest count when an older read answers late', async () => {
     board.open = cards(1)
-    const hold = dm.holdNext('listKanbanCards')
+    const hold = dm.holdNext('getKanbanOpenCount')
     const view = mount()
     view.rerender({ tokens: tokensAt(1) })
     await settle()
@@ -53,16 +53,16 @@ describe('useKanbanCounts', () => {
     hold.resolve()
     await settle()
     expect(view.result.current).toEqual({ '/a': 1 })
-    expect(dm.callsOf('listKanbanCards').map((call) => call.input)).toEqual([{ doneLimit: 1 }, { doneLimit: 1 }])
+    expect(dm.callsOf('getKanbanOpenCount').map((call) => call.input)).toEqual([undefined, undefined])
   })
 
   it('stays quiet when an older read fails late', async () => {
     board.open = cards(2)
-    const hold = dm.holdNext('listKanbanCards')
+    const hold = dm.holdNext('getKanbanOpenCount')
     const view = mount()
     view.rerender({ tokens: tokensAt(1) })
     await settle()
-    dm.failures.listKanbanCards = { code: 'internal', message: 'Database locked.' }
+    dm.failures.getKanbanOpenCount = { code: 'internal', message: 'Database locked.' }
     hold.resolve()
     await settle()
     expect(errors).toEqual([])
@@ -84,7 +84,8 @@ describe('useKanbanCounts: what counts', () => {
     await settle()
 
     expect(view.result.current).toEqual({ '/a': 4 })
-    expect(dm.callsOf('listKanbanCards')).toHaveLength(1)
+    expect(dm.callsOf('getKanbanOpenCount')).toHaveLength(1)
+    expect(dm.callsOf('listKanbanCards')).toEqual([])
   })
 
   it('reduces the open count after completion and retains it on another board refresh', async () => {

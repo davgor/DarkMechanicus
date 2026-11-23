@@ -23,6 +23,7 @@ import { policyForStore, portablePolicy, recoverSqlitePolicy } from './repo/deli
 import { createIdGenerator, type IdGenerator } from './ids'
 import { getMeta, META_KEYS, setMeta } from './meta'
 import { assertForgeTransferIdle, boundForgeRoot, forgeBindingEpoch, isForgeMember } from './repo/forgeBinding'
+import { forgeCodeCheckout, isForgeCodeMember } from './repo/forgeCheckout'
 import { findRepositoryRoot } from './repo/discovery'
 import { createFileHashCache } from './repo/fileHashes'
 import { flushOutbox, type FlushScope } from './repo/finalizer'
@@ -82,6 +83,8 @@ export interface OpenWorkspaceOptions {
   gitAt?: (root: string) => GitAdapter
   /** Reconcile tracked records on open and on heartbeat (default true). */
   autoReconcile?: boolean
+  /** The desktop owner is about to run an explicit reconcile before serving any other operation. */
+  deferOpenReconcile?: boolean
   serverInfo?: { name: string; version: string }
   /**
    * Internal: the restricted mailbox-poll mode the `dm` CLI selects for own identity and mailbox status reads.
@@ -179,6 +182,16 @@ function initialDesktopClient(options: OpenWorkspaceOptions): DesktopClient | nu
   return null
 }
 
+function workspaceRoots(options: OpenWorkspaceOptions, fs: FsAdapter, home: string) {
+  const source = options.transport === 'stdio'
+    ? findRepositoryRoot(options.repoRoot, fs, home)
+    : canonicalRoot(options.repoRoot, fs)
+  assertForgeTransferIdle(fs, home, source)
+  const repoRoot = boundForgeRoot(fs, home, source)
+  const boundCodeRoot = source === repoRoot ? undefined : source
+  return { repoRoot, boundCodeRoot, forgeCodeMember: boundCodeRoot !== undefined || isForgeCodeMember(fs, repoRoot) }
+}
+
 export class RepositoryWorkspace implements WorkspaceCore {
   /** Built at construction, except for a mailbox poll, which never names a chat and so never needs one. */
   private builtDesktopClient: DesktopClient | null
@@ -203,10 +216,12 @@ export class RepositoryWorkspace implements WorkspaceCore {
   }
   private store: Store | null = null
   private readonly forgeEpoch: string | null
+  private readonly boundCodeRoot: string | undefined
+  private readonly forgeCodeMember: boolean
   private readonly commandContext = new AsyncLocalStorage<Ctx>()
   /** What the presented grant conferred, or null for a session that presented none. */
   private granted: RedeemedGrant | null = null
-  /** Comment and profile files read by earlier reconciles, so unchanged ones are not read again. */
+  /** Validation metadata retained across reconciles of this workspace. */
   private readonly fileHashes = createFileHashCache()
   /** Adapters `gitFor` opened, by child repository name. */
   private readonly childGits = new Map<string, GitAdapter>()
@@ -218,12 +233,10 @@ export class RepositoryWorkspace implements WorkspaceCore {
     this.homeDir = options.homeDir ?? resolveHomeDir(process.env, homedir())
     // Always canonical: a database-only project is keyed by this path, so two spellings of one
     // folder must never resolve to two projects (or to none, which would set the checkout up).
-    const codeRoot =
-      options.transport === 'stdio'
-        ? findRepositoryRoot(options.repoRoot, this.fs, this.homeDir)
-        : canonicalRoot(options.repoRoot, this.fs)
-    assertForgeTransferIdle(this.fs, this.homeDir, codeRoot)
-    this.repoRoot = boundForgeRoot(this.fs, this.homeDir, codeRoot)
+    const roots = workspaceRoots(options, this.fs, this.homeDir)
+    this.repoRoot = roots.repoRoot
+    this.boundCodeRoot = roots.boundCodeRoot
+    this.forgeCodeMember = roots.forgeCodeMember
     this.forgeEpoch = forgeBindingEpoch(this.fs, this.homeDir, this.repoRoot)
     recoverStorageMigration({ repoRoot: this.repoRoot, homeDir: this.homeDir, fs: this.fs })
     this.layout = this.layoutFor(options.mode ?? this.resolvedMode())
@@ -379,9 +392,11 @@ export class RepositoryWorkspace implements WorkspaceCore {
       db.close()
       throw error
     }
-    if (this.options.mailPoll === true) {
-      return
-    }
+    this.finishOpen()
+  }
+
+  private finishOpen(): void {
+    if (this.options.mailPoll === true || (this.isDesktopSession() && this.options.deferOpenReconcile === true)) return
     // A branch that moved while closed is never acknowledged silently: reconcile stays explicit.
     // A db project has nothing tracked to reconcile at all.
     if (this.layout.mode === 'repo' && this.options.autoReconcile !== false && !this.branchChanged()) {
@@ -412,8 +427,9 @@ export class RepositoryWorkspace implements WorkspaceCore {
     if (getMeta(db, META_KEYS.machineId) !== machineId) {
       db.tx(() => setMeta(db, META_KEYS.machineId, machineId))
     }
-    // A poll redeems its grant and maps its dedicated session under one write lock.
-    const session = this.options.mailPoll === true ? db.tx(() => this.openSession(db, machineId)) : this.openSession(db, machineId)
+    // Grant use and its session audit commit together under the ordinary session writer lock.
+    const grantSession = this.options.mailPoll === true || (this.options.transport === 'cli' && this.options.grantToken !== undefined)
+    const session = grantSession ? db.tx(() => this.openSession(db, machineId)) : this.openSession(db, machineId)
     const ctx: Ctx = {
       db,
       clock: this.clock,
@@ -481,12 +497,13 @@ export class RepositoryWorkspace implements WorkspaceCore {
   }
 
   /**
-   * The Git adapter for `repo`, a child repository of this folder of repositories, or the root adapter for null.
-   * The name is checked on every call, cached adapter or not, before any adapter is built or Git runs.
+   * The code adapter for a named child repository, this Forge project's code checkout, or an ordinary repository.
+   * Revalidate the mapping on every request, including when reusing a previously opened adapter. Ticket checkout
+   * state and portable files continue to use `this.git`.
    */
   gitFor(repo: string | null): GitAdapter {
     if (repo === null) {
-      return this.git
+      return this.forgeCodeMember || isForgeCodeMember(this.fs, this.repoRoot) ? this.forgeVerificationGit() : this.git
     }
     const path = this.childRepositoryPath(repo)
     let git = this.childGits.get(repo)
@@ -495,6 +512,26 @@ export class RepositoryWorkspace implements WorkspaceCore {
       this.childGits.set(repo, git)
     }
     return git
+  }
+
+  private forgeVerificationGit(): GitAdapter {
+    try {
+      const checked = forgeCodeCheckout(this.repoRoot, this.homeDir, this.boundCodeRoot)
+      const git = this.options.gitAt?.(checked.root) ?? createGitAdapter(checked.root, { fs: this.fs })
+      return {
+        ...git,
+        assertCurrent: () => {
+          try {
+            checked.assertCurrent()
+          } catch {
+            fail('conflict', 'The Forge World code checkout or its mapping changed during verification. Reconnect and verify the delivery again.')
+          }
+        }
+      }
+    } catch (error: unknown) {
+      const reason = error instanceof Error ? error.message : String(error)
+      return fail('invalid_input', `Cannot verify code delivery for this Forge World project. ${reason} Reconnect its local code checkout in Dark Mechanicus.`)
+    }
   }
 
   /** Refuses `repo` unless `project.json`, as it is now (so a rescan behind this session applies), lists it present. */
