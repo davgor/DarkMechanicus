@@ -9,7 +9,8 @@ export const FORGE_RECIPEBOOK_BYTES = 256 * 1024
 
 const credentials = /(?:https?:\/\/[^/\s]+@|\b(?:gh[pousr]_|github_pat_)[a-z0-9_]{16,}|\bbearer\s+[a-z0-9._-]{16,}|-----BEGIN [^-]*PRIVATE KEY-----|(?:^|[\s;&])(?:[A-Z0-9_]*(?:TOKEN|PASSWORD|SECRET|API_KEY))\s*=\s*['"]?[a-z0-9][a-z0-9_./+-]*)/i
 const privatePath = /(?:[a-z]:[\\/]users[\\/]|(?:^|[\s='"])[/](?:users|home)\/[^/\s]+|file:\/\/)/i
-const absoluteArgumentPath = /(?:^|[\s="'(,;])(?:[a-z]:)?[\\/]/i
+// A single slash can introduce an installer switch or a pattern. Match known POSIX roots with a slash after the root name.
+const absoluteArgumentPath = /(?:^|[\s="'(,;])(?:[a-z]:[\\/]|\\\\|\/\/|\/(?:etc|home|media|mnt|opt|private|root|run|srv|tmp|usr|users|var|volumes|workspaces?)\/)/i
 const device = /^(?:con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(?:\.|$)/i
 const shell = /^(?:sh|bash|dash|zsh|fish|ksh|cmd|command|powershell|pwsh|wsl)(?:\.(?:exe|cmd|bat|ps1))?$/i
 

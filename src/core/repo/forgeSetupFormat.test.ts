@@ -53,6 +53,8 @@ it.each([
   'D:/private-work/example',
   '--prefix=D:\\private-work\\example',
   '--prefix="/opt/local/example"',
+  '/tmp/build-cache/example',
+  '--cache=/private/var/build-cache',
   '\\\\build-host\\cache\\example',
   '//build-host/cache/example'
 ])('refuses machine-specific command arguments in both workflows and recipes (%s)', (argument) => {
@@ -68,6 +70,18 @@ it('keeps relative arguments and HTTPS endpoints portable', () => {
     program: 'npm', args: ['ci', '--prefix', './packages/app', '--registry=https://packages.example.test/npm/'] }]
   const expected = { version: 1 as const, recipes: [{ ...recipe, steps }] }
   expect(parseForgeRecipebook(encodeForgeRecipebook(expected))).toEqual(expected)
+})
+
+it.each([
+  ['msiexec', ['/i', './setup.msi', '/quiet', '/norestart']],
+  ['vitest', ['--include=/pattern/', '--exclude=/\\d+/']]
+])('accepts portable slash arguments for %s in workflows and recipes', (program, args) => {
+  const [recipe] = catalog.recipes
+  const steps = [{ kind: 'command' as const, id: 'install', title: 'Install', cwd: '.', program, args }]
+  const expectedWorkflow = { ...workflow, workflow: { ...workflow.workflow, steps } }
+  const expectedBook = { version: 1 as const, recipes: [{ ...recipe, steps }] }
+  expect(parseForgeSetupWorkflow(JSON.stringify(expectedWorkflow))).toEqual(expectedWorkflow)
+  expect(parseForgeRecipebook(encodeForgeRecipebook(expectedBook))).toEqual(expectedBook)
 })
 
 it('refuses credentials, raw shells, forged empty success and colliding recipe targets', () => {
