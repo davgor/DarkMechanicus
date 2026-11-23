@@ -36,7 +36,7 @@ import type { ProjectRecord } from './repo/portable'
 import { resolveHomeDir, resolveStorageMode, type StorageMode } from './repo/storageMode'
 import { assertStorageMigrationIdle, recoverStorageMigration, exportForgeDestination, switchStorage, type ForgeExportOptions } from './repo/storageMigration'
 import { pruneStagedAttachments } from './services/attachments'
-import { MAIL_POLL_COMMANDS, openMailPollSession, touchMailPollSession } from './services/agentMail'
+import { listAgentPeers, MAIL_POLL_COMMANDS, openMailPollSession, touchMailPollSession } from './services/agentMail'
 import { assertGrantUsable, authenticateGrant, redeemGrant, type RedeemedGrant } from './services/grants'
 import { refreshSavePermission } from './services/savePermissions'
 import { auditYoloCommand, authorizeYoloCommand, type YoloCommandAdmission } from './services/yoloCommands'
@@ -44,6 +44,7 @@ import type { FsAdapter, GitAdapter, RepoLayout } from './repo/types'
 import { parseInput } from './schemas'
 import { completeSavedRevision } from './services/plans'
 import { endSession, registerSession, touchSession } from './services/sessions'
+import { COMMAND_SCHEMAS } from './commandSchemas'
 
 export interface OpenWorkspaceOptions {
   /** Repository root (already resolved/canonical). */
@@ -787,16 +788,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
   }
 
   async execute(name: CommandName, rawInput: unknown): Promise<unknown> {
-    if (this.options.mailRead === true) {
-      if (name !== 'listAgentPeers') fail('unauthorized', 'A peer reader may only list agent peers.', { command: name })
-      const spec = COMMANDS.listAgentPeers
-      const input = parseInput(spec.schema, rawInput ?? {}, `${name} input`)
-      const store = this.requireStore()
-      return store.db.tx(() => {
-        store.ctx.session = this.openPeerReader(store.db, store.ctx.machineId)
-        return spec.run(this, input)
-      }, 'read')
-    }
+    if (this.options.mailRead === true) return this.executePeerRead(name, rawInput)
     if (this.options.mailPoll === true) {
       return this.executePoll(name, rawInput)
     }
@@ -816,6 +808,16 @@ export class RepositoryWorkspace implements WorkspaceCore {
       this.safeFlush()
     }
     return result
+  }
+
+  private executePeerRead(name: CommandName, rawInput: unknown): unknown {
+    if (name !== 'listAgentPeers') fail('unauthorized', 'A peer reader may only list agent peers.', { command: name })
+    const input = parseInput(COMMAND_SCHEMAS.listAgentPeers, rawInput ?? {}, `${name} input`)
+    const store = this.requireStore()
+    return store.db.tx(() => {
+      store.ctx.session = this.openPeerReader(store.db, store.ctx.machineId)
+      return listAgentPeers(this.ctx(), input)
+    }, 'read')
   }
 
   /**

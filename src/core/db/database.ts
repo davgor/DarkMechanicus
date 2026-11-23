@@ -47,13 +47,13 @@ export function isBusyError(error: unknown): boolean {
   return errcode === 5 || errcode === 6 || /database is (locked|busy)/i.test(error.message)
 }
 
-function applyPragmas(db: DatabaseSync, path: string, busyTimeoutMs: number, synchronous: 'full' | 'off', readOnly: boolean): void {
-  db.exec(`PRAGMA busy_timeout = ${Math.max(0, Math.floor(busyTimeoutMs))}`)
+function applyPragmas(db: DatabaseSync, path: string, options: OpenDatabaseOptions): void {
+  db.exec(`PRAGMA busy_timeout = ${Math.max(0, Math.floor(options.busyTimeoutMs ?? DEFAULT_BUSY_TIMEOUT_MS))}`)
   db.exec('PRAGMA foreign_keys = ON')
-  if (path !== ':memory:' && !readOnly) {
+  if (path !== ':memory:' && options.readOnly !== true) {
     db.exec('PRAGMA journal_mode = WAL')
   }
-  db.exec(synchronous === 'off' ? 'PRAGMA synchronous = OFF' : 'PRAGMA synchronous = FULL')
+  db.exec(options.synchronous === 'off' ? 'PRAGMA synchronous = OFF' : 'PRAGMA synchronous = FULL')
 }
 
 class SqliteDb implements Db {
@@ -68,7 +68,7 @@ class SqliteDb implements Db {
     this.path = path
     this.db = new DatabaseSync(path, { readOnly: options.readOnly ?? false })
     this.beginAttempts = 1 + Math.max(0, Math.floor(options.beginRetries ?? 3) || 0)
-    applyPragmas(this.db, path, options.busyTimeoutMs ?? DEFAULT_BUSY_TIMEOUT_MS, options.synchronous ?? 'full', options.readOnly ?? false)
+    applyPragmas(this.db, path, options)
   }
 
   private statement(sql: string): StatementSync {
