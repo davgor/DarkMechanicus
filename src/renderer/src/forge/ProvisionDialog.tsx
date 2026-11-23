@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import type { AgentView, TrackedFolderView } from '../../../shared/desktop/api'
-import type { ForgeProvisionRequest, ForgeProvisionStatus, ForgeRecipe, ForgeSetupApi } from '../../../shared/desktop/forgeSetup'
+import type { ForgeProvisionRequest, ForgeProvisionResult, ForgeProvisionStatus, ForgeRecipe, ForgeSetupApi } from '../../../shared/desktop/forgeSetup'
 import { errorMessage } from '../api/dm'
 import type { Scheduler } from '../app/scheduler'
 import { Button } from '../components/Button'
@@ -19,21 +19,39 @@ interface Props {
   onProvisioned(result: ForgeProvisionStatus): void
 }
 
-const phaseText: Record<ForgeProvisionStatus['phase'], string> = {
-  checking: 'Checking creation settings', 'world-remote': 'Publishing the ticket repository',
-  'world-checkout': 'Opening the Forge World checkout', 'code-remote': 'Publishing the code repository',
-  'code-checkout': 'Preparing the local code checkout', member: 'Linking the code repository',
-  publish: 'Syncing the world and preparing onboarding', complete: 'Repository creation complete'
+const phases: Record<ForgeProvisionStatus['phase'], string> = {
+  checking: 'Creation settings', 'world-remote': 'Ticket repository publication',
+  'world-checkout': 'Forge World checkout', 'code-remote': 'Code repository publication',
+  'code-checkout': 'Local code checkout', member: 'Project membership',
+  publish: 'World sync and onboarding', complete: 'Repository creation complete'
 }
 
-function matchesWorld(request: ForgeProvisionRequest, world: string | undefined): boolean {
-  return world === undefined ? request.world.kind === 'new' : request.world.kind === 'existing' && request.world.folder === world
+type ProvisionQuery = { id: string } | { request: ForgeProvisionRequest }
+
+function sameCode(first: ForgeProvisionRequest['code'], second: ForgeProvisionRequest['code']): boolean {
+  if (!first || !second) return first === second
+  return first.name.toLowerCase() === second.name.toLowerCase() && first.visibility === second.visibility && first.recipeId === second.recipeId
 }
 
-function currentJob(jobs: ForgeProvisionStatus[], world: string | undefined, current: string | undefined): ForgeProvisionStatus | undefined {
-  return current === undefined
-    ? jobs.find(job => job.state !== 'complete' && matchesWorld(job.request, world))
-    : jobs.find(job => job.id === current)
+function sameRequest(first: ForgeProvisionRequest, second: ForgeProvisionRequest): boolean {
+  const a = first.world
+  const b = second.world
+  const sameWorld = a.kind === 'new'
+    ? b.kind === 'new' && a.name.toLowerCase() === b.name.toLowerCase()
+    : b.kind === 'existing' && a.folder === b.folder
+  return sameWorld && first.agent === second.agent && sameCode(first.code, second.code)
+}
+
+function findJob(jobs: ForgeProvisionStatus[], query: ProvisionQuery): ForgeProvisionStatus | undefined {
+  return 'id' in query ? jobs.find(job => job.id === query.id) : jobs.find(job => sameRequest(job.request, query.request))
+}
+
+function pendingIn(jobs: ForgeProvisionStatus[], world: string | undefined): ForgeProvisionStatus[] {
+  return jobs.filter(job => {
+    if (job.state === 'complete') return false
+    const target = job.request.world
+    return world === undefined ? target.kind === 'new' : target.kind === 'existing' && target.folder === world
+  })
 }
 
 function useCodeRecipes(api: Props['api'], world: string | undefined) {
@@ -51,8 +69,8 @@ function useCodeRecipes(api: Props['api'], world: string | undefined) {
   return { recipes, error }
 }
 
-function useProvisionProgress({ api, busy, id, path, scheduler, active, setJob }: {
-  api: Props['api']; busy: boolean; id?: string; path?: string; scheduler: Scheduler
+function useProvisionProgress({ api, busy, query, scheduler, active, setJob }: {
+  api: Props['api']; busy: boolean; query: RefObject<ProvisionQuery | null>; scheduler: Scheduler
   active: RefObject<boolean>; setJob(job: ForgeProvisionStatus): void
 }): void {
   useEffect(() => {
@@ -60,24 +78,26 @@ function useProvisionProgress({ api, busy, id, path, scheduler, active, setJob }
     let live = true
     let pending = false
     const stop = scheduler.every(1200, () => {
-      if (pending) return
+      const current = query.current
+      if (pending || current === null) return
       pending = true
       void api.provisioning().then(jobs => {
-        const value = currentJob(jobs, path, id)
+        const value = findJob(jobs, current)
         if (live && active.current && value?.state === 'running') setJob(value)
       }).catch(() => undefined).finally(() => { pending = false })
     })
     return () => { live = false; stop() }
-  }, [api, busy, id, path, scheduler, active, setJob])
+  }, [api, busy, query, scheduler, active, setJob])
 }
 
-function useProvisionOperation(onResult: (result: ForgeProvisionStatus | null) => void, onError: (error: unknown) => Promise<void>) {
+function useProvisionOperation(onStart: () => void, onResult: (result: ForgeProvisionResult) => void, onError: (error: unknown) => Promise<void>) {
   const [busy, setBusy] = useState(false)
   const active = useRef(false)
-  const perform = async (action: () => Promise<ForgeProvisionStatus | null>): Promise<void> => {
+  const perform = async (action: () => Promise<ForgeProvisionResult>): Promise<void> => {
     if (active.current) return
     active.current = true
     setBusy(true)
+    onStart()
     try {
       onResult(await action())
     } catch (failure) {
@@ -90,55 +110,82 @@ function useProvisionOperation(onResult: (result: ForgeProvisionStatus | null) =
   return { busy, active, perform }
 }
 
-function useProvisioning({ api, world, onProvisioned, scheduler }: Props) {
-  const path = world?.path
+function useSavedIntents(api: Props['api'], world: string | undefined) {
+  const [choices, setChoices] = useState<ForgeProvisionStatus[]>([])
   const [checking, setChecking] = useState(true)
-  const [unknown, setUnknown] = useState(false)
-  const [job, setJob] = useState<ForgeProvisionStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const unresolved = useRef(false)
+  const sequence = useRef(0)
 
-  function accept(value: ForgeProvisionStatus | null): void {
-    setJob(value)
-    unresolved.current = false
-    setUnknown(false)
-    if (value?.state === 'complete') onProvisioned(value)
+  const reload = useCallback(async (): Promise<ForgeProvisionStatus[] | null> => {
+    const request = ++sequence.current
+    setChecking(true)
+    try {
+      const jobs = await api.provisioning()
+      if (request !== sequence.current) return null
+      setChoices(pendingIn(jobs, world))
+      setError(null)
+      return jobs
+    } catch (failure) {
+      if (request === sequence.current) setError(errorMessage(failure))
+      return null
+    } finally {
+      if (request === sequence.current) setChecking(false)
+    }
+  }, [api, world])
+
+  useEffect(() => {
+    void reload()
+    return () => { sequence.current += 1 }
+  }, [reload])
+  return { choices, checking, error, reload }
+}
+
+function useProvisioning({ api, world, onProvisioned, scheduler }: Props) {
+  const { choices, checking, error: lookupError, reload } = useSavedIntents(api, world?.path)
+  const [selected, setJob] = useState<ForgeProvisionStatus | null>(null)
+  const [uncertain, setUncertain] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const query = useRef<ProvisionQuery | null>(null)
+  const singleSaved = !uncertain && choices.length === 1 ? choices[0] : null
+  const job = selected ?? singleSaved
+
+  function accept(result: ForgeProvisionResult): void {
+    if (result?.state === 'refused') {
+      query.current = null
+      setError(result.message)
+      return
+    }
+    setJob(result)
+    setUncertain(false)
+    if (result?.state === 'complete') onProvisioned(result)
   }
 
   const inspect = async (): Promise<void> => {
-    setChecking(true)
-    try {
-      const result = currentJob(await api.provisioning(), path, job?.id)
-      if (result !== undefined) accept(result)
-      else if (!unresolved.current) { setUnknown(false); setError(null) }
-    } catch (failure) {
-      setUnknown(true)
-      setError(errorMessage(failure))
-    } finally {
-      setChecking(false)
-    }
+    const current = query.current ?? (job === null ? null : { id: job.id })
+    const jobs = await reload()
+    if (jobs === null || current === null) return
+    const record = findJob(jobs, current)
+    if (record === undefined) setUncertain(true)
+    else accept(record)
   }
 
-  useEffect(() => {
-    let live = true
-    void api.provisioning().then(jobs => {
-      if (live) { setJob(currentJob(jobs, path, undefined) ?? null); setChecking(false) }
-    }, failure => {
-      if (live) { setError(errorMessage(failure)); setUnknown(true); setChecking(false) }
-    })
-    return () => { live = false }
-  }, [api, path])
-
-  const { busy, active, perform } = useProvisionOperation(accept, async failure => {
-    unresolved.current = true
-    setUnknown(true)
+  const { busy, active, perform } = useProvisionOperation(() => setError(null), accept, async failure => {
+    setUncertain(true)
     setError(errorMessage(failure))
     await inspect()
   })
-  useProvisionProgress({ api, busy, id: job?.id, path, scheduler, active, setJob })
-  return { checking, unknown, job, busy, error, inspect,
-    create: (input: ForgeProvisionRequest) => perform(() => api.provision(input)),
-    resume: (id: string) => perform(() => api.resumeProvision(id)) }
+  useProvisionProgress({ api, busy, query, scheduler, active, setJob })
+
+  const create = (request: ForgeProvisionRequest): Promise<void> => {
+    query.current = { request }
+    return perform(() => api.provision(request))
+  }
+  const resume = (id: string): Promise<void> => {
+    query.current = { id }
+    return perform(() => api.resumeProvision(id))
+  }
+  return { choices, checking, unknown: uncertain || lookupError !== null, job, setJob, busy,
+    error: error ?? lookupError, inspect, create, resume }
 }
 
 type CodeRequest = NonNullable<ForgeProvisionRequest['code']>
@@ -183,11 +230,29 @@ function CodeFields({ code, update, agents, agent, onAgent, catalog }: CodeField
 }
 
 function ProvisionProgress({ job, checking, unknown }: Pick<ReturnType<typeof useProvisioning>, 'job' | 'checking' | 'unknown'>): JSX.Element {
-  const step = job === null ? 'Waiting for creation progress…' : phaseText[job.phase]
+  const stage = job === null ? 'Waiting for creation progress…' : phases[job.phase]
+  const label = checking ? 'Checking saved creation progress…' : stage
   return <section className="forge-provision-stage" aria-label="Creation progress">
-    <p role="status">{checking ? 'Checking saved creation progress…' : step}</p>
+    <p role="status">{job?.state === 'needs-attention' && 'Needs attention · '}{label}</p>
     {job?.message && <p role="alert" className="forge-error">{job.message}</p>}
     {unknown && <p>Check progress before making another creation request.</p>}
+  </section>
+}
+
+function creationName({ request }: ForgeProvisionStatus): string {
+  const { world, code } = request
+  if (world.kind === 'new') return code === undefined ? world.name : world.name + ' / ' + code.name
+  return code?.name ?? world.folder
+}
+
+function ProvisionChoices({ choices, onChoose }: { choices: ForgeProvisionStatus[]; onChoose(job: ForgeProvisionStatus): void }): JSX.Element {
+  return <section className="forge-provision-stage" aria-label="Saved creation requests">
+    <ul className="forge-intents">
+      {choices.map(job => <li key={job.id}>
+        <Button onClick={() => onChoose(job)}>View creation for {creationName(job)}</Button>
+        <span className="muted">{phases[job.phase]}</span>
+      </li>)}
+    </ul>
   </section>
 }
 
@@ -244,7 +309,14 @@ function ProvisionAction({ model, request, progress, signedIn, valid }: {
 }
 
 function hasPendingCreation(model: ReturnType<typeof useProvisioning>): boolean {
-  return model.busy || model.checking || model.unknown || model.job !== null
+  return model.busy || model.checking || model.unknown || model.job !== null || model.choices.length > 0
+}
+
+function ProvisionStatus({ model }: { model: ReturnType<typeof useProvisioning> }): JSX.Element {
+  if (!model.unknown && model.job === null && model.choices.length > 1) {
+    return <ProvisionChoices choices={model.choices} onChoose={model.setJob} />
+  }
+  return <ProvisionProgress job={model.job} checking={model.checking} unknown={model.unknown} />
 }
 
 export function ProvisionDialog(props: Props): JSX.Element {
@@ -260,7 +332,6 @@ export function ProvisionDialog(props: Props): JSX.Element {
   </>}>
     {model.error !== null && <p role="alert" className="forge-error">{model.error}</p>}
     {loaded && account === null && <SignInPrompt purpose="create repositories" />}
-    {progress ? <ProvisionProgress job={model.job} checking={model.checking} unknown={model.unknown} />
-      : <ProvisionForm world={props.world} agents={props.agents} form={form} catalog={catalog} />}
+    {progress ? <ProvisionStatus model={model} /> : <ProvisionForm world={props.world} agents={props.agents} form={form} catalog={catalog} />}
   </Dialog>
 }

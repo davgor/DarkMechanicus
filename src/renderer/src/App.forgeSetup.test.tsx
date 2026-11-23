@@ -147,8 +147,12 @@ it('offers the recorded creation intent when the first response was lost', async
   const partial: ForgeProvisionStatus = {
     id: 'provision_lost', request, state: 'needs-attention', phase: 'world-remote', message: 'Verified the existing remote repository.'
   }
+  const unrelated: ForgeProvisionStatus = {
+    ...partial, id: 'other_provision', request: { world: { kind: 'new', name: 'other-world' } },
+    message: 'Another world is waiting for checkout.'
+  }
   setup.provision.mockImplementationOnce(async () => {
-    setup.provisioning.mockResolvedValue([partial])
+    setup.provisioning.mockResolvedValue([unrelated])
     throw new Error('The creation response was interrupted.')
   })
   h.mount()
@@ -156,12 +160,21 @@ it('offers the recorded creation intent when the first response was lost', async
   const dialog = await startWorld()
   type('World repository name', 'world')
   fireEvent.click(dialog.getByRole('button', { name: 'Create' }))
+  await settle()
+  expect(dialog.getByRole('button', { name: 'Check progress' })).toBeTruthy()
+  expect(dialog.queryByRole('button', { name: 'Create' })).toBeNull()
+  expect(dialog.queryByText('Another world is waiting for checkout.')).toBeNull()
+  setup.provisioning.mockResolvedValue([unrelated, partial])
+  fireEvent.click(dialog.getByRole('button', { name: 'Check progress' }))
   expect(await dialog.findByText('Verified the existing remote repository.')).toBeTruthy()
   expect(dialog.getByRole('button', { name: 'Resume creation' })).toBeTruthy()
   expect(dialog.queryByRole('button', { name: 'Create' })).toBeNull()
+  expect(dialog.queryByText('Another world is waiting for checkout.')).toBeNull()
   fireEvent.click(dialog.getByRole('button', { name: 'Close' }))
 
   const reopened = await startWorld()
+  expect(reopened.getByRole('button', { name: 'View creation for other-world' })).toBeTruthy()
+  fireEvent.click(reopened.getByRole('button', { name: 'View creation for world' }))
   expect(reopened.getByText('Verified the existing remote repository.')).toBeTruthy()
   expect(reopened.queryByRole('button', { name: 'Create' })).toBeNull()
   expect(setup.provision).toHaveBeenCalledExactlyOnceWith(request)
@@ -183,4 +196,25 @@ it('keeps local workflow edits when an import refresh changed the saved revision
     notes: 'Use our new local database profile.'
   })
   expect(setup.run).not.toHaveBeenCalled()
+})
+
+it('keeps creation editable after a definite refusal before publication', async () => {
+  const { h, setup } = harness()
+  setup.provision.mockResolvedValueOnce({ state: 'refused', message: 'Choose a different repository name.' })
+  h.mount()
+  await settle()
+  const dialog = await startWorld()
+  type('World repository name', 'reserved-name')
+  fireEvent.click(dialog.getByRole('button', { name: 'Create' }))
+  expect(await dialog.findByText('Choose a different repository name.')).toBeTruthy()
+  expect(dialog.getByLabelText<HTMLInputElement>('World repository name').value).toBe('reserved-name')
+  const reads = setup.provisioning.mock.calls.length
+  type('World repository name', 'updated-world')
+  fireEvent.click(dialog.getByRole('button', { name: 'Create' }))
+  await settle()
+  expect(setup.provision.mock.calls.map(([request]) => request.world)).toEqual([
+    { kind: 'new', name: 'reserved-name' }, { kind: 'new', name: 'updated-world' }
+  ])
+  expect(setup.provisioning).toHaveBeenCalledTimes(reads)
+  expect(setup.resumeProvision).not.toHaveBeenCalled()
 })

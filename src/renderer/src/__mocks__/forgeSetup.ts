@@ -32,7 +32,7 @@ export function setupProject(patch: Partial<ForgeSetupProjectView> = {}): ForgeS
         version: 1, repository, revision: 2, notes: 'Keep the existing local database.',
         detection: { status: 'detected', detectorVersion: 1, source: { repository, commit: checkoutRevision },
           facts: [{ kind: 'node', value: '>=22', source: 'package.json' }] },
-        workflow: { state: 'configured', basedOn: checkoutRevision, steps: reactRecipe.steps }
+        workflow: { state: 'configured', basedOn: 'a'.repeat(64), steps: reactRecipe.steps }
       },
       sha256: workflowHash
     },
