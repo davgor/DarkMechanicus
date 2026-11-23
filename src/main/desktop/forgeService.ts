@@ -847,11 +847,21 @@ class ForgeService {
   private async initializeOrExport({ member, source, folder, repository }: Omit<ForgeMove, 'root'>, force: boolean): Promise<void> {
     const detection = this.setup === undefined ? undefined : await this.deps.provisioning?.discover(repository)
     const original = this.deps.pool.get(source)
-    if (await original.call('initialized')) {
+    const initialized = await original.call('initialized')
+    if (detection !== undefined) await this.assertConversionOrigin(source, repository)
+    if (initialized) {
       await original.call('exportForge', member, 'repo', force, detection === undefined ? undefined : { repository, detection })
     } else {
       await this.deps.pool.get(member).initializeRepository({ name: folder, mode: 'repo' })
       if (detection !== undefined && readForgeSetupWorkflow(member) === null) refreshForgeSetupWorkflow(member, repository, detection)
+    }
+  }
+  private async assertConversionOrigin(source: string, repository: string): Promise<void> {
+    const result = await this.git.run(source, ['remote', 'get-url', 'origin'], undefined, { acceptExitCodes: [0, 2, 128] })
+    let current: string | undefined
+    try { current = githubRemote(result.stdout.trim()) } catch { /* The origin is missing or no longer points to GitHub. */ }
+    if (current?.toLowerCase() !== repository.toLowerCase()) {
+      throw new DomainError('conflict', 'The code checkout origin changed during Forge setup discovery.')
     }
   }
   async retireSource(source: string, member: string) {

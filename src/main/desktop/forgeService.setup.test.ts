@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { IpcMain } from 'electron'
 import { expect, it, onTestFinished, vi } from 'vitest'
+import { pendingForgeTransfer } from '../../core/repo/forgeBinding'
 import { readForgeSetupWorkflow } from '../../core/repo/forgeSetupStorage'
 import { openWorkspace } from '../../core/workspace'
 import type { ForgeRecipebook, ForgeSetupDetection, ForgeSetupFile, ForgeSetupProjectView } from '../../shared/desktop/forgeSetup'
@@ -87,7 +88,7 @@ function fixture(legacy = false) {
     await pool.closeAll()
     scratch.cleanup()
   })
-  return { world, scratch: scratch.path, registry, call, state, network, imported, discover, start: setup.start, ready: service.ready }
+  return { world, home, scratch: scratch.path, registry, pool, call, state, network, imported, discover, start: setup.start, ready: service.ready }
 }
 
 it('loads the bundled catalog and guards persisted recipe edits before reporting a local revision', async () => {
@@ -180,4 +181,54 @@ it('initializes setup knowledge while converting a tracked code checkout without
   expect(f.discover.mock.calls).toEqual([[software]])
   expect(f.registry.list().find(folder => folder.path === source)).toBeUndefined()
   expect(f.network.some(args => args.includes('clone'))).toBe(false)
+})
+
+async function forceDiscovery(f: ReturnType<typeof fixture>) {
+  await f.ready
+  const source = join(f.scratch, 'Software')
+  const member = join(f.world, 'Software')
+  initialize(source, software)
+  f.registry.track(source)
+  const tickets = f.pool.get(source)
+  await tickets.initializeRepository({ name: 'Original tickets', mode: 'db' })
+  const card = await tickets.createKanbanCard({ title: 'Keep this ticket in its authoritative store' })
+
+  const requested = deferred<string>()
+  const pending = deferred<ForgeSetupDetection>()
+  f.discover.mockImplementationOnce(async repository => { requested.resolve(repository); return pending.promise })
+  const result = f.call('forge:convert', f.world, source, { force: true })
+  const repository = await Promise.race([requested.promise, result.then(() => { throw new Error('Migration did not request descriptors') })])
+  return { result, repository, source, member, tickets, card, finishDiscovery: () => pending.resolve(evidence(software)) }
+}
+
+it.each([
+  { change: 'replacement', args: ['set-url', 'origin', 'https://github.com/example/replacement.git'] },
+  { change: 'removal', args: ['remove', 'origin'] }
+])('keeps the original tickets after origin $change during forced migration discovery', async ({ args }) => {
+  const f = fixture(true)
+  const { result, repository, source, member, tickets, card, finishDiscovery } = await forceDiscovery(f)
+  try { gitIn(source, 'remote', ...args) } finally { finishDiscovery() }
+
+  const outcome = await result.then(() => 'resolved', (error: unknown) => error)
+  expect({ outcome, sourceTracked: f.registry.has(source), memberCreated: existsSync(member),
+    pointerPublished: existsSync(join(source, '.forge-world.json')), pushed: f.network.some(args => args.includes('push')) }).toEqual({
+    outcome: expect.objectContaining({ code: 'conflict', message: expect.stringMatching(/code.*origin.*changed/i) }),
+    sourceTracked: true, memberCreated: false, pointerPublished: false, pushed: false
+  })
+  expect(repository).toBe(software)
+  expect(pendingForgeTransfer(f.home, source)).toBeNull()
+  expect(await tickets.getKanbanCard({ cardId: card.id })).toMatchObject({ id: card.id, title: 'Keep this ticket in its authoritative store' })
+})
+
+it('completes forced migration when the rechecked origin still identifies the same code repository', async () => {
+  const f = fixture(true)
+  const { result, source, member, card, finishDiscovery } = await forceDiscovery(f)
+  try { gitIn(source, 'remote', 'set-url', 'origin', 'git@github.com:Example/Software.git') } finally { finishDiscovery() }
+
+  await result
+  expect(f.registry.has(source)).toBe(false)
+  expect(pendingForgeTransfer(f.home, source)).toBeNull()
+  expect(f.network.some(args => args.includes('push'))).toBe(true)
+  expect(readForgeSetupWorkflow(member)?.value.detection).toEqual(evidence(software))
+  expect(await f.pool.get(member).getKanbanCard({ cardId: card.id })).toMatchObject({ id: card.id, title: 'Keep this ticket in its authoritative store' })
 })
