@@ -11,7 +11,7 @@ import { createGitRunner } from '../git/runner'
 import { createTestWorkspacePool } from './__mocks__/projectWorkspaceFixture'
 import { createFolderRegistry } from './folderRegistry'
 import { ForgeGit } from './forgeGit'
-import { parseForge, updateForge } from './forgeManifest'
+import { createForge, parseForge, updateForge } from './forgeManifest'
 import type { ForgeProvisionIntent } from './forgeProvisioning'
 import { createForgeProvisioningWork } from './forgeProvisioningWork'
 import type { ForgePublishedRepository } from './forgePublish'
@@ -166,12 +166,9 @@ it('creates and resumes a real private world, separate public code checkout and 
 it('resumes an existing-world code push from real remote refs without replaying a verified commit', async () => {
   const f = fixture()
   try {
-    await f.forge.ready
-    f.creation.loseCodeResponse = false
-    const worldOnly = await f.invoke('forgeSetup:provision', { world: { kind: 'new', name: 'tickets' } }, randomUUID()) as ForgeProvisionStatus
-    expect(worldOnly).toMatchObject({ state: 'complete' })
+    const world = await preexistingWorld(f)
     expect(f.notified).toEqual([])
-    const code = { world: { kind: 'existing', folder: worldOnly.world }, code: { name: 'software', visibility: 'private', recipeId: 'boosterseat-react' } }
+    const code = { world: { kind: 'existing', folder: world }, code: { name: 'software', visibility: 'private', recipeId: 'boosterseat-react' } }
     const operation = randomUUID()
     f.state.codePush = 'unreceived'
     const interrupted = await f.invoke('forgeSetup:provision', code, operation)
@@ -186,11 +183,11 @@ it('resumes an existing-world code push from real remote refs without replaying 
     expect(f.state.codePushes).toBe(2)
     f.state.upstream = true
     const complete = await f.invoke('forgeSetup:resumeProvision', operation)
-    expect(complete).toMatchObject({ state: 'complete', world: worldOnly.world, member: join(worldOnly.world!, 'software'), checkout })
+    expect(complete).toMatchObject({ state: 'complete', world, member: join(world, 'software'), checkout })
     expect(f.state.codePushes).toBe(2)
-    expect(f.created).toEqual(['tickets', 'software'])
+    expect(f.created).toEqual(['software'])
     expect(f.remotes.get('software')?.visibility).toBe('private')
-    expect(f.notified).toEqual([join(worldOnly.world!, 'software')])
+    expect(f.notified).toEqual([join(world, 'software')])
   } finally { await f.close() }
 })
 
@@ -221,6 +218,26 @@ it('preserves another commit in a newly created code remote and leaves publicati
 })
 
 const linkedSoftware = { folder: 'PriorAlias', repository: 'https://github.com/example/software.git' }
+
+async function preexistingWorld(f: ReturnType<typeof fixture>): Promise<string> {
+  await f.forge.ready
+  f.creation.loseCodeResponse = false
+  const world = join(f.scratch.path, 'existing-world')
+  const bare = join(f.scratch.path, 'tickets.git')
+  const url = 'https://github.com/example/tickets.git'
+  mkdirSync(world)
+  mkdirSync(bare)
+  gitIn(bare, 'init', '--bare', '--initial-branch=main')
+  gitIn(world, 'init', '--initial-branch=main')
+  gitIn(world, 'remote', 'add', 'origin', url)
+  createForge(world, 'example')
+  gitIn(world, 'add', '--', 'forge-world.json')
+  gitIn(world, 'commit', '-m', 'Create pre-existing World fixture')
+  gitIn(world, 'push', bare, 'HEAD:refs/heads/main')
+  f.remotes.set('tickets', { id: 1, name: 'tickets', owner: 'example', ownerId: 117, visibility: 'private', provenance: null, url })
+  f.registry.track(world)
+  return world
+}
 
 async function worldForMapping(f: ReturnType<typeof fixture>) {
   await f.forge.ready
@@ -265,7 +282,7 @@ it('refuses a remote URL already mapped under another member before creating cod
 it('keeps a late conflicting mapping and staged ticket project separate, then resumes the owned receipt after repair', async () => {
   const f = fixture()
   try {
-    const world = await worldForMapping(f)
+    const world = await preexistingWorld(f)
     f.discovery.before = () => updateForge(world, manifest => { manifest.projects.push(linkedSoftware) })
     const operation = randomUUID()
     expect(await f.invoke('forgeSetup:provision', codeFor(world), operation)).toMatchObject({
@@ -273,12 +290,12 @@ it('keeps a late conflicting mapping and staged ticket project separate, then re
     })
     expect(existsSync(join(world, 'software'))).toBe(false)
     expect(parseForge(readFileSync(join(world, 'forge-world.json'), 'utf8')).projects).toEqual([linkedSoftware])
-    expect(f.created).toEqual(['tickets', 'software'])
+    expect(f.created).toEqual(['software'])
     expect(f.notified).toEqual([])
     updateForge(world, manifest => { manifest.projects = [] })
     f.discovery.before = () => { throw new Error('Staged preparation evidence already exists') }
     expect(await f.invoke('forgeSetup:resumeProvision', operation)).toMatchObject({ state: 'complete', member: join(world, 'software') })
-    expect(f.created).toEqual(['tickets', 'software'])
+    expect(f.created).toEqual(['software'])
     expect(f.notified).toEqual([join(world, 'software')])
     await expect(replayOwnedMember(f, operation)).resolves.toMatchObject({ path: join(world, 'software') })
     updateForge(world, manifest => { manifest.projects.push(linkedSoftware) })
