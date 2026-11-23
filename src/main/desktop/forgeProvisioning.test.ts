@@ -139,6 +139,16 @@ it('reports a definite local refusal without reserving a repository name or crea
   expect(await f.start().provision(createRequest, f.operation)).toMatchObject({ id: f.operation, state: 'complete' })
 })
 
+it('accepts a portable custom recipe identifier with a period and rejects an invalid identifier before effects', async () => {
+  const f = fixture()
+  const input = (recipeId: string) => ({ ...createRequest, code: { ...createRequest.code, recipeId } })
+  expect(await f.start().provision(input('custom_react'), f.operation)).toMatchObject({ state: 'refused' })
+  expect(f.calls).toEqual([])
+  expect(await f.start().provision(input('custom.react'), f.operation)).toMatchObject({
+    id: f.operation, state: 'complete', request: { code: { recipeId: 'custom.react' } }
+  })
+})
+
 it('resumes a known POST refusal without replaying the already confirmed world creation', async () => {
   const f = fixture()
   f.change.refused = 'code'

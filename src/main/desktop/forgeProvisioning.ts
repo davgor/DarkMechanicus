@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { z } from 'zod'
+import { forgeSetupId } from '../../core/repo/forgeSetupFormat'
 import type { ForgeProvisionRequest, ForgeProvisionResult, ForgeProvisionStatus } from '../../shared/desktop/forgeSetup'
 import { projectName } from './forgeManifest'
 import {
@@ -17,7 +18,7 @@ const requestSchema = z.strictObject({
     z.strictObject({ kind: z.literal('new'), name: slug }),
     z.strictObject({ kind: z.literal('existing'), folder: z.string().min(1).max(4096) })
   ]),
-  code: z.strictObject({ name: slug, visibility: z.enum(['private', 'public']), recipeId: z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/) }).optional(),
+  code: z.strictObject({ name: slug, visibility: z.enum(['private', 'public']), recipeId: forgeSetupId }).optional(),
   agent: z.string().min(1).max(128).optional()
 })
 const phaseSchema = z.enum(['checking', 'world-remote', 'world-checkout', 'code-remote', 'code-checkout', 'member', 'publish', 'complete'])
