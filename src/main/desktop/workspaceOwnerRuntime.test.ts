@@ -1,6 +1,6 @@
 import { afterEach, expect, it } from 'vitest'
 import { EventEmitter } from 'node:events'
-import { existsSync, mkdirSync, renameSync, rmdirSync } from 'node:fs'
+import { existsSync, mkdirSync, realpathSync, renameSync, rmdirSync, symlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { createHarness } from '../../test/workspaceHarness'
 import { resolveLayout } from '../../core/repo/layout'
@@ -118,13 +118,21 @@ it('uses the first explicit member reconcile as the cold import instead of consu
   const source = h.open('desktop')
   await source.initializeRepository({ name: 'Portable history' })
   const card = await source.createKanbanCard({ title: 'Persisted portable card' })
-  const clone = h.cloneTracked()
+  // The desktop registry resolves short or aliased TEMP paths before posting owner work.
+  const clone = realpathSync.native(h.cloneTracked())
+  const alias = join(h.homeDir, 'clone-alias')
+  symlinkSync(clone, alias, process.platform === 'win32' ? 'junction' : 'dir')
   const worker = owner(h.homeDir)
-  const first = await worker.work(clone, { kind: 'native', name: 'reconcileMember', args: [] })
+  const reconcile: Work = { kind: 'native', name: 'reconcileMember', args: [] }
+  await expect(worker.work(alias, reconcile)).resolves.toMatchObject({
+    ok: false, error: { code: 'conflict', message: 'The tracked folder moved.' }
+  })
+  expect(existsSync(resolveLayout(clone).dbFile)).toBe(false)
+  const first = await worker.work(clone, reconcile)
   if (!first.ok) throw new Error(first.error.message)
   expect(first.result.value).toMatchObject({
     hasLocalCache: false, result: { imported: expect.arrayContaining(['kanban:' + card.id]), rejected: [] }
   })
-  const second = await worker.work(clone, { kind: 'native', name: 'reconcileMember', args: [] }, first.result.binding)
+  const second = await worker.work(clone, reconcile, first.result.binding)
   expect(second).toMatchObject({ ok: true, result: { value: { hasLocalCache: true, result: { imported: [], rejected: [] } } } })
 })
