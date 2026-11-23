@@ -20,6 +20,14 @@ import { spawn, spawnSync } from 'node:child_process'
 import { once } from 'node:events'
 import { fileURLToPath } from 'node:url'
 
+function initializeCheckout(dir: string, repository: string): void {
+  mkdirSync(dir)
+  gitIn(dir, 'init', '-b', 'main')
+  gitIn(dir, 'config', 'user.name', 'Test')
+  gitIn(dir, 'config', 'user.email', 'test@example.test')
+  gitIn(dir, 'remote', 'add', 'origin', 'https://github.com/example/' + repository + '.git')
+}
+
 function fixture(seed?: { source: string; world: string }) {
   const scratch = scratchDir('forge-convert-')
   const home = join(scratch.path, 'home')
@@ -31,13 +39,7 @@ function fixture(seed?: { source: string; world: string }) {
   const call = async (name: string, ...args: unknown[]) => handlers.get('forge:' + name)!({} as Electron.IpcMainInvokeEvent, ...args)
   for (const dir of [source, world]) {
     if (seed) cpSync(dir === world ? seed.world : seed.source, dir, { recursive: true })
-    else {
-      mkdirSync(dir)
-      gitIn(dir, 'init', '-b', 'main')
-      gitIn(dir, 'config', 'user.name', 'Test')
-      gitIn(dir, 'config', 'user.email', 'test@example.test')
-      gitIn(dir, 'remote', 'add', 'origin', 'https://github.com/example/' + (dir === world ? 'tickets' : 'software') + '.git')
-    }
+    else initializeCheckout(dir, dir === world ? 'tickets' : 'software')
     registry.track(dir)
   }
   const real = createGitRunner()
@@ -68,11 +70,17 @@ function fixture(seed?: { source: string; world: string }) {
   return { pool, source, world, home, registry, call, forge, published, probes, pick(path: string | null) { picked = path },
     nextSync: () => new Promise<void>(resolve => { syncReceipts.push(resolve) }),
     failNetwork(command: string | null) { failingNetwork = command },
-    close() { forge.stop(); pool.closeAll(); scratch.cleanup() } }
+    async close() {
+      forge.stop()
+      await forge.ready
+      await pool.closeAll()
+      scratch.cleanup()
+    } }
 }
 
 const sourceRoot = fileURLToPath(new URL('../../../', import.meta.url))
 let crashBundle: ReturnType<typeof scratchDir>
+let emptyWorldSeed: ReturnType<typeof fixture>
 let crashSeed: ReturnType<typeof fixture>
 let crashCardId: string
 
@@ -80,15 +88,21 @@ let crashCardId: string
 // but does not start a TSX transformer for the whole application graph inside its timeout.
 beforeAll(async () => {
   const seedStarted = Date.now()
-  crashSeed = fixture()
+  // Copy only these two prepared repositories. Each test creates its own registry,
+  // machine home, bindings, and stores before converting or restoring any data.
+  emptyWorldSeed = fixture()
+  await emptyWorldSeed.call('create', emptyWorldSeed.world)
+  emptyWorldSeed.forge.stop()
+  await emptyWorldSeed.pool.closeAll()
+  crashSeed = fixture(emptyWorldSeed)
   const source = crashSeed.pool.get(crashSeed.source)
   await source.initializeRepository({ name: 'Crash recovery', mode: 'repo' })
   const card = await source.createKanbanCard({ title: 'Only one restart' })
   crashCardId = card.id
   await source.playKanbanCard({ cardId: card.id })
-  await crashSeed.call('create', crashSeed.world)
-  crashSeed.pool.closeAll()
+  await crashSeed.forge.ready
   crashSeed.forge.stop()
+  await crashSeed.pool.closeAll()
   // Each case copies only these closed repositories. Home, registry, bindings and
   // journals are fresh, and no conversion has run in this immutable seed.
   expect(existsSync(join(crashSeed.world, 'Software'))).toBe(false)
@@ -105,7 +119,11 @@ beforeAll(async () => {
     banner: { js: `require = require('node:module').createRequire(${JSON.stringify(join(sourceRoot, 'package.json'))});` }
   })
 })
-afterAll(() => { crashBundle?.cleanup(); crashSeed?.close() })
+afterAll(async () => {
+  crashBundle?.cleanup()
+  await crashSeed?.close()
+  await emptyWorldSeed?.close()
+})
 
 function crashFixtureSource(): string {
   return `
@@ -178,7 +196,7 @@ it.each(['reservation', 'member', 'staging', 'checkpoint', 'destination', 'manif
     expect((await dest.getKanbanCard({ cardId: crashCardId })).lane).toBe('backlog')
     expect(dest.ctx().db.get<{ n: number }>("SELECT COUNT(*) AS n FROM kanban_events WHERE card_id = ? AND kind = 'migration_restarted'", crashCardId)?.n).toBe(1)
     expect(pendingForgeTransfer(f.home, f.source)).toBeNull()
-  } finally { f.close() }
+  } finally { await f.close() }
 })
 
 it('requires a live foreign source process to exit before restoring, even after its SQLite handle closed', async () => {
@@ -198,7 +216,7 @@ it('requires a live foreign source process to exit before restoring, even after 
     child.kill()
     await exited
     expect(await f.call('restore', member, 'db')).toBe(f.source)
-  } finally { child.kill(); await exited; worker.close(); f.close() }
+  } finally { child.kill(); await exited; worker.close(); await f.close() }
 })
 
 it.each(['receipt', 'unrelated', 'owner'] as const)('keeps a resumed %s integrity failure and its persistent fence for inspection', async changed => {
@@ -221,7 +239,7 @@ it.each(['receipt', 'unrelated', 'owner'] as const)('keeps a resumed %s integrit
     expect(pendingForgeTransfer(f.home, f.source)).toBe(member)
     await expect(f.call('sync', f.world)).rejects.toThrow('conversion is pending')
     expect(existsSync(join(f.source, '.darkmechanicus/project.json'))).toBe(true)
-  } finally { f.close() }
+  } finally { await f.close() }
 })
 
 it('directs an uninitialized force source to normal migration without creating a destination', async () => {
@@ -233,7 +251,7 @@ it('directs an uninitialized force source to normal migration without creating a
     expect(pendingForgeTransfer(f.home, f.source)).toBeNull()
     await f.call('convert', f.world, f.source)
     expect(existsSync(join(f.source, 'FORGE-WORLD.md'))).toBe(true)
-  } finally { f.close() }
+  } finally { await f.close() }
 })
 
 it.each([null, 'force', { force: false }, { force: true, unexpected: true }])('refuses malformed force IPC options %j without changing either store', async options => {
@@ -247,7 +265,7 @@ it.each([null, 'force', { force: false }, { force: true, unexpected: true }])('r
     expect(await source.getProject()).toEqual(before)
     expect(existsSync(join(f.world, 'Software'))).toBe(false)
     expect(pendingForgeTransfer(f.home, f.source)).toBeNull()
-  } finally { f.close() }
+  } finally { await f.close() }
 })
 
 it.each(['repo', 'db'] as const)('force converts %s live claims, keeps a private source backup and fences the old handle', async mode => {
@@ -275,7 +293,7 @@ it.each(['repo', 'db'] as const)('force converts %s live claims, keeps a private
     expect(await f.call('restore', member, mode)).toBe(f.source)
     expect((await f.pool.get(f.source).getKanbanCard({ cardId: card.id })).lane).toBe('backlog')
     expect((await f.pool.get(f.source).getStorageStatus()).storage.mode).toBe(mode)
-  } finally { worker.close(); f.close() }
+  } finally { worker.close(); await f.close() }
 })
 
 it('resumes force retirement after some portable paths have already moved to the verified backup', async () => {
@@ -300,7 +318,7 @@ it('resumes force retirement after some portable paths have already moved to the
     expect(existsSync(join(backup, 'project.json'))).toBe(true)
     expect((await f.pool.get(join(f.world, 'Software')).getKanbanCard({ cardId: card.id })).title).toBe(card.title)
     expect(pendingForgeTransfer(f.home, f.source)).toBeNull()
-  } finally { fault?.mockRestore(); f.close() }
+  } finally { fault?.mockRestore(); await f.close() }
 })
 
 it('restores source writes on a definite prepublish force failure and binds force intent across uncertain push recovery', async () => {
@@ -331,16 +349,15 @@ it('restores source writes on a definite prepublish force failure and binds forc
     f.failNetwork(null)
     expect(await f.forge.openProject(f.source)).toBe(join(f.world, 'Software'))
     expect(pendingForgeTransfer(f.home, f.source)).toBeNull()
-  } finally { f.close() }
+  } finally { await f.close() }
 })
 
 it('converts a real SQLite project, follows its source note and restores the same card to the code repo', async () => {
-  const { pool, source, world, call, forge, close } = fixture()
+  const { pool, source, world, call, forge, close } = fixture(emptyWorldSeed)
   try {
     const original = pool.get(source)
     await original.initializeRepository({ name: 'Software', mode: 'db' })
     const card = await original.createKanbanCard({ title: 'Keep me' })
-    await call('create', world)
     await call('convert', world, source)
     expect(readFileSync(join(source, 'FORGE-WORLD.md'), 'utf8')).toContain('example/tickets.git')
     expect(JSON.parse(readFileSync(join(source, '.forge-world.json'), 'utf8'))).toEqual({ version: 1, worldRepository: 'https://github.com/example/tickets.git', projectFolder: 'Software' })
@@ -355,7 +372,7 @@ it('converts a real SQLite project, follows its source note and restores the sam
     expect(existsSync(join(source, 'FORGE-WORLD.md'))).toBe(false)
     expect(existsSync(join(source, '.forge-world.json'))).toBe(false)
     expect((await pool.get(source).getKanbanCard({ cardId: card.id })).title).toBe('Keep me')
-  } finally { close() }
+  } finally { await close() }
 })
 
 it('syncs only worlds at the configured interval and stops when the bridge closes', async () => {
@@ -386,7 +403,7 @@ it('syncs only worlds at the configured interval and stops when the bridge close
     forge.stop()
     await vi.advanceTimersByTimeAsync(300_000)
     expect(probes).toHaveLength(3)
-  } finally { close(); vi.useRealTimers() }
+  } finally { await close(); vi.useRealTimers() }
 })
 
 it('publishes under the signed-in owner, reuses the checkout and resolves a tracked remote on open', async () => {
@@ -413,14 +430,13 @@ it('publishes under the signed-in owner, reuses the checkout and resolves a trac
     expect(await call('restore', member, 'db')).toBeNull()
     await call('pickConvert', root)
     expect(registry.list().filter(f => f.forgeParent === root).map(f => f.name)).toEqual(['Code'])
-  } finally { close() }
+  } finally { await close() }
 })
 
 it('moves an uninitialized checkout into a world, validates its pointer and restores SQLite', async () => {
-  const { pool, source, world, call, forge, pick, close } = fixture()
+  const { pool, source, world, call, forge, pick, close } = fixture(emptyWorldSeed)
   const member = join(world, basename(source))
   try {
-    await call('create', world)
     await call('pickConvert', world)
     const note = join(source, 'FORGE-WORLD.md')
     const original = readFileSync(note, 'utf8')
@@ -440,7 +456,7 @@ it('moves an uninitialized checkout into a world, validates its pointer and rest
     expect((await pool.get(source).getKanbanCard({ cardId: card.id })).title).toBe('New world ticket')
     expect(existsSync(note)).toBe(false)
     expect(existsSync(join(source, '.darkmechanicus'))).toBe(false)
-  } finally { close() }
+  } finally { await close() }
 })
 
 it('refuses conversion and restoration of planner-only holds without moving ticket state or retiring the incident', async () => {
@@ -483,7 +499,7 @@ it('refuses conversion and restoration of planner-only holds without moving tick
     retireToolingWorkflow(linked.ctx(), 'chat_member')
     await call('restore', member, 'db')
     expect((await pool.get(source).getKanbanCard({ cardId: card.id })).title).toBe('Unfinished planning')
-  } finally { close() }
+  } finally { await close() }
 })
 
 it('reports preparing until the local member owner reconciles and does no remote Git work for readiness', async () => {
@@ -510,7 +526,7 @@ it('reports preparing until the local member owner reconciles and does no remote
   } finally {
     release()
     intercept.mockRestore()
-    close()
+    await close()
   }
 })
 
@@ -540,7 +556,7 @@ it('keeps old member preparation errors out of a retracked root generation', asy
   } finally {
     lose(new Error('Fixture closed'))
     intercept.mockRestore()
-    close()
+    await close()
   }
 })
 
@@ -576,5 +592,5 @@ it.each([
       await Promise.resolve()
       expect(await call('memberStatus', world, member)).toMatchObject({ readiness: 'preparing', error: 'Ticket records need reconciliation.' })
     }
-  } finally { read.mockRestore(); close() }
+  } finally { read.mockRestore(); await close() }
 })
