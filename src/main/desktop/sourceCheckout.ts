@@ -7,7 +7,8 @@
  * The code must be a Git checkout with the Dark Mechanicus package and source files. A standalone checkout has its
  * own tracked project. A Forge-linked checkout uses its verified, tracked member's project record and keeps the code
  * outside the ticket repository. The association is revalidated by every read and before recovery or correction
- * writes. A moved path, changed project, or unavailable mapping requires a new explicit choice.
+ * writes. Without an association file, tooling recovery may use a unique tracked Forge project's verified private
+ * hint. The chooser and cross-repository corrections still use the explicit association.
  */
 import { dirname, isAbsolute, join, resolve, sep } from 'node:path'
 import { z } from 'zod'
@@ -119,6 +120,8 @@ export interface SourceCheckouts {
    * path and portable target, or throws a DomainError naming the problem and its recovery.
    */
   requireAvailable(): SourceLocation
+  /** Tooling repair may use one already linked and verified Forge checkout when no explicit choice was made. */
+  requireRecoveryCheckout(): SourceLocation
 }
 
 interface Env {
@@ -237,21 +240,23 @@ function inspect(env: Env, path: string): Inspection {
   return inspectProject(env, path, forge)
 }
 
-function load(env: Env): Association | null {
+function readAssociation(env: Env): Association | null | undefined {
   try {
     const parsed = fileSchema.safeParse(JSON.parse(env.fs.readFile(env.file)))
     return parsed.success ? parsed.data.checkout : null
-  } catch {
-    return null
+  } catch (error: unknown) {
+    // Only an absent file permits recovery discovery. Invalid state, a link, and an explicit clear do not.
+    return (error as NodeJS.ErrnoException).code === 'ENOENT' && !env.fs.isSymlink(env.file) ? undefined : null
   }
+}
+
+function load(env: Env): Association | null {
+  return readAssociation(env) ?? null
 }
 
 /** Written whole, then renamed into place: a crash never leaves half a file. */
 function save(env: Env, checkout: Association | null): void {
   const { fs, file } = env
-  if (checkout === null && !fs.exists(file)) {
-    return
-  }
   const temp = `${file}.tmp`
   fs.mkdirp(dirname(file))
   fs.writeFile(temp, `${JSON.stringify({ version: FILE_VERSION, checkout }, null, 2)}\n`)
@@ -296,9 +301,12 @@ function revalidate(env: Env, checkout: Association): Available | Refusal {
   if (JSON.stringify(inspection.forge) !== JSON.stringify(checkout.local.forge)) {
     return refused('project_mismatch', 'The associated Forge World ticket folder or Git origin changed.', RECHOOSE)
   }
-  const { target, forge } = inspection
-  return { ok: true, location: forge === undefined ? { path, target } :
-    { path, target, projectPath: forge.member, mappingIdentity: JSON.stringify(forge) } }
+  return { ok: true, location: locationFor(path, inspection) }
+}
+
+function locationFor(path: string, { target, forge }: Extract<Inspection, { outcome: 'source' }>): SourceLocation {
+  return forge === undefined ? { path, target } :
+    { path, target, projectPath: forge.member, mappingIdentity: JSON.stringify(forge) }
 }
 
 function viewOf(env: Env, checkout: Association | null): SourceCheckoutView {
@@ -355,8 +363,7 @@ function associate(env: Env, path: string, added: boolean, selected?: Selection)
   return { outcome: 'associated', checkout: recordAssociation(env, path, inspection), folder, added: forge === undefined && added }
 }
 
-function requireAvailable(env: Env): SourceLocation {
-  const checkout = load(env)
+function requireAvailable(env: Env, checkout = load(env)): SourceLocation {
   if (checkout === null) {
     throw new DomainError('not_found', 'No Dark Mechanicus checkout is chosen on this machine.', { recovery: CHOOSE_FIRST })
   }
@@ -371,22 +378,35 @@ function requireAvailable(env: Env): SourceLocation {
   })
 }
 
-function verifiedHint(env: Env, folder: ReturnType<Env['registry']['list']>[number]): string | undefined {
+function verifiedHint(env: Env, folder: ReturnType<Env['registry']['list']>[number]): SourceLocation | undefined {
   if (!folder.forgeParent || !folder.initialized || !folder.available) return undefined
   try {
     const hint = privateForgeSourceHint(folder.path)
     if (hint === undefined) return undefined
     const checked = inspect(env, hint)
-    return checked.outcome === 'source' && checked.forge?.member === folder.path ? hint : undefined
+    return checked.outcome === 'source' && checked.forge?.member === folder.path ? locationFor(hint, checked) : undefined
   } catch {
-    // Unverified hints cannot suggest a location.
+    // Unverified hints cannot choose or suggest a location.
     return undefined
   }
 }
 
 function suggestedPath(env: Env): string | undefined {
-  const candidates = new Set(env.registry.list().flatMap(folder => verifiedHint(env, folder) ?? []))
+  const candidates = new Set(env.registry.list().flatMap(folder => verifiedHint(env, folder)?.path ?? []))
   return candidates.size === 1 ? candidates.values().next().value : undefined
+}
+
+function requireRecoveryCheckout(env: Env): SourceLocation {
+  const explicit = readAssociation(env)
+  if (explicit !== undefined) return requireAvailable(env, explicit)
+  const candidates = env.registry.list().flatMap(folder => verifiedHint(env, folder) ?? [])
+  const current = readAssociation(env)
+  if (current !== undefined) return requireAvailable(env, current)
+  if (candidates.length === 1) return candidates[0]
+  if (candidates.length > 1) {
+    throw new DomainError('conflict', 'More than one linked Dark Mechanicus checkout is available for tooling recovery.', { recovery: CHOOSE_FIRST })
+  }
+  return requireAvailable(env, null)
 }
 
 type Screened = Selection & { canonical: string }
@@ -394,7 +414,7 @@ type Screened = Selection & { canonical: string }
 function ticketFolderRefusal(env: Env, path: string): Refusal | null {
   const member = env.registry.list().find(folder => folder.path === path && folder.forgeParent !== undefined)
   if (member === undefined) return null
-  const hint = verifiedHint(env, member)
+  const hint = verifiedHint(env, member)?.path
   const recovery = hint === undefined
     ? 'Choose your existing Dark Mechanicus code checkout outside the Forge World. Clone the repository only if you do not have it locally.'
     : `Choose the linked Dark Mechanicus code checkout at ${abbreviateHome(hint, env.homeDir)}.`
@@ -456,6 +476,7 @@ export function createSourceCheckouts(options: {
       save(env, null)
       return viewOf(env, null)
     },
-    requireAvailable: () => requireAvailable(env)
+    requireAvailable: () => requireAvailable(env),
+    requireRecoveryCheckout: () => requireRecoveryCheckout(env)
   }
 }
