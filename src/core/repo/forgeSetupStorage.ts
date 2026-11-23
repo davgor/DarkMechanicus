@@ -186,7 +186,7 @@ export function readForgeSetupWorkflow(target: Target): ForgeSetupFile<ForgeSetu
   return workflowValue(boundedRead(file))
 }
 
-export function writeForgeSetupWorkflow(
+function writeForgeSetupWorkflow(
   target: Target, expectedSha256: string | null, value: ForgeSetupWorkflow
 ): ForgeSetupFile<ForgeSetupWorkflow> {
   const file = workflowPath(target)
