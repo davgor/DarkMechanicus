@@ -398,3 +398,4 @@ src/shared/domain/standardization.ts - StandardizationPatch
 src/shared/domain/standardization.ts - StandardsNoticeRoute
 src/shared/domain/standardization.ts - StandardsNotice
 src/shared/domain/standardization.ts - StandardizationItem
+src/shared/domain/standardsChat.ts - applyQuestion
