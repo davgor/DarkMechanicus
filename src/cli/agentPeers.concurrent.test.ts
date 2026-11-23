@@ -1,7 +1,9 @@
 import { build } from 'esbuild'
-import { globSync, readFileSync } from 'node:fs'
+import { existsSync, globSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { spawnSync } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { afterEach, beforeEach, expect, it } from 'vitest'
 import { createDmClient, DM_CLIENT_DESCRIPTOR_ENV, nodeDmClientDeps } from '../../resources/skitarii/extension/dmClient'
 import { writeDmClientDescriptor } from '../main/terminals/terminalFiles'
@@ -11,6 +13,10 @@ import { createHarness, type Harness } from '../test/workspaceHarness'
 import { openWorkspace, type Workspace } from '../core/workspace'
 import { runCli } from './main'
 import { COMMANDS } from '../core/commands'
+import { createStagedAttachment, getAttachment } from '../core/services/attachments'
+import { pngBytes } from '../test/images'
+import { projectKey } from '../core/repo/storageMode'
+import { dropAcceptanceNodes } from '../test/acceptanceNodes'
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url))
 let harness: Harness
@@ -182,4 +188,58 @@ it('pins grant authority and the peer page to one snapshot, and observes revocat
   expect((await reader.listAgentPeers({ limit: 1 })).peers).toEqual(peers.slice(0, 1))
   expect(intervened).toBe(true)
   await expect(reader.listAgentPeers({ limit: 1 })).rejects.toMatchObject({ code: 'unauthorized' })
+})
+
+it('still imports portable epics into a fresh local database for ordinary readers', async () => {
+  await desktop.initializeRepository({ name: 'Portable ordinary reader', mode: 'repo' })
+  const epic = await desktop.createEpic({ title: 'Portable work must remain discoverable' })
+  await dropAcceptanceNodes(desktop, epic.id)
+  const draft = await desktop.updatePlanDraft({
+    epicId: epic.id, ops: [{ op: 'add_ticket', sprint: '1', ticket: { title: 'Portable saved work' } }]
+  })
+  expect((await desktop.savePlan({ epicId: epic.id, expectedDraftRevision: draft.draftRevision })).status).toBe('saved')
+  const clone = harness.cloneTracked()
+  expect(existsSync(join(clone, '.darkmechanicus', 'local'))).toBe(false)
+  const ordinary = harness.open('reader', { root: clone })
+  expect((await ordinary.getEpic({ epicId: epic.id })).title).toBe('Portable work must remain discoverable')
+  expect(existsSync(join(clone, '.darkmechanicus', 'local', 'state.sqlite'))).toBe(true)
+})
+
+it('still prunes expired staged images on ordinary open while retaining fresh evidence', async () => {
+  await desktop.initializeRepository({ name: 'Ordinary attachment maintenance', mode: 'repo' })
+  const expired = createStagedAttachment(desktop.ctx(), { bytes: pngBytes(2, 2), label: 'Expired staged evidence', purpose: 'evidence' })
+  harness.clock.advanceSeconds(8 * 24 * 60 * 60)
+  const fresh = createStagedAttachment(desktop.ctx(), { bytes: pngBytes(3, 3), label: 'Fresh staged evidence', purpose: 'evidence' })
+  harness.open('reader')
+  expect(() => getAttachment(desktop.ctx(), expired.id)).toThrow('does not exist')
+  expect(getAttachment(desktop.ctx(), fresh.id)).toEqual(fresh)
+})
+
+it('still refreshes and ends ordinary sessions rather than treating them as peer readers', async () => {
+  await desktop.initializeRepository({ name: 'Ordinary session lifecycle', mode: 'repo' })
+  const ordinary = harness.open('orchestrator')
+  const id = ordinary.sessionId()
+  harness.clock.advanceSeconds(70)
+  expect((await desktop.listSessions()).find((session) => session.id === id)?.active).toBe(false)
+  ordinary.heartbeat()
+  expect((await desktop.listSessions()).find((session) => session.id === id)).toMatchObject({
+    active: true, lastSeenAt: harness.clock.nowIso()
+  })
+  ordinary.close()
+  expect((await desktop.listSessions()).find((session) => session.id === id)?.active).toBe(false)
+})
+
+it('leaves abandoned migration staging untouched for peer reads but recovers it on an ordinary open', async () => {
+  const { token, peers } = await fixture()
+  const child = spawnSync(process.execPath, ['-e', 'process.stdout.write(String(process.pid))'], { encoding: 'utf8', windowsHide: true })
+  if (child.status !== 0) throw new Error(`Could not obtain a terminated fixture process: ${child.stderr}`)
+  const directory = join(harness.homeDir, 'projects')
+  mkdirSync(directory, { recursive: true })
+  const prepared = join(directory, `${projectKey(harness.root)}.switch.json.prepare-${child.stdout}-${randomUUID()}`)
+  writeFileSync(prepared, 'Interrupted unpublished staging data')
+  const reader = peerReader(token)
+  expect((await reader.listAgentPeers({ limit: 1 })).peers).toEqual(peers.slice(0, 1))
+  expect(readFileSync(prepared, 'utf8')).toBe('Interrupted unpublished staging data')
+  harness.open('reader', { transport: 'cli', grantToken: token })
+  expect(existsSync(prepared)).toBe(false)
 })

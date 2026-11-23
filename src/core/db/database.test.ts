@@ -527,3 +527,28 @@ describe('file databases with a competing writer', () => {
     expect(names(writer)).toEqual(['held'])
   })
 })
+
+describe('writer transactions and explicit read snapshots', () => {
+  it('reserves ordinary writes before the callback but lets read snapshots coexist with another writer', () => {
+    const path = tempDbPath()
+    const owner = openWithNotes(path)
+    const competitor = open(path, { busyTimeoutMs: 0, beginRetries: 0 })
+    owner.tx(() => {
+      expect(() => competitor.tx(() => add(competitor, 'must not acquire the writer'))).toThrow(/database is locked/)
+      add(owner, 'committed by owner')
+    })
+    expect(names(competitor)).toEqual(['committed by owner'])
+
+    const reader = open(path, { readOnly: true })
+    const interrupted = new Error('Stop the read snapshot')
+    expect(() => reader.tx(() => {
+      expect(names(reader)).toEqual(['committed by owner'])
+      competitor.tx(() => add(competitor, 'committed during snapshot'))
+      expect(names(reader)).toEqual(['committed by owner'])
+      throw interrupted
+    }, 'read')).toThrow(interrupted)
+    expect(reader.inTransaction()).toBe(false)
+    expect(names(reader)).toEqual(['committed by owner', 'committed during snapshot'])
+    expect(() => add(reader, 'read-only writes are forbidden')).toThrow(/readonly/)
+  })
+})
