@@ -10,6 +10,7 @@ import type { CommandApi, CommandName } from '../domain/api'
 import type { DomainErrorShape } from '../domain/errors'
 import type { BoardRemovalResultView, BoardRemovalView, StorageMode } from '../domain/views'
 import type { CrossRepoCorrectionsApi } from './crossRepoCorrections'
+import type { ForgeSetupApi } from './forgeSetup'
 import type { ForgeApi, ForgeWorld } from './forgeWorld'
 import type { SourceCheckoutApi } from './sourceCheckout'
 
@@ -262,6 +263,7 @@ export interface YoloStatus {
 
 export interface DmApi {
   forge?: ForgeApi
+  forgeSetup?: ForgeSetupApi
   setTelegramEnabled(enabled: boolean): Promise<void>
   telegramStatus(): Promise<{ configured: boolean; paired: boolean; enabled: boolean; issue: string }>
   pairTelegram(): Promise<string>

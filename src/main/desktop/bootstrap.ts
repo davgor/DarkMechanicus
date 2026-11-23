@@ -114,10 +114,11 @@ import { refreshMcpServer, writeMcpServer } from './mcpJsonFile'
 import { installClaudeSkills, type SkillDefinition } from './skillInstall'
 import { createSourceCheckouts, type SourceCheckouts } from './sourceCheckout'
 import { createSourceCheckoutHandlers, registerSourceCheckoutIpc } from './sourceCheckoutIpc'
-import { publishForgeRepository } from './forgePublish'
+import { createForgeRepositoryPublisher, publishForgeRepository } from './forgePublish'
 import { forgeAgentSessions } from './forgeAgents'
 import { cleanupForgeSource } from './forgeCleanup'
 import { startForge } from './forgeService'
+import { discoverGithubForgeSetup } from './forgeSetupGithub'
 import { createWorkspacePool, type WorkspacePool } from './workspacePool'
 import { openUtilityWorkspace } from './utilityWorkspace'
 import type { ProjectWorkspace } from './workspaceClient'
@@ -947,6 +948,11 @@ function startForgeBridge(ipc: Pick<IpcMain, 'handle'>, options: ForgeBridgeOpti
       for (const window of BrowserWindow.getAllWindows()) if (!window.isDestroyed()) window.webContents.send('forge:foldersChanged')
     },
     publish: name => publishForgeRepository(name, github.getToken(), net.fetch.bind(net)),
+    provisioning: {
+      journal: join(app.getPath('userData'), 'forge', 'provisioning.json'),
+      publisher: createForgeRepositoryPublisher(github, githubFetch),
+      discover: repository => discoverGithubForgeSetup(repository, github, (url, request) => net.fetch(url, request))
+    },
     ...forgeAgentSessions({ ...options, beforeArchive: async chat => { await retireChatHolds(chat, registry, pool); await options.suspendChatMail(chat) } })
   })
 }
@@ -1021,5 +1027,5 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   const close = telegramLifecycle(ipc, registry, pool, appDb)
   startChats(ipc, { folders: registry, agents, chats, store, terminals, workspaces: pool, activity, mail, folderDefaults, deliveries, contextDelivery, resumeChat })
   startTerminals(ipc, { folders: registry, agents, store, terminals, logins })
-  return { ...stoppingMailFirst(mail, quit, async () => { forge.stop(); await close() }), github }
+  return { ...stoppingMailFirst(mail, quit, async () => { await forge.stop(); await close() }), github }
 }
