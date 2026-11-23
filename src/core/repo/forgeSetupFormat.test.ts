@@ -1,6 +1,9 @@
 import { expect, it } from 'vitest'
 import type { ForgeRecipebook, ForgeSetupWorkflow } from '../../shared/desktop/forgeSetup'
-import { encodeForgeRecipebook, encodeForgeSetupWorkflow, parseForgeRecipebook, parseForgeSetupWorkflow } from './forgeSetupFormat'
+import {
+  encodeForgeRecipebook, encodeForgeSetupWorkflow, FORGE_WORKFLOW_BYTES,
+  parseForgeRecipebook, parseForgeSetupWorkflow, updateForgeSetupEvidence
+} from './forgeSetupFormat'
 
 const repo = 'https://github.com/example/software.git'
 const workflow: ForgeSetupWorkflow = {
@@ -33,6 +36,7 @@ it.each([
   'notes: !!str ordinary',
   '<<: {notes: merge}',
   'include: ./other.yaml',
+  'notes: ' + '['.repeat(24) + 'value' + ']'.repeat(24),
   '---\nversion: 1',
   'notes: ' + 'a'.repeat(70_000)
 ])('refuses unsupported or oversized YAML without disclosing its contents', (extra) => {
@@ -96,4 +100,37 @@ it('refuses credentials, raw shells, forged empty success and colliding recipe t
   const [asset] = recipe.assets
   expect(() => encodeForgeRecipebook({ version: 1, recipes: [{ ...recipe, assets: [asset, { ...asset, target: 'INDEX.HTML' }] }] })).toThrow(/recipe/i)
   expect(() => encodeForgeRecipebook({ version: 1, recipes: [{ ...recipe, assets: [asset, { ...asset, target: 'index.html/nested' }] }] })).toThrow(/recipe/i)
+})
+
+it('retains portable recipe ancestry and rejects duplicate IDs, missing bases and cycles', () => {
+  const [base] = catalog.recipes
+  const custom = { ...base, id: 'team.react', baseRecipeId: base.id }
+  const derived = { ...custom, id: 'team.web', baseRecipeId: custom.id }
+  const book = { ...catalog, recipes: [base, custom, derived] }
+  expect(parseForgeRecipebook(encodeForgeRecipebook(book))).toEqual(book)
+  expect(() => encodeForgeRecipebook({ ...book, recipes: [base, custom, { ...derived, id: custom.id }] })).toThrow(/recipe/i)
+  expect(() => parseForgeRecipebook(JSON.stringify({ ...book, recipes: [custom, derived] }))).toThrow(/recipe/i)
+  const cyclic = { ...book, recipes: [{ ...base, baseRecipeId: derived.id }, custom, derived] }
+  expect(() => parseForgeRecipebook(JSON.stringify(cyclic))).toThrow(/recipe/i)
+})
+
+it('cannot export a workflow that exceeds the byte limit even when every step is valid', () => {
+  const steps = Array.from({ length: 32 }, (_, index) => ({
+    kind: 'instruction' as const, id: 'step-' + index, title: 'Configure this component',
+    instruction: 'Use the project registry. '.repeat(95)
+  }))
+  expect(() => encodeForgeSetupWorkflow({ ...workflow, workflow: { ...workflow.workflow, steps } })).toThrow(/workflow size/i)
+})
+
+it('bounds new evidence without discarding a valid near-limit YAML comment', () => {
+  const original = encodeForgeSetupWorkflow(workflow)
+  const padded = '# ' + 'x'.repeat(FORGE_WORKFLOW_BYTES - Buffer.byteLength(original) - 4) + '\n' + original
+  expect(parseForgeSetupWorkflow(padded)).toEqual(workflow)
+  expect(() => updateForgeSetupEvidence(padded, { ...workflow, revision: 0 })).toThrow(/invalid forge setup workflow/i)
+  expect(() => updateForgeSetupEvidence(padded, {
+    ...workflow, revision: 2, detection: {
+      detectorVersion: 1, status: 'detected', source: workflow.detection.source!,
+      facts: [{ kind: 'node', source: '.node-version', value: '22' }]
+    }
+  })).toThrow(/workflow size/i)
 })

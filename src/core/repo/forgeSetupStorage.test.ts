@@ -1,11 +1,12 @@
 import { expect, it } from 'vitest'
-import { mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs'
+import { linkSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createTempRepo, linkDirectory } from '../../test/tempRepo'
 import { createHarness } from '../../test/workspaceHarness'
 import { gitIn } from '../../test/gitScratch'
 import type { ForgeSetupDetection } from '../../shared/desktop/forgeSetup'
 import { loadKnowledge } from '../knowledge/load'
+import { FORGE_RECIPEBOOK_BYTES } from './forgeSetupFormat'
 import { resolveLayout } from './layout'
 import { nodeFs } from './nodeFs'
 import {
@@ -19,6 +20,56 @@ function detected(commit: string, node: string): ForgeSetupDetection {
     { kind: 'node', value: node, source: '.nvmrc' }
   ] }
 }
+
+it('shows a missing workflow without materializing setup files or permitting a blind save', () => {
+  const temp = createTempRepo()
+  try {
+    expect(readForgeSetupWorkflow(temp.root)).toBeNull()
+    expect(forgeSetupWorkflowState(readForgeSetupWorkflow(temp.root))).toBe('missing')
+    expect(() => saveForgeSetupWorkflow(temp.root, {
+      expectedSha256: '0'.repeat(64), workflow: { state: 'needs-discovery', steps: [] }
+    })).toThrow(expect.objectContaining({ code: 'conflict' }))
+    expect(readdirSync(temp.root)).toEqual([])
+  } finally { temp.cleanup() }
+})
+
+it('reopens a reviewed workflow as a draft and preserves its authored details on an unchanged save', () => {
+  const temp = createTempRepo()
+  try {
+    mkdirSync(temp.layout.dmDir)
+    const original = refreshForgeSetupWorkflow(temp.root, repository, detected('a', '22'))
+    const steps = [{ id: 'install', title: 'Install dependencies', kind: 'command' as const, cwd: '.', program: 'npm', args: ['ci'] }]
+    const configured = saveForgeSetupWorkflow(temp.root, {
+      expectedSha256: original.sha256, notes: 'Retain this team choice.', workflow: { state: 'configured', steps }
+    })
+    const draft = { state: 'needs-discovery' as const, steps }
+    const reopened = saveForgeSetupWorkflow(temp.root, { expectedSha256: configured.sha256, workflow: draft })
+    expect(reopened.value).toMatchObject({ revision: configured.value.revision + 1, notes: 'Retain this team choice.',
+      workflow: { ...draft, basedOn: null } })
+    expect(forgeSetupWorkflowState(reopened)).toBe('needs-discovery')
+    const path = join(temp.layout.knowledgeDir, 'forge-setup', 'workflow.yaml')
+    const external = '# Keep this reviewed comment.\n' + readFileSync(path, 'utf8')
+    writeFileSync(path, external)
+    const current = readForgeSetupWorkflow(temp.root)!
+    expect(saveForgeSetupWorkflow(temp.root, { expectedSha256: current.sha256, workflow: draft })).toEqual(current)
+    expect(readFileSync(path, 'utf8')).toBe(external)
+  } finally { temp.cleanup() }
+})
+
+it('does not overwrite setup knowledge when evidence or the target identifies another repository', () => {
+  const temp = createTempRepo()
+  try {
+    mkdirSync(temp.layout.dmDir)
+    const original = refreshForgeSetupWorkflow(temp.root, repository, detected('a', '22'))
+    const other = 'https://github.com/example/other.git'
+    const evidence = detected('b', '24')
+    const otherEvidence = { ...evidence, source: { repository: other, commit: 'b'.repeat(40) } }
+    expect(() => refreshForgeSetupWorkflow(temp.root, repository, otherEvidence)).toThrow(/evidence belongs/i)
+    expect(() => refreshForgeSetupWorkflow(temp.root, other, otherEvidence)).toThrow(/workflow belongs/i)
+    expect(readForgeSetupWorkflow(temp.root)).toEqual(original)
+    expect(readdirSync(temp.layout.localDir)).toEqual([])
+  } finally { temp.cleanup() }
+})
 
 it('preserves authored workflow, comments and guide across pinned evidence refreshes', () => {
   const temp = createTempRepo()
@@ -73,6 +124,41 @@ it('refuses a linked knowledge directory and leaves its target untouched', () =>
     linkDirectory(temp.outside, temp.layout.knowledgeDir)
     expect(() => refreshForgeSetupWorkflow(temp.layout, repository, detected('a', '22'))).toThrow(/unsafe/i)
     expect(readdirSync(temp.outside)).toEqual([])
+  } finally { temp.cleanup() }
+})
+
+it('refuses a linked Forge World root and portable files hardlinked outside the world', () => {
+  const temp = createTempRepo()
+  try {
+    const book = { version: 1 as const, recipes: [] }
+    const initial = writeForgeRecipebook(temp.root, null, book)
+    const alias = join(temp.base, 'alias')
+    linkDirectory(temp.root, alias)
+    expect(() => readForgeRecipebook(alias)).toThrow(expect.objectContaining({ code: 'unsafe_path' }))
+    expect(readForgeRecipebook(temp.root)).toEqual(initial)
+
+    const path = join(temp.root, 'forge-recipes.yaml')
+    const original = readFileSync(path)
+    const outside = join(temp.outside, 'original.yaml')
+    linkSync(path, outside)
+    expect(() => readForgeRecipebook(temp.root)).toThrow(expect.objectContaining({ code: 'unsafe_path' }))
+    expect(() => writeForgeRecipebook(temp.root, initial.sha256, book)).toThrow(expect.objectContaining({ code: 'unsafe_path' }))
+    expect(readFileSync(outside)).toEqual(original)
+  } finally { temp.cleanup() }
+})
+
+it.each([
+  { bytes: Buffer.alloc(FORGE_RECIPEBOOK_BYTES + 1, '#'), code: 'response_too_large' },
+  { bytes: Buffer.from([0xc3, 0x28]), code: 'invalid_input' }
+])('refuses a $code portable file and preserves its exact bytes on save', ({ bytes, code }) => {
+  const temp = createTempRepo()
+  try {
+    const path = join(temp.root, 'forge-recipes.yaml')
+    writeFileSync(path, bytes)
+    expect(() => readForgeRecipebook(temp.root)).toThrow(expect.objectContaining({ code }))
+    expect(() => writeForgeRecipebook(temp.root, null, { version: 1, recipes: [] })).toThrow(expect.objectContaining({ code }))
+    expect(readFileSync(path)).toEqual(bytes)
+    expect(readdirSync(temp.root)).toEqual(['forge-recipes.yaml'])
   } finally { temp.cleanup() }
 })
 
@@ -147,6 +233,12 @@ it('preserves a legacy world and makes recipebook edits compare-and-swap by file
     const updated = writeForgeRecipebook(temp.root, initial.sha256, book)
     expect(updated).toEqual(readForgeRecipebook(temp.root))
     expect(() => writeForgeRecipebook(temp.root, initial.sha256, initial.value)).toThrow(/changed/i)
+    const path = join(temp.root, 'forge-recipes.yaml')
+    const withComment = '# Keep this reader note.\n' + readFileSync(path, 'utf8')
+    writeFileSync(path, withComment)
+    const current = readForgeRecipebook(temp.root)!
+    expect(writeForgeRecipebook(temp.root, current.sha256, book)).toEqual(current)
+    expect(readFileSync(path, 'utf8')).toBe(withComment)
     expect(readFileSync(manifestFile, 'utf8')).toBe(manifest)
   } finally { temp.cleanup() }
 })
