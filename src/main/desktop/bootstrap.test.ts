@@ -1,12 +1,13 @@
 import type { IpcMain } from 'electron'
 import { EventEmitter } from 'node:events'
-import { existsSync, mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { CommandResult, FolderPickResult } from '../../shared/desktop/api'
 import { ATTACHMENT_SCHEME } from '../../shared/desktop/attachmentUrl'
-import { scratchDir } from '../../test/gitScratch'
+import { gitIn, scratchDir } from '../../test/gitScratch'
+import { createForge, updateForge } from './forgeManifest'
 import { pngBytes } from '../../test/images'
 import type { WorkspaceRequest, WorkspaceResponse } from './workspaceClient'
 
@@ -20,7 +21,8 @@ const desktop = vi.hoisted(() => ({
   registerProtocol: vi.fn(),
   writeClipboard: vi.fn(),
   openExternal: vi.fn(),
-  send: vi.fn()
+  send: vi.fn(),
+  closedWindowSend: vi.fn()
 }))
 
 vi.mock('electron', () => ({
@@ -32,7 +34,10 @@ vi.mock('electron', () => ({
   },
   BrowserWindow: {
     getFocusedWindow: desktop.getFocusedWindow,
-    getAllWindows: () => [{ isDestroyed: () => false, webContents: { isDestroyed: () => false, send: desktop.send } }]
+    getAllWindows: () => [
+      { isDestroyed: () => false, webContents: { isDestroyed: () => false, send: desktop.send } },
+      { isDestroyed: () => true, webContents: { isDestroyed: () => true, send: desktop.closedWindowSend } }
+    ]
   },
   clipboard: { writeText: desktop.writeClipboard },
   dialog: { showOpenDialog: desktop.showOpenDialog },
@@ -207,6 +212,58 @@ it('provisions and retires an OMP mailbox in the same project utility as desktop
   await data(f.invoke<CommandResult<unknown>>('chatMail:state', ref))
   await data(f.invoke<CommandResult<null>>('chats:delete', ref))
   expect(await data(f.invoke<CommandResult<ChatRecord[]>>('chats:list', folder.path))).toEqual([])
+  const lazy = await track(f, 'uninitialized')
+  const global = await data(f.invoke<CommandResult<ChatRecord>>('chats:create', { folder: null, agent: 'omp', title: 'Project-less chat' }))
+  await data(f.invoke<CommandResult<null>>('chats:delete', { folder: null, chatId: global.id }))
+  expect(existsSync(join(lazy.path, '.darkmechanicus'))).toBe(false)
   expect(f.owners).toHaveLength(1)
-  expect(postedNames(f.owners[0]!)).toEqual(expect.arrayContaining(['provisionMailboxes', 'mailState', 'deleteMailbox', 'retireTooling']))
+  const operations = postedNames(f.owners[0]!)
+  expect(operations).toEqual(expect.arrayContaining(['provisionMailboxes', 'mailState', 'deleteMailbox']))
+  expect(operations.filter(name => name === 'retireTooling')).toHaveLength(2)
+})
+
+function forgeMember(root: string) {
+  const world = join(root, 'world')
+  const member = join(world, 'Software')
+  mkdirSync(join(member, '.darkmechanicus'), { recursive: true })
+  gitIn(world, 'init', '-b', 'main')
+  gitIn(world, 'remote', 'add', 'origin', 'https://github.com/example/tickets.git')
+  createForge(world, 'example')
+  updateForge(world, manifest => { manifest.projects.push({ folder: 'Software', repository: 'https://github.com/example/software.git' }) })
+  writeFileSync(join(member, '.darkmechanicus', 'project.json'), JSON.stringify({
+    format: 'darkmechanicus.project',
+    formatVersion: 1,
+    projectId: 'pj_00000000000000000000000001',
+    name: 'Software',
+    keyPrefix: 'DM',
+    createdAt: '2026-01-01T00:00:00.000Z'
+  }))
+  return { world, member }
+}
+
+function nextWindowEvent(): Promise<string> {
+  return new Promise(resolve => desktop.send.mockImplementationOnce((channel: string) => resolve(channel)))
+}
+
+it('broadcasts local Forge readiness only to live windows and removes the member when the world is untracked', async () => {
+  const f = await bridgeFixture()
+  const { world, member } = forgeMember(f.root)
+  desktop.showOpenDialog.mockResolvedValueOnce({ canceled: false, filePaths: [world] })
+  expect(await f.invoke('dm:pickFolder', 'forge-world')).toMatchObject({ added: true, folder: { path: world } })
+  expect(f.owners).toHaveLength(0)
+
+  const validated = nextWindowEvent()
+  expect(await f.invoke('forge:memberStatus', world, member)).toMatchObject({ readiness: 'preparing' })
+  expect(await validated).toBe('forge:foldersChanged')
+  const prepared = nextWindowEvent()
+  expect(await f.invoke('forge:memberStatus', world, member)).toMatchObject({ readiness: 'preparing' })
+  expect(await prepared).toBe('forge:foldersChanged')
+  expect(await f.invoke('forge:memberStatus', world, member)).toMatchObject({ readiness: 'ready', error: null })
+  expect(f.owners).toHaveLength(1)
+  expect(postedNames(f.owners[0]!)).toEqual(['reconcileMember'])
+  expect(desktop.closedWindowSend).not.toHaveBeenCalled()
+
+  expect(await f.invoke('dm:untrackFolder', world)).toEqual([])
+  expect(await f.invoke('forge:memberStatus', world, member)).toEqual({ readiness: 'removed', syncing: false, error: null })
+  expect(f.owners[0]?.killed).toBe(true)
 })

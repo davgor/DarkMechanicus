@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events'
 import { existsSync, linkSync, mkdirSync, readFileSync, realpathSync, renameSync, rmdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createHarness } from '../../test/workspaceHarness'
+import { gitIn } from '../../test/gitScratch'
 import { resolveLayout } from '../../core/repo/layout'
 import { bindForge, currentForgeTransfer, FORGE_POINTER, withForgeTransfer } from '../../core/repo/forgeBinding'
 import type { Work, WorkspaceRequest, WorkspaceResponse } from './workspaceClient'
@@ -214,4 +215,23 @@ it('uses a moved open handle only for a grant revocation with the exact durable 
   } finally { path.mockRestore() }
   await worker.close()
   expect(await h.open('desktop').listGrants()).toEqual([expect.objectContaining({ id: grantId, active: false })])
+})
+
+it('publishes a confirmed storage change under its new binding and rejects the old generation fence', async () => {
+  const h = fixture()
+  gitIn(h.root, 'init', '-b', 'main')
+  const worker = owner(h.homeDir)
+  const original = await worker.work(h.root, { kind: 'command', name: 'initializeRepository', input: { name: 'Portable project', mode: 'repo' } })
+  if (!original.ok) throw new Error(original.error.message)
+  const switchMode: Work = { kind: 'command', name: 'switchStorageMode', input: { mode: 'db', confirmed: true } }
+  await expect(worker.work(h.root, switchMode, original.result.binding)).resolves.toMatchObject({ ok: false, error: { message: expect.stringContaining('commit') } })
+  gitIn(h.root, 'add', '.darkmechanicus')
+  gitIn(h.root, 'commit', '-m', 'Track the portable store')
+  const moved = await worker.work(h.root, switchMode, original.result.binding)
+  if (!moved.ok) throw new Error(moved.error.message)
+  expect(moved.result).toMatchObject({ value: { mode: 'db', cleanupPending: false }, binding: expect.any(String) })
+  expect(moved.result.binding).not.toBe(original.result.binding)
+  const read: Work = { kind: 'command', name: 'getStorageStatus', input: undefined }
+  await expect(worker.work(h.root, read, original.result.binding)).resolves.toMatchObject({ ok: false, error: { details: { bindingChanged: true } } })
+  await expect(worker.work(h.root, read, moved.result.binding)).resolves.toMatchObject({ ok: true, result: { value: { storage: { mode: 'db' } } } })
 })
