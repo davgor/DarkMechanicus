@@ -159,6 +159,24 @@ it('stores the onboarding default on a Forge World before any imported project e
   expect(setup.run).not.toHaveBeenCalled()
 })
 
+it('creates a private code repository in the selected Forge World', async () => {
+  const { h, setup } = harness()
+  h.dm.folders = [forgeWorld]
+  h.mount()
+  await settle()
+  click('New code repository')
+  const dialog = within(await screen.findByRole('dialog', { name: 'Create a code repository' }))
+  await settle()
+  expect(dialog.queryByLabelText('World repository name')).toBeNull()
+  type('Code repository name', 'new-code')
+  fireEvent.click(dialog.getByRole('button', { name: 'Create' }))
+  await settle()
+  expect(setup.provision).toHaveBeenCalledExactlyOnceWith({
+    world: { kind: 'existing', folder: forgeWorld.path },
+    code: { name: 'new-code', visibility: 'private', recipeId: reactRecipe.id }
+  }, expect.any(String))
+})
+
 it('offers the recorded creation intent when the first response was lost', async () => {
   const { h, setup } = harness()
   const request = { world: { kind: 'new' as const, name: 'world' } }

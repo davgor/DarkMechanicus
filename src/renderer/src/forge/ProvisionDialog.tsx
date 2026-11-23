@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, useState, type MutableRefObject, type RefObject } from 'react'
 import type { AgentView, TrackedFolderView } from '../../../shared/desktop/api'
 import type { ForgeProvisionRequest, ForgeProvisionResult, ForgeProvisionStatus, ForgeRecipe, ForgeSetupApi } from '../../../shared/desktop/forgeSetup'
 import { errorMessage } from '../api/dm'
@@ -15,7 +15,7 @@ interface Props {
   world?: TrackedFolderView
   agents: readonly AgentView[]
   scheduler: Scheduler
-  recovery: RefObject<ForgeProvisionAttempt | null>
+  recovery: MutableRefObject<ForgeProvisionAttempt | null>
   onClose(): void
   onProvisioned(result: ForgeProvisionStatus): void
 }

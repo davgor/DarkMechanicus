@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ComponentProps, ComponentType, RefObject } from 'react'
+import type { ComponentProps, ComponentType, MutableRefObject } from 'react'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { AgentId, TrackedFolderView } from '../../shared/desktop/api'
 import { folderIdentity } from './app/folderList'
@@ -266,10 +266,13 @@ function FolderContents(props: FolderContentsProps): JSX.Element {
   return folder.forgeParent ? <ForgeOpen identity={folderIdentity(folder)} root={folder.forgeParent} member={folder.path} scheduler={scheduler}>{contents}</ForgeOpen> : contents
 }
 
-function FolderTabContent({ shell, folder, tab, scheduler, sourceTarget }: FolderContentsProps): JSX.Element | null {
+function FolderTabContent({ shell, folder, tab, scheduler, sourceTarget, onProvision }: FolderContentsProps): JSX.Element | null {
   if (tab === 'standards') return null
   if (tab === 'source') return <SourceControlView folder={folder} scheduler={scheduler} target={sourceTarget} />
-  if (tab === 'tickets' || (folder.forgeWorld && tab === 'epics')) return <TicketSource key={folder.path} folder={folder} folders={shell.folders} status={shell.status} agents={shell.agents.agents} initialize={mode => shell.actions.initialize(folder, { mode, writeMcpConfig: false, importBoard: false })} open={async path => { await shell.reloadFolders(); shell.actions.selectFolder(path) }} onCreateCode={() => props.onProvision(folder)} />
+  if (tab === 'tickets' || (folder.forgeWorld && tab === 'epics')) return <TicketSource
+    key={folder.path} folder={folder} folders={shell.folders} status={shell.status} agents={shell.agents.agents}
+    initialize={mode => shell.actions.initialize(folder, { mode, writeMcpConfig: false, importBoard: false })}
+    open={async path => { await shell.reloadFolders(); shell.actions.selectFolder(path) }} onCreateCode={() => onProvision(folder)} />
   return <EpicsPanel shell={shell} folder={folder} />
 }
 
@@ -481,7 +484,7 @@ function FirstPromptHost({ shell, request, onClose }: { shell: ShellModel; reque
 }
 
 function ProvisionHost({ shell, scheduler, world, close, recovery }: {
-  shell: ShellModel; scheduler: Scheduler; world?: TrackedFolderView; close(): void; recovery: RefObject<ForgeProvisionAttempt | null>
+  shell: ShellModel; scheduler: Scheduler; world?: TrackedFolderView; close(): void; recovery: MutableRefObject<ForgeProvisionAttempt | null>
 }): JSX.Element | null {
   const api = window.dm.forgeSetup
   if (api === undefined) return null
