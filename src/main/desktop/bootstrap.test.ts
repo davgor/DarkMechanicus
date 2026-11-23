@@ -6,9 +6,12 @@ import { afterEach, expect, it, vi } from 'vitest'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { CommandResult, FolderPickResult } from '../../shared/desktop/api'
 import { ATTACHMENT_SCHEME } from '../../shared/desktop/attachmentUrl'
+import type { ForgeSetupConversationStatus, ForgeSetupProjectView } from '../../shared/desktop/forgeSetup'
 import { gitIn, scratchDir } from '../../test/gitScratch'
 import { createForge, updateForge } from './forgeManifest'
 import { pngBytes } from '../../test/images'
+import { FakePtyHost } from '../terminals/__mocks__/fakePtyHost'
+import { windowsCommandLine } from '../terminals/windowsCommandLine'
 import type { WorkspaceRequest, WorkspaceResponse } from './workspaceClient'
 
 const desktop = vi.hoisted(() => ({
@@ -21,6 +24,8 @@ const desktop = vi.hoisted(() => ({
   registerProtocol: vi.fn(),
   writeClipboard: vi.fn(),
   openExternal: vi.fn(),
+  startPty: vi.fn(),
+  keepAwake: vi.fn<() => number>(() => { throw new Error('Unexpected terminal start') }),
   send: vi.fn(),
   closedWindowSend: vi.fn()
 }))
@@ -42,7 +47,7 @@ vi.mock('electron', () => ({
   clipboard: { writeText: desktop.writeClipboard },
   dialog: { showOpenDialog: desktop.showOpenDialog },
   net: { fetch: () => { throw new Error('Unexpected network operation') } },
-  powerSaveBlocker: { start: () => { throw new Error('Unexpected terminal start') }, stop: () => undefined },
+  powerSaveBlocker: { start: desktop.keepAwake, stop: () => undefined },
   protocol: { handle: desktop.registerProtocol },
   safeStorage: { isEncryptionAvailable: () => false },
   shell: { openExternal: desktop.openExternal },
@@ -50,6 +55,7 @@ vi.mock('electron', () => ({
 }))
 
 vi.mock('../logger', () => ({ logger: { warn: vi.fn(), error: vi.fn() } }))
+vi.mock('../terminals/ptyHost', () => ({ createNodePtyHost: desktop.startPty }))
 
 class InProcessUtility extends EventEmitter {
   readonly messages = new EventEmitter()
@@ -247,6 +253,13 @@ function nextWindowEvent(): Promise<string> {
   return new Promise(resolve => desktop.send.mockImplementationOnce((channel: string) => resolve(channel)))
 }
 
+async function trackForgeFixture(f: Awaited<ReturnType<typeof bridgeFixture>>) {
+  const paths = forgeMember(f.root)
+  desktop.showOpenDialog.mockResolvedValueOnce({ canceled: false, filePaths: [paths.world] })
+  expect(await f.invoke('dm:pickFolder', 'forge-world')).toMatchObject({ added: true, folder: { path: paths.world } })
+  return paths
+}
+
 it('broadcasts local Forge readiness only to live windows and removes the member when the world is untracked', async () => {
   const f = await bridgeFixture()
   const { world, member } = forgeMember(f.root)
@@ -268,4 +281,71 @@ it('broadcasts local Forge readiness only to live windows and removes the member
   expect(await f.invoke('dm:untrackFolder', world)).toEqual([])
   expect(await f.invoke('forge:memberStatus', world, member)).toEqual({ readiness: 'removed', syncing: false, error: null })
   expect(f.owners[0]?.killed).toBe(true)
+})
+
+it('opens setup through the actual desktop bridge with offline descriptors and no connected agent', async () => {
+  const f = await bridgeFixture()
+  const { world, member } = await trackForgeFixture(f)
+  expect(await f.invoke('forgeSetup:recipebook')).toMatchObject({ value: {
+    recipes: expect.arrayContaining([expect.objectContaining({ id: 'boosterseat-react' }), expect.objectContaining({ id: 'boosterseat-electron' })])
+  } })
+  expect(await f.invoke('forgeSetup:recipebook', world)).toBeNull()
+  expect(await f.invoke<ForgeSetupProjectView>('forgeSetup:project', member)).toMatchObject({
+    member, state: 'missing', onboarding: null
+  })
+  expect(await f.invoke<ForgeSetupConversationStatus>('forgeSetup:prepare', member)).toMatchObject({
+    state: 'needs-attention', chatId: null, message: expect.stringContaining('connected agent')
+  })
+  expect(await f.invoke<ForgeSetupProjectView>('forgeSetup:project', member)).toMatchObject({
+    state: 'needs-discovery', value: { value: { detection: { status: 'unavailable', reason: 'source-unavailable' } } },
+    onboarding: { state: 'needs-attention', chatId: null }
+  })
+  expect(f.owners).toHaveLength(0)
+  expect(desktop.startPty).not.toHaveBeenCalled()
+  await f.invoke('dm:untrackFolder', world)
+  await expect(f.invoke('forgeSetup:project', member)).rejects.toThrow()
+})
+
+async function connectSetupAgents() {
+  const { openAppDatabase } = await import('./appDatabase')
+  const { createAgentRegistry } = await import('./agentRegistry')
+  const db = openAppDatabase(desktop.userData)
+  try {
+    const registry = createAgentRegistry({ db })
+    const cli = { executablePath: process.execPath }
+    const world = registry.addCustom({ ...cli, id: 'cu_01m65kwqqeyajbj5bnq81gngrb', displayName: 'World test agent', args: ['--world-only'] })
+    const member = registry.addCustom({ ...cli, id: 'cu_01m65kwqqeyajbj5bnq81gngrc', displayName: 'Member test agent', args: ['--member-workflow', '{folder}'] })
+    return { world, member }
+  } finally { db.close() }
+}
+
+it('dispatches the configured member host ahead of the world default from the bootstrap-managed directory', async () => {
+  const f = await bridgeFixture()
+  const paths = await trackForgeFixture(f)
+  const agents = await connectSetupAgents()
+  const host = new FakePtyHost()
+  desktop.keepAwake.mockReturnValue(12)
+  desktop.startPty.mockResolvedValue(host)
+  try {
+    expect(await f.invoke('agents:setFolderDefault', { folder: paths.world, agentId: agents.world.id })).toBe(agents.world.id)
+    expect(await f.invoke('agents:setFolderDefault', { folder: paths.member, agentId: agents.member.id })).toBe(agents.member.id)
+    const receipt = await f.invoke<ForgeSetupConversationStatus>('forgeSetup:prepare', paths.member)
+    expect(receipt).toMatchObject({ state: 'preparing', chatId: expect.any(String) })
+    expect(host.spawns).toHaveLength(1)
+    const launch = host.last().spec
+    expect(launch.cwd).toMatch(new RegExp('onboarding[\\\\/]'))
+    const expectedArgs = ['--member-workflow', launch.cwd]
+    expect(launch.args).toEqual(process.platform === 'win32' ? windowsCommandLine(expectedArgs) : expectedArgs)
+    expect(Boolean(launch.env.DM_SESSION_TOKEN)).toBe(true)
+    const chats = await data(f.invoke<CommandResult<ChatRecord[]>>('chats:list', paths.member))
+    expect(chats).toEqual([expect.objectContaining({
+      id: receipt.chatId, folder: paths.member, agent: agents.member.id, role: 'planner', allowSave: true,
+      forgeSetup: expect.objectContaining({ mode: 'onboarding' }),
+      firstPrompt: expect.stringContaining('Do not run installers or setup steps')
+    })])
+    expect(postedNames(f.owners[0]!)).toEqual(expect.arrayContaining(['getProject', 'issueChatGrant', 'bindChatGrant']))
+    expect(desktop.send).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ type: 'chats_changed', chatId: receipt.chatId }))
+  } finally {
+    for (const session of host.spawns) if (!session.exited) session.exit()
+  }
 })
