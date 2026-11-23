@@ -3,6 +3,7 @@ import { lstatSync, mkdirSync, readFileSync, renameSync, symlinkSync, writeFileS
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import { readLocalGitOrigin } from '../../core/repo/git'
+import { LocalGitOriginConfigCache } from '../../core/repo/gitOriginConfig'
 import { writeForgeRecipebook } from '../../core/repo/forgeSetupStorage'
 import type { ForgeProvisionRequest } from '../../shared/desktop/forgeSetup'
 import { gitIn, scratchDir } from '../../test/gitScratch'
@@ -178,7 +179,7 @@ it('rejects changed origin, worktree, and Git discovery metadata during phase ad
   reads.mockClear()
 
   await f.work.assertCurrent(operation)
-  expect(reads).toHaveBeenCalledExactlyOnceWith(f.world)
+  expect(reads).toHaveBeenCalledExactlyOnceWith(f.world, expect.any(LocalGitOriginConfigCache))
   // A new phase must honor a Git admission refusal even if local metadata still matches.
   reads.mockReturnValueOnce(null)
   await expect(f.work.assertCurrent(operation)).rejects.toThrow('no GitHub origin')

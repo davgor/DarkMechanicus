@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto'
 import { accessSync, constants, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, writeFileSync } from 'node:fs'
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { assertForgeTransferIdle, bindForge, boundForgeRoot, forgeBindingEpoch, FORGE_POINTER } from '../../core/repo/forgeBinding'
-import { gitCheckoutStamp, readLocalGitOrigin } from '../../core/repo/git'
+import { gitCheckoutStamp, gitOriginExecutionStamp, readLocalGitOrigin } from '../../core/repo/git'
+import { LocalGitOriginConfigCache } from '../../core/repo/gitOriginConfig'
 import { readProject } from '../../core/repo/initialize'
 import { nodeFs } from '../../core/repo/nodeFs'
 import { resolveLayout } from '../../core/repo/layout'
@@ -82,10 +83,9 @@ function ensureManagedHome(path: string): void {
   dirStamp(path)
 }
 
-function origin(path: string): string {
-  const current = readLocalGitOrigin(path)
-  if (current === null) throw new Error('The checkout has no GitHub origin.')
-  return githubRemote(current)
+function origin(path: string, cache?: LocalGitOriginConfigCache): string | null {
+  const current = cache === undefined ? readLocalGitOrigin(path) : readLocalGitOrigin(path, cache)
+  return current === null ? null : githubRemote(current)
 }
 
 function discoveryDirectoryStamp(path: string): string | null {
@@ -105,7 +105,7 @@ function originStamp(path: string): string | null {
   const head = nodeFs.fileStamp(join(git, 'HEAD'))
   if (head === null || nodeFs.fileStamp(join(git, 'config')) === null) return null
   if (['commondir', 'config.worktree'].some(name => lstatSync(join(git, name), { throwIfNoEntry: false }) !== undefined)) return null
-  return JSON.stringify([gitCheckoutStamp(path, false), directory, discovery, head])
+  return JSON.stringify([gitCheckoutStamp(path, false), directory, discovery, head, gitOriginExecutionStamp()])
 }
 
 function inner(parent: string, candidate: string): boolean {
@@ -185,6 +185,7 @@ const branch = 'refs/heads/main'
 
 class ProvisioningWork implements ForgeProvisioningWork {
   private readonly originProofs = new WeakMap<ForgeProvisionIntent, Map<string, OriginProof>>()
+  private readonly originConfigs = new WeakMap<ForgeProvisionIntent, LocalGitOriginConfigCache>()
 
   constructor(private readonly deps: ProvisioningOptions) {}
 
@@ -230,7 +231,7 @@ class ProvisioningWork implements ForgeProvisioningWork {
 
   private async prepareExistingWorld(path: string, account: ForgeProvisionAccount): Promise<NonNullable<ProvisionDestination['existingWorld']>> {
     const tracked = this.trackedWorld(path)
-    const url = origin(path)
+    const url = this.currentOrigin(path)
     const identity = dirStamp(path)
     const remote = await this.deps.publisher.inspectRemote(account, url)
     if (remote === null) throw new Error('GitHub could not confirm the selected Forge World.')
@@ -252,16 +253,26 @@ class ProvisioningWork implements ForgeProvisioningWork {
   }
 
   private currentOrigin(path: string, intent?: ForgeProvisionIntent): string {
+    const url = this.readOrigin(path, intent)
+    if (url === null) throw new Error('The checkout has no GitHub origin.')
+    return url
+  }
+
+  private readOrigin(path: string, intent?: ForgeProvisionIntent): string | null {
     if (intent === undefined) return origin(path)
     const stamp = originStamp(path)
     if (stamp === null) return origin(path)
     const proved = this.originProofs.get(intent) ?? new Map<string, OriginProof>()
     const prior = proved.get(path)
     if (prior?.stamp === stamp) return prior.url
-    const url = origin(path)
+    const config = this.originConfigs.get(intent) ?? new LocalGitOriginConfigCache(githubRemote)
+    this.originConfigs.set(intent, config)
+    const url = origin(path, config)
     if (originStamp(path) !== stamp) throw new Error('The checkout Git metadata changed while verifying its origin.')
-    proved.set(path, { stamp, url })
-    this.originProofs.set(intent, proved)
+    if (url !== null) {
+      proved.set(path, { stamp, url })
+      this.originProofs.set(intent, proved)
+    }
     return url
   }
 
@@ -323,7 +334,7 @@ class ProvisioningWork implements ForgeProvisioningWork {
     if (!lstatSync(gitConfig, { throwIfNoEntry: false })) {
       await git.run(checkout.path, ['init', '--template=', '--object-format=sha1', '--initial-branch=main'], undefined, { beforeStart: current })
     }
-    if (readLocalGitOrigin(checkout.path) === null) {
+    if (this.readOrigin(checkout.path, intent) === null) {
       await git.run(checkout.path, ['remote', 'add', 'origin', repository], undefined, { beforeStart: current })
     }
     current()
@@ -427,17 +438,22 @@ class ProvisioningWork implements ForgeProvisioningWork {
     const temporary = join(dirname(dirname(member)), '.forge-member-' + intent.id)
     const staged = claimDirectory(temporary, intent, 'member')
     const layout = resolveLayout(temporary)
-    if (readProject(layout, nodeFs) === null) {
+    let project = readProject(layout, nodeFs)
+    if (project === null) {
       try { await this.deps.pool.get(temporary).initializeRepository({ name: code.name, mode: 'repo' }) }
       finally { await this.deps.pool.close(temporary) }
+      this.originProofs.delete(intent)
+      project = readProject(layout, nodeFs)
     }
-    const project = readProject(layout, nodeFs)
     if (project === null) throw new Error('The ticket project could not be initialized.')
     const recipe = this.selectedRecipe(intent.destination.existingWorld?.path, code.recipeId)
     if (recipeHash(recipe) !== intent.destination.recipeHash) throw new Error('The selected recipe changed during Forge creation.')
-    const detection = readForgeSetupWorkflow(temporary) === null ? await this.deps.discover(mapping.repository) : undefined
+    let detection: ForgeSetupDetection | undefined
+    if (readForgeSetupWorkflow(temporary) === null) {
+      detection = await this.deps.discover(mapping.repository)
+      this.originProofs.delete(intent)
+    }
     const current = this.networkFence(intent, staged)
-    this.originProofs.delete(intent)
     current()
     mkdirSync(layout.localDir, { recursive: true })
     dirStamp(layout.localDir)

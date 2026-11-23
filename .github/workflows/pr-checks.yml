@@ -59,7 +59,7 @@ jobs:
       - name: Require coverage thresholds
         run: npm run coverage -- --maxWorkers 2
         env:
-          VITEST_MAX_WORKERS: '2'
+          DM_VITEST_GIT_MAX_WORKERS: '2'
       - uses: actions/upload-artifact@v4
         if: always()
         with:

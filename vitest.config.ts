@@ -36,6 +36,7 @@ const GIT_HEAVY = [
   'src/main/desktop/forgeService.setup.test.ts',
   'src/main/desktop/sourceCheckoutIpc.test.ts',
   'src/core/repo/git.test.ts',
+  'src/core/repo/gitOriginConfig.test.ts',
   'src/core/services/attemptsIncrement.test.ts',
   'src/core/services/incrementVerify.test.ts',
   'src/core/workspace.gitFor.test.ts',
@@ -46,14 +47,19 @@ const GIT_HEAVY = [
   'src/integration/spaceLoop.test.ts'
 ]
 
-/** Half the CPUs for the git-heavy group, never more than VITEST_MAX_WORKERS (Fireguard caps each of its lanes so). */
-const gitWorkers = Math.max(1, Math.min(Math.floor(availableParallelism() / 2), Number(process.env.VITEST_MAX_WORKERS) || Infinity))
-// Forge bootstrap, conversion and provisioning recovery perform repeated real Git publication within one test.
+// The coverage job caps Git workers separately because Vitest applies VITEST_MAX_WORKERS to every project.
+const gitWorkers = Math.max(1, Math.min(
+  Math.floor(availableParallelism() / 2),
+  Number(process.env.DM_VITEST_GIT_MAX_WORKERS) || Infinity,
+  Number(process.env.VITEST_MAX_WORKERS) || Infinity
+))
+// Forge bootstrap, conversion and provisioning rely on many real Git commands, including synchronous admission checks.
 // Run them serially after the other Git suites to limit competing child-process launches.
 const FORGE_RECOVERY = [
   'src/main/desktop/forgeBootstrap.test.ts',
   'src/main/desktop/forgeService.test.ts',
-  'src/main/desktop/forgeProvisioningWork.test.ts'
+  'src/main/desktop/forgeProvisioningWork.test.ts',
+  'src/main/desktop/forgeProvisioningAdmission.test.ts'
 ]
 
 export default defineConfig({
