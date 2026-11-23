@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { ForgeProvisionStatus } from '../../shared/desktop/forgeSetup'
 import { AppHarness } from './__mocks__/appHarness'
+import { deferred } from './__mocks__/deferred'
 import { agentView, chatRecord } from './__mocks__/fixtures'
 import { codePath, fakeForgeSetup, forgeMember, forgeWorld, reactRecipe, repository, setupProject, workflowHash } from './__mocks__/forgeSetup'
 import { settle } from './__mocks__/settle'
@@ -369,4 +370,163 @@ it('stops loading when the recipe book has no eligible code recipe', async () =>
   expect(dialog.getByText('No code recipes are available.')).toBeTruthy()
   expect(dialog.getByRole<HTMLButtonElement>('button', { name: 'Create' }).disabled).toBe(true)
   expect(setup.provision).not.toHaveBeenCalled()
+})
+
+it('lands on a newly created standalone world and leaves its project list empty', async () => {
+  const { h, setup } = harness()
+  setup.provision.mockImplementationOnce(async (request, id) => {
+    h.dm.folders = [forgeWorld]
+    return { id, request, world: forgeWorld.path, phase: 'complete', state: 'complete', message: null }
+  })
+  h.mount()
+  await settle()
+  const dialog = await startWorld()
+  type('World repository name', 'world-only')
+  fireEvent.click(dialog.getByRole('button', { name: 'Create' }))
+  expect(await screen.findByRole('heading', { level: 1, name: forgeWorld.name })).toBeTruthy()
+  expect(window.localStorage.getItem('dm.selection')).toContain(forgeWorld.path)
+  expect(setup.provision).toHaveBeenCalledExactlyOnceWith({ world: { kind: 'new', name: 'world-only' } }, expect.any(String))
+  fireEvent.click(screen.getByRole('tab', { name: 'Delivery Standards' }))
+  expect(screen.getByText('No managed projects.')).toBeTruthy()
+  fireEvent.click(screen.getByRole('tab', { name: 'Epics' }))
+  expect(screen.getByRole('button', { name: 'Recipe book' })).toBeTruthy()
+  expect(setup.prepare).not.toHaveBeenCalled()
+})
+
+it('uses the bundled conversion recipe for a legacy world and respects its chosen visibility', async () => {
+  const { h, setup } = harness()
+  h.dm.folders = [forgeWorld]
+  setup.recipebook.mockResolvedValueOnce(null)
+  h.mount()
+  await settle()
+  click('New code repository')
+  const dialog = within(await screen.findByRole('dialog', { name: 'Create a code repository' }))
+  await settle()
+  expect(setup.recipebook.mock.calls).toEqual([[forgeWorld.path], []])
+  type('Code repository name', 'desktop-client')
+  type('Recipe', 'electron')
+  type('Code repository visibility', 'public')
+  expect(dialog.getByText('Conversion required. The repository will need a verified Electron build and launch.')).toBeTruthy()
+  fireEvent.click(dialog.getByRole('button', { name: 'Create' }))
+  await settle()
+  expect(setup.provision).toHaveBeenCalledExactlyOnceWith({ world: { kind: 'existing', folder: forgeWorld.path },
+    code: { recipeId: 'electron', name: 'desktop-client', visibility: 'public' } }, expect.any(String))
+})
+
+it('offers only incomplete creation jobs belonging to the selected existing world', async () => {
+  const { h, setup } = harness()
+  h.dm.folders = [forgeWorld]
+  function pending(id: string, folder: string, name: string): ForgeProvisionStatus {
+    return { id, request: { world: { kind: 'existing', folder }, code: { name, visibility: 'private', recipeId: reactRecipe.id } },
+      phase: 'code-checkout', state: 'needs-attention', message: name + ' has a saved checkout.' }
+  }
+  setup.provisioning.mockResolvedValue([
+    pending('first', forgeWorld.path, 'first-code'), pending('second', forgeWorld.path, 'second-code'),
+    pending('other', '/another-world', 'other-code'),
+    { ...pending('completed', forgeWorld.path, 'already-created'), phase: 'complete', state: 'complete' }
+  ])
+  setup.resumeProvision.mockImplementation(async () => pending('second', forgeWorld.path, 'second-code'))
+  h.mount()
+  await settle()
+  click('New code repository')
+  const dialog = within(await screen.findByRole('dialog', { name: 'Create a code repository' }))
+  expect(await dialog.findByRole('button', { name: 'View creation for first-code' })).toBeTruthy()
+  expect(dialog.queryByRole('button', { name: 'View creation for other-code' })).toBeNull()
+  expect(dialog.queryByRole('button', { name: 'View creation for already-created' })).toBeNull()
+  fireEvent.click(dialog.getByRole('button', { name: 'View creation for second-code' }))
+  expect(dialog.getByText('second-code has a saved checkout.')).toBeTruthy()
+  fireEvent.click(dialog.getByRole('button', { name: 'Resume creation' }))
+  await settle()
+  expect(setup.resumeProvision).toHaveBeenCalledExactlyOnceWith('second')
+  expect(setup.provision).not.toHaveBeenCalled()
+})
+
+it('requires sign-in for creation and reports a catalog error without blocking world-only creation', async () => {
+  const { h, setup } = harness()
+  h.github.account = null
+  setup.recipebook.mockRejectedValueOnce(new Error('The recipe catalog is unavailable.'))
+  h.mount()
+  await settle()
+  const dialog = await startWorld()
+  type('World repository name', 'world')
+  expect(dialog.getByText('Sign in to GitHub to create repositories')).toBeTruthy()
+  expect(dialog.getByRole<HTMLButtonElement>('button', { name: 'Create' }).disabled).toBe(true)
+  fireEvent.click(dialog.getByRole('checkbox', { name: 'Create a code repository' }))
+  expect(dialog.getByText('The recipe catalog is unavailable.')).toBeTruthy()
+  act(() => h.github.changeAccount({ login: 'fixture', name: 'Fixture' }))
+  type('Code repository name', 'desktop-client')
+  expect(dialog.getByRole<HTMLButtonElement>('button', { name: 'Create' }).disabled).toBe(true)
+  fireEvent.click(dialog.getByRole('checkbox', { name: 'Create a code repository' }))
+  expect(dialog.getByRole<HTMLButtonElement>('button', { name: 'Create' }).disabled).toBe(false)
+  expect(setup.provision).not.toHaveBeenCalled()
+})
+
+it('rechecks an unavailable creation journal before sending a new request', async () => {
+  const { h, setup } = harness()
+  setup.provisioning.mockRejectedValueOnce(new Error('The creation journal is unavailable.'))
+  h.mount()
+  await settle()
+  const dialog = await startWorld()
+  expect(dialog.getByText('The creation journal is unavailable.')).toBeTruthy()
+  expect(dialog.queryByRole('button', { name: 'Create' })).toBeNull()
+  fireEvent.click(dialog.getByRole('button', { name: 'Check progress' }))
+  expect(await dialog.findByLabelText('World repository name')).toBeTruthy()
+  type('World repository name', 'world')
+  expect(dialog.getByRole<HTMLButtonElement>('button', { name: 'Create' }).disabled).toBe(false)
+  expect(setup.provision).not.toHaveBeenCalled()
+})
+
+it('shows only matching progress while publication is held and waits for the definitive refusal', async () => {
+  const { h, setup } = harness()
+  const publish = deferred()
+  const progress = deferred()
+  setup.provision.mockImplementationOnce(() => publish.promise.then(() => ({ state: 'refused', message: 'Review the publishing account.' })))
+  h.mount()
+  await settle()
+  const dialog = await startWorld()
+  type('World repository name', 'world')
+  fireEvent.click(dialog.getByRole('button', { name: 'Create' }))
+  const [request, id] = setup.provision.mock.calls[0]
+  setup.provisioning.mockImplementationOnce(() => progress.promise.then(() => [
+    { id: 'unrelated', request, phase: 'complete', state: 'complete', message: null },
+    { id, request, phase: 'world-remote', state: 'running', message: null }
+  ]))
+  act(() => h.scheduler.fireIntervals(1200))
+  act(() => h.scheduler.fireIntervals(1200))
+  expect(setup.provisioning).toHaveBeenCalledTimes(2)
+  fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' })
+  expect(dialog.queryByRole('button', { name: 'Create' })).toBeNull()
+  progress.resolve()
+  expect(await dialog.findByText('Ticket repository publication')).toBeTruthy()
+  publish.resolve()
+  expect(await dialog.findByText('Review the publishing account.')).toBeTruthy()
+  expect(dialog.getByLabelText<HTMLInputElement>('World repository name').value).toBe('world')
+  expect(setup.provision).toHaveBeenCalledTimes(1)
+})
+
+it('does not navigate to a successful creation receipt from a different request', async () => {
+  const { h, setup } = harness()
+  setup.provision.mockResolvedValueOnce({ id: 'another-operation', request: { world: { kind: 'new', name: 'world' } },
+    world: '/some-other-world', phase: 'complete', state: 'complete', message: null })
+  h.mount()
+  await settle()
+  const dialog = await startWorld()
+  type('World repository name', 'world')
+  fireEvent.click(dialog.getByRole('button', { name: 'Create' }))
+  expect(await dialog.findByText('The creation receipt did not match this request.')).toBeTruthy()
+  expect(dialog.queryByRole('button', { name: 'Create' })).toBeNull()
+  expect(window.localStorage.getItem('dm.selection') ?? '').not.toContain('/some-other-world')
+})
+
+it.each([null, 'The agent is waiting for attention.'])('reports an unconfirmed standards conversation without opening it (%s)', async message => {
+  const { h, setup } = harness()
+  setup.prepare.mockResolvedValueOnce({ state: 'uncertain', chatId: 'chat_onboarding', message })
+  openMember(h)
+  await settle()
+  fireEvent.click(screen.getByRole('tab', { name: 'Delivery Standards' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Prepare with agent' }))
+  expect(await screen.findByText(message ?? 'Check Environment setup for onboarding progress.')).toBeTruthy()
+  expect(window.localStorage.getItem('dm.selection')).not.toContain('chat_onboarding')
+  expect(h.dm.chats.callsOf('create')).toEqual([])
+  expect(setup.run).not.toHaveBeenCalled()
 })
