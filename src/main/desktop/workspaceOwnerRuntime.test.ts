@@ -1,10 +1,10 @@
-import { afterEach, expect, it } from 'vitest'
+import { afterEach, expect, it, vi } from 'vitest'
 import { EventEmitter } from 'node:events'
-import { existsSync, mkdirSync, realpathSync, renameSync, rmdirSync, symlinkSync } from 'node:fs'
+import { existsSync, linkSync, mkdirSync, readFileSync, realpathSync, renameSync, rmdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createHarness } from '../../test/workspaceHarness'
 import { resolveLayout } from '../../core/repo/layout'
-import { currentForgeTransfer, withForgeTransfer } from '../../core/repo/forgeBinding'
+import { bindForge, currentForgeTransfer, FORGE_POINTER, withForgeTransfer } from '../../core/repo/forgeBinding'
 import type { Work, WorkspaceRequest, WorkspaceResponse } from './workspaceClient'
 import { serveWorkspaceOwner } from './workspaceOwnerRuntime'
 
@@ -135,4 +135,83 @@ it('uses the first explicit member reconcile as the cold import instead of consu
   })
   const second = await worker.work(clone, reconcile, first.result.binding)
   expect(second).toMatchObject({ ok: true, result: { value: { hasLocalCache: true, result: { imported: [], rejected: [] } } } })
+})
+
+
+it('refuses a hard-linked database before admitting workspace operations', async () => {
+  const h = fixture()
+  const source = h.open('desktop')
+  await source.initializeRepository({ name: 'Linked database' })
+  source.close()
+  const database = resolveLayout(h.root).dbFile
+  const secondName = join(h.homeDir, 'linked.sqlite')
+  const before = readFileSync(database)
+  linkSync(database, secondName)
+  const worker = owner(h.homeDir)
+  await expect(worker.work(h.root, { kind: 'command', name: 'createKanbanCard', input: { title: 'Must not write' } }))
+    .resolves.toMatchObject({ ok: false, error: { code: 'conflict', message: 'The project database has unexpected hard links.' } })
+  expect(readFileSync(secondName)).toEqual(before)
+})
+
+it('refuses a source path whose link would open a different project inside the owner', async () => {
+  const h = fixture()
+  const member = join(h.homeDir, 'member')
+  mkdirSync(member)
+  const pointer = `Forge World: https://github.com/example/world.git
+Project folder: Member
+`
+  writeFileSync(join(h.root, FORGE_POINTER), pointer)
+  bindForge(h.homeDir, h.root, member, pointer)
+  const worker = owner(h.homeDir)
+  await expect(worker.work(h.root, { kind: 'command', name: 'initializeRepository', input: { name: 'Must not initialize' } }))
+    .resolves.toMatchObject({ ok: false, error: { code: 'conflict', details: { bindingChanged: true } } })
+  expect(existsSync(resolveLayout(member).projectFile)).toBe(false)
+})
+
+it('fences replies when project metadata changes after work admission', async () => {
+  const h = fixture()
+  const worker = owner(h.homeDir)
+  const initialized = await worker.work(h.root, { kind: 'command', name: 'initializeRepository', input: { name: 'Original' } })
+  expect(initialized.ok).toBe(true)
+  const projectFile = resolveLayout(h.root).projectFile
+  const replacement = JSON.parse(readFileSync(projectFile, 'utf8'))
+  replacement.projectId = 'pj_00000000000000000000000999'
+  // Schedule the replacement from the owner’s first canonical identity check, after the request
+  // reaches the queue head. It then lands before the operation's asynchronous result is returned.
+  const identity = vi.spyOn(realpathSync, 'native').mockImplementationOnce(() => {
+    queueMicrotask(() => writeFileSync(projectFile, JSON.stringify(replacement)))
+    return h.root
+  })
+  try {
+    await expect(worker.work(h.root, { kind: 'native', name: 'initialized', args: [] })).resolves.toMatchObject({
+      ok: false, error: { code: 'conflict', details: { bindingChanged: true, completion: 'stale' } }
+    })
+  } finally { identity.mockRestore() }
+})
+
+it('uses a moved open handle only for a grant revocation with the exact durable binding', async () => {
+  const h = fixture()
+  const worker = owner(h.homeDir)
+  await worker.work(h.root, { kind: 'command', name: 'initializeRepository', input: { name: 'Original grant owner' } })
+  const issued = await worker.work(h.root, { kind: 'native', name: 'issueChatGrant', args: [{ role: 'worker', label: 'Moved grant' }] })
+  if (!issued.ok) throw new Error(issued.error.message)
+  const { binding, value } = issued.result
+  const grantId = (value as { grant: { id: string } }).grant.id
+  const path = vi.spyOn(realpathSync, 'native')
+  const missing = () => path.mockImplementationOnce(() => {
+    throw Object.assign(new Error('The original folder disappeared.'), { code: 'ENOENT' })
+  })
+  try {
+    missing()
+    await expect(worker.work(h.root, { kind: 'native', name: 'revokeChatGrant', args: [grantId, false] }, 'new binding'))
+      .resolves.toMatchObject({ ok: false, error: { message: 'The original folder disappeared.' } })
+    missing()
+    await expect(worker.work(h.root, { kind: 'command', name: 'createKanbanCard', input: { title: 'Refused' } }, binding))
+      .resolves.toMatchObject({ ok: false, error: { message: 'The original folder disappeared.' } })
+    missing()
+    await expect(worker.work(h.root, { kind: 'native', name: 'revokeChatGrant', args: [grantId, false] }, binding))
+      .resolves.toMatchObject({ ok: true, result: { binding, value: false } })
+  } finally { path.mockRestore() }
+  await worker.close()
+  expect(await h.open('desktop').listGrants()).toEqual([expect.objectContaining({ id: grantId, active: false })])
 })
