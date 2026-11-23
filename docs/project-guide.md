@@ -141,13 +141,16 @@ npm run spike:claims # multi-process competing-claim stress proof
 `.github/workflows/pr-checks.yml` (**CI Checks**) runs on every PR targeting `main` or `feature/**` and on every push to `main`:
 
 - `test-shards` — four parallel Windows jobs: two native Vitest shards for app/scripts, two for Fireguard's own suite; each caps Vitest at two workers and uploads a JSON file inventory. The required `test` aggregate fails unless every shard succeeds.
+- `coverage` — Windows `npm run coverage -- --maxWorkers 2` with `DM_VITEST_GIT_MAX_WORKERS=2`; enforces configured coverage thresholds and uploads `coverage-summary`.
 - `fireguard-shards` — two parallel Ubuntu jobs grade disjoint flake runs (50 each of the configured 100) and changed production-module partitions, using one pinned HEAD/base. The required `fireguard` aggregate validates every report, sums raw mutation counts before grading, and alone posts/updates the sticky PR comment. Missing/failed shards and tool errors fail the check. See [shard reproduction](../fireguard/README.md#ci-sharding).
 - `lint` — `npm run lint`
 - `build` — `npm run typecheck` && `npm run build`
 
-Treat `test`, `fireguard`, `lint`, and `build` as **required status checks** in branch protection / rulesets for `main`.
+Treat `test`, `coverage`, `fireguard`, `lint`, and `build` as **required status checks** in branch protection / rulesets for `main`.
 
-CI does not collect coverage or enforce coverage thresholds. `npm run coverage` remains an opt-in local command with its existing thresholds. To reproduce a test shard locally, run `node node_modules/vitest/vitest.mjs run --config vitest.config.ts --shard 1/2 --maxWorkers 2`; repeat with `2/2` and with `--config fireguard/vitest.config.ts`. These four invocations collectively replace `npm test` in CI, not four copies of the full suite.
+To reproduce a test shard locally, run `node node_modules/vitest/vitest.mjs run --config vitest.config.ts --shard 1/2 --maxWorkers 2`; repeat with `2/2` and with `--config fireguard/vitest.config.ts`. These four invocations collectively replace `npm test` in CI, not four copies of the full suite.
+
+For a local Windows fixture-rename `EPERM`, follow the [deployment verification procedure](runbooks/auto-update.md#local-windows-eperm-during-verification), preserving the failed local result separately from exact-revision CI evidence.
 
 Also mirrored:
 
