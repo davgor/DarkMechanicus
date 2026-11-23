@@ -110,14 +110,16 @@ async function bridgeFixture() {
     closed = true
   }
   cleanups.push(finish)
-  const invoke = async <T>(channel: string, ...args: unknown[]): Promise<T> => {
+  async function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
     const handle = handlers.get(channel)
     if (!handle) throw new Error('Unregistered IPC ' + channel)
     return await handle({} as Electron.IpcMainInvokeEvent, ...args) as T
   }
+  function command<T>(folder: string, name: string, input?: unknown): Promise<T> {
+    return data(invoke<CommandResult<T>>('dm:command', folder, name, input))
+  }
   return {
-    root: scratch.path, owners, invoke, bridge, finish,
-    command: <T>(folder: string, name: string, input?: unknown) => data(invoke<CommandResult<T>>('dm:command', folder, name, input)),
+    root: scratch.path, owners, invoke, bridge, finish, command,
     attach: async (url: string) => {
       const handler = desktop.registerProtocol.mock.calls.find(([scheme]) => scheme === ATTACHMENT_SCHEME)?.[1] as
         ((request: Request) => Promise<Response>) | undefined
