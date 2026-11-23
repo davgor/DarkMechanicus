@@ -106,7 +106,7 @@ function capabilityProcess(root: string, home: string, token: string, atGrant: (
   })
 }
 
-it('returns authorized capabilities and clean CLI exits for three concurrent workers while serializing their grant audits', async () => {
+async function capabilityFixture() {
   harness = createHarness()
   harness.clock.set(new Date().toISOString())
   const desktop = harness.open('desktop')
@@ -117,6 +117,11 @@ it('returns authorized capabilities and clean CLI exits for three concurrent wor
     bindAgentMailEndpoint(desktop.ctx(), { endpointId: endpoint.id, grantId: grant.id })
     return endpoint
   })
+  return { desktop, grants, endpoints }
+}
+
+it('returns authorized capabilities and clean CLI exits for three concurrent workers while serializing their grant audits', async () => {
+  const { desktop, grants, endpoints } = await capabilityFixture()
   const probe = writer = openDatabase(desktop.ctx().db.path, { busyTimeoutMs: 0, beginRetries: 0, synchronous: 'off' })
   const interventions: string[] = []
   let held = false
