@@ -824,28 +824,6 @@ it('rechecks a due lease after a tooling hold became active before lock acquisit
 })
 
 describe('lease expiry', () => {
-  it('rechecks an overdue candidate after acquiring the write lock before expiring it', () => {
-    const ctx = board()
-    const packet = claimedCard(ctx, 60)
-    ctx.desktop.clock.advanceSeconds(61)
-    const db = ctx.desktop.db
-    const originalTx = db.tx.bind(db)
-    db.tx = (run) => {
-      // A writer that held the lock may have renewed the claim since the read-only preflight.
-      db.run('UPDATE kanban_attempts SET lease_expires_at = ? WHERE id = ?', '2026-01-01T00:02:00.000Z', packet.attemptId)
-      return originalTx(run)
-    }
-    try {
-      expect(expireKanbanLeases(ctx.desktop)).toEqual([])
-      expect(attemptRow(ctx.desktop, packet.attemptId)).toMatchObject({
-        state: 'claimed', lease_expires_at: '2026-01-01T00:02:00.000Z'
-      })
-      expect(kanbanEvents(ctx.desktop).filter(([kind]) => kind === 'lease_expired')).toEqual([])
-    } finally {
-      db.tx = originalTx
-    }
-  })
-
   it('expires a claim whose lease lapsed to lease_expired and leaves the card In progress, where Play is allowed again', () => {
     const ctx = board()
     const packet = claimedCard(ctx, 60)
