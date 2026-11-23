@@ -6,14 +6,16 @@ import type { ForgeMemberStatus } from '../../shared/desktop/forgeWorld'
 import type { GitRunner } from '../git/runner'
 import type { CredentialSession } from '../git/credentials'
 import { DomainError } from '../../core/errors'
-import { assertForgeWorldSyncAllowed, bindForge, FORGE_POINTER, pendingForgeForce, pendingForgeTransfer, withForgeTransfer } from '../../core/repo/forgeBinding'
+import { assertForgeTransferIdle, assertForgeWorldSyncAllowed, bindForge, boundForgeRoot, FORGE_POINTER, pendingForgeForce, pendingForgeTransfer, withForgeTransfer } from '../../core/repo/forgeBinding'
 import { retireSqlitePolicy } from '../../core/repo/deliveryPolicy'
+import { gitCheckoutStamp } from '../../core/repo/git'
 import { readProject } from '../../core/repo/initialize'
 import { resolveLayout } from '../../core/repo/layout'
 import { nodeFs } from '../../core/repo/nodeFs'
 import { dbProjectDir, SQLITE_STANDARDS_FILE } from '../../core/repo/storageMode'
 import { ensureForgeConfig, FORGE_CONFIG, readForgeReference } from '../../core/repo/forgeReference'
 import { requireTracked } from './handlers'
+import { readForgeCheckout } from './forgeCheckout'
 import { FORGE_FILE, createForge, githubRemote, parseForge, projectName, updateForge } from './forgeManifest'
 import { ForgeGit } from './forgeGit'
 import { ensureForgeWorld } from './forgeHealth'
@@ -39,6 +41,17 @@ interface MemberPreparation { key: string | undefined; promise: Promise<void> }
 interface ForgeMove { root: string; member: string; source: string; folder: string; repository: string }
 function ensureReconciled(result: import('../../shared/domain/views').ReconcileResultView): void {
   if (result.rejected.length || result.conflicts.length || result.profileConflicts.length || result.kanbanConflicts.length) throw new Error('Ticket records need reconciliation.')
+}
+
+function localForgeBinding(home: string, source: string): string | undefined {
+  try {
+    const member = boundForgeRoot(nodeFs, home, source)
+    return member === source ? undefined : member
+  }
+  catch (error: unknown) {
+    if ((error instanceof DomainError && error.code === 'conflict') || error instanceof SyntaxError) return undefined
+    throw error
+  }
 }
 
 class ForgeService {
@@ -244,10 +257,46 @@ class ForgeService {
         return this.restore(candidate.path, member, source, target.endsWith('/db') ? 'db' : 'repo')
       }
     }
+    const local = await this.openBoundProject(source, reference)
+    if (local !== undefined) return local
     const root = await this.checkout(reference.worldRepository, false)
     const project = this.worldAt(root).projects.find(p => p.folder === reference.projectFolder)
     if (!project) throw new Error('The Forge World does not contain this project.')
     return this.linkProject(source, root, project)
+  }
+  /** A verified local link can be opened offline. Only a missing or different link needs retrieval. */
+  private async openBoundProject(source: string, reference: NonNullable<ReturnType<typeof readForgeReference>>): Promise<string | undefined> {
+    const { home } = this.deps
+    const member = localForgeBinding(home, source)
+    if (member === undefined || basename(member) !== reference.projectFolder) return undefined
+    const root = dirname(member)
+    if (this.rootKey(root) === undefined || this.identityOf(root, member) === undefined || readForgeCheckout(member) !== source) return undefined
+    const project = this.worldAt(root).projects.find(item => item.folder === reference.projectFolder)
+    if (project === undefined) return undefined
+    const association = this.localLinkVersion(source, member)
+    const origin = githubRemote((await this.git.run(root, ['remote', 'get-url', 'origin'])).stdout.trim())
+    if (origin.toLowerCase() !== reference.worldRepository.toLowerCase()) return undefined
+    const codeOrigin = githubRemote((await this.git.run(source, ['remote', 'get-url', 'origin'])).stdout.trim())
+    if (codeOrigin.toLowerCase() !== project.repository.toLowerCase()) throw new Error('Choose the linked code repository; its origin does not match this Forge World project.')
+    await this.ensure(root)
+    // Local health checks the manifest, Git index and linked source origin. Fence the chosen
+    // association again after those asynchronous checks before returning it to the picker.
+    if (this.localLinkVersion(source, member) !== association) {
+      throw new DomainError('conflict', 'The Forge World project or its linked checkout changed while opening.')
+    }
+    return member
+  }
+  private localLinkVersion(source: string, member: string): string {
+    const { home } = this.deps
+    const root = dirname(member)
+    assertForgeTransferIdle(nodeFs, home, source)
+    assertForgeTransferIdle(nodeFs, home, member)
+    return JSON.stringify([
+      this.rootKey(root), this.identityOf(root, member),
+      this.worldAt(root).projects.find(item => item.folder === basename(member)),
+      readForgeReference(nodeFs, source), localForgeBinding(home, source), readForgeCheckout(member),
+      gitCheckoutStamp(root, false), gitCheckoutStamp(source, false)
+    ])
   }
   async linkProject(source: string, root: string, project: { folder: string; repository: string }): Promise<string> {
     const origin = githubRemote((await this.git.run(source, ['remote', 'get-url', 'origin'])).stdout.trim())

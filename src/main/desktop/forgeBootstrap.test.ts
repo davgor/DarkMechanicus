@@ -5,7 +5,7 @@ import type { IpcMain } from 'electron'
 import { afterEach, expect, it } from 'vitest'
 import { openWorkspace } from '../../core/workspace'
 import { FORGE_CONFIG } from '../../core/repo/forgeReference'
-import { boundForgeRoot } from '../../core/repo/forgeBinding'
+import { bindForge, boundForgeRoot } from '../../core/repo/forgeBinding'
 import { nodeFs } from '../../core/repo/nodeFs'
 import { gitIn, scratchDir } from '../../test/gitScratch'
 import { createGitRunner } from '../git/runner'
@@ -14,8 +14,8 @@ import { createForge, updateForge } from './forgeManifest'
 import { startForge } from './forgeService'
 import { createTestWorkspacePool as createWorkspacePool } from './__mocks__/projectWorkspaceFixture'
 
-const cleanups: Array<() => void> = []
-afterEach(() => { while (cleanups.length) cleanups.pop()?.() })
+const cleanups: Array<() => void | Promise<void>> = []
+afterEach(async () => { while (cleanups.length) await cleanups.pop()?.() })
 const worldUrl = 'https://github.com/example/world.git'
 const config = { version: 1, worldRepository: worldUrl, projectFolder: 'Software' }
 function gitRepository(path: string) {
@@ -45,19 +45,26 @@ async function fixture() {
   const registry = createFolderRegistry({ file: join(home, 'folders.json'), homeDir: home, dmHome: home })
   registry.track(source)
   const runner = createGitRunner()
+  const networkRequests: string[][] = []
+  let networkUnavailable = false
   const handlers = new Map<string, Parameters<IpcMain['handle']>[1]>()
   const forge = startForge({ handle: (name, handler) => { handlers.set(name, handler) } }, {
     home, registry, pool, session: { getAccount: () => ({ login: 'example', host: 'github.com' }), getToken: () => null },
     pickDirectory: async () => source, cleanup: () => undefined, publish: async () => { throw new Error('Existing world only') },
     onConflict: async () => { throw new Error('Unexpected merge conflict') }, onSynced: async () => undefined,
-    runner: { run: request => request.kind !== 'network' ? runner.run(request) : runner.run({ ...request, args: [
-      '-c', 'url.' + pathToFileURL(bare).href + '.insteadOf=' + worldUrl,
-      ...request.args.map(arg => arg === 'protocol.allow=never' ? 'protocol.file.allow=always' : arg)
-    ] }) }
+    runner: { run: async request => {
+      if (request.kind !== 'network') return runner.run(request)
+      networkRequests.push([...request.args])
+      if (networkUnavailable) throw new Error('The fixture remote is unavailable.')
+      return runner.run({ ...request, args: [
+        '-c', 'url.' + pathToFileURL(bare).href + '.insteadOf=' + worldUrl,
+        ...request.args.map(arg => arg === 'protocol.allow=never' ? 'protocol.file.allow=always' : arg)
+      ] })
+    } }
   })
   cleanups.push(forge.stop)
   const restore = async (member: string) => handlers.get('forge:restore')!({} as Electron.IpcMainInvokeEvent, member, 'db')
-  return { source, home, forge, pool, registry, restore, card }
+  return { source, home, forge, pool, registry, restore, card, networkRequests, offline(value: boolean) { networkUnavailable = value } }
 }
 
 it('opens a config-only source checkout on a fresh machine, retrieves the world and restores the same tickets', async () => {
@@ -70,12 +77,33 @@ it('opens a config-only source checkout on a fresh machine, retrieves the world 
   expect(boundForgeRoot(nodeFs, f.home, f.source)).toBe(member)
   expect(JSON.parse(readFileSync(join(member, '.darkmechanicus/local/source-checkout.json'), 'utf8'))).toEqual({ checkout: f.source })
   expect(existsSync(join(f.source, '.darkmechanicus'))).toBe(false)
+  f.networkRequests.length = 0
+  f.offline(true)
   expect(await f.forge.openProject(f.source)).toBe(member)
+  expect(f.networkRequests).toEqual([])
+  gitIn(f.source, 'remote', 'set-url', 'origin', 'https://github.com/example/other.git')
+  await expect(f.forge.openProject(f.source)).rejects.toThrow('linked code repository')
+  expect(f.networkRequests).toEqual([])
+  gitIn(f.source, 'remote', 'set-url', 'origin', 'https://github.com/example/software.git')
+  f.offline(false)
   expect(f.registry.list().filter(folder => folder.forgeWorld)).toHaveLength(1)
   await f.restore(member)
   expect(existsSync(join(f.source, FORGE_CONFIG))).toBe(false)
   expect(existsSync(join(f.source, 'FORGE-WORLD.md'))).toBe(false)
   expect((await f.pool.get(f.source).getKanbanCard({ cardId: f.card.id })).title).toBe('Portable task')
+})
+
+it('retrieves from the configured remote instead of trusting a binding outside the tracked world', async () => {
+  const f = await fixture()
+  const unrelated = join(f.home, 'unrelated', 'Software')
+  mkdirSync(unrelated, { recursive: true })
+  bindForge(f.home, f.source, unrelated, '')
+  expect(boundForgeRoot(nodeFs, f.home, f.source)).toBe(unrelated)
+  f.offline(true)
+  await expect(f.forge.openProject(f.source)).rejects.toThrow('remote is unavailable')
+  expect(f.networkRequests).toHaveLength(1)
+  expect(f.networkRequests[0]).toContain('clone')
+  expect(f.registry.list().some(folder => folder.path === unrelated)).toBe(false)
 })
 
 it('upgrades a valid legacy pointer without changing its text', async () => {
