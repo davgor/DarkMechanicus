@@ -152,7 +152,7 @@ function writeScaffoldFile(root: string, path: string, contents: string): void {
   }
 }
 
-export async function materializeForgeScaffold(root: string, recipe: ForgeRecipe, context: ScaffoldContext, assertCurrent?: () => void): Promise<void> {
+export async function materializeForgeScaffold(root: string, recipe: ForgeRecipe, context: ScaffoldContext, assertCurrent?: () => void) {
   const { assets } = verifyForgeScaffold(recipe)
   const bytes: Record<string, string> = (await import('./forgeStarterAssets.json')).default
   if (Object.keys(bytes).length !== publishedAssets.size) throw new Error('The packaged scaffold asset list changed.')
@@ -166,4 +166,5 @@ export async function materializeForgeScaffold(root: string, recipe: ForgeRecipe
   assertCurrent?.()
   assertScaffoldDirectory(root, false)
   for (const file of files) writeScaffoldFile(root, file.path, file.content)
+  return files
 }

@@ -6,7 +6,7 @@ import { readLocalGitOrigin } from '../../core/repo/git'
 import { readProject } from '../../core/repo/initialize'
 import { nodeFs } from '../../core/repo/nodeFs'
 import { resolveLayout } from '../../core/repo/layout'
-import { ensureForgeConfig } from '../../core/repo/forgeReference'
+import { FORGE_CONFIG } from '../../core/repo/forgeReference'
 import { encodeForgeRecipebook } from '../../core/repo/forgeSetupFormat'
 import { readForgeRecipebook, readForgeSetupWorkflow, refreshForgeSetupWorkflow, writeForgeRecipebook } from '../../core/repo/forgeSetupStorage'
 import type { ForgeProvisionRequest, ForgeRecipe, ForgeSetupDetection } from '../../shared/desktop/forgeSetup'
@@ -17,6 +17,7 @@ import { createForge, githubRemote, updateForge } from './forgeManifest'
 import type { createForgeRepositoryPublisher, ForgeProvisionAccount, ForgePublishedRepository } from './forgePublish'
 import type { ForgeProvisionIntent, ForgeProvisioningWork, ProvisionDestination } from './forgeProvisioning'
 import { bundledForgeRecipes, materializeForgeScaffold, verifyForgeScaffold } from './forgeScaffold'
+import { commitForgeScaffold } from './forgeScaffoldCommit'
 import type { WorkspacePool } from './workspacePool'
 
 interface ProvisioningOptions {
@@ -45,6 +46,22 @@ function dirStamp(path: string): string {
 
 function checkDirectory(receipt: Receipt): void {
   if (dirStamp(receipt.path) !== receipt.identity) throw new Error('The folder changed since Forge creation started.')
+}
+
+function managedChild(parent: string, child: string): string {
+  dirStamp(parent)
+  const path = join(parent, child)
+  if (!lstatSync(path, { throwIfNoEntry: false })) mkdirSync(path)
+  dirStamp(path)
+  return path
+}
+
+function ensureManagedHome(path: string): void {
+  if (!lstatSync(path, { throwIfNoEntry: false })) {
+    ensureManagedHome(dirname(path))
+    mkdirSync(path)
+  }
+  dirStamp(path)
 }
 
 function origin(path: string): string {
@@ -236,7 +253,7 @@ class ProvisioningWork implements ForgeProvisioningWork {
     const current = this.networkFence(intent, checkout)
     const gitConfig = join(checkout.path, '.git', 'config')
     if (!lstatSync(gitConfig, { throwIfNoEntry: false })) {
-      await git.run(checkout.path, ['init', '--template=', '--initial-branch=main'], undefined, { beforeStart: current })
+      await git.run(checkout.path, ['init', '--template=', '--object-format=sha1', '--initial-branch=main'], undefined, { beforeStart: current })
     }
     if (readLocalGitOrigin(checkout.path) === null) {
       await git.run(checkout.path, ['remote', 'add', 'origin', repository], undefined, { beforeStart: current })
@@ -253,9 +270,9 @@ class ProvisioningWork implements ForgeProvisioningWork {
       return { path: world.path, identity: world.identity }
     }
     if (intent.request.world.kind !== 'new' || remote === undefined) throw new Error('The new Forge World is not confirmed.')
-    const parent = join(this.deps.home, 'forge-worlds', intent.account.login)
-    mkdirSync(parent, { recursive: true })
-    dirStamp(parent)
+    ensureManagedHome(this.deps.home)
+    const worlds = managedChild(this.deps.home, 'forge-worlds')
+    const parent = managedChild(worlds, intent.account.login)
     const world = claimDirectory(join(parent, intent.request.world.name), intent, 'git')
     await this.initializeGit(intent, world, remote.url)
     const manifest = join(world.path, 'forge-world.json')
@@ -276,12 +293,15 @@ class ProvisioningWork implements ForgeProvisioningWork {
     const checkout = claimDirectory(join(intent.destination.parent, requested.name), intent, 'git')
     await this.initializeGit(intent, checkout, remote.url)
     const current = this.networkFence(intent, checkout)
-    await materializeForgeScaffold(checkout.path, selected, { name: requested.name, repository: remote.url }, current)
+    const files = await materializeForgeScaffold(checkout.path, selected, { name: requested.name, repository: remote.url }, current)
     current()
     const tickets = worldUrl(intent)
-    ensureForgeConfig(checkout.path, { version: 1, worldRepository: tickets, projectFolder: requested.name })
-    exactFile(join(checkout.path, FORGE_POINTER), pointerNote(tickets, requested.name))
-    const commit = await this.commitCode(intent, checkout, current)
+    const pointer = JSON.stringify({ version: 1, worldRepository: tickets, projectFolder: requested.name }, null, 2) + '\n'
+    exactFile(join(checkout.path, FORGE_CONFIG), pointer)
+    const note = pointerNote(tickets, requested.name)
+    exactFile(join(checkout.path, FORGE_POINTER), note)
+    files.push({ path: FORGE_POINTER, content: note }, { path: FORGE_CONFIG, content: pointer })
+    const commit = await commitForgeScaffold(this.deps.git, { root: checkout.path, files, author: intent.account.login, assertCurrent: current })
     const latest = await this.deps.publisher.inspectRemote(intent.account, remote.url)
     this.checkPublishedRemote(latest, remote)
     current()
@@ -289,23 +309,6 @@ class ProvisioningWork implements ForgeProvisioningWork {
     await this.deps.git.run(checkout.path, ['update-ref', 'refs/remotes/origin/main', commit], undefined, { beforeStart: current })
     await this.deps.git.run(checkout.path, ['branch', '--set-upstream-to=origin/main', 'main'], undefined, { beforeStart: current })
     return { ...checkout, commit }
-  }
-
-  private async commitCode(intent: ForgeProvisionIntent, checkout: Receipt, current: () => void): Promise<string> {
-    const { git } = this.deps
-    const options = { beforeStart: current }
-    const head = await git.run(checkout.path, ['rev-parse', '--verify', 'HEAD'], undefined, { ...options, acceptExitCodes: [0, 128] })
-    if (head.code !== 0) {
-      await git.run(checkout.path, ['add', '--all'], undefined, options)
-      const author = intent.account.login
-      await git.run(checkout.path, ['-c', 'user.name=' + author, '-c', 'user.email=' + author + '@users.noreply.github.com',
-        '-c', 'commit.gpgsign=false', 'commit', '-m', 'Initialize BoosterSeat scaffold'], undefined, options)
-    }
-    const status = await git.run(checkout.path, ['status', '--porcelain=v1', '--untracked-files=all'], undefined, options)
-    if (status.stdout !== '') throw new Error('The code checkout has changes outside the recorded scaffold. Review it before resuming.')
-    const commit = (await git.run(checkout.path, ['rev-parse', 'HEAD'], undefined, options)).stdout.trim()
-    if (!/^[a-f0-9]{40}$/.test(commit)) throw new Error('The scaffold Git commit could not be verified.')
-    return commit
   }
 
   private async publishCode(path: string, url: string, commit: string, current: () => void): Promise<void> {
