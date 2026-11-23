@@ -36,6 +36,8 @@ import type { OrchestrationHost } from './epic/orchestration'
 import { CloneDialog } from './clone/CloneDialog'
 import { DeliveryStandards } from './folder/DeliveryStandards'
 import { ForgeOpen } from './folder/ForgeOpen'
+import { ProjectSetupPanel } from './forge/ProjectSetupPanel'
+import { ProvisionDialog } from './forge/ProvisionDialog'
 import { TicketSource } from './folder/TicketSource'
 import { FolderPage } from './folder/FolderPage'
 import { GithubAccountProvider } from './github/GithubAccount'
@@ -68,6 +70,7 @@ interface PaneProps {
   terminalKit: TerminalKit
   onRequestUntrack(folder: TrackedFolderView): void
   onClone(): void
+  onProvision(world: TrackedFolderView): void
 }
 
 interface EpicPaneProps {
@@ -189,7 +192,7 @@ function EpicsPanel({ shell, folder }: { shell: ShellModel; folder: TrackedFolde
 }
 
 /** An open folder: either one of its epics, or the folder page with its Source control and Epics tabs. */
-function FolderPane({ shell, scheduler, EpicView }: PaneProps): JSX.Element | null {
+function FolderPane({ shell, scheduler, EpicView, onProvision }: PaneProps): JSX.Element | null {
   const { view } = shell
   const sourceTarget = useSourceTarget(view.kind === 'folder' ? view.folder : null, scheduler)
   if (view.kind === 'epic') {
@@ -211,7 +214,8 @@ function FolderPane({ shell, scheduler, EpicView }: PaneProps): JSX.Element | nu
   }
   return (
     <FolderPage key={folder.path} folder={folder} sourceTarget={sourceTarget} tab={tab} onTab={(next) => shell.setFolderTab(folder.path, next)}>
-      <FolderContents shell={shell} folder={folder} tab={tab} scheduler={scheduler} sourceTarget={sourceTarget} launch={launchStandardsChat} />
+      <FolderContents shell={shell} folder={folder} tab={tab} scheduler={scheduler} sourceTarget={sourceTarget}
+        launch={launchStandardsChat} onProvision={onProvision} />
     </FolderPage>
   )
 }
@@ -223,13 +227,38 @@ interface FolderContentsProps {
   scheduler: Scheduler
   sourceTarget: SourceTargetModel
   launch(project: TrackedFolderView, prompt: string): Promise<void>
+  onProvision(world: TrackedFolderView): void
+}
+
+async function openForgeOnboarding(shell: ShellModel, member: string, chatId: string): Promise<void> {
+  await shell.chats.reload(member)
+  shell.actions.selectChat(member, chatId)
+}
+
+function ForgeProjectSource({ shell, folder, scheduler, sourceTarget }: FolderContentsProps): JSX.Element {
+  const api = window.dm.forgeSetup
+  const source = <SourceControlView folder={folder} scheduler={scheduler} target={sourceTarget} />
+  if (api === undefined) return source
+  const status = sourceTarget.state
+  const checkout = status.status === 'ready' && status.value.kind === 'available' ? status.value.path : null
+  return <div className="forge-member-source">
+    <ProjectSetupPanel key={folderIdentity(folder)} api={api} member={folder.path} checkout={checkout} scheduler={scheduler}
+      onOpenChat={chatId => openForgeOnboarding(shell, folder.path, chatId)} />
+    {source}
+  </div>
 }
 
 function FolderContents(props: FolderContentsProps): JSX.Element {
-  const { shell, folder, tab, scheduler, sourceTarget } = props
-  if (folder.forgeParent && tab === 'source') return <SourceControlView folder={folder} scheduler={scheduler} target={sourceTarget} />
+  const { shell, folder, tab, scheduler } = props
+  if (folder.forgeParent && tab === 'source') return <ForgeProjectSource {...props} />
+  const api = window.dm.forgeSetup
+  const prepare = api === undefined ? undefined : async (project: TrackedFolderView) => {
+    const status = await api.prepare(project.path)
+    if (status.chatId === null) throw new Error(status.message ?? 'Onboarding is preparing. Check Environment setup for progress.')
+    await openForgeOnboarding(shell, project.path, status.chatId)
+  }
   const contents = <>
-    <DeliveryStandards key={folder.path} folder={folder} folders={shell.folders} launch={props.launch} compact={tab !== 'standards'} />
+    <DeliveryStandards key={folder.path} folder={folder} folders={shell.folders} launch={props.launch} onPrepare={prepare} compact={tab !== 'standards'} />
     <FolderTabContent {...props} />
   </>
   return folder.forgeParent ? <ForgeOpen identity={folderIdentity(folder)} root={folder.forgeParent} member={folder.path} scheduler={scheduler}>{contents}</ForgeOpen> : contents
@@ -238,7 +267,7 @@ function FolderContents(props: FolderContentsProps): JSX.Element {
 function FolderTabContent({ shell, folder, tab, scheduler, sourceTarget }: FolderContentsProps): JSX.Element | null {
   if (tab === 'standards') return null
   if (tab === 'source') return <SourceControlView folder={folder} scheduler={scheduler} target={sourceTarget} />
-  if (tab === 'tickets' || (folder.forgeWorld && tab === 'epics')) return <TicketSource key={folder.path} folder={folder} folders={shell.folders} status={shell.status} initialize={mode => shell.actions.initialize(folder, { mode, writeMcpConfig: false, importBoard: false })} open={async path => { await shell.reloadFolders(); shell.actions.selectFolder(path) }} />
+  if (tab === 'tickets' || (folder.forgeWorld && tab === 'epics')) return <TicketSource key={folder.path} folder={folder} folders={shell.folders} status={shell.status} initialize={mode => shell.actions.initialize(folder, { mode, writeMcpConfig: false, importBoard: false })} open={async path => { await shell.reloadFolders(); shell.actions.selectFolder(path) }} onCreateCode={() => props.onProvision(folder)} />
   return <EpicsPanel shell={shell} folder={folder} />
 }
 
@@ -391,11 +420,12 @@ interface ShellSidebarProps {
   onSummon(agent: AgentId): void
   /** Opens the clone dialog. */
   onClone(mode?: 'forge-world'): void
+  onCreateForgeWorld?(): void
   onRequestUntrack(folder: TrackedFolderView): void
 }
 
 /** The sidebar, wired to the shell: folders and their epics and chats, the Agents list, and the footer. */
-function ShellSidebar({ shell, version, onNewChat, onSummon, onClone, onRequestUntrack }: ShellSidebarProps): JSX.Element {
+function ShellSidebar({ shell, version, onNewChat, onSummon, onClone, onCreateForgeWorld, onRequestUntrack }: ShellSidebarProps): JSX.Element {
   const { actions } = shell
   return (
     <Sidebar
@@ -413,6 +443,7 @@ function ShellSidebar({ shell, version, onNewChat, onSummon, onClone, onRequestU
       footer={<ShellFooter shell={shell} />}
       onTrack={mode => void actions.track(mode)}
       onClone={onClone}
+      onCreateForgeWorld={onCreateForgeWorld}
       onAddAgent={actions.openAddAgent}
       onSelectAgent={actions.openAgent}
       onAgentStatus={shell.agents.recordStatus}
@@ -447,6 +478,18 @@ function FirstPromptHost({ shell, request, onClose }: { shell: ShellModel; reque
   )
 }
 
+function ProvisionHost({ shell, scheduler, world, close }: {
+  shell: ShellModel; scheduler: Scheduler; world?: TrackedFolderView; close(): void
+}): JSX.Element | null {
+  const api = window.dm.forgeSetup
+  if (api === undefined) return null
+  return <ProvisionDialog api={api} world={world} agents={shell.agents.agents} scheduler={scheduler} onClose={close} onProvisioned={status => {
+    const path = status.member ?? status.world
+    close()
+    if (path !== undefined) void shell.reloadFolders().then(() => shell.actions.selectFolder(path))
+  }} />
+}
+
 function Shell({ scheduler, EpicView, terminalKit }: { scheduler: Scheduler; EpicView: EpicView; terminalKit: TerminalKit }): JSX.Element {
   const update = useAppUpdate()
   const shell = useShell(scheduler)
@@ -460,6 +503,7 @@ function Shell({ scheduler, EpicView, terminalKit }: { scheduler: Scheduler; Epi
   const signIn = useSignInView(shell.selection)
   const signingIn = signIn.request !== null
   const [cloning, setCloning] = useState<'repository' | 'forge-world' | null>(null)
+  const [provision, setProvision] = useState<{ world?: TrackedFolderView } | null>(null)
   const { actions } = shell
   return (
     <SignInContext.Provider value={signIn.open}>
@@ -469,27 +513,24 @@ function Shell({ scheduler, EpicView, terminalKit }: { scheduler: Scheduler; Epi
               if (folder !== null && firstPrompt === null) void startNewChat(shell, folder, startingChats.current, (agent) => setFirstPrompt({ folder, agent }))
             }} onSummon={(agent) => {
               if (firstPrompt === null) setFirstPrompt({ folder: null, agent })
-            }} onClone={mode => setCloning(mode ?? 'repository')} onRequestUntrack={setPending} />
+            }} onClone={mode => setCloning(mode ?? 'repository')} onRequestUntrack={setPending}
+            onCreateForgeWorld={window.dm.forgeSetup === undefined ? undefined : () => setProvision({})} />
           <main className="app-main" aria-label="Workspace">
             {signIn.request === null ? null : <SignInView request={signIn.request} kit={terminalKit} scheduler={scheduler} onBack={signIn.close} />}
             {/* Kept while the sign-in view shows, hidden, so Back returns to the screen (and any dialog on it) as it was. */}
             <div className="main-view" hidden={signingIn}>
-              <MainPane shell={shell} EpicView={EpicView} scheduler={scheduler} terminalKit={terminalKit} onRequestUntrack={setPending} onClone={() => setCloning('repository')} />
+              <MainPane shell={shell} EpicView={EpicView} scheduler={scheduler} terminalKit={terminalKit} onRequestUntrack={setPending} onClone={() => setCloning('repository')}
+                onProvision={world => setProvision({ world })} />
             </div>
           </main>
           <UpdateBanner />
           {cloning === null ? null : <CloneHost shell={shell} mode={cloning === 'forge-world' ? cloning : undefined} onClose={() => setCloning(null)} />}
+          {provision && <ProvisionHost shell={shell} scheduler={scheduler} world={provision.world} close={() => setProvision(null)} />}
           {firstPrompt === null ? null : <FirstPromptHost shell={shell} request={firstPrompt} onClose={() => setFirstPrompt(null)} />}
-          {pending === null ? null : (
-            <UntrackDialog
-              folder={pending}
-              onCancel={() => setPending(null)}
-              onConfirm={() => {
-                void actions.untrack(pending.path)
-                setPending(null)
-              }}
-            />
-          )}
+          {pending && <UntrackDialog folder={pending} onCancel={() => setPending(null)} onConfirm={() => {
+            void actions.untrack(pending.path)
+            setPending(null)
+          }} />}
         </div>
       </AgentMailContext.Provider>
     </SignInContext.Provider>

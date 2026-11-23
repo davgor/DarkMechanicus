@@ -7,6 +7,7 @@ import { callGithub } from '../api/github'
 import { useGithubAccount } from '../github/useGithubAccount'
 import { Button } from '../components/Button'
 import { Dialog } from '../components/Dialog'
+import { RecipebookDialog } from '../forge/RecipebookDialog'
 
 const CREATE_WORLD = 'create-forge-world'
 
@@ -16,6 +17,7 @@ interface Props {
   status: StorageStatusView | null
   initialize(mode: 'repo' | 'db'): Promise<void>
   open(path: string): Promise<void>
+  onCreateCode?(): void
 }
 
 function useTicketSource({ folder }: Props) {
@@ -72,10 +74,22 @@ function ForceMigration({ world, source, initialized, controls }: { world: strin
   </>
 }
 
-function WorldSource({ folder, folders, open, controls }: SourceProps) {
+function WorldSetupActions({ folder, onCreateCode }: Pick<Props, 'folder' | 'onCreateCode'>): JSX.Element | null {
+  const api = window.dm.forgeSetup
+  const [recipesOpen, setRecipesOpen] = useState(false)
+  if (api === undefined) return null
+  return <div className="forge-world-actions">
+    <Button onClick={() => setRecipesOpen(true)}>Recipe book</Button>
+    {onCreateCode && <Button onClick={onCreateCode}>New code repository</Button>}
+    {recipesOpen && <RecipebookDialog api={api} world={folder.path} onClose={() => setRecipesOpen(false)} />}
+  </div>
+}
+
+function WorldSource({ folder, folders, open, controls, onCreateCode }: SourceProps) {
   const { api, defaultName, remote, repository, search, name, setName, busy, act, selector, choice, minutes, setMinutes } = controls
   return <>
       <h3>Tracked repositories</h3>
+      <WorldSetupActions folder={folder} onCreateCode={onCreateCode} />
       {folders.filter(f => f.forgeParent === folder.path).map(f => <p key={f.path}><Button onClick={() => open(f.path)}>{f.name}</Button></p>)}
       <div className="button-row">{repository}{search}<label>Project folder <input value={name} placeholder={defaultName} onChange={e => setName(e.target.value)} /></label>
         <Button disabled={busy || !remote} onClick={() => void act(() => api!.add(folder.path, remote, name || defaultName))}>Add repository</Button>
