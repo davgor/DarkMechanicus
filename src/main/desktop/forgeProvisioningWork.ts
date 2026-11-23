@@ -228,7 +228,10 @@ class ProvisioningWork implements ForgeProvisioningWork {
     return parent
   }
 
-  private checkWorld(world: NonNullable<ProvisionDestination['existingWorld']>): void {
+  private checkWorld(world: NonNullable<ProvisionDestination['existingWorld']>, receipt: Receipt = world): void {
+    if (receipt.path !== world.path || receipt.identity !== world.identity) {
+      throw new Error('The existing Forge World checkout receipt changed.')
+    }
     checkDirectory(world)
     if (this.trackedWorld(world.path).addedAt !== world.addedAt || origin(world.path).toLowerCase() !== world.url.toLowerCase()) {
       throw new Error('The selected Forge World was untracked or its origin changed.')
@@ -240,8 +243,8 @@ class ProvisioningWork implements ForgeProvisioningWork {
     if (destination.parent !== undefined && dirStamp(destination.parent) !== destination.parentIdentity) {
       throw new Error('The selected parent folder changed during Forge creation.')
     }
-    if (destination.existingWorld !== undefined) this.checkWorld(destination.existingWorld)
-    if (intent.world !== undefined) {
+    if (destination.existingWorld !== undefined) this.checkWorld(destination.existingWorld, intent.world)
+    else if (intent.world !== undefined) {
       checkDirectory(intent.world)
       this.trackedWorld(intent.world.path)
       if (origin(intent.world.path).toLowerCase() !== worldUrl(intent).toLowerCase()) throw new Error('The Forge World origin changed.')

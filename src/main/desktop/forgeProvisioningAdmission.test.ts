@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { mkdirSync, readFileSync, renameSync, symlinkSync, writeFileSync } from 'node:fs'
+import { lstatSync, mkdirSync, readFileSync, renameSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, expect, it, vi } from 'vitest'
 import { writeForgeRecipebook } from '../../core/repo/forgeSetupStorage'
@@ -140,6 +140,26 @@ it('checks the latest mapping after the native picker before recording creation 
   })
   await expect(f.work.prepare(f.request, account)).rejects.toThrow('already maps this folder or repository')
   expect(f.pickDirectory).toHaveBeenCalledOnce()
+})
+
+it('rejects a published receipt pointing at a different tracked clone of the same Forge World', async () => {
+  const f = fixture()
+  const destination = (await f.work.prepare(f.request, account))!
+  const operation = f.intent(destination)
+  operation.world = await f.work.world(operation, undefined)
+  await expect(f.work.assertCurrent(operation)).resolves.toBeUndefined()
+
+  const mirror = join(f.home, '..', 'other-world-checkout')
+  mkdirSync(mirror)
+  gitIn(mirror, 'init', '--initial-branch=main')
+  gitIn(mirror, 'remote', 'add', 'origin', worldRemote.url)
+  createForge(mirror, 'team')
+  f.registry.track(mirror)
+  const stat = lstatSync(mirror, { bigint: true })
+  operation.world = { path: mirror, identity: [stat.dev, stat.ino, stat.birthtimeNs].join(':') }
+  await expect(f.work.assertCurrent(operation)).rejects.toThrow('Forge World checkout receipt changed')
+  operation.world.path = f.world
+  await expect(f.work.assertCurrent(operation)).rejects.toThrow('Forge World checkout receipt changed')
 })
 
 it('refuses a substituted code parent and an account change on an existing receipt', async () => {
