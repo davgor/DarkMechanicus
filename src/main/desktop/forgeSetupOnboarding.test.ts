@@ -142,6 +142,28 @@ it('rejects a prior conversation after the same project identity is mapped to an
   expect(f.starts).toHaveBeenCalledTimes(1)
 })
 
+it('reads without discovery, saves by revision, and preserves authored steps when refreshed prerequisites become stale', async () => {
+  const f = fixture()
+  const initial = f.configure()
+  expect(await f.api.project(f.target.member)).toMatchObject({ state: 'configured', value: initial })
+  expect(f.discover).not.toHaveBeenCalled()
+  const { state, steps } = initial.value.workflow
+  const updated = { workflow: { state, steps }, notes: 'Retain this setup decision.' }
+  await expect(f.api.saveWorkflow(f.target.member, { ...updated, expectedSha256: '0'.repeat(64) })).rejects.toThrow('changed')
+  const saved = await f.api.saveWorkflow(f.target.member, { ...updated, expectedSha256: initial.sha256 })
+  expect(saved.value?.sha256).not.toEqual(initial.sha256)
+  f.discover.mockResolvedValue({
+    detectorVersion: 1, status: 'detected', source: { repository: f.target.repository, commit: '2'.repeat(40) },
+    facts: [{ kind: 'node', value: '24', source: '.node-version' }]
+  })
+  const refreshed = await f.api.refresh(f.target.member)
+  expect(refreshed).toMatchObject({ state: 'stale', value: { value: {
+    notes: updated.notes, workflow: initial.value.workflow, detection: { facts: [{ kind: 'node', value: '24' }] }
+  } } })
+  expect(f.discover).toHaveBeenCalledExactlyOnceWith(f.target.repository)
+  expect(f.starts).not.toHaveBeenCalled()
+})
+
 it('refuses to start a prepared chat after its member changes during asynchronous authority work', async () => {
   const f = fixture()
   f.state.agent = 'omp'
