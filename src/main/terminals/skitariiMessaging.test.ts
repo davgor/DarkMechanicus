@@ -93,6 +93,11 @@ if (process.env.DM_SESSION_TOKEN.startsWith('revoked')) {
   const write = () => { while (process.stdout.write(chunk)); process.stdout.once('drain', write) }
   write()
 } else {
+  if (mode === 'audit-warning' || mode === 'unrecognized-warning') {
+    process.stderr.write('private error ' + process.env.DM_SESSION_TOKEN + '\\n')
+    process.stderr.write('dm: [session_audit_busy] The project database was busy while closing the session audit.' +
+      (mode === 'audit-warning' ? '\\n' : ' do not forward arbitrary stderr\\n'))
+  }
   process.stdout.write(JSON.stringify({ ok: true, data: answers[command] }))
 }
 `
@@ -869,10 +874,10 @@ describe('Skitarii mail in the extension entry', () => {
   it('registers the tools and the watcher with the extension when OMP has them', async () => {
     const { pi, tools, handlers } = fakePi()
     await skitariiExtension(pi as never)
-    expect(tools.map((tool) => tool.name)).toEqual([...MAIL_TOOL_NAMES, DM_CALL_TOOL_NAME, 'recover_tooling'])
+    expect(tools.map((tool) => tool.name)).toEqual([...MAIL_TOOL_NAMES, DM_CALL_TOOL_NAME, 'recover_tooling', 'wait_for_human', 'contact_waiting_human'])
     expect(handlers.get('before_agent_start')).toHaveLength(2)
-    // The mascot's, the watcher's and the client's.
-    expect(handlers.get('session_shutdown')).toHaveLength(3)
+    // The mascot's, the mail watcher's, the human wait's and the client's.
+    expect(handlers.get('session_shutdown')).toHaveLength(4)
   })
 })
 
@@ -881,7 +886,7 @@ describe('Skitarii mail in the extension entry', () => {
 /** The JSON a successful dm_call result carries after its fixed note. */
 function callDataOf(result: ToolResult): unknown {
   expect(result.isError).toBeUndefined()
-  const text = textOf(result)
+  const text = result.content[0]?.text ?? ''
   expect(text.startsWith(`${DM_CALL_DATA_NOTE}\n`)).toBe(true)
   return JSON.parse(text.slice(DM_CALL_DATA_NOTE.length + 1))
 }
@@ -912,6 +917,18 @@ describe('dm_call', () => {
     expect(fixtureCalls()).toEqual([{ command: 'get_capabilities', input: {} }, { command: 'claim_ticket', input: args }])
     for (const result of [capabilities, claimed]) expect(textOf(result)).not.toContain(TOKEN)
     for (const child of deps.children) expect(child.exitCode).toBe(0)
+  })
+
+  it.each(['audit-warning', 'unrecognized-warning'])('keeps the primary JSON separate from the %s diagnostic', async (mode) => {
+    writeFileSync(join(folder, 'mode.txt'), mode)
+    const tool = toolsOver(createDmClient(realDeps())).get(DM_CALL_TOOL_NAME)!
+    const result = await tool.execute('c', { command: 'claim_ticket', args: { ticketId: 'T-1' } })
+    expect(callDataOf(result)).toEqual({ claimed: { ticketId: 'T-1' }, by: HOSTILE_NAME })
+    expect(result.content.slice(1)).toEqual(mode === 'audit-warning' ? [{
+      type: 'text', text: 'Dark Mechanicus warning [session_audit_busy]: The project database was busy while closing the session audit.'
+    }] : [])
+    expect(textOf(result)).not.toContain(TOKEN)
+    expect(textOf(result)).not.toContain('private error')
   })
 })
 

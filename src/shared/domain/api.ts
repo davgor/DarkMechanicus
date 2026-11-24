@@ -435,7 +435,7 @@ export interface KickBackKanbanCardInput {
 
 export interface CommandApi {
   /** Selected-agent first-message metadata; target comes only from a live authenticated terminal binding. */
-  askHuman(input: { question: string; responseRequired: true; humanEngaged: false }): Promise<{ questionId: string; state: 'queued' }>
+  askHuman(input: { question: string; responseRequired: true; humanEngaged: false; waitId?: string }): Promise<{ questionId: string; state: 'queued' }>
   getHumanAnswer(input: { questionId: string }): Promise<{ state: string; answer: string | null }>
   nameChat(input: NameChatArgs): Promise<{ applied: boolean }>
   /** Interrupt a tooling failure and establish an incident-only repair connection, never general Play authority. */

@@ -147,6 +147,9 @@ function mismatchAdvice(layout: RepoLayout): string {
 /** A CLI session that presented no grant: it observes, and changes nothing. */
 const UNGRANTED_CLI_CAPABILITIES: readonly Capability[] = ['read']
 
+/** Ordinary CLI opens, commands and audit closure share one lock-wait deadline below the native client's 60 s cap. */
+const CLI_SQLITE_CONTENTION_TIMEOUT_MS = 10_000
+
 function bindProject(db: Db, layout: RepoLayout, project: ProjectRecord): void {
   const known = getMeta(db, META_KEYS.projectId)
   if (known !== null && known !== project.projectId) {
@@ -379,23 +382,28 @@ export class RepositoryWorkspace implements WorkspaceCore {
       fail('not_initialized', `${this.repoRoot} has no valid project record at ${this.layout.projectFile}.`)
     }
     // A poll only ever opens the existing database its grant was bound in, so it never creates the local directory.
-    if (this.options.mailPoll !== true && this.options.mailRead !== true) {
+    const restricted = this.options.mailPoll === true || this.options.mailRead === true
+    if (!restricted) {
       this.fs.mkdirp(this.layout.localDir)
     }
-    const db = openDatabase(this.layout.dbFile, { synchronous: this.options.databaseSynchronous ?? 'full', readOnly: this.options.mailRead === true })
+    const db = openDatabase(this.layout.dbFile, {
+      synchronous: this.options.databaseSynchronous ?? 'full', readOnly: this.options.mailRead === true,
+      ...(this.transport === 'cli' && !restricted ? { contentionTimeoutMs: CLI_SQLITE_CONTENTION_TIMEOUT_MS } : {})
+    })
     try {
       this.store = this.createStore(db, project)
 
       // Staged images nobody claimed within the retention window are dropped each time a workspace opens; a mailbox
       // poll, which runs every few seconds and touches nothing else, leaves that to ordinary sessions.
-      if (this.options.mailPoll !== true && this.options.mailRead !== true) {
+      if (!restricted) {
         pruneStagedAttachments(this.store.ctx)
       }
+      this.finishOpen()
     } catch (error: unknown) {
+      this.store = null
       db.close()
       throw error
     }
-    this.finishOpen()
   }
 
   private finishOpen(): void {

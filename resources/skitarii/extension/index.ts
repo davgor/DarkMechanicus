@@ -13,6 +13,7 @@ import { attachMessaging, type MailApi, type MailContext } from './messaging'
 import { worldMailClients } from './worldDmClient'
 import { attachWorldMessaging } from './worldMessaging'
 import { Skitarii, type MascotFrames, type SkitariiUi, type Timers } from './skitarii'
+import { attachHumanWait } from './humanWait'
 
 /** The slice of OMP's `ExtensionAPI` this extension uses (`packages/coding-agent/src/extensibility/extensions/types.ts`). */
 interface OmpContext extends MailContext {
@@ -110,6 +111,8 @@ export default async function skitariiExtension(pi: OmpApi): Promise<void> {
   // The watcher stops before the client cancels its children, so a cancelled poll is dropped, not shown as a failure.
   if (world === null) attachMessaging(pi, client, PROCESS_TIMERS)
   else attachWorldMessaging(pi, world, PROCESS_TIMERS)
+  const home = process.env.DARKMECHANICUS_HOME
+  attachHumanWait(pi, world === null ? { home, client } : { home, projects: world.projects })
   if (world === null && process.env[DM_CLIENT_DESCRIPTOR_ENV] && process.env.DM_SESSION_TOKEN) attachProjectStandards(pi, client)
   attachDmClient(pi, client)
 }

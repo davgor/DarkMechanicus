@@ -47,7 +47,7 @@ const GIT_HEAVY = [
   'src/integration/spaceLoop.test.ts'
 ]
 
-// The coverage job caps Git workers separately because Vitest applies VITEST_MAX_WORKERS to every project.
+// Allow local verification to cap Git workers separately from the other Vitest projects.
 const gitWorkers = Math.max(1, Math.min(
   Math.floor(availableParallelism() / 2),
   Number(process.env.DM_VITEST_GIT_MAX_WORKERS) || Infinity,

@@ -1,4 +1,5 @@
 import { callRecovery, readRecoveryContext } from './recoveryClient'
+import { SESSION_AUDIT_BUSY, SESSION_AUDIT_BUSY_STDERR } from './dmDiagnostics'
 /**
  * The Skitarii extension's mail client: runs the chat's own pinned `dm` CLI for one mailbox command at a time,
  * without a shell, and returns its JSON result.
@@ -182,7 +183,7 @@ type DmClientErrorCode =
 
 export type DmClientError = { source: 'client'; code: DmClientErrorCode; message: string } | { source: 'dm'; code: string; message: string }
 
-export type DmCallResult<T> = { ok: true; data: T } | { ok: false; error: DmClientError }
+export type DmCallResult<T> = { ok: true; data: T; warning?: typeof SESSION_AUDIT_BUSY } | { ok: false; error: DmClientError }
 
 export interface DmClient {
   /** Runs one mailbox command; never rejects. `signal` aborting kills the child and settles with `aborted`. */
@@ -417,11 +418,22 @@ function redacted(value: unknown, token: string): unknown {
   return out
 }
 
+function ordinarySuccess(data: unknown, token: string, stderr: Buffer): DmCallResult<unknown> {
+  const notices = stderr.toString('utf8').split(/\r?\n/)
+  notices.pop() // The capped stderr buffer may end midway through a line.
+  return {
+    ok: true, data: redacted(data, token),
+    ...(notices.includes(SESSION_AUDIT_BUSY_STDERR) ? { warning: SESSION_AUDIT_BUSY } : {})
+  }
+}
+
 /** How an exited child's run ended, from its exit and its output; `redact` also clears the grant from its data. */
 function outcome(exit: Exit, token: string, redact: boolean): DmCallResult<unknown> {
   const { code } = exit
   const envelope = envelopeOf(exit.stdout.toString('utf8'))
-  if (code === 0 && envelope?.ok === true) return { ok: true, data: redact ? redacted(envelope.data, token) : envelope.data }
+  if (code === 0 && envelope?.ok === true) {
+    return redact ? ordinarySuccess(envelope.data, token, exit.stderr) : { ok: true, data: envelope.data }
+  }
   if (code !== 0 && envelope?.ok === false) {
     return { ok: false, error: { source: 'dm', code: envelope.code.replaceAll(token, '[redacted]'), message: envelope.message.replaceAll(token, '[redacted]') } }
   }
