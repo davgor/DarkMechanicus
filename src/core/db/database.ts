@@ -28,6 +28,8 @@ export interface OpenDatabaseOptions {
   busyTimeoutMs?: number
   /** Bounded retries when BEGIN IMMEDIATE still reports SQLITE_BUSY after the busy timeout. */
   beginRetries?: number
+  /** Optional total lock-wait deadline for a one-shot connection, measured from open using a monotonic clock. */
+  contentionTimeoutMs?: number
   /**
    * SQLite's synchronous setting (default 'full': a commit is on disk before it returns). 'off' leaves syncing to the
    * operating system; only test harnesses, whose databases are thrown away, pass it.
@@ -44,11 +46,12 @@ export function isBusyError(error: unknown): boolean {
     return false
   }
   const errcode = (error as { errcode?: unknown }).errcode
-  return errcode === 5 || errcode === 6 || /database is (locked|busy)/i.test(error.message)
+  return typeof errcode === 'number'
+    ? (errcode & 0xff) === 5 || (errcode & 0xff) === 6
+    : /database(?: table| schema)? is (locked|busy)/i.test(error.message)
 }
 
 function applyPragmas(db: DatabaseSync, path: string, options: OpenDatabaseOptions): void {
-  db.exec(`PRAGMA busy_timeout = ${Math.max(0, Math.floor(options.busyTimeoutMs ?? DEFAULT_BUSY_TIMEOUT_MS))}`)
   db.exec('PRAGMA foreign_keys = ON')
   if (path !== ':memory:' && options.readOnly !== true) {
     db.exec('PRAGMA journal_mode = WAL')
@@ -63,15 +66,35 @@ class SqliteDb implements Db {
   private depth = 0
   /** Total `BEGIN IMMEDIATE` tries: at least one, and finite for any ordinary `beginRetries`. */
   private readonly beginAttempts: number
+  private readonly busyTimeoutMs: number
+  private readonly contentionDeadline: number | undefined
+  private activeBusyTimeoutMs = -1
 
   constructor(path: string, options: OpenDatabaseOptions) {
     this.path = path
-    this.db = new DatabaseSync(path, { readOnly: options.readOnly ?? false })
+    this.busyTimeoutMs = Math.max(0, Math.floor(options.busyTimeoutMs ?? DEFAULT_BUSY_TIMEOUT_MS))
+    this.contentionDeadline = options.contentionTimeoutMs === undefined ? undefined : performance.now() + options.contentionTimeoutMs
     this.beginAttempts = 1 + Math.max(0, Math.floor(options.beginRetries ?? 3) || 0)
-    applyPragmas(this.db, path, options)
+    this.db = new DatabaseSync(path, { readOnly: options.readOnly ?? false })
+    try {
+      this.configureBusyTimeout()
+      applyPragmas(this.db, path, options)
+    } catch (error) {
+      this.db.close()
+      throw error
+    }
+  }
+
+  private configureBusyTimeout(): void {
+    const limit = this.contentionDeadline === undefined ? this.busyTimeoutMs
+      : Math.min(this.busyTimeoutMs, Math.max(0, Math.floor(this.contentionDeadline - performance.now())))
+    if (limit === this.activeBusyTimeoutMs) return
+    this.db.exec(`PRAGMA busy_timeout = ${limit}`)
+    this.activeBusyTimeoutMs = limit
   }
 
   private statement(sql: string): StatementSync {
+    if (this.contentionDeadline !== undefined) this.configureBusyTimeout()
     let statement = this.statements.get(sql)
     if (!statement) {
       statement = this.db.prepare(sql)
@@ -94,6 +117,7 @@ class SqliteDb implements Db {
   }
 
   exec(sql: string): void {
+    if (this.contentionDeadline !== undefined) this.configureBusyTimeout()
     this.db.exec(sql)
   }
 
@@ -105,10 +129,10 @@ class SqliteDb implements Db {
     let busy: unknown
     for (let attempt = 0; attempt < this.beginAttempts; attempt += 1) {
       try {
-        this.db.exec('BEGIN IMMEDIATE')
+        this.exec('BEGIN IMMEDIATE')
         return
       } catch (error: unknown) {
-        if (!isBusyError(error)) {
+        if (!isBusyError(error) || (this.contentionDeadline !== undefined && performance.now() >= this.contentionDeadline)) {
           throw error
         }
         busy = error
@@ -137,7 +161,7 @@ class SqliteDb implements Db {
     this.depth += 1
     try {
       const result = fn()
-      this.db.exec(savepoint ? `RELEASE ${savepoint}` : 'COMMIT')
+      this.exec(savepoint ? `RELEASE ${savepoint}` : 'COMMIT')
       return result
     } catch (error: unknown) {
       this.rollback(savepoint)
