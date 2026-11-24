@@ -1,11 +1,10 @@
 /**
- * The chats as records: listing, creating, renaming and deleting them, and reading the transcript a chat stored
- * before chats became terminals. Nothing here runs an agent: every chat runs in its terminal (`terminalSessions.ts`).
+ * The chats as records: listing, creating, renaming and deleting them, and reading stored transcripts.
+ * Nothing here runs an agent; terminal and GUI session owners manage their processes separately.
  *
- * Reading is read-only (`readChat`, for Earlier conversation and the panels that follow an old chat's thread): it
- * writes nothing. No agent can still answer what an old transcript left open, so a stored approval request with no
- * decision is shown cancelled, a call still running is shown cancelled and a thread still running failed, in the
- * returned items only.
+ * Reading is read-only (`readChat`): it writes nothing. By default, an unfinished stored approval request
+ * is shown cancelled, a running call cancelled and a running thread failed, in the returned items only.
+ * Callers with a live GUI process pass `live: true` to preserve pending requests and running items.
  *
  * Mailboxes (`chatMailboxes.ts`). Listing a folder's chats provisions the OMP chats' mailboxes and stores their ids;
  * creating an OMP chat provisions its mailbox at once; renaming one renames its mailbox, never its id. A project-less
@@ -72,8 +71,8 @@ export interface ChatRecords {
   deleteChat(ref: ChatRef): Promise<void>
   /** Startup: provisions the folder's OMP chats' mailboxes and finishes every deletion a crash cut short (see the module comment). */
   recoverFolder(folder: string): Promise<void>
-  /** The chat and its stored transcript, settled as described above; writes nothing. Throws `not_found` for an unknown chat. */
-  readChat(ref: ChatRef): ChatReadView
+  /** The chat and its stored transcript; live reads skip settling. Writes nothing. Throws `not_found` for an unknown chat. */
+  readChat(ref: ChatRef, options?: { live?: boolean }): ChatReadView
   /** The agent's display name: the connected agent's, else the built-in kind's, else a generic one. */
   agentName(id: AgentId): string
 }
@@ -163,10 +162,11 @@ export function createChatRecords(deps: ChatRecordsDeps): ChatRecords {
     renameChat: (ref, title) => store.updateChat(requireChat(store, ref), { title, titleStatus: 'manual' }),
     deleteChat: async (ref) => finishDeletion(requireChat(store, ref)),
     recoverFolder: async () => {},
-    readChat: (ref) => {
+    readChat: (ref, options) => {
       const chat = requireChat(store, ref)
       const transcript = store.readTranscript(chat)
-      return { chat: transcript?.chat ?? chat, items: settledItems(transcript?.items ?? []) }
+      const items = transcript?.items ?? []
+      return { chat: transcript?.chat ?? chat, items: options?.live ? items : settledItems(items) }
     },
     agentName: (id) => deps.agentFor(id)?.displayName ?? (isBuiltInAgentKind(id) ? AGENT_DEFINITIONS[id].displayName : 'This agent')
   }

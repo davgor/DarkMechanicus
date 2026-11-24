@@ -2,8 +2,7 @@
  * App-wide store of agent chats (`userData/agents/chats`), one directory per folder:
  *
  *   <root>/<folder key>/index.jsonl     one line per chat-record change; the last line per id wins
- *   <root>/<folder key>/<chat id>.jsonl one `ChatItem` per line: the transcript a chat stored before
- *                                       chats became terminals; read-only, nothing writes it any more
+ *   <root>/<folder key>/<chat id>.jsonl one `ChatItem` per line; first-written order, last line per id wins
  *
  * The folder key is a hash of the folder's canonical real path (the same canonical form the folder
  * registry uses), so every spelling of a folder finds the same chats, and untracking a folder never
@@ -17,6 +16,7 @@
  * `<root>/projectless/`, laid out the same way; no folder key can name it (keys are hex digests).
  *
  * A record is masked for claim tokens before it is written.
+ * Appended transcript items are masked for both claim and grant tokens before they are written.
  */
 import { forgeProjectFor } from '../desktop/forgeManifest'
 import { createHash, randomUUID } from 'node:crypto'
@@ -27,6 +27,7 @@ import { DomainError } from '../../core/errors'
 import { chatItemSchema, chatRecordSchema, type ChatItem, type ChatRecord } from '../../shared/agents/chat'
 import { canonicalPath } from '../desktop/folderRegistry'
 import { maskClaimTokensDeep } from './claimTokenMask'
+import { maskAgentChatSecretsDeep } from '../agentChat/secretMask'
 
 /** The filesystem surface the store uses; tests inject fakes through it. */
 export interface ChatStoreFs {
@@ -73,6 +74,8 @@ export interface ChatStore {
   recordEndpoint(ref: ChatRef, endpointId: string): ChatRecord
   /** The chat and its transcript; null for an unknown chat. */
   readTranscript(ref: ChatRef): ChatTranscript | null
+  /** Appends masked transcript items; throws `not_found` for an unknown chat. */
+  appendItems(ref: ChatRef, items: ChatItem[]): void
   /** Removes the chat, its transcript and every stored version of its record; throws `not_found` for an unknown chat. */
   deleteChat(ref: ChatRef): void
 }
@@ -296,6 +299,14 @@ function readTranscript(context: StoreContext, ref: ChatRef): ChatTranscript | n
   return { chat, ...readItems(context.fs, join(location.dir, `${chat.id}.jsonl`)) }
 }
 
+function appendItems(context: StoreContext, ref: ChatRef, items: ChatItem[]): void {
+  const { location, chat } = requireChat(context, ref)
+  const path = join(location.dir, `${chat.id}.jsonl`)
+  for (const item of items) {
+    appendLine(context, path, maskAgentChatSecretsDeep(item))
+  }
+}
+
 /** The index text without any line of chat `id`; every line ends in a newline, so a cut-off tail cannot swallow the next append. */
 function indexWithout(text: string, id: string): string {
   const kept = text.split('\n').filter((line) => line.trim() !== '' && (parseLine(line) as { id?: unknown } | null)?.id !== id)
@@ -342,6 +353,7 @@ export function createChatStore(options: {
       return saveRecord(context, location, { ...chat, endpointId })
     },
     readTranscript: (ref) => readTranscript(context, ref),
+    appendItems: (ref, items) => appendItems(context, ref, items),
     deleteChat: (ref) => {
       deleteChat(context, ref)
     }

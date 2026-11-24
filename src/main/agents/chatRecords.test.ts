@@ -317,6 +317,33 @@ describe('chat records: reading an old transcript', () => {
   })
 })
 
+describe('chat records: reading a live transcript', () => {
+  it('preserves running calls, threads and pending approvals without changing storage', () => {
+    const state = rig()
+    const chat = newChat(state.records)
+    const items = [call('c1'), thread('th1'), call('c2', 'running', 'th1'), request('q1', 'th1'), call('c3', 'completed')]
+    state.store.appendItems(chat, items)
+    const stored = everythingStored(state.fs)
+
+    expect(state.records.readChat(chat, { live: true })).toEqual({ chat, items })
+    const settled = state.records.readChat(chat)
+    expect(settled.items.find(item => item.id === 'c1')).toMatchObject({ status: 'cancelled' })
+    expect(settled.items.find(item => item.id === 'th1')).toMatchObject({ state: 'failed' })
+    expect(settled.items.find(item => item.id === 'item_q1:cancelled')).toMatchObject({ decision: 'cancelled' })
+    expect(state.records.readChat(chat, { live: false })).toEqual(settled)
+    expect(state.records.readChat(chat, { live: true })).toEqual({ chat, items })
+    expect(everythingStored(state.fs)).toBe(stored)
+  })
+
+  it('keeps live empty and missing-chat semantics', () => {
+    const state = rig()
+    const chat = newChat(state.records)
+    expect(state.records.readChat(chat, { live: true })).toEqual({ chat, items: [] })
+    expect(() => state.records.readChat({ ...chat, id: 'chat_gone' }, { live: true }))
+      .toThrowError(expect.objectContaining({ code: 'not_found' }) as Error)
+  })
+})
+
 describe('chat records: agent names', () => {
   it("names a connected agent by its row, a built-in kind that is not connected by the kind, and anything else generically", () => {
     const records = createChatRecords({ store: memoryChatStore(), agentFor: connectedAgents([builtInAgent('claude', { displayName: 'My Claude' })]) })
