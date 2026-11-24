@@ -110,6 +110,44 @@ it.each([new Error('Agent unavailable'), 'Agent unavailable'])('reports resolver
   } finally { result.resolve(); fixture.cleanup(); vi.useRealTimers() }
 })
 
+it('does not retain a resolver failure on a replacement world attachment or publish the old merge', async () => {
+  const entered = pending<void>(), result = pending<void>()
+  const fixture = resolverFixture({
+    onConflict: async () => { entered.resolve(); await result.promise }
+  })
+  const { root, registry, call, events } = fixture
+  try {
+    seedConflict(fixture)
+    const syncing = call('sync', root)
+    const failure = expect(syncing).rejects.toThrow('Previous resolver failed')
+    await entered.promise
+    registry.untrack(root)
+    registry.track(root)
+    result.reject(new Error('Previous resolver failed'))
+    await failure
+    expect(await call('status', root)).toEqual({ last: null, error: null })
+    expect(gitIn(root, 'ls-files', '-u')).toContain('README.md')
+    expect(events).toEqual([])
+  } finally { result.resolve(); fixture.cleanup() }
+})
+
+it('will not grant a nested tracked folder a resolver for its parent repository merge', async () => {
+  const fixture = resolverFixture()
+  const { root, registry, call, events } = fixture
+  try {
+    seedConflict(fixture)
+    gitIn(root, 'commit', '-am', 'Local edit')
+    expect(() => gitIn(root, 'merge', 'remote')).toThrow()
+    const nested = join(root, 'Nested')
+    mkdirSync(nested)
+    createForge(nested, 'owner')
+    registry.track(nested)
+    await expect(call('sync', nested)).rejects.toThrow('must be the root of its ticket repository')
+    expect(gitIn(root, 'ls-files', '-u')).toContain('README.md')
+    expect(events).toEqual([])
+  } finally { fixture.cleanup() }
+})
+
 it('coalesces concurrent opens of one world while its startup health check is still preparing', async () => {
   const entered = pending<void>(), release = pending<void>()
   let healthChecks = 0

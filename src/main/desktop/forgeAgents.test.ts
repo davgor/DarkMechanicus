@@ -1,6 +1,7 @@
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { expect, it } from 'vitest'
+import type { AgentAuthState } from '../../shared/desktop/api'
 import { createChatRecords } from '../agents/chatRecords'
 import { createChatStore } from '../agents/chatStore'
 import { scratchDir } from '../../test/gitScratch'
@@ -8,7 +9,7 @@ import { forgeAgentSessions } from './forgeAgents'
 import { seedForgeFixture } from '../../test/forgeFixture'
 import { createHarness } from '../../test/workspaceHarness'
 
-function resolverChats() {
+function resolverChats(checkAuth: (id: string) => Promise<AgentAuthState> = async () => 'signed_in') {
   const fixture = scratchDir('forge-agents-')
   const root = join(fixture.path, 'forge')
   const member = join(root, 'alpha')
@@ -23,7 +24,7 @@ function resolverChats() {
   let signedOutOnStart: string | undefined
   const session = forgeAgentSessions({ store, chats,
     agents: { list: () => connected }, folderDefaults: { get: folder => folder === root ? 'claude' : null },
-    checkAuth: async () => 'signed_in',
+    checkAuth,
     registry: { list: () => [{ path: member, forgeParent: root }] },
     terminals: {
       isRunning: id => live.has(id),
@@ -103,6 +104,43 @@ it('does not create or launch a resolver when its attachment expires during auth
     await expect(opening).rejects.toThrow('World attachment changed')
     expect(chats.listChats(root)).toEqual([])
     expect(live.size).toBe(0)
+  } finally { cleanup() }
+})
+
+it('skips disconnected resolvers and falls back when a connected sign-in probe fails', async () => {
+  const probes: string[] = []
+  const { root, store, chats, live, connected, session, allow, cleanup } = resolverChats(async id => {
+    probes.push(id)
+    if (id === 'codex') throw new Error('Sign-in probe unavailable')
+    return 'signed_in'
+  })
+  try {
+    const previous = chats.createChat({ folder: root, agent: 'claude', role: 'worker' })
+    store.updateChat(previous, { forgeResolver: root })
+    connected.splice(1, 1, { id: 'omp' })
+    allow()
+    await session.onConflict(root)
+    expect(probes).toEqual(['codex', 'omp'])
+    const active = chats.listChats(root).find(chat => chat.agent === 'omp')!
+    expect([...live]).toEqual([active.id])
+    expect(chats.listChats(root).map(chat => chat.agent).sort()).toEqual(['claude', 'omp'])
+  } finally { cleanup() }
+})
+
+it('does not resend the kickoff if the existing resolver starts while sign-in is checked', async () => {
+  let duringAuth = () => {}
+  const { root, store, chats, live, continuations, session, cleanup } = resolverChats(async () => {
+    duringAuth()
+    return 'signed_in'
+  })
+  try {
+    const previous = chats.createChat({ folder: root, agent: 'claude', role: 'worker' })
+    store.updateChat(previous, { forgeResolver: root, firstPromptDelivery: 'submitted' })
+    duringAuth = () => { live.add(previous.id) }
+    await session.onConflict(root)
+    expect(continuations).toEqual([])
+    expect(chats.listChats(root).map(chat => chat.id)).toEqual([previous.id])
+    expect([...live]).toEqual([previous.id])
   } finally { cleanup() }
 })
 

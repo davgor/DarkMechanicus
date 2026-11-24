@@ -5,7 +5,7 @@ import { DM_CLIENT_DESCRIPTOR_ENV } from '../../../resources/skitarii/extension/
 import { parseWorldMailDescriptor } from '../../../resources/skitarii/extension/worldDmClient'
 import { builtInAgent } from '../agents/__mocks__/chatFixtures'
 import { seedForgeFixture } from '../../test/forgeFixture'
-import { eventually, recorder, startTerminal, terminalRig, type TerminalRig } from './__mocks__/terminalSessionsRig'
+import { CUSTOM_AGENT, eventually, recorder, startTerminal, terminalRig, type TerminalRig } from './__mocks__/terminalSessionsRig'
 
 let rig: TerminalRig
 let member: string
@@ -152,6 +152,26 @@ describe('Forge World conflict resolvers', () => {
     expect(await rig.sessions.attach(rig.newChat())).toMatchObject({ state: 'refused' })
     expect(rig.host.spawns).toHaveLength(1)
   })
+})
+
+it.each([
+  { scenario: 'a custom agent', agent: CUSTOM_AGENT, message: 'The resolver agent does not support sign-in verification.', probes: 0 },
+  { scenario: 'an unavailable probe', agent: builtInAgent('claude'), message: 'The resolver agent sign-in could not be verified.', probes: 1 }
+])('does not launch a conflict resolver for $scenario', async ({ agent, message, probes }) => {
+  let authChecks = 0
+  const isolated = terminalRig({
+    agents: [agent],
+    deps: () => ({ checkAuth: async () => { authChecks++; throw new Error('Sign-in command unavailable') } })
+  })
+  try {
+    const chat = isolated.newChat(agent.id)
+    isolated.store.updateChat(chat, { forgeResolver: isolated.repo })
+    await expect(isolated.sessions.start(chat, { kickoff: 'Resolve the repository merge on main' }))
+      .resolves.toEqual({ state: 'signed_out', message })
+    expect(authChecks).toBe(probes)
+    expect(isolated.grantsAsked).toBe(0)
+    expect(isolated.host.spawns).toEqual([])
+  } finally { isolated.cleanup() }
 })
 
 describe('Forge World member agent context', () => {
