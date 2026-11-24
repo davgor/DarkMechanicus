@@ -24,16 +24,14 @@ function fixture(role: 'planner' | 'orchestrator' = 'planner') {
   const cards: { id: string; body: string }[] = []
   const receipts = new Set<string>()
   const messages = new Map<string, { id: string; text: string }>()
-  let version = '1.0.0'
   const live = new Set<string>()
   const deps = {
     source, store, incidents: createRecoveryStore({ userData: root }),
-    version: () => version,
+    version: () => '1.0.0',
     transportProblem: vi.fn(() => null as string | null),
     createCard: vi.fn(async (_folder: string, input: { body: string }) => { events.push('card'); const card = { id: 'kc_fixture', body: input.body }; cards.push(card); return card.id }),
     play: vi.fn(async () => { events.push('play') }),
-    hold: vi.fn(async () => { events.push('hold') }),
-    release: vi.fn(async () => { events.push('release') }),
+    notifyPeers: vi.fn(async () => { events.push('notify') }),
     authorizeLaunch: vi.fn(),
     start: vi.fn<Parameters<typeof createToolingRecovery>[0]['start']>(async (chat, prompt, assertLaunch) => {
       await assertLaunch()
@@ -55,16 +53,16 @@ function fixture(role: 'planner' | 'orchestrator' = 'planner') {
     const chat = store.getChat({ folder: chatId === caller.id ? root : sourceFolder, id: chatId }) ?? store.getChat({ folder: root, id: chatId })!
     return { binding: { grantId: 'gr_fixture', folder: chat.folder, chatId, generation, ...(chat.cardId === undefined ? {} : { cardId: chat.cardId }), signal: new AbortController().signal, assertCurrent() {} }, signal: new AbortController().signal, deadline: Infinity, remainingMs: () => 1000, assertActive() {}, publish: fn => fn() }
   }
-  return { root, sourceFolder, store, caller, events, source, cards, receipts, messages, live, deps, context, service: createToolingRecovery(deps), setVersion: (next: string) => { version = next } }
+  return { root, sourceFolder, store, caller, events, source, cards, receipts, messages, live, deps, context, service: createToolingRecovery(deps) }
 }
 
   it.each(['planner', 'orchestrator'] as const)('interrupts unfinished %s work before filing and starts a card-bound repair with proven input and two-way routes', async role => {
     const f = fixture(role)
     const result = await f.service(escalation, f.context())
-    expect(f.events).toEqual(['hold', 'card', 'play', 'start'])
-    expect(result).toMatchObject({ blocked: true, cardId: 'kc_fixture', startup: 'running', prompt: 'delivered', connection: 'connected' })
+    expect(f.events).toEqual(['card', 'play', 'start', 'notify'])
+    expect(result).toMatchObject({ waitingForRepair: true, cardId: 'kc_fixture', startup: 'running', prompt: 'delivered', connection: 'connected' })
     expect(result.repairChatId).not.toBe(f.caller.id)
-    expect(f.store.getChat(f.caller)).toMatchObject({ title: 'Unfinished original task', role, toolingIncidentId: result.incidentId })
+    expect(f.store.getChat(f.caller)).toMatchObject({ title: 'Unfinished original task', role })
     expect(f.store.getChat({ folder: f.sourceFolder, id: result.repairChatId! })).toMatchObject({ role: 'orchestrator', allowSave: false, cardId: 'kc_fixture', repairIncidentId: result.incidentId })
     expect(f.cards[0]!.body).not.toContain('private-fixture-secret')
     expect(f.cards[0]!.body).toContain(f.caller.id)
@@ -78,10 +76,10 @@ function fixture(role: 'planner' | 'orchestrator' = 'planner') {
   it.each(['missing', 'uninitialized', 'unrelated', 'stale'])('refuses %s source before creating any card or chat and retains the original blocked diagnostic', async reason => {
     const f = fixture(); f.source.requireAvailable.mockImplementation(() => { throw new Error(reason) })
     const result = await f.service(escalation, f.context())
-    expect(result).toMatchObject({ blocked: true, cardId: null, repairChatId: null, startup: 'not_started', connection: 'unavailable' })
+    expect(result).toMatchObject({ waitingForRepair: true, cardId: null, repairChatId: null, startup: 'not_started', connection: 'unavailable' })
     expect(f.cards).toHaveLength(0)
     expect(f.store.listChats(f.root)).toHaveLength(1)
-    expect(f.events).toEqual(['hold'])
+    expect(f.events).toEqual([])
     expect((await f.service({ action: 'status', incidentId: result.incidentId }, f.context())).problem).toContain(reason)
   })
 
@@ -100,13 +98,13 @@ function fixture(role: 'planner' | 'orchestrator' = 'planner') {
   it('preserves partial state after filing and startup failures and never recursively escalates a repair', async () => {
     const f = fixture(); f.deps.start.mockRejectedValueOnce(new Error('fixture spawn failed'))
     const result = await f.service(escalation, f.context())
-    expect(result).toMatchObject({ blocked: true, cardId: 'kc_fixture', startup: 'failed', prompt: 'pending', connection: 'unavailable' })
+    expect(result).toMatchObject({ waitingForRepair: true, cardId: 'kc_fixture', startup: 'failed', prompt: 'pending', connection: 'unavailable' })
     expect(result.repairChatId).not.toBeNull()
     await expect(f.service({ ...escalation, incidentId: 'nested' }, f.context(result.repairChatId!))).rejects.toMatchObject({ code: 'unauthorized' })
     expect(f.cards).toHaveLength(1)
     const other = fixture(); other.deps.createCard.mockRejectedValueOnce(new Error('tracking storage unavailable'))
     const failed = await other.service(escalation, other.context())
-    expect(failed).toMatchObject({ blocked: true, cardId: null, repairChatId: null })
+    expect(failed).toMatchObject({ waitingForRepair: true, cardId: null, repairChatId: null })
     expect(failed.problem).toContain('tracking storage unavailable')
   })
 
@@ -115,21 +113,19 @@ function fixture(role: 'planner' | 'orchestrator' = 'planner') {
     f.deps.running.mockReturnValue(true)
     f.deps.delivery.queue.mockImplementation(async () => {})
     const result = await f.service(escalation, f.context())
-    expect(result).toMatchObject({ blocked: true, startup: 'running', prompt: 'pending', connection: 'pending' })
+    expect(result).toMatchObject({ waitingForRepair: true, startup: 'running', prompt: 'pending', connection: 'pending' })
   })
 
-  it('rejects other chats and input conflicts; only a changed verified runtime and restarted caller can lift the exact hold', async () => {
+  it('rejects other chats and input conflicts without stopping a different incident from being reported', async () => {
     const f = fixture(); const result = await f.service(escalation, f.context())
     const outsider = f.store.createChat({ folder: f.root, agent: 'omp', role: 'orchestrator', model: null, allowSave: false })
     await expect(f.service({ action: 'status', incidentId: result.incidentId }, f.context(outsider.id))).rejects.toMatchObject({ code: 'unauthorized' })
     await expect(f.service({ ...escalation, diagnostic: { ...diagnostic, expected: 'different' } }, f.context())).rejects.toMatchObject({ code: 'conflict' })
-    await f.service({ action: 'available', incidentId: result.incidentId, version: '1.1.0', evidence: 'Independent review and regression pass; merged abc123.' }, f.context(result.repairChatId!))
-    expect(await f.service({ action: 'resume', incidentId: result.incidentId }, f.context())).toMatchObject({ blocked: true })
-    f.setVersion('1.1.0')
-    expect(await f.service({ action: 'resume', incidentId: result.incidentId }, f.context())).toMatchObject({ blocked: true })
-    expect(await f.service({ action: 'resume', incidentId: result.incidentId }, f.context(f.caller.id, 'restarted'))).toMatchObject({ blocked: false })
-    expect(f.deps.release).toHaveBeenCalledTimes(1)
+    const second = await f.service({ ...escalation, incidentId: 'second' }, f.context())
+    expect(second.incidentId).not.toEqual(result.incidentId)
+    expect(second.startup).toBe('running')
   })
+
   it('serializes concurrent replay, opposite-side messages and availability without losing diagnostics or handshakes', async () => {
     const f = fixture(); const result = await f.service(escalation, f.context())
     await Promise.all([
@@ -151,7 +147,7 @@ function fixture(role: 'planner' | 'orchestrator' = 'planner') {
       return 'kc_fixture'
     })
     const refused = await f.service(escalation, f.context())
-    expect(refused).toMatchObject({ cardId: 'kc_fixture', repairChatId: null, startup: 'not_started', blocked: true })
+    expect(refused).toMatchObject({ cardId: 'kc_fixture', repairChatId: null, startup: 'not_started', waitingForRepair: true })
     expect(f.deps.start).not.toHaveBeenCalled()
     const native = fixture()
     native.deps.start.mockImplementationOnce(async (_chat, _prompt, guard) => {
@@ -160,21 +156,21 @@ function fixture(role: 'planner' | 'orchestrator' = 'planner') {
       return { state: 'running', pid: 123 }
     })
     const stopped = await native.service(escalation, native.context())
-    expect(stopped).toMatchObject({ startup: 'failed', blocked: true, connection: 'unavailable' })
+    expect(stopped).toMatchObject({ startup: 'failed', waitingForRepair: true, connection: 'unavailable' })
     expect(stopped.problem).toContain('Source replaced during native auth')
   })
 
-it('replays a held incident into one Forge member while pinning its separate code checkout and requiring a changed live runtime', async () => {
+it('replays a reported incident into one Forge member while pinning its separate code checkout', async () => {
   const f = fixture()
   const initial = f.source.requireAvailable()
   f.source.requireAvailable.mockImplementation(() => { throw new Error('Choose the source checkout first.') })
   const held = await f.service(escalation, f.context())
-  expect(held).toMatchObject({ blocked: true, cardId: null, repairChatId: null })
+  expect(held).toMatchObject({ waitingForRepair: true, cardId: null, repairChatId: null })
   const path = join(f.root, 'verified-code')
   const mapping = { ...initial, path, projectPath: f.sourceFolder, mappingIdentity: 'verified world and code origin' }
   f.source.requireAvailable.mockReturnValue(mapping)
   const connected = await f.service(escalation, f.context())
-  expect(connected).toMatchObject({ incidentId: held.incidentId, blocked: true, sourceFolder: f.sourceFolder, connection: 'connected' })
+  expect(connected).toMatchObject({ incidentId: held.incidentId, waitingForRepair: true, sourceFolder: f.sourceFolder, connection: 'connected' })
   const repair = f.store.getChat({ folder: f.sourceFolder, id: connected.repairChatId! })!
   expect(repair).toMatchObject({ role: 'orchestrator', allowSave: false, cardId: connected.cardId })
   expect(repair.firstPrompt).toContain('Use code checkout ' + JSON.stringify(path))
@@ -187,32 +183,25 @@ it('replays a held incident into one Forge member while pinning its separate cod
   for (const replacement of [{ ...mapping, path: join(f.root, 'other-clone') }, { ...mapping, projectPath: join(f.root, 'other-member') },
     { ...mapping, mappingIdentity: 'substituted Git origin' }]) {
     f.source.requireAvailable.mockReturnValue(replacement)
-    expect(await replay(escalation, f.context())).toMatchObject({ repairChatId: repair.id, blocked: true, problem: expect.stringContaining('identity changed') })
+    expect(await replay(escalation, f.context())).toMatchObject({ repairChatId: repair.id, waitingForRepair: true, problem: expect.stringContaining('identity changed') })
   }
   f.source.requireAvailable.mockReturnValue(mapping)
   expect(await replay(escalation, f.context())).toMatchObject({ repairChatId: repair.id, connection: 'connected' })
   expect(f.store.listChats(f.sourceFolder)).toHaveLength(1)
   expect(f.deps.start).toHaveBeenCalledTimes(1)
 
-  const resume = { action: 'resume' as const, incidentId: held.incidentId }
-  expect(await replay(resume, f.context(f.caller.id, 'new-generation'))).toMatchObject({ blocked: true })
-  await replay({ action: 'available', incidentId: held.incidentId, version: '1.1.0', evidence: 'Reviewed deployment fixture' }, f.context(repair.id))
-  f.setVersion('1.1.0')
-  expect(await replay(resume, f.context())).toMatchObject({ blocked: true })
-  expect(await replay(resume, f.context(f.caller.id, 'new-generation'))).toMatchObject({ blocked: false })
-  expect(f.deps.release).toHaveBeenCalledTimes(1)
+
 })
 
 it('retains unsupported-host diagnostics before any hold, source access, card, chat or agent launch', async () => {
   const f = fixture()
   f.deps.transportProblem.mockReturnValue('Unsupported host: OMP and Claude have verified recovery context transports.')
   const result = await f.service(escalation, f.context())
-  expect(result).toMatchObject({ blocked: true, startup: 'not_started', cardId: null, repairChatId: null, connection: 'unavailable' })
+  expect(result).toMatchObject({ waitingForRepair: true, startup: 'not_started', cardId: null, repairChatId: null, connection: 'unavailable' })
   expect(result.problem).toContain('Unsupported host')
   expect(f.source.requireAvailable).not.toHaveBeenCalled()
   expect(f.events).toEqual([])
-  expect(f.store.getChat(f.caller)?.toolingIncidentId).toBeUndefined()
-  expect(f.deps.incidents.get(result.incidentId)).toMatchObject({ held: false, diagnostic: { command: 'get_ticket' } })
+  expect(f.deps.incidents.get(result.incidentId)).toMatchObject({ diagnostic: { command: 'get_ticket' } })
 })
 
 it('redacts known secret values in every diagnostic field while preserving useful flat arguments and whitespace', async () => {
@@ -247,7 +236,7 @@ it.each(['stopped', 'deleted'] as const)('reports a %s repair truthfully without
   f.live.delete(first.repairChatId!)
   if (state === 'deleted') f.store.deleteChat({ folder: f.sourceFolder, id: first.repairChatId! })
   const result = await f.service({ action: 'status', incidentId: first.incidentId }, f.context())
-  expect(result).toMatchObject({ blocked: true, startup: 'failed', connection: 'unavailable', prompt: state === 'deleted' ? 'pending' : 'delivered', repairAddress: state === 'deleted' ? null : first.repairAddress })
+  expect(result).toMatchObject({ waitingForRepair: true, startup: 'failed', connection: 'unavailable', prompt: state === 'deleted' ? 'pending' : 'delivered', repairAddress: state === 'deleted' ? null : first.repairAddress })
   if (state === 'deleted') {
     const replay = await f.service(escalation, f.context())
     expect(replay.problem).toContain('no longer exists')
@@ -255,7 +244,6 @@ it.each(['stopped', 'deleted'] as const)('reports a %s repair truthfully without
   }
   expect(f.deps.start).toHaveBeenCalledTimes(1)
   expect(f.deps.createCard).toHaveBeenCalledTimes(1)
-  expect(f.deps.release).not.toHaveBeenCalled()
 })
 
 it('does not retry ambiguous first input, but exact input and both recipient receipts can prove connection', async () => {
@@ -344,30 +332,23 @@ it.each(['assertCurrent', 'assertRecovery'] as const)('retains partial state whe
   const f = fixture(); const ctx = f.context()
   ctx.binding[check] = () => { throw new Error('Fixture handoff revoked') }
   const result = await f.service(escalation, ctx)
-  expect(result).toMatchObject({ blocked: true, startup: 'failed', prompt: 'pending', connection: 'unavailable', problem: 'Fixture handoff revoked' })
+  expect(result).toMatchObject({ waitingForRepair: true, startup: 'failed', prompt: 'pending', connection: 'unavailable', problem: 'Fixture handoff revoked' })
   expect(f.live.size).toBe(0)
-  expect(f.events).toEqual(['hold', 'card', 'play'])
-  expect(f.deps.release).not.toHaveBeenCalled()
+  expect(f.events).toEqual(['card', 'play'])
 })
 
-it('restricts availability and resume to their incident side and requires the exact changed deployment', async () => {
+it('only accepts repair availability from the repair chat and tells the original caller without a restart', async () => {
   const f = fixture(); const first = await f.service(escalation, f.context())
-  const available = { action: 'available' as const, incidentId: first.incidentId, version: '1.1.0', evidence: 'Reviewed and deployed fixture repair' }
+  const available = { action: 'available' as const, incidentId: first.incidentId, version: '1.0.0', evidence: 'Reviewed fixture repair' }
   const resume = { action: 'resume' as const, incidentId: first.incidentId }
   await expect(f.service(available, f.context())).rejects.toMatchObject({ code: 'unauthorized' })
   await expect(f.service(resume, f.context(first.repairChatId!))).rejects.toMatchObject({ code: 'unauthorized' })
-  f.setVersion('1.1.0')
-  expect(await f.service(resume, f.context(f.caller.id, 'new'))).toMatchObject({ blocked: true })
-  await f.service(available, f.context(first.repairChatId!))
-  f.setVersion('1.2.0')
-  expect(await f.service(resume, f.context(f.caller.id, 'new'))).toMatchObject({ blocked: true })
-  expect(f.deps.release).not.toHaveBeenCalled()
-  expect(f.store.getChat(f.caller)?.toolingIncidentId).toBe(first.incidentId)
-  f.setVersion('1.1.0')
-  expect(await f.service(resume, f.context(f.caller.id, 'new'))).toMatchObject({ blocked: false, problem: null })
-  expect(f.store.getChat(f.caller)?.toolingIncidentId).toBeNull()
-  await f.service(resume, f.context(f.caller.id, 'new'))
-  expect(f.deps.release).toHaveBeenCalledTimes(1)
+  expect(await f.service(resume, f.context())).toMatchObject({ waitingForRepair: true })
+  const repairContext = f.context(first.repairChatId!)
+  expect(await f.service(available, repairContext)).toMatchObject({ waitingForRepair: false, messageDelivery: 'delivered' })
+  expect(await f.service(available, repairContext)).toMatchObject({ messageDelivery: 'delivered' })
+  expect(await f.service(resume, f.context())).toMatchObject({ waitingForRepair: false, availableVersion: '1.0.0' })
+  expect(f.deps.delivery.queue.mock.calls.filter(([, message]) => message.id.startsWith('repair_available_'))).toHaveLength(1)
 })
 
 it.each(['recipient', 'sourceFolder', 'runId'] as const)('rejects caller-selected %s routing rather than sending or creating state elsewhere', async field => {
@@ -385,19 +366,9 @@ it('retains pending communication and wake failure until the exact recipient can
   f.deps.delivery.queue.mockImplementation(async () => {})
   f.deps.delivery.wake.mockResolvedValue('Recipient runtime is unavailable')
   const input = { action: 'message' as const, incidentId: first.incidentId, messageId: 'wake', text: 'Still need the original packet' }
-  expect(await f.service(input, f.context())).toMatchObject({ blocked: true, messageDelivery: 'pending', problem: 'Recipient runtime is unavailable' })
+  expect(await f.service(input, f.context())).toMatchObject({ waitingForRepair: true, messageDelivery: 'pending', problem: 'Recipient runtime is unavailable' })
   f.deps.delivery.queue.mockImplementation(queue)
   f.deps.delivery.wake.mockResolvedValue(null)
   expect(await f.service(input, f.context())).toMatchObject({ messageDelivery: 'delivered' })
   expect(f.deps.incidents.get(first.incidentId)?.messages.filter(message => message.id.endsWith('_caller_wake')).map(message => message.recipient)).toEqual(['repair'])
-})
-
-it('does not mark a caller resumed if releasing the durable workflow hold fails', async () => {
-  const f = fixture(); const first = await f.service(escalation, f.context())
-  await f.service({ action: 'available', incidentId: first.incidentId, version: '1.1.0', evidence: 'Reviewed fixture deployment' }, f.context(first.repairChatId!))
-  f.setVersion('1.1.0')
-  f.deps.release.mockRejectedValueOnce(new Error('Workflow store unavailable'))
-  await expect(f.service({ action: 'resume', incidentId: first.incidentId }, f.context(f.caller.id, 'new'))).rejects.toThrow('Workflow store unavailable')
-  expect(f.deps.incidents.get(first.incidentId)?.blocked).toBe(true)
-  expect(f.store.getChat(f.caller)?.toolingIncidentId).toBe(first.incidentId)
 })

@@ -20,7 +20,6 @@ export function settleForgeExports(db: Db, exported: ReadonlySet<string>): void 
 }
 
 export function assertForgeForceSafe(db: Db): void {
-  if (db.get('SELECT 1 FROM tooling_holds LIMIT 1')) fail('conflict', 'Resolve every tooling recovery hold before switching storage.')
   if (db.get('SELECT 1 FROM sync_state WHERE conflict IS NOT NULL LIMIT 1')) fail('conflict', 'Resolve storage conflicts before force migration.')
   if (db.get("SELECT 1 FROM outbox WHERE kind = 'snapshot' AND state <> 'done' LIMIT 1")) fail('conflict', 'Finish the pending plan save before force migration; unsaved plans cannot be published.')
   if (db.get("SELECT 1 FROM transfers WHERE status IN ('queued','in_progress') LIMIT 1")) fail('conflict', 'Finish the open plan transfer before force migration.')

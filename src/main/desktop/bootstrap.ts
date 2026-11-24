@@ -46,7 +46,7 @@ import { createAgentMailDesktop, type AgentMailDesktop } from '../agents/agentMa
 import { createChatMailPush, createChatPush, registerChatIpc, registerChatMailIpc } from '../agents/chatIpc'
 import { createChatRecords, type ChatRecords } from '../agents/chatRecords'
 import { createChatMailboxes, type ChatMailboxes } from '../agents/chatMailboxes'
-import { forgeReachFolders, hasForgeManifest } from './forgeContext'
+import { forgeReachFolders } from './forgeContext'
 import { removeScratchFolder } from '../agents/scratchFolder'
 import { createChatStore, nodeChatStoreFs, type ChatStore } from '../agents/chatStore'
 import { listBoundThreads } from '../agents/boundThreads'
@@ -464,7 +464,7 @@ function createChatProcesses({ folders, agents, workspaces, activity, sourceChec
     source: { requireAvailable: sourceCheckouts.requireRecoveryCheckout }, store, agents, terminals,
     workspace: folder => desktopWorkspace(folders, workspaces, folder), resolveFolder: folder => folders.resolve(folder),
     context: contextDelivery, deliveries, resume: resumeChat,
-    callerFolders: chat => chatWorkspaceFolders(chat, folders),
+    onNoticeError: error => logger.error('Tooling repair notice failed:', error),
   })
   const naming = createNamingDispatcher({ store, push })
   namingReady = createControlPipe({ authorize: token => grants.authorizeNaming(token),
@@ -532,25 +532,11 @@ function createMailboxRecords(
     removeOmpFolder: (id) => removeOmpFolder(userData, id),
     removeScratch: (id) => removeScratchFolder(userData, id),
     mailboxes,
-    beforeDelete: chat => retireChatHolds(chat, deps.folders, deps.workspaces),
     onError: (error) => {
       logger.error('Finishing a chat deletion failed:', error)
     }
   })
   return { records, mailboxes }
-}
-
-/** Registry views retain validated member identities during a manifest merge conflict. */
-function chatWorkspaceFolders(chat: ChatRecord, folders: Pick<FolderRegistry, 'list'>): string[] {
-  const views = folders.list()
-  const available = views.filter(folder => folder.initialized && folder.available)
-  if (chat.folder === null) return available.map(folder => folder.path)
-  const world = views.find(folder => folder.path === chat.folder)?.forgeWorld !== undefined || hasForgeManifest(chat.folder)
-  return world ? available.filter(folder => folder.forgeParent === chat.folder).map(folder => folder.path) : [chat.folder]
-}
-
-async function retireChatHolds(chat: ChatRecord, folders: Pick<FolderRegistry, 'resolve' | 'list'>, workspaces: Pick<WorkspacePool, 'get' | 'background'>): Promise<void> {
-  for (const folder of chatWorkspaceFolders(chat, folders)) await desktopWorkspace(folders, workspaces, folder).call('retireTooling', chat.id)
 }
 
 /** Untrack's first step: the folder's terminals stopped and starts refused, then its chat mailboxes suspended, then `forget`. */
@@ -958,7 +944,7 @@ function startForgeBridge(ipc: Pick<IpcMain, 'handle'>, options: ForgeBridgeOpti
       discover: repository => discoverGithubForgeSetup(repository, github, (url, request) => net.fetch(url, request))
     },
     setup: forgeSetupChatOptions(options),
-    ...forgeAgentSessions({ ...options, beforeArchive: async chat => { await retireChatHolds(chat, registry, pool); await options.suspendChatMail(chat) } })
+    ...forgeAgentSessions({ ...options, beforeArchive: options.suspendChatMail })
   })
 }
 

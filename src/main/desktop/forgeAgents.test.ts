@@ -7,7 +7,6 @@ import { scratchDir } from '../../test/gitScratch'
 import { forgeAgentSessions } from './forgeAgents'
 import { seedForgeFixture } from '../../test/forgeFixture'
 import { createHarness } from '../../test/workspaceHarness'
-import { holdToolingWorkflow, retireToolingWorkflow } from '../../core/services/toolingHold'
 
 function resolverChats() {
   const fixture = scratchDir('forge-agents-')
@@ -89,20 +88,17 @@ it('labels ticket launches with the repository owner and name even when its tick
   } finally { fixture.cleanup() }
 })
 
-it('retires only the stopped resolver hold before archival and keeps an unrelated caller blocked', async () => {
+it('runs resolver cleanup after stopping it and keeps unrelated callers active', async () => {
   const h = createHarness()
   const workspace = h.open('desktop')
   try {
-    await workspace.initializeRepository({ name: 'Forge resolver holds' })
+    await workspace.initializeRepository({ name: 'Forge resolver cleanup' })
     const root = join(h.homeDir, 'World')
     const store = createChatStore({ root: join(h.homeDir, 'chats') })
     const chats = createChatRecords({ store, agentFor: () => null })
     const resolver = chats.createChat({ folder: h.root, agent: 'omp', role: 'orchestrator' })
     const caller = chats.createChat({ folder: h.root, agent: 'omp', role: 'planner' })
-    store.updateChat(resolver, { forgeResolver: root, toolingIncidentId: 'resolver_hold' })
-    store.updateChat(caller, { toolingIncidentId: 'caller_hold' })
-    holdToolingWorkflow(workspace.ctx(), { id: resolver.id, incidentId: 'resolver_hold' })
-    holdToolingWorkflow(workspace.ctx(), { id: caller.id, incidentId: 'caller_hold' })
+    store.updateChat(resolver, { forgeResolver: root })
     const live = new Set([resolver.id, caller.id])
     let available = false
     const sessions = forgeAgentSessions({ store, chats,
@@ -117,18 +113,15 @@ it('retires only the stopped resolver hold before archival and keeps an unrelate
       beforeArchive: chat => {
         expect(live.has(chat.id)).toBe(false)
         expect(store.getChat(chat)?.archived).not.toBe(true)
-        if (!available) throw new Error('Retirement unavailable')
-        retireToolingWorkflow(workspace.ctx(), chat.id)
+        if (!available) throw new Error('Cleanup unavailable')
       }
     })
-    await expect(sessions.onSynced(root)).rejects.toThrow('Retirement unavailable')
+    await expect(sessions.onSynced(root)).rejects.toThrow('Cleanup unavailable')
     expect(store.getChat(resolver)?.archived).not.toBe(true)
-    expect(workspace.ctx().db.all('SELECT chat_id FROM tooling_holds')).toHaveLength(2)
     available = true
     await sessions.onSynced(root)
-    expect(store.getChat(resolver)).toMatchObject({ archived: true, toolingIncidentId: 'resolver_hold' })
+    expect(store.getChat(resolver)).toMatchObject({ archived: true })
     expect(chats.listChats(h.root).map(chat => chat.id)).toEqual([caller.id])
-    expect(workspace.ctx().db.all('SELECT chat_id FROM tooling_holds')).toEqual([{ chat_id: caller.id }])
     expect(live.has(caller.id)).toBe(true)
   } finally { h.cleanup() }
 })

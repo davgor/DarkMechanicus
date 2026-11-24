@@ -12,8 +12,6 @@ import { createFolderRegistry } from './folderRegistry'
 import { forgeKickoff, updateForge } from './forgeManifest'
 import { startForge } from './forgeService'
 import { createTestWorkspacePool as createWorkspacePool } from './__mocks__/projectWorkspaceFixture'
-import { bindToolingGrant, holdToolingWorkflow, retireToolingWorkflow } from '../../core/services/toolingHold'
-import { dbProjectDir } from '../../core/repo/storageMode'
 import { bindForge, pendingForgeTransfer } from '../../core/repo/forgeBinding'
 import { ensureForgeConfig } from '../../core/repo/forgeReference'
 import { nodeFs } from '../../core/repo/nodeFs'
@@ -506,48 +504,6 @@ it('resumes a restore from the source pointer after the final publication was in
     expect(await restored.getKanbanCard({ cardId: card.id })).toMatchObject({ title: card.title })
     expect((await restored.listKanbanCards({})).lanes.backlog.map(value => value.id)).toEqual([card.id])
   } finally { await f.close() }
-})
-
-it('refuses conversion and restoration of planner-only holds without moving ticket state or retiring the incident', async () => {
-  const { pool, source, world, home, registry, call, forge, close } = fixture(emptyWorldSeed)
-  try {
-    const original = pool.get(source)
-    await original.initializeRepository({ name: 'Held planner', mode: 'db' })
-    const card = await original.createKanbanCard({ title: 'Unfinished planning' })
-    const grant = await original.issueGrant({ role: 'planner', label: 'Held planner' })
-    bindToolingGrant(original.ctx(), grant.grant.id, 'chat_source')
-    holdToolingWorkflow(original.ctx(), { id: 'chat_source', incidentId: 'source_incident' })
-    const planner = openWorkspace({ repoRoot: source, homeDir: home, role: 'planner', transport: 'cli', label: 'Planner', grantToken: grant.token })
-    await expect(planner.createKanbanCard({ title: 'Premature progress' })).rejects.toMatchObject({ code: 'invalid_state' })
-    planner.close()
-    const member = join(world, 'Software')
-    await expect(call('convert', world, source)).rejects.toThrow('tooling recovery')
-    await expect(call('convert', world, source, { force: true })).rejects.toThrow('tooling recovery')
-    expect(original.ctx().db.all('SELECT chat_id, incident_id FROM tooling_holds')).toEqual([{ chat_id: 'chat_source', incident_id: 'source_incident' }])
-    expect((await original.getKanbanCard({ cardId: card.id })).title).toBe('Unfinished planning')
-    expect(registry.resolve(source)).toBe(source)
-    expect(existsSync(join(source, 'FORGE-WORLD.md'))).toBe(false)
-    expect(existsSync(member)).toBe(false)
-    expect(pendingForgeTransfer(home, source)).toBeNull()
-    retireToolingWorkflow(original.ctx(), 'chat_source')
-    await call('convert', world, source)
-    expect(await forge.openProject(source)).toBe(member)
-    const linked = pool.get(member)
-    const linkedGrant = await linked.issueGrant({ role: 'planner', label: 'Held member planner' })
-    bindToolingGrant(linked.ctx(), linkedGrant.grant.id, 'chat_member')
-    holdToolingWorkflow(linked.ctx(), { id: 'chat_member', incidentId: 'member_incident' })
-    const pointer = readFileSync(join(source, 'FORGE-WORLD.md'), 'utf8')
-    await expect(call('restore', member, 'db')).rejects.toThrow('tooling recovery')
-    expect(linked.ctx().db.all('SELECT chat_id, incident_id FROM tooling_holds')).toEqual([{ chat_id: 'chat_member', incident_id: 'member_incident' }])
-    expect((await linked.getKanbanCard({ cardId: card.id })).title).toBe('Unfinished planning')
-    expect(readFileSync(join(source, 'FORGE-WORLD.md'), 'utf8')).toBe(pointer)
-    expect(existsSync(dbProjectDir(source, home))).toBe(false)
-    expect(existsSync(join(member, '.darkmechanicus'))).toBe(true)
-    expect(pendingForgeTransfer(home, member)).toBeNull()
-    retireToolingWorkflow(linked.ctx(), 'chat_member')
-    await call('restore', member, 'db')
-    expect((await pool.get(source).getKanbanCard({ cardId: card.id })).title).toBe('Unfinished planning')
-  } finally { await close() }
 })
 
 it('reports preparing until the local member owner reconciles and does no remote Git work for readiness', async () => {

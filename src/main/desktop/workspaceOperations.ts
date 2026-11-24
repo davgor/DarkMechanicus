@@ -16,7 +16,6 @@ import { assertStorageIdle } from '../../core/repo/storageMigration'
 import type { StorageMode } from '../../core/repo/storageMode'
 import { getAttachment, readAttachmentBytes } from '../../core/services/attachments'
 import { assertGrantCapability, assertGrantUsable, revokeGrant } from '../../core/services/grants'
-import { bindToolingGrant, holdToolingWorkflow, releaseToolingWorkflow, retireToolingWorkflow } from '../../core/services/toolingHold'
 import { approveYolo, auditYolo, bindYoloChat, endYoloChat, isYoloEligible, listYoloAudit, revokeYolo } from '../../core/services/yolo'
 import * as corrections from '../../core/services/crossRepoCorrections'
 import { getHumanAgentMailState, readHumanAgentInbox, markHumanAgentMailSeen, closeAgentMailBinding, renameAgentMailEndpoint, suspendAgentMailEndpoint } from '../../core/services/agentMail'
@@ -132,11 +131,7 @@ function grantOperations(workspace: Workspace, ctx: Context) {
       if (capability === null) assertGrantUsable(context, grantId)
       else assertGrantCapability(context, grantId, tokenHash, capability)
     },
-    bindChatGrant(grantId: string, chatId: string, yolo?: YoloBinding) {
-      const context = ctx()
-      if (yolo !== undefined) bindYoloChat(context, yolo)
-      bindToolingGrant(context, grantId, chatId)
-    },
+    bindYoloGrant(yolo: YoloBinding) { bindYoloChat(ctx(), yolo) },
     endYolo: (grantId: string) => endYoloChat(ctx(), grantId),
     refuseYolo: (grantId: string, runId: string | null) => auditYolo(ctx(), { grantId, runId, capability: 'yolo.enable', command: 'yolo.enable', result: 'refused' }),
     approveYolo: (scope: YoloBinding, expiry: string) => approveYolo(ctx(), scope, expiry),
@@ -150,9 +145,6 @@ function grantOperations(workspace: Workspace, ctx: Context) {
       const active = isYoloEligible(context, grantId, 'plan.save', runId)
       return { live, expiresAt: active ? elevation?.expires_at ?? null : null, audit }
     },
-    holdTooling: (input: Parameters<typeof holdToolingWorkflow>[1]) => holdToolingWorkflow(ctx(), input),
-    releaseTooling: (input: Parameters<typeof releaseToolingWorkflow>[1]) => releaseToolingWorkflow(ctx(), input),
-    retireTooling: (chatId: string) => retireToolingWorkflow(ctx(), chatId),
   }
 }
 

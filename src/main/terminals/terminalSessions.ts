@@ -205,6 +205,9 @@ export interface TerminalSessions {
   endAgent(id: AgentId): Promise<void>
   /** True while a PTY runs, a start is under way, or a revoke or kill has not settled. */
   /** Observed live PTY only; a queued start or stored chat is not a running agent. */
+  /** Delivers advisory context only to an already live terminal. */
+  pasteIfRunning(chat: ChatRef, text: string): void
+  activeChats(): ChatRecord[]
   isRunning(chatId: string): boolean
   busy(): boolean
   /** Quit: see the module comment. */
@@ -1499,6 +1502,23 @@ async function dispose(manager: Manager): Promise<void> {
   await Promise.all(manager.pending)
 }
 
+function activeChats(manager: Manager): ChatRecord[] {
+  return Array.from(manager.entries.values()).flatMap(entry =>
+    entry.kind === 'live' && !entry.exited && entry.stopMessage === null ? [entry.chat] : [])
+}
+
+function runningTerminal(manager: Manager, chatId: string): Live | null {
+  const entry = manager.entries.get(chatId)
+  return entry?.kind === 'live' && !entry.exited ? entry : null
+}
+
+function pasteIfRunning(manager: Manager, ref: ChatRef, text: string): void {
+  if (manager.closing) return
+  const chat = manager.deps.store.getChat(ref)
+  const entry = chat === null ? undefined : manager.entries.get(chat.id)
+  if (entry?.kind === 'live' && !entry.exited && entry.stopMessage === null) queuePaste(manager, entry, text)
+}
+
 export function createTerminalSessions(deps: TerminalSessionsDeps): TerminalSessions {
   const { onError, ...rest } = deps
   const manager: Manager = {
@@ -1517,10 +1537,7 @@ export function createTerminalSessions(deps: TerminalSessionsDeps): TerminalSess
     releasing: new Set(),
     closing: false
   }
-  const running = (chatId: string): Live | null => {
-    const entry = manager.entries.get(chatId)
-    return entry?.kind === 'live' && !entry.exited ? entry : null
-  }
+  const running = (chatId: string) => runningTerminal(manager, chatId)
   return {
     attach: (ref, listener, options = {}) => attach(manager, ref, listener, options),
     start: (ref, options) => start(manager, ref, options),
@@ -1544,6 +1561,8 @@ export function createTerminalSessions(deps: TerminalSessionsDeps): TerminalSess
     deleteChat: (ref, remove) => deleteChat(manager, ref, remove),
     releaseFolder: (folder, forget, relatedFolders) => releaseFolder(manager, folder, forget, relatedFolders),
     endAgent: (id) => endAgent(manager, id),
+    pasteIfRunning: (ref, text) => pasteIfRunning(manager, ref, text),
+    activeChats: () => activeChats(manager),
     isRunning: (chatId) => running(chatId) !== null,
     busy: () => manager.entries.size > 0 || manager.pending.size > 0,
     dispose: () => dispose(manager)

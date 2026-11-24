@@ -1,7 +1,7 @@
 import { workStandards } from '../workStandards'
 import { itemWorkflow } from '../workflowPolicy'
 import { checkKanbanSubmission } from '../deliveryWorkflow'
-import { toolingLeaseTimeGivenBack } from '../toolingHold'
+import { toolingLeaseTimeGivenBack } from '../leaseCredits'
 /**
  * A Kanban card's lifecycle. Desktop Play or an authorized external launch queues the card; an orchestrator claims it,
  * with a lease and a secret like a plan attempt (`<attemptId>.<secret>` token, checked by `verifyClaimToken`); its agent heartbeats and
@@ -136,15 +136,11 @@ function overdueLeases(ctx: Ctx, now: string, cardId?: string): LeaseRow[] {
   const leased = ctx.db.all<LeaseRow>(
     `SELECT a.id, a.card_id, c.key, a.number, a.lease_expires_at FROM kanban_attempts a JOIN kanban_cards c ON c.id = a.card_id
      WHERE a.state IN ('claimed', 'running') AND (? IS NULL OR a.card_id = ?) AND IFNULL(a.machine_id, ?) = ?
-       AND NOT EXISTS (SELECT 1 FROM tooling_held_attempts t JOIN tooling_holds h ON h.incident_id = t.incident_id
-         JOIN tooling_chat_grants cg ON cg.chat_id = h.chat_id JOIN grants g ON g.id = cg.grant_id
-         WHERE t.attempt_id = a.id AND t.kind = 'card' AND g.revoked_at IS NULL AND g.expires_at > ?)
      ORDER BY a.rowid`,
     cardId ?? null,
     cardId ?? null,
     ctx.machineId,
-    ctx.machineId,
-    now
+    ctx.machineId
   )
   return leased.filter((row) => row.lease_expires_at !== null && isBefore(row.lease_expires_at, now))
 }
@@ -157,7 +153,7 @@ function overdueLeases(ctx: Ctx, now: string, cardId?: string): LeaseRow[] {
  */
 export function expireKanbanLeases(ctx: Ctx, cardId?: string): string[] {
   return ctx.db.tx(() => {
-    // A heartbeat or tooling hold may have committed while we waited for the lock.
+    // A heartbeat may have committed while we waited for the lock.
     const now = ctx.clock.nowIso()
     const expired = overdueLeases(ctx, now, cardId)
     for (const row of expired) {

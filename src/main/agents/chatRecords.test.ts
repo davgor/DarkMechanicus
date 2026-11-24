@@ -243,9 +243,9 @@ it('keeps Forge and recovery metadata and retries failed hold retirement before 
   const fs = memoryChatFs()
   const store = memoryChatStore(fs)
   const chat = store.createChat({ folder: REPO, agent: 'omp', model: null, role: 'orchestrator', allowSave: false, repairIncidentId: 'repair_forge' })
-  store.updateChat(chat, { archived: true, forgeResolver: '/forge', toolingIncidentId: 'blocked_forge' })
+  store.updateChat(chat, { archived: true, forgeResolver: '/forge' })
   const restarted = memoryChatStore(fs)
-  expect(restarted.getChat(chat)).toMatchObject({ archived: true, forgeResolver: '/forge', repairIncidentId: 'repair_forge', toolingIncidentId: 'blocked_forge' })
+  expect(restarted.getChat(chat)).toMatchObject({ archived: true, forgeResolver: '/forge', repairIncidentId: 'repair_forge' })
   const steps: string[] = []
   let available = false
   const records = createChatRecords({ store: restarted, agentFor: connectedAgents(),
@@ -259,7 +259,6 @@ it('keeps Forge and recovery metadata and retries failed hold retirement before 
   })
   expect(await records.listChats(REPO)).toEqual([])
   await expect(records.deleteChat(chat)).rejects.toThrow('Hold database unavailable')
-  expect(restarted.getChat(chat)?.toolingIncidentId).toBe('blocked_forge')
   expect(steps).not.toContain('removed runtime')
   available = true
   await records.deleteChat(chat)

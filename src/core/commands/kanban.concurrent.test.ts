@@ -2,7 +2,6 @@ import { afterEach, beforeEach, expect, it } from 'vitest'
 import { baselineDeliveryPolicy } from '../../shared/domain/standardsPrompts'
 import { createHarness, type Harness } from '../../test/workspaceHarness'
 import { openDatabase } from '../db/database'
-import { bindToolingGrant, holdToolingWorkflow } from '../services/toolingHold'
 import type { Workspace } from '../workspace'
 
 let harness: Harness
@@ -16,7 +15,7 @@ beforeEach(async () => {
 
 afterEach(() => harness.cleanup())
 
-it.each(['no claim', 'live local claim', 'overdue foreign claim', 'overdue held claim', 'submitted evidence'] as const)(
+it.each(['no claim', 'live local claim', 'overdue foreign claim', 'submitted evidence'] as const)(
   'reads preserved card evidence after standardization while another connection writes: %s',
   async (state) => {
     const card = await desktop.createKanbanCard({ title: 'Review preserved evidence', body: 'Keep the original requirements.' })
@@ -30,12 +29,6 @@ it.each(['no claim', 'live local claim', 'overdue foreign claim', 'overdue held 
           outputs: { summary: 'Preserve the completed repair.', commits: ['abc123'] },
           evidence: { checks: [{ name: 'regression', status: 'passed', detail: 'Original evidence' }] }
         })
-      }
-      if (state === 'overdue held claim') {
-        const grant = await desktop.issueGrant({ role: 'orchestrator', label: 'Held caller' })
-        bindToolingGrant(desktop.ctx(), grant.grant.id, 'held-card-chat')
-        holdToolingWorkflow(desktop.ctx(), { id: 'held-card-chat', incidentId: 'held-card-incident', cardId: card.id })
-        harness.clock.advanceSeconds(61)
       }
       if (state === 'overdue foreign claim') {
         desktop.ctx().db.run('UPDATE kanban_attempts SET machine_id = ? WHERE id = ?', 'another-machine', packet.attemptId)
