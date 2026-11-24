@@ -40,7 +40,7 @@ Investigate available capture and image-viewing tools before requesting assistan
 
 Pause your own task when a tooling defect prevents progress. A planner or orchestrator makes one `recover_tooling` call with `action: "escalate"`, a stable `incidentId`, and `diagnostic: { command, code, message, reproduction, expected, arguments? }`. Include only relevant nonsecret flat arguments. Honor authorization and consent refusals.
 
-The desktop saves the diagnostic, files or reuses a card in the associated initialized Dark Mechanicus project, and starts a dedicated repair orchestrator. It sends active Skitarii/OMP and Claude chats an advisory that the repair is underway. Continue unaffected work if you receive an advisory. Keep using the ordinary permissions and lease heartbeats of your own chat.
+The desktop saves the diagnostic, files or reuses a card in the associated initialized Dark Mechanicus project, and starts a dedicated repair orchestrator. It sends active chats with supported context transport an advisory that the repair is underway. Continue unaffected work if you receive an advisory. Keep using the ordinary permissions and lease heartbeats of your own chat.
 
 Check `cardId`, `repairChatId`, `startup`, `prompt`, `connection`, and `problem` independently. `connected` requires a running repair chat and observed first-prompt and peer-context receipts. The desktop retains diagnostics from unsupported hosts. Replay the same incident and diagnostic after partial failure. A repair chat should report its own tooling problems to the caller.
 
