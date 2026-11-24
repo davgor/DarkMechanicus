@@ -229,3 +229,18 @@
 @media (prefers-reduced-motion: reduce) {
   .todo-card-spinner > .icon { animation: none; }
 }
+
+.turn-activity {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.turn-activity-stalled {
+  color: var(--accent);
+}

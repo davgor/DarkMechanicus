@@ -3,6 +3,7 @@ import type { ChatItem } from '../../../../shared/agents/chat'
 
 const ref = { folder: null, chatId: 'fixture-chat' }
 const at = '2026-11-24T08:00:00.000Z'
+export const agentChatScenarioClockStart = Date.parse(at)
 const empty: AgentChatSnapshot = { items: [], status: 'idle', pending: null, queued: 0, surface: 'gui', todos: [] }
 const conversation: ChatItem[] = [
   { id: 'user', at, kind: 'user_message', text: 'Check the chat view.' },
@@ -24,8 +25,12 @@ const todoPhases: AgentTodoPhase[] = [
   ] }
 ]
 /** Snapshot arrays remain the transport contract, independent of the renderer's derived state. */
-export const agentChatScenarios: Record<'empty' | 'streaming' | 'tool' | 'approval' | 'error' | 'todos' | 'todosDone', { snapshot: AgentChatSnapshot; events: AgentChatEvent[]; commit: AgentChatEvent[] }> = {
+export const agentChatScenarios: Record<'empty' | 'streaming' | 'tool' | 'approval' | 'error' | 'todos' | 'todosDone' | 'stalled', { snapshot: AgentChatSnapshot; events: AgentChatEvent[]; commit: AgentChatEvent[]; advanceMs?: number }> = {
   empty: { snapshot: empty, events: [], commit: [] },
+  stalled: {
+    snapshot: { ...empty, status: 'busy', items: conversation },
+    events: [], commit: [], advanceMs: 31_000
+  },
   todos: {
     snapshot: { ...empty, status: 'busy', todos: [{ threadId: null, phases: todoPhases }] },
     events: [], commit: []

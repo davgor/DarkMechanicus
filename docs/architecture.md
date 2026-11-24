@@ -33,6 +33,8 @@ Electron renderer ─> preload (window.git, window.github) ─> main IPC (src/ma
 
 The GUI shell memoizes `withoutTodoCalls` on the durable item array: running/completed to-do tools are represented by the To-dos card, while failed, denied and cancelled calls remain visible. Shared legacy `ChatTranscript` rendering is unchanged.
 
+`TurnActivityLine` sits above the prompt/to-do stack and alone subscribes to the injected clock's ticks. It derives working, waiting and silent-agent warnings from `turnActivity`; elapsed/tool text remains accessible outside the stable live status word. Its warning Stop uses the same in-flight lock and error path as the composer. The manual clock and stalled scenario make the 30-second boundary deterministic without ticking the transcript.
+
 No renderer database access and no duplicated business rules: MCP handlers and IPC handlers are adapters only.
 
 ## Storage decision
