@@ -5,6 +5,7 @@ const ICON_PATHS = {
   'chevron-down': 'M4 6l4 4 4-4',
   'chevron-right': 'M6 4l4 4-4 4',
   folder: 'M2 4.5h4l1.5 1.5H14v6.5H2z',
+  agent: 'M8 7.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM3 14c0-2.8 2.2-4.5 5-4.5s5 1.7 5 4.5',
   plus: 'M8 3v10M3 8h10',
   warning: 'M8 2.5l6 11H2zM8 6.5v3M8 11.5h.01',
   bell: 'M3 11.5h10l-1.5-2V7a3.5 3.5 0 0 0-7 0v2.5zM6.5 13.5a1.7 1.7 0 0 0 3 0',

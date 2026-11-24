@@ -3,7 +3,7 @@ import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/re
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { installDomShims } from './__mocks__/domShims'
 import { FakeBackend, scenario } from './__mocks__/fakeBackend'
-import { draftPlan, epicDetail, runView } from './__mocks__/fixtures'
+import { checkpointView, draftPlan, epicDetail, runView } from './__mocks__/fixtures'
 import { renderWorkspace } from './__mocks__/renderWorkspace'
 import { allowSlowRendering } from './__mocks__/testTiming'
 
@@ -21,6 +21,69 @@ afterEach(() => {
 function button(name: string): HTMLButtonElement {
   return screen.getByRole('button', { name }) as HTMLButtonElement
 }
+
+describe('epic workspace: Agent view', () => {
+  it('keeps the View order and renders the bold person button', async () => {
+    renderWorkspace(new FakeBackend())
+    const view = await screen.findByRole('group', { name: 'View' })
+    expect(within(view).getAllByRole('button').map((item) => item.textContent)).toEqual(['Graph', 'List', 'Agent', 'Scorecard'])
+    const agent = within(view).getByRole('button', { name: 'Agent' })
+    expect(agent.querySelector('strong')?.textContent).toBe('Agent')
+    expect(agent.querySelector('svg[data-icon="agent"]')).not.toBeNull()
+    expect(agent.classList.contains('ew-toggle-agent')).toBe(true)
+  })
+})
+
+describe('epic workspace: Agent report navigation', () => {
+
+  it('leaves the report for Agent and reopens the report before returning to Graph through the Run bar', async () => {
+    renderWorkspace(new FakeBackend(scenario({ run: runView({ state: 'awaiting_checkpoint' }), checkpoint: checkpointView() })))
+    const run = within(await screen.findByLabelText('Run'))
+    fireEvent.click(run.getByRole('button', { name: 'Sprint report' }))
+    expect(screen.getByLabelText('Sprint checkpoint')).toBeTruthy()
+    fireEvent.click(button('Agent'))
+    expect(screen.getByRole('region', { name: 'Agent chat' })).toBeTruthy()
+    expect(screen.queryByLabelText('Sprint checkpoint')).toBeNull()
+    expect(run.queryByRole('button', { name: 'Open graph' })).toBeNull()
+    fireEvent.click(run.getByRole('button', { name: 'Sprint report' }))
+    expect(screen.getByLabelText('Sprint checkpoint')).toBeTruthy()
+    expect(screen.queryByRole('region', { name: 'Agent chat' })).toBeNull()
+    fireEvent.click(run.getByRole('button', { name: 'Open graph' }))
+    expect(screen.getByLabelText('Plan graph')).toBeTruthy()
+    expect(screen.queryByLabelText('Sprint checkpoint')).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Agent chat' })).toBeNull()
+    expect(button('Graph').getAttribute('aria-pressed')).toBe('true')
+  })
+})
+
+describe('epic workspace: Agent stage switching', () => {
+
+  it('swaps Agent with Graph, List and Scorecard without leaving other stages mounted', async () => {
+    renderWorkspace(new FakeBackend())
+    await screen.findByRole('group', { name: 'View' })
+    for (const name of ['Graph', 'List']) {
+      fireEvent.click(button('Agent'))
+      expect(button('Agent').getAttribute('aria-pressed')).toBe('true')
+      expect(screen.getByRole('region', { name: 'Agent chat' }).textContent).toBe('No agents yet')
+      expect(screen.queryByLabelText('Plan graph')).toBeNull()
+      expect(screen.queryByLabelText('Plan list')).toBeNull()
+      fireEvent.click(button(name))
+      expect(button('Agent').getAttribute('aria-pressed')).toBe('false')
+      expect(screen.queryByRole('region', { name: 'Agent chat' })).toBeNull()
+      expect(screen.getByLabelText(`Plan ${name.toLowerCase()}`)).toBeTruthy()
+    }
+    fireEvent.click(button('Agent'))
+    fireEvent.click(button('Scorecard'))
+    expect(button('Scorecard').getAttribute('aria-pressed')).toBe('true')
+    expect(button('Agent').getAttribute('aria-pressed')).toBe('false')
+    expect(screen.queryByRole('region', { name: 'Agent chat' })).toBeNull()
+    expect(screen.getByRole('region', { name: 'Epic scorecard' })).toBeTruthy()
+    fireEvent.click(button('Agent'))
+    expect(button('Scorecard').getAttribute('aria-pressed')).toBe('false')
+    expect(screen.getByRole('region', { name: 'Agent chat' })).toBeTruthy()
+    expect(screen.queryByRole('region', { name: 'Epic scorecard' })).toBeNull()
+  })
+})
 
 describe('epic workspace: Saved view (1)', () => {
   it('shows the breadcrumb, title, saved badge, run bar and graph', async () => {

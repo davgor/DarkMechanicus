@@ -190,6 +190,33 @@ describe('the view an epic opens in', () => {
   })
 })
 
+describe('agent layout transitions', () => {
+  it('replaces Scorecard with Agent and returns to Agent when Scorecard closes', () => {
+    const scorecard = workspaceReducer(loaded(), { type: 'open_scorecard' })
+    const agent = workspaceReducer(scorecard, { type: 'show_layout', layout: 'agent' })
+    expect([agent.layout, agent.scorecardOpen]).toEqual(['agent', false])
+    const reopened = workspaceReducer(agent, { type: 'open_scorecard' })
+    expect([reopened.layout, reopened.scorecardOpen]).toEqual(['agent', true])
+    expect(workspaceReducer(reopened, { type: 'close_scorecard' })).toEqual(agent)
+  })
+
+  it('closes the checkpoint when Agent replaces it so report navigation can reopen it', () => {
+    const checkpoint = workspaceReducer(loaded(), { type: 'open_checkpoint' })
+    const agent = workspaceReducer(checkpoint, { type: 'show_layout', layout: 'agent' })
+    expect([agent.layout, agent.checkpointOpen, agent.scorecardOpen]).toEqual(['agent', false, false])
+    const reopened = workspaceReducer(agent, { type: 'open_checkpoint' })
+    expect([reopened.layout, reopened.checkpointOpen]).toEqual(['graph', true])
+    const graph = workspaceReducer(reopened, { type: 'close_checkpoint' })
+    expect([graph.layout, graph.checkpointOpen]).toEqual(['graph', false])
+  })
+
+  it.each(['graph', 'list', 'agent'] as const)('opens checkpoints from %s without retaining the Agent stage', (layout) => {
+    const state = workspaceReducer(loaded(), { type: 'show_layout', layout })
+    const open = workspaceReducer(state, { type: 'open_checkpoint' })
+    expect([open.layout, open.checkpointOpen, open.scorecardOpen]).toEqual([layout === 'agent' ? 'graph' : layout, true, false])
+  })
+})
+
 describe('workspace feedback', () => {
   it('tracks busy, confirmations, toasts, notices, banners and validation', () => {
     let state = loaded()

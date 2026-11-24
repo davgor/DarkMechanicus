@@ -52,7 +52,7 @@ export interface WorkspaceState {
   view: PlanViewKind
   /** The view the person last picked for this epic, remembered across visits; null leaves it to the default. */
   chosenView: PlanViewKind | null
-  layout: 'graph' | 'list'
+  layout: 'graph' | 'list' | 'agent'
   selectedTicketId: string | null
   /**
    * Set when the person opened the live activity of an attempt (the hourglass, the attempts strip): the ticket panel
@@ -91,7 +91,7 @@ export type WorkspaceAction =
   | { type: 'show_view'; view: PlanViewKind; remember?: boolean }
   /** Save or Discard ended the draft: show Saved and forget the choice, so the next draft opens by default. */
   | { type: 'draft_closed' }
-  | { type: 'show_layout'; layout: 'graph' | 'list' }
+  | { type: 'show_layout'; layout: 'graph' | 'list' | 'agent' }
   | { type: 'select_ticket'; ticketId: string | null }
   /** Select the ticket and show the live activity of one of its attempts in its panel. */
   | { type: 'open_activity'; ticketId: string; attemptId: string }
@@ -199,11 +199,16 @@ const HANDLERS: Handlers = {
   }),
   show_view: (state, action) => showView(state, action.view, action.remember === false ? state.chosenView : action.view),
   draft_closed: (state) => showView(state, 'saved', null),
-  show_layout: (state, action) => ({ ...state, layout: action.layout, scorecardOpen: false }),
+  show_layout: (state, action) => ({
+    ...state,
+    layout: action.layout,
+    checkpointOpen: action.layout === 'agent' ? false : state.checkpointOpen,
+    scorecardOpen: false
+  }),
   select_ticket: (state, action) => ({ ...state, selectedTicketId: action.ticketId, activity: null, ticketScorecard: null }),
   open_activity: (state, action) => ({ ...state, selectedTicketId: action.ticketId, activity: { attemptId: action.attemptId }, ticketScorecard: null }),
   open_ticket_scorecard: (state, action) => ({ ...state, selectedTicketId: action.ticketId, activity: null, ticketScorecard: { runId: action.runId } }),
-  open_checkpoint: (state) => ({ ...state, checkpointOpen: true, scorecardOpen: false }),
+  open_checkpoint: (state) => ({ ...state, layout: state.layout === 'agent' ? 'graph' : state.layout, checkpointOpen: true, scorecardOpen: false }),
   close_checkpoint: (state) => ({ ...state, checkpointOpen: false }),
   open_scorecard: (state) => ({ ...state, scorecardOpen: true, checkpointOpen: false }),
   close_scorecard: (state) => ({ ...state, scorecardOpen: false }),

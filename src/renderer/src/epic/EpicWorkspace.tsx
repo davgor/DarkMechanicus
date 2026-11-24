@@ -209,6 +209,9 @@ function StageContent({ ws, input }: { ws: WorkspaceHandle; input: GraphInput | 
   if (ws.state.scorecardOpen) {
     return <EpicScorecard ws={ws} />
   }
+  if (ws.state.layout === 'agent') {
+    return <section aria-label="Agent chat" className="ew-agent-stage"><p className="ew-empty">No agents yet</p></section>
+  }
   const review = reviewStage(ws)
   if (review !== null) {
     return review

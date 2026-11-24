@@ -10,6 +10,7 @@ const NAMES: IconName[] = [
   'chevron-down',
   'chevron-right',
   'folder',
+  'agent',
   'plus',
   'warning',
   'plug',
