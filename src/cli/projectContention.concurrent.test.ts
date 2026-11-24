@@ -1,11 +1,12 @@
 import { buildSync } from 'esbuild'
 import { spawn, type ChildProcess } from 'node:child_process'
+import { once } from 'node:events'
 import { globSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { setTimeout as delay } from 'node:timers/promises'
-import { afterAll, beforeAll, expect, it } from 'vitest'
+import { afterAll, beforeAll, expect, it, vi } from 'vitest'
 import { openDatabase, type Db } from '../core/db/database'
 import { bindAgentMailEndpoint, provisionAgentMailEndpoint } from '../core/services/agentMail'
 import { createHarness, type Harness } from '../test/workspaceHarness'
@@ -122,7 +123,7 @@ class WorkerCli {
 
   private start(token: string, command: string, json: string, mode?: 'probe' | 'audit-close') {
     return spawn(process.execPath, [cliPath, '--repo', this.fixture.root, 'call', command, mode === 'audit-close' ? json : '-'], {
-      cwd: this.fixture.root, env: {
+      stdio: ['pipe', 'pipe', 'pipe', 'ipc'], cwd: this.fixture.root, env: {
         ...process.env, DARKMECHANICUS_HOME: this.fixture.homeDir, DM_SESSION_TOKEN: token, DM_CONTENTION_FIXTURE: mode
       }
     })
@@ -169,7 +170,7 @@ class WorkerCli {
     })
     if (mode !== 'audit-close') child.stdin.end(json)
     return {
-      outcome, writing: writing.promise, committed: committed.promise, closing: closing.promise,
+      child, outcome, writing: writing.promise, committed: committed.promise, closing: closing.promise,
       allowAuditClose: () => child.stdin.end()
     }
   }
@@ -251,6 +252,22 @@ it('completes two audited worker reads after the authorized project writer commi
   }
 })
 
+it('keeps the embedded CLI deadline separate from the long-lived desktop connection', async () => {
+  const harness = createHarness()
+  vi.useFakeTimers({ toFake: ['performance'] })
+  try {
+    const desktop = harness.open('desktop')
+    await desktop.initializeRepository({ name: 'Embedded sessions', mode: 'db' })
+    const cli = harness.open('reader', { transport: 'cli' })
+    vi.advanceTimersByTime(10_001)
+    expect(cli.ctx().db.get('PRAGMA busy_timeout')).toEqual({ timeout: 0 })
+    expect(desktop.ctx().db.get('PRAGMA busy_timeout')).toEqual({ timeout: 5_000 })
+  } finally {
+    vi.useRealTimers()
+    harness.cleanup()
+  }
+})
+
 it.concurrent('waits past the former CLI deadline and commits a blocked report once', async () => {
   const harness = createHarness()
   const cli = new WorkerCli(harness)
@@ -260,7 +277,10 @@ it.concurrent('waits past the former CLI deadline and commits a blocked report o
     holdAuthorizedWrite(db, comments.ticketId)
     const call = cli.call(one.token, 'add_comment', { ...comments, body: 'Queued report', idempotencyKey: 'blocked-report' })
     try {
+      const progress = once(call.child, 'message')
       await call.writing
+      const [message] = await beforeDeadline(progress, 2_000, 'CLI did not notify its supervisor')
+      expect(message).toBe('dm.sqlite.writer-busy')
       await delay(10_100)
       expect(db.get('SELECT key FROM idempotency WHERE key = ?', 'blocked-report')).toBeUndefined()
     } finally {
