@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ATTEMPT_STATES, RUN_STATES, WORK_STATUSES } from '../../shared/domain/status'
 import { thrownBy } from '../../test/thrownBy'
 import { DomainError } from '../errors'
@@ -50,6 +50,51 @@ describe('migrate on a fresh database', () => {
   })
 })
 
+it('retires legacy holds, restores the prior run state and credits an open lease once', () => {
+  const db = freshDb()
+  migrate(db, MIGRATIONS.filter(migration => migration.version < 29))
+  const heldAt = '2026-11-23T12:00:00.000Z'
+  const heartbeat = '2026-11-23T12:01:00.000Z'
+  const expires = '2026-11-23T12:06:00.000Z'
+  for (const [id, reason] of [['original', 'tooling_recovery'], ['taken', 'taken_over'], ['orphan', 'tooling_recovery']]) {
+    db.run("INSERT INTO epics(id,title,status,created_at,updated_at) VALUES (?,?,'in_progress',?,?)", id, id, heldAt, heldAt)
+    db.run("INSERT INTO plan_revisions(id,epic_id,number,content_hash,bundle_json,state,created_at) VALUES (?,?,1,'hash','{}','saved',?)", id, id, heldAt)
+    db.run(`INSERT INTO runs(id,epic_id,number,revision_id,state,owner_machine_id,pause_reason,paused_at,created_at,updated_at)
+      VALUES (?,?,1,?,'paused','fixture',?,?,?,?)`, id, id, id, reason, heldAt, heldAt, heldAt)
+  }
+  db.run(`INSERT INTO attempts(id,run_id,ticket_id,number,kind,state,fencing_token,worker_json,revision_id,ticket_content_hash,
+    lease_expires_at,heartbeat_at,created_at,updated_at)
+    VALUES ('attempt','original','ticket',1,'work','claimed',1,'{}','original','hash',?,?,?,?)`, expires, heartbeat, heldAt, heldAt)
+  const migrationTime = '2026-11-23T12:04:00.000Z'
+  db.run(`INSERT INTO kanban_cards(id,key,title,acceptance_criteria_json,expected_artifacts_json,references_json,priority,
+    lane,created_by_role,created_by_label,created_at,updated_at,revision)
+    VALUES ('card','DM-1','Open card','[]','[]','[]','medium','in_progress','desktop','Fixture',?,?,1)`, heldAt, heldAt)
+  db.run(`INSERT INTO kanban_attempts(id,card_id,number,state,claim_secret,lease_expires_at,heartbeat_at,created_at)
+    VALUES ('renewed','card',1,'running','fixture',?,?,?)`, expires, migrationTime, heldAt)
+  for (const [id, run, prior] of [['origin', 'original', 'awaiting_checkpoint'], ['overlap', 'original', null], ['old-owner', 'taken', 'running']]) {
+    db.run('INSERT INTO tooling_holds(chat_id,incident_id,run_id,held_at,previous_run_state) VALUES (?,?,?,?,?)', id, id, run, heldAt, prior)
+  }
+  db.run("INSERT INTO tooling_holds(chat_id,incident_id,card_id,held_at) VALUES ('card-chat','card-incident','card',?)", heldAt)
+  db.exec("INSERT INTO tooling_held_attempts VALUES ('origin','attempt','run'), ('overlap','attempt','run'), ('card-incident','renewed','card')")
+  vi.useFakeTimers({ toFake: ['Date'] })
+  try {
+    vi.setSystemTime(new Date(migrationTime))
+    expect(migrate(db)).toEqual({ from: 28, to: 29 })
+    expect(db.all('SELECT id,state,pause_reason,paused_at FROM runs ORDER BY id')).toEqual([
+      { id: 'original', state: 'awaiting_checkpoint', pause_reason: null, paused_at: null },
+      { id: 'orphan', state: 'paused', pause_reason: null, paused_at: heldAt },
+      { id: 'taken', state: 'paused', pause_reason: 'taken_over', paused_at: heldAt }
+    ])
+    expect(db.get('SELECT lease_expires_at FROM attempts WHERE id = ?', 'attempt')).toEqual({ lease_expires_at: '2026-11-23T12:09:00.000Z' })
+    expect(db.get('SELECT lease_expires_at FROM kanban_attempts WHERE id = ?', 'renewed')).toEqual({ lease_expires_at: expires })
+    expect(migrate(db)).toEqual({ from: 29, to: 29 })
+    expect(db.all('SELECT attempt_id,kind,granted_at,ms FROM legacy_tooling_lease_credits')).toEqual([
+      { attempt_id: 'attempt', kind: 'run', granted_at: heartbeat, ms: 180_000 }
+    ])
+    expect(objectNames(db, 'table').filter(name => name.startsWith('tooling_'))).toEqual([])
+  } finally { vi.useRealTimers() }
+})
+
 const EXPECTED_TABLES = [
   'agent_mail_bindings',
   'agent_mail_endpoints',
@@ -74,6 +119,7 @@ const EXPECTED_TABLES = [
   'kanban_attempts',
   'kanban_cards',
   'kanban_events',
+  'legacy_tooling_lease_credits',
   'meta',
   'metric_observations',
   'outbox',
@@ -88,10 +134,6 @@ const EXPECTED_TABLES = [
   'sprint_reports',
   'sync_state',
   'ticket_status',
-  'tooling_chat_grants',
-  'tooling_held_attempts',
-  'tooling_holds',
-  'tooling_lease_returns',
   'transfer_items',
   'transfers',
   'yolo_audit',

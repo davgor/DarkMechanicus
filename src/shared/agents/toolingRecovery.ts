@@ -17,7 +17,7 @@ export const toolingRecoveryInputSchema = z.discriminatedUnion('action', [
 ])
 export type ToolingRecoveryInput = z.infer<typeof toolingRecoveryInputSchema>
 export const toolingRecoveryResultSchema = z.strictObject({
-  incidentId: identity, blocked: z.boolean(), cardId: z.string().nullable(), repairChatId: z.string().nullable(),
+  incidentId: identity, waitingForRepair: z.boolean(), availableVersion: z.string().nullable(), cardId: z.string().nullable(), repairChatId: z.string().nullable(),
   sourceFolder: z.string().nullable(), callerAddress: z.string(), repairAddress: z.string().nullable(),
   startup: z.enum(['not_started', 'running', 'failed']), prompt: z.enum(['pending', 'uncertain', 'delivered']),
   connection: z.enum(['unavailable', 'pending', 'connected']), messageDelivery: z.enum(['pending', 'delivered']).optional(),

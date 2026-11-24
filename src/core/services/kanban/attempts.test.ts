@@ -9,8 +9,6 @@ import { addSeconds } from '../../clock'
 import { guardTransactions } from '../../db/database'
 import type { IdGenerator } from '../../ids'
 import { LIMITS } from '../../schemas'
-import { issueGrant } from '../grants'
-import { bindToolingGrant, holdToolingWorkflow } from '../toolingHold'
 import { createStagedAttachment, getAttachment } from '../attachments'
 import {
   approveKanbanCard,
@@ -806,21 +804,6 @@ describe('lease expiry racing a renewal', () => {
     expect(expireKanbanLeasesOnRead(sweeping)).toEqual([])
     expect(kanbanEvents(ctx.desktop).filter(([kind]) => kind === 'lease_expired')).toEqual([['lease_expired', packet.attemptId]])
   })
-})
-
-it('rechecks a due lease after a tooling hold became active before lock acquisition', () => {
-  const ctx = board()
-  const packet = claimedCard(ctx, 60)
-  const { grant } = issueGrant(ctx.desktop, { role: 'orchestrator', label: 'Hold near sweep' })
-  const chat = 'chat_concurrent_hold'
-  bindToolingGrant(ctx.desktop, grant.id, chat)
-  ctx.desktop.clock.advanceSeconds(61)
-  const guarded = guardTransactions(ctx.desktop.db, () => holdToolingWorkflow(ctx.desktop, {
-    id: chat, incidentId: 'concurrent_hold', cardId: packet.cardId
-  }))
-  expect(expireKanbanLeasesOnRead({ ...ctx.desktop, db: guarded })).toEqual([])
-  expect(attemptRow(ctx.desktop, packet.attemptId)).toMatchObject({ state: 'claimed' })
-  expect(kanbanEvents(ctx.desktop).filter(([kind]) => kind === 'lease_expired')).toEqual([])
 })
 
 describe('lease expiry', () => {

@@ -3,7 +3,7 @@ import { redactedJson } from '../storedSecrets'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 28
+export const SCHEMA_VERSION = 29
 
 export interface Migration {
   version: number
@@ -1025,6 +1025,40 @@ CREATE TABLE tooling_lease_returns (
 );
 `
 
+/** Return time from retired holds once per still-open lease, then remove the workflow gate. */
+function retireToolingHolds(db: Db): void {
+  const now = new Date().toISOString()
+  for (const [kind, table] of [['run', 'attempts'], ['card', 'kanban_attempts']] as const) {
+    const attempts = db.all<{ id: string; held_at: string; granted_at: string; lease_expires_at: string }>(
+      `SELECT a.id, MIN(h.held_at) AS held_at, COALESCE(a.heartbeat_at, a.created_at) AS granted_at, a.lease_expires_at
+       FROM tooling_held_attempts t JOIN tooling_holds h ON h.incident_id = t.incident_id
+       JOIN ${table} a ON a.id = t.attempt_id
+       WHERE t.kind = ? AND a.state IN ('claimed', 'running') AND a.lease_expires_at IS NOT NULL
+       GROUP BY a.id`, kind)
+    for (const attempt of attempts) {
+      const ms = Date.parse(now) - Math.max(Date.parse(attempt.held_at), Date.parse(attempt.granted_at))
+      if (ms <= 0) continue
+      const expires = new Date(Date.parse(attempt.lease_expires_at) + ms).toISOString()
+      db.run(`UPDATE ${table} SET lease_expires_at = ? WHERE id = ?`, expires, attempt.id)
+      db.run('INSERT INTO tooling_lease_returns(attempt_id, kind, at, granted_at, ms) VALUES (?, ?, ?, ?, ?)',
+        attempt.id, kind, now, attempt.granted_at, ms)
+    }
+  }
+  db.run(`WITH prior AS (
+      SELECT r.id, (SELECT h.previous_run_state FROM tooling_holds h
+        WHERE h.run_id = r.id AND h.previous_run_state IN ('queued', 'running', 'awaiting_checkpoint')
+        ORDER BY h.held_at, h.chat_id LIMIT 1) AS state
+      FROM runs r WHERE r.state = 'paused' AND r.pause_reason = 'tooling_recovery'
+    )
+    UPDATE runs SET state = COALESCE(prior.state, 'paused'), pause_reason = NULL,
+      paused_at = CASE WHEN prior.state IS NULL THEN runs.paused_at END, updated_at = ?, revision = revision + 1
+    FROM prior WHERE runs.id = prior.id`, now)
+  db.exec(`DROP TABLE tooling_held_attempts;
+    DROP TABLE tooling_holds;
+    DROP TABLE tooling_chat_grants;
+    ALTER TABLE tooling_lease_returns RENAME TO legacy_tooling_lease_credits;`)
+}
+
 export const MIGRATIONS: Migration[] = [
   { version: 1, sql: V1 },
   { version: 2, sql: V2 },
@@ -1065,7 +1099,8 @@ export const MIGRATIONS: Migration[] = [
         PRIMARY KEY(endpoint_id,assignment_id,item_kind,item_id)
       );` },
   { version: 28, sql: `CREATE INDEX kanban_cards_open_lanes ON kanban_cards(lane)
-        WHERE lane IN ('backlog', 'in_progress', 'ready_for_review');` }
+        WHERE lane IN ('backlog', 'in_progress', 'ready_for_review');` },
+  { version: 29, sql: '', data: retireToolingHolds }
 ]
 
 export function readSchemaVersion(db: Db): number {

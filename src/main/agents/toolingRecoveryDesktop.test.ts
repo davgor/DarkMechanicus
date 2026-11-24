@@ -28,7 +28,8 @@ async function recoveryFixture(projectless: boolean, kind: 'omp' | 'claude' | 'c
   const store = createChatStore({ root: join(userData, 'agents', 'chats') })
   const caller = store.createChat({ folder: projectless ? null : customer.root, agent: 'omp', model: null, role: 'orchestrator', allowSave: false, title: 'Unfinished original work' })
   const ledger = createConversationDeliveries({ userData, onChanged() {} })
-  const delivery = createAgentContextDelivery({ userData, deliveries: ledger, agentKind: () => kind })
+  const agentKind = (id: string) => id === 'claude' || id === 'codex' ? id : kind
+  const delivery = createAgentContextDelivery({ userData, deliveries: ledger, agentKind: chat => agentKind(chat.agent) })
   const live = new Set([caller.id])
   let entry = 0
   const persist = (chat: ChatRecord, content: string, attribution: 'user' | 'agent'): void => {
@@ -44,6 +45,8 @@ async function recoveryFixture(projectless: boolean, kind: 'omp' | 'claude' | 'c
   const sourceCheckout = { requireAvailable: vi.fn(() => ({ path: source.root, target: { kind: 'darkmechanicus_source' as const, projectId: sourceWs.ctx().projectId, projectName: 'Source fixture' } })) }
   const resolveFolder = vi.fn((folder: string) => folder === source.root || folder === customer.root ? folder : null)
   const paste = vi.fn()
+  const pasteIfRunning = vi.fn()
+  const onNoticeError = vi.fn()
   const resume = vi.fn(async (chat: ChatRecord) => {
     await desktop.assertLaunch(chat)
     const received = await desktop.dispatch({ op: 'recovery_context', args: { chatId: chat.id, generation: 'fixture-start' } }, context(chat)) as { messages: { id: string; text: string }[] }
@@ -53,18 +56,18 @@ async function recoveryFixture(projectless: boolean, kind: 'omp' | 'claude' | 'c
   const restart = (): DesktopToolingRecovery => {
     desktop = createDesktopToolingRecovery({ userData, version: () => '1.0.0',
       source: sourceCheckout,
-      store, agents: { get: () => builtInAgent(kind) },
+      store, agents: { get: id => builtInAgent(agentKind(id)) },
       workspace: folder => testWorkspace(folder === source.root ? sourceWs : customerWs),
       resolveFolder,
-      callerFolders: chat => chat.folder === null ? [source.root, customer.root] : [chat.folder],
       context: delivery, deliveries: ledger,
-      terminals: { start, isRunning: id => live.has(id), paste },
-      resume
+      terminals: { start, isRunning: id => live.has(id), paste, pasteIfRunning,
+        activeChats: () => [null, source.root, customer.root].flatMap(folder => store.listChats(folder)).filter(chat => live.has(chat.id)) },
+      resume, onNoticeError
     })
     return desktop
   }
   const initialDesktop = restart()
-  return { source, sourceWs, customer, customerWs, store, caller, start, desktop: initialDesktop, ledger, delivery, persist, resume, paste, resolveFolder, sourceCheckout, restart, live }
+  return { source, sourceWs, customer, customerWs, store, caller, start, desktop: initialDesktop, ledger, delivery, persist, resume, paste, pasteIfRunning, resolveFolder, sourceCheckout, restart, live, onNoticeError }
 }
 
 describe('connected desktop recovery with durable workspaces and host receipts', () => {
@@ -81,8 +84,8 @@ describe('connected desktop recovery with durable workspaces and host receipts',
     expect((await customerWs.listKanbanCards({})).lanes.backlog).toHaveLength(0)
     expect(store.getChat(caller)?.endpointId).toBeUndefined()
     const sent = async (chat: ChatRecord, messageId: string, text: string) => desktop.dispatch({ op: 'recover_tooling', args: { action: 'message', incidentId: result.incidentId, messageId, text } }, context(chat))
-    expect(await sent(repair, 'question', 'Which ticket failed?')).toMatchObject({ blocked: true, messageDelivery: 'delivered' })
-    expect(await sent(caller, 'answer', 'The non-sensitive fixture.')).toMatchObject({ blocked: true, messageDelivery: 'delivered' })
+    expect(await sent(repair, 'question', 'Which ticket failed?')).toMatchObject({ waitingForRepair: true, messageDelivery: 'delivered' })
+    expect(await sent(caller, 'answer', 'The non-sensitive fixture.')).toMatchObject({ waitingForRepair: true, messageDelivery: 'delivered' })
     originalGrantRevoked = true
     await desktop.dispatch({ op: 'recover_tooling', args: { action: 'escalate', incidentId: 'fixture', diagnostic } }, context(caller, 'fixture-restarted'))
     expect(start).toHaveBeenCalledTimes(1)
@@ -97,6 +100,81 @@ describe('connected desktop recovery with durable workspaces and host receipts',
     const desktop = createDesktopToolingRecovery({ userData: h.root } as never)
     expect(() => desktop.dispatch({ op: 'recover_tooling', args: { action: 'status', incidentId: 'fixture' } }, {} as NamingOperationContext)).toThrow('not available')
   })
+})
+
+it('advises only active peers once and exposes no project diagnostic or incident permissions', async () => {
+  const f = await recoveryFixture(false)
+  const peer = f.store.createChat({ folder: f.source.root, agent: 'omp', model: null, role: 'worker', allowSave: false })
+  const idle = f.store.createChat({ folder: null, agent: 'omp', model: null, role: 'worker', allowSave: false })
+  f.live.add(peer.id)
+  const escalation = { op: 'recover_tooling' as const, args: { action: 'escalate' as const, incidentId: 'notice', diagnostic } }
+  const result = await f.desktop.dispatch(escalation, context(f.caller)) as { incidentId: string }
+  const read = (chat: ChatRecord) => f.desktop.dispatch({ op: 'recovery_context', args: { chatId: chat.id, generation: 'fixture-start' } }, context(chat)) as { messages: { id: string; text: string }[] }
+  const notice = read(peer).messages[0]!
+  expect(notice.text).toContain('already working on a Dark Mechanicus failure in get_ticket')
+  expect(notice.text).toContain(result.incidentId)
+  expect(notice.text).not.toContain(diagnostic.message)
+  expect(read(idle)).toEqual({ messages: [] })
+  expect(f.resume).not.toHaveBeenCalledWith(peer)
+  f.persist(peer, RECOVERY_DATA_NOTE + '\n' + JSON.stringify({ messages: [notice] }), 'agent')
+  await f.desktop.dispatch(escalation, context(f.caller))
+  expect(read(peer)).toEqual({ messages: [] })
+  expect(f.ledger.proof(f.source.root, peer.id, 'recovery', notice.id)?.state).toBe('delivered')
+  await expect(f.desktop.dispatch({ op: 'recover_tooling', args: { action: 'status', incidentId: result.incidentId } }, context(peer))).rejects.toMatchObject({ code: 'unauthorized' })
+})
+
+it('isolates notice delivery failures and pastes a generic advisory once to a live projectless Claude peer', async () => {
+  const f = await recoveryFixture(false)
+  const claude = f.store.createChat({ folder: null, agent: 'claude', model: null, role: 'worker', allowSave: false })
+  const unsupported = f.store.createChat({ folder: f.customer.root, agent: 'codex', model: null, role: 'worker', allowSave: false })
+  const broken = f.store.createChat({ folder: f.customer.root, agent: 'omp', model: null, role: 'worker', allowSave: false })
+  for (const peer of [claude, unsupported, broken]) f.live.add(peer.id)
+  const originalQueue = f.delivery.queueRecovery.bind(f.delivery)
+  const failure = new Error('Fixture peer outbox failed')
+  vi.spyOn(f.delivery, 'queueRecovery').mockImplementation(async (chat, message) => {
+    if (chat.id === broken.id) throw failure
+    await originalQueue(chat, message)
+  })
+  const privateCommand = 'Unrecognized private project command'
+  const escalation = { op: 'recover_tooling' as const, args: { action: 'escalate' as const, incidentId: 'mixed-hosts',
+    diagnostic: { ...diagnostic, command: privateCommand } } }
+  expect(await f.desktop.dispatch(escalation, context(f.caller))).toMatchObject({ connection: 'connected', problem: null })
+  expect(f.onNoticeError).toHaveBeenCalledExactlyOnceWith(failure)
+  expect(f.pasteIfRunning).toHaveBeenCalledExactlyOnceWith(claude, expect.stringContaining('already working on a Dark Mechanicus failure'))
+  expect(f.pasteIfRunning.mock.calls[0]![1]).not.toContain(privateCommand)
+  expect(f.ledger.pending().some(entry => entry.chatId === unsupported.id)).toBe(false)
+  await f.desktop.poll('projectless')
+  expect(f.pasteIfRunning).toHaveBeenCalledOnce()
+  expect(f.resume).not.toHaveBeenCalledWith(claude)
+})
+
+it('keeps an authorized write available before and after failed repair setup', async () => {
+  const f = await recoveryFixture(false)
+  const grant = await f.customerWs.issueGrant({ role: 'orchestrator', label: 'Skitarii fixture' })
+  const callerWorkspace = f.customer.open('orchestrator', { transport: 'cli', grantToken: grant.token })
+  f.sourceCheckout.requireAvailable.mockImplementation(() => { throw new Error('Missing fixture source') })
+  const report = await f.desktop.dispatch({ op: 'recover_tooling', args: { action: 'escalate', incidentId: 'missing-source', diagnostic } }, context(f.caller))
+  expect(report).toMatchObject({ waitingForRepair: true, startup: 'not_started', cardId: null })
+  expect((await callerWorkspace.createKanbanCard({ title: 'Authorized unrelated change' })).title).toBe('Authorized unrelated change')
+  expect(f.ledger.pending()).toEqual([])
+})
+
+it('stops advertising a repair once its repair agent reports availability', async () => {
+  const f = await recoveryFixture(false)
+  const peer = f.store.createChat({ folder: f.customer.root, agent: 'omp', model: null, role: 'worker', allowSave: false })
+  f.live.add(peer.id)
+  const { incidentId, repairChatId } = await f.desktop.dispatch({
+    op: 'recover_tooling', args: { action: 'escalate', incidentId: 'resolved-notice', diagnostic }
+  }, context(f.caller)) as { incidentId: string; repairChatId: string }
+  const read = { op: 'recovery_context', args: { chatId: peer.id, generation: 'fixture-start' } } as const
+  expect(f.desktop.dispatch(read, context(peer))).toMatchObject({ messages: [{ text: expect.stringContaining('already working') }] })
+  f.live.delete(repairChatId)
+  expect(f.desktop.dispatch(read, context(peer))).toEqual({ messages: [] })
+  f.live.add(repairChatId)
+  const repair = f.store.getChat({ folder: f.source.root, id: repairChatId })!
+  await f.desktop.dispatch({ op: 'recover_tooling', args: { action: 'available', incidentId, version: '1.0.0', evidence: 'Fixture verified' } }, context(repair))
+  expect(f.desktop.dispatch(read, context(peer))).toEqual({ messages: [] })
+  expect(f.ledger.pending().filter(entry => entry.chatId === peer.id)).toEqual([])
 })
 
 it.each(['folder', 'missing', 'run', 'card', 'role', 'expired'] as const)('refuses desktop %s identity before any source/card/repair side effects', async mismatch => {
@@ -114,29 +192,28 @@ it.each(['folder', 'missing', 'run', 'card', 'role', 'expired'] as const)('refus
   expect((await f.sourceWs.listKanbanCards({})).lanes.backlog).toEqual([])
   expect((await f.customerWs.listKanbanCards({})).lanes.backlog).toEqual([])
   expect(f.store.listChats(f.source.root)).toEqual([])
-  expect(f.store.getChat(f.caller)?.toolingIncidentId).toBeUndefined()
   expect(f.start).not.toHaveBeenCalled()
 })
 
 it('retains an unsupported selected host without pausing its workflow or creating a repair', async () => {
   const f = await recoveryFixture(false, 'codex')
   const result = await f.desktop.dispatch({ op: 'recover_tooling', args: { action: 'escalate', incidentId: 'unsupported', diagnostic } }, context(f.caller))
-  expect(result).toMatchObject({ blocked: true, cardId: null, repairChatId: null, startup: 'not_started', connection: 'unavailable' })
+  expect(result).toMatchObject({ waitingForRepair: true, cardId: null, repairChatId: null, startup: 'not_started', connection: 'unavailable' })
   expect(f.sourceCheckout.requireAvailable).not.toHaveBeenCalled()
   expect(f.start).not.toHaveBeenCalled()
   expect(f.store.listChats(f.source.root)).toEqual([])
-  expect(f.store.getChat(f.caller)?.toolingIncidentId).toBeUndefined()
   expect((await f.sourceWs.listKanbanCards({})).lanes.backlog).toEqual([])
 })
 
-it('refuses stale receiver generations and projected incident ownership without exposing peer data', async () => {
+it('refuses stale receiver generations and isolates messages by authenticated recipient', async () => {
   const f = await recoveryFixture(false)
   const result = await f.desktop.dispatch({ op: 'recover_tooling', args: { action: 'escalate', incidentId: 'identity', diagnostic } }, context(f.caller)) as { incidentId: string; repairChatId: string }
   expect(() => f.desktop.dispatch({ op: 'recovery_context', args: { chatId: f.caller.id, generation: 'stale' } }, context(f.caller))).toThrow('authority is not usable')
   const impostor = f.store.createChat({ folder: f.customer.root, agent: 'omp', role: 'orchestrator', allowSave: false, model: null })
-  f.store.updateChat(impostor, { toolingIncidentId: result.incidentId })
-  expect(() => f.desktop.dispatch({ op: 'recovery_context', args: { chatId: impostor.id, generation: 'fixture-start' } }, context(impostor))).toThrow('authority is not usable')
+  expect(f.desktop.dispatch({ op: 'recovery_context', args: { chatId: impostor.id, generation: 'fixture-start' } }, context(impostor))).toEqual({ messages: [] })
   await expect(f.desktop.dispatch({ op: 'recover_tooling', args: { action: 'message', incidentId: result.incidentId, messageId: 'forged', text: 'Read caller data' } }, context(impostor))).rejects.toMatchObject({ code: 'unauthorized' })
+  f.store.deleteChat(impostor)
+  expect(() => f.desktop.dispatch({ op: 'recovery_context', args: { chatId: impostor.id, generation: 'fixture-start' } }, context(impostor))).toThrow('not found')
 })
 
 it('only dequeues the correct recipient and exact body receipt, exposing one pending message at a time', async () => {
@@ -202,9 +279,8 @@ it('marks Claude input uncertain before paste and never replays unreceipted phys
   expect(f.ledger.proof(f.customer.root, f.caller.id, 'recovery', message.id)).toMatchObject({ state: 'pending', inputUncertain: true })
 })
 
-it('refuses a new desktop hold while the caller ticket root has a pending Forge transfer', async () => {
+it('starts the repair without opening the caller workspace during its Forge transfer', async () => {
   const f = await recoveryFixture(false)
-  const db = f.customerWs.ctx().db
   let entered!: () => void
   let finish!: () => void
   const pending = new Promise<void>(resolve => { entered = resolve })
@@ -216,11 +292,9 @@ it('refuses a new desktop hold while the caller ticket root has a pending Forge 
   await pending
   try {
     await expect(f.desktop.dispatch({ op: 'recover_tooling', args: { action: 'escalate', incidentId: 'during-transfer', diagnostic } }, context(f.caller))).resolves.toMatchObject({
-      blocked: true, connection: 'unavailable', problem: expect.stringContaining('conversion is pending'), cardId: null, repairChatId: null
+      waitingForRepair: true, connection: 'connected', cardId: expect.any(String), repairChatId: expect.any(String)
     })
-    expect(db.all('SELECT * FROM tooling_holds')).toEqual([])
-    expect(f.start).not.toHaveBeenCalled()
-    expect((await f.sourceWs.listKanbanCards({})).lanes.backlog).toEqual([])
+    expect(f.start).toHaveBeenCalledTimes(1)
   } finally { finish(); await transfer }
 })
 

@@ -476,3 +476,18 @@ it('admits an authenticated repair diagnostic larger than naming without enlargi
   expect(await raw(server.address, [frame]).reply).toMatchObject({ ok: true, data: { applied: true } })
   expect(dispatched).toHaveBeenCalledOnce()
 })
+
+it('lets a bound worker receive a repair notice with its grant but refuses repair escalation', async () => {
+  const worker = await grants.issueChatCli(repo, { role: 'worker', allowSave: false, label: 'working peer' })
+  await grants.bindChatGrant(worker.grantId, { folder: repo, chatId: 'active-worker', generation: 'worker-generation' })
+  const dispatched = vi.fn(() => ({ messages: [{ id: 'notice', text: 'A repair is underway' }] }))
+  const server = await endpoint(dispatched)
+  const token = worker.cli.env['DM_SESSION_TOKEN']!
+  const read = { op: 'recovery_context', args: { chatId: 'active-worker', generation: 'worker-generation' } } as const
+  expect(await raw(server.address, [wire(read, token)]).reply).toMatchObject({
+    ok: true, data: { messages: [{ id: 'notice', text: 'A repair is underway' }] }
+  })
+  expect(await raw(server.address, [wire({ op: 'recover_tooling', args: { action: 'status', incidentId: 'notice' } }, token)]).reply)
+    .toMatchObject({ ok: false, error: { code: 'unauthorized' } })
+  expect(dispatched).toHaveBeenCalledOnce()
+})

@@ -221,7 +221,6 @@ function assertOtherSessionsClosed(deps: Pick<MigrationDeps, 'db' | 'clock' | 's
 
 export function assertStorageIdle(deps: Pick<MigrationDeps, 'db' | 'clock' | 'sessionId'>): void {
   const { db } = deps
-  if (db.get('SELECT 1 FROM tooling_holds LIMIT 1')) fail('conflict', 'Resolve every tooling recovery hold before switching storage.')
   // Paused runs move with their execution history; outstanding claims are fenced below.
   if (db.get("SELECT 1 FROM runs WHERE state IN ('queued','running','awaiting_checkpoint') LIMIT 1")) {
     fail('conflict', 'Pause, finish or cancel every active run before switching storage.')

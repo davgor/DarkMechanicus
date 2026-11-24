@@ -271,14 +271,10 @@ function overdueLeases(ctx: Ctx, now: string, runId?: string): LeaseRow[] {
      FROM attempts a JOIN runs r ON r.id = a.run_id
      WHERE a.state IN ('claimed', 'running') AND (? IS NULL OR a.run_id = ?)
        AND NOT (r.state = 'paused' AND IFNULL(r.pause_reason, '') = ?)
-       AND NOT EXISTS (SELECT 1 FROM tooling_held_attempts t JOIN tooling_holds h ON h.incident_id = t.incident_id
-         JOIN tooling_chat_grants cg ON cg.chat_id = h.chat_id JOIN grants g ON g.id = cg.grant_id
-         WHERE t.attempt_id = a.id AND t.kind = 'run' AND g.revoked_at IS NULL AND g.expires_at > ?)
      ORDER BY a.rowid`,
     runId ?? null,
     runId ?? null,
-    SIGNED_OUT_PAUSE_REASON,
-    now
+    SIGNED_OUT_PAUSE_REASON
   )
   return leased.filter((row) => row.lease_expires_at !== null && isBefore(row.lease_expires_at, now))
 }
@@ -291,7 +287,7 @@ function overdueLeases(ctx: Ctx, now: string, runId?: string): LeaseRow[] {
  */
 export function expireLeases(ctx: Ctx, runId?: string): string[] {
   return ctx.db.tx(() => {
-    // A heartbeat or tooling hold may have committed while we waited for the lock.
+    // A heartbeat may have committed while we waited for the lock.
     const now = ctx.clock.nowIso()
     const expired = overdueLeases(ctx, now, runId)
     for (const row of expired) {

@@ -227,7 +227,7 @@ it('provisions and retires an OMP mailbox in the same project utility as desktop
   expect(f.owners).toHaveLength(1)
   const operations = postedNames(f.owners[0]!)
   expect(operations).toEqual(expect.arrayContaining(['provisionMailboxes', 'mailState', 'deleteMailbox']))
-  expect(operations.filter(name => name === 'retireTooling')).toHaveLength(2)
+  expect(operations).not.toContain('retireTooling')
 })
 
 function forgeMember(root: string) {
@@ -342,7 +342,7 @@ it('dispatches the configured member host ahead of the world default from the bo
       forgeSetup: expect.objectContaining({ mode: 'onboarding' }),
       firstPrompt: expect.stringContaining('Do not run installers or setup steps')
     })])
-    expect(postedNames(f.owners[0]!)).toEqual(expect.arrayContaining(['getProject', 'issueChatGrant', 'bindChatGrant']))
+    expect(postedNames(f.owners[0]!)).toEqual(expect.arrayContaining(['getProject', 'issueChatGrant', 'bindYoloGrant']))
     expect(desktop.send).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ type: 'chats_changed', chatId: receipt.chatId }))
   } finally {
     for (const session of host.spawns) if (!session.exited) session.exit()

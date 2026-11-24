@@ -449,7 +449,6 @@ function recoveryMachine(m: Machine, f: ReturnType<typeof forgeSource>) {
   }
   const promptInput = new Set<string>()
   const messages = new Set<string>()
-  const hold = vi.fn(async () => {})
   const start = vi.fn<Parameters<typeof createToolingRecovery>[0]['start']>(async (chat, prompt, verify) => {
     expect(chat).toMatchObject({ folder: f.member, role: 'orchestrator', allowSave: false })
     expect(await verify()).toBe(f.code)
@@ -461,7 +460,7 @@ function recoveryMachine(m: Machine, f: ReturnType<typeof forgeSource>) {
   } }
   const service = createToolingRecovery({
     source: { requireAvailable: m.checkouts.requireRecoveryCheckout }, store, incidents: createRecoveryStore({ userData: m.root }),
-    version: () => '0.71.0-test', transportProblem: () => null, hold, release: async () => {},
+    version: () => '0.71.0-test', transportProblem: () => null, notifyPeers: async () => {},
     createCard: async (folder, input) => {
       expect(folder).toBe(f.member)
       return (await workspace.createKanbanCard(input)).id
@@ -475,26 +474,25 @@ function recoveryMachine(m: Machine, f: ReturnType<typeof forgeSource>) {
       wake: async () => null
     }
   })
-  return { service, input, context, workspace, hold, start }
+  return { service, input, context, workspace, start }
 }
 
-it('replays a held incident into its existing member and pins the dedicated launch to the separate checkout', async () => {
+it('replays a reported incident into its existing member and pins the dedicated launch to the separate checkout', async () => {
   const m = machine()
   const f = forgeSource(m)
   m.registry.track(f.world)
   const hint = readFileSync(f.hint)
   rmSync(f.hint)
-  const { service, input, context, workspace, hold, start } = recoveryMachine(m, f)
+  const { service, input, context, workspace, start } = recoveryMachine(m, f)
   try {
     const blocked = await service(input, context)
-    expect(blocked).toMatchObject({ blocked: true, cardId: null, repairChatId: null })
+    expect(blocked).toMatchObject({ waitingForRepair: true, cardId: null, repairChatId: null })
     writeFileSync(f.hint, hint)
     const result = await service(input, context)
     expect(result).toMatchObject({ incidentId: blocked.incidentId, sourceFolder: f.member, startup: 'running', connection: 'connected' })
     expect(await service(input, context)).toMatchObject({ cardId: result.cardId, repairChatId: result.repairChatId })
     const cards = Object.values((await workspace.listKanbanCards({})).lanes).flat()
     expect(cards.map(card => card.id)).toEqual([result.cardId])
-    expect(hold).toHaveBeenCalledTimes(1)
     expect(start).toHaveBeenCalledTimes(1)
     expect(existsSync(f.sourceRecord)).toBe(false)
     expect(existsSync(m.associationFile)).toBe(false)

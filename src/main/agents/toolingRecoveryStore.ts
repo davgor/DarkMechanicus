@@ -6,8 +6,8 @@ import { toolingRecoveryInputSchema } from '../../shared/agents/toolingRecovery'
 const message = z.object({ id: z.string(), text: z.string(), recipient: z.enum(['caller', 'repair']) })
 const incidentSchema = z.object({
   id: z.string(), callerIncidentId: z.string(), caller: z.object({ folder: z.string().nullable(), id: z.string() }),
-  callerGeneration: z.string(), version: z.string(), diagnostic: toolingRecoveryInputSchema.options[0].shape.diagnostic,
-  blocked: z.boolean(), held: z.boolean(), sourceFolder: z.string().nullable(), sourceIdentity: z.string().nullable(), cardId: z.string().nullable(),
+  version: z.string(), diagnostic: toolingRecoveryInputSchema.options[0].shape.diagnostic,
+  sourceFolder: z.string().nullable(), sourceIdentity: z.string().nullable(), cardId: z.string().nullable(),
   // Legacy incidents used one folder for both code and tickets; keep their original prompt and replay identity.
   sourceCode: z.object({ path: z.string(), mapping: z.string() }).optional(),
   repairChatId: z.string().nullable(), startup: z.enum(['not_started', 'running', 'failed']),

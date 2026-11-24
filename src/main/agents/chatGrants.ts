@@ -213,7 +213,7 @@ class ChatGrantRegistry implements ChatGrants {
     this.liveByHash.set(grant.tokenHash, grant)
     grant.runId = identity.runId
     grant.cardId = identity.cardId
-    await grant.workspace.call('bindChatGrant', grantId, identity.chatId, this.deps.desktopFence === undefined ? undefined : this.yoloBinding(grantId, grant, binding))
+    if (this.deps.desktopFence !== undefined) await grant.workspace.call('bindYoloGrant', this.yoloBinding(grantId, grant, binding))
   }
   authorizeNaming(token: string): NamingControlBinding {
     const binding = this.liveByHash.get(hashToken(token))?.live

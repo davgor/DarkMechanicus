@@ -242,7 +242,7 @@ class ControlOperation {
     const verify = this.binding.verifyAuthority
     if (verify !== undefined) {
       await verify('chat.name')
-      if (this.operation.op === 'recover_tooling' || this.operation.op === 'recovery_context') await verify('tooling.recover')
+      if (this.operation.op === 'recover_tooling') await verify('tooling.recover')
     }
     this.assertActive()
   }
