@@ -30,6 +30,16 @@ describe('terminalEnv: what the CLIs read to see a true-color xterm', () => {
     expect(env['PI_FORCE_HYPERLINKS']).toBeUndefined()
     expect(env['DM_SESSION_TOKEN']).toBeUndefined()
   })
+
+  it.each(['omp', 'claude'] as const)('removes inherited terminal variables in every case for headless %s', (kind) => {
+    const env = terminalEnv({
+      base: { TERM: 'dumb', term: 'xterm', ColorTerm: 'truecolor', NODE_OPTIONS: '--inspect', dm_session_token: 'foreign' },
+      platform: 'win32', kind, cli: CLI, launcherDir: null, headless: true
+    })
+    expect(Object.keys(env).some(key => /^(?:TERM|COLORTERM|NODE_OPTIONS)$/i.test(key))).toBe(false)
+    expect(env['DM_SESSION_TOKEN']).toBe('tok')
+    expect(env['dm_session_token']).toBeUndefined()
+  })
 })
 
 it('gives only chat terminals their own naming address and never inherits one from the app environment', () => {

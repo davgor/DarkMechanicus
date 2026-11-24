@@ -46,6 +46,8 @@ interface TerminalEnvOptions {
   dmClient?: string
   /** Set only for a project-less chat that reaches no folder: it starts with no grant, so none is required. */
   grantless?: true
+  /** Structured stdio has no terminal, including any inherited terminal variables. */
+  headless?: true
 }
 
 /** The descriptor's variable, for an OMP launch that has one; any other kind given one is refused. */
@@ -100,13 +102,13 @@ function layered(base: TerminalEnvOptions['base'], own: Readonly<Record<string, 
 
 export function terminalEnv(options: TerminalEnvOptions): Record<string, string> {
   const own: Record<string, string> = {
-    ...TERMINAL_CONSTANTS,
+    ...(options.headless ? {} : TERMINAL_CONSTANTS),
     ...(options.kind === 'omp' ? OMP_CONSTANTS : {}),
     ...(options.kind === 'claude' ? { CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1' } : {}),
     ...dmEnv(options.cli, options.platform, options.grantless === true),
     ...dmClientEnv(options.kind, options.dmClient)
   }
-  const env = layered(options.base, own, NEVER_PASSED)
+  const env = layered(options.base, own, options.headless ? [...NEVER_PASSED, 'TERM', 'COLORTERM'] : NEVER_PASSED)
   if (options.platform !== 'win32') {
     const path = pathWithLauncher(env['PATH'], options.launcherDir)
     if (path !== undefined) {

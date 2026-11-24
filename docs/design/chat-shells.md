@@ -16,6 +16,14 @@ Design spike for DM-302 ("Design chats as terminal shells that run the agent CLI
 | 4. Adapters | Removed: no streaming, approvals, transcript mapping or protocol handshake is left. What survives is not an adapter: a per-kind table of CLI flags. |
 | 5. Testing | Pure launch-spec and IPC-validation unit tests; a fake `PtyHost` for lifecycle; a real PTY test with a fixture CLI under system Node; end to end on the built app over CDP on macOS and Windows. |
 
+### Structured GUI launch (DM-774)
+
+`src/main/agentChat/agentChatLaunch.ts` builds a shell-free argv launch for Claude (`-p`, stream-json, forwarded subagent text and stdio permissions) or Skitarii (`--mode rpc-ui`). Main supplies the canonical folder, registered agent, grant invocation, prepared `TerminalFiles` as `paths`, environment and platform. Before calling, main resolves Claude's `sessionStarted` with `claudeSessionExists`; for OMP it reads `ompSessionId(paths.omp.sessionDir)` into `chat.sessionId` and derives `sessionStarted` from that result. These facts are never accepted from the renderer. A fresh Claude UUID is supplied through `newSessionId`; OMP creates its own id. Kickoff text is returned as `firstMessage`, never added to argv.
+
+GUI and terminal starts share `writeTerminalFiles`/`instructionsTextFor`, `writeClaudeSettings` (including the identical memory-guard hook), `terminalEnv` and `windowsAgentProgram`. Headless environments remove inherited `TERM`/`COLORTERM` in every case and keep the grant env-only. Windows npm Claude shims resolve to `node.exe` plus the script; unresolved shell shims are refused. The launch builder does not spawn or write files. Hook execution in Claude `-p` mode remains unverified here; settings parity is not runtime hook proof.
+
+Claude `-p` skips its workspace trust dialog: tracking a folder in Dark Mechanicus is the trust decision for GUI launches. When no agent is explicitly selected, `pickChatAgent` chooses installed, signed-in Skitarii, then another signed-in GUI-capable agent, then a signed-in terminal-only agent; otherwise callers retain the sign-in path.
+
 ## What the app does today
 
 From the code (*verified (code)*), so the carry-over below has a baseline:
