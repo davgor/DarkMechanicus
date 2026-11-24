@@ -160,6 +160,11 @@ describe('SKILLS_VERSION', () => {
     const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
     expect(major > 1 || (major === 1 && minor >= 12)).toBe(true)
   })
+
+  it('moved past 1.14.0 when the guides started naming subagents by callsign', () => {
+    const [major = 0, minor = 0] = SKILLS_VERSION.split('.').map(Number)
+    expect(major > 1 || (major === 1 && minor >= 15)).toBe(true)
+  })
 })
 
 /** The orchestrator's rules live in its kernel guide plus the built-in orchestrator knowledge facts (those whose id starts with `idPrefix`). */

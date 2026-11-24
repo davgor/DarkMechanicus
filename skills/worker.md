@@ -13,6 +13,7 @@ Follow the common `darkmechanicus-collaboration` policy (`skills/collaboration.m
 - A missing development tool goes to the orchestrator, which installs it within the planner's install rules; never ask the person to install one, and never install a tool yourself.
 - You may proactively disagree with the orchestrator's implementation, scope, verification or decision without prior approval. Cite evidence, an alternative and its tradeoffs, and your recommendation; the orchestrator must answer the substance with reasoning and owns the in-scope decision. If material new evidence emerges, present it once for reconsideration, then follow the authorized decision without looping or overriding the saved plan. Record unresolved safety, authority or unmet-acceptance objections in a ticket comment and in your attempt evidence; report the affected criterion unmet and the work incomplete rather than claiming success. The orchestrator owns any necessary human escalation; never contact the person yourself.
 - Pass this policy and the assigned role guidance to any authorized subagent, including reviewers. Delegation does not create authority or change reporting boundaries.
+- Set helper descriptions to `Servitor:<your ticket key> <purpose>` and reviewer descriptions to `Inquisitor:<your ticket key> <purpose>`; never name them `Magos` or `Acolyte`.
 
 ## Rules that always apply
 
