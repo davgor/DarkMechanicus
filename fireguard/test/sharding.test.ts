@@ -56,15 +56,20 @@ describe('CI workload sharding', () => {
     }
   });
 
-  it('combines raw workloads and counts into the unsharded verdict, never averages scores', async () => {
+  it.each([
+    { count: 1, budgets: [100] },
+    { count: 2, budgets: [50, 50] },
+    { count: 3, budgets: [34, 33, 33] },
+    { count: 16, budgets: [7, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6] },
+  ])('combines raw workloads from $count shards into the unsharded verdict', async ({ count, budgets }) => {
     const whole = harness();
     const expected = await runFireguard(whole.deps);
-    const shards = [harness({ index: 1, count: 2 }), harness({ index: 2, count: 2 })];
+    const shards = Array.from({ length: count }, (_, i) => harness({ index: i + 1, count }));
     const partial = await Promise.all(shards.map(({ deps }) => runFireguard(deps)));
-    expect(partial.map((report) => report.revision)).toEqual([identity, identity]);
-    const combined = mergeShards(partial, 2, identity);
+    expect(partial.map((report) => report.revision)).toEqual(shards.map(() => identity));
+    const combined = mergeShards(partial, count, identity);
     expect(combined.revision).toEqual(identity);
-    expect(shards.map(({ runs }) => runs.length)).toEqual([50, 50]);
+    expect(shards.map(({ runs }) => runs.length)).toEqual(budgets);
     expect(shards.flatMap(({ runs }) => runs)).toEqual(whole.runs);
     expect(shards.flatMap(({ mutants }) => mutants).sort()).toEqual(whole.mutants.sort());
     expect(combined.gates).toEqual(expected.gates);
