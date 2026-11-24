@@ -326,10 +326,9 @@ function scheduledFixture(
   return { call, ready: forge.ready, registry, cleanup: () => { forge.stop(); vi.useRealTimers(); pool.closeAll(); cleanup() } }
 }
 
-it('queues real conflicts at the interval, waits for a signed-in resolver and publishes its finished merge', async () => {
+function scheduledResolverFixture() {
   const clones = conflictingClones()
-  const { root, remote, peer, home } = clones
-  const remoteCommit = gitIn(remote, 'rev-parse', 'main').trim()
+  const { home } = clones
   const store = createChatStore({ root: join(home, 'chats') })
   const chats = createChatRecords({ store, agentFor: () => null })
   const started = pending<void>(), synced = pending<void>(), nextSync = pending<void>()
@@ -364,6 +363,30 @@ it('queues real conflicts at the interval, waits for a signed-in resolver and pu
       else nextSync.resolve()
     }
   })
+  return {
+    ...clones, ...fixture, store, chats, started, synced, nextSync, live, launches,
+    signIn: () => { signedIn = true }
+  }
+}
+
+async function verifyStagedMergeStaysLocal(
+  { root, remote, call, launches }: { root: string; remote: string; call(name: string): Promise<unknown>; launches: string[] },
+  remoteCommit: string
+): Promise<void> {
+  // The mock resolves the overlapping edit in favor of remote main; Git has already merged the independent files.
+  gitIn(root, 'checkout', '--theirs', 'README.md')
+  gitIn(root, 'add', 'README.md')
+  expect(gitIn(root, 'ls-files', '-u')).toBe('')
+  await expect(call('sync')).rejects.toThrow(/merge.*commit/i)
+  expect(gitIn(remote, 'rev-parse', 'main').trim()).toBe(remoteCommit)
+  expect(gitIn(root, 'rev-parse', 'MERGE_HEAD').trim()).toBe(remoteCommit)
+  expect(launches).toEqual(['codex'])
+}
+
+it('queues real conflicts at the interval, waits for a signed-in resolver and publishes its finished merge', async () => {
+  const fixture = scheduledResolverFixture()
+  const { root, remote, peer, store, chats, started, synced, nextSync, live, launches } = fixture
+  const remoteCommit = gitIn(remote, 'rev-parse', 'main').trim()
   try {
     await fixture.ready
     await vi.advanceTimersByTimeAsync(15_000)
@@ -375,7 +398,7 @@ it('queues real conflicts at the interval, waits for a signed-in resolver and pu
     expect(gitIn(remote, 'rev-parse', 'main').trim()).toBe(remoteCommit)
     const localCommit = gitIn(root, 'rev-parse', 'HEAD').trim()
 
-    signedIn = true
+    fixture.signIn()
     await vi.advanceTimersByTimeAsync(15_000)
     await started.promise
     const [chat] = chats.listChats(root)
@@ -384,14 +407,7 @@ it('queues real conflicts at the interval, waits for a signed-in resolver and pu
     expect(chat.firstPrompt).toMatch(/preserve compatible changes/i)
     expect(launches).toEqual(['codex'])
 
-    // The mock resolves the overlapping edit in favor of remote main; Git has already merged the independent files.
-    gitIn(root, 'checkout', '--theirs', 'README.md')
-    gitIn(root, 'add', 'README.md')
-    expect(gitIn(root, 'ls-files', '-u')).toBe('')
-    await expect(fixture.call('sync')).rejects.toThrow(/merge.*commit/i)
-    expect(gitIn(remote, 'rev-parse', 'main').trim()).toBe(remoteCommit)
-    expect(gitIn(root, 'rev-parse', 'MERGE_HEAD').trim()).toBe(remoteCommit)
-    expect(launches).toEqual(['codex'])
+    await verifyStagedMergeStaysLocal(fixture, remoteCommit)
     gitIn(root, 'commit', '-m', 'Resolve overlapping edit in favor of remote main')
 
     await vi.advanceTimersByTimeAsync(15_000)

@@ -109,7 +109,7 @@ describe('Forge World grant lifecycle', () => {
 
 })
 
-describe('Forge World member agent context', () => {
+describe('Forge World conflict resolvers', () => {
   it('starts a background root resolver using only cached world members while a manifest is conflicted', async () => {
     writeFileSync(join(rig.repo, 'forge-world.json'), '<<<<<<< HEAD\n{}\n=======\n{}\n>>>>>>> remote\n')
     const chat = rig.newChat('omp')
@@ -152,7 +152,9 @@ describe('Forge World member agent context', () => {
     expect(await rig.sessions.attach(rig.newChat())).toMatchObject({ state: 'refused' })
     expect(rig.host.spawns).toHaveLength(1)
   })
+})
 
+describe('Forge World member agent context', () => {
   it.each(['manual', 'card', 'run'] as const)('supplies code directions to a %s member chat while retaining its project mailbox', async kind => {
     const chat = rig.store.createChat({ folder: member, agent: 'omp', model: null, title: 'Member work', role: 'orchestrator', allowSave: false,
       ...(kind === 'run' ? { runId: 'rn_1' } : {}), ...(kind === 'card' ? { cardId: 'kc_1' } : {}) })

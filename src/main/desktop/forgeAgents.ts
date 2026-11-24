@@ -26,43 +26,52 @@ async function startResolverTerminal(terminals: ResolverOptions['terminals'], ch
   return true
 }
 
-export function forgeAgentSessions({ store, chats, terminals, agents, checkAuth, folderDefaults, registry, beforeArchive }: ResolverOptions) {
-  const starting = new Map<string, Promise<void>>()
-  const begin = async (root: string, assertCurrent?: () => void) => {
-    const prior = store.listChats(root).filter(chat => chat.forgeResolver === root && !chat.archived)
-    if (prior.some(chat => terminals.isRunning(chat.id))) return
-    if (prior.some(chat => chat.firstPromptDelivery === 'uncertain')) throw new Error('The resolver prompt delivery is uncertain. Inspect its chat before restarting it.')
-
-    const connected = new Set(agents.list().map(candidate => candidate.id))
-    if (connected.size === 0) throw new Error('Connect an agent to resolve Forge World conflicts.')
-    const preferred = folderDefaults.get(root)
-    const candidates = new Set<AgentId>()
-    if (preferred !== null) candidates.add(preferred)
-    for (const chat of prior) candidates.add(chat.agent)
-    for (const id of connected) candidates.add(id)
-
-    const kickoff = 'Resolve the repository merge in the Forge World at ' + JSON.stringify(root) +
-      '. Stay on main and use the Git merge base and both merge parents to review every conflict. If no merge is in progress, stop without editing. ' +
-      'For incompatible changes, prefer existing remote main (MERGE_HEAD, theirs) when this merge fetched remote main. ' +
-      'When recovering an off-main local branch into existing local main, prefer HEAD (ours) instead. Check the merge message and Git refs to identify the parent roles before choosing. ' +
-      'Preserve compatible changes from both sides, including within each file; do not take one side wholesale. Review delete/edit conflicts, ticket identities, references, repository mappings, documentation and attachments. ' +
-      'Validate the resolved records and finish the merge commit with both parents. Do not abort the merge, rewrite history, push, or commit machine-private .darkmechanicus/local files. The desktop will validate, push main, and archive this background session.'
-    for (const id of candidates) {
-      if (!connected.has(id) || await checkAuth(id).catch(() => 'unknown') !== 'signed_in') continue
-      assertCurrent?.()
-      const chat = prior.find(candidate => candidate.agent === id) ??
-        await chats.createChat({ folder: root, agent: id, role: 'worker', allowSave: false, title: 'Resolve Forge World merge', firstPrompt: kickoff })
-      store.updateChat(chat, { forgeResolver: root })
-      assertCurrent?.()
-      if (await startResolverTerminal(terminals, chat, kickoff)) return
-    }
-    throw new Error('Sign in to an agent to resolve Forge World conflicts.')
+function resolverCandidates({ agents, folderDefaults }: ResolverOptions, root: string, prior: ChatRecord[]): Set<AgentId> {
+  const connected = new Set(agents.list().map(candidate => candidate.id))
+  if (connected.size === 0) throw new Error('Connect an agent to resolve Forge World conflicts.')
+  const preferred = folderDefaults.get(root)
+  const candidates = new Set<AgentId>()
+  if (preferred !== null && connected.has(preferred)) candidates.add(preferred)
+  for (const chat of prior) {
+    if (connected.has(chat.agent)) candidates.add(chat.agent)
   }
+  for (const id of connected) candidates.add(id)
+  return candidates
+}
+
+async function beginResolver(options: ResolverOptions, root: string, assertCurrent?: () => void): Promise<void> {
+  const { store, chats, terminals, checkAuth } = options
+  const prior = store.listChats(root).filter(chat => chat.forgeResolver === root && !chat.archived)
+  if (prior.some(chat => terminals.isRunning(chat.id))) return
+  if (prior.some(chat => chat.firstPromptDelivery === 'uncertain')) throw new Error('The resolver prompt delivery is uncertain. Inspect its chat before restarting it.')
+
+  const candidates = resolverCandidates(options, root, prior)
+  const kickoff = 'Resolve the repository merge in the Forge World at ' + JSON.stringify(root) +
+    '. Stay on main and use the Git merge base and both merge parents to review every conflict. If no merge is in progress, stop without editing. ' +
+    'For incompatible changes, prefer existing remote main (MERGE_HEAD, theirs) when this merge fetched remote main. ' +
+    'When recovering an off-main local branch into existing local main, prefer HEAD (ours) instead. Check the merge message and Git refs to identify the parent roles before choosing. ' +
+    'Preserve compatible changes from both sides, including within each file; do not take one side wholesale. Review delete/edit conflicts, ticket identities, references, repository mappings, documentation and attachments. ' +
+    'Validate the resolved records and finish the merge commit with both parents. Do not abort the merge, rewrite history, push, or commit machine-private .darkmechanicus/local files. The desktop will validate, push main, and archive this background session.'
+  for (const id of candidates) {
+    if (await checkAuth(id).catch(() => 'unknown') !== 'signed_in') continue
+    assertCurrent?.()
+    const chat = prior.find(candidate => candidate.agent === id) ??
+      await chats.createChat({ folder: root, agent: id, role: 'worker', allowSave: false, title: 'Resolve Forge World merge', firstPrompt: kickoff })
+    store.updateChat(chat, { forgeResolver: root })
+    assertCurrent?.()
+    if (await startResolverTerminal(terminals, chat, kickoff)) return
+  }
+  throw new Error('Sign in to an agent to resolve Forge World conflicts.')
+}
+
+export function forgeAgentSessions(options: ResolverOptions) {
+  const { store, terminals, registry, beforeArchive } = options
+  const starting = new Map<string, Promise<void>>()
   return {
     onConflict: (root: string, assertCurrent?: () => void): Promise<void> => {
       const pending = starting.get(root)
       if (pending) return pending
-      const work = begin(root, assertCurrent).finally(() => starting.delete(root))
+      const work = beginResolver(options, root, assertCurrent).finally(() => starting.delete(root))
       starting.set(root, work)
       return work
     },

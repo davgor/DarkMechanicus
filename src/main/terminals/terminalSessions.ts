@@ -1007,19 +1007,26 @@ function assertSpawnLocation(context: StartContext, expectedDirectory: string | 
   } catch (error) { throw new FolderRefused(messageOf(error)) }
 }
 
+async function startAuthRefusal(context: StartContext, step: Step): Promise<{ state: 'signed_out'; message: string } | null> {
+  const { manager, chat, agent, starting } = context
+  if (agent.kind === 'custom') {
+    return chat.forgeResolver === undefined ? null :
+      { state: 'signed_out', message: 'The resolver agent does not support sign-in verification.' }
+  }
+  const status = await step(manager.deps.checkAuth(agent.kind, agent.executablePath).catch((): AgentAuthStatus | null => null))
+  const state = status?.state
+  if (state === 'signed_out' || (chat.forgeResolver !== undefined && state !== 'signed_in')) {
+    return { state: 'signed_out', message: status?.reason ?? 'The resolver agent sign-in could not be verified.' }
+  }
+  starting.phase = 'preparing'
+  return null
+}
+
 /** The steps before a spawn, in their order (see the module comment). */
 async function runStart(context: StartContext, step: Step): Promise<StartOutcome> {
-  const { manager, chat, agent, folder, starting } = context
-  if (chat.forgeResolver !== undefined && agent.kind === 'custom') {
-    return { state: 'signed_out', message: 'The resolver agent does not support sign-in verification.' }
-  }
-  if (agent.kind !== 'custom') {
-    const status = await step(manager.deps.checkAuth(agent.kind, agent.executablePath).catch((): AgentAuthStatus | null => null))
-    if (status?.state === 'signed_out' || (chat.forgeResolver !== undefined && status?.state !== 'signed_in')) {
-      return { state: 'signed_out', message: status?.reason ?? 'The resolver agent sign-in could not be verified.' }
-    }
-    starting.phase = 'preparing'
-  }
+  const { manager, chat, agent, folder } = context
+  const refusal = await startAuthRefusal(context, step)
+  if (refusal !== null) return refusal
   const repairCheckout = await step(recheckFolder(context))
   const files = await step(writeStartFiles(context, repairCheckout))
   await step(recheckFolder(context))
