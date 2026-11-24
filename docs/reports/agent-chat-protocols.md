@@ -315,6 +315,12 @@ O: `secret` requests conceal sensitive input (field IPC:767-797); I precise meth
 
 Renderer consumption: `src/renderer/src/agentChat/agentChanges.ts` derives Changes from completed file calls in transcript order. Chat scope includes all threads; worker scope includes nested helpers. Rows count touches and use the newest tool, not git added/modified status. Paths are normalized lexically and compared case-insensitively on Windows drive paths; project-less paths stay marked outside. Shell edits remain invisible. This derivation does not upgrade the inferred OMP path keys to observed protocol facts.
 
+### Shared to-do normalization
+
+`src/main/agentChat/todoLists.ts` implements the host's pure validation boundary without changing the inference labels above. `todoWritePhases(input)` accepts the complete TodoWrite input; `ompTodoPhases(value)` accepts the phase array extracted from either successful `result.details.phases` or `get_state.data.todoPhases`. A malformed task rejects the entire replacement (`null`): retain the prior state and count one skipped line. Limits are 20 phases and 100 tasks across the list. Free text is secret-masked before clipping (500 characters for task text, 200 for phase names, including the ellipsis); blockers survive only for blocked tasks.
+
+For incremental Claude tools, initialize `TaskList` as `{tasks: [], pendingCreates: {}}`. `taskCreateStarted` retains a validated subject/activeForm under the tool-use id; `taskCreateResult` consumes that pending entry and binds the numeric id from `Task #N`, or uses `null` when none is usable. Apply results only for successful tool calls. `taskUpdate` returns `{list, skipped}` and preserves the original list on invalid status or unknown id; `deleted` removes the task. `taskPhases` returns one unnamed phase. All helpers are immutable; state is owned by the caller per thread, and failed tool calls remain the translator's responsibility.
+
 ## Fixture catalog and replay
 
 Root: `src/main/agentChat/__fixtures__/`. Each entry has `.in.jsonl` (host writes) and `.out.jsonl` (CLI writes):
