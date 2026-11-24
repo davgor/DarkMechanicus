@@ -42,26 +42,26 @@ function stored(chat: ChatRecord): ChatRecord | undefined {
   return rig.reopenedStore().listChats(rig.repo).find((candidate) => candidate.id === chat.id)
 }
 
-describe('terminal sessions: paste into a running terminal', () => {
-  it('sends advisory input to a live terminal without starting or restarting any chat', async () => {
-    const active = rig.newChat('claude')
-    const idle = rig.newChat('claude')
-    const message = 'A repair agent is working on a tooling issue.'
-    const { pty } = await startTerminal(rig, active)
-    await draw(pty, 'Claude Code')
-    rig.clock.advance(SECOND)
-    expect(rig.sessions.activeChats().map(chat => chat.id)).toEqual([active.id])
-    rig.sessions.pasteIfRunning(idle, message)
-    rig.sessions.pasteIfRunning(active, message)
-    rig.clock.advance(ENTER_DELAY)
-    expect(pty.written).toEqual(pasteOf(message))
-    pty.exit()
-    await settle()
-    rig.sessions.pasteIfRunning(active, message)
-    expect(rig.sessions.activeChats()).toEqual([])
-    expect(rig.host.spawns).toHaveLength(1)
-  })
+it('sends advisory input to a live terminal without starting or restarting any chat', async () => {
+  const active = rig.newChat('claude')
+  const idle = rig.newChat('claude')
+  const message = 'A repair agent is working on a tooling issue.'
+  const { pty } = await startTerminal(rig, active)
+  await draw(pty, 'Claude Code')
+  rig.clock.advance(SECOND)
+  expect(rig.sessions.activeChats().map(chat => chat.id)).toEqual([active.id])
+  rig.sessions.pasteIfRunning(idle, message)
+  rig.sessions.pasteIfRunning(active, message)
+  rig.clock.advance(ENTER_DELAY)
+  expect(pty.written).toEqual(pasteOf(message))
+  pty.exit()
+  await settle()
+  rig.sessions.pasteIfRunning(active, message)
+  expect(rig.sessions.activeChats()).toEqual([])
+  expect(rig.host.spawns).toHaveLength(1)
+})
 
+describe('terminal sessions: paste into a running terminal', () => {
   it('pastes at once into a CLI whose screen has settled, then presses Enter as its own keypress half a second later', async () => {
     const chat = rig.newChat('claude')
     const { pty } = await startTerminal(rig, chat)

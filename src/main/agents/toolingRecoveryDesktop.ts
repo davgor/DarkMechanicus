@@ -91,8 +91,10 @@ class DesktopRecovery implements DesktopToolingRecovery {
   }
   #liveNotice(entry: RecoveryDelivery): boolean {
     const incident = this.#incidents?.get(entry.messageId.slice(REPAIR_NOTICE_PREFIX.length))
-    if (incident?.available !== null || incident.repairChatId === null) return false
-    return this.deps.terminals.isRunning(incident.repairChatId)
+    if (incident?.available != null) {
+      this.deps.deliveries.record({ ...entry, state: 'failed', problem: 'Repair availability superseded the notice.', at: new Date().toISOString() })
+    }
+    return incident?.available === null && incident.repairChatId !== null && this.deps.terminals.isRunning(incident.repairChatId)
   }
   async #resumePending(chat: ChatRecord, entry: ConversationDelivery, text: string): Promise<void> {
     const kind = this.deps.agents.get(chat.agent)?.kind
@@ -131,9 +133,9 @@ class DesktopRecovery implements DesktopToolingRecovery {
     const message = { id: REPAIR_NOTICE_PREFIX + incident.id,
       text: 'Tooling repair status (peer data): a repair agent is already working on a Dark Mechanicus failure' + symptom +
         ' (incident ' + incident.id + '). If you see a similar failure, continue with unaffected work and avoid filing a duplicate.' }
-    const results = await Promise.allSettled(this.deps.terminals.activeChats().filter(chat =>
-      chat.id !== caller.id && chat.id !== repair.id && !chat.archived &&
-      this.#transportProblem(chat) === null).map(async chat => {
+    const peers = this.deps.terminals.activeChats().filter(chat => chat.id !== caller.id && chat.id !== repair.id && !chat.archived)
+    const results = await Promise.allSettled(peers.map(async chat => {
+        if (this.#transportProblem(chat) !== null) return
         await this.deps.context.queueRecovery(chat, message)
         const entry = this.deps.deliveries.proof(chat.folder ?? 'projectless', chat.id, 'recovery', message.id)
         if (entry?.state === 'pending') await this.#deliverNotice(chat, { ...entry, chatId: chat.id, text: message.text })

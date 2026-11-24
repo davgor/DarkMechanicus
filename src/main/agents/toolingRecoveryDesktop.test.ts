@@ -144,6 +144,7 @@ it('stops advertising a repair once its repair agent reports availability', asyn
   const repair = f.store.getChat({ folder: f.source.root, id: repairChatId })!
   await f.desktop.dispatch({ op: 'recover_tooling', args: { action: 'available', incidentId, version: '1.0.0', evidence: 'Fixture verified' } }, context(repair))
   expect(f.desktop.dispatch(read, context(peer))).toEqual({ messages: [] })
+  expect(f.ledger.pending().filter(entry => entry.chatId === peer.id)).toEqual([])
 })
 
 it.each(['folder', 'missing', 'run', 'card', 'role', 'expired'] as const)('refuses desktop %s identity before any source/card/repair side effects', async mismatch => {
