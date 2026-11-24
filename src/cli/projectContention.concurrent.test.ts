@@ -133,7 +133,6 @@ class WorkerCli {
     const child = this.start(token, command, json, mode)
     this.children.add(child)
     const { promise: outcome, resolve, reject } = deferred<{ code: number; envelope: unknown }>()
-    // An early setup failure is also surfaced by writing; attach a handler in case the fixture aborts before reading outcome.
     void outcome.catch(() => undefined)
     const writing = deferred<void>()
     void writing.promise.catch(() => undefined)
@@ -155,13 +154,8 @@ class WorkerCli {
     child.on('close', (code) => {
       this.children.delete(child)
       closing.reject(new Error('CLI exited before audit contention'))
-      if (code === null) {
-        const error = new Error(`CLI stopped before ${command} returned`)
-        writing.reject(error)
-        committed.reject(error)
-        return reject(error)
-      }
       try {
+        if (code === null) throw new Error('CLI stopped')
         const envelope: unknown = JSON.parse(stdout)
         writing.reject(new Error(`${command} exited before reaching the first project write transaction`))
         committed.reject(new Error(`${command} exited before committing the fixture report`))
@@ -176,7 +170,7 @@ class WorkerCli {
     if (mode !== 'audit-close') child.stdin.end(json)
     return {
       outcome, writing: writing.promise, committed: committed.promise, closing: closing.promise,
-      allowAuditClose: () => child.stdin.end(), diagnostics: () => stderr
+      allowAuditClose: () => child.stdin.end()
     }
   }
 

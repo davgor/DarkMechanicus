@@ -388,12 +388,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
     if (!restricted) {
       this.fs.mkdirp(this.layout.localDir)
     }
-    const db = openDatabase(this.layout.dbFile, {
-      synchronous: this.options.databaseSynchronous ?? 'full', readOnly: this.options.mailRead === true,
-      ...(this.transport === 'cli' && this.options.onWriterBusy
-        ? { onWriterBusy: this.options.onWriterBusy, busyTimeoutMs: 500 }
-        : this.transport === 'cli' && !restricted ? { contentionTimeoutMs: CLI_SQLITE_CONTENTION_TIMEOUT_MS } : {})
-    })
+    const db = this.openProjectDatabase(restricted)
     try {
       this.store = this.createStore(db, project)
 
@@ -408,6 +403,15 @@ export class RepositoryWorkspace implements WorkspaceCore {
       db.close()
       throw error
     }
+  }
+
+  private openProjectDatabase(restricted: boolean): Db {
+    return openDatabase(this.layout.dbFile, {
+      synchronous: this.options.databaseSynchronous ?? 'full', readOnly: this.options.mailRead === true,
+      ...(this.transport === 'cli' && this.options.onWriterBusy
+        ? { onWriterBusy: this.options.onWriterBusy, busyTimeoutMs: 500 }
+        : this.transport === 'cli' && !restricted ? { contentionTimeoutMs: CLI_SQLITE_CONTENTION_TIMEOUT_MS } : {})
+    })
   }
 
   private finishOpen(): void {
