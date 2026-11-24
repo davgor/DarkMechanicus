@@ -1,4 +1,4 @@
-import type { AgentChatEvent, AgentChatSnapshot } from '../../../../shared/agents/agentChat'
+import type { AgentChatEvent, AgentChatSnapshot, AgentTodoPhase } from '../../../../shared/agents/agentChat'
 import type { ChatItem } from '../../../../shared/agents/chat'
 
 const ref = { folder: null, chatId: 'fixture-chat' }
@@ -10,9 +10,33 @@ const conversation: ChatItem[] = [
 ]
 const tool: ChatItem = { id: 'tool', at, kind: 'tool_call', name: 'Read', input: { path: 'src/renderer/src/agentChat/AgentChat.tsx' }, status: 'running', resultSummary: null }
 
+const todoPhases: AgentTodoPhase[] = [
+  { name: 'Inspect', tasks: [
+    { id: '1', content: 'Read the contract', status: 'completed' },
+    { id: '2', content: 'Inspect the view', status: 'completed' },
+    { id: '3', content: 'Check the model', status: 'completed' }
+  ] },
+  { name: 'Deliver', tasks: [
+    { id: '4', content: 'Implement the card', activeForm: 'Implementing the card', status: 'in_progress' },
+    { id: '5', content: 'Capture the surface', status: 'blocked', blocker: 'Review fixture approval' },
+    { id: '6', content: 'Replace the transcript', status: 'abandoned' },
+    { id: '7', content: 'Review the result', status: 'pending' }
+  ] }
+]
 /** Snapshot arrays remain the transport contract, independent of the renderer's derived state. */
-export const agentChatScenarios: Record<'empty' | 'streaming' | 'tool' | 'approval' | 'error', { snapshot: AgentChatSnapshot; events: AgentChatEvent[]; commit: AgentChatEvent[] }> = {
+export const agentChatScenarios: Record<'empty' | 'streaming' | 'tool' | 'approval' | 'error' | 'todos' | 'todosDone', { snapshot: AgentChatSnapshot; events: AgentChatEvent[]; commit: AgentChatEvent[] }> = {
   empty: { snapshot: empty, events: [], commit: [] },
+  todos: {
+    snapshot: { ...empty, status: 'busy', todos: [{ threadId: null, phases: todoPhases }] },
+    events: [], commit: []
+  },
+  todosDone: {
+    snapshot: { ...empty, status: 'busy', todos: [{ threadId: null, phases: todoPhases }] },
+    events: [{ ...ref, type: 'todos', threadId: null, phases: todoPhases.map((phase) => ({
+      ...phase, tasks: phase.tasks.map((task) => ({ ...task, status: 'completed' }))
+    })) }],
+    commit: [{ ...ref, type: 'status', status: 'idle' }]
+  },
   streaming: {
     snapshot: { ...empty, items: conversation, status: 'busy', queued: 2 },
     events: [

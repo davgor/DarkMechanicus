@@ -1,9 +1,12 @@
 import type { AgentChatEvent, AgentChatSnapshot, AgentTodoPhase } from '../../../shared/agents/agentChat'
 import { applyItem } from '../agents/chatViewModel'
+import { nextTodoMemory, type TodoMemory } from './todoPanelModel'
 
 export interface AgentChatState extends Omit<AgentChatSnapshot, 'status' | 'todos'> {
   /** Renderer-only index: the chat's own thread is '', and empty lists have no entry. */
   todos: ReadonlyMap<string, AgentTodoPhase[]>
+  /** Ephemeral history advanced in event order, including threads not currently selected. */
+  todoMemory: ReadonlyMap<string, TodoMemory>
   /** Busy transitions, not repeated busy notifications, mark new turns. */
   turn: number
   /** Arrival times come from the hook's injected clock, never the reducer's wall clock. */
@@ -26,28 +29,58 @@ function snapshotTurnStartedAt(snapshot: AgentChatSnapshot | undefined, at: numb
   return at
 }
 
-export function agentChatState(snapshot?: AgentChatSnapshot, at = 0): AgentChatState {
+function advanceTodoMemory(todos: AgentChatState['todos'], previous: AgentChatState['todoMemory'] | undefined, turn: number, busy: boolean): AgentChatState['todoMemory'] {
+  const memories = new Map<string, TodoMemory>()
+  for (const [key, phases] of todos) {
+    memories.set(key, nextTodoMemory(previous?.get(key) ?? null, { phases, turn, busy }))
+  }
+  return memories
+}
+
+function indexSnapshotTodos(entries: AgentChatSnapshot['todos']): AgentChatState['todos'] {
   const todos = new Map<string, AgentTodoPhase[]>()
-  for (const entry of snapshot?.todos ?? []) {
+  for (const entry of entries) {
     const key = entry.threadId ?? ''
     if (entry.phases.length) todos.set(key, entry.phases)
     else todos.delete(key)
   }
-  return {
+  return todos
+}
+
+export function agentChatState(snapshot?: AgentChatSnapshot, at = 0, baseline?: AgentChatState): AgentChatState {
+  const todos = indexSnapshotTodos(snapshot?.todos ?? [])
+  const state: AgentChatState = {
     items: [], status: null, pending: null, queued: 0, surface: 'gui',
-    ...snapshot, todos, turn: 0, streaming: new Map(), lastEventAt: at,
+    ...snapshot, todos, todoMemory: advanceTodoMemory(todos, undefined, 0, snapshot?.status === 'busy'),
+    turn: 0, streaming: new Map(), lastEventAt: at,
     turnStartedAt: snapshotTurnStartedAt(snapshot, at)
+  }
+  return baseline ? reconcileAgentChatLifecycle(state, baseline) : state
+}
+
+/** Snapshot data cannot replay or rewind the subscription's observed lifecycle. */
+export function reconcileAgentChatLifecycle(state: AgentChatState, live: AgentChatState): AgentChatState {
+  const busy = state.status === 'busy'
+  const turn = live.turn + Number(busy && live.status !== 'busy')
+  return {
+    ...state, turn,
+    todoMemory: advanceTodoMemory(state.todos, live.todoMemory, turn, busy),
+    turnStartedAt: state.status === live.status ? live.turnStartedAt : state.turnStartedAt
   }
 }
 
-function replaceThreadTodos(
-  previous: ReadonlyMap<string, AgentTodoPhase[]>, threadId: string | null, phases: AgentTodoPhase[]
-): ReadonlyMap<string, AgentTodoPhase[]> {
+function replaceThreadTodos(state: AgentChatState, threadId: string | null, phases: AgentTodoPhase[]): AgentChatState {
   const key = threadId ?? ''
-  const todos = new Map(previous)
-  if (phases.length) todos.set(key, phases)
-  else todos.delete(key)
-  return todos
+  const todos = new Map(state.todos)
+  const todoMemory = new Map(state.todoMemory)
+  if (phases.length) {
+    todos.set(key, phases)
+    todoMemory.set(key, nextTodoMemory(todoMemory.get(key) ?? null, { phases, turn: state.turn, busy: state.status === 'busy' }))
+  } else {
+    todos.delete(key)
+    todoMemory.delete(key)
+  }
+  return { ...state, todos, todoMemory }
 }
 
 function statusState(state: AgentChatState, event: Extract<AgentChatEvent, { type: 'status' }>, at: number): AgentChatState {
@@ -55,9 +88,12 @@ function statusState(state: AgentChatState, event: Extract<AgentChatEvent, { typ
   let turnStartedAt = state.turnStartedAt
   if (newTurn) turnStartedAt = at
   else if (event.status !== 'busy' && event.status !== 'starting') turnStartedAt = null
+  const turn = state.turn + Number(newTurn)
+  const todoMemory = event.status === state.status ? state.todoMemory
+    : advanceTodoMemory(state.todos, state.todoMemory, turn, event.status === 'busy')
   return {
     ...state, lastEventAt: at, status: event.status, statusDetail: event.detail,
-    turn: state.turn + Number(newTurn), turnStartedAt
+    turn, turnStartedAt, todoMemory
   }
 }
 
@@ -89,6 +125,6 @@ export function reduceAgentChat(state: AgentChatState, event: AgentChatEvent, at
     case 'queued':
       return { ...state, lastEventAt: at, queued: event.count }
     case 'todos':
-      return { ...state, lastEventAt: at, todos: replaceThreadTodos(state.todos, event.threadId, event.phases) }
+      return { ...replaceThreadTodos(state, event.threadId, event.phases), lastEventAt: at }
   }
 }

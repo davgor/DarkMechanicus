@@ -27,7 +27,7 @@ export function activeTask(phases: readonly AgentTodoPhase[]): AgentTodoTask | n
   return null
 }
 
-interface TodoMemory {
+export interface TodoMemory {
   hadOpenTasks: boolean
   finishedInTurn: number | null
 }

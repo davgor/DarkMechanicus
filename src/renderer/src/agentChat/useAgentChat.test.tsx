@@ -10,6 +10,7 @@ import { ManualScheduler } from '../__mocks__/manualScheduler'
 import { settle } from '../__mocks__/settle'
 import { ClockContext, type Clock } from '../epic/clock'
 import { useAgentChat } from './useAgentChat'
+import { showsTodoCard } from './todoPanelModel'
 
 const ref = { folder: 'C:\\project', chatId: 'chat-one' }
 const snapshot = (overrides: Partial<AgentChatSnapshot> = {}): AgentChatSnapshot => ({ items: [], status: 'idle', pending: null, queued: 0, surface: 'gui', todos: [], ...overrides })
@@ -367,4 +368,157 @@ it('flushes buffered deltas before retirement and preserves another live stream 
   act(() => view.scheduler.fireTimeouts(33))
   expect([...view.result.current.state.streaming.keys()]).toEqual(['worker'])
   expect(view.result.current.state.lastEventAt).toBe(2_000)
+})
+
+it.each(['snapshot', 'refusal', 'failure'] as const)('reconciles ordered todo completion through a command %s', async (outcome) => {
+  const phases: AgentTodoPhase[] = [{ name: '', tasks: [{ id: 't', content: 'Work', status: 'pending' }] }]
+  const closed: AgentTodoPhase[] = [{ name: '', tasks: [{ ...phases[0].tasks[0], status: 'completed' }] }]
+  const api = new FakeAgentChat()
+  api.snapshotResult = { ok: true, data: snapshot({ status: 'busy', todos: [{ threadId: null, phases }] }) }
+  const view = mount(api)
+  await settle()
+  act(() => api.emit({ ...ref, type: 'todos', threadId: null, phases: closed }))
+  api.snapshotResult = { ok: true, data: snapshot({ status: 'busy', todos: [{ threadId: null, phases: closed }] }) }
+  if (outcome === 'refusal') api.failures.setSurface = { code: 'busy', message: 'Busy' }
+  if (outcome === 'failure') api.failures.start = { code: 'internal_error', message: 'Failed' }
+  await act(async () => {
+    if (outcome === 'failure') await view.result.current.start()
+    else await view.result.current.setSurface('gui')
+  })
+  expect(view.result.current.state.todoMemory.get('')?.finishedInTurn).toBe(outcome === 'failure' ? null : 0)
+  const held = api.hold('setSurface')
+  let pending: Promise<CommandResult<AgentChatSnapshot>>
+  act(() => { pending = view.result.current.setSurface('gui') })
+  act(() => {
+    api.emit({ ...ref, type: 'status', status: 'idle' })
+    api.emit({ ...ref, type: 'status', status: 'busy' })
+  })
+  await act(async () => { held.resolve(); await pending })
+  expect(view.result.current.state.todoMemory.get('')?.finishedInTurn).toBeNull()
+})
+
+it('reconciles snapshot completion and deletion without granting a fresh closed snapshot lingering', async () => {
+  const phases: AgentTodoPhase[] = [{ name: '', tasks: [{ id: 't', content: 'Work', status: 'pending' }] }]
+  const closed: AgentTodoPhase[] = [{ name: '', tasks: [{ ...phases[0].tasks[0], status: 'completed' }] }]
+  const api = new FakeAgentChat()
+  api.snapshotResult = { ok: true, data: snapshot({ status: 'busy', todos: [{ threadId: 'worker', phases }] }) }
+  const view = mount(api)
+  await settle()
+  api.snapshotResult = { ok: true, data: snapshot({ status: 'busy', todos: [{ threadId: 'worker', phases: closed }] }) }
+  await act(async () => { await view.result.current.setSurface('gui') })
+  expect(view.result.current.state.todoMemory.get('worker')?.finishedInTurn).toBe(0)
+  view.unmount()
+  const reload = mount(api)
+  await settle()
+  expect(reload.result.current.state.todoMemory.get('worker')?.finishedInTurn).toBeNull()
+  api.snapshotResult = { ok: true, data: snapshot({ status: 'busy' }) }
+  await act(async () => { await reload.result.current.setSurface('gui') })
+  expect(reload.result.current.state.todoMemory.size).toBe(0)
+})
+
+const openTodo: AgentTodoPhase[] = [{ name: '', tasks: [{ id: 't', content: 'Work', status: 'pending' }] }]
+const closedTodo: AgentTodoPhase[] = [{ name: '', tasks: [{ id: 't', content: 'Work', status: 'completed' }] }]
+
+it.each([
+  [null, 'snapshot'], ['worker', 'snapshot'], [null, 'refusal'], ['worker', 'refusal'],
+  [null, 'failure'], ['worker', 'failure']
+] as const)('keeps live lifecycle for thread %s during held %s in both event orders', async (threadId, outcome) => {
+  for (const completionLast of [false, true]) {
+    const api = new FakeAgentChat()
+    api.snapshotResult = { ok: true, data: snapshot({ status: 'busy', todos: [{ threadId, phases: openTodo }] }) }
+    const view = mountTimed(api)
+    await settle()
+    const method = outcome === 'failure' ? 'start' : 'setSurface'
+    const held = api.hold(method)
+    if (outcome !== 'snapshot') api.failures[method] = { code: 'busy', message: 'Refused' }
+    let pending: Promise<CommandResult<AgentChatSnapshot>>
+    act(() => { pending = method === 'start' ? view.result.current.start() : view.result.current.setSurface('gui') })
+    act(() => {
+      if (!completionLast) api.emit({ ...ref, type: 'todos', threadId, phases: closedTodo })
+      view.setTime(2_000)
+      api.emit({ ...ref, type: 'status', status: 'idle' })
+      view.setTime(3_000)
+      api.emit({ ...ref, type: 'status', status: 'busy' })
+      if (completionLast) api.emit({ ...ref, type: 'todos', threadId, phases: closedTodo })
+      view.setTime(4_000)
+      api.emit({ ...ref, type: 'delta', itemId: 'a', kind: 'text', text: 'once' })
+    })
+    const key = threadId ?? ''
+    const liveMemory = view.result.current.state.todoMemory.get(key)
+    expect(liveMemory?.finishedInTurn).toBe(completionLast ? 1 : null)
+    api.snapshotResult = { ok: true, data: snapshot({ status: 'busy', todos: [{ threadId, phases: closedTodo }] }) }
+    view.setTime(50_000)
+    await act(async () => { held.resolve(); await pending })
+    const state = view.result.current.state
+    expect(state.todoMemory.get(key)).toEqual(liveMemory)
+    expect(state).toMatchObject({ turn: 1, status: 'busy', turnStartedAt: 3_000, lastEventAt: 4_000 })
+    expect(state.streaming.get('a')?.text).toBe('once')
+    expect(showsTodoCard(state.todoMemory.get(key) ?? null, state.todos.get(key) ?? [], state.turn, true)).toBe(completionLast)
+    view.unmount()
+  }
+})
+
+it.each([false, true])('reconciles snapshot-only completion, removal and closed reappearance with buffered activity=%s', async buffered => {
+  const api = new FakeAgentChat()
+  api.snapshotResult = { ok: true, data: snapshot({ status: 'busy', todos: [{ threadId: 'worker', phases: openTodo }] }) }
+  const view = mountTimed(api)
+  await settle()
+  for (const phases of [closedTodo, null, closedTodo]) {
+    const held = api.hold('setSurface')
+    let pending: Promise<CommandResult<AgentChatSnapshot>>
+    act(() => { pending = view.result.current.setSurface('gui') })
+    if (buffered) act(() => {
+      view.setTime(2_000)
+      api.emit({ ...ref, type: 'status', status: 'idle' })
+      view.setTime(3_000)
+      api.emit({ ...ref, type: 'status', status: 'busy' })
+    })
+    const live = view.result.current.state
+    api.snapshotResult = { ok: true, data: snapshot({ status: 'busy', todos: phases ? [{ threadId: 'worker', phases }] : [] }) }
+    await act(async () => { held.resolve(); await pending })
+    const state = view.result.current.state
+    expect(state.turn).toBe(live.turn)
+    expect(state.todoMemory.get('worker')?.finishedInTurn).toBe(
+      phases ? live.todoMemory.get('worker')?.hadOpenTasks ? state.turn : null : undefined
+    )
+    expect(state.todos.has('worker')).toBe(phases !== null)
+  }
+})
+
+it('does not resurrect a buffered cleared thread from a closed snapshot or count snapshot-only busy twice', async () => {
+  const api = new FakeAgentChat()
+  api.snapshotResult = { ok: true, data: snapshot({ todos: [{ threadId: 'worker', phases: openTodo }] }) }
+  const view = mountTimed(api)
+  await settle()
+  api.snapshotResult = { ok: true, data: snapshot({ status: 'busy', todos: [{ threadId: 'worker', phases: closedTodo }] }) }
+  await act(async () => { await view.result.current.setSurface('gui') })
+  expect(view.result.current.state).toMatchObject({ turn: 1, status: 'busy' })
+  expect(view.result.current.state.todoMemory.get('worker')?.finishedInTurn).toBe(1)
+  const held = api.hold('setSurface')
+  let pending: Promise<CommandResult<AgentChatSnapshot>>
+  act(() => { pending = view.result.current.setSurface('gui') })
+  act(() => api.emit({ ...ref, type: 'todos', threadId: 'worker', phases: [] }))
+  await act(async () => { held.resolve(); await pending })
+  expect(view.result.current.state.turn).toBe(1)
+  expect(view.result.current.state.todos.has('worker')).toBe(false)
+  expect(view.result.current.state.todoMemory.has('worker')).toBe(false)
+})
+
+it('does not invent a turn when a failed command replays a redundant busy notification', async () => {
+  const api = new FakeAgentChat()
+  api.snapshotResult = { ok: true, data: snapshot({ status: 'busy', todos: [{ threadId: null, phases: openTodo }] }) }
+  const view = mountTimed(api)
+  await settle()
+  act(() => api.emit({ ...ref, type: 'todos', threadId: null, phases: closedTodo }))
+  const held = api.hold('start')
+  api.failures.start = { code: 'internal_error', message: 'Failed' }
+  let pending: Promise<CommandResult<AgentChatSnapshot>>
+  act(() => { pending = view.result.current.start() })
+  view.setTime(2_000)
+  act(() => api.emit({ ...ref, type: 'status', status: 'busy' }))
+  const live = view.result.current.state
+  await act(async () => { held.resolve(); await pending })
+  expect(view.result.current.state).toMatchObject({ turn: 0, status: 'busy', lastEventAt: 2_000, turnStartedAt: 1_000 })
+  expect(view.result.current.state.todoMemory).toEqual(live.todoMemory)
+  expect(view.result.current.state.todoMemory.get('')?.finishedInTurn).toBe(0)
 })

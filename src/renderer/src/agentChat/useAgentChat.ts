@@ -3,7 +3,7 @@ import type { AgentChatApi, AgentChatEvent, AgentChatSnapshot } from '../../../s
 import type { CommandResult } from '../../../shared/desktop/api'
 import { browserScheduler, type Scheduler } from '../app/scheduler'
 import { useClock, type Clock } from '../epic/clock'
-import { agentChatState, reduceAgentChat, type AgentChatState } from './agentChatModel'
+import { agentChatState, reconcileAgentChatLifecycle, reduceAgentChat, type AgentChatState } from './agentChatModel'
 
 type SnapshotCall = () => Promise<CommandResult<AgentChatSnapshot>>
 interface Options {
@@ -17,7 +17,9 @@ type ChatRef = Pick<Options, 'folder' | 'chatId'>
 
 /** A rejected transition is not a process failure; initialization failures still are. */
 function failedLoadState(baseline: AgentChatState, detail: string, preserve: boolean): AgentChatState {
-  return preserve ? baseline : { ...baseline, status: 'failed', statusDetail: detail, turnStartedAt: null }
+  if (preserve) return baseline
+  const failed = reduceAgentChat(baseline, { folder: null, chatId: '', type: 'status', status: 'failed', detail }, baseline.lastEventAt)
+  return { ...failed, turnStartedAt: null }
 }
 
 /** One effect's lifetime: stale replies cannot publish into a different chat or bridge. */
@@ -63,10 +65,9 @@ class ChatSubscription {
     try {
       const result = await call()
       if (this.active && sequence === this.request) {
-        // Snapshot todos stay arrays on the bridge; only agentChatState indexes them.
-        // A fresh snapshot of this subscription must not rewind its turn counter.
+        // Rebuild snapshot-backed data, not lifecycle history, from buffered pushes.
         const state = result.ok
-          ? { ...agentChatState(result.data, this.timing.clock.now()), turn: baseline.turn }
+          ? agentChatState(result.data, this.timing.clock.now())
           : failedLoadState(baseline, result.error.message, preserveOnRefusal)
         this.complete(state)
       }
@@ -81,9 +82,11 @@ class ChatSubscription {
   }
 
   private complete(state: AgentChatState): void {
-    this.state = state
     // Preserve receipt time across snapshot races; replay is not new agent activity.
-    for (const { event, at } of this.buffered ?? []) this.state = reduceAgentChat(this.state, event, at)
+    for (const { event, at } of this.buffered ?? []) state = reduceAgentChat(state, event, at)
+    // receive() already advanced every initialized thread's history in arrival order.
+    // Reconcile only final snapshot or failure changes against that authoritative state.
+    this.state = this.initialized ? reconcileAgentChatLifecycle(state, this.state) : state
     this.buffered = null
     this.initialized = true
     this.publish()

@@ -152,3 +152,18 @@ it('retires only the named ephemeral stream without changing durable answers or 
   expect(reduceAgentChat(retired, { ...ref, type: 'stream_end', itemId: 'absent' }, 43))
     .toEqual({ ...retired, lastEventAt: 43 })
 })
+
+it('keeps todo lifecycle immutable and does no todo work for unrelated events', () => {
+  const phases: AgentTodoPhase[] = [{ name: '', tasks: [{ id: 't', content: 'Work', status: 'pending' }] }]
+  const open = reduceAgentChat(agentChatState(), { ...ref, type: 'todos', threadId: null, phases })
+  const busy = reduceAgentChat(open, { ...ref, type: 'status', status: 'busy' })
+  const closed = reduceAgentChat(busy, { ...ref, type: 'todos', threadId: null, phases: [{ name: '', tasks: [{ ...phases[0].tasks[0], status: 'completed' }] }] })
+  expect(open.todoMemory.get('')).toEqual({ hadOpenTasks: true, finishedInTurn: null })
+  expect(closed.todoMemory.get('')).toEqual({ hadOpenTasks: false, finishedInTurn: 1 })
+  const delta = reduceAgentChat(closed, { ...ref, type: 'delta', itemId: 'x', kind: 'text', text: 'hello' })
+  expect(delta.todoMemory).toBe(closed.todoMemory)
+  expect(reduceAgentChat(delta, { ...ref, type: 'status', status: 'busy' }).todoMemory).toBe(closed.todoMemory)
+  const deleted = reduceAgentChat(closed, { ...ref, type: 'todos', threadId: null, phases: [] })
+  expect(deleted.todoMemory.has('')).toBe(false)
+  expect(closed.todoMemory.has('')).toBe(true)
+})

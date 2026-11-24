@@ -2,6 +2,10 @@ import { classNames } from './classNames'
 
 /** 16×16 stroke icons, drawn inline so they follow `currentColor` and need no asset loading. */
 const ICON_PATHS = {
+  'list-checks': 'M2 4l1 1 2-2M7 4h7M2 8l1 1 2-2M7 8h7M2 12l1 1 2-2M7 12h7',
+  circle: 'M8 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12z',
+  'circle-dashed': 'M8 2a6 6 0 0 1 3 0.8M13.2 5a6 6 0 0 1 0.8 3M13.2 11a6 6 0 0 1-2.2 2.2M8 14a6 6 0 0 1-3-0.8M2.8 11A6 6 0 0 1 2 8M2.8 5A6 6 0 0 1 5 2.8',
+  pause: 'M5 3v10M11 3v10',
   'chevron-down': 'M4 6l4 4 4-4',
   'chevron-right': 'M6 4l4 4-4 4',
   folder: 'M2 4.5h4l1.5 1.5H14v6.5H2z',

@@ -5,6 +5,7 @@ import { ChatTranscript } from '../agents/ChatTranscript'
 import type { Scheduler } from '../app/scheduler'
 import { StreamingBubble } from './StreamingBubble'
 import { PendingPromptCard } from './PendingPromptCard'
+import { TodoCard } from './TodoCard'
 import type { AgentChatState as ChatState } from './agentChatModel'
 import { useAgentChat } from './useAgentChat'
 import '../agents/chatView.css'
@@ -74,6 +75,7 @@ function ChatView({ folder, chatId, agentLabel, api, scheduler }: Props): JSX.El
       {state.statusDetail && <p className="agent-chat-detail">{state.statusDetail}</p>}
       <Messages state={state} folder={folder} agentLabel={agentLabel} />
       <PendingPromptCard prompt={state.pending} answer={answer} />
+      <TodoCard chatId={chatId} state={state} />
       <Composer chatId={chatId} agentLabel={agentLabel} busy={busy} ready={state.status === 'idle' || busy}
         queued={state.queued} command={command} send={send} stop={stop} />
     </section>
