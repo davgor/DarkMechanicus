@@ -14,8 +14,10 @@
  *   files and sync state together; anything an older build writes to these tables or files changes the fingerprint too,
  *   and an older build never writes the fingerprint itself, so it cannot leave one that vouches for state it changed.
  *
- * Only a clean reconcile (no conflict, no rejection) whose tracked part was the same before its scan and after its
- * apply, under the writer lock, records a fingerprint. Anything else clears it, so the next session reconciles in full.
+ * The tracked part is read once, before the scan. Only a clean reconcile (no conflict, no rejection) records a
+ * fingerprint; anything else clears it, so the next session reconciles in full. Storing the part read before the scan is
+ * safe: the scan saw these files or newer ones, and a file that changed after the walk carries a new stamp, so the
+ * next session's walk differs and it reconciles in full.
  */
 import { createHash, type Hash } from 'node:crypto'
 import { join, relative } from 'node:path'
@@ -99,17 +101,19 @@ function fingerprint(db: Db, tracked: string): string {
 
 /**
  * Reads the tracked inputs now, before any scan. `current` compares them and the local state with the fingerprint the
- * last clean reconcile recorded; `applied` records the fingerprint after a clean reconcile whose tracked inputs did not
- * move while it ran, and clears it after any other.
+ * last clean reconcile recorded, touching no table when the tracked part already differs; `applied` records the
+ * fingerprint after a clean reconcile and clears it after any other.
  */
 export function observeReconcileInputs(deps: FingerprintDeps): ReconcileGate {
   const tracked = trackedInputs(deps)
   return {
-    current: () => tracked !== null && getMeta(deps.db, META_KEYS.reconcileFingerprint) === fingerprint(deps.db, tracked),
+    current: () => {
+      const stored = getMeta(deps.db, META_KEYS.reconcileFingerprint)
+      return tracked !== null && stored !== null && stored.startsWith(`${tracked}:`) && stored === fingerprint(deps.db, tracked)
+    },
     applied: (result) => {
       const problems = result.conflicts.length + result.profileConflicts.length + result.kanbanConflicts.length + result.rejected.length
-      const settled = tracked !== null && problems === 0 && trackedInputs(deps) === tracked
-      setMeta(deps.db, META_KEYS.reconcileFingerprint, settled ? fingerprint(deps.db, tracked) : '')
+      setMeta(deps.db, META_KEYS.reconcileFingerprint, tracked !== null && problems === 0 ? fingerprint(deps.db, tracked) : '')
     }
   }
 }
