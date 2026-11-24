@@ -524,6 +524,22 @@ describe('dm usage', () => {
   })
 })
 
+describe('dm session cleanup under SQLite contention', () => {
+  it('returns a committed command result once if only closing its audit session was blocked', async () => {
+    const recorded = recorder(['call', 'list_epics', '{}'])
+    recorded.host.open = () => ({
+      ...createStubWorkspace({ canned: { listEpics: [] } }),
+      close: () => { throw Object.assign(new Error('database is locked; private storage path'), { errcode: 5 }) }
+    })
+    await runCli(recorded.host)
+    expect(recorded.stdout).toHaveLength(1)
+    expect(payload(recorded)).toEqual({ ok: true, data: [] })
+    expect(recorded.exits).toEqual([0])
+    expect(recorded.stderr.join('')).toMatch(/command completed.+session audit/i)
+    expect(recorded.stderr.join('')).not.toContain('private storage path')
+  })
+})
+
 describe('dm when writing the answer fails', () => {
   it('reports the failure as JSON and exits 1', async () => {
     const recorded = recorder(['--help'])

@@ -57,11 +57,11 @@ afterEach(() => {
 })
 
 describe('isBusyError', () => {
-  it.each([[5], [6]])('recognizes sqlite error code %i', (errcode) => {
+  it.each([[5], [6], [261], [262]])('recognizes sqlite error code %i', (errcode) => {
     expect(isBusyError(Object.assign(new Error('something'), { errcode }))).toBe(true)
   })
 
-  it.each([['database is locked'], ['Database is BUSY'], ['sqlite: database is locked (5)']])(
+  it.each([['database is locked'], ['Database is BUSY'], ['sqlite: database is locked (5)'], ['database table is locked']])(
     'recognizes the message "%s"',
     (message) => {
       expect(isBusyError(new Error(message))).toBe(true)
@@ -71,6 +71,7 @@ describe('isBusyError', () => {
   it('rejects other errors', () => {
     expect(isBusyError(new Error('no such table: x'))).toBe(false)
     expect(isBusyError(Object.assign(new Error('constraint'), { errcode: 19 }))).toBe(false)
+    expect(isBusyError(Object.assign(new Error('database is locked'), { errcode: 19 }))).toBe(false)
     expect(isBusyError(Object.assign(new Error('x'), { errcode: '5' }))).toBe(false)
   })
 

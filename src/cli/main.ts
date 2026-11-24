@@ -14,6 +14,7 @@ import { readFileSync } from 'node:fs'
 import { maskClaimTokens } from '../core/claimTokenMask'
 import { COMMAND_CAPABILITIES } from '../core/commands/capabilities'
 import { COMMANDS } from '../core/commands/index'
+import { isBusyError } from '../core/db/database'
 import { MAIL_POLL_COMMANDS } from '../core/services/agentMail'
 import { DomainError, toErrorShape } from '../core/errors'
 import type { CommandName } from '../shared/domain/api'
@@ -174,6 +175,30 @@ function hintAboutGrants(host: CliHost, error: unknown, presentedToken: boolean)
   )
 }
 
+type GrantedOutcome = { ok: true; data: unknown } | { ok: false; error: unknown }
+
+function closeGranted(host: CliHost, workspace: Workspace | null, outcome: GrantedOutcome): void {
+  try {
+    workspace?.close()
+  } catch (error) {
+    if (isBusyError(error)) {
+      // The command outcome is already known. A second error on stdout would make even a committed result unreadable.
+      const result = outcome.ok ? 'Command completed' : 'Command failed'
+      host.writeStderr(`dm: ${result}, but the project database was busy while closing the session audit.\n`)
+    } else if (outcome.ok) {
+      throw error
+    } else {
+      host.writeStderr('dm: Session cleanup also failed.\n')
+    }
+  }
+}
+
+function grantedError(error: unknown, phase: 'open' | 'command'): unknown {
+  if (!isBusyError(error)) return error
+  const stage = phase === 'open' ? 'opening the command session' : 'running the command'
+  return new DomainError('busy', `The project database is busy while ${stage}. Let the current write finish before trying again.`, { stage: phase })
+}
+
 /**
  * Opens the workspace with the caller's grant. Mail status/wake uses its restricted poll mode; peer discovery
  * uses a non-persistent read-only session so an unrelated writer cannot consume the native tool's deadline.
@@ -181,6 +206,7 @@ function hintAboutGrants(host: CliHost, error: unknown, presentedToken: boolean)
 async function runGranted(host: CliHost, options: CliOptions, mailMode: 'poll' | 'read' | undefined, action: (workspace: Workspace) => Promise<unknown>): Promise<number> {
   const token = readToken(host, options)
   let workspace: Workspace | null = null
+  let outcome: GrantedOutcome
   try {
     // Opening is part of the attempt: an unusable grant fails here, and must be reported the same
     // way a refused command is rather than escaping as a crash.
@@ -194,15 +220,18 @@ async function runGranted(host: CliHost, options: CliOptions, mailMode: 'poll' |
       ...(mailMode === 'poll' ? { mailPoll: true } : {}),
       ...(mailMode === 'read' ? { mailRead: true } : {})
     })
-    ok(host, await action(workspace))
-    return EXIT_OK
+    outcome = { ok: true, data: await action(workspace) }
   } catch (error) {
-    failed(host, error)
-    hintAboutGrants(host, error, token !== null)
-    return EXIT_FAILED
-  } finally {
-    workspace?.close()
+    outcome = { ok: false, error: mailMode === undefined ? grantedError(error, workspace === null ? 'open' : 'command') : error }
   }
+  closeGranted(host, workspace, outcome)
+  if (outcome.ok) {
+    ok(host, outcome.data)
+    return EXIT_OK
+  }
+  failed(host, outcome.error)
+  hintAboutGrants(host, outcome.error, token !== null)
+  return EXIT_FAILED
 }
 
 async function runCommand(host: CliHost, options: CliOptions, requested: string, source: CallInput): Promise<number> {
