@@ -11,7 +11,7 @@
  * flag, because a local process chooses its own flags. Without a grant it is a reader.
  */
 import { readFileSync } from 'node:fs'
-import { SESSION_AUDIT_BUSY_STDERR } from '../../resources/skitarii/extension/dmDiagnostics'
+import { DM_WRITER_BUSY, SESSION_AUDIT_BUSY_STDERR } from '../../resources/skitarii/extension/dmDiagnostics'
 import { maskClaimTokens } from '../core/claimTokenMask'
 import { COMMAND_CAPABILITIES } from '../core/commands/capabilities'
 import { COMMANDS } from '../core/commands/index'
@@ -401,7 +401,10 @@ function nodeHost(): CliHost {
     cwd: process.cwd(),
     execPath: process.execPath,
     cliPath: process.argv[1] ?? __filename,
-    open: (options) => openWorkspace(options),
+    open: (options) => openWorkspace({
+      ...options,
+      onWriterBusy: () => { if (process.connected) process.send?.(DM_WRITER_BUSY) }
+    }),
     readFile: (path) => readFileSync(path, 'utf8'),
     readStdin: () => readFileSync(0, 'utf8'),
     writeStdout: (text) => {

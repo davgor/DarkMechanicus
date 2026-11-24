@@ -1,11 +1,12 @@
 import { buildSync } from 'esbuild'
-import { spawn, type ChildProcess } from 'node:child_process'
+import { spawn, type ChildProcess, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { once } from 'node:events'
 import { globSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { setTimeout as delay } from 'node:timers/promises'
-import { afterAll, beforeAll, expect, it } from 'vitest'
+import { afterAll, beforeAll, expect, it, vi } from 'vitest'
 import { openDatabase, type Db } from '../core/db/database'
 import { bindAgentMailEndpoint, provisionAgentMailEndpoint } from '../core/services/agentMail'
 import { createHarness, type Harness } from '../test/workspaceHarness'
@@ -122,10 +123,10 @@ class WorkerCli {
 
   private start(token: string, command: string, json: string, mode?: 'probe' | 'audit-close') {
     return spawn(process.execPath, [cliPath, '--repo', this.fixture.root, 'call', command, mode === 'audit-close' ? json : '-'], {
-      cwd: this.fixture.root, env: {
+      stdio: ['pipe', 'pipe', 'pipe', 'ipc'], cwd: this.fixture.root, env: {
         ...process.env, DARKMECHANICUS_HOME: this.fixture.homeDir, DM_SESSION_TOKEN: token, DM_CONTENTION_FIXTURE: mode
       }
-    })
+    }) as ChildProcessWithoutNullStreams // The first three descriptors are explicitly piped above.
   }
 
   call(token: string, command: string, args: object, mode?: 'probe' | 'audit-close') {
@@ -133,10 +134,11 @@ class WorkerCli {
     const child = this.start(token, command, json, mode)
     this.children.add(child)
     const { promise: outcome, resolve, reject } = deferred<{ code: number; envelope: unknown }>()
-    // An early setup failure is also surfaced by writing; attach a handler in case the fixture aborts before reading outcome.
     void outcome.catch(() => undefined)
     const writing = deferred<void>()
     void writing.promise.catch(() => undefined)
+    const closing = deferred<void>()
+    void closing.promise.catch(() => undefined)
     const committed = deferred<void>()
     void committed.promise.catch(() => undefined)
     let stdout = ''
@@ -145,19 +147,16 @@ class WorkerCli {
     child.stderr.setEncoding('utf8').on('data', (chunk: string) => {
       stderr += chunk
       if (stderr.includes(WAL_READY) && stderr.includes(WRITER_BUSY)) writing.resolve()
+      if (stderr.includes(CLOSE_BUSY)) closing.resolve()
       if (stderr.includes(REPORT_COMMITTED)) committed.resolve()
     })
     child.on('error', reject)
     child.stdin.on('error', reject)
     child.on('close', (code) => {
       this.children.delete(child)
-      if (code === null) {
-        const error = new Error(`CLI stopped before ${command} returned`)
-        writing.reject(error)
-        committed.reject(error)
-        return reject(error)
-      }
+      closing.reject(new Error('CLI exited before audit contention'))
       try {
+        if (code === null) throw new Error('CLI stopped')
         const envelope: unknown = JSON.parse(stdout)
         writing.reject(new Error(`${command} exited before reaching the first project write transaction`))
         committed.reject(new Error(`${command} exited before committing the fixture report`))
@@ -171,8 +170,8 @@ class WorkerCli {
     })
     if (mode !== 'audit-close') child.stdin.end(json)
     return {
-      outcome, writing: writing.promise, committed: committed.promise,
-      allowAuditClose: () => child.stdin.end(), diagnostics: () => stderr
+      child, outcome, writing: writing.promise, committed: committed.promise, closing: closing.promise,
+      allowAuditClose: () => child.stdin.end()
     }
   }
 
@@ -253,67 +252,68 @@ it('completes two audited worker reads after the authorized project writer commi
   }
 })
 
-it.concurrent('reports persistent project writer contention once, without a false success or report mutation', async () => {
+it('keeps the embedded CLI deadline separate from the long-lived desktop connection', async () => {
+  const harness = createHarness()
+  vi.useFakeTimers({ toFake: ['performance'] })
+  try {
+    const desktop = harness.open('desktop')
+    await desktop.initializeRepository({ name: 'Embedded sessions', mode: 'db' })
+    const cli = harness.open('reader', { transport: 'cli' })
+    vi.advanceTimersByTime(10_001)
+    expect(cli.ctx().db.get('PRAGMA busy_timeout')).toEqual({ timeout: 0 })
+    expect(desktop.ctx().db.get('PRAGMA busy_timeout')).toEqual({ timeout: 5_000 })
+  } finally {
+    vi.useRealTimers()
+    harness.cleanup()
+  }
+})
+
+it.concurrent('waits past the former CLI deadline and commits a blocked report once', async () => {
   const harness = createHarness()
   const cli = new WorkerCli(harness)
   try {
     const { desktop, comments, one } = await fixture(harness)
     const db = desktop.ctx().db
     holdAuthorizedWrite(db, comments.ticketId)
-    const call = cli.call(one.token, 'add_comment', { ...comments, body: 'Must not commit', idempotencyKey: 'blocked-report' })
+    const call = cli.call(one.token, 'add_comment', { ...comments, body: 'Queued report', idempotencyKey: 'blocked-report' })
     try {
-      const [, result] = await beforeDeadline(Promise.all([call.writing, call.outcome]), 12_000,
-        'CLI exceeded the storage contention budget after WAL open, at its first write transaction')
-      expect(result).toMatchObject({ code: 1, envelope: { ok: false, error: {
-        code: 'busy', message: expect.stringMatching(/project database.+(try|retry)/i)
-      } } })
-      expect(JSON.stringify(result)).not.toContain(harness.root)
-      expect(JSON.stringify(result)).not.toContain(one.token)
-      expect(db.get('SELECT count(*) AS n FROM sessions WHERE grant_id = ?', one.grantId)).toEqual({ n: 0 })
+      const progress = once(call.child, 'message')
+      await call.writing
+      const [message] = await beforeDeadline(progress, 2_000, 'CLI did not notify its supervisor')
+      expect(message).toBe('dm.sqlite.writer-busy')
+      await delay(10_100)
       expect(db.get('SELECT key FROM idempotency WHERE key = ?', 'blocked-report')).toBeUndefined()
     } finally {
       db.exec('ROLLBACK')
     }
-    expect(await desktop.listComments(comments)).toMatchObject([{ body: 'Committed comment' }])
-    expect(await desktop.listComments(comments)).toHaveLength(1)
+    expect(await call.outcome).toMatchObject({ code: 0, envelope: { ok: true, data: { body: 'Queued report' } } })
+    expect(db.get('SELECT count(*) AS n FROM comments WHERE body = ?', 'Queued report')).toEqual({ n: 1 })
   } finally {
     await cli.close()
     harness.cleanup()
   }
 })
 
-it.concurrent('shares the startup wait with audit closure and returns the durable report exactly once', async () => {
+it.concurrent('finishes a contested audit close without replaying the committed report', async () => {
   const harness = createHarness()
   const cli = new WorkerCli(harness)
-  let db: Db | undefined
-  let held = false
   try {
     const { desktop, comments, one } = await fixture(harness)
-    const store = db = desktop.ctx().db
-    holdAuthorizedWrite(store, comments.ticketId)
-    held = true
+    const db = desktop.ctx().db
     const input = { ...comments, body: 'Committed before audit close', idempotencyKey: 'audit-close-report' }
     const call = cli.call(one.token, 'add_comment', input, 'audit-close')
-    const result = await beforeDeadline((async () => {
-      await call.writing // This mode needs the real five-second SQLite wait to expire during startup.
-      store.exec('COMMIT')
-      held = false
-      await call.committed
-      expect(store.get('SELECT key FROM idempotency WHERE key = ?', input.idempotencyKey)).toEqual({ key: input.idempotencyKey })
-      store.exec('BEGIN IMMEDIATE')
-      held = true
+    await call.committed
+    db.exec('BEGIN IMMEDIATE')
+    try {
       call.allowAuditClose()
-      return call.outcome
-    })(), 12_000, 'CLI exceeded the single storage-lock deadline across startup and audit close')
-    expect(result).toMatchObject({ code: 0, envelope: { ok: true, data: { body: input.body, ...comments } } })
-    const closingWait = new RegExp(`${CLOSE_BUSY} (\\d+)`).exec(call.diagnostics())?.[1]
-    expect(Number(closingWait)).toBeGreaterThan(0)
-    expect(Number(closingWait)).toBeLessThan(5_000)
-    expect(call.diagnostics()).toMatch(/session audit/i)
-    expect(store.all('SELECT ended_at FROM sessions WHERE grant_id = ?', one.grantId)).toEqual([{ ended_at: null }])
-    expect(store.get('SELECT count(*) AS n FROM comments WHERE body = ?', input.body)).toEqual({ n: 1 })
+      await call.closing
+    } finally {
+      db.exec('ROLLBACK')
+    }
+    expect(await call.outcome).toMatchObject({ code: 0, envelope: { ok: true, data: { body: input.body } } })
+    expect(db.all('SELECT ended_at FROM sessions WHERE grant_id = ?', one.grantId)).toEqual([{ ended_at: expect.any(String) }])
+    expect(db.get('SELECT count(*) AS n FROM comments WHERE body = ?', input.body)).toEqual({ n: 1 })
   } finally {
-    if (held) db?.exec('ROLLBACK')
     await cli.close()
     harness.cleanup()
   }
