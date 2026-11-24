@@ -5,7 +5,7 @@ import { DM_CLIENT_DESCRIPTOR_ENV } from '../../../resources/skitarii/extension/
 import { parseWorldMailDescriptor } from '../../../resources/skitarii/extension/worldDmClient'
 import { builtInAgent } from '../agents/__mocks__/chatFixtures'
 import { seedForgeFixture } from '../../test/forgeFixture'
-import { eventually, recorder, startTerminal, terminalRig, type TerminalRig } from './__mocks__/terminalSessionsRig'
+import { CUSTOM_AGENT, eventually, recorder, startTerminal, terminalRig, type TerminalRig } from './__mocks__/terminalSessionsRig'
 
 let rig: TerminalRig
 let member: string
@@ -109,7 +109,7 @@ describe('Forge World grant lifecycle', () => {
 
 })
 
-describe('Forge World member agent context', () => {
+describe('Forge World conflict resolvers', () => {
   it('starts a background root resolver using only cached world members while a manifest is conflicted', async () => {
     writeFileSync(join(rig.repo, 'forge-world.json'), '<<<<<<< HEAD\n{}\n=======\n{}\n>>>>>>> remote\n')
     const chat = rig.newChat('omp')
@@ -128,6 +128,16 @@ describe('Forge World member agent context', () => {
     expect(rig.host.last().kills).toBe(0)
   })
 
+  it('does not spawn a resolver when its sign-in becomes unknown at terminal start', async () => {
+    const chat = rig.newChat('omp')
+    rig.store.updateChat(chat, { forgeResolver: rig.repo })
+    rig.auth.status = { state: 'unknown', reason: 'Agent sign-in could not be verified.' }
+    await expect(rig.sessions.start(chat, { kickoff: 'Resolve the repository merge on main' }))
+      .resolves.toEqual({ state: 'signed_out', message: 'Agent sign-in could not be verified.' })
+    expect(rig.grantsAsked).toBe(0)
+    expect(rig.host.spawns).toEqual([])
+  })
+
   it('starts the trusted conflict resolver on its existing member grant while keeping root scope parsing strict', async () => {
     writeFileSync(join(rig.repo, 'forge-world.json'), '<<<<<<< HEAD\n{}\n=======\n{}\n>>>>>>> remote\n')
     const chat = rig.store.createChat({ folder: member, agent: 'omp', model: null, title: 'Repair sync', role: 'worker', allowSave: false })
@@ -142,7 +152,29 @@ describe('Forge World member agent context', () => {
     expect(await rig.sessions.attach(rig.newChat())).toMatchObject({ state: 'refused' })
     expect(rig.host.spawns).toHaveLength(1)
   })
+})
 
+it.each([
+  { scenario: 'a custom agent', agent: CUSTOM_AGENT, message: 'The resolver agent does not support sign-in verification.', probes: 0 },
+  { scenario: 'an unavailable probe', agent: builtInAgent('claude'), message: 'The resolver agent sign-in could not be verified.', probes: 1 }
+])('does not launch a conflict resolver for $scenario', async ({ agent, message, probes }) => {
+  let authChecks = 0
+  const isolated = terminalRig({
+    agents: [agent],
+    deps: () => ({ checkAuth: async () => { authChecks++; throw new Error('Sign-in command unavailable') } })
+  })
+  try {
+    const chat = isolated.newChat(agent.id)
+    isolated.store.updateChat(chat, { forgeResolver: isolated.repo })
+    await expect(isolated.sessions.start(chat, { kickoff: 'Resolve the repository merge on main' }))
+      .resolves.toEqual({ state: 'signed_out', message })
+    expect(authChecks).toBe(probes)
+    expect(isolated.grantsAsked).toBe(0)
+    expect(isolated.host.spawns).toEqual([])
+  } finally { isolated.cleanup() }
+})
+
+describe('Forge World member agent context', () => {
   it.each(['manual', 'card', 'run'] as const)('supplies code directions to a %s member chat while retaining its project mailbox', async kind => {
     const chat = rig.store.createChat({ folder: member, agent: 'omp', model: null, title: 'Member work', role: 'orchestrator', allowSave: false,
       ...(kind === 'run' ? { runId: 'rn_1' } : {}), ...(kind === 'card' ? { cardId: 'kc_1' } : {}) })

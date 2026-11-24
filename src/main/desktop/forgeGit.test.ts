@@ -122,6 +122,83 @@ it.each(['post-reconcile inspection', 'queued push'] as const)(
   }
 )
 
+it('does not overwrite a peer that advances main after the fetch and publishes both histories next sync', async () => {
+  const { root, bare, first, second, client, setup, runner } = repositoryPair()
+  createForge(first, 'tester')
+  const validate = async () => undefined
+  await client.sync(first, validate)
+  gitIn(root, 'clone', bare, second)
+  setup(second)
+  const gated = gatedRunner(runner, ({ args }) => args.includes('push'))
+  const syncer = new ForgeGit({ getAccount: () => null, getToken: () => null }, gated)
+  writeFileSync(join(first, 'local.txt'), 'Keep local work')
+  const syncing = syncer.sync(first, validate)
+  let local = '', remote = ''
+  try {
+    expect(await Promise.race([gated.reached.then(() => true), syncing.then(() => false)])).toBe(true)
+    local = gitIn(first, 'rev-parse', 'HEAD').trim()
+    writeFileSync(join(second, 'remote.txt'), 'Keep peer work')
+    gitIn(second, 'add', 'remote.txt')
+    gitIn(second, 'commit', '-m', 'Peer publishes while the first push waits')
+    gitIn(second, 'push', bare, 'main')
+    remote = gitIn(second, 'rev-parse', 'HEAD').trim()
+  } finally { gated.release() }
+  await expect(syncing).rejects.toThrow(/rejected|fetch first/i)
+  expect(gitIn(first, 'rev-parse', 'HEAD').trim()).toBe(local)
+  expect(gitIn(bare, 'rev-parse', 'main').trim()).toBe(remote)
+  await client.sync(first, validate)
+  expect(gitIn(bare, 'rev-list', '--parents', '-n', '1', 'main').trim().split(' ').slice(1)).toEqual([local, remote])
+  expect(gitIn(bare, 'show', 'main:local.txt')).toBe('Keep local work')
+  expect(gitIn(bare, 'show', 'main:remote.txt')).toBe('Keep peer work')
+})
+
+it('publishes only the inspected commit when HEAD changes before Git starts the push', async () => {
+  const { bare, first, client, runner } = repositoryPair()
+  createForge(first, 'tester')
+  await client.sync(first, async () => undefined)
+  writeFileSync(join(first, 'inspected.txt'), 'Ready for publication')
+  const gated = gatedRunner(runner, ({ args }) => args.includes('push'))
+  const syncer = new ForgeGit({ getAccount: () => null, getToken: () => null }, gated)
+  const syncing = syncer.sync(first, async () => undefined)
+  let inspected = ''
+  try {
+    expect(await Promise.race([gated.reached.then(() => true), syncing.then(() => false)])).toBe(true)
+    inspected = gitIn(first, 'rev-parse', 'HEAD').trim()
+    writeFileSync(join(first, 'late.txt'), 'Concurrent local work')
+    gitIn(first, 'add', 'late.txt')
+    gitIn(first, 'commit', '-m', 'Concurrent local commit')
+  } finally { gated.release() }
+  await syncing
+  expect(gitIn(bare, 'rev-parse', 'main').trim()).toBe(inspected)
+  expect(gitIn(first, 'show', 'HEAD:late.txt')).toBe('Concurrent local work')
+  expect(gitIn(bare, 'ls-tree', 'main', 'late.txt')).toBe('')
+})
+
+it('rejects machine-private outgoing history before opening a merge for a resolver', async () => {
+  const { root, bare, first, second, client, setup } = repositoryPair()
+  createForge(first, 'tester')
+  writeFileSync(join(first, 'README.md'), 'Originally shared\n')
+  await client.sync(first, async () => undefined)
+  gitIn(root, 'clone', bare, second)
+  setup(second)
+  writeFileSync(join(second, 'README.md'), 'Peer main\n')
+  await client.sync(second, async () => undefined)
+  const published = gitIn(bare, 'rev-parse', 'main')
+
+  const privatePath = '.darkmechanicus/local/fixture.txt'
+  mkdirSync(join(first, '.darkmechanicus', 'local'), { recursive: true })
+  writeFileSync(join(first, privatePath), 'Disposable private fixture')
+  gitIn(first, 'add', '-f', privatePath)
+  gitIn(first, 'commit', '-m', 'Accidentally commit nonportable test data')
+  gitIn(first, 'rm', privatePath)
+  gitIn(first, 'commit', '-m', 'Remove fixture from current tree only')
+  writeFileSync(join(first, 'README.md'), 'Unpublished local edit\n')
+  await expect(client.sync(first, async () => undefined)).rejects.toThrow('machine-private')
+  expect(gitIn(first, 'ls-files', '-u')).toBe('')
+  expect(gitIn(first, 'show', 'HEAD:README.md')).toBe('Unpublished local edit\n')
+  expect(gitIn(bare, 'rev-parse', 'main')).toBe(published)
+})
+
 it('recovers a world branch onto main without losing either branch or publishing an extra branch', async () => {
   const { bare, first, client } = repositoryPair()
   createForge(first, 'tester')

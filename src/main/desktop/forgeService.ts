@@ -39,7 +39,7 @@ interface Services {
   cleanup(source: string): void
   home: string
   publish(name: string): Promise<void>
-  onConflict(root: string, member: string | null): Promise<void>
+  onConflict(root: string, assertCurrent: () => void): Promise<void>
   onSynced(root: string): Promise<void>
   onFoldersChanged?(): void
   provisioning?: Pick<Parameters<typeof createForgeProvisioningWork>[0], 'publisher' | 'discover'> & { journal: string }
@@ -207,10 +207,10 @@ class ForgeService {
       this.pending.set(root, follow)
       return follow
     }
-    const attachmentKey = this.rootKey(root)
+    const attachmentKey = this.rootKey(root, 'repair')
     const work = this.syncWorld(root, attachmentKey, provisionCurrent).finally(() => {
       this.active.delete(root)
-      if (this.rootKey(root) === attachmentKey) {
+      if (attachmentKey !== undefined && this.rootKey(root, 'repair') === attachmentKey) {
         const minutes = this.deps.registry.list().find(folder => folder.path === root)?.forgeWorld?.syncMinutes ?? 5
         this.next.set(root, Date.now() + minutes * 60_000)
       }
@@ -219,7 +219,11 @@ class ForgeService {
     return work
   }
   private async syncWorld(root: string, attachmentKey: string | undefined, current?: () => void): Promise<void> {
+    let pendingMerge = false
     try {
+      this.assertSyncTarget(root, attachmentKey, 'repair')
+      pendingMerge = await this.hasPendingMerge(root)
+      if (pendingMerge) throw new Error('Finish the Forge World merge commit before syncing.')
       await this.ensure(root)
       this.assertSyncTarget(root, attachmentKey)
       await this.git.sync(root, async () => {
@@ -242,29 +246,30 @@ class ForgeService {
       this.errors.delete(root)
       this.last.set(root, Date.now())
     } catch (error) {
-      if (this.stopped || this.rootKey(root) !== attachmentKey) throw error
+      if (this.stopped || attachmentKey === undefined || this.rootKey(root, 'repair') !== attachmentKey) throw error
       this.errors.set(root, error instanceof Error ? error.message : String(error))
-      const conflicts = (await this.git.run(root, ['diff', '--name-only', '--diff-filter=U', '-z'])).stdout.split('\0').filter(Boolean)
-      if (conflicts.length) {
-        this.assertSyncTarget(root, attachmentKey)
+      if (pendingMerge || await this.hasPendingMerge(root)) {
+        this.assertSyncTarget(root, attachmentKey, 'repair')
         this.resolving.add(root)
-        await this.startResolver(root)
+        await this.startResolver(root, attachmentKey)
       }
       throw error
     }
   }
 
-  private rootKey(root: string): string | undefined {
-    const key = this.deps.registry.list().find(folder => folder.path === root && folder.available)?.attachmentKey
+  private rootKey(root: string, mode?: 'repair'): string | undefined {
+    const folder = this.deps.registry.list().find(entry => entry.path === root)
+    // Keep the attachment while a cold manifest conflict looks unavailable, but admit it only for repair.
+    const key = folder?.available || folder?.forgeIssue ? folder.attachmentKey : undefined
     if (key !== this.rootKeys.get(root)) {
       this.forgetRoot(root)
       if (key !== undefined) this.rootKeys.set(root, key)
     }
-    return key
+    return folder?.available || mode === 'repair' ? key : undefined
   }
 
-  private assertSyncTarget(root: string, key: string | undefined): void {
-    if (this.stopped || key === undefined || this.rootKey(root) !== key) throw new Error('The Forge World was untracked while it was syncing.')
+  private assertSyncTarget(root: string, key: string | undefined, mode?: 'repair'): void {
+    if (this.stopped || key === undefined || this.rootKey(root, mode) !== key) throw new Error('The Forge World was untracked while it was syncing.')
   }
 
   private notifyMembers(root: string): void {
@@ -276,28 +281,40 @@ class ForgeService {
     }
   }
 
-  async startResolver(root: string): Promise<void> {
-    assertForgeWorldSyncAllowed(nodeFs, this.deps.home, root)
-    // Every portable repository file is synced, so every safe conflict needs a resolver.
-    // Inspect every index stage before using HEAD as the trusted fallback grant scope.
-    await this.git.inspectCheckout(root)
+  private async hasPendingMerge(root: string): Promise<boolean> {
+    return (await this.git.run(root, ['rev-parse', '--verify', '--quiet', 'MERGE_HEAD'], undefined, { acceptExitCodes: [0, 1] })).code === 0
+  }
+
+  private async startResolver(root: string, key: string | undefined): Promise<void> {
+    const assertCurrent = () => {
+      this.assertSyncTarget(root, key, 'repair')
+      assertForgeWorldSyncAllowed(nodeFs, this.deps.home, root)
+    }
+    assertCurrent()
+    const gitRoot = (await this.git.run(root, ['rev-parse', '--show-toplevel'])).stdout.trim()
+    if (realpathSync.native(gitRoot) !== root) throw new Error('The Forge World must be the root of its ticket repository.')
+    // Inspect the checked-out tree, merge parent and every index stage before trusting HEAD for grant scope.
+    await Promise.all([this.git.inspectCheckout(root), this.git.inspectTree(root, 'MERGE_HEAD')])
     const head = parseForge((await this.git.run(root, ['show', 'HEAD:' + FORGE_FILE])).stdout)
+    assertCurrent()
     this.deps.registry.cacheForge?.(root, head)
-    try { await this.deps.onConflict(root, root) }
+    try { await this.deps.onConflict(root, assertCurrent) }
     catch (error) {
-      this.errors.set(root, error instanceof Error ? error.message : String(error))
+      if (!this.stopped && this.rootKey(root, 'repair') === key) this.errors.set(root, error instanceof Error ? error.message : String(error))
       throw error
     }
   }
 
-  async pollResolution(root: string): Promise<void> {
+  private async pollResolution(root: string, key: string | undefined): Promise<void> {
     this.polling.add(root)
     try {
-      const unresolved = await this.git.run(root, ['ls-files', '-u'])
-      if (unresolved.stdout) await this.startResolver(root)
-      else await this.sync(root)
+      if (await this.hasPendingMerge(root)) await this.startResolver(root, key)
+      else {
+        this.assertSyncTarget(root, key, 'repair')
+        await this.sync(root)
+      }
     } catch (error) {
-      this.errors.set(root, error instanceof Error ? error.message : String(error))
+      if (!this.stopped && this.rootKey(root, 'repair') === key) this.errors.set(root, error instanceof Error ? error.message : String(error))
     } finally { this.polling.delete(root) }
   }
   async checkout(repository: string, adopt: boolean) {
@@ -746,8 +763,8 @@ class ForgeService {
 
   pollResolvers() {
     for (const root of this.resolving) {
-      if (!this.deps.registry.has(root)) { this.resolving.delete(root); continue }
-      if (!this.active.has(root) && !this.polling.has(root)) void this.pollResolution(root)
+      const key = this.rootKey(root, 'repair')
+      if (key !== undefined && this.resolving.has(root) && !this.active.has(root) && !this.polling.has(root)) void this.pollResolution(root, key)
     }
   }
   private forgetRoot(root: string): void {
@@ -769,7 +786,7 @@ class ForgeService {
 
   tick() {
     this.pollResolvers()
-    const tracked = this.deps.registry.list().filter(folder => folder.forgeWorld || folder.forgeIssue)
+    const tracked = this.deps.registry.list().filter(folder => folder.forgeWorld || folder.forgeIssue || this.resolving.has(folder.path))
     const roots = new Set(tracked.map(folder => folder.path))
     this.forgetRemovedMembers()
     for (const seen of this.rootKeys.keys()) {
@@ -780,8 +797,10 @@ class ForgeService {
       if (this.resolving.has(folder.path) || this.active.has(folder.path) || this.pending.has(folder.path)
         || Date.now() < (this.next.get(folder.path) ?? 0)) continue
       void this.sync(folder.path).catch(() => {
-        // A pending conversion may reject before the sync starts.
-        this.next.set(folder.path, Date.now() + (folder.forgeWorld?.syncMinutes ?? 5) * 60_000)
+        // Back off an admission refusal without overwriting the active sync's schedule or a new attachment.
+        if (this.rootKey(folder.path, 'repair') === folder.attachmentKey && Date.now() >= (this.next.get(folder.path) ?? 0)) {
+          this.next.set(folder.path, Date.now() + (folder.forgeWorld?.syncMinutes ?? 5) * 60_000)
+        }
       })
     }
   }
