@@ -48,6 +48,17 @@ afterAll(() => {
   if (bundleDir !== undefined) rmSync(bundleDir, { recursive: true, force: true })
 })
 
+/** Adapts child-process events to promises on the project's ES2022 target. */
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
 class WorkerCli {
   private readonly children = new Set<ChildProcess>()
 
@@ -58,10 +69,10 @@ class WorkerCli {
       cwd: this.fixture.root, env: { ...process.env, DARKMECHANICUS_HOME: this.fixture.homeDir, DM_SESSION_TOKEN: token }
     })
     this.children.add(child)
-    const { promise: outcome, resolve, reject } = Promise.withResolvers<{ code: number; envelope: unknown }>()
+    const { promise: outcome, resolve, reject } = deferred<{ code: number; envelope: unknown }>()
     // An early setup failure is also surfaced by writing; attach a handler in case the fixture aborts before reading outcome.
     void outcome.catch(() => undefined)
-    const writing = Promise.withResolvers<void>()
+    const writing = deferred<void>()
     void writing.promise.catch(() => undefined)
     let stdout = ''
     let stderr = ''
@@ -95,7 +106,7 @@ class WorkerCli {
 
   async close() {
     await Promise.all([...this.children].map(child => {
-      const { promise, resolve } = Promise.withResolvers<void>()
+      const { promise, resolve } = deferred<void>()
       child.once('close', () => resolve())
       child.kill()
       return promise
