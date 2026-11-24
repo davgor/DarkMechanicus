@@ -3,6 +3,8 @@ import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { IpcMain } from 'electron'
+import { randomUUID } from 'node:crypto'
+import { openHumanWait } from '../../resources/skitarii/extension/humanWaitLease'
 import type { Workspace } from '../core/workspace'
 import { askHuman, humanAnswer, telegramAvailable } from '../core/humanQuestions'
 import { startTelegram } from './telegram'
@@ -113,4 +115,46 @@ it('pairs one private user and routes only their threaded reply to the original 
     await handlers.get('telegram:setEnabled')!(undefined, true)
     expect(telegramAvailable(env.dir)).toBe(true)
   } finally { stop() }
+})
+
+it('4/5. sends the actionable guarded wait once, skips a stale queued reminder and resolves a paired reply', async () => {
+  env.dir = mkdtempSync(join(tmpdir(), 'telegram-guarded-wait-'))
+  vi.useFakeTimers()
+  writeFileSync(join(env.dir, 'telegram.enc'), JSON.stringify({ token: 'test-only', enabled: true, chat: 17, offset: 0, since: '', routes: {} }))
+  const { ws } = boardFixture()
+  const handlers = new Map<string, (...args: unknown[]) => unknown>()
+  const outbound: unknown[] = []
+  let updates: unknown[] = []
+  vi.stubGlobal('fetch', async (url: string, options: { body: string }) => {
+    if (url.endsWith('sendMessage')) outbound.push(JSON.parse(options.body))
+    return { ok: true, json: async () => ({ ok: true, result: url.endsWith('getUpdates') ? updates.splice(0) : { message_id: 82 } }) }
+  })
+  const stop = startTelegram({ handle: handlers.set.bind(handlers) } as unknown as IpcMain, () => [], () => ws as unknown as Workspace, env.dir)
+  const stale = randomUUID()
+  const current = randomUUID()
+  let reengaged: (() => void) | undefined
+  const replyObserved = new Promise<void>(resolve => { reengaged = resolve })
+  const closeStale = openHumanWait(env.dir, stale, () => {})
+  const closeCurrent = openHumanWait(env.dir, current, () => reengaged?.())
+  try {
+    const body = 'Approve the blue fixture rollout?\n\nWhy this is blocking progress: Deployment may not start until you approve the target.'
+    askHuman(env.dir, 'fixture-project', 'Do not send this stale request', stale)
+    closeStale()
+    expect(() => askHuman(env.dir, 'fixture-project', 'Old wake', stale)).toThrow('This human wait has ended')
+    expect(askHuman(env.dir, 'fixture-project', body, current)).toEqual({ state: 'queued', questionId: current })
+    expect(() => askHuman(env.dir, 'fixture-project', body, current)).toThrow('already has a contact attempt')
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(humanAnswer(env.dir, 'fixture-project', stale).state).toBe('cancelled')
+    expect(outbound).toEqual([{ chat_id: 17, text: `fixture-project\n\n${body}`, reply_markup: { force_reply: true } }])
+    updates = [update(1, 17, 'Not approved', 82)]
+    await vi.advanceTimersByTimeAsync(5_000)
+    await replyObserved
+    expect(humanAnswer(env.dir, 'fixture-project', current)).toEqual({ state: 'answered', answer: 'Not approved' })
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(outbound).toHaveLength(1)
+  } finally {
+    closeStale()
+    closeCurrent()
+    stop()
+  }
 })

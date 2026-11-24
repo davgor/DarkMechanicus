@@ -357,6 +357,7 @@ For a folder of Git repositories (one project over several repositories, set up 
 ## Working with the desktop closed
 
 - All tools work without the desktop. Both processes use the same SQLite database. Writes queue on the write lock, so a busy moment can delay a call by a few seconds but not corrupt anything.
+- Ordinary `dm call` (including native `dm_call`) waits for local SQLite writers within a shared 10-second connection window. `busy` identifies startup versus command execution without exposing paths or payloads. Let the current write finish; check persistent command state before repeating a mutation, and reuse its idempotency key when supported. A CLI stderr or native `session_audit_busy` warning about session cleanup does not invalidate the command's JSON result.
 - The server heartbeats its session every 15 seconds so the desktop can show it as active. A session that stops heartbeating drops out of the active list after 60 seconds.
 - Sprint checkpoints need a person. The agent submits its report, then waits and polls `get_checkpoint`. The person approves later in the desktop app. A headless agent cannot approve for itself.
 - State moves between computers through your normal Git commit, push, and pull. `.darkmechanicus/local/` is not tracked. Run an epic on one computer at a time.
