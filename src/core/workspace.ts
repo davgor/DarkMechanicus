@@ -1,4 +1,4 @@
-import { assertToolingCommand } from './services/toolingHold'
+import { assertToolingCommand, toolingWorkflowHeld } from './services/toolingHold'
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { createDesktopClient, type DesktopClient } from './desktop/desktopClient'
 import { homedir } from 'node:os'
@@ -719,6 +719,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
 
   /** Flush after a committed mutation; failures stay recorded in the outbox for retry. */
   safeFlush(): void {
+    if (this.store !== null && this.granted !== null && toolingWorkflowHeld(this.store.ctx, this.granted.grantId)) return
     try {
       this.flush()
     } catch {
@@ -783,6 +784,9 @@ export class RepositoryWorkspace implements WorkspaceCore {
     const ctx = this.store?.ctx
     const grantId = this.granted?.grantId
     if (ctx === undefined || grantId === undefined) return run()
+    const replay = assertToolingCommand(ctx, grantId, { name, mutates: COMMANDS[name].mutates, input })
+    // A held replay never dispatches its command body; safeFlush also preserves its pending work.
+    if (replay !== undefined) return replay
     const admission = await authorizeYoloCommand(ctx, grantId, name, input)
     return admission === null ? run() : this.runElevated(ctx, admission, run)
   }
@@ -805,7 +809,6 @@ export class RepositoryWorkspace implements WorkspaceCore {
     }
     this.assertStillGranted()
     if (this.store !== null) refreshSavePermission(this.store.ctx)
-    if (this.granted !== null && this.store !== null) assertToolingCommand(this.store.ctx, this.granted.grantId, name, spec.mutates)
     const run = spec.run as (core: WorkspaceCore, input: unknown) => unknown
     const result = await this.runCommand(name, input, () => run(this, input))
     if (spec.mutates && this.store) {

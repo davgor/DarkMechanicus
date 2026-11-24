@@ -240,3 +240,15 @@ describe('owned paths in db mode', () => {
     expect(error.message).not.toContain('.darkmechanicus')
   })
 })
+
+it('rejects an unreported ancestor escape even when the target canonicalizes to its exact lexical path', () => {
+  const fs = memoryRepo()
+  const target = join(layout.epicsDir, EPIC, 'current.json')
+  fs.put(target, '{}')
+  const hidden = Object.create(fs) as MemoryFs
+  hidden.realpath = path => path === layout.epicsDir ? resolve('/outside') : fs.realpath(path)
+  expect(hidden.realpath(target)).toBe(target)
+  expect(captureError(() => assertContained(layout, hidden, target))).toMatchObject({
+    code: 'unsafe_path', details: { path: '.darkmechanicus/epics' }
+  })
+})

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { createMemoryFs, type MemoryFs } from '../../test/memoryFs'
 import { createFileHashCache, readUnlessSynced } from './fileHashes'
+import { resolveLayout } from './layout'
+import { readOwnedText } from './portable'
+import { domainErrorOf } from '../../test/repoFixtures'
+import { resolve } from 'node:path'
 
 const FILE = '/repo/.darkmechanicus/profiles/ui.json'
 const LINK = '/repo/.darkmechanicus/profiles/linked.json'
@@ -102,4 +106,91 @@ it('evicts cold metadata at the entry and byte bounds', () => {
   cache.remember('large-2', 'stamp', largeHash)
   expect(cache.get('large-1', 'stamp')).toBeNull()
   expect(cache.get('large-2', 'stamp')).toBe(largeHash)
+})
+
+it('checks containment twice rather than three times on a cold owned read, and still checks every cached acceptance', () => {
+  const layout = resolveLayout(resolve('/repo'))
+  const fs = createMemoryFs()
+  const path = resolve(FILE)
+  fs.put(path, 'v1')
+  const measured = Object.create(fs) as MemoryFs
+  let containmentPasses = 0
+  measured.realpath = candidate => {
+    if (candidate === layout.dmDir) containmentPasses++
+    return fs.realpath(candidate)
+  }
+  const env = { fs: measured, layout, fileHashes: createFileHashCache() }
+  let reads = 0
+  const tracked = {
+    hashOf: (text: string) => text,
+    synced: (hash: string) => hash === 'v1',
+    read: () => { reads++; return readOwnedText(env, path)! }
+  }
+  expect(readUnlessSynced(env, path, tracked)).toBeNull()
+  expect([containmentPasses, reads]).toEqual([2, 1])
+  expect(readUnlessSynced(env, path, tracked)).toBeNull()
+  expect([containmentPasses, reads]).toEqual([3, 1])
+})
+
+it.each([false, true])('rejects an unsafe owned path before content or cached-hash acceptance (cached=%s)', cached => {
+  const layout = resolveLayout(resolve('/repo'))
+  const fs = createMemoryFs()
+  const path = resolve(FILE)
+  fs.put(path, 'v1')
+  const stamp = fs.fileStamp(path)!
+  const measured = Object.create(fs) as MemoryFs
+  fs.reads.length = 0
+  // Even a retained matching metadata stamp cannot hide an ancestor redirect.
+  measured.fileStamp = () => stamp
+  const env = { fs: measured, layout, fileHashes: createFileHashCache() }
+  if (cached) env.fileHashes.remember(path, stamp, 'v1')
+  fs.mkdirp(resolve('/outside'))
+  fs.junction(resolve('/repo/.darkmechanicus/profiles'), resolve('/outside'))
+  let accepted = false
+  const error = domainErrorOf(() => readUnlessSynced(env, path, {
+    hashOf: text => text,
+    synced: () => { accepted = true; return true },
+    read: () => readOwnedText(env, path)!
+  }))
+  expect(error.code).toBe('unsafe_path')
+  expect(accepted).toBe(false)
+  expect(fs.reads).toEqual([])
+})
+
+it('preserves metadata errors on safe paths while an unsafe path still fails containment first', () => {
+  const layout = resolveLayout(resolve('/repo'))
+  const fs = createMemoryFs()
+  const path = resolve(FILE)
+  fs.put(path, 'v1')
+  const failure = new Error('metadata unavailable')
+  const measured = Object.create(fs) as MemoryFs
+  measured.fileStamp = () => { throw failure }
+  const env = { fs: measured, layout, fileHashes: createFileHashCache() }
+  const tracked = { hashOf: (text: string) => text, synced: () => true, read: () => { throw new Error('Must not read content') } }
+  expect(() => readUnlessSynced(env, path, tracked)).toThrow(failure)
+  fs.mkdirp(resolve('/outside'))
+  fs.junction(resolve('/repo/.darkmechanicus/profiles'), resolve('/outside'))
+  expect(domainErrorOf(() => readUnlessSynced(env, path, tracked)).code).toBe('unsafe_path')
+})
+
+it('refuses to seal a cache entry when containment changes after the guarded content read', () => {
+  const layout = resolveLayout(resolve('/repo'))
+  const fs = createMemoryFs()
+  const path = resolve(FILE)
+  fs.put(path, 'v1')
+  fs.mkdirp(resolve('/outside'))
+  const stamp = fs.fileStamp(path)!
+  const measured = Object.create(fs) as MemoryFs
+  measured.fileStamp = () => stamp
+  const env = { fs: measured, layout, fileHashes: createFileHashCache() }
+  expect(domainErrorOf(() => readUnlessSynced(env, path, {
+    hashOf: text => text,
+    synced: () => true,
+    read: () => {
+      const text = readOwnedText(env, path)!
+      fs.junction(resolve('/repo/.darkmechanicus/profiles'), resolve('/outside'))
+      return text
+    }
+  })).code).toBe('unsafe_path')
+  expect(env.fileHashes.get(path, stamp)).toBeNull()
 })

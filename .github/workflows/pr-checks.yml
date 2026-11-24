@@ -86,7 +86,8 @@ jobs:
   fireguard-shards:
     needs: [fireguard-scope]
     if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message || '', '[skip ci]') }}
-    runs-on: ubuntu-latest
+    # Grade native Windows process-handle fixtures on the platform whose lifecycle they verify.
+    runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:

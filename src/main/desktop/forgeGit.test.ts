@@ -217,3 +217,140 @@ it('finishes an ours-only resolved merge even when its staged tree is unchanged,
   expect(gitIn(bare, 'rev-parse', 'main').trim()).toBe(gitIn(first, 'rev-parse', 'HEAD').trim())
   expect(gitIn(bare, 'show', 'main:README.md')).toBe('Local\n')
 })
+
+it('does not stage an already clean world or change its local and remote commit', async () => {
+  const { bare, first, client, runner } = repositoryPair()
+  createForge(first, 'tester')
+  await client.sync(first, async () => undefined)
+  const head = gitIn(first, 'rev-parse', 'HEAD').trim()
+  let stages = 0
+  const observed = new ForgeGit({ getAccount: () => null, getToken: () => null }, {
+    run: request => {
+      if (request.args.includes('add')) stages++
+      return runner.run(request)
+    }
+  })
+  await observed.sync(first, async () => undefined)
+  expect(stages).toBe(0)
+  expect(gitIn(first, 'rev-parse', 'HEAD').trim()).toBe(head)
+  expect(gitIn(bare, 'rev-parse', 'main').trim()).toBe(head)
+})
+
+it('still stages and publishes untracked portable writes made by reconciliation after a clean admission', async () => {
+  const { bare, first, client, runner } = repositoryPair()
+  createForge(first, 'tester')
+  await client.sync(first, async () => undefined)
+  let stages = 0
+  const observed = new ForgeGit({ getAccount: () => null, getToken: () => null }, {
+    run: request => {
+      if (request.args.includes('add')) stages++
+      return runner.run(request)
+    }
+  })
+  await observed.sync(first, async () => { writeFileSync(join(first, 'README.md'), 'After reconciliation\n') })
+  expect(stages).toBe(1)
+  expect(gitIn(bare, 'show', 'main:README.md')).toBe('After reconciliation\n')
+  expect(gitIn(first, 'status', '--porcelain=v1')).toBe('')
+})
+
+it('rejects private state introduced at the final index audit even after a clean status', async () => {
+  const { bare, first, client, runner } = repositoryPair()
+  createForge(first, 'tester')
+  await client.sync(first, async () => undefined)
+  const head = gitIn(bare, 'rev-parse', 'main').trim()
+  let audits = 0
+  const observed = new ForgeGit({ getAccount: () => null, getToken: () => null }, {
+    run: request => runner.run({ ...request, beforeStart: () => {
+      request.beforeStart?.()
+      if (request.args.includes('ls-files') && request.args.includes('--stage') && ++audits === 2) {
+        const directory = join(first, 'Demo/.darkmechanicus/local')
+        mkdirSync(directory, { recursive: true })
+        writeFileSync(join(directory, 'private.json'), '{}')
+        gitIn(first, 'add', '-f', '--', 'Demo/.darkmechanicus/local/private.json')
+      }
+    } })
+  })
+  await expect(observed.sync(first, async () => undefined)).rejects.toThrow('machine-private state')
+  expect(audits).toBe(2)
+  expect(gitIn(bare, 'rev-parse', 'main').trim()).toBe(head)
+})
+
+it.each(['--skip-worktree', 'sparse-checkout'] as const)('preserves native staging refusal for %s rather than silently treating it as clean', async mode => {
+  const { bare, first, client } = repositoryPair()
+  createForge(first, 'tester')
+  writeFileSync(join(first, 'hidden.txt'), 'Original\n')
+  await client.sync(first, async () => undefined)
+  const head = gitIn(bare, 'rev-parse', 'main').trim()
+  if (mode === 'sparse-checkout') {
+    gitIn(first, 'sparse-checkout', 'init', '--no-cone')
+    gitIn(first, 'sparse-checkout', 'set', '--no-cone', '/forge-world.json', '/FORGE-REPOSITORIES.md')
+  } else {
+    gitIn(first, 'update-index', mode, 'hidden.txt')
+    writeFileSync(join(first, 'hidden.txt'), 'Changed\n')
+  }
+  expect(gitIn(first, 'status', '--porcelain=v1', '--untracked-files=all')).toBe('')
+  await expect(client.sync(first, async () => undefined)).rejects.toMatchObject({ code: 'git_failed' })
+  expect(gitIn(bare, 'rev-parse', 'main').trim()).toBe(head)
+  expect(gitIn(first, 'ls-files', '-v', 'hidden.txt')).toMatch(/^S /)
+})
+
+it('retains staged submodule commit effects when configuration hides them from ordinary status and cached diff', async () => {
+  const { root, bare, first, client } = repositoryPair()
+  createForge(first, 'tester')
+  const source = join(root, 'component-source')
+  mkdirSync(source)
+  gitIn(source, 'init', '-b', 'main')
+  writeFileSync(join(source, 'README.md'), 'Original child\n')
+  gitIn(source, 'add', 'README.md')
+  gitIn(source, 'commit', '-m', 'Owned child')
+  gitIn(first, '-c', 'protocol.file.allow=always', 'submodule', 'add', pathToFileURL(source).href, 'component')
+  await client.sync(first, async () => undefined)
+  const head = gitIn(bare, 'rev-parse', 'main').trim()
+  const child = join(first, 'component')
+  writeFileSync(join(child, 'README.md'), 'Changed child\n')
+  gitIn(child, 'add', 'README.md')
+  gitIn(child, 'commit', '-m', 'Owned child change')
+  const changed = gitIn(child, 'rev-parse', 'HEAD').trim()
+  gitIn(first, 'config', 'diff.ignoreSubmodules', 'all')
+  expect(gitIn(first, 'status', '--porcelain=v1', '--untracked-files=all')).toBe('')
+  await client.sync(first, async () => undefined)
+  expect(gitIn(first, 'rev-parse', ':component').trim()).toBe(changed)
+  expect(gitIn(bare, 'rev-parse', 'main').trim()).toBe(head)
+})
+
+it.each(['120000', '160000'])('keeps the ticket mode audit for %s in a flagged index', async mode => {
+  const { bare, first, client } = repositoryPair()
+  createForge(first, 'tester')
+  await client.sync(first, async () => undefined)
+  const head = gitIn(bare, 'rev-parse', 'main').trim()
+  writeFileSync(join(first, '.git/link-target'), '../outside')
+  const object = mode === '120000' ? gitIn(first, 'hash-object', '-w', '.git/link-target').trim() : head
+  gitIn(first, 'update-index', '--add', '--cacheinfo', mode + ',' + object + ',Demo/.darkmechanicus/project.json')
+  await expect(client.sync(first, async () => undefined)).rejects.toThrow('ordinary files')
+  expect(gitIn(bare, 'rev-parse', 'main').trim()).toBe(head)
+})
+
+it('publishes an ordinary index write introduced after reconciliation and the final clean status', async () => {
+  const { bare, first, client, runner } = repositoryPair()
+  createForge(first, 'tester')
+  writeFileSync(join(first, 'README.md'), 'Original\n')
+  await client.sync(first, async () => undefined)
+  let audits = 0
+  let validated = false
+  let injected = false
+  const observed = new ForgeGit({ getAccount: () => null, getToken: () => null }, {
+    run: request => runner.run({ ...request, beforeStart: () => {
+      request.beforeStart?.()
+      if (request.args.includes('ls-files') && request.args.includes('--stage') && ++audits === 4) {
+        expect(validated).toBe(true)
+        writeFileSync(join(first, 'README.md'), 'Late portable write\n')
+        gitIn(first, 'add', '--', 'README.md')
+        injected = true
+      }
+    } })
+  })
+  await observed.sync(first, async () => { validated = true })
+  expect(injected).toBe(true)
+  expect(gitIn(bare, 'show', 'main:README.md')).toBe('Late portable write\n')
+  expect(gitIn(first, 'status', '--porcelain=v1')).toBe('')
+})
