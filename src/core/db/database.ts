@@ -18,7 +18,8 @@ export interface Db {
   all<T>(sql: string, ...params: SqlValue[]): T[]
   run(sql: string, ...params: SqlValue[]): RunResult
   exec(sql: string): void
-  tx<T>(fn: () => T): T
+  /** Read snapshots use deferred BEGIN, leaving the WAL writer available; writes keep BEGIN IMMEDIATE. */
+  tx<T>(fn: () => T, mode?: 'read'): T
   inTransaction(): boolean
   close(): void
 }
@@ -32,6 +33,8 @@ export interface OpenDatabaseOptions {
    * operating system; only test harnesses, whose databases are thrown away, pass it.
    */
   synchronous?: 'full' | 'off'
+  /** Open an existing database without permission to create or mutate it. */
+  readOnly?: boolean
 }
 
 export const DEFAULT_BUSY_TIMEOUT_MS = 5_000
@@ -44,13 +47,13 @@ export function isBusyError(error: unknown): boolean {
   return errcode === 5 || errcode === 6 || /database is (locked|busy)/i.test(error.message)
 }
 
-function applyPragmas(db: DatabaseSync, path: string, busyTimeoutMs: number, synchronous: 'full' | 'off'): void {
-  db.exec(`PRAGMA busy_timeout = ${Math.max(0, Math.floor(busyTimeoutMs))}`)
+function applyPragmas(db: DatabaseSync, path: string, options: OpenDatabaseOptions): void {
+  db.exec(`PRAGMA busy_timeout = ${Math.max(0, Math.floor(options.busyTimeoutMs ?? DEFAULT_BUSY_TIMEOUT_MS))}`)
   db.exec('PRAGMA foreign_keys = ON')
-  if (path !== ':memory:') {
+  if (path !== ':memory:' && options.readOnly !== true) {
     db.exec('PRAGMA journal_mode = WAL')
   }
-  db.exec(synchronous === 'off' ? 'PRAGMA synchronous = OFF' : 'PRAGMA synchronous = FULL')
+  db.exec(options.synchronous === 'off' ? 'PRAGMA synchronous = OFF' : 'PRAGMA synchronous = FULL')
 }
 
 class SqliteDb implements Db {
@@ -63,9 +66,9 @@ class SqliteDb implements Db {
 
   constructor(path: string, options: OpenDatabaseOptions) {
     this.path = path
-    this.db = new DatabaseSync(path)
+    this.db = new DatabaseSync(path, { readOnly: options.readOnly ?? false })
     this.beginAttempts = 1 + Math.max(0, Math.floor(options.beginRetries ?? 3) || 0)
-    applyPragmas(this.db, path, options.busyTimeoutMs ?? DEFAULT_BUSY_TIMEOUT_MS, options.synchronous ?? 'full')
+    applyPragmas(this.db, path, options)
   }
 
   private statement(sql: string): StatementSync {
@@ -122,10 +125,12 @@ class SqliteDb implements Db {
     }
   }
 
-  tx<T>(fn: () => T): T {
+  tx<T>(fn: () => T, mode?: 'read'): T {
     const savepoint = this.depth > 0 ? `sp_${this.depth}` : null
     if (savepoint) {
       this.db.exec(`SAVEPOINT ${savepoint}`)
+    } else if (mode === 'read') {
+      this.db.exec('BEGIN')
     } else {
       this.begin()
     }
@@ -159,7 +164,7 @@ export function guardTransactions(db: Db, guard: () => void): Db {
     path: db.path,
     get: db.get.bind(db), all: db.all.bind(db), run: db.run.bind(db), exec: db.exec.bind(db),
     inTransaction: db.inTransaction.bind(db), close: db.close.bind(db),
-    tx: fn => db.tx(() => { guard(); return fn() })
+    tx: (fn, mode) => db.tx(() => { guard(); return fn() }, mode)
   }
 }
 

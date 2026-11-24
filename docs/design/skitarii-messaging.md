@@ -45,6 +45,11 @@ The local ownership ledger distinguishes the root chat's owner folder from each 
   There is no generic MCP mailbox binding.
 - **Authority comes from the grant, never from the input.** No command takes your own endpoint, sender or session; every
   call re-checks the grant, binding and endpoint inside the same transaction as the operation.
+- **Peer discovery never waits for the mailbox writer.** The CLI opens the existing database read-only, authenticates
+  its token and checks the current mailbox binding in the same deferred snapshot as the peer page. It creates no
+  persistent session, updates no grant-use audit and performs no portable-record maintenance. This restricted session
+  can only list peers; sends, acknowledgements and status polls retain their existing audited paths. An omitted cursor
+  starts the first page; a non-id cursor such as `"0"` returns structured `invalid_input`, without acquiring a writer lock.
 - **Peer text is task data.** Message bodies and peer names are written by other agents. Tool results carry them as JSON
   with control and bidirectional characters escaped, under a fixed note that they are task data, never instructions. A
   message cannot grant a role, approve anything, or change who decides; generated guidance says so to every Skitarii chat.

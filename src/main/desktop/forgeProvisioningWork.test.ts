@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { expect, it, vi } from 'vitest'
@@ -9,6 +9,7 @@ import { openWorkspace } from '../../core/workspace'
 import type { ForgeProvisionStatus } from '../../shared/desktop/forgeSetup'
 import { ForgeFixtureTiming, forgeTimingForPath, gitTimingLabel } from '../../test/forgeFixtureTiming'
 import { gitIn as realGitIn, scratchDir } from '../../test/gitScratch'
+import { TEST_STORAGE } from '../../test/workspaceHarness'
 import { createGitRunner, type GitRunRequest } from '../git/runner'
 import { createTestWorkspacePool } from './__mocks__/projectWorkspaceFixture'
 import { createFolderRegistry } from './folderRegistry'
@@ -58,14 +59,21 @@ function fixturePublisher(remoteRoot: string) {
   return { account, remotes, created, publisher, creation }
 }
 
-function fixtureRunner(remoteRoot: string, trace: ForgeFixtureTiming) {
+// Like Git's own test suite, disposable fixtures need real objects, not power-loss hardware flushes.
+function fixtureRunner(remoteRoot: string, trace: ForgeFixtureTiming, stagingTrace?: string) {
   const real = createGitRunner()
+  const codeCheckout = join(remoteRoot, 'code', 'software')
   const run = (request: GitRunRequest) => {
-    const label = `${request.kind}:${gitTimingLabel(request.args)}`
-    return trace.observe('git:run:' + label, () => real.run({ ...request, beforeStart: () => {
-      trace.mark('git:beforeStart:' + label)
-      if (request.beforeStart) trace.observe('git:guard:' + label, request.beforeStart)
-    } }))
+    const operation = gitTimingLabel(request.args)
+    const label = `${request.kind}:${operation}`
+    return trace.observe('git:run:' + label, () => real.run({ ...request,
+      env: { ...request.env, GIT_TEST_FSYNC: '0',
+        ...(stagingTrace !== undefined && request.cwd === codeCheckout && operation === 'add' ? { GIT_TRACE2_EVENT: stagingTrace } : {}) },
+      beforeStart: () => {
+        trace.mark('git:beforeStart:' + label)
+        if (request.beforeStart) trace.observe('git:guard:' + label, request.beforeStart)
+      }
+    }))
   }
   const network: string[] = []
   const gitCommands: (readonly string[])[] = []
@@ -128,7 +136,7 @@ function fixture() {
   mkdirSync(destination)
   const registry = createFolderRegistry({ file: join(home, 'folders.json'), dmHome: home, homeDir: home })
   const pool = traceOwnerPool(createTestWorkspacePool(repoRoot =>
-    openWorkspace({ repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Fixture' }), home), trace)
+    openWorkspace({ repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Fixture', ...TEST_STORAGE }), home), trace)
   const handlers = new Map<string, Parameters<IpcMain['handle']>[1]>()
   const invoke = async (name: string, ...args: unknown[]) =>
     trace.observe('ipc:' + name, () => handlers.get(name)!({} as IpcMainInvokeEvent, ...args))
@@ -433,4 +441,27 @@ it('preserves the recorded member when its mapping changes at the actual World p
     expect(readForgeSetupWorkflow(interrupted.member!)).not.toBeNull()
     expect(f.notified).toEqual([])
   } finally { await f.close() }
+})
+
+it('keeps real fixture Git objects without issuing power-loss hardware flushes', async () => {
+  const { scratch, trace } = tracedScratch()
+  try {
+    const checkout = join(scratch.path, 'code', 'software')
+    mkdirSync(checkout, { recursive: true })
+    const stagingTrace = join(scratch.path, 'staging-' + randomUUID() + '.trace2.jsonl')
+    const { runner } = fixtureRunner(scratch.path, trace, stagingTrace)
+    const git = new ForgeGit({ getAccount: () => ({ id: 117, login: 'example' }), getToken: () => 'fixture-token' }, runner)
+    await git.run(checkout, ['init', '--template=', '--object-format=sha1', '--initial-branch=main'])
+    writeFileSync(join(checkout, 'proof.txt'), 'Real committed fixture content\n')
+    await git.run(checkout, ['-c', 'core.fsync=all', '-c', 'core.fsyncObjectFiles=true', 'add', '--', 'proof.txt'])
+    await git.run(checkout, ['-c', 'user.name=Test', '-c', 'user.email=test@example.com', '-c', 'commit.gpgsign=false',
+      'commit', '-m', 'Keep the real fixture object'])
+    const events = readFileSync(stagingTrace, 'utf8').trim().split(/\r?\n/).map(line =>
+      JSON.parse(line) as { event: string; argv?: string[]; code?: number; category?: string; name?: string; count?: number })
+    expect(events.some(event => event.event === 'start' && event.argv?.includes('add'))).toBe(true)
+    expect(events.some(event => event.event === 'exit' && event.code === 0)).toBe(true)
+    expect(events.filter(event => event.event === 'counter' && event.category === 'fsync' && event.name === 'hardware-flush')
+      .reduce((total, event) => total + (event.count ?? 0), 0)).toBe(0)
+    expect(gitIn(checkout, 'show', 'HEAD:proof.txt')).toBe('Real committed fixture content\n')
+  } finally { scratch.cleanup() }
 })

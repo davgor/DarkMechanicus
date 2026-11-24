@@ -2,14 +2,14 @@
  * Authorized agent mail: who may act for which mailbox, on top of the repository primitives in `agentMailStore.ts`.
  *
  * An agent never names its mailbox. It is derived, inside the same transaction as the operation, from the calling
- * session's persisted `sessions.grant_id` (set only for a `dm` CLI session that redeemed a grant): that grant must be
+ * session's persisted `sessions.grant_id`, or the restricted peer reader's authenticated ephemeral grant: that grant must be
  * usable now (not revoked, not expired, issued on this machine), bound by the desktop to an open endpoint, and bound in
  * this machine and this canonical folder. An ungranted reader, an MCP stdio session configured with a role (its
  * `grant_id` is null even when `DM_SESSION_TOKEN` is inherited) and a grant without an open binding are all refused
  * with `unauthorized`; none is given an implicit mailbox. Holding `mail.use` is necessary and never sufficient.
  *
- * Every check runs after `BEGIN IMMEDIATE` and before the store reads its clock, so a revocation, expiry or closed
- * binding that commits first is always seen: there is no window between the authority check and the write.
+ * Writes check authority after `BEGIN IMMEDIATE`, so a revocation, expiry or closed binding that commits first is
+ * always seen. Peer discovery checks authority and its page together in a deferred read snapshot, without a writer lock.
  *
  * Endpoint and binding management, the person's inbox view and seen cursor belong to the desktop
  * (`mail.manage`, human-only). Agents cannot register, rebind or close any mailbox, their own or a peer's.
@@ -135,7 +135,7 @@ export function boundParticipantMailbox(ctx: Ctx, sessionId: string | undefined)
 /** The caller's own mailbox, checked inside the current transaction. */
 function requireMailbox(ctx: Ctx): OwnMailbox {
   requireCapability(ctx.session, 'mail.use')
-  const grantId = sessionGrantId(ctx.db, ctx.session.id)
+  const grantId = ctx.session.mailRead?.grantId ?? sessionGrantId(ctx.db, ctx.session.id)
   if (grantId === null) {
     fail('unauthorized', NO_MAILBOX)
   }
@@ -144,6 +144,7 @@ function requireMailbox(ctx: Ctx): OwnMailbox {
 
 /** Runs `act` for the caller's own mailbox in one transaction with its authority check. */
 function asOwner<T>(ctx: Ctx, act: (mailbox: OwnMailbox) => T): T {
+  if (ctx.session.mailRead !== undefined) fail('unauthorized', 'A peer reader may only list agent peers.')
   return ctx.db.tx(() => act(requireMailbox(ctx)))
 }
 
@@ -195,7 +196,8 @@ export function getAgentIdentity(ctx: Ctx): AgentIdentityView {
 /** Open mailboxes on this machine other than the caller's, in id order, a bounded page at a time. */
 export function listAgentPeers(ctx: Ctx, input: { afterId?: string; limit?: number } = {}): AgentPeersPage {
   const limit = requireLimit(input.limit, AGENT_MAIL_LIMITS.endpointPageSize)
-  return asOwner(ctx, ({ endpoint }) => {
+  return ctx.db.tx(() => {
+    const { endpoint } = requireMailbox(ctx)
     const rows = ctx.db.all<{ id: string; name: string }>(
       `SELECT id, name FROM agent_mail_endpoints
        WHERE state = 'open' AND machine_id = ? AND id <> ? AND id > ? ORDER BY id LIMIT ?`,
@@ -210,7 +212,7 @@ export function listAgentPeers(ctx: Ctx, input: { afterId?: string; limit?: numb
       nextAfterId: page.at(-1)?.id ?? null,
       hasMore: rows.length > limit
     }
-  })
+  }, 'read')
 }
 
 /**
