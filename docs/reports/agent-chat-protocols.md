@@ -313,6 +313,8 @@ O: `secret` requests conceal sensitive input (field IPC:767-797); I precise meth
 - O: `todo_auto_clear` (IPC:1077-1080). Failed `todo` (`isError:true`) stays visible and must not replace successful state; successful calls are hidden after applying todos.
 - I: `edit`/`write` use path argument `path`; `edit.old_text/new_text`, `write.content` are synthesized fixture input shapes, not an observed stock OMP edit syntax. The Changes contract only consumes the path. Other OMP edit mechanisms (`ast_edit`, shell, apply-patch text) are not assigned invented path keys.
 
+Renderer consumption: `src/renderer/src/agentChat/agentChanges.ts` derives Changes from completed file calls in transcript order. Chat scope includes all threads; worker scope includes nested helpers. Rows count touches and use the newest tool, not git added/modified status. Paths are normalized lexically and compared case-insensitively on Windows drive paths; project-less paths stay marked outside. Shell edits remain invisible. This derivation does not upgrade the inferred OMP path keys to observed protocol facts.
+
 ## Fixture catalog and replay
 
 Root: `src/main/agentChat/__fixtures__/`. Each entry has `.in.jsonl` (host writes) and `.out.jsonl` (CLI writes):
