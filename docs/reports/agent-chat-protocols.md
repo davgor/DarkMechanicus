@@ -335,6 +335,20 @@ Root: `src/main/agentChat/__fixtures__/`. Each entry has `.in.jsonl` (host write
 - No timestamp fields. Real timestamp-bearing messages are normalized projections, not full API schema fixtures. Synthetic durations and offsets are stable. Fixture paths are non-sensitive Windows absolute paths inside `C:\fixture\repo`, or relative read paths.
 - `.gitattributes` forces LF for JSONL and future fake `.mjs`. Do not run repository-wide `git add --renormalize`: selective commit policy supersedes that ticket command. Files are written LF directly, and the targeted index/worktree EOL check is performed after selective commit.
 
+### Deterministic fake CLI
+
+Run `node src/main/agentChat/__fixtures__/fakeAgentCli.mjs` with the GUI argv above, or without print/RPC flags for the echoing TUI. Set `FAKE_AGENT_LOG` to an isolated invocation log and `CLAUDE_CONFIG_DIR` to a scratch profile. The log includes only argv, cwd, pid and grant presence; `[leak]` deliberately sends the env grant in a tool result and stderr for downstream masking tests.
+
+The shebang is retained, but the `.mjs` is a Node input script, not a directly executable agent path: subprocess tests use `{ file: process.execPath, args: [FAKE_CLI, ...] }`, with no committed executable-bit requirement. Consumers needing an executable agent path use DM-777's generated Windows npm-style shim or executable POSIX `sh` launcher that runs Node, matching DM-791. Do not execute the `.mjs` directly.
+
+`[scenario_name]` selects any existing protocol `.out.jsonl`; unknown names select `text`. `[slow]` spaces text frames by 200 ms, `[crash]` exits 3, OMP `[tasks]` aliases `todo`, and Claude `[todo_clear]` aliases `text`. Send the golden initialization commands first. Blocking permission/question requests require their matching response id. Subsequent turns renumber wire ids, including ids inside chunk payloads; input received during a turn is replayed afterward. EOF stops even a pending approval or slow turn.
+
+OMP subagent transcript responses wait for `get_subagent_messages` for the corresponding worker and echo the caller's request id, rather than emitting unsolicited golden ids. `follow_up` and `steer` acknowledge admission immediately with their own command/id and a queue snapshot; the later turn does not emit a second `prompt` acknowledgement. Dequeuing publishes the updated queue. The `queued` golden test drives its real follow-up command and checks both the byte-identical first turn and the subsequent replay.
+
+Arbiter print argv selects deterministic `allow`, `deny`, `escalate`, `garbage`, `fenced`, `hang` or `crash`, using `FAKE_ARBITER_VERDICT` before the first `[arbiter:verdict]` in stdin. Arbiter logs are written after EOF and before output, include only a `stdinHasSecret` boolean, and never create session files. The fake OMP arbiter is test machinery, not evidence that real OMP arbitration is supported.
+
+`fakeAgentCli.test.ts` compares every checked-in scenario, exercises session detection and both arbiter envelopes, and verifies generic future `worker_approval` replay using an isolated copy of the existing approval golden. The later approval ticket owns the real worker-approval golden; this fixture does not invent it.
+
 ## Arbiter (not GUI launch configuration)
 
 Claude arbiter argv contract:
