@@ -5,6 +5,7 @@ import { questionStore, publishChannel } from '../core/humanQuestions'
 import type { Db } from '../core/db/database'
 import { createHash, randomBytes } from 'node:crypto'
 import type { ProjectWorkspace } from './desktop/workspaceClient'
+import { humanWaitCurrent, removeHumanWait } from '../../resources/skitarii/extension/humanWaitLease'
 
 interface Route { folder: string; cardId: string; question: string }
 interface Config {
@@ -56,7 +57,7 @@ class TelegramHost {
   private code = ''
   private expires = 0
 
-  constructor(private folders: FolderList, private workspace: WorkspaceFor, private db: Db) {
+  constructor(private folders: FolderList, private workspace: WorkspaceFor, private db: Db, private home: string) {
     try {
       if (existsSync(this.file)) this.config = JSON.parse(safeStorage.decryptString(readFileSync(this.file)))
     } catch { this.issue = 'Could not read Telegram configuration.' }
@@ -113,10 +114,13 @@ class TelegramHost {
   }
 
   private async routeReply(c: Config, messageId: number, text: string, updateId: number): Promise<void> {
-    const answered = this.db.run(
-      "UPDATE questions SET state='answered', answer=? WHERE recipient=? AND message=? AND state='sent'",
+    const answered = this.db.get<{ id: string }>(
+      "UPDATE questions SET state='answered', answer=? WHERE recipient=? AND message=? AND state='sent' RETURNING id",
       text, recipientKey(c), messageId)
-    if (answered.changes) return
+    if (answered) {
+      removeHumanWait(this.home, answered.id)
+      return
+    }
     const route = c.routes[messageId]
     if (route) await this.reply(c, route, text, updateId)
   }
@@ -132,10 +136,14 @@ class TelegramHost {
 
   private async deliverQuestion(c: Config): Promise<void> {
     const pending = this.db.tx(() => {
-      const row = this.db.get<{ id: string; repo: string; question: string }>(
-        "SELECT id,repo,question FROM questions WHERE state='queued' ORDER BY created LIMIT 1")
-      if (row) this.db.run("UPDATE questions SET state='sending' WHERE id=?", row.id)
-      return row
+      for (;;) {
+        const row = this.db.get<{ id: string; repo: string; question: string; state: string }>(
+          "SELECT id,repo,question,state FROM questions WHERE state IN ('queued','wait_queued') ORDER BY created LIMIT 1")
+        if (!row) return undefined
+        const current = row.state === 'queued' || humanWaitCurrent(this.home, row.id)
+        this.db.run('UPDATE questions SET state=? WHERE id=?', current ? 'sending' : 'cancelled', row.id)
+        if (current) return row
+      }
     })
     if (!pending) return
     try {
@@ -169,7 +177,7 @@ class TelegramHost {
 export function startTelegram(ipc: Pick<IpcMain, 'handle'>, folders: FolderList, workspace: WorkspaceFor, home: string): () => void {
   const db = questionStore(home)
   db.run("UPDATE questions SET state='delivery_unknown' WHERE state='sending'")
-  const host = new TelegramHost(folders, workspace, db)
+  const host = new TelegramHost(folders, workspace, db, home)
   host.heartbeat()
   registerTelegramIpc(ipc, () => ({ configured: !!host.config, paired: !!host.config?.chat, enabled: !!host.config && host.config.enabled !== false, issue: host.issue }), () => host.pair(), enabled => host.setEnabled(enabled))
   let busy = false

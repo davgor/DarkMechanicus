@@ -190,7 +190,8 @@ export const COMMAND_SCHEMAS = {
   askHuman: z.strictObject({
     question: z.string().trim().min(1).max(3500),
     responseRequired: z.literal(true).describe('The agent needs this answer to proceed.'),
-    humanEngaged: z.literal(false).describe('The human is currently not engaging with this agent in this conversation.')
+    humanEngaged: z.literal(false).describe('The human is currently not engaging with this agent in this conversation.'),
+    waitId: z.uuid().optional().describe('Native human-wait delivery fence; supplied only by the waiting chat.')
   }),
   getHumanAnswer: z.strictObject({ questionId: z.uuid() }),
   nameChat: nameChatArgsSchema,

@@ -12,9 +12,9 @@ function authorize(core: WorkspaceCore): void {
 export const questionCommands = {
   askHuman: {
     schema: COMMAND_SCHEMAS.askHuman, mutates: false, beforeInit: true,
-    run(core, { question }) {
+    run(core, { question, waitId }) {
       authorize(core)
-      return askHuman(core.homeDir, core.repoRoot, question)
+      return askHuman(core.homeDir, core.repoRoot, question, waitId)
     }
   },
   getHumanAnswer: {
