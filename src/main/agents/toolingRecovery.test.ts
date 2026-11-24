@@ -95,6 +95,17 @@ function fixture(role: 'planner' | 'orchestrator' = 'planner') {
     expect(f.deps.delivery.queue).toHaveBeenCalledTimes(2)
   })
 
+  it('replays an interrupted repair with a saved chat identity and no stored first prompt', async () => {
+    const f = fixture()
+    f.source.requireAvailable.mockImplementationOnce(() => { throw new Error('Source checkout is not ready') })
+    const pending = await f.service(escalation, f.context())
+    const repair = f.store.createChat({ folder: f.sourceFolder, agent: 'omp', model: null, role: 'orchestrator', allowSave: false,
+      cardId: 'kc_fixture', repairIncidentId: pending.incidentId })
+    expect(await f.service(escalation, f.context())).toMatchObject({ repairChatId: repair.id, startup: 'running', prompt: 'delivered', connection: 'connected' })
+    expect(f.deps.start).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: repair.id }),
+      expect.stringContaining('Sanitized diagnostic'), expect.any(Function))
+  })
+
   it('preserves partial state after filing and startup failures and never recursively escalates a repair', async () => {
     const f = fixture(); f.deps.start.mockRejectedValueOnce(new Error('fixture spawn failed'))
     const result = await f.service(escalation, f.context())
@@ -345,10 +356,12 @@ it('only accepts repair availability from the repair chat and tells the original
   await expect(f.service(resume, f.context(first.repairChatId!))).rejects.toMatchObject({ code: 'unauthorized' })
   expect(await f.service(resume, f.context())).toMatchObject({ waitingForRepair: true })
   const repairContext = f.context(first.repairChatId!)
+  f.deps.delivery.queue.mockImplementationOnce(async () => {})
+  expect(await f.service(available, repairContext)).toMatchObject({ waitingForRepair: false, messageDelivery: 'pending' })
   expect(await f.service(available, repairContext)).toMatchObject({ waitingForRepair: false, messageDelivery: 'delivered' })
   expect(await f.service(available, repairContext)).toMatchObject({ messageDelivery: 'delivered' })
   expect(await f.service(resume, f.context())).toMatchObject({ waitingForRepair: false, availableVersion: '1.0.0' })
-  expect(f.deps.delivery.queue.mock.calls.filter(([, message]) => message.id.startsWith('repair_available_'))).toHaveLength(1)
+  expect(f.deps.delivery.queue.mock.calls.filter(([, message]) => message.id.startsWith('repair_available_'))).toHaveLength(2)
 })
 
 it.each(['recipient', 'sourceFolder', 'runId'] as const)('rejects caller-selected %s routing rather than sending or creating state elsewhere', async field => {

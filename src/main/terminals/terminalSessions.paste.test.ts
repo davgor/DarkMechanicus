@@ -51,6 +51,8 @@ it('sends advisory input to a live terminal without starting or restarting any c
   rig.clock.advance(SECOND)
   expect(rig.sessions.activeChats().map(chat => chat.id)).toEqual([active.id])
   rig.sessions.pasteIfRunning(idle, message)
+  rig.store.deleteChat(idle)
+  rig.sessions.pasteIfRunning(idle, message)
   rig.sessions.pasteIfRunning(active, message)
   rig.clock.advance(ENTER_DELAY)
   expect(pty.written).toEqual(pasteOf(message))
@@ -59,6 +61,9 @@ it('sends advisory input to a live terminal without starting or restarting any c
   rig.sessions.pasteIfRunning(active, message)
   expect(rig.sessions.activeChats()).toEqual([])
   expect(rig.host.spawns).toHaveLength(1)
+  await rig.sessions.dispose()
+  rig.sessions.pasteIfRunning(active, message)
+  expect(pty.written).toEqual(pasteOf(message))
 })
 
 describe('terminal sessions: paste into a running terminal', () => {

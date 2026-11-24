@@ -65,13 +65,20 @@ it('retires legacy holds, restores the prior run state and credits an open lease
   db.run(`INSERT INTO attempts(id,run_id,ticket_id,number,kind,state,fencing_token,worker_json,revision_id,ticket_content_hash,
     lease_expires_at,heartbeat_at,created_at,updated_at)
     VALUES ('attempt','original','ticket',1,'work','claimed',1,'{}','original','hash',?,?,?,?)`, expires, heartbeat, heldAt, heldAt)
+  const migrationTime = '2026-11-23T12:04:00.000Z'
+  db.run(`INSERT INTO kanban_cards(id,key,title,acceptance_criteria_json,expected_artifacts_json,references_json,priority,
+    lane,created_by_role,created_by_label,created_at,updated_at,revision)
+    VALUES ('card','DM-1','Open card','[]','[]','[]','medium','in_progress','desktop','Fixture',?,?,1)`, heldAt, heldAt)
+  db.run(`INSERT INTO kanban_attempts(id,card_id,number,state,claim_secret,lease_expires_at,heartbeat_at,created_at)
+    VALUES ('renewed','card',1,'running','fixture',?,?,?)`, expires, migrationTime, heldAt)
   for (const [id, run, prior] of [['origin', 'original', 'awaiting_checkpoint'], ['overlap', 'original', null], ['old-owner', 'taken', 'running']]) {
     db.run('INSERT INTO tooling_holds(chat_id,incident_id,run_id,held_at,previous_run_state) VALUES (?,?,?,?,?)', id, id, run, heldAt, prior)
   }
-  db.exec("INSERT INTO tooling_held_attempts VALUES ('origin','attempt','run'), ('overlap','attempt','run')")
+  db.run("INSERT INTO tooling_holds(chat_id,incident_id,card_id,held_at) VALUES ('card-chat','card-incident','card',?)", heldAt)
+  db.exec("INSERT INTO tooling_held_attempts VALUES ('origin','attempt','run'), ('overlap','attempt','run'), ('card-incident','renewed','card')")
   vi.useFakeTimers({ toFake: ['Date'] })
   try {
-    vi.setSystemTime(new Date('2026-11-23T12:04:00.000Z'))
+    vi.setSystemTime(new Date(migrationTime))
     expect(migrate(db)).toEqual({ from: 28, to: 29 })
     expect(db.all('SELECT id,state,pause_reason,paused_at FROM runs ORDER BY id')).toEqual([
       { id: 'original', state: 'awaiting_checkpoint', pause_reason: null, paused_at: null },
@@ -79,6 +86,7 @@ it('retires legacy holds, restores the prior run state and credits an open lease
       { id: 'taken', state: 'paused', pause_reason: 'taken_over', paused_at: heldAt }
     ])
     expect(db.get('SELECT lease_expires_at FROM attempts WHERE id = ?', 'attempt')).toEqual({ lease_expires_at: '2026-11-23T12:09:00.000Z' })
+    expect(db.get('SELECT lease_expires_at FROM kanban_attempts WHERE id = ?', 'renewed')).toEqual({ lease_expires_at: expires })
     expect(migrate(db)).toEqual({ from: 29, to: 29 })
     expect(db.all('SELECT attempt_id,kind,granted_at,ms FROM legacy_tooling_lease_credits')).toEqual([
       { attempt_id: 'attempt', kind: 'run', granted_at: heartbeat, ms: 180_000 }
