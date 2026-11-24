@@ -3,6 +3,7 @@ import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, expect, it } from 'vitest'
 import type { ReactNode } from 'react'
 import type { AgentChatSnapshot, AgentTodoPhase } from '../../../shared/agents/agentChat'
+import type { CommandResult } from '../../../shared/desktop/api'
 import { FakeAgentChat } from '../__mocks__/fakeAgentChat'
 import { FakeDm } from '../__mocks__/fakeDm'
 import { ManualScheduler } from '../__mocks__/manualScheduler'
@@ -329,4 +330,24 @@ it('preserves receipt time across command snapshots and failures without duplica
     expect(view.result.current.state).toMatchObject({ lastEventAt: 4_000, turnStartedAt: 3_000 })
     expect(view.result.current.state.streaming.get('a')?.text).toBe(fail ? 'onceonce' : 'once')
   }
+})
+
+it.each(['busy', 'unsupported_capability'] as const)('preserves the live session and buffered receipt times when a surface switch is refused: %s', async code => {
+  const view = mountTimed()
+  await settle()
+  act(() => view.api.emit({ ...ref, type: 'status', status: 'busy' }))
+  const held = view.api.hold('setSurface')
+  view.api.failures.setSurface = { code, message: 'Cannot switch surfaces.' }
+  let switching: Promise<CommandResult<AgentChatSnapshot>>
+  act(() => { switching = view.result.current.setSurface('terminal') })
+  view.setTime(2_000)
+  act(() => view.api.emit({ ...ref, type: 'delta', itemId: 'a', kind: 'text', text: 'once' }))
+  view.setTime(50_000)
+  await act(async () => {
+    held.resolve()
+    expect(await switching).toEqual({ ok: false, error: { code, message: 'Cannot switch surfaces.' } })
+  })
+  expect(view.result.current.state).toMatchObject({ status: 'busy', surface: 'gui', turn: 1, lastEventAt: 2_000, turnStartedAt: 1_000 })
+  expect(view.result.current.state.streaming.get('a')?.text).toBe('once')
+  expect(view.result.current.state.statusDetail).toBeUndefined()
 })

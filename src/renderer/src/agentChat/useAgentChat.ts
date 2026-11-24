@@ -15,6 +15,11 @@ interface Options {
 
 type ChatRef = Pick<Options, 'folder' | 'chatId'>
 
+/** A rejected transition is not a process failure; initialization failures still are. */
+function failedLoadState(baseline: AgentChatState, detail: string, preserve: boolean): AgentChatState {
+  return preserve ? baseline : { ...baseline, status: 'failed', statusDetail: detail, turnStartedAt: null }
+}
+
 /** One effect's lifetime: stale replies cannot publish into a different chat or bridge. */
 class ChatSubscription {
   private active = true
@@ -51,7 +56,7 @@ class ChatSubscription {
     this.cancelRender?.()
   }
 
-  async load(call: SnapshotCall): Promise<CommandResult<AgentChatSnapshot>> {
+  async load(call: SnapshotCall, preserveOnRefusal = false): Promise<CommandResult<AgentChatSnapshot>> {
     const sequence = ++this.request
     const baseline = this.state
     this.buffered = []
@@ -62,14 +67,14 @@ class ChatSubscription {
         // A fresh snapshot of this subscription must not rewind its turn counter.
         const state = result.ok
           ? { ...agentChatState(result.data, this.timing.clock.now()), turn: baseline.turn }
-          : { ...baseline, status: 'failed' as const, statusDetail: result.error.message, turnStartedAt: null }
+          : failedLoadState(baseline, result.error.message, preserveOnRefusal)
         this.complete(state)
       }
       return result
     } catch (error) {
       if (this.active && sequence === this.request) {
         const statusDetail = error instanceof Error ? error.message : 'Unable to load agent chat.'
-        this.complete({ ...baseline, status: 'failed', statusDetail, turnStartedAt: null })
+        this.complete(failedLoadState(baseline, statusDetail, preserveOnRefusal))
       }
       throw error
     }
@@ -119,8 +124,8 @@ export function useAgentChat({ folder, chatId, api = window.dm.agentChat, schedu
     }
   }, [api, identity, scheduler, clock])
 
-  const load = useCallback((call: SnapshotCall) => {
-    return refresh.current?.identity === identity ? refresh.current.load(call) : call()
+  const load = useCallback((call: SnapshotCall, preserveOnRefusal = false) => {
+    return refresh.current?.identity === identity ? refresh.current.load(call, preserveOnRefusal) : call()
   }, [identity])
   const start = useCallback(() => load(() => api.start(identity)), [api, identity, load])
   const send = useCallback((text: string) => api.send({ ...identity, text }), [api, identity])
@@ -128,7 +133,7 @@ export function useAgentChat({ folder, chatId, api = window.dm.agentChat, schedu
   const answer = useCallback((promptId: string, optionId: string, text?: string) =>
     api.answer({ ...identity, promptId, optionId, ...(text === undefined ? {} : { text }) }), [api, identity])
   const setSurface = useCallback((surface: AgentChatSnapshot['surface']) =>
-    load(() => api.setSurface({ ...identity, surface })), [api, identity, load])
+    load(() => api.setSurface({ ...identity, surface }), true), [api, identity, load])
 
   return { state: view.identity === identity ? view.state : agentChatState(), start, send, interrupt, answer, setSurface }
 }

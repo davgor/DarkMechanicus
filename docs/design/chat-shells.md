@@ -24,6 +24,8 @@ GUI and terminal starts share `writeTerminalFiles`/`instructionsTextFor`, `write
 
 Claude `-p` skips its workspace trust dialog: tracking a folder in Dark Mechanicus is the trust decision for GUI launches. When no agent is explicitly selected, `pickChatAgent` chooses installed, signed-in Skitarii, then another signed-in GUI-capable agent, then a signed-in terminal-only agent; otherwise callers retain the sign-in path.
 
+Ordinary folder and project-less chats render their stored `surface`: `gui` uses `AgentChat`; terminal and legacy records use `TerminalPane`. Supported terminal agents offer **GUI** in the header, and GUI offers **Terminal** while idle. Both request the typed main-owned surface transition and wait for the updated chat record push; busy or unsupported refusals remain inline without replacing the pane. New chat uses the shared signed-in picker unless the person has explicitly selected a connected folder default or chooses another agent.
+
 ## What the app does today
 
 From the code (*verified (code)*), so the carry-over below has a baseline:

@@ -25,6 +25,7 @@ import { SignInView } from './agents/SignInView'
 import { chatsFor } from './agents/useChats'
 import { AgentMailContext } from './agents/useAgentMail'
 import { TerminalPane } from './agents/TerminalPane'
+import { AgentChat } from './agentChat/AgentChat'
 import type { TerminalKit } from './agents/terminalView'
 import { xtermKit } from './agents/xtermKit'
 import { CheckForUpdatesButton } from './autoUpdate/CheckForUpdatesButton'
@@ -136,21 +137,22 @@ interface ChatPaneProps {
   terminalKit: TerminalKit
 }
 
-/**
- * An open chat: its terminal. A link that asked for one of its threads (a transcript view's) has opened the chat,
- * which is all a terminal can show of it, so the request is taken at once rather than left for a later view.
- */
+/** The persisted surface owns the pane; a surface command waits for the chats_changed record push. */
 function ChatPane({ shell, folder, chat, scheduler, terminalKit }: ChatPaneProps): JSX.Element {
   const actions = useLatest(shell.actions)
   const landing = threadLandingFor(shell.landing, chat.id) !== null
   useEffect(() => {
     if (landing) actions.current.landed()
   }, [actions, landing])
+  if (chat.surface === 'gui') {
+    return <AgentChat folder={folder} chatId={chat.id} agentLabel={agentName(chat.agent, shell.agents.agents)} scheduler={scheduler} />
+  }
   return (
     <TerminalPane
       folder={folder}
       chat={chat}
       agentName={agentName(chat.agent, shell.agents.agents)}
+      agentKind={shell.agents.agents.find((agent) => agent.id === chat.agent)?.kind}
       kit={terminalKit}
       scheduler={scheduler}
       onAgentStatus={(status) => shell.agents.recordStatus(chat.agent, status)}

@@ -1,6 +1,12 @@
-import { describe, expect, it } from 'vitest'
+// @vitest-environment jsdom
+import { createElement, useState } from 'react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
+import type { AgentAuthStatus, AgentView } from '../../../shared/desktop/api'
 import { agentView } from '../__mocks__/fixtures'
-import { chattableAgents, newChatAgent } from './NewChatFields'
+import { AgentChoice, chattableAgents, newChatAgent } from './NewChatFields'
+
+afterEach(cleanup)
 
 const signedIn = { state: 'signed_in', reason: '' } as const
 
@@ -46,5 +52,35 @@ describe('newChatAgent', () => {
 
   it('falls back to the first connected agent when none can chat', () => {
     expect(newChatAgent(null, [claude, omp], { claude: { state: 'signed_out', reason: '' }, omp: { state: 'unknown', reason: '' } })).toBe('claude')
+  })
+})
+
+describe('New chat rendered agent choice', () => {
+  const agents = [agentView({ kind: 'codex' }), agentView({ kind: 'claude' }), agentView({ kind: 'omp' })]
+  function Choice({ statuses }: { statuses: Record<string, AgentAuthStatus> }): React.ReactElement {
+    const [value, setValue] = useState(() => newChatAgent(null, agents, statuses) ?? '')
+    return createElement(AgentChoice, { agents, statuses, value, onChange: setValue,
+      onAddAgent: () => { throw new Error('Unexpected setup navigation') },
+      onAgentStatus: () => { throw new Error('Unexpected authentication call') } })
+  }
+
+  it.each([
+    [{ claude: signedIn, omp: signedIn }, 'Skitarii'],
+    [{ claude: signedIn, codex: signedIn }, 'Claude Code']
+  ] as const)('preselects the shared signed-in GUI default %s', (statuses, selected) => {
+    render(createElement(Choice, { statuses }))
+    expect((screen.getByRole('radio', { name: new RegExp(selected) }) as HTMLInputElement).checked).toBe(true)
+  })
+
+  it('preserves the person’s different selection through a status refresh', () => {
+    const view = render(createElement(Choice, { statuses: { claude: signedIn, omp: signedIn } }))
+    fireEvent.click(screen.getByRole('radio', { name: /Claude Code/ }))
+    view.rerender(createElement(Choice, { statuses: { claude: signedIn, omp: signedIn, codex: signedIn } }))
+    expect((screen.getByRole('radio', { name: /Claude Code/ }) as HTMLInputElement).checked).toBe(true)
+  })
+
+  it('uses kind rather than registry order to prefer signed-in Claude over terminal-only agents', () => {
+    const registered: AgentView[] = agents
+    expect(newChatAgent(null, registered, { codex: signedIn, claude: signedIn })).toBe('claude')
   })
 })
