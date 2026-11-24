@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, expect, it } from 'vitest'
-import type { AgentChatSnapshot } from '../../../shared/agents/agentChat'
+import type { AgentChatSnapshot, AgentTodoPhase } from '../../../shared/agents/agentChat'
 import { FakeAgentChat } from '../__mocks__/fakeAgentChat'
 import { FakeDm } from '../__mocks__/fakeDm'
 import { ManualScheduler } from '../__mocks__/manualScheduler'
@@ -34,6 +34,7 @@ afterEach(cleanup)
     expect(view.result.current.state.streaming.get('a')?.text).toBe('Hello world')
     expect(view.result.current.state.queued).toBe(2)
     expect(view.result.current.state.status).toBe('busy')
+    expect(view.result.current.state.turn).toBe(1)
     act(() => api.emit({ ...ref, type: 'item', item: message }))
     expect(view.result.current.state.items).toEqual([message])
     expect(view.result.current.state.streaming.size).toBe(0)
@@ -105,7 +106,7 @@ afterEach(cleanup)
     await settle()
     expect(api.callsOf('start')).toEqual([[ref]])
     expect(view.result.current.state.status).toBe('idle')
-    expect(view.result.current.state.todos).toEqual(todos)
+    expect(view.result.current.state.todos).toEqual(new Map([['', todos[0].phases]]))
   })
 
   it('does not start a terminal owner, signed-out session or failed snapshot', async () => {
@@ -239,4 +240,36 @@ it('keeps deltas exactly once when a snapshot-producing command fails', async ()
   await act(async () => { held.resolve(); await starting })
   expect(view.result.current.state.streaming.get('a')?.text).toBe('once')
   expect(view.result.current.state.statusDetail).toBe('Already busy')
+})
+
+it('seeds thread maps and replays replacement and deletion pushes over snapshot arrays', async () => {
+  const api = new FakeAgentChat()
+  const phases = [{ name: 'Work', tasks: [{ id: null, content: 'Implement', status: 'pending' as const }] }]
+  const replacement = [{ name: 'Done', tasks: [{ id: null, content: 'Implement', status: 'completed' as const }] }]
+  api.snapshotResult = { ok: true, data: snapshot({ todos: [{ threadId: null, phases }, { threadId: 'child', phases }] }) }
+  const held = api.hold('snapshot')
+  const view = mount(api)
+  act(() => {
+    api.emit({ ...ref, type: 'todos', threadId: null, phases: replacement })
+    api.emit({ ...ref, type: 'todos', threadId: 'child', phases: [] })
+    api.emit({ ...ref, type: 'todos', threadId: 'other', phases })
+  })
+  held.resolve()
+  await settle()
+  expect(view.result.current.state.todos).toEqual(new Map<string, AgentTodoPhase[]>([['', replacement], ['other', phases]]))
+})
+
+it('keeps turn numbering through command snapshots and counts subsequent busy transitions', async () => {
+  const view = mount()
+  await settle()
+  act(() => {
+    view.api.emit({ ...ref, type: 'status', status: 'busy' })
+    view.api.emit({ ...ref, type: 'status', status: 'idle' })
+  })
+  expect(view.result.current.state.turn).toBe(1)
+  await act(async () => { await view.result.current.setSurface('terminal') })
+  expect(view.result.current.state.turn).toBe(1)
+  await act(async () => { await view.result.current.setSurface('gui') })
+  act(() => view.api.emit({ ...ref, type: 'status', status: 'busy' }))
+  expect(view.result.current.state.turn).toBe(2)
 })

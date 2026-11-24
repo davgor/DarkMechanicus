@@ -57,7 +57,9 @@ class ChatSubscription {
     try {
       const result = await call()
       if (this.active && sequence === this.request) {
-        const state = result.ok ? agentChatState(result.data) : { ...baseline, status: 'failed' as const, statusDetail: result.error.message }
+        // Snapshot todos stay arrays on the bridge; only agentChatState indexes them.
+        // A fresh snapshot of this subscription must not rewind its turn counter.
+        const state = result.ok ? { ...agentChatState(result.data), turn: baseline.turn } : { ...baseline, status: 'failed' as const, statusDetail: result.error.message }
         this.complete(state)
       }
       return result

@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import type { AgentChatEvent, PendingPrompt } from '../../../shared/agents/agentChat'
+import type { AgentChatEvent, AgentTodoPhase, PendingPrompt } from '../../../shared/agents/agentChat'
 import type { ChatItem } from '../../../shared/agents/chat'
 import { agentChatState, reduceAgentChat } from './agentChatModel'
 
@@ -53,12 +53,43 @@ const prompt: PendingPrompt = { id: 'p1', kind: 'question', title: 'Choose', det
     expect(reduceAgentChat(state, { ...ref, type: 'status', status: 'idle' }).statusDetail).toBeUndefined()
   })
 
-  it('loads snapshot todos and replaces or clears only the specified thread', () => {
+  it('seeds the renderer map from snapshot arrays, omitting empty lists', () => {
     const phases = [{ name: 'Work', tasks: [{ id: null, content: 'Implement', status: 'in_progress' as const }] }]
-    const initial = agentChatState({ items: [item('a', 'stored')], status: 'busy', pending: prompt, queued: 2, surface: 'gui', todos: [{ threadId: null, phases }] })
-    const child = reduceAgentChat(initial, { ...ref, type: 'todos', threadId: 'child', phases })
-    const cleared = reduceAgentChat(child, { ...ref, type: 'todos', threadId: null, phases: [] })
-    expect(cleared.todos).toEqual([{ threadId: null, phases: [] }, { threadId: 'child', phases }])
-    expect(initial.todos).toEqual([{ threadId: null, phases }])
+    const todos = [{ threadId: null, phases }, { threadId: 'child', phases }, { threadId: 'empty', phases: [] }]
+    const initial = agentChatState({ items: [item('a', 'stored')], status: 'busy', pending: prompt, queued: 2, surface: 'gui', todos })
+    expect(initial.todos).toEqual(new Map([['', phases], ['child', phases]]))
+    expect(initial.todos.get('')).toBe(phases)
+    expect(todos).toHaveLength(3)
+    expect(initial.turn).toBe(0)
+  })
+
+  it('sets, replaces and deletes thread lists without mutating other threads or previous state', () => {
+    const phases = [{ name: 'Work', tasks: [{ id: null, content: 'Implement', status: 'in_progress' as const }] }]
+    const replacement = [{ name: 'Done', tasks: [{ id: null, content: 'Implement', status: 'completed' as const }] }]
+    const initial = agentChatState()
+    const main = reduceAgentChat(initial, { ...ref, type: 'todos', threadId: null, phases })
+    const child = reduceAgentChat(main, { ...ref, type: 'todos', threadId: 'child', phases })
+    const replaced = reduceAgentChat(child, { ...ref, type: 'todos', threadId: null, phases: replacement })
+    const cleared = reduceAgentChat(replaced, { ...ref, type: 'todos', threadId: null, phases: [] })
+    expect(initial.todos.size).toBe(0)
+    expect(main.todos).toEqual(new Map([['', phases]]))
+    expect(child.todos).toEqual(new Map([['', phases], ['child', phases]]))
+    expect(replaced.todos).toEqual(new Map<string, AgentTodoPhase[]>([['', replacement], ['child', phases]]))
+    expect(replaced.todos.get('child')).toBe(child.todos.get('child'))
+    expect(cleared.todos).toEqual(new Map([['child', phases]]))
     expect(cleared.items).toBe(initial.items)
+    expect(reduceAgentChat(cleared, { ...ref, type: 'todos', threadId: 'child', phases: [] }).todos.size).toBe(0)
+    expect(reduceAgentChat(initial, { ...ref, type: 'todos', threadId: 'absent', phases: [] }).todos.size).toBe(0)
+  })
+
+  it('increments turns only on transitions into busy', () => {
+    let state = agentChatState()
+    expect(state.turn).toBe(0)
+    for (const [status, turn] of [
+      ['idle', 0], ['busy', 1], ['busy', 1], ['idle', 1],
+      ['busy', 2], ['failed', 2], ['busy', 3]
+    ] as const) {
+      state = reduceAgentChat(state, { ...ref, type: 'status', status })
+      expect(state.turn).toBe(turn)
+    }
   })
