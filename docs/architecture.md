@@ -31,6 +31,8 @@ Electron renderer ─> preload (window.git, window.github) ─> main IPC (src/ma
 | `src/renderer/src/agentChat/TodoCard.tsx` | Chromium renderer | Docked below pending prompts and above the composer. Per-chat collapse preference, plain-text task states and bounded list-only scrolling; unattributed workers never inherit the main thread list. The renderer reducer advances ephemeral per-thread lingering memory in event order, independent of batched React renders. In-flight command snapshots reconstruct ordinary data with buffered pushes, then reconcile snapshot-only changes against the live subscription's authoritative lifecycle; they never replay turn/completion history from future snapshot contents or grant closed reload snapshots a linger. Closed counts include completed and abandoned tasks. |
 | `skills/` | shipped as text | Provider-neutral agent instructions, exposed as MCP prompts |
 
+The GUI shell memoizes `withoutTodoCalls` on the durable item array: running/completed to-do tools are represented by the To-dos card, while failed, denied and cancelled calls remain visible. Shared legacy `ChatTranscript` rendering is unchanged.
+
 No renderer database access and no duplicated business rules: MCP handlers and IPC handlers are adapters only.
 
 ## Storage decision

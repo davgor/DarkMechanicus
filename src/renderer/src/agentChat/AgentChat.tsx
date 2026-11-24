@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { AgentChatApi } from '../../../shared/agents/agentChat'
 import type { CommandResult } from '../../../shared/desktop/api'
 import { ChatTranscript } from '../agents/ChatTranscript'
@@ -8,6 +8,7 @@ import { PendingPromptCard } from './PendingPromptCard'
 import { TodoCard } from './TodoCard'
 import type { AgentChatState as ChatState } from './agentChatModel'
 import { useAgentChat } from './useAgentChat'
+import { withoutTodoCalls } from './todoPanelModel'
 import '../agents/chatView.css'
 import './agentChat.css'
 import '../agents/chatThreads.css'
@@ -99,6 +100,7 @@ function ChatHeader({ state, agentLabel, acting, terminal }: {
 }
 
 function Messages({ state, folder, agentLabel }: { state: ChatState; folder: string | null; agentLabel: string }): JSX.Element {
+  const items = useMemo(() => withoutTodoCalls(state.items), [state.items])
   const viewport = useRef<HTMLDivElement>(null)
   const content = useRef<HTMLDivElement>(null)
   const pinned = useRef(true)
@@ -121,7 +123,7 @@ function Messages({ state, folder, agentLabel }: { state: ChatState; folder: str
     }}>
       <div ref={content}>
         {state.items.length === 0 && state.streaming.size === 0 && <p className="agent-chat-empty">Send a message to {agentLabel} to begin.</p>}
-        <ChatTranscript folder={folder ?? ''} agentName={agentLabel} entries={state.items} />
+        <ChatTranscript folder={folder ?? ''} agentName={agentLabel} entries={items} />
         {Array.from(state.streaming, ([id, stream]) => <StreamingBubble key={id} {...stream} />)}
       </div>
     </div>

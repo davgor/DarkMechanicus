@@ -65,6 +65,32 @@ it('renders a running tool, updates it in place and opens the subagent thread', 
   expect(within(thread).getByText('Composer keyboard behavior inspected.')).toBeTruthy()
 })
 
+it('hides completed to-do calls but keeps the failed TodoWrite and Bash cards', async () => {
+  const { emit } = await mount()
+  emit([
+    { id: 'todo-done', name: 'TodoWrite', status: 'completed' },
+    { id: 'task-done', name: 'TaskUpdate', status: 'completed' },
+    { id: 'todo-failed', name: 'TodoWrite', status: 'failed' },
+    { id: 'bash-done', name: 'Bash', status: 'completed' }
+  ].map(({ id, name, status }) => ({
+    ...ref, type: 'item', item: {
+      id, name, status: status as 'completed' | 'failed', kind: 'tool_call',
+      at: '2026-11-24T08:00:00.000Z', input: {}, resultSummary: id
+    }
+  })))
+  const cards = screen.getAllByRole('listitem', { name: /^Tool call:/ })
+  expect(cards).toHaveLength(2)
+  const failed = screen.getByRole('listitem', { name: 'Tool call: TodoWrite' })
+  expect(failed.textContent).toMatch(/failed/i)
+  fireEvent.click(within(failed).getByRole('button'))
+  expect(within(failed).getByText('todo-failed')).toBeTruthy()
+  const bash = screen.getByRole('listitem', { name: 'Tool call: Bash' })
+  expect(within(bash).getByText('Done')).toBeTruthy()
+  fireEvent.click(within(bash).getByRole('button'))
+  expect(within(bash).getByText('bash-done')).toBeTruthy()
+  expect(screen.queryByRole('listitem', { name: 'Tool call: TaskUpdate' })).toBe(null)
+})
+
 it('sends on Enter, preserves Shift+Enter and IME composition, and ignores blank drafts', async () => {
   const { api } = await mount()
   const input = screen.getByRole('textbox')
