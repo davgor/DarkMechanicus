@@ -9,7 +9,7 @@ import { openWorkspace } from '../../core/workspace'
 import { gitIn, scratchDir } from '../../test/gitScratch'
 import { createGitRunner } from '../git/runner'
 import { createFolderRegistry } from './folderRegistry'
-import { forgeKickoff, updateForge } from './forgeManifest'
+import { FORGE_FILE, forgeKickoff, parseForge, updateForge } from './forgeManifest'
 import { startForge } from './forgeService'
 import { createTestWorkspacePool as createWorkspacePool } from './__mocks__/projectWorkspaceFixture'
 import { bindToolingGrant, holdToolingWorkflow, retireToolingWorkflow } from '../../core/services/toolingHold'
@@ -565,7 +565,9 @@ it('reports preparing until the local member owner reconciles and does no remote
     const member = join(world, 'LocalOnly')
     mkdirSync(member)
     await pool.get(member).initializeRepository({ name: 'Local tickets' })
-    updateForge(world, manifest => manifest.projects.push({ folder: 'LocalOnly', repository: 'https://github.com/example/code.git' }))
+    const manifest = parseForge(readFileSync(join(world, FORGE_FILE), 'utf8'))
+    manifest.projects.push({ folder: 'LocalOnly', repository: 'https://github.com/example/code.git' })
+    writeFileSync(join(world, FORGE_FILE), JSON.stringify(manifest, null, 2) + '\n')
     expect(await call('memberStatus', world, member)).toMatchObject({ readiness: 'preparing', syncing: true })
     expect(await call('memberStatus', world, member)).toMatchObject({ readiness: 'preparing', syncing: true })
     expect(intercept).toHaveBeenCalledTimes(1)
