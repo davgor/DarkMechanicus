@@ -112,8 +112,8 @@ export function observeReconcileInputs(deps: FingerprintDeps): ReconcileGate {
       return tracked !== null && stored !== null && stored.startsWith(`${tracked}:`) && stored === fingerprint(deps.db, tracked)
     },
     applied: (result) => {
-      const problems = result.conflicts.length + result.profileConflicts.length + result.kanbanConflicts.length + result.rejected.length
-      setMeta(deps.db, META_KEYS.reconcileFingerprint, tracked !== null && problems === 0 ? fingerprint(deps.db, tracked) : '')
+      const clean = [result.conflicts, result.profileConflicts, result.kanbanConflicts, result.rejected].every((list) => list.length === 0)
+      setMeta(deps.db, META_KEYS.reconcileFingerprint, tracked !== null && clean ? fingerprint(deps.db, tracked) : '')
     }
   }
 }
