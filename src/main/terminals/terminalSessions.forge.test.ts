@@ -128,6 +128,16 @@ describe('Forge World member agent context', () => {
     expect(rig.host.last().kills).toBe(0)
   })
 
+  it('does not spawn a resolver when its sign-in becomes unknown at terminal start', async () => {
+    const chat = rig.newChat('omp')
+    rig.store.updateChat(chat, { forgeResolver: rig.repo })
+    rig.auth.status = { state: 'unknown', reason: 'Agent sign-in could not be verified.' }
+    await expect(rig.sessions.start(chat, { kickoff: 'Resolve the repository merge on main' }))
+      .resolves.toEqual({ state: 'signed_out', message: 'Agent sign-in could not be verified.' })
+    expect(rig.grantsAsked).toBe(0)
+    expect(rig.host.spawns).toEqual([])
+  })
+
   it('starts the trusted conflict resolver on its existing member grant while keeping root scope parsing strict', async () => {
     writeFileSync(join(rig.repo, 'forge-world.json'), '<<<<<<< HEAD\n{}\n=======\n{}\n>>>>>>> remote\n')
     const chat = rig.store.createChat({ folder: member, agent: 'omp', model: null, title: 'Repair sync', role: 'worker', allowSave: false })

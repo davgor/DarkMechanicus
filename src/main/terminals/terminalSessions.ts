@@ -1010,10 +1010,13 @@ function assertSpawnLocation(context: StartContext, expectedDirectory: string | 
 /** The steps before a spawn, in their order (see the module comment). */
 async function runStart(context: StartContext, step: Step): Promise<StartOutcome> {
   const { manager, chat, agent, folder, starting } = context
+  if (chat.forgeResolver !== undefined && agent.kind === 'custom') {
+    return { state: 'signed_out', message: 'The resolver agent does not support sign-in verification.' }
+  }
   if (agent.kind !== 'custom') {
     const status = await step(manager.deps.checkAuth(agent.kind, agent.executablePath).catch((): AgentAuthStatus | null => null))
-    if (status?.state === 'signed_out') {
-      return { state: 'signed_out', message: status.reason }
+    if (status?.state === 'signed_out' || (chat.forgeResolver !== undefined && status?.state !== 'signed_in')) {
+      return { state: 'signed_out', message: status?.reason ?? 'The resolver agent sign-in could not be verified.' }
     }
     starting.phase = 'preparing'
   }

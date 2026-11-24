@@ -944,7 +944,15 @@ function startForgeBridge(ipc: Pick<IpcMain, 'handle'>, options: ForgeBridgeOpti
       discover: repository => discoverGithubForgeSetup(repository, github, (url, request) => net.fetch(url, request))
     },
     setup: forgeSetupChatOptions(options),
-    ...forgeAgentSessions({ ...options, beforeArchive: options.suspendChatMail })
+    ...forgeAgentSessions({
+      ...options,
+      checkAuth: async id => {
+        const agent = options.agents.get(id)
+        return agent === null || agent.kind === 'custom' || agent.needsReview ? 'unchecked' :
+          (await getAgentAuthStatus(agent.kind, agent.executablePath, agentRunDeps())).state
+      },
+      beforeArchive: options.suspendChatMail
+    })
   })
 }
 

@@ -88,7 +88,7 @@ export class ForgeGit {
     const prior = (await this.run(root, ['rev-parse', 'HEAD'])).stdout.trim()
     const main = await this.run(root, ['show-ref', '--verify', '--quiet', 'refs/heads/main'], undefined, { acceptExitCodes: [0, 1] })
     await this.run(root, main.code === 0 ? ['switch', 'main'] : ['switch', '-c', 'main'])
-    if (main.code === 0) await this.run(root, ['merge', '--no-edit', prior])
+    if (main.code === 0) await this.run(root, ['merge', '--no-edit', '-m', 'Recover off-main Forge World work into main', prior])
   }
 
   async sync(root: string, validate: () => Promise<void>, beforePush?: () => void) {
@@ -101,21 +101,26 @@ export class ForgeGit {
     ensureForgeDirections(root)
     await this.commitRepository(root)
     const ref = 'refs/heads/main'
-    if ((await this.run(root, ['ls-remote', '--heads', url, ref], url)).stdout.trim()) {
-      await this.run(root, ['fetch', '--no-tags', url, ref], url)
-      await this.inspectTree(root, 'FETCH_HEAD')
-      await this.inspectOutgoing(root, 'FETCH_HEAD..HEAD')
-      await this.run(root, ['merge', '--no-edit', 'FETCH_HEAD'])
-    } else {
-      await this.inspectOutgoing(root, 'HEAD')
+    const hasUpstream = (await this.run(root, ['ls-remote', '--heads', url, ref], url)).stdout.trim() !== ''
+    if (hasUpstream) await this.run(root, ['fetch', '--no-tags', url, ref], url)
+    const [local, upstream] = (await this.run(root, ['rev-parse', 'HEAD', ...(hasUpstream ? ['FETCH_HEAD'] : [])])).stdout.trim().split(/\s+/)
+    const range = upstream === undefined ? '' : upstream + '..'
+    if (upstream !== undefined) await this.inspectTree(root, upstream)
+    // Reject private unpublished history before opening a merge or invoking validation.
+    await this.inspectOutgoing(root, range + local)
+    if (upstream !== undefined) {
+      await this.run(root, ['merge', '--no-edit', '-m', 'Merge remote main into Forge World main', upstream])
     }
     await this.inspectTree(root, 'HEAD')
     await validate()
     // Reconciliation/health upgrades can create portable records after merging.
     // Include those writes in this same sync rather than leaving them behind.
     await this.commitRepository(root)
-    await this.inspectTree(root, 'HEAD')
+    // Pin the checked object: another local commit may arrive while the network runner queues the push.
+    const revision = (await this.run(root, ['rev-parse', 'HEAD'])).stdout.trim()
+    await this.inspectTree(root, revision)
+    if (revision !== local) await this.inspectOutgoing(root, range + revision)
     beforePush?.()
-    await this.run(root, ['push', url, 'HEAD:' + ref], url, { beforeStart: beforePush })
+    await this.run(root, ['push', url, revision + ':' + ref], url, { beforeStart: beforePush })
   }
 }
