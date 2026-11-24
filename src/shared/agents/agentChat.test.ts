@@ -11,6 +11,7 @@ const task = { id: null, content: 'Implement contract', status: 'pending' as con
 const phase = { name: 'Work', tasks: [task] }
 const prompt: PendingPrompt = {
   id: 'req_1', kind: 'approval', title: 'Run tests', detail: 'npm test', threadId: 'thread_1',
+  attributed: true,
   callsign: { role: 'Acolyte', ticketKey: 'DM-770', ordinal: null, purpose: 'Implement contract', ticketVerified: true },
   arbitration: { state: 'deciding', reason: null }, options: [{ id: 'allow_once', label: 'Allow once' }],
   tool: { name: 'Bash', input: { command: 'npm test' } }
@@ -60,6 +61,9 @@ describe('agent chat events and snapshots', () => {
     expect(pendingPromptSchema.safeParse({ ...prompt, options: [{ id: 'custom', label: 'custom' }] }).success).toBe(false)
     expect(pendingPromptSchema.safeParse({ ...prompt, kind: 'question', options: [{ id: 'custom', label: 'custom' }] }).success).toBe(true)
     expect(pendingPromptSchema.safeParse({ ...prompt, arbitration: { state: 'escalated', reason: 'a'.repeat(501) } }).success).toBe(false)
+    expect(pendingPromptSchema.safeParse({ ...prompt, attributed: false }).success).toBe(true)
+    expect(pendingPromptSchema.safeParse({ ...prompt, attributed: undefined }).success).toBe(false)
+    expect(pendingPromptSchema.safeParse({ ...prompt, attributed: 'true' }).success).toBe(false)
   })
 
   it('rejects invalid tasks, phases and over-limit lists', () => {

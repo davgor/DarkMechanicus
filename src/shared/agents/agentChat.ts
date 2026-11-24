@@ -26,6 +26,8 @@ export const agentChatSnapshotRequestSchema = z.strictObject(chatRef)
 const promptFields = {
   id: z.string().min(1), title: z.string(), detail: z.string(),
   threadId: z.string().nullable(), callsign: callsignSchema.nullable(),
+  /** False when a running worker may own the request but no thread correlation is known. */
+  attributed: z.boolean(),
   arbitration: z.strictObject({ state: z.enum(['off', 'deciding', 'escalated']), reason: z.string().max(500).nullable() }),
   tool: z.strictObject({ name: z.string().min(1), input: z.record(z.string(), z.json()) }).optional()
 }

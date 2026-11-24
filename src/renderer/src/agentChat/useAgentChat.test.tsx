@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook } from '@testing-library/react'
 import { afterEach, expect, it } from 'vitest'
+import type { ReactNode } from 'react'
 import type { AgentChatSnapshot, AgentTodoPhase } from '../../../shared/agents/agentChat'
 import { FakeAgentChat } from '../__mocks__/fakeAgentChat'
 import { FakeDm } from '../__mocks__/fakeDm'
 import { ManualScheduler } from '../__mocks__/manualScheduler'
 import { settle } from '../__mocks__/settle'
+import { ClockContext, type Clock } from '../epic/clock'
 import { useAgentChat } from './useAgentChat'
 
 const ref = { folder: 'C:\\project', chatId: 'chat-one' }
@@ -272,4 +274,59 @@ it('keeps turn numbering through command snapshots and counts subsequent busy tr
   await act(async () => { await view.result.current.setSurface('gui') })
   act(() => view.api.emit({ ...ref, type: 'status', status: 'busy' }))
   expect(view.result.current.state.turn).toBe(2)
+})
+
+function mountTimed(api = new FakeAgentChat()) {
+  let now = 1_000
+  const clock: Clock = { now: () => now, subscribe: () => () => {} }
+  const scheduler = new ManualScheduler()
+  const wrapper = ({ children }: { children: ReactNode }) => <ClockContext.Provider value={clock}>{children}</ClockContext.Provider>
+  const view = renderHook(() => useAgentChat({ ...ref, api, scheduler }), { wrapper })
+  return { ...view, api, scheduler, setTime: (at: number) => { now = at } }
+}
+
+it('uses the injected clock for event arrival, not delayed rendering', async () => {
+  const view = mountTimed()
+  await settle()
+  expect(view.result.current.state.lastEventAt).toBe(1_000)
+  act(() => view.api.emit({ ...ref, type: 'status', status: 'busy' }))
+  expect(view.result.current.state).toMatchObject({ lastEventAt: 1_000, turnStartedAt: 1_000 })
+  view.setTime(2_000)
+  act(() => view.api.emit({ ...ref, type: 'delta', itemId: 'a', kind: 'text', text: 'once' }))
+  view.setTime(9_000)
+  act(() => view.scheduler.fireTimeouts(33))
+  expect(view.result.current.state).toMatchObject({ lastEventAt: 2_000, turnStartedAt: 1_000 })
+})
+
+it('preserves buffered arrival times across initial snapshot resolution', async () => {
+  const api = new FakeAgentChat()
+  const held = api.hold('snapshot')
+  const view = mountTimed(api)
+  act(() => api.emit({ ...ref, type: 'status', status: 'busy' }))
+  view.setTime(2_000)
+  act(() => api.emit({ ...ref, type: 'delta', itemId: 'a', kind: 'text', text: 'early' }))
+  view.setTime(40_000)
+  held.resolve()
+  await settle()
+  expect(view.result.current.state).toMatchObject({ lastEventAt: 2_000, turnStartedAt: 1_000 })
+  expect(view.result.current.state.streaming.get('a')?.text).toBe('early')
+})
+
+it('preserves receipt time across command snapshots and failures without duplicating deltas', async () => {
+  const view = mountTimed()
+  await settle()
+  for (const fail of [false, true]) {
+    const held = view.api.hold('start')
+    if (fail) view.api.failures.start = { code: 'busy', message: 'Already busy' }
+    let starting: Promise<unknown>
+    act(() => { starting = view.result.current.start() })
+    view.setTime(3_000)
+    act(() => view.api.emit({ ...ref, type: 'status', status: 'busy' }))
+    view.setTime(4_000)
+    act(() => view.api.emit({ ...ref, type: 'delta', itemId: 'a', kind: 'text', text: 'once' }))
+    view.setTime(50_000)
+    await act(async () => { held.resolve(); await starting })
+    expect(view.result.current.state).toMatchObject({ lastEventAt: 4_000, turnStartedAt: 3_000 })
+    expect(view.result.current.state.streaming.get('a')?.text).toBe(fail ? 'onceonce' : 'once')
+  }
 })

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AgentChatApi, AgentChatEvent, AgentChatSnapshot } from '../../../shared/agents/agentChat'
 import type { CommandResult } from '../../../shared/desktop/api'
 import { browserScheduler, type Scheduler } from '../app/scheduler'
+import { useClock, type Clock } from '../epic/clock'
 import { agentChatState, reduceAgentChat, type AgentChatState } from './agentChatModel'
 
 type SnapshotCall = () => Promise<CommandResult<AgentChatSnapshot>>
@@ -20,14 +21,14 @@ class ChatSubscription {
   private state = agentChatState()
   private initialized = false
   private request = 0
-  private buffered: AgentChatEvent[] | null = null
+  private buffered: { event: AgentChatEvent; at: number }[] | null = null
   private cancelRender?: () => void
   private unsubscribe?: () => void
 
   constructor(
     readonly identity: ChatRef,
     private api: AgentChatApi,
-    private scheduler: Scheduler,
+    private timing: { scheduler: Scheduler; clock: Clock },
     private onChange: (state: AgentChatState) => void
   ) {}
 
@@ -59,14 +60,16 @@ class ChatSubscription {
       if (this.active && sequence === this.request) {
         // Snapshot todos stay arrays on the bridge; only agentChatState indexes them.
         // A fresh snapshot of this subscription must not rewind its turn counter.
-        const state = result.ok ? { ...agentChatState(result.data), turn: baseline.turn } : { ...baseline, status: 'failed' as const, statusDetail: result.error.message }
+        const state = result.ok
+          ? { ...agentChatState(result.data, this.timing.clock.now()), turn: baseline.turn }
+          : { ...baseline, status: 'failed' as const, statusDetail: result.error.message, turnStartedAt: null }
         this.complete(state)
       }
       return result
     } catch (error) {
       if (this.active && sequence === this.request) {
         const statusDetail = error instanceof Error ? error.message : 'Unable to load agent chat.'
-        this.complete({ ...baseline, status: 'failed', statusDetail })
+        this.complete({ ...baseline, status: 'failed', statusDetail, turnStartedAt: null })
       }
       throw error
     }
@@ -74,7 +77,8 @@ class ChatSubscription {
 
   private complete(state: AgentChatState): void {
     this.state = state
-    for (const event of this.buffered ?? []) this.state = reduceAgentChat(this.state, event)
+    // Preserve receipt time across snapshot races; replay is not new agent activity.
+    for (const { event, at } of this.buffered ?? []) this.state = reduceAgentChat(this.state, event, at)
     this.buffered = null
     this.initialized = true
     this.publish()
@@ -82,11 +86,12 @@ class ChatSubscription {
 
   private receive(event: AgentChatEvent): void {
     if (!this.active || event.folder !== this.identity.folder || event.chatId !== this.identity.chatId) return
-    this.buffered?.push(event)
+    const at = this.timing.clock.now()
+    this.buffered?.push({ event, at })
     if (!this.initialized) return
-    this.state = reduceAgentChat(this.state, event)
+    this.state = reduceAgentChat(this.state, event, at)
     if (event.type === 'delta') {
-      this.cancelRender ??= this.scheduler.after(33, () => this.publish())
+      this.cancelRender ??= this.timing.scheduler.after(33, () => this.publish())
     } else this.publish()
   }
 
@@ -99,19 +104,20 @@ class ChatSubscription {
 
 /** Subscribe before reading; replay pushes over each in-flight snapshot in arrival order. */
 export function useAgentChat({ folder, chatId, api = window.dm.agentChat, scheduler = browserScheduler }: Options) {
-  const identity = useMemo(() => ({ folder, chatId }), [folder, chatId, api, scheduler])
+  const clock = useClock()
+  const identity = useMemo(() => ({ folder, chatId }), [folder, chatId, api, scheduler, clock])
   const [view, setView] = useState<{ identity: typeof identity; state: AgentChatState }>(() => ({ identity, state: agentChatState() }))
   const refresh = useRef<ChatSubscription | null>(null)
 
   useEffect(() => {
-    const subscription = new ChatSubscription(identity, api, scheduler, (state) => setView({ identity, state }))
+    const subscription = new ChatSubscription(identity, api, { scheduler, clock }, (state) => setView({ identity, state }))
     refresh.current = subscription
     subscription.attach()
     return () => {
       subscription.dispose()
       if (refresh.current === subscription) refresh.current = null
     }
-  }, [api, identity, scheduler])
+  }, [api, identity, scheduler, clock])
 
   const load = useCallback((call: SnapshotCall) => {
     return refresh.current?.identity === identity ? refresh.current.load(call) : call()

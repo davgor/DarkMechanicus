@@ -40,6 +40,7 @@ export const agentChatScenarios: Record<'empty' | 'streaming' | 'tool' | 'approv
   approval: {
     snapshot: { ...empty, items: conversation, pending: {
       id: 'approval', kind: 'approval', title: 'Run tests?', detail: 'Run the targeted chat tests.', threadId: null, callsign: null,
+      attributed: false,
       arbitration: { state: 'off', reason: null }, options: [{ id: 'allow_once', label: 'Allow once' }, { id: 'deny', label: 'Deny' }]
     } },
     events: [], commit: []

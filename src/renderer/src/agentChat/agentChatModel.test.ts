@@ -5,7 +5,7 @@ import { agentChatState, reduceAgentChat } from './agentChatModel'
 
 const ref = { folder: 'C:\\project', chatId: 'chat-one' }
 const item = (id: string, text: string): ChatItem => ({ id, kind: 'assistant_text', at: '2026-01-01T00:00:00.000Z', text })
-const prompt: PendingPrompt = { id: 'p1', kind: 'question', title: 'Choose', detail: '', threadId: null, callsign: null, arbitration: { state: 'off', reason: null }, options: [] }
+const prompt: PendingPrompt = { id: 'p1', kind: 'question', title: 'Choose', detail: '', threadId: null, attributed: true, callsign: null, arbitration: { state: 'off', reason: null }, options: [] }
 
   it('accumulates text and thinking separately and commits exactly one item without mutating old state', () => {
     const initial = agentChatState()
@@ -93,3 +93,47 @@ const prompt: PendingPrompt = { id: 'p1', kind: 'question', title: 'Choose', det
       expect(state.turn).toBe(turn)
     }
   })
+
+it('records the injected arrival time for every event, including deltas and ephemeral state', () => {
+  const events: AgentChatEvent[] = [
+    { ...ref, type: 'status', status: 'busy' },
+    { ...ref, type: 'delta', itemId: 'a', kind: 'text', text: 'Hello' },
+    { ...ref, type: 'item', item: item('a', 'Hello') },
+    { ...ref, type: 'todos', threadId: null, phases: [] },
+    { ...ref, type: 'pending', prompt },
+    { ...ref, type: 'queued', count: 1 }
+  ]
+  let state = agentChatState()
+  for (const [index, event] of events.entries()) {
+    const previous = state
+    state = reduceAgentChat(state, event, (index + 1) * 1_000)
+    expect(state.lastEventAt).toBe((index + 1) * 1_000)
+    expect(previous.lastEventAt).toBe(index * 1_000)
+  }
+})
+
+it('starts timing only on entry into busy and clears every terminal turn status', () => {
+  const busy = reduceAgentChat(agentChatState(), { ...ref, type: 'status', status: 'busy' }, 1_000)
+  expect(busy.turnStartedAt).toBe(1_000)
+  expect(reduceAgentChat(busy, { ...ref, type: 'status', status: 'busy' }, 2_000).turnStartedAt).toBe(1_000)
+  for (const status of ['idle', 'exited', 'failed', 'signed_out'] as const) {
+    const ended = reduceAgentChat(busy, { ...ref, type: 'status', status }, 3_000)
+    expect(ended.turnStartedAt).toBeNull()
+    expect(reduceAgentChat(ended, { ...ref, type: 'status', status: 'busy' }, 4_000).turnStartedAt).toBe(4_000)
+  }
+})
+
+it('loads busy timing from the last user message, otherwise from the load time', () => {
+  const snapshot = {
+    items: [
+      { id: 'u1', text: 'First', kind: 'user_message' as const, at: new Date(1_000).toISOString() },
+      { id: 'u2', text: 'Second', kind: 'user_message' as const, at: new Date(2_000).toISOString() },
+      item('a', 'Later assistant')
+    ],
+    status: 'busy' as const, pending: null, queued: 0, surface: 'gui' as const, todos: []
+  }
+  expect(agentChatState(snapshot, 5_000)).toMatchObject({ lastEventAt: 5_000, turnStartedAt: 2_000 })
+  expect(agentChatState({ ...snapshot, items: [] }, 5_000).turnStartedAt).toBe(5_000)
+  expect(agentChatState({ ...snapshot, items: [{ ...snapshot.items[1], at: 'invalid' }] }, 5_000).turnStartedAt).toBe(5_000)
+  expect(agentChatState({ ...snapshot, status: 'idle' }, 5_000).turnStartedAt).toBeNull()
+})
