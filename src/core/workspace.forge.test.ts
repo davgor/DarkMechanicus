@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 import { afterEach, beforeEach, expect, it } from 'vitest'
-import { createHarness, type Harness } from '../test/workspaceHarness'
+import { createHarness, TEST_STORAGE, type Harness } from '../test/workspaceHarness'
 import { assertForgeTransferIdle, bindForge, boundForgeRoot, FORGE_POINTER, isForgeMember, pendingForgeTransfer, withForgeTransfer } from './repo/forgeBinding'
 import { nodeFs } from './repo/nodeFs'
 import { dbProjectDir, SQLITE_STANDARDS_FILE } from './repo/storageMode'
@@ -29,7 +29,7 @@ it('preserves ticket identity and opens a bound code project through its pointer
   const note = 'Forge World: https://github.com/tester/world.git\nProject folder: Source\n'
   writeFileSync(join(h.root, FORGE_POINTER), note)
   bindForge(h.homeDir, h.root, member, note)
-  const workspace = openWorkspace({ repoRoot: h.root, homeDir: h.homeDir, transport: 'desktop', role: 'desktop', label: 'Forge fixture', serverInfo: { name: 'fixture', version: '1' } })
+  const workspace = openWorkspace({ repoRoot: h.root, homeDir: h.homeDir, transport: 'desktop', role: 'desktop', label: 'Forge fixture', serverInfo: { name: 'fixture', version: '1' }, ...TEST_STORAGE })
   try {
     expect(workspace.repoRoot).toBe(member)
     expect((await workspace.getProject()).deliveryStandards).toEqual(policy)
@@ -43,7 +43,7 @@ it('preserves ticket identity and opens a bound code project through its pointer
     const grant = await workspace.issueGrant({ role: 'planner', label: 'Bound Forge planner' })
     bindToolingGrant(workspace.ctx(), grant.grant.id, 'chat_forge')
     holdToolingWorkflow(workspace.ctx(), { id: 'chat_forge', incidentId: 'forge_incident' })
-    const planner = openWorkspace({ repoRoot: h.root, homeDir: h.homeDir, transport: 'cli', role: 'planner', label: 'Bound planner', grantToken: grant.token })
+    const planner = openWorkspace({ repoRoot: h.root, homeDir: h.homeDir, transport: 'cli', role: 'planner', label: 'Bound planner', grantToken: grant.token, ...TEST_STORAGE })
     try {
       expect(planner.repoRoot).toBe(member)
       expect((await planner.getKanbanCard({ cardId: card.id })).title).toBe('One shared card')
