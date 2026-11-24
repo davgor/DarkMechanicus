@@ -1,5 +1,5 @@
 import { callRecovery, readRecoveryContext } from './recoveryClient'
-import { SESSION_AUDIT_BUSY, SESSION_AUDIT_BUSY_STDERR } from './dmDiagnostics'
+import { DM_WRITER_BUSY, SESSION_AUDIT_BUSY, SESSION_AUDIT_BUSY_STDERR } from './dmDiagnostics'
 /**
  * The Skitarii extension's mail client: runs the chat's own pinned `dm` CLI for one mailbox command at a time,
  * without a shell, and returns its JSON result.
@@ -13,12 +13,12 @@ import { SESSION_AUDIT_BUSY, SESSION_AUDIT_BUSY_STDERR } from './dmDiagnostics'
  * is no fallback to PATH, a shell, a launcher or another chat's file.
  *
  * Each call spawns `<command> <...args> call <command name> -` with `shell: false`, writes the input as JSON on
- * stdin, and bounds the run: 5 s, 2 MiB of stdout, 4 KiB of stderr kept (sanitized, the token redacted). A timeout,
+ * stdin, and bounds the run: a 5 s inactivity watchdog renewed by SQLite writer contention, 2 MiB of stdout, 4 KiB of stderr kept (sanitized, the token redacted). A timeout,
  * an overflow, the caller's abort signal or `cancelAll` kills the child, and the call settles only once it has exited.
  * Results may carry message bodies: they go back to the caller only and are never logged here.
  *
  * `run` is the same path for any other Dark Mechanicus command (the `dm_call` tool): the same descriptor, grant,
- * spawn, caps and stopping, with a 60 s bound (`DM_RUN_LIMITS`). The command name must have the CLI's own shape (a
+ * spawn, caps and stopping, with a 60 s inactivity watchdog (`DM_RUN_LIMITS`). The command name must have the CLI's own shape (a
  * lowercase letter, then letters, digits or `_`), so it can never be read as a flag, a path or a second word; which
  * commands the chat may run is the grant's decision, checked by the CLI, never a list here. Its successful data comes
  * back with the grant redacted wherever it appears.
@@ -507,6 +507,9 @@ function runChild(run: Run, input: string, cancels: Set<(reason: StopReason) => 
       resolve(result)
     })
     const timer = setTimeout(() => stop('timeout'), run.limits.timeoutMs)
+    run.child.on('message', (message) => {
+      if (!settled && message === DM_WRITER_BUSY) timer.refresh()
+    })
     const onAbort = (): void => stop('aborted')
     run.signal?.addEventListener('abort', onAbort, { once: true })
     cancels.add(stop)
@@ -532,7 +535,8 @@ function startChild(deps: DmClientDeps, descriptor: DmClientDescriptor, cliName:
       env: dmChildEnv(descriptor, deps, token, cliName),
       shell: false,
       windowsHide: true,
-      stdio: ['pipe', 'pipe', 'pipe']
+      serialization: 'json',
+      stdio: ['pipe', 'pipe', 'pipe', 'ipc']
     })
     return { ok: true, value: child }
   } catch {
