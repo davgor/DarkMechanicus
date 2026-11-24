@@ -1,0 +1,2 @@
+{"type":"control_response","response":{"subtype":"success","request_id":"req_T1_initialize","response":{"commands":[],"agents":[],"output_style":"default","available_output_styles":["default"],"models":[],"account":{}}}}
+{"type":"system","subtype":"init","session_id":"session_T1","uuid":"uuid_T1_12","cwd":"C:\\fixture\\repo","tools":["Bash","Read","Edit","Write","NotebookEdit","Agent","AskUserQuestion","TodoWrite","TaskCreate","TaskUpdate"],"model":"fixture-model","permissionMode":"default","mcp_servers":[]}

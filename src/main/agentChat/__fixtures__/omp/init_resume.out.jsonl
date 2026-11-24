@@ -1,0 +1,6 @@
+{"type":"ready","protocolVersion":1,"supportedProtocolVersions":[1,2],"maxFrameBytes":1048576,"maxReassembledFrameBytes":67108864,"supportsBashExcludeFromContext":true}
+{"type":"response","command":"negotiate_protocol","id":"req_T1_protocol","success":true}
+{"type":"response","command":"set_ask_dialog","id":"req_T1_askdialog","success":true}
+{"type":"response","command":"set_subagent_subscription","id":"req_T1_subscription","success":true}
+{"type":"response","command":"set_event_filter","id":"req_T1_filter","success":true}
+{"type":"response","command":"get_state","id":"req_T1_state","success":true,"data":{"model":null,"thinkingLevel":"off","isStreaming":false,"isCompacting":false,"steeringMode":"all","followUpMode":"all","sessionFile":"C:/fixture/repo/session_T1.jsonl","sessionId":"session_T1","sessionName":null,"autoCompactionEnabled":false,"messageCount":2,"pendingMessageCount":0,"todoPhases":[{"id":"phase_T1_1","name":"Implement","tasks":[{"id":"todo_T1_1","content":"Add banner","status":"in_progress"},{"id":"todo_T1_2","content":"Wait for API","status":"blocked","blocker":"API unavailable"}]},{"id":"phase_T1_2","name":"Review","tasks":[{"id":"todo_T1_3","content":"Old approach","status":"abandoned"}]}]}}
