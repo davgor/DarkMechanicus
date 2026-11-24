@@ -24,6 +24,7 @@ function shell(): Shell {
     toasts: { push: () => undefined, reportError: () => undefined },
     folders: { pick: () => Promise.reject(new Error('unused')), untrack: () => Promise.resolve(), reload: () => Promise.resolve() },
     select: (selection) => selections.push(selection),
+    setFolderTab: () => { throw new Error('Source navigation is not part of this metrics test') },
     land: (landing) => landings.push(landing),
     reveal: () => undefined,
     revealAgents: () => undefined,

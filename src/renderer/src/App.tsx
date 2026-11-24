@@ -3,7 +3,7 @@ import type { ComponentProps, ComponentType, MutableRefObject } from 'react'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { AgentId, TrackedFolderView } from '../../shared/desktop/api'
 import { folderIdentity } from './app/folderList'
-import { epicLandingFor, threadLandingFor } from './app/landing'
+import { epicLandingFor, sourceFileLandingFor, threadLandingFor } from './app/landing'
 import { findFolder } from './app/selection'
 import type { Selection } from './app/selection'
 import { listFor } from './app/useEpicLists'
@@ -91,6 +91,7 @@ function orchestrationFor(shell: ShellModel, folder: TrackedFolderView): Orchest
     onChatsChanged: () => shell.chats.reload(folder.path),
     onAddAgent: actions.openAddAgent,
     onAgentStatus: shell.agents.recordStatus,
+    onOpenSourceFile: (absolutePath) => actions.openSourceFile(folder.path, absolutePath),
     onOpenChat: (chatId, threadId) => (threadId === undefined ? actions.selectChat(folder.path, chatId) : actions.openThread(folder.path, chatId, threadId))
   }
 }
@@ -239,7 +240,8 @@ async function openForgeOnboarding(shell: ShellModel, member: string, chatId: st
 
 function ForgeProjectSource({ shell, folder, scheduler, sourceTarget }: FolderContentsProps): JSX.Element {
   const api = window.dm.forgeSetup
-  const source = <SourceControlView folder={folder} scheduler={scheduler} target={sourceTarget} />
+  const source = <SourceControlView folder={folder} scheduler={scheduler} target={sourceTarget}
+    focusPath={sourceFileLandingFor(shell.landing, folder.path)?.absolutePath} onFocused={shell.actions.landed} />
   if (api === undefined) return source
   const status = sourceTarget.state
   const checkout = status.status === 'ready' && status.value.kind === 'available' ? status.value.path : null
@@ -270,7 +272,8 @@ function FolderContents(props: FolderContentsProps): JSX.Element {
 
 function FolderTabContent({ shell, folder, tab, scheduler, sourceTarget, onProvision }: FolderContentsProps): JSX.Element | null {
   if (tab === 'standards') return null
-  if (tab === 'source') return <SourceControlView folder={folder} scheduler={scheduler} target={sourceTarget} />
+  if (tab === 'source') return <SourceControlView folder={folder} scheduler={scheduler} target={sourceTarget}
+    focusPath={sourceFileLandingFor(shell.landing, folder.path)?.absolutePath} onFocused={shell.actions.landed} />
   if (tab === 'tickets' || (folder.forgeWorld && tab === 'epics')) return <TicketSource
     key={folder.path} folder={folder} folders={shell.folders} status={shell.status} agents={shell.agents.agents}
     initialize={mode => shell.actions.initialize(folder, { mode, writeMcpConfig: false, importBoard: false })}

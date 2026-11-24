@@ -61,6 +61,7 @@ interface ShellDeps {
     reload(): Promise<void>
   }
   select(selection: Selection): void
+  setFolderTab(folderPath: string, tab: 'source'): void
   /** Sets the request the screen opened next should take (a link from a chat), or forgets it (null). */
   land(landing: Landing | null): void
   reveal(path: string, bucket: WorkStatus | null): void
@@ -98,11 +99,13 @@ export interface ShellActions {
    * have opens the chat as it is.
    */
   openThread(path: string, chatId: string, threadId: string): void
+  /** Opens the folder's Source control Changes list at a Git-reported file. */
+  openSourceFile(folderPath: string, absolutePath: string): void
   /** Opens an epic's workspace on its Scorecard (a Metrics dashboard row). */
   openEpicScorecard(path: string, epicId: string): void
   /** Opens a ticket in its epic's workspace on its Scorecard tab (a Metrics dashboard gap). */
   openTicketScorecard(path: string, link: TicketScorecardLink): void
-  /** The screen opened by a link (`openTicket`, `openThread`, `openEpicScorecard`, `openTicketScorecard`) took its request: forget it. */
+  /** The screen opened by a link took its request: forget it. */
   landed(): void
   /** Opens the add-agent pane in place of the folder or epic view. */
   openAddAgent(): void
@@ -204,8 +207,14 @@ function selectionActions(deps: ShellDeps): SelectionActions {
 }
 
 /** Links from one screen to another: the screen is opened, then asked for what the link points at. */
-function linkActions(deps: ShellDeps): Pick<ShellActions, 'openTicket' | 'openThread' | 'openEpicScorecard' | 'openTicketScorecard' | 'landed'> {
+function linkActions(deps: ShellDeps): Pick<ShellActions, 'openTicket' | 'openThread' | 'openSourceFile' | 'openEpicScorecard' | 'openTicketScorecard' | 'landed'> {
   return {
+    openSourceFile: (folderPath, absolutePath) => {
+      deps.setFolderTab(folderPath, 'source')
+      deps.select({ folderPath, epicId: null })
+      deps.reveal(folderPath, null)
+      deps.land({ kind: 'sourceFile', folderPath, absolutePath })
+    },
     openTicket: (path, link) => {
       showEpic(deps, path, link.epicId)
       deps.land({ kind: 'ticket', ...link })

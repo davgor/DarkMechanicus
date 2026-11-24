@@ -214,7 +214,7 @@ export function useShell(scheduler: Scheduler): ShellModel {
   const actions = createShellActions({
     toasts,
     folders,
-    select,
+    select, setFolderTab,
     land: setLanding,
     ...navigationExpansion(folders.folders, expansion),
     chats: { create: chats.create },

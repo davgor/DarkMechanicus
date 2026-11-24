@@ -13,6 +13,9 @@ import { ManualScheduler } from '../__mocks__/manualScheduler'
 import { settle } from '../__mocks__/settle'
 import { ToastProvider } from '../app/toasts'
 import { SourceControlView } from './SourceControlView'
+import { fileKeyForPath } from './RepositoryView'
+import { fileKey } from './ChangesPanel'
+import { fakeOrchestration } from '../epic/__mocks__/fakeOrchestration'
 
 const FOLDER = '/work/alpha'
 const folder = folderView({ path: FOLDER, name: 'alpha' })
@@ -22,6 +25,7 @@ let dm: FakeDm
 let scheduler: ManualScheduler
 
 beforeEach(() => {
+  localStorage.clear()
   git = new FakeGit()
   dm = new FakeDm()
   scheduler = new ManualScheduler()
@@ -297,5 +301,83 @@ describe('Forge World branch controls', () => {
     await settle()
     expect(screen.getByRole('button', { name: /Current branch.*main/ })).toHaveProperty('disabled', false)
     expect(screen.queryByText('Forge Worlds stay on main.')).toBeNull()
+  })
+})
+
+describe('source-file landings', () => {
+  it('resolves Windows and POSIX paths only among Git-reported files, using the first match', () => {
+    const files = [change('src/a.ts'), change('src/a.ts', 'added')]
+    const state = status(files, { root: 'C:/Repo/' })
+    if (state.kind !== 'repository') throw new Error('Expected repository')
+    expect(fileKeyForPath(state.status, 'c:\\repo\\src\\a.ts')).toBe(fileKey(files[0]))
+    expect(fileKeyForPath(state.status, 'C:/Elsewhere/src/a.ts')).toBeNull()
+    expect(fileKeyForPath({ ...state.status, root: '/repo' }, '/repo/src/a.ts')).toBe(fileKey(files[0]))
+    expect(fileKeyForPath({ ...state.status, root: '/repo' }, '/Repo/src/a.ts')).toBeNull()
+    expect(fileKeyForPath({ ...state.status, root: '/' }, '/src/a.ts')).toBe(fileKey(files[0]))
+  })
+
+  it('waits for status, switches History to Changes, consumes once and preserves later user selection', async () => {
+    const windowsFolder = folderView({ path: 'C:/Repo' })
+    git.setState(windowsFolder.path, status([change('src/a.ts'), change('src/b.ts')], { root: windowsFolder.path }))
+    git.setDiff(windowsFolder.path, 'src/a.ts', textDiff('src/a.ts', 'focused alpha'))
+    git.setDiff(windowsFolder.path, 'src/b.ts', textDiff('src/b.ts', 'chosen beta'))
+    localStorage.setItem('dm.sourceTab', JSON.stringify({ [windowsFolder.path]: 'history' }))
+    const onFocused = vi.fn()
+    renderView(<SourceControlView folder={windowsFolder} scheduler={scheduler} focusPath={'c:\\Repo\\src\\a.ts'} onFocused={onFocused} />)
+    expect(onFocused).not.toHaveBeenCalled()
+    await settle()
+    expect(screen.getByRole('button', { name: 'Changes' }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('button', { name: /a\.ts/ }).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByText('focused alpha')).toBeTruthy()
+    expect(JSON.parse(localStorage.getItem('dm.sourceTab') ?? '{}')).toEqual({ 'C:/Repo': 'changes' })
+    expect(onFocused).toHaveBeenCalledTimes(1)
+    fireEvent.click(screen.getByRole('button', { name: /b\.ts/ }))
+    await settle()
+    act(() => scheduler.fireIntervals(5000))
+    await settle()
+    expect(screen.getByText('chosen beta')).toBeTruthy()
+    expect(onFocused).toHaveBeenCalledTimes(1)
+    for (const call of git.calls.filter(call => call.method === 'getWorkingDiff')) {
+      expect(call.request).toEqual(expect.objectContaining({ path: expect.stringMatching(/^src\/[ab]\.ts$/) }))
+    }
+  })
+})
+
+describe('missing source-file landings', () => {
+
+  it('clears an existing diff for an unknown landing, consumes once, and permits a later request for the same file', async () => {
+    git.setState(FOLDER, status([change('a.ts')]))
+    git.setDiff(FOLDER, 'a.ts', textDiff('a.ts', 'existing diff'))
+    const onFocused = vi.fn()
+    const view = (focusPath?: string): JSX.Element => <ToastProvider scheduler={scheduler}><GithubAccountProvider>
+      <SourceControlView folder={folder} scheduler={scheduler} focusPath={focusPath} onFocused={onFocused} />
+    </GithubAccountProvider></ToastProvider>
+    const mounted = render(view(`${FOLDER}/a.ts`))
+    await settle()
+    expect(screen.getByText('existing diff')).toBeTruthy()
+    mounted.rerender(view('/outside/unknown.ts'))
+    await settle()
+    expect(screen.getByText('This file has no uncommitted changes')).toBeTruthy()
+    expect(screen.queryByText('existing diff')).toBeNull()
+    expect(onFocused).toHaveBeenCalledTimes(2)
+    mounted.rerender(view())
+    act(() => scheduler.fireIntervals(5000))
+    await settle()
+    expect(screen.getByText('This file has no uncommitted changes')).toBeTruthy()
+    expect(onFocused).toHaveBeenCalledTimes(2)
+    for (const call of git.calls.filter(call => call.method === 'getWorkingDiff')) {
+      expect(call.request).toEqual(expect.objectContaining({ path: 'a.ts' }))
+    }
+    mounted.rerender(view(`${FOLDER}/a.ts`))
+    await settle()
+    expect(screen.getByText('existing diff')).toBeTruthy()
+    expect(screen.queryByText('This file has no uncommitted changes')).toBeNull()
+    expect(onFocused).toHaveBeenCalledTimes(3)
+  })
+
+  it('records source navigation in the orchestration host', () => {
+    const host = fakeOrchestration()
+    host.onOpenSourceFile('C:/Repo/src/a.ts')
+    expect(host.openedSourceFiles).toEqual(['C:/Repo/src/a.ts'])
   })
 })

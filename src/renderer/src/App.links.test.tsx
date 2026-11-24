@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, screen, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { AppHarness } from './__mocks__/appHarness'
 import { FakeTerminals } from './__mocks__/fakeTerminals'
@@ -42,4 +42,25 @@ describe('opening a chat at a thread from another screen', () => {
     expect(terminals.calls).toEqual([['/a', 'chat_a']])
     expect(h.terminalKit.latest().host).toBe(workspace.getByTestId('terminal-host'))
   })
+})
+
+it('takes the epic host source-file landing once, then does not repeat it on returning to Source control', async () => {
+  window.localStorage.setItem('dm.selection', JSON.stringify({ folderPath: '/a', epicId: EPIC }))
+  window.localStorage.setItem('dm.folderTabs', JSON.stringify({ '/a': 'epics' }))
+  h.git.setState('/a', { kind: 'repository', status: {
+    root: '/a', branch: { name: 'main', headOid: 'a'.repeat(40), upstream: null, ahead: 0, behind: 0 },
+    files: [], inProgress: null, lastFetchedAt: null, remote: null
+  } })
+  h.mount()
+  await settle()
+  act(() => h.epicProps.at(-1)!.orchestration.onOpenSourceFile('/a/committed.ts'))
+  await settle()
+  expect(screen.getByText('This file has no uncommitted changes')).toBeTruthy()
+  expect(JSON.parse(localStorage.getItem('dm.folderTabs') ?? '{}')).toEqual({ '/a': 'source' })
+  fireEvent.click(screen.getByRole('tab', { name: 'Epics' }))
+  await settle()
+  fireEvent.click(screen.getByRole('tab', { name: 'Source control' }))
+  await settle()
+  expect(screen.queryByText('This file has no uncommitted changes')).toBeNull()
+  expect(h.git.calls.filter(call => call.method === 'getWorkingDiff')).toEqual([])
 })

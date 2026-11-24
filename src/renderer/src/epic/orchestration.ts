@@ -52,6 +52,8 @@ export interface OrchestrationHost {
   onAgentStatus(id: AgentId, status: AgentAuthStatus): void
   /** Opens a chat; with a thread (a `thread` item's id) the chat opens with that thread expanded and scrolled into view. */
   onOpenChat(chatId: string, threadId?: string): void
+  /** Opens this folder's Source control at a Git-reported file. */
+  onOpenSourceFile(absolutePath: string): void
 }
 
 /** The chat Dark Mechanicus started to orchestrate the run, if there is one. */

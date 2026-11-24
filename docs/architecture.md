@@ -326,6 +326,8 @@ The Kanban card tools (`src/mcp/tools/kanban.ts`) are `create_kanban_card` and `
 
 Each folder has a **Source control** tab, in the manner of GitHub Desktop, which works on the repository the folder is in. Everything it does runs in main, on the person's request, and never in core or MCP; the decision is [0005](decisions/0005-source-control-in-main.md).
 
+Cross-screen file links use the shell's `openSourceFile(folderPath, absolutePath)` landing. The folder opens on Source control, switches History to Changes, and selects only a matching Git-reported entry (Windows case/slash differences are ignored). The request is consumed once after status arrives; an absent entry shows “This file has no uncommitted changes” instead of an unrelated diff. The link's absolute path is never itself sent to main or read.
+
 | Module | Responsibility |
 |--------|----------------|
 | `src/main/git/runner.ts` | The one git runner: `git` from `PATH`, no shell, `core.fsmonitor=false` on every call, prompts off (`GIT_TERMINAL_PROMPT=0`, empty `GIT_ASKPASS`, `GCM_INTERACTIVE=never`), writes and network operations queued per repository, timeouts (30 s reads, 120 s writes, and for network operations a 60 s stall limit), output limits, secrets scrubbed from output, and the whole process tree killed on timeout or cancel |
