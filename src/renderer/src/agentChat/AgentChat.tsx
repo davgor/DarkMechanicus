@@ -4,6 +4,7 @@ import type { CommandResult } from '../../../shared/desktop/api'
 import { ChatTranscript } from '../agents/ChatTranscript'
 import type { Scheduler } from '../app/scheduler'
 import { StreamingBubble } from './StreamingBubble'
+import { PendingPromptCard } from './PendingPromptCard'
 import type { AgentChatState as ChatState } from './agentChatModel'
 import { useAgentChat } from './useAgentChat'
 import '../agents/chatView.css'
@@ -55,7 +56,7 @@ function useChatCommand(): ChatCommand {
 }
 
 function ChatView({ folder, chatId, agentLabel, api, scheduler }: Props): JSX.Element {
-  const { state, send, interrupt, setSurface } = useAgentChat({ folder, chatId, api, scheduler })
+  const { state, send, interrupt, setSurface, answer } = useAgentChat({ folder, chatId, api, scheduler })
   const command = useChatCommand()
   const busy = state.status === 'busy'
   function stop(): void {
@@ -72,8 +73,7 @@ function ChatView({ folder, chatId, agentLabel, api, scheduler }: Props): JSX.El
         terminal={() => { void command.run(() => setSurface('terminal')) }} />
       {state.statusDetail && <p className="agent-chat-detail">{state.statusDetail}</p>}
       <Messages state={state} folder={folder} agentLabel={agentLabel} />
-      {/* PendingPromptCard is supplied by the approvalcard ticket. */}
-      {null}
+      <PendingPromptCard prompt={state.pending} answer={answer} />
       <Composer chatId={chatId} agentLabel={agentLabel} busy={busy} ready={state.status === 'idle' || busy}
         queued={state.queued} command={command} send={send} stop={stop} />
     </section>

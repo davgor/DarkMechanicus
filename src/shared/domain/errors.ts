@@ -15,6 +15,8 @@ export const DOMAIN_ERROR_CODES = [
   'invalid_input',
   'conflict',
   'stale_draft',
+  /** The held agent question or approval has already been answered or replaced. */
+  'stale_prompt',
   'invalid_graph',
   'invalid_plan',
   'unmet_prerequisite',
