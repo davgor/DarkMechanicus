@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defaultCapabilityProfile } from '../shared/domain/bundle'
 import { dropAcceptanceNodes } from '../test/acceptanceNodes'
+import { issued } from '../test/execution'
 import { createHarness, type Harness } from '../test/workspaceHarness'
 import { SCHEMA_VERSION } from './db/migrations'
 import { scanKanban } from './repo/kanbanImport'
@@ -92,6 +93,25 @@ describe('Automatic reconcile on unchanged inputs', () => {
       for (const note of ['Editing', 'Testing']) {
         const worker = harness.open('worker')
         expect((await worker.heartbeatKanbanCard({ ...claim, progressNote: note })).progressNote).toBe(note)
+        worker.heartbeat()
+      }
+    })).toBe(0)
+  })
+
+  it('keeps an epic attempt heartbeat off the full scan once its run history is exported', async () => {
+    const epicId = await savedEpic(desktop)
+    const orchestrator = harness.open('orchestrator')
+    const run = await orchestrator.startRun({ epicId })
+    const ticketId = (await orchestrator.getReadyTickets({ runId: run.id })).ready[0]?.ticketId ?? ''
+    const { attempt, packet } = issued(await orchestrator.claimTicket({ runId: run.id, ticketId, worker: { label: 'worker' } }))
+    const claim = { attemptId: attempt.id, claimToken: packet.claimToken }
+    // The first heartbeat moves the attempt to running, which exports the run history.
+    await harness.open('worker').heartbeatAttempt({ ...claim, progress: { note: 'Started' } })
+    expect(await scansDuring(() => harness.open('reader'))).toBe(1)
+    expect(await scansDuring(async () => {
+      for (const note of ['Editing', 'Testing']) {
+        const worker = harness.open('worker')
+        expect((await worker.heartbeatAttempt({ ...claim, progress: { note } })).state).toBe('running')
         worker.heartbeat()
       }
     })).toBe(0)
