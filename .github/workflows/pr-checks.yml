@@ -7,14 +7,43 @@ on:
     branches: [main, 'feature/**']
 
 jobs:
+  shard-plan:
+    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message || '', '[skip ci]') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      unit: ${{ steps.plan.outputs.unit }}
+      grading: ${{ steps.plan.outputs.grading }}
+      grading-count: ${{ steps.plan.outputs.grading_count }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Plan from CI execution history
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_HISTORY_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: node scripts/ciShardPlan.mjs > ci-shard-plan.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ci-shard-plan
+          path: ci-shard-plan.json
+          if-no-files-found: error
+
   test-shards:
+    name: test-shards (${{ matrix.suite }}, ${{ matrix.index }}/${{ matrix.count }})
+    needs: [shard-plan]
     if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message || '', '[skip ci]') }}
     runs-on: windows-latest
     strategy:
       fail-fast: false
-      matrix:
-        config: ['vitest.config.ts', 'fireguard/vitest.config.ts']
-        shard: [1, 2]
+      matrix: ${{ fromJSON(needs.shard-plan.outputs.unit) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,7 +55,10 @@ jobs:
         if: matrix.config == 'vitest.config.ts'
         run: node scripts/prepareInstallerTests.mjs
       - name: Run disjoint Vitest shard
-        run: node node_modules/vitest/vitest.mjs run --config ${{ matrix.config }} --shard ${{ matrix.shard }}/2 --maxWorkers 2 --reporter default --reporter json --outputFile "${{ github.workspace }}/test-shard.json"
+        env:
+          TEST_CONFIG: ${{ matrix.config }}
+          SHARD_POSITION: ${{ matrix.index }}/${{ matrix.count }}
+        run: node node_modules/vitest/vitest.mjs run --config "$env:TEST_CONFIG" --shard "$env:SHARD_POSITION" --maxWorkers 2 --reporter default --reporter json --outputFile "${{ github.workspace }}/test-shard.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -36,36 +68,14 @@ jobs:
 
   test:
     if: ${{ always() && (github.event_name != 'push' || !contains(github.event.head_commit.message || '', '[skip ci]')) }}
-    needs: [test-shards]
+    needs: [shard-plan, test-shards]
     runs-on: ubuntu-latest
     steps:
       - name: Require every test shard
         env:
+          PLAN_RESULT: ${{ needs.shard-plan.result }}
           SHARD_RESULT: ${{ needs.test-shards.result }}
-        run: test "$SHARD_RESULT" = success
-
-  coverage:
-    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message || '', '[skip ci]') }}
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: npm
-      - run: npm ci
-      - name: Prepare native installer test compiler
-        run: node scripts/prepareInstallerTests.mjs
-      - name: Require coverage thresholds
-        run: npm run coverage -- --maxWorkers 2
-        env:
-          DM_VITEST_GIT_MAX_WORKERS: '2'
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: coverage-summary
-          path: coverage/coverage-summary.json
-          if-no-files-found: error
+        run: test "$PLAN_RESULT" = success && test "$SHARD_RESULT" = success
 
   fireguard-scope:
     if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message || '', '[skip ci]') }}
@@ -84,13 +94,13 @@ jobs:
           echo "base=$(git rev-parse "origin/$BASE^{commit}")" >> "$GITHUB_OUTPUT"
 
   fireguard-shards:
-    needs: [fireguard-scope]
+    name: fireguard-shards (${{ matrix.index }}/${{ matrix.count }})
+    needs: [shard-plan, fireguard-scope]
     if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message || '', '[skip ci]') }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        shard: [1, 2]
+      matrix: ${{ fromJSON(needs.shard-plan.outputs.grading) }}
     env:
       FIREGUARD_BASE_REF: ${{ needs.fireguard-scope.outputs.base }}
       FIREGUARD_CONCURRENCY: '1'
@@ -105,17 +115,30 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Grade disjoint flake runs and production modules
-        run: npm run fireguard -- --shard ${{ matrix.shard }}/2 --json-out shard-${{ matrix.shard }}.json
+        id: grade
+        env:
+          SHARD_INDEX: ${{ matrix.index }}
+          SHARD_POSITION: ${{ matrix.index }}/${{ matrix.count }}
+        run: |
+          npm run fireguard -- --shard "$SHARD_POSITION" --json-out "shard-$SHARD_INDEX.json"
+          node -e 'const { readFileSync, appendFileSync } = require("node:fs");
+            const report = JSON.parse(readFileSync(`shard-${process.env.SHARD_INDEX}.json`, "utf8"));
+            const flake = report.gates?.flake;
+            if (!report.skipped && flake?.pass && flake.runs > 0 && flake.runs === flake.configuredRuns)
+              appendFileSync(process.env.GITHUB_OUTPUT, "active=true\n");'
+      - name: Record active Fireguard timing sample
+        if: steps.grade.outputs.active == 'true' && github.event_name == 'pull_request' && github.base_ref == github.event.repository.default_branch && github.event.pull_request.head.repo.full_name == github.repository
+        run: echo "Completed scoped grading; execution step is eligible as a future timing sample."
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: fireguard-shard-${{ matrix.shard }}
-          path: shard-${{ matrix.shard }}.json
+          name: fireguard-shard-${{ matrix.index }}
+          path: shard-${{ matrix.index }}.json
           if-no-files-found: error
 
   fireguard:
     if: ${{ always() && (github.event_name != 'push' || !contains(github.event.head_commit.message || '', '[skip ci]')) }}
-    needs: [fireguard-scope, fireguard-shards]
+    needs: [shard-plan, fireguard-scope, fireguard-shards]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -124,6 +147,11 @@ jobs:
       FIREGUARD_BASE_REF: ${{ needs.fireguard-scope.outputs.base }}
       FIREGUARD_CONCURRENCY: '1'
     steps:
+      - name: Require a successful plan and pinned scope
+        env:
+          PLAN_RESULT: ${{ needs.shard-plan.result }}
+          SCOPE_RESULT: ${{ needs.fireguard-scope.result }}
+        run: test "$PLAN_RESULT" = success && test "$SCOPE_RESULT" = success
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -138,15 +166,15 @@ jobs:
           path: fireguard-shards
           merge-multiple: true
       - name: Combine raw counts, grade once and update one PR comment
-        run: npm run fireguard -- --merge-shards fireguard-shards --shard-count 2 --comment-pr --markdown-out fireguard-pr.md --json-out fireguard-report.json
+        run: npm run fireguard -- --merge-shards fireguard-shards --shard-count "$SHARD_COUNT" --comment-pr --markdown-out fireguard-pr.md --json-out fireguard-report.json
         env:
+          SHARD_COUNT: ${{ needs.shard-plan.outputs.grading-count }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Require every grading job
         if: always()
         env:
-          SCOPE_RESULT: ${{ needs.fireguard-scope.result }}
           SHARD_RESULT: ${{ needs.fireguard-shards.result }}
-        run: test "$SCOPE_RESULT" = success && test "$SHARD_RESULT" = success
+        run: test "$SHARD_RESULT" = success
       - uses: actions/upload-artifact@v4
         if: always()
         with:

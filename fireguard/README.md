@@ -54,13 +54,13 @@ Also writes `GITHUB_STEP_SUMMARY` when that env var is set.
 
 ## CI sharding
 
-CI uses two independent grading runners, not two full grading runs. A preparation job resolves the selected base (`origin/<PR base>`, or `origin/main` on pushes) once; all shards and the aggregate check out the same Actions HEAD and consume that resolved base SHA.
+CI plans the number of grading runners from [measured execution history](../docs/project-guide.md#shard-sizing), not a fixed matrix. A preparation job resolves the selected base (`origin/<PR base>`, or `origin/main` on pushes) once; all shards and the aggregate check out the same Actions HEAD and consume that resolved base SHA.
 
-Each shard grades the same complete AST/test inventory. It executes its round-robin share of the **100 configured complete flake runs** (50 per shard), then mutates its round-robin partition of the sorted changed production modules. Mutation still uses every related graded importer and only changed lines. Empty partitions still emit a manifest. AST metrics are counted once, flake counts are summed, and mutation killed/survived counts are summed **before** computing the score and enforcing the unchanged threshold; shard percentages/grades are never averaged.
+Each shard grades the same complete AST/test inventory. It executes its round-robin share of the **100 configured complete flake runs**, then mutates its round-robin partition of the sorted changed production modules. Mutation still uses every related graded importer and only changed lines. Empty partitions still emit a manifest. AST metrics are counted once, flake counts are summed, and mutation killed/survived counts are summed **before** computing the score and enforcing the unchanged threshold; shard percentages/grades are never averaged.
 
-The two CI runners each use `FIREGUARD_CONCURRENCY=1` and `VITEST_MAX_WORKERS=2`, bounding nested work. Within a shard, mutation waits for its flake gate; separate GitHub runners isolate mutation from the other shard's flake runs. When reproducing concurrently on one computer, use independent snapshots and allow enough CPU headroom; shared fixed external resources have the same limitations as local lanes.
+Each CI runner uses `FIREGUARD_CONCURRENCY=1` and `VITEST_MAX_WORKERS=2`, bounding nested work. Within a shard, mutation waits for its flake gate; separate GitHub runners isolate mutation from the other shards' flake runs. When reproducing concurrently on one computer, use independent snapshots and allow enough CPU headroom; shared fixed external resources have the same limitations as local lanes.
 
-For local reproduction, set `FIREGUARD_BASE_REF` to a **resolved base commit SHA** and `FIREGUARD_CONCURRENCY=1`, then run the first two commands in separate terminals on the same committed HEAD:
+For local reproduction, set `FIREGUARD_BASE_REF` to a **resolved base commit SHA**, `FIREGUARD_CONCURRENCY=1` and `VITEST_MAX_WORKERS=2`. Use the grading count from `ci-shard-plan.json`; run every position and merge with that same count. For example, for a two-shard plan on the same committed HEAD:
 
 ```bash
 npm run fireguard -- --shard 1/2 --json-out shards/1.json
