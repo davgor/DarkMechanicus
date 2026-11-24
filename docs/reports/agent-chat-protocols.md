@@ -340,10 +340,10 @@ Root: `src/main/agentChat/__fixtures__/`. Each entry has `.in.jsonl` (host write
 Claude arbiter argv contract:
 
 ```text
-claude -p --output-format json --tools "" --no-session-persistence --safe-mode
+claude -p --output-format json --no-session-persistence --tools "" --strict-mcp-config --safe-mode --system-prompt <systemPrompt>
 ```
 
-Run in an `os.tmpdir()`-based `mkdtemp`, not under userData/home, and with no Dark Mechanicus grant. This ticket defines the argv contract only; `s1-arbiterlaunch` owns implementation and its argv test **must assert `--safe-mode`**. No launcher code is changed here.
+Run in an `os.tmpdir()`-based `mkdtemp`, not under userData/home, and with no Dark Mechanicus grant. `src/main/magos/arbiterLaunch.ts` builds this argv without filesystem/process side effects; its tests assert `--safe-mode`, literal empty tools, cwd forwarding and no request text in argv. The runner owns fresh empty temp-directory creation, cleanup and request delivery over stdin; builder tests do not prove runner behavior.
 
 O: official Claude **2.1.331** `--help`, provisioned by the orchestrator as recorded above, explicitly lists all three flags. Relevant text, verbatim:
 
@@ -378,6 +378,20 @@ omp -p --mode text --no-session --no-tools --config <MCP-disabling-overlay>
 ```
 
 O flags OMPDOC:98-110 and live 18.20.2 help. I stdout is final answer text only. **Not observed:** whether `omp -p --no-tools` loads MCP tools; whether it consumes nonempty stdin; the exact overlay schema that disables both user MCP and imported `~/.claude.json` MCP. `--no-tools` explicitly promises built-ins only, not MCP. Empty stdin observation above establishes neither property. Therefore `s1-arbiterrules` must classify OMP as **`unsupported_kind`** until both behaviors and the MCP-disabling configuration are observed. Do not invent a config key or enable OMP arbitration based on these fixtures. This is the explicit red-team gate, not a waived safety requirement.
+
+### Launch implementation and remaining isolation gate (DM-815)
+
+`arbiterEnv` reuses the terminal environment's case-insensitive layering, but adds neither terminal constants nor the chat's dm environment/launcher. It removes inherited grants, desktop pipes, Skitarii descriptors, `ELECTRON_*`, `NODE_OPTIONS`, `TERM` and `COLORTERM`; Claude disables automatic memory, and OMP retains its existing constants. Windows uses the canonical `windowsAgentProgram`: followed npm shims run as `node.exe <script.js>`, unresolved shell shims are refused with `SHIM_HELP`. POSIX uses the registered executable; no shell is requested.
+
+Source inspection only, against OMP tag `v18.20.2` (GitHub tree `7c49c11aa5bbaf3f418406583096168ad5b8c6dc`):
+
+- [`mcp/settings.ts`](https://github.com/can1357/oh-my-pi/blob/v18.20.2/packages/coding-agent/src/mcp/settings.ts) declares `mcp.enableProjectConfig`, startup timeout, rendering and notification settings, **not** a global MCP-disable setting. Disabling project config does not establish user/imported MCP isolation.
+- [`sdk.ts`](https://github.com/can1357/oh-my-pi/blob/v18.20.2/packages/coding-agent/src/sdk.ts) exposes `enableMCP?: boolean` in SDK session options and gates discovery with it; this is not an observed CLI `--config` key.
+- [`docs/mcp-config.md`](https://github.com/can1357/oh-my-pi/blob/v18.20.2/docs/mcp-config.md) documents imported `~/.claude.json` and profile-independent external configs. Neither an empty MCP server map nor a fresh OMP profile is proof that all sources are disabled.
+
+Decision: the OMP branch is an **inert candidate spec**, requiring a nonempty `ompConfig` path and refusing an absent/empty path. It does not read, generate or certify that file; no configuration key is invented. Its argv is `-p --mode text --no-session --no-tools --no-lsp --no-extensions --no-skills --no-rules --no-context-files --no-title --max-time 60 --system-prompt <systemPrompt> --cwd <tempDir> --config <ompConfig>`, with no explicit extension. The existing terminal setup overlay alone is **not** an MCP-disabling overlay.
+
+No live OMP arbiter may run from this candidate. `s1-arbiterrules` must reject OMP unconditionally as `unsupported_kind` under the current evidence, regardless of any supplied overlay path. The required MCP-disabling overlay and nonempty-stdin behavior remain unobserved; launch unit tests prove argv/env construction only. This gate and runner-owned temp-directory creation remain cross-ticket requirements, not behavior verified by DM-815. Claude's admin-managed-policy caveat above remains binding.
 
 ## Translator contract
 
