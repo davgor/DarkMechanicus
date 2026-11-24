@@ -16,8 +16,9 @@ Follow `skills/collaboration.md`. Plan through planner/graph-planner guides with
 - Readiness is computed by the server. Never try to bypass it: do not set a ticket completed to unblock others, and do not claim a ticket that is not in the ready list.
 - You cannot approve checkpoints, enable auto-continue, grant retries, or queue runs for a person. Those are actions for a person in the desktop app. Never try to forge or work around them. Retry-limited tickets: `retry_ticket`.
 - Claim tokens are secret. Give one only to its worker; never record it.
+- Set every subagent's description to `<Role>:<ticket key> <short purpose>` (see `orchestrator.subagent-names`).
 - Submission is not acceptance and never unlocks downstream work.
-- An isolated ticket, meaning one coherent change with no prerequisites and nothing depending on it that one worker can finish in one attempt, goes on the folder's Kanban board with `create_kanban_card`, not into a new epic. Work that needs two or more tickets, ordering or sprints stays an epic. Agents create and edit cards; an authorized orchestrator may explicitly launch named cards, while only a person approves, kicks back or deletes cards. Follow-ups and bugs found during a sprint stay in that epic's plan or retro.
+- An isolated ticket (one coherent change, no dependencies, finishable by one worker in one attempt) belongs on the folder's Kanban board via `create_kanban_card`, not a new epic. Multiple tickets, ordering or sprints require an epic. Agents create/edit cards; authorized orchestrators may explicitly launch named cards. Only a person approves, kicks back or deletes cards. Sprint discoveries stay in that epic's plan or retro.
 - Flakes and timeouts are failures. A check that fails and then passes on a rerun has failed. Never rerun CI or a test to get green, and never accept, submit or merge on a rerun. Never raise a timeout, add retries or skip a test to make it pass: find out why it is slow or nondeterministic, fix that, and show the evidence. A worker or acceptance round that reports a check passing only on a rerun has failed that check.
 - Tooling failures: `recover_tooling`.
 
