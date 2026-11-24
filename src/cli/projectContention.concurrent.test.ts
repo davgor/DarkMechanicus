@@ -1,5 +1,5 @@
 import { buildSync } from 'esbuild'
-import { spawn, type ChildProcess } from 'node:child_process'
+import { spawn, type ChildProcess, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { once } from 'node:events'
 import { globSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -126,7 +126,7 @@ class WorkerCli {
       stdio: ['pipe', 'pipe', 'pipe', 'ipc'], cwd: this.fixture.root, env: {
         ...process.env, DARKMECHANICUS_HOME: this.fixture.homeDir, DM_SESSION_TOKEN: token, DM_CONTENTION_FIXTURE: mode
       }
-    })
+    }) as ChildProcessWithoutNullStreams // The first three descriptors are explicitly piped above.
   }
 
   call(token: string, command: string, args: object, mode?: 'probe' | 'audit-close') {
