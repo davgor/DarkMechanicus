@@ -25,6 +25,7 @@ Electron renderer ─> preload (window.git, window.github) ─> main IPC (src/ma
 | `src/shared/git`, `src/shared/github` | everywhere (renderer-safe) | The `window.git` and `window.github` bridge contracts and their types |
 | `src/preload` | Electron preload (sandboxed) | Narrow typed bridges `window.dm`, `window.git` and `window.github` |
 | `src/renderer` | Chromium renderer | React UI; never touches the database or filesystem |
+| `src/renderer/src/agentChat` | Chromium renderer | Pure structured-chat state and `useAgentChat`: subscribe before snapshot, replay early pushes in order, upsert durable items and remove committed streams, throttle delta renders at 33 ms, retain per-thread to-dos, and start exited GUI sessions. `FakeAgentChat` supplies injectable snapshots, queued holds and event pushes for deterministic tests; identity changes and unmount discard stale replies and timers. |
 | `skills/` | shipped as text | Provider-neutral agent instructions, exposed as MCP prompts |
 
 No renderer database access and no duplicated business rules: MCP handlers and IPC handlers are adapters only.
