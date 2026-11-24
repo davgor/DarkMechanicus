@@ -5,9 +5,12 @@ import type { IpcMain } from 'electron'
 import { expect, it, vi } from 'vitest'
 import { openWorkspace } from '../../core/workspace'
 import { withForgeTransfer } from '../../core/repo/forgeBinding'
+import { createChatRecords } from '../agents/chatRecords'
+import { createChatStore } from '../agents/chatStore'
 import { gitIn, scratchDir } from '../../test/gitScratch'
 import { createGitRunner } from '../git/runner'
 import { createFolderRegistry } from './folderRegistry'
+import { forgeAgentSessions } from './forgeAgents'
 import { createForge, updateForge } from './forgeManifest'
 import { startForge } from './forgeService'
 import { createTestWorkspacePool as createWorkspacePool } from './__mocks__/projectWorkspaceFixture'
@@ -37,7 +40,7 @@ function resolverFixture(options: { initializedWorld?: boolean; onConflict?: Par
   const forge = startForge({ handle: (name, handler) => { handlers.set(name, handler) } }, {
     home, registry, pool, session: { getAccount: () => null, getToken: () => null },
     cleanup: () => undefined, pickDirectory: async () => null, publish: async () => undefined,
-    onConflict: options.onConflict ?? (async (_world, member) => { events.push('resolve ' + member) }),
+    onConflict: options.onConflict ?? (async world => { events.push('resolve ' + world) }),
     onSynced: async () => { events.push('archive') },
     runner: { run: async req => {
       await options.beforeRun?.(req.args)
@@ -105,6 +108,44 @@ it.each([new Error('Agent unavailable'), 'Agent unavailable'])('reports resolver
     expect(attempts).toBe(2)
     expect(fixture.events).not.toContain('push')
   } finally { result.resolve(); fixture.cleanup(); vi.useRealTimers() }
+})
+
+it('does not retain a resolver failure on a replacement world attachment or publish the old merge', async () => {
+  const entered = pending<void>(), result = pending<void>()
+  const fixture = resolverFixture({
+    onConflict: async () => { entered.resolve(); await result.promise }
+  })
+  const { root, registry, call, events } = fixture
+  try {
+    seedConflict(fixture)
+    const syncing = call('sync', root)
+    const failure = expect(syncing).rejects.toThrow('Previous resolver failed')
+    await entered.promise
+    registry.untrack(root)
+    registry.track(root)
+    result.reject(new Error('Previous resolver failed'))
+    await failure
+    expect(await call('status', root)).toEqual({ last: null, error: null })
+    expect(gitIn(root, 'ls-files', '-u')).toContain('README.md')
+    expect(events).toEqual([])
+  } finally { result.resolve(); fixture.cleanup() }
+})
+
+it('will not grant a nested tracked folder a resolver for its parent repository merge', async () => {
+  const fixture = resolverFixture()
+  const { root, registry, call, events } = fixture
+  try {
+    seedConflict(fixture)
+    gitIn(root, 'commit', '-am', 'Local edit')
+    expect(() => gitIn(root, 'merge', 'remote')).toThrow()
+    const nested = join(root, 'Nested')
+    mkdirSync(nested)
+    createForge(nested, 'owner')
+    registry.track(nested)
+    await expect(call('sync', nested)).rejects.toThrow('must be the root of its ticket repository')
+    expect(gitIn(root, 'ls-files', '-u')).toContain('README.md')
+    expect(events).toEqual([])
+  } finally { fixture.cleanup() }
 })
 
 it('coalesces concurrent opens of one world while its startup health check is still preparing', async () => {
@@ -236,7 +277,16 @@ it.each(['forge-world.json', 'README.md'])('opens a world-scoped resolver for co
   } finally { cleanup() }
 })
 
-function conflictingClones() {
+interface ConflictingClones {
+  root: string
+  remote: string
+  peer: string
+  home: string
+  url: string
+  cleanup(): void
+}
+
+function conflictingClones(): ConflictingClones {
   const fixture = scratchDir('forge-scheduled-')
   const root = join(fixture.path, 'world')
   const remote = join(fixture.path, 'origin.git')
@@ -255,9 +305,12 @@ function conflictingClones() {
   gitIn(peer, 'config', 'user.name', 'Peer')
   gitIn(peer, 'config', 'user.email', 'peer@example.test')
   writeFileSync(join(peer, 'README.md'), 'Peer directions\n')
+  writeFileSync(join(peer, 'peer.txt'), 'Compatible peer work')
+  gitIn(peer, 'add', 'peer.txt')
   gitIn(peer, 'commit', '-am', 'Peer change')
   gitIn(peer, 'push', 'origin', 'main')
   writeFileSync(join(root, 'README.md'), 'Local directions\n')
+  writeFileSync(join(root, 'local.txt'), 'Compatible local work')
   const url = 'https://github.com/owner/tickets.git'
   gitIn(root, 'remote', 'set-url', 'origin', url)
   return { root, remote, peer, home, url, cleanup: fixture.cleanup }
@@ -288,50 +341,159 @@ it('leaves an off-main world and its index untouched when startup or open encoun
   } finally { forge.stop(); pool.closeAll(); cleanup() }
 })
 
-it('automatically commits, pulls, restarts unresolved repair and pushes a resolved merge between real clones', async () => {
-  const { root, remote, peer, home, url, cleanup } = conflictingClones()
+function scheduledFixture(
+  { root, remote, home, url, cleanup }: ConflictingClones,
+  events: Pick<Parameters<typeof startForge>[1], 'onConflict' | 'onSynced'>
+) {
   const registry = createFolderRegistry({ file: join(home, 'folders.json'), dmHome: home, homeDir: home })
   registry.track(root)
-  const pool = createWorkspacePool(repoRoot => openWorkspace({ repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Scheduled fixture', serverInfo: { name: 'fixture', version: '1' } }))
+  const pool = createWorkspacePool(repoRoot => openWorkspace({ repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Scheduled fixture' }), home)
   const real = createGitRunner()
-  const conflicts: string[] = []
-  const conflictReceipts: Array<() => void> = []
-  const conflicted = () => new Promise<void>(resolve => conflictReceipts.push(resolve))
-  let notifySynced: () => void = () => undefined
-  const synced = new Promise<void>(resolve => { notifySynced = resolve })
+  const handlers = new Map<string, Parameters<IpcMain['handle']>[1]>()
+  const call = async (name: string) => handlers.get('forge:' + name)!({} as Electron.IpcMainInvokeEvent, root)
   vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })
-  const forge = startForge({ handle: () => undefined }, {
+  const forge = startForge({ handle: (name, handler) => { handlers.set(name, handler) } }, {
     home, registry, pool, session: { getAccount: () => null, getToken: () => null },
     cleanup: () => undefined, pickDirectory: async () => null, publish: async () => undefined,
-    onConflict: async world => { conflicts.push(world); conflictReceipts.shift()?.() },
-    onSynced: async () => { notifySynced() },
+    ...events,
     runner: { run: request => request.kind !== 'network' ? real.run(request) : real.run({ ...request, args: [
       '-c', 'url.' + pathToFileURL(remote).href + '.insteadOf=' + url,
       ...request.args.map(arg => arg === 'protocol.allow=never' ? 'protocol.file.allow=always' : arg)
     ] }) }
   })
+  return { call, ready: forge.ready, registry, cleanup: () => { forge.stop(); vi.useRealTimers(); pool.closeAll(); cleanup() } }
+}
+
+function scheduledResolverFixture() {
+  const clones = conflictingClones()
+  const { home } = clones
+  const store = createChatStore({ root: join(home, 'chats') })
+  const chats = createChatRecords({ store, agentFor: () => null })
+  const started = pending<void>(), synced = pending<void>(), nextSync = pending<void>()
+  const live = new Set<string>()
+  const launches: string[] = []
+  let signedIn = false, publications = 0
+  const resolver = {
+    store, chats, agents: { list: () => [{ id: 'claude' }, { id: 'codex' }] },
+    folderDefaults: { get: () => 'claude' },
+    registry: { list: () => [] },
+    checkAuth: async (id: string) => id === 'claude' ? 'signed_out' as const : signedIn ? 'signed_in' as const : 'unknown' as const,
+    terminals: {
+      isRunning: (id: string) => live.has(id),
+      start: async (ref: { folder: string | null; id: string }) => {
+        const agent = store.getChat(ref)!.agent
+        launches.push(agent)
+        if (agent !== 'codex' || !signedIn) return { state: 'signed_out' as const, message: 'The selected agent is signed out' }
+        live.add(ref.id)
+        started.resolve()
+        return { state: 'running' as const, pid: 7 }
+      },
+      paste: async () => { throw new Error('Unexpected duplicate resolver prompt') },
+      deleteChat: async (ref: { id: string }, archive: () => Promise<unknown>) => { live.delete(ref.id); await archive() }
+    }
+  }
+  const sessions = forgeAgentSessions(resolver)
+  const fixture = scheduledFixture(clones, {
+    ...sessions,
+    onSynced: async path => {
+      await sessions.onSynced(path)
+      if (++publications === 1) synced.resolve()
+      else nextSync.resolve()
+    }
+  })
+  return {
+    ...clones, ...fixture, store, chats, started, synced, nextSync, live, launches,
+    signIn: () => { signedIn = true }
+  }
+}
+
+async function verifyStagedMergeStaysLocal(
+  { root, remote, call, launches }: { root: string; remote: string; call(name: string): Promise<unknown>; launches: string[] },
+  remoteCommit: string
+): Promise<void> {
+  // The mock resolves the overlapping edit in favor of remote main; Git has already merged the independent files.
+  gitIn(root, 'checkout', '--theirs', 'README.md')
+  gitIn(root, 'add', 'README.md')
+  expect(gitIn(root, 'ls-files', '-u')).toBe('')
+  await expect(call('sync')).rejects.toThrow(/merge.*commit/i)
+  expect(gitIn(remote, 'rev-parse', 'main').trim()).toBe(remoteCommit)
+  expect(gitIn(root, 'rev-parse', 'MERGE_HEAD').trim()).toBe(remoteCommit)
+  expect(launches).toEqual(['codex'])
+}
+
+it('queues real conflicts at the interval, waits for a signed-in resolver and publishes its finished merge', async () => {
+  const fixture = scheduledResolverFixture()
+  const { root, remote, peer, store, chats, started, synced, nextSync, live, launches } = fixture
+  const remoteCommit = gitIn(remote, 'rev-parse', 'main').trim()
   try {
-    await forge.ready
-    const first = conflicted()
+    await fixture.ready
     await vi.advanceTimersByTimeAsync(15_000)
-    await first
+    await expect(fixture.call('sync')).rejects.toThrow(/sign in to an agent/i)
+    expect(launches).toEqual([])
+    expect(chats.listChats(root)).toEqual([])
     expect(gitIn(root, 'ls-files', '-u')).toContain('README.md')
     expect(gitIn(root, 'show', 'HEAD:README.md')).toBe('Local directions\n')
-    // An unresolved merge must wake its existing background resolver on the next tick,
-    // not wait the five-minute normal interval or require the person to open its terminal.
-    const next = conflicted()
+    expect(gitIn(remote, 'rev-parse', 'main').trim()).toBe(remoteCommit)
+    const localCommit = gitIn(root, 'rev-parse', 'HEAD').trim()
+
+    fixture.signIn()
     await vi.advanceTimersByTimeAsync(15_000)
-    await next
-    expect(conflicts).toEqual([root, root])
-    writeFileSync(join(root, 'README.md'), 'Local and peer directions\n')
-    gitIn(root, 'add', 'README.md')
-    gitIn(root, 'commit', '-m', 'Agent resolves both directions')
+    await started.promise
+    const [chat] = chats.listChats(root)
+    expect(chat).toMatchObject({ agent: 'codex', folder: root, role: 'worker', allowSave: false })
+    expect(chat.firstPrompt).toMatch(/prefer.*remote main.*MERGE_HEAD/i)
+    expect(chat.firstPrompt).toMatch(/preserve compatible changes/i)
+    expect(launches).toEqual(['codex'])
+
+    await verifyStagedMergeStaysLocal(fixture, remoteCommit)
+    gitIn(root, 'commit', '-m', 'Resolve overlapping edit in favor of remote main')
+
     await vi.advanceTimersByTimeAsync(15_000)
-    await synced
-    expect(gitIn(remote, 'rev-parse', 'main').trim()).toBe(gitIn(root, 'rev-parse', 'HEAD').trim())
+    await synced.promise
+    expect(gitIn(remote, 'rev-list', '--parents', '-n', '1', 'main').trim().split(' ').slice(1)).toEqual([localCommit, remoteCommit])
     gitIn(peer, 'pull', '--ff-only')
-    expect(readFileSync(join(peer, 'README.md'), 'utf8')).toBe('Local and peer directions\n')
-    expect(gitIn(root, 'branch', '--show-current').trim()).toBe('main')
+    expect(readFileSync(join(peer, 'README.md'), 'utf8')).toBe('Peer directions\n')
+    expect(readFileSync(join(peer, 'local.txt'), 'utf8')).toBe('Compatible local work')
+    expect(readFileSync(join(peer, 'peer.txt'), 'utf8')).toBe('Compatible peer work')
+    expect(store.getChat(chat)).toMatchObject({ archived: true })
+    expect(live.size).toBe(0)
+
+    // A fresh change must wait the configured five minutes after recovery, then publish without IPC.
+    const published = gitIn(remote, 'rev-parse', 'main')
+    writeFileSync(join(root, 'after-repair.txt'), 'Next interval')
+    await vi.advanceTimersByTimeAsync(285_000)
+    expect(gitIn(remote, 'rev-parse', 'main')).toBe(published)
+    await vi.advanceTimersByTimeAsync(15_000)
+    await nextSync.promise
+    expect(gitIn(remote, 'show', 'main:after-repair.txt')).toBe('Next interval')
     expect(gitIn(root, 'status', '--porcelain')).toBe('')
-  } finally { forge.stop(); vi.useRealTimers(); pool.closeAll(); cleanup() }
+    expect(launches).toEqual(['codex'])
+  } finally { fixture.cleanup() }
+})
+
+it('recovers a persisted manifest conflict after startup with an empty registry cache', async () => {
+  const clones = conflictingClones()
+  const { root, remote, peer } = clones
+  updateForge(peer, world => { world.syncMinutes = 12 })
+  gitIn(peer, 'commit', '-am', 'Remote interval')
+  gitIn(peer, 'push', 'origin', 'main')
+  updateForge(root, world => { world.syncMinutes = 7 })
+  gitIn(root, 'add', '.')
+  gitIn(root, 'commit', '-m', 'Local interval')
+  expect(() => gitIn(root, 'pull', '--no-rebase', remote, 'main')).toThrow()
+  expect(gitIn(root, 'ls-files', '-u')).toContain('forge-world.json')
+  const launches: string[] = []
+  const fixture = scheduledFixture(clones, {
+    onConflict: async world => { launches.push(world) },
+    onSynced: async () => { throw new Error('An unresolved merge must not publish') }
+  })
+  try {
+    await fixture.ready
+    expect(fixture.registry.list().find(folder => folder.path === root)).toMatchObject({ forgeIssue: true, available: false })
+    await vi.advanceTimersByTimeAsync(15_000)
+    await expect(fixture.call('sync')).rejects.toThrow()
+    expect(launches).toEqual([root])
+    expect(fixture.registry.list().find(folder => folder.path === root)).toMatchObject({ forgeWorld: { syncMinutes: 7 }, available: true })
+    expect(gitIn(root, 'ls-files', '-u')).toContain('forge-world.json')
+  } finally { fixture.cleanup() }
 })

@@ -25,6 +25,8 @@ export interface Db {
 }
 
 export interface OpenDatabaseOptions {
+  /** For one-shot CLI processes, wait for an external writer and notify the supervising host. */
+  onWriterBusy?: () => void
   busyTimeoutMs?: number
   /** Bounded retries when BEGIN IMMEDIATE still reports SQLITE_BUSY after the busy timeout. */
   beginRetries?: number
@@ -66,19 +68,21 @@ class SqliteDb implements Db {
   private depth = 0
   /** Total `BEGIN IMMEDIATE` tries: at least one, and finite for any ordinary `beginRetries`. */
   private readonly beginAttempts: number
+  private readonly onWriterBusy: (() => void) | undefined
   private readonly busyTimeoutMs: number
   private readonly contentionDeadline: number | undefined
   private activeBusyTimeoutMs = -1
 
   constructor(path: string, options: OpenDatabaseOptions) {
     this.path = path
+    this.onWriterBusy = options.onWriterBusy
     this.busyTimeoutMs = Math.max(0, Math.floor(options.busyTimeoutMs ?? DEFAULT_BUSY_TIMEOUT_MS))
     this.contentionDeadline = options.contentionTimeoutMs === undefined ? undefined : performance.now() + options.contentionTimeoutMs
     this.beginAttempts = 1 + Math.max(0, Math.floor(options.beginRetries ?? 3) || 0)
     this.db = new DatabaseSync(path, { readOnly: options.readOnly ?? false })
     try {
       this.configureBusyTimeout()
-      applyPragmas(this.db, path, options)
+      this.waitForWriter(() => applyPragmas(this.db, path, options))
     } catch (error) {
       this.db.close()
       throw error
@@ -125,7 +129,22 @@ class SqliteDb implements Db {
     return this.depth > 0
   }
 
+  /** Only repeat lock acquisition or idempotent connection setup. Never replay a transaction body. */
+  private waitForWriter(acquire: () => void): void {
+    for (;;) {
+      try {
+        acquire()
+        return
+      } catch (error) {
+        // SQLITE_LOCKED is a conflict on this connection. Waiting for another process cannot resolve it.
+        if (!this.onWriterBusy || !(error instanceof Error) || (error as { errcode?: number }).errcode !== 5) throw error
+        this.onWriterBusy()
+      }
+    }
+  }
+
   private begin(): void {
+    if (this.onWriterBusy) return this.waitForWriter(() => this.exec('BEGIN IMMEDIATE'))
     let busy: unknown
     for (let attempt = 0; attempt < this.beginAttempts; attempt += 1) {
       try {
