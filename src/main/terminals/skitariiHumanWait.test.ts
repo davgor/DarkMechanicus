@@ -69,6 +69,7 @@ describe('human wait lifecycle on the interactive OMP host', () => {
     expect(r.send).toHaveBeenCalledExactlyOnceWith(expect.stringContaining(REQUEST.question), { deliverAs: 'aside', attribution: 'agent' })
     expect(r.send.mock.lastCall?.[0]).toContain(REQUEST.why)
     expect(r.send.mock.lastCall?.[0]).toContain('not human input, consent, checkpoint approval or permission')
+    expect(r.send.mock.lastCall?.[0]).toContain('Finish this turn still blocked; do not poll or take any further action now')
     expect(r.run).not.toHaveBeenCalled()
   })
 
@@ -111,6 +112,8 @@ describe('human-wait wake delivery and idempotency', () => {
     const result = await r.contact(id)
     expect(result.content[0].text).toContain('Request queued (not confirmed sent)')
     expect(result.content[0].text).toContain('Consent and approval are still required')
+    expect(result.content[0].text).toContain('Finish this turn still blocked; do not poll now')
+    expect(result.content[0].text).toContain(`On a later turn, use get_human_answer with questionId ${id}`)
     expect(r.run).toHaveBeenCalledExactlyOnceWith('ask_human', {
       question: `${REQUEST.question}\n\nWhy this is blocking progress: ${REQUEST.why}`,
       responseRequired: true, humanEngaged: false, waitId: id

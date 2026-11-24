@@ -126,7 +126,8 @@ class HumanWait {
     const prompt = `Dark Mechanicus: this conversation has an unanswered human request after ten minutes.\n${request}\n` +
       `Use ${CONTACT_TOOL} once with waitId ${current.id} to check whether the request is still outstanding and use the authorized contact path. ` +
       'If stale, do not repeat it. If contact is unavailable, leave this specific request and why it blocks progress in the conversation, and say no external message was sent. ' +
-      'If queued, do not claim it was sent; use get_human_answer with the returned questionId. Do not re-arm this same wait. ' +
+      'If queued, report that it was queued, not sent. Finish this turn still blocked; do not poll or take any further action now. ' +
+      'On a later turn, use get_human_answer with the returned questionId to check for a reply. Do not re-arm this same wait. ' +
       'This is not human input, consent, checkpoint approval or permission to proceed.'
     void this.send(prompt, { deliverAs: 'aside', attribution: 'agent' }).catch(() => {
       if (this.#wait === current) this.#status('Human disengaged · wake unavailable; the request remains in chat')
@@ -162,7 +163,7 @@ class HumanWait {
     }, signal)
     if (this.#wait !== current) return answer(stale, true)
     if (queued(result, current.id)) {
-      return answer(`Request queued (not confirmed sent). Use get_human_answer with questionId ${current.id}. Consent and approval are still required.`)
+      return answer(`Request queued (not confirmed sent). Finish this turn still blocked; do not poll now. On a later turn, use get_human_answer with questionId ${current.id}. Consent and approval are still required.`)
     }
     current.release()
     current.release = undefined
