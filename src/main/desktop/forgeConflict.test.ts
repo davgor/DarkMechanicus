@@ -4,7 +4,7 @@ import { expect, it } from 'vitest'
 import { gitIn, scratchDir } from '../../test/gitScratch'
 import { createGitRunner } from '../git/runner'
 import { ForgeGit } from './forgeGit'
-import { createForge, FORGE_FILE, updateForge } from './forgeManifest'
+import { createForge, FORGE_FILE, parseForge } from './forgeManifest'
 
 it('keeps a divergent merge local for resolution, then validates the merge commit before pushing', async () => {
   const fixture = scratchDir('forge-conflict-')
@@ -15,15 +15,16 @@ it('keeps a divergent merge local for resolution, then validates the merge commi
     gitIn(root, 'config', 'user.email', 'test@example.test')
     gitIn(root, 'remote', 'add', 'origin', 'https://github.com/example/world.git')
     createForge(root, 'example')
+    const original = parseForge(readFileSync(join(root, FORGE_FILE), 'utf8'))
     gitIn(root, 'add', FORGE_FILE)
     gitIn(root, 'commit', '-m', 'Original Forge World')
     gitIn(root, 'switch', '-c', 'remote-fixture')
-    updateForge(root, world => { world.syncMinutes = 15 })
+    writeFileSync(join(root, FORGE_FILE), JSON.stringify({ ...original, syncMinutes: 15 }, null, 2) + '\n')
     gitIn(root, 'add', FORGE_FILE)
     gitIn(root, 'commit', '-m', 'Remote interval')
     const upstream = gitIn(root, 'rev-parse', 'HEAD').trim()
     gitIn(root, 'switch', 'main')
-    updateForge(root, world => { world.syncMinutes = 10 })
+    writeFileSync(join(root, FORGE_FILE), JSON.stringify({ ...original, syncMinutes: 10 }, null, 2) + '\n')
     const events: string[] = []
     const runner = createGitRunner()
     const client = new ForgeGit({ getAccount: () => null, getToken: () => null }, {

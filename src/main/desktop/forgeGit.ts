@@ -9,14 +9,40 @@ function privateState(path: string): boolean {
   return /(?:^|\/)\.darkmechanicus\/local(?:\/|$)/i.test(path)
 }
 
-function inspectEntries(entries: string): void {
-  for (const entry of entries.split('\0').filter(Boolean)) {
-    const path = entry.slice(entry.indexOf('\t') + 1).toLowerCase()
-    if (privateState(path)) throw new Error('The Forge World contains tracked machine-private state.')
-    if ((path === FORGE_FILE || path === FORGE_DIRECTIONS.toLowerCase() || /(?:^|\/)\.darkmechanicus(?:\/|$)/.test(path)) && (entry.startsWith('120000 ') || entry.startsWith('160000 '))) {
-      throw new Error('Ticket records and repository directions must be ordinary files.')
-    }
+function requiresOrdinaryFile(path: string): boolean {
+  return path === FORGE_FILE || path === FORGE_DIRECTIONS.toLowerCase() || /(?:^|\/)\.darkmechanicus(?:\/|$)/.test(path)
+}
+
+function inspectEntry(entry: string, separator: number, modeOffset = 0): void {
+  const path = entry.slice(separator + 1).toLowerCase()
+  if (privateState(path)) throw new Error('The Forge World contains tracked machine-private state.')
+  if (requiresOrdinaryFile(path) && (entry.startsWith('120000 ', modeOffset) || entry.startsWith('160000 ', modeOffset))) {
+    throw new Error('Ticket records and repository directions must be ordinary files.')
   }
+}
+
+function inspectEntries(entries: string): void {
+  for (const entry of entries.split('\0').filter(Boolean)) inspectEntry(entry, entry.indexOf('\t'))
+}
+
+/** The -v prefix exposes flags that make status clean while explicit staging still has effects. */
+function inspectIndex(entries: string): boolean {
+  let eligible = true
+  for (const entry of entries.split('\0').filter(Boolean)) {
+    const separator = entry.indexOf('\t')
+    if (entry[separator - 1] !== '0') throw new Error('Forge World has an unresolved merge.')
+    inspectEntry(entry, separator, 2)
+    if (entry[0] !== 'H') eligible = false
+  }
+  return eligible
+}
+
+function inspectMatchingIndex(admitted: string, current: string): boolean {
+  return inspectIndex(current) && admitted === current
+}
+
+function fallbackIdentity(user: string, hasIdentity: boolean): string[] {
+  return hasIdentity ? [] : ['-c', 'user.name=' + user, '-c', 'user.email=' + user + '@users.noreply.github.com']
 }
 
 export class ForgeGit {
@@ -53,12 +79,18 @@ export class ForgeGit {
   }
 
   private async commitRepository(root: string) {
-    const unresolved = (await this.run(root, ['ls-files', '-u'])).stdout !== ''
-    if (unresolved) throw new Error('Forge World has an unresolved merge.')
+    const admittedIndex = (await this.run(root, ['ls-files', '--stage', '-v', '-z'])).stdout
+    const eligible = inspectIndex(admittedIndex)
+    const clean = eligible && (await this.run(root, ['status', '--porcelain=v1', '--untracked-files=all', '--ignore-submodules=none'])).stdout === ''
+    if (clean) {
+      // The index must still be the admitted snapshot; late portable writes need normal staging.
+      const stillEligible = inspectMatchingIndex(admittedIndex, (await this.run(root, ['ls-files', '--stage', '-v', '-z'])).stdout)
+      const merging = (await this.run(root, ['rev-parse', '--verify', '--quiet', 'MERGE_HEAD'], undefined, { acceptExitCodes: [0, 1] })).code === 0
+      if (stillEligible && !merging) return
+    }
     // A Forge World is its own repository: sync includes its documentation and
     // every portable project file, including formats added after this client.
     // Private state is never publishable, even if someone force-staged it.
-    inspectEntries((await this.run(root, ['ls-files', '--stage', '-z'])).stdout)
     const files = (await this.run(root, ['ls-files', '--cached', '--others', '--exclude-standard', '-z'])).stdout
     const paths = files.split('\0').filter(path => path !== '' && !privateState(path))
     const pathspec = paths.join('\0') + '\0'
@@ -68,8 +100,8 @@ export class ForgeGit {
     const merging = !changed && (await this.run(root, ['rev-parse', '--verify', '--quiet', 'MERGE_HEAD'], undefined, { acceptExitCodes: [0, 1] })).code === 0
     if (changed || merging) {
       const user = this.session.getAccount()?.login
-      const identity = user && (await this.run(root, ['var', 'GIT_AUTHOR_IDENT'], undefined, { acceptExitCodes: [0, 128] })).code !== 0
-        ? ['-c', 'user.name=' + user, '-c', 'user.email=' + user + '@users.noreply.github.com'] : []
+      const identity = user ? fallbackIdentity(user,
+        (await this.run(root, ['var', 'GIT_AUTHOR_IDENT'], undefined, { acceptExitCodes: [0, 128] })).code === 0) : []
       await this.run(root, [...identity, 'commit', '-m', 'Sync Forge World repository'])
     }
   }

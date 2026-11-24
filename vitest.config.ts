@@ -1,4 +1,5 @@
 import { availableParallelism } from 'node:os'
+import { basename } from 'node:path'
 import { configDefaults, defineConfig } from 'vitest/config'
 
 const define = {
@@ -55,6 +56,7 @@ const gitWorkers = Math.max(1, Math.min(
 ))
 // Forge bootstrap, conversion and provisioning rely on many real Git commands, including synchronous admission checks.
 // Run them serially after the other Git suites to limit competing child-process launches.
+// Environment/CLI worker limits override project caps; distinct ordered groups enforce file isolation.
 const FORGE_RECOVERY = [
   'src/main/desktop/forgeBootstrap.test.ts',
   'src/main/desktop/forgeService.test.ts',
@@ -84,16 +86,16 @@ export default defineConfig({
           sequence: { groupOrder: 1 }
         }
       },
-      {
+      ...FORGE_RECOVERY.map((file, index) => ({
         define,
         test: {
           ...shared,
-          name: 'forge-recovery',
-          include: FORGE_RECOVERY,
+          name: `forge-recovery-${basename(file, '.test.ts')}`,
+          include: [file],
           maxWorkers: 1,
-          sequence: { groupOrder: 2 }
+          sequence: { groupOrder: index + 2 }
         }
-      }
+      }))
     ],
     coverage: {
       provider: 'v8',
