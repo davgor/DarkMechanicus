@@ -2,6 +2,7 @@ import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defaultCapabilityProfile } from '../shared/domain/bundle'
+import type { ReconcileResultView } from '../shared/domain/views'
 import { dropAcceptanceNodes } from '../test/acceptanceNodes'
 import { issued } from '../test/execution'
 import { createHarness, type Harness } from '../test/workspaceHarness'
@@ -9,7 +10,10 @@ import { SCHEMA_VERSION } from './db/migrations'
 import { scanKanban } from './repo/kanbanImport'
 import { resolveLayout } from './repo/layout'
 import { nodeFs } from './repo/nodeFs'
-import { observeReconcileInputs } from './repo/reconcileFingerprint'
+import { createFileHashCache } from './repo/fileHashes'
+import { reconcileRepository } from './repo/importer'
+import { observeReconcileInputs, type ReconcileGate } from './repo/reconcileFingerprint'
+import type { FsAdapter } from './repo/types'
 import type { Workspace } from './workspace'
 
 // Every full reconcile scans the Kanban folder once (before the writer lock, or again under it when the inputs moved).
@@ -212,5 +216,38 @@ describe('Full reconcile', () => {
     const deps = { db, layout, fs: nodeFs, git: harness.git }
     expect(observeReconcileInputs(deps).current()).toBe(true)
     expect(observeReconcileInputs({ ...deps, schemaVersion: SCHEMA_VERSION + 1 }).current()).toBe(false)
+  })
+})
+
+describe('Reconcile gate', () => {
+  const importer = () => {
+    const ctx = desktop.ctx()
+    const layout = resolveLayout(harness.root, { mode: 'repo', homeDir: harness.homeDir })
+    return { db: ctx.db, layout, fs: nodeFs, clock: harness.clock, machineId: ctx.machineId, git: harness.git, fileHashes: createFileHashCache() }
+  }
+  const answers = (...values: boolean[]): ReconcileGate => ({ current: () => values.shift() ?? false, applied: () => undefined })
+
+  it('applies inside a caller transaction only when the gate misses', async () => {
+    const deps = importer()
+    expect(await scansDuring(() => deps.db.tx(() => reconcileRepository(deps, answers(true))))).toBe(0)
+    expect(await scansDuring(() => deps.db.tx(() => reconcileRepository(deps, answers(false))))).toBe(1)
+  })
+
+  it('applies nothing when another session reconciled the same inputs while this one waited for the lock', async () => {
+    const deps = importer()
+    let result: ReconcileResultView | undefined
+    expect(await scansDuring(() => { result = reconcileRepository(deps, answers(false, true)) })).toBe(1)
+    expect(result?.unchanged).toEqual([])
+  })
+
+  it('never matches a tracked folder it cannot walk, and tells other entries from files, links and folders', () => {
+    const { db, layout } = importer()
+    const deps = { db, layout, fs: nodeFs, git: harness.git }
+    expect(observeReconcileInputs({ ...deps, fs: { ...nodeFs, isSymlink: (path) => path === layout.dmDir } }).current()).toBe(false)
+    const odd = join(layout.dmDir, 'odd')
+    const withOther: FsAdapter = { ...nodeFs, readdir: (path) => path === layout.dmDir ? [...nodeFs.readdir(path), 'odd'] : nodeFs.readdir(path),
+      fileStamp: (path) => path === odd ? null : nodeFs.fileStamp(path), isDirectory: (path) => path !== odd && nodeFs.isDirectory(path) }
+    expect(observeReconcileInputs({ ...deps, fs: withOther }).current()).toBe(false)
+    expect(observeReconcileInputs(deps).current()).toBe(true)
   })
 })
