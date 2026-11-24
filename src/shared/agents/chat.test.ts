@@ -128,6 +128,10 @@ describe('chatItemSchema: nested threads', () => {
     expect(chatItemSchema.safeParse({ ...thread, label: '' }).success).toBe(false)
   })
 
+  it('represents an unobserved spawning call explicitly without inventing an id', () => {
+    expect(chatItemSchema.parse({ ...thread, parentItemId: null })).toEqual({ ...thread, parentItemId: null })
+  })
+
   it('lets a thread sit inside another thread, so a subagent can start one of its own', () => {
     expect(chatItemSchema.parse({ ...thread, threadId: 'th_0' })).toHaveProperty('threadId', 'th_0')
   })

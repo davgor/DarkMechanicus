@@ -50,6 +50,7 @@ describe('agent chat events and snapshots', () => {
       { ...ref, type: 'item', item: { id: 'it_1', at: 'now', kind: 'assistant_text', text: 'hello' } },
       { ...ref, type: 'delta', itemId: 'it_1', kind: 'text', text: 'hi' },
       { ...ref, type: 'delta', itemId: 'it_1', kind: 'thinking', text: 'considering' },
+      { ...ref, type: 'stream_end', itemId: 'it_1' },
       { ...ref, type: 'status', status: 'busy', detail: 'working' },
       { ...ref, type: 'pending', prompt }, { ...ref, type: 'pending', prompt: null },
       { ...ref, type: 'queued', count: 2 },
@@ -64,6 +65,11 @@ describe('agent chat events and snapshots', () => {
     expect(pendingPromptSchema.safeParse({ ...prompt, attributed: false }).success).toBe(true)
     expect(pendingPromptSchema.safeParse({ ...prompt, attributed: undefined }).success).toBe(false)
     expect(pendingPromptSchema.safeParse({ ...prompt, attributed: 'true' }).success).toBe(false)
+  })
+
+  it('requires a nonempty stream retirement id and no durable content', () => {
+    expect(agentChatEventSchema.safeParse({ ...ref, type: 'stream_end', itemId: '' }).success).toBe(false)
+    expect(agentChatEventSchema.safeParse({ ...ref, type: 'stream_end', itemId: 'a', text: '' }).success).toBe(false)
   })
 
   it('rejects invalid tasks, phases and over-limit lists', () => {

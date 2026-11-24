@@ -351,3 +351,20 @@ it.each(['busy', 'unsupported_capability'] as const)('preserves the live session
   expect(view.result.current.state.streaming.get('a')?.text).toBe('once')
   expect(view.result.current.state.statusDetail).toBeUndefined()
 })
+
+it('flushes buffered deltas before retirement and preserves another live stream and receipt time', async () => {
+  const view = mountTimed()
+  await settle()
+  act(() => {
+    view.api.emit({ ...ref, type: 'delta', itemId: 'thinking', kind: 'thinking', text: 'Consider' })
+    view.api.emit({ ...ref, type: 'delta', itemId: 'worker', kind: 'text', text: 'Still working' })
+  })
+  view.setTime(2_000)
+  act(() => view.api.emit({ ...ref, type: 'stream_end', itemId: 'thinking' }))
+  expect([...view.result.current.state.streaming.keys()]).toEqual(['worker'])
+  expect(view.result.current.state.lastEventAt).toBe(2_000)
+  view.setTime(9_000)
+  act(() => view.scheduler.fireTimeouts(33))
+  expect([...view.result.current.state.streaming.keys()]).toEqual(['worker'])
+  expect(view.result.current.state.lastEventAt).toBe(2_000)
+})

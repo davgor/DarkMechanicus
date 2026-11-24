@@ -241,8 +241,8 @@ export const chatItemSchema = z.discriminatedUnion('kind', [
     ...itemBase,
     kind: z.literal('thread'),
     callsign: callsignSchema.optional(),
-    /** The item (a tool call) that spawned the thread. */
-    parentItemId: z.string().min(1),
+    /** The spawning tool call, or null when the protocol does not identify it. */
+    parentItemId: z.string().min(1).nullable(),
     /** What the subagent was asked to do, in a few words. */
     label: z.string().min(1),
     state: z.enum(THREAD_STATES)

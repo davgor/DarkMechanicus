@@ -40,7 +40,7 @@ function lostLabel(entry: TranscriptEntry): string {
 
 /** A thread item for entries whose own was never stored, placed before the first of them. */
 function lostThread(threadId: string, first: TranscriptEntry): ThreadItem {
-  return { id: threadId, at: 'at' in first ? first.at : '', kind: 'thread', parentItemId: '', label: lostLabel(first), state: 'running' }
+  return { id: threadId, at: 'at' in first ? first.at : '', kind: 'thread', parentItemId: null, label: lostLabel(first), state: 'running' }
 }
 
 function withLostThreads(entries: readonly TranscriptEntry[]): TranscriptEntry[] {
@@ -74,7 +74,7 @@ function nodeOf(scopes: Scopes, item: ThreadItem): ThreadNode {
 function threadsByParent(rows: readonly TranscriptRowModel[]): Map<string, ThreadItem[]> {
   const byParent = new Map<string, ThreadItem[]>()
   for (const { entry } of rows) {
-    if (entry.kind === 'thread') {
+    if (entry.kind === 'thread' && entry.parentItemId !== null) {
       byParent.set(entry.parentItemId, [...(byParent.get(entry.parentItemId) ?? []), entry])
     }
   }
@@ -92,7 +92,7 @@ function rowsOf(scopes: Scopes, scope: string | undefined): TreeRow[] {
       const under = byParent.get(entry.id)
       return [{ ...row, threads: under === undefined ? NO_THREADS : under.map((item) => nodeOf(scopes, item)) }]
     }
-    return spawners.has(entry.parentItemId) ? [] : [{ ...row, threads: [nodeOf(scopes, entry)] }]
+    return entry.parentItemId !== null && spawners.has(entry.parentItemId) ? [] : [{ ...row, threads: [nodeOf(scopes, entry)] }]
   })
 }
 

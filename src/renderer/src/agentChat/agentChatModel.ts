@@ -61,23 +61,27 @@ function statusState(state: AgentChatState, event: Extract<AgentChatEvent, { typ
   }
 }
 
+function withoutStream(streaming: AgentChatState['streaming'], itemId: string): AgentChatState['streaming'] {
+  if (!streaming.has(itemId)) return streaming
+  const next = new Map(streaming)
+  next.delete(itemId)
+  return next
+}
+
 /** Durable items replace their stream, never append its text a second time. */
 export function reduceAgentChat(state: AgentChatState, event: AgentChatEvent, at = 0): AgentChatState {
   switch (event.type) {
-    case 'item': {
-      let streaming = state.streaming
-      if (streaming.has(event.item.id)) {
-        streaming = new Map(streaming)
-        streaming.delete(event.item.id)
-      }
-      return { ...state, lastEventAt: at, items: applyItem(state.items, event.item), streaming }
-    }
+    case 'item':
+      return { ...state, lastEventAt: at, items: applyItem(state.items, event.item),
+        streaming: withoutStream(state.streaming, event.item.id) }
     case 'delta': {
       const previous = state.streaming.get(event.itemId) ?? { text: '', thinking: '' }
       const streaming = new Map(state.streaming)
       streaming.set(event.itemId, { ...previous, [event.kind]: previous[event.kind] + event.text })
       return { ...state, lastEventAt: at, streaming }
     }
+    case 'stream_end':
+      return { ...state, lastEventAt: at, streaming: withoutStream(state.streaming, event.itemId) }
     case 'status':
       return statusState(state, event, at)
     case 'pending':

@@ -137,3 +137,18 @@ it('loads busy timing from the last user message, otherwise from the load time',
   expect(agentChatState({ ...snapshot, items: [{ ...snapshot.items[1], at: 'invalid' }] }, 5_000).turnStartedAt).toBe(5_000)
   expect(agentChatState({ ...snapshot, status: 'idle' }, 5_000).turnStartedAt).toBeNull()
 })
+
+it('retires only the named ephemeral stream without changing durable answers or earlier state', () => {
+  let state = agentChatState()
+  state = reduceAgentChat(state, { ...ref, type: 'item', item: item('answer', 'Final answer') })
+  for (const itemId of ['thinking', 'worker']) {
+    state = reduceAgentChat(state, { ...ref, type: 'delta', itemId, kind: 'thinking', text: 'Working' })
+  }
+  const retired = reduceAgentChat(state, { ...ref, type: 'stream_end', itemId: 'thinking' }, 42)
+  expect([...retired.streaming.keys()]).toEqual(['worker'])
+  expect(retired.items).toBe(state.items)
+  expect(retired.lastEventAt).toBe(42)
+  expect([...state.streaming.keys()]).toEqual(['thinking', 'worker'])
+  expect(reduceAgentChat(retired, { ...ref, type: 'stream_end', itemId: 'absent' }, 43))
+    .toEqual({ ...retired, lastEventAt: 43 })
+})

@@ -50,6 +50,7 @@ const threadTodos = { threadId: z.string().nullable(), phases: z.array(agentTodo
 export const agentChatEventSchema = z.discriminatedUnion('type', [
   z.strictObject({ ...chatRef, type: z.literal('item'), item: chatItemSchema }),
   z.strictObject({ ...chatRef, type: z.literal('delta'), itemId: z.string().min(1), kind: z.enum(['text', 'thinking']), text: z.string() }),
+  z.strictObject({ ...chatRef, type: z.literal('stream_end'), itemId: z.string().min(1) }),
   z.strictObject({ ...chatRef, type: z.literal('status'), status: statusSchema, detail: z.string().optional() }),
   z.strictObject({ ...chatRef, type: z.literal('pending'), prompt: pendingPromptSchema.nullable() }),
   z.strictObject({ ...chatRef, type: z.literal('queued'), count: z.number().int().nonnegative() }),

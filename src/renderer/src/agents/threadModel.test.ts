@@ -16,7 +16,7 @@ const call = (id: string, threadId?: string): ChatItem => ({
   ...(threadId === undefined ? {} : { threadId })
 })
 const text = (id: string, threadId?: string): ChatItem => ({ id, at: AT, kind: 'assistant_text', text: id, ...(threadId === undefined ? {} : { threadId }) })
-const thread = (id: string, parentItemId: string, threadId?: string, state: 'running' | 'done' | 'failed' = 'running'): ChatItem => ({
+const thread = (id: string, parentItemId: string | null, threadId?: string, state: 'running' | 'done' | 'failed' = 'running'): ChatItem => ({
   id,
   at: AT,
   kind: 'thread',
@@ -92,8 +92,16 @@ describe('transcriptTree: threads that are not as stored, and requests', () => {
     const rows = transcriptTree([user('a'), asked('q', 'lost'), text('n', 'lost')])
     expect(ids(rows)).toEqual(['a', 'lost'])
     const node = only(rows[1])
-    expect(node).toMatchObject({ item: { id: 'lost', label: 'Worker', state: 'running' } })
+    expect(node).toMatchObject({ item: { id: 'lost', label: 'Worker', state: 'running', parentItemId: null } })
     expect(ids(node.rows)).toEqual(['item_q', 'n'])
+  })
+
+  it('places unknown-spawner threads at the root without attaching to an unrelated tool', () => {
+    const rows = transcriptTree([call('unrelated'), thread('worker', null), text('answer', 'worker')])
+    expect(ids(rows)).toEqual(['unrelated', 'worker'])
+    expect(rows[0].threads).toEqual([])
+    expect(only(rows[1]).item.parentItemId).toBeNull()
+    expect(ids(only(rows[1]).rows)).toEqual(['answer'])
   })
 
   it('does not loop over a thread that names itself as its own thread', () => {
