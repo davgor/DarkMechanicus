@@ -72,7 +72,7 @@ export interface ToolResult {
 }
 
 export interface MailToolDefinition {
-  name: (typeof MAIL_TOOL_NAMES)[number] | typeof DM_CALL_TOOL_NAME | 'recover_tooling'
+  name: (typeof MAIL_TOOL_NAMES)[number] | typeof DM_CALL_TOOL_NAME | 'recover_tooling' | 'wait_for_human' | 'contact_waiting_human'
   label: string
   description: string
   parameters: unknown
