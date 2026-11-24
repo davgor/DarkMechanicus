@@ -30,6 +30,11 @@ export interface AgentTreeCounts {
   failed: number
 }
 
+export interface AgentTreeModel {
+  roots: AgentTreeNode[]
+  counts: AgentTreeCounts
+}
+
 /** FNV-1a over UTF-16 code units, including both units of surrogate pairs. */
 export function hueOf(id: string): number {
   let hash = 0x811c9dc5
@@ -44,10 +49,7 @@ export function elapsedMs(node: AgentTreeNodeInput, now: number): number | null 
 }
 
 /** Last occurrences win, including their position in the input order. */
-export function buildAgentTree(inputs: readonly AgentTreeNodeInput[]): {
-  roots: AgentTreeNode[]
-  counts: AgentTreeCounts
-} {
+export function buildAgentTree(inputs: readonly AgentTreeNodeInput[]): AgentTreeModel {
   const nodes = new Map<string, AgentTreeNode>()
   for (const input of inputs) {
     nodes.delete(input.id)
