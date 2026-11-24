@@ -1,8 +1,6 @@
 import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import type { Plugin } from 'vite'
-        // Sandboxed preloads cannot require npm packages; inline the event validator's runtime.
-        externalizeDeps: { exclude: ['zod'] },
 
 const DEV_SERVER_ORIGIN = 'http://localhost:5173'
 const DEV_SERVER_WS_ORIGIN = 'ws://localhost:5173'
@@ -58,6 +56,8 @@ export default defineConfig(({ command }) => {
     },
     preload: {
       build: {
+        // Sandboxed preloads cannot require npm packages; inline the event validator's runtime.
+        externalizeDeps: { exclude: ['zod'] },
         outDir: 'out/preload',
         rollupOptions: {
           input: 'src/preload/index.ts'
