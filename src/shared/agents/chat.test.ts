@@ -26,6 +26,19 @@ describe('chatItemSchema', () => {
     expect(chatItemSchema.parse(item)).toEqual(item)
   })
 
+  it('accepts main-resolved callsigns and arbiter decisions while preserving legacy items', () => {
+    const callsign = { role: 'Acolyte', ticketKey: 'DM-770', ordinal: null, purpose: null, ticketVerified: true }
+    for (const item of ITEMS.filter(item => item.kind === 'approval_request' || item.kind === 'thread')) {
+      expect(chatItemSchema.parse({ ...item, callsign })).toEqual({ ...item, callsign })
+    }
+    const decision = { ...BASE, kind: 'approval_decision', requestId: 'req_1', decision: 'allow_once' }
+    expect(chatItemSchema.parse(decision)).toEqual(decision)
+    const arbitrated = { ...decision, decidedBy: 'magos', reason: 'Routine test run' }
+    expect(chatItemSchema.parse(arbitrated)).toEqual(arbitrated)
+    expect(chatItemSchema.safeParse({ ...decision, decidedBy: 'robot' }).success).toBe(false)
+    expect(chatItemSchema.safeParse({ ...arbitrated, reason: 'a'.repeat(501) }).success).toBe(false)
+  })
+
   it('fails an item of unknown kind', () => {
     expect(chatItemSchema.safeParse({ ...BASE, kind: 'hologram', text: 'x' }).success).toBe(false)
   })
@@ -129,22 +142,30 @@ describe('chatItemSchema: nested threads', () => {
   })
 })
 
-describe('chatRecordSchema', () => {
-  const record = {
-    id: 'chat_0b2a9c1e-5d3f-4c2a-9a41-7e8f6d5c4b3a',
-    folder: '/work/repo',
-    agent: 'claude',
-    model: 'opus',
-    role: 'orchestrator',
-    allowSave: true,
-    title: 'Run the epic',
-    createdAt: '2026-01-01T00:00:01.000Z',
-    updatedAt: '2026-01-01T00:00:02.000Z',
-    sessionId: null
-  }
+const record = {
+  id: 'chat_0b2a9c1e-5d3f-4c2a-9a41-7e8f6d5c4b3a',
+  folder: '/work/repo',
+  agent: 'claude',
+  model: 'opus',
+  role: 'orchestrator',
+  allowSave: true,
+  title: 'Run the epic',
+  createdAt: '2026-01-01T00:00:01.000Z',
+  updatedAt: '2026-01-01T00:00:02.000Z',
+  sessionId: null
+}
 
+describe('chatRecordSchema', () => {
   it('accepts a chat record', () => {
     expect(chatRecordSchema.parse(record)).toEqual(record)
+  })
+
+  it('loads legacy records and round-trips explicit epic and surface fields', () => {
+    expect(chatRecordSchema.parse(record)).not.toHaveProperty('epicId')
+    expect(chatRecordSchema.parse(record)).not.toHaveProperty('surface')
+    const bound = { ...record, epicId: 'ep_1', surface: 'gui' }
+    expect(chatRecordSchema.parse(JSON.parse(JSON.stringify(bound)))).toEqual(bound)
+    expect(chatRecordSchema.safeParse({ ...bound, surface: 'web' }).success).toBe(false)
   })
 
   it('records the run a chat orchestrates, and reads chats stored before runs were recorded', () => {

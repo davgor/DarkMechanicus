@@ -4,6 +4,7 @@
  * on recorded requests and rendered state instead of mock expectations.
  */
 import type { ChatsApi, SendConversationRequest } from '../../../../shared/agents/chatApi'
+import { idleAgentChat } from '../../__mocks__/idleAgentChat'
 import type { AttemptTimelineView, RunTimelineView } from '../../../../shared/domain/activity'
 import type { CommandName } from '../../../../shared/domain/api'
 import type { DomainErrorShape } from '../../../../shared/domain/errors'
@@ -118,6 +119,7 @@ export class FakeBackend implements DmApi {
   /** Chat calls use the in-memory fake; tests can seed routes or replace it. */
   chats: ChatsApi
   terminals = idleTerminals()
+  agentChat = idleAgentChat()
   sourceCheckout = idleSourceCheckout()
   crossRepoCorrections = idleCrossRepoCorrections()
   yolo(): Promise<YoloStatus> {

@@ -6,6 +6,7 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import type { IpcMain } from 'electron'
 import { CHAT_EVENT_CHANNEL, CHAT_MAIL_EVENT_CHANNEL } from '../shared/agents/chatApi'
+import { AGENT_CHAT_CHANNELS, type AgentChatApi } from '../shared/agents/agentChat'
 import { AUTO_UPDATE_EVENT_CHANNEL } from '../shared/autoUpdate/types'
 import { GIT_PROGRESS_CHANNEL } from '../shared/git/api'
 import { GITHUB_ACCOUNT_CHANGED_CHANNEL } from '../shared/github/api'
@@ -152,6 +153,13 @@ describe('preload bridge', () => {
       bridge.calls.length = 0
       handled.length = 0
       const args = Array.from({ length: method.length }, (_, i) => `${path}#${i}`)
+      // DM-770 adds the contract before the agent-chat main handlers land.
+      if (path.startsWith('dm.agentChat.')) {
+        const channel = AGENT_CHAT_CHANNELS[path.slice('dm.agentChat.'.length) as Exclude<keyof typeof AGENT_CHAT_CHANNELS, 'event'>]
+        await expect(method(...args)).rejects.toThrow(`Unregistered channel ${channel}`)
+        expect(bridge.calls, path).toEqual([[channel, ...args]])
+        continue
+      }
       const result = await method(...args)
       expect(bridge.calls, path).toHaveLength(1)
       const [channel, ...sent] = bridge.calls[0] as [string, ...unknown[]]
@@ -185,6 +193,7 @@ describe('preload bridge subscriptions', () => {
       'autoUpdate.onEvent': AUTO_UPDATE_EVENT_CHANNEL,
       'dm.chats.onEvent': CHAT_EVENT_CHANNEL,
       'dm.chats.mail.onEvent': CHAT_MAIL_EVENT_CHANNEL,
+      'dm.agentChat.onEvent': AGENT_CHAT_CHANNELS.event,
       'dm.onAgentDownloadProgress': 'agents:downloadProgress',
       'dm.onFoldersChanged': 'forge:foldersChanged',
       'git.onProgress': GIT_PROGRESS_CHANNEL,
@@ -198,12 +207,30 @@ describe('preload bridge subscriptions', () => {
       const unsubscribe = subscribe((...args: unknown[]) => received.push(args)) as () => void
       const listeners = bridge.listeners.get(expected[path])
       expect(listeners?.size, path).toBe(1)
-      for (const listener of listeners ?? []) listener(fakeEvent, { payload: path })
+      const payload = path === 'dm.agentChat.onEvent' ? { type: 'status', folder: null, chatId: 'chat_1', status: 'idle' } : { payload: path }
+      for (const listener of listeners ?? []) listener(fakeEvent, payload)
       // Folder changes invalidate the registry without forwarding any payload.
-      const expectedArgs = path === 'dm.onFoldersChanged' ? [] : [{ payload: path }]
+      const expectedArgs = path === 'dm.onFoldersChanged' ? [] : [payload]
       expect(received, path).toEqual([expectedArgs])
       unsubscribe()
       expect(listeners?.size, path).toBe(0)
     }
+  })
+
+  it('drops invalid GUI pushes, including malformed to-do lists, and forwards valid events', () => {
+    const dm = bridge.exposed.get('dm') as { agentChat: AgentChatApi }
+    const received: unknown[] = []
+    const unsubscribe = dm.agentChat.onEvent(event => received.push(event))
+    const listeners = bridge.listeners.get(AGENT_CHAT_CHANNELS.event)
+    const valid = { type: 'todos', folder: null, chatId: 'chat_1', threadId: null, phases: [] }
+    const invalid = [
+      null, { type: 'unknown' }, { ...valid, extra: true },
+      { ...valid, phases: Array(21).fill({ name: 'phase', tasks: [] }) },
+      { ...valid, phases: [{ name: 'phase', tasks: [{ id: null, content: 'Task', status: 'unknown' }] }] }
+    ]
+    for (const event of [...invalid, valid]) for (const listener of listeners ?? []) listener(fakeEvent, event)
+    expect(received).toEqual([valid])
+    unsubscribe()
+    expect(listeners?.size).toBe(0)
   })
 })

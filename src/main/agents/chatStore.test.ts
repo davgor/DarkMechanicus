@@ -121,6 +121,33 @@ function stored(fs: ChatStoreFs, chat: ChatRef, items: readonly ChatItem[]): voi
 const NEW_CHAT: NewChat = { folder: REPO, agent: 'claude', model: 'opus', role: 'orchestrator', allowSave: true }
 const AT = '2026-02-01T00:00:00.000Z'
 
+describe('epic binding and chat surface persistence', () => {
+  it('persists both fields at creation and allows a surface change', () => {
+    const fs = memoryFs()
+    const store = openStore(fs)
+    const chat = store.createChat({ ...NEW_CHAT, epicId: 'ep_1', surface: 'gui' })
+    expect(openStore(fs).getChat(chat)).toEqual(chat)
+    expect(chat).toMatchObject({ epicId: 'ep_1', surface: 'gui' })
+    const updated = store.updateChat(chat, { surface: 'terminal' })
+    expect(openStore(fs).getChat(chat)).toEqual(updated)
+    expect(updated).toMatchObject({ epicId: 'ep_1', surface: 'terminal' })
+  })
+
+  it('binds legacy chats once and refuses the entire rebinding patch without a write', () => {
+    const fs = memoryFs()
+    const store = openStore(fs)
+    const legacy = store.createChat(NEW_CHAT)
+    expect(openStore(fs).getChat(legacy)).not.toHaveProperty('epicId')
+    expect(openStore(fs).getChat(legacy)).not.toHaveProperty('surface')
+    const bound = store.updateChat(legacy, { epicId: 'ep_1' })
+    expect(openStore(fs).getChat(bound)?.epicId).toBe('ep_1')
+    const before = new Map(fs.files)
+    expect(store.updateChat(bound, { epicId: 'ep_2', surface: 'gui' })).toEqual(bound)
+    expect(fs.files).toEqual(before)
+    expect(openStore(fs).getChat(bound)).toEqual(bound)
+  })
+})
+
 let itemCount = 0
 function userMessage(text: string): ChatItem {
   itemCount += 1

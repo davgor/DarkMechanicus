@@ -7,6 +7,7 @@ import {
   type ChatPushEvent,
   type ChatsApi
 } from '../shared/agents/chatApi'
+import { AGENT_CHAT_CHANNELS, agentChatEventSchema, type AgentChatApi } from '../shared/agents/agentChat'
 import type { AutoUpdateState } from '../shared/autoUpdate/types'
 import type { AgentDownloadProgress, DmApi } from '../shared/desktop/api'
 import type { CrossRepoCorrectionsApi } from '../shared/desktop/crossRepoCorrections'
@@ -80,6 +81,23 @@ const chats: ChatsApi = {
   mail
 }
 
+const agentChat: AgentChatApi = {
+  start: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.start, request),
+  send: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.send, request),
+  interrupt: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.interrupt, request),
+  answer: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.answer, request),
+  setSurface: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.setSurface, request),
+  snapshot: (request) => ipcRenderer.invoke(AGENT_CHAT_CHANNELS.snapshot, request),
+  onEvent: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, event: unknown): void => {
+      const parsed = agentChatEventSchema.safeParse(event)
+      if (parsed.success) listener(parsed.data)
+    }
+    ipcRenderer.on(AGENT_CHAT_CHANNELS.event, handler)
+    return () => ipcRenderer.removeListener(AGENT_CHAT_CHANNELS.event, handler)
+  }
+}
+
 /** The local Dark Mechanicus source checkout: `pick` takes nothing (main shows the dialog), `associate` a tracked folder. */
 const sourceCheckout: SourceCheckoutApi = {
   get: () => ipcRenderer.invoke('sourceCheckout:get'),
@@ -104,6 +122,7 @@ const crossRepoCorrections: CrossRepoCorrectionsApi = {
  * `sourceCheckout` the `sourceCheckout:*` channels; `crossRepoCorrections` the `corrections:*CrossRepo` channels.
  */
 const dm: DmApi = {
+  agentChat,
   forgeSetup: {
     provision: (input, operationId) => ipcRenderer.invoke('forgeSetup:provision', input, operationId),
     provisioning: () => ipcRenderer.invoke('forgeSetup:provisioning'),

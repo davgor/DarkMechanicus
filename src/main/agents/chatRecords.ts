@@ -50,7 +50,7 @@ interface ChatRecordsDeps {
  * A request to create a chat, in a tracked folder or project-less (`folder` null), with the run it orchestrates, the
  * epic it transfers, the Kanban card it carries or the board conversation it answers when there is one.
  */
-type NewChatRequest = Omit<CreateChatRequest, 'folder'> & Pick<ChatRecord, 'folder' | 'runId' | 'transferEpicId' | 'cardId' | 'conversation' | 'forgeSetup'>
+type NewChatRequest = Omit<CreateChatRequest, 'folder'> & Pick<ChatRecord, 'folder' | 'epicId' | 'surface' | 'runId' | 'transferEpicId' | 'cardId' | 'conversation' | 'forgeSetup'>
 
 type ChatResult<T> = T | Promise<T>
 
