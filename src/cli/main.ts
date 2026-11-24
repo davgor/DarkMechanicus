@@ -11,6 +11,7 @@
  * flag, because a local process chooses its own flags. Without a grant it is a reader.
  */
 import { readFileSync } from 'node:fs'
+import { SESSION_AUDIT_BUSY_STDERR } from '../../resources/skitarii/extension/dmDiagnostics'
 import { maskClaimTokens } from '../core/claimTokenMask'
 import { COMMAND_CAPABILITIES } from '../core/commands/capabilities'
 import { COMMANDS } from '../core/commands/index'
@@ -183,8 +184,7 @@ function closeGranted(host: CliHost, workspace: Workspace | null, outcome: Grant
   } catch (error) {
     if (isBusyError(error)) {
       // The command outcome is already known. A second error on stdout would make even a committed result unreadable.
-      const result = outcome.ok ? 'Command completed' : 'Command failed'
-      host.writeStderr(`dm: ${result}, but the project database was busy while closing the session audit.\n`)
+      host.writeStderr(`${SESSION_AUDIT_BUSY_STDERR}\n`)
     } else if (outcome.ok) {
       throw error
     } else {

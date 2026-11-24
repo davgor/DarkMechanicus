@@ -535,8 +535,60 @@ describe('dm session cleanup under SQLite contention', () => {
     expect(recorded.stdout).toHaveLength(1)
     expect(payload(recorded)).toEqual({ ok: true, data: [] })
     expect(recorded.exits).toEqual([0])
-    expect(recorded.stderr.join('')).toMatch(/command completed.+session audit/i)
+    expect(recorded.stderr.join('')).toMatch(/\[session_audit_busy\].+session audit/i)
     expect(recorded.stderr.join('')).not.toContain('private storage path')
+  })
+
+  it.each(['open', 'command'] as const)('reports the %s stage of SQLite contention without leaking driver details', async (stage) => {
+    const busy = Object.assign(new Error('database is locked; private state.sqlite'), { errcode: 5 })
+    const recorded = recorder(['call', 'list_epics', '{}'], stage === 'open' ? { openError: busy } : {})
+    if (stage === 'command') recorded.host.open = () => ({
+      ...createStubWorkspace(),
+      execute: async () => { throw busy },
+      close: () => { throw new Error('private cleanup failure') }
+    })
+    await runCli(recorded.host)
+    expect(recorded.exits).toEqual([1])
+    expect(payload(recorded)).toEqual({ ok: false, error: {
+      code: 'busy', details: { stage },
+      message: `The project database is busy while ${stage === 'open' ? 'opening the command session' : 'running the command'}. Let the current write finish before trying again.`
+    } })
+    expect(recorded.stderr).toEqual(stage === 'open' ? [] : ['dm: Session cleanup also failed.\n'])
+  })
+})
+
+describe('dm session cleanup failures', () => {
+  it('keeps the original failure if only auditing the close was busy', async () => {
+    const recorded = recorder(['call', 'list_epics', '{}'])
+    recorded.host.open = () => ({
+      ...createStubWorkspace(),
+      execute: async () => { throw new Error('command failed before commit') },
+      close: () => { throw Object.assign(new Error('database is locked'), { errcode: 5 }) }
+    })
+    await runCli(recorded.host)
+    expect(recorded.exits).toEqual([1])
+    expect(recorded.stdout).toHaveLength(1)
+    expect(payload(recorded)).toEqual({ ok: false, error: { code: 'internal', message: 'command failed before commit' } })
+    expect(recorded.stderr.join('')).toMatch(/\[session_audit_busy\]/i)
+  })
+
+  it('does not treat an unrelated cleanup error as SQLite contention', async () => {
+    const recorded = recorder(['call', 'list_epics', '{}'])
+    recorded.host.open = () => ({
+      ...createStubWorkspace({ canned: { listEpics: [] } }),
+      close: () => { throw new Error('unrelated cleanup error') }
+    })
+    await runCli(recorded.host)
+    expect(recorded.exits).toEqual([1])
+    expect(recorded.stdout).toHaveLength(1)
+    expect(payload(recorded)).toEqual({ ok: false, error: { code: 'internal', message: 'unrelated cleanup error' } })
+  })
+
+  it('does not change the restricted poll error contract', async () => {
+    const recorded = recorder(['call', 'get_agent_identity', '{}'], { openError: Object.assign(new Error('database is locked'), { errcode: 5 }) })
+    await runCli(recorded.host)
+    expect(recorded.exits).toEqual([1])
+    expect(payload(recorded)).toEqual({ ok: false, error: { code: 'internal', message: 'database is locked' } })
   })
 })
 

@@ -1,7 +1,8 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { DatabaseSync } from 'node:sqlite'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { thrownBy } from '../../test/thrownBy'
 import {
   bool,
@@ -173,6 +174,38 @@ describe('openDatabase pragmas', () => {
 
   it('fails to open a database in a missing directory', () => {
     expect(() => openDatabase(join(tempDbPath(), 'missing', 'state.sqlite'))).toThrow()
+  })
+})
+
+describe('SQLite contention deadline', () => {
+  it('bounds the WAL transition when a rollback-journal writer holds the database', () => {
+    const path = tempDbPath()
+    const holder = new DatabaseSync(path)
+    holder.exec('CREATE TABLE notes (name TEXT); BEGIN EXCLUSIVE')
+    try {
+      const started = performance.now()
+      const error = thrownBy(() => openDatabase(path, { contentionTimeoutMs: 80 }))
+      expect(isBusyError(error)).toBe(true)
+      expect(performance.now() - started).toBeLessThan(2_000)
+    } finally {
+      holder.close()
+    }
+    expect(open(path).get('PRAGMA journal_mode')).toEqual({ journal_mode: 'wal' })
+  })
+
+  it('caps the next statement and exec with the remaining monotonic connection deadline', () => {
+    vi.useFakeTimers({ toFake: ['performance'] })
+    try {
+      const db = open(':memory:', { busyTimeoutMs: 70, contentionTimeoutMs: 100 })
+      expect(db.get('PRAGMA busy_timeout')).toEqual({ timeout: 70 })
+      vi.advanceTimersByTime(75)
+      expect(db.get('PRAGMA busy_timeout')).toEqual({ timeout: 25 })
+      vi.advanceTimersByTime(50)
+      db.exec('CREATE TABLE effective AS SELECT * FROM pragma_busy_timeout')
+      expect(db.get('SELECT timeout FROM effective')).toEqual({ timeout: 0 })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
@@ -493,6 +526,29 @@ describe('transaction start retries', () => {
     db.exec('ROLLBACK')
     expect((failure as Error).message).toMatch(/within a transaction/)
     expect(isBusyError(failure)).toBe(false)
+  })
+
+  it('does not retry writer acquisition when the connection deadline is already spent', () => {
+    vi.useFakeTimers({ toFake: ['performance'] })
+    const path = tempDbPath()
+    const holder = openWithNotes(path)
+    const writer = open(path, { busyTimeoutMs: 50, contentionTimeoutMs: 100 })
+    const native = vi.spyOn(DatabaseSync.prototype, 'exec')
+    try {
+      holder.exec('BEGIN IMMEDIATE')
+      native.mockClear()
+      vi.advanceTimersByTime(100)
+      const error = thrownBy(() => writer.tx(() => add(writer, 'must not execute')))
+      expect(isBusyError(error)).toBe(true)
+      expect(native.mock.calls.filter(([sql]) => sql === 'BEGIN IMMEDIATE')).toHaveLength(1)
+      expect(names(holder)).toEqual([])
+      holder.exec('COMMIT')
+      writer.tx(() => add(writer, 'uncontended after the deadline'))
+      expect(names(holder)).toEqual(['uncontended after the deadline'])
+    } finally {
+      native.mockRestore()
+      vi.useRealTimers()
+    }
   })
 })
 

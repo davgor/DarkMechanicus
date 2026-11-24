@@ -14,10 +14,74 @@ import { issued } from '../test/execution'
 import type { Workspace } from '../core/workspace'
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url))
-const WRITER_ENTER = 'DM_FIXTURE_BEGIN_IMMEDIATE'
+const WRITER_BUSY = 'DM_FIXTURE_SQLITE_BUSY'
 const WAL_READY = 'DM_FIXTURE_WAL_READY'
+const REPORT_COMMITTED = 'DM_FIXTURE_REPORT_COMMITTED'
+const CLOSE_BUSY = 'DM_FIXTURE_CLOSE_BUSY'
 let bundleDir: string
 let cliPath: string
+
+const SQLITE_TRACE = `
+      const { readFileSync, writeSync } = require('node:fs');
+      const dbPrototype = require('node:sqlite').DatabaseSync.prototype;
+      const sqliteExec = dbPrototype.exec;
+      const sqlitePrepare = dbPrototype.prepare;
+      const mode = process.env.DM_CONTENTION_FIXTURE;
+      const busyTimeout = db => sqlitePrepare.call(db, 'PRAGMA busy_timeout').get().timeout;
+      const emit = (marker, value) => writeSync(2, marker + (value === undefined ? '' : ' ' + value) + '\\n');
+      let tested = false;
+      let wroteReport = false;
+      let committedReport = false;
+      function contentionProbe(db) {
+        const timeout = busyTimeout(db);
+        sqliteExec.call(db, 'PRAGMA busy_timeout = 0');
+        try {
+          sqliteExec.call(db, 'BEGIN IMMEDIATE');
+          sqliteExec.call(db, 'ROLLBACK');
+          throw new Error('Fixture expected a competing project writer');
+        } catch (error) {
+          if (error.errcode !== 5) throw error;
+          emit(${JSON.stringify(WRITER_BUSY)});
+        } finally {
+          sqliteExec.call(db, 'PRAGMA busy_timeout = ' + timeout);
+        }
+      }
+      dbPrototype.exec = function(sql) {
+        const begins = sql === 'BEGIN IMMEDIATE';
+        if (begins && mode === 'probe' && !tested) {
+          tested = true;
+          contentionProbe(this);
+        }
+        let result;
+        try { result = sqliteExec.call(this, sql); }
+        catch (error) {
+          if (begins && error.errcode === 5) {
+            if (committedReport) emit(${JSON.stringify(CLOSE_BUSY)}, busyTimeout(this));
+            else emit(${JSON.stringify(WRITER_BUSY)});
+          }
+          throw error;
+        }
+        if (sql === 'PRAGMA journal_mode = WAL') emit(${JSON.stringify(WAL_READY)});
+        if (sql === 'COMMIT' && wroteReport && !committedReport) {
+          committedReport = true;
+          emit(${JSON.stringify(REPORT_COMMITTED)});
+          readFileSync(0);
+        }
+        return result;
+      };
+      if (mode === 'audit-close') dbPrototype.prepare = function(sql) {
+        const stmt = sqlitePrepare.call(this, sql);
+        if (sql.startsWith('INSERT INTO idempotency')) {
+          const sqliteRun = stmt.run;
+          stmt.run = function(...args) {
+            const result = sqliteRun.apply(this, args);
+            wroteReport = true;
+            return result;
+          };
+        }
+        return stmt;
+      };
+`
 
 beforeAll(() => {
   bundleDir = mkdtempSync(join(tmpdir(), 'dm-contention-cli-'))
@@ -31,15 +95,7 @@ beforeAll(() => {
     banner: { js: `
       require = require('node:module').createRequire(${JSON.stringify(join(ROOT, 'package.json'))});
       const dmFixtureKnowledge = () => (${JSON.stringify(knowledge)});
-      const { writeSync } = require('node:fs');
-      const dbPrototype = require('node:sqlite').DatabaseSync.prototype;
-      const sqliteExec = dbPrototype.exec;
-      dbPrototype.exec = function(sql) {
-        if (sql === 'BEGIN IMMEDIATE') writeSync(2, ${JSON.stringify(WRITER_ENTER + '\n')});
-        const result = sqliteExec.call(this, sql);
-        if (sql === 'PRAGMA journal_mode = WAL') writeSync(2, ${JSON.stringify(WAL_READY + '\n')});
-        return result;
-      };
+      ${SQLITE_TRACE}
     ` }
   })
 })
@@ -64,22 +120,32 @@ class WorkerCli {
 
   constructor(private readonly fixture: Harness) {}
 
-  call(token: string, command: string, args: object) {
-    const child = spawn(process.execPath, [cliPath, '--repo', this.fixture.root, 'call', command, '-'], {
-      cwd: this.fixture.root, env: { ...process.env, DARKMECHANICUS_HOME: this.fixture.homeDir, DM_SESSION_TOKEN: token }
+  private start(token: string, command: string, json: string, mode?: 'probe' | 'audit-close') {
+    return spawn(process.execPath, [cliPath, '--repo', this.fixture.root, 'call', command, mode === 'audit-close' ? json : '-'], {
+      cwd: this.fixture.root, env: {
+        ...process.env, DARKMECHANICUS_HOME: this.fixture.homeDir, DM_SESSION_TOKEN: token, DM_CONTENTION_FIXTURE: mode
+      }
     })
+  }
+
+  call(token: string, command: string, args: object, mode?: 'probe' | 'audit-close') {
+    const json = JSON.stringify(args)
+    const child = this.start(token, command, json, mode)
     this.children.add(child)
     const { promise: outcome, resolve, reject } = deferred<{ code: number; envelope: unknown }>()
     // An early setup failure is also surfaced by writing; attach a handler in case the fixture aborts before reading outcome.
     void outcome.catch(() => undefined)
     const writing = deferred<void>()
     void writing.promise.catch(() => undefined)
+    const committed = deferred<void>()
+    void committed.promise.catch(() => undefined)
     let stdout = ''
     let stderr = ''
     child.stdout.setEncoding('utf8').on('data', (chunk: string) => { stdout += chunk })
     child.stderr.setEncoding('utf8').on('data', (chunk: string) => {
       stderr += chunk
-      if (stderr.includes(WAL_READY) && stderr.includes(WRITER_ENTER)) writing.resolve()
+      if (stderr.includes(WAL_READY) && stderr.includes(WRITER_BUSY)) writing.resolve()
+      if (stderr.includes(REPORT_COMMITTED)) committed.resolve()
     })
     child.on('error', reject)
     child.stdin.on('error', reject)
@@ -88,20 +154,26 @@ class WorkerCli {
       if (code === null) {
         const error = new Error(`CLI stopped before ${command} returned`)
         writing.reject(error)
+        committed.reject(error)
         return reject(error)
       }
       try {
         const envelope: unknown = JSON.parse(stdout)
         writing.reject(new Error(`${command} exited before reaching the first project write transaction`))
+        committed.reject(new Error(`${command} exited before committing the fixture report`))
         resolve({ code, envelope })
       } catch {
         const error = new Error(`CLI did not return one JSON envelope for ${command}: ${stderr.replaceAll(token, '[redacted]')}`)
         writing.reject(error)
+        committed.reject(error)
         reject(error)
       }
     })
-    child.stdin.end(JSON.stringify(args))
-    return { outcome, writing: writing.promise }
+    if (mode !== 'audit-close') child.stdin.end(json)
+    return {
+      outcome, writing: writing.promise, committed: committed.promise,
+      allowAuditClose: () => child.stdin.end(), diagnostics: () => stderr
+    }
   }
 
   async close() {
@@ -140,16 +212,18 @@ function holdAuthorizedWrite(db: Db, ticketId: string) {
   db.run('UPDATE comments SET body = ? WHERE ticket_id = ?', 'Uncommitted comment', ticketId)
 }
 
-async function whileHeld<T>(calls: Promise<T>): Promise<T> {
+async function beforeDeadline<T>(calls: Promise<T>, timeoutMs: number, message: string): Promise<T> {
   const stop = new AbortController()
   try {
     // A bounded failure guard only; the event is what orders the transaction release.
-    return await Promise.race([calls, delay(4_000, undefined, { signal: stop.signal }).then(() => {
-      throw new Error('CLI never reached its first project write transaction after WAL open')
-    })])
+    return await Promise.race([calls, delay(timeoutMs, undefined, { signal: stop.signal }).then(() => { throw new Error(message) })])
   } finally {
     stop.abort()
   }
+}
+
+function whileHeld(calls: Promise<unknown>): Promise<unknown> {
+  return beforeDeadline(calls, 4_000, 'CLI never observed SQLITE_BUSY at its first project write transaction after WAL open')
 }
 
 it('completes two audited worker reads after the authorized project writer commits', async () => {
@@ -159,8 +233,8 @@ it('completes two audited worker reads after the authorized project writer commi
     const { desktop, comments, one, two } = await fixture(harness)
     const db = desktop.ctx().db
     holdAuthorizedWrite(db, comments.ticketId)
-    const cap = cli.call(one.token, 'get_capabilities', {})
-    const list = cli.call(two.token, 'list_comments', comments)
+    const cap = cli.call(one.token, 'get_capabilities', {}, 'probe')
+    const list = cli.call(two.token, 'list_comments', comments, 'probe')
     const responses = Promise.all([cap.outcome, list.outcome])
     await whileHeld(Promise.all([cap.writing, list.writing])).finally(() => db.exec('COMMIT'))
     const [capabilities, listed] = await responses
@@ -179,7 +253,7 @@ it('completes two audited worker reads after the authorized project writer commi
   }
 })
 
-it('reports persistent project writer contention once, without a false success or report mutation', async () => {
+it.concurrent('reports persistent project writer contention once, without a false success or report mutation', async () => {
   const harness = createHarness()
   const cli = new WorkerCli(harness)
   try {
@@ -187,25 +261,59 @@ it('reports persistent project writer contention once, without a false success o
     const db = desktop.ctx().db
     holdAuthorizedWrite(db, comments.ticketId)
     const call = cli.call(one.token, 'add_comment', { ...comments, body: 'Must not commit', idempotencyKey: 'blocked-report' })
-    const stop = new AbortController()
     try {
-      await whileHeld(call.writing)
-      const result = await Promise.race([call.outcome, delay(12_000, undefined, { signal: stop.signal }).then(() => {
-        throw new Error('CLI exceeded the storage contention budget after WAL open, at its first write transaction')
-      })])
+      const [, result] = await beforeDeadline(Promise.all([call.writing, call.outcome]), 12_000,
+        'CLI exceeded the storage contention budget after WAL open, at its first write transaction')
       expect(result).toMatchObject({ code: 1, envelope: { ok: false, error: {
         code: 'busy', message: expect.stringMatching(/project database.+(try|retry)/i)
       } } })
       expect(JSON.stringify(result)).not.toContain(harness.root)
       expect(JSON.stringify(result)).not.toContain(one.token)
       expect(db.get('SELECT count(*) AS n FROM sessions WHERE grant_id = ?', one.grantId)).toEqual({ n: 0 })
+      expect(db.get('SELECT key FROM idempotency WHERE key = ?', 'blocked-report')).toBeUndefined()
     } finally {
-      stop.abort()
       db.exec('ROLLBACK')
     }
     expect(await desktop.listComments(comments)).toMatchObject([{ body: 'Committed comment' }])
     expect(await desktop.listComments(comments)).toHaveLength(1)
   } finally {
+    await cli.close()
+    harness.cleanup()
+  }
+})
+
+it.concurrent('shares the startup wait with audit closure and returns the durable report exactly once', async () => {
+  const harness = createHarness()
+  const cli = new WorkerCli(harness)
+  let db: Db | undefined
+  let held = false
+  try {
+    const { desktop, comments, one } = await fixture(harness)
+    const store = db = desktop.ctx().db
+    holdAuthorizedWrite(store, comments.ticketId)
+    held = true
+    const input = { ...comments, body: 'Committed before audit close', idempotencyKey: 'audit-close-report' }
+    const call = cli.call(one.token, 'add_comment', input, 'audit-close')
+    const result = await beforeDeadline((async () => {
+      await call.writing // This mode needs the real five-second SQLite wait to expire during startup.
+      store.exec('COMMIT')
+      held = false
+      await call.committed
+      expect(store.get('SELECT key FROM idempotency WHERE key = ?', input.idempotencyKey)).toEqual({ key: input.idempotencyKey })
+      store.exec('BEGIN IMMEDIATE')
+      held = true
+      call.allowAuditClose()
+      return call.outcome
+    })(), 12_000, 'CLI exceeded the single storage-lock deadline across startup and audit close')
+    expect(result).toMatchObject({ code: 0, envelope: { ok: true, data: { body: input.body, ...comments } } })
+    const closingWait = new RegExp(`${CLOSE_BUSY} (\\d+)`).exec(call.diagnostics())?.[1]
+    expect(Number(closingWait)).toBeGreaterThan(0)
+    expect(Number(closingWait)).toBeLessThan(5_000)
+    expect(call.diagnostics()).toMatch(/session audit/i)
+    expect(store.all('SELECT ended_at FROM sessions WHERE grant_id = ?', one.grantId)).toEqual([{ ended_at: null }])
+    expect(store.get('SELECT count(*) AS n FROM comments WHERE body = ?', input.body)).toEqual({ n: 1 })
+  } finally {
+    if (held) db?.exec('ROLLBACK')
     await cli.close()
     harness.cleanup()
   }
@@ -234,11 +342,11 @@ it('preserves a live heartbeat, one idempotent report and claim fencing across o
     const { running, reporting } = await liveClaims(harness, desktop, epicId, draft)
     const writer = holder = openDatabase(db.path, { synchronous: 'off' })
     holdAuthorizedWrite(writer, comments.ticketId)
-    const progress = cli.call(one.token, 'heartbeat_attempt', { ...running, leaseSeconds: 90, progress: { note: 'Work advanced' } })
+    const progress = cli.call(one.token, 'heartbeat_attempt', { ...running, leaseSeconds: 90, progress: { note: 'Work advanced' } }, 'probe')
     const reportInput = { ...reporting, idempotencyKey: 'one-report', outputs: { summary: 'Exactly one report' } }
-    const submitted = cli.call(two.token, 'submit_attempt', reportInput)
-    const replay = cli.call(two.token, 'submit_attempt', reportInput)
-    const read = cli.call(one.token, 'list_comments', comments)
+    const submitted = cli.call(two.token, 'submit_attempt', reportInput, 'probe')
+    const replay = cli.call(two.token, 'submit_attempt', reportInput, 'probe')
+    const read = cli.call(one.token, 'list_comments', comments, 'probe')
     const calls = [progress, submitted, replay, read]
     await whileHeld(Promise.all(calls.map(call => call.writing))).finally(() => writer.exec('COMMIT'))
     const [heartbeat, firstReport, replayed, listed] = await Promise.all(calls.map(call => call.outcome))

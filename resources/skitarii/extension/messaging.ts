@@ -30,6 +30,7 @@
  */
 import { DM_COMMAND_NAME, type DmClient, type DmClientError, type DmMailCalls, type DmMailCommand, type DmMailMessage, type DmMailMessageMeta } from './dmClient'
 import { boardContextBodies, boardContextPacket, boardContextReceived, BOARD_DELIVERY_TYPE, DM_CALL_DATA_NOTE, DM_CALL_TOOL_NAME, INBOX_DELIVERY_TYPE, MAIL_DATA_NOTE, peerContextBodies, recoveryContextBodies, RECOVERY_DATA_NOTE, RECOVERY_DELIVERY_TYPE, type BoardContextBody } from './contextDelivery'
+import { SESSION_AUDIT_BUSY, SESSION_AUDIT_BUSY_MESSAGE } from './dmDiagnostics'
 import type { Timers } from './skitarii'
 
 export const MAIL_TOOL_NAMES = ['dm_agent_identity', 'dm_agent_peers', 'dm_message_send', 'dm_inbox_read', 'dm_inbox_ack'] as const
@@ -350,7 +351,12 @@ function dmCallTool(client: DmClient, type: TypeBuilder): MailToolDefinition {
       const checked = strict<{ command: string; args?: Record<string, unknown> }>(params, { command: (v) => typeof v === 'string' && DM_COMMAND_NAME.test(v), args: isArgs }, ['command'])
       if (!checked.ok) return failure(`dm_call refused the call: ${checked.message} Nothing was run.`)
       const result = await client.run(checked.value.command, checked.value.args ?? {}, signal)
-      return result.ok ? { content: [{ type: 'text', text: `${DM_CALL_DATA_NOTE}\n${inertJson(result.data)}` }] } : dmCallFailure(result.error)
+      if (!result.ok) return dmCallFailure(result.error)
+      const content: ToolResult['content'] = [{ type: 'text', text: `${DM_CALL_DATA_NOTE}\n${inertJson(result.data)}` }]
+      if (result.warning === SESSION_AUDIT_BUSY) {
+        content.push({ type: 'text', text: `Dark Mechanicus warning [${SESSION_AUDIT_BUSY}]: ${SESSION_AUDIT_BUSY_MESSAGE}` })
+      }
+      return { content }
     }
   }
 }
