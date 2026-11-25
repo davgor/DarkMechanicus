@@ -16,7 +16,9 @@ export const META_KEYS = {
   /** Digest of the conflicts and rejections the last reconcile reported; repeating them records no event. */
   reconcileProblems: 'reconcile_problems',
   /** The portable repository has completed a clean reconciliation into this database. */
-  validatedRepositoryCache: 'validated_repository_cache'
+  validatedRepositoryCache: 'validated_repository_cache',
+  /** Inputs of the last clean reconcile (`reconcileFingerprint.ts`); open and heartbeat skip a reconcile while they hold. */
+  reconcileFingerprint: 'reconcile_fingerprint'
 } as const
 
 type MetaKey = (typeof META_KEYS)[keyof typeof META_KEYS]
