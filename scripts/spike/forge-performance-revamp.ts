@@ -10,7 +10,7 @@ import type { BrowserWindow } from 'electron'
 import type { ProfileProject } from './forge-performance-fixture'
 import type { OwnerAction, OwnerReply } from './forge-performance-owner'
 import { absoluteNow, cpuSink, holdSummary, latencyStats, outcomeCounts, type HoldRecord } from './forge-performance-sinks'
-import { lastCommandAt, ownerWorkSince, splitWindow, type WindowSplit } from './forge-performance-taps'
+import { laneSettled, lastCommandAt, ownerWorkSince, splitWindow, type WindowSplit } from './forge-performance-taps'
 
 export interface Reply<T> { ok: boolean; data: T; error?: { code: string; message: string } }
 export interface CliResult { elapsedMs: number; code: number | null; output: unknown }
@@ -90,6 +90,8 @@ function summarize(samples: readonly Sample[]) {
 
 /** Starts one sync of `project`: a changed portable epic state imported by the renderer's reconcile, plus a heartbeat. */
 async function startSync(deps: RevampDeps, project: ProfileProject) {
+  // Start from a settled lane: the heartbeat the previous sync carried must not import this sample's change.
+  await until(() => laneSettled(project.root) || null, 'the previous sync to settle')
   const epicId = deps.stageChange(project)
   const startedAt = absoluteNow()
   const done = deps.command<{ imported: string[] }>(project, 'reconcileRepository')

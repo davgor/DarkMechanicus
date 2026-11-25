@@ -57,8 +57,10 @@ function tapOwner(child: UtilityProcess): void {
   const pending = new Map<number, OwnerRecord>()
   child.postMessage = (value: unknown, transfer) => {
     const request = value as WorkspaceRequest
-    if (request.type === 'work') {
-      const name = request.work.kind === 'heartbeat' ? 'heartbeat' : request.work.name
+    // An explicit reconcile runs on the utility's sync lane (DM-963): it keeps its command's name here.
+    const name = request.type === 'work' ? (request.work.kind === 'heartbeat' ? 'heartbeat' : request.work.name)
+      : request.type === 'sync' ? (request.mode === 'explicit' ? 'reconcileRepository' : `sync:${request.mode}`) : undefined
+    if (name !== undefined && request.type !== 'close') {
       const record: OwnerRecord = { path: request.path, name, postAt: absoluteNow(), replyAt: null }
       pending.set(request.id, record)
       owner.push(record)
@@ -146,4 +148,12 @@ export function ownerWorkSince(path: string, from: number): Record<string, numbe
     if (row.path === path && row.postAt >= from) counts[row.name] = (counts[row.name] ?? 0) + 1
   }
   return counts
+}
+
+/**
+ * Whether every reconcile posted for `path` on the utility's sync lane (DM-963) has answered. Reads no longer queue
+ * behind the heartbeat a sync carries, so a scenario waits for it here, as the baseline's next sample did on the queue.
+ */
+export function laneSettled(path: string): boolean {
+  return owner.every((row) => row.path !== path || row.replyAt !== null || (row.name !== 'reconcileRepository' && !row.name.startsWith('sync:')))
 }
