@@ -86,11 +86,24 @@ function onScreenCenter(box: DOMRect): { x: number; y: number } | null {
   return box.width > 0 && box.height > 0 && inside ? { x, y } : null
 }
 
-/** The center of the first visible element matching `selector` (and `text` when given), in CSS pixels. */
+/** True when a click at `point` would reach `node` (no overlay, such as the sidebar footer, covers it there). */
+function reaches(node: Element, point: { x: number; y: number }): boolean {
+  const hit = document.elementFromPoint(point.x, point.y)
+  return hit !== null && (hit === node || node.contains(hit))
+}
+
+/**
+ * The center of the first element matching `selector` (and `text` when given) that a click would reach, in CSS
+ * pixels. An element that is covered or off screen is scrolled to the middle of its scroll container first.
+ */
 function centerOf(folderName: string | null, selector: string, text: string | null): { x: number; y: number } | null {
   for (const node of scopeOf(folderName)?.querySelectorAll(selector) ?? []) {
-    const point = text === null || node.textContent === text ? onScreenCenter(node.getBoundingClientRect()) : null
-    if (point !== null) return point
+    if (text !== null && node.textContent !== text) continue
+    const point = onScreenCenter(node.getBoundingClientRect())
+    if (point !== null && reaches(node, point)) return point
+    node.scrollIntoView({ block: 'center', inline: 'nearest' })
+    const scrolled = onScreenCenter(node.getBoundingClientRect())
+    if (scrolled !== null && reaches(node, scrolled)) return scrolled
   }
   return null
 }
@@ -116,4 +129,33 @@ function painted(): Promise<{ clickAt: number; paintAt: number }> | null {
   return armed
 }
 
-Object.assign(window, { dmRevamp: { planView, ticketPanel, kanbanBoard, arm, painted, centerOf, visibleTickets } })
+let clicks: { x: number; y: number; target: string }[] = []
+document.addEventListener('click', (event) => {
+  const target = event.target instanceof Element ? event.target.className.toString() : String(event.target)
+  clicks = [...clicks.slice(-4), { x: event.clientX, y: event.clientY, target }]
+}, { capture: true })
+
+/** Diagnostics for a selector wait that timed out: folders, `selector` matches, buckets, recent clicks, window size. */
+function describe(selector: string) {
+  return {
+    folders: [...document.querySelectorAll<HTMLElement>('.folder .folder-name')].map((node) => node.title),
+    matches: [...document.querySelectorAll<HTMLElement>(selector)].map((node) => {
+      const box = node.getBoundingClientRect()
+      const point = onScreenCenter(box)
+      const hit = point === null ? null : document.elementFromPoint(point.x, point.y)
+      return { text: node.textContent, top: Math.round(box.top), height: Math.round(box.height), hit: hit?.className.toString() ?? null }
+    }),
+    buckets: [...document.querySelectorAll<HTMLElement>('.bucket-header')].map((node) => {
+      const box = node.getBoundingClientRect()
+      return { label: node.getAttribute('aria-label'), expanded: node.getAttribute('aria-expanded'), top: Math.round(box.top), left: Math.round(box.left) }
+    }),
+    clicks,
+    focused: document.hasFocus(),
+    // A hidden page gets no animation frames, so a paint watch never resolves.
+    visibility: document.visibilityState,
+    window: { width: window.innerWidth, height: window.innerHeight },
+    path: location.hash
+  }
+}
+
+Object.assign(window, { dmRevamp: { planView, ticketPanel, kanbanBoard, arm, painted, centerOf, visibleTickets, describe } })

@@ -83,7 +83,8 @@ function runProfiler(root: string, configFile: string, userData: string, result:
   }
 }
 
-const SIZES: Record<ProfileRun['mode'], number[]> = { probe: [10], production: [10_000], matrix: [100, 1000, 10_000], revamp: [100, 1000, 10_000] }
+const smoke = mode === 'revamp' && process.env['DM_REVAMP_SMOKE'] === '1'
+const SIZES: Record<ProfileRun['mode'], number[]> = { probe: [10], production: [10_000], matrix: [100, 1000, 10_000], revamp: smoke ? [100] : [100, 1000, 10_000] }
 
 withFixture((root) => {
   const userData = join(root, 'electron-profile')

@@ -30,7 +30,10 @@ export interface RevampDeps {
   heartbeatNow(): void
 }
 
-const ITERATIONS = 30
+/** `DM_REVAMP_SMOKE=1` shakes out the native harness quickly: 3 samples, a 10 s agent run, CLI scenarios on any fixture. */
+const SMOKE = process.env['DM_REVAMP_SMOKE'] === '1'
+const ITERATIONS = SMOKE ? 3 : 30
+const AGENT_SECONDS = SMOKE ? 10 : 60
 /** Renderer and main read separate monotonic clocks against one wall clock; allow this much skew at window edges. */
 const SKEW_MS = 5
 const CPU = cpuSink()
@@ -128,9 +131,14 @@ async function clickAt(deps: RevampDeps, point: { x: number; y: number }): Promi
   }
 }
 
-function center(deps: RevampDeps, folderName: string | null, selector: string, text: string | null): Promise<{ x: number; y: number }> {
+async function center(deps: RevampDeps, folderName: string | null, selector: string, text: string | null): Promise<{ x: number; y: number }> {
   const call = `dmRevamp.centerOf(${JSON.stringify(folderName)}, ${JSON.stringify(selector)}, ${JSON.stringify(text)})`
-  return until(() => js<{ x: number; y: number } | null>(deps, call), selector)
+  try {
+    return await until(() => js<{ x: number; y: number } | null>(deps, call), selector)
+  } catch (error) {
+    const shown = await js<unknown>(deps, `dmRevamp.describe(${JSON.stringify(selector)})`)
+    throw new Error(`${String(error)} Looking in ${JSON.stringify(folderName)}; the page shows ${JSON.stringify(shown)}`)
+  }
 }
 
 async function reloadShell(deps: RevampDeps): Promise<void> {
@@ -146,10 +154,24 @@ function quiet(ms = 400): Promise<true> {
 }
 
 interface PaintTarget { root: string; folderName: string; epicTitle: string }
+/** The plan view counts as painted once a ticket node of its graph is on screen. */
+const PLAN_CONTENT = { selector: '.react-flow__node .pg-card', text: null }
 
-async function timedClick(deps: RevampDeps, target: PaintTarget, point: { x: number; y: number }, commands: readonly string[]): Promise<ClickSample> {
+/** A click that paints nothing within this long is a failure, reported with what the page shows. */
+const PAINT_LIMIT_MS = 30_000
+
+/** Arms the paint watch for `content` (a selector and optional exact text), clicks `point` and times click to paint. */
+async function timedClick(deps: RevampDeps, target: PaintTarget, point: { x: number; y: number }, content: { selector: string; text: string | null }, commands: readonly string[]): Promise<ClickSample> {
+  await js(deps, `dmRevamp.arm(${JSON.stringify(content.selector)}, ${JSON.stringify(content.text)})`)
   await clickAt(deps, point)
-  const paint = await js<{ clickAt: number; paintAt: number }>(deps, 'dmRevamp.painted()')
+  const paint = await Promise.race([
+    js<{ clickAt: number; paintAt: number }>(deps, 'dmRevamp.painted()'),
+    delay(PAINT_LIMIT_MS).then(() => null)
+  ])
+  if (paint === null) {
+    const shown = await js<unknown>(deps, `dmRevamp.describe(${JSON.stringify(content.selector)})`)
+    throw new Error(`Nothing matching ${JSON.stringify(content)} painted within ${PAINT_LIMIT_MS} ms of a click; the page shows ${JSON.stringify(shown)}`)
+  }
   const split = splitWindow(target.root, commands, paint.clickAt - SKEW_MS, paint.paintAt + SKEW_MS)
   const renderMs = split.lastDoneAt === null ? null : paint.paintAt - split.lastDoneAt
   return { ms: paint.paintAt - paint.clickAt, renderMs, ...split }
@@ -159,27 +181,38 @@ async function timedClick(deps: RevampDeps, target: PaintTarget, point: { x: num
 async function planClick(deps: RevampDeps, target: PaintTarget): Promise<ClickSample> {
   await clickAt(deps, await center(deps, target.folderName, '.folder-main', null))
   await reloadShell(deps)
-  const row = await center(deps, target.folderName, '.epic-row-title', target.epicTitle)
+  const row = await revealEpic(deps, target)
   await quiet()
-  await js(deps, `dmRevamp.arm('.react-flow__node .pg-card', null)`)
-  return timedClick(deps, target, row, VIEW_COMMANDS.plan)
+  return timedClick(deps, target, row, PLAN_CONTENT, VIEW_COMMANDS.plan)
 }
 
-async function expandBuckets(deps: RevampDeps, folderName: string): Promise<void> {
-  await center(deps, folderName, '.folder-main', null)
-  for (;;) {
-    const point = await js<{ x: number; y: number } | null>(deps,
-      `dmRevamp.centerOf(${JSON.stringify(folderName)}, '.bucket-header[aria-expanded="false"]', null)`)
-    if (point === null) return
-    await clickAt(deps, point)
-    await delay(100)
+/**
+ * The click point of the target epic's sidebar row. A reloaded sidebar loads its epic list after the folder row, and
+ * shows the Completed bucket (where the fixture epic is) collapsed: expand collapsed buckets until the row appears.
+ */
+async function revealEpic(deps: RevampDeps, target: PaintTarget): Promise<{ x: number; y: number }> {
+  const folder = JSON.stringify(target.folderName)
+  const find = async (): Promise<{ x: number; y: number } | null> => {
+    const row = await js<{ x: number; y: number } | null>(deps, `dmRevamp.centerOf(${folder}, '.epic-row-title', ${JSON.stringify(target.epicTitle)})`)
+    if (row !== null) return row
+    const collapsed = await js<{ x: number; y: number } | null>(deps, `dmRevamp.centerOf(${folder}, '.bucket-header[aria-expanded="false"]', null)`)
+    if (collapsed !== null) {
+      await clickAt(deps, collapsed)
+      await delay(50)
+    }
+    return null
+  }
+  try {
+    return await until(find, 'the epic row')
+  } catch (error) {
+    const shown = await js<unknown>(deps, `dmRevamp.describe('.epic-row-title')`)
+    throw new Error(`${String(error)} Looking in ${folder}; the page shows ${JSON.stringify(shown)}`)
   }
 }
 
 async function ticketClicks(deps: RevampDeps, target: PaintTarget): Promise<ClickSample[]> {
-  await js(deps, `dmRevamp.arm('.react-flow__node .pg-card', null)`)
-  await clickAt(deps, await center(deps, target.folderName, '.epic-row-title', target.epicTitle))
-  await js(deps, 'dmRevamp.painted()')
+  // Open the epic (untimed: planClicks times this) so its graph's ticket nodes can be clicked.
+  await timedClick(deps, target, await revealEpic(deps, target), PLAN_CONTENT, VIEW_COMMANDS.plan)
   const samples: ClickSample[] = []
   let last = ''
   for (let index = 0; index < ITERATIONS; index += 1) {
@@ -187,8 +220,7 @@ async function ticketClicks(deps: RevampDeps, target: PaintTarget): Promise<Clic
       .find((row) => row.id !== last), 'a visible ticket node')
     last = ticket.id
     await quiet()
-    await js(deps, `dmRevamp.arm('.tp .tp-title', ${JSON.stringify(ticket.title)})`)
-    samples.push(await timedClick(deps, target, ticket, ['getTicket']))
+    samples.push(await timedClick(deps, target, ticket, { selector: '.tp .tp-title', text: ticket.title }, ['getTicket']))
   }
   return samples
 }
@@ -196,7 +228,8 @@ async function ticketClicks(deps: RevampDeps, target: PaintTarget): Promise<Clic
 async function clickToPaint(deps: RevampDeps, target: PaintTarget, tickets: number | 'real-store'): Promise<void> {
   deps.window.webContents.debugger.attach('1.3')
   try {
-    await expandBuckets(deps, target.folderName)
+    // A folder tracked through `window.dm.pickFolder()` (not the sidebar's button) shows in the sidebar after a reload.
+    await reloadShell(deps)
     for (const [view, run] of [['plan', () => planClicks(deps, target)], ['ticket', () => ticketClicks(deps, target)]] as const) {
       CPU.read()
       const samples = await run()
@@ -311,7 +344,7 @@ async function cliAgents(deps: RevampDeps, project: ProfileProject): Promise<voi
   const agents: Agent[] = []
   for (const cardId of project.agentCardIds) agents.push(await prepareAgent(deps, project, cardId))
   CPU.read()
-  const end = absoluteNow() + 60_000
+  const end = absoluteNow() + AGENT_SECONDS * 1000
   const [sync, ...perAgent] = await Promise.all([
     syncLoop(deps, project, end),
     ...agents.map((agent, index) => agentLoop(deps, { project, agent, index, commentEpicId: epic.data.id, until: end }))
@@ -319,7 +352,7 @@ async function cliAgents(deps: RevampDeps, project: ProfileProject): Promise<voi
   const calls = perAgent.flat()
   const names = [...new Set(calls.map((call) => call.name))]
   deps.report('revamp-cli-agents', {
-    tickets: project.tickets, agents: agents.length, seconds: 60, calls: calls.length, outcomes: outcomeCounts(calls),
+    tickets: project.tickets, agents: agents.length, seconds: AGENT_SECONDS, calls: calls.length, outcomes: outcomeCounts(calls),
     byCommand: Object.fromEntries(names.map((name) => {
       const rows = calls.filter((call) => call.name === name)
       return [name, { outcomes: outcomeCounts(rows), wall: latencyStats(rows.map((row) => row.ms)) }]
@@ -333,9 +366,12 @@ export async function revampProject(deps: RevampDeps, project: ProfileProject): 
   await js(deps, deps.rendererBundle)
   await viewsIdle(deps, project)
   await viewsDuringSync(deps, project)
-  await clickToPaint(deps, { root: project.root, folderName: basename(project.root), epicTitle: project.sample.epicTitle }, project.tickets)
+  // The sidebar shows the title the desktop imported (the portable record's), so ask the desktop for it.
+  const epic = await deps.command<{ title: string }>(project, 'getEpic', { epicId: project.sample.epicId })
+  if (!epic.ok) throw new Error(JSON.stringify(epic.error))
+  await clickToPaint(deps, { root: project.root, folderName: basename(project.root), epicTitle: epic.data.title }, project.tickets)
   await holdsAndCounters(deps, project)
-  if (project.tickets === 10_000) {
+  if (project.tickets === 10_000 || SMOKE) {
     await cliWallTimes(deps, project)
     await cliAgents(deps, project)
   }
@@ -353,7 +389,7 @@ export async function revampRealStore(deps: RevampDeps, root: string): Promise<v
   const saved = epics.data.filter((epic) => epic.currentRevisionId !== null).sort((a, b) => b.ticketCount - a.ticketCount)
   const epic = saved[0]
   if (epic === undefined) throw new Error('The real store copy has no saved epic.')
-  await reloadShell(deps)
+  // clickToPaint reloads the shell, so the sidebar lists the copy.
   await clickToPaint(deps, { root, folderName: basename(root), epicTitle: epic.title }, 'real-store')
   deps.report('revamp-real-store-epic', { tickets: epic.ticketCount })
 }

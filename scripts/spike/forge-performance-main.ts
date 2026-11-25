@@ -44,6 +44,10 @@ app.setPath('home', config.home)
 app.setPath('userData', config.userData)
 app.setPath('sessionData', config.userData)
 app.commandLine.appendSwitch('disable-background-timer-throttling')
+// The profiler window shares the desktop with other windows: an occluded window must keep producing frames.
+app.commandLine.appendSwitch('disable-renderer-backgrounding')
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion')
 process.env['DARKMECHANICUS_HOME'] = config.home
 delete process.env['DM_SESSION_TOKEN']
 Reflect.deleteProperty(process.env, 'ELECTRON_RENDERER_URL')
@@ -480,6 +484,9 @@ function revampDeps(window: BrowserWindow, owner: Owner): RevampDeps {
 }
 
 async function revamp(window: BrowserWindow): Promise<void> {
+  // Click to paint waits for animation frames. Another window covering this one (Windows occlusion) must not
+  // pause them: keep the page visible to Chromium. This is a profiler condition; the app is unchanged.
+  window.webContents.setBackgroundThrottling(false)
   const owner = startOwner()
   const ownerReady = await owner.ready
   report('revamp-identity', { rev: config.repoRevision, platform: process.platform, arch: process.arch, main: identity(), owner: ownerReady })
