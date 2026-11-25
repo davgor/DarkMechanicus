@@ -15,7 +15,8 @@ describe('meta keys', () => {
       lastReconcileAt: 'last_reconcile_at',
       attachmentRegistration: 'attachment_registration',
       reconcileProblems: 'reconcile_problems',
-      validatedRepositoryCache: 'validated_repository_cache'
+      validatedRepositoryCache: 'validated_repository_cache',
+      reconcileFingerprint: 'reconcile_fingerprint'
     })
   })
 })
