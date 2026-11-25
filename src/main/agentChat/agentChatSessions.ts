@@ -18,9 +18,9 @@ import { writeTerminalFiles, type TerminalFiles } from '../terminals/terminalFil
 import type { TerminalSessionsDeps } from '../terminals/terminalSessions'
 import { agentChatLaunch, type AgentChatLaunchSpec } from './agentChatLaunch'
 import { startAgentProcess, type AgentProcess, type AgentProcessExit } from './agentProcess'
-import { claudeInitLines, createClaudeProtocolState, encodeClaudeCommand, translateClaudeLine, type ClaudeProtocolState } from './claudeProtocol'
+import { claudeInitLines, claudeInputClipped, createClaudeProtocolState, encodeClaudeCommand, translateClaudeLine, type ClaudeProtocolState } from './claudeProtocol'
 import { createOmpState, encodeOmpCommand, initLines, translateOmpLine, type OmpEvent, type OmpState } from './ompProtocol'
-import { PendingPrompts, type ArbiterOutcome } from './pendingPrompts'
+import { PendingPrompts, type ArbitrationGate } from './pendingPrompts'
 import { maskAgentChatSecretsDeep as mask } from './secretMask'
 import type { ThreadClaimEvent } from './translatorEvents'
 
@@ -38,7 +38,11 @@ export interface AgentChatSessionsDeps extends Pick<TerminalSessionsDeps,
   timers?: { repeat(callback: () => void, ms: number): () => void }
   now?: () => string
   startProcess?: typeof startAgentProcess
-  arbitrate?: (input: { ref: ChatRef; chat: ChatRecord; agent: AgentView; prompt: PendingPrompt }) => { result: Promise<ArbiterOutcome>; cancel(): void }
+  /**
+   * The Magos arbiter gate (`createPromptArbitration`) for each newly exposed prompt; omitted, the person decides every
+   * prompt. `inputClipped`: the translator cut the prompt's tool input for display, so it shows less than the CLI runs.
+   */
+  arbitrate?: (input: { ref: ChatRef; chat: ChatRecord; agent: AgentView; prompt: PendingPrompt; inputClipped: boolean }) => ArbitrationGate
   /** Verified worker attempts of a chat's threads, kept next to the chats; never a claim token. */
   bindings: Pick<ActivityBindings, 'bind' | 'threadsOf'>
   /**
@@ -562,7 +566,9 @@ class SessionManager {
     entry.protocol = agent.kind
     entry.prompts = new PendingPrompts({
       publish: prompt => deps.push(mask({ type: 'pending', folder: chat.folder, chatId: chat.id, prompt })),
-      ...(deps.arbitrate ? { arbitrate: prompt => deps.arbitrate!({ ref: { folder: chat.folder, id: chat.id }, chat: entry.chat, agent, prompt }) } : {}),
+      ...(deps.arbitrate ? { arbitrate: prompt => deps.arbitrate!({ ref: { folder: chat.folder, id: chat.id }, chat: entry.chat, agent, prompt,
+        // OMP prompts carry no translator-clipped input record: count them as clipped (OMP is never arbitrated today).
+        inputClipped: entry.protocol === 'claude' ? claudeInputClipped(entry.claude, prompt.id) : true }) } : {}),
       answer: (prompt, verdict) => this.answerEntry(entry, { promptId: prompt.id, optionId: verdict.decision }, { decidedBy: 'magos', reason: verdict.reason })
     })
     const auth = await this.step(entry, deps.checkAuth(agent.kind, agent.executablePath))

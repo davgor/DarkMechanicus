@@ -9,7 +9,7 @@ function deferred() {
   let resolve!: (verdict: ArbiterOutcome) => void
   let reject!: (error: Error) => void
   const result = new Promise<ArbiterOutcome>((yes, no) => { resolve = yes; reject = no })
-  return { result, resolve, reject, cancel: vi.fn() }
+  return { state: 'deciding' as const, result, resolve, reject, cancel: vi.fn(), awaitingPerson: vi.fn() }
 }
 afterEach(() => vi.useRealTimers())
 

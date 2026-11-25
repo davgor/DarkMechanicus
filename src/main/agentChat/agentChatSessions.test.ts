@@ -7,6 +7,10 @@ import { createChatStore, type ChatRef } from '../agents/chatStore'
 import { agentChatRig, filesUnder } from './__mocks__/agentChatRig'
 import { createAgentChatSessions } from './agentChatSessions'
 import type { ArbiterOutcome } from './pendingPrompts'
+import { createPromptArbitration } from './promptArbitration'
+import { startArbiter, type ArbiterResult } from '../magos/arbiterRunner'
+import { exclusionText } from '../magos/arbitrationRules'
+import { DEFAULT_NOTIFICATION_SETTINGS } from '../../shared/desktop/notificationSettings'
 import { builtInAgent } from '../agents/__mocks__/chatFixtures'
 import { gate } from '../terminals/__mocks__/terminalSessionsRig'
 import type { AgentAuthStatus } from '../../shared/desktop/api'
@@ -14,6 +18,7 @@ import type { PendingPrompt } from '../../shared/agents/agentChat'
 import type { Callsign } from '../../shared/agents/callsign'
 import { removeScratch } from '../../test/removeScratch'
 
+vi.mock('../logger', () => ({ logger: { info: vi.fn(), warn: vi.fn() } }))
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => {
   vi.useRealTimers()
@@ -37,6 +42,30 @@ function turn(child: { write(line: string): boolean }, kind: 'claude' | 'omp', t
   expect(child.write(JSON.stringify(kind === 'claude'
     ? { type: 'user', message: { role: 'user', content: text } }
     : { type: 'prompt', id: `test-${text}`, message: text }))).toBe(true)
+}
+/**
+ * The real Magos gate on the rig's sessions: a stub runner settling `verdict` (pending forever when omitted), or the
+ * real runner over the fake CLI's arbiter mode when `real` is given.
+ */
+function magos(r: ReturnType<typeof rig>, options: { verdict?: ArbiterResult; real?: { env: NodeJS.ProcessEnv; timeoutMs?: number } } = {}) {
+  const onAttention = vi.fn(), cancel = vi.fn()
+  const run = vi.fn((input: Parameters<typeof startArbiter>[0]) => options.real ? startArbiter(input)
+    : { result: options.verdict ? Promise.resolve(options.verdict) : new Promise<ArbiterResult>(() => undefined), cancel })
+  const arbitration = createPromptArbitration({
+    settings: () => DEFAULT_NOTIFICATION_SETTINGS, onAttention, readContext: async () => ({ ticket: null, standards: null }),
+    platform: process.platform, env: options.real?.env ?? r.env, arbiterRoot: join(r.root, 'arbiter'),
+    timeoutMs: options.real?.timeoutMs, startArbiter: run
+  })
+  r.deps.arbitrate = arbitration.arbitrate
+  // Before the rig's cleanup removes the scratch folder that holds the arbiter root.
+  cleanups.unshift(async () => arbitration.dispose())
+  return { onAttention, startArbiter: run, cancel }
+}
+function injector(r: ReturnType<typeof rig>) {
+  const start = r.deps.startProcess!, lines = { receive: (_raw: string): void => undefined }
+  r.deps.startProcess = spec => { const child = start(spec); return { ...child, onLine: listener => { lines.receive = listener; return child.onLine(listener) } } }
+  return (id: string, command: string, tool: { name: string; input: Record<string, string> } = { name: 'Bash', input: { command } }) =>
+    lines.receive(JSON.stringify({ type: 'control_request', request_id: id, request: { subtype: 'can_use_tool', tool_name: tool.name, input: tool.input } }))
 }
 
 for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI lifecycle`, () => {
@@ -402,12 +431,16 @@ for (const kind of ['claude', 'omp'] as const) {
     const output = kind === 'claude' ? { status: 'completed', resultSummary: scenario === 'question' ? 'SQLite' : 'hello' }
       : { text: scenario === 'question' ? 'SQLite' : 'hello' }
     it(`${kind} holds ${scenario} for ten fake minutes, replays it, and records only the accepted answer`, async () => {
-      const r = rig(kind), chat = r.newChat(`[${scenario}]`)
+      // A New chat behind the real Magos gate: never arbitrated, `off` with no Magos line, and the person is notified (fix 7).
+      const r = rig(kind), m = magos(r), chat = r.newChat(`[${scenario}]`)
       await r.sessions.start(chat)
       await eventually(() => r.sessions.snapshot(chat).pending !== null)
       const pending = r.sessions.snapshot(chat).pending!
       const before = [...r.writes]
       expect(r.sessions.snapshot(chat)).toMatchObject({ status: 'busy', pending: { id: pending.id, arbitration: { state: 'off', reason: null } } })
+      expect(r.pushes.filter(event => event.type === 'pending' && event.prompt !== null).map(event => event.type === 'pending' && event.prompt?.arbitration)).toEqual([{ state: 'off', reason: null }])
+      expect(m.startArbiter).not.toHaveBeenCalled()
+      expect(m.onAttention).toHaveBeenCalledExactlyOnceWith({ kind: scenario === 'question' ? 'question' : 'approval_needed', ref: { folder: chat.folder, id: chat.id }, prompt: pending })
       vi.useFakeTimers()
       await vi.advanceTimersByTimeAsync(600_000)
       expect(r.writes).toEqual(before)
@@ -450,14 +483,17 @@ for (const kind of ['claude', 'omp'] as const) {
 
   it(`${kind} completes through the optional Magos seam with masked bounded provenance`, async () => {
     const reason = `dmg_${'a1'.repeat(32)} ${'x'.repeat(600)}`
-    const arbitrate = vi.fn(() => ({ result: Promise.resolve<ArbiterOutcome>({ decision: 'allow_once', reason }), cancel: vi.fn() }))
+    const arbitrate = vi.fn(() => ({ state: 'deciding' as const, result: Promise.resolve<ArbiterOutcome>({ decision: 'allow_once', reason }), cancel: vi.fn(), awaitingPerson: vi.fn() }))
     const r = rig(kind, { arbitrate }), chat = r.newChat('[approval]')
     await r.sessions.start(chat)
     await eventually(() => r.sessions.snapshot(chat).status === 'idle')
+    // The gate receives the protocol's head and chooses its state; the published prompt carries that state.
     expect(arbitrate).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
       ref: { folder: chat.folder, id: chat.id }, chat: expect.objectContaining({ id: chat.id }),
-      agent: expect.objectContaining({ kind }), prompt: expect.objectContaining({ arbitration: { state: 'deciding', reason: null } })
+      agent: expect.objectContaining({ kind }), prompt: expect.objectContaining({ kind: 'approval', arbitration: { state: 'off', reason: null } })
     }))
+    expect(r.pushes.filter(event => event.type === 'pending' && event.prompt !== null).map(event => event.type === 'pending' && event.prompt?.arbitration))
+      .toEqual([{ state: 'deciding', reason: null }])
     const decisions = r.store.readTranscript(chat)!.items.filter(item => item.kind === 'approval_decision')
     expect(decisions).toEqual([expect.objectContaining({ decision: 'allow_once', decidedBy: 'magos', reason: expect.any(String) })])
     expect(decisions[0].reason).toHaveLength(500)
@@ -467,7 +503,7 @@ for (const kind of ['claude', 'omp'] as const) {
   it(`${kind} lets the person win a hanging arbiter and drops its later verdict`, async () => {
     let resolve!: (verdict: ArbiterOutcome) => void
     const result = new Promise<ArbiterOutcome>(yes => { resolve = yes }), cancel = vi.fn()
-    const r = rig(kind, { arbitrate: () => ({ result, cancel }) }), chat = r.newChat('[approval]')
+    const r = rig(kind, { arbitrate: () => ({ state: 'deciding', result, cancel, awaitingPerson: vi.fn() }) }), chat = r.newChat('[approval]')
     await r.sessions.start(chat)
     await eventually(() => r.sessions.snapshot(chat).pending !== null)
     const promptId = r.sessions.snapshot(chat).pending!.id
@@ -494,6 +530,118 @@ for (const kind of ['claude', 'omp'] as const) {
     expect(r.sessions.snapshot(chat)).toMatchObject({ pending, items })
   })
 }
+
+function approvals(chat: ChatRef, r: ReturnType<typeof rig>) {
+  return r.store.readTranscript(chat)!.items.filter(item => item.kind === 'approval_request' || item.kind === 'approval_decision')
+}
+
+describe('claude Magos verdicts over the fake CLI', () => {
+  it('a Start-run [worker_approval] allowed by a stub arbiter stores the request, a magos decision and the turn output', async () => {
+    const r = rig('claude'), m = magos(r, { verdict: { decision: 'allow_once', reason: 'Routine test run.' } }), chat = orchestratorChat(r, 'claude', '[worker_approval]')
+    await r.sessions.start(chat)
+    await eventually(() => r.sessions.snapshot(chat).status === 'idle')
+    const golden = readFileSync(join(import.meta.dirname, '__fixtures__', 'claude', 'worker_approval.in.jsonl'), 'utf8').trim().split(/\r?\n/)[1]
+    expect(r.writes).toContain(golden)
+    expect(approvals(chat, r)).toEqual([
+      expect.objectContaining({ kind: 'approval_request', requestId: 'req_T1_worker_approval', tool: 'Bash' }),
+      expect.objectContaining({ kind: 'approval_decision', requestId: 'req_T1_worker_approval', decision: 'allow_once', decidedBy: 'magos', reason: 'Routine test run.' })
+    ])
+    expect(r.store.readTranscript(chat)!.items.find(item => item.kind === 'tool_call' && item.name === 'Bash')).toMatchObject({ status: 'completed', resultSummary: 'tests' })
+    expect(m.startArbiter).toHaveBeenCalledOnce()
+    expect(m.onAttention).not.toHaveBeenCalled()
+    expect(r.pushes.filter(event => event.type === 'pending' && event.prompt !== null).map(event => event.type === 'pending' && event.prompt?.arbitration))
+      .toEqual([{ state: 'deciding', reason: null }])
+  })
+
+  it('the real runner with FAKE_ARBITER_VERDICT=deny stores a magos deny and writes the CLI deny answer', async () => {
+    const r = rig('claude'), chat = orchestratorChat(r, 'claude', '[worker_approval]')
+    const m = magos(r, { real: { env: { ...r.env, FAKE_ARBITER_VERDICT: 'deny' } } })
+    await r.sessions.start(chat)
+    await eventually(() => approvals(chat, r).some(item => item.kind === 'approval_decision'))
+    expect(approvals(chat, r)).toEqual([
+      expect.objectContaining({ kind: 'approval_request', requestId: 'req_T1_worker_approval' }),
+      expect.objectContaining({ kind: 'approval_decision', requestId: 'req_T1_worker_approval', decision: 'deny', decidedBy: 'magos', reason: 'fake deny' })
+    ])
+    const answer = r.writes.map(line => JSON.parse(line)).find(frame => frame.type === 'control_response' && frame.response?.request_id === 'req_T1_worker_approval')
+    expect(answer).toMatchObject({ response: { subtype: 'success', response: { behavior: 'deny' } } })
+    expect(m.startArbiter).toHaveBeenCalledOnce()
+    expect(m.onAttention).not.toHaveBeenCalled()
+  })
+})
+
+describe('claude Magos escalation, exit and clipped input over the fake CLI', () => {
+  it('a hanging real arbiter escalates at a 500 ms bound and the prompt stays pending for the person', async () => {
+    const r = rig('claude'), chat = orchestratorChat(r, 'claude', '[worker_approval]')
+    const m = magos(r, { real: { env: { ...r.env, FAKE_ARBITER_VERDICT: 'hang' }, timeoutMs: 500 } })
+    await r.sessions.start(chat)
+    await eventually(() => r.sessions.snapshot(chat).pending?.arbitration.state === 'escalated')
+    const pending = r.sessions.snapshot(chat).pending!
+    expect(pending).toMatchObject({ id: 'req_T1_worker_approval', arbitration: { state: 'escalated', reason: 'Arbiter timed out.' } })
+    expect(m.onAttention).toHaveBeenCalledExactlyOnceWith({ kind: 'approval_needed', ref: { folder: chat.folder, id: chat.id }, prompt: pending })
+    expect(approvals(chat, r).map(item => item.kind)).toEqual(['approval_request'])
+    await r.sessions.answer(chat, { promptId: pending.id, optionId: 'allow_once' })
+    expect(approvals(chat, r)).toEqual([expect.anything(), expect.objectContaining({ decision: 'allow_once', decidedBy: 'person' })])
+  })
+
+  it('chat exit cancels a deciding arbiter', async () => {
+    const r = rig('claude'), m = magos(r), chat = orchestratorChat(r, 'claude', '[worker_approval]')
+    await r.sessions.start(chat)
+    await eventually(() => m.startArbiter.mock.calls.length === 1)
+    expect(r.sessions.snapshot(chat).pending?.arbitration.state).toBe('deciding')
+    await r.sessions.stop(chat)
+    expect(m.cancel).toHaveBeenCalledOnce()
+    expect(approvals(chat, r).map(item => item.kind)).toEqual(['approval_request'])
+  })
+
+  it('an outside-folder path after character 1,000 of a Bash command is never decided by the arbiter (requirement a)', async () => {
+    const r = rig('claude'), m = magos(r, { verdict: { decision: 'allow_once', reason: 'Routine.' } }), inject = injector(r), chat = orchestratorChat(r, 'claude', '[text]')
+    await r.sessions.start(chat)
+    await eventually(() => r.sessions.snapshot(chat).status === 'idle')
+    const outside = join(r.userData, 'secret.txt')
+    inject('visible', `type "${outside}"`)
+    inject('clipped', `echo ${'a'.repeat(1_000)} && type "${outside}"`)
+    inject('inside', 'npm test')
+    expect(r.sessions.snapshot(chat).pending).toMatchObject({ id: 'visible', arbitration: { state: 'escalated', reason: exclusionText('outside_folder') } })
+    await r.sessions.answer(chat, { promptId: 'visible', optionId: 'deny' })
+    const clipped = r.sessions.snapshot(chat).pending!
+    expect(clipped.tool?.input.command).toHaveLength(1_000)
+    expect(clipped.tool?.input.command).not.toContain('secret')
+    expect(clipped).toMatchObject({ id: 'clipped', arbitration: { state: 'escalated', reason: 'Input too large to review; decide this yourself.' } })
+    expect(m.startArbiter).not.toHaveBeenCalled()
+    await r.sessions.answer(chat, { promptId: 'clipped', optionId: 'deny' })
+    await eventually(() => r.sessions.snapshot(chat).pending === null)
+    expect(m.startArbiter).toHaveBeenCalledOnce()
+    expect(approvals(chat, r).filter(item => item.kind === 'approval_decision').map(item => item.kind === 'approval_decision' && [item.requestId, item.decision, item.decidedBy]))
+      .toEqual([['visible', 'deny', 'person'], ['clipped', 'deny', 'person'], ['inside', 'allow_once', 'magos']])
+    expect(m.onAttention.mock.calls.map(([event]) => event.prompt.id)).toEqual(['visible', 'clipped'])
+  })
+})
+
+describe('claude Magos clipping recorded at the cut over the fake CLI', () => {
+  it('a partial at_/ka_ token ending at the 1,000 and 4,096-character cuts is never decided by the arbiter (P1)', async () => {
+    const r = rig('claude'), m = magos(r, { verdict: { decision: 'allow_once', reason: 'Routine.' } }), inject = injector(r), chat = orchestratorChat(r, 'claude', '[text]')
+    await r.sessions.start(chat)
+    await eventually(() => r.sessions.snapshot(chat).status === 'idle')
+    const tail = ` && type "${join(r.userData, 'secret.txt')}"`, ids: string[] = []
+    for (const prefix of ['at_', 'ka_']) {
+      const partial = `${prefix}0123456789abcdefghjkmnpqrs.abc`
+      inject(`${prefix}command`, '', { name: 'Bash', input: { command: `${'a'.repeat(1_000 - partial.length)}${partial}${tail}` } })
+      inject(`${prefix}path`, '', { name: 'Write', input: { file_path: `${join(r.repo, 'a'.repeat(4_096 - r.repo.length - 1 - partial.length))}${partial}${tail}`, content: '{}' } })
+      ids.push(`${prefix}command`, `${prefix}path`)
+    }
+    for (const id of ids) {
+      const pending = r.sessions.snapshot(chat).pending!
+      expect(pending.id).toBe(id)
+      // The second mask pass shrank the cut value below its limit: only the flag recorded at the cut catches it.
+      expect(String(Object.values(pending.tool!.input)[0]).length).toBeLessThan(id.endsWith('path') ? 4_096 : 1_000)
+      expect(pending.arbitration.state).toBe('escalated')
+      if (id.endsWith('command')) expect(pending.arbitration.reason).toBe('Input too large to review; decide this yourself.')
+      await r.sessions.answer(chat, { promptId: id, optionId: 'deny' })
+    }
+    expect(m.startArbiter).not.toHaveBeenCalled()
+    expect(m.onAttention.mock.calls.map(([event]) => event.prompt.id)).toEqual(ids)
+  })
+})
 
 for (const kind of ['claude', 'omp'] as const) it(`${kind} reconciles injected concurrent prompts FIFO and clears all on native exit`, async () => {
   const r = rig(kind), chat = r.newChat(), start = r.deps.startProcess!
@@ -957,7 +1105,7 @@ describe('callsigns of approvals no thread accounts for', () => {
       ].map(frame => JSON.stringify(frame)).join('\n') + '\n')
     })
     const arbitrated: PendingPrompt[] = []
-    const r = rig('omp', { arbitrate: ({ prompt }) => { arbitrated.push(prompt); return { result: new Promise(() => undefined), cancel: () => undefined } } }, fixture)
+    const r = rig('omp', { arbitrate: ({ prompt }) => { arbitrated.push(prompt); return { state: 'deciding', result: new Promise(() => undefined), cancel: () => undefined, awaitingPerson: () => undefined } } }, fixture)
     const chat = orchestratorChat(r, 'omp', '[worker_approval]')
     await r.sessions.start(chat)
     await eventually(() => r.sessions.snapshot(chat).pending !== null)

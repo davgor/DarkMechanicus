@@ -11,7 +11,8 @@ type Tool = Extract<ChatItem, { kind: 'tool_call' }>
 type Thread = Extract<ChatItem, { kind: 'thread' }>
 type Block = { kind: 'text' | 'thinking' | 'tool_use'; text: string; emitted: number; committed: boolean; finalized?: boolean; toolId?: string }
 type Message = { id: string; at: string; threadId: string | null; blocks: Map<number, Block> }
-type HeldPrompt = { requestId: string; prompt: PendingPrompt; input: JsonObject; suggestions: JsonObject[]; questionIndex: number; answers: Record<string, string> }
+/** `inputClipped`: summaryInput cut a value, so the prompt shows less of the input than the CLI runs. */
+type HeldPrompt = { requestId: string; prompt: PendingPrompt; input: JsonObject; inputClipped: boolean; suggestions: JsonObject[]; questionIndex: number; answers: Record<string, string> }
 
 /** Main-private reducer state: held inputs must never be serialized to the renderer. */
 export type ClaudeProtocolState = {
@@ -59,11 +60,23 @@ function threadOf(state: ClaudeProtocolState, parent: unknown): string | null {
 function listOf(state: ClaudeProtocolState, threadId: string | null): TaskList {
   return state.tasks.get(threadId) ?? { tasks: [], pendingCreates: {} }
 }
-function summaryInput(input: JsonObject): Tool['input'] {
-  const safe = mask(input)
-  return Object.fromEntries(Object.entries(safe).map(([key, value]) => [key,
-    typeof value === 'string' ? value.slice(0, ['file_path', 'notebook_path', 'path'].includes(key) ? 4096 : 1000) : value
-  ])) as Tool['input']
+const inputLimit = (key: string): number => ['file_path', 'notebook_path', 'path'].includes(key) ? 4096 : 1000
+/**
+ * Masked, display-bounded tool input, and whether any value was cut. Clipping is recorded at the cut: masking the
+ * clipped text again can shorten it (a token the cut leaves partial), so its length cannot tell afterwards.
+ */
+function summaryInput(input: JsonObject): { input: Tool['input']; clipped: boolean } {
+  let clipped = false
+  const entries = Object.entries(mask(input)).map(([key, value]) => {
+    if (typeof value !== 'string') return [key, value]
+    clipped ||= value.length > inputLimit(key)
+    return [key, value.slice(0, inputLimit(key))]
+  })
+  return { input: Object.fromEntries(entries) as Tool['input'], clipped }
+}
+/** Whether a held prompt's tool input was cut for display; an unknown prompt counts as cut. */
+export function claudeInputClipped(state: ClaudeProtocolState, promptId: string): boolean {
+  return state.pending.get(promptId)?.inputClipped ?? true
 }
 function resultText(value: unknown): string {
   return typeof value === 'string' ? value : Array.isArray(value)
@@ -130,7 +143,7 @@ function toolStart(context: Reduction, block: JsonObject, threadId: string | nul
   const previous = state.tools.get(id)
   if (previous && (previous.item.status !== 'running' || JSON.stringify(previous.input) === JSON.stringify(input))) return
   const value: Tool = { kind: 'tool_call', id, at: previous ? previous.item.at : at, ...scope(threadId), name,
-    input: summaryInput(input), status: 'running', resultSummary: null }
+    input: summaryInput(input).input, status: 'running', resultSummary: null }
   const held = { item: value, input }
   state.tools.set(id, held)
   item(events, value)
@@ -308,14 +321,14 @@ function questionPrompt(base: Omit<PendingPrompt, 'kind' | 'options'>, question:
 function objects(value: unknown): JsonObject[] {
   return Array.isArray(value) ? value.map(object).filter(entry => entry !== null) : []
 }
-function requestBase(state: ClaudeProtocolState, body: JsonObject, tool: { id: string; name: string; input: JsonObject }): Omit<PendingPrompt, 'kind' | 'options'> {
+function requestBase(state: ClaudeProtocolState, body: JsonObject, tool: { id: string; name: string; input: Tool['input'] }): Omit<PendingPrompt, 'kind' | 'options'> {
   const spawn = state.agents.get(string(body.agent_id))
   const threadId = (spawn ? state.threads.get(spawn)?.id : undefined)
     ?? state.tools.get(string(body.tool_use_id))?.item.threadId ?? null
   return { id: tool.id, title: string(body.title) || tool.name, detail: string(body.description), threadId,
     callsign: null, arbitration: { state: 'off', reason: null },
     attributed: threadId !== null || ![...state.threads.values()].some(thread => thread.state === 'running'),
-    tool: { name: tool.name, input: summaryInput(tool.input) } }
+    tool: { name: tool.name, input: tool.input } }
 }
 function recordPrompt(context: Reduction, prompt: PendingPrompt): void {
   const name = string(prompt.tool?.name)
@@ -340,10 +353,11 @@ function request(context: Reduction, frame: JsonObject): void {
     return
   }
   const suggestions = objects(body.permission_suggestions)
-  const base = requestBase(state, body, { id, name, input })
+  const summary = summaryInput(input)
+  const base = requestBase(state, body, { id, name, input: summary.input })
   const prompt = name === 'AskUserQuestion' ? questionPrompt(base, objects(input.questions)[0])
     : approvalPrompt(base, suggestions)
-  state.pending.set(mask(id), { requestId: id, prompt: mask(prompt), input, suggestions, questionIndex: 0, answers: {} })
+  state.pending.set(mask(id), { requestId: id, prompt: mask(prompt), input, inputClipped: summary.clipped, suggestions, questionIndex: 0, answers: {} })
   recordPrompt(context, prompt)
   events.push({ type: 'pending', prompt: mask(prompt) })
 }
