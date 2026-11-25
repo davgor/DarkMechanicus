@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { Callsign } from '../../../shared/agents/callsign'
 import type { ChatItem } from '../../../shared/agents/chat'
 import { threadStateView, transcriptTree, type ThreadNode, type TreeRow } from './threadModel'
 
@@ -25,7 +26,7 @@ const thread = (id: string, parentItemId: string | null, threadId?: string, stat
   state,
   ...(threadId === undefined ? {} : { threadId })
 })
-const asked = (requestId: string, threadId?: string): ChatItem => ({
+const asked = (requestId: string, threadId?: string, callsign?: Callsign): ChatItem => ({
   id: `item_${requestId}`,
   at: AT,
   kind: 'approval_request',
@@ -33,7 +34,8 @@ const asked = (requestId: string, threadId?: string): ChatItem => ({
   category: 'command',
   tool: 'Bash',
   summary: 'Run it',
-  ...(threadId === undefined ? {} : { threadId, threadLabel: 'Worker' })
+  ...(threadId === undefined ? {} : { threadId, threadLabel: 'Worker' }),
+  ...(callsign === undefined ? {} : { callsign })
 })
 const answered = (requestId: string): ChatItem => ({ id: `item_answer_${requestId}`, at: AT, kind: 'approval_decision', requestId, decision: 'allow_once' })
 
@@ -94,6 +96,15 @@ describe('transcriptTree: threads that are not as stored, and requests', () => {
     const node = only(rows[1])
     expect(node).toMatchObject({ item: { id: 'lost', label: 'Worker', state: 'running', parentItemId: null } })
     expect(ids(node.rows)).toEqual(['item_q', 'n'])
+  })
+
+  it('names a lost thread by the callsign stamped on its first request, keeping the label only as the legacy fallback', () => {
+    const callsign: Callsign = { role: 'Acolyte', ticketKey: 'DM-442', ordinal: null, purpose: null, ticketVerified: true }
+    const rows = transcriptTree([asked('q', 'lost', callsign), text('n', 'lost')])
+    const node = only(rows[0])
+    expect(node.item.callsign).toEqual(callsign)
+    expect(node.item).toMatchObject({ id: 'lost', label: 'Worker', state: 'running', parentItemId: null })
+    expect(only(transcriptTree([asked('q', 'lost')])[0]).item.callsign).toBeUndefined()
   })
 
   it('places unknown-spawner threads at the root without attaching to an unrelated tool', () => {

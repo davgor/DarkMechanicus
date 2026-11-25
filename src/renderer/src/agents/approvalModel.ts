@@ -188,16 +188,36 @@ const ANSWERS: Readonly<Record<DecisionItem['decision'], { state: PillState; lab
   cancelled: { state: 'canceled', label: 'Cancelled' }
 }
 
+/** The longest second line a Magos decision gets: its stored reason is capped at the same length. */
+const MAX_MAGOS_DETAIL = 500
+
+function magosDetail(reason: string | undefined): string {
+  const line = reason === undefined || reason.trim() === '' ? 'The Magos decided.' : `The Magos decided: ${reason}`
+  return line.length > MAX_MAGOS_DETAIL ? `${line.slice(0, MAX_MAGOS_DETAIL - 1)}…` : line
+}
+
 function answerDetail(item: DecisionItem): string | null {
   if (item.decision === 'cancelled') {
     return 'No answer reached the agent.'
   }
+  if (item.decidedBy === 'magos') {
+    return magosDetail(item.reason)
+  }
   return item.automatic === true ? 'Answered automatically by an earlier Allow for this chat.' : null
 }
 
-/** A stored decision in words, with the state color it shares with the rest of the app. */
+function answerLabel(item: DecisionItem): { state: PillState; label: string } {
+  const answer = ANSWERS[item.decision]
+  if (item.decidedBy !== 'magos' || item.decision === 'cancelled') return answer
+  return { ...answer, label: item.decision === 'deny' ? 'Denied by the Magos' : 'Allowed by the Magos' }
+}
+
+/**
+ * A stored decision in words, with the state color it shares with the rest of the app. A decision the Magos made
+ * says so, with its reason as plain text; one the person made, or one stored before the Magos existed, reads as it did.
+ */
 export function answerView(item: DecisionItem): AnswerView {
-  return { ...ANSWERS[item.decision], detail: answerDetail(item) }
+  return { ...answerLabel(item), detail: answerDetail(item) }
 }
 
 // ---- Transcript rows ----

@@ -304,15 +304,15 @@ describe('Agents rail selection and memory', () => {
       await mountTree('toggle')
       const thread = (label: string) => screen.getByRole('listitem', { name: `Thread: ${label}` })
       const expanded = (label: string) => within(thread(label)).getAllByRole('button')[0].getAttribute('aria-expanded')
-      expect(expanded('Acolyte:DM-2 Fix lint')).toBe('false')
+      expect(expanded('Acolyte:DM-2')).toBe('false')
       fireEvent.click(screen.getByRole('button', { name: /^Agents/ }))
       const inquisitor = screen.getByRole('treeitem', { name: 'Inquisitor:DM-2' })
       fireEvent.click(inquisitor.querySelector('.at-row')!)
-      expect(expanded('Acolyte:DM-2 Fix lint')).toBe('true')
-      expect(expanded('Inquisitor:DM-2 Review diff')).toBe('true')
-      expect(expanded('Acolyte:DM-1 Add retry banner')).toBe('false')
+      expect(expanded('Acolyte:DM-2')).toBe('true')
+      expect(expanded('Inquisitor:DM-2')).toBe('true')
+      expect(expanded('Acolyte:DM-1')).toBe('false')
       expect(inquisitor.getAttribute('aria-selected')).toBe('true')
-      expect(scroll.mock.contexts).toEqual([thread('Inquisitor:DM-2 Review diff')])
+      expect(scroll.mock.contexts).toEqual([thread('Inquisitor:DM-2')])
     } finally {
       delete (Element.prototype as Partial<Element>).scrollIntoView
     }

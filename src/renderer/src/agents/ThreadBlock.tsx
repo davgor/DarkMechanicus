@@ -1,4 +1,5 @@
 import { memo, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
+import { formatCallsign } from '../../../shared/agents/callsign'
 import { Icon } from '../components/Icon'
 import { StatePill } from '../components/StatePill'
 import { Hourglass } from './Hourglass'
@@ -12,8 +13,9 @@ interface ThreadBlockProps {
 }
 
 /**
- * The work of a subagent, as a block under the tool call that spawned it: its label and state (an hourglass
- * while it ran), and, once opened, its own items.
+ * The work of a subagent, as a block under the tool call that spawned it: its name and state (an hourglass
+ * while it ran), and, once opened, its own items. The name is the callsign main stamped on the thread; only a
+ * thread stored before callsigns existed falls back to its own label.
  */
 export const ThreadBlock = memo(function ThreadBlock({ node, renderRow }: ThreadBlockProps): JSX.Element {
   const { item } = node
@@ -31,13 +33,14 @@ export const ThreadBlock = memo(function ThreadBlock({ node, renderRow }: Thread
     }
   }, [onPath, reveal.target, reveal.nonce, item.id])
   const state = threadStateView(item.state)
+  const name = item.callsign === undefined ? item.label : formatCallsign(item.callsign)
   return (
-    <li ref={element} className="chat-thread" data-state={item.state} data-thread-id={item.id} aria-label={`Thread: ${item.label}`}>
+    <li ref={element} className="chat-thread" data-state={item.state} data-thread-id={item.id} aria-label={`Thread: ${name}`}>
       <div className="chat-thread-head">
         <button type="button" className="chat-thread-toggle" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
           <Icon name={open ? 'chevron-down' : 'chevron-right'} size={14} />
           {item.state === 'running' ? <Hourglass /> : null}
-          <span className="chat-thread-label">{item.label}</span>
+          <span className="chat-thread-label">{name}</span>
           <StatePill state={state.pill} label={state.label} />
         </button>
       </div>

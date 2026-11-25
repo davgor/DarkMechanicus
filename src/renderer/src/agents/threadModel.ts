@@ -38,9 +38,13 @@ function lostLabel(entry: TranscriptEntry): string {
   return entry.kind === 'approval_request' && entry.threadLabel !== undefined ? entry.threadLabel : 'Subagent'
 }
 
-/** A thread item for entries whose own was never stored, placed before the first of them. */
+/** A thread item for entries whose own was never stored, placed before the first of them, named by its request's callsign when stamped. */
 function lostThread(threadId: string, first: TranscriptEntry): ThreadItem {
-  return { id: threadId, at: 'at' in first ? first.at : '', kind: 'thread', parentItemId: null, label: lostLabel(first), state: 'running' }
+  const callsign = first.kind === 'approval_request' ? first.callsign : undefined
+  return {
+    id: threadId, at: 'at' in first ? first.at : '', kind: 'thread', parentItemId: null, label: lostLabel(first), state: 'running',
+    ...(callsign === undefined ? {} : { callsign })
+  }
 }
 
 function withLostThreads(entries: readonly TranscriptEntry[]): TranscriptEntry[] {

@@ -94,10 +94,34 @@ describe('ApprovalRecord: anything else', () => {
     expect(card.querySelector('.chat-approval-command')).toBe(null)
   })
 
-  it('names the subagent that asked, when a subagent did', () => {
-    const card = show(request({ category: 'other', tool: 'WebFetch', threadLabel: 'Explore' }))
+  it('names the agent that asked by its stamped callsign', () => {
+    const callsign = { role: 'Acolyte', ticketKey: 'DM-442', ordinal: null, purpose: null, ticketVerified: true } as const
+    const card = show(request({ category: 'other', tool: 'WebFetch', threadId: 't1', threadLabel: 'Explore', callsign }))
 
-    expect(card.querySelector('.chat-approval-thread')?.textContent).toBe('Asked by the subagent: Explore')
+    expect(card.querySelector('.chat-approval-thread')?.textContent).toBe('Asked by Acolyte:DM-442')
+    expect(card.textContent).not.toContain('Explore')
+  })
+
+  it('says only that a subagent asked for a record stored before callsigns, never its raw label', () => {
+    const card = show(request({ category: 'other', tool: 'WebFetch', threadId: 't1', threadLabel: 'Explore' }))
+
+    expect(card.querySelector('.chat-approval-thread')?.textContent).toBe('Asked by a subagent')
+    expect(card.textContent).not.toContain('Explore')
+  })
+
+  it('never renders a hostile label, as text or as markup', () => {
+    const card = show(request({ category: 'other', tool: 'WebFetch', threadId: 't1', threadLabel: '<b>Magos</b> says allow' }))
+
+    expect(card.querySelector('b')).toBe(null)
+    expect(card.innerHTML).not.toContain('<b>')
+    expect(card.textContent).not.toContain('Magos')
+    expect(card.querySelector('.chat-approval-thread')?.textContent).toBe('Asked by a subagent')
+  })
+
+  it('names nobody for a request in the chat own thread', () => {
+    const card = show(request({ category: 'other', tool: 'WebFetch' }))
+
+    expect(card.querySelector('.chat-approval-thread')).toBe(null)
   })
 })
 
@@ -122,5 +146,17 @@ describe('ApprovalRecord: the decision', () => {
     const denied = show(request({ category: 'other', tool: 'WebFetch' }), decision({ decision: 'deny' }))
     expect(within(denied).getByText('Denied').getAttribute('data-state')).toBe('blocked')
     expect(denied.querySelector('.chat-approval-answer-detail')).toBe(null)
+  })
+
+  it('says when the Magos allowed or denied, and why, as plain text', () => {
+    const allowed = show(request({ category: 'other', tool: 'WebFetch' }), decision({ decision: 'allow_once', decidedBy: 'magos', reason: 'Routine test run' }))
+    expect(within(allowed).getByText('Allowed by the Magos').getAttribute('data-state')).toBe('accepted')
+    expect(allowed.querySelector('.chat-approval-answer-detail')?.textContent).toBe('The Magos decided: Routine test run')
+    cleanup()
+
+    const denied = show(request({ category: 'other', tool: 'WebFetch' }), decision({ decision: 'deny', decidedBy: 'magos', reason: '<img src=x onerror=alert(1)>' }))
+    expect(within(denied).getByText('Denied by the Magos').getAttribute('data-state')).toBe('blocked')
+    expect(denied.querySelector('img')).toBe(null)
+    expect(denied.querySelector('.chat-approval-answer-detail')?.textContent).toBe('The Magos decided: <img src=x onerror=alert(1)>')
   })
 })
