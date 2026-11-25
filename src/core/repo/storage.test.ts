@@ -331,7 +331,7 @@ function countingGit(): CountingGit {
 }
 
 interface CachedDeps {
-  db: null
+  db: Db | null
   layout: RepoLayout
   fs: MemoryFs
   git: GitAdapter
@@ -344,17 +344,17 @@ function cachedDeps(git: GitAdapter): CachedDeps {
 }
 
 describe('getStorageStatus cached record status, unchanged and changed stamps', () => {
-  it('computes the first call inline, then serves repeated calls within 10 s without running git', async () => {
+  it('computes the first call inline, then runs git no more while the stamps are unchanged, however long it idles', async () => {
     const git = countingGit()
     git.dirty = 2
     const deps = cachedDeps(git)
     expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(2)
     expect(git.runs).toBe(1)
-    for (const seconds of [1, 3, 6]) {
-      deps.clock.advanceSeconds(seconds)
+    for (let call = 0; call < 12; call += 1) {
+      deps.clock.advanceSeconds(5)
       expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(2)
+      await settle()
     }
-    await settle()
     expect(git.runs).toBe(1)
   })
 
@@ -377,7 +377,7 @@ describe('getStorageStatus cached record status, unchanged and changed stamps', 
   })
 })
 
-describe('getStorageStatus cached record status, HEAD moves, age and failures', () => {
+describe('getStorageStatus cached record status, HEAD moves, flushes and failures', () => {
   it('refreshes when HEAD moves to another commit', async () => {
     const git = countingGit()
     const deps = cachedDeps(git)
@@ -390,19 +390,22 @@ describe('getStorageStatus cached record status, HEAD moves, age and failures', 
     expect(git.runs).toBe(2)
   })
 
-  it('refreshes a count older than 10 s even when the stamps are unchanged', async () => {
+  it('refreshes once when a flush writes record files without touching the index or HEAD', async () => {
     const git = countingGit()
-    const deps = cachedDeps(git)
+    const db = createTestDb()
+    const deps = { ...cachedDeps(git), db }
+    setMeta(db, 'last_flush_at', '2026-01-01T00:00:00.000Z')
     await getStorageStatus(deps)
-    git.dirty = 4
-    deps.clock.advanceSeconds(10)
-    expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(0)
+    deps.clock.advanceSeconds(60)
+    await getStorageStatus(deps)
     await settle()
     expect(git.runs).toBe(1)
-    deps.clock.advanceSeconds(1)
+    setMeta(db, 'last_flush_at', '2026-01-01T00:01:00.000Z')
+    git.dirty = 4
     expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(0)
     await settle()
     expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(4)
+    await settle()
     expect(git.runs).toBe(2)
   })
 
@@ -445,19 +448,16 @@ describe('getStorageStatus cached record status against a real repository', () =
     const deps = { db: null, layout: resolveLayout(repo.root), fs: nodeFs, git: createGitAdapter(repo.root), clock, recordStatus }
     expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(0)
 
-    // A working-tree edit leaves the index and HEAD alone: the clean count stands until it is 10 s old.
+    // A working-tree edit outside the app leaves the index, HEAD and last flush alone: the clean count stands.
     writeFileSync(join(records, 'project.json'), prettyJson({ ...PROJECT, name: 'Renamed' }))
+    clock.advanceSeconds(60)
     expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(0)
     expect(recordStatus.refreshing).toBeNull()
-    clock.advanceSeconds(11)
-    expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(0)
-    await recordStatus.refreshing
-    expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(1)
 
-    // Staging writes the index, so the very next call refreshes without waiting for the 10 s.
+    // Staging writes the index, so the very next call refreshes and sees both files.
     writeFileSync(join(records, 'extra.json'), '{}')
     repo.git('add', '.darkmechanicus/extra.json')
-    expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(1)
+    expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(0)
     await recordStatus.refreshing
     expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(2)
   })
