@@ -205,6 +205,46 @@ describe('listEvents filters', () => {
   })
 })
 
+describe('listEvents ticket filter', () => {
+  /** 3,000 events of one epic, 40 of them for ticket X, interleaved with another ticket's and untargeted events. */
+  function epicLog(): { ctx: TestCtx; ticketSeqs: number[] } {
+    const ctx = createTestCtx()
+    const ticketSeqs: number[] = []
+    ctx.db.tx(() => {
+      for (let index = 0; index < 3_000; index += 1) {
+        const ticketId = index % 75 === 0 ? 'tk_x' : index % 3 === 0 ? 'tk_other' : null
+        const seq = appendEvent(ctx, { kind: 'bulk', epicId: 'ep_1', runId: 'rn_1', ticketId })
+        if (ticketId === 'tk_x') ticketSeqs.push(seq)
+      }
+    })
+    return { ctx, ticketSeqs }
+  }
+
+  it("returns exactly the ticket's events in order, in one page", () => {
+    const { ctx, ticketSeqs } = epicLog()
+    expect(ticketSeqs).toHaveLength(40)
+    const page = listEvents(ctx, { epicId: 'ep_1', ticketId: 'tk_x', sinceSeq: 0, limit: MAX_EVENT_PAGE })
+    expect(page.events.map((event) => event.seq)).toEqual(ticketSeqs)
+    expect(page.events.every((event) => event.ticketId === 'tk_x')).toBe(true)
+    expect(page.cursor).toBe(ticketSeqs.at(-1))
+  })
+
+  it('combines with the other filters and pages by sequence', () => {
+    const { ctx, ticketSeqs } = epicLog()
+    expect(seqs(ctx, { ticketId: 'tk_x', limit: 5 })).toEqual(ticketSeqs.slice(0, 5))
+    expect(seqs(ctx, { ticketId: 'tk_x', sinceSeq: ticketSeqs[4], limit: 5 })).toEqual(ticketSeqs.slice(5, 10))
+    expect(seqs(ctx, { ticketId: 'tk_x', runId: 'rn_2' })).toEqual([])
+    expect(seqs(ctx, { ticketId: 'tk_x', epicId: 'ep_2' })).toEqual([])
+    expect(seqs(ctx, { ticketId: 'tk_none' })).toEqual([])
+  })
+
+  it('leaves a read without it unchanged: every event of the epic', () => {
+    const { ctx } = epicLog()
+    expect(seqs(ctx, { epicId: 'ep_1', limit: MAX_EVENT_PAGE })).toEqual(Array.from({ length: 500 }, (_, index) => index + 1))
+    expect(listEvents(ctx, { epicId: 'ep_1', sinceSeq: 2_900, limit: MAX_EVENT_PAGE }).events).toHaveLength(100)
+  })
+})
+
 describe('listEvents cursor', () => {
   it('is the sequence of the last returned event', () => {
     const ctx = createTestCtx()

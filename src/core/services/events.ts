@@ -86,9 +86,10 @@ export function toEventView(row: EventRow): EventView {
 
 export const MAX_EVENT_PAGE = 500
 
+/** A page of the event log, oldest first; each given filter (epic, run, ticket) narrows it. */
 export function listEvents(
   ctx: Ctx,
-  input: { sinceSeq?: number; limit?: number; epicId?: string; runId?: string }
+  input: { sinceSeq?: number; limit?: number; epicId?: string; runId?: string; ticketId?: string }
 ): EventsPage {
   const since = Math.max(0, Math.floor(input.sinceSeq ?? 0))
   const limit = Math.min(MAX_EVENT_PAGE, Math.max(1, Math.floor(input.limit ?? 200)))
@@ -97,13 +98,15 @@ export function listEvents(
   const horizon = latestSeq(ctx, since)
   const rows = ctx.db.all<EventRow>(
     `SELECT * FROM events
-     WHERE seq > ? AND (? IS NULL OR epic_id = ?) AND (? IS NULL OR run_id = ?)
+     WHERE seq > ? AND (? IS NULL OR epic_id = ?) AND (? IS NULL OR run_id = ?) AND (? IS NULL OR ticket_id = ?)
      ORDER BY seq ASC LIMIT ?`,
     since,
     input.epicId ?? null,
     input.epicId ?? null,
     input.runId ?? null,
     input.runId ?? null,
+    input.ticketId ?? null,
+    input.ticketId ?? null,
     limit
   )
   const events = rows.map(toEventView)
