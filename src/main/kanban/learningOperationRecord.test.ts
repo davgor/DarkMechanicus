@@ -68,6 +68,8 @@ async function desktopOn(mode: 'repo' | 'db'): Promise<{ workspace: TestWorkspac
   repo.branch(EPIC)
   const increment = repo.commit('increment')
   const workspace = testWorkspace(harness.open('desktop', { root: repo.root, git: createGitAdapter(repo.root), mode }), harness.homeDir)
+  // In repo mode the repository holds the workspace's database: close it before the repository's cleanup removes the folder.
+  cleanups.push(() => harness.closeWorkspaces())
   await workspace.initializeRepository({ name: 'learnings', ...(mode === 'db' && { mode }) })
   return { workspace, repo, increment, ctx: workspace.ctx() as TestCtx }
 }

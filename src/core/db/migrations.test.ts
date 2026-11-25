@@ -1515,6 +1515,37 @@ function schemaOf(db: Db): unknown[] {
   return db.all("SELECT type, name, tbl_name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name")
 }
 
+function columnsOf(db: Db, table: string): string[] {
+  return db.all<{ name: string }>('SELECT name FROM pragma_table_info(?) ORDER BY cid', table).map((column) => column.name)
+}
+
+function rowsOf(db: Db, table: string, columns: string[]): unknown[] {
+  return db.all(`SELECT ${columns.join(', ')} FROM ${table} ORDER BY rowid`)
+}
+
+/**
+ * Upgrades `db` to the current schema and checks that each table in `added` keeps every value of every column it had,
+ * and gained exactly the named columns, each at its documented default in every existing row. Columns are always named:
+ * a cached `SELECT *` statement returns the pre-upgrade column list on some SQLite builds and the new one on others.
+ */
+function expectAdditiveUpgrade(db: Db, from: number, added: Record<string, Record<string, string | null>>): void {
+  const tables = Object.entries(added).map(([name, defaults]) => {
+    const columns = columnsOf(db, name)
+    return { name, defaults, columns, rows: rowsOf(db, name, columns) }
+  })
+  expect(migrate(db)).toEqual({ from, to: SCHEMA_VERSION })
+  for (const table of tables) {
+    expect(rowsOf(db, table.name, table.columns)).toEqual(table.rows)
+    const fresh = Object.keys(table.defaults)
+    expect(columnsOf(db, table.name).filter((column) => !table.columns.includes(column))).toEqual(fresh)
+    if (fresh.length > 0) expect(rowsOf(db, table.name, fresh)).toEqual(table.rows.map(() => table.defaults))
+  }
+}
+
+/** What v33 (sprint learning card links) and v35 (integration authority) add to rows that existed before them. */
+const V33_CARD_DEFAULTS = { checkpoint_id: null, revision_id: null, snapshot_json: null, bases_json: '[]' }
+const V35_INTEGRATION_DEFAULTS = { owner_machine_id: null, superseded_by: null }
+
 function insertLearning(db: Db, spec: { id: string; state?: string; replaces?: string | null; replacedBy?: string | null; retiredAt?: string | null }): void {
   db.run(
     `INSERT INTO learning_records (id, run_id, sprint_id, card_id, attempt_id, definition_json, definition_hash, state,
@@ -1645,9 +1676,11 @@ describe('v31 learning history upgrade', () => {
     migrate(db, MIGRATIONS.filter((migration) => migration.version <= 30))
     insertLearning(db, { id: 'lr1' })
     insertGeneratedCard(db, 'kc1', 'rn1', 'sp1')
-    const before = JSON.stringify(['learning_records', 'sprint_learning_cards', 'learning_integrations'].map((table) => db.all(`SELECT * FROM ${table}`)))
-    expect(migrate(db)).toEqual({ from: 30, to: SCHEMA_VERSION })
-    expect(JSON.stringify(['learning_records', 'sprint_learning_cards', 'learning_integrations'].map((table) => db.all(`SELECT * FROM ${table}`)))).toBe(before)
+    expectAdditiveUpgrade(db, 30, {
+      learning_records: {},
+      sprint_learning_cards: V33_CARD_DEFAULTS,
+      learning_integrations: V35_INTEGRATION_DEFAULTS
+    })
     expect(db.all('SELECT * FROM learning_events')).toEqual([])
     expect(schemaOf(db)).toEqual(schemaOf(migratedDb()))
   })
@@ -1717,10 +1750,12 @@ describe('v32 learning publication storage', () => {
       `INSERT INTO learning_events (learning_id, kind, reason, revision, actor_role, actor_label, run_id, sprint_id, card_id, attempt_id, at)
        VALUES ('lr1', 'published', 'why', 1, 'desktop', 'person', 'rn1', 'sp1', 'kc1', 'ka1', 't')`
     )
-    const tables = ['learning_records', 'learning_events', 'sprint_learning_cards', 'learning_integrations']
-    const before = JSON.stringify(tables.map((table) => db.all(`SELECT * FROM ${table}`)))
-    expect(migrate(db)).toEqual({ from: 31, to: SCHEMA_VERSION })
-    expect(JSON.stringify(tables.map((table) => db.all(`SELECT * FROM ${table}`)))).toBe(before)
+    expectAdditiveUpgrade(db, 31, {
+      learning_records: {},
+      learning_events: {},
+      sprint_learning_cards: V33_CARD_DEFAULTS,
+      learning_integrations: V35_INTEGRATION_DEFAULTS
+    })
     expect(db.all('SELECT * FROM learning_stagings')).toEqual([])
     expect(db.all('SELECT * FROM learning_publications')).toEqual([])
     expect(schemaOf(db)).toEqual(schemaOf(migratedDb()))

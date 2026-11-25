@@ -70,6 +70,8 @@ async function project(names: (string | null)[]): Promise<Project> {
   })
   const root = single ? (repos[0] as Repo).repo.root : harness.root
   const core = harness.open('desktop', single ? { root, git: createGitAdapter(root) } : {})
+  // A single repository holds the workspace's database: close it before the repository's cleanup removes the folder.
+  cleanups.push(() => harness.closeWorkspaces())
   const workspace = testWorkspace(core, harness.homeDir)
   await workspace.initializeRepository(single ? { name: 'learnings' } : { name: 'learnings', layout: 'multi_repo' })
   return { root, repos, workspace, ctx: workspace.ctx() as TestCtx }
