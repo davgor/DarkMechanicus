@@ -108,13 +108,15 @@ function centerOf(folderName: string | null, selector: string, text: string | nu
   return null
 }
 
-/** Fully visible ticket nodes of the plan graph, in DOM order, with the click point of each. */
+/** Fully visible ticket nodes of the plan graph that a click at their center reaches, in DOM order, with that point. */
 function visibleTickets(): { id: string; title: string; x: number; y: number }[] {
   return [...document.querySelectorAll<HTMLElement>('.react-flow__node .pg-card[data-ticket]')].flatMap((node) => {
     const box = node.getBoundingClientRect()
+    const point = { x: box.left + box.width / 2, y: box.top + box.height / 2 }
     const visible = box.width > 0 && box.top > 0 && box.bottom < window.innerHeight && box.left > 0 && box.right < window.innerWidth
     const title = node.querySelector('.pg-card-title')?.textContent ?? ''
-    return visible ? [{ id: node.dataset['ticket'] ?? '', title, x: box.left + box.width / 2, y: box.top + box.height / 2 }] : []
+    // The workspace header and graph controls overlay the graph's edges.
+    return visible && reaches(node, point) ? [{ id: node.dataset['ticket'] ?? '', title, ...point }] : []
   })
 }
 
