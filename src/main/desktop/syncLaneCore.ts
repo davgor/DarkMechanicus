@@ -8,7 +8,7 @@
  */
 import { createSystemClock } from '../../core/clock'
 import { DomainError } from '../../core/errors'
-import { guardTransactions, openDatabase, type Db } from '../../core/db/database'
+import { guardTransactions, openDatabase, tagTransactions, type Db, type TransactionHold } from '../../core/db/database'
 import { createFileHashCache, type FileHashCache } from '../../core/repo/fileHashes'
 import { assertForgeStorage, forgeBindingEpoch, withForgeOwnerAuthority, type ForgeTransferAuthority } from '../../core/repo/forgeBinding'
 import { createGitAdapter } from '../../core/repo/git'
@@ -42,8 +42,18 @@ interface LaneStore {
   fileHashes: FileHashCache
 }
 
+/**
+ * Measurement only (the revamp harness): the lane's write-lock holds, as DM-959's `onTransaction` reports them, and per
+ * reconcile the file bodies it read before and under its writer lock. A body read under the lock means the import's
+ * lock-free preparation was not fresh and was run again inside the transaction.
+ */
+export interface LaneObserver {
+  onTransaction(hold: TransactionHold): void
+  onReconcile(row: { mode: SyncMode; ms: number; fileReads: { prepared: number; locked: number } }): void
+}
+
 /** The lane's open connection; kept between reconciles and released before the owner moves or replaces the store. */
-export interface LaneState { store?: LaneStore }
+export interface LaneState { store?: LaneStore; observer?: LaneObserver }
 
 export function releaseLane(state: LaneState): void {
   const store = state.store
@@ -60,7 +70,8 @@ function openStore(state: LaneState, { path, home }: LaneRequest): LaneStore {
   // The owner opened and migrated this database before admitting the lane; the lane never creates one.
   if (!nodeFs.exists(layout.dbFile)) throw new DomainError('not_initialized', `${path} has no project database to reconcile.`)
   const epoch = forgeBindingEpoch(nodeFs, home, path)
-  const db = guardTransactions(openDatabase(layout.dbFile), () => assertForgeStorage(nodeFs, home, path, epoch))
+  const observed = state.observer ? { onTransaction: state.observer.onTransaction } : {}
+  const db = guardTransactions(openDatabase(layout.dbFile, observed), () => assertForgeStorage(nodeFs, home, path, epoch))
   const store: LaneStore = { path, layout, db, git: createGitAdapter(path, { fs: nodeFs }), fileHashes: createFileHashCache() }
   state.store = store
   return store
@@ -81,9 +92,23 @@ export function reconcileOnLane(state: LaneState, request: LaneRequest): SyncVal
     if (mode === 'heartbeat' && (layout.mode !== 'repo' || branchState(db, git.head()?.branch ?? null).changed)) {
       return { result: null, hasLocalCache }
     }
-    const result = reconcileRepository({
-      db, layout, fs: nodeFs, clock: createSystemClock(), machineId: request.machineId, git, sessionId: request.sessionId, fileHashes
-    }, reconcileGate({ db, layout, fs: nodeFs, git }, mode !== 'explicit'))
+    const started = performance.now()
+    const reads = { prepared: 0, locked: 0 }
+    const fs = state.observer ? countingBodyReads(db, reads) : nodeFs
+    const result = tagTransactions('reconcile', () => reconcileRepository({
+      db, layout, fs, clock: createSystemClock(), machineId: request.machineId, git, sessionId: request.sessionId, fileHashes
+    }, reconcileGate({ db, layout, fs: nodeFs, git }, mode !== 'explicit')))
+    state.observer?.onReconcile({ mode, ms: performance.now() - started, fileReads: reads })
     return { result, hasLocalCache }
   })
+}
+
+/** `nodeFs`, counting each file body read before or inside `db`'s write transaction. */
+function countingBodyReads(db: Db, reads: { prepared: number; locked: number }): typeof nodeFs {
+  const count = () => { if (db.inTransaction()) reads.locked += 1; else reads.prepared += 1 }
+  return {
+    ...nodeFs,
+    readFile: (path) => { count(); return nodeFs.readFile(path) },
+    readFileBytes: (path) => { count(); return nodeFs.readFileBytes(path) }
+  }
 }

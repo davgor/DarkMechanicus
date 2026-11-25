@@ -10,7 +10,7 @@ import type { BrowserWindow } from 'electron'
 import type { ProfileProject } from './forge-performance-fixture'
 import type { OwnerAction, OwnerReply } from './forge-performance-owner'
 import { absoluteNow, cpuSink, holdSummary, latencyStats, outcomeCounts, type HoldRecord } from './forge-performance-sinks'
-import { laneSettled, lastCommandAt, ownerWorkSince, splitWindow, type WindowSplit } from './forge-performance-taps'
+import { laneDuring, laneSettled, lastCommandAt, ownerWorkSince, splitWindow, type WindowSplit } from './forge-performance-taps'
 
 export interface Reply<T> { ok: boolean; data: T; error?: { code: string; message: string } }
 export interface CliResult { elapsedMs: number; code: number | null; output: unknown }
@@ -112,6 +112,7 @@ async function viewsIdle(deps: RevampDeps, project: ProfileProject): Promise<voi
 async function viewsDuringSync(deps: RevampDeps, project: ProfileProject): Promise<void> {
   for (const view of ['plan', 'ticket', 'kanban'] as const) {
     CPU.read()
+    const from = absoluteNow()
     const samples: (Sample & { syncMs: number; imported: boolean })[] = []
     for (let index = 0; index < ITERATIONS; index += 1) {
       const sync = await startSync(deps, project)
@@ -122,7 +123,22 @@ async function viewsDuringSync(deps: RevampDeps, project: ProfileProject): Promi
     }
     if (samples.some((sample) => !sample.imported)) throw new Error('A sync did not import its changed epic state.')
     const syncs = latencyStats(samples.map((sample) => sample.syncMs))
-    deps.report('revamp-view', { tickets: project.tickets, view, condition: 'sync', ...summarize(samples), sync: syncs, cpu: CPU.read(), samples })
+    deps.report('revamp-view', {
+      tickets: project.tickets, view, condition: 'sync', ...summarize(samples), sync: syncs, lane: laneSummary(from, absoluteNow()), cpu: CPU.read(), samples
+    })
+  }
+}
+
+/** The sync lanes' write-lock holds by caller, and their reconciles: how many re-ran their preparation under the lock. */
+function laneSummary(from: number, to: number) {
+  const { holds, reconciles } = laneDuring(from, to)
+  return {
+    holds: holdSummary(holds),
+    reconciles: reconciles.length,
+    byMode: outcomeCounts(reconciles.map((row) => ({ ok: false, code: row.mode }))),
+    reconcileMs: latencyStats(reconciles.map((row) => row.ms)),
+    reprepared: reconciles.filter((row) => row.fileReads.locked > 0).length,
+    fileReadsUnderLock: latencyStats(reconciles.map((row) => row.fileReads.locked))
   }
 }
 
@@ -348,7 +364,8 @@ async function cliAgents(deps: RevampDeps, project: ProfileProject): Promise<voi
   const agents: Agent[] = []
   for (const cardId of project.agentCardIds) agents.push(await prepareAgent(deps, project, cardId))
   CPU.read()
-  const end = absoluteNow() + AGENT_SECONDS * 1000
+  const from = absoluteNow()
+  const end = from + AGENT_SECONDS * 1000
   const [sync, ...perAgent] = await Promise.all([
     syncLoop(deps, project, end),
     ...agents.map((agent, index) => agentLoop(deps, { project, agent, index, commentEpicId: epic.data.id, until: end }))
@@ -361,7 +378,7 @@ async function cliAgents(deps: RevampDeps, project: ProfileProject): Promise<voi
       const rows = calls.filter((call) => call.name === name)
       return [name, { outcomes: outcomeCounts(rows), wall: latencyStats(rows.map((row) => row.ms)) }]
     })),
-    desktopSync: sync, cpu: CPU.read()
+    desktopSync: sync, lane: laneSummary(from, absoluteNow()), cpu: CPU.read()
   })
 }
 

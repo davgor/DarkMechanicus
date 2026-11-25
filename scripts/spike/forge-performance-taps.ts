@@ -3,10 +3,11 @@
  * observe: every desktop command IPC (`dm:command`) and every message to and from a production project utility keeps its
  * arguments, order and result. Recorded fields are command names, fixture paths, times and sizes.
  */
+import { existsSync, readFileSync } from 'node:fs'
 import { serialize } from 'node:v8'
 import { ipcMain, utilityProcess, type IpcMainInvokeEvent, type UtilityProcess } from 'electron'
 import type { WorkspaceRequest, WorkspaceResponse } from '../../src/main/desktop/workspaceClient'
-import { absoluteNow } from './forge-performance-sinks'
+import { absoluteNow, type HoldRecord } from './forge-performance-sinks'
 
 interface IpcRecord { path: string; name: string; recvAt: number; doneAt: number; bytes: number }
 interface OwnerRecord { path: string; name: string; postAt: number; replyAt: number | null }
@@ -156,4 +157,18 @@ export function ownerWorkSince(path: string, from: number): Record<string, numbe
  */
 export function laneSettled(path: string): boolean {
   return owner.every((row) => row.path !== path || row.replyAt !== null || (row.name !== 'reconcileRepository' && !row.name.startsWith('sync:')))
+}
+
+interface LaneRow { at: number; kind: 'hold' | 'reconcile'; tag?: string | null; outcome?: string; acquireMs?: number; holdMs?: number; mode?: string; ms?: number; fileReads?: { prepared: number; locked: number } }
+
+/** The sync lanes' rows (`DM_LANE_OBSERVE_FILE`, written by `syncLaneWorker.ts`) between `from` and `to` (epoch ms). */
+export function laneDuring(from: number, to: number): { holds: HoldRecord[]; reconciles: { mode: string; ms: number; fileReads: { prepared: number; locked: number } }[] } {
+  const file = process.env['DM_LANE_OBSERVE_FILE']
+  const rows: LaneRow[] = file && existsSync(file)
+    ? readFileSync(file, 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line) as LaneRow).filter((row) => row.at >= from && row.at <= to)
+    : []
+  return {
+    holds: rows.filter((row) => row.kind === 'hold').map((row) => ({ tag: row.tag ?? null, outcome: row.outcome ?? 'commit', acquireMs: row.acquireMs ?? 0, holdMs: row.holdMs ?? 0 })),
+    reconciles: rows.filter((row) => row.kind === 'reconcile').map((row) => ({ mode: row.mode ?? '', ms: row.ms ?? 0, fileReads: row.fileReads ?? { prepared: 0, locked: 0 } }))
+  }
 }
