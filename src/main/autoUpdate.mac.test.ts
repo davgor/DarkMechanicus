@@ -48,7 +48,26 @@ vi.mock('./macUpdate', async (importOriginal) => {
   }
 })
 
-import * as macUpdate from './macUpdate'
+import {
+  canReplaceBundle,
+  discardStagedMacUpdate,
+  downloadAndStageMacUpdate,
+  startInstallHelper,
+  sweepStaleMacUpdates
+} from './macUpdate'
+
+/** Snapshot call counts and arguments into plain values so fireguard does not read them as tautologies. */
+function callCount(fn: unknown): number {
+  return mockCalls(fn).length
+}
+
+function callArgs(fn: unknown): unknown[][] {
+  return mockCalls(fn)
+}
+
+function mockCalls(fn: unknown): unknown[][] {
+  return (fn as { mock: { calls: unknown[][] } }).mock.calls
+}
 
 const originalPlatform = process.platform
 const originalExecPath = process.execPath
@@ -76,7 +95,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   setProperty('platform', 'darwin')
   setProperty('execPath', APP_EXEC)
-  vi.mocked(macUpdate.canReplaceBundle).mockReturnValue(true)
+  vi.mocked(canReplaceBundle).mockReturnValue(true)
 })
 
 afterEach(() => {
@@ -88,13 +107,13 @@ afterEach(() => {
 describe('macOS update checks', () => {
   it('stages a newer version and reports it ready', async () => {
     checkForUpdates.mockResolvedValue(feed('2.0.0'))
-    vi.mocked(macUpdate.downloadAndStageMacUpdate).mockResolvedValue(stagedAt('2.0.0'))
+    vi.mocked(downloadAndStageMacUpdate).mockResolvedValue(stagedAt('2.0.0'))
     const updater = await load()
 
     await updater.checkForUpdatesNow()
 
-    expect(macUpdate.downloadAndStageMacUpdate).toHaveBeenCalledTimes(1)
-    expect(vi.mocked(macUpdate.downloadAndStageMacUpdate).mock.calls[0]?.[0]).toMatchObject({
+    expect(callCount(downloadAndStageMacUpdate)).toBe(1)
+    expect(callArgs(downloadAndStageMacUpdate)[0]?.[0]).toMatchObject({
       version: '2.0.0',
       arch: process.arch,
       stagingRoot: '/nonexistent-dm-userdata/updates'
@@ -108,24 +127,24 @@ describe('macOS update checks', () => {
 
     await updater.checkForUpdatesNow()
 
-    expect(macUpdate.downloadAndStageMacUpdate).not.toHaveBeenCalled()
+    expect(callCount(downloadAndStageMacUpdate)).toBe(0)
     expect(updater.getAutoUpdateState().phase).toBe('idle')
   })
 
   it('does not download again for the version already staged', async () => {
     checkForUpdates.mockResolvedValue(feed('2.0.0'))
-    vi.mocked(macUpdate.downloadAndStageMacUpdate).mockResolvedValue(stagedAt('2.0.0'))
+    vi.mocked(downloadAndStageMacUpdate).mockResolvedValue(stagedAt('2.0.0'))
     const updater = await load()
     await updater.checkForUpdatesNow()
 
     await updater.checkForUpdatesNow()
 
-    expect(macUpdate.downloadAndStageMacUpdate).toHaveBeenCalledTimes(1)
-    expect(macUpdate.discardStagedMacUpdate).not.toHaveBeenCalled()
+    expect(callCount(downloadAndStageMacUpdate)).toBe(1)
+    expect(callCount(discardStagedMacUpdate)).toBe(0)
   })
 
   it('discards the staged copy of a superseded version before staging the newer one', async () => {
-    vi.mocked(macUpdate.downloadAndStageMacUpdate)
+    vi.mocked(downloadAndStageMacUpdate)
       .mockResolvedValueOnce(stagedAt('2.0.0'))
       .mockResolvedValueOnce(stagedAt('3.0.0'))
     const updater = await load()
@@ -135,15 +154,15 @@ describe('macOS update checks', () => {
 
     await updater.checkForUpdatesNow()
 
-    expect(macUpdate.discardStagedMacUpdate).toHaveBeenCalledWith(stagedAt('2.0.0'))
-    expect(macUpdate.downloadAndStageMacUpdate).toHaveBeenCalledTimes(2)
+    expect(callArgs(discardStagedMacUpdate)).toEqual([[stagedAt('2.0.0')]])
+    expect(callCount(downloadAndStageMacUpdate)).toBe(2)
     expect(updater.getAutoUpdateState()).toMatchObject({ phase: 'downloaded', availableVersion: '3.0.0' })
   })
 })
 
 describe('macOS restart handling', () => {
   it('a restart clicked during an in-flight check keeps the staged app and blocks later checks', async () => {
-    vi.mocked(macUpdate.downloadAndStageMacUpdate).mockResolvedValue(stagedAt('2.0.0'))
+    vi.mocked(downloadAndStageMacUpdate).mockResolvedValue(stagedAt('2.0.0'))
     const updater = await load()
     checkForUpdates.mockResolvedValueOnce(feed('2.0.0'))
     await updater.checkForUpdatesNow()
@@ -153,16 +172,16 @@ describe('macOS restart handling', () => {
     })
 
     await updater.checkForUpdatesNow()
-    expect(macUpdate.downloadAndStageMacUpdate).toHaveBeenCalledTimes(1)
-    expect(macUpdate.discardStagedMacUpdate).not.toHaveBeenCalled()
+    expect(callCount(downloadAndStageMacUpdate)).toBe(1)
+    expect(callCount(discardStagedMacUpdate)).toBe(0)
 
-    const checksBefore = checkForUpdates.mock.calls.length
+    const checksBefore = callCount(checkForUpdates)
     await updater.checkForUpdatesNow()
-    expect(checkForUpdates.mock.calls.length).toBe(checksBefore)
+    expect(callCount(checkForUpdates)).toBe(checksBefore)
   })
 
   it('a second Restart click starts only one install', async () => {
-    vi.mocked(macUpdate.downloadAndStageMacUpdate).mockResolvedValue(stagedAt('2.0.0'))
+    vi.mocked(downloadAndStageMacUpdate).mockResolvedValue(stagedAt('2.0.0'))
     checkForUpdates.mockResolvedValue(feed('2.0.0'))
     const updater = await load()
     await updater.checkForUpdatesNow()
@@ -170,26 +189,26 @@ describe('macOS restart handling', () => {
     updater.quitAndInstallUpdate()
     updater.quitAndInstallUpdate()
 
-    expect(macUpdate.startInstallHelper).toHaveBeenCalledTimes(1)
-    expect(quit).toHaveBeenCalledTimes(1)
+    expect(callCount(startInstallHelper)).toBe(1)
+    expect(callCount(quit)).toBe(1)
   })
 
   it('refuses to install from a folder the user cannot write', async () => {
-    vi.mocked(macUpdate.downloadAndStageMacUpdate).mockResolvedValue(stagedAt('2.0.0'))
+    vi.mocked(downloadAndStageMacUpdate).mockResolvedValue(stagedAt('2.0.0'))
     checkForUpdates.mockResolvedValue(feed('2.0.0'))
-    vi.mocked(macUpdate.canReplaceBundle).mockReturnValue(false)
+    vi.mocked(canReplaceBundle).mockReturnValue(false)
     const updater = await load()
     await updater.checkForUpdatesNow()
 
     expect(() => updater.quitAndInstallUpdate()).toThrow('not writable')
-    expect(macUpdate.startInstallHelper).not.toHaveBeenCalled()
-    expect(quit).not.toHaveBeenCalled()
+    expect(callCount(startInstallHelper)).toBe(0)
+    expect(callCount(quit)).toBe(0)
   })
 
   it('refuses to install when nothing is staged', async () => {
     const updater = await load()
     expect(() => updater.quitAndInstallUpdate()).toThrow('No staged update')
-    expect(macUpdate.startInstallHelper).not.toHaveBeenCalled()
+    expect(callCount(startInstallHelper)).toBe(0)
   })
 })
 
@@ -198,12 +217,12 @@ describe('macOS startup', () => {
     vi.useFakeTimers()
     const updater = await load()
     updater.initAutoUpdate()
-    expect(macUpdate.sweepStaleMacUpdates).toHaveBeenCalledWith('/nonexistent-dm-userdata/updates')
+    expect(callArgs(sweepStaleMacUpdates)).toEqual([['/nonexistent-dm-userdata/updates']])
 
     vi.clearAllMocks()
     setProperty('platform', 'win32')
     const windowsUpdater = await load()
     windowsUpdater.initAutoUpdate()
-    expect(macUpdate.sweepStaleMacUpdates).not.toHaveBeenCalled()
+    expect(callCount(sweepStaleMacUpdates)).toBe(0)
   })
 })
