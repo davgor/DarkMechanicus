@@ -33,14 +33,14 @@ import { type FileHashCache, readUnlessSynced } from './fileHashes'
 import { readProject } from './initialize'
 import { releaseBackoff } from './finalizer'
 import { assertContained, displayPath, ownedPaths } from './paths'
-import { applyAttachmentFiles, insertOwnedRow, prepareAttachmentFiles, registerEvidenceAttachments, registerTicketAttachments } from './attachmentImport'
+import { applyAttachmentFiles, type AttachmentPlan, insertOwnedRow, prepareAttachmentFiles, registerEvidenceAttachments, registerTicketAttachments } from './attachmentImport'
 import { applyCard, type KanbanScan, kanbanConflictsStored, scanKanban, storeKanbanConflicts } from './kanbanImport'
-import { applyObservations, type ObservationScope, observationsSettled, scanObservations } from './observationImport'
-import { observeRepository } from './reconcilePreparation'
-import { type GuardedKind, type GuardedRecord, stampRecords, stampsHold } from './recordGuard'
+import { applyObservations, type ObservationScan, type ObservationScope, observationsSettled, scanObservations } from './observationImport'
+import { type ObservedRepository, observeRepository } from './reconcilePreparation'
+import { type GuardedRecord, guardedRecord, retryRecords, stampHolds, stampRecords } from './recordGuard'
 import type { ReconcileGate } from './reconcileFingerprint'
 import { reconcileScope, type ReconcileScope, unsettledPaths, writeReconcileMarker } from './reconcileScope'
-import { applyRecoveredAttachments, prepareRecoveredAttachments } from './recoveredAttachments'
+import { applyRecoveredAttachments, prepareRecoveredAttachments, type RecoveredPlan } from './recoveredAttachments'
 import { applyProfile, type ProfileScan, profileConflictsStored, scanProfiles, storeProfileConflicts } from './profileImport'
 import {
   buildRunHistoryRecord,
@@ -1532,17 +1532,6 @@ function applyComment(db: Db, file: CommentFiles, now: string): void {
   indexComment(db, record)
 }
 
-/** Applies one staged item under a savepoint; a constraint failure rejects only that item. */
-function applyItem(db: Db, path: string, apply: () => void, rejected: Rejection[]): boolean {
-  try {
-    db.tx(apply)
-    return true
-  } catch (error: unknown) {
-    rejected.push({ path, message: `Could not be applied: ${messageOf(error)}` })
-    return false
-  }
-}
-
 function insertEvent(deps: ImporterDeps, event: { kind: string; epicId?: string; runId?: string; payload: Record<string, unknown> }): void {
   deps.db.run(
     `INSERT INTO events (at, kind, epic_id, run_id, ticket_id, session_id, payload_json)
@@ -1601,65 +1590,119 @@ function storeConflicts(db: Db, conflicts: Conflict[], unchanged: string[], now:
   }
 }
 
-interface StagedOutcome {
+/** Checks, under the lock, that a record is still as prepare saw it; always true inside a caller's transaction. */
+type RecordCheck = (record: GuardedRecord) => boolean
+
+type RecordOutcome = 'applied' | 'failed' | 'stale'
+
+/** What the record transactions of one reconcile applied, across the prepares it took. */
+interface AppliedRecords {
   imported: string[]
+  rejected: Rejection[]
+  changedEpics: Set<string>
   savedEpics: string[]
   importedRuns: string[]
-  changedEpics: Set<string>
-  rejected: Rejection[]
+  importedCards: string[]
+  /** Records whose state moved since prepare: prepared again, or left for the next reconcile. */
+  stale: GuardedRecord[]
 }
 
-function applyStaged(deps: ImporterDeps, plan: Plan, now: string): StagedOutcome {
-  const rejected = [...plan.rejected]
-  const imported: string[] = []
-  const failedEpics = new Set<string>()
-  const changedEpics = new Set<string>()
-  const savedEpics: string[] = []
-  const importedRuns: string[] = []
+function appliedRecords(): AppliedRecords {
+  return { imported: [], rejected: [], changedEpics: new Set(), savedEpics: [], importedRuns: [], importedCards: [], stale: [] }
+}
+
+interface RecordApply {
+  deps: ImporterDeps
+  check: RecordCheck
+  applied: AppliedRecords
+  now: string
+}
+
+/**
+ * Applies one record in its own transaction (a savepoint inside a caller's). The transaction first checks that the
+ * record is as prepare saw it, else writes nothing and reports it stale; a failure rolls back only this record and
+ * rejects it, so the record is all-old or all-new.
+ */
+function applyRecord(apply: RecordApply, record: GuardedRecord, item: { path: string; write: () => void }): RecordOutcome {
+  try {
+    const outcome = apply.deps.db.tx((): RecordOutcome => {
+      if (!apply.check(record)) return 'stale'
+      item.write()
+      return 'applied'
+    })
+    if (outcome === 'stale') apply.applied.stale.push(record)
+    return outcome
+  } catch (error: unknown) {
+    apply.applied.rejected.push({ path: item.path, message: `Could not be applied: ${messageOf(error)}` })
+    return 'failed'
+  }
+}
+
+/** Applies each epic (snapshots, state, ticket statuses), then the runs and comments; those of a stale epic wait with it. */
+function applyStaged(apply: RecordApply, plan: Plan): void {
+  const { deps, applied, now } = apply
+  applied.rejected.push(...plan.rejected)
+  const epics = new Map<string, RecordOutcome>()
   for (const files of plan.epics) {
-    const applied = applyItem(deps.db, files.path, () => applyEpic(deps.db, files, now), rejected)
-    if (applied) {
-      imported.push(files.epicId)
-      savedEpics.push(files.epicId)
-      changedEpics.add(files.epicId)
-    } else {
-      failedEpics.add(files.epicId)
+    const write = (): void => {
+      applyEpic(deps.db, files, now)
+      if (getMeta(deps.db, META_KEYS.attachmentRegistration) === '1') registerTicketAttachments(deps.db, now, [files.epicId])
+    }
+    const outcome = applyRecord(apply, guardedRecord(deps.layout, 'epic', files.epicId), { path: files.path, write })
+    epics.set(files.epicId, outcome)
+    if (outcome === 'applied') {
+      applied.imported.push(files.epicId)
+      applied.savedEpics.push(files.epicId)
+      applied.changedEpics.add(files.epicId)
     }
   }
-  for (const run of plan.runs.filter((item) => !failedEpics.has(item.record.epicId))) {
-    if (applyItem(deps.db, run.path, () => applyRun(deps.db, run, { now, clock: deps.clock }), rejected)) {
-      imported.push(run.runId)
-      importedRuns.push(run.runId)
-      changedEpics.add(run.record.epicId)
+  applyRuns(apply, plan, epics)
+  applyComments(apply, plan, epics)
+}
+
+/** Whether a record of the epic applies now: not after its epic failed; deferred (stale) with a stale epic. */
+function epicAllows(apply: RecordApply, epic: RecordOutcome | undefined, record: GuardedRecord): boolean {
+  if (epic === 'stale') apply.applied.stale.push(record)
+  return epic === undefined || epic === 'applied'
+}
+
+function applyRuns(apply: RecordApply, plan: Plan, epics: Map<string, RecordOutcome>): void {
+  const { deps, applied, now } = apply
+  for (const run of plan.runs) {
+    const record = guardedRecord(deps.layout, 'run', run.runId)
+    if (!epicAllows(apply, epics.get(run.record.epicId), record)) continue
+    const write = (): void => {
+      applyRun(deps.db, run, { now, clock: deps.clock })
+      if (getMeta(deps.db, META_KEYS.attachmentRegistration) === '1') registerEvidenceAttachments(deps.db, now, { runs: [run.runId], cards: [] })
+    }
+    if (applyRecord(apply, record, { path: run.path, write }) === 'applied') {
+      applied.imported.push(run.runId)
+      applied.importedRuns.push(run.runId)
+      applied.changedEpics.add(run.record.epicId)
     }
   }
   for (const run of plan.eventMerges) {
-    if (applyItem(deps.db, run.path, () => insertExperimentEvents(deps.db, run.record, deps.clock), rejected)) {
-      imported.push(run.runId)
-      changedEpics.add(run.record.epicId)
+    const write = (): void => insertExperimentEvents(deps.db, run.record, deps.clock)
+    if (applyRecord(apply, guardedRecord(deps.layout, 'run', run.runId), { path: run.path, write }) === 'applied') {
+      applied.imported.push(run.runId)
+      applied.changedEpics.add(run.record.epicId)
     }
   }
-  applyComments(deps.db, plan, { now, failedEpics, imported, rejected, changedEpics })
-  return { imported, rejected, changedEpics, savedEpics, importedRuns }
 }
 
-interface CommentApply {
-  now: string
-  failedEpics: Set<string>
-  changedEpics: Set<string>
-  imported: string[]
-  rejected: Rejection[]
-}
-
-function applyComments(db: Db, plan: Plan, apply: CommentApply): void {
-  for (const file of plan.comments.filter((item) => !apply.failedEpics.has(item.epicId))) {
-    if (applyItem(db, file.path, () => applyComment(db, file, apply.now), apply.rejected)) {
-      apply.imported.push(file.commentId)
-      apply.changedEpics.add(file.epicId)
+function applyComments(apply: RecordApply, plan: Plan, epics: Map<string, RecordOutcome>): void {
+  const { deps, applied, now } = apply
+  for (const file of plan.comments) {
+    const record = guardedRecord(deps.layout, 'comment', file.commentId, { owner: file.epicId })
+    if (!epicAllows(apply, epics.get(file.epicId), record)) continue
+    if (applyRecord(apply, record, { path: file.path, write: () => applyComment(deps.db, file, now) }) === 'applied') {
+      applied.imported.push(file.commentId)
+      applied.changedEpics.add(file.epicId)
     }
   }
   for (const file of plan.syncedComments) {
-    markSynced(db, { kind: 'comment', entityId: file.commentId, hash: file.trackedHash, generation: null, now: apply.now })
+    const write = (): void => markSynced(deps.db, { kind: 'comment', entityId: file.commentId, hash: file.trackedHash, generation: null, now })
+    applyRecord(apply, guardedRecord(deps.layout, 'comment', file.commentId, { owner: file.epicId }), { path: file.path, write })
   }
 }
 
@@ -1755,16 +1798,15 @@ function recordReconciled(deps: ImporterDeps, result: ReconcileResultView,
   }
 }
 
-/** Registers the attachments the records imported now name (all of them, once per database). */
-function registerAttachments(deps: ImporterDeps, now: string, imported: { runs: string[]; cards: string[]; epics: string[] }): void {
-  if (getMeta(deps.db, META_KEYS.attachmentRegistration) !== '1') {
+/** Registers, once per database, the attachments every record names; later each record registers its own as it applies. */
+function registerAllAttachments(deps: ImporterDeps, now: string): boolean {
+  if (deps.db.tx(() => getMeta(deps.db, META_KEYS.attachmentRegistration), 'read') === '1') return false
+  deps.db.tx(() => {
     registerEvidenceAttachments(deps.db, now)
     registerTicketAttachments(deps.db, now)
     setMeta(deps.db, META_KEYS.attachmentRegistration, '1')
-  } else {
-    registerEvidenceAttachments(deps.db, now, { runs: imported.runs, cards: imported.cards })
-    registerTicketAttachments(deps.db, now, imported.epics)
-  }
+  })
+  return true
 }
 
 /** An archive only fills a row without bytes, so a targeted reconcile reads `recovered-attachments/` only when git reports it or such a row waits. */
@@ -1773,83 +1815,135 @@ function readsRecoveredAttachments(deps: ImporterDeps, targeted: TrackedRecords 
     deps.db.get('SELECT 1 FROM attachments WHERE data IS NULL OR missing = 1 LIMIT 1') !== undefined
 }
 
-/** Imports `recovered-attachments/` when `readsRecoveredAttachments`. */
-function recoverAttachments(deps: ImporterDeps, targeted: TrackedRecords | null): { rejected: { path: string; message: string }[]; changed: boolean } {
-  return readsRecoveredAttachments(deps, targeted) ? applyRecoveredAttachments(deps, prepareRecoveredAttachments(deps)) : { rejected: [], changed: false }
-}
-
 function observationScope(targeted: TrackedRecords | null): ObservationScope | undefined {
   return targeted === null ? undefined : { projectLevel: targeted.projectObservations, epics: targeted.epics }
 }
 
-function heldEpics(db: Db): string[] {
-  return db.all<{ id: string }>('SELECT id FROM epics ORDER BY id').map((row) => row.id)
+/** The observation files, recovered archives and attachment images to apply, read and verified without the writer lock. */
+interface SidePlans {
+  observations: ObservationScan
+  recovered: RecoveredPlan
+  attachments: AttachmentPlan
 }
 
-/** Applies staged profiles, each under its own transaction so one the database refuses is reported without undoing the others. */
-function applyProfiles(db: Db, profiles: ProfileScan, now: string): { imported: string[]; rejected: Rejection[] } {
-  const imported: string[] = []
-  const rejected = [...profiles.rejected]
-  for (const profile of profiles.staged) {
-    if (applyItem(db, profile.path, () => applyProfile(db, profile, now), rejected)) imported.push(`profile:${profile.name}`)
+/** Reads the side inputs; run in a read snapshot. Observation folders of the epics the plan imports are read too. */
+function sidePlans(deps: ImporterDeps, context: ApplyContext): SidePlans {
+  const targeted = context.scope.changes.kind === 'targeted' ? context.scope.changes : null
+  const epics = [...new Set([...deps.db.all<{ id: string }>('SELECT id FROM epics ORDER BY id').map((row) => row.id), ...context.plan.epics.map((files) => files.epicId)])]
+  return {
+    observations: scanObservations(deps, epics.sort(), observationScope(targeted)),
+    recovered: readsRecoveredAttachments(deps, targeted) ? prepareRecoveredAttachments(deps) : { pending: [], rejected: [] },
+    attachments: prepareAttachmentFiles(deps)
   }
-  storeProfileConflicts(db, profiles, now)
-  return { imported, rejected }
 }
 
-/** Applies staged cards, each under its own transaction; returns the `kanban:<cardId>` keys whose definition or events changed. */
-function applyKanban(db: Db, kanban: KanbanScan, now: string): { imported: string[]; rejected: Rejection[] } {
-  const imported: string[] = []
-  const rejected = [...kanban.rejected]
-  for (const card of kanban.cards) {
-    if (applyItem(db, card.path, () => applyCard(db, card, now), rejected) && (card.definition !== null || card.events.length > 0)) {
-      imported.push(`kanban:${card.cardId}`)
+/** Applies each staged profile in its own transaction, so one the database refuses is reported without undoing the others. */
+function applyProfiles(apply: RecordApply, profiles: ProfileScan): void {
+  const { deps, applied, now } = apply
+  applied.rejected.push(...profiles.rejected)
+  for (const profile of profiles.staged) {
+    const write = (): void => applyProfile(deps.db, profile, now)
+    if (applyRecord(apply, guardedRecord(deps.layout, 'profile', profile.name), { path: profile.path, write }) === 'applied') {
+      applied.imported.push(`profile:${profile.name}`)
     }
   }
-  storeKanbanConflicts(db, kanban.conflicts, now)
-  return { imported, rejected }
 }
 
-function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultView {
-  const { plan, profiles, kanban, branchChanged, scope } = context
-  const now = deps.clock.nowIso()
-  rememberProject(deps.db, context.project)
-  const staged = applyStaged(deps, plan, now)
-  const profileOutcome = applyProfiles(deps.db, profiles, now)
-  const kanbanOutcome = applyKanban(deps.db, kanban, now)
-  // After epics and runs, so an observation of a run imported now resolves.
-  const targeted = scope.changes.kind === 'targeted' ? scope.changes : null
-  const observationOutcome = applyObservations(deps, scanObservations(deps, heldEpics(deps.db), observationScope(targeted)), now)
-  registerAttachments(deps, now, { runs: staged.importedRuns, cards: kanbanOutcome.imported.map((key: string) => key.slice('kanban:'.length)), epics: staged.savedEpics })
-  const recovered = recoverAttachments(deps, targeted)
-  const attachmentOutcome = applyAttachmentFiles(deps, prepareAttachmentFiles(deps))
-  storeConflicts(deps.db, plan.conflicts, [...plan.unchanged, ...profiles.unchanged], now)
+/** Applies each staged card (definition, events, rebuild) in its own transaction; imports those whose definition or events changed. */
+function applyKanban(apply: RecordApply, kanban: KanbanScan): void {
+  const { deps, applied, now } = apply
+  applied.rejected.push(...kanban.rejected)
+  for (const card of kanban.cards) {
+    const record = guardedRecord(deps.layout, 'kanban_card', card.cardId, { related: [...card.events, ...card.syncedEvents].map((event) => event.eventId) })
+    if (applyRecord(apply, record, { path: card.path, write: () => applyCard(deps.db, card, now) }) === 'applied' &&
+      (card.definition !== null || card.events.length > 0)) {
+      applied.imported.push(`kanban:${card.cardId}`)
+      applied.importedCards.push(card.cardId)
+    }
+  }
+}
+
+/** Applies the records of one prepare, each in its own transaction: epics before runs (foreign keys), then profiles and cards. */
+function applyRecords(apply: RecordApply, context: ApplyContext): void {
+  applyStaged(apply, context.plan)
+  applyProfiles(apply, context.profiles)
+  applyKanban(apply, context.kanban)
+}
+
+interface SideOutcome {
+  imported: string[]
+  rejected: Rejection[]
+  attachmentsChanged: boolean
+}
+
+/**
+ * Observations, recovered archives and attachment images, after the records (an observation of a run imported now
+ * resolves). Each was read and verified outside the lock (`sides`); attachment rows the records registered now are read
+ * again. Each write is its own short transaction that rechecks its row.
+ */
+function applySideInputs(deps: ImporterDeps, context: ApplyContext, applied: AppliedRecords, sides: { plans: SidePlans; now: string }): SideOutcome {
+  const { plans, now } = sides
+  const registered = registerAllAttachments(deps, now) || applied.savedEpics.length + applied.importedRuns.length + applied.importedCards.length > 0
+  const observationOutcome = applyObservations(deps, plans.observations, now)
+  const recovered = applyRecoveredAttachments(deps, plans.recovered)
+  const attachments = registered ? deps.db.tx(() => sidePlans(deps, context).attachments, 'read') : plans.attachments
+  const attachmentOutcome = applyAttachmentFiles(deps, attachments)
+  return {
+    imported: observationOutcome.imported,
+    rejected: [...observationOutcome.rejected, ...attachmentOutcome.rejected, ...recovered.rejected],
+    attachmentsChanged: attachmentOutcome.changed || recovered.changed
+  }
+}
+
+function unique<T>(items: T[]): T[] {
+  const seen = new Set<string>()
+  return items.filter((item) => {
+    const key = JSON.stringify(item)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+interface Finish {
+  /** The first prepare, then each prepare of the records found stale. */
+  contexts: ApplyContext[]
+  applied: AppliedRecords
+  side: SideOutcome
+  now: string
+}
+
+/**
+ * In one short transaction: stores the conflicts, pauses runs on a branch change, records one `repository.reconciled`
+ * event listing every changed epic, and advances the checkout branch, `last_reconcile_at` and the marker.
+ */
+function finishReconcile(deps: ImporterDeps, finish: Finish): ReconcileResultView {
+  const { contexts, applied, side, now } = finish
+  const [first] = contexts as [ApplyContext, ...ApplyContext[]]
+  const { branchChanged, scope } = first
+  rememberProject(deps.db, first.project)
+  const conflicts = unique(contexts.flatMap((context) => context.plan.conflicts))
+  storeConflicts(deps.db, conflicts, unique(contexts.flatMap((context) => [...context.plan.unchanged, ...context.profiles.unchanged])), now)
+  for (const context of contexts) {
+    storeProfileConflicts(deps.db, context.profiles, now)
+    storeKanbanConflicts(deps.db, context.kanban.conflicts, now)
+  }
   const pausedRuns = branchChanged ? pauseActiveRuns(deps, now) : []
   const result: ReconcileResultView = {
-    imported: [...staged.imported, ...profileOutcome.imported, ...kanbanOutcome.imported, ...observationOutcome.imported],
-    unchanged: [...plan.unchanged, ...profiles.unchanged, ...kanban.unchanged],
-    conflicts: plan.conflicts.map((conflict) => ({ epicId: conflict.epicId, message: conflict.message })),
-    profileConflicts: profiles.conflicts,
-    kanbanConflicts: kanban.conflicts.map((conflict) => ({ cardId: conflict.cardId, message: conflict.message })),
-    rejected: [
-      ...staged.rejected,
-      ...profileOutcome.rejected,
-      ...kanbanOutcome.rejected,
-      ...observationOutcome.rejected,
-      ...attachmentOutcome.rejected,
-      ...recovered.rejected
-    ],
+    imported: [...applied.imported, ...side.imported],
+    unchanged: unique(contexts.flatMap((context) => [...context.plan.unchanged, ...context.profiles.unchanged, ...context.kanban.unchanged])),
+    conflicts: conflicts.map((conflict) => ({ epicId: conflict.epicId, message: conflict.message })),
+    profileConflicts: unique(contexts.flatMap((context) => context.profiles.conflicts)),
+    kanbanConflicts: unique(contexts.flatMap((context) => context.kanban.conflicts.map((conflict) => ({ cardId: conflict.cardId, message: conflict.message })))),
+    rejected: unique([...applied.rejected, ...side.rejected]),
     branchChanged,
     pausedRuns
   }
-  recordReconciled(deps, result, {
-    changedEpics: [...staged.changedEpics],
-    kanbanChanged: kanbanOutcome.imported.length > 0,
-    attachmentsChanged: attachmentOutcome.changed || recovered.changed
-  })
-  if (branchChanged || getMeta(deps.db, META_KEYS.checkoutBranch) === null) setMeta(deps.db, META_KEYS.checkoutBranch, context.current ?? '')
+  recordReconciled(deps, result, { changedEpics: [...applied.changedEpics], kanbanChanged: applied.importedCards.length > 0, attachmentsChanged: side.attachmentsChanged })
+  if (branchChanged || getMeta(deps.db, META_KEYS.checkoutBranch) === null) setMeta(deps.db, META_KEYS.checkoutBranch, first.current ?? '')
   setMeta(deps.db, META_KEYS.lastReconcileAt, now)
-  writeReconcileMarker(deps.db, scope, unsettledRecords(deps, context, result.rejected.map((rejection) => rejection.path)))
+  const rejectedPaths = result.rejected.map((rejection) => rejection.path)
+  writeReconcileMarker(deps.db, scope, unique(contexts.flatMap((context) => unsettledRecords(deps, context, rejectedPaths))))
   return result
 }
 
@@ -1918,11 +2012,11 @@ function recordsSettled(db: Db, context: ApplyContext): boolean {
     profileConflictsStored(db, profiles) && kanbanConflictsStored(db, kanban.conflicts)
 }
 
-function unchangedResult(deps: ImporterDeps, context: ApplyContext): ReconcileResultView | null {
+function unchangedResult(deps: ImporterDeps, context: ApplyContext, plans: SidePlans): ReconcileResultView | null {
   const { db } = deps
   const { plan, profiles, kanban, scope } = context
   if (context.branchChanged || !bookkeepingCurrent(db, scope) || !recordsSettled(db, context)) return null
-  const sideRejected = sideInputsSettled(deps, scope.changes.kind === 'targeted' ? scope.changes : null)
+  const sideRejected = sideInputsSettled(db, plans)
   if (sideRejected === null) return null
   const result: ReconcileResultView = {
     imported: [],
@@ -1942,18 +2036,16 @@ function unchangedResult(deps: ImporterDeps, context: ApplyContext): ReconcileRe
 
 /**
  * The rejections the observation, recovered-archive and attachment-image passes would report when none of them has
- * anything to apply, else null; in the order `applyPlan` reports them.
+ * anything to apply, else null; in the order a reconcile reports them.
  */
-function sideInputsSettled(deps: ImporterDeps, targeted: TrackedRecords | null): Rejection[] | null {
-  const observations = observationsSettled(deps.db, scanObservations(deps, heldEpics(deps.db), observationScope(targeted)))
-  if (observations === null) return null
-  const recovered = readsRecoveredAttachments(deps, targeted) ? prepareRecoveredAttachments(deps) : { pending: [], rejected: [] }
-  if (recovered.pending.length > 0) return null
-  const attachments = prepareAttachmentFiles(deps)
-  return attachments.updates.length > 0 ? null : [...observations, ...attachments.rejected, ...recovered.rejected]
+function sideInputsSettled(db: Db, plans: SidePlans): Rejection[] | null {
+  const observations = observationsSettled(db, plans.observations)
+  if (observations === null || plans.recovered.pending.length > 0 || plans.attachments.updates.length > 0) return null
+  return [...observations, ...plans.attachments.rejected, ...plans.recovered.rejected]
 }
 
-function prepare(deps: ImporterDeps, full: boolean): { context: ApplyContext; identity: string } {
+/** Prepares a reconcile; with `only`, reads just those records again (the ones a record transaction found moved). */
+function prepare(deps: ImporterDeps, full: boolean, only?: TrackedRecords): { context: ApplyContext; identity: string } {
   const head = deps.git.head()
   const current = head?.branch ?? null
   const branchChanged = branchState(deps.db, current).changed
@@ -1963,7 +2055,7 @@ function prepare(deps: ImporterDeps, full: boolean): { context: ApplyContext; id
   // File stamps and the persisted sync hash still validate each entry after an ordinary same-branch pull.
   deps.fileHashes.scope(deps.db, JSON.stringify([checkout, current, head?.detached ?? null]))
   // Asked before any file is read: a file changed after the status is reported by the next one.
-  const scope = reconcileScope(deps, full)
+  const scope: ReconcileScope = only === undefined ? reconcileScope(deps, full) : { changes: { kind: 'targeted', ...only }, head: null, statusPaths: null }
   const records = scope.changes.kind === 'targeted' ? scope.changes : null
   const scan = scanRepository(deps, records)
   const plan = planImport(deps.db, scan, { projectId: project.projectId, machineId: deps.machineId })
@@ -1976,21 +2068,15 @@ function checkoutKey(deps: ImporterDeps, project: ProjectRecord): [RepoLayout['m
   return [deps.layout.mode, deps.fs.realpath(deps.layout.root), project.projectId]
 }
 
-/** The records a prepared reconcile applies or stores a conflict for, whose stamps decide whether the plan still holds. */
-function guardedRecords(context: ApplyContext): GuardedRecord[] {
+/** The records a prepared reconcile applies, each checked against its own stamp under the lock. */
+function guardedRecords(layout: RepoLayout, context: ApplyContext): GuardedRecord[] {
   const { plan, profiles, kanban } = context
-  const inEpic = (kind: GuardedKind, id: string, epicId: string): GuardedRecord => ({ kind, id, folder: 'epics', folderId: epicId })
-  const run = (id: string): GuardedRecord => ({ kind: 'run', id, folder: 'runs', folderId: id })
   return [
-    ...plan.epics.map((files) => inEpic('epic', files.epicId, files.epicId)),
-    ...[...plan.runs, ...plan.eventMerges].map((files) => run(files.runId)),
-    ...[...plan.comments, ...plan.syncedComments].map((file) => inEpic('comment', file.commentId, file.epicId)),
-    ...plan.conflicts.map((conflict) => conflict.kind === 'run' ? run(conflict.entityId) : inEpic(conflict.kind, conflict.entityId, conflict.epicId)),
-    ...profiles.staged.map((profile): GuardedRecord => ({ kind: 'profile', id: profile.name, folder: 'profiles', folderId: profile.name })),
-    ...kanban.cards.map((card): GuardedRecord => ({
-      kind: 'kanban_card', id: card.cardId, related: [...card.events, ...card.syncedEvents].map((event) => event.eventId),
-      folder: 'kanbanCards', folderId: card.cardId
-    }))
+    ...plan.epics.map((files) => guardedRecord(layout, 'epic', files.epicId)),
+    ...[...plan.runs, ...plan.eventMerges].map((files) => guardedRecord(layout, 'run', files.runId)),
+    ...[...plan.comments, ...plan.syncedComments].map((file) => guardedRecord(layout, 'comment', file.commentId, { owner: file.epicId })),
+    ...profiles.staged.map((profile) => guardedRecord(layout, 'profile', profile.name)),
+    ...kanban.cards.map((card) => guardedRecord(layout, 'kanban_card', card.cardId, { related: [...card.events, ...card.syncedEvents].map((event) => event.eventId) }))
   ]
 }
 
@@ -1998,43 +2084,94 @@ interface Prepared {
   context: ApplyContext
   identity: string
   /** The filesystem reads prepare made, checked again under the lock. */
-  observed: { unchanged(): boolean }
-  records: GuardedRecord[]
-  stamps: string[]
+  observed: ObservedRepository
+  stamps: Map<string, string>
+  /** The side inputs, read with a whole prepare only (a re-prepare of moved records reads none). */
+  sides: SidePlans | null
 }
 
 /** Prepares outside the writer lock, in one read snapshot that also reads the stamps of the records it plans. */
-function prepareObserved(deps: ImporterDeps, full: boolean): Prepared {
+function prepareObserved(deps: ImporterDeps, full: boolean, only?: TrackedRecords): Prepared {
   const observed = observeRepository(deps.fs)
   return deps.db.tx(() => {
-    const { context, identity } = prepare({ ...deps, fs: observed.fs }, full)
-    const records = guardedRecords(context)
-    return { context, identity, observed, records, stamps: stampRecords(deps.db, records) }
+    const { context, identity } = prepare({ ...deps, fs: observed.fs }, full, only)
+    const sides = only === undefined ? sidePlans(deps, context) : null
+    return { context, identity, observed, stamps: stampRecords(deps.db, guardedRecords(deps.layout, context)), sides }
   }, 'read')
 }
 
-/** Under the lock: HEAD and the checkout, every file prepare read, and every planned record are as prepare saw them. */
-function stillPrepared(deps: ImporterDeps, prepared: Prepared): boolean {
-  return JSON.stringify([checkoutKey(deps, requireProject(deps)), deps.git.head()]) === prepared.identity &&
-    prepared.observed.unchanged() && stampsHold(deps.db, prepared.records, prepared.stamps)
+/**
+ * Applies the prepared records, each in its own transaction that first checks HEAD, the record's files and its stamp.
+ * Returns whether HEAD or the checkout moved: every record after that was left stale.
+ */
+function applyRound(deps: ImporterDeps, prepared: Prepared, applied: AppliedRecords, now: string): boolean {
+  let moved = false
+  const check = (record: GuardedRecord): boolean => {
+    moved ||= JSON.stringify([checkoutKey(deps, requireProject(deps)), deps.git.head()]) !== prepared.identity
+    return !moved && prepared.observed.unchangedUnder(record.path) && stampHolds(deps.db, record, prepared.stamps)
+  }
+  applyRecords({ deps, check, applied, now }, prepared.context)
+  return moved
 }
 
-/** How many times a reconcile whose inputs moved under it prepares again outside the lock before preparing under it. */
+/** How many times a reconcile prepares again, outside the lock, records that moved under it; what still moves waits for the next. */
 const OUTSIDE_PREPARES = 2
 
+interface Run {
+  full: boolean
+  gate: ReconcileGate | undefined
+  now: string
+  finish: (finished: Finish) => ReconcileResultView
+}
+
+function reconcileOutsideLock(deps: ImporterDeps, run: Run): ReconcileResultView {
+  const { full, gate, now } = run
+  let prepared = prepareObserved(deps, full)
+  let sides = prepared.sides!
+  // A reconcile that would write nothing (the fingerprint included) takes no write transaction at all; nor does one whose
+  // inputs another session reconciled while this one prepared.
+  const skipped = deps.db.tx(() => {
+    if (gate?.current() === true) return nothingToReconcile()
+    const result = unchangedResult(deps, prepared.context, sides)
+    return result === null || gate?.stale?.(result) === true ? null : result
+  }, 'read')
+  if (skipped !== null) return skipped
+  const applied = appliedRecords()
+  let contexts = [prepared.context]
+  for (let round = 0; ; round += 1) {
+    const moved = applyRound(deps, prepared, applied, now)
+    // Settled, or out of prepares: what still moved is left unsettled in the marker, for the next reconcile.
+    if ((!moved && applied.stale.length === 0) || round === OUTSIDE_PREPARES) break
+    const retry = moved ? undefined : retryRecords(applied.stale)
+    prepared = prepareObserved(deps, full, retry)
+    // HEAD moved: everything is prepared again (what was applied now reads as settled), and that prepare's marker counts.
+    contexts = moved ? [prepared.context] : [...contexts, prepared.context]
+    if (moved) {
+      applied.rejected = []
+      sides = prepared.sides!
+    }
+    applied.stale = []
+  }
+  return run.finish({ contexts, applied, side: applySideInputs(deps, contexts[0]!, applied, { plans: sides, now }), now })
+}
+
 /**
- * Most of a reconcile runs before taking SQLite's writer lock: prepare reads the files and plans in a read snapshot.
- * Under the lock the reconcile checks that HEAD, the files it read, and each planned record's own database state
- * (`recordGuard.ts`) are unchanged; a commit by another connection to anything else leaves the plan valid. When they
- * moved, it leaves the lock and prepares again, at most `OUTSIDE_PREPARES` times, then prepares under the lock.
+ * Most of a reconcile runs before taking SQLite's writer lock: prepare reads the files and plans in a read snapshot,
+ * and observations, recovered archives and attachment images are read and verified before their short writes. Each
+ * changed epic (snapshots, state, ticket statuses), run and Kanban card is then applied in its own transaction, epics
+ * before runs, which first checks that HEAD, the record's files and its own database state (`recordGuard.ts`) are as
+ * prepare saw them. A record another connection changed meanwhile is prepared again outside the lock, at most
+ * `OUTSIDE_PREPARES` times, then left for the next reconcile; nothing else is read again. A last short transaction
+ * stores conflicts, pauses runs on a branch change, records one `repository.reconciled` event listing every changed
+ * epic and advances the marker. Readers may see some records updated before others; each record is all-old or all-new.
  * A reconcile that would write nothing takes no write transaction (`unchangedResult`).
  * Database-only stores have no portable records to reconcile.
  *
  * With a `gate` (`reconcileFingerprint.ts`), inputs a session already reconciled cleanly are not
  * scanned at all: the gate is checked in a read snapshot before the scan, without the writer lock
  * (a full reconcile of those inputs would change nothing, so skipping it is what it would have
- * done at that snapshot), and again under the lock, for inputs another session reconciled while
- * this one waited. The result applied records the fingerprint the next session checks.
+ * done at that snapshot), and again after it, for inputs another session reconciled while
+ * this one prepared. The result applied records the fingerprint the next session checks.
  *
  * When the gate misses, git says which records changed since the last reconcile (`reconcileScope.ts`), and only those
  * (with every record in conflict or left unsettled) are read; anything git cannot vouch for reads everything. `full`
@@ -2043,29 +2180,24 @@ const OUTSIDE_PREPARES = 2
 export function reconcileRepository(deps: ImporterDeps, gate?: ReconcileGate, options: { full?: boolean } = {}): ReconcileResultView {
   if (deps.layout.mode === 'db') return nothingToReconcile()
   const full = options.full === true
-  const apply = (context: ApplyContext): ReconcileResultView => {
-    const result = applyPlan(deps, context)
+  const now = deps.clock.nowIso()
+  const finish = (finished: Finish): ReconcileResultView => deps.db.tx(() => {
+    const result = finishReconcile(deps, finished)
     // In the same transaction: exports this reconcile may have unblocked are retried by the next flush at once.
     releaseBackoff(deps.db, result)
     gate?.applied(result)
     return result
-  }
-  if (deps.db.inTransaction()) return deps.db.tx(() => gate?.current() === true ? nothingToReconcile() : apply(prepare(deps, full).context))
-  if (gate !== undefined && deps.db.tx(() => gate.current(), 'read')) return nothingToReconcile()
-
-  for (let round = 0; ; round += 1) {
-    const prepared = prepareObserved(deps, full)
-    // A reconcile that would write nothing (the fingerprint included) takes no write transaction at all.
-    const unchanged = deps.db.tx(() => {
-      const result = unchangedResult(deps, prepared.context)
-      return result === null || gate?.stale?.(result) === true ? null : result
-    }, 'read')
-    if (unchanged !== null) return unchanged
-    const outcome = deps.db.tx(() => {
+  })
+  if (deps.db.inTransaction()) {
+    // Nothing commits in between inside a caller's transaction: every record is applied as prepared.
+    return deps.db.tx(() => {
       if (gate?.current() === true) return nothingToReconcile()
-      if (stillPrepared(deps, prepared)) return apply(prepared.context)
-      return round < OUTSIDE_PREPARES ? null : apply(prepare(deps, full).context)
+      const { context } = prepare(deps, full)
+      const applied = appliedRecords()
+      applyRecords({ deps, check: () => true, applied, now }, context)
+      return finish({ contexts: [context], applied, side: applySideInputs(deps, context, applied, { plans: sidePlans(deps, context), now }), now })
     })
-    if (outcome !== null) return outcome
   }
+  if (gate !== undefined && deps.db.tx(() => gate.current(), 'read')) return nothingToReconcile()
+  return reconcileOutsideLock(deps, { full, gate, now, finish })
 }

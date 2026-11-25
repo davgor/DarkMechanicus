@@ -701,8 +701,9 @@ describe('transaction hold observer on a workspace', () => {
       holds.length = 0
       const reconciled = await workspace.reconcileRepository()
       expect(reconciled.imported).toContain(epic.id)
-      // The reconcile command applies the changed epic in one reconcile transaction, then flushes nothing pending.
-      expect(holds.map(({ tag }) => tag)).toEqual(['reconcile'])
+      // The reconcile command applies the changed epic in its own reconcile transaction, then finishes (conflicts, the
+      // reconciled event, the marker) in one more; it flushes nothing pending.
+      expect(holds.map(({ tag }) => tag)).toEqual(['reconcile', 'reconcile'])
 
       holds.length = 0
       await workspace.setEpicStatus({ epicId: epic.id, status: 'in_progress' })
