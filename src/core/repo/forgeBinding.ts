@@ -60,8 +60,13 @@ export function pendingForgeForce(home: string, source: string): boolean {
   return existsSync(file) && JSON.parse(readFileSync(file, 'utf8')).force === true
 }
 
+/** The file whose content is a source folder's Forge binding epoch. */
+export function forgeBindingFile(home: string, source: string): string {
+  return stateFile(home, source, 'link')
+}
+
 export function forgeBindingEpoch(fs: FsAdapter, home: string, source: string): string | null {
-  const file = stateFile(home, source, 'link')
+  const file = forgeBindingFile(home, source)
   return fs.exists(file) ? contentHash(fs.readFile(file)) : null
 }
 

@@ -1,6 +1,6 @@
-import { realpathSync, statSync } from 'node:fs'
+import { lstatSync, realpathSync, statSync } from 'node:fs'
 import { DomainError, toErrorShape } from '../../core/errors'
-import { forgeBindingEpoch, withForgeOwnerAuthority } from '../../core/repo/forgeBinding'
+import { forgeBindingEpoch, forgeBindingFile, withForgeOwnerAuthority } from '../../core/repo/forgeBinding'
 import { readProject } from '../../core/repo/initialize'
 import { resolveLayout } from '../../core/repo/layout'
 import { nodeFs } from '../../core/repo/nodeFs'
@@ -10,7 +10,48 @@ import { openWorkspace, type Workspace } from '../../core/workspace'
 import type { OwnerResult, Work, WorkspaceRequest, WorkspaceResponse } from './workspaceClient'
 import { runWorkspaceOperation } from './workspaceOperations'
 
-function identity(path: string, base: string): string {
+/**
+ * A file written this recently could be written again within the same modification-time tick (milliseconds on
+ * Linux, up to two seconds on FAT) with the same size, leaving its stamp unchanged, so its value is not reused yet
+ * (git's "racy" rule). Only a file left alone for longer is trusted by its stamp.
+ */
+const SETTLE_NS = 2_000_000_000n
+
+/** The file's stamp (size, modification and change times, device, inode); null when missing, irregular or racy. */
+function settledStamp(path: string): string | null {
+  let stats
+  try { stats = lstatSync(path, { bigint: true, throwIfNoEntry: false }) }
+  catch { return null } // A non-directory parent (ENOTDIR): no stamp, so the caller reads (and rejects) the path.
+  if (stats?.isFile() !== true || BigInt(Date.now()) * 1_000_000n - stats.mtimeNs < SETTLE_NS) return null
+  return `${stats.size}:${stats.mtimeNs}:${stats.ctimeNs}:${stats.dev}:${stats.ino}`
+}
+
+/**
+ * What `identity` read from a small file, kept with the file's settled stamp and reused while that stamp is
+ * unchanged, as `readUnlessSynced` reuses a tracked file's hash. The value is kept only when the stamp taken before
+ * the read still matches after it, so a write racing the read is read again next time; a missing, irregular or
+ * just-written file is read every time, as before.
+ */
+class StampedReads {
+  private readonly known = new Map<string, { stamp: string; value: unknown }>()
+
+  read<T>(path: string, read: () => T): T {
+    const stamp = settledStamp(path)
+    const known = this.known.get(path)
+    if (stamp !== null && known?.stamp === stamp) return known.value as T
+    const value = read()
+    if (stamp !== null && stamp === settledStamp(path)) this.known.set(path, { stamp, value })
+    else this.known.delete(path)
+    return value
+  }
+}
+
+/**
+ * The project's identity, checked on every request: a moved folder, a storage mode change, a database with extra
+ * hard links and a changed Forge binding are each detected every time. Only re-reading and re-parsing an unchanged
+ * `project.json` and binding file is skipped.
+ */
+function identity(path: string, base: string, reads: StampedReads): string {
   if (realpathSync.native(path) !== path) throw new DomainError('conflict', 'The tracked folder moved.')
   const root = statSync(path, { bigint: true })
   const mode = resolveStorageMode({ repoRoot: path, homeDir: base, fs: nodeFs })
@@ -18,9 +59,10 @@ function identity(path: string, base: string): string {
   if (nodeFs.exists(layout.dmDir) || nodeFs.isSymlink(layout.dmDir)) assertContained(layout, nodeFs, layout.dbFile)
   const db = statSync(layout.dbFile, { bigint: true, throwIfNoEntry: false })
   if (db && db.nlink !== 1n) throw new DomainError('conflict', 'The project database has unexpected hard links.')
-  const project = readProject(layout, nodeFs)
+  const projectId = reads.read(layout.projectFile, () => readProject(layout, nodeFs)?.projectId ?? null)
+  const binding = reads.read(forgeBindingFile(base, path), () => forgeBindingEpoch(nodeFs, base, path))
   return JSON.stringify([
-    String(root.dev), String(root.ino), mode, project?.projectId ?? null, forgeBindingEpoch(nodeFs, base, path),
+    String(root.dev), String(root.ino), mode, projectId, binding,
     db ? [String(db.dev), String(db.ino)] : null
   ])
 }
@@ -40,6 +82,8 @@ class WorkspaceOwner {
   private path: string | undefined
   private binding: string | undefined
   private closed = false
+  /** One owner serves one project for its life, so it keeps the stamps of that project's files. */
+  private readonly reads = new StampedReads()
 
   constructor(private readonly options: WorkerOptions) {}
 
@@ -72,7 +116,7 @@ class WorkspaceOwner {
       throw new DomainError('conflict', 'The Forge binding changed while opening the project.', { bindingChanged: true })
     }
     this.path = path
-    this.binding = identity(path, home)
+    this.binding = identity(path, home, this.reads)
     return this.workspace
   }
 
@@ -80,12 +124,12 @@ class WorkspaceOwner {
     const { home } = this.options
     const { path, work, expected } = request
     let before: string
-    try { before = identity(path, home) }
+    try { before = identity(path, home, this.reads) }
     catch (error) { return this.revokeMoved(request, error) }
     this.assertBinding(path, before, expected)
     const workspace = this.workspace ?? this.open(path, work)
     const value = await runWorkspaceOperation(workspace, work, home)
-    const after = identity(path, home)
+    const after = identity(path, home, this.reads)
     if (this.binding !== after && !storageCommand(work)) {
       throw new DomainError('conflict', 'The project storage changed while this operation ran. Refresh to confirm its result.', { bindingChanged: true, completion: 'stale' })
     }
