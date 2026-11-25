@@ -494,6 +494,8 @@ async function revamp(window: BrowserWindow): Promise<void> {
   try {
     for (const project of config.projects) {
       await trackCold(window, project)
+      // Click to paint reloads the renderer, which drops the liveness sink: reinstall it when it is gone.
+      await window.webContents.executeJavaScript(`typeof window.dmPerfRead === 'function' || ${renderSink}`)
       const cold = await livenessDuring(window, config.small, () => rendererCommand(window, project, 'getProject'))
       report('revamp-cold-open', { tickets: project.tickets, elapsedMs: cold.elapsedMs, mainLoop: cold.mainLoop })
       await revampProject(deps, project)
