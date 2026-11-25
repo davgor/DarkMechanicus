@@ -206,6 +206,14 @@ describe('loadWorkspace (5)', () => {
     expect(unreadable.inputs('getSprintReport').length).toBe(3)
   })
 
+  it('shows an empty overview, asking for no report, when neither the executed nor a current plan can be read', async () => {
+    const run = runView({ state: 'completed', revisionId: 'rv_4', revisionNumber: 4 })
+    const backend = new FakeBackend(scenario({ run }))
+    backend.handlers.getPlan = () => notFound()
+    expect(await loadOverview(backend.runner, 'ep_1', run, null)).toEqual({ bundle: null, reports: [] })
+    expect([backend.inputs('getPlan').length, backend.inputs('getSprintReport')]).toEqual([1, []])
+  })
+
   it('loads no overview for runs that did not complete', async () => {
     for (const state of ['canceled', 'failed', 'paused', 'awaiting_checkpoint'] as const) {
       const backend = new FakeBackend(scenario({ run: runView({ state }) }))

@@ -42,6 +42,22 @@ describe('recheckRecords', () => {
     setMeta(db, META_KEYS.lastReconcileAt, '2026-02-01T00:00:00.000Z')
     expect(recheckRecords(db)).toEqual({ epics: new Set(), runs: new Set(), kanbanCards: new Set(), profiles: new Set(), projectObservations: false })
   })
+
+  it('names an exported observation by its epic, or the project observations for one with none, and skips kinds no folder holds', () => {
+    const db = createTestDb()
+    setMeta(db, META_KEYS.lastReconcileAt, '2026-02-01T00:00:00.000Z')
+    const exported = (kind: string, epicId: string | null, entityId: string): void => {
+      db.run(
+        "INSERT INTO outbox (kind, epic_id, entity_id, state, attempts, created_at, done_at) VALUES (?, ?, ?, 'done', 0, '2026-02-01T00:00:00.000Z', '2026-02-01T00:00:00.000Z')",
+        kind, epicId, entityId
+      )
+    }
+    exported('metric_observation', EPIC, 'mo_1')
+    exported('attachment', null, 'at_1')
+    expect(recheckRecords(db)).toEqual({ epics: new Set([EPIC]), runs: new Set(), kanbanCards: new Set(), profiles: new Set(), projectObservations: false })
+    exported('metric_observation', null, 'mo_2')
+    expect(recheckRecords(db).projectObservations).toBe(true)
+  })
 })
 
 describe('the marker a reconcile writes', () => {

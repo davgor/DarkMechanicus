@@ -9,6 +9,7 @@ import { checkpointView, draftPlan, epicDetail, runView, savedPlan, validation }
 import { CommandError } from '../api/dm'
 import { buildGraphModel } from '../graph/graphModel'
 import { createWorkspaceActions } from './workspaceActions'
+import { planView, resultOf } from '../__mocks__/improvementFixtures'
 import {
   initialWorkspaceState,
   workspaceReducer,
@@ -308,6 +309,56 @@ describe('run actions', () => {
     await h.actions.adopt('rv_5')
     expect(h.backend.inputs('adoptRevision')).toEqual([{ runId: 'rn_2', revisionId: 'rv_5' }])
     expect(h.state().toast).toBe('Revision adopted. The run continues on the new plan.')
+  })
+})
+
+describe('budget, corrections and branch actions', () => {
+  it('sets a ticket budget against the shown draft revision, naming the loaded run only when there is one', async () => {
+    const budget = { tokens: 1000 } as never
+    const answer = { epicId: 'ep_1', draftRevision: 8, ticket: null }
+    const h = harness()
+    h.backend.handlers.setTicketBudget = () => answer
+    expect(await h.actions.setTicketBudget('tk_1', budget)).toEqual({ ok: true, value: answer })
+    const idle = harness({ run: null })
+    idle.backend.handlers.setTicketBudget = () => answer
+    await idle.actions.setTicketBudget('tk_1', null)
+    expect([h.backend.inputs('setTicketBudget'), idle.backend.inputs('setTicketBudget')]).toEqual([
+      [{ epicId: 'ep_1', ticketId: 'tk_1', budget, expectedDraftRevision: 7, runId: 'rn_2' }],
+      [{ epicId: 'ep_1', ticketId: 'tk_1', budget: null, expectedDraftRevision: 7 }]
+    ])
+  })
+
+  it('refuses a budget with no draft open, without asking the backend', async () => {
+    const h = harness({ draft: null })
+    expect(await h.actions.setTicketBudget('tk_1', null)).toEqual({ ok: false, failure: { code: null, message: 'Open the draft to set a budget.' } })
+    expect(h.backend.names()).toEqual([])
+  })
+
+  it('toasts corrective work added to a draft, already created, or nothing when the creation fails', async () => {
+    const input = { reportId: 'rp_1', experimentIds: ['ex_1'] } as never
+    const plan = planView(['ex_1'])
+    const added = harness()
+    added.backend.handlers.createCorrections = () => resultOf(plan)
+    expect((await added.actions.createCorrections(input)).ok).toBe(true)
+    expect(added.state().toast).toBe('Corrective work added to the draft of "Checkout revamp". Review and Save it; nothing was saved, adopted or started.')
+    const repeated = harness()
+    repeated.backend.handlers.createCorrections = () => resultOf(plan, { changed: false })
+    await repeated.actions.createCorrections(input)
+    expect(repeated.state().toast).toBe('That corrective work was already created: nothing was added.')
+    const failing = harness()
+    failing.backend.fail('createCorrections', 'conflict', 'The draft changed.')
+    expect(await failing.actions.createCorrections(input)).toEqual({ ok: false, failure: { code: 'conflict', message: 'The draft changed.' } })
+    expect(failing.state().toast).toBe(initialWorkspaceState().toast)
+  })
+
+  it('banners a branch the backend refuses and reports one it sets', async () => {
+    const h = harness()
+    h.backend.handlers.setEpicBranch = () => ({})
+    expect(await h.actions.setEpicBranch('feature/x')).toBe(true)
+    expect(h.backend.inputs('setEpicBranch')).toEqual([{ epicId: 'ep_1', branch: { repository: null, name: 'feature/x', startCommit: null }, expectedRevision: h.state().data?.epic.revision }])
+    h.backend.fail('setEpicBranch', 'conflict', 'The epic changed.')
+    expect(await h.actions.setEpicBranch('feature/y')).toBe(false)
+    expect(h.state().banner).toBe('The epic changed.')
   })
 })
 
