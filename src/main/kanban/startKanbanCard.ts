@@ -27,7 +27,9 @@ import type { ChatRecord } from '../../shared/agents/chat'
 import type { KickBackKanbanCardRequest, KickBackKanbanCardResult, StartKanbanCardRequest, StartKanbanCardResult } from '../../shared/agents/chatApi'
 import type { KickBackKanbanCardInput } from '../../shared/domain/api'
 import type { KanbanCardView } from '../../shared/domain/kanban'
+import type { AgentChatSessions } from '../agentChat/agentChatSessions'
 import type { ChatRecords } from '../agents/chatRecords'
+import { startChatOnSurface } from '../agents/chatSurfaceStart'
 import { maskClaimTokens } from '../agents/claimTokenMask'
 import { kanbanKickoff, kanbanTitle } from '../agents/kanbanKickoff'
 import type { TerminalSessions, TerminalStart } from '../terminals/terminalSessions'
@@ -44,6 +46,8 @@ interface KanbanStartDeps {
   cards: KanbanCards
   chats: Pick<ChatRecords, 'createChat' | 'deleteChat' | 'agentName' | 'listChats'>
   terminals: Pick<TerminalSessions, 'start' | 'paste'>
+  /** The one GUI session manager: a card chat on the `gui` surface starts there with the kickoff as its first turn, and takes a kick-back as a user turn. */
+  agentChats: Pick<AgentChatSessions, 'start' | 'send'>
   /** Told about failures that are not DomainErrors and about a chat that could not be removed, so main can log them. */
   onError?: (error: unknown) => void
 }
@@ -113,7 +117,7 @@ export async function startKanbanCard(deps: KanbanStartDeps, request: StartKanba
     return { card, chat: null, problem: `${card.key} is played, but its chat could not be created: ${reasonOf(error)}. ${PLAY_AGAIN}` }
   }
 
-  const failure = await terminalStep(deps, () => deps.terminals.start(chat, { kickoff }))
+  const failure = await startChatOnSurface(deps, chat, kickoff)
   if (failure !== null) {
     const removed = await removeChat(deps, chat)
     return { card, chat: removed ? null : chat, problem: `${card.key} is played, but ${agentName} could not be started: ${reasonOf(failure)}. ${PLAY_AGAIN}` }
@@ -143,7 +147,13 @@ export async function kickBackKanbanCard(deps: KanbanStartDeps, request: KickBac
     return { card, chatId: null, problem: null }
   }
   const message = kickBackMessage(card, comment)
-  const failure = await terminalStep(deps, () => deps.terminals.paste(chat, message))
+  // A GUI card chat takes the kick-back as the person's user turn (starting it when stopped); a terminal chat gets the paste.
+  const failure = chat.surface === 'gui'
+    ? await deps.agentChats.send(chat, { text: message }).then(() => null, (error: unknown) => {
+      logUnexpected(deps, error)
+      return error instanceof Error ? error.message : String(error)
+    })
+    : await terminalStep(deps, () => deps.terminals.paste(chat, message))
   if (failure !== null) {
     const problem = `${card.key} is back In progress with a pending play, but the comment could not reach its chat: ${reasonOf(failure)}. Open the chat and ask its agent to claim the card again once it can answer, or press Play to start a new chat.`
     return { card, chatId: chat.id, problem }

@@ -8,9 +8,12 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AGENT_CHAT_CHANNELS } from '../../shared/agents/agentChat'
-import type { ChatPushEvent } from '../../shared/agents/chatApi'
+import type { ChatPushEvent, StartOrchestratorResult } from '../../shared/agents/chatApi'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { CommandResult } from '../../shared/desktop/api'
+import type { EpicDetailView, RunView } from '../../shared/domain/views'
+import { createChatHandlers } from '../agents/chatHandlers'
+import { createChatRecords } from '../agents/chatRecords'
 import type { ChatRef } from '../agents/chatStore'
 import { guardIpc } from '../ipcGuard'
 import { disposeBeforeQuit } from '../quitDisposal'
@@ -104,6 +107,38 @@ describe('agent chat wiring: quit', () => {
     pty.exit()
     await disposed
     expect(state.terminals.revoked).toEqual(['gr_1'])
+  })
+})
+
+describe('agent chat wiring: the chat handlers share the one GUI manager', () => {
+  const EPIC = { id: 'ep_01m418epbg8qkqa2e2krvdkqk5', title: 'Agent chats', branch: null } as EpicDetailView
+  const RUN = { id: 'rn_2', number: 2, epicId: EPIC.id, state: 'queued' } as RunView
+
+  it('starts a GUI orchestrator through wiring.agentChats, which quit holds and disposes, and reads it live', async () => {
+    const state = open(), agent = state.gui.deps.agentFor('claude')!
+    const refuse = (): Promise<never> => Promise.reject(new Error('Not used here.'))
+    const handlers = createChatHandlers({
+      registry: { resolve: path => path === state.gui.repo ? path : null, list: () => [] },
+      agents: { get: id => id === agent.id ? agent : null },
+      chats: createChatRecords({ store: state.gui.store, agentFor: id => id === agent.id ? agent : null }),
+      terminals: state.terminals.sessions,
+      agentChats: state.wiring.agentChats,
+      plannerAgents: { list: () => [agent], checkAuth: refuse },
+      runs: { getEpic: async () => EPIC, queueRun: async () => RUN },
+      transfers: { getEpic: refuse, getTransfer: refuse },
+      kanban: { play: refuse, kickBack: refuse, branch: refuse }
+    })
+
+    const started = await handlers.startOrchestrator({ folder: state.gui.repo, epicId: EPIC.id, agent: agent.id }) as CommandResult<StartOrchestratorResult>
+
+    if (!started.ok || started.data.chat === null) throw new Error(`not started: ${JSON.stringify(started)}`)
+    const chat = started.data.chat
+    expect([started.data.problem, chat.surface, state.gui.store.getChat(chat)?.epicId]).toEqual([null, 'gui', EPIC.id])
+    expect([state.wiring.agentChats.isLive(chat), state.wiring.busy(), state.gui.children.length, state.terminals.host.spawns.length]).toEqual([true, true, 1, 0])
+    expect(await handlers.read({ folder: chat.folder, chatId: chat.id })).toMatchObject({ ok: true, data: { chat: { id: chat.id } } })
+    const pid = state.gui.children[0].pid!
+    await state.wiring.dispose()
+    expect([state.wiring.agentChats.isLive(chat), alive(pid)]).toEqual([false, false])
   })
 })
 

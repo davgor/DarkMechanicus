@@ -89,6 +89,19 @@ export interface StartTransferChatResult {
   problem: string | null
 }
 
+/** Starts a planner chat bound to an epic; the agent (`pickChatAgent`), role, Allow save, title and kickoff are decided in main. */
+export interface StartPlannerRequest {
+  folder: string
+  epicId: string
+}
+
+/** What starting a planner left behind; the chat exists only when its agent was started. */
+export interface StartPlannerResult {
+  chat: ChatRecord | null
+  /** Why `chat` is null (or what went wrong with a chat that was kept). Null when it started. */
+  problem: string | null
+}
+
 /** Plays a Kanban card and starts a connected agent as its orchestrator; the role, Allow save, the chat title and the kickoff are decided in main. */
 export interface StartKanbanCardRequest {
   folder: string
@@ -304,6 +317,12 @@ export interface ChatsApi {
    * authorized the transfer (queued) or it is in progress. A failure once the chat is asked for is reported in the result.
    */
   startTransferChat(request: StartTransferChatRequest): Promise<CommandResult<StartTransferChatResult>>
+  /**
+   * Creates a planner chat bound to the epic with Allow save on, with the signed-in agent `pickChatAgent` picks, and
+   * starts it on its surface with a kickoff naming the epic. Refused, with nothing created, for an unknown epic or
+   * when no agent is signed in (`no_agent`).
+   */
+  startPlanner(request: StartPlannerRequest): Promise<CommandResult<StartPlannerResult>>
   /**
    * Plays the Kanban card, creates an orchestrator chat for it with Allow save off, records the card's id on
    * the chat and starts its terminal with the card kickoff. A card that cannot be played is an error and nothing

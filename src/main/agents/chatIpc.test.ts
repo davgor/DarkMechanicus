@@ -13,6 +13,7 @@ import {
   type KickBackKanbanCardResult,
   type StartKanbanCardResult,
   type StartOrchestratorResult,
+  type StartPlannerResult,
   type StartTransferChatResult
 } from '../../shared/agents/chatApi'
 import type { CommandResult } from '../../shared/desktop/api'
@@ -20,7 +21,8 @@ import type { KanbanCardView } from '../../shared/domain/kanban'
 import type { TransferView } from '../../shared/domain/transfer'
 import type { EpicDetailView, RunView } from '../../shared/domain/views'
 import { transferKickoff } from '../../mcp/transferKickoff'
-import { AT, connectedAgents, memoryChatFs, memoryChatStore, REPO, storeItems, type MemoryChatFs } from './__mocks__/chatFixtures'
+import { AT, builtInAgent, connectedAgents, memoryChatFs, memoryChatStore, REPO, storeItems, type MemoryChatFs } from './__mocks__/chatFixtures'
+import { onTerminalSurface, recordingAgentChats, type RecordingAgentChats } from './__mocks__/agentChatDoubles'
 import { ATTEMPT_A, ATTEMPT_B, RUN_ID, THREAD_A } from './__mocks__/orchestratorChat'
 import { createActivityBindings, type ActivityBinding } from './activityBindings'
 import { createChatHandlers } from './chatHandlers'
@@ -57,6 +59,7 @@ const CHAT_CHANNELS = [
   'chats:sendConversationMessage',
   'chats:startKanbanCard',
   'chats:startOrchestrator',
+  'chats:startPlanner',
   'chats:startTransferChat',
   'chats:transferPrompt'
 ]
@@ -116,6 +119,8 @@ interface IpcRig {
   terminalPastes: { chatId: string; text: string }[]
   /** What the Kanban side was asked for, as "<call> <card id>". */
   kanbanCalls: string[]
+  /** The GUI session manager the handlers were given. */
+  agentChats: RecordingAgentChats
   channels(): string[]
 }
 
@@ -132,8 +137,11 @@ function queueingRuns(queued: string[]): OrchestratorRuns {
   return { getEpic: () => Promise.resolve(EPIC), queueRun: (_folder, epicId) => (queued.push(epicId), Promise.resolve(RUN)) }
 }
 
-/** The real handlers and chat records behind fake IPC, with an in-memory store and the bindings old chats stored in `fs`. */
-function ipcRig(options: { bindings?: boolean; windows?: readonly ChatWindow[]; boundTerminal?: (store: ChatStore) => BoundTerminalLookup } = {}): IpcRig {
+/**
+ * The real handlers and chat records behind fake IPC, with an in-memory store and the bindings old chats stored in `fs`.
+ * New chats are terminal chats, as these tests start terminals, unless `gui` keeps the surface the records give the agent.
+ */
+function ipcRig(options: { bindings?: boolean; windows?: readonly ChatWindow[]; boundTerminal?: (store: ChatStore) => BoundTerminalLookup; gui?: boolean } = {}): IpcRig {
   const ipc = createFakeIpcMain()
   const fs = memoryChatFs()
   const store = memoryChatStore(fs)
@@ -142,14 +150,18 @@ function ipcRig(options: { bindings?: boolean; windows?: readonly ChatWindow[]; 
   const terminalStarts: IpcRig['terminalStarts'] = []
   const terminalPastes: IpcRig['terminalPastes'] = []
   const kanbanCalls: string[] = []
+  const agentChats = recordingAgentChats()
+  const records = createChatRecords({ store, agentFor: connectedAgents(), ...(activity === undefined ? {} : { activity }) })
   const boundThreads = activity === undefined ? undefined : (folder: string, target: Parameters<typeof listBoundThreads>[2]) => listBoundThreads(activity, folder, target)
   registerChatIpc(
     ipc,
     createChatHandlers({
       registry: { resolve: (path) => (path === REPO ? REPO : null), list: () => [] },
       agents: { get: connectedAgents() },
-      chats: createChatRecords({ store, agentFor: connectedAgents(), ...(activity === undefined ? {} : { activity }) }),
+      chats: options.gui === true ? records : onTerminalSurface(records, store),
       terminals: recordingTerminals(terminalStarts, terminalPastes),
+      agentChats,
+      plannerAgents: { list: () => [builtInAgent('claude')], checkAuth: async () => ({ state: 'signed_in', reason: 'Signed in.' }) },
       runs: queueingRuns(queued),
       transfers: TRANSFERS,
       kanban: recordingKanban(kanbanCalls),
@@ -166,6 +178,7 @@ function ipcRig(options: { bindings?: boolean; windows?: readonly ChatWindow[]; 
     terminalStarts,
     terminalPastes,
     kanbanCalls,
+    agentChats,
     channels: ipc.channels
   }
 }
@@ -430,6 +443,8 @@ describe('chat IPC behind the sender guard', () => {
       agents: { get: reached },
       chats: {} as ChatRecords,
       terminals: {} as TerminalSessions,
+      agentChats: { start: reached, send: reached, isLive: reached },
+      plannerAgents: { list: reached, checkAuth: reached },
       runs: {} as OrchestratorRuns,
       transfers: {} as TransferReads,
       kanban: {} as KanbanCards
@@ -441,6 +456,19 @@ describe('chat IPC behind the sender guard', () => {
 
     expect([...listeners.keys()].sort()).toEqual(CHAT_CHANNELS)
     expect(answers.map((answer) => (answer as CommandResult<unknown>).ok === false && (answer as { error: { code: string } }).error.code)).toEqual(Array(CHAT_CHANNELS.length).fill('unauthorized'))
+  })
+})
+
+describe('chat IPC: start planner', () => {
+  it('creates a planner chat bound to the epic through chats:startPlanner and starts it on its GUI surface', async () => {
+    const state = ipcRig({ gui: true })
+
+    const started = data(await state.invoke<CommandResult<StartPlannerResult>>('chats:startPlanner', { folder: REPO, epicId: EPIC_ID }))
+
+    expect(started.problem).toBeNull()
+    expect(state.store.listChats(REPO)).toEqual([expect.objectContaining({ id: started.chat?.id, role: 'planner', allowSave: true, epicId: EPIC_ID, agent: 'claude', surface: 'gui' })])
+    expect(state.agentChats.calls).toEqual([['start', started.chat, { firstMessage: expect.stringContaining(EPIC_ID) }]])
+    expect(state.terminalStarts).toEqual([])
   })
 })
 

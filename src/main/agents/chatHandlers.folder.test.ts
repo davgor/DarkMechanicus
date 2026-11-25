@@ -15,7 +15,7 @@ import type { EpicDetailView, RunView } from '../../shared/domain/views'
 import type { CommandResult } from '../../shared/desktop/api'
 import { createFolderRegistry, type FolderRegistry } from '../desktop/folderRegistry'
 import type { KanbanCards } from '../kanban/startKanbanCard'
-import { connectedAgents } from './__mocks__/chatFixtures'
+import { builtInAgent, connectedAgents } from './__mocks__/chatFixtures'
 import { createChatHandlers, type ChatHandlers } from './chatHandlers'
 import { createChatRecords } from './chatRecords'
 import { createChatStore, type ChatStore } from './chatStore'
@@ -67,7 +67,9 @@ function rig(): { handlers: ChatHandlers; registry: FolderRegistry; store: ChatS
   // A card that plays and kicks back: only the folder refusal stops a Kanban request.
   const card = { id: CARD_ID, key: 'DM-42', title: 'Fix it', lane: 'in_progress' } as KanbanCardView
   const kanban: KanbanCards = { play: () => Promise.resolve(card), kickBack: () => Promise.resolve(card), branch: () => Promise.resolve('main') }
-  return { handlers: createChatHandlers({ registry, agents: { get: connectedAgents() }, chats, terminals, runs, transfers, kanban }), registry, store }
+  const agentChats = { start: () => Promise.reject(new Error('No GUI chat starts in these tests.')), send: () => Promise.reject(new Error('No GUI chat is sent to in these tests.')), isLive: () => false }
+  const plannerAgents = { list: () => [builtInAgent('claude')], checkAuth: async () => ({ state: 'signed_in' as const, reason: 'Signed in.' }) }
+  return { handlers: createChatHandlers({ registry, agents: { get: connectedAgents() }, chats, terminals, agentChats, plannerAgents, runs, transfers, kanban }), registry, store }
 }
 
 /** Every file under the chats root, by relative path, with its bytes. */

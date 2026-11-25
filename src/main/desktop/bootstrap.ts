@@ -39,6 +39,7 @@ import { createActivityBindings, type ActivityBindings } from '../agents/activit
 import { createChatGrants, type ChatGrants } from '../agents/chatGrants'
 import { createYoloDesktopRuntime } from '../../core/services/yoloFence'
 import { createChatHandlers } from '../agents/chatHandlers'
+import type { PlannerAgents } from '../agents/plannerStart'
 import { createConversationDeliveries, type ConversationDeliveries } from '../agents/conversationDeliveries'
 import { createAgentContextDelivery, resumeContextChat, type AgentContextDelivery, type BoardContextTransport } from '../agents/agentContextDelivery'
 import { boardContextText } from '../../../resources/skitarii/extension/contextDelivery'
@@ -670,10 +671,12 @@ function conversationReads(workspaces: Pick<WorkspacePool, 'get' | 'background'>
 /** What the `chats:*` channels run over: the tracked folders, the connected agents, the chats and their terminals, the workspaces and the bindings old chats stored. */
 interface ChatServices {
   folders: Pick<FolderRegistry, 'resolve' | 'list'>
-  agents: Pick<AgentRegistry, 'get'>
+  agents: Pick<AgentRegistry, 'get' | 'list'>
   chats: ChatRecords
   store: ChatStore
   terminals: TerminalSessions
+  /** The one GUI session manager `createChatProcesses` wired; never a second one. */
+  agentChats: AgentChatSessions
   workspaces: Pick<WorkspacePool, 'get' | 'background'>
   activity: ActivityBindings
   mail: AgentMailDesktop
@@ -683,15 +686,27 @@ interface ChatServices {
   resumeChat: (chat: ChatRecord) => Promise<string | null>
 }
 
+/** The connected agents with their sign-in state, for Start planner; a custom CLI has no sign-in check, so pickChatAgent treats it as not signed in. */
+function plannerAgents(agents: Pick<AgentRegistry, 'list'>): PlannerAgents {
+  return {
+    list: () => agents.list(),
+    checkAuth: async (agent) => agent.kind === 'custom'
+      ? { state: 'unchecked', reason: 'A custom CLI has no sign-in check.' }
+      : getAgentAuthStatus(agent.kind, agent.executablePath, agentRunDeps())
+  }
+}
+
 /** Serves the `chats:*` and `chatMail:*` channels over the chat records; Start run starts the orchestrator chat's terminal. */
 function startChats(ipc: Pick<IpcMain, 'handle'>, services: ChatServices): void {
-  const { folders, agents, chats, store, terminals, workspaces, activity, folderDefaults, deliveries, contextDelivery, resumeChat } = services
+  const { folders, agents, chats, store, terminals, agentChats, workspaces, activity, folderDefaults, deliveries, contextDelivery, resumeChat } = services
   const reads = conversationReads(workspaces)
   const handlers = createChatHandlers({
     registry: folders,
     agents,
     chats,
     terminals,
+    agentChats,
+    plannerAgents: plannerAgents(agents),
     // Every window hears of a chat created, renamed or deleted, so none keeps a stale list.
     push: createChatPush(() => BrowserWindow.getAllWindows()),
     boundThreads: (folder, target) => listBoundThreads(activity, folder, target),
@@ -1141,7 +1156,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   startAttachmentProtocol(registry, pool)
   refreshClaudeCodeEntries(registry)
   const close = telegramLifecycle(ipc, registry, pool, appDb)
-  startChats(ipc, { folders: registry, agents, chats, store, terminals, workspaces: pool, activity, mail, folderDefaults, deliveries, contextDelivery, resumeChat })
+  startChats(ipc, { folders: registry, agents, chats, store, terminals, agentChats, workspaces: pool, activity, mail, folderDefaults, deliveries, contextDelivery, resumeChat })
   startTerminals(ipc, { folders: registry, agents, store, terminals, logins })
   startAgentChats(ipc, registry, agentChats)
   return { ...stoppingMailFirst(mail, quit, async () => { await forge.stop(); await close() }), github }

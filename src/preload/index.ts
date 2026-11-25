@@ -60,6 +60,7 @@ const chats: ChatsApi = {
   create: (request) => ipcRenderer.invoke('chats:create', request),
   startOrchestrator: (request) => ipcRenderer.invoke('chats:startOrchestrator', request),
   startTransferChat: (request) => ipcRenderer.invoke('chats:startTransferChat', request),
+  startPlanner: (request) => ipcRenderer.invoke('chats:startPlanner', request),
   startKanbanCard: (request) => ipcRenderer.invoke('chats:startKanbanCard', request),
   kickBackKanbanCard: (request) => ipcRenderer.invoke('chats:kickBackKanbanCard', request),
   sendConversationMessage: (request) => ipcRenderer.invoke('chats:sendConversationMessage', request),

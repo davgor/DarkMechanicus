@@ -42,6 +42,8 @@ import type {
   StartKanbanCardResult,
   StartOrchestratorRequest,
   StartOrchestratorResult,
+  StartPlannerRequest,
+  StartPlannerResult,
   StartTransferChatRequest,
   StartTransferChatResult,
   TransferChatRequest
@@ -62,6 +64,7 @@ type Method =
   | 'create'
   | 'startOrchestrator'
   | 'startTransferChat'
+  | 'startPlanner'
   | 'startKanbanCard'
   | 'kickBackKanbanCard'
   | 'sendConversationMessage'
@@ -129,6 +132,8 @@ export class FakeChats implements ChatsApi {
   transfer: FakeTransfer | null = null
   /** When set, `startTransferChat` starts no chat and answers with this problem. */
   transferProblem: string | null = null
+  /** The agent main's `pickChatAgent` picks for `startPlanner`; null answers `no_agent`, as with nobody signed in. */
+  plannerAgent: string | null = 'omp'
   /** How `startKanbanCard` and `kickBackKanbanCard` move the card; without it both are refused as unavailable. */
   kanban: FakeKanban | null = null
   /** When set, `startKanbanCard` marks the play but starts no chat and answers with this problem. */
@@ -253,6 +258,31 @@ export class FakeChats implements ChatsApi {
         allowSave: false,
         title: `Linear transfer · ${transfer.epicTitle}`,
         transferEpicId: request.epicId,
+        createdAt: this.tick(),
+        updatedAt: this.tick()
+      })
+      this.chats.push(chat)
+      this.changed(chat)
+      return { ok: true, data: { chat, problem: null } }
+    })
+  }
+
+  /** A planner chat bound to the epic, as main makes it: the agent main picked (seeded `plannerAgent`), Allow save on. */
+  startPlanner(request: StartPlannerRequest): Promise<CommandResult<StartPlannerResult>> {
+    return this.call<StartPlannerResult>('startPlanner', [request], () => {
+      if (this.plannerAgent === null) {
+        return { ok: false, error: { code: 'no_agent', message: 'No connected agent is signed in. Sign in to one in Agents, then start the planner again.' } }
+      }
+      this.created += 1
+      const chat = chatRecord({
+        id: `chat_new_${this.created}`,
+        folder: request.folder,
+        agent: this.plannerAgent,
+        role: 'planner',
+        allowSave: true,
+        title: 'Planner',
+        epicId: request.epicId,
+        surface: 'gui',
         createdAt: this.tick(),
         updatedAt: this.tick()
       })

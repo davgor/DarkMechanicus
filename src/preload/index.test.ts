@@ -185,6 +185,17 @@ describe('preload bridge', () => {
 
     expect(bridge.calls).toEqual([['chats:sendConversationMessage', send], ['chats:conversationState', state]])
   })
+
+  it('exposes Start planner through its guarded chat channel, forwarding only the request', async () => {
+    const dm = bridge.exposed.get('dm') as { chats: Record<string, Listener> }
+    const request = { folder: '/repo', epicId: 'ep_1' }
+
+    bridge.calls.length = 0
+    await dm.chats.startPlanner(request)
+
+    expect(bridge.calls).toEqual([['chats:startPlanner', request]])
+    expect(registered.has('chats:startPlanner')).toBe(true)
+  })
 })
 
 describe('preload bridge subscriptions', () => {

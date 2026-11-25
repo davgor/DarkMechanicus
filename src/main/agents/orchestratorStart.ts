@@ -22,7 +22,9 @@ import { DomainError } from '../../core/errors'
 import type { ChatRecord } from '../../shared/agents/chat'
 import type { StartOrchestratorRequest, StartOrchestratorResult } from '../../shared/agents/chatApi'
 import type { EpicDetailView, RunView } from '../../shared/domain/views'
+import type { AgentChatSessions } from '../agentChat/agentChatSessions'
 import type { TerminalSessions } from '../terminals/terminalSessions'
+import { startChatOnSurface } from './chatSurfaceStart'
 import type { ChatRecords } from './chatRecords'
 import { orchestratorKickoff, orchestratorTitle } from './orchestratorKickoff'
 
@@ -37,6 +39,8 @@ interface OrchestratorStartDeps {
   runs: OrchestratorRuns
   chats: Pick<ChatRecords, 'createChat' | 'deleteChat' | 'agentName'>
   terminals: Pick<TerminalSessions, 'start'>
+  /** The one GUI session manager: a chat on the `gui` surface starts there, with the kickoff as its first turn. */
+  agentChats: Pick<AgentChatSessions, 'start'>
   /** Told about failures that are not DomainErrors and about a chat that could not be removed, so main can log them. */
   onError?: (error: unknown) => void
 }
@@ -66,17 +70,6 @@ async function removeChat(deps: OrchestratorStartDeps, chat: ChatRecord): Promis
   }
 }
 
-/** Starts the chat's terminal with the kickoff; resolves with why it did not start, or null once it runs. */
-async function startTerminal(deps: OrchestratorStartDeps, chat: ChatRecord, kickoff: string): Promise<string | null> {
-  try {
-    const started = await deps.terminals.start(chat, { kickoff })
-    return started.state === 'running' ? null : started.message
-  } catch (error) {
-    logUnexpected(deps, error)
-    return error instanceof Error ? error.message : String(error)
-  }
-}
-
 /** `request.folder` is the canonical path of a tracked folder. */
 export async function startOrchestratorRun(deps: OrchestratorStartDeps, request: StartOrchestratorRequest): Promise<StartOrchestratorResult> {
   const { folder, epicId, agent } = request
@@ -102,6 +95,7 @@ export async function startOrchestratorRun(deps: OrchestratorStartDeps, request:
       allowSave: true,
       title: orchestratorTitle(epic.title),
       runId: run.id,
+      epicId: epic.id,
       // Recorded as the chat's first input, so a start that ends before they went delivers them once, later.
       ...(request.instructions === undefined ? {} : { firstPrompt: kickoff })
     })
@@ -110,7 +104,7 @@ export async function startOrchestratorRun(deps: OrchestratorStartDeps, request:
     return { run, chat: null, problem: queuedButNoChat(run, 'the orchestrator chat could not be created', error) }
   }
 
-  const failure = await startTerminal(deps, chat, kickoff)
+  const failure = await startChatOnSurface(deps, chat, kickoff)
   if (failure !== null) {
     const removed = await removeChat(deps, chat)
     const problem = queuedButNoChat(run, `${agentName} could not be started`, failure)

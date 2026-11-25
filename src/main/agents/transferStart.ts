@@ -25,7 +25,9 @@ import type { StartTransferChatRequest, StartTransferChatResult } from '../../sh
 import type { TransferView } from '../../shared/domain/transfer'
 import type { EpicDetailView } from '../../shared/domain/views'
 import { transferKickoff, transferTitle } from '../../mcp/transferKickoff'
+import type { AgentChatSessions } from '../agentChat/agentChatSessions'
 import type { TerminalSessions } from '../terminals/terminalSessions'
+import { startChatOnSurface } from './chatSurfaceStart'
 import type { ChatRecords } from './chatRecords'
 
 /** The transfer side of the desktop for one tracked folder: the same commands the Transfer to Linear button reads. */
@@ -38,6 +40,8 @@ interface TransferStartDeps {
   transfers: TransferReads
   chats: Pick<ChatRecords, 'createChat' | 'deleteChat' | 'agentName'>
   terminals: Pick<TerminalSessions, 'start'>
+  /** The one GUI session manager: a chat on the `gui` surface starts there, with the kickoff as its first turn. */
+  agentChats: Pick<AgentChatSessions, 'start'>
   /** Told about failures that are not DomainErrors and about a chat that could not be removed, so main can log them. */
   onError?: (error: unknown) => void
 }
@@ -68,17 +72,6 @@ async function removeChat(deps: TransferStartDeps, chat: ChatRecord): Promise<bo
   }
 }
 
-/** Starts the chat's terminal with the kickoff; resolves with why it did not start, or null once it runs. */
-async function startTerminal(deps: TransferStartDeps, chat: ChatRecord, kickoff: string): Promise<string | null> {
-  try {
-    const started = await deps.terminals.start(chat, { kickoff })
-    return started.state === 'running' ? null : started.message
-  } catch (error) {
-    logUnexpected(deps, error)
-    return error instanceof Error ? error.message : String(error)
-  }
-}
-
 /** `request.folder` is the canonical path of a tracked folder. */
 export async function startTransferChat(deps: TransferStartDeps, request: StartTransferChatRequest): Promise<StartTransferChatResult> {
   const { folder, epicId, agent } = request
@@ -100,14 +93,15 @@ export async function startTransferChat(deps: TransferStartDeps, request: StartT
       model: request.model ?? null,
       allowSave: true,
       title: transferTitle(epic.title),
-      transferEpicId: epic.id
+      transferEpicId: epic.id,
+      epicId: epic.id
     })
   } catch (error) {
     logUnexpected(deps, error)
     return { chat: null, problem: `The transfer is authorized, but the transfer chat could not be created: ${reasonOf(error)}. ${START_AGAIN}` }
   }
 
-  const failure = await startTerminal(deps, chat, transferKickoff({ epicId: epic.id, epicTitle: epic.title }))
+  const failure = await startChatOnSurface(deps, chat, transferKickoff({ epicId: epic.id, epicTitle: epic.title }))
   if (failure !== null) {
     const removed = await removeChat(deps, chat)
     return { chat: removed ? null : chat, problem: `The transfer is authorized, but ${agentName} could not be started: ${reasonOf(failure)}. ${START_AGAIN}` }
