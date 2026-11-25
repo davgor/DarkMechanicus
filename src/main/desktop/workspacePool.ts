@@ -16,6 +16,8 @@ interface PoolOptions {
   canonical(path: string): string
   authority?(): ForgeTransferAuthority | undefined
   onError?(path: string, error: unknown): void
+  /** Receives one warning per operation whose queue wait plus run time exceeds `SLOW_OPERATION_MS`. */
+  slowLog?: { warn(message: string): void }
   idleMs?: number
 }
 
@@ -24,6 +26,8 @@ interface Job {
   authority: ForgeTransferAuthority | undefined
   background: boolean
   fence?: string
+  /** `performance.now()` when the job was queued. */
+  queuedAt: number
   resolve(value: unknown): void
   reject(error: unknown): void
 }
@@ -47,6 +51,8 @@ interface Entry {
 
 const OWNER_LIMIT = 2
 const IDLE_MS = 60_000
+/** An operation whose queue wait plus run time exceeds this is logged (name and timings only). */
+const SLOW_OPERATION_MS = 1_000
 function closingWork(work: Work): boolean {
   return work.kind === 'native' && (work.name === 'revokeChatGrant' || work.name === 'endYolo')
 }
@@ -100,7 +106,7 @@ class Pool implements WorkspacePool {
       return Promise.reject(closed())
     }
     const result = new Promise((resolve, reject) => {
-      entry.jobs.push({ work, authority: this.options.authority?.(), background, fence, resolve, reject })
+      entry.jobs.push({ work, authority: this.options.authority?.(), background, fence, queuedAt: performance.now(), resolve, reject })
     })
     this.pump()
     return result
@@ -153,14 +159,26 @@ class Pool implements WorkspacePool {
   }
 
   private async run(entry: Entry, job: Job): Promise<void> {
+    const started = performance.now()
     try {
       const value = await this.executeJob(entry, job)
       this.finishJob(entry, job)
+      this.noteDuration(job, started)
       job.resolve(value)
     } catch (error) {
       this.finishJob(entry, job)
+      this.noteDuration(job, started)
       job.reject(error)
     }
+  }
+
+  /** Names only the operation: never its arguments, input or result. */
+  private noteDuration(job: Job, started: number): void {
+    const queueMs = started - job.queuedAt
+    const runMs = performance.now() - started
+    if (this.options.slowLog === undefined || queueMs + runMs <= SLOW_OPERATION_MS) return
+    const name = job.work.kind === 'heartbeat' ? 'heartbeat' : `${job.work.kind} ${job.work.name}`
+    this.options.slowLog.warn(`Slow workspace operation ${name}: queue wait ${Math.round(queueMs)} ms, run ${Math.round(runMs)} ms`)
   }
 
   private async executeJob(entry: Entry, job: Job): Promise<unknown> {

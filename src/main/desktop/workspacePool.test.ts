@@ -265,3 +265,41 @@ it('does not evict a project whose operation spans the idle deadline', async () 
   expect(live.size).toBe(0)
   await pool.closeAll()
 })
+
+it('logs an operation slower than one second with its queue wait and run time, never its arguments', async () => {
+  const warn = vi.fn()
+  let now = 0
+  const clock = vi.spyOn(performance, 'now').mockImplementation(() => now)
+  const first = barrier<OwnerResult>()
+  const second = barrier<OwnerResult>()
+  const held = [first, second]
+  const pool = createWorkspacePool({
+    canonical: path => path,
+    slowLog: { warn },
+    open: () => ({
+      run: () => held.shift()?.promise ?? Promise.resolve({ value: 'fast', binding: 'binding-a' }),
+      close: async () => undefined
+    })
+  })
+  try {
+    const secret = 'Secret card title that must not be logged'
+    const slowRun = pool.get('a').getKanbanCard({ cardId: 'kc_secret_argument' })
+    const queued = pool.get('a').createKanbanCard({ title: secret })
+    now = 1_500
+    first.resolve({ value: 'slow run', binding: 'binding-a' })
+    await slowRun
+    now = 1_800
+    second.resolve({ value: 'queued', binding: 'binding-a' })
+    await queued
+    now = 1_800
+    await pool.get('a').getProject()
+    expect(warn.mock.calls).toEqual([
+      ['Slow workspace operation command getKanbanCard: queue wait 0 ms, run 1500 ms'],
+      ['Slow workspace operation command createKanbanCard: queue wait 1500 ms, run 300 ms']
+    ])
+    expect(JSON.stringify(warn.mock.calls)).not.toMatch(/Secret|kc_secret_argument/)
+  } finally {
+    clock.mockRestore()
+    await pool.closeAll()
+  }
+})
