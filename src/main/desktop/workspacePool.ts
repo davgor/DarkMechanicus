@@ -39,12 +39,16 @@ interface Job {
 interface Waiter {
   resolve(value: SyncValue): void
   reject(error: unknown): void
+  /** `performance.now()` when a foreground request (the screen's explicit reconcile) joined, for the slow-operation log. */
+  queuedAt?: number
 }
 
 /** One reconcile on the sync lane, shared by every request that joined it before it started. */
 interface LaneJob {
   mode: SyncMode
   authority: ForgeTransferAuthority | undefined
+  /** A foreground request joined: the job is admitted and counted as the screen's use of its owner. */
+  foreground: boolean
   waiters: Waiter[]
 }
 
@@ -89,6 +93,24 @@ const MODE_RANK: Record<SyncMode, number> = { heartbeat: 0, member: 1, explicit:
 const SLOW_OPERATION_MS = 1_000
 function closingWork(work: Work): boolean {
   return work.kind === 'native' && (work.name === 'revokeChatGrant' || work.name === 'endYolo')
+}
+
+/**
+ * A request joining the pending reconcile raises it to its mode. A request made under a Forge transfer reservation
+ * carries it into the job it joins, as its own job would have: the conversion's reconcile must run with it, and one
+ * conversion holds a project at a time, so the latest reservation wins. The screen's request makes the job foreground.
+ */
+function joinPending(pending: LaneJob, request: { mode: SyncMode; authority: ForgeTransferAuthority | undefined; foreground: boolean; waiter: Waiter | undefined }): void {
+  if (MODE_RANK[request.mode] > MODE_RANK[pending.mode]) pending.mode = request.mode
+  if (request.authority !== undefined) pending.authority = request.authority
+  if (request.foreground) pending.foreground = true
+  if (request.waiter) pending.waiters.push(request.waiter)
+}
+
+/** Work that moves or replaces the store runs or is next on the owner's queue: the lane waits for it. */
+function exclusiveAhead(entry: Entry): boolean {
+  const next = entry.jobs[0]
+  return (entry.running !== undefined && exclusiveWork(entry.running.work)) || (next !== undefined && exclusiveWork(next.work))
 }
 
 const closed = () => new DomainError('conflict', 'This project workspace was closed. Refresh the folder before continuing.')
@@ -145,7 +167,7 @@ class Pool implements WorkspacePool {
       return Promise.reject(closed())
     }
     // An explicit reconcile still returns its full result, from the lane, while the owner keeps serving.
-    if (work.kind === 'command' && work.name === 'reconcileRepository') return this.awaitSync(entry, 'explicit').then(value => value.result)
+    if (work.kind === 'command' && work.name === 'reconcileRepository') return this.awaitSync(entry, 'explicit', !background).then(value => value.result)
     const result = new Promise((resolve, reject) => {
       entry.jobs.push({ work, authority: this.options.authority?.(), background, fence, queuedAt: performance.now(), resolve, reject })
     })
@@ -154,7 +176,7 @@ class Pool implements WorkspacePool {
   }
 
   reconcile(path: string): Promise<SyncResult> {
-    return this.awaitSync(this.entry(this.options.canonical(path), false), 'member') as Promise<SyncResult>
+    return this.awaitSync(this.entry(this.options.canonical(path), false), 'member', false) as Promise<SyncResult>
   }
 
   heartbeatAll(): void {
@@ -168,25 +190,22 @@ class Pool implements WorkspacePool {
     }
   }
 
-  private awaitSync(entry: Entry, mode: SyncMode): Promise<SyncValue> {
+  private awaitSync(entry: Entry, mode: SyncMode, foreground: boolean): Promise<SyncValue> {
     if (this.stopping || entry.closing !== undefined) return Promise.reject(closed())
-    return new Promise((resolve, reject) => this.requestSync(entry, mode, { resolve, reject }))
+    return new Promise((resolve, reject) => this.requestSync(entry, mode, { resolve, reject, ...(foreground ? { queuedAt: performance.now() } : {}) }))
   }
 
   /**
    * Joins the pending reconcile, or queues the one pending reconcile behind the running one. A heartbeat with nothing to
-   * join is skipped when a reconcile finished in the last `RECONCILE_GAP_MS`.
+   * join is skipped while a reconcile runs or when one finished in the last `RECONCILE_GAP_MS`.
    */
   private requestSync(entry: Entry, mode: SyncMode, waiter?: Waiter): void {
     const { lane } = entry
-    const pending = lane.pending
-    if (pending !== undefined) {
-      if (MODE_RANK[mode] > MODE_RANK[pending.mode]) pending.mode = mode
-      if (waiter) pending.waiters.push(waiter)
-      return
-    }
-    if (!waiter && !lane.running && lane.finishedAt !== undefined && Date.now() - lane.finishedAt < RECONCILE_GAP_MS) return
-    lane.pending = { mode, authority: this.options.authority?.(), waiters: waiter ? [waiter] : [] }
+    const authority = this.options.authority?.()
+    const foreground = waiter?.queuedAt !== undefined
+    if (lane.pending !== undefined) return joinPending(lane.pending, { mode, authority, foreground, waiter })
+    if (!waiter && (lane.running || (lane.finishedAt !== undefined && Date.now() - lane.finishedAt < RECONCILE_GAP_MS))) return
+    lane.pending = { mode, authority, foreground, waiters: waiter ? [waiter] : [] }
     this.pump()
   }
 
@@ -244,10 +263,11 @@ class Pool implements WorkspacePool {
   }
 
   private canStartLane(entry: Entry): boolean {
-    if (entry.lane.running || !entry.lane.pending || entry.retiring || entry.closing) return false
-    const next = entry.jobs[0]
-    if ((entry.running && exclusiveWork(entry.running.work)) || (next && exclusiveWork(next.work))) return false
-    return entry.owner !== undefined || this.admitBackground()
+    const pending = entry.lane.pending
+    if (entry.lane.running || !pending || entry.retiring || entry.closing || exclusiveAhead(entry)) return false
+    if (entry.owner !== undefined) return true
+    // The screen's explicit reconcile is admitted as foreground work; heartbeat and member reconciles as background.
+    return pending.foreground ? this.admitForeground() : this.admitBackground()
   }
 
   private pump(): void {
@@ -292,10 +312,13 @@ class Pool implements WorkspacePool {
 
   /** Names only the operation: never its arguments, input or result. */
   private noteDuration(job: Job, started: number): void {
-    const queueMs = started - job.queuedAt
+    this.noteSlow(job.work.kind === 'heartbeat' ? 'heartbeat' : `${job.work.kind} ${job.work.name}`, job.queuedAt, started)
+  }
+
+  private noteSlow(name: string, queuedAt: number, started: number): void {
+    const queueMs = started - queuedAt
     const runMs = performance.now() - started
     if (this.options.slowLog === undefined || queueMs + runMs <= SLOW_OPERATION_MS) return
-    const name = job.work.kind === 'heartbeat' ? 'heartbeat' : `${job.work.kind} ${job.work.name}`
     this.options.slowLog.warn(`Slow workspace operation ${name}: queue wait ${Math.round(queueMs)} ms, run ${Math.round(runMs)} ms`)
   }
 
@@ -341,15 +364,29 @@ class Pool implements WorkspacePool {
     if (job === undefined) return
     delete entry.lane.pending
     entry.lane.running = job
+    const started = performance.now()
+    if (job.foreground) this.useForeground(entry)
     const outcome = await this.syncOnLane(entry, job)
     delete entry.lane.running
     entry.lane.finishedAt = Date.now()
+    if (job.foreground) entry.usedAt = Date.now()
     if (!outcome.ok && !job.waiters.length && !entry.closing && !this.stopping) this.options.onError?.(entry.path, outcome.error)
+    this.answerLane(job, outcome, started)
+    this.settleLane(entry, job)
+  }
+
+  private answerLane(job: LaneJob, outcome: { ok: true; value: SyncValue } | { ok: false; error: unknown }, started: number): void {
     for (const waiter of job.waiters) {
+      if (waiter.queuedAt !== undefined) this.noteSlow('command reconcileRepository', waiter.queuedAt, started)
       if (outcome.ok) waiter.resolve(outcome.value)
       else waiter.reject(outcome.error)
     }
-    this.settleLane(entry, job)
+  }
+
+  /** The screen's explicit reconcile uses its owner: it holds the idle deadline off and protects the owner from retirement. */
+  private useForeground(entry: Entry): void {
+    entry.usedAt = Date.now()
+    clearTimeout(entry.idle)
   }
 
   private async syncOnLane(entry: Entry, job: LaneJob): Promise<{ ok: true; value: SyncValue } | { ok: false; error: unknown }> {

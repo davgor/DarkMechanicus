@@ -85,35 +85,132 @@ it('runs an explicit reconcile command on the lane and returns its unchanged res
   await pool.closeAll()
 })
 
-it('coalesces heartbeats into one running and one pending reconcile, then skips heartbeats within 15 s of the last', async () => {
+it('skips heartbeats while a reconcile runs or within 15 s of the last, and coalesces requests into one pending reconcile', async () => {
   vi.useFakeTimers()
   const { pool, named, overrides } = fixture()
   await pool.get('a').getProject()
   await vi.advanceTimersByTimeAsync(0)
   expect(named('a')).toEqual(['getProject', 'sync:heartbeat'])
   await vi.advanceTimersByTimeAsync(15_000)
-  const held = barrier<OwnerResult>()
+  const syncs = () => named('a').filter(name => name.startsWith('sync:'))
+  // Heartbeats while a reconcile runs are skipped: they queue nothing behind it.
+  let held = barrier<OwnerResult>()
   overrides.set('a:sync', () => held.promise)
   const member = pool.reconcile('a')
-  for (let beat = 0; beat < 5; beat += 1) pool.heartbeatAll()
-  const joined = pool.reconcile('a')
   await vi.advanceTimersByTimeAsync(0)
-  expect(named('a').filter(name => name.startsWith('sync:'))).toEqual(['sync:heartbeat', 'sync:member'])
-  overrides.delete('a:sync')
+  for (let beat = 0; beat < 5; beat += 1) pool.heartbeatAll()
   held.resolve({ value: { result: synced('first'), hasLocalCache: true }, binding: 'binding-a' })
   await expect(member).resolves.toMatchObject({ result: synced('first') })
-  await expect(joined).resolves.toMatchObject({ result: synced('a') })
-  expect(named('a').filter(name => name.startsWith('sync:'))).toEqual(['sync:heartbeat', 'sync:member', 'sync:member'])
+  await vi.advanceTimersByTimeAsync(0)
+  expect(syncs()).toEqual(['sync:heartbeat', 'sync:member'])
+  // Requests with a waiter coalesce into one pending reconcile behind the running one, at the strongest mode.
+  await vi.advanceTimersByTimeAsync(15_000)
+  held = barrier<OwnerResult>()
+  overrides.set('a:sync', () => held.promise)
+  const running = pool.reconcile('a')
+  await vi.advanceTimersByTimeAsync(0)
+  const joined = [pool.reconcile('a'), pool.reconcile('a')]
+  for (let beat = 0; beat < 5; beat += 1) pool.heartbeatAll()
+  overrides.delete('a:sync')
+  held.resolve({ value: { result: synced('first'), hasLocalCache: true }, binding: 'binding-a' })
+  await expect(running).resolves.toMatchObject({ result: synced('first') })
+  await expect(Promise.all(joined)).resolves.toMatchObject([{ result: synced('a') }, { result: synced('a') }])
+  expect(syncs()).toEqual(['sync:heartbeat', 'sync:member', 'sync:member', 'sync:member'])
   pool.heartbeatAll()
   await vi.advanceTimersByTimeAsync(14_000)
   pool.heartbeatAll()
   await vi.advanceTimersByTimeAsync(0)
-  expect(named('a').filter(name => name.startsWith('sync:'))).toHaveLength(3)
+  expect(syncs()).toHaveLength(4)
   await vi.advanceTimersByTimeAsync(1_000)
   pool.heartbeatAll()
   await vi.advanceTimersByTimeAsync(0)
-  expect(named('a').filter(name => name.startsWith('sync:'))).toHaveLength(4)
+  expect(syncs()).toHaveLength(5)
   await pool.closeAll()
+})
+
+it('runs a joined pending reconcile under the Forge reservation of the request that joined it', async () => {
+  let current: { source: string; target: string; lease: string } | undefined
+  const authorities: (string | undefined)[] = []
+  const held = barrier<OwnerResult>()
+  let first = true
+  const pool = createWorkspacePool({
+    canonical: path => path,
+    authority: () => current,
+    open: () => ({
+      run: async () => ({ value: 'a', binding: 'binding-a' }),
+      async sync(_project, _mode, authority) {
+        authorities.push(authority?.lease)
+        if (first) { first = false; return held.promise }
+        return { value: { result: synced('a'), hasLocalCache: true }, binding: 'binding-a' }
+      },
+      close: async () => undefined
+    })
+  })
+  try {
+    await pool.get('a').getProject()
+    // The owner's open-time reconcile is running; a member reconcile asked outside any conversion is pending behind it.
+    await vi.waitFor(() => expect(authorities).toEqual([undefined]))
+    const member = pool.reconcile('a')
+    current = { source: 'a', target: 'a-member', lease: 'conversion-lease' }
+    // The conversion's own reconcile joins that pending job, and the job must then run under its reservation.
+    const converted = pool.get('a').reconcileRepository()
+    current = undefined
+    held.resolve({ value: { result: synced('first'), hasLocalCache: true }, binding: 'binding-a' })
+    await expect(converted).resolves.toMatchObject({ imported: ['a'] })
+    await expect(member).resolves.toMatchObject({ result: { imported: ['a'] } })
+    expect(authorities).toEqual([undefined, 'conversion-lease'])
+  } finally {
+    await pool.closeAll()
+  }
+})
+
+it('admits the screen\'s explicit reconcile as foreground: it marks the owner used and logs when slow', async () => {
+  vi.useFakeTimers()
+  const warn = vi.fn()
+  const live = new Set<string>()
+  const retired: string[] = []
+  const held = barrier<OwnerResult>()
+  const pool = createWorkspacePool({
+    canonical: path => path,
+    slowLog: { warn },
+    open: (generation) => {
+      const name = 'g' + generation
+      let project = ''
+      live.add(name)
+      return {
+        run: async (path: string) => { project = path; return { value: path, binding: 'binding-' + path } },
+        async sync(path: string, mode: SyncMode) {
+          project = path
+          if (path === 'b' && mode === 'explicit') return held.promise
+          return { value: { result: synced(path), hasLocalCache: true }, binding: 'binding-' + path }
+        },
+        close: async () => { live.delete(name); retired.push(project) }
+      }
+    }
+  })
+  try {
+    // a and c hold the two screen slots; b has no owner yet.
+    await pool.get('a').getProject()
+    await vi.advanceTimersByTimeAsync(0)
+    await pool.get('c').getProject()
+    await vi.advanceTimersByTimeAsync(0)
+    // The screen's reconcile of b takes a screen slot, retiring the least recently used idle owner (a), never a third process.
+    const explicit = pool.get('b').reconcileRepository()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(retired).toEqual(['a'])
+    expect(live.size).toBe(2)
+    await vi.advanceTimersByTimeAsync(1_500)
+    held.resolve({ value: { result: synced('b'), hasLocalCache: true }, binding: 'binding-b' })
+    await expect(explicit).resolves.toMatchObject({ imported: ['b'] })
+    expect(warn.mock.calls.map(call => String(call[0]))).toEqual([expect.stringMatching(/^Slow workspace operation command reconcileRepository: queue wait \d+ ms, run 15\d\d ms$/)])
+    // b was just used by the screen, so background work cannot retire it.
+    const mailbox = pool.background('d').call('listMailboxRoutes', ['mailbox_chat'])
+    await vi.advanceTimersByTimeAsync(0)
+    await expect(mailbox).resolves.toBe('d')
+    expect(retired).not.toContain('b')
+  } finally {
+    await pool.closeAll()
+  }
 })
 
 it('stops the lane on untrack, waits for the running reconcile before closing the owner, and drops its late result', async () => {
