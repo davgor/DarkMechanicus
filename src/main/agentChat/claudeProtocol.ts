@@ -2,6 +2,7 @@ import type { AgentChatEvent, AgentTodoPhase, PendingPrompt } from '../../shared
 import type { ChatItem } from '../../shared/agents/chat'
 import { maskAgentChatSecretsDeep as mask } from './secretMask'
 import { taskCreateResult, taskCreateStarted, taskPhases, taskUpdate, todoWritePhases, type TaskList } from './todoLists'
+import { threadClaim, type ThreadClaimEvent } from './translatorEvents'
 
 type Payload<T> = T extends unknown ? Omit<T, 'folder' | 'chatId'> : never
 export type ClaudeProtocolEvent = Payload<AgentChatEvent>
@@ -24,6 +25,7 @@ export type ClaudeProtocolState = {
   activeMessages: Map<string | null, string>
   tools: Map<string, { item: Tool; input: JsonObject }>
   threads: Map<string, Thread>
+  claimedThreads: Set<string>
   // Only pre-final, unobserved spawns are provably unlaunched. Submitted spawns remain uncertain.
   spawnLifecycle: Map<string, 'provisional' | 'submitted' | 'launched'>
   agents: Map<string, string>
@@ -41,7 +43,7 @@ type Encoding = Translation & { lines: string[] }
 
 export function createClaudeProtocolState(): ClaudeProtocolState {
   return { skipped: 0, initialized: false, initializeRequest: null, sessionId: null, interruptRequest: null,
-    sequence: 0, messages: new Map(), activeMessages: new Map(), tools: new Map(), threads: new Map(), spawnLifecycle: new Map(),
+    sequence: 0, messages: new Map(), activeMessages: new Map(), tools: new Map(), threads: new Map(), claimedThreads: new Set(), spawnLifecycle: new Map(),
     agents: new Map(), pending: new Map(), tasks: new Map(), todos: new Map(), seen: new Set() }
 }
 function object(value: unknown): JsonObject | null {
@@ -100,10 +102,10 @@ function commitBlock(events: ClaudeProtocolEvent[], message: Message, index: num
     at: message.at, ...scope(message.threadId), text: block.text })
   else events.push({ type: 'stream_end', itemId: `${message.id}:${index}` })
 }
-type Reduction = { state: ClaudeProtocolState; events: ClaudeProtocolEvent[]; at: string }
+type Reduction = { state: ClaudeProtocolState; events: ClaudeProtocolEvent[]; at: string; internalEvents?: ThreadClaimEvent[] }
 type HeldTool = { item: Tool; input: JsonObject }
 
-function startThread({ state, events, at }: Reduction, held: HeldTool): void {
+function startThread({ state, events, at, internalEvents }: Reduction, held: HeldTool): void {
   const { id, threadId } = held.item
   const candidates = [held.input.description, held.input.subagent_type].map(value =>
     [...mask(string(value))].filter(char => char.charCodeAt(0) >= 32 && char.charCodeAt(0) !== 127).join('').trim())
@@ -113,6 +115,13 @@ function startThread({ state, events, at }: Reduction, held: HeldTool): void {
   state.threads.set(id, thread)
   if (!state.spawnLifecycle.has(id)) state.spawnLifecycle.set(id, 'provisional')
   item(events, thread)
+  if (internalEvents && !state.claimedThreads.has(id)) {
+    const claim = threadClaim(thread.id, string(held.input.prompt))
+    if (claim) {
+      state.claimedThreads.add(id)
+      internalEvents.push(claim)
+    }
+  }
 }
 function toolStart(context: Reduction, block: JsonObject, threadId: string | null): void {
   const { state, events, at } = context
@@ -472,23 +481,23 @@ function dispatch(context: Reduction, frame: JsonObject): void {
     default: context.state.skipped++
   }
 }
-/** Translate one JSONL line without I/O; only events are safe for storage/IPC. */
-export function translateClaudeLine(line: string, previous: ClaudeProtocolState, at: string): Translation {
-  const state = structuredClone(previous), events: ClaudeProtocolEvent[] = []
+/** Translate one JSONL line; only `events` are safe for storage/IPC. Internal claims are transient. */
+export function translateClaudeLine(line: string, previous: ClaudeProtocolState, at: string): Translation & { internalEvents: ThreadClaimEvent[] } {
+  const state = structuredClone(previous), events: ClaudeProtocolEvent[] = [], internalEvents: ThreadClaimEvent[] = []
   let frame: JsonObject | null
   try { frame = object(JSON.parse(line)) } catch { frame = null }
-  if (!frame) { state.skipped++; return { state, events } }
+  if (!frame) { state.skipped++; return { state, events, internalEvents } }
   const uuid = string(frame.uuid)
-  if (uuid && state.seen.has(uuid)) return { state, events }
+  if (uuid && state.seen.has(uuid)) return { state, events, internalEvents }
   if (uuid) state.seen.add(uuid)
-  const context = { state, events, at }
+  const context = { state, events, at, internalEvents }
   if (string(frame.parent_tool_use_id) && !state.threads.has(string(frame.parent_tool_use_id)) && !supportedForwarded(frame)) {
     state.skipped++
-    return { state, events }
+    return { state, events, internalEvents }
   }
   forwardedThread(context, frame)
   dispatch(context, frame)
-  return { state, events: mask(events) }
+  return { state, events: mask(events), internalEvents }
 }
 
 /** Call once with a fresh host request id; system/init alone does not admit turns. */

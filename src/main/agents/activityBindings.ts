@@ -1,8 +1,7 @@
 /**
- * The item-based links of chat threads to the Dark Mechanicus runs and attempts they acted on, as chats stored them
- * before they became terminals, app-wide, so main-process code can find the chat and thread behind a run
- * (`byRun`) or an attempt (`byAttempt`) of an old chat. Nothing binds any more: a terminal chat is found by the
- * grant its session used (`grantBindings.ts`). Deleting a chat forgets its bindings (`forgetChat`).
+ * Links chat threads to the Dark Mechanicus runs and attempts they acted on, app-wide. Main binds verified
+ * GUI worker claims as attempt ids only; terminal chats are found by their session grants (`grantBindings.ts`).
+ * Historical run bindings remain readable. Deleting a chat forgets its bindings (`forgetChat`).
  *
  * A binding names a chat, a thread in it (a `thread` item's id, or null for the chat's main thread), the chat's
  * folder, a run or an attempt, and what the thread was to it: its `orchestrator` or a `worker`.
@@ -12,6 +11,7 @@
  * earlier chat, thread and run or attempt are skipped when read; the role first bound stays. Forgetting a deleted
  * chat rewrites the file without its lines.
  */
+import { dirname } from 'node:path'
 import { z } from 'zod'
 import { chatIdSchema } from '../../shared/agents/chat'
 import { nodeChatStoreFs, type ChatRef, type ChatStoreFs } from './chatStore'
@@ -39,6 +39,10 @@ const bindingSchema = z.discriminatedUnion('kind', [
 export type ActivityBinding = z.infer<typeof bindingSchema>
 
 export interface ActivityBindings {
+  /** Appends a validated worker attempt binding; never accepts a claim token. */
+  bind(binding: ActivityBinding): void
+  /** The chat's attempt bindings, in the order bound. */
+  threadsOf(chat: ChatRef): ActivityBinding[]
   /** Every thread bound to the attempt, in the order bound. */
   byAttempt(attemptId: string): ActivityBinding[]
   /** Every thread bound to the run, in the order bound. */
@@ -101,6 +105,21 @@ function loaded(context: Context): ActivityBinding[] {
   return all
 }
 
+function bind(context: Context, value: ActivityBinding): void {
+  const binding = bindingOf(JSON.stringify(value))
+  if (binding === null || binding.kind !== 'attempt' || binding.role !== 'worker') {
+    throw new Error('Invalid worker attempt binding')
+  }
+  const all = loaded(context)
+  const key = keyOf(binding)
+  if (all.some((existing) => keyOf(existing) === key)) return
+  context.fs.mkdirp(dirname(context.file))
+  const lines = readLines(context.fs, context.file)
+  const prefix = lines.at(-1) ? '\n' : ''
+  context.fs.appendFile(context.file, `${prefix}${JSON.stringify(binding)}\n`)
+  all.push(binding)
+}
+
 function forgetChat(context: Context, chat: ChatRef): void {
   if (chat.folder === null) {
     // Bindings were stored by chats from before terminals, every one of a folder; a project-less chat has none.
@@ -129,6 +148,8 @@ export function createActivityBindings(options: {
 }): ActivityBindings {
   const context: Context = { file: options.file, fs: options.fs ?? nodeChatStoreFs, all: null }
   return {
+    bind: (binding) => { bind(context, binding) },
+    threadsOf: (chat) => matching(context, (binding) => binding.kind === 'attempt' && binding.chatId === chat.id && binding.folder === chat.folder),
     byAttempt: (attemptId) => matching(context, (binding) => binding.kind === 'attempt' && binding.attemptId === attemptId),
     byRun: (runId) => matching(context, (binding) => binding.kind === 'run' && binding.runId === runId),
     forgetChat: (chat) => {

@@ -90,3 +90,54 @@ describe('activity bindings: forgetting a deleted chat', () => {
     expect(fs.files.get(FILE)).toBe(before)
   })
 })
+
+describe('activity bindings: verified worker persistence', () => {
+  it('appends once, dedupes across reloads, and returns only the requested chat attempts', () => {
+    const fs = storedFile([ORCHESTRATOR_RUN])
+    const bindings = createActivityBindings({ file: FILE, fs })
+    bindings.bind(WORKER_A)
+    bindings.bind({ ...WORKER_A })
+    bindings.bind(OTHER_CHAT_B)
+    bindings.bind({ ...WORKER_A, folder: OTHER_REPO })
+    const expected = [ORCHESTRATOR_RUN, WORKER_A, OTHER_CHAT_B, { ...WORKER_A, folder: OTHER_REPO }]
+    expect(fs.files.get(FILE)).toBe(expected.map(binding => `${JSON.stringify(binding)}\n`).join(''))
+    const reloaded = createActivityBindings({ file: FILE, fs })
+    reloaded.bind(WORKER_A)
+    expect(fs.files.get(FILE)).toBe(expected.map(binding => `${JSON.stringify(binding)}\n`).join(''))
+    expect(reloaded.threadsOf({ id: 'chat_1', folder: REPO })).toEqual([WORKER_A])
+    expect(reloaded.threadsOf({ id: 'chat_1', folder: OTHER_REPO })).toEqual([{ ...WORKER_A, folder: OTHER_REPO }])
+    expect(reloaded.threadsOf({ id: 'chat_1', folder: null })).toEqual([])
+    const copy = reloaded.threadsOf({ id: 'chat_1', folder: REPO })[0]
+    copy.threadId = 'mutated'
+    expect(reloaded.threadsOf({ id: 'chat_1', folder: REPO })).toEqual([WORKER_A])
+  })
+
+  it('rejects invalid roles, kinds, ids, and tokens even in unknown fields before touching storage', () => {
+    const fs = memoryChatFs()
+    const bindings = createActivityBindings({ file: FILE, fs })
+    const token = `${ATTEMPT_A}.${SECRET}`
+    for (const invalid of [ORCHESTRATOR_RUN, ORCHESTRATOR_A, { ...WORKER_A, attemptId: 'at_short' },
+      { ...WORKER_A, threadId: token }, { ...WORKER_A, folder: token }, { ...WORKER_A, token }]) {
+      expect(() => bindings.bind(invalid)).toThrow('Invalid worker attempt binding')
+    }
+    expect(fs.files.has(FILE)).toBe(false)
+    expect(bindings.byAttempt(ATTEMPT_A)).toEqual([])
+    bindings.bind(WORKER_A)
+    expect(fs.files.get(FILE)).toBe(`${JSON.stringify(WORKER_A)}\n`)
+    expect(fs.files.get(FILE)).not.toContain(SECRET)
+  })
+
+  it('separates a truncated tail from the next complete binding and leaves memory unchanged on write failure', () => {
+    const fs = memoryChatFs()
+    fs.files.set(FILE, '{"chatId":')
+    const bindings = createActivityBindings({ file: FILE, fs })
+    const append = fs.appendFile
+    fs.appendFile = () => { throw new Error('disk full') }
+    expect(() => bindings.bind(WORKER_A)).toThrow('disk full')
+    expect(bindings.byAttempt(ATTEMPT_A)).toEqual([])
+    fs.appendFile = append
+    bindings.bind(WORKER_A)
+    expect(fs.files.get(FILE)).toBe(`{"chatId":\n${JSON.stringify(WORKER_A)}\n`)
+    expect(createActivityBindings({ file: FILE, fs }).byAttempt(ATTEMPT_A)).toEqual([WORKER_A])
+  })
+})

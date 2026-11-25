@@ -4,6 +4,7 @@ import type { OmpCommand, OmpEvent, OmpState } from './ompProtocol'
 import { maskAgentChatSecretsDeep } from './secretMask'
 import { ompTodoPhases } from './todoLists'
 import { ompAnswerPrompt, ompHoldPrompt } from './ompPrompts'
+import { threadClaim, type ThreadClaimEvent } from './translatorEvents'
 
 type ObjectValue = Record<string, unknown>
 type ToolItem = Extract<ChatItem, { kind: 'tool_call' }>
@@ -35,6 +36,7 @@ function threadStatus(value: unknown): 'done' | 'failed' | 'running' {
 /** One reduction transaction; never retained by the session or exposed over IPC. */
 export class OmpReducer {
   readonly events: OmpEvent[] = []
+  readonly internalEvents: ThreadClaimEvent[] = []
   constructor(readonly state: OmpState, readonly at: string) {}
 
   emit(event: OmpEvent): void { this.events.push(maskAgentChatSecretsDeep(event)) }
@@ -196,6 +198,11 @@ export class OmpReducer {
       parentItemId: null, label: threadLabel(progress, payload), state: threadStatus(progress.status) }
     this.state.threads.set(id, item)
     this.emit({ type: 'item', item })
+    if (item.state === 'running' && typeof payload.task === 'string' && !this.state.claimTasksSeen.has(id)) {
+      this.state.claimTasksSeen.add(id)
+      const claim = threadClaim(item.id, payload.task)
+      if (claim) this.internalEvents.push(claim)
+    }
   }
   pending(): void { this.emit({ type: 'pending', prompt: this.state.pending[0]?.prompt ?? null }) }
   ui(frame: ObjectValue): void {

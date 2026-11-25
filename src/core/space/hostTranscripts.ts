@@ -19,6 +19,8 @@
  */
 import type { UsageFormat } from '../../shared/domain/hostUsage'
 import { breakdownOf, type UsageBreakdown } from './hostUsage'
+import { claimedAttemptId as claimedAttempt } from './claimedAttempt'
+export { claimedAttemptId } from './claimedAttempt'
 
 /** The hosts whose session files are read. */
 type HostKind = 'omp' | 'claude_code'
@@ -79,8 +81,6 @@ interface TranscriptReadOptions {
 }
 
 const ID_BODY = '[0-9a-hjkmnp-tv-z]{26}'
-/** A claim token `<attempt id>.<secret>`: only the attempt id is captured, and the secret is never kept. */
-const CLAIM_TOKEN = new RegExp(`(?<![A-Za-z0-9_])(at_${ID_BODY})\\.[A-Za-z0-9_-]{6,}`, 'g')
 const RUN_ID = new RegExp(`(?<![A-Za-z0-9_])(rn_${ID_BODY})(?![A-Za-z0-9_])`, 'g')
 /** Dark Mechanicus attempt calls that need a live claim, by MCP tool name or dm CLI command. */
 const ATTEMPT_CALL = /(?<![A-Za-z0-9])(?:heartbeat_attempt|submit_attempt|fail_attempt|record_attempt_metrics)(?![A-Za-z0-9])/
@@ -90,11 +90,6 @@ const REFUSED = /"ok"\s*:\s*false/
 /** Tools that block on someone else (subagents, the person): their time is waiting, not activity. */
 const WAITING_TOOLS: Readonly<Record<string, true>> = { wait: true, ask: true, AskUserQuestion: true, Task: true, Agent: true }
 
-/** The one attempt whose claim token `text` carries, or null when it carries none or several. */
-function claimedAttempt(text: string): string | null {
-  const ids = new Set([...text.matchAll(CLAIM_TOKEN)].map((match) => match[1] ?? ''))
-  return ids.size === 1 ? ([...ids][0] ?? null) : null
-}
 
 interface ToolCall {
   name: string

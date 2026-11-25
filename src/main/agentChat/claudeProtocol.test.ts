@@ -4,6 +4,7 @@ import { expect, it } from 'vitest'
 import type { ChatItem } from '../../shared/agents/chat'
 import { agentChatEventSchema } from '../../shared/agents/agentChat'
 import { claudeInitLines, createClaudeProtocolState, encodeClaudeCommand, translateClaudeLine, type ClaudeProtocolEvent, type ClaudeProtocolState } from './claudeProtocol'
+import type { ThreadClaimEvent } from './translatorEvents'
 
 const at = '2026-11-24T00:00:00.000Z'
 const directory = join(import.meta.dirname, '__fixtures__', 'claude')
@@ -18,17 +19,19 @@ function initialized(): ClaudeProtocolState {
   for (const line of fixture('init')) state = translateClaudeLine(line, state, at).state
   return state
 }
-function feed(lines: string[], initial = initialized()): { state: ClaudeProtocolState; events: ClaudeProtocolEvent[]; items: ChatItem[] } {
+function feed(lines: string[], initial = initialized()): { state: ClaudeProtocolState; events: ClaudeProtocolEvent[]; internalEvents: ThreadClaimEvent[]; items: ChatItem[] } {
   let state = initial
   const events: ClaudeProtocolEvent[] = []
+  const internalEvents: ThreadClaimEvent[] = []
   for (const line of lines) {
     const next = translateClaudeLine(line, state, at)
     state = next.state
     events.push(...next.events)
+    internalEvents.push(...next.internalEvents)
   }
   const items = new Map<string, ChatItem>()
   for (const event of events) if (event.type === 'item') items.set(event.item.id, event.item)
-  return { state, events, items: [...items.values()] }
+  return { state, events, internalEvents, items: [...items.values()] }
 }
 function text(id: string, value: string, threadId?: string): ChatItem {
   return { kind: 'assistant_text', id: `${id}:0`, at, ...(threadId ? { threadId } : {}), text: value }
@@ -90,8 +93,9 @@ const expected: Record<string, ChatItem[]> = {
 }
 
   it('covers every pinned pair without CR characters', () => {
-    expect(readdirSync(directory).filter(name => name.endsWith('.out.jsonl')).sort()).toEqual(scenarios.map(name => `${name}.out.jsonl`).sort())
-    for (const name of scenarios) { fixture(name); fixture(name, 'in') }
+    const all = [...scenarios, 'worker_approval']
+    expect(readdirSync(directory).filter(name => name.endsWith('.out.jsonl')).sort()).toEqual(all.map(name => `${name}.out.jsonl`).sort())
+    for (const name of all) { fixture(name); fixture(name, 'in') }
   })
   it.each(scenarios)('%s produces the exact ordered items and commits text deltas once', name => {
     let initial = initialized()
@@ -373,4 +377,37 @@ it.each(['dmg_', 'DMG_'])('masks a %s grant split at every character boundary', 
     { type: 'delta', itemId: 'grant-chunks:0', kind: 'text', text: '[grant token masked]' }
   ])
   expect(result.items).toEqual([{ kind: 'assistant_text', id: 'grant-chunks:0', at, text: '[grant token masked]' }])
+})
+
+it('keeps worker claim credentials on the private channel and attributes its answered approval', () => {
+  const lines = fixture('worker_approval')
+  const started = feed(lines.slice(0, 3))
+  const threadId = 'thread:toolu_T1_claim_worker'
+  const claim = { type: 'thread_claim', threadId, attemptId: 'at_01j0000000000000000000000a',
+    token: 'at_01j0000000000000000000000a.fixtureSecretAAAAAAAAAAAAAAAAAAA' }
+  expect(started.internalEvents).toEqual([claim])
+  expect(started.events.find(event => event.type === 'pending')).toMatchObject({ prompt: { threadId, kind: 'approval' } })
+  expect(agentChatEventSchema.safeParse({ ...claim, folder: null, chatId: 'fixture' }).success).toBe(false)
+  const answered = encodeClaudeCommand({ type: 'answer', promptId: 'req_T1_worker_approval', optionId: 'allow_once' }, started.state, at)
+  expect(answered.lines).toEqual(fixture('worker_approval', 'in').slice(1))
+  const finished = feed(lines.slice(3), answered.state)
+  expect(finished.internalEvents).toEqual([])
+  expect(finished.items).toContainEqual(expect.objectContaining({ id: threadId, kind: 'thread', state: 'done' }))
+  const events = [...started.events, ...answered.events, ...finished.events]
+  expect(JSON.stringify(events)).not.toContain('fixtureSecret')
+  for (const event of events) expect(agentChatEventSchema.safeParse({ ...event, folder: null, chatId: 'fixture' }).success).toBe(true)
+})
+
+it.each(['Agent', 'Task'])('extracts exactly one complete token from %s, never ambiguous claims', name => {
+  const token = 'at_01j0000000000000000000000a.fixtureSecretAAAAAAAAAAAAAAAAAAA'
+  const other = 'at_01j0000000000000000000000b.fixtureSecretBBBBBBBBBBBBBBBBBBB'
+  for (const [prompt, count] of [['no claim', 0], [token, 1], [`${token} ${token}`, 1],
+    [`${token} ${other}`, 0], [`${token} ${token.replace('fixtureSecret', 'differentSecret')}`, 0]] as const) {
+    const frame = { type: 'assistant', message: { id: 'claim-message', content: [
+      { type: 'tool_use', id: 'claim-spawn', name, input: { prompt, description: 'Worker' } }
+    ] } }
+    const result = feed([JSON.stringify(frame), JSON.stringify(frame)])
+    expect(result.internalEvents).toHaveLength(count)
+    expect(JSON.stringify(result.events)).not.toContain('Secret')
+  }
 })

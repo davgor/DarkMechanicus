@@ -5,6 +5,7 @@ import { agentChatEventSchema } from '../../shared/agents/agentChat'
 import type { ChatItem } from '../../shared/agents/chat'
 import { createOmpState, encodeOmpCommand, initLines, translateOmpLine, type OmpCommand, type OmpEvent } from './ompProtocol'
 import { maskAgentChatSecretsDeep } from './secretMask'
+import type { ThreadClaimEvent } from './translatorEvents'
 
 const at = '2026-11-24T00:00:00.000Z'
 const root = join(import.meta.dirname, '__fixtures__', 'omp')
@@ -16,12 +17,15 @@ function lines(name: string, direction: 'in' | 'out'): string[] {
 function harness() {
   let state = createOmpState()
   const events: OmpEvent[] = []
+  const internalEvents: ThreadClaimEvent[] = []
   return {
     get state() { return state },
     events,
+    internalEvents,
     feed(frame: unknown) {
       const result = translateOmpLine(typeof frame === 'string' ? frame : JSON.stringify(frame), state, at)
       state = result.state; events.push(...result.events)
+      internalEvents.push(...result.internalEvents)
       return result.events
     },
     send(command: OmpCommand, framing?: { chunkId: string; chunkBytes?: number }) {
@@ -109,7 +113,7 @@ function expectCommittedDeltas(events: OmpEvent[]): void {
 
 describe('OMP golden protocol', () => {
   it('enumerates every golden pair, including both startup variants', () => {
-    expect(readdirSync(root).filter(name => name.endsWith('.out.jsonl')).map(name => name.replace('.out.jsonl', '')).sort()).toEqual([...Object.keys(scenarios), 'init', 'init_resume'].sort())
+    expect(readdirSync(root).filter(name => name.endsWith('.out.jsonl')).map(name => name.replace('.out.jsonl', '')).sort()).toEqual([...Object.keys(scenarios), 'init', 'init_resume', 'worker_claim'].sort())
   })
   for (const name of ['init', 'init_resume']) it(`bootstraps ${name} once with exact commands and todos`, () => {
     const h = harness(); const output = lines(name, 'out')
@@ -497,3 +501,65 @@ describe('OMP corrective chunk quarantine', () => {
   })
 })
 
+
+describe('OMP main-private worker claims', () => {
+  it('extracts the raw fixture token once, never pushes it, and completes the thread', () => {
+    const h = initialized()
+    const first = JSON.parse(lines('worker_claim', 'in')[0])
+    expect(h.send({ type: 'send', id: first.id, text: first.message })).toEqual(lines('worker_claim', 'in'))
+    lines('worker_claim', 'out').forEach(line => h.feed(line))
+    const claim = { type: 'thread_claim', threadId: 'agent_T1_claim_worker', attemptId: 'at_01j0000000000000000000000a',
+      token: 'at_01j0000000000000000000000a.fixtureSecretAAAAAAAAAAAAAAAAAAA' }
+    expect(h.internalEvents).toEqual([claim])
+    expect(h.items()).toContainEqual(expect.objectContaining({ kind: 'thread', id: claim.threadId, state: 'done' }))
+    expect(h.state.skipped).toBe(0)
+    expect(JSON.stringify(h.events)).not.toContain('fixtureSecret')
+    expect(agentChatEventSchema.safeParse({ ...claim, folder: null, chatId: 'fixture' }).success).toBe(false)
+    for (const event of h.events) expect(agentChatEventSchema.safeParse({ ...event, folder: null, chatId: 'fixture' }).success).toBe(true)
+  })
+  it('rejects missing or ambiguous tokens, including different secrets for one attempt', () => {
+    const token = 'at_01j0000000000000000000000a.fixtureSecretAAAAAAAAAAAAAAAAAAA'
+    const other = 'at_01j0000000000000000000000b.fixtureSecretBBBBBBBBBBBBBBBBBBB'
+    for (const [task, count] of [['no claim', 0], [token, 1], [`${token} ${token}`, 1],
+      [`${token} ${other}`, 0], [`${token} ${token.replace('fixtureSecret', 'differentSecret')}`, 0]] as const) {
+      const h = initialized()
+      const frame = { type: 'subagent_lifecycle', payload: { id: 'claim-worker', task, status: 'running' } }
+      h.feed(frame); h.feed(frame)
+      expect(h.internalEvents).toHaveLength(count)
+      expect(JSON.stringify(h.events)).not.toContain('Secret')
+    }
+  })
+})
+
+describe('OMP worker claims when lifecycle precedes the raw task', () => {
+  it.each(['single', 'repeated', 'absent', 'different attempts', 'different secrets'])('inspects the first progress task once: %s', scenario => {
+    const token = 'at_01j0000000000000000000000a.fixtureSecretAAAAAAAAAAAAAAAAAAA'
+    const other = 'at_01j0000000000000000000000b.fixtureSecretBBBBBBBBBBBBBBBBBBB'
+    const tasks: Record<string, string> = {
+      single: token, repeated: `${token} ${token}`, absent: 'Run tests without a claim',
+      'different attempts': `${token} ${other}`, 'different secrets': `${token} ${token.replace('fixtureSecret', 'differentSecret')}`
+    }
+    const h = initialized()
+    const lifecycle = { type: 'subagent_lifecycle', payload: { id: 'late-task-worker', agent: 'task', status: 'running' } }
+    h.feed(lifecycle)
+    expect(h.state.threads.has('late-task-worker')).toBe(true)
+    expect(h.state.claimTasksSeen.size).toBe(0)
+    expect(h.internalEvents).toEqual([])
+    const progress = { type: 'subagent_progress', payload: { agent: 'task', task: tasks[scenario],
+      progress: { id: 'late-task-worker', status: 'running' } } }
+    h.feed(progress)
+    const expected = ['single', 'repeated'].includes(scenario)
+      ? [{ type: 'thread_claim', threadId: 'late-task-worker', attemptId: 'at_01j0000000000000000000000a', token }]
+      : []
+    expect(h.internalEvents).toEqual(expected)
+    expect([...h.state.claimTasksSeen]).toEqual(['late-task-worker'])
+    h.feed(progress); h.feed(lifecycle)
+    // Later text cannot replace a missing or ambiguous initial claim, or duplicate a valid one.
+    h.feed({ ...progress, payload: { ...progress.payload, task: token } })
+    h.feed({ ...lifecycle, payload: { ...lifecycle.payload, status: 'completed' } })
+    expect(h.internalEvents).toEqual(expected)
+    expect(JSON.stringify(h.events)).not.toContain('Secret')
+    expect(JSON.stringify([...h.state.threads.values()])).not.toContain('Secret')
+    for (const event of h.events) expect(agentChatEventSchema.safeParse({ ...event, folder: null, chatId: 'fixture' }).success).toBe(true)
+  })
+})

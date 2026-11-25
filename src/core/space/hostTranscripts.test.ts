@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { readClaudeTranscript, readOmpTranscript } from './hostTranscripts'
+import { claimedAttemptId, readClaudeTranscript, readOmpTranscript } from './hostTranscripts'
 
 const fixture = (path: string): string => readFileSync(new URL(`./fixtures/usage/${path}`, import.meta.url), 'utf8')
 const CLAUDE = '6f1c2a4e-9b3d-4c8a-a1e2-3f4b5c6d7e8f'
@@ -95,4 +95,16 @@ describe('DM-173 c1: Claude Code recorded fixture', () => {
     expect(after?.activity.some((interval) => interval.end === null)).toBe(false)
     expect(after?.activity).toContainEqual({ start: T0 + 2000, end: T0 + 45 * 60_000 })
   })
+})
+
+it('exports the unchanged historical attempt-id attribution helper', () => {
+  expect(claimedAttemptId('no claim')).toBeNull()
+  for (const malformed of ['at_short.secretA', `${ATTEMPT_A}.short`, `prefix${ATTEMPT_A}.secretA`, `${ATTEMPT_A}x.secretA`]) {
+    expect(claimedAttemptId(malformed)).toBeNull()
+  }
+  expect(claimedAttemptId(`${ATTEMPT_A}.secretA`)).toBe(ATTEMPT_A)
+  expect(claimedAttemptId(`${ATTEMPT_A}.secretA ${ATTEMPT_A}.secretA`)).toBe(ATTEMPT_A)
+  expect(claimedAttemptId(`${ATTEMPT_A}.secretA ${ATTEMPT_B}.secretB`)).toBeNull()
+  // Historical attribution reads ids, not verification credentials. Private translator claims are stricter.
+  expect(claimedAttemptId(`${ATTEMPT_A}.secretA ${ATTEMPT_A}.secretB`)).toBe(ATTEMPT_A)
 })

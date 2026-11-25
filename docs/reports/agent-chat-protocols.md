@@ -326,14 +326,26 @@ For incremental Claude tools, initialize `TaskList` as `{tasks: [], pendingCreat
 Root: `src/main/agentChat/__fixtures__/`. Each entry has `.in.jsonl` (host writes) and `.out.jsonl` (CLI writes):
 
 - Both protocols: `init`, `text`, `tool`, `subagent`, `approval`, `approval_chat`, `question`, `interrupt`, `error`, `queued`, `subagent_tree`, `todo`, `todo_fail`, `edit`.
-- Claude additionally: `tasks`.
-- OMP additionally: `chunked`, `todo_clear`, `init_resume`.
-- Total: **32 pairs / 64 files**. Init/ready/negotiation/subscription/state bootstrap lives only in startup pairs; `init_resume` replaces `init` for resume. Scenario files cover one top-level turn; `queued.in` also admits its queued successor but `queued.out` does not execute it.
+- Claude additionally: `tasks`, `worker_approval`.
+- OMP additionally: `chunked`, `todo_clear`, `init_resume`, `worker_claim`.
+- Total: **34 pairs / 68 files**. Init/ready/negotiation/subscription/state bootstrap lives only in startup pairs; `init_resume` replaces `init` for resume. Scenario files cover one top-level turn; `queued.in` also admits its queued successor but `queued.out` does not execute it.
 - Replay cross-direction ordering: emit until permission/question, wait for matching answer; interrupt input follows partial text; queued second input follows first stream activity; OMP subagent transcript-tail command follows lifecycle/progress. Lists alone do not mean write every input before output. IDs and tool results carry the correlation.
 - Every transport/session/message/tool/thread/question/chunk id contains `T1`. Two **binding-amendment exceptions** are deliberate: TaskUpdate's semantic task keys `1`/`99` (and TaskCreate result numbers), and the exact synthetic attempt ids inside fake claim tokens. These are not renumbered transport ids. The fixed fake tokens are `at_01j0000000000000000000000a.fixtureSecretAAAAAAAAAAAAAAAAAAA` and `at_01j0000000000000000000000b.fixtureSecretBBBBBBBBBBBBBBBBBBB`; **no secret contains T1**. They are public noncredential test data, never real attempt secrets.
 - `subagent_tree`: each worker has one tool result; worker 1 completes, worker 2 stays running after result. Claude nested reviewer has worker 2's parent_tool_use_id. OMP parent linkage is intentionally absent because unobserved; its description is not proof of a parent.
 - No timestamp fields. Real timestamp-bearing messages are normalized projections, not full API schema fixtures. Synthetic durations and offsets are stable. Fixture paths are non-sensitive Windows absolute paths inside `C:\fixture\repo`, or relative read paths.
 - `.gitattributes` forces LF for JSONL and future fake `.mjs`. Do not run repository-wide `git add --renormalize`: selective commit policy supersedes that ticket command. Files are written LF directly, and the targeted index/worktree EOL check is performed after selective commit.
+
+| Worker fixture | Provenance and purpose |
+| --- | --- |
+| Claude `worker_approval.in/out` | **Synthetic, derived from the `subagent` and `approval` goldens**: raw fake claim in an Agent prompt, child Bash approval correlated by `parent_tool_use_id`/`tool_use_id`, then completion after the answer. |
+| OMP `worker_claim.in/out` | **Synthetic, derived from the `subagent` golden**: lifecycle opens the worker without task text; progress supplies the raw fake claim. The first raw task is inspected independently of thread creation, and repeated progress/completion emits no duplicate claim. |
+
+Translators return `internalEvents` separately from public `events`. A `ThreadClaimEvent` contains
+`{type:'thread_claim', threadId, attemptId, token}` in main memory only; never log, persist, or push it.
+Two distinct complete tokens (including different secrets for the same attempt) yield no claim.
+This extraction is not verification: DM-812 must verify the token and run ownership before calling
+`ActivityBindings.bind`, then discard it. Bindings persist only validated worker attempt ids and reject
+token-bearing input, including unknown fields. The public `AgentChatEvent` schema rejects `thread_claim`.
 
 ### Deterministic fake CLI
 
@@ -347,7 +359,7 @@ OMP subagent transcript responses wait for `get_subagent_messages` for the corre
 
 Arbiter print argv selects deterministic `allow`, `deny`, `escalate`, `garbage`, `fenced`, `hang` or `crash`, using `FAKE_ARBITER_VERDICT` before the first `[arbiter:verdict]` in stdin. Arbiter logs are written after EOF and before output, include only a `stdinHasSecret` boolean, and never create session files. The fake OMP arbiter is test machinery, not evidence that real OMP arbitration is supported.
 
-`fakeAgentCli.test.ts` compares every checked-in scenario, exercises session detection and both arbiter envelopes, and verifies generic future `worker_approval` replay using an isolated copy of the existing approval golden. The later approval ticket owns the real worker-approval golden; this fixture does not invent it.
+`fakeAgentCli.test.ts` compares every checked-in scenario, including the worker fixtures, exercises session detection and both arbiter envelopes, and also verifies generic `worker_approval` replay using an isolated copy of the existing approval golden.
 
 ## Arbiter (not GUI launch configuration)
 

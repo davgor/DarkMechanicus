@@ -3,6 +3,7 @@ import type { ChatItem } from '../../shared/agents/chat'
 import { ompReadFrame, ompWriteFrame, type OmpFraming } from './ompFraming'
 import type { OmpHeldPrompt } from './ompPrompts'
 import { OmpReducer } from './ompReducer'
+import type { ThreadClaimEvent } from './translatorEvents'
 
 type Payload<T> = T extends unknown ? Omit<T, 'folder' | 'chatId'> : never
 export type OmpEvent = Payload<AgentChatEvent>
@@ -20,6 +21,8 @@ export interface OmpState extends OmpFraming {
   message: Message | null
   tools: Map<string, ToolItem>
   threads: Map<string, ThreadItem>
+  /** Threads whose first raw task has been inspected; ids only, never claim credentials. */
+  claimTasksSeen: Set<string>
   pending: OmpHeldPrompt[]
   commands: Map<string, { type: string; threadId?: string; fromByte?: number }>
   tailOffsets: Map<string, number>
@@ -41,11 +44,11 @@ const array = (value: unknown): unknown[] => Array.isArray(value) ? value : []
 export function createOmpState(): OmpState {
   return { maxFrameBytes: 1_048_576, maxReassembledFrameBytes: 67_108_864, protocolVersion: 1, chunk: null, rejectedChunks: [], recoveringChunks: false,
     skipped: 0, initialized: false, inFlight: false, sequence: 0, messageSequence: 0, message: null,
-    tools: new Map(), threads: new Map(), pending: [], commands: new Map(), tailOffsets: new Map(), terminalErrors: new Map(), sessionId: null, sessionFile: null }
+    tools: new Map(), threads: new Map(), claimTasksSeen: new Set(), pending: [], commands: new Map(), tailOffsets: new Map(), terminalErrors: new Map(), sessionId: null, sessionFile: null }
 }
 
-/** No I/O, clocks or raw-line events. Caller retains the returned private state. */
-export function translateOmpLine(line: string, previous: OmpState, at: string): Result {
+/** No I/O, clocks or raw-line events. Only `events` are safe for storage/IPC, never `internalEvents`. */
+export function translateOmpLine(line: string, previous: OmpState, at: string): Result & { internalEvents: ThreadClaimEvent[] } {
   const state = structuredClone(previous)
   const reducer = new OmpReducer(state, at)
   const result = ompReadFrame(line, state)
@@ -55,10 +58,10 @@ export function translateOmpLine(line: string, previous: OmpState, at: string): 
     try { reducer.consume(object(result.frame)) }
     catch {
       // Oversized/deep or malformed vendor values are not host exceptions or raw error messages.
-      return { events: [], state: { ...previous, skipped: previous.skipped + 1 } }
+      return { events: [], internalEvents: [], state: { ...previous, skipped: previous.skipped + 1 } }
     }
   }
-  return { events: reducer.events, state }
+  return { events: reducer.events, internalEvents: reducer.internalEvents, state }
 }
 
 /** Call once after ready and before send; IDs are supplied by the owning session. */
