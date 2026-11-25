@@ -869,8 +869,9 @@ export class RepositoryWorkspace implements WorkspaceCore {
     const store = this.requireStore()
     this.assertStillGranted()
     const run = spec.run as (core: WorkspaceCore, input: unknown) => unknown
+    // The store was required (and its storage checked) above, so the command's `ctx()` is served it without requiring it again.
     return store.db.tx(() => {
-      const result = run(this, input)
+      const result = this.commandContext.run(store.ctx, () => run(this, input))
       touchMailPollSession({ db: store.db, clock: this.clock }, store.ctx.session.id)
       return result
     })
