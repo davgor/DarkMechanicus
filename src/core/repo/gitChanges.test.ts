@@ -82,7 +82,9 @@ describe('trackedChanges maps each record path class to its record', () => {
     }
     expect(trackedChanges(input(modified('local/machine.json', 'knowledge/x.md'), { status }))).toEqual({ kind: 'targeted', ...NOTHING })
   })
+})
 
+describe('trackedChanges merges every source of changes', () => {
   it('reads nothing when nothing changed, including when HEAD is still the marker commit', () => {
     expect(trackedChanges(input([]))).toEqual({ kind: 'targeted', ...NOTHING })
     const same = input([], { status: { ok: true, head: C1, branch: 'main', paths: [] }, isAncestor: null, diff: null })
@@ -152,7 +154,9 @@ describe('trackedChanges returns full with a reason', () => {
     const status = { ok: true as const, head: C2, branch: 'main', paths: [{ status: '!', path: `epics/${EPIC}/attachments/${'a'.repeat(64)}.png` }] }
     expect(trackedChanges(input([], { status }))).toEqual({ kind: 'full', reason: 'ignored_path' })
   })
+})
 
+describe('trackedChanges returns full when the marker or git cannot be trusted', () => {
   it('when no marker is stored, or any part of it is missing or invalid', () => {
     for (const marker of [
       { baseCommit: null, importerVersion: null, dirtyPaths: null },

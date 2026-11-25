@@ -4,7 +4,7 @@
  * runs git (`GitAdapter.diffPaths`, `statusPaths`, `isAncestor`) and reads the marker (`readReconcileMarker`).
  * Anything this cannot account for exactly returns `full`, so a missed change never leaves a record stale.
  */
-import { isStableId } from '../ids'
+import { type IdKind, isStableId } from '../ids'
 import type { ReconcileMarker } from '../meta'
 import { isProfileName } from '../profileNames'
 import type { GitDiffPaths, GitPathChange, GitStatusPaths } from './types'
@@ -78,62 +78,80 @@ export interface TrackedChangesInput {
 /** Paths below `.darkmechanicus/` no reconcile reads. `knowledge/` is loaded on demand by `knowledge/load.ts`. */
 const IGNORED_ROOTS: Record<string, true> = { local: true, knowledge: true }
 const PROFILE_SUFFIX = '.json'
-const ID_FOLDERS = { epics: ['epics', 'epic'], history: ['runs', 'run'], kanban: ['kanbanCards', 'kanbanCard'] } as const
 
 type PathVerdict = 'ignored' | 'mapped' | { reason: FullReason }
+
+/** Files directly in `.darkmechanicus/` with a fixed meaning. */
+const ROOT_FILES: Record<string, PathVerdict> = { '.gitignore': 'ignored', 'project.json': { reason: 'project_record' } }
+
+/** Adds the record a path below one top-level folder belongs to; false when the path names no valid record. */
+type FolderMapper = (name: string, rest: string[], records: TrackedRecords) => boolean
+
+function idFolder(key: 'epics' | 'runs' | 'kanbanCards', kind: IdKind): FolderMapper {
+  return (name, _rest, records) => {
+    if (!isStableId(name, kind)) return false
+    records[key].add(name)
+    return true
+  }
+}
+
+function wholeFolder(key: 'projectObservations' | 'recoveredAttachments'): FolderMapper {
+  return (_name, _rest, records) => {
+    records[key] = true
+    return true
+  }
+}
+
+/** The record folders, laid out as `ownedPaths` (`paths.ts`) writes them. */
+const FOLDERS: Record<string, FolderMapper> = {
+  epics: idFolder('epics', 'epic'),
+  history: idFolder('runs', 'run'),
+  kanban: idFolder('kanbanCards', 'kanbanCard'),
+  profiles: (name, rest, records) => {
+    const profile = name.slice(0, -PROFILE_SUFFIX.length)
+    const valid = rest.length === 0 && name.endsWith(PROFILE_SUFFIX) && isProfileName(profile)
+    if (valid) records.profiles.add(profile)
+    return valid
+  },
+  observations: wholeFolder('projectObservations'),
+  'recovered-attachments': wholeFolder('recoveredAttachments')
+}
 
 /** Records `path` (relative to `.darkmechanicus/`, forward slashes) belongs to, added to `records`. */
 function mapPath(path: string, records: TrackedRecords): PathVerdict {
   const [top = '', name = '', ...rest] = path.split('/')
-  if (IGNORED_ROOTS[top] === true || path === '.gitignore') {
-    return 'ignored'
-  }
-  if (path === 'project.json') {
-    return { reason: 'project_record' }
-  }
-  if (top === 'observations' || top === 'recovered-attachments') {
-    records[top === 'observations' ? 'projectObservations' : 'recoveredAttachments'] = true
-    return 'mapped'
-  }
-  const folder = Object.hasOwn(ID_FOLDERS, top) ? ID_FOLDERS[top as keyof typeof ID_FOLDERS] : undefined
-  if (folder !== undefined && isStableId(name, folder[1])) {
-    records[folder[0]].add(name)
-    return 'mapped'
-  }
-  const profile = name.slice(0, -PROFILE_SUFFIX.length)
-  if (top === 'profiles' && rest.length === 0 && name.endsWith(PROFILE_SUFFIX) && isProfileName(profile)) {
-    records.profiles.add(profile)
-    return 'mapped'
-  }
-  return { reason: 'unknown_path' }
+  if (IGNORED_ROOTS[top] === true) return 'ignored'
+  if (Object.hasOwn(ROOT_FILES, path)) return ROOT_FILES[path] ?? 'ignored'
+  const folder = Object.hasOwn(FOLDERS, top) ? FOLDERS[top] : undefined
+  return folder?.(name, rest, records) === true ? 'mapped' : { reason: 'unknown_path' }
 }
 
-function full(reason: FullReason): TrackedChanges {
-  return { kind: 'full', reason }
-}
-
-/** The first reason the marker cannot be trusted as a starting point, or null. */
-function fallback(input: TrackedChangesInput): FullReason | null {
-  const { marker, status } = input
-  if (!status.ok) return status.reason
-  if (status.head === null) return 'unborn_head'
+/** Whether the stored marker is current: present, written by this importer, on the branch checked out now. */
+function markerFallback(marker: ReconcileMarker, recordedBranch: string | null, branch: string | null): FullReason | null {
   if (marker.baseCommit === null || marker.importerVersion === null || marker.dirtyPaths === null) return 'no_marker'
   if (marker.importerVersion !== IMPORTER_VERSION) return 'importer_version'
-  const recorded = input.recordedBranch === '' ? null : input.recordedBranch
-  if (input.recordedBranch === null || recorded !== status.branch) return 'branch_changed'
-  if (marker.baseCommit === status.head) return null
-  if (input.isAncestor === null) return 'git_failed'
-  if (!input.isAncestor) return 'not_ancestor'
+  const recorded = recordedBranch === '' ? null : recordedBranch
+  return recordedBranch === null || recorded !== branch ? 'branch_changed' : null
+}
+
+/** Whether git's answer covers every commit between the marker and `head`. */
+function historyFallback(input: TrackedChangesInput, head: string): FullReason | null {
+  if (input.marker.baseCommit === head) return null
+  if (input.isAncestor !== true) return input.isAncestor === false ? 'not_ancestor' : 'git_failed'
   if (input.diff === null) return 'git_failed'
   return input.diff.ok ? null : input.diff.reason
 }
 
-/** The records changed since the last reconcile, or `full` with the reason a targeted read would not be exact. */
-export function trackedChanges(input: TrackedChangesInput): TrackedChanges {
-  const reason = fallback(input)
-  if (reason !== null) {
-    return full(reason)
-  }
+/** The first reason the marker cannot be trusted as a starting point, or null. */
+function fallback(input: TrackedChangesInput): FullReason | null {
+  const { status } = input
+  if (!status.ok) return status.reason
+  if (status.head === null) return 'unborn_head'
+  return markerFallback(input.marker, input.recordedBranch, status.branch) ?? historyFallback(input, status.head)
+}
+
+/** The records the diff, the status and the paths dirty at the last reconcile name, or why they cannot be mapped. */
+function changedRecords(input: TrackedChangesInput): TrackedRecords | FullReason {
   const records: TrackedRecords = {
     epics: new Set(), runs: new Set(), kanbanCards: new Set(), profiles: new Set(),
     projectObservations: false, recoveredAttachments: false
@@ -145,18 +163,24 @@ export function trackedChanges(input: TrackedChangesInput): TrackedChanges {
   ]
   for (const change of changes) {
     const verdict = mapPath(change.path, records)
-    if (verdict === 'mapped' && change.status === '!') {
-      return full('ignored_path')
-    }
-    if (typeof verdict === 'object') {
-      return full(verdict.reason)
-    }
+    if (typeof verdict === 'object') return verdict.reason
+    if (verdict === 'mapped' && change.status === '!') return 'ignored_path'
   }
-  const recheck = input.recheck ?? {}
+  return records
+}
+
+function addRecheck(records: TrackedRecords, recheck: RecheckRecords = {}): void {
   for (const key of ['epics', 'runs', 'kanbanCards', 'profiles'] as const) {
     for (const id of recheck[key] ?? []) records[key].add(id)
   }
   records.projectObservations ||= recheck.projectObservations === true
   records.recoveredAttachments ||= recheck.recoveredAttachments === true
+}
+
+/** The records changed since the last reconcile, or `full` with the reason a targeted read would not be exact. */
+export function trackedChanges(input: TrackedChangesInput): TrackedChanges {
+  const records = fallback(input) ?? changedRecords(input)
+  if (typeof records === 'string') return { kind: 'full', reason: records }
+  addRecheck(records, input.recheck)
   return { kind: 'targeted', ...records }
 }
