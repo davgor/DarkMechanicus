@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest'
+import { AsyncResource } from 'node:async_hooks'
 import { EventEmitter } from 'node:events'
 import { existsSync, linkSync, mkdirSync, readFileSync, realpathSync, renameSync, rmdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -37,10 +38,12 @@ function owner(home: string, generation = 1, lane?: SyncLane) {
     }
   })
   let next = 0
+  // A utility receives a request with no async context of the sender's: only the authority the request carries counts.
+  const deliver = AsyncResource.bind((request: WorkspaceRequest) => { child.emit('message', { data: request }) })
   function send(request: WorkspaceRequest): Promise<WorkspaceResponse> {
     return new Promise(resolve => {
       parent.once('reply:' + request.id, resolve)
-      child.emit('message', { data: request })
+      deliver(request)
     })
   }
   function work(path: string, work: Work, expected?: string): Promise<WorkspaceResponse> {
@@ -142,6 +145,22 @@ it('validates the live reservation on the receiving end before admitting a migra
     serveWorkspaceOwner({ generation: 7, home: h.homeDir, ownerPid: process.pid, version: '1.0.0-test' }, replyPort)
   })
   await expect(reply).resolves.toMatchObject({ ok: false, error: { code: 'conflict', message: 'The Forge conversion reservation ended.' } })
+})
+
+it('admits explicit and member syncs under the live Forge move reservation the request carries', async () => {
+  const h = fixture()
+  const source = h.open('desktop')
+  await source.initializeRepository({ name: 'Converting source' })
+  await source.createKanbanCard({ title: 'Exported before the move' })
+  const worker = owner(h.homeDir)
+  const opened = await worker.work(h.root, { kind: 'native', name: 'initialized', args: [] })
+  if (!opened.ok) throw new Error(opened.error.message)
+  const binding = opened.result.binding
+  await withForgeTransfer(h.homeDir, h.root, join(h.root, 'destination'), async () => {
+    // A conversion validates its source with an explicit reconcile and imports a member with a member sync.
+    await expect(worker.sync(h.root, 'explicit', binding)).resolves.toMatchObject({ ok: true, result: { value: { result: { rejected: [] } } } })
+    await expect(worker.sync(h.root, 'member', binding)).resolves.toMatchObject({ ok: true, result: { value: { result: { rejected: [] } } } })
+  })
 })
 
 it('uses the first member reconcile on the lane as the cold import instead of consuming it on open', async () => {

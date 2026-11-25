@@ -70,22 +70,24 @@ class WorkspaceOwner {
   /**
    * Admits a lane reconcile on the owner's queue: the durable binding is checked and the owner's session opened as for
    * any work. The reconcile itself then runs on the lane while the queue serves other work; `finish` completes it on the
-   * queue again.
+   * queue again. Admission runs whole under the request's Forge authority, as `operate` runs work: opening the session
+   * checks the Forge transfer reservation, which a conversion's own reconcile holds.
    */
   admitSync(request: SyncRequest): { reconciled: Promise<SyncValue> } {
     if (this.closed) throw new DomainError('conflict', 'This project worker is closed.')
     const { home, ownerPid } = this.options
     const { path, expected, mode, authority } = request
-    const before = withForgeOwnerAuthority({ home, ownerPid, path, authority }, () => identity(path, home))
-    this.assertBinding(path, before, expected)
-    const workspace = withForgeOwnerAuthority({ home, ownerPid, path, authority }, () => this.workspace ?? this.open(path))
-    if (mode === 'heartbeat' && !workspace.isInitialized()) return { reconciled: Promise.resolve({ result: null, hasLocalCache: false }) }
-    const ctx = workspace.ctx()
-    if (mode === 'explicit') requireCapability(ctx.session, 'repo.reconcile')
-    const reconciled = this.lane.reconcile({ path, home, ownerPid, mode, authority, sessionId: ctx.session.id, machineId: ctx.machineId })
-    this.syncing = reconciled.finally(() => { if (this.syncing === tracked) this.syncing = undefined })
-    const tracked = this.syncing
-    return { reconciled }
+    return withForgeOwnerAuthority({ home, ownerPid, path, authority }, () => {
+      this.assertBinding(path, identity(path, home), expected)
+      const workspace = this.workspace ?? this.open(path)
+      if (mode === 'heartbeat' && !workspace.isInitialized()) return { reconciled: Promise.resolve({ result: null, hasLocalCache: false }) }
+      const ctx = workspace.ctx()
+      if (mode === 'explicit') requireCapability(ctx.session, 'repo.reconcile')
+      const reconciled = this.lane.reconcile({ path, home, ownerPid, mode, authority, sessionId: ctx.session.id, machineId: ctx.machineId })
+      this.syncing = reconciled.finally(() => { if (this.syncing === tracked) this.syncing = undefined })
+      const tracked = this.syncing
+      return { reconciled }
+    })
   }
 
   /** On the owner's queue after the lane: the binding still holds, and what the reconcile left to export is flushed. */
