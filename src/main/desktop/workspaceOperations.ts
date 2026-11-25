@@ -11,7 +11,6 @@ import { verifyForgeExport, verifyForgeExportOwner } from '../../core/repo/forge
 import type { ForgeExportOptions } from '../../core/repo/storageMigration'
 import { layoutUnder, resolveLayout } from '../../core/repo/layout'
 import { nodeFs } from '../../core/repo/nodeFs'
-import { hasValidatedRepositoryCache } from '../../core/repo/validatedCache'
 import { assertStorageIdle } from '../../core/repo/storageMigration'
 import type { StorageMode } from '../../core/repo/storageMode'
 import { getAttachment, readAttachmentBytes } from '../../core/services/attachments'
@@ -151,11 +150,6 @@ function grantOperations(workspace: Workspace, ctx: Context) {
 function forgeOperations(workspace: Workspace, ctx: Context, home: string) {
   return {
     initialized: () => workspace.isInitialized(),
-    async reconcileMember() {
-      const hasLocalCache = hasValidatedRepositoryCache(ctx().db)
-      const result = await workspace.reconcileRepository()
-      return { result, hasLocalCache }
-    },
     checkStorageIdle(force: boolean) {
       const context = ctx()
       if (force) assertForgeForceSafe(context.db)

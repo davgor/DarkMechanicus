@@ -138,10 +138,11 @@ class Pool implements WorkspacePool {
     }
     // An explicit reconcile still returns its full result, from the lane, while the owner keeps serving.
     if (work.kind === 'command' && work.name === 'reconcileRepository') return this.awaitSync(entry, 'explicit').then(value => value.result)
-    const { promise, resolve, reject } = Promise.withResolvers<unknown>()
-    entry.jobs.push({ work, authority: this.options.authority?.(), background, fence, resolve, reject })
+    const result = new Promise((resolve, reject) => {
+      entry.jobs.push({ work, authority: this.options.authority?.(), background, fence, resolve, reject })
+    })
     this.pump()
-    return promise
+    return result
   }
 
   reconcile(path: string): Promise<SyncResult> {
@@ -161,9 +162,7 @@ class Pool implements WorkspacePool {
 
   private awaitSync(entry: Entry, mode: SyncMode): Promise<SyncValue> {
     if (this.stopping || entry.closing !== undefined) return Promise.reject(closed())
-    const { promise, resolve, reject } = Promise.withResolvers<SyncValue>()
-    this.requestSync(entry, mode, { resolve, reject })
-    return promise
+    return new Promise((resolve, reject) => this.requestSync(entry, mode, { resolve, reject }))
   }
 
   /**

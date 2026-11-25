@@ -145,6 +145,13 @@ export function assertForgeTransferIdle(fs: FsAdapter, home: string, source: str
   if (!ownsSource && isRetiredSource(fs, home, source)) fail('conflict', 'This ticket store moved to a Forge World. Reconnect before continuing.')
 }
 
+/** The storage fence every write transaction of a ticket store checks under the writer lock: its Forge binding is the one it opened with. */
+export function assertForgeStorage(fs: FsAdapter, home: string, root: string, epoch: string | null): void {
+  assertForgeTransferIdle(fs, home, root)
+  if (forgeBindingEpoch(fs, home, root) !== epoch) fail('conflict', 'Ticket storage changed. Reconnect before continuing.')
+  if (boundForgeRoot(fs, home, root) !== root) fail('conflict', 'Reconnect to the Forge World ticket store.')
+}
+
 function isRetiredSource(fs: FsAdapter, home: string, source: string): boolean {
   return [join(source, '.darkmechanicus'), dbProjectDir(source, home)]
     .some(store => fs.exists(join(store, 'local', 'forge-retired.json'))) && boundForgeRoot(fs, home, source) === source

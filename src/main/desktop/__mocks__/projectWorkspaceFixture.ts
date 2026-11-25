@@ -1,7 +1,8 @@
 /** Synchronous SQLite fixtures through the production queue and operation allow-list. */
 import type { Workspace } from '../../../core/workspace'
 import { currentForgeTransfer, withForgeOwnerAuthority } from '../../../core/repo/forgeBinding'
-import type { OwnerTransport, ProjectWorkspace } from '../workspaceClient'
+import { hasValidatedRepositoryCache } from '../../../core/repo/validatedCache'
+import type { OwnerTransport, ProjectWorkspace, SyncValue } from '../workspaceClient'
 import { workspaceClient } from '../workspaceClient'
 import { runWorkspaceOperation } from '../workspaceOperations'
 import { createWorkspacePool, type WorkspacePool } from '../workspacePool'
@@ -29,6 +30,17 @@ export function createTestWorkspacePool(open: (path: string) => Workspace, home 
       async run(repo, work, authority) {
         path = repo
         return { value: await withForgeOwnerAuthority({ home, ownerPid: process.pid, path: repo, authority }, () => runWorkspaceOperation(store(repo), work, home)), binding: repo }
+      },
+      // These workspaces reconcile on their own open and heartbeat; a member or explicit reconcile runs as the command.
+      async sync(repo, mode, authority) {
+        path = repo
+        const value = await withForgeOwnerAuthority({ home, ownerPid: process.pid, path: repo, authority }, async (): Promise<SyncValue> => {
+          if (mode === 'heartbeat') return { result: null, hasLocalCache: false }
+          const workspace = store(repo)
+          const hasLocalCache = hasValidatedRepositoryCache(workspace.ctx().db)
+          return { result: await workspace.reconcileRepository(), hasLocalCache }
+        })
+        return { value, binding: repo }
       },
       async close() {
         if (path === undefined) return

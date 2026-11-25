@@ -258,6 +258,7 @@ it('revokes a terminal credential that commits after untrack begins, before endi
   const delivery = barrier<void>()
   const calls: string[] = []
   const pool = createWorkspacePool({ canonical: path => path, open: () => ({
+    async sync() { return { value: { result: null, hasLocalCache: true }, binding: 'original store' } },
     async run(path, work) {
       expect(path).toBe(fixture.root)
       calls.push(work.kind === 'heartbeat' ? 'heartbeat' : work.name)
