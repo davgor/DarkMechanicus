@@ -274,7 +274,7 @@ it('broadcasts local Forge readiness only to live windows and removes the member
   expect(await prepared).toBe('forge:foldersChanged')
   expect(await f.invoke('forge:memberStatus', world, member)).toMatchObject({ readiness: 'ready', error: null })
   expect(f.owners).toHaveLength(1)
-  expect(postedNames(f.owners[0]!)).toEqual(['reconcileMember'])
+  expect(postedNames(f.owners[0]!)).toEqual(['hasValidatedCache', 'reconcileMember'])
   expect(desktop.closedWindowSend).not.toHaveBeenCalled()
 
   expect(await f.invoke('dm:untrackFolder', world)).toEqual([])
