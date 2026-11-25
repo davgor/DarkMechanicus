@@ -25,7 +25,7 @@ export interface AgentChatSessionsDeps extends Pick<TerminalSessionsDeps,
   'agentFor' | 'folders' | 'checkAuth' | 'cliFor' | 'runs' | 'issueChatCli' | 'issueReachCli' |
   'reachFolders' | 'revokeChatGrant' | 'renewChatGrant' | 'keepAwake' | 'userData' |
   'ompExtension' | 'platform' | 'env' | 'newSessionId' | 'bindChatGrant' | 'onChatChanged'> {
-  store: Pick<ChatStore, 'getChat' | 'updateChat' | 'appendItems' | 'readTranscript' | 'deleteChat'>
+  store: Pick<ChatStore, 'getChat' | 'updateChat' | 'appendItems' | 'readTranscript'>
   terminalLive(ref: ChatRef): boolean
   /** The live terminal owner's generation; null when no PTY runs. */
   terminalOwner(ref: ChatRef): string | null
@@ -52,7 +52,8 @@ export interface AgentChatSessions {
    */
   setSurface(ref: ChatRef, surface: 'gui' | 'terminal', confirmTerminalStop?: ConfirmTerminalStop): Promise<AgentChatSnapshot>
   stop(ref: ChatRef): Promise<void>
-  deleteChat(ref: ChatRef): Promise<void>
+  /** Stops the GUI process (refusing new starts meanwhile), then runs `remove`, which deletes the record. */
+  deleteChat(ref: ChatRef, remove: () => Promise<void>): Promise<void>
   isLive(ref: ChatRef): boolean
   busy(): boolean
   dispose(): Promise<void>
@@ -628,10 +629,11 @@ class SessionManager {
     await Promise.all(stopping.map(entry => this.stopEntry(entry)))
     await Promise.all(stopping.map(entry => entry.starting))
   }
-  async deleteChat(ref: ChatRef): Promise<void> {
-    const chat = this.chatFor(ref)
+  async deleteChat(ref: ChatRef, remove: () => Promise<void>): Promise<void> {
+    const chat = this.deps.store.getChat(ref)
+    if (chat === null) return remove()
     this.deleting.add(chat.id)
-    try { await this.stop(chat); this.deps.store.deleteChat(chat); this.entries.delete(chat.id) }
+    try { await this.stop(chat); await remove(); this.entries.delete(chat.id) }
     finally { this.deleting.delete(chat.id) }
   }
   dispose(): Promise<void> {
@@ -661,7 +663,7 @@ export function createAgentChatSessions(deps: AgentChatSessionsDeps): AgentChatS
   const manager = new SessionManager(deps)
   return { start: (ref, options) => manager.start(ref, options), snapshot: ref => manager.snapshot(ref),
     send: (ref, input) => manager.send(ref, input), interrupt: ref => manager.interrupt(ref), answer: (ref, input) => manager.answer(ref, input),
-    stop: ref => manager.stop(ref), deleteChat: ref => manager.deleteChat(ref), isLive: ref => manager.isLive(ref),
+    stop: ref => manager.stop(ref), deleteChat: (ref, remove) => manager.deleteChat(ref, remove), isLive: ref => manager.isLive(ref),
     setSurface: (ref, surface, confirm) => manager.setSurface(ref, surface, confirm),
     busy: () => manager.busy(), dispose: () => manager.dispose() }
 }

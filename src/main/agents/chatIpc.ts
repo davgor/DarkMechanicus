@@ -41,7 +41,7 @@ export interface ChatWindow {
   webContents: { isDestroyed(): boolean; send(channel: string, ...args: unknown[]): void }
 }
 
-function sendToWindows(windows: readonly ChatWindow[], channel: string, event: unknown): void {
+export function sendToWindows(windows: readonly ChatWindow[], channel: string, event: unknown): void {
   for (const window of windows) {
     if (!window.isDestroyed() && !window.webContents.isDestroyed()) {
       window.webContents.send(channel, event)

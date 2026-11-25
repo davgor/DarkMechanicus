@@ -2,10 +2,15 @@ import { join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
 import { agentChatState, reduceAgentChat } from './agentChatModel'
 import { removeScratch } from '../../../test/removeScratch'
-import { createChatStore } from '../../../main/agents/chatStore'
-import { createAgentChatSessions } from '../../../main/agentChat/agentChatSessions'
+import { createChatStore, type ChatRef, type ChatStore } from '../../../main/agents/chatStore'
+import { createAgentChatSessions, type AgentChatSessions } from '../../../main/agentChat/agentChatSessions'
 import { startAgentProcess, type AgentProcess, type AgentProcessExit } from '../../../main/agentChat/agentProcess'
 import { agentChatRig } from '../../../main/agentChat/__mocks__/agentChatRig'
+
+/** Deletes the chat as production does: the GUI process stops first, then the record goes. */
+function deleteChat(r: { sessions: AgentChatSessions; store: Pick<ChatStore, 'deleteChat'> }, chat: ChatRef): Promise<void> {
+  return r.sessions.deleteChat(chat, async () => { r.store.deleteChat(chat) })
+}
 
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => { for (const cleanup of cleanups.splice(0).reverse()) await cleanup() })
@@ -112,7 +117,7 @@ it.each(['stop', 'deleteChat', 'dispose'] as const)('%s waits separately for clo
   const chat = r.newChat()
   await r.sessions.start(chat)
   let settled = false
-  const ending = (operation === 'dispose' ? r.sessions.dispose() : r.sessions[operation](chat)).then(() => { settled = true })
+  const ending = (operation === 'dispose' ? r.sessions.dispose() : operation === 'stop' ? r.sessions.stop(chat) : deleteChat(r, chat)).then(() => { settled = true })
   await close.stopped.promise
   await close.observed.promise
   await new Promise(setImmediate)
@@ -204,7 +209,7 @@ it('recovers later stop, single-owner restart and deletion only after late close
   expect(close.children).toHaveLength(2)
   expect(r.bound).toEqual(['grant-1', 'grant-2'])
   expect(revoked).toEqual(['grant-1'])
-  await r.sessions.deleteChat(chat)
+  await deleteChat(r, chat)
   expect(r.store.getChat(chat)).toBeNull()
   expect(revoked).toEqual(['grant-1', 'grant-2'])
   for (const child of close.children) expect(() => process.kill(child.pid!, 0)).toThrow()
@@ -250,7 +255,7 @@ it('does not recover ownership or deletion when grant revocation failed despite 
   await new Promise(setImmediate)
   await expect(r.sessions.stop(chat)).rejects.toBe(failure)
   expect(await r.sessions.start(chat)).toMatchObject({ status: 'failed' })
-  await expect(r.sessions.deleteChat(chat)).rejects.toBe(failure)
+  await expect(deleteChat(r, chat)).rejects.toBe(failure)
   await expect(r.sessions.dispose()).rejects.toBe(failure)
   expect(r.store.getChat(chat)).not.toBeNull()
   expect(close.children).toHaveLength(1)
@@ -275,7 +280,7 @@ it.each(completionOrders.flatMap(order => shutdownOperations.map(operation => ({
     let settled = false
     const later = (operation === 'restart'
       ? Promise.all([r.sessions.start(chat), r.sessions.start(chat)])
-      : operation === 'dispose' ? r.sessions.dispose() : r.sessions[operation](chat))
+      : operation === 'dispose' ? r.sessions.dispose() : operation === 'stop' ? r.sessions.stop(chat) : deleteChat(r, chat))
       .then(result => { settled = true; return result })
     const release = { transport: () => close.transport.resolve(undefined), close: () => close.release.resolve(), grant: () => grant.resolve() }
     for (const barrier of order.slice(0, 2)) {
@@ -335,7 +340,7 @@ it('keeps transport-stop failure authoritative after successful close and revoca
   await expect(original).rejects.toBe(failure)
   await expect(r.sessions.stop(chat)).rejects.toBe(failure)
   expect(await r.sessions.start(chat)).toMatchObject({ status: 'failed' })
-  await expect(r.sessions.deleteChat(chat)).rejects.toBe(failure)
+  await expect(deleteChat(r, chat)).rejects.toBe(failure)
   await expect(r.sessions.dispose()).rejects.toBe(failure)
   expect(r.sessions.isLive(chat)).toBe(true)
   expect(r.store.getChat(chat)).not.toBeNull()
@@ -354,7 +359,7 @@ it.each(['stop', 'dispose'] as const)('%s preserves its transport deadline failu
   expect(r.revoked).toEqual(['grant-1'])
   expect(r.sessions.isLive(chat)).toBe(true)
   await expect(r.sessions.stop(chat)).rejects.toThrow('shutdown did not complete within 5 seconds')
-  await expect(r.sessions.deleteChat(chat)).rejects.toThrow('shutdown did not complete within 5 seconds')
+  await expect(deleteChat(r, chat)).rejects.toThrow('shutdown did not complete within 5 seconds')
   expect(r.store.getChat(chat)).not.toBeNull()
   if (operation === 'stop') {
     expect(await Promise.all([r.sessions.start(chat), r.sessions.start(chat)])).toEqual([
@@ -368,7 +373,7 @@ it.each(['stop', 'dispose'] as const)('%s preserves its transport deadline failu
   if (operation === 'stop') {
     await Promise.all([r.sessions.start(chat), r.sessions.start(chat)])
     expect(close.children).toHaveLength(2)
-    await r.sessions.deleteChat(chat)
+    await deleteChat(r, chat)
     expect(r.store.getChat(chat)).toBeNull()
   }
   await expect(r.sessions.dispose()).resolves.toBeUndefined()

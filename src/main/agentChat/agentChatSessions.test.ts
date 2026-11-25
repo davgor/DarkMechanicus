@@ -790,7 +790,10 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI ephe
     const r = rig(kind), chat = r.newChat()
     await r.sessions.start(chat)
     const pid = r.children[0].pid!
-    await r.sessions.deleteChat(chat)
+    await r.sessions.deleteChat(chat, async () => {
+      expect(() => process.kill(pid, 0)).toThrow()
+      r.store.deleteChat(chat)
+    })
     expect(r.store.getChat(chat)).toBeNull()
     expect(() => process.kill(pid, 0)).toThrow()
     expect(r.revoked).toEqual(['grant-1'])
