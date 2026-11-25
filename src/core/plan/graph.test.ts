@@ -798,3 +798,16 @@ describe('validatePlan ticket size warnings', () => {
     expect(codes(warningsOf(plan))).toEqual(['large_ticket', 'micro_ticket_deep_reasoning'])
   })
 })
+
+describe('validatePlan orchestrator retry limit', () => {
+  const AUTO = 'Orchestrator retry limit must be a whole number of at least 0.'
+
+  it('accepts no limit and whole limits from 0', () => {
+    expect(errorsOf(withPolicies({ autoRetryLimit: undefined }))).toEqual([])
+    expect(errorsOf(withPolicies({ autoRetryLimit: 0 }))).toEqual([])
+  })
+
+  it.each([-1, 1.5, Number.NaN])('rejects an orchestrator retry limit of %s', (autoRetryLimit) => {
+    expect(errorsOf(withPolicies({ autoRetryLimit }))).toEqual([{ code: 'invalid_policy', message: AUTO }])
+  })
+})

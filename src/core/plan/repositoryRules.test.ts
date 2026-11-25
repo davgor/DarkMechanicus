@@ -108,4 +108,10 @@ describe('validatePlan repositories that are not allowed or missing on disk', ()
   it('skips the repository check without options', () => {
     expect(validatePlan(planWith(1, { repo: undefined })).errors).toEqual([])
   })
+
+  it('says a folder lists no repositories when a ticket needs one and none are listed', () => {
+    expect(validatePlan(planWith(1, { repo: undefined, title: 'Ticket 1' }), { repositories: [] }).errors).toContainEqual({
+      code: 'missing_repo', message: "DM-1 needs a repository; this folder's repositories: none.", ticketIds: [tid(1)]
+    })
+  })
 })

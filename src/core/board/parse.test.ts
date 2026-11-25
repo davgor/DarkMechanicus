@@ -172,6 +172,14 @@ describe('parseBoard skips malformed files with a reason and parses the rest', (
     expect(result.epics).toEqual(['014:4'])
   })
 
+  it('reports an epic file titled like a sub-ticket, and keeps a plain title on an epic file', () => {
+    const result = skippedWith(file('board/backlog/047-sub.md', '# 047.1 — Sub-ticket title'))
+    expect(result.reasons).toEqual([['board/backlog/047-sub.md', 'has a title that does not start with its id 047']])
+    const plain = parseBoard([file('board/backlog/048-plain.md', '# EPIC: Plain epic'), file('board/backlog/048.1-child.md', '# 048.1 — Child'),
+      file('board/backlog/049-plain.md', '# A title without its number'), file('board/backlog/049.1-child.md', '# 049.1 — Child')])
+    expect(plain.epics.map((epic) => [epic.boardId, epic.title])).toEqual([['048', 'Plain epic'], ['049', 'A title without its number']])
+  })
+
 })
 
 describe('parseBoard skips inconsistent files with a reason and parses the rest', () => {
