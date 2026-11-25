@@ -175,7 +175,7 @@ export function scanProfiles(deps: ProfileImportDeps, only?: ReadonlySet<string>
 }
 
 /** Imports one profile: the record's content and dates, a local revision bump, and the synced hash. */
-function applyProfile(db: Db, profile: StagedProfile, now: string): void {
+export function applyProfile(db: Db, profile: StagedProfile, now: string): void {
   const { record } = profile
   db.run(
     `INSERT INTO profiles (name, description, capability_json, revision, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)
@@ -199,7 +199,13 @@ function applyProfile(db: Db, profile: StagedProfile, now: string): void {
   )
 }
 
-function storeProfileConflicts(db: Db, scan: ProfileScan, now: string): void {
+/** Whether every profile conflict of the scan is already stored, so storing them writes nothing new. */
+export function profileConflictsStored(db: Db, scan: ProfileScan): boolean {
+  return scan.conflicts.every((conflict) =>
+    db.get("SELECT 1 FROM sync_state WHERE kind = 'profile' AND entity_id = ? AND conflict = ?", conflict.name, conflict.message) !== undefined)
+}
+
+export function storeProfileConflicts(db: Db, scan: ProfileScan, now: string): void {
   for (const conflict of scan.conflicts) {
     db.run(
       `INSERT INTO sync_state (kind, entity_id, generation, conflict, updated_at) VALUES ('profile', ?, 0, ?, ?)
@@ -209,24 +215,4 @@ function storeProfileConflicts(db: Db, scan: ProfileScan, now: string): void {
       now
     )
   }
-}
-
-/**
- * Applies staged profiles, each under its own savepoint so one the database refuses is reported
- * without undoing the others, and records conflicts. Returns imported `profile:<name>` keys and
- * every rejection (from the scan too).
- */
-export function applyProfiles(db: Db, scan: ProfileScan, now: string): { imported: string[]; rejected: Rejection[] } {
-  const imported: string[] = []
-  const rejected = [...scan.rejected]
-  for (const profile of scan.staged) {
-    try {
-      db.tx(() => applyProfile(db, profile, now))
-      imported.push(profileKey(profile.name))
-    } catch (error: unknown) {
-      rejected.push({ path: profile.path, message: `Could not be applied: ${messageOf(error)}` })
-    }
-  }
-  storeProfileConflicts(db, scan, now)
-  return { imported, rejected }
 }

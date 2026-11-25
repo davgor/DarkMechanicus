@@ -398,28 +398,6 @@ describe('tx nesting with savepoints', () => {
   })
 })
 
-describe('guardTransactions', () => {
-  it('checks the guard on every transaction and savepoint by default, and only on depth-0 ones when outermost', () => {
-    const db = openWithNotes()
-    const checks = { every: 0, outermost: 0 }
-    const every = guardTransactions(db, () => { checks.every += 1 })
-    const outermost = guardTransactions(db, () => { checks.outermost += 1 }, 'outermost')
-    for (const guarded of [every, outermost]) {
-      guarded.tx(() => guarded.tx(() => guarded.tx(() => add(guarded, 'nested'))))
-      guarded.tx(() => names(guarded), 'read')
-    }
-    expect(checks).toEqual({ every: 4, outermost: 2 })
-    expect(names(db)).toEqual(['nested', 'nested'])
-  })
-
-  it('refuses an outermost transaction whose guard fails, before running it', () => {
-    const db = openWithNotes()
-    const fenced = guardTransactions(db, () => { throw new Error('storage changed') }, 'outermost')
-    expect(() => fenced.tx(() => add(fenced, 'never'))).toThrow('storage changed')
-    expect(names(db)).toEqual([])
-  })
-})
-
 describe('tx nesting failures caught by the enclosing level', () => {
   it('keeps outer writes when the outer transaction catches an inner failure', () => {
     const db = openWithNotes()
@@ -723,8 +701,9 @@ describe('transaction hold observer on a workspace', () => {
       holds.length = 0
       const reconciled = await workspace.reconcileRepository()
       expect(reconciled.imported).toContain(epic.id)
-      // The reconcile command applies the changed epic in one reconcile transaction, then flushes nothing pending.
-      expect(holds.map(({ tag }) => tag)).toEqual(['reconcile'])
+      // The reconcile command applies the changed epic in its own reconcile transaction, then finishes (conflicts, the
+      // reconciled event, the marker) in one more; it flushes nothing pending.
+      expect(holds.map(({ tag }) => tag)).toEqual(['reconcile', 'reconcile'])
 
       holds.length = 0
       await workspace.setEpicStatus({ epicId: epic.id, status: 'in_progress' })
@@ -734,5 +713,28 @@ describe('transaction hold observer on a workspace', () => {
     } finally {
       workspace.close()
     }
+  })
+})
+
+describe('guardTransactions', () => {
+  it('checks the guard once per depth-0 transaction, never on a nested savepoint', () => {
+    const db = openWithNotes()
+    let checks = 0
+    const guarded = guardTransactions(db, () => { checks += 1 })
+    guarded.tx(() => {
+      add(guarded, 'outer')
+      guarded.tx(() => guarded.tx(() => add(guarded, 'nested')))
+    })
+    expect(checks).toBe(1)
+    guarded.tx(() => names(guarded), 'read')
+    expect(checks).toBe(2)
+    expect(names(db)).toEqual(['outer', 'nested'])
+  })
+
+  it('refuses a depth-0 transaction the guard rejects, leaving nothing written', () => {
+    const db = openWithNotes()
+    const guarded = guardTransactions(db, () => { throw new Error('storage moved') })
+    expect(() => guarded.tx(() => add(guarded, 'refused'))).toThrow('storage moved')
+    expect(names(db)).toEqual([])
   })
 })

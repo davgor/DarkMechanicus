@@ -441,16 +441,8 @@ export class RepositoryWorkspace implements WorkspaceCore {
     this.granted = redeemGrant({ db, clock: this.clock, machineId }, token)
   }
 
-  /**
-   * The database behind this workspace's storage fence. A mailbox poll runs every few seconds and nests its mailbox
-   * queries inside one fenced transaction, so it checks the fence once per transaction it begins, not per savepoint.
-   */
-  private fenced(db: Db): Db {
-    return guardTransactions(db, () => this.assertForgeStorage(), this.options.mailPoll === true ? 'outermost' : 'every')
-  }
-
   private createStore(db: Db, project: ProjectRecord): Store {
-    db = this.fenced(db)
+    db = guardTransactions(db, () => this.assertForgeStorage())
     if (this.options.mailRead === true) {
       if (readSchemaVersion(db) !== SCHEMA_VERSION) fail('incompatible_schema', 'Open the project in the desktop app to update its database before listing peers.')
       if (getMeta(db, META_KEYS.projectId) !== project.projectId) fail('project_mismatch', mismatchAdvice(this.layout))
@@ -711,7 +703,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
       detach: () => { store.db.close() },
       attach: (layout: RepoLayout, db: Db) => {
         this.layout = layout
-        store.db = this.fenced(db)
+        store.db = guardTransactions(db, () => this.assertForgeStorage())
         store.ctx.db = store.db
       }
     }

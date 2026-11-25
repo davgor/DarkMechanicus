@@ -94,21 +94,42 @@ export function reconcileOnLane(state: LaneState, request: LaneRequest): SyncVal
     }
     const started = performance.now()
     const reads = { prepared: 0, locked: 0 }
-    const fs = state.observer ? countingBodyReads(db, reads) : nodeFs
+    const counted = state.observer ? countingBodyReads(db, reads) : { db, fs: nodeFs }
     const result = tagTransactions('reconcile', () => reconcileRepository({
-      db, layout, fs, clock: createSystemClock(), machineId: request.machineId, git, sessionId: request.sessionId, fileHashes
+      db: counted.db, layout, fs: counted.fs, clock: createSystemClock(), machineId: request.machineId, git, sessionId: request.sessionId, fileHashes
     }, reconcileGate({ db, layout, fs: nodeFs, git }, mode !== 'explicit')))
     state.observer?.onReconcile({ mode, ms: performance.now() - started, fileReads: reads })
     return { result, hasLocalCache }
   })
 }
 
-/** `nodeFs`, counting each file body read before or inside `db`'s write transaction. */
-function countingBodyReads(db: Db, reads: { prepared: number; locked: number }): typeof nodeFs {
-  const count = () => { if (db.inTransaction()) reads.locked += 1; else reads.prepared += 1 }
+/**
+ * `db` and `nodeFs`, counting each file body read before or inside a write transaction of `db` (a read snapshot does
+ * not hold the writer lock, so a read in one counts as prepared).
+ */
+function countingBodyReads(db: Db, reads: { prepared: number; locked: number }): { db: Db; fs: typeof nodeFs } {
+  let writing = 0
+  const count = () => { if (writing > 0) reads.locked += 1; else reads.prepared += 1 }
+  const tracked: Db = {
+    path: db.path,
+    get: db.get.bind(db), all: db.all.bind(db), run: db.run.bind(db), exec: db.exec.bind(db),
+    inTransaction: db.inTransaction.bind(db), close: db.close.bind(db),
+    tx: (fn, mode) => {
+      if (mode === 'read') return db.tx(fn, mode)
+      writing += 1
+      try {
+        return db.tx(fn, mode)
+      } finally {
+        writing -= 1
+      }
+    }
+  }
   return {
-    ...nodeFs,
-    readFile: (path) => { count(); return nodeFs.readFile(path) },
-    readFileBytes: (path) => { count(); return nodeFs.readFileBytes(path) }
+    db: tracked,
+    fs: {
+      ...nodeFs,
+      readFile: (path) => { count(); return nodeFs.readFile(path) },
+      readFileBytes: (path) => { count(); return nodeFs.readFileBytes(path) }
+    }
   }
 }

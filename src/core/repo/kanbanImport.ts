@@ -645,7 +645,7 @@ function rebuildCard(db: Db, cardId: string, events: KanbanEventRecord[], attemp
 }
 
 /** Applies one staged card: its definition, its new events, and everything rebuilt from the whole stream. */
-function applyCard(db: Db, card: StagedCard, now: string): void {
+export function applyCard(db: Db, card: StagedCard, now: string): void {
   if (card.definition !== null) {
     const { record, trackedHash } = card.definition
     const holder = db.get<{ id: string }>('SELECT id FROM kanban_cards WHERE key = ? AND id <> ?', record.key, record.id)
@@ -674,11 +674,20 @@ function applyCard(db: Db, card: StagedCard, now: string): void {
   }
 }
 
+/** Whether every conflict is already stored as `storeKanbanConflicts` would store it, so storing them writes nothing new. */
+export function kanbanConflictsStored(db: Db, conflicts: KanbanConflict[]): boolean {
+  return conflicts.every((conflict) => db.get(
+    `SELECT 1 FROM sync_state WHERE kind = ? AND entity_id = ? AND conflict = ?
+       AND (? IS NULL OR imported_hash = ?) AND generation >= ?`,
+    conflict.kind, conflict.entityId, conflict.message, conflict.seen?.hash ?? null, conflict.seen?.hash ?? null, conflict.seen?.generation ?? 0
+  ) !== undefined)
+}
+
 /**
  * Records each conflict. A card conflict also notes the tracked record as seen, so the finalizer, which writes over no
  * card record this machine has not seen, lets the local edit's next export through, one generation later.
  */
-function storeConflicts(db: Db, conflicts: KanbanConflict[], now: string): void {
+export function storeKanbanConflicts(db: Db, conflicts: KanbanConflict[], now: string): void {
   for (const conflict of conflicts) {
     db.run(
       `INSERT INTO sync_state (kind, entity_id, generation, imported_hash, conflict, updated_at) VALUES (?, ?, ?, ?, ?, ?)
@@ -693,26 +702,4 @@ function storeConflicts(db: Db, conflicts: KanbanConflict[], now: string): void 
       now
     )
   }
-}
-
-/**
- * Applies staged cards, each under its own savepoint so one the database refuses (a key another card holds, a second
- * open attempt, a stream with a gap) is reported without undoing the others, and records conflicts. Returns the imported
- * `kanban:<cardId>` keys (cards whose definition or events changed) and every rejection, the scan's too.
- */
-export function applyKanban(db: Db, scan: KanbanScan, now: string): { imported: string[]; rejected: Rejection[] } {
-  const imported: string[] = []
-  const rejected = [...scan.rejected]
-  for (const card of scan.cards) {
-    try {
-      db.tx(() => applyCard(db, card, now))
-      if (card.definition !== null || card.events.length > 0) {
-        imported.push(`kanban:${card.cardId}`)
-      }
-    } catch (error: unknown) {
-      rejected.push({ path: card.path, message: `Could not be applied: ${messageOf(error)}` })
-    }
-  }
-  storeConflicts(db, scan.conflicts, now)
-  return { imported, rejected }
 }
