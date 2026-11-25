@@ -111,6 +111,11 @@ function readGitHead(fs: FsAdapter, root: string): GitHead | null {
   return parseHead(fs, gitDir, head.trim())
 }
 
+function readIndexStamp(fs: FsAdapter, root: string): string | null {
+  const gitDir = resolveGitDir(fs, root)
+  return gitDir === null ? null : fs.fileStamp(join(gitDir, 'index'))
+}
+
 function gitEnv(): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env, GIT_OPTIONAL_LOCKS: '0', GIT_TERMINAL_PROMPT: '0' }
   for (const key of REDIRECTING_ENV) {
@@ -231,6 +236,20 @@ function parseCommitLine(text: string): { commit: string; parents: string[] } | 
   return valid ? { commit, parents } : null
 }
 
+/** The commit local branch `name` points at, as `GitAdapter.branchCommit` describes. */
+function readBranchCommit(fs: FsAdapter, root: string, runSync: RunGitSync, name: string): string | null {
+  const ref = `${HEADS_PREFIX}${safeArg(name)}`
+  const result = runSync(['rev-parse', '--verify', '--quiet', `${safeArg(ref)}^{commit}`])
+  if (result.code !== 0 && result.code !== 1) {
+    // Git could not answer (exit 1 is a clean "no such branch"): read the ref the way `head()` does, so an
+    // existing branch is never mistaken for a missing one.
+    const gitDir = resolveGitDir(fs, root)
+    return gitDir !== null && isBranchRef(ref) ? resolveRef(fs, gitDir, ref) : null
+  }
+  const resolved = result.code === 0 ? result.stdout.trim() : ''
+  return SHA_PATTERN.test(resolved) ? resolved : null
+}
+
 /**
  * Git access for one repository root. `head()` reads `.git` files directly (worktrees included);
  * the other methods run the git CLI and degrade to null/empty results when git is unavailable.
@@ -248,6 +267,7 @@ export function createGitAdapter(
   }
   return {
     head: () => readGitHead(fs, root),
+    indexStamp: () => readIndexStamp(fs, root),
     countUncommitted: async (pathspec) => {
       const status = await output(['status', '--porcelain=v1', '-uall', '--', safeArg(pathspec)])
       return status === null ? null : lines(status).length
@@ -271,17 +291,6 @@ export function createGitAdapter(
       const text = SHA_PATTERN.test(resolved) ? await output(['rev-list', '--parents', '-n', '1', resolved, '--']) : null
       return text === null ? null : parseCommitLine(text)
     },
-    branchCommit: (name) => {
-      const ref = `${HEADS_PREFIX}${safeArg(name)}`
-      const result = runSync(['rev-parse', '--verify', '--quiet', `${safeArg(ref)}^{commit}`])
-      if (result.code !== 0 && result.code !== 1) {
-        // Git could not answer (exit 1 is a clean "no such branch"): read the ref the way `head()` does, so an
-        // existing branch is never mistaken for a missing one.
-        const gitDir = resolveGitDir(fs, root)
-        return gitDir !== null && isBranchRef(ref) ? resolveRef(fs, gitDir, ref) : null
-      }
-      const resolved = result.code === 0 ? result.stdout.trim() : ''
-      return SHA_PATTERN.test(resolved) ? resolved : null
-    }
+    branchCommit: (name) => readBranchCommit(fs, root, runSync, name)
   }
 }

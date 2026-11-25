@@ -44,6 +44,11 @@ export interface GitAdapter {
   assertCurrent?(): void
   /** Reads HEAD without spawning git; null when the root is not a Git checkout. */
   head(): GitHead | null
+  /**
+   * Identity (size, times, file id) of this checkout's index file, read without spawning git; null when the root
+   * is not a Git checkout or has no index. Changes whenever git writes the index (stage, commit, checkout, reset).
+   */
+  indexStamp(): string | null
   /** Uncommitted (modified, added, deleted, untracked) files under `pathspec`; null if git is unavailable. */
   countUncommitted(pathspec: string): Promise<number | null>
   listLocalBranches(): Promise<string[]>
