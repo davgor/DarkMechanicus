@@ -88,6 +88,8 @@ export interface GitAdapter {
    * Read-only.
    */
   isAncestor(ancestor: string, descendant: string): Promise<boolean | null>
+  /** `isAncestor`, synchronously: the reconcile marker check runs inside synchronous opens and transactions. */
+  isAncestorSync(ancestor: string, descendant: string): boolean | null
   /**
    * The full id of the commit `ref` names and its parents, first parent first (none for a root commit).
    * Null when `ref` names no commit. Read-only.
@@ -96,15 +98,16 @@ export interface GitAdapter {
   /**
    * Paths below `.darkmechanicus/` that differ between commits `from` and `to` (`git diff --name-status --no-renames
    * --relative`, run in that folder, so a project nested in a larger repository works). A rename is a delete plus an add.
-   * A typed failure, never a throw, when git fails; throws `unsafe_path` for an option-like ref. Read-only.
+   * A typed failure, never a throw, when git fails; throws `unsafe_path` for an option-like ref. Read-only. Synchronous,
+   * as a reconcile runs inside synchronous opens and transactions.
    */
-  diffPaths(from: string, to: string): Promise<GitDiffPaths>
+  diffPaths(from: string, to: string): GitDiffPaths
   /**
    * Paths below `.darkmechanicus/` whose working tree or index differs from HEAD, untracked and ignored files included,
    * with the commit HEAD names at that moment (`git status --porcelain=v2 --branch -uall --ignored=matching`).
-   * A typed failure, never a throw. Takes no optional locks, so the index is never written.
+   * A typed failure, never a throw. Takes no optional locks, so the index is never written. Synchronous.
    */
-  statusPaths(): Promise<GitStatusPaths>
+  statusPaths(): GitStatusPaths
   /**
    * The commit local branch `name` (`refs/heads/<name>`) points at, or null when the repository has no such branch.
    * Asks `git rev-parse`; when git cannot run, reads the ref from the files under `.git` like `head()`. Synchronous,

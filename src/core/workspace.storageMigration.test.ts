@@ -280,7 +280,7 @@ describe('storage migration process interruption recovery', () => {
       import { nodeFs } from ${JSON.stringify(fsModule)};
       const app = openWorkspace({ repoRoot: ${JSON.stringify(harness.root)}, homeDir: ${JSON.stringify(harness.homeDir)},
         role: 'desktop', label: 'Crash proof', transport: 'desktop', autoReconcile: false,
-        git: { head: () => ({ branch: 'main', commit: '${'a'.repeat(40)}', detached: false }), countUncommitted: async () => 0 },
+        git: { head: () => ({ branch: 'main', commit: '${'a'.repeat(40)}', detached: false }), countUncommitted: async () => 0, statusPaths: () => ({ ok: false, reason: 'git_failed' }) },
         fs: { ...nodeFs, rename(from, to) {
           nodeFs.rename(from, to);
           const before = ${JSON.stringify(sourceMode)} === 'db' ? to === ${JSON.stringify(target)} : to.endsWith('migration-records.json');

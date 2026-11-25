@@ -99,9 +99,10 @@ export function createStubGit(initial: string | null = 'main'): StubGit {
     listFiles: async () => [],
     showFile: async () => null,
     isAncestor: async () => null,
+    isAncestorSync: () => null,
     commitParents: async () => null,
-    diffPaths: async () => ({ ok: false, reason: 'git_failed' }),
-    statusPaths: async () => ({ ok: false, reason: 'git_failed' }),
+    diffPaths: () => ({ ok: false, reason: 'git_failed' }),
+    statusPaths: () => ({ ok: false, reason: 'git_failed' }),
     branchCommit: () => null
   }
 }

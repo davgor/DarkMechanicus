@@ -205,15 +205,23 @@ function insertFiles(deps: ObservationImportDeps, fresh: ObservationFile[], now:
   return imported
 }
 
+/** The observation folders a targeted reconcile reads: the project level or not, and those of the epics it names. */
+export interface ObservationScope {
+  projectLevel: boolean
+  epics: ReadonlySet<string>
+}
+
 /**
- * Imports the observation files of the project level and of every epic this database holds. Returns the ids imported
- * and the files rejected (bad, conflicting, or naming a record this database does not hold).
+ * Imports the observation files of the project level and of every epic this database holds (with `scope`, only the
+ * folders it names, of epics held here). Returns the ids imported and the files rejected (bad, conflicting, or naming a
+ * record this database does not hold).
  */
-export function importObservations(deps: ObservationImportDeps, now: string): { imported: string[]; rejected: Rejection[] } {
+export function importObservations(deps: ObservationImportDeps, now: string, scope?: ObservationScope): { imported: string[]; rejected: Rejection[] } {
   const found: ObservationFile[] = []
   const rejected: Rejection[] = []
   const epicIds = deps.db.all<{ id: string }>('SELECT id FROM epics ORDER BY id').map((row) => row.id)
-  for (const epicId of [null, ...epicIds]) {
+  const folders = scope === undefined ? [null, ...epicIds] : [...(scope.projectLevel ? [null] : []), ...epicIds.filter((id) => scope.epics.has(id))]
+  for (const epicId of folders) {
     scanFolder(deps, epicId, found, rejected)
   }
   const imported = insertFiles(deps, planFiles(deps, found, now, rejected), now, rejected)
