@@ -93,7 +93,9 @@ describe('app settings: reading', () => {
       expect(logger.warn, stored).toHaveBeenCalledTimes(1)
     }
   })
+})
 
+describe('app settings: reading a partly invalid value leniently', () => {
   it('keeps the always-ask list and other valid parts of a value missing one event key', () => {
     const { checkpoint_ready: _dropped, ...events } = RESTRICTIVE.events
     const { settings, logger } = rig({ stored: JSON.stringify({ ...RESTRICTIVE, events }) })
@@ -135,7 +137,9 @@ describe('app settings: reading', () => {
       })
     }
   })
+})
 
+describe('app settings: the cached value', () => {
   it('caches the value: a later database write is not read until a save', () => {
     const { settings, db } = rig({ stored: JSON.stringify(RESTRICTIVE) })
     expect(settings.notifications()).toEqual(RESTRICTIVE)

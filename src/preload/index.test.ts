@@ -199,7 +199,9 @@ describe('preload bridge', () => {
     expect(bridge.calls).toEqual([['chats:startPlanner', request]])
     expect(registered.has('chats:startPlanner')).toBe(true)
   })
+})
 
+describe('preload bridge settings', () => {
   it('exposes the notification settings through exactly their two settings channels', async () => {
     const dm = bridge.exposed.get('dm') as { settings: Record<string, Listener> }
     const next = { ...DEFAULT_NOTIFICATION_SETTINGS, sound: false }
