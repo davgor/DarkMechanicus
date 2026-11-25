@@ -1,3 +1,4 @@
+import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const checkForUpdates = vi.fn()
@@ -71,6 +72,8 @@ function mockCalls(fn: unknown): unknown[][] {
 
 const originalPlatform = process.platform
 const originalExecPath = process.execPath
+/** Built with path.join so the expectation matches the platform's separator (Windows uses backslashes). */
+const STAGING_ROOT = join('/nonexistent-dm-userdata', 'updates')
 const APP_EXEC = '/Applications/DarkMechanicus.app/Contents/MacOS/DarkMechanicus'
 const feedFiles = [{ url: 'DarkMechanicus-2.0.0-arm64.dmg', sha512: 'sha' }]
 
@@ -116,7 +119,7 @@ describe('macOS update checks', () => {
     expect(callArgs(downloadAndStageMacUpdate)[0]?.[0]).toMatchObject({
       version: '2.0.0',
       arch: process.arch,
-      stagingRoot: '/nonexistent-dm-userdata/updates'
+      stagingRoot: STAGING_ROOT
     })
     expect(updater.getAutoUpdateState()).toMatchObject({ phase: 'downloaded', availableVersion: '2.0.0' })
   })
@@ -217,7 +220,7 @@ describe('macOS startup', () => {
     vi.useFakeTimers()
     const updater = await load()
     updater.initAutoUpdate()
-    expect(callArgs(sweepStaleMacUpdates)).toEqual([['/nonexistent-dm-userdata/updates']])
+    expect(callArgs(sweepStaleMacUpdates)).toEqual([[STAGING_ROOT]])
 
     vi.clearAllMocks()
     setProperty('platform', 'win32')
