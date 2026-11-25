@@ -570,7 +570,8 @@ export const COMMAND_SCHEMAS = {
     sinceSeq: z.number().int().min(0).optional(),
     limit: z.number().int().min(1).max(500).optional(),
     epicId: stableId.optional(),
-    runId: stableId.optional()
+    runId: stableId.optional(),
+    ticketId: stableId.optional()
   }),
   getAttemptTimeline: z.strictObject({ attemptId: stableId, ...timelineWindow }),
   getRunTimeline: z.strictObject({ runId: stableId, ...timelineWindow }),

@@ -20,6 +20,7 @@ afterEach(() => {
 async function openEditor(): Promise<{ h: WorkspaceHarness; editor: HTMLElement }> {
   const h = renderWorkspace(new FakeBackend(scenario({ epic: epicDetail({ hasDraft: true }), draft: draftPlan() })))
   fireEvent.click(await screen.findByRole('button', { name: 'View draft' }))
+  await screen.findByText('DRAFT REV 5 · UNSAVED')
   fireEvent.click(await screen.findByText('Transactional bundle import'))
   const editor = await screen.findByLabelText('Edit ticket DM-202')
   return { h, editor }
@@ -176,6 +177,7 @@ function intenseDraft(): ReturnType<typeof draftPlan> {
 async function openIntense(): Promise<{ h: WorkspaceHarness; editor: HTMLElement }> {
   const h = renderWorkspace(new FakeBackend(scenario({ epic: epicDetail({ hasDraft: true }), draft: intenseDraft() })))
   fireEvent.click(await screen.findByRole('button', { name: 'View draft' }))
+  await screen.findByText('DRAFT REV 5 · UNSAVED')
   fireEvent.click(await screen.findByText('Transactional bundle import'))
   return { h, editor: await screen.findByLabelText('Edit ticket DM-202') }
 }
@@ -233,6 +235,7 @@ describe('ticket editor: header', () => {
   it('shows the draft change badge of the ticket being edited', async () => {
     renderWorkspace(new FakeBackend(scenario({ epic: epicDetail({ hasDraft: true }), draft: draftPlan() })))
     fireEvent.click(await screen.findByRole('button', { name: 'View draft' }))
+    await screen.findByText('DRAFT REV 5 · UNSAVED')
     fireEvent.click(await screen.findByText('Plan list view'))
     const editor = await screen.findByLabelText('Edit ticket DM-305')
     expect(within(editor).getByText('NEW IN REV 5').textContent).toBe('NEW IN REV 5')
@@ -256,6 +259,7 @@ describe('ticket editor: repository', () => {
     const backend = new FakeBackend(scenario({ epic: epicDetail({ hasDraft: true }), draft, project: projectView({ repositories: REPOSITORIES }) }))
     const h = renderWorkspace(backend)
     fireEvent.click(await screen.findByRole('button', { name: 'View draft' }))
+    await screen.findByText('DRAFT REV 5 · UNSAVED')
     fireEvent.click(await screen.findByText(title))
     const editor = await screen.findByLabelText('Edit ticket DM-202')
     await within(editor).findByLabelText('Repository')

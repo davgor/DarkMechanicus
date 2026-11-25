@@ -266,11 +266,11 @@ export function EvidenceTab({ detail, folderKey, attemptId = null }: { detail: T
   return <p className="ew-muted">{attemptId === null ? 'No evidence recorded yet.' : 'This attempt recorded no evidence.'}</p>
 }
 
-function useHistory(runner: Runner, epicId: string, reloadKey: unknown): { events: EventView[] | null; error: string | null } {
+function useHistory(runner: Runner, epicId: string, ticketId: string, reloadKey: unknown): { events: EventView[] | null; error: string | null } {
   const [result, setResult] = useState<{ events: EventView[] | null; error: string | null }>({ events: null, error: null })
   useEffect(() => {
     let active = true
-    loadHistory(runner, epicId).then(
+    loadHistory(runner, epicId, ticketId).then(
       (events) => {
         if (active) {
           setResult({ events, error: null })
@@ -285,12 +285,12 @@ function useHistory(runner: Runner, epicId: string, reloadKey: unknown): { event
     return () => {
       active = false
     }
-  }, [runner, epicId, reloadKey])
+  }, [runner, epicId, ticketId, reloadKey])
   return result
 }
 
 export function HistoryTab(props: { runner: Runner; epicId: string; ticketId: string; now: number; reloadKey: unknown }): JSX.Element {
-  const history = useHistory(props.runner, props.epicId, props.reloadKey)
+  const history = useHistory(props.runner, props.epicId, props.ticketId, props.reloadKey)
   if (history.error !== null) {
     return <p role="alert" className="tp-error">{history.error}</p>
   }
