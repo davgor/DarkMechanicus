@@ -49,27 +49,18 @@ interface RecheckRow {
   card_id: string | null
 }
 
-/** Which record a stored conflict or an export names. */
-function recheckTarget(row: RecheckRow): { key: RecheckKey; id: string | null } | 'projectObservations' | null {
-  switch (row.kind) {
-    case 'epic':
-    case 'snapshot':
-    case 'epic_state':
-    case 'comment':
-      return { key: 'epics', id: row.epic_id }
-    case 'run':
-    case 'run_history':
-      return { key: 'runs', id: row.run_id }
-    case 'profile':
-      return { key: 'profiles', id: row.entity_id }
-    case 'kanban_card':
-    case 'kanban_event':
-      return { key: 'kanbanCards', id: row.card_id }
-    case 'metric_observation':
-      return row.epic_id === null ? 'projectObservations' : { key: 'epics', id: row.epic_id }
-    default:
-      return null
-  }
+/** Which record a stored conflict or an export of each kind names (`sync_state` and `outbox` kinds). */
+const RECHECK_TARGETS: Record<string, (row: RecheckRow) => { key: RecheckKey; id: string | null } | 'projectObservations'> = {
+  epic: (row) => ({ key: 'epics', id: row.epic_id }),
+  snapshot: (row) => ({ key: 'epics', id: row.epic_id }),
+  epic_state: (row) => ({ key: 'epics', id: row.epic_id }),
+  comment: (row) => ({ key: 'epics', id: row.epic_id }),
+  run: (row) => ({ key: 'runs', id: row.run_id }),
+  run_history: (row) => ({ key: 'runs', id: row.run_id }),
+  profile: (row) => ({ key: 'profiles', id: row.entity_id }),
+  kanban_card: (row) => ({ key: 'kanbanCards', id: row.card_id }),
+  kanban_event: (row) => ({ key: 'kanbanCards', id: row.card_id }),
+  metric_observation: (row) => (row.epic_id === null ? 'projectObservations' : { key: 'epics', id: row.epic_id })
 }
 
 /**
@@ -99,7 +90,7 @@ export function recheckRecords(db: Db): RecheckRecords {
   )
   const recheck = { epics: new Set<string>(), runs: new Set<string>(), kanbanCards: new Set<string>(), profiles: new Set<string>(), projectObservations: false }
   for (const row of rows) {
-    const target = recheckTarget(row)
+    const target = Object.hasOwn(RECHECK_TARGETS, row.kind) ? RECHECK_TARGETS[row.kind]?.(row) ?? null : null
     if (target === 'projectObservations') {
       recheck.projectObservations = true
     } else if (target !== null && target.id !== null) {

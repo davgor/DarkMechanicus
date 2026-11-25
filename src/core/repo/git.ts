@@ -347,6 +347,16 @@ function recordPathQueries(
     const inRepository = ancestorsOf(resolve(root, DM_DIR)).some((dir) => fs.exists(join(dir, '.git')))
     return { ok: false, reason: inRepository ? 'git_failed' : 'not_work_tree' }
   }
+  // Where `.darkmechanicus/` sits in its work tree does not move while this adapter lives: asked once it is known.
+  let knownPrefix: string | null = null
+  /** The work-tree prefix of `.darkmechanicus/`; `outside` when git says it is in no work tree, null when git failed. */
+  const workTreePrefix = (): string | 'outside' | null => {
+    if (knownPrefix !== null) return knownPrefix
+    const where = inDmDir(['rev-parse', '--is-inside-work-tree', '--show-prefix'])
+    if (where === null) return null
+    const [inside, prefix = ''] = where.split(/\r?\n/)
+    return inside === 'true' ? prefix : 'outside'
+  }
   return {
     diffPaths: (from, to) => {
       const text = inDmDir(['diff', '--name-status', '-z', '--no-renames', '--no-color', '--relative', safeArg(from), safeArg(to), '--', '.'])
@@ -354,15 +364,14 @@ function recordPathQueries(
       return paths === null ? failure() : { ok: true, paths }
     },
     statusPaths: () => {
-      const where = inDmDir(['rev-parse', '--is-inside-work-tree', '--show-prefix'])
-      const [inside, prefix = ''] = (where ?? '').split(/\r?\n/)
-      if (where !== null && inside !== 'true') {
-        return { ok: false, reason: 'not_work_tree' }
-      }
+      const prefix = workTreePrefix()
+      if (prefix === 'outside') return { ok: false, reason: 'not_work_tree' }
       const text = inDmDir(['status', '--porcelain=v2', '-z', '--branch', '--no-renames', '-uall', '--ignored=matching', '--', '.'])
       const status = text === null ? null : parseStatusV2(text)
-      const paths = status === null || where === null ? null : belowPrefix(status.paths, prefix)
-      return status === null || paths === null ? failure() : { ok: true, head: status.head, branch: status.branch, paths }
+      const paths = status === null || prefix === null ? null : belowPrefix(status.paths, prefix)
+      if (status === null || paths === null || prefix === null) return failure()
+      knownPrefix = prefix
+      return { ok: true, head: status.head, branch: status.branch, paths }
     },
     isAncestorSync: (ancestor, descendant) => {
       const result = runSync(['merge-base', '--is-ancestor', safeArg(ancestor), safeArg(descendant)])

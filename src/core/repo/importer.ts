@@ -1748,6 +1748,30 @@ function recordReconciled(deps: ImporterDeps, result: ReconcileResultView,
   }
 }
 
+/** Registers the attachments the records imported now name (all of them, once per database). */
+function registerAttachments(deps: ImporterDeps, now: string, imported: { runs: string[]; cards: string[]; epics: string[] }): void {
+  if (getMeta(deps.db, META_KEYS.attachmentRegistration) !== '1') {
+    registerEvidenceAttachments(deps.db, now)
+    registerTicketAttachments(deps.db, now)
+    setMeta(deps.db, META_KEYS.attachmentRegistration, '1')
+  } else {
+    registerEvidenceAttachments(deps.db, now, { runs: imported.runs, cards: imported.cards })
+    registerTicketAttachments(deps.db, now, imported.epics)
+  }
+}
+
+/**
+ * Imports `recovered-attachments/`. An archive only fills a row without bytes, so a targeted reconcile reads the folder
+ * only when git reports it or such a row waits.
+ */
+function recoverAttachments(deps: ImporterDeps, targeted: TrackedRecords | null): { rejected: { path: string; message: string }[]; changed: boolean } {
+  const read = targeted === null || targeted.recoveredAttachments ||
+    deps.db.get('SELECT 1 FROM attachments WHERE data IS NULL OR missing = 1 LIMIT 1') !== undefined
+  let changed = false
+  const rejected = read ? importRecoveredAttachments(deps, () => { changed = true }) : []
+  return { rejected, changed }
+}
+
 function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultView {
   const { plan, profiles, kanban, branchChanged, scope } = context
   const now = deps.clock.nowIso()
@@ -1758,19 +1782,8 @@ function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultVi
   // After epics and runs, so an observation of a run imported now resolves.
   const targeted = scope.changes.kind === 'targeted' ? scope.changes : null
   const observationOutcome = importObservations(deps, now, targeted === null ? undefined : { projectLevel: targeted.projectObservations, epics: targeted.epics })
-  if (getMeta(deps.db, META_KEYS.attachmentRegistration) !== '1') {
-    registerEvidenceAttachments(deps.db, now)
-    registerTicketAttachments(deps.db, now)
-    setMeta(deps.db, META_KEYS.attachmentRegistration, '1')
-  } else {
-    registerEvidenceAttachments(deps.db, now, { runs: staged.importedRuns, cards: kanbanOutcome.imported.map((key) => key.slice('kanban:'.length)) })
-    registerTicketAttachments(deps.db, now, staged.savedEpics)
-  }
-  let recoveredChanged = false
-  // An archive only fills a row without bytes; a targeted reconcile reads the folder when git reports it or such a row waits.
-  const readArchives = targeted === null || targeted.recoveredAttachments ||
-    deps.db.get('SELECT 1 FROM attachments WHERE data IS NULL OR missing = 1 LIMIT 1') !== undefined
-  const recoveredAttachments = readArchives ? importRecoveredAttachments(deps, () => { recoveredChanged = true }) : []
+  registerAttachments(deps, now, { runs: staged.importedRuns, cards: kanbanOutcome.imported.map((key) => key.slice('kanban:'.length)), epics: staged.savedEpics })
+  const recovered = recoverAttachments(deps, targeted)
   const attachmentOutcome = restoreAttachmentFiles(deps)
   storeConflicts(deps.db, plan.conflicts, [...plan.unchanged, ...profiles.unchanged], now)
   const pausedRuns = branchChanged ? pauseActiveRuns(deps, now) : []
@@ -1786,7 +1799,7 @@ function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultVi
       ...kanbanOutcome.rejected,
       ...observationOutcome.rejected,
       ...attachmentOutcome.rejected,
-      ...recoveredAttachments
+      ...recovered.rejected
     ],
     branchChanged,
     pausedRuns
@@ -1794,7 +1807,7 @@ function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultVi
   recordReconciled(deps, result, {
     changedEpics: [...staged.changedEpics],
     kanbanChanged: kanbanOutcome.imported.length > 0,
-    attachmentsChanged: attachmentOutcome.changed || recoveredChanged
+    attachmentsChanged: attachmentOutcome.changed || recovered.changed
   })
   if (branchChanged || getMeta(deps.db, META_KEYS.checkoutBranch) === null) setMeta(deps.db, META_KEYS.checkoutBranch, context.current ?? '')
   setMeta(deps.db, META_KEYS.lastReconcileAt, now)
