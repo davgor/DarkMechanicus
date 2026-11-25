@@ -36,7 +36,8 @@ import { assertContained, displayPath, ownedPaths } from './paths'
 import { applyAttachmentFiles, insertOwnedRow, prepareAttachmentFiles, registerEvidenceAttachments, registerTicketAttachments } from './attachmentImport'
 import { applyCard, type KanbanScan, kanbanConflictsStored, scanKanban, storeKanbanConflicts } from './kanbanImport'
 import { applyObservations, type ObservationScope, observationsSettled, scanObservations } from './observationImport'
-import { databaseRevision, observeRepository } from './reconcilePreparation'
+import { observeRepository } from './reconcilePreparation'
+import { type GuardedKind, type GuardedRecord, stampRecords, stampsHold } from './recordGuard'
 import type { ReconcileGate } from './reconcileFingerprint'
 import { reconcileScope, type ReconcileScope, unsettledPaths, writeReconcileMarker } from './reconcileScope'
 import { applyRecoveredAttachments, prepareRecoveredAttachments } from './recoveredAttachments'
@@ -1975,10 +1976,58 @@ function checkoutKey(deps: ImporterDeps, project: ProjectRecord): [RepoLayout['m
   return [deps.layout.mode, deps.fs.realpath(deps.layout.root), project.projectId]
 }
 
+/** The records a prepared reconcile applies or stores a conflict for, whose stamps decide whether the plan still holds. */
+function guardedRecords(context: ApplyContext): GuardedRecord[] {
+  const { plan, profiles, kanban } = context
+  const inEpic = (kind: GuardedKind, id: string, epicId: string): GuardedRecord => ({ kind, id, folder: 'epics', folderId: epicId })
+  const run = (id: string): GuardedRecord => ({ kind: 'run', id, folder: 'runs', folderId: id })
+  return [
+    ...plan.epics.map((files) => inEpic('epic', files.epicId, files.epicId)),
+    ...[...plan.runs, ...plan.eventMerges].map((files) => run(files.runId)),
+    ...[...plan.comments, ...plan.syncedComments].map((file) => inEpic('comment', file.commentId, file.epicId)),
+    ...plan.conflicts.map((conflict) => conflict.kind === 'run' ? run(conflict.entityId) : inEpic(conflict.kind, conflict.entityId, conflict.epicId)),
+    ...profiles.staged.map((profile): GuardedRecord => ({ kind: 'profile', id: profile.name, folder: 'profiles', folderId: profile.name })),
+    ...kanban.cards.map((card): GuardedRecord => ({
+      kind: 'kanban_card', id: card.cardId, related: [...card.events, ...card.syncedEvents].map((event) => event.eventId),
+      folder: 'kanbanCards', folderId: card.cardId
+    }))
+  ]
+}
+
+interface Prepared {
+  context: ApplyContext
+  identity: string
+  /** The filesystem reads prepare made, checked again under the lock. */
+  observed: { unchanged(): boolean }
+  records: GuardedRecord[]
+  stamps: string[]
+}
+
+/** Prepares outside the writer lock, in one read snapshot that also reads the stamps of the records it plans. */
+function prepareObserved(deps: ImporterDeps, full: boolean): Prepared {
+  const observed = observeRepository(deps.fs)
+  return deps.db.tx(() => {
+    const { context, identity } = prepare({ ...deps, fs: observed.fs }, full)
+    const records = guardedRecords(context)
+    return { context, identity, observed, records, stamps: stampRecords(deps.db, records) }
+  }, 'read')
+}
+
+/** Under the lock: HEAD and the checkout, every file prepare read, and every planned record are as prepare saw them. */
+function stillPrepared(deps: ImporterDeps, prepared: Prepared): boolean {
+  return JSON.stringify([checkoutKey(deps, requireProject(deps)), deps.git.head()]) === prepared.identity &&
+    prepared.observed.unchanged() && stampsHold(deps.db, prepared.records, prepared.stamps)
+}
+
+/** How many times a reconcile whose inputs moved under it prepares again outside the lock before preparing under it. */
+const OUTSIDE_PREPARES = 2
+
 /**
- * Most of a reconcile can run before taking SQLite's writer lock. SQLite and filesystem
- * observations are checked again after BEGIN IMMEDIATE. If anything changed, rescan under the
- * lock, as a finalizer or external process may have changed which inputs this database accepts.
+ * Most of a reconcile runs before taking SQLite's writer lock: prepare reads the files and plans in a read snapshot.
+ * Under the lock the reconcile checks that HEAD, the files it read, and each planned record's own database state
+ * (`recordGuard.ts`) are unchanged; a commit by another connection to anything else leaves the plan valid. When they
+ * moved, it leaves the lock and prepares again, at most `OUTSIDE_PREPARES` times, then prepares under the lock.
+ * A reconcile that would write nothing takes no write transaction (`unchangedResult`).
  * Database-only stores have no portable records to reconcile.
  *
  * With a `gate` (`reconcileFingerprint.ts`), inputs a session already reconciled cleanly are not
@@ -2004,19 +2053,19 @@ export function reconcileRepository(deps: ImporterDeps, gate?: ReconcileGate, op
   if (deps.db.inTransaction()) return deps.db.tx(() => gate?.current() === true ? nothingToReconcile() : apply(prepare(deps, full).context))
   if (gate !== undefined && deps.db.tx(() => gate.current(), 'read')) return nothingToReconcile()
 
-  const revision = databaseRevision(deps.db)
-  const observed = observeRepository(deps.fs)
-  const prepared = prepare({ ...deps, fs: observed.fs }, full)
-  // A reconcile that would write nothing (the fingerprint included) takes no write transaction at all.
-  const unchanged = deps.db.tx(() => {
-    const result = unchangedResult({ ...deps, fs: observed.fs }, prepared.context)
-    return result === null || gate?.stale?.(result) === true ? null : result
-  }, 'read')
-  if (unchanged !== null) return unchanged
-  return deps.db.tx(() => {
-    if (gate?.current() === true) return nothingToReconcile()
-    const identity = JSON.stringify([checkoutKey(deps, requireProject(deps)), deps.git.head()])
-    const fresh = prepared.identity === identity && databaseRevision(deps.db) === revision && observed.unchanged()
-    return apply(fresh ? prepared.context : prepare(deps, full).context)
-  })
+  for (let round = 0; ; round += 1) {
+    const prepared = prepareObserved(deps, full)
+    // A reconcile that would write nothing (the fingerprint included) takes no write transaction at all.
+    const unchanged = deps.db.tx(() => {
+      const result = unchangedResult(deps, prepared.context)
+      return result === null || gate?.stale?.(result) === true ? null : result
+    }, 'read')
+    if (unchanged !== null) return unchanged
+    const outcome = deps.db.tx(() => {
+      if (gate?.current() === true) return nothingToReconcile()
+      if (stillPrepared(deps, prepared)) return apply(prepared.context)
+      return round < OUTSIDE_PREPARES ? null : apply(prepare(deps, full).context)
+    })
+    if (outcome !== null) return outcome
+  }
 }

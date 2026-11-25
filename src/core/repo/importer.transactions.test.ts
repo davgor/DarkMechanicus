@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createFakeGit, TEST_STORAGE } from '../../test/workspaceHarness'
-import type { TransactionHold } from '../db/database'
+import type { Db, TransactionHold } from '../db/database'
 import { createSystemClock } from '../clock'
 import { openWorkspace, type Workspace } from '../workspace'
 import { createFileHashCache } from './fileHashes'
@@ -90,6 +90,91 @@ describe('a reconcile that changes nothing', () => {
       } finally {
         reader.close()
       }
+    } finally {
+      workspace.close()
+    }
+  })
+})
+
+interface Barrier {
+  deps: ImporterDeps
+  /** How many times the reconcile prepared (each prepare asks git for its status once). */
+  prepares: () => number
+}
+
+/**
+ * The workspace's importer, with `between` run once on another connection after prepare and before the reconcile's
+ * first write transaction takes the lock, as a sync lane or a command committing meanwhile would.
+ */
+function withBarrier(workspace: Workspace, root: string, between: (other: DatabaseSync) => void): Barrier {
+  const deps = importerOf(workspace, root)
+  const db = deps.db
+  let pending = true
+  let prepares = 0
+  const git = { ...deps.git, statusPaths: () => { prepares += 1; return deps.git.statusPaths() } }
+  const barrierDb: Db = {
+    path: db.path,
+    get: (sql, ...params) => db.get(sql, ...params),
+    all: (sql, ...params) => db.all(sql, ...params),
+    run: (sql, ...params) => db.run(sql, ...params),
+    exec: (sql) => db.exec(sql),
+    inTransaction: () => db.inTransaction(),
+    close: () => db.close(),
+    tx: (fn, mode) => {
+      if (pending && mode === undefined && !db.inTransaction()) {
+        pending = false
+        const other = new DatabaseSync(resolveLayout(root).dbFile)
+        try {
+          between(other)
+        } finally {
+          other.close()
+        }
+      }
+      return db.tx(fn, mode)
+    }
+  }
+  return { deps: { ...deps, db: barrierDb, git }, prepares: () => prepares }
+}
+
+describe('a reconcile whose database moved between prepare and apply', () => {
+  async function pulledEpic(): Promise<Observed & { epicId: string }> {
+    const observed = observedWorkspace()
+    await observed.workspace.initializeRepository({})
+    const epicId = await savedEpic(observed.workspace, 'Pulled epic', 2)
+    retitleOnDisk(observed.root, epicId, 'Pulled epic, changed on disk')
+    return { ...observed, epicId }
+  }
+
+  it('applies its plan without preparing again when another connection committed an unrelated row', async () => {
+    const { root, workspace, epicId } = await pulledEpic()
+    try {
+      const barrier = withBarrier(workspace, root, (other) => other.exec("INSERT INTO meta (key, value) VALUES ('unrelated', '1')"))
+      const result = reconcileRepository(barrier.deps, undefined, { full: true })
+      expect(result.imported).toContain(epicId)
+      expect(barrier.prepares()).toBe(1)
+      expect(workspace.ctx().db.get('SELECT title FROM epics WHERE id = ?', epicId)).toEqual({ title: 'Pulled epic, changed on disk' })
+    } finally {
+      workspace.close()
+    }
+  })
+
+  it("prepares again outside the lock when another connection changed a planned record's sync state, and applies it once", async () => {
+    const { root, workspace, holds, epicId } = await pulledEpic()
+    try {
+      const barrier = withBarrier(workspace, root, (other) => {
+        other.prepare("UPDATE sync_state SET exported_hash = 'moved' WHERE kind = 'epic' AND entity_id = ?").run(epicId)
+      })
+      holds.length = 0
+      const result = reconcileRepository(barrier.deps, undefined, { full: true })
+      expect(result.imported).toEqual([epicId])
+      // The second prepare ran outside the lock: the first lock was released without applying anything.
+      expect(barrier.prepares()).toBe(2)
+      expect(holds.length).toBe(2)
+      const { db } = workspace.ctx()
+      expect(db.get('SELECT title FROM epics WHERE id = ?', epicId)).toEqual({ title: 'Pulled epic, changed on disk' })
+      expect(db.get("SELECT exported_hash = imported_hash AS synced, conflict FROM sync_state WHERE kind = 'epic' AND entity_id = ?", epicId))
+        .toEqual({ synced: 1, conflict: null })
+      expect(db.all("SELECT kind FROM events WHERE kind = 'repository.reconciled'").length).toBeGreaterThan(0)
     } finally {
       workspace.close()
     }

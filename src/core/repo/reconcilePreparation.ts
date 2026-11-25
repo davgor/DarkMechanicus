@@ -1,12 +1,4 @@
-import type { Db } from '../db/database'
 import type { FsAdapter } from './types'
-
-/** The machine-local data read while preparing an import must still be current after BEGIN IMMEDIATE. */
-export function databaseRevision(db: Db): string {
-  const { data_version } = db.get<{ data_version: number }>('PRAGMA data_version')!
-  const { changes } = db.get<{ changes: number }>('SELECT total_changes() AS changes')!
-  return `${data_version}:${changes}`
-}
 
 /**
  * Record filesystem observations used by the read-only scan. Recheck each distinct observation
