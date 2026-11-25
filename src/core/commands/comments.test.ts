@@ -152,6 +152,8 @@ describe('comment exports across branches', () => {
     expect((await agent.getStorageStatus()).outbox).toEqual({ pending: 1, failed: 0, lastError: message })
     harness.git.setHead({ branch: 'main', commit: 'a'.repeat(40), detached: false })
     cpSync(stash, epicDir, { recursive: true })
+    // The failed export waits out its 15 s backoff; the flush after the next reconcile writes it.
+    harness.clock.advanceSeconds(15)
     expect(await agent.reconcileRepository()).toMatchObject({ branchChanged: true, rejected: [] })
     expect(readdirSync(join(epicDir, 'comments'))).toEqual([`${comment.id}.json`])
     expect((await agent.getStorageStatus()).outbox).toEqual({ pending: 0, failed: 0, lastError: null })
