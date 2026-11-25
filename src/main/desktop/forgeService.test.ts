@@ -13,7 +13,9 @@ import { createGitRunner, type GitRunner } from '../git/runner'
 import { createFolderRegistry } from './folderRegistry'
 import { forgeKickoff, updateForge } from './forgeManifest'
 import { startForge } from './forgeService'
-import { createTestWorkspacePool as createWorkspacePool } from './__mocks__/projectWorkspaceFixture'
+import { createTestWorkspacePool as createWorkspacePool, type TestWorkspacePool } from './__mocks__/projectWorkspaceFixture'
+import { ForgeFixtureTiming, gitTimingLabel } from '../../test/forgeFixtureTiming'
+import { TEST_STORAGE } from '../../test/workspaceHarness'
 import { bindForge, pendingForgeTransfer } from '../../core/repo/forgeBinding'
 import { ensureForgeConfig } from '../../core/repo/forgeReference'
 import { nodeFs } from '../../core/repo/nodeFs'
@@ -51,27 +53,28 @@ interface GitExits {
   settled(): Promise<void>
 }
 
-function gitExits(): GitExits {
+function gitExits(trace: ForgeFixtureTiming): GitExits {
   const running = new Set<Promise<void>>()
   function track<T>(work: Promise<T>): Promise<T> {
     const settled: Promise<void> = work.then(() => undefined, () => undefined).finally(() => { running.delete(settled) })
     running.add(settled)
     return work
   }
+  const timed = <T>(name: string, run: () => Promise<T>): Promise<T> => track(trace.observe('git:core:' + name, run))
   return {
     track,
-    /** A workspace's git adapter, with every asynchronous call tracked. */
+    /** A workspace's git adapter, with every asynchronous call tracked and timed. */
     adapter(root: string): GitAdapter {
       const git = createGitAdapter(root)
       return {
         ...git,
-        countUncommitted: pathspec => track(git.countUncommitted(pathspec)),
-        listLocalBranches: () => track(git.listLocalBranches()),
-        listWorktrees: () => track(git.listWorktrees()),
-        listFiles: (ref, pathspec) => track(git.listFiles(ref, pathspec)),
-        showFile: (ref, path) => track(git.showFile(ref, path)),
-        isAncestor: (ancestor, descendant) => track(git.isAncestor(ancestor, descendant)),
-        commitParents: ref => track(git.commitParents(ref))
+        countUncommitted: pathspec => timed('countUncommitted', () => git.countUncommitted(pathspec)),
+        listLocalBranches: () => timed('listLocalBranches', () => git.listLocalBranches()),
+        listWorktrees: () => timed('listWorktrees', () => git.listWorktrees()),
+        listFiles: (ref, pathspec) => timed('listFiles', () => git.listFiles(ref, pathspec)),
+        showFile: (ref, path) => timed('showFile', () => git.showFile(ref, path)),
+        isAncestor: (ancestor, descendant) => timed('isAncestor', () => git.isAncestor(ancestor, descendant)),
+        commitParents: ref => timed('commitParents', () => git.commitParents(ref))
       }
     },
     async settled(): Promise<void> {
@@ -80,8 +83,24 @@ function gitExits(): GitExits {
   }
 }
 
+/**
+ * The fixture's owners. Like every other test that opens workspaces itself (`TEST_STORAGE`), the thrown-away stores
+ * skip power-loss flushes: a forced sync per write and per commit is what stalls on a Windows CI runner's disk, and
+ * these tests prove crash recovery after a process dies, which the operating system's cache survives.
+ */
+function fixturePool(home: string, gits: GitExits, trace: ForgeFixtureTiming): TestWorkspacePool {
+  const pool = createWorkspacePool(repoRoot => openWorkspace({
+    repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Desktop fixture', serverInfo: { name: 'fixture', version: '1' },
+    git: gits.adapter(repoRoot), ...TEST_STORAGE
+  }), home)
+  const { close, closeAll } = pool
+  pool.close = path => trace.observe('fixture:owner close', () => close(path))
+  pool.closeAll = () => trace.observe('fixture:owner pool close', closeAll)
+  return pool
+}
+
 /** Local git runs for real and is tracked until it exits; network git is simulated, with an injectable failure. */
-function fixtureRunner(gits: GitExits, probes: string[], failing: () => NetworkFailure): GitRunner {
+function fixtureRunner(gits: GitExits, trace: ForgeFixtureTiming, probes: string[], failing: () => NetworkFailure): GitRunner {
   const real = createGitRunner()
   return { run: async req => {
     if (req.args.includes('push')) probes.push(req.cwd)
@@ -90,7 +109,9 @@ function fixtureRunner(gits: GitExits, probes: string[], failing: () => NetworkF
       // The ES2022 lib has no Promise.withResolvers.
       let exited = (): void => undefined
       gits.track(new Promise<void>(resolve => { exited = resolve }))
-      return real.run({ ...req, onExit: () => { req.onExit?.(); exited() } })
+      // Like Git's own test suite, disposable fixtures need real objects, not power-loss hardware flushes.
+      return trace.observe(`git:run:${req.kind}:${gitTimingLabel(req.args)}`, () =>
+        real.run({ ...req, env: { ...req.env, GIT_TEST_FSYNC: '0' }, onExit: () => { req.onExit?.(); exited() } }))
     }
     const failure = networkFailureAt(failing(), req.args)
     if (failure !== undefined) throw new Error('Injected network failure at ' + failure)
@@ -108,19 +129,23 @@ function fixtureRunner(gits: GitExits, probes: string[], failing: () => NetworkF
 
 function fixture(seed?: { source: string; world: string }) {
   const scratch = scratchDir('forge-convert-')
+  const trace = new ForgeFixtureTiming(scratch.path, { slowMs: 8_000 })
   const home = join(scratch.path, 'home')
   const source = join(scratch.path, 'Software')
   const world = join(scratch.path, 'TicketStore')
   const registry = createFolderRegistry({ file: join(home, 'folders.json'), dmHome: home, homeDir: home })
-  const gits = gitExits()
-  const pool = createWorkspacePool(repoRoot => openWorkspace({ repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Desktop fixture', serverInfo: { name: 'fixture', version: '1' }, git: gits.adapter(repoRoot) }), home)
+  const gits = gitExits(trace)
+  const pool = fixturePool(home, gits, trace)
   const handlers = new Map<string, Parameters<IpcMain['handle']>[1]>()
-  const call = async (name: string, ...args: unknown[]) => handlers.get('forge:' + name)!({} as Electron.IpcMainInvokeEvent, ...args)
-  for (const dir of [source, world]) {
-    if (seed) cpSync(dir === world ? seed.world : seed.source, dir, { recursive: true })
-    else initializeCheckout(dir, dir === world ? 'tickets' : 'software')
-    registry.track(dir)
-  }
+  const call = async (name: string, ...args: unknown[]) =>
+    trace.observe('ipc:' + name, () => handlers.get('forge:' + name)!({} as Electron.IpcMainInvokeEvent, ...args))
+  trace.observe('fixture:checkouts', () => {
+    for (const dir of [source, world]) {
+      if (seed) cpSync(dir === world ? seed.world : seed.source, dir, { recursive: true })
+      else initializeCheckout(dir, dir === world ? 'tickets' : 'software')
+      registry.track(dir)
+    }
+  })
   const published: string[] = []
   const probes: string[] = []
   const syncReceipts: Array<() => void> = []
@@ -130,17 +155,20 @@ function fixture(seed?: { source: string; world: string }) {
     home, registry, pool, session: { getAccount: () => ({ login: 'example', host: 'github.com' }), getToken: () => null },
     pickDirectory: async () => picked, cleanup: () => undefined, publish: async name => { published.push(name) },
     onSynced: async () => { syncReceipts.shift()?.() }, onConflict: async () => { throw new Error('Unexpected conflict') },
-    runner: fixtureRunner(gits, probes, () => failingNetwork)
+    runner: fixtureRunner(gits, trace, probes, () => failingNetwork)
   })
-  return { pool, source, world, home, registry, call, forge, published, probes, pick(path: string | null) { picked = path },
+  const { openProject } = forge
+  forge.openProject = path => trace.observe('ipc:openProject', () => openProject(path))
+  return { pool, source, world, home, registry, call, forge, published, probes, trace, pick(path: string | null) { picked = path },
     nextSync: () => new Promise<void>(resolve => { syncReceipts.push(resolve) }),
     failNetwork(command: NetworkFailure) { failingNetwork = command },
     async close() {
       forge.stop()
-      await forge.ready
+      await trace.observe('fixture:forge ready', () => forge.ready)
       await pool.closeAll()
-      await gits.settled()
-      scratch.cleanup()
+      await trace.observe('fixture:git exits', () => gits.settled())
+      trace.observe('fixture:scratch cleanup', scratch.cleanup)
+      trace.finished()
     } }
 }
 
@@ -233,9 +261,9 @@ function crashFixtureSource(): string {
 
 function interruptExport(f: ReturnType<typeof fixture>, point: 'reservation' | 'member' | 'staging' | 'checkpoint' | 'destination' | 'manifest') {
   const spawnedAt = Date.now()
-  const result = spawnSync(process.execPath, [join(crashBundle.path, 'crash.cjs'), JSON.stringify({ home: f.home, source: f.source, world: f.world, point, spawnedAt })], {
+  const result = f.trace.observe('fixture:crash child', () => spawnSync(process.execPath, [join(crashBundle.path, 'crash.cjs'), JSON.stringify({ home: f.home, source: f.source, world: f.world, point, spawnedAt })], {
     cwd: sourceRoot, encoding: 'utf8', windowsHide: true
-  })
+  }))
   return { ...result, stderr: result.stderr + `Child exited at ${Date.now() - spawnedAt}ms\n` }
 }
 
