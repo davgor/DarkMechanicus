@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, describe, expect, it } from 'vitest'
+import { dropAcceptanceNodes } from '../../test/acceptanceNodes'
 import { createFakeGit, TEST_STORAGE } from '../../test/workspaceHarness'
 import type { Db, TransactionHold } from '../db/database'
 import { createSystemClock } from '../clock'
@@ -50,11 +51,18 @@ function importerOf(workspace: Workspace, root: string): ImporterDeps {
   }
 }
 
+/**
+ * A saved epic with exactly `tickets` work tickets in one sprint (its acceptance node dropped), added in drafts of at
+ * most 500 operations (the command's limit).
+ */
 async function savedEpic(workspace: Workspace, title: string, tickets: number): Promise<string> {
   const epic = await workspace.createEpic({ title })
+  let draftRevision = await dropAcceptanceNodes(workspace, epic.id)
   const ops = Array.from({ length: tickets }, (_, index) => ({ op: 'add_ticket' as const, sprint: '1', ticket: { title: `${title} ticket ${index + 1}` } }))
-  const draft = await workspace.updatePlanDraft({ epicId: epic.id, ops })
-  await workspace.savePlan({ epicId: epic.id, expectedDraftRevision: draft.draftRevision })
+  for (let start = 0; start < ops.length; start += 500) {
+    draftRevision = (await workspace.updatePlanDraft({ epicId: epic.id, ops: ops.slice(start, start + 500) })).draftRevision
+  }
+  await workspace.savePlan({ epicId: epic.id, expectedDraftRevision: draftRevision })
   return epic.id
 }
 
@@ -177,6 +185,97 @@ describe('a reconcile whose database moved between prepare and apply', () => {
       expect(db.get("SELECT exported_hash = imported_hash AS synced, conflict FROM sync_state WHERE kind = 'epic' AND entity_id = ?", epicId))
         .toEqual({ synced: 1, conflict: null })
       expect(db.all("SELECT kind FROM events WHERE kind = 'repository.reconciled'").length).toBeGreaterThan(0)
+    } finally {
+      workspace.close()
+    }
+  })
+})
+
+/** The workspace's importer, whose `ticket_status` writes for `epicId` throw: the failure lands mid-way through that epic's apply. */
+function failingFor(workspace: Workspace, root: string, epicId: string): ImporterDeps {
+  const deps = importerOf(workspace, root)
+  const db = deps.db
+  const failing: Db = {
+    path: db.path,
+    get: (sql, ...params) => db.get(sql, ...params),
+    all: (sql, ...params) => db.all(sql, ...params),
+    run: (sql, ...params) => {
+      if (sql.includes('INSERT INTO ticket_status') && params.includes(epicId)) throw new Error('disk I/O error')
+      return db.run(sql, ...params)
+    },
+    exec: (sql) => db.exec(sql),
+    inTransaction: () => db.inTransaction(),
+    close: () => db.close(),
+    tx: (fn, mode) => db.tx(fn, mode)
+  }
+  return { ...deps, db: failing }
+}
+
+function reconciledEvents(workspace: Workspace): { changedEpics: string[]; rejected: number }[] {
+  return workspace.ctx().db.all<{ payload_json: string }>("SELECT payload_json FROM events WHERE kind = 'repository.reconciled' ORDER BY seq")
+    .map((row) => JSON.parse(row.payload_json) as { changedEpics: string[]; rejected: number })
+}
+
+describe('a reconcile that fails mid-way through one epic', () => {
+  it('leaves that epic all-old, commits the others, and reports one reconciled event listing them', async () => {
+    const { root, workspace } = observedWorkspace()
+    try {
+      await workspace.initializeRepository({})
+      const epics = [await savedEpic(workspace, 'First', 2), await savedEpic(workspace, 'Second', 2), await savedEpic(workspace, 'Third', 2)]
+      const [first, second, third] = epics as [string, string, string]
+      const { db } = workspace.ctx()
+      const before = {
+        epic: db.get('SELECT * FROM epics WHERE id = ?', second),
+        sync: db.get("SELECT * FROM sync_state WHERE kind = 'epic' AND entity_id = ?", second),
+        statuses: db.all('SELECT * FROM ticket_status WHERE epic_id = ? ORDER BY ticket_id', second)
+      }
+      for (const epicId of epics) retitleOnDisk(root, epicId, `${epicId} pulled`)
+      const events = reconciledEvents(workspace).length
+
+      const result = reconcileRepository(failingFor(workspace, root, second), undefined, { full: true })
+
+      expect(result.imported).toEqual(expect.arrayContaining([first, third]))
+      expect(result.imported).not.toContain(second)
+      expect(result.rejected).toEqual([expect.objectContaining({ path: expect.stringContaining(second), message: expect.stringContaining('disk I/O error') })])
+      for (const epicId of [first, third]) {
+        expect(db.get('SELECT title FROM epics WHERE id = ?', epicId)).toEqual({ title: `${epicId} pulled` })
+      }
+      expect({
+        epic: db.get('SELECT * FROM epics WHERE id = ?', second),
+        sync: db.get("SELECT * FROM sync_state WHERE kind = 'epic' AND entity_id = ?", second),
+        statuses: db.all('SELECT * FROM ticket_status WHERE epic_id = ? ORDER BY ticket_id', second)
+      }).toEqual(before)
+      const added = reconciledEvents(workspace).slice(events)
+      expect(added).toHaveLength(1)
+      expect([...added[0]!.changedEpics].sort()).toEqual([first, third].sort())
+      expect(added[0]!.rejected).toBe(1)
+
+      // The next reconcile, without the failure, brings the epic in.
+      expect(reconcileRepository(importerOf(workspace, root), undefined, { full: true }).imported).toEqual([second])
+    } finally {
+      workspace.close()
+    }
+  })
+})
+
+describe('a reconcile applying one changed 1,000-ticket epic', () => {
+  it('holds the writer lock in two short transactions: the epic, then the finish', async () => {
+    const { root, workspace, holds } = observedWorkspace()
+    try {
+      await workspace.initializeRepository({})
+      const epicId = await savedEpic(workspace, 'Large', 1_000)
+      const target = ownedPaths(resolveLayout(root)).epicStateFile(epicId)
+      const state = JSON.parse(readFileSync(target, 'utf8')) as { title: string; generation: number; ticketStatuses: Record<string, string> }
+      const ticketStatuses = Object.fromEntries(Object.keys(state.ticketStatuses).map((ticketId) => [ticketId, 'completed']))
+      expect(Object.keys(ticketStatuses)).toHaveLength(1_000)
+      writeFileSync(target, JSON.stringify({ ...state, title: 'Large, pulled', ticketStatuses, generation: state.generation + 1 }))
+
+      holds.length = 0
+      const result = reconcileRepository(importerOf(workspace, root), undefined, { full: true })
+      expect(result.imported).toEqual([epicId])
+      expect(holds.map(({ outcome }) => outcome)).toEqual(['commit', 'commit'])
+      expect(workspace.ctx().db.get("SELECT count(*) AS done FROM ticket_status WHERE epic_id = ? AND status = 'completed'", epicId)).toEqual({ done: 1_000 })
+      console.info(`1,000-ticket epic reconcile holds (ms): ${holds.map(({ holdMs }) => holdMs.toFixed(1)).join(', ')}`)
     } finally {
       workspace.close()
     }
