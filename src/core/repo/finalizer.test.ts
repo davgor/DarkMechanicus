@@ -311,6 +311,24 @@ describe('flushOutbox failures at the commit, after staging', () => {
   })
 })
 
+/** `db`, running `released` the moment a failing top-level write transaction has rolled back and released the lock. */
+function onRelease(db: Db, released: () => void): Db {
+  return {
+    ...failingStatement(db, /^$/),
+    tx: (fn, mode) => {
+      if (db.inTransaction() || mode === 'read') {
+        return db.tx(fn, mode)
+      }
+      try {
+        return db.tx(fn, mode)
+      } catch (error: unknown) {
+        released()
+        throw error
+      }
+    }
+  }
+}
+
 describe('flushOutbox restores replaced files under the write lock', () => {
   it('puts the replaced files back before releasing the lock, so another connection exporting the entry next keeps its export', () => {
     const dir = mkdtempSync(join(tmpdir(), 'dm-finalizer-restore-'))
@@ -328,21 +346,10 @@ describe('flushOutbox restores replaced files under the write lock', () => {
       env.fs.failOn({ op: 'rename', match: (path) => path.endsWith('current.json') })
       const seen: (string | undefined)[][] = []
       // The other connection flushes the same entry the moment this one's write transaction has ended.
-      const db: Db = {
-        ...failingStatement(dbA, /^$/),
-        tx: (fn, mode) => {
-          if (dbA.inTransaction() || mode === 'read') {
-            return dbA.tx(fn, mode)
-          }
-          try {
-            return dbA.tx(fn, mode)
-          } catch (error: unknown) {
-            seen.push(trackedTexts(env))
-            expect(flush(other)).toMatchObject({ flushed: 1, failed: 0 })
-            throw error
-          }
-        }
-      }
+      const db = onRelease(dbA, () => {
+        seen.push(trackedTexts(env))
+        expect(flush(other)).toMatchObject({ flushed: 1, failed: 0 })
+      })
       expect(flushOutbox({ ...env, db }, env.hook)).toMatchObject({ flushed: 0, failed: 1 })
       // The lock was released only once the old state was back in place.
       expect(seen[0]).toEqual(before)
@@ -381,28 +388,51 @@ describe('flushOutbox changes between staging and the commit', () => {
     expect(tempFiles(env)).toEqual([])
   })
 
-  it('drops what it staged when a newer change commits meanwhile, and exports the newer state on the next flush', () => {
+  it('stages again when a newer change commits meanwhile, leaves no stale file, and exports the newer state in the same flush', () => {
     const env = seedSavedFirstRevision()
-    const before = trackedTexts(env)
     env.db.run("UPDATE ticket_status SET status = 'completed' WHERE ticket_id = ?", tid(1))
     const entry = insertOutbox(env.db, { kind: 'epic_state', epicId: EPIC })
     let newer = 0
+    const renamed: string[] = []
     // Another process commits a newer change of the epic, and its own outbox entry, while this one stages.
     const fs = afterFsync(env.fs, staged('current.json'), () => {
       env.db.run("UPDATE ticket_status SET status = 'in_progress' WHERE ticket_id = ?", tid(2))
       newer = insertOutbox(env.db, { kind: 'epic_state', epicId: EPIC })
     })
-    expect(flushOutbox({ ...env, fs }, env.hook)).toEqual({ flushed: 0, failed: 0, errors: [], savedRevisionIds: [], failedRevisionIds: [] })
-    expect(trackedTexts(env)).toEqual(before)
-    expect(tempFiles(env)).toEqual([])
-    expect([outboxRow(env, entry), outboxRow(env, newer)]).toEqual([
-      { state: 'pending', attempts: 0, last_error: null },
-      { state: 'pending', attempts: 0, last_error: null }
-    ])
-    expect(flush(env)).toMatchObject({ flushed: 2, failed: 0 })
+    const rename = fs.rename.bind(fs)
+    fs.rename = (from, to) => {
+      if (to.endsWith('state.json')) renamed.push(env.fs.get(from) ?? '')
+      rename(from, to)
+    }
+    expect(flushOutbox({ ...env, fs }, env.hook)).toEqual({ flushed: 2, failed: 0, errors: [], savedRevisionIds: [], failedRevisionIds: [] })
+    // The state staged before the change was never put in place.
+    expect(renamed.map((text) => parseRecord(epicStateRecord, text, 'state').ticketStatuses[tid(2)])).toEqual(['in_progress', 'in_progress'])
     const state = parseRecord(epicStateRecord, env.fs.get(files(env).state) ?? '', 'state')
     expect([state.ticketStatuses[tid(1)], state.ticketStatuses[tid(2)]]).toEqual(['completed', 'in_progress'])
+    expect([outboxRow(env, entry)?.state, outboxRow(env, newer)?.state]).toEqual(['done', 'done'])
     expect(tempFiles(env)).toEqual([])
+  })
+})
+
+describe('flushOutbox re-stages a bounded number of times', () => {
+  it('leaves the entry pending, without an error, when every re-stage is overtaken, and exports it on the next flush', () => {
+    const env = seedSavedFirstRevision()
+    const before = trackedTexts(env)
+    const entry = insertOutbox(env.db, { kind: 'epic_state', epicId: EPIC })
+    const statuses = ['completed', 'in_progress', 'completed', 'in_progress']
+    // A write lands after every staging round: the first stage and both re-stages (each stages state.json again).
+    const wrapped: MemoryFs = Object.create(env.fs) as MemoryFs
+    wrapped.fsyncFile = (path) => {
+      env.fs.fsyncFile(path)
+      const status = path.includes('state.json') ? statuses.shift() : undefined
+      if (status !== undefined) env.db.run('UPDATE ticket_status SET status = ? WHERE ticket_id = ?', status, tid(1))
+    }
+    expect(flushOutbox({ ...env, fs: wrapped }, env.hook)).toMatchObject({ flushed: 0, failed: 0, errors: [] })
+    expect(trackedTexts(env)).toEqual(before)
+    expect(outboxRow(env, entry)).toEqual({ state: 'pending', attempts: 0, last_error: null })
+    expect(tempFiles(env)).toEqual([])
+    expect(flush(env)).toMatchObject({ flushed: 1, failed: 0 })
+    expect(parseRecord(epicStateRecord, env.fs.get(files(env).state) ?? '', 'state').ticketStatuses[tid(1)]).toBe('completed')
   })
 })
 

@@ -3,14 +3,17 @@
  * through without a file in hand (`db` mode, where the database is the record).
  *
  * A `repo` entry is exported in two steps (`exportEntry`). Staging runs outside the write lock: the export runs in a
- * read transaction and collects its file changes, and each new file is written to a temp file under `local/staging/`,
- * fsynced and read back. The commit runs in one short `db.tx` (BEGIN IMMEDIATE), so finalizers in different
- * processes never interleave: the export runs again from the rows as they are now (re-checking that the entry still
- * waits and that the tracked records may be written over), and only when it collects exactly the staged changes are
- * the temps renamed into place, in order, the pointer last, before the export is recorded and committed. A snapshot is
- * complete and verified before anything points at it; any failure rolls the transaction back and puts back the
- * tracked files it replaced, leaving the last good pointer (and every earlier snapshot) untouched and the entry
- * pending for an idempotent retry. A failed entry is retried by a scheduled flush only after a backoff.
+ * read transaction and collects its file changes (a save's state is built as its hook will leave it, from
+ * `previewSavedRevision`), and each new file is written to a temp file under `local/staging/`, fsynced and read back;
+ * images are loaded and hashed there too. The commit runs in one short `db.tx` (BEGIN IMMEDIATE), so finalizers in
+ * different processes never interleave: it runs the save hook once, collects the changes again from the rows as they
+ * are now (reusing the snapshot staging built and checked, and re-checking that the entry still waits and that the
+ * tracked records may be written over), and only when every change is staged are the temps renamed into place, in
+ * order, the pointer last, before the export is recorded and committed. When the commit finds other changes (a write
+ * landed meanwhile), it stages those and commits again, a bounded number of times. Any failure puts back the tracked
+ * files already replaced before the transaction rolls back, leaving the last good pointer (and every earlier snapshot)
+ * untouched and the entry pending for an idempotent retry. A failed entry is retried by a scheduled flush only after
+ * a backoff.
  */
 import { dirname, join, relative, sep } from 'node:path'
 import { z } from 'zod'
@@ -51,6 +54,7 @@ import {
   metricObservationRecord,
   parseRecord,
   readOwnedText,
+  type SavedRevisionPreview,
   type SnapshotRecord,
   snapshotRecord,
   trackedCommentHash,
@@ -75,13 +79,17 @@ export interface FinalizerDeps {
 
 export interface FinalizerHooks {
   /**
-   * Called inside the finalizer's transaction once the revision's snapshot is staged, durable and verified.
-   * Applies the DB side of the completed save (revision saved, epic current revision, ticket
-   * statuses, draft removal). The state and pointer files are built after it, from the updated
-   * rows, and these effects commit only after the pointer is in place. A save is also previewed in a
-   * transaction that is rolled back, so the hook runs again at the commit.
+   * Called inside the commit's transaction, once, before the epic's state and pointer are collected. Applies the DB
+   * side of the completed save (revision saved, epic current revision, ticket statuses, draft removal). The state and
+   * pointer files are built after it, from the updated rows, and these effects commit only after the pointer is in place.
    */
   onSnapshotSaved(revisionId: string): void
+  /**
+   * Outside the write lock, reading only: what `onSnapshotSaved` will change in the epic's state record (null when the
+   * revision is saved already), so staging writes the state the commit will find. Without it, or when it misses, the
+   * commit finds another state and the entry is staged again.
+   */
+  previewSavedRevision?(revisionId: string): SavedRevisionPreview | null
 }
 
 export interface FlushOutcome extends FlushResultView {
@@ -97,6 +105,8 @@ const MAX_FLUSH_PASSES = 3
 /** A scheduled flush retries a failed entry after 15 s, then 30 s, 1 min, 2 min, 4 min, and then every 5 min. */
 const RETRY_DELAY_SECONDS = 15
 const MAX_RETRY_DELAY_SECONDS = 300
+/** A commit that finds other changes than were staged stages those and commits again, at most this many more times. */
+const MAX_RESTAGES = 2
 
 interface OutboxRow {
   id: number
@@ -157,34 +167,59 @@ export function writeFileSafely(
 }
 
 /**
- * One file change of an entry's export, collected while the export runs and made only at its commit: a write, whose
- * temp file is staged, fsynced and read back before the write lock is taken, or a removal.
+ * One file change of an entry's export, collected while the export runs and made only at its commit: a text record or
+ * an image, whose temp file is staged (written, fsynced and read back) before the write lock is taken, or a removal.
  */
 type FileChange =
   | {
       kind: 'write'
       target: string
-      data: string | Uint8Array
-      /** What two runs of the export must agree on: the text, or the image's sha256. */
+      text: string
+      /** What staging and the commit must agree on: the text itself. */
       identity: string
       /** Reads the staged temp file back and fails when it does not hold what was written. */
       check: (fs: FsAdapter, temp: string) => void
       /** The text to put back (null: remove the file) when a later step fails; undefined: nothing is put back. */
       restore?: string | null
     }
+  | {
+      kind: 'image'
+      target: string
+      /** Listed without its bytes: staging loads and hashes them, outside the write lock. */
+      attachment: StoredAttachment
+      identity: string
+    }
   | { kind: 'remove'; target: string }
 
-/** The dependencies of one run of an entry's export: the file changes it collects, and whether it only plans them. */
+type StagedChange = Exclude<FileChange, { kind: 'remove' }>
+
+interface SnapshotText {
+  record: SnapshotRecord
+  text: string
+}
+
+/** What staging built or checked that the commit reuses: a revision's row never changes, so neither does its snapshot. */
+interface ExportMemo {
+  snapshots: Map<string, SnapshotText>
+  /** Snapshot files found holding their revision, by path, with the stamp they had then. */
+  checked: Map<string, string>
+}
+
+/** The dependencies of one run of an entry's export: the file changes it collects, and whether it stages or commits. */
 interface ExportDeps extends FinalizerDeps {
   changes: FileChange[]
-  /** A planning run, outside the write lock: it records no export, which the commit run does. */
+  memo: ExportMemo
+  /** A staging run, outside the write lock: it never writes the database and records no export, which the commit does. */
   planning: boolean
 }
 
 function collect(deps: ExportDeps, change: FileChange): void {
-  assertContained(deps.layout, deps.fs, change.target)
+  // Staging checks containment; the commit checks it again right before each rename (`putInPlace`).
+  if (deps.planning) {
+    assertContained(deps.layout, deps.fs, change.target)
+  }
   const repeated = deps.changes.some(
-    (known) => known.kind === 'write' && change.kind === 'write' && known.target === change.target && known.identity === change.identity
+    (known) => known.kind !== 'remove' && change.kind !== 'remove' && known.target === change.target && known.identity === change.identity
   )
   if (!repeated) {
     deps.changes.push(change)
@@ -194,7 +229,7 @@ function collect(deps: ExportDeps, change: FileChange): void {
 /** Puts `text` at `target` at the entry's commit; `verify` checks the staged copy (default: exact text). */
 function putText(deps: ExportDeps, target: string, text: string, options: { verify?: (written: string) => void; restore?: string | null } = {}): void {
   const verify = options.verify ?? exactly(text, displayPath(deps.layout, target))
-  collect(deps, { kind: 'write', target, data: text, identity: text, check: (fs, temp) => verify(fs.readFile(temp)), restore: options.restore })
+  collect(deps, { kind: 'write', target, text, identity: text, check: (fs, temp) => verify(fs.readFile(temp)), restore: options.restore })
 }
 
 /** The text an earlier change of this export puts at `target`: later steps of the export read it as on disk. */
@@ -202,85 +237,165 @@ function collectedText(deps: ExportDeps, target: string): string | null {
   for (let index = deps.changes.length - 1; index >= 0; index -= 1) {
     const change = deps.changes[index]
     if (change?.target === target) {
-      return change.kind === 'write' && typeof change.data === 'string' ? change.data : null
+      return change.kind === 'write' ? change.text : null
     }
   }
   return null
 }
 
-function discardAll(fs: FsAdapter, temps: (string | null)[]): void {
-  for (const temp of temps) {
-    if (temp !== null) {
-      discard(fs, temp)
-    }
+/** A staged write: its temp file, or null for an image its target already holds (whose stamp must hold until the commit). */
+interface StagedFile {
+  identity: string
+  temp: string | null
+  stamp: string | null
+}
+
+/** An entry's staged writes by target, kept across its commit rounds; `count` keeps temp names unique. */
+interface Staging {
+  files: Map<string, StagedFile>
+  count: number
+}
+
+function verifyStaged(deps: FinalizerDeps, change: StagedChange, temp: string): void {
+  if (change.kind === 'write') {
+    change.check(deps.fs, temp)
+  } else if (sha256Of(deps.fs.readFileBytes(temp)) !== change.attachment.sha256) {
+    fail('internal', `Read-back of ${displayPath(deps.layout, change.target)} does not match what was written.`)
   }
 }
 
 /**
- * Outside the write lock: writes each change's temp file, fsyncs it and reads it back. The temps sit under `local/`
- * (never tracked, never read by a reconcile), named after the entry, the change and its target. On a failure every
- * temp staged so far is removed.
+ * Outside the write lock: writes one change's temp file, fsyncs it and reads it back. An image's stored bytes are
+ * loaded and checked against its sha256 here, and an image its target already holds is not written again. Temps sit
+ * under `local/` (never tracked, never read by a reconcile), named after the entry, the round and the target.
  */
-function stageChanges(deps: FinalizerDeps, entryId: number, changes: FileChange[]): (string | null)[] {
-  const temps: (string | null)[] = []
+function stageWrite(deps: FinalizerDeps, entryId: number, staging: Staging, change: StagedChange): StagedFile {
+  let data: string | Uint8Array = change.kind === 'write' ? change.text : new Uint8Array()
+  if (change.kind === 'image') {
+    const stored = { ...change.attachment, data: loadStoredAttachment(deps.db, change.attachment.id).data }
+    const bytes = attachmentBytesToWrite(deps, stored, change.target)
+    if (bytes === null) {
+      return { identity: change.identity, temp: null, stamp: deps.fs.fileStamp(change.target) }
+    }
+    data = bytes
+  }
+  staging.count += 1
+  const name = relative(deps.layout.dmDir, change.target).split(sep).join('~')
+  const temp = join(deps.layout.localDir, 'staging', `${entryId}-${staging.count}-${name}.tmp-${process.pid}`)
   try {
-    changes.forEach((change, index) => {
-      if (change.kind === 'remove') {
-        temps.push(null)
-        return
-      }
-      const name = relative(deps.layout.dmDir, change.target).split(sep).join('~')
-      const temp = join(deps.layout.localDir, 'staging', `${entryId}-${index}-${name}.tmp-${process.pid}`)
-      temps.push(temp)
-      assertContained(deps.layout, deps.fs, temp)
-      deps.fs.mkdirp(dirname(temp))
-      assertContained(deps.layout, deps.fs, temp)
-      if (typeof change.data === 'string') {
-        deps.fs.writeFile(temp, change.data)
-      } else {
-        deps.fs.writeFileBytes(temp, change.data)
-      }
-      deps.fs.fsyncFile(temp)
-      change.check(deps.fs, temp)
-    })
+    assertContained(deps.layout, deps.fs, temp)
+    deps.fs.mkdirp(dirname(temp))
+    assertContained(deps.layout, deps.fs, temp)
+    if (typeof data === 'string') {
+      deps.fs.writeFile(temp, data)
+    } else {
+      deps.fs.writeFileBytes(temp, data)
+    }
+    deps.fs.fsyncFile(temp)
+    verifyStaged(deps, change, temp)
   } catch (error: unknown) {
-    discardAll(deps.fs, temps)
+    discard(deps.fs, temp)
     throw error
   }
-  return temps
+  return { identity: change.identity, temp, stamp: null }
+}
+
+/** Stages every write not staged yet with the same content; a temp staged for older content of a target is dropped. */
+function stageChanges(deps: FinalizerDeps, entryId: number, changes: FileChange[], staging: Staging): void {
+  for (const change of changes) {
+    if (change.kind === 'remove' || staging.files.get(change.target)?.identity === change.identity) {
+      continue
+    }
+    const older = staging.files.get(change.target)?.temp ?? null
+    staging.files.delete(change.target)
+    if (older !== null) {
+      discard(deps.fs, older)
+    }
+    staging.files.set(change.target, stageWrite(deps, entryId, staging, change))
+  }
+}
+
+/** Whether every write the commit collected is staged with the same content (an image left in place: unchanged since). */
+function allStaged(fs: FsAdapter, changes: FileChange[], staging: Staging): boolean {
+  return changes.every((change) => {
+    if (change.kind === 'remove') {
+      return true
+    }
+    const staged = staging.files.get(change.target)
+    return staged?.identity === change.identity && (staged.temp !== null || (staged.stamp !== null && fs.fileStamp(change.target) === staged.stamp))
+  })
+}
+
+/** One entry's commit: its frozen clock, what staging built and staged, and the temps already renamed into place. */
+interface CommitRun {
+  clock: Clock
+  memo: ExportMemo
+  staging: Staging
+  renamed: Set<string>
 }
 
 /**
  * Inside the commit's transaction: renames each staged temp over its target, or removes the file, in the order the
- * export collected them. Containment is re-checked right before each, so a directory swapped for a link meanwhile is
- * caught.
+ * export collected them; an image its target already holds is left. Containment is re-checked right before each, so a
+ * directory swapped for a link meanwhile is caught.
  */
-function putInPlace(deps: FinalizerDeps, changes: FileChange[], temps: (string | null)[], placed: Set<number>): void {
+function putInPlace(deps: FinalizerDeps, changes: FileChange[], run: CommitRun, placed: Set<number>): void {
   changes.forEach((change, index) => {
+    const temp = change.kind === 'remove' ? null : (run.staging.files.get(change.target)?.temp ?? null)
+    if (change.kind !== 'remove' && temp === null) {
+      return
+    }
     assertContained(deps.layout, deps.fs, change.target)
-    if (change.kind === 'remove') {
+    if (temp === null) {
       deps.fs.remove(change.target)
     } else {
       deps.fs.mkdirp(dirname(change.target))
       assertContained(deps.layout, deps.fs, change.target)
-      deps.fs.rename(temps[index] ?? fail('internal', `No staged file for ${displayPath(deps.layout, change.target)}.`), change.target)
+      deps.fs.rename(temp, change.target)
+      run.renamed.add(temp)
     }
     placed.add(index)
   })
 }
 
-/** Writes a snapshot once; an existing file must hold the same bundle and is never rewritten. */
-function writeSnapshot(deps: ExportDeps, record: SnapshotRecord): void {
+/** The revision's snapshot record and text, built once per entry: staging builds it, the commit reuses it. */
+function snapshotOf(deps: ExportDeps, revisionId: string): SnapshotText {
+  const known = deps.memo.snapshots.get(revisionId)
+  if (known !== undefined) {
+    return known
+  }
+  const record = buildSnapshotRecord(deps.db, revisionId)
+  const snapshot = { record, text: prettyJson(record) }
+  deps.memo.snapshots.set(revisionId, snapshot)
+  return snapshot
+}
+
+/**
+ * Writes a snapshot once; an existing file must hold the same bundle and is never rewritten. A file staging found
+ * holding it, unchanged since (same stamp), is not read again at the commit.
+ */
+function writeSnapshot(deps: ExportDeps, snapshot: SnapshotText): void {
+  const { record } = snapshot
   const target = ownedPaths(deps.layout).snapshotFile(record.epicId, record.revisionId)
   const shown = displayPath(deps.layout, target)
-  const existing = collectedText(deps, target) ?? readOwnedText(deps, target)
+  if (collectedText(deps, target) === snapshot.text) {
+    return
+  }
+  const stamp = deps.fs.fileStamp(target)
+  if (stamp !== null && deps.memo.checked.get(target) === stamp) {
+    return
+  }
+  const existing = readOwnedText(deps, target)
   if (existing !== null) {
-    if (parseRecord(snapshotRecord, existing, shown).contentHash !== record.contentHash) {
+    if (existing !== snapshot.text && parseRecord(snapshotRecord, existing, shown).contentHash !== record.contentHash) {
       fail('conflict', `${shown} already exists with different content; snapshots are never rewritten.`)
+    }
+    if (stamp !== null) {
+      deps.memo.checked.set(target, stamp)
     }
     return
   }
-  putText(deps, target, prettyJson(record), {
+  putText(deps, target, snapshot.text, {
     verify: (written) => {
       if (parseRecord(snapshotRecord, written, shown).contentHash !== record.contentHash) {
         fail('internal', `Read-back of ${shown} does not match the revision's content hash.`)
@@ -329,25 +444,14 @@ function writeAttachmentSidecar(deps: ExportDeps, attachment: StoredAttachment, 
   putText(deps, target, text)
 }
 
-/** Writes one image's file beside its owner's records and records the export (its hash is the image's sha256). */
+/**
+ * Puts one image's file beside its owner's records and records the export (its hash is the image's sha256). Its bytes
+ * are loaded, checked and written by staging, which leaves a file already holding them alone.
+ */
 function exportAttachmentFile(deps: ExportDeps, attachment: StoredAttachment): void {
   const placement = placementOfAttachment(deps.db, attachment)
   const target = ownedPaths(deps.layout).attachmentFile(placement.folder, attachment.sha256, attachment.mime)
-  const data = attachmentBytesToWrite(deps, attachment, target)
-  if (data !== null) {
-    const sha256 = attachment.sha256
-    collect(deps, {
-      kind: 'write',
-      target,
-      data,
-      identity: `sha256:${sha256}`,
-      check: (fs, temp) => {
-        if (sha256Of(fs.readFileBytes(temp)) !== sha256) {
-          fail('internal', `Read-back of ${displayPath(deps.layout, target)} does not match what was written.`)
-        }
-      }
-    })
-  }
+  collect(deps, { kind: 'image', target, attachment, identity: `sha256:${attachment.sha256}` })
   writeAttachmentSidecar(deps, attachment, placement.folder)
   recordExport(deps, {
     kind: 'attachment',
@@ -381,7 +485,7 @@ function exportAttachment(deps: ExportDeps, attachmentId: string): void {
     // Detached or deleted after it was queued: there is nothing left to export.
     return
   }
-  const attachment = loadStoredAttachment(deps.db, attachmentId)
+  const attachment = loadStoredAttachment(deps.db, attachmentId, false)
   const placement = placementOfAttachment(deps.db, attachment)
   if (placement.folder.kind === 'epic') {
     const pointer = ownedPaths(deps.layout).epicPointerFile(placement.folder.id)
@@ -569,29 +673,37 @@ function restoreFile(env: WriteEnv, path: string, text: string | null): void {
   }
 }
 
+/** A save's revision, exported before its hook ran: staging builds the state the hook will leave (`preview`). */
+interface SavingRevision {
+  revisionId: string
+  preview: SavedRevisionPreview | null
+}
+
 /**
- * Rewrites state.json, then current.json (last), for an epic's current saved revision, unless the tracked records
- * are held for a Linear transfer or hold records this machine has not imported (`requireWritableRecords`).
+ * Rewrites state.json, then current.json (last), for an epic's current saved revision (or the revision a save is
+ * staging), unless the tracked records are held for a Linear transfer or hold records this machine has not imported
+ * (`requireWritableRecords`).
  *
  * Before anything is replaced, the hashes the files may pass through are noted (`readExportIntent`), so a process
  * that dies before the row commits does not lock itself out. When a rename or the commit fails, the files already
  * replaced are put back as they were (`restore`), so the checkout again holds the records this machine last synced.
  */
-function exportEpic(deps: ExportDeps, epicId: string, entryId: number): void {
+function exportEpic(deps: ExportDeps, epicId: string, entryId: number, saving?: SavingRevision): void {
   const epic = deps.db.get<{ current_revision_id: string | null }>('SELECT current_revision_id FROM epics WHERE id = ?', epicId)
   if (epic === undefined) {
     fail('not_found', `Epic ${epicId} does not exist.`)
   }
-  if (epic.current_revision_id === null) {
+  const revisionId = saving?.revisionId ?? epic.current_revision_id
+  if (revisionId === null) {
     return
   }
   const before = requireWritableRecords(deps, epicId)
   exportAttachmentsOf(deps, { kind: 'epic', id: epicId })
-  const snapshot = buildSnapshotRecord(deps.db, epic.current_revision_id)
+  const snapshot = snapshotOf(deps, revisionId)
   writeSnapshot(deps, snapshot)
   const meta = { generation: nextGeneration(deps.db, 'epic', epicId), updatedAt: deps.clock.nowIso() }
-  const stateText = prettyJson(buildEpicStateRecord(deps.db, epicId, meta))
-  const pointerText = prettyJson(buildEpicPointerRecord(snapshot, meta))
+  const stateText = prettyJson(buildEpicStateRecord(deps.db, epicId, meta, saving?.preview ?? undefined))
+  const pointerText = prettyJson(buildEpicPointerRecord(snapshot.record, meta))
   const paths = ownedPaths(deps.layout)
   const hashes = [
     trackedEpicHash(before.pointer ?? '', stateText),
@@ -828,12 +940,17 @@ type EntryHandler = (deps: ExportDeps, hooks: FinalizerHooks, entry: OutboxRow) 
 const FILE_HANDLERS: Record<OutboxKind, EntryHandler> = {
   snapshot: (deps, hooks, entry) => {
     const revisionId = required(entry.revision_id, 'revision id')
-    const record = buildSnapshotRecord(deps.db, revisionId)
+    const snapshot = snapshotOf(deps, revisionId)
     // Checked before the snapshot is written too, so a save refused for held or unimported records leaves no file behind.
-    requireWritableRecords(deps, record.epicId)
-    writeSnapshot(deps, record)
+    requireWritableRecords(deps, snapshot.record.epicId)
+    writeSnapshot(deps, snapshot)
+    if (deps.planning) {
+      // Staging never writes the database: the hook runs once, at the commit.
+      exportEpic(deps, snapshot.record.epicId, entry.id, { revisionId, preview: hooks.previewSavedRevision?.(revisionId) ?? null })
+      return
+    }
     hooks.onSnapshotSaved(revisionId)
-    exportEpic(deps, record.epicId, entry.id)
+    exportEpic(deps, snapshot.record.epicId, entry.id)
   },
   epic_state: (deps, _hooks, entry) => exportEpic(deps, required(entry.epic_id, 'epic id'), entry.id),
   run_history: (deps, _hooks, entry) => {
@@ -905,8 +1022,12 @@ function completeEntry(db: Db, entryId: number, now: string): void {
   setMeta(db, META_KEYS.lastFlushAt, now)
 }
 
-function exportDeps(deps: FinalizerDeps, clock: Clock, planning: boolean): ExportDeps {
-  return { db: deps.db, layout: deps.layout, fs: deps.fs, clock, changes: [], planning }
+function newMemo(): ExportMemo {
+  return { snapshots: new Map(), checked: new Map() }
+}
+
+function exportDeps(deps: FinalizerDeps, clock: Clock, memo: ExportMemo, planning: boolean): ExportDeps {
+  return { db: deps.db, layout: deps.layout, fs: deps.fs, clock, changes: [], memo, planning }
 }
 
 /** `db` mode, in one transaction: no file is written. Skips an entry another process completed meanwhile. */
@@ -914,7 +1035,7 @@ function processEntry(deps: FinalizerDeps, hooks: FinalizerHooks, entry: OutboxR
   if (!waiting(deps.db, entry.id)) {
     return 'skipped'
   }
-  DB_HANDLERS[entry.kind](exportDeps(deps, deps.clock, false), hooks, entry)
+  DB_HANDLERS[entry.kind](exportDeps(deps, deps.clock, newMemo(), false), hooks, entry)
   completeEntry(deps.db, entry.id, deps.clock.nowIso())
   return 'flushed'
 }
@@ -928,46 +1049,10 @@ function collectChanges(deps: ExportDeps, hooks: FinalizerHooks, entry: OutboxRo
   return deps.changes
 }
 
-/** Thrown to roll back a preview; never escapes `planChanges`. */
-const PREVIEW = Symbol('preview')
-/** Thrown to roll back a commit whose export no longer matches what was staged. */
-const STALE = Symbol('stale')
-
-/**
- * Plans the entry's file changes in a read transaction, without the write lock. A save's hook changes the rows its
- * state is built from, so a snapshot entry is previewed in a write transaction that is rolled back: only database
- * work and reads of the tracked files happen while it is open, never a write, an fsync or a read-back.
- */
-function planChanges(deps: FinalizerDeps, clock: Clock, hooks: FinalizerHooks, entry: OutboxRow): FileChange[] | null {
-  const planning = exportDeps(deps, clock, true)
-  if (entry.kind !== 'snapshot') {
-    return deps.db.tx(() => collectChanges(planning, hooks, entry), 'read')
+function discardAll(fs: FsAdapter, temps: string[]): void {
+  for (const temp of temps) {
+    discard(fs, temp)
   }
-  const preview: { changes: FileChange[] | null } = { changes: null }
-  try {
-    deps.db.tx(() => {
-      preview.changes = collectChanges(planning, hooks, entry)
-      throw PREVIEW
-    })
-  } catch (error: unknown) {
-    if (error !== PREVIEW) {
-      throw error
-    }
-  }
-  return preview.changes
-}
-
-function sameChanges(left: FileChange[], right: FileChange[]): boolean {
-  return (
-    left.length === right.length &&
-    left.every((change, index) => {
-      const other = right[index]
-      if (other === undefined || other.kind !== change.kind || other.target !== change.target) {
-        return false
-      }
-      return change.kind === 'remove' || (other.kind === 'write' && other.identity === change.identity && other.restore === change.restore)
-    })
-  )
 }
 
 /** Puts back the tracked files the commit already replaced, in reverse order, as they were before the export. */
@@ -981,53 +1066,85 @@ function putBack(deps: FinalizerDeps, changes: FileChange[], placed: Set<number>
   placed.clear()
 }
 
+/** Thrown to roll back a commit that found changes staging did not stage: they are staged next. */
+class Restage {
+  constructor(readonly changes: FileChange[]) {}
+}
+
 /**
- * A `repo` mode entry in two steps (see the module comment). Staging plans the changes and writes, fsyncs and reads
- * back their temps, outside the write lock. The commit, in one short write transaction, exports the entry again from
- * the rows as they are now, at the same time (so the records rebuild byte for byte); only when that collects exactly
- * the staged changes are the temps renamed into place and the entry completed. When anything changed meanwhile
- * (`stale`), the temps are dropped and the entry waits for the next flush, which exports the newer state.
+ * The commit, in one short write transaction: collects the entry's changes again from the rows as they are now (the
+ * save hook runs here, once), and only when every one is staged renames the temps into place and completes the entry.
  *
  * A rename or the completion failing puts the replaced files back before the transaction rolls back, while the lock is
  * still held, so no other process's export of the entry can land in between and be overwritten. Only a failing COMMIT
  * itself puts them back after the lock is released.
  */
-function exportEntry(deps: FinalizerDeps, hooks: FinalizerHooks, entry: OutboxRow): EntryResult {
-  const now = { ms: deps.clock.nowMs(), iso: deps.clock.nowIso() }
-  const clock: Clock = { nowMs: () => now.ms, nowIso: () => now.iso }
-  const planned = planChanges(deps, clock, hooks, entry)
-  if (planned === null) {
-    return 'skipped'
-  }
-  const temps = stageChanges(deps, entry.id, planned)
+function commitChanges(deps: FinalizerDeps, hooks: FinalizerHooks, entry: OutboxRow, run: CommitRun): EntryResult | Restage {
   const placed = new Set<number>()
+  let changes: FileChange[] = []
   try {
     return deps.db.tx((): EntryResult => {
-      const changes = collectChanges(exportDeps(deps, clock, false), hooks, entry)
-      if (changes === null) {
+      const found = collectChanges(exportDeps(deps, run.clock, run.memo, false), hooks, entry)
+      if (found === null) {
         return 'skipped'
       }
-      if (!sameChanges(changes, planned)) {
-        throw STALE
+      if (!allStaged(deps.fs, found, run.staging)) {
+        throw new Restage(found)
       }
+      changes = found
       try {
-        putInPlace(deps, planned, temps, placed)
-        completeEntry(deps.db, entry.id, now.iso)
+        putInPlace(deps, changes, run, placed)
+        completeEntry(deps.db, entry.id, run.clock.nowIso())
       } catch (error: unknown) {
-        putBack(deps, planned, placed)
+        putBack(deps, changes, placed)
         throw error
       }
       return 'flushed'
     })
   } catch (error: unknown) {
-    if (error === STALE) {
-      return 'stale'
+    if (error instanceof Restage) {
+      return error
     }
     // Only a failing COMMIT leaves files placed: the lock is gone, but the rows they describe never committed.
-    putBack(deps, planned, placed)
+    putBack(deps, changes, placed)
     throw error
+  }
+}
+
+/**
+ * A `repo` mode entry in two steps (see the module comment). Staging collects the changes in a read transaction and
+ * writes, fsyncs and reads back their temps, outside the write lock; the commit renames them into place. A commit that
+ * finds other changes (a write landed while it staged, or a save hook without a preview) stages exactly those and
+ * commits again, so a concurrent write never leaves a save pending; past `MAX_RESTAGES` the entry waits (`stale`) for
+ * the next flush. Every temp not renamed into place is removed.
+ */
+function exportEntry(deps: FinalizerDeps, hooks: FinalizerHooks, entry: OutboxRow): EntryResult {
+  const now = { ms: deps.clock.nowMs(), iso: deps.clock.nowIso() }
+  const run: CommitRun = {
+    clock: { nowMs: () => now.ms, nowIso: () => now.iso },
+    memo: newMemo(),
+    staging: { files: new Map(), count: 0 },
+    renamed: new Set()
+  }
+  let changes = deps.db.tx(() => collectChanges(exportDeps(deps, run.clock, run.memo, true), hooks, entry), 'read')
+  if (changes === null) {
+    return 'skipped'
+  }
+  try {
+    for (let round = 0; ; round += 1) {
+      stageChanges(deps, entry.id, changes, run.staging)
+      const result = commitChanges(deps, hooks, entry, run)
+      if (!(result instanceof Restage)) {
+        return result
+      }
+      if (round === MAX_RESTAGES) {
+        return 'stale'
+      }
+      changes = result.changes
+    }
   } finally {
-    discardAll(deps.fs, temps.filter((_temp, index) => !placed.has(index)))
+    const temps = [...run.staging.files.values()].flatMap((staged) => (staged.temp === null || run.renamed.has(staged.temp) ? [] : [staged.temp]))
+    discardAll(deps.fs, temps)
   }
 }
 

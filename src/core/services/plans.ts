@@ -5,6 +5,7 @@ import { requireCapability } from '../authz'
 import { contentHash } from '../canonical'
 import type { Ctx } from '../context'
 import { toJson } from '../db/database'
+import type { SavedRevisionPreview } from '../repo/portable'
 import { fail } from '../errors'
 import { computeChanges } from '../plan/diff'
 import { validatePlan } from '../plan/graph'
@@ -14,7 +15,7 @@ import { activeRun, assertEpicOpen, type EpicRow, loadEpicRow } from './epics'
 import { appendEvent } from './events'
 import { requestWithoutKey, withIdempotency } from './idempotency'
 import { enqueueOutbox } from './outbox'
-import { pinPlanWorkflows } from './workflowPolicy'
+import { pinPlanWorkflows, plannedWorkflowStandards } from './workflowPolicy'
 import { withRunWarnings } from './runWarnings'
 import { indexDocument } from './searchIndex'
 import { checkSavedTicketAttachments, claimSavedTicketAttachments } from './ticketAttachments'
@@ -537,6 +538,25 @@ export function completeSavedRevision(ctx: Ctx, revisionId: string): void {
       payload: { revisionId: revision.id, number: revision.number }
     })
   })
+}
+
+/**
+ * Reads only: what `completeSavedRevision` will change in the epic's exported state (title, new backlog tickets, pinned
+ * standards), or null when the revision is saved already. The finalizer stages the save's state from it outside the
+ * write lock, and runs the hook itself once, at its commit.
+ */
+export function previewSavedRevision(ctx: Ctx, revisionId: string): SavedRevisionPreview | null {
+  const revision = loadRevisionRow(ctx, revisionId)
+  if (revision.state === 'saved') {
+    return null
+  }
+  const bundle = parseBundle(revision.bundle_json)
+  const base = revision.base_revision_id ? loadRevisionBundle(ctx, revision.base_revision_id) : null
+  return {
+    title: bundle.epic.title,
+    ticketIds: bundle.tickets.map((ticket) => ticket.id),
+    standardsJson: plannedWorkflowStandards(ctx, revision.epic_id, bundle, base)
+  }
 }
 
 export function saveResult(ctx: Ctx, revisionId: string): SaveResultView {

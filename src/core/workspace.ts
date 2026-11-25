@@ -43,7 +43,7 @@ import { refreshSavePermission } from './services/savePermissions'
 import { auditYoloCommand, authorizeYoloCommand, type YoloCommandAdmission } from './services/yoloCommands'
 import type { FsAdapter, GitAdapter, RepoLayout } from './repo/types'
 import { parseInput } from './schemas'
-import { completeSavedRevision } from './services/plans'
+import { completeSavedRevision, previewSavedRevision } from './services/plans'
 import { endSession, registerSession, touchSession } from './services/sessions'
 import { COMMAND_SCHEMAS } from './commandSchemas'
 
@@ -738,7 +738,10 @@ export class RepositoryWorkspace implements WorkspaceCore {
     this.assertBranch()
     const outcome = tagTransactions('flush', () => flushOutbox(
       { db: store.db, layout: this.layout, fs: this.fs, clock: this.clock },
-      { onSnapshotSaved: (revisionId) => completeSavedRevision(store.ctx, revisionId) },
+      {
+        onSnapshotSaved: (revisionId) => completeSavedRevision(store.ctx, revisionId),
+        previewSavedRevision: (revisionId) => previewSavedRevision(store.ctx, revisionId)
+      },
       scope,
       mode
     ))

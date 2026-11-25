@@ -48,6 +48,8 @@ interface StoredRow {
 }
 
 const STORED_COLUMNS = 'a.id, a.sha256, a.mime, a.owner_kind, a.owner_id, a.data, a.created_by_role, a.created_by_label, a.created_at'
+/** The same columns without the bytes (`data` reads as null): for listing what to export, not writing it. */
+const LISTED_COLUMNS = STORED_COLUMNS.replace('a.data', 'NULL AS data')
 
 function toStored(row: StoredRow): StoredAttachment {
   return {
@@ -61,9 +63,9 @@ function toStored(row: StoredRow): StoredAttachment {
   }
 }
 
-/** One attachment with its bytes; fails with `not_found` for an unknown id. */
-export function loadStoredAttachment(db: Db, id: string): StoredAttachment {
-  const row = db.get<StoredRow>(`SELECT ${STORED_COLUMNS} FROM attachments a WHERE a.id = ?`, id)
+/** One attachment, with its bytes unless `withData` is false; fails with `not_found` for an unknown id. */
+export function loadStoredAttachment(db: Db, id: string, withData = true): StoredAttachment {
+  const row = db.get<StoredRow>(`SELECT ${withData ? STORED_COLUMNS : LISTED_COLUMNS} FROM attachments a WHERE a.id = ?`, id)
   if (row === undefined) {
     fail('not_found', `Attachment ${id} does not exist.`, { id })
   }
@@ -178,12 +180,15 @@ const OWNED_BY: Record<OwningRecord['kind'], string> = {
   epic: "a.owner_kind = 'ticket' AND a.owner_id IN (SELECT ticket_id FROM ticket_status WHERE epic_id = ?)"
 }
 
-/** The attachments of a record (and of what it holds) with bytes whose file this machine has not exported yet. */
+/**
+ * The attachments of a record (and of what it holds) with bytes whose file this machine has not exported yet. Their
+ * bytes are not loaded (`data` is null): the finalizer loads and checks them while it stages the file.
+ */
 export function unexportedAttachments(db: Db, record: OwningRecord): StoredAttachment[] {
   const params = record.kind === 'kanban_card' ? [record.id, record.id, record.id] : [record.id]
   return db
     .all<StoredRow>(
-      `SELECT ${STORED_COLUMNS} FROM attachments a
+      `SELECT ${LISTED_COLUMNS} FROM attachments a
        LEFT JOIN sync_state s ON s.kind = 'attachment' AND s.entity_id = a.id
        WHERE a.data IS NOT NULL AND ${OWNED_BY[record.kind]} AND s.exported_hash IS NOT a.sha256
        ORDER BY a.rowid`,
