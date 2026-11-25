@@ -2,7 +2,7 @@
  * A reconcile reads only the records git reports as changed since the last one (plus conflicts, rejections and recent
  * exports), and leaves the database exactly as reading every record would.
  */
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, describe, expect, it } from 'vitest'
 import type { ReconcileResultView } from '../../shared/domain/views'
 import { makeBundle } from '../../test/bundles'
 import { kanbanSessions, type KanbanSessions } from '../../test/kanbanFixtures'
@@ -391,25 +391,56 @@ const STEPS: Step[] = [
 
 const SEEDS = [1, 7, 42, 2026, 961]
 const STEPS_PER_SEED = 50
+/** A seed's steps run in order over one world, split across tests of this many steps so that no single test runs long. */
+const STEPS_PER_TEST = 10
+
+/** One seed's world, generator and the steps taken so far, carried from each of the seed's tests to the next. */
+interface SeedRun {
+  w: TargetedWorld
+  source: Source
+  pick: <T>(items: T[]) => T | undefined
+  targeted: Target
+  full: Target
+  log: string[]
+  /** The step whose comparison failed: the seed's later tests would start from a state that no longer agrees. */
+  failed: string | null
+}
+
+function seedRun(seed: number): SeedRun {
+  const w = createTargetedWorld()
+  const source = new Source(w)
+  const next = random(seed)
+  const pick = <T,>(items: T[]): T | undefined => items[Math.floor(next() * items.length)]
+  return { w, source, pick, targeted: w.target(), full: w.target(), log: [], failed: null }
+}
+
+/** The full side needs no marker, so it skips git's status: half the git processes per step. */
+function reconcileFull(full: Target): ReconcileResultView {
+  return full.reconcileWith((deps) => ({ ...deps, git: { ...deps.git, statusPaths: () => ({ ok: false, reason: 'git_failed' }) } }), true)
+}
 
 describe('targeted and full reconciles agree', () => {
   for (const seed of SEEDS) {
-    it(`leaves the database exactly as a full reconcile after every step (seed ${seed})`, () => {
-      const w = world()
-      const source = new Source(w)
-      const next = random(seed)
-      const pick = <T,>(items: T[]): T | undefined => items[Math.floor(next() * items.length)]
-      const [targeted, full] = [w.target(), w.target()]
-      // The full side needs no marker, so it skips git's status: half the git processes per step.
-      const reconcileFull = (): ReconcileResultView =>
-        full.reconcileWith((deps) => ({ ...deps, git: { ...deps.git, statusPaths: () => ({ ok: false, reason: 'git_failed' }) } }), true)
-      const log: string[] = []
-      for (let step = 0; step < STEPS_PER_SEED; step += 1) {
-        const action = pick(STEPS) ?? STEPS[0]
-        log.push(action?.(source, w, pick) ?? '')
-        const context = `seed ${seed}, step ${step}: ${log.join(' | ')}`
-        expect(comparedResult(targeted.reconcile()), context).toEqual(comparedResult(reconcileFull()))
-        expect(comparedState(targeted.db), context).toEqual(comparedState(full.db))
+    describe(`seed ${seed}`, () => {
+      let run: SeedRun | undefined
+      afterAll(() => run?.w.cleanup())
+      for (let first = 0; first < STEPS_PER_SEED; first += STEPS_PER_TEST) {
+        const end = first + STEPS_PER_TEST
+        it(`leaves the database exactly as a full reconcile after every step (seed ${seed}, steps ${first}-${end - 1})`, () => {
+          const current = (run ??= seedRun(seed))
+          const { source, w, pick, targeted, full, log } = current
+          expect(current.failed, 'an earlier step of this seed failed').toBeNull()
+          // Run alone (`-t`), a test first takes the seed's earlier steps, compared the same way.
+          for (let step = log.length; step < end; step += 1) {
+            const action = pick(STEPS) ?? STEPS[0]
+            log.push(action?.(source, w, pick) ?? '')
+            const context = `seed ${seed}, step ${step}: ${log.join(' | ')}`
+            current.failed = context
+            expect(comparedResult(targeted.reconcile()), context).toEqual(comparedResult(reconcileFull(full)))
+            expect(comparedState(targeted.db), context).toEqual(comparedState(full.db))
+            current.failed = null
+          }
+        })
       }
     })
   }

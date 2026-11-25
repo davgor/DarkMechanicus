@@ -14,6 +14,24 @@ export interface ObservedRepository {
 }
 
 /**
+ * `read`, asked once per path; later calls get the first answer. `assertContained` asks the real path of every folder
+ * above every record it reads: thousands of times a scan, for a few dozen folders. Within one scan the first answer
+ * stands; the writer lock rechecks it with every other observation, and each use still refuses links through
+ * `isSymlink`, which is asked every time.
+ */
+function firstAnswer(read: (path: string) => string): (path: string) => string {
+  const answers = new Map<string, string>()
+  return (path) => {
+    let answer = answers.get(path)
+    if (answer === undefined) {
+      answer = read(path)
+      answers.set(path, answer)
+    }
+    return answer
+  }
+}
+
+/**
  * Record filesystem observations used by the read-only scan. Recheck each distinct observation
  * under the writer lock before publishing its result. Retain no additional copy of a file body.
  */
@@ -53,7 +71,7 @@ export function observeRepository(fs: FsAdapter): ObservedRepository {
       isDirectory: (path) => observe('isDirectory', path, fs.isDirectory),
       isSymlink: (path) => observe('isSymlink', path, fs.isSymlink),
       readdir: (path) => observe('readdir', path, fs.readdir),
-      realpath: (path) => observe('realpath', path, fs.realpath),
+      realpath: firstAnswer((path) => observe('realpath', path, fs.realpath)),
       readFile: (path) => {
         const before = fileStamp(path)
         const text = fs.readFile(path)
