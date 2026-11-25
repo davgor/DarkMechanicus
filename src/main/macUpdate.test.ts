@@ -282,3 +282,51 @@ describe.skipIf(process.platform === 'win32')('INSTALL_HELPER_SCRIPT', () => {
     expect(readFileSync(join(fixture.dest, 'Contents', 'MacOS', 'marker'), 'utf8')).toBe('new')
   })
 })
+
+describe('downloadAndStageMacUpdate progress', () => {
+  let stagingRoot: string
+
+  beforeEach(() => {
+    stagingRoot = mkdtempSync(join(tmpdir(), 'dm-progress-test-'))
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    rmSync(stagingRoot, { recursive: true, force: true })
+  })
+
+  function streamed(contentLength: string | undefined): Response {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new Uint8Array(50))
+        controller.enqueue(new Uint8Array(50))
+        controller.close()
+      }
+    })
+    const headers: Record<string, string> = contentLength === undefined ? {} : { 'content-length': contentLength }
+    return new Response(body, { headers })
+  }
+
+  async function stageAndCollectProgress(contentLength: string | undefined): Promise<number[]> {
+    vi.stubGlobal('fetch', async () => streamed(contentLength))
+    const progress: number[] = []
+    await expect(
+      downloadAndStageMacUpdate({
+        version: '0.83.0',
+        files: [{ url: 'DarkMechanicus-0.83.0-arm64.dmg', sha512: 'wrong' }],
+        arch: 'arm64',
+        stagingRoot,
+        onProgress: (percent) => progress.push(percent)
+      })
+    ).rejects.toThrow('Checksum mismatch')
+    return progress
+  }
+
+  it('reports percent complete from the content length', async () => {
+    expect(await stageAndCollectProgress('200')).toEqual([25, 50])
+  })
+
+  it('reports no progress when the server gives no content length', async () => {
+    expect(await stageAndCollectProgress(undefined)).toEqual([])
+  })
+})
