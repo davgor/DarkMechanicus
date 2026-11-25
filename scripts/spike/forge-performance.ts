@@ -72,7 +72,8 @@ function bundleEntries(root: string): string | undefined {
 
 /** Runs Electron as Electron (never as Node, whatever the calling shell sets) on the profiler package in `root`. */
 function runProfiler(root: string, configFile: string, userData: string, result: string): void {
-  const env = { ...process.env }
+  // The project utilities' sync lanes (DM-963) append their write-lock holds and reconcile reads here; see `laneSince`.
+  const env = { ...process.env, DM_LANE_OBSERVE_FILE: join(root, 'lane.jsonl') }
   delete env['ELECTRON_RUN_AS_NODE']
   const child = spawnSync(electron, [root, configFile], {
     env, timeout: mode === 'revamp' ? 3_700_000 : 180_000, windowsHide: true, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024

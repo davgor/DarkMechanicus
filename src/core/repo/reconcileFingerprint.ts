@@ -117,3 +117,12 @@ export function observeReconcileInputs(deps: FingerprintDeps): ReconcileGate {
     }
   }
 }
+
+/**
+ * The gate a reconcile runs under: an automatic one (open, heartbeat, a desktop sync lane) is skipped while its inputs are
+ * those of the last clean reconcile; an explicit one always reads everything. Either records the fingerprint it applied.
+ */
+export function reconcileGate(deps: FingerprintDeps, automatic: boolean): ReconcileGate {
+  const inputs = observeReconcileInputs(deps)
+  return automatic ? inputs : { current: () => false, applied: inputs.applied }
+}
