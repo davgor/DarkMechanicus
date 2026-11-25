@@ -176,7 +176,7 @@ function draftActions(deps: ActionDeps): Pick<WorkspaceActions, 'editDraft' | 'd
     async editDraft() {
       const data = deps.getState().data
       if (data?.epic.hasDraft === true) {
-        // The load skips an unchanged draft unless it is shown: read it now, before showing it.
+        // The load skips an unchanged draft unless it is shown: read it now, then show it whole.
         if (data.draft === null && !(await readSkippedDraft(deps))) {
           return
         }
