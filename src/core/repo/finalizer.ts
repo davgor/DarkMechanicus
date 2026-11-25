@@ -1324,6 +1324,39 @@ function queuedAfter(db: Db, afterId: number, scope: FlushScope | undefined): Ou
   )
 }
 
+/** Whether a process with this id is running (EPERM: it is, under another user). */
+function processAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error: unknown) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM'
+  }
+}
+
+/**
+ * Removes temps under `local/staging/` that a process left when it died between staging and its commit. A temp is
+ * named after the process that staged it, so only those of processes no longer running go; a live process's temps
+ * (this one's included) stay. Best effort: they are untracked and never read, so one left behind costs only disk.
+ */
+function sweepOrphanedStaging(deps: FinalizerDeps): void {
+  try {
+    const dir = join(deps.layout.localDir, 'staging')
+    assertContained(deps.layout, deps.fs, dir)
+    if (!deps.fs.exists(dir) || !deps.fs.isDirectory(dir)) {
+      return
+    }
+    for (const name of deps.fs.readdir(dir)) {
+      const pid = Number(/\.tmp-(\d+)$/.exec(name)?.[1] ?? Number.NaN)
+      if (Number.isSafeInteger(pid) && pid > 0 && !processAlive(pid)) {
+        discard(deps.fs, join(dir, name))
+      }
+    }
+  } catch {
+    // Leftover temps never change what is exported.
+  }
+}
+
 /**
  * Flushes pending (and previously failed) outbox entries in id order, through the handlers of the
  * project's storage mode (`db` writes no file), all of them or those in `scope`. A failed entry blocks later
@@ -1331,12 +1364,16 @@ function queuedAfter(db: Db, afterId: number, scope: FlushScope | undefined): Ou
  * written out of order; other entities continue. A `scheduled` flush (after a mutation) leaves a failed entry
  * until its backoff has passed; an `explicit` one retries it at once. Entries queued by the flush itself are picked
  * up by a further pass (bounded). Flush failures never throw: they are counted, and the entry keeps its last error.
+ * A `repo` flush first removes the staged temps of processes that died before their commit.
  */
 export function flushOutbox(deps: FinalizerDeps, hooks: FinalizerHooks, scope?: FlushScope, mode: FlushMode = 'explicit'): FlushOutcome {
   const state: FlushState = {
     outcome: { flushed: 0, failed: 0, errors: [], savedRevisionIds: [], failedRevisionIds: [] },
     blocked: new Set<string>(),
     mode
+  }
+  if (deps.layout.mode === 'repo') {
+    sweepOrphanedStaging(deps)
   }
   let afterId = 0
   for (let pass = 0; pass < MAX_FLUSH_PASSES; pass += 1) {

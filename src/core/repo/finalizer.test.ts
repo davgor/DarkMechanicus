@@ -951,6 +951,20 @@ describe('flushOutbox ordering and concurrency', () => {
   })
 })
 
+describe('flushOutbox orphaned staging temps', () => {
+  it("removes the temps of a process that died before its commit, and keeps a live process's", () => {
+    const env = seedSavedFirstRevision()
+    const staging = join(env.layout.localDir, 'staging')
+    // Process ids are multiples of 4 on Windows and at most 2^22 on Linux, so this one is never running.
+    const dead = join(staging, `7-1-epics~state.json.tmp-${2 ** 31 - 1}`)
+    const live = join(staging, `8-1-epics~state.json.tmp-${process.pid}`)
+    env.fs.put(dead, 'left by a crash')
+    env.fs.put(live, 'staged by a running process')
+    expect(flush(env)).toMatchObject({ flushed: 0, failed: 0 })
+    expect([env.fs.get(dead), env.fs.get(live)]).toEqual([undefined, 'staged by a running process'])
+  })
+})
+
 describe('flushOutbox path safety', () => {
   it('refuses to write through a linked epics directory', () => {
     const env = createRepoEnv()
