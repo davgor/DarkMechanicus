@@ -1908,28 +1908,28 @@ function bookkeepingCurrent(db: Db, scope: ReconcileScope): boolean {
  * fingerprint stay as the last write left them (`recheckRecords` then re-reads a longer export window, which is safe).
  * Reads only; run in a read snapshot.
  */
+/** Whether the plan applies no record and stores or clears no conflict. */
+function recordsSettled(db: Db, context: ApplyContext): boolean {
+  const { plan, profiles, kanban } = context
+  const staged = plan.epics.length + plan.runs.length + plan.eventMerges.length + plan.comments.length + plan.syncedComments.length +
+    profiles.staged.length + kanban.cards.length
+  return staged === 0 && conflictsStored(db, plan.conflicts, [...plan.unchanged, ...profiles.unchanged]) &&
+    profileConflictsStored(db, profiles) && kanbanConflictsStored(db, kanban.conflicts)
+}
+
 function unchangedResult(deps: ImporterDeps, context: ApplyContext): ReconcileResultView | null {
   const { db } = deps
   const { plan, profiles, kanban, scope } = context
-  const staged = plan.epics.length + plan.runs.length + plan.eventMerges.length + plan.comments.length + plan.syncedComments.length +
-    profiles.staged.length + kanban.cards.length
-  if (staged > 0 || context.branchChanged || !bookkeepingCurrent(db, scope)) return null
-  if (!conflictsStored(db, plan.conflicts, [...plan.unchanged, ...profiles.unchanged]) || !profileConflictsStored(db, profiles) ||
-    !kanbanConflictsStored(db, kanban.conflicts)) return null
-  const targeted = scope.changes.kind === 'targeted' ? scope.changes : null
-  const observationRejected = observationsSettled(db, scanObservations(deps, heldEpics(db), observationScope(targeted)))
-  if (observationRejected === null) return null
-  const recovered = readsRecoveredAttachments(deps, targeted) ? prepareRecoveredAttachments(deps) : { pending: [], rejected: [] }
-  if (recovered.pending.length > 0) return null
-  const attachments = prepareAttachmentFiles(deps)
-  if (attachments.updates.length > 0) return null
+  if (context.branchChanged || !bookkeepingCurrent(db, scope) || !recordsSettled(db, context)) return null
+  const sideRejected = sideInputsSettled(deps, scope.changes.kind === 'targeted' ? scope.changes : null)
+  if (sideRejected === null) return null
   const result: ReconcileResultView = {
     imported: [],
     unchanged: [...plan.unchanged, ...profiles.unchanged, ...kanban.unchanged],
     conflicts: plan.conflicts.map((conflict) => ({ epicId: conflict.epicId, message: conflict.message })),
     profileConflicts: profiles.conflicts,
     kanbanConflicts: kanban.conflicts.map((conflict) => ({ cardId: conflict.cardId, message: conflict.message })),
-    rejected: [...plan.rejected, ...profiles.rejected, ...kanban.rejected, ...observationRejected, ...attachments.rejected, ...recovered.rejected],
+    rejected: [...plan.rejected, ...profiles.rejected, ...kanban.rejected, ...sideRejected],
     branchChanged: false,
     pausedRuns: []
   }
@@ -1937,6 +1937,19 @@ function unchangedResult(deps: ImporterDeps, context: ApplyContext): ReconcileRe
   const clean = result.conflicts.length + result.profileConflicts.length + result.kanbanConflicts.length + result.rejected.length === 0
   if (getMeta(db, META_KEYS.validatedRepositoryCache) !== '1' && (clean || hasValidatedRepositoryCache(db))) return null
   return result
+}
+
+/**
+ * The rejections the observation, recovered-archive and attachment-image passes would report when none of them has
+ * anything to apply, else null; in the order `applyPlan` reports them.
+ */
+function sideInputsSettled(deps: ImporterDeps, targeted: TrackedRecords | null): Rejection[] | null {
+  const observations = observationsSettled(deps.db, scanObservations(deps, heldEpics(deps.db), observationScope(targeted)))
+  if (observations === null) return null
+  const recovered = readsRecoveredAttachments(deps, targeted) ? prepareRecoveredAttachments(deps) : { pending: [], rejected: [] }
+  if (recovered.pending.length > 0) return null
+  const attachments = prepareAttachmentFiles(deps)
+  return attachments.updates.length > 0 ? null : [...observations, ...attachments.rejected, ...recovered.rejected]
 }
 
 function prepare(deps: ImporterDeps, full: boolean): { context: ApplyContext; identity: string } {
