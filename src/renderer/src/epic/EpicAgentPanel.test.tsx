@@ -3,6 +3,7 @@ import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/re
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import type { ChatItem, ChatRecord } from '../../../shared/agents/chat'
 import { chatRecord } from '../__mocks__/fixtures'
+import { FakeChats } from '../__mocks__/fakeChats'
 import { installDomShims } from './__mocks__/domShims'
 import { FakeBackend } from './__mocks__/fakeBackend'
 import { fakeOrchestration } from './__mocks__/fakeOrchestration'
@@ -59,7 +60,7 @@ async function agentStage(): Promise<HTMLElement> {
   return screen.getByRole('region', { name: 'Agent chat' })
 }
 
-describe('EpicAgentPanel', () => {
+describe('EpicAgentPanel: chat and tree', () => {
   it('shows the selected orchestrator chat in the centre and the agent tree in a right rail after it', async () => {
     openAgent(backendWith(), [orchestrator])
     const stage = await agentStage()
@@ -101,7 +102,9 @@ describe('EpicAgentPanel', () => {
     expect(request.text).not.toContain('Fix ]')
     expect(request.text).not.toContain(LABEL)
   })
+})
 
+describe('EpicAgentPanel: rail memory and empty epic', () => {
   it('remembers a collapsed rail for the same epic but not for another epic', async () => {
     const chats = [orchestrator, { ...orchestrator, id: 'chat_other', epicId: 'ep_2', runId: undefined }]
     const first = openAgent(backendWith(), chats)
@@ -122,19 +125,21 @@ describe('EpicAgentPanel', () => {
     const stage = await agentStage()
     fireEvent.click(within(stage).getByRole('button', { name: 'Start planner' }))
     await waitFor(() => expect(orchestration.chatsChanged.count).toBe(1))
-    expect(backend.chats.callsOf('startPlanner')).toEqual([[{ folder: FOLDER, epicId: 'ep_1' }]])
+    expect((backend.chats as FakeChats).callsOf('startPlanner')).toEqual([[{ folder: FOLDER, epicId: 'ep_1' }]])
   })
 
   it('shows the sign-in prompt text when no agent can start the planner', async () => {
     const backend = backendWith()
-    backend.chats.plannerAgent = null
+    ;(backend.chats as FakeChats).plannerAgent = null
     openAgent(backend, [])
     const stage = await agentStage()
     fireEvent.click(within(stage).getByRole('button', { name: 'Start planner' }))
     expect((await within(stage).findByRole('alert')).textContent)
       .toBe('No connected agent is signed in. Sign in to one in Agents, then start the planner again.')
   })
+})
 
+describe('EpicAgentPanel: terminal chat', () => {
   it('offers Open terminal and Switch to GUI for a terminal chat', async () => {
     const backend = backendWith()
     const terminal = { ...orchestrator, surface: 'terminal' as const }

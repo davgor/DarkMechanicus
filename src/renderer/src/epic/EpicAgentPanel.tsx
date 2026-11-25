@@ -115,6 +115,26 @@ function ThreadView({ ws, ownerId, ownerName, threadId, name, items }: {
   items: readonly ChatItem[]
 }): JSX.Element {
   const entries = useMemo(() => withoutTodoCalls(threadTranscript(items, threadId)), [items, threadId])
+  return (
+    <section className="agent-chat" aria-label={`${name} thread`}>
+      <header className="agent-chat-header"><h2>{name}</h2></header>
+      <div className="agent-chat-scroll">
+        {entries.length === 0 && <p className="agent-chat-empty">Nothing in this thread yet.</p>}
+        <ChatTranscript folder={ws.folder.path} agentName={name} entries={entries} />
+      </div>
+      <RelayComposer folder={ws.folder.path} ownerId={ownerId} ownerName={ownerName} threadId={threadId} name={name} />
+    </section>
+  )
+}
+
+/** Sends the person's text to the owning chat inside the fixed relay marker; the thread's label is never part of it. */
+function RelayComposer({ folder, ownerId, ownerName, threadId, name }: {
+  folder: string
+  ownerId: string
+  ownerName: string
+  threadId: string
+  name: string
+}): JSX.Element {
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [problem, setProblem] = useState<string | null>(null)
@@ -124,7 +144,7 @@ function ThreadView({ ws, ownerId, ownerName, threadId, name, items }: {
     setSending(true)
     setProblem(null)
     try {
-      const result = await window.dm.agentChat.send({ folder: ws.folder.path, chatId: ownerId, text: relayMessage(threadId, sent) })
+      const result = await window.dm.agentChat.send({ folder, chatId: ownerId, text: relayMessage(threadId, sent) })
       if (result.ok) setText((current) => (current === sent ? '' : current))
       else setProblem(result.error.message)
     } catch (error) {
@@ -135,28 +155,21 @@ function ThreadView({ ws, ownerId, ownerName, threadId, name, items }: {
   }
   const inputId = `eap-relay-${threadId}`
   return (
-    <section className="agent-chat" aria-label={`${name} thread`}>
-      <header className="agent-chat-header"><h2>{name}</h2></header>
-      <div className="agent-chat-scroll">
-        {entries.length === 0 && <p className="agent-chat-empty">Nothing in this thread yet.</p>}
-        <ChatTranscript folder={ws.folder.path} agentName={name} entries={entries} />
+    <form className="agent-chat-composer" onSubmit={(event) => { event.preventDefault(); void send() }}>
+      {problem !== null && <p className="agent-chat-command-error" role="alert">{problem}</p>}
+      <label className="agent-chat-label" htmlFor={inputId}>Message {name}</label>
+      <textarea className="input" id={inputId} value={text} maxLength={18_000} rows={3} placeholder="Send a message…"
+        onChange={(event) => setText(event.target.value)} onKeyDown={(event) => {
+          if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+            event.preventDefault()
+            void send()
+          }
+        }} />
+      <div className="agent-chat-actions">
+        <span className="agent-chat-hint">Your message goes through {ownerName}, which passes it to this worker.</span>
+        <button className="btn btn-primary" type="submit" disabled={sending || !text.trim()}>Send</button>
       </div>
-      <form className="agent-chat-composer" onSubmit={(event) => { event.preventDefault(); void send() }}>
-        {problem !== null && <p className="agent-chat-command-error" role="alert">{problem}</p>}
-        <label className="agent-chat-label" htmlFor={inputId}>Message {name}</label>
-        <textarea className="input" id={inputId} value={text} maxLength={18_000} rows={3} placeholder="Send a message…"
-          onChange={(event) => setText(event.target.value)} onKeyDown={(event) => {
-            if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-              event.preventDefault()
-              void send()
-            }
-          }} />
-        <div className="agent-chat-actions">
-          <span className="agent-chat-hint">Your message goes through {ownerName}, which passes it to this worker.</span>
-          <button className="btn btn-primary" type="submit" disabled={sending || !text.trim()}>Send</button>
-        </div>
-      </form>
-    </section>
+    </form>
   )
 }
 
@@ -175,6 +188,23 @@ function railTabs(nodes: AgentTreeNodeInput[], selectedId: string | null, onSele
   }]
 }
 
+/** The selected root's chat (GUI or terminal), or one of its threads. */
+function CentrePane({ ws, chat, threadId, nodes, items }: {
+  ws: WorkspaceHandle
+  chat: ChatRecord
+  threadId: string | null
+  nodes: readonly AgentTreeNodeInput[]
+  items: readonly ChatItem[]
+}): JSX.Element {
+  const named = (id: string): string | undefined => nodes.find((node) => node.id === id)?.name
+  const name = named(chat.id) ?? chat.title
+  if (threadId !== null) {
+    return <ThreadView ws={ws} ownerId={chat.id} ownerName={name} threadId={threadId} name={named(threadId) ?? 'Subagent'} items={items} />
+  }
+  if (chat.surface === 'gui') return <AgentChat folder={ws.folder.path} chatId={chat.id} agentLabel={name} />
+  return <TerminalChat ws={ws} chat={chat} name={name} />
+}
+
 export function EpicAgentPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element {
   const run = ws.data.run
   const folder = ws.folder.path
@@ -190,26 +220,17 @@ export function EpicAgentPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element {
     return <section aria-label="Agent chat" className="eap"><NoAgents ws={ws} /></section>
   }
   const threadId = ws.state.agentChatId === chat.id ? ws.state.agentThreadId : null
-  const named = (id: string): string | undefined => nodes.find((node) => node.id === id)?.name
   const onSelect = (id: string): void => {
     const owner = owningChatId(nodes, id)
     if (owner !== null) ws.dispatch({ type: 'select_agent', chatId: owner, threadId: owner === id ? null : id })
-  }
-  const name = named(chat.id) ?? chat.title
-  let centre: JSX.Element
-  if (threadId !== null) {
-    centre = <ThreadView ws={ws} ownerId={chat.id} ownerName={name} threadId={threadId} name={named(threadId) ?? 'Subagent'}
-      items={transcripts.get(chat.id)?.items ?? []} />
-  } else if (chat.surface === 'gui') {
-    centre = <AgentChat folder={folder} chatId={chat.id} agentLabel={name} />
-  } else {
-    centre = <TerminalChat ws={ws} chat={chat} name={name} />
   }
   return (
     <section aria-label="Agent chat" className="eap">
       {lead !== null && <TranscriptFeed folder={folder} chatId={lead} onLoaded={onLoaded} />}
       {chat.id !== lead && <TranscriptFeed folder={folder} chatId={chat.id} onLoaded={onLoaded} />}
-      <div className="eap-centre">{centre}</div>
+      <div className="eap-centre">
+        <CentrePane ws={ws} chat={chat} threadId={threadId} nodes={nodes} items={transcripts.get(chat.id)?.items ?? []} />
+      </div>
       <RightRail label="Epic agents" storageKey={`dm.epicRail.v1:${folder}\n${ws.epicId}`}
         tabs={railTabs(nodes, threadId ?? chat.id, onSelect, ws.now)} />
     </section>
