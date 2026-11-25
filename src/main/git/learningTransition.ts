@@ -6,7 +6,9 @@
  * value. A checked-out branch moves by a held transaction on that worktree's `HEAD`, which locks both the symbolic HEAD
  * and the branch it names and verifies the branch is still at `oldHead`. While both stay locked the worktree's index
  * and files move from `oldHead` to `newHead` with `git read-tree -m -u`, and only once that git has actually exited
- * is the transaction committed (or aborted). No switch, detach, reset, stash or force checkout is ever used.
+ * is the transaction committed (or aborted). A cancel never kills that git: killed mid-write it can leave a truncated
+ * file or a stale `index.lock` that no later run can prove it caused, so a cancel is honoured before the next write
+ * starts and once the running one has exited. No switch, detach, reset, stash or force checkout is ever used.
  *
  * Before moving files the transition classifies by content, never by stat, every path the commit range changes: a
  * file holding exactly its `oldHead` or exactly its `newHead` bytes (an interrupted transition restored it) is
@@ -20,7 +22,7 @@ import { GitError } from './errors'
 import { fail, isAncestor, label, type LearningIntegrationDeps, LearningIntegrationError, read, resolveCommit, short } from './learningIntegration'
 import { openRefTransaction } from './refTransaction'
 
-/** The one deadline of a held transition (the runner's write limit, not raised); locks are released only after git exits. */
+/** The one deadline of a held transition (the runner's write limit, not raised), the only thing that kills a hung owned write; locks are released only after git exits. */
 const TRANSITION_DEADLINE_MS = 120_000
 const ABSENT = /^0+$/
 
@@ -166,21 +168,25 @@ async function classify(ctx: TransitionContext, worktree: string): Promise<Class
 const entry = (found: Side | null, path: string): string => (found === null ? `0 ${'0'.repeat(40)}\t${path}` : `${found.mode} ${found.oid}\t${path}`)
 
 /**
- * Runs an owned worktree write and resolves (or rejects) only once git has actually exited: a cancelled or timed-out
- * run rejects at once while git may still be writing, so the held refs must not be released before `onExit`.
+ * Runs an owned worktree write to its end and resolves (or rejects) only once git has actually exited, so the held
+ * refs are never released while it may still be writing. A cancel does not kill it (see the header): it is refused
+ * just before git would start and honoured once git has exited. Only the deadline kills a hung write.
  */
-async function ownedWrite(ctx: TransitionContext, worktree: string, write: { args: string[]; signal: AbortSignal; stdin?: string }): Promise<void> {
-  const { args, signal, stdin } = write
+async function ownedWrite(ctx: TransitionContext, worktree: string, write: { args: string[]; deadline: AbortSignal; stdin?: string }): Promise<void> {
+  const { args, deadline, stdin } = write
+  const halt = (): void => {
+    if (ctx.signal?.aborted === true || deadline.aborted) throw interrupted(ctx.target, `while ${worktree} was being updated`)
+  }
   let markGone: () => void = () => undefined
   const gone = new Promise<void>((resolve) => (markGone = resolve))
-  const request = { cwd: worktree, args, kind: 'write' as const, timeoutMs: null, signal, stdin, onExit: () => markGone() }
+  const request = { cwd: worktree, args, kind: 'write' as const, timeoutMs: null, signal: deadline, stdin, beforeStart: halt, onExit: () => markGone() }
   const failure = await ctx.deps.runner.run(request).then(
     () => null,
     (error: unknown) => error
   )
   await gone
+  halt()
   if (failure === null) return
-  if (signal.aborted) throw interrupted(ctx.target, `while ${worktree} was being updated`)
   if (failure instanceof GitError && failure.code === 'local_changes_would_be_overwritten') {
     fail('dirty_worktree', `${worktree} changed while it was being updated (${failure.detail}); nothing was moved. Commit, stash or discard those changes yourself, then run recovery.`)
   }
@@ -188,7 +194,7 @@ async function ownedWrite(ctx: TransitionContext, worktree: string, write: { arg
 }
 
 /** With the branch and HEAD held: the worktree still names the branch and is the prepared repository; move its files. */
-async function moveWorktree(ctx: TransitionContext, worktree: string, signal: AbortSignal): Promise<void> {
+async function moveWorktree(ctx: TransitionContext, worktree: string, deadline: AbortSignal): Promise<void> {
   const head = (await read(ctx.deps.runner, worktree, ['symbolic-ref', '-q', 'HEAD'], [0, 1])).out
   if (head !== ctx.target.targetRef) fail('target_moved', `${worktree} no longer has ${ctx.target.targetRef} checked out; nothing was changed.`)
   await ctx.verify()
@@ -199,12 +205,12 @@ async function moveWorktree(ctx: TransitionContext, worktree: string, signal: Ab
       `${worktree} has changes that are neither ${short(ctx.target.oldHead)} nor the integration's exact ${short(ctx.target.newHead)}: ${classified.blocking.join(', ')}. Nothing was changed; commit, stash or discard them yourself, then run recovery.`
     )
   }
-  if (signal.aborted) throw interrupted(ctx.target, 'before its worktree was updated')
+  if (ctx.signal?.aborted === true || deadline.aborted) throw interrupted(ctx.target, 'before its worktree was updated')
   if (classified.align.length > 0) {
-    await ownedWrite(ctx, worktree, { args: ['update-index', '-z', '--index-info'], signal, stdin: `${classified.align.join('\0')}\0` })
+    await ownedWrite(ctx, worktree, { args: ['update-index', '-z', '--index-info'], deadline, stdin: `${classified.align.join('\0')}\0` })
   }
-  await ownedWrite(ctx, worktree, { args: ['read-tree', '-m', '-u', ctx.target.oldHead, ctx.target.newHead], signal })
-  if (classified.align.length > 0) await ownedWrite(ctx, worktree, { args: ['update-index', '-q', '--refresh'], signal })
+  await ownedWrite(ctx, worktree, { args: ['read-tree', '-m', '-u', ctx.target.oldHead, ctx.target.newHead], deadline })
+  if (classified.align.length > 0) await ownedWrite(ctx, worktree, { args: ['update-index', '-q', '--refresh'], deadline })
 }
 
 /** A branch nobody had checked out: still the prepared repository, and still not checked out anywhere. */
@@ -243,9 +249,8 @@ export async function transition(ctx: TransitionContext): Promise<void> {
   if (held === null) return
   const deadline = new AbortController()
   const timer = setTimeout(() => deadline.abort(), TRANSITION_DEADLINE_MS)
-  const signal = ctx.signal === undefined ? deadline.signal : AbortSignal.any([ctx.signal, deadline.signal])
   try {
-    await (holder === null ? checkUnheld(ctx) : moveWorktree(ctx, holder, signal))
+    await (holder === null ? checkUnheld(ctx) : moveWorktree(ctx, holder, deadline.signal))
   } catch (error) {
     await held.abort()
     throw error

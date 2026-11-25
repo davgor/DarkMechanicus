@@ -115,7 +115,7 @@ export interface LearningIntegrationReceipt {
 interface LearningIntegrationCallbacks {
   /** Awaited after each completed or recovered target, in plan order; a rejection stops before the next target. */
   onApplied(receipt: LearningIntegrationReceipt): Promise<void>
-  /** Stops before the next Git write; a running worktree update is awaited until Git has actually exited. */
+  /** Stops before the next Git write; a running worktree update is never killed, and the call rejects once Git has exited. */
   signal?: AbortSignal
   /**
    * DM-952: when given, each target's canonical checkout must be clean before its canonical change. Ephemeral: main

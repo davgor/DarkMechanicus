@@ -227,6 +227,20 @@ describe('learning transition: cancellation', () => {
     expect(f.repo.rev('sprint')).toBe(f.base)
     expect(existsSync(join(f.repo.root, 'GUARDRAILS.md'))).toBe(false)
   })
+
+  it('starts no worktree write when cancelled just before git would start it', async () => {
+    const f = await fixture(true)
+    const controller = new AbortController()
+    const d = intercepting((request) => {
+      if (request.args[0] === 'read-tree') controller.abort()
+      return null
+    })
+    const error = await refused(recover(d, f, [], controller.signal))
+    expect(error.code).toBe('interrupted')
+    expect(f.repo.rev('sprint')).toBe(f.base)
+    expect(existsSync(join(f.repo.root, 'GUARDRAILS.md'))).toBe(false)
+    expect(f.repo.git('status', '--porcelain=v1')).toBe('')
+  })
 })
 
 /** Fails the worktree's `read-tree` with `failure`, reporting git's exit first as the runner does. */

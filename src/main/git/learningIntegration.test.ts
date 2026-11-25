@@ -14,7 +14,7 @@ import type {
 import { createGitRepo, type GitRepo, openGitRepo } from '../../test/gitRepo'
 import { isolateGitConfig } from '../../test/gitRemotes'
 import { gitIn, put, scratchDir } from '../../test/gitScratch'
-import { GitError, type GitRunResult } from './errors'
+import type { GitRunResult } from './errors'
 import { applyLearningIntegration, recoverLearningIntegration } from './learningApply'
 import { createLearningIntegrationLocks, LearningIntegrationError, type LearningIntegrationDeps, prepareLearningIntegration } from './learningIntegration'
 import { createOperationLocks } from './operationLock'
@@ -460,22 +460,15 @@ describe('applyLearningIntegration: concurrent target movement', () => {
   })
 })
 
-/** Delays reporting the worktree write's exit until `open()`; with a signal, settles the run at once on abort like the runner's cancel. */
-function delayedExit(onReadTree: () => void) {
+/** Delays reporting the worktree write's exit until `open()`; hands `onReadTree` the request git was started with. */
+function delayedExit(onReadTree: (request: GitRunRequest) => void) {
   let open: () => void = () => undefined
   const gate = new Promise<void>((resolve) => (open = resolve))
   const d = intercepting((request, real) => {
     if (request.args[0] !== 'read-tree') return null
-    const exitedLate = { ...request, onExit: () => void gate.then(() => request.onExit?.()) }
-    const result = real.run(exitedLate)
-    onReadTree()
-    if (request.signal === undefined) return result
-    const signal = request.signal
-    // Like the runner on cancel: the run rejects at once while git may still be running.
-    return new Promise<GitRunResult>((resolve, reject) => {
-      signal.addEventListener('abort', () => reject(new GitError('cancelled', '', 'git operation cancelled')), { once: true })
-      result.then(resolve, reject)
-    })
+    const result = real.run({ ...request, onExit: () => void gate.then(() => request.onExit?.()) })
+    onReadTree(request)
+    return result
   })
   return { d, open }
 }
@@ -515,20 +508,22 @@ describe('applyLearningIntegration: held branch and HEAD until the owned write e
     expect(f.repo.git('symbolic-ref', 'HEAD')).toBe('refs/heads/sprint')
   })
 
-  it('on cancellation keeps both held until git exits, starts nothing new, and leaves a state recovery completes', async () => {
+  it('on cancellation lets git finish, keeps both held until it exits, starts nothing new, and leaves a state recovery completes', async () => {
     const f = checkedOut(fixture(null))
     const controller = new AbortController()
-    let reached: () => void = () => undefined
-    const atReadTree = new Promise<void>((resolve) => (reached = resolve))
-    const { d, open } = delayedExit(() => reached())
+    let reached: (request: GitRunRequest) => void = () => undefined
+    const atReadTree = new Promise<GitRunRequest>((resolve) => (reached = resolve))
+    const { d, open } = delayedExit((request) => reached(request))
     const { request, saved } = applyRequest([[f, null]], { signal: controller.signal })
     const calls: string[] = []
     const watched: LearningIntegrationDeps = { ...d, runner: { run: (r) => (calls.push(r.args.join(' ')), d.runner.run(r)) } }
     let settled = false
     const applying = applyLearningIntegration(watched, request).finally(() => (settled = true))
-    await atReadTree
+    const readTree = await atReadTree
     controller.abort()
     await new Promise((resolve) => setTimeout(resolve, 300))
+    // A killed read-tree can leave a truncated file or a stale index.lock that recovery cannot prove it caused.
+    expect(readTree.signal?.aborted).toBe(false)
     expect(settled).toBe(false)
     expect(competing(f)).toEqual(['update-ref blocked', 'symbolic-ref blocked'])
     const started = calls.length
@@ -538,6 +533,8 @@ describe('applyLearningIntegration: held branch and HEAD until the owned write e
     expect(calls.length).toBe(started)
     expect(f.repo.rev('sprint')).toBe(f.base)
     expect(f.repo.git('symbolic-ref', 'HEAD')).toBe('refs/heads/sprint')
+    expect(f.repo.git('status', '--porcelain=v1')).toBe('A  GUARDRAILS.md\n?? untracked.txt')
+    expect(readFileSync(join(f.repo.root, 'GUARDRAILS.md'), 'utf8')).toBe('never guess\n')
     const receipts: Receipt[] = []
     await recover(deps(), saved.plan as Plan, async (receipt) => void receipts.push(receipt))
     expect(receipts).toEqual([{ repository: null, oldHead: f.base, newHead: f.source }])
