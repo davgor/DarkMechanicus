@@ -48,7 +48,7 @@ it('preserves JPEG bytes and clears a stale missing flag without changing the or
   expect(f.env.db.get('SELECT missing FROM attachments WHERE id = ?', f.image.id)).toEqual({ missing: 0 })
 })
 
-it('does not reload a verified archive until its input or authoritative storage changes', async () => {
+it('does not reload a verified archive until its input or its stored row changes', async () => {
   const original = pngBytes(2, 3, 11)
   const f = await fixture(original)
   exportRecoveredAttachment(f.env, f.image.id)
@@ -69,15 +69,17 @@ it('does not reload a verified archive until its input or authoritative storage 
   expect(importRecoveredAttachments(env)).toEqual([])
   expect(reads).toHaveLength(3)
 
+  // Another connection's commit alone no longer invalidates the verification (DM-962): the row it is remembered
+  // against does. A row emptied elsewhere is read and restored again, once.
   const external = openDatabase(f.env.db.path)
   try {
-    external.run('UPDATE attachments SET data = ? WHERE id = ?', pngBytes(2, 3, 13), f.image.id)
-    expect(importRecoveredAttachments(env)).toEqual([expect.objectContaining({ message: expect.stringContaining('sha256') })])
+    external.run('UPDATE attachments SET data = NULL, missing = 1 WHERE id = ?', f.image.id)
+    expect(importRecoveredAttachments(env)).toEqual([])
     expect(reads).toHaveLength(4)
-    external.run('UPDATE attachments SET data = ? WHERE id = ?', original, f.image.id)
+    expect(Buffer.from(f.env.db.get<{ data: Uint8Array }>('SELECT data FROM attachments WHERE id = ?', f.image.id)!.data)).toEqual(Buffer.from(original))
+    external.run("INSERT INTO meta (key, value) VALUES ('unrelated', '1')")
     expect(importRecoveredAttachments(env)).toEqual([])
-    expect(importRecoveredAttachments(env)).toEqual([])
-    expect(reads).toHaveLength(5)
+    expect(reads).toHaveLength(4)
   } finally {
     external.close()
   }

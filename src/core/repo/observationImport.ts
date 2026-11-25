@@ -139,70 +139,83 @@ function markSynced(db: Db, observationId: string, hash: string, now: string): v
   )
 }
 
+/** What applying one scanned file would do now: insert it, only mark it synced, or refuse it. */
+type FilePlan = { kind: 'insert' } | { kind: 'synced' } | { kind: 'rejected'; message: string }
+
+function planFile(db: Db, file: ObservationFile): FilePlan {
+  const known = storedObservation(db, file.observation.observationId)
+  if (known === undefined) return { kind: 'insert' }
+  if (observationPayloadHash(known) === observationPayloadHash(file.observation)) return { kind: 'synced' }
+  const message = `Metric observation ${file.observation.observationId} is already recorded here with a different payload; observations are never rewritten, so the file was not imported.`
+  return { kind: 'rejected', message }
+}
+
 /**
  * Sorts the changed files: an id named by files in more than one folder is a conflict (each folder fixes its epic, so
- * they cannot agree) and none of them imports; an id stored here with the same payload is only marked synced (the
- * local row, with its own `recordedAt`, stays); a different payload is rejected. Returns the files to insert.
+ * they cannot agree) and none of them imports. Returns the files with one record each.
  */
-function planFiles(deps: ObservationImportDeps, found: ObservationFile[], now: string, rejected: Rejection[]): ObservationFile[] {
+function singleFiles(found: ObservationFile[], rejected: Rejection[]): ObservationFile[] {
   const byId = new Map<string, ObservationFile[]>()
   for (const file of found) {
     byId.set(file.observation.observationId, [...(byId.get(file.observation.observationId) ?? []), file])
   }
-  const fresh: ObservationFile[] = []
+  const single: ObservationFile[] = []
   for (const [observationId, files] of byId) {
-    const [file] = files
-    if (file === undefined) {
+    if (files.length === 1) {
+      single.push(files[0]!)
       continue
     }
-    if (files.length > 1) {
-      const message = `Metric observation ${observationId} is recorded in ${files.map((item) => item.path).join(' and ')}; one observation has one record, so neither was imported.`
-      rejected.push(...files.map((item) => ({ path: item.path, message })))
-      continue
-    }
-    const known = storedObservation(deps.db, observationId)
-    if (known === undefined) {
-      fresh.push(file)
-    } else if (observationPayloadHash(known) === observationPayloadHash(file.observation)) {
-      markSynced(deps.db, observationId, file.trackedHash, now)
-    } else {
-      const message = `Metric observation ${observationId} is already recorded here with a different payload; observations are never rewritten, so the file was not imported.`
-      rejected.push({ path: file.path, message })
-    }
+    const message = `Metric observation ${observationId} is recorded in ${files.map((item) => item.path).join(' and ')}; one observation has one record, so neither was imported.`
+    rejected.push(...files.map((item) => ({ path: item.path, message })))
   }
-  return fresh
+  return single
 }
 
 /**
- * Inserts the new observations in passes: each is checked against what this database holds, including observations
+ * Inserts the new observations in passes, each file in its own transaction that decides under the lock what to do with
+ * it: one stored here with the same payload is only marked synced (the local row, with its own `recordedAt`, stays), a
+ * different payload is rejected, and a new one is checked against what this database holds, including observations
  * inserted by an earlier pass, so one citing an observation that cannot be imported is never stored with a dangling
  * reference. Passes repeat while any insert succeeds; what is left is rejected with its last reason.
  */
-function insertFiles(deps: ObservationImportDeps, fresh: ObservationFile[], now: string, rejected: Rejection[]): string[] {
+function insertFiles(deps: ObservationImportDeps, files: ObservationFile[], now: string, rejected: Rejection[]): string[] {
   const imported: string[] = []
   // Every file still pending after the first pass failed in the pass before, so each carries that pass's reason.
-  let pending = fresh.map((file) => ({ file, reason: '' }))
+  let pending = files.map((file) => ({ file, reason: '' }))
   let inserted = true
   while (pending.length > 0 && inserted) {
     inserted = false
     const left: { file: ObservationFile; reason: string }[] = []
     for (const { file } of pending) {
-      try {
-        deps.db.tx(() => {
-          checkObservationReferences(deps.db, file.observation, new Map())
-          insertObservationRow(deps.db, file.observation)
-          markSynced(deps.db, file.observation.observationId, file.trackedHash, now)
-        })
-        imported.push(file.observation.observationId)
-        inserted = true
-      } catch (error: unknown) {
-        left.push({ file, reason: messageOf(error) })
-      }
+      const outcome = tryFile(deps, file, now)
+      if (outcome.kind === 'failed') left.push({ file, reason: outcome.reason })
+      if (outcome.kind === 'rejected') rejected.push({ path: file.path, message: outcome.message })
+      if (outcome.kind === 'insert') imported.push(file.observation.observationId)
+      inserted ||= outcome.kind === 'insert'
     }
     pending = left
   }
   rejected.push(...pending.map(({ file, reason }) => ({ path: file.path, message: `Could not be applied: ${reason}` })))
   return imported
+}
+
+/** Applies one file in its own transaction; a failure (a reference not held yet) is retried by the next pass. */
+function tryFile(deps: ObservationImportDeps, file: ObservationFile, now: string): FilePlan | { kind: 'failed'; reason: string } {
+  try {
+    return deps.db.tx(() => applyFile(deps.db, file, now))
+  } catch (error: unknown) {
+    return { kind: 'failed', reason: messageOf(error) }
+  }
+}
+
+function applyFile(db: Db, file: ObservationFile, now: string): FilePlan {
+  const plan = planFile(db, file)
+  if (plan.kind === 'insert') {
+    checkObservationReferences(db, file.observation, new Map())
+    insertObservationRow(db, file.observation)
+  }
+  if (plan.kind !== 'rejected') markSynced(db, file.observation.observationId, file.trackedHash, now)
+  return plan
 }
 
 /** The observation folders a targeted reconcile reads: the project level or not, and those of the epics it names. */
@@ -211,19 +224,51 @@ export interface ObservationScope {
   epics: ReadonlySet<string>
 }
 
+/** The changed observation files read before the writer lock, and the folders and files refused while reading them. */
+export interface ObservationScan {
+  files: ObservationFile[]
+  rejected: Rejection[]
+  /** The epic folders read (null is the project level). */
+  folders: (string | null)[]
+}
+
 /**
- * Imports the observation files of the project level and of every epic this database holds (with `scope`, only the
- * folders it names, of epics held here). Returns the ids imported and the files rejected (bad, conflicting, or naming a
- * record this database does not hold).
+ * Reads the observation files of the project level and of `epicIds` (with `scope`, only the folders it names), outside
+ * any transaction. Files that match their last sync are not listed.
  */
-export function importObservations(deps: ObservationImportDeps, now: string, scope?: ObservationScope): { imported: string[]; rejected: Rejection[] } {
-  const found: ObservationFile[] = []
+export function scanObservations(deps: ObservationImportDeps, epicIds: string[], scope?: ObservationScope): ObservationScan {
+  const files: ObservationFile[] = []
   const rejected: Rejection[] = []
-  const epicIds = deps.db.all<{ id: string }>('SELECT id FROM epics ORDER BY id').map((row) => row.id)
   const folders = scope === undefined ? [null, ...epicIds] : [...(scope.projectLevel ? [null] : []), ...epicIds.filter((id) => scope.epics.has(id))]
   for (const epicId of folders) {
-    scanFolder(deps, epicId, found, rejected)
+    scanFolder(deps, epicId, files, rejected)
   }
-  const imported = insertFiles(deps, planFiles(deps, found, now, rejected), now, rejected)
+  return { files, rejected, folders }
+}
+
+/** Whether applying the scan would write anything: some file is new here, or only needs marking synced. */
+export function observationsPending(db: Db, scan: ObservationScan): boolean {
+  return singleFiles(scan.files, []).some((file) => planFile(db, file).kind !== 'rejected')
+}
+
+/**
+ * Applies scanned observation files, each in its own transaction; only files of the project level or of an epic held
+ * here are considered (a folder read for an epic that was not applied waits for it). Returns the ids imported and the
+ * files rejected (bad, conflicting, or naming a record this database does not hold).
+ */
+export function applyObservations(deps: ObservationImportDeps, scan: ObservationScan, now: string): { imported: string[]; rejected: Rejection[] } {
+  const held = new Set(deps.db.all<{ id: string }>('SELECT id FROM epics ORDER BY id').map((row) => row.id))
+  const rejected = [...scan.rejected]
+  const files = singleFiles(scan.files.filter((file) => file.epicId === null || held.has(file.epicId)), rejected)
+  const imported = insertFiles(deps, files, now, rejected)
   return { imported, rejected }
+}
+
+/**
+ * Imports the observation files of the project level and of every epic this database holds (with `scope`, only the
+ * folders it names, of epics held here).
+ */
+export function importObservations(deps: ObservationImportDeps, now: string, scope?: ObservationScope): { imported: string[]; rejected: Rejection[] } {
+  const epicIds = deps.db.all<{ id: string }>('SELECT id FROM epics ORDER BY id').map((row) => row.id)
+  return applyObservations(deps, scanObservations(deps, epicIds, scope), now)
 }

@@ -33,14 +33,14 @@ import { type FileHashCache, readUnlessSynced } from './fileHashes'
 import { readProject } from './initialize'
 import { releaseBackoff } from './finalizer'
 import { assertContained, displayPath, ownedPaths } from './paths'
-import { insertOwnedRow, registerEvidenceAttachments, registerTicketAttachments, restoreAttachmentFiles } from './attachmentImport'
-import { applyKanban, type KanbanScan, scanKanban } from './kanbanImport'
-import { importObservations } from './observationImport'
+import { applyAttachmentFiles, insertOwnedRow, prepareAttachmentFiles, registerEvidenceAttachments, registerTicketAttachments } from './attachmentImport'
+import { applyCard, type KanbanScan, scanKanban, storeKanbanConflicts } from './kanbanImport'
+import { applyObservations, scanObservations } from './observationImport'
 import { databaseRevision, observeRepository } from './reconcilePreparation'
 import type { ReconcileGate } from './reconcileFingerprint'
 import { reconcileScope, type ReconcileScope, unsettledPaths, writeReconcileMarker } from './reconcileScope'
-import { importRecoveredAttachments } from './recoveredAttachments'
-import { applyProfiles, type ProfileScan, scanProfiles } from './profileImport'
+import { applyRecoveredAttachments, prepareRecoveredAttachments } from './recoveredAttachments'
+import { applyProfile, type ProfileScan, scanProfiles, storeProfileConflicts } from './profileImport'
 import {
   buildRunHistoryRecord,
   type CommentRecord,
@@ -1768,9 +1768,31 @@ function registerAttachments(deps: ImporterDeps, now: string, imported: { runs: 
 function recoverAttachments(deps: ImporterDeps, targeted: TrackedRecords | null): { rejected: { path: string; message: string }[]; changed: boolean } {
   const read = targeted === null || targeted.recoveredAttachments ||
     deps.db.get('SELECT 1 FROM attachments WHERE data IS NULL OR missing = 1 LIMIT 1') !== undefined
-  let changed = false
-  const rejected = read ? importRecoveredAttachments(deps, () => { changed = true }) : []
-  return { rejected, changed }
+  return read ? applyRecoveredAttachments(deps, prepareRecoveredAttachments(deps)) : { rejected: [], changed: false }
+}
+
+/** Applies staged profiles, each under its own transaction so one the database refuses is reported without undoing the others. */
+function applyProfiles(db: Db, profiles: ProfileScan, now: string): { imported: string[]; rejected: Rejection[] } {
+  const imported: string[] = []
+  const rejected = [...profiles.rejected]
+  for (const profile of profiles.staged) {
+    if (applyItem(db, profile.path, () => applyProfile(db, profile, now), rejected)) imported.push(`profile:${profile.name}`)
+  }
+  storeProfileConflicts(db, profiles, now)
+  return { imported, rejected }
+}
+
+/** Applies staged cards, each under its own transaction; returns the `kanban:<cardId>` keys whose definition or events changed. */
+function applyKanban(db: Db, kanban: KanbanScan, now: string): { imported: string[]; rejected: Rejection[] } {
+  const imported: string[] = []
+  const rejected = [...kanban.rejected]
+  for (const card of kanban.cards) {
+    if (applyItem(db, card.path, () => applyCard(db, card, now), rejected) && (card.definition !== null || card.events.length > 0)) {
+      imported.push(`kanban:${card.cardId}`)
+    }
+  }
+  storeKanbanConflicts(db, kanban.conflicts, now)
+  return { imported, rejected }
 }
 
 function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultView {
@@ -1782,10 +1804,12 @@ function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultVi
   const kanbanOutcome = applyKanban(deps.db, kanban, now)
   // After epics and runs, so an observation of a run imported now resolves.
   const targeted = scope.changes.kind === 'targeted' ? scope.changes : null
-  const observationOutcome = importObservations(deps, now, targeted === null ? undefined : { projectLevel: targeted.projectObservations, epics: targeted.epics })
-  registerAttachments(deps, now, { runs: staged.importedRuns, cards: kanbanOutcome.imported.map((key) => key.slice('kanban:'.length)), epics: staged.savedEpics })
+  const observationScope = targeted === null ? undefined : { projectLevel: targeted.projectObservations, epics: targeted.epics }
+  const heldEpics = deps.db.all<{ id: string }>('SELECT id FROM epics ORDER BY id').map((row) => row.id)
+  const observationOutcome = applyObservations(deps, scanObservations(deps, heldEpics, observationScope), now)
+  registerAttachments(deps, now, { runs: staged.importedRuns, cards: kanbanOutcome.imported.map((key: string) => key.slice('kanban:'.length)), epics: staged.savedEpics })
   const recovered = recoverAttachments(deps, targeted)
-  const attachmentOutcome = restoreAttachmentFiles(deps)
+  const attachmentOutcome = applyAttachmentFiles(deps, prepareAttachmentFiles(deps))
   storeConflicts(deps.db, plan.conflicts, [...plan.unchanged, ...profiles.unchanged], now)
   const pausedRuns = branchChanged ? pauseActiveRuns(deps, now) : []
   const result: ReconcileResultView = {
