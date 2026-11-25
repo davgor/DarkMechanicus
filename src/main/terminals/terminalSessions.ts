@@ -104,6 +104,7 @@ import type { PtyExit, PtyHost, PtyProcess } from './ptyHost'
 import { terminalLaunchSpec, type TerminalLaunchSpec } from './terminalLaunchSpec'
 import { removeDmClientDescriptor, writeDmClientDescriptor, writeRecoveryClientDescriptor, writeWorldMailDescriptor, writeTerminalFiles, type TerminalFiles } from './terminalFiles'
 import { createTerminalScreen, type TerminalScreen } from './terminalScreen'
+import { DomainError } from '../../core/errors'
 
 /** How often a running PTY's folder is checked again. */
 const FOLDER_CHECK_MS = 60_000
@@ -209,6 +210,10 @@ export interface TerminalSessions {
   pasteIfRunning(chat: ChatRef, text: string): void
   activeChats(): ChatRecord[]
   isRunning(chatId: string): boolean
+  /** Includes a reserved start and cleanup: neither surface may overlap the other's ownership. */
+  isLive(ref: ChatRef): boolean
+  /** Retires only this owner; preserves the chat and its vendor session for a surface handoff. */
+  stop(ref: ChatRef): Promise<void>
   busy(): boolean
   /** Quit: see the module comment. */
   dispose(): Promise<void>
@@ -287,6 +292,8 @@ export interface TerminalSessionsDeps {
   timers?: TerminalTimers
   onError?: (error: unknown) => void
   onChatChanged?: (ref: ChatRef) => void
+  /** Main wires the GUI owner's reservation/live-process check. */
+  agentChatLive?: (ref: ChatRef) => boolean
   /** Durably reserves uncertain board input BEFORE any physical write; false means already observed or reserved. */
   beforeContextPaste?: (chat: ChatRecord, messageId: string, content: string) => boolean
   /** Recovery startup checks exact source identity and the live initiating authority at every launch fence. */
@@ -358,6 +365,9 @@ interface Live {
   /** Board input reservations, not receipts; scoped to this live host so dropped input can retry after its exit. */
   contextPastes?: Map<string, string>
   revoke: () => Promise<void>
+  killing?: Promise<unknown>
+  retirement?: Promise<void>
+  revocationError?: unknown
   /** Ends the folder watch, the grant's renewal, the hold that keeps the computer awake, and the wait for the pastes. */
   stopWatch: () => void
 }
@@ -381,6 +391,8 @@ interface Manager {
   deps: Required<Omit<TerminalSessionsDeps, 'onError' | 'onChatChanged' | 'bindChatGrant' | 'beforeContextPaste' | 'assertRecoveryLaunch' | 'assertForgeSetupLaunch' | 'forgeResolverFolders'>> & Pick<TerminalSessionsDeps, 'onChatChanged' | 'bindChatGrant' | 'beforeContextPaste' | 'assertRecoveryLaunch' | 'assertForgeSetupLaunch' | 'forgeResolverFolders'>
   onError: (error: unknown) => void
   entries: Map<string, Live | Starting>
+  /** Owners whose screen closed before their process-tree cleanup or grant revocation. */
+  retiring: Set<Live>
   listeners: Map<string, Map<TerminalListener, Subscriber>>
   /** Revokes and kills not yet settled: the quit waits for them before the workspaces close. */
   pending: Set<Promise<unknown>>
@@ -464,10 +476,11 @@ function track<T>(manager: Manager, work: Promise<T>): Promise<T> {
 }
 
 /** Revokes `grantId`; never rejects. */
-function revokeGrant(manager: Manager, grantId: string): Promise<void> {
+function revokeGrant(manager: Manager, grantId: string, failed?: (error: unknown) => void): Promise<void> {
   return track(
     manager,
     manager.deps.revokeChatGrant(grantId).catch((error: unknown) => {
+      failed?.(error)
       manager.onError(error)
     })
   )
@@ -475,12 +488,13 @@ function revokeGrant(manager: Manager, grantId: string): Promise<void> {
 
 /** Ends the PTY's process tree; never rejects. */
 function killTree(manager: Manager, live: Live): Promise<unknown> {
-  return track(
+  live.killing ??= track(
     manager,
     manager.deps.killTree(live.tree).catch((error: unknown) => {
       manager.onError(error)
     })
   )
+  return live.killing
 }
 
 /**
@@ -534,6 +548,19 @@ function stop(manager: Manager, live: Live, message: string): Promise<unknown> {
   }
   live.stopMessage ??= message
   return killTree(manager, live)
+}
+
+/** Retains the old owner's identity until all three independently completing barriers have settled. */
+function retire(manager: Manager, live: Live): Promise<void> {
+  if (live.retirement) return live.retirement
+  manager.retiring.add(live)
+  live.retirement = Promise.all([killTree(manager, live), live.closed, live.revoke()]).then(([killed]) => {
+    if (killed !== true) throw new Error('The terminal process tree did not stop.')
+    if (live.revocationError !== undefined) throw live.revocationError
+    manager.retiring.delete(live)
+  })
+  void live.retirement.catch(manager.onError)
+  return live.retirement
 }
 
 /**
@@ -802,7 +829,7 @@ function startLive(manager: Manager, chat: ChatRecord, started: Started): Live {
     marksStarted: started.marksStarted,
     pastes: { waiting: started.firstPaste === null ? [] : [started.firstPaste], inputLive: false, seen: '', lastOutput: 0, entering: false, cancel: null },
     tree: { pid: pty.pid, kill: () => pty.kill(), exited: ended, hasExited: () => live.exited },
-    revoke: () => (revoked ??= Promise.all(grantIds.map((grantId) => revokeGrant(manager, grantId))).then(() => undefined)),
+    revoke: () => (revoked ??= Promise.all(grantIds.map((grantId) => revokeGrant(manager, grantId, error => { live.revocationError = error }))).then(() => undefined)),
     stopWatch: () => {}
   }
   wireLive(manager, live, reportEnded, reportClosed)
@@ -845,7 +872,7 @@ function wireLive(manager: Manager, live: Live, reportEnded: () => void, reportC
     void live.revoke()
     if (live.dmClient !== null) void dropDmClient(manager, live.dmClient)
     // Asked now, while the group's id can only be the CLI's: ends what it left running in its process group.
-    void killTree(manager, live)
+    void retire(manager, live)
     if (live.stopMessage === null) {
       void track(manager, pauseIfSignedOut(manager, chat))
     }
@@ -1232,7 +1259,7 @@ function startLocation(manager: Manager, chat: ChatRecord) {
 /** Begins the chat's start, or refuses it at once when its folder or agent fails; see `AttachOptions` and `StartOptions`. */
 function beginStart(manager: Manager, found: ChatRecord, options: AttachOptions & Partial<StartOptions>): Starting | { state: 'refused'; message: string } {
   let chat = found
-  const setupRefused = refuseSetupStart(chat, options)
+  const setupRefused = refuseSetupStart(manager, chat, options)
   if (setupRefused !== undefined) return setupRefused
   if (manager.deleting.has(chat.id)) {
     return { state: 'refused', message: DELETED }
@@ -1281,7 +1308,8 @@ function beginStart(manager: Manager, found: ChatRecord, options: AttachOptions 
   return starting
 }
 
-function refuseSetupStart(chat: ChatRecord, options: AttachOptions & Partial<StartOptions>): { state: 'refused'; message: string } | undefined {
+function refuseSetupStart(manager: Manager, chat: ChatRecord, options: AttachOptions & Partial<StartOptions>): { state: 'refused'; message: string } | undefined {
+  if (manager.deps.agentChatLive(chat)) throw new DomainError('busy_elsewhere', 'The chat is running in the GUI.')
   if (chat.forgeSetup?.mode === 'execution' && options.forgeSetupAuthorization === undefined) {
     return { state: 'refused', message: 'This installer conversation starts only from the explicit setup action.' }
   }
@@ -1458,6 +1486,17 @@ async function endTerminal(manager: Manager, chatId: string, message: string): P
   }
 }
 
+/** A surface handoff waits for close, tree cleanup and revocation to be confirmed. */
+async function stopTerminal(manager: Manager, ref: ChatRef): Promise<void> {
+  const chat = manager.deps.store.getChat(ref)
+  if (chat === null) throw new DomainError('not_found', noChat(ref))
+  const entry = manager.entries.get(chat.id)
+  const stopped = entry ? await endEntry(manager, entry, 'The chat is switching surfaces.') : null
+  const retiring = [...manager.retiring].filter(live => live.chat.id === chat.id)
+  if (stopped !== null && !retiring.includes(stopped.live)) retiring.push(stopped.live)
+  await Promise.all(retiring.map(live => retire(manager, live)))
+}
+
 /** `TerminalSessions.deleteChat`. */
 async function deleteChat(manager: Manager, ref: ChatRef, remove: () => Promise<void>): Promise<void> {
   const chat = manager.deps.store.getChat(ref)
@@ -1529,12 +1568,18 @@ function pasteIfRunning(manager: Manager, ref: ChatRef, text: string): void {
   if (entry?.kind === 'live' && !entry.exited && entry.stopMessage === null) queuePaste(manager, entry, text)
 }
 
+function isLive(manager: Manager, ref: ChatRef): boolean {
+  const chat = manager.deps.store.getChat(ref)
+  return chat !== null && (manager.entries.has(chat.id) || [...manager.retiring].some(live => live.chat.id === chat.id))
+}
+
 export function createTerminalSessions(deps: TerminalSessionsDeps): TerminalSessions {
   const { onError, ...rest } = deps
   const manager: Manager = {
     deps: {
       ...rest,
       killTree: deps.killTree ?? ((tree) => killPtyTree(tree)),
+      agentChatLive: deps.agentChatLive ?? (() => false),
       keepAwake: deps.keepAwake ?? (() => () => {}),
       newSessionId: deps.newSessionId ?? randomUUID,
       timers: deps.timers ?? nodeTimers
@@ -1542,27 +1587,25 @@ export function createTerminalSessions(deps: TerminalSessionsDeps): TerminalSess
     onError: onError ?? (() => {}),
     entries: new Map(),
     listeners: new Map(),
+    retiring: new Set(),
     pending: new Set(),
     deleting: new Set(),
     releasing: new Set(),
     closing: false
   }
-  const running = (chatId: string) => runningTerminal(manager, chatId)
   return {
     attach: (ref, listener, options = {}) => attach(manager, ref, listener, options),
     start: (ref, options) => start(manager, ref, options),
-    detach: (chatId, listener) => {
-      manager.listeners.get(chatId)?.delete(listener)
-    },
+    detach: (chatId, listener) => { manager.listeners.get(chatId)?.delete(listener) },
     write: (chatId, data) => {
-      const live = running(chatId)
+      const live = runningTerminal(manager, chatId)
       if (live !== null) {
         writeInput(manager, live, data)
       }
     },
     paste: (ref, text, contextId) => paste(manager, ref, text, contextId),
     resize: (chatId, cols, rows) => {
-      const live = running(chatId)
+      const live = runningTerminal(manager, chatId)
       if (live !== null) {
         live.pty.resize(cols, rows)
         live.screen.resize(cols, rows)
@@ -1573,7 +1616,9 @@ export function createTerminalSessions(deps: TerminalSessionsDeps): TerminalSess
     endAgent: (id) => endAgent(manager, id),
     pasteIfRunning: (ref, text) => pasteIfRunning(manager, ref, text),
     activeChats: () => activeChats(manager),
-    isRunning: (chatId) => running(chatId) !== null,
+    isRunning: (chatId) => runningTerminal(manager, chatId) !== null,
+    isLive: ref => isLive(manager, ref),
+    stop: ref => stopTerminal(manager, ref),
     busy: () => manager.entries.size > 0 || manager.pending.size > 0,
     dispose: () => dispose(manager)
   }

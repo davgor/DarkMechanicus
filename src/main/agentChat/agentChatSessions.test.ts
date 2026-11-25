@@ -4,6 +4,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ChatRef } from '../agents/chatStore'
 import { agentChatRig, filesUnder } from './__mocks__/agentChatRig'
 import type { ArbiterOutcome } from './pendingPrompts'
+import { builtInAgent } from '../agents/__mocks__/chatFixtures'
+import { gate } from '../terminals/__mocks__/terminalSessionsRig'
+import type { AgentAuthStatus } from '../../shared/desktop/api'
 
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => {
@@ -82,6 +85,133 @@ for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI life
     expect(await r.sessions.start(chat)).toEqual({ code: 'busy_elsewhere' })
     expect(r.steps).toEqual([])
   })
+})
+
+for (const kind of ['claude', 'omp'] as const) describe(`${kind} surface ownership`, () => {
+  it('switches GUI to terminal and back without replacing the session, and pushes once per change', async () => {
+    const changed = vi.fn(), r = rig(kind, { onChatChanged: changed }), chat = r.newChat()
+    await r.sessions.start(chat)
+    await eventually(() => r.store.getChat(chat)!.sessionId !== null)
+    const session = r.store.getChat(chat)!.sessionId, pid = r.children[0].pid!
+    changed.mockClear()
+    expect(await r.sessions.setSurface(chat, 'terminal')).toMatchObject({ surface: 'terminal' })
+    expect(r.revoked).toEqual(['grant-1'])
+    expect(() => process.kill(pid, 0)).toThrow()
+    expect(changed).toHaveBeenCalledExactlyOnceWith(chat)
+    expect(r.store.getChat(chat)!.sessionId).toBe(session)
+    changed.mockClear()
+    expect(await r.sessions.setSurface(chat, 'gui')).toMatchObject({ surface: 'gui' })
+    expect(changed).toHaveBeenCalledExactlyOnceWith(chat)
+    expect(r.children).toHaveLength(1)
+    await r.sessions.start(chat)
+    const launches = readFileSync(r.env.FAKE_AGENT_LOG!, 'utf8').trim().split(/\r?\n/).map(line => JSON.parse(line)).filter(row => row.mode === kind)
+    expect(launches[1].argv.slice(-2)).toEqual(['--resume', session])
+    expect(r.store.getChat(chat)!.sessionId).toBe(session)
+  })
+})
+
+for (const kind of ['claude', 'omp'] as const) describe(`${kind} surface cleanup`, () => {
+
+  it('does not persist or release ownership until close, transport cleanup and revocation all settle', async () => {
+    const changed = vi.fn(), r = rig(kind, { onChatChanged: changed }), chat = r.newChat()
+    const transport = gate<void>(), revoke = gate<void>(), close = gate<void>()
+    const spawn = r.deps.startProcess!, originalRevoke = r.deps.revokeChatGrant
+    let closed = false
+    r.deps.startProcess = spec => {
+      const child = spawn(spec)
+      return { ...child, stop: async options => { await child.stop(options); await transport.promise },
+        onExit: listener => child.onExit(exit => { closed = true; void close.promise.then(() => listener(exit)) }) }
+    }
+    r.deps.revokeChatGrant = async id => { await revoke.promise; await originalRevoke(id) }
+    await r.sessions.start(chat)
+    changed.mockClear()
+    const switching = r.sessions.setSurface(chat, 'terminal')
+    await eventually(() => closed)
+    expect(r.sessions.isLive(chat)).toBe(true)
+    await expect(r.sessions.start(chat)).rejects.toMatchObject({ code: 'busy' })
+    await expect(r.sessions.setSurface(chat, 'terminal')).rejects.toMatchObject({ code: 'busy' })
+    expect(r.store.getChat(chat)!.surface).toBe('gui')
+    close.open()
+    revoke.open()
+    await eventually(() => r.revoked.length === 1)
+    expect(changed).not.toHaveBeenCalled()
+    expect(r.sessions.isLive(chat)).toBe(true)
+    transport.open()
+    await switching
+    expect(r.sessions.isLive(chat)).toBe(false)
+    expect(changed).toHaveBeenCalledTimes(1)
+  })
+})
+
+for (const kind of ['claude', 'omp'] as const) describe(`${kind} surface refusals`, () => {
+
+  it('refuses in-flight and queued turns without stopping or changing the surface', async () => {
+    const changed = vi.fn(), r = rig(kind, { onChatChanged: changed }), chat = r.newChat()
+    await r.sessions.send(chat, { text: '[hung]' })
+    await r.sessions.send(chat, { text: '[text] queued' })
+    changed.mockClear()
+    await expect(r.sessions.setSurface(chat, 'terminal')).rejects.toMatchObject({ code: 'busy' })
+    expect(r.sessions.isLive(chat)).toBe(true)
+    expect(r.store.getChat(chat)!.surface).toBe('gui')
+    expect(changed).not.toHaveBeenCalled()
+    expect(r.revoked).toEqual([])
+  })
+
+  it('refuses pending approvals and questions without consuming them', async () => {
+    const r = rig(kind), chat = r.newChat('[question]')
+    await r.sessions.start(chat)
+    await eventually(() => r.sessions.snapshot(chat).pending !== null)
+    const before = r.sessions.snapshot(chat).pending, writes = [...r.writes]
+    await expect(r.sessions.setSurface(chat, 'terminal')).rejects.toMatchObject({ code: 'busy' })
+    expect(r.sessions.snapshot(chat).pending).toEqual(before)
+    expect(r.writes).toEqual(writes)
+    expect(r.revoked).toEqual([])
+  })
+})
+
+it('treats a legacy chat as terminal and refuses unsupported GUI kinds without changes', async () => {
+  const changed = vi.fn(), r = rig('claude', { agentFor: () => builtInAgent('codex'), onChatChanged: changed })
+  const chat = r.store.createChat({ folder: r.repo, agent: 'codex', model: null, role: 'worker', allowSave: false })
+  expect(r.sessions.snapshot(chat).surface).toBe('terminal')
+  await expect(r.sessions.setSurface(chat, 'gui')).rejects.toMatchObject({ code: 'unsupported' })
+  expect(await r.sessions.setSurface(chat, 'terminal')).toMatchObject({ surface: 'terminal' })
+  expect(r.store.getChat(chat)).not.toHaveProperty('surface')
+  expect(changed).not.toHaveBeenCalled()
+})
+
+it('refuses a toggle during authentication before any process or grant is issued', async () => {
+  const auth = gate<AgentAuthStatus>()
+  const r = rig('claude', { checkAuth: () => auth.promise }), chat = r.newChat()
+  const starting = r.sessions.start(chat)
+  await expect(r.sessions.setSurface(chat, 'terminal')).rejects.toMatchObject({ code: 'busy' })
+  auth.open({ state: 'signed_in', reason: 'Fixture auth.' })
+  await starting
+})
+
+it('refuses a held prompt even when a main-turn result has already reported idle', async () => {
+  const r = rig('claude'), chat = r.newChat('[question]'), spawn = r.deps.startProcess!
+  let receive!: (raw: string) => void
+  r.deps.startProcess = spec => {
+    const child = spawn(spec)
+    return { ...child, onLine: listener => { receive = listener; return child.onLine(listener) } }
+  }
+  await r.sessions.start(chat)
+  await eventually(() => r.sessions.snapshot(chat).pending !== null)
+  receive(JSON.stringify({ type: 'result', uuid: 'injected-idle-with-prompt', is_error: false }))
+  expect(r.sessions.snapshot(chat)).toMatchObject({ status: 'idle', pending: { kind: 'question' } })
+  await expect(r.sessions.setSurface(chat, 'terminal')).rejects.toMatchObject({ code: 'busy' })
+  expect(r.revoked).toEqual([])
+})
+
+it('does not mistake a live terminal with unknown activity for an idle owner', async () => {
+  const changed = vi.fn(), stopTerminal = vi.fn(async () => {}), r = rig('claude', { onChatChanged: changed, stopTerminal })
+  const chat = r.newChat()
+  r.store.updateChat(chat, { surface: 'terminal' })
+  r.state.terminalLive = true
+  await expect(r.sessions.setSurface(chat, 'gui')).rejects.toMatchObject({ code: 'busy' })
+  expect(changed).not.toHaveBeenCalled()
+  expect(stopTerminal).not.toHaveBeenCalled()
+  expect(r.store.getChat(chat)!.surface).toBe('terminal')
 })
 
 for (const kind of ['claude', 'omp'] as const) describe(`${kind} native GUI input`, () => {

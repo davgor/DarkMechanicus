@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { homedir, tmpdir } from 'node:os'
 import { DomainError } from '../../core/errors'
-import type { AgentChatEvent, AgentChatSnapshot, PendingPrompt } from '../../shared/agents/agentChat'
+import { GUI_PROTOCOL_KINDS, type AgentChatEvent, type AgentChatSnapshot, type PendingPrompt } from '../../shared/agents/agentChat'
 import type { ChatRecord, DarkMechanicusCli } from '../../shared/agents/chat'
 import type { AgentView } from '../../shared/desktop/api'
 import { SIGNED_OUT_PAUSE_REASON } from '../../shared/domain/status'
@@ -27,6 +27,8 @@ export interface AgentChatSessionsDeps extends Pick<TerminalSessionsDeps,
   'ompExtension' | 'platform' | 'env' | 'newSessionId' | 'bindChatGrant' | 'onChatChanged'> {
   store: Pick<ChatStore, 'getChat' | 'updateChat' | 'appendItems' | 'readTranscript' | 'deleteChat'>
   terminalLive(ref: ChatRef): boolean
+  /** Stops the terminal and waits for process close, tree cleanup and grant revocation. */
+  stopTerminal(ref: ChatRef): Promise<void>
   push(event: AgentChatEvent): void
   timers?: { repeat(callback: () => void, ms: number): () => void }
   now?: () => string
@@ -41,6 +43,7 @@ export interface AgentChatSessions {
   interrupt(ref: ChatRef): Promise<void>
   answer(ref: ChatRef, input: { promptId: string; optionId: string; text?: string }): Promise<void>
   snapshot(ref: ChatRef): AgentChatSnapshot
+  setSurface(ref: ChatRef, surface: 'gui' | 'terminal'): Promise<AgentChatSnapshot>
   stop(ref: ChatRef): Promise<void>
   deleteChat(ref: ChatRef): Promise<void>
   isLive(ref: ChatRef): boolean
@@ -119,6 +122,7 @@ class SessionManager {
   private readonly startingEntries = new Map<string, Entry>()
   private readonly cleanup = new Set<Promise<unknown>>()
   private readonly deleting = new Set<string>()
+  private readonly switching = new Set<string>()
   private closing = false
   private disposing?: Promise<void>
 
@@ -182,6 +186,7 @@ class SessionManager {
   }
   private assertOpen(chat: ChatRecord): void {
     if (this.closing || this.deleting.has(chat.id)) throw new Error('The chat is stopping.')
+    if (this.switching.has(chat.id)) throw new DomainError('busy', 'The chat is switching surfaces.')
   }
   private assertCurrent(entry: Entry): void {
     this.assertOpen(entry.chat)
@@ -530,6 +535,37 @@ class SessionManager {
     }, 5000)
     entry.interruptTimer.unref()
   }
+  private surfaceBusy(chat: ChatRecord): boolean {
+    if (this.startingEntries.has(chat.id) || this.deps.terminalLive(chat)) return true
+    const entry = this.entries.get(chat.id)
+    if (!entry || entry.cleanupComplete) return false
+    return entry.turnActive || entry.queued > 0 || Boolean(entry.prompts?.snapshot())
+  }
+  private assertSurfaceAllowed(chat: ChatRecord, surface: 'gui' | 'terminal'): void {
+    this.assertOpen(chat)
+    const agent = this.deps.agentFor(chat.agent)
+    if (surface === 'gui' && !GUI_PROTOCOL_KINDS.some(kind => kind === agent?.kind)) {
+      throw new DomainError('unsupported', 'This agent has no GUI protocol.')
+    }
+    if (this.surfaceBusy(chat)) throw new DomainError('busy', 'Wait for the current turn and pending prompts before switching surfaces.')
+  }
+  async setSurface(ref: ChatRef, surface: 'gui' | 'terminal'): Promise<AgentChatSnapshot> {
+    const chat = this.chatFor(ref)
+    this.assertSurfaceAllowed(chat, surface)
+    if ((chat.surface ?? 'terminal') === surface) return this.snapshot(chat)
+    this.switching.add(chat.id)
+    try {
+      await this.stop(chat)
+      await this.deps.stopTerminal(chat)
+      if (this.closing || this.deleting.has(chat.id)) throw new Error('The chat is stopping.')
+      const current = this.chatFor(ref)
+      this.deps.store.updateChat(current, { surface })
+      this.deps.onChatChanged?.(ref)
+      return this.snapshot(ref)
+    } finally {
+      this.switching.delete(chat.id)
+    }
+  }
   async stop(ref: ChatRef): Promise<void> {
     const id = this.chatFor(ref).id
     const entries = new Set([this.entries.get(id), this.startingEntries.get(id)])
@@ -560,7 +596,7 @@ class SessionManager {
   }
   isLive(ref: ChatRef): boolean {
     const id = this.chatFor(ref).id
-    return this.startingEntries.has(id) || this.entries.get(id)?.process !== undefined
+    return this.switching.has(id) || this.startingEntries.has(id) || this.entries.get(id)?.process !== undefined
   }
   busy(): boolean { return this.startingEntries.size > 0 || [...this.entries.values()].some(entry => entry.status === 'busy') }
 }
@@ -571,5 +607,6 @@ export function createAgentChatSessions(deps: AgentChatSessionsDeps): AgentChatS
   return { start: (ref, options) => manager.start(ref, options), snapshot: ref => manager.snapshot(ref),
     send: (ref, input) => manager.send(ref, input), interrupt: ref => manager.interrupt(ref), answer: (ref, input) => manager.answer(ref, input),
     stop: ref => manager.stop(ref), deleteChat: ref => manager.deleteChat(ref), isLive: ref => manager.isLive(ref),
+    setSurface: (ref, surface) => manager.setSurface(ref, surface),
     busy: () => manager.busy(), dispose: () => manager.dispose() }
 }

@@ -6,7 +6,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { CUSTOM_AGENT, eventually, recorder, settle, startTerminal, terminalRig, type TerminalRig } from './__mocks__/terminalSessionsRig'
+import { CUSTOM_AGENT, eventually, gate, recorder, settle, startTerminal, terminalRig, type TerminalRig } from './__mocks__/terminalSessionsRig'
 
 let rig: TerminalRig
 
@@ -85,7 +85,68 @@ describe('terminal sessions: one PTY per chat', () => {
   })
 })
 
+describe('terminal sessions: surface ownership', () => {
+  it('refuses GUI-owned starts and attaches before authentication, persistence or spawning', async () => {
+    rig.cleanup()
+    rig = terminalRig({ deps: () => ({ agentChatLive: () => true }) })
+    const chat = rig.newChat()
+    await expect(rig.sessions.start(chat, { kickoff: 'Do not start' })).rejects.toMatchObject({ code: 'busy_elsewhere' })
+    await expect(rig.sessions.attach(chat, undefined, { newSession: true })).rejects.toMatchObject({ code: 'busy_elsewhere' })
+    expect(rig.steps).toEqual([])
+    expect(rig.host.spawns).toEqual([])
+    expect(rig.store.getChat(chat)).toEqual(chat)
+    expect(rig.sessions.isLive(chat)).toBe(false)
+  })
+
+  it('reserves ownership during authentication and releases it after cancellation', async () => {
+    const auth = rig.holdAuth(), chat = rig.newChat()
+    expect(await rig.sessions.attach(chat)).toEqual({ state: 'checking' })
+    expect(rig.sessions.isLive(chat)).toBe(true)
+    await rig.sessions.stop(chat)
+    expect(rig.sessions.isLive(chat)).toBe(false)
+    auth.open({ state: 'signed_in', reason: 'Fixture auth.' })
+    expect(rig.host.spawns).toHaveLength(0)
+  })
+})
+
+describe('terminal sessions: surface cleanup', () => {
+
+  it('retains ownership after PTY close until both tree cleanup and revocation settle', async () => {
+    rig.cleanup()
+    const kill = gate<boolean>(), revoke = gate<void>()
+    rig = terminalRig({ deps: () => ({ killTree: tree => { tree.kill(); return kill.promise },
+      revokeChatGrant: () => revoke.promise }) })
+    const chat = rig.newChat(CUSTOM_AGENT.id), { pty } = await startTerminal(rig, chat)
+    const sessionId = rig.store.getChat(chat)!.sessionId
+    let stopped = false
+    const stopping = rig.sessions.stop(chat).then(() => { stopped = true })
+    pty.exit()
+    await settle()
+    expect(rig.sessions.isLive(chat)).toBe(true)
+    expect(stopped).toBe(false)
+    kill.open(true)
+    await settle()
+    expect(rig.sessions.isLive(chat)).toBe(true)
+    revoke.open()
+    await stopping
+    expect(rig.sessions.isLive(chat)).toBe(false)
+    expect(rig.store.getChat(chat)!.sessionId).toBe(sessionId)
+    expect(rig.store.getChat(chat)).not.toBeNull()
+  })
+
+  it('does not release a failed terminal cleanup as a successful handoff', async () => {
+    rig.cleanup()
+    rig = terminalRig({ deps: () => ({ killTree: async tree => { tree.kill(); return false } }) })
+    const chat = rig.newChat(CUSTOM_AGENT.id), { pty } = await startTerminal(rig, chat)
+    const stopping = rig.sessions.stop(chat)
+    pty.exit()
+    await expect(stopping).rejects.toThrow('process tree did not stop')
+    expect(rig.sessions.isLive(chat)).toBe(true)
+  })
+})
+
 describe('terminal sessions: what may start', () => {
+
   it('starts nothing for a signed-out built-in, and says so to the attach that is waiting', async () => {
     rig.auth.status = { state: 'signed_out', reason: 'Claude Code is not signed in.' }
     const chat = rig.newChat()

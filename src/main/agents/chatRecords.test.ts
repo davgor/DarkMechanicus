@@ -53,7 +53,34 @@ function leftBehind(): { before: Rig; chat: ChatRecord } {
   return { before, chat }
 }
 
+describe('chat records: central surface defaults', () => {
+  it.each([
+    ['claude', 'gui'], ['omp', 'gui'], ['codex', 'terminal'], ['cursor', 'terminal'],
+    ['autonomous', 'terminal']
+  ] as const)('defaults %s by its connected kind, independent of signed-in Claude', (kind, surface) => {
+    const store = memoryChatStore()
+    const chosen = builtInAgent(kind, { id: 'cu_00000000000000000000000001' })
+    const signedInClaude = { ...builtInAgent('claude'), auth: { state: 'signed_in', reason: 'Signed in.' } }
+    const records = createChatRecords({ store, agentFor: connectedAgents([chosen, signedInClaude]) })
+    for (const context of [{}, { runId: RUN_ID }, { transferEpicId: 'ep_transfer' },
+      { cardId: 'kc_card' }, { epicId: 'ep_planner' }]) {
+      const chat = records.createChat({ folder: REPO, agent: chosen.id, role: 'planner', ...context })
+      expect(chat.surface).toBe(surface)
+      expect(store.getChat(chat)?.surface).toBe(surface)
+    }
+    expect(records.createChat({ folder: null, agent: chosen.id, role: 'worker' }).surface).toBe(surface)
+  })
+
+  it('keeps disconnected and custom kinds terminal rather than guessing from their id', () => {
+    const agent = { ...builtInAgent('claude'), kind: 'custom' as const }
+    const records = createChatRecords({ store: memoryChatStore(), agentFor: connectedAgents([agent]) })
+    expect(records.createChat({ folder: REPO, agent: agent.id, role: 'worker' }).surface).toBe('terminal')
+    expect(records.createChat({ folder: REPO, agent: 'omp', role: 'worker' }).surface).toBe('terminal')
+  })
+})
+
 describe('chat records: creating, listing and renaming', () => {
+
   it('creates a chat with the defaults (allow save, the CLI model) and lists it', () => {
     const { records } = rig()
 

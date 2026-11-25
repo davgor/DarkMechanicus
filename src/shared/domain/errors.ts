@@ -8,6 +8,10 @@ export const DOMAIN_ERROR_CODES = [
   'cancelled',
   'invalid_request',
   'busy',
+  /** Another surface owns this chat's live process or its cleanup. */
+  'busy_elsewhere',
+  /** The selected agent kind has no protocol for the requested surface. */
+  'unsupported',
   'response_too_large',
   'operation_unavailable',
   'internal_error',

@@ -18,6 +18,7 @@
  * out and finishes its deletion, and `recoverFolder` does the same for every such chat of a folder at startup.
  */
 import { DomainError } from '../../core/errors'
+import { GUI_PROTOCOL_KINDS } from '../../shared/agents/agentChat'
 import type { ChatItem, ChatRecord } from '../../shared/agents/chat'
 import type { ChatReadView, CreateChatRequest } from '../../shared/agents/chatApi'
 import { AGENT_DEFINITIONS, isBuiltInAgentKind } from '../../shared/desktop/agentKinds'
@@ -49,7 +50,7 @@ interface ChatRecordsDeps {
  * A request to create a chat, in a tracked folder or project-less (`folder` null), with the run it orchestrates, the
  * epic it transfers, the Kanban card it carries or the board conversation it answers when there is one.
  */
-type NewChatRequest = Omit<CreateChatRequest, 'folder'> & Pick<ChatRecord, 'folder' | 'epicId' | 'surface' | 'runId' | 'transferEpicId' | 'cardId' | 'conversation' | 'forgeSetup'>
+type NewChatRequest = Omit<CreateChatRequest, 'folder'> & Pick<ChatRecord, 'folder' | 'epicId' | 'runId' | 'transferEpicId' | 'cardId' | 'conversation' | 'forgeSetup'>
 
 type ChatResult<T> = T | Promise<T>
 
@@ -158,7 +159,10 @@ export function createChatRecords(deps: ChatRecordsDeps): ChatRecords {
   const finishDeletion = createDeletions(deps)
   const local: LocalChatRecords = {
     listChats: folder => store.listChats(folder).filter(chat => !chat.archived),
-    createChat: request => store.createChat(newChat(request)),
+    createChat: request => {
+      const agent = deps.agentFor(request.agent)
+      return store.createChat({ ...newChat(request), surface: GUI_PROTOCOL_KINDS.some(kind => kind === agent?.kind) ? 'gui' : 'terminal' })
+    },
     renameChat: (ref, title) => store.updateChat(requireChat(store, ref), { title, titleStatus: 'manual' }),
     deleteChat: async (ref) => finishDeletion(requireChat(store, ref)),
     recoverFolder: async () => {},

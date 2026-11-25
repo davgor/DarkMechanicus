@@ -80,6 +80,7 @@ export function agentChatRig(kind: 'claude' | 'omp' = 'claude', overrides: Parti
     keepAwake: () => { state.awake++; return () => { state.awake-- } },
     userData, ompExtension: join(root, 'extension.ts'), platform: process.platform, env,
     terminalLive: () => state.terminalLive,
+    stopTerminal: async () => { state.terminalLive = false },
     push: event => { pushes.push(event) },
     timers: { repeat: (callback, ms) => {
       const callbacks = intervals.get(ms) ?? new Set<() => void>()

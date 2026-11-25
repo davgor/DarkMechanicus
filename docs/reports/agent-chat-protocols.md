@@ -64,6 +64,15 @@ The Windows supervisor command is fixed-size. Executable and quoted command-line
 
 `stop` is idempotent: end stdin, escalate a live owned process through `killProcessTree` after 3 seconds, and bound disposal at 5 seconds with a diagnostic if shutdown could not finish. POSIX group cleanup starts immediately on natural exit and its result is retained for later disposal, avoiding a delayed lookup of a reused group ID. On Windows the supervisor terminates its retained job when the CLI exits, including descendants that survive stdin EOF; killing the supervisor also closes the job. This launch-time ownership avoids the unrecoverable ancestry races in stop-time process enumeration. A deadline diagnostic is not proof that an unkillable process has exited.
 
+### Surface ownership (DM-780)
+
+`ChatRecords.createChat` chooses GUI for the connected Claude/OMP kind and terminal for every other kind, centrally for every caller. Authentication is still checked at launch. A record without `surface` remains terminal.
+
+`setSurface` preserves the vendor session identity and starts no replacement process. GUI turns, queued turns, pending prompts and starts refuse with `busy`; unsupported GUI kinds refuse with `unsupported`. A successful change waits for process close, transport/tree cleanup and grant revocation before storing the surface and calling `onChatChanged` once. Both owners expose reservations through `isLive`; a competing start refuses with `busy_elsewhere`. Bootstrap connection of these dependencies belongs to DM-781.
+
+Live terminal activity is not observable through the current PTY contract. Claude 2.1.331 help exposes structured output only in print mode; its documented status-line fields contain no idle/finality flag, and Stop hooks can precede continued work or be absent on interrupt. Until an approved activity/confirmation contract exists, a live terminal is conservatively refused rather than called idle. This does **not** satisfy live-idle terminal-to-GUI switching; exited terminals can switch and resume their saved session. No ANSI timing or transcript heuristic substitutes for that missing proof.
+
+
 ## Claude host → CLI
 
 ### Control envelopes and initialization
