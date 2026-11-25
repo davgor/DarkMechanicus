@@ -24,8 +24,9 @@ export const META_KEYS = {
   /** `IMPORTER_VERSION` (`repo/gitChanges.ts`) of the reconcile that stored `reconcileBaseCommit`. */
   reconcileImporterVersion: 'reconcile_importer_version',
   /**
-   * JSON list of the paths (relative to `.darkmechanicus/`) `git status` reported at that reconcile: the next one
-   * re-reads them even when a revert has made them clean again. At most `RECONCILE_DIRTY_PATHS_LIMIT` entries.
+   * JSON list of the paths (relative to `.darkmechanicus/`) `git status` reported at that reconcile, and of the records
+   * it left unsettled (rejected, in conflict, or waiting on another record; `reconcileScope.ts`): the next one re-reads
+   * them even when a revert has made them clean again. At most `RECONCILE_DIRTY_PATHS_LIMIT` entries.
    */
   reconcileDirtyPaths: 'reconcile_dirty_paths'
 } as const
