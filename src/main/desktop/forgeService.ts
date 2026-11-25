@@ -728,6 +728,8 @@ class ForgeService {
     const current = (): MemberIdentity | undefined =>
       key !== undefined && identity !== undefined && this.rootKey(root) === key && this.identityOf(root, path) === identity
         ? { key, identity } : undefined
+    // Queued on the member's owner ahead of its reconcile, so it answers before the import starts.
+    const cached = this.deps.pool.get(path).call('hasValidatedCache')
     const work = this.deps.pool.reconcile(path).then(({ result, hasLocalCache }) => {
       this.assertSyncTarget(root, key)
       const ready = current()
@@ -746,6 +748,14 @@ class ForgeService {
       if (this.preparing.get(path)?.promise === work) this.preparing.delete(path)
     })
     this.preparing.set(path, { key, promise: work })
+    // A member whose local database already holds a validated import is ready at once: its views read
+    // the local records, with a syncing status, while the reconcile runs.
+    void cached.then(valid => {
+      const ready = valid ? current() : undefined
+      if (ready === undefined || this.pendingMember(path, key)?.promise !== work) return
+      this.prepared.set(path, ready)
+      this.notifyMembers(root)
+    }, () => undefined)
     return work
   }
 

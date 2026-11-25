@@ -64,7 +64,7 @@ class WorkspaceOwner {
     const { home, version } = this.options
     this.workspace ??= openWorkspace({
       repoRoot: path, role: 'desktop', label: 'Desktop', transport: 'desktop', pid: process.pid,
-      deferOpenReconcile: work.kind === 'native' && work.name === 'reconcileMember',
+      deferOpenReconcile: defersOpenReconcile(work),
       homeDir: home, serverInfo: { name: 'darkmechanicus-desktop', version }
     })
     if (this.workspace.repoRoot !== path) {
@@ -105,6 +105,11 @@ class WorkspaceOwner {
       || (error as NodeJS.ErrnoException).code !== 'ENOENT' || work.kind !== 'native' || work.name !== 'revokeChatGrant') throw error
     return { value: await runWorkspaceOperation(this.workspace, work, this.options.home), binding: this.binding }
   }
+}
+
+/** Member readiness work opens the store without its open-time import: the explicit reconcile is that import. */
+export function defersOpenReconcile(work: Work): boolean {
+  return work.kind === 'native' && (work.name === 'reconcileMember' || work.name === 'hasValidatedCache')
 }
 
 function storageCommand(work: Extract<WorkspaceRequest, { type: 'work' }>['work']): boolean {
