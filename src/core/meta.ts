@@ -17,6 +17,8 @@ export const META_KEYS = {
   reconcileProblems: 'reconcile_problems',
   /** The portable repository has completed a clean reconciliation into this database. */
   validatedRepositoryCache: 'validated_repository_cache',
+  /** Inputs of the last clean reconcile (`reconcileFingerprint.ts`); open and heartbeat skip a reconcile while they hold. */
+  reconcileFingerprint: 'reconcile_fingerprint',
   /** The commit HEAD named when the last reconcile read the records; a targeted reconcile diffs from it. */
   reconcileBaseCommit: 'reconcile_base_commit',
   /** `IMPORTER_VERSION` (`repo/gitChanges.ts`) of the reconcile that stored `reconcileBaseCommit`. */

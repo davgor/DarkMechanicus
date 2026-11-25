@@ -36,6 +36,7 @@ import { insertOwnedRow, registerEvidenceAttachments, registerTicketAttachments,
 import { applyKanban, type KanbanScan, scanKanban } from './kanbanImport'
 import { importObservations } from './observationImport'
 import { databaseRevision, observeRepository } from './reconcilePreparation'
+import type { ReconcileGate } from './reconcileFingerprint'
 import { importRecoveredAttachments } from './recoveredAttachments'
 import { applyProfiles, type ProfileScan, scanProfiles } from './profileImport'
 import {
@@ -1788,17 +1789,30 @@ function checkoutKey(deps: ImporterDeps, project: ProjectRecord): [RepoLayout['m
  * observations are checked again after BEGIN IMMEDIATE. If anything changed, rescan under the
  * lock, as a finalizer or external process may have changed which inputs this database accepts.
  * Database-only stores have no portable records to reconcile.
+ *
+ * With a `gate` (`reconcileFingerprint.ts`), inputs a session already reconciled cleanly are not
+ * scanned at all: the gate is checked in a read snapshot before the scan, without the writer lock
+ * (a full reconcile of those inputs would change nothing, so skipping it is what it would have
+ * done at that snapshot), and again under the lock, for inputs another session reconciled while
+ * this one waited. The result applied records the fingerprint the next session checks.
  */
-export function reconcileRepository(deps: ImporterDeps): ReconcileResultView {
+export function reconcileRepository(deps: ImporterDeps, gate?: ReconcileGate): ReconcileResultView {
   if (deps.layout.mode === 'db') return nothingToReconcile()
-  if (deps.db.inTransaction()) return deps.db.tx(() => applyPlan(deps, prepare(deps).context))
+  const apply = (context: ApplyContext): ReconcileResultView => {
+    const result = applyPlan(deps, context)
+    gate?.applied(result)
+    return result
+  }
+  if (deps.db.inTransaction()) return deps.db.tx(() => gate?.current() === true ? nothingToReconcile() : apply(prepare(deps).context))
+  if (gate !== undefined && deps.db.tx(() => gate.current(), 'read')) return nothingToReconcile()
 
   const revision = databaseRevision(deps.db)
   const observed = observeRepository(deps.fs)
   const prepared = prepare({ ...deps, fs: observed.fs })
   return deps.db.tx(() => {
+    if (gate?.current() === true) return nothingToReconcile()
     const identity = JSON.stringify([checkoutKey(deps, requireProject(deps)), deps.git.head()])
     const fresh = prepared.identity === identity && databaseRevision(deps.db) === revision && observed.unchanged()
-    return applyPlan(deps, fresh ? prepared.context : prepare(deps).context)
+    return apply(fresh ? prepared.context : prepare(deps).context)
   })
 }

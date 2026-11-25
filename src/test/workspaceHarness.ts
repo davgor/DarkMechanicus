@@ -19,6 +19,7 @@ export function createFakeGit(initial: GitHead | null): FakeGit {
     setHead: (next) => {
       head = next
     },
+    indexStamp: () => null,
     countUncommitted: async () => 0,
     listLocalBranches: async () => [],
     listWorktrees: async () => [],

@@ -1,11 +1,13 @@
-import { resolve } from 'node:path'
-import { describe, expect, it } from 'vitest'
-import { createMemoryFs } from '../../test/memoryFs'
+import { writeFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
+import { createGitRepo, type GitRepo } from '../../test/gitRepo'
+import { createMemoryFs, type MemoryFs } from '../../test/memoryFs'
 import { idOf, insertComment, insertEpic, insertOutbox, insertRevision, insertRun, T0 } from '../../test/repoFixtures'
 import { kanbanSessions } from '../../test/kanbanFixtures'
 import { createStubGit } from '../../test/repoEnv'
 import { makeBundle } from '../../test/bundles'
-import { createTestClock, createTestDb } from '../../test/testContext'
+import { createTestClock, createTestDb, type TestClock } from '../../test/testContext'
 import { prettyJson } from '../canonical'
 import type { Db } from '../db/database'
 import { SCHEMA_VERSION } from '../db/migrations'
@@ -14,9 +16,11 @@ import { TRANSFER_HOLD_PREFIX } from '../services/transferGuard'
 import { createKanbanCard } from '../services/kanban/cards'
 import { EPIC_RECORDS_CONFLICT_PREFIX } from './importer'
 import { resolveLayout } from './layout'
-import { getStorageStatus } from './storage'
+import { createGitAdapter } from './git'
+import { nodeFs } from './nodeFs'
+import { createRecordStatusCache, getStorageStatus, type RecordStatusCache } from './storage'
 import { ownedPaths } from './paths'
-import type { GitAdapter } from './types'
+import type { GitAdapter, GitHead, RepoLayout } from './types'
 
 const layout = resolveLayout(resolve('/repo'))
 const PROJECT = {
@@ -275,5 +279,186 @@ describe('getStorageStatus for a database-only project', () => {
     const status = await getStorageStatus({ db: null, layout: dbLayout, fs, git, clock: createTestClock() })
     expect(asked).toBe(0)
     expect(status.uncommittedRecordFiles).toBeNull()
+  })
+})
+
+/** Lets a background refresh's settled git answer land in the cache. */
+async function settle(): Promise<void> {
+  await new Promise((done) => setImmediate(done))
+}
+
+interface CountingGit extends GitAdapter {
+  /** `git status` runs so far. */
+  runs: number
+  /** The uncommitted count the next `git status` answers. */
+  dirty: number
+  index: string
+  headCommit: string
+  /** Makes later `git status` runs wait until the returned release is called. */
+  hold(): () => void
+}
+
+/** A git adapter whose index stamp, HEAD and uncommitted count the test sets, counting each `git status`. */
+function countingGit(): CountingGit {
+  let held: Promise<void> | null = null
+  const git: CountingGit = {
+    ...createStubGit('main'),
+    runs: 0,
+    dirty: 0,
+    index: 'index-1',
+    headCommit: 'a'.repeat(40),
+    head: (): GitHead => ({ branch: 'main', commit: git.headCommit, detached: false }),
+    indexStamp: () => git.index,
+    countUncommitted: async () => {
+      git.runs += 1
+      const answer = git.dirty
+      await held
+      return answer
+    },
+    hold: () => {
+      let release = (): void => undefined
+      // The ES2022 lib has no Promise.withResolvers.
+      held = new Promise((done) => {
+        release = done
+      })
+      return () => {
+        held = null
+        release()
+      }
+    }
+  }
+  return git
+}
+
+interface CachedDeps {
+  db: null
+  layout: RepoLayout
+  fs: MemoryFs
+  git: GitAdapter
+  clock: TestClock
+  recordStatus: RecordStatusCache
+}
+
+function cachedDeps(git: GitAdapter): CachedDeps {
+  return { db: null, layout, fs: initializedFs(), git, clock: createTestClock(), recordStatus: createRecordStatusCache() }
+}
+
+describe('getStorageStatus cached record status, unchanged and changed stamps', () => {
+  it('computes the first call inline, then serves repeated calls within 10 s without running git', async () => {
+    const git = countingGit()
+    git.dirty = 2
+    const deps = cachedDeps(git)
+    expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(2)
+    expect(git.runs).toBe(1)
+    for (const seconds of [1, 3, 6]) {
+      deps.clock.advanceSeconds(seconds)
+      expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(2)
+    }
+    await settle()
+    expect(git.runs).toBe(1)
+  })
+
+  it('refreshes in the background when the index stamp changes, and the next call reports the new state', async () => {
+    const git = countingGit()
+    const deps = cachedDeps(git)
+    expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(0)
+    git.index = 'index-2'
+    git.dirty = 3
+    const release = git.hold()
+    // The calls answer with the last count while git is still running, and start no second git.
+    expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(0)
+    expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(0)
+    expect(git.runs).toBe(2)
+    release()
+    await settle()
+    expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(3)
+    await settle()
+    expect(git.runs).toBe(2)
+  })
+})
+
+describe('getStorageStatus cached record status, HEAD moves, age and failures', () => {
+  it('refreshes when HEAD moves to another commit', async () => {
+    const git = countingGit()
+    const deps = cachedDeps(git)
+    await getStorageStatus(deps)
+    git.headCommit = 'b'.repeat(40)
+    git.dirty = 1
+    expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(0)
+    await settle()
+    expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(1)
+    expect(git.runs).toBe(2)
+  })
+
+  it('refreshes a count older than 10 s even when the stamps are unchanged', async () => {
+    const git = countingGit()
+    const deps = cachedDeps(git)
+    await getStorageStatus(deps)
+    git.dirty = 4
+    deps.clock.advanceSeconds(10)
+    expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(0)
+    await settle()
+    expect(git.runs).toBe(1)
+    deps.clock.advanceSeconds(1)
+    expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(0)
+    await settle()
+    expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(4)
+    expect(git.runs).toBe(2)
+  })
+
+  it('keeps the last count when a refresh fails, and tries again on the next call', async () => {
+    const git = countingGit()
+    const deps = cachedDeps(git)
+    await getStorageStatus(deps)
+    const failing: GitAdapter = { ...git, countUncommitted: async () => {
+      git.runs += 1
+      throw new Error('git crashed')
+    } }
+    git.index = 'index-2'
+    expect((await getStorageStatus({ ...deps, git: failing })).uncommittedRecordFiles).toBe(0)
+    await settle()
+    git.dirty = 5
+    expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(0)
+    await settle()
+    expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(5)
+    expect(git.runs).toBe(3)
+  })
+})
+
+describe('getStorageStatus cached record status against a real repository', () => {
+  let repo: GitRepo | undefined
+
+  afterEach(() => {
+    repo?.cleanup()
+    repo = undefined
+  })
+
+  it('reports a modified tracked record once the cache refreshes, and a staged one as soon as the index changes', async () => {
+    repo = createGitRepo()
+    const records = join(repo.root, '.darkmechanicus')
+    nodeFs.mkdirp(records)
+    writeFileSync(join(records, 'project.json'), prettyJson(PROJECT))
+    repo.git('add', '.darkmechanicus/project.json')
+    repo.git('commit', '-q', '-m', 'records')
+    const clock = createTestClock()
+    const recordStatus = createRecordStatusCache()
+    const deps = { db: null, layout: resolveLayout(repo.root), fs: nodeFs, git: createGitAdapter(repo.root), clock, recordStatus }
+    expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(0)
+
+    // A working-tree edit leaves the index and HEAD alone: the clean count stands until it is 10 s old.
+    writeFileSync(join(records, 'project.json'), prettyJson({ ...PROJECT, name: 'Renamed' }))
+    expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(0)
+    expect(recordStatus.refreshing).toBeNull()
+    clock.advanceSeconds(11)
+    expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(0)
+    await recordStatus.refreshing
+    expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(1)
+
+    // Staging writes the index, so the very next call refreshes without waiting for the 10 s.
+    writeFileSync(join(records, 'extra.json'), '{}')
+    repo.git('add', '.darkmechanicus/extra.json')
+    expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(1)
+    await recordStatus.refreshing
+    expect((await getStorageStatus(deps)).uncommittedRecordFiles).toBe(2)
   })
 })

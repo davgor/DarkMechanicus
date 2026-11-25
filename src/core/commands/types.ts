@@ -14,6 +14,7 @@ import type { FlushScope } from '../repo/finalizer'
 import type { ProjectLayout } from '../repo/initialize'
 import type { ProjectRecord } from '../repo/portable'
 import type { StorageMode } from '../repo/storageMode'
+import type { RecordStatusCache } from '../repo/storage'
 import type { FsAdapter, GitAdapter, RepoLayout } from '../repo/types'
 import type { z } from 'zod'
 
@@ -26,6 +27,8 @@ export interface WorkspaceCore {
   readonly layout: RepoLayout
   readonly fs: FsAdapter
   readonly git: GitAdapter
+  /** The last count of uncommitted record files `getStorageStatus` serves while it refreshes in the background. */
+  readonly recordStatus: RecordStatusCache
   /** How this session reaches the workspace; some commands refuse one transport (the desktop app, for attachments). */
   readonly transport: 'stdio' | 'desktop' | 'in_process' | 'cli'
   /**
