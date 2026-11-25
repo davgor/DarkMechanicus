@@ -12,6 +12,7 @@ import {
   bool,
   DEFAULT_BUSY_TIMEOUT_MS,
   type Db,
+  guardTransactions,
   isBusyError,
   type OpenDatabaseOptions,
   openDatabase,
@@ -394,6 +395,28 @@ describe('tx nesting with savepoints', () => {
     expect(attempt).toThrow('inner failed')
     expect(names(db)).toEqual([])
     expect(db.inTransaction()).toBe(false)
+  })
+})
+
+describe('guardTransactions', () => {
+  it('checks the guard on every transaction and savepoint by default, and only on depth-0 ones when outermost', () => {
+    const db = openWithNotes()
+    const checks = { every: 0, outermost: 0 }
+    const every = guardTransactions(db, () => { checks.every += 1 })
+    const outermost = guardTransactions(db, () => { checks.outermost += 1 }, 'outermost')
+    for (const guarded of [every, outermost]) {
+      guarded.tx(() => guarded.tx(() => guarded.tx(() => add(guarded, 'nested'))))
+      guarded.tx(() => names(guarded), 'read')
+    }
+    expect(checks).toEqual({ every: 4, outermost: 2 })
+    expect(names(db)).toEqual(['nested', 'nested'])
+  })
+
+  it('refuses an outermost transaction whose guard fails, before running it', () => {
+    const db = openWithNotes()
+    const fenced = guardTransactions(db, () => { throw new Error('storage changed') }, 'outermost')
+    expect(() => fenced.tx(() => add(fenced, 'never'))).toThrow('storage changed')
+    expect(names(db)).toEqual([])
   })
 })
 

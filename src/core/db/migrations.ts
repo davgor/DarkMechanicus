@@ -3,7 +3,7 @@ import { redactedJson } from '../storedSecrets'
 import type { Db } from './database'
 
 /** Highest schema version this build understands. Newer databases are refused, never downgraded. */
-export const SCHEMA_VERSION = 29
+export const SCHEMA_VERSION = 30
 
 export interface Migration {
   version: number
@@ -1100,7 +1100,9 @@ export const MIGRATIONS: Migration[] = [
       );` },
   { version: 28, sql: `CREATE INDEX kanban_cards_open_lanes ON kanban_cards(lane)
         WHERE lane IN ('backlog', 'in_progress', 'ready_for_review');` },
-  { version: 29, sql: '', data: retireToolingHolds }
+  { version: 29, sql: '', data: retireToolingHolds },
+  /** v30: when a failed outbox entry may be retried by an automatic flush (null: at once); an explicit flush ignores it. */
+  { version: 30, sql: 'ALTER TABLE outbox ADD COLUMN next_attempt_at TEXT;' }
 ]
 
 export function readSchemaVersion(db: Db): number {

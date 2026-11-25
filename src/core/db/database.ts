@@ -264,13 +264,17 @@ export function openDatabase(path: string, options: OpenDatabaseOptions = {}): D
 }
 
 /** Check a workspace's storage fence after acquiring its write lock, including callers
- * that retained a context across asynchronous verification or waited behind another process. */
-export function guardTransactions(db: Db, guard: () => void): Db {
+ * that retained a context across asynchronous verification or waited behind another process.
+ * `outermost` checks only when a transaction begins at depth 0: a nested one runs under a lock already fenced. */
+export function guardTransactions(db: Db, guard: () => void, scope: 'every' | 'outermost' = 'every'): Db {
   return {
     path: db.path,
     get: db.get.bind(db), all: db.all.bind(db), run: db.run.bind(db), exec: db.exec.bind(db),
     inTransaction: db.inTransaction.bind(db), close: db.close.bind(db),
-    tx: (fn, mode) => db.tx(() => { guard(); return fn() }, mode)
+    tx: (fn, mode) => {
+      const check = scope === 'every' || !db.inTransaction()
+      return db.tx(() => { if (check) guard(); return fn() }, mode)
+    }
   }
 }
 

@@ -31,6 +31,7 @@ import { indexComment, indexDocument } from '../services/searchIndex'
 import { findOpenTransfer, type OpenTransfer, TRANSFER_HOLD_PREFIX } from '../services/transferGuard'
 import { type FileHashCache, readUnlessSynced } from './fileHashes'
 import { readProject } from './initialize'
+import { releaseBackoff } from './finalizer'
 import { assertContained, displayPath, ownedPaths } from './paths'
 import { insertOwnedRow, registerEvidenceAttachments, registerTicketAttachments, restoreAttachmentFiles } from './attachmentImport'
 import { applyKanban, type KanbanScan, scanKanban } from './kanbanImport'
@@ -1877,6 +1878,8 @@ export function reconcileRepository(deps: ImporterDeps, gate?: ReconcileGate, op
   const full = options.full === true
   const apply = (context: ApplyContext): ReconcileResultView => {
     const result = applyPlan(deps, context)
+    // In the same transaction: exports this reconcile may have unblocked are retried by the next flush at once.
+    releaseBackoff(deps.db, result)
     gate?.applied(result)
     return result
   }

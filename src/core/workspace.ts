@@ -25,7 +25,7 @@ import { assertForgeStorage, assertForgeTransferIdle, boundForgeRoot, forgeBindi
 import { forgeCodeCheckout, isForgeCodeMember } from './repo/forgeCheckout'
 import { findRepositoryRoot } from './repo/discovery'
 import { createFileHashCache } from './repo/fileHashes'
-import { flushOutbox, type FlushScope } from './repo/finalizer'
+import { type FlushMode, flushOutbox, type FlushScope } from './repo/finalizer'
 import { createGitAdapter } from './repo/git'
 import { reconcileRepository } from './repo/importer'
 import { reconcileGate } from './repo/reconcileFingerprint'
@@ -43,7 +43,7 @@ import { refreshSavePermission } from './services/savePermissions'
 import { auditYoloCommand, authorizeYoloCommand, type YoloCommandAdmission } from './services/yoloCommands'
 import type { FsAdapter, GitAdapter, RepoLayout } from './repo/types'
 import { parseInput } from './schemas'
-import { completeSavedRevision } from './services/plans'
+import { completeSavedRevision, previewSavedRevision } from './services/plans'
 import { endSession, registerSession, touchSession } from './services/sessions'
 import { COMMAND_SCHEMAS } from './commandSchemas'
 
@@ -441,8 +441,16 @@ export class RepositoryWorkspace implements WorkspaceCore {
     this.granted = redeemGrant({ db, clock: this.clock, machineId }, token)
   }
 
+  /**
+   * The database behind this workspace's storage fence. A mailbox poll runs every few seconds and nests its mailbox
+   * queries inside one fenced transaction, so it checks the fence once per transaction it begins, not per savepoint.
+   */
+  private fenced(db: Db): Db {
+    return guardTransactions(db, () => this.assertForgeStorage(), this.options.mailPoll === true ? 'outermost' : 'every')
+  }
+
   private createStore(db: Db, project: ProjectRecord): Store {
-    db = guardTransactions(db, () => this.assertForgeStorage())
+    db = this.fenced(db)
     if (this.options.mailRead === true) {
       if (readSchemaVersion(db) !== SCHEMA_VERSION) fail('incompatible_schema', 'Open the project in the desktop app to update its database before listing peers.')
       if (getMeta(db, META_KEYS.projectId) !== project.projectId) fail('project_mismatch', mismatchAdvice(this.layout))
@@ -703,7 +711,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
       detach: () => { store.db.close() },
       attach: (layout: RepoLayout, db: Db) => {
         this.layout = layout
-        store.db = guardTransactions(db, () => this.assertForgeStorage())
+        store.db = this.fenced(db)
         store.ctx.db = store.db
       }
     }
@@ -730,22 +738,27 @@ export class RepositoryWorkspace implements WorkspaceCore {
     }, reconcileGate({ db: store.db, layout: this.layout, fs: this.fs, git: this.git }, automatic), { full: !automatic }))
   }
 
-  flush(scope?: FlushScope): FlushResultView {
+  /** An explicit flush (the default) retries every waiting entry at once; `scheduled` leaves failed ones in backoff. */
+  flush(scope?: FlushScope, mode: FlushMode = 'explicit'): FlushResultView {
     const store = this.requireStore()
     // Pending exports belong to the recorded branch; never write them into another checkout.
     this.assertBranch()
     const outcome = tagTransactions('flush', () => flushOutbox(
       { db: store.db, layout: this.layout, fs: this.fs, clock: this.clock },
-      { onSnapshotSaved: (revisionId) => completeSavedRevision(store.ctx, revisionId) },
-      scope
+      {
+        onSnapshotSaved: (revisionId) => completeSavedRevision(store.ctx, revisionId),
+        previewSavedRevision: (revisionId) => previewSavedRevision(store.ctx, revisionId)
+      },
+      scope,
+      mode
     ))
     return { flushed: outcome.flushed, failed: outcome.failed, errors: outcome.errors }
   }
 
-  /** Flush after a committed mutation; failures stay recorded in the outbox for retry. */
+  /** Flush after a committed mutation; failures stay recorded in the outbox and are retried after their backoff. */
   safeFlush(): void {
     try {
-      this.flush()
+      this.flush(undefined, 'scheduled')
     } catch {
       // The outbox keeps the entry pending with its error; storage status surfaces it.
     }
@@ -861,8 +874,9 @@ export class RepositoryWorkspace implements WorkspaceCore {
     const store = this.requireStore()
     this.assertStillGranted()
     const run = spec.run as (core: WorkspaceCore, input: unknown) => unknown
+    // The store was required (and its storage checked) above, so the command's `ctx()` is served it without requiring it again.
     return store.db.tx(() => {
-      const result = run(this, input)
+      const result = this.commandContext.run(store.ctx, () => run(this, input))
       touchMailPollSession({ db: store.db, clock: this.clock }, store.ctx.session.id)
       return result
     })

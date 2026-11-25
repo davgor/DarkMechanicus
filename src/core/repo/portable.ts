@@ -902,19 +902,34 @@ interface EpicRow {
   completed_at: string | null
 }
 
+/**
+ * What completing a save changes in its epic's state record, worked out before it runs: the epic's title, the tickets
+ * it adds (in `backlog`), and the standards it pins (undefined: unchanged). The finalizer stages a save's state from it.
+ */
+export interface SavedRevisionPreview {
+  title: string
+  ticketIds: readonly string[]
+  standardsJson?: string
+}
+
 export function buildEpicStateRecord(
   db: Db,
   epicId: string,
-  meta: { generation: number; updatedAt: string }
+  meta: { generation: number; updatedAt: string },
+  preview?: SavedRevisionPreview
 ): EpicStateRecord {
-  const epic = db.get<EpicRow>('SELECT * FROM epics WHERE id = ?', epicId)
-  if (epic === undefined) {
+  const row = db.get<EpicRow>('SELECT * FROM epics WHERE id = ?', epicId)
+  if (row === undefined) {
     fail('not_found', `Epic ${epicId} does not exist.`)
   }
+  const epic = preview === undefined ? row : { ...row, title: preview.title, standards_json: preview.standardsJson ?? row.standards_json }
   const statuses = db.all<{ ticket_id: string; status: string }>(
     'SELECT ticket_id, status FROM ticket_status WHERE epic_id = ? ORDER BY ticket_id',
     epicId
   )
+  const added = (preview?.ticketIds ?? []).map((ticketId) => ({ ticket_id: ticketId, status: 'backlog' }))
+  // A ticket that already has a status keeps it, as the save's INSERT OR IGNORE does.
+  const ticketStatuses = Object.fromEntries([...added, ...statuses].map((status) => [status.ticket_id, status.status]))
   const record = {
     format: 'darkmechanicus.epic-state',
     ...(epic.standards_json ? { standards: encodeStandards(readStandards(epic.standards_json)) } : {}),
@@ -930,7 +945,7 @@ export function buildEpicStateRecord(
     outcome: parseJson<unknown>(epic.outcome_json, null),
     createdAt: epic.created_at,
     completedAt: epic.completed_at,
-    ticketStatuses: Object.fromEntries(statuses.map((row) => [row.ticket_id, row.status])),
+    ticketStatuses,
     generation: meta.generation,
     updatedAt: meta.updatedAt
   }
