@@ -1,9 +1,12 @@
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { makeBundle, tid } from '../../test/bundles'
 import { createMemoryFs, type FaultSpec, isWithin, type MemoryFs } from '../../test/memoryFs'
-import { idOf, insertComment, insertEpic, insertOutbox, insertProfile, insertRevision, insertRun, insertTicketStatus, T0 } from '../../test/repoFixtures'
+import { createSaveHook, idOf, insertComment, insertEpic, insertOutbox, insertProfile, insertRevision, insertRun, insertTicketStatus, T0 } from '../../test/repoFixtures'
 import { copyTracked, createRepoEnv, flush, type RepoEnv, saveRevision, stageRevision } from '../../test/repoEnv'
+import { createTestDb } from '../../test/testContext'
 import { contentHash, prettyJson } from '../canonical'
 import type { Db } from '../db/database'
 import { getMeta } from '../meta'
@@ -305,6 +308,57 @@ describe('flushOutbox failures at the commit, after staging', () => {
     expect(calls).toBe(2)
     expect(env.fs.get(files(env).snapshot(R2))).toBeUndefined()
     expect(flush(env).savedRevisionIds).toEqual([R2])
+  })
+
+  it('puts the replaced files back before releasing the lock, so another connection exporting the entry next keeps its export', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dm-finalizer-restore-'))
+    const base = createRepoEnv()
+    base.db.close()
+    const [dbA, dbB] = [createTestDb(join(dir, 'state.sqlite')), createTestDb(join(dir, 'state.sqlite'))]
+    try {
+      const env: RepoEnv = { ...base, db: dbA, hook: createSaveHook(dbA, base.clock) }
+      const other: RepoEnv = { ...base, db: dbB, hook: createSaveHook(dbB, base.clock) }
+      saveRevision(env, { epicId: EPIC, revisionId: R1, number: 1, bundle: BUNDLE_1 })
+      const before = trackedTexts(env)
+      env.db.run("UPDATE ticket_status SET status = 'completed' WHERE ticket_id = ?", tid(1))
+      const entry = insertOutbox(env.db, { kind: 'epic_state', epicId: EPIC })
+      // The pointer rename fails after state.json was replaced (an editor or antivirus holds current.json).
+      env.fs.failOn({ op: 'rename', match: (path) => path.endsWith('current.json') })
+      const seen: (string | undefined)[][] = []
+      // The other connection flushes the same entry the moment this one's write transaction has ended.
+      const db: Db = {
+        ...failingStatement(dbA, /^$/),
+        tx: (fn, mode) => {
+          if (dbA.inTransaction() || mode === 'read') {
+            return dbA.tx(fn, mode)
+          }
+          try {
+            return dbA.tx(fn, mode)
+          } catch (error: unknown) {
+            seen.push(trackedTexts(env))
+            expect(flush(other)).toMatchObject({ flushed: 1, failed: 0 })
+            throw error
+          }
+        }
+      }
+      expect(flushOutbox({ ...env, db }, env.hook)).toMatchObject({ flushed: 0, failed: 1 })
+      // The lock was released only once the old state was back in place.
+      expect(seen[0]).toEqual(before)
+      const exported = trackedTexts(env)
+      expect(JSON.parse(exported[1] ?? '{}')).toMatchObject({ ticketStatuses: { [tid(1)]: 'completed' } })
+      const sync = dbA.get<{ exported_hash: string }>("SELECT exported_hash FROM sync_state WHERE kind = 'epic' AND entity_id = ?", EPIC)
+      expect(sync?.exported_hash).toBe(trackedEpicHash(exported[0] ?? '', exported[1] ?? ''))
+      expect(outboxRow(env, entry)).toMatchObject({ state: 'done', attempts: 0 })
+      // The other connection's export stays this machine's own: the next change exports over it.
+      env.db.run("UPDATE ticket_status SET status = 'in_progress' WHERE ticket_id = ?", tid(2))
+      insertOutbox(env.db, { kind: 'epic_state', epicId: EPIC })
+      expect(flush(env)).toMatchObject({ flushed: 1, failed: 0 })
+      expect(tempFiles(env)).toEqual([])
+    } finally {
+      dbA.close()
+      dbB.close()
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })
 

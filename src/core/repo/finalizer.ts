@@ -970,12 +970,27 @@ function sameChanges(left: FileChange[], right: FileChange[]): boolean {
   )
 }
 
+/** Puts back the tracked files the commit already replaced, in reverse order, as they were before the export. */
+function putBack(deps: FinalizerDeps, changes: FileChange[], placed: Set<number>): void {
+  for (let index = changes.length - 1; index >= 0; index -= 1) {
+    const change = changes[index]
+    if (placed.has(index) && change?.kind === 'write' && change.restore !== undefined) {
+      restoreFile(deps, change.target, change.restore)
+    }
+  }
+  placed.clear()
+}
+
 /**
  * A `repo` mode entry in two steps (see the module comment). Staging plans the changes and writes, fsyncs and reads
  * back their temps, outside the write lock. The commit, in one short write transaction, exports the entry again from
  * the rows as they are now, at the same time (so the records rebuild byte for byte); only when that collects exactly
  * the staged changes are the temps renamed into place and the entry completed. When anything changed meanwhile
  * (`stale`), the temps are dropped and the entry waits for the next flush, which exports the newer state.
+ *
+ * A rename or the completion failing puts the replaced files back before the transaction rolls back, while the lock is
+ * still held, so no other process's export of the entry can land in between and be overwritten. Only a failing COMMIT
+ * itself puts them back after the lock is released.
  */
 function exportEntry(deps: FinalizerDeps, hooks: FinalizerHooks, entry: OutboxRow): EntryResult {
   const now = { ms: deps.clock.nowMs(), iso: deps.clock.nowIso() }
@@ -995,20 +1010,21 @@ function exportEntry(deps: FinalizerDeps, hooks: FinalizerHooks, entry: OutboxRo
       if (!sameChanges(changes, planned)) {
         throw STALE
       }
-      putInPlace(deps, planned, temps, placed)
-      completeEntry(deps.db, entry.id, now.iso)
+      try {
+        putInPlace(deps, planned, temps, placed)
+        completeEntry(deps.db, entry.id, now.iso)
+      } catch (error: unknown) {
+        putBack(deps, planned, placed)
+        throw error
+      }
       return 'flushed'
     })
   } catch (error: unknown) {
     if (error === STALE) {
       return 'stale'
     }
-    // Outside the rolled-back transaction: the tracked files it replaced go back as they were.
-    planned.forEach((change, index) => {
-      if (placed.has(index) && change.kind === 'write' && change.restore !== undefined) {
-        restoreFile(deps, change.target, change.restore)
-      }
-    })
+    // Only a failing COMMIT leaves files placed: the lock is gone, but the rows they describe never committed.
+    putBack(deps, planned, placed)
     throw error
   } finally {
     discardAll(deps.fs, temps.filter((_temp, index) => !placed.has(index)))
@@ -1018,7 +1034,8 @@ function exportEntry(deps: FinalizerDeps, hooks: FinalizerHooks, entry: OutboxRo
 function recordFailure(deps: FinalizerDeps, entry: OutboxRow, message: string): void {
   deps.db.tx(() => {
     const row = deps.db.get<{ attempts: number; state: string }>('SELECT attempts, state FROM outbox WHERE id = ?', entry.id)
-    if (row === undefined) {
+    // Another process may have completed the entry since this one failed it: a done entry stays done.
+    if (row === undefined || row.state === 'done') {
       return
     }
     // The delay counts a failed entry's failures past the attempt maximum, so it reaches its 5 min cap.
