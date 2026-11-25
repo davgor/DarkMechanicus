@@ -21,6 +21,7 @@ function fakeGit(current: string | null, branches: Record<string, Tree>): FakeGi
   return {
     listed,
     head: () => ({ branch: current, commit: null, detached: current === null }),
+    indexStamp: () => null,
     countUncommitted: async () => 0,
     listLocalBranches: async () => Object.keys(branches),
     listWorktrees: async () => [],
@@ -31,6 +32,8 @@ function fakeGit(current: string | null, branches: Record<string, Tree>): FakeGi
     showFile: async (ref, path) => branches[ref]?.[path] ?? null,
     isAncestor: async () => null,
     commitParents: async () => null,
+    diffPaths: async () => ({ ok: false, reason: 'git_failed' }),
+    statusPaths: async () => ({ ok: false, reason: 'git_failed' }),
     branchCommit: () => null
   }
 }

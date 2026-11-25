@@ -92,6 +92,7 @@ export function createStubGit(initial: string | null = 'main'): StubGit {
     setBranch: (next) => {
       branch = next
     },
+    indexStamp: () => null,
     countUncommitted: async () => 0,
     listLocalBranches: async () => [],
     listWorktrees: async () => [],
@@ -99,6 +100,8 @@ export function createStubGit(initial: string | null = 'main'): StubGit {
     showFile: async () => null,
     isAncestor: async () => null,
     commitParents: async () => null,
+    diffPaths: async () => ({ ok: false, reason: 'git_failed' }),
+    statusPaths: async () => ({ ok: false, reason: 'git_failed' }),
     branchCommit: () => null
   }
 }

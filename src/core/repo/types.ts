@@ -39,11 +39,40 @@ export interface GitHead {
   detached: boolean
 }
 
+/** One path below `.darkmechanicus/` that git reports as changed. */
+export interface GitPathChange {
+  /**
+   * Git's status code: a `git diff --name-status` letter (`M`, `A`, `D`, `T`), or a `git status --porcelain=v2`
+   * code: the `XY` pair of a tracked entry (`.M`, `A.`, `D.`, `UU`, ...), `?` for untracked, `!` for ignored.
+   */
+  status: string
+  /** Relative to `.darkmechanicus/`, with forward slashes; a directory git reports whole ends with `/`. */
+  path: string
+}
+
+/** Why git could not list changed paths: the folder is in no work tree, or git failed or is unavailable. */
+export type GitPathsFailure = 'not_work_tree' | 'git_failed'
+
+export type GitDiffPaths = { ok: true; paths: GitPathChange[] } | { ok: false; reason: GitPathsFailure }
+
+/**
+ * `head` is the commit HEAD named when the status was taken (null while HEAD is unborn); `branch` the branch it was on
+ * (null when detached). Both come from the same `git status`, so they describe the same moment as `paths`.
+ */
+export type GitStatusPaths =
+  | { ok: true; head: string | null; branch: string | null; paths: GitPathChange[] }
+  | { ok: false; reason: GitPathsFailure }
+
 export interface GitAdapter {
   /** A routed checkout can recheck its local mapping before a Git verdict is stored. */
   assertCurrent?(): void
   /** Reads HEAD without spawning git; null when the root is not a Git checkout. */
   head(): GitHead | null
+  /**
+   * Identity (size, times, file id) of this checkout's index file, read without spawning git; null when the root
+   * is not a Git checkout or has no index. Changes whenever git writes the index (stage, commit, checkout, reset).
+   */
+  indexStamp(): string | null
   /** Uncommitted (modified, added, deleted, untracked) files under `pathspec`; null if git is unavailable. */
   countUncommitted(pathspec: string): Promise<number | null>
   listLocalBranches(): Promise<string[]>
@@ -64,6 +93,18 @@ export interface GitAdapter {
    * Null when `ref` names no commit. Read-only.
    */
   commitParents(ref: string): Promise<{ commit: string; parents: string[] } | null>
+  /**
+   * Paths below `.darkmechanicus/` that differ between commits `from` and `to` (`git diff --name-status --no-renames
+   * --relative`, run in that folder, so a project nested in a larger repository works). A rename is a delete plus an add.
+   * A typed failure, never a throw, when git fails; throws `unsafe_path` for an option-like ref. Read-only.
+   */
+  diffPaths(from: string, to: string): Promise<GitDiffPaths>
+  /**
+   * Paths below `.darkmechanicus/` whose working tree or index differs from HEAD, untracked and ignored files included,
+   * with the commit HEAD names at that moment (`git status --porcelain=v2 --branch -uall --ignored=matching`).
+   * A typed failure, never a throw. Takes no optional locks, so the index is never written.
+   */
+  statusPaths(): Promise<GitStatusPaths>
   /**
    * The commit local branch `name` (`refs/heads/<name>`) points at, or null when the repository has no such branch.
    * Asks `git rev-parse`; when git cannot run, reads the ref from the files under `.git` like `head()`. Synchronous,

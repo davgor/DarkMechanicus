@@ -19,6 +19,7 @@ export function createFakeGit(initial: GitHead | null): FakeGit {
     setHead: (next) => {
       head = next
     },
+    indexStamp: () => null,
     countUncommitted: async () => 0,
     listLocalBranches: async () => [],
     listWorktrees: async () => [],
@@ -26,6 +27,8 @@ export function createFakeGit(initial: GitHead | null): FakeGit {
     showFile: async () => null,
     isAncestor: async () => null,
     commitParents: async () => null,
+    diffPaths: async () => ({ ok: false, reason: 'git_failed' }),
+    statusPaths: async () => ({ ok: false, reason: 'git_failed' }),
     branchCommit: () => null
   }
 }

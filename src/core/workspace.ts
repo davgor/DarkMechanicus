@@ -34,6 +34,7 @@ import { resolveLayout } from './repo/layout'
 import { nodeFs } from './repo/nodeFs'
 import type { ProjectRecord } from './repo/portable'
 import { resolveHomeDir, resolveStorageMode, type StorageMode } from './repo/storageMode'
+import { createRecordStatusCache } from './repo/storage'
 import { assertStorageMigrationIdle, recoverStorageMigration, exportForgeDestination, switchStorage, type ForgeExportOptions } from './repo/storageMigration'
 import { pruneStagedAttachments } from './services/attachments'
 import { listAgentPeers, MAIL_POLL_COMMANDS, openMailPollSession, touchMailPollSession } from './services/agentMail'
@@ -233,6 +234,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
   private granted: RedeemedGrant | null = null
   /** Validation metadata retained across reconciles of this workspace. */
   private readonly fileHashes = createFileHashCache()
+  readonly recordStatus = createRecordStatusCache()
   /** Adapters `gitFor` opened, by child repository name. */
   private readonly childGits = new Map<string, GitAdapter>()
 
