@@ -21,14 +21,14 @@ import { DomainError, fail } from './errors'
 import { policyForStore, portablePolicy, recoverSqlitePolicy } from './repo/deliveryPolicy'
 import { createIdGenerator, type IdGenerator } from './ids'
 import { getMeta, META_KEYS, setMeta } from './meta'
-import { assertForgeTransferIdle, boundForgeRoot, forgeBindingEpoch, isForgeMember } from './repo/forgeBinding'
+import { assertForgeStorage, assertForgeTransferIdle, boundForgeRoot, forgeBindingEpoch, isForgeMember } from './repo/forgeBinding'
 import { forgeCodeCheckout, isForgeCodeMember } from './repo/forgeCheckout'
 import { findRepositoryRoot } from './repo/discovery'
 import { createFileHashCache } from './repo/fileHashes'
 import { type FlushMode, flushOutbox, type FlushScope } from './repo/finalizer'
 import { createGitAdapter } from './repo/git'
 import { reconcileRepository } from './repo/importer'
-import { observeReconcileInputs } from './repo/reconcileFingerprint'
+import { reconcileGate } from './repo/reconcileFingerprint'
 import { ensureMachineId, initializeRepository, type ProjectLayout, readProject } from './repo/initialize'
 import { resolveLayout } from './repo/layout'
 import { nodeFs } from './repo/nodeFs'
@@ -89,7 +89,7 @@ export interface OpenWorkspaceOptions {
   gitAt?: (root: string) => GitAdapter
   /** Reconcile tracked records on open and on heartbeat (default true). */
   autoReconcile?: boolean
-  /** The desktop owner is about to run an explicit reconcile before serving any other operation. */
+  /** The desktop owner reconciles on its sync lane after opening: open neither reconciles nor flushes first. */
   deferOpenReconcile?: boolean
   serverInfo?: { name: string; version: string }
   /**
@@ -361,9 +361,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
   }
 
   private assertForgeStorage(): void {
-    assertForgeTransferIdle(this.fs, this.homeDir, this.repoRoot)
-    if (forgeBindingEpoch(this.fs, this.homeDir, this.repoRoot) !== this.forgeEpoch) fail('conflict', 'Ticket storage changed. Reconnect before continuing.')
-    if (boundForgeRoot(this.fs, this.homeDir, this.repoRoot) !== this.repoRoot) fail('conflict', 'Reconnect to the Forge World ticket store.')
+    assertForgeStorage(this.fs, this.homeDir, this.repoRoot, this.forgeEpoch)
   }
 
   private assertCurrentStorage(): void {
@@ -728,7 +726,6 @@ export class RepositoryWorkspace implements WorkspaceCore {
    */
   reconcile(automatic = false): ReconcileResultView {
     const store = this.requireStore()
-    const inputs = observeReconcileInputs({ db: store.db, layout: this.layout, fs: this.fs, git: this.git })
     return tagTransactions('reconcile', () => reconcileRepository({
       db: store.db,
       layout: this.layout,
@@ -738,7 +735,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
       git: this.git,
       sessionId: store.ctx.session.id,
       fileHashes: this.fileHashes
-    }, automatic ? inputs : { current: () => false, applied: inputs.applied }, { full: !automatic }))
+    }, reconcileGate({ db: store.db, layout: this.layout, fs: this.fs, git: this.git }, automatic), { full: !automatic }))
   }
 
   /** An explicit flush (the default) retries every waiting entry at once; `scheduled` leaves failed ones in backoff. */

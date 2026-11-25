@@ -496,7 +496,15 @@ async function revamp(window: BrowserWindow): Promise<void> {
       await trackCold(window, project)
       // Click to paint reloads the renderer, which drops the liveness sink: reinstall it when it is gone.
       await window.webContents.executeJavaScript(`typeof window.dmPerfRead === 'function' || ${renderSink}`)
-      const cold = await livenessDuring(window, config.small, () => rendererCommand(window, project, 'getProject'))
+      // The owner answers at once and imports on its sync lane (DM-963): the cold open lasts until the epics are listed.
+      const cold = await livenessDuring(window, config.small, async () => {
+        for (;;) {
+          const listed = await rendererCommand<unknown[]>(window, project, 'listEpics')
+          if (!listed.ok) throw new Error(JSON.stringify(listed.error))
+          if (listed.data.length >= project.epics) return listed
+          await delay(25)
+        }
+      })
       report('revamp-cold-open', { tickets: project.tickets, elapsedMs: cold.elapsedMs, mainLoop: cold.mainLoop })
       await revampProject(deps, project)
       await window.webContents.executeJavaScript(`window.dm.untrackFolder(${JSON.stringify(project.root)})`)

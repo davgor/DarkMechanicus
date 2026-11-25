@@ -152,7 +152,7 @@ async function track(fixture: Awaited<ReturnType<typeof bridgeFixture>>, name: s
 }
 
 function postedNames(owner: InProcessUtility): string[] {
-  return owner.requests.map(request => request.type === 'close' ? 'close' :
+  return owner.requests.map(request => request.type === 'close' ? 'close' : request.type === 'sync' ? 'sync:' + request.mode :
     request.work.kind === 'heartbeat' ? 'heartbeat' : request.work.name)
 }
 
@@ -186,7 +186,10 @@ it('admits a desktop owner only for project work, serves its image, and retires 
 
   await f.finish()
   expect(f.owners[0]?.killed).toBe(true)
-  expect(postedNames(f.owners[0]!)).toEqual(['initializeRepository', 'uploadAttachment', 'attachment', 'heartbeat', 'close'])
+  const posted = postedNames(f.owners[0]!)
+  // The owner opens without reconciling; its open-time reconcile runs once on the sync lane, and the 15 s heartbeat skips its own.
+  expect(posted.filter(name => !name.startsWith('sync:'))).toEqual(['initializeRepository', 'uploadAttachment', 'attachment', 'heartbeat', 'close'])
+  expect(posted.filter(name => name.startsWith('sync:'))).toEqual(['sync:heartbeat'])
 })
 
 it('makes an untracked attachment key unusable without opening a replacement owner', async () => {
@@ -274,7 +277,8 @@ it('broadcasts local Forge readiness only to live windows and removes the member
   expect(await prepared).toBe('forge:foldersChanged')
   expect(await f.invoke('forge:memberStatus', world, member)).toMatchObject({ readiness: 'ready', error: null })
   expect(f.owners).toHaveLength(1)
-  expect(postedNames(f.owners[0]!)).toEqual(['hasValidatedCache', 'reconcileMember'])
+  // The readiness read runs on the owner before the member's import, which runs on the lane; it is also the open-time import.
+  expect(postedNames(f.owners[0]!)).toEqual(['hasValidatedCache', 'sync:member'])
   expect(desktop.closedWindowSend).not.toHaveBeenCalled()
 
   expect(await f.invoke('dm:untrackFolder', world)).toEqual([])

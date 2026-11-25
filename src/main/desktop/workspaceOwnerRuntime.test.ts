@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest'
+import { AsyncResource } from 'node:async_hooks'
 import { EventEmitter } from 'node:events'
 import { existsSync, linkSync, mkdirSync, readFileSync, realpathSync, renameSync, rmdirSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -8,6 +9,7 @@ import { resolveLayout } from '../../core/repo/layout'
 import { nodeFs } from '../../core/repo/nodeFs'
 import { dbProjectDir } from '../../core/repo/storageMode'
 import { bindForge, currentForgeTransfer, FORGE_POINTER, withForgeTransfer } from '../../core/repo/forgeBinding'
+import { inThreadLane, type SyncLane } from './syncLane'
 import type { Work, WorkspaceRequest, WorkspaceResponse } from './workspaceClient'
 import { serveWorkspaceOwner } from './workspaceOwnerRuntime'
 
@@ -26,11 +28,11 @@ function fixture() {
   return h
 }
 
-function owner(home: string, generation = 1) {
+function owner(home: string, generation = 1, lane?: SyncLane) {
   const parent = new EventEmitter()
   const child = new EventEmitter()
   const observed: WorkspaceResponse[] = []
-  serveWorkspaceOwner({ home, generation, version: '1.0.0-test', ownerPid: process.pid }, {
+  serveWorkspaceOwner({ home, generation, version: '1.0.0-test', ownerPid: process.pid, ...(lane ? { lane } : {}) }, {
     on(_event, listener) { child.on('message', listener); return this as Electron.ParentPort },
     postMessage(response: WorkspaceResponse) {
       observed.push(response)
@@ -38,18 +40,49 @@ function owner(home: string, generation = 1) {
     }
   })
   let next = 0
+  // A utility receives a request with no async context of the sender's: only the authority the request carries counts.
+  const deliver = AsyncResource.bind((request: WorkspaceRequest) => { child.emit('message', { data: request }) })
   function send(request: WorkspaceRequest): Promise<WorkspaceResponse> {
     return new Promise(resolve => {
       parent.once('reply:' + request.id, resolve)
-      child.emit('message', { data: request })
+      deliver(request)
     })
   }
   function work(path: string, work: Work, expected?: string): Promise<WorkspaceResponse> {
     return send({ type: 'work', generation, id: ++next, path, work, expected, authority: currentForgeTransfer() })
   }
+  function sync(path: string, mode: 'heartbeat' | 'member' | 'explicit', expected?: string): Promise<WorkspaceResponse> {
+    return send({ type: 'sync', generation, id: ++next, path, mode, expected, authority: currentForgeTransfer() })
+  }
   function close() { return send({ type: 'close', generation, id: ++next }) }
   closers.add(close)
-  return { work, close, observed, child }
+  return { work, sync, close, observed, child }
+}
+
+/** A lane whose reconciles wait at a barrier before they run. */
+function heldLane() {
+  const inner = inThreadLane()
+  let release: () => void = () => undefined
+  const barrier = new Promise<void>(resolve => { release = resolve })
+  const entered: string[] = []
+  const finished: string[] = []
+  const lane: SyncLane = {
+    async reconcile(request) {
+      entered.push(request.mode)
+      await barrier
+      try { return await inner.reconcile(request) } finally { finished.push(request.mode) }
+    },
+    release: () => inner.release(),
+    close: () => inner.close()
+  }
+  return { lane, release, entered, finished }
+}
+
+/** Every card id on a board response, across its lanes. */
+function boardIds(response: WorkspaceResponse): string[] {
+  if (!response.ok) throw new Error(response.error.message)
+  const board = response.result.value as { lanes: Record<string, { id: string }[]> }
+  return Object.values(board.lanes).flat().map(card => card.id)
 }
 
 it('lazily initializes the requested project and refuses a different path or injected operation', async () => {
@@ -116,7 +149,49 @@ it('validates the live reservation on the receiving end before admitting a migra
   await expect(reply).resolves.toMatchObject({ ok: false, error: { code: 'conflict', message: 'The Forge conversion reservation ended.' } })
 })
 
-it('uses the first explicit member reconcile as the cold import instead of consuming it on open', async () => {
+it('admits explicit and member syncs under the live Forge move reservation the request carries', async () => {
+  const h = fixture()
+  const source = h.open('desktop')
+  await source.initializeRepository({ name: 'Converting source' })
+  await source.createKanbanCard({ title: 'Exported before the move' })
+  const worker = owner(h.homeDir)
+  const opened = await worker.work(h.root, { kind: 'native', name: 'initialized', args: [] })
+  if (!opened.ok) throw new Error(opened.error.message)
+  const binding = opened.result.binding
+  await withForgeTransfer(h.homeDir, h.root, join(h.root, 'destination'), async () => {
+    // A conversion validates its source with an explicit reconcile and imports a member with a member sync.
+    await expect(worker.sync(h.root, 'explicit', binding)).resolves.toMatchObject({ ok: true, result: { value: { result: { rejected: [] } } } })
+    await expect(worker.sync(h.root, 'member', binding)).resolves.toMatchObject({ ok: true, result: { value: { result: { rejected: [] } } } })
+  })
+})
+
+it('keeps serving after a lane reconcile fails with no close awaiting it, and leaves no unhandled rejection', async () => {
+  const h = fixture()
+  const source = h.open('desktop')
+  await source.initializeRepository({ name: 'Failing lane' })
+  const unhandled: unknown[] = []
+  const record = (reason: unknown) => { unhandled.push(reason) }
+  process.on('unhandledRejection', record)
+  try {
+    const failing: SyncLane = {
+      reconcile: async () => { throw new Error('lane worker stopped') },
+      release: async () => undefined,
+      close: async () => undefined
+    }
+    const worker = owner(h.homeDir, 1, failing)
+    const opened = await worker.work(h.root, { kind: 'native', name: 'initialized', args: [] })
+    if (!opened.ok) throw new Error(opened.error.message)
+    await expect(worker.sync(h.root, 'member', opened.result.binding)).resolves.toMatchObject({ ok: false, error: { message: expect.stringContaining('lane worker stopped') } })
+    // Let every settled promise's handlers run before checking.
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(unhandled).toEqual([])
+    await expect(worker.work(h.root, { kind: 'command', name: 'listKanbanCards', input: {} }, opened.result.binding)).resolves.toMatchObject({ ok: true })
+  } finally {
+    process.off('unhandledRejection', record)
+  }
+})
+
+it('uses the first member reconcile on the lane as the cold import instead of consuming it on open', async () => {
   const h = fixture()
   const source = h.open('desktop')
   await source.initializeRepository({ name: 'Portable history' })
@@ -126,18 +201,78 @@ it('uses the first explicit member reconcile as the cold import instead of consu
   const alias = join(h.homeDir, 'clone-alias')
   symlinkSync(clone, alias, process.platform === 'win32' ? 'junction' : 'dir')
   const worker = owner(h.homeDir)
-  const reconcile: Work = { kind: 'native', name: 'reconcileMember', args: [] }
-  await expect(worker.work(alias, reconcile)).resolves.toMatchObject({
+  await expect(worker.sync(alias, 'member')).resolves.toMatchObject({
     ok: false, error: { code: 'conflict', message: 'The tracked folder moved.' }
   })
   expect(existsSync(resolveLayout(clone).dbFile)).toBe(false)
-  const first = await worker.work(clone, reconcile)
+  const first = await worker.sync(clone, 'member')
   if (!first.ok) throw new Error(first.error.message)
   expect(first.result.value).toMatchObject({
     hasLocalCache: false, result: { imported: expect.arrayContaining(['kanban:' + card.id]), rejected: [] }
   })
-  const second = await worker.work(clone, reconcile, first.result.binding)
+  const second = await worker.sync(clone, 'member', first.result.binding)
   expect(second).toMatchObject({ ok: true, result: { value: { hasLocalCache: true, result: { imported: [], rejected: [] } } } })
+  // The explicit reconcile is ungated and full; a heartbeat with unchanged inputs passes the fingerprint gate.
+  await expect(worker.sync(clone, 'explicit', first.result.binding)).resolves.toMatchObject({ ok: true, result: { value: { result: { imported: [] } } } })
+  await expect(worker.sync(clone, 'heartbeat', first.result.binding)).resolves.toMatchObject({ ok: true, result: { value: { result: { imported: [] } } } })
+})
+
+it('serves an epic read, the Kanban board and a card mutation while its lane reconcile is held at a barrier', async () => {
+  const h = fixture()
+  const source = h.open('desktop')
+  await source.initializeRepository({ name: 'Lane source' })
+  const card = await source.createKanbanCard({ title: 'Imported by the lane' })
+  const clone = realpathSync.native(h.cloneTracked())
+  const { lane, release, entered } = heldLane()
+  const worker = owner(h.homeDir, 1, lane)
+  const opened = await worker.work(clone, { kind: 'command', name: 'listKanbanCards', input: {} })
+  if (!opened.ok) throw new Error(opened.error.message)
+  expect(boardIds(opened)).toEqual([])
+  const binding = opened.result.binding
+  const created = await worker.work(clone, { kind: 'command', name: 'createEpic', input: { title: 'Read while the lane imports' } }, binding)
+  if (!created.ok) throw new Error(created.error.message)
+  const epicId = (created.result.value as { id: string }).id
+  const head = await worker.work(clone, { kind: 'command', name: 'getEventHead', input: undefined }, binding)
+  if (!head.ok) throw new Error(head.error.message)
+
+  let released = false
+  const reconciled = worker.sync(clone, 'member', binding).then(response => ({ response, released }))
+  try {
+    await vi.waitFor(() => expect(entered).toEqual(['member']))
+    await expect(worker.work(clone, { kind: 'command', name: 'getEpic', input: { epicId } }, binding))
+      .resolves.toMatchObject({ ok: true, result: { value: { id: epicId, title: 'Read while the lane imports' } } })
+    expect(boardIds(await worker.work(clone, { kind: 'command', name: 'listKanbanCards', input: {} }, binding))).toEqual([])
+    await expect(worker.work(clone, { kind: 'command', name: 'createKanbanCard', input: { title: 'Written during the reconcile' } }, binding))
+      .resolves.toMatchObject({ ok: true, result: { value: { title: 'Written during the reconcile' } } })
+  } finally {
+    released = true
+    release()
+  }
+  await expect(reconciled).resolves.toMatchObject({ released: true, response: { ok: true, result: { value: { result: { imported: expect.arrayContaining(['kanban:' + card.id]) } } } } })
+  // The reconcile's import is one `repository.reconciled` event, which the renderer refetches on.
+  const events = await worker.work(clone, { kind: 'command', name: 'listEvents', input: { sinceSeq: head.result.value } }, binding)
+  if (!events.ok) throw new Error(events.error.message)
+  expect((events.result.value as { events: { kind: string }[] }).events.filter(event => event.kind === 'repository.reconciled')).toHaveLength(1)
+  const board = await worker.work(clone, { kind: 'command', name: 'listKanbanCards', input: {} }, binding)
+  expect(boardIds(board)).toContain(card.id)
+})
+
+it('closes the lane only after its running reconcile finishes, and replies to that reconcile as stale', async () => {
+  const h = fixture()
+  const source = h.open('desktop')
+  await source.initializeRepository({ name: 'Lane close' })
+  const clone = realpathSync.native(h.cloneTracked())
+  const { lane, release, entered, finished } = heldLane()
+  const worker = owner(h.homeDir, 1, lane)
+  const opened = await worker.work(clone, { kind: 'native', name: 'initialized', args: [] })
+  if (!opened.ok) throw new Error(opened.error.message)
+  const reconciled = worker.sync(clone, 'member', opened.result.binding)
+  await vi.waitFor(() => expect(entered).toEqual(['member']))
+  const closing = worker.close().then(response => ({ response, laneFinished: [...finished] }))
+  release()
+  // The close is confirmed only once the lane's reconcile finished; that reconcile's late result is then fenced.
+  await expect(closing).resolves.toMatchObject({ response: { ok: true }, laneFinished: ['member'] })
+  await expect(reconciled).resolves.toMatchObject({ ok: false, error: { details: { completion: 'stale' } } })
 })
 
 
