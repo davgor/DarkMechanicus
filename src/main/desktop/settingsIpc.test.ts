@@ -4,7 +4,7 @@
  */
 import type { IpcMain, IpcMainInvokeEvent } from 'electron'
 import { describe, expect, it, vi } from 'vitest'
-import { DEFAULT_NOTIFICATION_SETTINGS } from '../../shared/desktop/notificationSettings'
+import { DEFAULT_NOTIFICATION_SETTINGS, type NotificationSettings } from '../../shared/desktop/notificationSettings'
 import { guardIpc } from '../ipcGuard'
 import type { AppSettings } from './appSettings'
 import { createSettingsHandlers, registerSettingsIpc } from './settingsIpc'
@@ -18,7 +18,7 @@ const FOREIGN = { sender: {}, senderFrame: frame('https://example.com/') } as un
 function rig() {
   const settings = {
     notifications: vi.fn(() => DEFAULT_NOTIFICATION_SETTINGS),
-    setNotifications: vi.fn(async (next: unknown) => next),
+    setNotifications: vi.fn(async (next: unknown) => next as NotificationSettings),
     onChange: vi.fn(() => () => {})
   } satisfies AppSettings
   const listeners = new Map<string, Listener>()

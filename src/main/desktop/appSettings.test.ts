@@ -302,13 +302,14 @@ describe('app settings: invalid shapes', () => {
 describe('app settings: saves run one at a time', () => {
   it('a tightening sent while a loosening waits for the person is compared with the outcome', async () => {
     const { settings, confirm } = rig({ stored: JSON.stringify(RESTRICTIVE) })
-    const answer = Promise.withResolvers<boolean>()
-    confirm.mockImplementationOnce(() => answer.promise)
+    // The node tsconfig lib predates Promise.withResolvers, so the person's pending answer is held by the executor.
+    let answer: (yes: boolean) => void = () => {}
+    confirm.mockImplementationOnce(() => new Promise<boolean>((resolve) => { answer = resolve }))
     const loosened = { ...RESTRICTIVE, arbitration: { ...RESTRICTIVE.arbitration, enabled: true } }
     const first = settings.setNotifications(loosened)
     const second = settings.setNotifications({ ...loosened, sound: true })
     await vi.waitFor(() => expect(confirm).toHaveBeenCalledTimes(1))
-    answer.resolve(false)
+    answer(false)
     expect(await codeOf(first)).toBe('cancelled')
     // The second save still turns arbitration on relative to the unchanged value, so it asks again.
     await expect(second).resolves.toEqual({ ...loosened, sound: true })
