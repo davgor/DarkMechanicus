@@ -146,9 +146,10 @@ function sortEntry(scan: ProfileScan, db: Db, found: StagedProfile): void {
   }
 }
 
-/** Reads and validates every entry of `profiles/`, staging changed profiles for import. */
-export function scanProfiles(deps: ProfileImportDeps): ProfileScan {
+/** Reads and validates every entry of `profiles/` (with `only`, just the profiles it names), staging changed profiles for import. */
+export function scanProfiles(deps: ProfileImportDeps, only?: ReadonlySet<string>): ProfileScan {
   const scan: ProfileScan = { staged: [], unchanged: [], conflicts: [], rejected: [] }
+  if (only?.size === 0) return scan
   const shownDir = displayPath(deps.layout, deps.layout.profilesDir)
   let entries: string[]
   try {
@@ -157,7 +158,7 @@ export function scanProfiles(deps: ProfileImportDeps): ProfileScan {
     scan.rejected.push({ path: shownDir, message: messageOf(error) })
     return scan
   }
-  for (const entry of entries) {
+  for (const entry of only === undefined ? entries : entries.filter((name) => only.has(name.slice(0, -JSON_SUFFIX.length)))) {
     const shownEntry = `${shownDir}/${entry}`
     try {
       const found = readProfileEntry(deps, entry, shownEntry)

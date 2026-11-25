@@ -31,9 +31,10 @@ function fakeGit(current: string | null, branches: Record<string, Tree>): FakeGi
     },
     showFile: async (ref, path) => branches[ref]?.[path] ?? null,
     isAncestor: async () => null,
+    isAncestorSync: () => null,
     commitParents: async () => null,
-    diffPaths: async () => ({ ok: false, reason: 'git_failed' }),
-    statusPaths: async () => ({ ok: false, reason: 'git_failed' }),
+    diffPaths: () => ({ ok: false, reason: 'git_failed' }),
+    statusPaths: () => ({ ok: false, reason: 'git_failed' }),
     branchCommit: () => null
   }
 }

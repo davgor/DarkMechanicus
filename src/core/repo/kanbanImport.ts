@@ -260,9 +260,13 @@ function scanCard(deps: KanbanImportDeps, name: string, scan: KanbanScan): void 
   scan.cards.push(card)
 }
 
-/** Reads and validates every card of `kanban/`, staging what changed for import. */
-export function scanKanban(deps: KanbanImportDeps): KanbanScan {
+/**
+ * Reads and validates every card of `kanban/`, staging what changed for import; with `only`, just the cards it names
+ * (the folder is still listed and bounded, so a missing card is skipped and a bad folder rejected as in a full read).
+ */
+export function scanKanban(deps: KanbanImportDeps, only?: ReadonlySet<string>): KanbanScan {
   const scan: KanbanScan = { cards: [], unchanged: [], conflicts: [], rejected: [] }
+  if (only?.size === 0) return scan
   let names: string[]
   try {
     names = listOwnedDir(deps, deps.layout.kanbanDir, { count: MAX_KANBAN_CARDS, what: 'cards' })
@@ -270,7 +274,7 @@ export function scanKanban(deps: KanbanImportDeps): KanbanScan {
     scan.rejected.push({ path: displayPath(deps.layout, deps.layout.kanbanDir), message: messageOf(error) })
     return scan
   }
-  for (const name of names) {
+  for (const name of only === undefined ? names : names.filter((entry) => only.has(entry))) {
     try {
       scanCard(deps, name, scan)
     } catch (error: unknown) {

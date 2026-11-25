@@ -509,11 +509,11 @@ describe('GitAdapter.branchCommit (CLI answers and hostile names)', () => {
 })
 
 /** Answers `rev-parse` (in `.darkmechanicus/`) and `status`/`diff` with the given outputs, recording every call. */
-function routedRun(answers: { revParse?: Step; status?: Step; diff?: Step }): FakeRun {
+function routedRun(answers: { revParse?: Step; status?: Step; diff?: Step }): { calls: string[][]; runGitSync: (args: string[]) => Step } {
   const calls: string[][] = []
   return {
     calls,
-    runGit: async (args) => {
+    runGitSync: (args) => {
       calls.push(args)
       const command = args[3] ?? ''
       const answer = command === 'rev-parse' ? answers.revParse : command === 'status' ? answers.status : command === 'diff' ? answers.diff : undefined
@@ -536,7 +536,7 @@ function repoFs(): MemoryFs {
 describe('GitAdapter.diffPaths (CLI answers)', () => {
   it('runs diff in .darkmechanicus/ without renames or optional locks, relative to that folder', async () => {
     const run = routedRun({ diff: { code: 0, stdout: `M${NUL}epics/e/state.json${NUL}A${NUL}kanban/k/card.json${NUL}D${NUL}profiles/a b.json${NUL}` } })
-    const adapter = createGitAdapter(ROOT, { fs: createMemoryFs(), runGit: run.runGit })
+    const adapter = createGitAdapter(ROOT, { fs: createMemoryFs(), runGitSync: run.runGitSync })
     expect(await adapter.diffPaths(SHA_A, SHA_B)).toEqual({
       ok: true,
       paths: [
@@ -548,20 +548,20 @@ describe('GitAdapter.diffPaths (CLI answers)', () => {
     expect(run.calls).toEqual([
       ['--no-optional-locks', '-C', '.darkmechanicus', 'diff', '--name-status', '-z', '--no-renames', '--no-color', '--relative', SHA_A, SHA_B, '--', '.']
     ])
-    expect(await createGitAdapter(ROOT, { runGit: routedRun({ diff: { code: 0, stdout: '' } }).runGit }).diffPaths(SHA_A, SHA_A)).toEqual({ ok: true, paths: [] })
+    expect(await createGitAdapter(ROOT, { runGitSync: routedRun({ diff: { code: 0, stdout: '' } }).runGitSync }).diffPaths(SHA_A, SHA_A)).toEqual({ ok: true, paths: [] })
   })
 
   it('fails with git_failed, never throwing, for a failed command or output it cannot read', async () => {
     for (const diff of [{ code: 128, stdout: '' }, { code: 0, stdout: `M${NUL}` }, { code: 0, stdout: `R100${NUL}a${NUL}b${NUL}` }, { code: 0, stdout: `M${NUL}${NUL}` }, { code: 0, stdout: 'M\ta' }]) {
-      expect(await createGitAdapter(ROOT, { fs: repoFs(), runGit: routedRun({ diff }).runGit }).diffPaths(SHA_A, SHA_B)).toEqual({ ok: false, reason: 'git_failed' })
+      expect(await createGitAdapter(ROOT, { fs: repoFs(), runGitSync: routedRun({ diff }).runGitSync }).diffPaths(SHA_A, SHA_B)).toEqual({ ok: false, reason: 'git_failed' })
     }
   })
 
-  it('refuses option-like or NUL-containing refs with unsafe_path before running git', async () => {
+  it('refuses option-like or NUL-containing refs with unsafe_path before running git', () => {
     const run = routedRun({ diff: { code: 0, stdout: '' } })
-    const adapter = createGitAdapter(ROOT, { runGit: run.runGit })
-    expect((await domainErrorOfAsync(() => adapter.diffPaths('--output=x', SHA_B))).code).toBe('unsafe_path')
-    expect((await domainErrorOfAsync(() => adapter.diffPaths(SHA_A, `${SHA_B}\u0000`))).code).toBe('unsafe_path')
+    const adapter = createGitAdapter(ROOT, { runGitSync: run.runGitSync })
+    expect(domainErrorOf(() => adapter.diffPaths('--output=x', SHA_B)).code).toBe('unsafe_path')
+    expect(domainErrorOf(() => adapter.diffPaths(SHA_A, `${SHA_B}\u0000`)).code).toBe('unsafe_path')
     expect(run.calls).toEqual([])
   })
 })
@@ -581,7 +581,7 @@ describe('GitAdapter.statusPaths (CLI answers)', () => {
       ''
     ].join(NUL)
     const run = routedRun({ revParse: IN_PROJECT, status: { code: 0, stdout: status } })
-    expect(await createGitAdapter(ROOT, { runGit: run.runGit }).statusPaths()).toEqual({
+    expect(await createGitAdapter(ROOT, { runGitSync: run.runGitSync }).statusPaths()).toEqual({
       ok: true,
       head: SHA_C,
       branch: 'main',
@@ -602,9 +602,9 @@ describe('GitAdapter.statusPaths (CLI answers)', () => {
 
   it('reports an unborn HEAD as a null head and a detached HEAD as a null branch', async () => {
     const unborn = routedRun({ revParse: { code: 0, stdout: 'true\n\n' }, status: { code: 0, stdout: `# branch.oid (initial)${NUL}# branch.head main${NUL}? .darkmechanicus/x${NUL}` } })
-    expect(await createGitAdapter(ROOT, { runGit: unborn.runGit }).statusPaths()).toEqual({ ok: true, head: null, branch: 'main', paths: [{ status: '?', path: '.darkmechanicus/x' }] })
+    expect(await createGitAdapter(ROOT, { runGitSync: unborn.runGitSync }).statusPaths()).toEqual({ ok: true, head: null, branch: 'main', paths: [{ status: '?', path: '.darkmechanicus/x' }] })
     const detached = routedRun({ revParse: IN_PROJECT, status: { code: 0, stdout: `# branch.oid ${SHA_A}${NUL}# branch.head (detached)${NUL}` } })
-    expect(await createGitAdapter(ROOT, { runGit: detached.runGit }).statusPaths()).toEqual({ ok: true, head: SHA_A, branch: null, paths: [] })
+    expect(await createGitAdapter(ROOT, { runGitSync: detached.runGitSync }).statusPaths()).toEqual({ ok: true, head: SHA_A, branch: null, paths: [] })
   })
 })
 
@@ -625,17 +625,17 @@ describe('GitAdapter.statusPaths failures (CLI answers)', () => {
       { code: 0, stdout: `${head}? M/.darkmechanicus/a` }
     ]
     for (const status of badStatuses) {
-      expect(await createGitAdapter(ROOT, { fs: repoFs(), runGit: routedRun({ revParse: IN_PROJECT, status }).runGit }).statusPaths()).toEqual({ ok: false, reason: 'git_failed' })
+      expect(await createGitAdapter(ROOT, { fs: repoFs(), runGitSync: routedRun({ revParse: IN_PROJECT, status }).runGitSync }).statusPaths()).toEqual({ ok: false, reason: 'git_failed' })
     }
-    expect(await createGitAdapter(ROOT, { fs: repoFs(), runGit: routedRun({ status: { code: 0, stdout: head } }).runGit }).statusPaths()).toEqual({ ok: false, reason: 'git_failed' })
+    expect(await createGitAdapter(ROOT, { fs: repoFs(), runGitSync: routedRun({ status: { code: 0, stdout: head } }).runGitSync }).statusPaths()).toEqual({ ok: false, reason: 'git_failed' })
   })
 
   it('fails with not_work_tree when git says so, or when no folder above holds a repository', async () => {
     const outside = routedRun({ revParse: { code: 0, stdout: 'false\n' }, status: { code: 0, stdout: '' } })
-    expect(await createGitAdapter(ROOT, { runGit: outside.runGit }).statusPaths()).toEqual({ ok: false, reason: 'not_work_tree' })
+    expect(await createGitAdapter(ROOT, { runGitSync: outside.runGitSync }).statusPaths()).toEqual({ ok: false, reason: 'not_work_tree' })
     const noRepository = createMemoryFs()
-    expect(await createGitAdapter(ROOT, { fs: noRepository, runGit: routedRun({}).runGit }).statusPaths()).toEqual({ ok: false, reason: 'not_work_tree' })
-    expect(await createGitAdapter(ROOT, { fs: noRepository, runGit: routedRun({}).runGit }).diffPaths(SHA_A, SHA_B)).toEqual({ ok: false, reason: 'not_work_tree' })
+    expect(await createGitAdapter(ROOT, { fs: noRepository, runGitSync: routedRun({}).runGitSync }).statusPaths()).toEqual({ ok: false, reason: 'not_work_tree' })
+    expect(await createGitAdapter(ROOT, { fs: noRepository, runGitSync: routedRun({}).runGitSync }).diffPaths(SHA_A, SHA_B)).toEqual({ ok: false, reason: 'not_work_tree' })
   })
 })
 

@@ -37,6 +37,7 @@ import { applyKanban, type KanbanScan, scanKanban } from './kanbanImport'
 import { importObservations } from './observationImport'
 import { databaseRevision, observeRepository } from './reconcilePreparation'
 import type { ReconcileGate } from './reconcileFingerprint'
+import { reconcileScope, type ReconcileScope, unsettledPaths, writeReconcileMarker } from './reconcileScope'
 import { importRecoveredAttachments } from './recoveredAttachments'
 import { applyProfiles, type ProfileScan, scanProfiles } from './profileImport'
 import {
@@ -63,6 +64,7 @@ import {
   trackedRunHash
 } from './portable'
 import { hasPendingEpicChanges, matchesSync } from './syncState'
+import type { TrackedRecords } from './gitChanges'
 import type { FsAdapter, GitAdapter, RepoLayout } from './types'
 
 export interface ImporterDeps {
@@ -572,10 +574,19 @@ function listTopLevel(deps: ImporterDeps, dir: string, scan: Scan): string[] {
   }
 }
 
-function scanRepository(deps: ImporterDeps): Scan {
+/**
+ * The entries of `epics/` or `history/` to read: every one, or only the records `only` names (none listed when it names
+ * none). A targeted read still lists the folder, so a missing record is skipped and a bad folder rejected as in a full one.
+ */
+function topLevelNames(deps: ImporterDeps, dir: string, scan: Scan, only: Set<string> | undefined): string[] {
+  if (only === undefined) return listTopLevel(deps, dir, scan)
+  return only.size === 0 ? [] : listTopLevel(deps, dir, scan).filter((name) => only.has(name))
+}
+
+function scanRepository(deps: ImporterDeps, records: TrackedRecords | null): Scan {
   const scan: Scan = { epics: [], runs: [], comments: [], unchanged: [], rejected: [], rejectedEpics: new Set() }
-  const epicNames = listTopLevel(deps, deps.layout.epicsDir, scan)
-  const runNames = listTopLevel(deps, deps.layout.historyDir, scan)
+  const epicNames = topLevelNames(deps, deps.layout.epicsDir, scan, records?.epics)
+  const runNames = topLevelNames(deps, deps.layout.historyDir, scan, records?.runs)
   scanEntries(epicNames, (name) => readEpicFiles(deps, name), {
     found: scan.epics,
     unchanged: scan.unchanged,
@@ -1660,11 +1671,50 @@ function rememberProject(db: Db, project: ProjectRecord): void {
 
 interface ApplyContext {
   project: ProjectRecord
+  scan: Scan
   plan: Plan
   profiles: ProfileScan
   kanban: KanbanScan
   current: string | null
   branchChanged: boolean
+  /** Which records this reconcile read, and the status it started from (the marker it leaves). */
+  scope: ReconcileScope
+}
+
+/** The record's file holds what this database last exported or imported, and no conflict is stored for it. */
+function settled(db: Db, kind: string, entityId: string, hash: string): boolean {
+  return db.get(
+    'SELECT 1 FROM sync_state WHERE kind = ? AND entity_id = ? AND conflict IS NULL AND (exported_hash = ? OR imported_hash = ?)',
+    kind, entityId, hash, hash
+  ) !== undefined
+}
+
+function cardSettled(db: Db, card: KanbanScan['cards'][number]): boolean {
+  return (card.definition === null || settled(db, 'kanban_card', card.cardId, card.definition.trackedHash)) &&
+    [...card.events, ...card.syncedEvents].every((event) => settled(db, 'kanban_event', event.eventId, event.trackedHash))
+}
+
+/**
+ * Paths of what this reconcile read as changed but did not settle (refused, in conflict, or waiting on another record),
+ * and of every rejection: the next reconcile reads them again, as a full one would.
+ */
+function unsettledRecords(deps: ImporterDeps, context: ApplyContext, rejectedPaths: string[]): string[] {
+  const { db } = deps
+  const { scan, kanban, profiles } = context
+  return unsettledPaths({
+    epics: [
+      ...scan.epics.filter((files) => !settled(db, 'epic', files.epicId, files.trackedHash)).map((files) => files.epicId),
+      ...scan.comments.filter((file) => !settled(db, 'comment', file.commentId, file.trackedHash)).map((file) => file.epicId)
+    ],
+    runs: scan.runs.filter((run) => !settled(db, 'run', run.runId, run.trackedHash)).map((run) => run.runId),
+    kanbanCards: [...kanban.cards.filter((card) => !cardSettled(db, card)).map((card) => card.cardId), ...kanban.conflicts.map((conflict) => conflict.cardId)],
+    profiles: [
+      ...profiles.staged.filter((profile) => !settled(db, 'profile', profile.name, profile.trackedHash)).map((profile) => profile.name),
+      ...profiles.conflicts.map((conflict) => conflict.name)
+    ],
+    rejectedPaths,
+    shownDmDir: displayPath(deps.layout, deps.layout.dmDir)
+  })
 }
 
 /**
@@ -1699,14 +1749,15 @@ function recordReconciled(deps: ImporterDeps, result: ReconcileResultView,
 }
 
 function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultView {
-  const { plan, profiles, kanban, branchChanged } = context
+  const { plan, profiles, kanban, branchChanged, scope } = context
   const now = deps.clock.nowIso()
   rememberProject(deps.db, context.project)
   const staged = applyStaged(deps, plan, now)
   const profileOutcome = applyProfiles(deps.db, profiles, now)
   const kanbanOutcome = applyKanban(deps.db, kanban, now)
   // After epics and runs, so an observation of a run imported now resolves.
-  const observationOutcome = importObservations(deps, now)
+  const targeted = scope.changes.kind === 'targeted' ? scope.changes : null
+  const observationOutcome = importObservations(deps, now, targeted === null ? undefined : { projectLevel: targeted.projectObservations, epics: targeted.epics })
   if (getMeta(deps.db, META_KEYS.attachmentRegistration) !== '1') {
     registerEvidenceAttachments(deps.db, now)
     registerTicketAttachments(deps.db, now)
@@ -1716,7 +1767,10 @@ function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultVi
     registerTicketAttachments(deps.db, now, staged.savedEpics)
   }
   let recoveredChanged = false
-  const recoveredAttachments = importRecoveredAttachments(deps, () => { recoveredChanged = true })
+  // An archive only fills a row without bytes; a targeted reconcile reads the folder when git reports it or such a row waits.
+  const readArchives = targeted === null || targeted.recoveredAttachments ||
+    deps.db.get('SELECT 1 FROM attachments WHERE data IS NULL OR missing = 1 LIMIT 1') !== undefined
+  const recoveredAttachments = readArchives ? importRecoveredAttachments(deps, () => { recoveredChanged = true }) : []
   const attachmentOutcome = restoreAttachmentFiles(deps)
   storeConflicts(deps.db, plan.conflicts, [...plan.unchanged, ...profiles.unchanged], now)
   const pausedRuns = branchChanged ? pauseActiveRuns(deps, now) : []
@@ -1744,6 +1798,7 @@ function applyPlan(deps: ImporterDeps, context: ApplyContext): ReconcileResultVi
   })
   if (branchChanged || getMeta(deps.db, META_KEYS.checkoutBranch) === null) setMeta(deps.db, META_KEYS.checkoutBranch, context.current ?? '')
   setMeta(deps.db, META_KEYS.lastReconcileAt, now)
+  writeReconcileMarker(deps.db, scope, unsettledRecords(deps, context, result.rejected.map((rejection) => rejection.path)))
   return result
 }
 
@@ -1765,7 +1820,7 @@ function nothingToReconcile(): ReconcileResultView {
   }
 }
 
-function prepare(deps: ImporterDeps): { context: ApplyContext; identity: string } {
+function prepare(deps: ImporterDeps, full: boolean): { context: ApplyContext; identity: string } {
   const head = deps.git.head()
   const current = head?.branch ?? null
   const branchChanged = branchState(deps.db, current).changed
@@ -1774,10 +1829,14 @@ function prepare(deps: ImporterDeps): { context: ApplyContext; identity: string 
   const identity = JSON.stringify([checkout, head])
   // File stamps and the persisted sync hash still validate each entry after an ordinary same-branch pull.
   deps.fileHashes.scope(deps.db, JSON.stringify([checkout, current, head?.detached ?? null]))
-  const plan = planImport(deps.db, scanRepository(deps), { projectId: project.projectId, machineId: deps.machineId })
-  const profiles = scanProfiles(deps)
-  const kanban = scanKanban(deps)
-  return { context: { project, plan, profiles, kanban, current, branchChanged }, identity }
+  // Asked before any file is read: a file changed after the status is reported by the next one.
+  const scope = reconcileScope(deps, full)
+  const records = scope.changes.kind === 'targeted' ? scope.changes : null
+  const scan = scanRepository(deps, records)
+  const plan = planImport(deps.db, scan, { projectId: project.projectId, machineId: deps.machineId })
+  const profiles = scanProfiles(deps, records?.profiles)
+  const kanban = scanKanban(deps, records?.kanbanCards)
+  return { context: { project, scan, plan, profiles, kanban, current, branchChanged, scope }, identity }
 }
 
 function checkoutKey(deps: ImporterDeps, project: ProjectRecord): [RepoLayout['mode'], string, string] {
@@ -1795,24 +1854,29 @@ function checkoutKey(deps: ImporterDeps, project: ProjectRecord): [RepoLayout['m
  * (a full reconcile of those inputs would change nothing, so skipping it is what it would have
  * done at that snapshot), and again under the lock, for inputs another session reconciled while
  * this one waited. The result applied records the fingerprint the next session checks.
+ *
+ * When the gate misses, git says which records changed since the last reconcile (`reconcileScope.ts`), and only those
+ * (with every record in conflict or left unsettled) are read; anything git cannot vouch for reads everything. `full`
+ * reads everything regardless (the desktop's explicit Reconcile and Forge validation, and tests).
  */
-export function reconcileRepository(deps: ImporterDeps, gate?: ReconcileGate): ReconcileResultView {
+export function reconcileRepository(deps: ImporterDeps, gate?: ReconcileGate, options: { full?: boolean } = {}): ReconcileResultView {
   if (deps.layout.mode === 'db') return nothingToReconcile()
+  const full = options.full === true
   const apply = (context: ApplyContext): ReconcileResultView => {
     const result = applyPlan(deps, context)
     gate?.applied(result)
     return result
   }
-  if (deps.db.inTransaction()) return deps.db.tx(() => gate?.current() === true ? nothingToReconcile() : apply(prepare(deps).context))
+  if (deps.db.inTransaction()) return deps.db.tx(() => gate?.current() === true ? nothingToReconcile() : apply(prepare(deps, full).context))
   if (gate !== undefined && deps.db.tx(() => gate.current(), 'read')) return nothingToReconcile()
 
   const revision = databaseRevision(deps.db)
   const observed = observeRepository(deps.fs)
-  const prepared = prepare({ ...deps, fs: observed.fs })
+  const prepared = prepare({ ...deps, fs: observed.fs }, full)
   return deps.db.tx(() => {
     if (gate?.current() === true) return nothingToReconcile()
     const identity = JSON.stringify([checkoutKey(deps, requireProject(deps)), deps.git.head()])
     const fresh = prepared.identity === identity && databaseRevision(deps.db) === revision && observed.unchanged()
-    return apply(fresh ? prepared.context : prepare(deps).context)
+    return apply(fresh ? prepared.context : prepare(deps, full).context)
   })
 }
