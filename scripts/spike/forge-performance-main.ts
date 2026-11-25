@@ -37,6 +37,8 @@ export interface ProfileRun {
   rendererBundle?: string
   /** Revamp mode: a temporary copy of a real ticket store, tracked after the fixtures. */
   realStore?: string
+  /** `DM_REVAMP_CLI_PHASES=1`: the `cli-phase-timing.cjs` preload each CLI call runs with (it logs to `DM_CLI_PHASE_LOG`). */
+  cliPreload?: string
 }
 
 const config = JSON.parse(readFileSync(process.argv[2]!, 'utf8')) as ProfileRun
@@ -114,7 +116,7 @@ const renderSink = String.raw`(() => {
 
 function runCli(project: ProfileProject, name: string, input: unknown, token?: string) {
   const started = performance.now()
-  const child = spawn(config.systemNode, [config.cliEntry, '--repo', project.root, 'call', name, '-'], {
+  const child = spawn(config.systemNode, [...(config.cliPreload ? ['--require', config.cliPreload] : []), config.cliEntry, '--repo', project.root, 'call', name, '-'], {
     env: { ...process.env, DM_SESSION_TOKEN: token },
     windowsHide: true
   })
