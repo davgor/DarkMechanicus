@@ -38,7 +38,7 @@ interface AgentChatHandlerDeps<S> {
   onUnexpectedError?: (error: unknown) => void
 }
 
-export interface AgentChatHandlers<S> {
+interface AgentChatHandlers<S> {
   start(input: unknown): Promise<CommandResult<AgentChatSnapshot>>
   send(input: unknown): Promise<CommandResult<null>>
   interrupt(input: unknown): Promise<CommandResult<null>>
