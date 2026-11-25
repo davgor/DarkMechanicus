@@ -398,7 +398,7 @@ describe('targeted and full reconciles agree', () => {
       const w = world()
       const source = new Source(w)
       const next = random(seed)
-      const pick = <T>(items: T[]): T | undefined => items[Math.floor(next() * items.length)]
+      const pick = <T,>(items: T[]): T | undefined => items[Math.floor(next() * items.length)]
       const [targeted, full] = [w.target(), w.target()]
       // The full side needs no marker, so it skips git's status: half the git processes per step.
       const reconcileFull = (): ReconcileResultView =>
