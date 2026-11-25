@@ -25,7 +25,7 @@ import { assertForgeTransferIdle, boundForgeRoot, forgeBindingEpoch, isForgeMemb
 import { forgeCodeCheckout, isForgeCodeMember } from './repo/forgeCheckout'
 import { findRepositoryRoot } from './repo/discovery'
 import { createFileHashCache } from './repo/fileHashes'
-import { flushOutbox, type FlushScope } from './repo/finalizer'
+import { type FlushMode, flushOutbox, type FlushScope } from './repo/finalizer'
 import { createGitAdapter } from './repo/git'
 import { reconcileRepository } from './repo/importer'
 import { observeReconcileInputs } from './repo/reconcileFingerprint'
@@ -43,7 +43,7 @@ import { refreshSavePermission } from './services/savePermissions'
 import { auditYoloCommand, authorizeYoloCommand, type YoloCommandAdmission } from './services/yoloCommands'
 import type { FsAdapter, GitAdapter, RepoLayout } from './repo/types'
 import { parseInput } from './schemas'
-import { completeSavedRevision } from './services/plans'
+import { completeSavedRevision, previewSavedRevision } from './services/plans'
 import { endSession, registerSession, touchSession } from './services/sessions'
 import { COMMAND_SCHEMAS } from './commandSchemas'
 
@@ -733,22 +733,27 @@ export class RepositoryWorkspace implements WorkspaceCore {
     }, automatic ? inputs : { current: () => false, applied: inputs.applied }, { full: !automatic }))
   }
 
-  flush(scope?: FlushScope): FlushResultView {
+  /** An explicit flush (the default) retries every waiting entry at once; `scheduled` leaves failed ones in backoff. */
+  flush(scope?: FlushScope, mode: FlushMode = 'explicit'): FlushResultView {
     const store = this.requireStore()
     // Pending exports belong to the recorded branch; never write them into another checkout.
     this.assertBranch()
     const outcome = tagTransactions('flush', () => flushOutbox(
       { db: store.db, layout: this.layout, fs: this.fs, clock: this.clock },
-      { onSnapshotSaved: (revisionId) => completeSavedRevision(store.ctx, revisionId) },
-      scope
+      {
+        onSnapshotSaved: (revisionId) => completeSavedRevision(store.ctx, revisionId),
+        previewSavedRevision: (revisionId) => previewSavedRevision(store.ctx, revisionId)
+      },
+      scope,
+      mode
     ))
     return { flushed: outcome.flushed, failed: outcome.failed, errors: outcome.errors }
   }
 
-  /** Flush after a committed mutation; failures stay recorded in the outbox for retry. */
+  /** Flush after a committed mutation; failures stay recorded in the outbox and are retried after their backoff. */
   safeFlush(): void {
     try {
-      this.flush()
+      this.flush(undefined, 'scheduled')
     } catch {
       // The outbox keeps the entry pending with its error; storage status surfaces it.
     }

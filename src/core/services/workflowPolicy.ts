@@ -36,10 +36,10 @@ export function pinCardWorkflow(ctx: Ctx, id: string): void {
   ctx.db.run('UPDATE kanban_cards SET standards_json = ? WHERE id = ?', toJson(encodeStandards([creationRule(config, { kind: 'kanban', id })])), id)
 }
 
-/** Persist new items along with their revision. Established items retain their delivery contract until explicitly standardized. */
-export function pinPlanWorkflows(ctx: Ctx, epicId: string, bundle: PlanBundle, base?: PlanBundle | null): void {
+/** The epic's `standards_json` once a save of `bundle` pins its new items, or undefined when it pins none. Reads only. */
+export function plannedWorkflowStandards(ctx: Ctx, epicId: string, bundle: PlanBundle, base?: PlanBundle | null): string | undefined {
   const config = ctx.deliveryStandards?.()
-  if (!config?.policy.prompts) return
+  if (!config?.policy.prompts) return undefined
   const previous = workStandards(ctx.db, 'epic', epicId)
   const existing = new Set(previous.map(rule => rule.kind + '/' + rule.id))
   if (base) {
@@ -52,5 +52,11 @@ export function pinPlanWorkflows(ctx: Ctx, epicId: string, bundle: PlanBundle, b
     ...bundle.tickets.filter(t => t.kind !== 'acceptance').map(t => ({ kind: 'ticket' as const, id: t.id }))
   ]
   const added = items.filter(item => !existing.has(item.kind + '/' + item.id)).map(item => creationRule(config, item))
-  if (added.length) ctx.db.run('UPDATE epics SET standards_json = ? WHERE id = ?', toJson(encodeStandards([...previous, ...added])), epicId)
+  return added.length ? toJson(encodeStandards([...previous, ...added])) : undefined
+}
+
+/** Persist new items along with their revision. Established items retain their delivery contract until explicitly standardized. */
+export function pinPlanWorkflows(ctx: Ctx, epicId: string, bundle: PlanBundle, base?: PlanBundle | null): void {
+  const standards = plannedWorkflowStandards(ctx, epicId, bundle, base)
+  if (standards !== undefined) ctx.db.run('UPDATE epics SET standards_json = ? WHERE id = ?', standards, epicId)
 }

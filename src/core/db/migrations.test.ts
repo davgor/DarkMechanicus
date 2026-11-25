@@ -79,7 +79,7 @@ it('retires legacy holds, restores the prior run state and credits an open lease
   vi.useFakeTimers({ toFake: ['Date'] })
   try {
     vi.setSystemTime(new Date(migrationTime))
-    expect(migrate(db)).toEqual({ from: 28, to: 29 })
+    expect(migrate(db, MIGRATIONS.filter(migration => migration.version <= 29))).toEqual({ from: 28, to: 29 })
     expect(db.all('SELECT id,state,pause_reason,paused_at FROM runs ORDER BY id')).toEqual([
       { id: 'original', state: 'awaiting_checkpoint', pause_reason: null, paused_at: null },
       { id: 'orphan', state: 'paused', pause_reason: null, paused_at: heldAt },
@@ -87,12 +87,30 @@ it('retires legacy holds, restores the prior run state and credits an open lease
     ])
     expect(db.get('SELECT lease_expires_at FROM attempts WHERE id = ?', 'attempt')).toEqual({ lease_expires_at: '2026-11-23T12:09:00.000Z' })
     expect(db.get('SELECT lease_expires_at FROM kanban_attempts WHERE id = ?', 'renewed')).toEqual({ lease_expires_at: expires })
-    expect(migrate(db)).toEqual({ from: 29, to: 29 })
+    expect(migrate(db, MIGRATIONS.filter(migration => migration.version <= 29))).toEqual({ from: 29, to: 29 })
     expect(db.all('SELECT attempt_id,kind,granted_at,ms FROM legacy_tooling_lease_credits')).toEqual([
       { attempt_id: 'attempt', kind: 'run', granted_at: heartbeat, ms: 180_000 }
     ])
     expect(objectNames(db, 'table').filter(name => name.startsWith('tooling_'))).toEqual([])
   } finally { vi.useRealTimers() }
+})
+
+it('v30 keeps every pending outbox entry and adds an unset retry time', () => {
+  const db = freshDb()
+  migrate(db, MIGRATIONS.filter(migration => migration.version < 30))
+  db.run(
+    `INSERT INTO outbox (kind, epic_id, revision_id, entity_id, state, attempts, last_error, created_at) VALUES
+      ('snapshot', 'ep1', 'rv1', NULL, 'pending', 0, NULL, 't'),
+      ('epic_state', 'ep1', NULL, NULL, 'pending', 2, 'disk full', 't'),
+      ('comment', 'ep1', NULL, 'cm1', 'pending', 1, 'not here', 't')`
+  )
+  expect(migrate(db)).toEqual({ from: 29, to: 30 })
+  expect(db.all('SELECT id, kind, state, attempts, last_error, next_attempt_at FROM outbox ORDER BY id')).toEqual([
+    { id: 1, kind: 'snapshot', state: 'pending', attempts: 0, last_error: null, next_attempt_at: null },
+    { id: 2, kind: 'epic_state', state: 'pending', attempts: 2, last_error: 'disk full', next_attempt_at: null },
+    { id: 3, kind: 'comment', state: 'pending', attempts: 1, last_error: 'not here', next_attempt_at: null }
+  ])
+  expect(readSchemaVersion(db)).toBe(30)
 })
 
 const EXPECTED_TABLES = [
