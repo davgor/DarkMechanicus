@@ -1,14 +1,14 @@
 import { performance } from 'node:perf_hooks'
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
-import { openDatabase } from '../../src/core/db/database'
+import { openDatabase, type TransactionHold } from '../../src/core/db/database'
 import { nodeFs } from '../../src/core/repo/nodeFs'
 import { openWorkspace, type Workspace } from '../../src/core/workspace'
 import { snapshotRecord, parseRecord } from '../../src/core/repo/portable'
 import type { ProfileProject } from './forge-performance-fixture'
 import { absoluteNow, identity, loopSink } from './forge-performance-sinks'
 
-export type OwnerAction = 'open' | 'heartbeat' | 'reconcile' | 'card' | 'close' | 'preview' | 'inspect'
+export type OwnerAction = 'open' | 'heartbeat' | 'reconcile' | 'card' | 'close' | 'preview' | 'inspect' | 'mutate'
 export type OwnerRequest = { id: number; action: OwnerAction; project: ProfileProject; paths?: string[] }
 export interface OwnerReply {
   id: number
@@ -16,7 +16,9 @@ export interface OwnerReply {
   identity: ReturnType<typeof identity>
   loop: { count: number; maxGapMs: number }
   memory: NodeJS.MemoryUsage
-  reads: { text: number; bytes: number; stamps: number; realpaths: number }
+  reads: { text: number; bytes: number; stamps: number; realpaths: number; stats: number }
+  /** Depth-0 write transactions committed or rolled back while this request ran (`Db` hold observer). */
+  holds: TransactionHold[]
   result?: unknown
   error?: string
 }
@@ -64,21 +66,41 @@ if (parent) {
   const workspaces = new Map<string, Workspace>()
   const sink = loopSink()
   const homeDir = process.env['DARKMECHANICUS_HOME']
-  const counters = { text: 0, bytes: 0, stamps: 0, realpaths: 0 }
+  const counters = { text: 0, bytes: 0, stamps: 0, realpaths: 0, stats: 0 }
+  const holds: TransactionHold[] = []
+  // `stats` counts every metadata call that reaches the filesystem: stamps, sizes, existence and type checks.
   const fs = {
     ...nodeFs,
     readFile(path: string) { counters.text += 1; return nodeFs.readFile(path) },
     readFileBytes(path: string) { counters.bytes += 1; return nodeFs.readFileBytes(path) },
-    fileStamp(path: string) { counters.stamps += 1; return nodeFs.fileStamp(path) },
+    fileStamp(path: string) { counters.stamps += 1; counters.stats += 1; return nodeFs.fileStamp(path) },
+    fileSize(path: string) { counters.stats += 1; return nodeFs.fileSize(path) },
+    exists(path: string) { counters.stats += 1; return nodeFs.exists(path) },
+    isDirectory(path: string) { counters.stats += 1; return nodeFs.isDirectory(path) },
+    isSymlink(path: string) { counters.stats += 1; return nodeFs.isSymlink(path) },
     realpath(path: string) { counters.realpaths += 1; return nodeFs.realpath(path) }
   }
   function workspace(project: ProfileProject): Workspace {
     let current = workspaces.get(project.root)
     if (!current) {
-      current = openWorkspace({ repoRoot: project.root, role: 'desktop', label: 'Profiler utility', transport: 'desktop', homeDir, fs })
+      current = openWorkspace({
+        repoRoot: project.root, role: 'desktop', label: 'Profiler utility', transport: 'desktop', homeDir, fs,
+        onTransaction: (hold) => holds.push(hold)
+      })
       workspaces.set(project.root, current)
     }
     return current
+  }
+  const actions: Record<Exclude<OwnerAction, 'preview' | 'close'>, (current: Workspace, project: ProfileProject) => unknown> = {
+    open: (current) => ({ sessionId: current.sessionId() }),
+    heartbeat: (current) => {
+      current.heartbeat()
+      return { sessionId: current.sessionId() }
+    },
+    reconcile: (current) => current.reconcileRepository(),
+    card: (current, project) => current.getKanbanCard({ cardId: project.cardId }),
+    inspect: (current) => inspect(current),
+    mutate: (current) => current.createKanbanCard({ title: 'Profiler command write' })
   }
   async function execute({ action, project, paths }: OwnerRequest): Promise<unknown> {
     if (action === 'preview') return previewSnapshots(paths ?? [])
@@ -87,25 +109,14 @@ if (parent) {
       workspaces.delete(project.root)
       return { openWorkspaces: workspaces.size }
     }
-    const current = workspace(project)
-    switch (action) {
-      case 'open': return { sessionId: current.sessionId() }
-      case 'heartbeat':
-        current.heartbeat()
-        return { sessionId: current.sessionId() }
-      case 'reconcile': return current.reconcileRepository()
-      case 'card': return current.getKanbanCard({ cardId: project.cardId })
-      case 'inspect': return inspect(current)
-    }
+    return actions[action](workspace(project), project)
   }
   let queue = Promise.resolve()
   parent.on('message', ({ data }: { data: OwnerRequest }) => {
     queue = queue.then(async () => {
       sink.read()
-      counters.text = 0
-      counters.bytes = 0
-      counters.stamps = 0
-      counters.realpaths = 0
+      holds.length = 0
+      for (const key of Object.keys(counters) as (keyof typeof counters)[]) counters[key] = 0
       const start = performance.now()
       let result: unknown
       let error: string | undefined
@@ -119,7 +130,7 @@ if (parent) {
       await new Promise<void>((resolve) => setTimeout(resolve, 20))
       const response: OwnerReply = {
         id: data.id, identity: identity(), elapsedMs, loop: sink.read(), memory: process.memoryUsage(),
-        reads: { ...counters }, result, error
+        reads: { ...counters }, holds: holds.splice(0), result, error
       }
       parent.postMessage(response)
     })

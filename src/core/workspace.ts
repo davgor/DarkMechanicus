@@ -15,7 +15,7 @@ import { createSystemClock, type Clock } from './clock'
 import { COMMANDS } from './commands/index'
 import type { WorkspaceCore } from './commands/types'
 import type { Ctx } from './context'
-import { guardTransactions, openDatabase, type Db } from './db/database'
+import { guardTransactions, openDatabase, tagTransactions, type Db, type TransactionObserver } from './db/database'
 import { migrate, readSchemaVersion, SCHEMA_VERSION } from './db/migrations'
 import { DomainError, fail } from './errors'
 import { policyForStore, portablePolicy, recoverSqlitePolicy } from './repo/deliveryPolicy'
@@ -79,6 +79,8 @@ export interface OpenWorkspaceOptions {
   databaseSynchronous?: 'full' | 'off'
   /** One-shot CLI process progress while waiting for the project writer. */
   onWriterBusy?: () => void
+  /** Measurement only: reports each depth-0 write transaction's lock hold; see `OpenDatabaseOptions.onTransaction`. */
+  onTransaction?: TransactionObserver
   git?: GitAdapter
   /**
    * Builds the adapter for a child repository of a folder of repositories, given its checked real path
@@ -409,6 +411,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
   private openProjectDatabase(restricted: boolean): Db {
     return openDatabase(this.layout.dbFile, {
       synchronous: this.options.databaseSynchronous ?? 'full', readOnly: this.options.mailRead === true,
+      ...(this.options.onTransaction ? { onTransaction: this.options.onTransaction } : {}),
       ...(this.transport === 'cli' && this.options.onWriterBusy
         ? { onWriterBusy: this.options.onWriterBusy, busyTimeoutMs: 500 }
         : this.transport === 'cli' && !restricted ? { contentionTimeoutMs: CLI_SQLITE_CONTENTION_TIMEOUT_MS } : {})
@@ -713,7 +716,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
    */
   reconcile(automatic = false): ReconcileResultView {
     const store = this.requireStore()
-    return reconcileRepository({
+    return tagTransactions('reconcile', () => reconcileRepository({
       db: store.db,
       layout: this.layout,
       fs: this.fs,
@@ -722,18 +725,18 @@ export class RepositoryWorkspace implements WorkspaceCore {
       git: this.git,
       sessionId: store.ctx.session.id,
       fileHashes: this.fileHashes
-    }, reconcileGate({ db: store.db, layout: this.layout, fs: this.fs, git: this.git }, automatic))
+    }, reconcileGate({ db: store.db, layout: this.layout, fs: this.fs, git: this.git }, automatic)))
   }
 
   flush(scope?: FlushScope): FlushResultView {
     const store = this.requireStore()
     // Pending exports belong to the recorded branch; never write them into another checkout.
     this.assertBranch()
-    const outcome = flushOutbox(
+    const outcome = tagTransactions('flush', () => flushOutbox(
       { db: store.db, layout: this.layout, fs: this.fs, clock: this.clock },
       { onSnapshotSaved: (revisionId) => completeSavedRevision(store.ctx, revisionId) },
       scope
-    )
+    ))
     return { flushed: outcome.flushed, failed: outcome.failed, errors: outcome.errors }
   }
 
@@ -826,7 +829,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
     this.assertStillGranted()
     if (this.store !== null) refreshSavePermission(this.store.ctx)
     const run = spec.run as (core: WorkspaceCore, input: unknown) => unknown
-    const result = await this.runCommand(name, input, () => run(this, input))
+    const result = await tagTransactions('command', () => this.runCommand(name, input, () => run(this, input)))
     if (spec.mutates && this.store) {
       this.safeFlush()
     }

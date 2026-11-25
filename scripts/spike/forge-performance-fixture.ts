@@ -14,6 +14,10 @@ export interface ProfileProject {
   root: string
   dbFile: string
   cardId: string
+  /** One Backlog card per CLI agent of the revamp matrix, each launched and claimed by that agent. */
+  agentCardIds: string[]
+  /** The first epic, its sidebar title and its first ticket: the plan-view and ticket-panel samples. */
+  sample: { epicId: string; epicTitle: string; ticketId: string }
   tickets: number
   epics: number
   revisions: number
@@ -52,7 +56,8 @@ function seedEpic(env: RepoEnv, ctx: TestCtx, epic: number, tickets: number): vo
   requireFlushed(saveRevision(env, { epicId, revisionId: firstRevision, number: 1, bundle }))
   bundle.rationale = 'Synthetic second revision'
   requireFlushed(saveRevision(env, { epicId, revisionId, number: 2, baseRevisionId: firstRevision, bundle }))
-  env.db.run("UPDATE epics SET status = 'completed', completed_at = ? WHERE id = ?", T0, epicId)
+  // A distinct title per epic, so the native click scenarios can pick one sidebar row.
+  env.db.run("UPDATE epics SET title = ?, status = 'completed', completed_at = ? WHERE id = ?", epicTitle(tickets, epic), T0, epicId)
   env.db.run("UPDATE ticket_status SET status = 'completed' WHERE epic_id = ?", epicId)
   insertOutbox(env.db, { kind: 'epic_state', epicId })
   insertRun(env.db, { id: runId, epicId, revisionId, state: 'completed' })
@@ -103,16 +108,26 @@ export function seedProject(root: string, tickets: number): ProfileProject {
     initProject(env)
     const ctx = createTestCtx({ db: env.db, clock: env.clock })
     const cardId = createKanbanCard(ctx, { title: 'Synthetic contention card' }).id
+    const agentCardIds = Array.from({ length: AGENT_CARDS }, (_, index) => createKanbanCard(ctx, { title: `Synthetic agent card ${index + 1}` }).id)
     for (let epic = 0; epic < epics; epic += 1) seedEpic(env, ctx, epic, tickets)
     const bytes = writePortableFiles(env)
     return {
-      root: canonicalRoot, dbFile: env.layout.dbFile, cardId, tickets, epics,
-      revisions: epics * 2, runs: epics, images: epics, comments: epics * 32, bytes
+      root: canonicalRoot, dbFile: env.layout.dbFile, cardId, agentCardIds, tickets, epics,
+      revisions: epics * 2, runs: epics, images: epics, comments: epics * 32, bytes,
+      sample: { epicId: idOf('epic', 1), epicTitle: epicTitle(tickets, 0), ticketId: tid(1) }
     }
   } finally {
     env.db.close()
   }
 }
+
+/** Unique across the matrix's projects, so a sidebar click picks one row. */
+function epicTitle(tickets: number, epic: number): string {
+  return `Synthetic ${tickets}-ticket epic ${epic + 1}`
+}
+
+/** The revamp matrix runs twelve concurrent CLI agents. */
+const AGENT_CARDS = 12
 
 function requireFlushed(outcome: ReturnType<typeof flush>): void {
   if (outcome.failed !== 0) throw new Error(JSON.stringify(outcome.errors))
