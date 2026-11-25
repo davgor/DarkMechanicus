@@ -28,11 +28,13 @@ import { createFileHashCache } from './repo/fileHashes'
 import { flushOutbox, type FlushScope } from './repo/finalizer'
 import { createGitAdapter } from './repo/git'
 import { reconcileRepository } from './repo/importer'
+import { observeReconcileInputs } from './repo/reconcileFingerprint'
 import { ensureMachineId, initializeRepository, type ProjectLayout, readProject } from './repo/initialize'
 import { resolveLayout } from './repo/layout'
 import { nodeFs } from './repo/nodeFs'
 import type { ProjectRecord } from './repo/portable'
 import { resolveHomeDir, resolveStorageMode, type StorageMode } from './repo/storageMode'
+import { createRecordStatusCache } from './repo/storage'
 import { assertStorageMigrationIdle, recoverStorageMigration, exportForgeDestination, switchStorage, type ForgeExportOptions } from './repo/storageMigration'
 import { pruneStagedAttachments } from './services/attachments'
 import { listAgentPeers, MAIL_POLL_COMMANDS, openMailPollSession, touchMailPollSession } from './services/agentMail'
@@ -230,6 +232,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
   private granted: RedeemedGrant | null = null
   /** Validation metadata retained across reconciles of this workspace. */
   private readonly fileHashes = createFileHashCache()
+  readonly recordStatus = createRecordStatusCache()
   /** Adapters `gitFor` opened, by child repository name. */
   private readonly childGits = new Map<string, GitAdapter>()
 
@@ -419,7 +422,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
     // A branch that moved while closed is never acknowledged silently: reconcile stays explicit.
     // A db project has nothing tracked to reconcile at all.
     if (this.layout.mode === 'repo' && this.options.autoReconcile !== false && !this.branchChanged()) {
-      this.reconcile()
+      this.reconcile(true)
     }
     this.safeFlush()
   }
@@ -705,9 +708,15 @@ export class RepositoryWorkspace implements WorkspaceCore {
     }
   }
 
-  reconcile(): ReconcileResultView {
+  /**
+   * Reconciles the tracked records. An automatic reconcile (open, heartbeat) is skipped while the
+   * inputs are those of the last clean reconcile (`reconcileFingerprint.ts`); an explicit one always
+   * reads everything, and either records the fingerprint for the next session.
+   */
+  reconcile(automatic = false): ReconcileResultView {
     const store = this.requireStore()
-    const result = reconcileRepository({
+    const inputs = observeReconcileInputs({ db: store.db, layout: this.layout, fs: this.fs, git: this.git })
+    return reconcileRepository({
       db: store.db,
       layout: this.layout,
       fs: this.fs,
@@ -716,8 +725,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
       git: this.git,
       sessionId: store.ctx.session.id,
       fileHashes: this.fileHashes
-    })
-    return result
+    }, automatic ? inputs : { current: () => false, applied: inputs.applied })
   }
 
   flush(scope?: FlushScope): FlushResultView {
@@ -758,7 +766,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
 
   private safeReconcile(): void {
     try {
-      this.reconcile()
+      this.reconcile(true)
       this.safeFlush()
     } catch {
       // A rejected import leaves the last good state; reconcile_repository reports details.

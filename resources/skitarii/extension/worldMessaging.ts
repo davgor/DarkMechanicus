@@ -16,7 +16,7 @@ function projectClient(client: DmClient, folder: string): DmClient {
   return {
     ...client,
     call: async (command, input, signal) => tagged(await client.call(command, input, signal), folder),
-    run: async (command, input, signal) => tagged(await client.run(command, input, signal), folder),
+    run: async (command, input, signal, options) => tagged(await client.run(command, input, signal, options), folder),
   }
 }
 

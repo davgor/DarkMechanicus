@@ -21,6 +21,7 @@ function fakeGit(current: string | null, branches: Record<string, Tree>): FakeGi
   return {
     listed,
     head: () => ({ branch: current, commit: null, detached: current === null }),
+    indexStamp: () => null,
     countUncommitted: async () => 0,
     listLocalBranches: async () => Object.keys(branches),
     listWorktrees: async () => [],
