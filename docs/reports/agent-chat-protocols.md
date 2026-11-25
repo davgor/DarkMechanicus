@@ -371,6 +371,18 @@ Arbiter print argv selects deterministic `allow`, `deny`, `escalate`, `garbage`,
 
 `fakeAgentCli.test.ts` compares every checked-in scenario, including the worker fixtures, exercises session detection and both arbiter envelopes, and also verifies generic `worker_approval` replay using an isolated copy of the existing approval golden.
 
+### Main-process session lifecycle
+
+`agentChatSessions.ts` owns GUI children independently of view attachment. It checks authentication and the canonical folder, writes the existing terminal start files, issues and records grants, initializes the protocol and binds grants before submitting the first turn. Terminal ownership refuses a GUI start. A saved first prompt is reserved as uncertain before writing and marked submitted only afterward; restarting never automatically replays uncertain input.
+
+Only translated item events enter the chat store. Deltas, stream endings and per-thread to-dos are pushed but not persisted; to-dos remain available after exit and reset on the next process start. All stored and pushed values, including the 2 KiB stderr status tail, pass the GUI secret masker. Internal claim events stay outside that public path. Hourly renewal, minute folder validation and keep-awake last only while the process runs; stop, delete, exit and disposal revoke its grants.
+
+The disk-backed `agentChatRig` uses the real host platform and `fakeAgentShim.ts`. Windows generates a CRLF npm-style `.cmd` plus a JS loader using `pathToFileURL`; POSIX generates an executable `sh` launcher with safely quoted `exec node … "$@"`. Native launcher tests cover spaces and argument preservation; Windows inspects, but does not claim to execute, the POSIX contract.
+
+OMP's synthesized message/error/stopped IDs carry a fresh process-generation namespace, including their matching delta and stream-end IDs; provider tool, thread and session identifiers are unchanged. This keeps old responses distinct after both process and application restarts. Restart callers share one reserved start while the old owner remains tracked until close and grant revocation complete. Stop/delete/dispose await that completion, not merely process exit; a missing close fails at the existing five-second shutdown bound rather than reporting successful cleanup. Failed Claude initialization settles startup and stops its child. Exit also pushes `pending:null` so attached views retire actionable cards.
+
+A shutdown deadline remains a failure for its original caller. If close and grant revocation subsequently complete successfully, later stop/restart/delete operations use that confirmed cleanup instead of inheriting the expired deadline. A failed disposal likewise permits a later explicit disposal check, while the manager remains closed to new starts; unconfirmed cleanup or failed revocation never authorizes a replacement owner.
+
 ## Arbiter (not GUI launch configuration)
 
 Claude arbiter argv contract:

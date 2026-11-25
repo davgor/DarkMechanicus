@@ -105,22 +105,22 @@ describe('shared launch files', () => {
 })
 
 describe('Windows GUI programs', () => {
-  it('follows a Windows npm shim to node.exe and its JS target without a shell', () => {
-    const input = inputFor('claude')
-    input.agent.executablePath = 'C:\\npm\\claude.cmd'
+  it.each(['claude', 'omp'] as const)('follows a Windows %s npm shim to node.exe and its JS target without a shell', kind => {
+    const input = inputFor(kind)
+    input.agent.executablePath = `C:\\npm\\${kind}.cmd`
     const script = win32.join('C:\\npm', 'node_modules', '@anthropic-ai', 'claude-code', 'cli.js')
     input.shimFs = { readFile: () => '"%dp0%\\node_modules\\@anthropic-ai\\claude-code\\cli.js" %*', isFile: path => path === 'C:\\npm\\node.exe' }
     const spec = agentChatLaunch(input)
     expect(spec.file).toBe('C:\\npm\\node.exe')
     expect(spec.args[0]).toBe(script)
-    expect(spec.args[1]).toBe('-p')
+    expect(spec.args[1]).toBe(kind === 'claude' ? '-p' : '--mode')
     expect(spec).not.toHaveProperty('shell')
     expect(windowsAgentProgram(input.agent, input.env, 'win32', input.shimFs)).toEqual({ file: spec.file, leading: [script], viaShim: false })
   })
 
-  it('finds node.exe on the existing case-insensitive Path for a followed shim', () => {
-    const input = inputFor('claude')
-    input.agent.executablePath = 'C:\\npm\\claude.cmd'
+  it.each(['claude', 'omp'] as const)('finds node.exe on the existing case-insensitive Path for a followed %s shim', kind => {
+    const input = inputFor(kind)
+    input.agent.executablePath = `C:\\npm\\${kind}.cmd`
     input.env = { Path: 'C:\\runtime;C:\\Windows' }
     input.shimFs = { readFile: () => '"%dp0%\\cli.js"', isFile: path => path === 'C:\\runtime\\node.exe' }
     expect(agentChatLaunch(input).file).toBe('C:\\runtime\\node.exe')
@@ -131,6 +131,14 @@ describe('Windows GUI programs', () => {
     input.agent.executablePath = `C:\\bin\\${kind}.cmd`
     input.shimFs = { readFile: () => 'not a followable npm shim', isFile: () => false }
     expect(() => agentChatLaunch(input)).toThrow(SHIM_HELP)
+  })
+
+  it.each(['claude', 'omp'] as const)('refuses a followable %s shim without an absolute node.exe', kind => {
+    const input = inputFor(kind)
+    input.agent.executablePath = `C:\\npm\\${kind}.cmd`
+    input.env = { Path: 'relative;C:\\runtime' }
+    input.shimFs = { readFile: () => '"%dp0%\\cli.js"', isFile: () => false }
+    expect(() => agentChatLaunch(input)).toThrow(/node\.exe/)
   })
 
 })

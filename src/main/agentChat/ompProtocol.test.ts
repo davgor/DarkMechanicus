@@ -14,8 +14,8 @@ function lines(name: string, direction: 'in' | 'out'): string[] {
   expect(text).not.toContain('\r')
   return text.trim().split(/\r?\n/)
 }
-function harness() {
-  let state = createOmpState()
+function harness(idNamespace = '') {
+  let state = createOmpState(idNamespace)
   const events: OmpEvent[] = []
   const internalEvents: ThreadClaimEvent[] = []
   return {
@@ -562,4 +562,25 @@ describe('OMP worker claims when lifecycle precedes the raw task', () => {
     expect(JSON.stringify([...h.state.threads.values()])).not.toContain('Secret')
     for (const event of h.events) expect(agentChatEventSchema.safeParse({ ...event, folder: null, chatId: 'fixture' }).success).toBe(true)
   })
+})
+
+it('namespaces synthesized ids and their streams without changing provider tool or session ids', () => {
+  const first = harness('generation-a:'), second = harness('generation-b:')
+  for (const scenario of ['init', 'text', 'tool', 'error', 'interrupt']) {
+    for (const line of lines(scenario, 'out')) { first.feed(line); second.feed(line) }
+  }
+  const synthesized = (events: OmpEvent[]) => events.flatMap(event => {
+    if (event.type === 'delta' || event.type === 'stream_end') return [event.itemId]
+    if (event.type === 'item' && ['assistant_text', 'error', 'turn_stopped'].includes(event.item.kind)) return [event.item.id]
+    return []
+  })
+  const a = synthesized(first.events), b = synthesized(second.events)
+  expect(a.length).toBeGreaterThan(0)
+  expect(a.every(id => id.startsWith('omp:generation-a:'))).toBe(true)
+  expect(b).toEqual(a.map(id => id.replace('generation-a:', 'generation-b:')))
+  expect(first.events.some(event => event.type === 'stream_end')).toBe(true)
+  expect(first.state.sessionId).toBe(second.state.sessionId)
+  const toolIds = (events: OmpEvent[]) => events.flatMap(event => event.type === 'item' && event.item.kind === 'tool_call' ? [event.item.id] : [])
+  expect(toolIds(first.events)).toEqual(toolIds(second.events))
+  expect(toolIds(first.events)).toContain('call_T1_read')
 })

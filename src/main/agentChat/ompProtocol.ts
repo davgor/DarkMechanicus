@@ -13,6 +13,8 @@ type ThreadItem = Extract<ChatItem, { kind: 'thread' }>
 type Block = { kind: 'text' | 'thinking'; text: string; held: string }
 type Message = { id: string; at: string; blocks: Map<number, Block>; tools: Map<number, ObjectValue>; arguments: Map<number, string>; committed: Set<number> }
 export interface OmpState extends OmpFraming {
+  /** Main supplies a fresh process-generation namespace; wire/provider ids remain unchanged. */
+  idNamespace: string
   skipped: number
   initialized: boolean
   inFlight: boolean
@@ -41,9 +43,9 @@ const string = (value: unknown): string => typeof value === 'string' ? value : '
 const array = (value: unknown): unknown[] => Array.isArray(value) ? value : []
 
 /** State is main-private, including exact wire option values and in-progress chunks. */
-export function createOmpState(): OmpState {
+export function createOmpState(idNamespace = ''): OmpState {
   return { maxFrameBytes: 1_048_576, maxReassembledFrameBytes: 67_108_864, protocolVersion: 1, chunk: null, rejectedChunks: [], recoveringChunks: false,
-    skipped: 0, initialized: false, inFlight: false, sequence: 0, messageSequence: 0, message: null,
+    idNamespace, skipped: 0, initialized: false, inFlight: false, sequence: 0, messageSequence: 0, message: null,
     tools: new Map(), threads: new Map(), claimTasksSeen: new Set(), pending: [], commands: new Map(), tailOffsets: new Map(), terminalErrors: new Map(), sessionId: null, sessionFile: null }
 }
 

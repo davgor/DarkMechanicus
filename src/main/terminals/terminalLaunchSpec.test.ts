@@ -705,6 +705,23 @@ describe('terminalLaunchSpec: OMP resume and Windows', () => {
     expect(lineOf(spec)).toBe(windowsCommandLine([...head(WIN, WIN_OMP), '--model', 'haiku', KICKOFF]))
     expect(lineOf(terminalLaunchSpec(ompInput('win32', 'resumed')))).toBe(windowsCommandLine([...head(WIN, WIN_OMP), '--model', 'haiku', '--resume', OMP_ID]))
   })
+})
+
+describe('terminalLaunchSpec: OMP shim and environment', () => {
+
+  it('follows only a resolvable OMP npm shim without changing native arguments, cwd or environment', () => {
+    const input = ompInput('win32', 'new')
+    const native = terminalLaunchSpec(input)
+    const agent = { ...input.agent, executablePath: 'C:\\npm\\omp.cmd' }
+    const script = 'C:\\npm\\node_modules\\@anthropic-ai\\claude-code\\cli.js'
+    const followed = terminalLaunchSpec({ ...input, agent, shimFs: shimFs(NPM_SHIM, ['C:\\npm\\node.exe']) })
+    expect(followed.file).toBe('C:\\npm\\node.exe')
+    expect(lineOf(followed)).toBe(windowsCommandLine([script, ...head(WIN, WIN_OMP), '--model', 'haiku', KICKOFF]))
+    expect(followed.cwd).toBe(native.cwd)
+    expect(followed.env).toEqual(native.env)
+    expect(() => terminalLaunchSpec({ ...input, agent, shimFs: shimFs(NPM_SHIM) })).toThrow(/node\.exe/)
+    expect(() => terminalLaunchSpec({ ...input, agent, shimFs: shimFs('@echo hello') })).toThrow(/cannot launch/)
+  })
 
   it('leaves out --config and --session-dir when the files carry none, and adds only the hyperlink and synchronized-output switches to the environment', () => {
     const input = ompInput('darwin', 'new')

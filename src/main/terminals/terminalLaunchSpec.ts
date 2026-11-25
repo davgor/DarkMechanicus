@@ -317,7 +317,8 @@ type ProgramInput = Pick<TerminalLaunchInput, 'env' | 'platform' | 'shimFs'> & {
 function windowsProgram(input: ProgramInput): Program {
   const shimFs = input.shimFs ?? nodeShimFs
   const { executablePath } = input.agent
-  const path = input.agent.kind === 'claude' ? resolveClaudeExecutable(executablePath, 'win32', shimFs.readFile) : executablePath
+  const path = input.agent.kind === 'claude' || input.agent.kind === 'omp'
+    ? resolveClaudeExecutable(executablePath, 'win32', shimFs.readFile) : executablePath
   if (path !== executablePath && path.toLowerCase().endsWith('.js')) {
     return { file: shimNode(executablePath, input.env, shimFs), leading: [path], viaShim: false }
   }

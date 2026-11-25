@@ -46,10 +46,10 @@ export class OmpReducer {
     const seen = this.state.terminalErrors.get(scope) ?? new Set<string>()
     if (terminal && seen.has(safe)) return
     if (terminal) { seen.add(safe); this.state.terminalErrors.set(scope, seen) }
-    this.emit({ type: 'item', item: { kind: 'error', id: `omp:error:${++this.state.sequence}`, at: this.at, message: safe, ...(threadId ? { threadId } : {}) } })
+    this.emit({ type: 'item', item: { kind: 'error', id: `omp:${this.state.idNamespace}error:${++this.state.sequence}`, at: this.at, message: safe, ...(threadId ? { threadId } : {}) } })
   }
   newMessage(prefix = 'main'): Message {
-    return { id: `omp:${prefix}:message:${++this.state.messageSequence}`, at: this.at, blocks: new Map(), tools: new Map(), arguments: new Map(), committed: new Set() }
+    return { id: `omp:${this.state.idNamespace}${prefix}:message:${++this.state.messageSequence}`, at: this.at, blocks: new Map(), tools: new Map(), arguments: new Map(), committed: new Set() }
   }
   tool(update: ToolUpdate): void {
     if (!update.id || !update.name) { this.state.skipped++; return }
@@ -255,7 +255,7 @@ export class OmpReducer {
   promptResult(frame: ObjectValue): void {
     if (this.state.message) { this.flushStreams(this.state.message); this.retireThinking(this.state.message) }
     if (frame.status === 'error') this.error(string(object(frame.error).message) || 'OMP turn failed', true)
-    if (frame.status === 'aborted') this.emit({ type: 'item', item: { kind: 'turn_stopped', id: `omp:stopped:${++this.state.sequence}`, at: this.at } })
+    if (frame.status === 'aborted') this.emit({ type: 'item', item: { kind: 'turn_stopped', id: `omp:${this.state.idNamespace}stopped:${++this.state.sequence}`, at: this.at } })
     if (frame.status === 'aborted' || frame.status === 'error') this.cancelMain()
     this.state.inFlight = false
     this.emit({ type: 'status', status: 'idle' })

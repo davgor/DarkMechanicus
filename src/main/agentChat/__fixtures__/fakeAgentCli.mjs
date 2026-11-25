@@ -219,6 +219,10 @@ class ProtocolReplay {
 
   initialize(message) {
     if (mode === 'claude' && message.type === 'control_request' && message.request?.subtype === 'initialize') {
+      if (process.env.FAKE_AGENT_INITIALIZE_ERROR === '1') {
+        emit({ type: 'control_response', response: { subtype: 'error', request_id: message.request_id, error: 'Fake initialization rejected.' } })
+        return true
+      }
       for (const line of this.startup) emit(line.replaceAll('req_T1_initialize', message.request_id))
       return true
     }
