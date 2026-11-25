@@ -18,9 +18,9 @@ The generated fixtures are repository-mode projects of saved, completed epics (1
 
 | Tickets | Epics | Revisions | Runs | Images | Comments | Portable bytes | Cold open ms | Main max gap ms | Integrated branch: cold open ms |
 |---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
-| 100 | 1 | 2 | 1 | 1 | 32 | 428,698 | 440.8 | 16.4 | |
-| 1,000 | 1 | 2 | 1 | 1 | 32 | 2,756,105 | 605.5 | 22.9 | |
-| 10,000 | 10 | 20 | 10 | 10 | 320 | 27,521,251 | 17,801.5 | 22.5 | |
+| 100 | 1 | 2 | 1 | 1 | 32 | 428,698 | 440.8 | 16.4 | 630.9 |
+| 1,000 | 1 | 2 | 1 | 1 | 32 | 2,756,105 | 605.5 | 22.9 | 856.3 |
+| 10,000 | 10 | 20 | 10 | 10 | 320 | 27,521,251 | 17,801.5 | 22.5 | 28,813.7 |
 
 **Real store copy.** The DarkMechanicus member's tracked `.darkmechanicus` files (without `local/`), plus a read-only `VACUUM INTO` snapshot of its database, were copied into the temporary fixture. The live store was never opened for writing. The copy has 31 epics, and its first command after tracking answered in 256.1 ms. Click to paint used its largest saved epic (134 tickets).
 
@@ -32,24 +32,24 @@ p50 / p95 / max in ms. End to end is the renderer's whole load sequence; queue w
 
 | Tickets | View | Condition | End to end (baseline) | Queue wait | Owner run | Payload bytes (p50) | Sync duration | CPU busy | Integrated branch: end to end |
 |---:|---|---|---|---|---|---:|---|---|---|
-| 100 | plan | idle | 14 / 16.8 / 21 | 4.2 / 5.2 / 5.9 | 14.6 / 17.5 / 18.4 | 141,505 | – | 17 % (max 17 %) | |
-| 100 | ticket | idle | 5.5 / 6.8 / 9.5 | 3.1 / 3.6 / 3.9 | 5.1 / 6.1 / 7.8 | 2,043 | – | 0 % (max 0 %) | |
-| 100 | kanban | idle | 4.9 / 5.5 / 6 | 2.7 / 5.1 / 5.5 | 4.7 / 8.7 / 9 | 2,844 | – | 0 % (max 0 %) | |
-| 100 | plan | sync | 60 / 70.9 / 71.5 | 50.4 / 60.8 / 61.1 | 11.8 / 13.8 / 13.8 | 122,764 | 74.3 / 84.2 / 85.7 | 10.5 % (max 11.4 %) | |
-| 100 | ticket | sync | 57.7 / 71.4 / 90.1 | 105.2 / 134.9 / 169.7 | 5.6 / 8.5 / 8.7 | 2,043 | 70.5 / 78.6 / 103.3 | 10.4 % (max 10.7 %) | |
-| 100 | kanban | sync | 56.6 / 66.2 / 75.3 | 99.7 / 123.1 / 139 | 4.7 / 8.3 / 10.4 | 2,844 | 69.4 / 80.8 / 85.6 | 10.7 % (max 11.9 %) | |
-| 1,000 | plan | idle | 45.4 / 52.4 / 59.3 | 13.5 / 18.7 / 28.4 | 33.4 / 38.2 / 43.8 | 1,127,186 | – | 14.5 % (max 15.7 %) | |
-| 1,000 | ticket | idle | 9.2 / 11.4 / 11.7 | 6.6 / 7.7 / 8.6 | 8.7 / 9.8 / 10.7 | 2,043 | – | 0 % (max 0 %) | |
-| 1,000 | kanban | idle | 4.9 / 5.5 / 6 | 4.6 / 5.2 / 5.3 | 6.1 / 8.8 / 9.2 | 2,862 | – | 0 % (max 0 %) | |
-| 1,000 | plan | sync | 115 / 151.1 / 153.9 | 79.3 / 114.8 / 116.7 | 32.9 / 42.7 / 43.2 | 1,127,186 | 126.7 / 165.3 / 173.3 | 15.9 % (max 18.1 %) | |
-| 1,000 | ticket | sync | 77.9 / 99.8 / 112 | 142 / 182.7 / 210.1 | 9.9 / 13.6 / 13.8 | 2,043 | 90.4 / 114.4 / 123.7 | 15.8 % (max 17.5 %) | |
-| 1,000 | kanban | sync | 69.4 / 94.2 / 111.5 | 129.7 / 181.1 / 210.6 | 4.8 / 8 / 8.1 | 2,844 | 83 / 105.4 / 125.1 | 13.1 % (max 15.5 %) | |
-| 10,000 | plan | idle | 62.7 / 72.1 / 77.6 | 14.9 / 17.8 / 17.9 | 39.8 / 48.3 / 48.5 | 1,127,186 | – | 14.4 % (max 14.8 %) | |
-| 10,000 | ticket | idle | 14.2 / 20.1 / 21.3 | 8 / 10.1 / 12.1 | 10.3 / 14.9 / 15.6 | 2,043 | – | 15.7 % (max 15.7 %) | |
-| 10,000 | kanban | idle | 9.7 / 12.4 / 12.6 | 3.2 / 4.7 / 7.3 | 5.5 / 7.5 / 8.8 | 2,844 | – | 0 % (max 0 %) | |
-| 10,000 | plan | sync | 394.9 / 484.4 / 502.5 | 343.3 / 437.6 / 456 | 38.4 / 48.9 / 51.1 | 1,127,186 | 406.2 / 498.1 / 524.8 | 17.1 % (max 24.8 %) | |
-| 10,000 | ticket | sync | 397.6 / 465.8 / 490.9 | 770.7 / 906.2 / 950.3 | 12.8 / 16.9 / 17.4 | 2,043 | 419.4 / 488.2 / 503.6 | 22.3 % (max 28.3 %) | |
-| 10,000 | kanban | sync | 362.5 / 442.9 / 469.4 | 712.6 / 862.7 / 916.9 | 6.1 / 8.1 / 8.3 | 2,844 | 382.7 / 455.4 / 480.8 | 19.2 % (max 24.4 %) | |
+| 100 | plan | idle | 14 / 16.8 / 21 | 4.2 / 5.2 / 5.9 | 14.6 / 17.5 / 18.4 | 141,505 | – | 17 % (max 17 %) | 11.8 / 18.8 / 121.3 (CPU 22.8 %) |
+| 100 | ticket | idle | 5.5 / 6.8 / 9.5 | 3.1 / 3.6 / 3.9 | 5.1 / 6.1 / 7.8 | 2,043 | – | 0 % (max 0 %) | 4.8 / 5.9 / 6.2 (CPU 0 %) |
+| 100 | kanban | idle | 4.9 / 5.5 / 6 | 2.7 / 5.1 / 5.5 | 4.7 / 8.7 / 9 | 2,844 | – | 0 % (max 0 %) | 4 / 5.1 / 5.6 (CPU 0 %) |
+| 100 | plan | sync | 60 / 70.9 / 71.5 | 50.4 / 60.8 / 61.1 | 11.8 / 13.8 / 13.8 | 122,764 | 74.3 / 84.2 / 85.7 | 10.5 % (max 11.4 %) | 15.9 / 17.7 / 17.8 (sync 83.7 / 107.8 / 146.3; CPU 16.6 %, max 18.3 %) |
+| 100 | ticket | sync | 57.7 / 71.4 / 90.1 | 105.2 / 134.9 / 169.7 | 5.6 / 8.5 / 8.7 | 2,043 | 70.5 / 78.6 / 103.3 | 10.4 % (max 10.7 %) | 8.8 / 9.6 / 12.6 (sync 82.2 / 97.2 / 106.3; CPU 14.6 %, max 15.3 %) |
+| 100 | kanban | sync | 56.6 / 66.2 / 75.3 | 99.7 / 123.1 / 139 | 4.7 / 8.3 / 10.4 | 2,844 | 69.4 / 80.8 / 85.6 | 10.7 % (max 11.9 %) | 7.7 / 8.5 / 8.5 (sync 81 / 87.3 / 105.5; CPU 12.4 %, max 14.8 %) |
+| 1,000 | plan | idle | 45.4 / 52.4 / 59.3 | 13.5 / 18.7 / 28.4 | 33.4 / 38.2 / 43.8 | 1,127,186 | – | 14.5 % (max 15.7 %) | 38.8 / 49.3 / 189.6 (CPU 26.1 %) |
+| 1,000 | ticket | idle | 9.2 / 11.4 / 11.7 | 6.6 / 7.7 / 8.6 | 8.7 / 9.8 / 10.7 | 2,043 | – | 0 % (max 0 %) | 9 / 10.3 / 11.1 (CPU 19.4 %) |
+| 1,000 | kanban | idle | 4.9 / 5.5 / 6 | 4.6 / 5.2 / 5.3 | 6.1 / 8.8 / 9.2 | 2,862 | – | 0 % (max 0 %) | 4 / 4.6 / 4.7 (CPU 0 %) |
+| 1,000 | plan | sync | 115 / 151.1 / 153.9 | 79.3 / 114.8 / 116.7 | 32.9 / 42.7 / 43.2 | 1,127,186 | 126.7 / 165.3 / 173.3 | 15.9 % (max 18.1 %) | 43.2 / 53.1 / 58.1 (sync 106.1 / 114.6 / 129.7; CPU 26.8 %, max 33.2 %) |
+| 1,000 | ticket | sync | 77.9 / 99.8 / 112 | 142 / 182.7 / 210.1 | 9.9 / 13.6 / 13.8 | 2,043 | 90.4 / 114.4 / 123.7 | 15.8 % (max 17.5 %) | 14.4 / 16.3 / 16.4 (sync 106.7 / 128.7 / 138.7; CPU 29.7 %, max 33.6 %) |
+| 1,000 | kanban | sync | 69.4 / 94.2 / 111.5 | 129.7 / 181.1 / 210.6 | 4.8 / 8 / 8.1 | 2,844 | 83 / 105.4 / 125.1 | 13.1 % (max 15.5 %) | 8.4 / 11.7 / 13.6 (sync 103 / 113.2 / 120.3; CPU 27.5 %, max 28.9 %) |
+| 10,000 | plan | idle | 62.7 / 72.1 / 77.6 | 14.9 / 17.8 / 17.9 | 39.8 / 48.3 / 48.5 | 1,127,186 | – | 14.4 % (max 14.8 %) | 91.1 / 633.5 / 4,695.9 (queue wait 60 / 600.4 / 4,688.3; CPU 100 %, max 100 %) |
+| 10,000 | ticket | idle | 14.2 / 20.1 / 21.3 | 8 / 10.1 / 12.1 | 10.3 / 14.9 / 15.6 | 2,043 | – | 15.7 % (max 15.7 %) | 23.1 / 34.1 / 35.8 (CPU 0 %, no sample) |
+| 10,000 | kanban | idle | 9.7 / 12.4 / 12.6 | 3.2 / 4.7 / 7.3 | 5.5 / 7.5 / 8.8 | 2,844 | – | 0 % (max 0 %) | 12.4 / 23.6 / 23.9 (CPU 100 %) |
+| 10,000 | plan | sync | 394.9 / 484.4 / 502.5 | 343.3 / 437.6 / 456 | 38.4 / 48.9 / 51.1 | 1,127,186 | 406.2 / 498.1 / 524.8 | 17.1 % (max 24.8 %) | 81.5 / 97.8 / 99.5 (sync 846.1 / 910.5 / 911.8; CPU 97.6 %, max 100 %) |
+| 10,000 | ticket | sync | 397.6 / 465.8 / 490.9 | 770.7 / 906.2 / 950.3 | 12.8 / 16.9 / 17.4 | 2,043 | 419.4 / 488.2 / 503.6 | 22.3 % (max 28.3 %) | 23.5 / 35.6 / 57.5 (sync 584.4 / 745.1 / 813.3; CPU 90.5 %, max 97.5 %) |
+| 10,000 | kanban | sync | 362.5 / 442.9 / 469.4 | 712.6 / 862.7 / 916.9 | 6.1 / 8.1 / 8.3 | 2,844 | 382.7 / 455.4 / 480.8 | 19.2 % (max 24.4 %) | 15.7 / 19.6 / 24.7 (sync 565.7 / 665.1 / 759.7; CPU 84.8 %, max 94.5 %) |
 
 ### Click to paint (built desktop over CDP, 30 clicks each)
 
@@ -57,14 +57,14 @@ Plan: a cold epic open (renderer reloaded so its view cache is empty), clicked i
 
 | Tickets | View | Click to paint (baseline) | Queue wait | Owner run (incl. identity checks) | Payload bytes (p50) | Render | CPU busy | Integrated branch: click to paint |
 |---:|---|---|---|---|---:|---|---|---|
-| 100 | plan | 37.2 / 47.3 / 96 | 4.5 / 6.9 / 7.9 | 13 / 17.6 / 19.6 | 122,765 | 20.5 / 26.8 / 69.4 | 17.2 % (max 21.8 %) | |
-| 100 | ticket | 11.1 / 18.8 / 19.1 | 0.3 / 0.5 / 0.5 | 3.5 / 5.6 / 5.7 | 1,731 | 6.5 / 13.4 / 14.4 | 8.6 % (max 11.5 %) | |
-| 1,000 | plan | 167.7 / 209.5 / 224.8 | 13.4 / 17.8 / 50.5 | 33.9 / 40.1 / 43.3 | 1,127,187 | 121.8 / 154.3 / 159.1 | 17.3 % (max 23.4 %) | |
-| 1,000 | ticket | 47.4 / 61.8 / 66.3 | 0.4 / 0.7 / 0.7 | 7.7 / 10.7 / 10.9 | 1,138 | 36.4 / 48.1 / 54.1 | 11.3 % (max 16.7 %) | |
-| 10,000 | plan | 191.6 / 296.9 / 310.2 | 14.5 / 20.4 / 50.7 | 37.8 / 53.1 / 80.9 | 1,127,187 | 140.6 / 212.8 / 221.9 | 28.4 % (max 64 %) | |
-| 10,000 | ticket | 47.1 / 64.6 / 70.3 | 0.4 / 0.7 / 0.7 | 8.7 / 11.6 / 13.8 | 1,138 | 37 / 52.3 / 56.2 | 16.8 % (max 29.5 %) | |
-| real store copy | plan | 253.4 / 282.7 / 285.4 | 52.3 / 67.3 / 71.4 | 92.9 / 109.1 / 111.4 | 4,170,045 | 77.2 / 105.3 / 118 | 19.5 % (max 36.4 %) | |
-| real store copy | ticket | 32.2 / 40.4 / 44.4 | 0.4 / 0.7 / 0.7 | 12.4 / 17.9 / 18.5 | 11,745 | 15.8 / 24.7 / 25.2 | 9 % (max 11.5 %) | |
+| 100 | plan | 37.2 / 47.3 / 96 | 4.5 / 6.9 / 7.9 | 13 / 17.6 / 19.6 | 122,765 | 20.5 / 26.8 / 69.4 | 17.2 % (max 21.8 %) | 35.5 / 40.7 / 77.7 (CPU 29 %, max 42.7 %) |
+| 100 | ticket | 11.1 / 18.8 / 19.1 | 0.3 / 0.5 / 0.5 | 3.5 / 5.6 / 5.7 | 1,731 | 6.5 / 13.4 / 14.4 | 8.6 % (max 11.5 %) | 10.5 / 14.5 / 18.6 (CPU 22.3 %, max 31.2 %) |
+| 1,000 | plan | 167.7 / 209.5 / 224.8 | 13.4 / 17.8 / 50.5 | 33.9 / 40.1 / 43.3 | 1,127,187 | 121.8 / 154.3 / 159.1 | 17.3 % (max 23.4 %) | 266.3 / 313.8 / 316.1 (render 192.2 p50; CPU 78.6 %, max 100 %) |
+| 1,000 | ticket | 47.4 / 61.8 / 66.3 | 0.4 / 0.7 / 0.7 | 7.7 / 10.7 / 10.9 | 1,138 | 36.4 / 48.1 / 54.1 | 11.3 % (max 16.7 %) | 88.4 / 103.2 / 105.8 (render 65.7 p50; CPU 99.4 %, max 100 %) |
+| 10,000 | plan | 191.6 / 296.9 / 310.2 | 14.5 / 20.4 / 50.7 | 37.8 / 53.1 / 80.9 | 1,127,187 | 140.6 / 212.8 / 221.9 | 28.4 % (max 64 %) | 221.8 / 254.1 / 256 (CPU 80.9 %, max 91.9 %) |
+| 10,000 | ticket | 47.1 / 64.6 / 70.3 | 0.4 / 0.7 / 0.7 | 8.7 / 11.6 / 13.8 | 1,138 | 37 / 52.3 / 56.2 | 16.8 % (max 29.5 %) | 34.2 / 37.2 / 42.6 (CPU 23.2 %, max 27.5 %) |
+| real store copy | plan | 253.4 / 282.7 / 285.4 | 52.3 / 67.3 / 71.4 | 92.9 / 109.1 / 111.4 | 4,170,045 | 77.2 / 105.3 / 118 | 19.5 % (max 36.4 %) | 398.6 / 475.3 / 502.2 (queue wait 151.3 / 286.9 / 556.2; CPU 69.7 %, max 96.5 %) |
+| real store copy | ticket | 32.2 / 40.4 / 44.4 | 0.4 / 0.7 / 0.7 | 12.4 / 17.9 / 18.5 | 11,745 | 15.8 / 24.7 / 25.2 | 9 % (max 11.5 %) | 39.5 / 69.4 / 69.7 (CPU 27.1 %, max 85 %) |
 
 ### Write-lock holds by caller (BEGIN IMMEDIATE to COMMIT/ROLLBACK)
 
@@ -72,57 +72,57 @@ From a profiler utility with the `Db` hold observer: open, an automatic heartbea
 
 | Tickets | Caller | Transactions | Rollbacks | Hold p50 / p95 / max ms | Acquire max ms | Integrated branch: hold max |
 |---:|---|---:|---:|---|---:|---|
-| 100 | untagged | 2 | 0 | 0.5 / 2.7 / 2.7 | 0 | |
-| 100 | reconcile | 2 | 0 | 13.7 / 15.1 / 15.1 | 0 | |
-| 100 | command | 1 | 0 | 3.4 / 3.4 / 3.4 | 0 | |
-| 100 | flush | 2 | 0 | 10.5 / 11.7 / 11.7 | 0 | |
-| 1,000 | untagged | 2 | 0 | 0.7 / 1.8 / 1.8 | 0 | |
-| 1,000 | reconcile | 2 | 0 | 14.2 / 26.4 / 26.4 | 0 | |
-| 1,000 | command | 1 | 0 | 7.1 / 7.1 / 7.1 | 0 | |
-| 1,000 | flush | 2 | 0 | 9.1 / 11.7 / 11.7 | 0 | |
-| 10,000 | untagged | 2 | 0 | 0.6 / 1.1 / 1.1 | 0 | |
-| 10,000 | reconcile | 2 | 0 | 104.2 / 276.9 / 276.9 | 0 | |
-| 10,000 | command | 1 | 0 | 55.2 / 55.2 / 55.2 | 0 | |
-| 10,000 | flush | 2 | 0 | 10.6 / 11.7 / 11.7 | 0 | |
+| 100 | untagged | 2 | 0 | 0.5 / 2.7 / 2.7 | 0 | 3.2 (2 tx) |
+| 100 | reconcile | 2 | 0 | 13.7 / 15.1 / 15.1 | 0 | 6.9 (2 tx) |
+| 100 | command | 1 | 0 | 3.4 / 3.4 / 3.4 | 0 | 3.7 (1 tx) |
+| 100 | flush | 2 | 0 | 10.5 / 11.7 / 11.7 | 0 | 2.9 (2 tx) |
+| 1,000 | untagged | 2 | 0 | 0.7 / 1.8 / 1.8 | 0 | 1.4 (2 tx) |
+| 1,000 | reconcile | 2 | 0 | 14.2 / 26.4 / 26.4 | 0 | 33.4 (2 tx) |
+| 1,000 | command | 1 | 0 | 7.1 / 7.1 / 7.1 | 0 | 10.3 (1 tx) |
+| 1,000 | flush | 2 | 0 | 9.1 / 11.7 / 11.7 | 0 | 5.6 (2 tx) |
+| 10,000 | untagged | 2 | 0 | 0.6 / 1.1 / 1.1 | 0 | 1.1 (2 tx) |
+| 10,000 | reconcile | 2 | 0 | 104.2 / 276.9 / 276.9 | 0 | 83.0 (2 tx, both from the changed-epic reconcile; the explicit unchanged reconcile took none) |
+| 10,000 | command | 1 | 0 | 55.2 / 55.2 / 55.2 | 0 | 77.0 (1 tx) |
+| 10,000 | flush | 2 | 0 | 10.6 / 11.7 / 11.7 | 0 | 8.6 (2 tx; acquire max 0.1) |
 
 Changed-epic reconcile (the sync's import) and the command with its flush, per fixture:
 
 | Tickets | Changed reconcile ms | Its write transactions | Its longest hold ms | Command + flush ms | Its write transactions | Integrated branch: changed reconcile transactions / longest hold ms | Integrated branch: flush longest hold ms |
 |---:|---:|---:|---:|---:|---:|---|---|
-| 100 | 61.2 | 1 | 13.7 | 28.3 | 3 | | |
-| 1,000 | 105.6 | 1 | 26.4 | 30.1 | 3 | | |
-| 10,000 | 409.4 | 1 | 104.2 | 80.0 | 3 | | |
+| 100 | 61.2 | 1 | 13.7 | 28.3 | 3 | 2 / 6.9 (87 ms) | 2.9 |
+| 1,000 | 105.6 | 1 | 26.4 | 30.1 | 3 | 2 / 33.4 (326 ms) | 5.6 |
+| 10,000 | 409.4 | 1 | 104.2 | 80.0 | 3 | 2 / 83.0 (1,642 ms) | 8.6 |
 
 ### Unchanged reconcile counters (warm, no changes)
 
 | Tickets | Case | Elapsed ms | Text body reads | Binary body reads | Stamps | Realpaths | Stat calls | Write transactions | Integrated branch: reads / stats / writes |
 |---:|---|---:|---:|---:|---:|---:|---:|---:|---|
-| 100 | automatic heartbeat | 5.1 | 3 | 0 | 101 | 1 | 264 | 1 | |
-| 100 | explicit reconcile | 146.0 | 69 | 1 | 421 | 1429 | 3853 | 1 | |
-| 1,000 | automatic heartbeat | 7.2 | 3 | 0 | 101 | 1 | 264 | 1 | |
-| 1,000 | explicit reconcile | 182.4 | 69 | 1 | 421 | 1429 | 3853 | 1 | |
-| 10,000 | automatic heartbeat | 21.6 | 3 | 0 | 497 | 1 | 750 | 1 | |
-| 10,000 | explicit reconcile | 1,514.1 | 424 | 10 | 2479 | 9874 | 23899 | 1 | |
+| 100 | automatic heartbeat | 5.1 | 3 | 0 | 101 | 1 | 264 | 1 | 6 text, 0 binary / 268 / 1 (untagged, 0.6 ms); 6.5 ms |
+| 100 | explicit reconcile | 146.0 | 69 | 1 | 421 | 1429 | 3853 | 1 | 70 text, 1 binary / 3,439 / 0; 202.6 ms |
+| 1,000 | automatic heartbeat | 7.2 | 3 | 0 | 101 | 1 | 264 | 1 | 6 text, 0 binary / 268 / 1 (untagged, 1.4 ms); 9.2 ms |
+| 1,000 | explicit reconcile | 182.4 | 69 | 1 | 421 | 1429 | 3853 | 1 | 70 text, 1 binary / 3,439 / 0; 776.5 ms |
+| 10,000 | automatic heartbeat | 21.6 | 3 | 0 | 497 | 1 | 750 | 1 | 6 text, 0 binary / 754 / 1 (untagged, 1.0 ms); 38.9 ms |
+| 10,000 | explicit reconcile | 1,514.1 | 424 | 10 | 2479 | 9874 | 23899 | 1 | 403 text, 10 binary / 18,982 / 0; 5,440.0 ms |
 
 ### Built CLI wall time (10,000-ticket fixture, no tracked changes, 10 calls each)
 
 | Command | Wall p50 / p95 / max ms | Outcomes | CPU busy | Integrated branch: wall |
 |---|---|---|---|---|
-| `dm call list_kanban_cards` | 237.8 / 1,454.7 / 1,454.7 | ok 10 | 26.9 % (max 28.9 %) | |
-| `dm call get_epic` | 247.9 / 275.4 / 275.4 | ok 10 | 29.9 % (max 30 %) | |
+| `dm call list_kanban_cards` | 237.8 / 1,454.7 / 1,454.7 | ok 10 | 26.9 % (max 28.9 %) | 482 / 1,326.4 / 1,326.4, ok 10 (CPU 96.9 %, max 99.9 %) |
+| `dm call get_epic` | 247.9 / 275.4 / 275.4 | ok 10 | 29.9 % (max 30 %) | 541.4 / 802.7 / 802.7, ok 10 (CPU 99.7 %, max 100 %) |
 
 ### 12 built-CLI agents for 60 s while the desktop syncs (10,000 tickets)
 
 221 calls in total. Outcomes: `ok` 221. Desktop syncs during the run: 17, p50 / p95 / max 3,209 / 6,947.2 / 6,947.2 ms; failed syncs: none. CPU busy 45.9 % (max 79.8 %).
 
-Integrated branch: calls ___, outcomes ___, desktop syncs ___ (failed ___), CPU busy ___. Sync-lane write-lock hold p95 / max ___ ms, acquire max ___ ms.
+Integrated branch (committed fixture, desktop syncs at a fixed 3.5 s rate, `DM_REVAMP_SYNC_EVERY_MS=3500`): calls 374, outcomes `ok` 374 (no `database is locked`, no other code), desktop syncs 17 (4 started late; p50 / p95 / max 2,699.8 / 3,895.1 / 3,895.1 ms; failed none), CPU busy 98.8 % (max 100 %). Sync-lane write-lock holds: 42 transactions, 0 rollbacks, hold p95 / max 110.5 / 113.2 ms, acquire max 50 ms; 20 lane reconciles (17 explicit, 3 heartbeat), 0 re-prepared under the lock.
 
 | Command | Outcomes by code | Wall p50 / p95 / max ms | Integrated branch: outcomes / wall |
 |---|---|---|---|
-| `list_kanban_cards` | `ok` 56 | 3,481.1 / 6,502 / 8,113.6 | |
-| `get_ticket` | `ok` 55 | 4,016.3 / 6,986.2 / 11,867.3 | |
-| `heartbeat_kanban_card` | `ok` 55 | 3,907.7 / 6,817 / 8,092.4 | |
-| `add_comment` | `ok` 55 | 3,977.6 / 7,985 / 12,694.6 | |
+| `list_kanban_cards` | `ok` 56 | 3,481.1 / 6,502 / 8,113.6 | `ok` 93 / 2,289.9 / 3,917 / 4,252.2 |
+| `get_ticket` | `ok` 55 | 4,016.3 / 6,986.2 / 11,867.3 | `ok` 94 / 2,361 / 3,919.9 / 3,994.5 |
+| `heartbeat_kanban_card` | `ok` 55 | 3,907.7 / 6,817 / 8,092.4 | `ok` 95 / 1,582.5 / 3,938.3 / 4,044.9 |
+| `add_comment` | `ok` 55 | 3,977.6 / 7,985 / 12,694.6 | `ok` 92 / 1,391.1 / 3,931.9 / 4,257.3 |
 
 ## What the baseline shows
 
@@ -185,12 +185,24 @@ Each ticket that changed reconcile, export or the read path measured its own bra
 
 Filled in by the sprint acceptance node from one full `revamp` matrix on the integrated branch, with the real-store copy. Leave a field empty rather than estimate it.
 
-- **Revision measured:** ___ (`revamp-identity` row)
-- **Run:** ___ (UTC start and end, app Electron and Node versions)
-- **Host and concurrent load:** ___ (as in [Revision, host and load](#revision-host-and-load); compare the CPU busy columns)
-- **Raw rows:** ___ (`forge-performance-data/<file>.jsonl`)
-- **Failed or timed-out scenarios:** ___ (with their rows; a failure is reported, never rerun away)
-- **Epic success criteria:** s1 (plan, ticket and board under 300 ms p95 during a sync, real store) ___; s2 (an unchanged reconcile takes no write lock; a reconcile after a pull reads only git-reported records) ___; s3 (no reconcile or finalizer write transaction over 250 ms on 10,000 tickets) ___; s4 (a CLI read under 2 s; 12 agents during a sync with no `database is locked` and no new codes) ___.
+- **Revision measured:** `7760c749` (`revamp-identity` row). That is the sprint head `1df47a9a` plus two `scripts/spike` commits from the acceptance node (`a957d2c7`, `7760c749`: the footer-idle stage for c8). App behaviour is that of `1df47a9a`.
+- **Run:** 2026-11-25 16:05:01Z to 16:13:22Z, exit 0. Built with `npm run build` at 16:00Z. Command: `DM_REVAMP_SYNC_EVERY_MS=3500 node --import tsx scripts/spike/forge-performance.ts revamp … <DarkMechanicus member>`. App on Electron 42.11.18 / Node 24.19.0; harness on Node 24.16.0. The fixtures were committed (the harness default, `DM_REVAMP_COMMIT_FIXTURE` unset). The CLI-agent stage started its desktop syncs at a fixed 3.5 s rate.
+- **Host and concurrent load:** the same host as the baseline. It was much busier this time: another epic's Definition of Done and coverage runs overlapped. Several 10,000-ticket rows were measured at 85 to 100 % whole-host CPU, against 14 to 28 % for the baseline, so read the CPU columns before comparing latencies. The 10,000 plan-idle p95 of 633.5 ms (max 4,695.9 ms) is queue wait taken at 100 % CPU. The same view during a sync was 97.8 ms p95.
+- **Raw rows:**
+  - [`revamp-final.jsonl`](forge-performance-data/revamp-final.jsonl).
+  - The 12-agent stage on uncommitted fixtures (`DM_REVAMP_COMMIT_FIXTURE=0 DM_REVAMP_ONLY=cli-agents`, 16:16Z to 16:19Z): [`revamp-final-cli-agents-uncommitted.jsonl`](forge-performance-data/revamp-final-cli-agents-uncommitted.jsonl). Results: 203 calls, all `ok`; desktop syncs 18, none failed; lane hold max 65.8 ms, acquire max 11.4 ms; CPU 66.1 %.
+  - Targeted reconcile on a real-store copy (c2): [`dm958-c2-targeted-reconcile.jsonl`](forge-performance-data/dm958-c2-targeted-reconcile.jsonl).
+- **Failed or timed-out scenarios:**
+  - The first final run (16:01Z) stopped in the new footer-idle stage with `No target available`, after every 100, 1,000 and 10,000 view and click-to-paint row had been recorded. The cause was a harness defect: the stage clicked over CDP after click-to-paint had detached the debugger. It was fixed in `7760c749`, the matrix was rerun once, and that run had no failed scenario. The first run's rows are kept in [`revamp-final-failed-run.jsonl`](forge-performance-data/revamp-final-failed-run.jsonl).
+  - The real-store copy has no click-to-paint *during a sync* row; the harness measures it idle only.
+- **Footer idle (c8), 10,000 tickets, 60 s, folder selected:**
+  - 6 `getStorageStatus` calls with 0 index or HEAD stamp changes, and 4 `git status --porcelain=v1 -uall -- .darkmechanicus` runs (`GIT_TRACE`). That is more than one per stamp change. The status cache also refreshes once its entry is older than 10 s (`RECORD_STATUS_MAX_AGE_MS`).
+  - The same window also had 13 `git status --porcelain=v2 --branch` runs. Those come from the source-control view's 5 s repository-state refresh (`useRepoState`), not from the footer.
+- **Epic success criteria:**
+  - **s1, met on the fixture:** during a sync on 10,000 tickets, plan, ticket and board took 97.8 / 35.6 / 19.6 ms p95. On the real-store copy, idle click to paint was plan 475.3 ms and ticket 69.4 ms p95.
+  - **s2, met:** an explicit unchanged reconcile took 0 write transactions. After a pull of a one-card commit into the real-store copy, the scope was `targeted` with `kanbanCards: [that card]` and imported only `kanban:<that card>`.
+  - **s3, met:** the longest write transaction on 10,000 tickets was 115.3 ms, a lane reconcile during a sync. Changed-epic reconcile max 83 ms, command 77 ms, flush 8.6 ms.
+  - **s4, met:** CLI `list_kanban_cards` took 1,326.4 ms p95 at 97 % CPU. 12 agents made 374 calls, all `ok`, with no `database is locked`.
 
 ## How to rerun
 
