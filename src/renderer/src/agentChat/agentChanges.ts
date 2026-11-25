@@ -12,7 +12,7 @@ export const FILE_TOOLS = {
 } as const
 
 type Scope = { kind: 'chat' } | { kind: 'thread'; threadId: string }
-type Change = {
+export type Change = {
   path: string
   absolutePath: string
   inFolder: boolean

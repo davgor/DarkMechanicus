@@ -35,7 +35,7 @@ class ChatSubscription {
   constructor(
     readonly identity: ChatRef,
     private api: AgentChatApi,
-    private timing: { scheduler: Scheduler; clock: Clock },
+    private config: { scheduler: Scheduler; clock: Clock; autoStart: boolean },
     private onChange: (state: AgentChatState) => void
   ) {}
 
@@ -43,7 +43,7 @@ class ChatSubscription {
     this.publish()
     this.unsubscribe = this.api.onEvent((event) => this.receive(event))
     void this.load(() => this.api.snapshot(this.identity)).then((result) => {
-      if (!this.active || this.request !== 1 || this.state.surface !== 'gui') return
+      if (!this.config.autoStart || !this.active || this.request !== 1 || this.state.surface !== 'gui') return
       const missing = !result.ok && result.error.code === 'not_found'
       if (this.state.status === 'exited' || this.state.status === null || (missing && this.state.status === 'failed')) {
         return this.load(() => this.api.start(this.identity))
@@ -67,7 +67,7 @@ class ChatSubscription {
       if (this.active && sequence === this.request) {
         // Rebuild snapshot-backed data, not lifecycle history, from buffered pushes.
         const state = result.ok
-          ? agentChatState(result.data, this.timing.clock.now())
+          ? agentChatState(result.data, this.config.clock.now())
           : failedLoadState(baseline, result.error.message, preserveOnRefusal)
         this.complete(state)
       }
@@ -94,12 +94,12 @@ class ChatSubscription {
 
   private receive(event: AgentChatEvent): void {
     if (!this.active || event.folder !== this.identity.folder || event.chatId !== this.identity.chatId) return
-    const at = this.timing.clock.now()
+    const at = this.config.clock.now()
     this.buffered?.push({ event, at })
     if (!this.initialized) return
     this.state = reduceAgentChat(this.state, event, at)
     if (event.type === 'delta') {
-      this.cancelRender ??= this.timing.scheduler.after(33, () => this.publish())
+      this.cancelRender ??= this.config.scheduler.after(33, () => this.publish())
     } else this.publish()
   }
 
@@ -110,22 +110,28 @@ class ChatSubscription {
   }
 }
 
-/** Subscribe before reading; replay pushes over each in-flight snapshot in arrival order. */
-export function useAgentChat({ folder, chatId, api = window.dm.agentChat, scheduler = browserScheduler }: Options) {
+/**
+ * Subscribe before reading; replay pushes over each in-flight snapshot in arrival order. With `autoStart: false` the
+ * hook only reads: a stopped chat stays stopped, so a second view of the same chat never starts it.
+ */
+export function useAgentChat(
+  { folder, chatId, api = window.dm.agentChat, scheduler = browserScheduler }: Options,
+  { autoStart = true }: { autoStart?: boolean } = {}
+) {
   const clock = useClock()
   const identity = useMemo(() => ({ folder, chatId }), [folder, chatId, api, scheduler, clock])
   const [view, setView] = useState<{ identity: typeof identity; state: AgentChatState }>(() => ({ identity, state: agentChatState() }))
   const refresh = useRef<ChatSubscription | null>(null)
 
   useEffect(() => {
-    const subscription = new ChatSubscription(identity, api, { scheduler, clock }, (state) => setView({ identity, state }))
+    const subscription = new ChatSubscription(identity, api, { scheduler, clock, autoStart }, (state) => setView({ identity, state }))
     refresh.current = subscription
     subscription.attach()
     return () => {
       subscription.dispose()
       if (refresh.current === subscription) refresh.current = null
     }
-  }, [api, identity, scheduler, clock])
+  }, [api, identity, scheduler, clock, autoStart])
 
   const load = useCallback((call: SnapshotCall, preserveOnRefusal = false) => {
     return refresh.current?.identity === identity ? refresh.current.load(call, preserveOnRefusal) : call()

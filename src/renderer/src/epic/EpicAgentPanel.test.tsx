@@ -172,3 +172,36 @@ describe('EpicAgentPanel: terminal chat', () => {
     expect(backend.agentChat.callsOf('start')).toEqual([])
   })
 })
+
+describe('EpicAgentPanel: Changes card', () => {
+  const edit = (id: string, path: string, threadId?: string): ChatItem => ({
+    id, at: AT, kind: 'tool_call', name: 'Edit', input: { file_path: path }, status: 'completed', resultSummary: 'Edited',
+    ...(threadId === undefined ? {} : { threadId })
+  })
+  const changed = [...items, edit('e1', 'src/worker.ts', 'th_1'), edit('e2', 'src/worker.ts', 'th_1'), edit('e3', 'src/lead.ts')]
+  const rowNames = (card: HTMLElement): string[] => within(card).getAllByRole('listitem').map((row) => row.textContent ?? '')
+
+  it('follows the selection: the whole run for the orchestrator, the worker’s files for its thread', async () => {
+    const { orchestration } = openAgent(backendWith(changed), [orchestrator])
+    const stage = await agentStage()
+    const rail = within(stage).getByRole('complementary', { name: 'Epic agents' })
+    const card = within(rail).getByRole('region', { name: 'Changes' })
+    expect(within(rail).getByRole('tree').compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    await waitFor(() => expect(within(card).getAllByRole('button')[0].textContent).toBe('Changes · 2 files'))
+    expect(rowNames(card)).toEqual(['src/lead.tsEEdit', 'src/worker.tsEEdit×2'])
+    fireEvent.click(within(await within(rail).findByRole('treeitem', { name: 'Acolyte:DM-201' })).getByText('Acolyte:DM-201'))
+    await waitFor(() => expect(within(card).getAllByRole('button')[0].textContent).toBe('Changes · 1 file'))
+    expect(rowNames(card)).toEqual(['src/worker.tsEEdit×2'])
+    fireEvent.click(within(card).getByRole('button', { name: /worker\.ts/ }))
+    expect(orchestration.openedSourceFiles).toEqual([`${FOLDER}/src/worker.ts`])
+    fireEvent.click(within(within(rail).getByRole('treeitem', { name: 'Magos' })).getAllByText('Magos')[0])
+    await waitFor(() => expect(within(card).getAllByRole('button')[0].textContent).toBe('Changes · 2 files'))
+  })
+
+  it('shows the not-available text for a terminal chat', async () => {
+    openAgent(backendWith(changed), [{ ...orchestrator, surface: 'terminal' as const }])
+    const stage = await agentStage()
+    const card = within(stage).getByRole('region', { name: 'Changes' })
+    expect(within(card).getByText('Not available for terminal chats')).toBeTruthy()
+  })
+})

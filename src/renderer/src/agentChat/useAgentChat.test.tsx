@@ -113,6 +113,20 @@ afterEach(cleanup)
     expect(view.result.current.state.todos).toEqual(new Map([['', todos[0].phases]]))
   })
 
+  it('only reads an exited GUI session with autoStart false, still applying pushes', async () => {
+    const api = new FakeAgentChat()
+    const scheduler = new ManualScheduler()
+    api.snapshotResult = { ok: true, data: snapshot({ status: 'exited', items: [message] }) }
+    const view = renderHook((props) => useAgentChat({ ...props, api, scheduler }, { autoStart: false }), { initialProps: ref })
+    await settle()
+    expect(api.callsOf('snapshot')).toEqual([[ref]])
+    expect(api.callsOf('start')).toEqual([])
+    expect(view.result.current.state).toMatchObject({ status: 'exited', items: [message] })
+    act(() => api.emit({ ...ref, type: 'status', status: 'busy' }))
+    expect(view.result.current.state.status).toBe('busy')
+    expect(api.callsOf('start')).toEqual([])
+  })
+
   it('does not start a terminal owner, signed-out session or failed snapshot', async () => {
     for (const data of [snapshot({ status: 'exited', surface: 'terminal' }), snapshot({ status: 'signed_out' })]) {
       const api = new FakeAgentChat()

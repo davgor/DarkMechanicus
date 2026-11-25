@@ -31,6 +31,17 @@ const treeItems: ChatItem[] = [
   { id: 'look-glob', at, kind: 'tool_call', threadId: 'th-look', name: 'Glob', input: { pattern: '**/*.ts' }, status: 'running', resultSummary: null }
 ]
 
+/** A worker thread edited one file twice and wrote another; the orchestrator itself edited a file outside the folder. */
+const changesItems: ChatItem[] = [
+  ...conversation,
+  { id: 'spawn-dm3', at, kind: 'tool_call', name: 'Task', input: { description: 'Add changes card' }, status: 'completed', resultSummary: 'Worker finished' },
+  { id: 'th-dm3', at, kind: 'thread', parentItemId: 'spawn-dm3', label: 'Acolyte:DM-3 Add changes card', state: 'done', callsign: stamp('Acolyte', 'DM-3') },
+  { id: 'dm3-edit-1', at, kind: 'tool_call', threadId: 'th-dm3', name: 'Edit', input: { file_path: 'src/card/ChangesCard.tsx' }, status: 'completed', resultSummary: 'Edited' },
+  { id: 'dm3-write', at, kind: 'tool_call', threadId: 'th-dm3', name: 'Write', input: { file_path: 'src/card/changes.css' }, status: 'completed', resultSummary: 'Written' },
+  { id: 'dm3-edit-2', at, kind: 'tool_call', threadId: 'th-dm3', name: 'Edit', input: { file_path: 'src/card/ChangesCard.tsx' }, status: 'completed', resultSummary: 'Edited' },
+  { id: 'outside-edit', at, kind: 'tool_call', name: 'Edit', input: { file_path: 'C:/Elsewhere/notes.md' }, status: 'completed', resultSummary: 'Edited' }
+]
+
 const todoPhases: AgentTodoPhase[] = [
   { name: 'Inspect', tasks: [
     { id: '1', content: 'Read the contract', status: 'completed' },
@@ -45,9 +56,10 @@ const todoPhases: AgentTodoPhase[] = [
   ] }
 ]
 /** Snapshot arrays remain the transport contract, independent of the renderer's derived state. */
-export const agentChatScenarios: Record<'empty' | 'streaming' | 'tool' | 'approval' | 'error' | 'todos' | 'todosDone' | 'stalled' | 'tree', { snapshot: AgentChatSnapshot; events: AgentChatEvent[]; commit: AgentChatEvent[]; advanceMs?: number }> = {
+export const agentChatScenarios: Record<'empty' | 'streaming' | 'tool' | 'approval' | 'error' | 'todos' | 'todosDone' | 'stalled' | 'tree' | 'changes', { snapshot: AgentChatSnapshot; events: AgentChatEvent[]; commit: AgentChatEvent[]; advanceMs?: number }> = {
   empty: { snapshot: empty, events: [], commit: [] },
   tree: { snapshot: { ...empty, status: 'busy', items: treeItems }, events: [], commit: [] },
+  changes: { snapshot: { ...empty, status: 'exited', items: changesItems }, events: [], commit: [] },
   stalled: {
     snapshot: { ...empty, status: 'busy', items: conversation },
     events: [], commit: [], advanceMs: 31_000

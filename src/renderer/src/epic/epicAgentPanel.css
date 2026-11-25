@@ -37,3 +37,110 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+
+.acc {
+  margin-top: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.acc-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.acc-summary {
+  font-weight: 600;
+}
+
+.acc-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.acc-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+button.acc-row {
+  cursor: pointer;
+}
+
+button.acc-row:hover {
+  background: var(--panel-2);
+}
+
+.acc-outside {
+  flex-wrap: wrap;
+}
+
+.acc-path,
+.acc-tool {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.acc-path {
+  flex: 1;
+}
+
+.acc-dir,
+.acc-tool,
+.acc-count,
+.acc-note,
+.acc-footer {
+  color: var(--muted);
+}
+
+.acc-tool {
+  flex: 0 1 auto;
+  max-width: 40%;
+  font-size: 12px;
+}
+
+.acc-badge {
+  flex: none;
+  width: 16px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-2);
+}
+
+.acc-count {
+  flex: none;
+  font-size: 12px;
+}
+
+.acc-note {
+  flex-basis: 100%;
+  font-size: 12px;
+}
+
+.acc-footer {
+  margin: 0;
+  padding: 6px 8px 8px;
+  font-size: 12px;
+}

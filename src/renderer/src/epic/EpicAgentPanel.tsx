@@ -4,8 +4,9 @@
  * relays the person's message through the chat that owns the thread.
  */
 import './epicAgentPanel.css'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { ChatItem, ChatRecord } from '../../../shared/agents/chat'
+import { AgentChangesCard } from '../agentChat/AgentChangesCard'
 import { AgentChat } from '../agentChat/AgentChat'
 import { withoutTodoCalls } from '../agentChat/todoPanelModel'
 import { useAgentChat } from '../agentChat/useAgentChat'
@@ -193,7 +194,12 @@ function RelayComposer({ folder, ownerId, ownerName, threadId, name }: {
   )
 }
 
-function railTabs(nodes: AgentTreeNodeInput[], selectedId: string | null, onSelect: (id: string) => void, now: number): RailTab[] {
+function railTabs(nodes: AgentTreeNodeInput[], { selectedId, onSelect, now, changes }: {
+  selectedId: string | null
+  onSelect: (id: string) => void
+  now: number
+  changes: ReactNode
+}): RailTab[] {
   const tree = buildAgentTree(nodes)
   const { needsYou, working } = tree.counts
   const badge: RailTab['badge'] = needsYou > 0
@@ -204,7 +210,10 @@ function railTabs(nodes: AgentTreeNodeInput[], selectedId: string | null, onSele
     label: 'Agents',
     icon: 'agent',
     ...(badge === undefined ? {} : { badge }),
-    content: <AgentTree tree={tree} selectedId={selectedId} onSelect={onSelect} now={now} label="Epic agents" />
+    content: <>
+      <AgentTree tree={tree} selectedId={selectedId} onSelect={onSelect} now={now} label="Epic agents" />
+      {changes}
+    </>
   }]
 }
 
@@ -254,7 +263,11 @@ export function EpicAgentPanel({ ws }: { ws: WorkspaceHandle }): JSX.Element {
         <CentrePane ws={ws} chat={chat} threadId={threadId} nodes={nodes} items={watched.get(chat.id)?.items ?? []} />
       </div>
       <RightRail label="Epic agents" storageKey={`dm.epicRail.v1:${folder}\n${ws.epicId}`}
-        tabs={railTabs(nodes, threadId ?? chat.id, onSelect, ws.now)} />
+        tabs={railTabs(nodes, {
+          selectedId: threadId ?? chat.id, onSelect, now: ws.now,
+          changes: <AgentChangesCard folder={folder} epicId={ws.epicId} chat={chat} threadId={threadId}
+            onOpenSourceFile={ws.orchestration.onOpenSourceFile} />
+        })} />
     </section>
   )
 }
