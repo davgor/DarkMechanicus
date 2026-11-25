@@ -713,8 +713,10 @@ export class RepositoryWorkspace implements WorkspaceCore {
 
   /**
    * Reconciles the tracked records. An automatic reconcile (open, heartbeat) is skipped while the
-   * inputs are those of the last clean reconcile (`reconcileFingerprint.ts`); an explicit one always
-   * reads everything, and either records the fingerprint for the next session.
+   * inputs are those of the last clean reconcile (`reconcileFingerprint.ts`), and otherwise reads
+   * only the records git reports as changed (`reconcileScope.ts`); an explicit one (the
+   * `reconcile_repository` command, the desktop's Reconcile, Forge validation) always reads
+   * everything. Either records the fingerprint and the git marker for the next session.
    */
   reconcile(automatic = false): ReconcileResultView {
     const store = this.requireStore()
@@ -728,7 +730,7 @@ export class RepositoryWorkspace implements WorkspaceCore {
       git: this.git,
       sessionId: store.ctx.session.id,
       fileHashes: this.fileHashes
-    }, automatic ? inputs : { current: () => false, applied: inputs.applied }))
+    }, automatic ? inputs : { current: () => false, applied: inputs.applied }, { full: !automatic }))
   }
 
   /** An explicit flush (the default) retries every waiting entry at once; `scheduled` leaves failed ones in backoff. */
