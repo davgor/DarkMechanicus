@@ -1,6 +1,6 @@
-# Performance revamp: baseline
+# Performance revamp: baseline and integrated results
 
-The DM-959 measurement of what the person sees, measured on the epic start before any revamp change. It covers how long an epic plan, a ticket panel and the Kanban board take to load, both idle and during a sync. It also covers click to paint in the built desktop, write-lock holds by caller, the counters of an unchanged reconcile, and built-CLI agent latency and error codes. Every later ticket in the epic is judged against these numbers. The sprint acceptance node reruns the same matrix on the integrated branch and fills the *Integrated branch* columns.
+The DM-959 measurement of what the person sees, measured on the epic start before any revamp change. It covers how long an epic plan, a ticket panel and the Kanban board take to load, both idle and during a sync. It also covers click to paint in the built desktop, write-lock holds by caller, the counters of an unchanged reconcile, and built-CLI agent latency and error codes. Every later ticket in the epic is judged against these numbers. The sprint acceptance node reruns the same matrix on the integrated branch and fills the *Integrated branch* columns and the [Integrated branch run](#integrated-branch-run) section. Until then those cells are empty on purpose. The per-ticket runs below them were measured on intermediate revisions of a shared host, and they are not the integrated result. What was built, and why, is in [`architecture.md`](../architecture.md#repository-owned-persistence) and [decision 0007](../decisions/0007-targeted-reconcile.md).
 
 Raw rows: [`forge-performance-data/revamp-baseline.jsonl`](forge-performance-data/revamp-baseline.jsonl). Every row carries its per-sample data, and one `revamp-identity` row records the build revision. The earlier harness report is [forge-performance.md](forge-performance.md) (DM-904).
 
@@ -16,11 +16,11 @@ Raw rows: [`forge-performance-data/revamp-baseline.jsonl`](forge-performance-dat
 
 The generated fixtures are repository-mode projects of saved, completed epics (1,000 tickets per epic), each with two revisions, one run, one image attachment and 32 comments per epic, plus 13 Kanban cards. Twelve of those cards are for the CLI agents. Each fixture is opened cold through the production folder picker.
 
-| Tickets | Epics | Revisions | Runs | Images | Comments | Portable bytes | Cold open ms | Main max gap ms |
-|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 100 | 1 | 2 | 1 | 1 | 32 | 428,698 | 440.8 | 16.4 |
-| 1,000 | 1 | 2 | 1 | 1 | 32 | 2,756,105 | 605.5 | 22.9 |
-| 10,000 | 10 | 20 | 10 | 10 | 320 | 27,521,251 | 17,801.5 | 22.5 |
+| Tickets | Epics | Revisions | Runs | Images | Comments | Portable bytes | Cold open ms | Main max gap ms | Integrated branch: cold open ms |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| 100 | 1 | 2 | 1 | 1 | 32 | 428,698 | 440.8 | 16.4 | |
+| 1,000 | 1 | 2 | 1 | 1 | 32 | 2,756,105 | 605.5 | 22.9 | |
+| 10,000 | 10 | 20 | 10 | 10 | 320 | 27,521,251 | 17,801.5 | 22.5 | |
 
 **Real store copy.** The DarkMechanicus member's tracked `.darkmechanicus` files (without `local/`), plus a read-only `VACUUM INTO` snapshot of its database, were copied into the temporary fixture. The live store was never opened for writing. The copy has 31 epics, and its first command after tracking answered in 256.1 ms. Click to paint used its largest saved epic (134 tickets).
 
@@ -87,11 +87,11 @@ From a profiler utility with the `Db` hold observer: open, an automatic heartbea
 
 Changed-epic reconcile (the sync's import) and the command with its flush, per fixture:
 
-| Tickets | Changed reconcile ms | Its write transactions | Its longest hold ms | Command + flush ms | Its write transactions |
-|---:|---:|---:|---:|---:|---:|
-| 100 | 61.2 | 1 | 13.7 | 28.3 | 3 |
-| 1,000 | 105.6 | 1 | 26.4 | 30.1 | 3 |
-| 10,000 | 409.4 | 1 | 104.2 | 80.0 | 3 |
+| Tickets | Changed reconcile ms | Its write transactions | Its longest hold ms | Command + flush ms | Its write transactions | Integrated branch: changed reconcile transactions / longest hold ms | Integrated branch: flush longest hold ms |
+|---:|---:|---:|---:|---:|---:|---|---|
+| 100 | 61.2 | 1 | 13.7 | 28.3 | 3 | | |
+| 1,000 | 105.6 | 1 | 26.4 | 30.1 | 3 | | |
+| 10,000 | 409.4 | 1 | 104.2 | 80.0 | 3 | | |
 
 ### Unchanged reconcile counters (warm, no changes)
 
@@ -114,6 +114,8 @@ Changed-epic reconcile (the sync's import) and the command with its flush, per f
 ### 12 built-CLI agents for 60 s while the desktop syncs (10,000 tickets)
 
 221 calls in total. Outcomes: `ok` 221. Desktop syncs during the run: 17, p50 / p95 / max 3,209 / 6,947.2 / 6,947.2 ms; failed syncs: none. CPU busy 45.9 % (max 79.8 %).
+
+Integrated branch: calls ___, outcomes ___, desktop syncs ___ (failed ___), CPU busy ___. Sync-lane write-lock hold p95 / max ___ ms, acquire max ___ ms.
 
 | Command | Outcomes by code | Wall p50 / p95 / max ms | Integrated branch: outcomes / wall |
 |---|---|---|---|
@@ -160,6 +162,35 @@ Every row is under 500 ms p95. The plan's queue wait rose on the fixtures (10,00
 Renderer view loads on 10,000 tickets (production IPC, p50 / p95 ms): plan idle 88.8 / 114.2 → 54.3 / 61.9, ticket idle 18.1 / 25.4 → 14.5 / 17.9; during a sync plan 633 / 691 → 433 / 485, ticket 478 / 613 → 389 / 429 (sync rows remain dominated by queue wait behind the reconcile, which is other tickets' scope).
 
 Render was the largest share on the fixtures, but no single component hotspot was isolated in this ticket: the plan render fell with the smaller, single-round load, and no component change (step 5) was made.
+
+## Per-ticket harness runs
+
+Each ticket that changed reconcile, export or the read path measured its own branch with the same harness. Those branches were intermediate revisions, measured on the shared host while other workers ran, so these rows show direction only. The acceptance node's integrated run is the result of record. Every number below is copied from the committed rows named in each line. 10,000-ticket fixture unless stated; p95 in ms.
+
+| Ticket, revision | Rows | View load during a sync (plan / ticket / board) | Changed-epic reconcile: write transactions, longest hold | Explicit unchanged reconcile: write transactions, text reads | Flush longest hold | 12 CLI agents for 60 s |
+|---|---|---|---|---|---|---|
+| Baseline `4d3486bb` (+ DM-959 instrumentation) | [`revamp-baseline.jsonl`](forge-performance-data/revamp-baseline.jsonl) | 484.4 / 465.8 / 442.9 | 1, 104.2 | 1 (held 276.9), 424 | 11.7 | 221 calls, all `ok` |
+| DM-964 `d33e5076` (staged export, no sync lane yet) | [`dm964-revamp.jsonl`](forge-performance-data/dm964-revamp.jsonl) | 640.8 / 616.5 / 615.4 | 1, 142.9 | 1 (held 115.8), 402 | 4.9 | 107 calls, all `ok` (CPU 66 %) |
+| DM-963 `f27dadd2` (sync lane) | [`revamp-DM-963-at3.jsonl`](forge-performance-data/revamp-DM-963-at3.jsonl) | 73.6 / 19.6 / 15.8 | 1, 118 | 1 (held 303.4), 424 | 12.1 | 115 calls, all `ok`; lane hold max 1,347, acquire max 1,944.9 (CPU 61 %) |
+| DM-962 `c0c1ed75` (per-record transactions; includes DM-961, DM-963, DM-964) | [`dm962-revamp.jsonl`](forge-performance-data/dm962-revamp.jsonl) | 48.4 / 16.9 / 9.9 | 2, 33.8 | 0, 400 | 2.6 | 186 calls, all `ok`; lane hold max 56.9, acquire max 25.6 (CPU 62 %) |
+
+- The view loads at `d33e5076` were measured before the sync lane existed. They still queue behind the reconcile in the owner, and they were measured on a busier host than the baseline.
+- At `f27dadd2` the lane served the views, but every explicit reconcile prepared again under the writer lock, so the lane's holds grew. DM-962's per-record transactions (re-prepare outside the lock) bring the lane's longest hold to 56.9 ms in the 12-agent stage and 37.3 ms in the view rows.
+- In the harness, the explicit unchanged reconcile is a full read. At `c0c1ed75` it still reads every record (400 text bodies) but takes no write transaction.
+- **DM-961, built `dm call list_kanban_cards`, 10 calls each** ([`dm961-cli-list-kanban-cards.jsonl`](forge-performance-data/dm961-cli-list-kanban-cards.jsonl), `7a313649`), wall p50 / p95: with the fingerprint gate hit, 298.4 / 312.5 (fixture with an unborn HEAD) and 320.1 / 343 (committed fixture). With the gate missing on every call, a full reconcile on the unborn-HEAD fixture (fallback `unborn_head`) took 2,019.5 / 2,100.8, and a targeted reconcile on the committed fixture took 405.1 / 426. Every call returned `ok`.
+- **DM-963 packaged-build probe** ([`sync-lane-probe-DM-963.jsonl`](forge-performance-data/sync-lane-probe-DM-963.jsonl), `3ad59e13`, the packaged app over CDP): during an explicit reconcile, p95 plan 49, ticket 15, board 8 and a card mutation 116. 30 of 30 loads of each finished while the reconcile was still running. Verdict GO.
+- **DM-969** is measured in its own section above.
+
+## Integrated branch run
+
+Filled in by the sprint acceptance node from one full `revamp` matrix on the integrated branch, with the real-store copy. Leave a field empty rather than estimate it.
+
+- **Revision measured:** ___ (`revamp-identity` row)
+- **Run:** ___ (UTC start and end, app Electron and Node versions)
+- **Host and concurrent load:** ___ (as in [Revision, host and load](#revision-host-and-load); compare the CPU busy columns)
+- **Raw rows:** ___ (`forge-performance-data/<file>.jsonl`)
+- **Failed or timed-out scenarios:** ___ (with their rows; a failure is reported, never rerun away)
+- **Epic success criteria:** s1 (plan, ticket and board under 300 ms p95 during a sync, real store) ___; s2 (an unchanged reconcile takes no write lock; a reconcile after a pull reads only git-reported records) ___; s3 (no reconcile or finalizer write transaction over 250 ms on 10,000 tickets) ___; s4 (a CLI read under 2 s; 12 agents during a sync with no `database is locked` and no new codes) ___.
 
 ## How to rerun
 
