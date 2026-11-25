@@ -179,6 +179,30 @@ it('treats a legacy chat as terminal and refuses unsupported GUI kinds without c
   expect(changed).not.toHaveBeenCalled()
 })
 
+it('persists a switch to the terminal that already owns the chat once, without stopping, revoking or confirming', async () => {
+  const changed = vi.fn(), stopTerminal = vi.fn(async (_ref: ChatRef, _generation: string) => {}), confirm = vi.fn(async () => true)
+  const r = rig('claude', { onChatChanged: changed, stopTerminal }), chat = r.newChat()
+  r.state.terminalLive = true
+  expect(await r.sessions.setSurface(chat, 'terminal', confirm)).toMatchObject({ surface: 'terminal' })
+  expect(r.store.getChat(chat)!.surface).toBe('terminal')
+  expect([stopTerminal.mock.calls, confirm.mock.calls, r.revoked, r.children, r.state.terminalLive]).toEqual([[], [], [], [], true])
+  expect(changed).toHaveBeenCalledExactlyOnceWith(chat)
+})
+
+for (const kind of ['claude', 'omp'] as const) it(`refuses GUI start and switch for a ${kind} Forge setup chat without side effects`, async () => {
+  const changed = vi.fn(), stopTerminal = vi.fn(async (_ref: ChatRef, _generation: string) => {}), confirm = vi.fn(async () => true)
+  const r = rig(kind, { onChatChanged: changed, stopTerminal })
+  const forgeSetup = { intentId: '6f1c1d2e-8a4b-4c3d-9e5f-0a1b2c3d4e5f', mode: 'onboarding', stepId: '7a2b3c4d-5e6f-4a1b-8c2d-3e4f5a6b7c8d' } as const
+  const chat = r.store.createChat({ folder: r.repo, agent: kind, model: null, role: 'worker', allowSave: false, surface: 'terminal', forgeSetup })
+  const write = vi.spyOn(r.store, 'updateChat')
+  await expect(r.sessions.start(chat)).rejects.toMatchObject({ code: 'unsupported' })
+  await expect(r.sessions.send(chat, { text: 'start anyway' })).rejects.toMatchObject({ code: 'unsupported' })
+  r.state.terminalLive = true
+  await expect(r.sessions.setSurface(chat, 'gui', confirm)).rejects.toMatchObject({ code: 'unsupported' })
+  expect([r.steps, r.children, r.pushes, r.revoked, write.mock.calls, changed.mock.calls]).toEqual([[], [], [], [], [], []])
+  expect([confirm.mock.calls, stopTerminal.mock.calls, r.sessions.isLive(chat), r.store.getChat(chat)!.surface]).toEqual([[], [], false, 'terminal'])
+})
+
 it('refuses a toggle during authentication before any process or grant is issued', async () => {
   const auth = gate<AgentAuthStatus>()
   const r = rig('claude', { checkAuth: () => auth.promise }), chat = r.newChat()

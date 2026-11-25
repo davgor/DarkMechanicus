@@ -558,21 +558,46 @@ function stop(manager: Manager, live: Live, message: string): Promise<unknown> {
   return killTree(manager, live)
 }
 
-/** Retains the old owner's identity until all three independently completing barriers have settled; a failed kill or revocation fails at once. */
+/**
+ * Retains the old owner's identity until all three independently completing barriers have settled; a failed kill or
+ * revocation fails at once and keeps the owner fenced. A failed retirement is not kept: the next stop, start or exit
+ * asks again (a fresh tree kill and revocation), and the first success releases ownership.
+ */
 function retire(manager: Manager, live: Live): Promise<void> {
   if (live.retirement) return live.retirement
   manager.retiring.add(live)
+  let killFailed = false
   const killed = killTree(manager, live).then(result => {
-    if (result !== true) throw new Error('The terminal process tree did not stop.')
+    if (result === true) return
+    killFailed = true
+    const error = new Error('The terminal process tree did not stop.')
+    // A kill that threw has already reported itself (`killTree`); one that answered false has not.
+    if (result === false) manager.onError(error)
+    throw error
   })
   const revoked = live.revoke().then(() => {
     if (live.revocationError !== undefined) throw live.revocationError
   })
-  live.retirement = Promise.all([killed, live.closed, revoked]).then(() => {
+  const retirement = Promise.all([killed, live.closed, revoked]).then(() => {
     manager.retiring.delete(live)
+  }, (error: unknown) => {
+    // Forget the failed attempt so the next retirement asks again; the owner stays fenced meanwhile.
+    live.retirement = undefined
+    if (killFailed) live.killing = undefined
+    throw error
   })
-  void live.retirement.catch(manager.onError)
-  return live.retirement
+  live.retirement = retirement
+  void retirement.catch(() => undefined)
+  return retirement
+}
+
+/**
+ * Before a start: asks again for the chat's owners whose cleanup failed (an in-flight cleanup is left to finish).
+ * The first success releases ownership; a repeated failure reports itself and stays fenced for the next stop, start or exit.
+ */
+async function retryRetirements(manager: Manager, chatId: string): Promise<void> {
+  const failed = [...manager.retiring].filter(live => live.chat.id === chatId && live.retirement === undefined)
+  await Promise.all(failed.map(live => retire(manager, live).catch(() => undefined)))
 }
 
 /**
@@ -841,7 +866,16 @@ function startLive(manager: Manager, chat: ChatRecord, started: Started): Live {
     marksStarted: started.marksStarted,
     pastes: { waiting: started.firstPaste === null ? [] : [started.firstPaste], inputLive: false, seen: '', lastOutput: 0, entering: false, cancel: null },
     tree: { pid: pty.pid, kill: () => pty.kill(), exited: ended, hasExited: () => live.exited },
-    revoke: () => (revoked ??= Promise.all(grantIds.map((grantId) => revokeGrant(manager, grantId, error => { live.revocationError = error }))).then(() => undefined)),
+    revoke: () => {
+      if (revoked === null) {
+        live.revocationError = undefined
+        // A failed revocation is asked again by the next call rather than remembered.
+        revoked = Promise.all(grantIds.map((grantId) => revokeGrant(manager, grantId, error => { live.revocationError = error }))).then(() => {
+          if (live.revocationError !== undefined) revoked = null
+        })
+      }
+      return revoked
+    },
     stopWatch: () => {}
   }
   wireLive(manager, live, reportEnded, reportClosed)
@@ -885,6 +919,8 @@ function wireLive(manager: Manager, live: Live, reportEnded: () => void, reportC
     if (live.dmClient !== null) void dropDmClient(manager, live.dmClient)
     // Asked now, while the group's id can only be the CLI's: ends what it left running in its process group.
     void retire(manager, live)
+    // An exit is also a chance to retry an earlier owner's failed cleanup.
+    for (const fenced of manager.retiring) if (fenced !== live && fenced.chat.id === chat.id && fenced.retirement === undefined) void retire(manager, fenced)
     if (live.stopMessage === null) {
       void track(manager, pauseIfSignedOut(manager, chat))
     }
@@ -1400,6 +1436,7 @@ async function attach(manager: Manager, ref: ChatRef, listener: TerminalListener
     if (chat === null) {
       return { state: 'refused', message: noChat(ref) }
     }
+    await retryRetirements(manager, chat.id)
     const answer = await attachEntry(manager, chat, listener, options)
     if (!('kind' in answer)) {
       return answer
@@ -1420,6 +1457,7 @@ async function start(manager: Manager, ref: ChatRef, options: StartOptions): Pro
   if (chat === null) {
     return { state: 'refused', message: noChat(ref) }
   }
+  await retryRetirements(manager, chat.id)
   assertNotHandingOff(manager, chat.id)
   const entry = manager.entries.get(chat.id) ?? beginStart(manager, chat, options)
   if (!('kind' in entry)) {
@@ -1456,6 +1494,7 @@ async function paste(manager: Manager, ref: ChatRef, text: string, contextId?: s
     if (chat === null) {
       return { state: 'refused', message: noChat(ref) }
     }
+    await retryRetirements(manager, chat.id)
     const live = await pasteTarget(manager, chat)
     if (!('kind' in live)) {
       return live
@@ -1505,10 +1544,15 @@ async function endTerminal(manager: Manager, chatId: string, message: string): P
   }
 }
 
-/** A confirmed surface handoff: validates and freezes only the named owner at once, then joins its close, tree kill and revocation. */
+/**
+ * A confirmed surface handoff: validates and freezes only the named owner at once, then joins its close, tree kill and
+ * revocation. Naming an owner whose cleanup failed retries that cleanup instead.
+ */
 async function stopTerminal(manager: Manager, ref: ChatRef, generation: string): Promise<void> {
   const chat = manager.deps.store.getChat(ref)
   if (chat === null) throw new DomainError('not_found', noChat(ref))
+  const fenced = [...manager.retiring].find(live => live.chat.id === chat.id && live.generation === generation)
+  if (fenced !== undefined) return retire(manager, fenced)
   const live = runningTerminal(manager, chat.id)
   if (live === null || live.stopMessage !== null || live.generation !== generation) {
     throw new DomainError('busy', 'The terminal changed after the switch was confirmed; nothing was stopped.')

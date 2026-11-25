@@ -77,6 +77,13 @@ describe('chat records: central surface defaults', () => {
     expect(records.createChat({ folder: REPO, agent: agent.id, role: 'worker' }).surface).toBe('terminal')
     expect(records.createChat({ folder: REPO, agent: 'omp', role: 'worker' }).surface).toBe('terminal')
   })
+
+  it.each(['claude', 'omp'] as const)('keeps a %s Forge setup chat terminal so it stays on the guarded setup path', kind => {
+    const store = memoryChatStore(), records = createChatRecords({ store, agentFor: connectedAgents([builtInAgent(kind)]) })
+    const forgeSetup = { intentId: '6f1c1d2e-8a4b-4c3d-9e5f-0a1b2c3d4e5f', mode: 'onboarding', stepId: '7a2b3c4d-5e6f-4a1b-8c2d-3e4f5a6b7c8d' } as const
+    const chat = records.createChat({ folder: REPO, agent: kind, role: 'worker', forgeSetup })
+    expect([chat.surface, store.getChat(chat)?.surface, store.getChat(chat)?.forgeSetup]).toEqual(['terminal', 'terminal', forgeSetup])
+  })
 })
 
 describe('chat records: creating, listing and renaming', () => {

@@ -452,6 +452,7 @@ class SessionManager {
   }
   async start(ref: ChatRef, options: { firstMessage?: string } = {}): Promise<StartResult> {
     const chat = this.chatFor(ref)
+    this.assertGuiCapable(chat)
     if (this.deps.terminalLive(chat)) return { code: 'busy_elsewhere' }
     this.assertOpen(chat)
     const reserved = this.startingEntries.get(chat.id)
@@ -550,25 +551,26 @@ class SessionManager {
     if (!entry || entry.cleanupComplete) return false
     return entry.turnActive || entry.queued > 0 || Boolean(entry.prompts?.snapshot())
   }
+  /** Forge setup keeps the terminal's setup-action gate, no-new-session rule and checkout verification. */
+  private assertGuiCapable(chat: ChatRecord): void {
+    if (chat.forgeSetup !== undefined) throw new DomainError('unsupported', 'Forge setup conversations run only in the terminal.')
+  }
   private assertSurfaceAllowed(chat: ChatRecord, surface: 'gui' | 'terminal'): void {
     this.assertOpen(chat)
     if (this.confirming.has(chat.id)) throw new DomainError('busy', 'A surface switch is already awaiting confirmation.')
     const agent = this.deps.agentFor(chat.agent)
+    if (surface === 'gui') this.assertGuiCapable(chat)
     if (surface === 'gui' && !GUI_PROTOCOL_KINDS.some(kind => kind === agent?.kind)) {
       throw new DomainError('unsupported', 'This agent has no GUI protocol.')
     }
     if (this.guiBusy(chat)) throw new DomainError('busy', 'Wait for the current turn and pending prompts before switching surfaces.')
   }
-  /** The terminal generation a switch to the GUI must retire; null when no terminal runs. Never inferred idle. */
+  /** The terminal generation a switch to the GUI must retire; null when no terminal runs or the terminal is the target. Never inferred idle. */
   private terminalGeneration(chat: ChatRecord, surface: 'gui' | 'terminal'): string | null {
-    const live = this.deps.terminalLive(chat)
-    if (surface === 'terminal') {
-      if (live) throw new DomainError('busy', 'The terminal already owns this chat.')
-      return null
-    }
+    if (surface === 'terminal') return null
     const generation = this.deps.terminalOwner(chat)
     // A starting or still-retiring terminal has no confirmable owner.
-    if (generation === null && live) throw new DomainError('busy', 'The terminal is starting or still stopping.')
+    if (generation === null && this.deps.terminalLive(chat)) throw new DomainError('busy', 'The terminal is starting or still stopping.')
     return generation
   }
   /** Holds only a duplicate-request lock while asking; a missing callback, refusal or failure changes nothing. */

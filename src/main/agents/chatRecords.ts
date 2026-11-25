@@ -161,7 +161,9 @@ export function createChatRecords(deps: ChatRecordsDeps): ChatRecords {
     listChats: folder => store.listChats(folder).filter(chat => !chat.archived),
     createChat: request => {
       const agent = deps.agentFor(request.agent)
-      return store.createChat({ ...newChat(request), surface: GUI_PROTOCOL_KINDS.some(kind => kind === agent?.kind) ? 'gui' : 'terminal' })
+      // Forge setup runs only on the guarded terminal path, whatever the agent kind.
+      const gui = request.forgeSetup === undefined && GUI_PROTOCOL_KINDS.some(kind => kind === agent?.kind)
+      return store.createChat({ ...newChat(request), surface: gui ? 'gui' : 'terminal' })
     },
     renameChat: (ref, title) => store.updateChat(requireChat(store, ref), { title, titleStatus: 'manual' }),
     deleteChat: async (ref) => finishDeletion(requireChat(store, ref)),

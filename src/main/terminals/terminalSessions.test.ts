@@ -173,6 +173,63 @@ describe('terminal sessions: failed surface handoff', () => {
   })
 })
 
+/** A rig whose tree kill or grant revocation fails `times` times, then succeeds; every attempt is a step. */
+function flakyCleanupRig(failure: 'kill' | 'revoke', times: number): TerminalRig {
+  let left = times
+  return terminalRig({ deps: base => failure === 'kill'
+    ? { killTree: async tree => { base.steps.push('kill'); tree.kill(); return left-- <= 0 } }
+    : { revokeChatGrant: async grantId => {
+      base.steps.push(`revoke:${grantId}`)
+      if (left-- > 0) throw new Error('revocation failed')
+    } } })
+}
+
+describe('terminal sessions: handoff cleanup retry', () => {
+  for (const failure of ['kill', 'revoke'] as const) it(`retries a failed ${failure} of a confirmed handoff on the next stop and then releases ownership`, async () => {
+    rig.cleanup()
+    rig = flakyCleanupRig(failure, 1)
+    const chat = rig.newChat(CUSTOM_AGENT.id), { pty } = await startTerminal(rig, chat), generation = rig.sessions.owner(chat)!
+    const first = rig.sessions.stop(chat, generation)
+    pty.exit()
+    await expect(first).rejects.toThrow(failure === 'kill' ? 'process tree did not stop' : 'revocation failed')
+    expect([rig.sessions.isLive(chat), rig.host.spawns.length, rig.errors.length]).toEqual([true, 1, 1])
+    await rig.sessions.stop(chat, generation)
+    expect(rig.sessions.isLive(chat)).toBe(false)
+    expect(rig.steps.filter(step => step === (failure === 'kill' ? 'kill' : 'revoke:gr_1'))).toHaveLength(2)
+    expect([rig.host.spawns.length, rig.errors.length]).toEqual([1, 1])
+  })
+})
+
+describe('terminal sessions: exit cleanup retry', () => {
+  for (const failure of ['kill', 'revoke'] as const) it(`retries a failed ${failure} after an ordinary exit on the next start before spawning`, async () => {
+    rig.cleanup()
+    rig = flakyCleanupRig(failure, 1)
+    const chat = rig.newChat(CUSTOM_AGENT.id), first = await startTerminal(rig, chat)
+    first.pty.exit()
+    await eventually(() => rig.errors.length === 1, 'the cleanup to fail')
+    expect(rig.sessions.isLive(chat)).toBe(true)
+    await rig.sessions.start(chat, { kickoff: 'Carry on' })
+    const retried = failure === 'kill' ? ['revoke:gr_1', 'kill', 'kill'] : ['revoke:gr_1', 'revoke:gr_1']
+    expect(rig.steps).toEqual(['grant:gr_1', 'spawn', ...retried, 'grant:gr_2', 'spawn'])
+    rig.host.last().exit()
+    await eventually(() => !rig.sessions.isLive(chat), 'the chat to be released')
+    expect(rig.errors).toHaveLength(1)
+  })
+
+  for (const failure of ['kill', 'revoke'] as const) it(`retries a twice-failed ${failure} on a later exit and releases the chat`, async () => {
+    rig.cleanup()
+    rig = flakyCleanupRig(failure, 2)
+    const chat = rig.newChat(CUSTOM_AGENT.id), first = await startTerminal(rig, chat)
+    first.pty.exit()
+    await eventually(() => rig.errors.length === 1, 'the cleanup to fail')
+    await rig.sessions.start(chat, { kickoff: 'Carry on' })
+    expect([rig.errors.length, rig.sessions.isLive(chat)]).toEqual([2, true])
+    rig.host.last().exit()
+    await eventually(() => !rig.sessions.isLive(chat), 'the later exit to retry and release both owners')
+    expect(rig.errors).toHaveLength(2)
+  })
+})
+
 describe('terminal sessions: what may start', () => {
 
   it('starts nothing for a signed-out built-in, and says so to the attach that is waiting', async () => {
