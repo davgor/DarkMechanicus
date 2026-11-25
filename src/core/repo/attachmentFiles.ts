@@ -89,7 +89,7 @@ export function placementOfAttachment(db: Db, attachment: StoredAttachment): Att
   return placement
 }
 
-function sha256Of(bytes: Uint8Array): string {
+export function sha256Of(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex')
 }
 
@@ -115,6 +115,22 @@ function alreadyWritten(env: Env, target: string, sha256: string): boolean {
 }
 
 /**
+ * The bytes the attachment's file at `target` still needs, or null when a file holding exactly them is already there.
+ * Fails, writing nothing, when the bytes are not stored or do not match the attachment's sha256.
+ */
+export function attachmentBytesToWrite(env: Env, attachment: StoredAttachment, target: string): Uint8Array | null {
+  if (attachment.data === null) {
+    fail('not_found', `The bytes of attachment ${attachment.id} are not stored, so its file cannot be written.`, { id: attachment.id })
+  }
+  if (sha256Of(attachment.data) !== attachment.sha256) {
+    fail('internal', `The stored bytes of attachment ${attachment.id} do not match its sha256, so its file is not written.`, {
+      id: attachment.id
+    })
+  }
+  return alreadyWritten(env, target, attachment.sha256) ? null : attachment.data
+}
+
+/**
  * Writes the attachment's file once: nothing is touched when the file is already there with the right hash. Otherwise
  * the bytes go to a temp file, are fsynced, renamed into place and read back; a mismatch removes the file and fails.
  */
@@ -124,15 +140,8 @@ export function writeAttachmentFile(env: Env, attachment: StoredAttachment, plac
 
 /** Writes verified bytes to a caller's owned attachment path, including recovery archives. */
 export function writeAttachmentBytes(env: Env, attachment: StoredAttachment, target: string): void {
-  if (attachment.data === null) {
-    fail('not_found', `The bytes of attachment ${attachment.id} are not stored, so its file cannot be written.`, { id: attachment.id })
-  }
-  if (sha256Of(attachment.data) !== attachment.sha256) {
-    fail('internal', `The stored bytes of attachment ${attachment.id} do not match its sha256, so its file is not written.`, {
-      id: attachment.id
-    })
-  }
-  if (alreadyWritten(env, target, attachment.sha256)) {
+  const data = attachmentBytesToWrite(env, attachment, target)
+  if (data === null) {
     return
   }
   const temp = `${target}.tmp-${process.pid}`
@@ -140,7 +149,7 @@ export function writeAttachmentBytes(env: Env, attachment: StoredAttachment, tar
   env.fs.mkdirp(dirname(target))
   try {
     assertContained(env.layout, env.fs, temp)
-    env.fs.writeFileBytes(temp, attachment.data)
+    env.fs.writeFileBytes(temp, data)
     env.fs.fsyncFile(temp)
     assertContained(env.layout, env.fs, target)
     env.fs.rename(temp, target)

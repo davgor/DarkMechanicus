@@ -2,34 +2,37 @@
  * Crash-safe flush of the `outbox` table into repository-owned records (`repo` mode), or straight
  * through without a file in hand (`db` mode, where the database is the record).
  *
- * Each entry is handled inside one `db.tx` (BEGIN IMMEDIATE), so the cross-process write lock is
- * held while files are written and finalizers in different processes never interleave. Files are
- * written to a temp file, fsynced, renamed over the target, and read back. A snapshot is complete and
- * verified before anything points at it, and the pointer is replaced last; any failure rolls the
- * transaction back, leaving the last good pointer (and every earlier snapshot) untouched and the
- * entry pending for an idempotent retry.
+ * A `repo` entry is exported in two steps (`exportEntry`). Staging runs outside the write lock: the export runs in a
+ * read transaction and collects its file changes, and each new file is written to a temp file under `local/staging/`,
+ * fsynced and read back. The commit runs in one short `db.tx` (BEGIN IMMEDIATE), so finalizers in different
+ * processes never interleave: the export runs again from the rows as they are now (re-checking that the entry still
+ * waits and that the tracked records may be written over), and only when it collects exactly the staged changes are
+ * the temps renamed into place, in order, the pointer last, before the export is recorded and committed. A snapshot is
+ * complete and verified before anything points at it; any failure rolls the transaction back and puts back the
+ * tracked files it replaced, leaving the last good pointer (and every earlier snapshot) untouched and the entry
+ * pending for an idempotent retry. A failed entry is retried by a scheduled flush only after a backoff.
  */
-import { dirname, join } from 'node:path'
+import { dirname, join, relative, sep } from 'node:path'
 import { z } from 'zod'
 import type { FlushResultView } from '../../shared/domain/views'
 import { canonicalJson, contentHash, prettyJson } from '../canonical'
-import type { Clock } from '../clock'
+import { addSeconds, type Clock, isBefore } from '../clock'
 import type { Db } from '../db/database'
 import { fail } from '../errors'
 import { getMeta, META_KEYS, setMeta } from '../meta'
 import { KANBAN_OUTBOX_KINDS, type OutboxKind } from '../services/outbox'
 import { hasTransferHold } from '../services/transferGuard'
 import { observationPayloadHash } from '../space/ledger'
-import type { StorageMode } from './storageMode'
 import {
   ATTACHMENT_FILE_NAME,
   ATTACHMENT_SIDECAR_NAME,
+  attachmentBytesToWrite,
   loadStoredAttachment,
   type OwningRecord,
   placementOfAttachment,
+  sha256Of,
   type StoredAttachment,
-  unexportedAttachments,
-  writeAttachmentFile
+  unexportedAttachments
 } from './attachmentFiles'
 import { type AttachmentFolder, assertContained, displayPath, ownedPaths } from './paths'
 import {
@@ -72,10 +75,11 @@ export interface FinalizerDeps {
 
 export interface FinalizerHooks {
   /**
-   * Called inside the finalizer's transaction once the revision's snapshot is durable and verified.
+   * Called inside the finalizer's transaction once the revision's snapshot is staged, durable and verified.
    * Applies the DB side of the completed save (revision saved, epic current revision, ticket
-   * statuses, draft removal). The state and pointer files are written after it, from the updated
-   * rows, and these effects commit only after the pointer is durable.
+   * statuses, draft removal). The state and pointer files are built after it, from the updated
+   * rows, and these effects commit only after the pointer is in place. A save is also previewed in a
+   * transaction that is rolled back, so the hook runs again at the commit.
    */
   onSnapshotSaved(revisionId: string): void
 }
@@ -85,11 +89,14 @@ export interface FlushOutcome extends FlushResultView {
   failedRevisionIds: string[]
 }
 
-/** An entry becomes `failed` after this many attempts. Failed entries are still retried by every flush, and their count stays at this maximum. */
+/** An entry becomes `failed` after this many attempts. Failed entries are still retried, and their count stays at this maximum. */
 const MAX_FLUSH_ATTEMPTS = 5
 const MAX_ERROR_LENGTH = 2_000
 /** Entries queued while flushing (a first save queues its epic's earlier comments) get further passes. */
 const MAX_FLUSH_PASSES = 3
+/** A scheduled flush retries a failed entry after 15 s, then 30 s, 1 min, 2 min, 4 min, and then every 5 min. */
+const RETRY_DELAY_SECONDS = 15
+const MAX_RETRY_DELAY_SECONDS = 300
 
 interface OutboxRow {
   id: number
@@ -100,6 +107,8 @@ interface OutboxRow {
   entity_id: string | null
   /** The Kanban card a `kanban_card` or `kanban_event` entry belongs to; null for every other kind. */
   card_id: string | null
+  /** Before this time a scheduled flush leaves the entry (it failed); null: at once. */
+  next_attempt_at: string | null
 }
 
 type WriteEnv = Pick<FinalizerDeps, 'layout' | 'fs'>
@@ -147,29 +156,137 @@ export function writeFileSafely(
   verify(env.fs.readFile(target))
 }
 
+/**
+ * One file change of an entry's export, collected while the export runs and made only at its commit: a write, whose
+ * temp file is staged, fsynced and read back before the write lock is taken, or a removal.
+ */
+type FileChange =
+  | {
+      kind: 'write'
+      target: string
+      data: string | Uint8Array
+      /** What two runs of the export must agree on: the text, or the image's sha256. */
+      identity: string
+      /** Reads the staged temp file back and fails when it does not hold what was written. */
+      check: (fs: FsAdapter, temp: string) => void
+      /** The text to put back (null: remove the file) when a later step fails; undefined: nothing is put back. */
+      restore?: string | null
+    }
+  | { kind: 'remove'; target: string }
+
+/** The dependencies of one run of an entry's export: the file changes it collects, and whether it only plans them. */
+interface ExportDeps extends FinalizerDeps {
+  changes: FileChange[]
+  /** A planning run, outside the write lock: it records no export, which the commit run does. */
+  planning: boolean
+}
+
+function collect(deps: ExportDeps, change: FileChange): void {
+  assertContained(deps.layout, deps.fs, change.target)
+  const repeated = deps.changes.some(
+    (known) => known.kind === 'write' && change.kind === 'write' && known.target === change.target && known.identity === change.identity
+  )
+  if (!repeated) {
+    deps.changes.push(change)
+  }
+}
+
+/** Puts `text` at `target` at the entry's commit; `verify` checks the staged copy (default: exact text). */
+function putText(deps: ExportDeps, target: string, text: string, options: { verify?: (written: string) => void; restore?: string | null } = {}): void {
+  const verify = options.verify ?? exactly(text, displayPath(deps.layout, target))
+  collect(deps, { kind: 'write', target, data: text, identity: text, check: (fs, temp) => verify(fs.readFile(temp)), restore: options.restore })
+}
+
+/** The text an earlier change of this export puts at `target`: later steps of the export read it as on disk. */
+function collectedText(deps: ExportDeps, target: string): string | null {
+  for (let index = deps.changes.length - 1; index >= 0; index -= 1) {
+    const change = deps.changes[index]
+    if (change?.target === target) {
+      return change.kind === 'write' && typeof change.data === 'string' ? change.data : null
+    }
+  }
+  return null
+}
+
+function discardAll(fs: FsAdapter, temps: (string | null)[]): void {
+  for (const temp of temps) {
+    if (temp !== null) {
+      discard(fs, temp)
+    }
+  }
+}
+
+/**
+ * Outside the write lock: writes each change's temp file, fsyncs it and reads it back. The temps sit under `local/`
+ * (never tracked, never read by a reconcile), named after the entry, the change and its target. On a failure every
+ * temp staged so far is removed.
+ */
+function stageChanges(deps: FinalizerDeps, entryId: number, changes: FileChange[]): (string | null)[] {
+  const temps: (string | null)[] = []
+  try {
+    changes.forEach((change, index) => {
+      if (change.kind === 'remove') {
+        temps.push(null)
+        return
+      }
+      const name = relative(deps.layout.dmDir, change.target).split(sep).join('~')
+      const temp = join(deps.layout.localDir, 'staging', `${entryId}-${index}-${name}.tmp-${process.pid}`)
+      temps.push(temp)
+      assertContained(deps.layout, deps.fs, temp)
+      deps.fs.mkdirp(dirname(temp))
+      assertContained(deps.layout, deps.fs, temp)
+      if (typeof change.data === 'string') {
+        deps.fs.writeFile(temp, change.data)
+      } else {
+        deps.fs.writeFileBytes(temp, change.data)
+      }
+      deps.fs.fsyncFile(temp)
+      change.check(deps.fs, temp)
+    })
+  } catch (error: unknown) {
+    discardAll(deps.fs, temps)
+    throw error
+  }
+  return temps
+}
+
+/**
+ * Inside the commit's transaction: renames each staged temp over its target, or removes the file, in the order the
+ * export collected them. Containment is re-checked right before each, so a directory swapped for a link meanwhile is
+ * caught.
+ */
+function putInPlace(deps: FinalizerDeps, changes: FileChange[], temps: (string | null)[], placed: Set<number>): void {
+  changes.forEach((change, index) => {
+    assertContained(deps.layout, deps.fs, change.target)
+    if (change.kind === 'remove') {
+      deps.fs.remove(change.target)
+    } else {
+      deps.fs.mkdirp(dirname(change.target))
+      assertContained(deps.layout, deps.fs, change.target)
+      deps.fs.rename(temps[index] ?? fail('internal', `No staged file for ${displayPath(deps.layout, change.target)}.`), change.target)
+    }
+    placed.add(index)
+  })
+}
+
 /** Writes a snapshot once; an existing file must hold the same bundle and is never rewritten. */
-function writeSnapshot(env: WriteEnv, record: SnapshotRecord): void {
-  const target = ownedPaths(env.layout).snapshotFile(record.epicId, record.revisionId)
-  const shown = displayPath(env.layout, target)
-  const existing = readOwnedText(env, target)
+function writeSnapshot(deps: ExportDeps, record: SnapshotRecord): void {
+  const target = ownedPaths(deps.layout).snapshotFile(record.epicId, record.revisionId)
+  const shown = displayPath(deps.layout, target)
+  const existing = collectedText(deps, target) ?? readOwnedText(deps, target)
   if (existing !== null) {
     if (parseRecord(snapshotRecord, existing, shown).contentHash !== record.contentHash) {
       fail('conflict', `${shown} already exists with different content; snapshots are never rewritten.`)
     }
     return
   }
-  try {
-    writeFileSafely(env, target, prettyJson(record), (written) => {
+  putText(deps, target, prettyJson(record), {
+    verify: (written) => {
       if (parseRecord(snapshotRecord, written, shown).contentHash !== record.contentHash) {
         fail('internal', `Read-back of ${shown} does not match the revision's content hash.`)
       }
-    })
-  } catch (error: unknown) {
-    // The file did not exist before this write and nothing points at it yet: drop an unverified
-    // copy so the retry writes it again instead of refusing to rewrite a snapshot.
-    discard(env.fs, target)
-    throw error
-  }
+    }
+  })
 }
 
 /** Kinds of `sync_state` rows the finalizer records exports for. */
@@ -180,7 +297,10 @@ function nextGeneration(db: Db, kind: ExportKind, entityId: string): number {
   return (row?.generation ?? 0) + 1
 }
 
-function recordExport(deps: FinalizerDeps, entry: { kind: ExportKind; entityId: string; hash: string; generation: number }): void {
+function recordExport(deps: ExportDeps, entry: { kind: ExportKind; entityId: string; hash: string; generation: number }): void {
+  if (deps.planning) {
+    return
+  }
   deps.db.run(
     `INSERT INTO sync_state (kind, entity_id, exported_hash, generation, imported_hash, conflict, updated_at)
      VALUES (?, ?, ?, ?, NULL, NULL, ?)
@@ -199,20 +319,35 @@ function recordExport(deps: FinalizerDeps, entry: { kind: ExportKind; entityId: 
  * id (two ids can share bytes); nothing but the id, the hash, the creator and the time goes in. A file already holding
  * exactly this text is left alone.
  */
-function writeAttachmentSidecar(deps: FinalizerDeps, attachment: StoredAttachment, folder: AttachmentFolder): void {
+function writeAttachmentSidecar(deps: ExportDeps, attachment: StoredAttachment, folder: AttachmentFolder): void {
   const target = ownedPaths(deps.layout).attachmentSidecarFile(folder, attachment.id)
   const text = prettyJson({ id: attachment.id, sha256: attachment.sha256, createdBy: attachment.createdBy, createdAt: attachment.createdAt })
   assertContained(deps.layout, deps.fs, target)
   if (deps.fs.exists(target) && readOwnedText(deps, target) === text) {
     return
   }
-  writeFileSafely(deps, target, text)
+  putText(deps, target, text)
 }
 
 /** Writes one image's file beside its owner's records and records the export (its hash is the image's sha256). */
-function exportAttachmentFile(deps: FinalizerDeps, attachment: StoredAttachment): void {
+function exportAttachmentFile(deps: ExportDeps, attachment: StoredAttachment): void {
   const placement = placementOfAttachment(deps.db, attachment)
-  writeAttachmentFile(deps, attachment, placement)
+  const target = ownedPaths(deps.layout).attachmentFile(placement.folder, attachment.sha256, attachment.mime)
+  const data = attachmentBytesToWrite(deps, attachment, target)
+  if (data !== null) {
+    const sha256 = attachment.sha256
+    collect(deps, {
+      kind: 'write',
+      target,
+      data,
+      identity: `sha256:${sha256}`,
+      check: (fs, temp) => {
+        if (sha256Of(fs.readFileBytes(temp)) !== sha256) {
+          fail('internal', `Read-back of ${displayPath(deps.layout, target)} does not match what was written.`)
+        }
+      }
+    })
+  }
   writeAttachmentSidecar(deps, attachment, placement.folder)
   recordExport(deps, {
     kind: 'attachment',
@@ -227,7 +362,7 @@ function exportAttachmentFile(deps: FinalizerDeps, attachment: StoredAttachment)
  * them in: an owner's claim can come after its record's own entry, and a record must never point at a file that is
  * not there yet. Images already exported are not touched.
  */
-function exportAttachmentsOf(deps: FinalizerDeps, record: OwningRecord): void {
+function exportAttachmentsOf(deps: ExportDeps, record: OwningRecord): void {
   for (const attachment of unexportedAttachments(deps.db, record)) {
     exportAttachmentFile(deps, attachment)
   }
@@ -241,7 +376,7 @@ function attachmentExists(db: Db, id: string): boolean {
  * The `attachment` entry of one claimed image. An image in an epic's folder waits for the epic's records to be in this
  * checkout, as a comment does, so a checkout of another branch never gets an epic folder holding images alone.
  */
-function exportAttachment(deps: FinalizerDeps, attachmentId: string): void {
+function exportAttachment(deps: ExportDeps, attachmentId: string): void {
   if (!attachmentExists(deps.db, attachmentId)) {
     // Detached or deleted after it was queued: there is nothing left to export.
     return
@@ -266,7 +401,7 @@ function exportAttachment(deps: FinalizerDeps, attachmentId: string): void {
  * file stays while any row of the card, or of one of its attempts, has that hash). Runs before the card record is
  * written, so a record never lists an image whose file was just removed, and a dropped image's file does not linger.
  */
-function pruneCardAttachmentFiles(deps: FinalizerDeps, cardId: string): void {
+function pruneCardAttachmentFiles(deps: ExportDeps, cardId: string): void {
   const dir = ownedPaths(deps.layout).attachmentsDir({ kind: 'kanban_card', id: cardId })
   assertContained(deps.layout, deps.fs, dir)
   if (!deps.fs.exists(dir) || !deps.fs.isDirectory(dir)) {
@@ -291,9 +426,7 @@ function pruneCardAttachmentFiles(deps: FinalizerDeps, cardId: string): void {
     const sidecar = ATTACHMENT_SIDECAR_NAME.exec(name)
     // A sidecar is named by id, so it goes with its own image row, even when another id keeps the same bytes.
     if ((match !== null && !keptHashes.has(match[1] ?? '')) || (sidecar !== null && !keptIds.has(sidecar[1] ?? ''))) {
-      const file = join(dir, name)
-      assertContained(deps.layout, deps.fs, file)
-      deps.fs.remove(file)
+      collect(deps, { kind: 'remove', target: join(dir, name) })
     }
   }
 }
@@ -441,10 +574,10 @@ function restoreFile(env: WriteEnv, path: string, text: string | null): void {
  * are held for a Linear transfer or hold records this machine has not imported (`requireWritableRecords`).
  *
  * Before anything is replaced, the hashes the files may pass through are noted (`readExportIntent`), so a process
- * that dies before the row commits does not lock itself out. When a write or its record fails, both files are put
- * back as they were, so the checkout again holds the records this machine last synced.
+ * that dies before the row commits does not lock itself out. When a rename or the commit fails, the files already
+ * replaced are put back as they were (`restore`), so the checkout again holds the records this machine last synced.
  */
-function exportEpic(deps: FinalizerDeps, epicId: string, entryId: number): void {
+function exportEpic(deps: ExportDeps, epicId: string, entryId: number): void {
   const epic = deps.db.get<{ current_revision_id: string | null }>('SELECT current_revision_id FROM epics WHERE id = ?', epicId)
   if (epic === undefined) {
     fail('not_found', `Epic ${epicId} does not exist.`)
@@ -466,16 +599,10 @@ function exportEpic(deps: FinalizerDeps, epicId: string, entryId: number): void 
     trackedEpicHash(pointerText, before.state ?? '')
   ]
   const intent = { entryId, row: epicSyncedRow(deps.db, epicId), hashes }
-  writeFileSafely(deps, paths.exportIntentFile(epicId), JSON.stringify(intent))
-  try {
-    writeFileSafely(deps, paths.epicStateFile(epicId), stateText)
-    writeFileSafely(deps, paths.epicPointerFile(epicId), pointerText)
-    recordExport(deps, { kind: 'epic', entityId: epicId, hash: trackedEpicHash(pointerText, stateText), generation: meta.generation })
-  } catch (error: unknown) {
-    restoreFile(deps, paths.epicStateFile(epicId), before.state)
-    restoreFile(deps, paths.epicPointerFile(epicId), before.pointer)
-    throw error
-  }
+  putText(deps, paths.exportIntentFile(epicId), JSON.stringify(intent))
+  putText(deps, paths.epicStateFile(epicId), stateText, { restore: before.state })
+  putText(deps, paths.epicPointerFile(epicId), pointerText, { restore: before.pointer })
+  recordExport(deps, { kind: 'epic', entityId: epicId, hash: trackedEpicHash(pointerText, stateText), generation: meta.generation })
 }
 
 /** An immutable record: written once, and an existing file must hold the very same record. */
@@ -488,10 +615,10 @@ interface OnceRecord<T> {
   same?: (onDisk: T, value: T) => boolean
 }
 
-/** Writes an immutable record file once and returns the text on disk; an existing file must hold the same record. */
-function writeOnce<T>(env: WriteEnv, target: string, record: OnceRecord<T>): string {
-  const shown = displayPath(env.layout, target)
-  const existing = readOwnedText(env, target)
+/** Writes an immutable record file once and returns its text; an existing file must hold the same record. */
+function writeOnce<T>(deps: ExportDeps, target: string, record: OnceRecord<T>): string {
+  const shown = displayPath(deps.layout, target)
+  const existing = readOwnedText(deps, target)
   if (existing !== null) {
     const same = record.same ?? ((onDisk: T, value: T) => contentHash(onDisk) === contentHash(value))
     if (!same(parseRecord(record.schema, existing, shown), record.value)) {
@@ -503,13 +630,7 @@ function writeOnce<T>(env: WriteEnv, target: string, record: OnceRecord<T>): str
   if (Buffer.byteLength(text, 'utf8') > MAX_RECORD_BYTES) {
     fail('internal', `${shown} would be larger than the 8 MiB record limit, so it is not written.`)
   }
-  try {
-    writeFileSafely(env, target, text)
-  } catch (error: unknown) {
-    // Nothing existed before this write: drop an unverified copy so the retry writes it again.
-    discard(env.fs, target)
-    throw error
-  }
+  putText(deps, target, text)
   return text
 }
 
@@ -529,7 +650,7 @@ function requireEpicRecords(deps: FinalizerDeps, epicId: string, what: string): 
 }
 
 /** Comments are exported beside their epic's records, so only once the epic has a saved plan in this checkout. */
-function exportComment(deps: FinalizerDeps, commentId: string): void {
+function exportComment(deps: ExportDeps, commentId: string): void {
   const record = buildCommentRecord(deps.db, commentId)
   const epic = deps.db.get<{ current_revision_id: string | null }>('SELECT current_revision_id FROM epics WHERE id = ?', record.epicId)
   if ((epic?.current_revision_id ?? null) === null) {
@@ -547,7 +668,7 @@ function exportComment(deps: FinalizerDeps, commentId: string): void {
  * same observation, so an export interrupted after its write is completed by the retry and never rewritten. Another
  * machine's file of the same delivery (same payload, its own `recordedAt`) is that observation too, and is kept.
  */
-function exportObservation(deps: FinalizerDeps, observationId: string): void {
+function exportObservation(deps: ExportDeps, observationId: string): void {
   const record = buildObservationRecord(deps.db, observationId)
   const epicId = record.observation.scope.epicId
   if (epicId !== null) {
@@ -575,7 +696,7 @@ function exportObservation(deps: FinalizerDeps, observationId: string): void {
  * records: a file already there must hold this scorecard (a truncated or edited copy is a `conflict`, never rewritten),
  * and one written now must pass the import's own check (schema, seal, regrade under its policy), else `conflict`.
  */
-function exportScorecards(deps: FinalizerDeps, runId: string): void {
+function exportScorecards(deps: ExportDeps, runId: string): void {
   const paths = ownedPaths(deps.layout)
   for (const { reportId, text } of scorecardRecordTexts(deps.db, runId)) {
     const target = paths.scorecardFile(runId, reportId)
@@ -597,13 +718,7 @@ function exportScorecards(deps: FinalizerDeps, runId: string): void {
       const reason = error instanceof Error ? error.message : String(error)
       fail('conflict', `The stored scorecard of report ${reportId} is not exported: every other machine would refuse run ${runId} over it. ${reason}`)
     }
-    try {
-      writeFileSafely(deps, target, text)
-    } catch (error: unknown) {
-      // Nothing existed before this write: drop an unverified copy so the retry writes it again.
-      discard(deps.fs, target)
-      throw error
-    }
+    putText(deps, target, text)
   }
 }
 
@@ -623,7 +738,7 @@ function sameScorecard(onDisk: string, text: string): boolean {
  * reconcile has seen it, the entry fails with `conflict` and waits; the next export after that reconcile wins, as a
  * profile's does.
  */
-function exportKanbanCard(deps: FinalizerDeps, cardId: string): void {
+function exportKanbanCard(deps: ExportDeps, cardId: string): void {
   exportAttachmentsOf(deps, { kind: 'kanban_card', id: cardId })
   pruneCardAttachmentFiles(deps, cardId)
   const target = ownedPaths(deps.layout).kanbanCardFile(cardId)
@@ -638,7 +753,7 @@ function exportKanbanCard(deps: FinalizerDeps, cardId: string): void {
     )
   }
   if (existing !== text) {
-    writeFileSafely(deps, target, text)
+    putText(deps, target, text)
   }
   recordExport(deps, { kind: 'kanban_card', entityId: cardId, hash: trackedKanbanCardHash(text), generation })
 }
@@ -647,7 +762,7 @@ function exportKanbanCard(deps: FinalizerDeps, cardId: string): void {
  * Writes a card's event once, beside its `card.json`. A checkout without the card's record (another branch) would get
  * a card folder with events alone, which every reconcile rejects; the entry waits instead, as a comment's does.
  */
-function exportKanbanEvent(deps: FinalizerDeps, eventId: string): void {
+function exportKanbanEvent(deps: ExportDeps, eventId: string): void {
   const record = buildKanbanEventRecord(deps.db, eventId)
   const paths = ownedPaths(deps.layout)
   const cardFile = paths.kanbanCardFile(record.cardId)
@@ -708,7 +823,7 @@ function required(value: string | null, what: string): string {
   return value
 }
 
-type EntryHandler = (deps: FinalizerDeps, hooks: FinalizerHooks, entry: OutboxRow) => void
+type EntryHandler = (deps: ExportDeps, hooks: FinalizerHooks, entry: OutboxRow) => void
 
 const FILE_HANDLERS: Record<OutboxKind, EntryHandler> = {
   snapshot: (deps, hooks, entry) => {
@@ -727,14 +842,14 @@ const FILE_HANDLERS: Record<OutboxKind, EntryHandler> = {
     exportAttachmentsOf(deps, { kind: 'run', id: runId })
     exportScorecards(deps, runId)
     const text = prettyJson(buildRunHistoryRecord(deps.db, runId))
-    writeFileSafely(deps, ownedPaths(deps.layout).runHistoryFile(runId), text)
+    putText(deps, ownedPaths(deps.layout).runHistoryFile(runId), text)
     recordExport(deps, { kind: 'run', entityId: runId, hash: trackedRunHash(text), generation: nextGeneration(deps.db, 'run', runId) })
   },
   comment: (deps, _hooks, entry) => exportComment(deps, required(entry.entity_id, 'comment id')),
   profile: (deps, _hooks, entry) => {
     const name = required(entry.entity_id, 'entity id')
     const text = prettyJson(buildProfileRecord(deps.db, name))
-    writeFileSafely(deps, ownedPaths(deps.layout).profileFile(name), text)
+    putText(deps, ownedPaths(deps.layout).profileFile(name), text)
     recordExport(deps, { kind: 'profile', entityId: name, hash: trackedProfileHash(text), generation: nextGeneration(deps.db, 'profile', name) })
   },
   kanban_card: (deps, _hooks, entry) => exportKanbanCard(deps, required(entry.entity_id, 'card id')),
@@ -777,36 +892,145 @@ const DB_HANDLERS: Record<OutboxKind, EntryHandler> = {
   metric_observation: () => undefined
 }
 
-const HANDLERS_BY_MODE: Record<StorageMode, Record<OutboxKind, EntryHandler>> = {
-  repo: FILE_HANDLERS,
-  db: DB_HANDLERS
+type EntryResult = 'flushed' | 'skipped' | 'stale'
+
+/** Whether the entry still waits: another process may have completed it meanwhile. */
+function waiting(db: Db, entryId: number): boolean {
+  const current = db.get<{ state: string }>('SELECT state FROM outbox WHERE id = ?', entryId)
+  return current !== undefined && current.state !== 'done'
 }
 
-type EntryResult = 'flushed' | 'skipped'
+function completeEntry(db: Db, entryId: number, now: string): void {
+  db.run("UPDATE outbox SET state = 'done', done_at = ?, last_error = NULL, next_attempt_at = NULL WHERE id = ?", now, entryId)
+  setMeta(db, META_KEYS.lastFlushAt, now)
+}
 
-/** Runs inside the entry's transaction; skips an entry another process completed meanwhile. */
+function exportDeps(deps: FinalizerDeps, clock: Clock, planning: boolean): ExportDeps {
+  return { db: deps.db, layout: deps.layout, fs: deps.fs, clock, changes: [], planning }
+}
+
+/** `db` mode, in one transaction: no file is written. Skips an entry another process completed meanwhile. */
 function processEntry(deps: FinalizerDeps, hooks: FinalizerHooks, entry: OutboxRow): EntryResult {
-  const current = deps.db.get<{ state: string }>('SELECT state FROM outbox WHERE id = ?', entry.id)
-  if (current === undefined || current.state === 'done') {
+  if (!waiting(deps.db, entry.id)) {
     return 'skipped'
   }
-  HANDLERS_BY_MODE[deps.layout.mode][entry.kind](deps, hooks, entry)
-  const now = deps.clock.nowIso()
-  deps.db.run("UPDATE outbox SET state = 'done', done_at = ?, last_error = NULL WHERE id = ?", now, entry.id)
-  setMeta(deps.db, META_KEYS.lastFlushAt, now)
+  DB_HANDLERS[entry.kind](exportDeps(deps, deps.clock, false), hooks, entry)
+  completeEntry(deps.db, entry.id, deps.clock.nowIso())
   return 'flushed'
+}
+
+/** Runs the entry's file export and returns the changes it collected, or null when the entry no longer waits. */
+function collectChanges(deps: ExportDeps, hooks: FinalizerHooks, entry: OutboxRow): FileChange[] | null {
+  if (!waiting(deps.db, entry.id)) {
+    return null
+  }
+  FILE_HANDLERS[entry.kind](deps, hooks, entry)
+  return deps.changes
+}
+
+/** Thrown to roll back a preview; never escapes `planChanges`. */
+const PREVIEW = Symbol('preview')
+/** Thrown to roll back a commit whose export no longer matches what was staged. */
+const STALE = Symbol('stale')
+
+/**
+ * Plans the entry's file changes in a read transaction, without the write lock. A save's hook changes the rows its
+ * state is built from, so a snapshot entry is previewed in a write transaction that is rolled back: only database
+ * work and reads of the tracked files happen while it is open, never a write, an fsync or a read-back.
+ */
+function planChanges(deps: FinalizerDeps, clock: Clock, hooks: FinalizerHooks, entry: OutboxRow): FileChange[] | null {
+  const planning = exportDeps(deps, clock, true)
+  if (entry.kind !== 'snapshot') {
+    return deps.db.tx(() => collectChanges(planning, hooks, entry), 'read')
+  }
+  const preview: { changes: FileChange[] | null } = { changes: null }
+  try {
+    deps.db.tx(() => {
+      preview.changes = collectChanges(planning, hooks, entry)
+      throw PREVIEW
+    })
+  } catch (error: unknown) {
+    if (error !== PREVIEW) {
+      throw error
+    }
+  }
+  return preview.changes
+}
+
+function sameChanges(left: FileChange[], right: FileChange[]): boolean {
+  return (
+    left.length === right.length &&
+    left.every((change, index) => {
+      const other = right[index]
+      if (other === undefined || other.kind !== change.kind || other.target !== change.target) {
+        return false
+      }
+      return change.kind === 'remove' || (other.kind === 'write' && other.identity === change.identity && other.restore === change.restore)
+    })
+  )
+}
+
+/**
+ * A `repo` mode entry in two steps (see the module comment). Staging plans the changes and writes, fsyncs and reads
+ * back their temps, outside the write lock. The commit, in one short write transaction, exports the entry again from
+ * the rows as they are now, at the same time (so the records rebuild byte for byte); only when that collects exactly
+ * the staged changes are the temps renamed into place and the entry completed. When anything changed meanwhile
+ * (`stale`), the temps are dropped and the entry waits for the next flush, which exports the newer state.
+ */
+function exportEntry(deps: FinalizerDeps, hooks: FinalizerHooks, entry: OutboxRow): EntryResult {
+  const now = { ms: deps.clock.nowMs(), iso: deps.clock.nowIso() }
+  const clock: Clock = { nowMs: () => now.ms, nowIso: () => now.iso }
+  const planned = planChanges(deps, clock, hooks, entry)
+  if (planned === null) {
+    return 'skipped'
+  }
+  const temps = stageChanges(deps, entry.id, planned)
+  const placed = new Set<number>()
+  try {
+    return deps.db.tx((): EntryResult => {
+      const changes = collectChanges(exportDeps(deps, clock, false), hooks, entry)
+      if (changes === null) {
+        return 'skipped'
+      }
+      if (!sameChanges(changes, planned)) {
+        throw STALE
+      }
+      putInPlace(deps, planned, temps, placed)
+      completeEntry(deps.db, entry.id, now.iso)
+      return 'flushed'
+    })
+  } catch (error: unknown) {
+    if (error === STALE) {
+      return 'stale'
+    }
+    // Outside the rolled-back transaction: the tracked files it replaced go back as they were.
+    planned.forEach((change, index) => {
+      if (placed.has(index) && change.kind === 'write' && change.restore !== undefined) {
+        restoreFile(deps, change.target, change.restore)
+      }
+    })
+    throw error
+  } finally {
+    discardAll(deps.fs, temps.filter((_temp, index) => !placed.has(index)))
+  }
 }
 
 function recordFailure(deps: FinalizerDeps, entry: OutboxRow, message: string): void {
   deps.db.tx(() => {
+    const row = deps.db.get<{ attempts: number; state: string }>('SELECT attempts, state FROM outbox WHERE id = ?', entry.id)
+    if (row === undefined) {
+      return
+    }
+    // The delay counts a failed entry's failures past the attempt maximum, so it reaches its 5 min cap.
+    const attempts = Math.min(row.attempts + 1, MAX_FLUSH_ATTEMPTS)
+    const failures = row.state === 'failed' ? MAX_FLUSH_ATTEMPTS + 1 : row.attempts + 1
+    const delay = Math.min(RETRY_DELAY_SECONDS * 2 ** (failures - 1), MAX_RETRY_DELAY_SECONDS)
     deps.db.run(
-      `UPDATE outbox SET attempts = MIN(attempts + 1, ?), last_error = ?,
-         state = CASE WHEN MIN(attempts + 1, ?) >= ? THEN 'failed' ELSE 'pending' END
-       WHERE id = ?`,
-      MAX_FLUSH_ATTEMPTS,
+      'UPDATE outbox SET attempts = ?, last_error = ?, state = ?, next_attempt_at = ? WHERE id = ?',
+      attempts,
       message.slice(0, MAX_ERROR_LENGTH),
-      MAX_FLUSH_ATTEMPTS,
-      MAX_FLUSH_ATTEMPTS,
+      attempts >= MAX_FLUSH_ATTEMPTS ? 'failed' : 'pending',
+      addSeconds(deps.clock.nowIso(), delay),
       entry.id
     )
   })
@@ -857,27 +1081,52 @@ function noteFailure(outcome: FlushOutcome, entry: OutboxRow, message: string): 
   }
 }
 
+/** An explicit flush (`flush_portable_state`, the desktop Flush) retries every waiting entry; a scheduled one honors backoff. */
+export type FlushMode = 'explicit' | 'scheduled'
+
 interface FlushState {
   outcome: FlushOutcome
   blocked: Set<string>
+  mode: FlushMode
+}
+
+/** Whether a scheduled flush leaves the entry: it failed, and its retry time has not come yet. */
+function backingOff(deps: FinalizerDeps, entry: OutboxRow, mode: FlushMode): boolean {
+  return mode === 'scheduled' && entry.next_attempt_at !== null && isBefore(deps.clock.nowIso(), entry.next_attempt_at)
+}
+
+/** Tidies the export intent of a committed epic export; only a top-level commit is final. */
+function afterCommit(deps: FinalizerDeps, entry: OutboxRow): void {
+  // Inside an outer transaction the row binding still covers a rollback.
+  const exportsEpic = entry.kind === 'snapshot' || entry.kind === 'epic_state'
+  if (exportsEpic && entry.epic_id !== null && deps.layout.mode === 'repo' && !deps.db.inTransaction()) {
+    spendExportIntent(deps, entry.epic_id, entry.id)
+  }
 }
 
 function flushEntry(deps: FinalizerDeps, hooks: FinalizerHooks, entry: OutboxRow, state: FlushState): void {
   const keys = entityKeys(entry)
+  const holdBack = (): void => keys.forEach((key) => state.blocked.add(key))
   if (keys.some((key) => state.blocked.has(key))) {
     return
   }
+  // An entry waiting out its backoff, or one whose rows changed while it was staged, holds back its later records.
+  if (backingOff(deps, entry, state.mode)) {
+    holdBack()
+    return
+  }
   try {
-    noteSuccess(state.outcome, entry, deps.db.tx(() => processEntry(deps, hooks, entry)))
-    // Only a top-level commit is final: inside an outer transaction the row binding still covers a rollback.
-    const exportsEpic = entry.kind === 'snapshot' || entry.kind === 'epic_state'
-    if (exportsEpic && entry.epic_id !== null && deps.layout.mode === 'repo' && !deps.db.inTransaction()) {
-      spendExportIntent(deps, entry.epic_id, entry.id)
+    const result = deps.layout.mode === 'repo' ? exportEntry(deps, hooks, entry) : deps.db.tx(() => processEntry(deps, hooks, entry))
+    if (result === 'stale') {
+      holdBack()
+      return
     }
+    noteSuccess(state.outcome, entry, result)
+    afterCommit(deps, entry)
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error)
     recordFailure(deps, entry, message)
-    keys.forEach((key) => state.blocked.add(key))
+    holdBack()
     noteFailure(state.outcome, entry, message)
   }
 }
@@ -890,7 +1139,7 @@ export interface FlushScope {
 
 function queuedAfter(db: Db, afterId: number, scope: FlushScope | undefined): OutboxRow[] {
   const rows = db.all<OutboxRow>(
-    `SELECT o.id, o.kind, o.epic_id, o.run_id, o.revision_id, o.entity_id,
+    `SELECT o.id, o.kind, o.epic_id, o.run_id, o.revision_id, o.entity_id, o.next_attempt_at,
        CASE o.kind WHEN 'kanban_card' THEN o.entity_id
          WHEN 'kanban_event' THEN (SELECT e.card_id FROM kanban_events e WHERE e.id = o.entity_id)
          WHEN 'attachment' THEN (SELECT CASE a.owner_kind WHEN 'kanban_card' THEN a.owner_id
@@ -916,14 +1165,15 @@ function queuedAfter(db: Db, afterId: number, scope: FlushScope | undefined): Ou
  * Flushes pending (and previously failed) outbox entries in id order, through the handlers of the
  * project's storage mode (`db` writes no file), all of them or those in `scope`. A failed entry blocks later
  * entries of the same epic, run, or keyed record (such as a profile) so their records are never
- * written out of order; other entities continue. Entries queued by the flush itself are picked up
- * by a further pass (bounded). Flush failures never throw: they are counted, and the entry keeps
- * its last error.
+ * written out of order; other entities continue. A `scheduled` flush (after a mutation) leaves a failed entry
+ * until its backoff has passed; an `explicit` one retries it at once. Entries queued by the flush itself are picked
+ * up by a further pass (bounded). Flush failures never throw: they are counted, and the entry keeps its last error.
  */
-export function flushOutbox(deps: FinalizerDeps, hooks: FinalizerHooks, scope?: FlushScope): FlushOutcome {
+export function flushOutbox(deps: FinalizerDeps, hooks: FinalizerHooks, scope?: FlushScope, mode: FlushMode = 'explicit'): FlushOutcome {
   const state: FlushState = {
     outcome: { flushed: 0, failed: 0, errors: [], savedRevisionIds: [], failedRevisionIds: [] },
-    blocked: new Set<string>()
+    blocked: new Set<string>(),
+    mode
   }
   let afterId = 0
   for (let pass = 0; pass < MAX_FLUSH_PASSES; pass += 1) {
