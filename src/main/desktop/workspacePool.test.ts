@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { createHarness } from '../../test/workspaceHarness'
 import { runWorkspaceOperation } from './workspaceOperations'
 import { DomainError } from '../../core/errors'
-import type { OwnerResult, OwnerTransport, Work } from './workspaceClient'
+import type { OwnerResult, OwnerTransport, SyncMode, Work } from './workspaceClient'
 import { createWorkspacePool } from './workspacePool'
 
 function barrier<T>() {
@@ -11,13 +11,14 @@ function barrier<T>() {
   return { promise, resolve }
 }
 
-function fixture() {
+function fixture(idleMs?: number) {
   const live = new Set<number>()
   const retired: number[] = []
   const admitted: { project: string; name: string; generation: number; expected: string | undefined }[] = []
   let max = 0
   const overrides = new Map<string, () => Promise<OwnerResult>>()
   const onError = vi.fn()
+  const reply = (project: string, name: string) => overrides.get(project + ':' + name)?.() ?? { value: project, binding: 'binding-' + project }
   function open(generation: number): OwnerTransport {
     live.add(generation)
     max = Math.max(max, live.size)
@@ -25,44 +26,153 @@ function fixture() {
       async run(project: string, work: Work, _authority, expected) {
         const name = work.kind === 'heartbeat' ? 'heartbeat' : work.name
         admitted.push({ project, name, generation, expected })
-        return overrides.get(project + ':' + name)?.() ?? { value: project, binding: 'binding-' + project }
+        return reply(project, name)
+      },
+      async sync(project: string, mode: SyncMode, _authority, expected) {
+        admitted.push({ project, name: 'sync:' + mode, generation, expected })
+        return overrides.get(project + ':sync')?.() ?? { value: { result: synced(project), hasLocalCache: true }, binding: 'binding-' + project }
       },
       async close() { live.delete(generation); retired.push(generation) }
     }
   }
-  const pool = createWorkspacePool({ canonical: p => p === 'a-link' ? 'a' : p, open, onError })
-  return { pool, admitted, retired, live, overrides, max: () => max, onError }
+  const pool = createWorkspacePool({ canonical: p => p === 'a-link' ? 'a' : p, open, onError, ...(idleMs === undefined ? {} : { idleMs }) })
+  const named = (project: string) => admitted.filter(row => row.project === project).map(row => row.name)
+  // Owner requests only: an owner's open-time reconcile follows on its lane.
+  const ran = () => admitted.filter(row => !row.name.startsWith('sync:'))
+  return { pool, admitted, named, ran, retired, live, overrides, max: () => max, onError }
+}
+
+function synced(project: string) {
+  return { imported: [project], unchanged: [], conflicts: [], profileConflicts: [], kanbanConflicts: [], rejected: [], branchChanged: false, pausedRuns: [] }
 }
 
 afterEach(() => vi.useRealTimers())
 
-it('keeps one canonical project FIFO while a locked project and two background requests leave the foreground slot available', async () => {
-  const { pool, admitted, overrides, max, live } = fixture()
+it('serves reads and a mutation on the same project while its lane reconcile is held, and keeps two owner slots', async () => {
+  const { pool, named, overrides, max, live } = fixture()
   expect(pool.get('a-link')).toBe(pool.get('a'))
   expect(live.size).toBe(0)
   const held = barrier<OwnerResult>()
-  overrides.set('a:reconcileMember', () => held.promise)
-  const reconcile = pool.reconcile('a')
-  expect(pool.reconcile('a-link')).toBe(reconcile)
-  const write = pool.get('a').createKanbanCard({ title: 'Mutation after reconcile' })
+  overrides.set('a:sync', () => held.promise)
+  let released = false
+  const reconcile = pool.reconcile('a').finally(() => { expect(released).toBe(true) })
+  const epic = pool.get('a').getEpic({ epicId: 'ep_1' })
+  const cards = pool.get('a-link').listKanbanCards({})
+  const write = pool.get('a').createKanbanCard({ title: 'Mutation during reconcile' })
+  await expect(Promise.all([epic, cards, write])).resolves.toEqual(['a', 'a', 'a'])
   const mailbox = pool.background('mailbox').call('listMailboxRoutes', ['mailbox_chat'])
-  const otherBackground = pool.reconcile('c')
   expect(await pool.get('b').getProject()).toBe('b')
-  expect(admitted.map(row => [row.project, row.name])).toEqual([['a','reconcileMember'], ['b','getProject']])
-  held.resolve({ value: 'a', binding: 'binding-a' })
-  await Promise.all([reconcile, write, otherBackground, mailbox])
-  expect(admitted.filter(row => row.project === 'a').map(row => row.name)).toEqual(['reconcileMember','createKanbanCard'])
-  expect(admitted.find(row => row.project === 'c')?.name).toBe('reconcileMember')
-  expect(admitted.find(row => row.project === 'mailbox')?.name).toBe('listMailboxRoutes')
+  expect(named('a')).toEqual(['sync:member', 'getEpic', 'listKanbanCards', 'createKanbanCard'])
+  released = true
+  held.resolve({ value: { result: synced('a'), hasLocalCache: false }, binding: 'binding-a' })
+  await expect(reconcile).resolves.toEqual({ result: synced('a'), hasLocalCache: false })
+  await mailbox
   expect(max()).toBe(2)
   await pool.closeAll()
   expect(live.size).toBe(0)
 })
 
-it('retires two idle owners on background pressure to keep a second slot available', async () => {
-  const { pool, live, retired } = fixture()
+it('runs an explicit reconcile command on the lane and returns its unchanged result shape', async () => {
+  const { pool, named, overrides } = fixture()
+  const held = barrier<OwnerResult>()
+  overrides.set('a:sync', () => held.promise)
+  const explicit = pool.get('a').reconcileRepository()
+  await expect(pool.get('a').getProject()).resolves.toBe('a')
+  held.resolve({ value: { result: synced('explicit'), hasLocalCache: true }, binding: 'binding-a' })
+  await expect(explicit).resolves.toEqual(synced('explicit'))
+  expect(named('a').slice(0, 2)).toEqual(['sync:explicit', 'getProject'])
+  await pool.closeAll()
+})
+
+it('coalesces heartbeats into one running and one pending reconcile, then skips heartbeats within 15 s of the last', async () => {
+  vi.useFakeTimers()
+  const { pool, named, overrides } = fixture()
+  await pool.get('a').getProject()
+  await vi.advanceTimersByTimeAsync(0)
+  expect(named('a')).toEqual(['getProject', 'sync:heartbeat'])
+  await vi.advanceTimersByTimeAsync(15_000)
+  const held = barrier<OwnerResult>()
+  overrides.set('a:sync', () => held.promise)
+  const member = pool.reconcile('a')
+  for (let beat = 0; beat < 5; beat += 1) pool.heartbeatAll()
+  const joined = pool.reconcile('a')
+  await vi.advanceTimersByTimeAsync(0)
+  expect(named('a').filter(name => name.startsWith('sync:'))).toEqual(['sync:heartbeat', 'sync:member'])
+  overrides.delete('a:sync')
+  held.resolve({ value: { result: synced('first'), hasLocalCache: true }, binding: 'binding-a' })
+  await expect(member).resolves.toMatchObject({ result: synced('first') })
+  await expect(joined).resolves.toMatchObject({ result: synced('a') })
+  expect(named('a').filter(name => name.startsWith('sync:'))).toEqual(['sync:heartbeat', 'sync:member', 'sync:member'])
+  pool.heartbeatAll()
+  await vi.advanceTimersByTimeAsync(14_000)
+  pool.heartbeatAll()
+  await vi.advanceTimersByTimeAsync(0)
+  expect(named('a').filter(name => name.startsWith('sync:'))).toHaveLength(3)
+  await vi.advanceTimersByTimeAsync(1_000)
+  pool.heartbeatAll()
+  await vi.advanceTimersByTimeAsync(0)
+  expect(named('a').filter(name => name.startsWith('sync:'))).toHaveLength(4)
+  await pool.closeAll()
+})
+
+it('stops the lane on untrack, waits for the running reconcile before closing the owner, and drops its late result', async () => {
+  const { pool, overrides, live, retired, onError } = fixture()
+  await pool.get('a').getProject()
+  const held = barrier<OwnerResult>()
+  overrides.set('a:sync', () => held.promise)
+  const running = pool.reconcile('a')
+  const pending = pool.reconcile('a')
+  const closing = pool.close('a')
+  await expect(pending).rejects.toMatchObject({ code: 'conflict' })
+  await Promise.resolve()
+  expect(live.size).toBe(1)
+  held.resolve({ value: { result: synced('late'), hasLocalCache: true }, binding: 'binding-a' })
+  await expect(running).rejects.toMatchObject({ details: { completion: 'stale' } })
+  await closing
+  expect(live.size).toBe(0)
+  expect(retired).toEqual([1])
+  expect(onError).not.toHaveBeenCalled()
+  overrides.delete('a:sync')
+  await expect(pool.reconcile('a')).resolves.toMatchObject({ result: synced('a') })
+  await pool.closeAll()
+})
+
+it('never retires an owner the screen used in the last 60 s to admit background work', async () => {
+  vi.useFakeTimers()
+  const { pool, live, retired, named } = fixture(600_000)
   await Promise.all([pool.get('a').getProject(), pool.get('b').getProject()])
+  await vi.advanceTimersByTimeAsync(0)
   expect(live.size).toBe(2)
+  const background = pool.reconcile('c')
+  const mailbox = pool.background('d').call('listMailboxRoutes', ['mailbox_chat'])
+  await vi.advanceTimersByTimeAsync(59_000)
+  expect(retired).toEqual([])
+  expect(named('c')).toEqual([])
+  await pool.get('a').getProject()
+  await vi.advanceTimersByTimeAsync(1_000)
+  await expect(background).resolves.toMatchObject({ result: synced('c') })
+  await expect(mailbox).resolves.toBe('d')
+  // b's protection lapsed at 60 s and made room for c; c, which the screen never used, made room for d; a, used at 59 s, stayed.
+  expect(retired).toEqual([2, 3])
+  expect(live.size).toBe(2)
+  await pool.closeAll()
+})
+
+it('lets background work take the spare slot while the screen protects the only owner', async () => {
+  vi.useFakeTimers()
+  const { pool, live, retired } = fixture(600_000)
+  await pool.get('a').getProject()
+  await expect(pool.reconcile('c')).resolves.toMatchObject({ result: synced('c') })
+  expect(retired).toEqual([])
+  expect(live.size).toBe(2)
+  await pool.closeAll()
+})
+
+it('retires two idle owners the screen has not used for 60 s on background pressure', async () => {
+  vi.useFakeTimers()
+  const { pool, live, retired } = fixture(600_000)
+  await Promise.all([pool.get('a').getProject(), pool.get('b').getProject()])
+  await vi.advanceTimersByTimeAsync(60_000)
   await pool.reconcile('c')
   expect(retired).toEqual([1, 2])
   expect(live.size).toBe(1)
@@ -89,7 +199,7 @@ it('coalesces a pending heartbeat, keeps FIFO, and still retires quiet owners at
 })
 
 it('returns uncertain completion after losing a committed response and reopens only for subsequent commands', async () => {
-  const { pool, admitted, overrides } = fixture()
+  const { pool, ran, overrides } = fixture()
   const durable: string[] = []
   await pool.get('a').getProject()
   overrides.set('a:createKanbanCard', async () => {
@@ -99,7 +209,7 @@ it('returns uncertain completion after losing a committed response and reopens o
   overrides.set('a:listKanbanCards', async () => ({ value: [...durable], binding: 'binding-a' }))
   await expect(pool.get('a').createKanbanCard({ title: 'saved once' })).rejects.toMatchObject({ details: { completion: 'unknown' } })
   await expect(pool.get('a').listKanbanCards({})).resolves.toEqual(['saved once'])
-  expect(admitted.map(row => [row.generation, row.name])).toEqual([
+  expect(ran().map(row => [row.generation, row.name])).toEqual([
     [1, 'getProject'], [1, 'createKanbanCard'], [2, 'listKanbanCards']
   ])
   await pool.closeAll()
@@ -180,7 +290,7 @@ it('revokes a terminal credential that commits after untrack begins, before endi
 })
 
 it('finishes admitted credential cleanup in order during untrack without running a queued edit', async () => {
-  const { pool, admitted, overrides, live } = fixture()
+  const { pool, ran, overrides, live } = fixture()
   const original = pool.get('a')
   const background = pool.background('a')
   await original.getProject()
@@ -200,7 +310,7 @@ it('finishes admitted credential cleanup in order during untrack without running
   held.resolve({ value: undefined, binding: 'binding-a' })
   await expect(writing).rejects.toMatchObject({ details: { completion: 'stale' } })
   await Promise.all([revoke, endYolo, closing])
-  expect(admitted.map(row => row.name)).toEqual(['getProject', 'createKanbanCard', 'revokeChatGrant', 'endYolo'])
+  expect(ran().map(row => row.name)).toEqual(['getProject', 'createKanbanCard', 'revokeChatGrant', 'endYolo'])
   expect(live.size).toBe(0)
   await pool.closeAll()
   await expect(original.getProject()).rejects.toMatchObject({ code: 'conflict' })
