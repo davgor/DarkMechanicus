@@ -10,7 +10,6 @@ import { nodeFs } from '../../core/repo/nodeFs'
 import { dbProjectDir } from '../../core/repo/storageMode'
 import { bindForge, currentForgeTransfer, FORGE_POINTER, withForgeTransfer } from '../../core/repo/forgeBinding'
 import { inThreadLane, type SyncLane } from './syncLane'
-import { reconcileOnLane, releaseLane, type LaneState } from './syncLaneCore'
 import type { Work, WorkspaceRequest, WorkspaceResponse } from './workspaceClient'
 import { serveWorkspaceOwner } from './workspaceOwnerRuntime'
 
@@ -227,30 +226,21 @@ it('reads every record on an explicit lane reconcile, but only what git reports 
   gitIn(clone, 'init', '-q')
   gitIn(clone, 'add', '-A')
   gitIn(clone, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'records')
-  const rows: { mode: string; prepared: number }[] = []
-  const state: LaneState = {
-    observer: { onTransaction: () => undefined, onReconcile: row => { rows.push({ mode: row.mode, prepared: row.fileReads.prepared }) } }
-  }
-  const lane: SyncLane = {
-    reconcile: async request => reconcileOnLane(state, request),
-    release: async () => releaseLane(state),
-    close: async () => releaseLane(state)
-  }
+  const lane = inThreadLane()
   const worker = owner(h.homeDir, 1, lane)
-  const first = await worker.sync(clone, 'member')
-  if (!first.ok) throw new Error(first.error.message)
-  const binding = first.result.binding
-  // Git reports nothing changed since the marker, so a targeted reconcile reads no record body.
-  await expect(worker.sync(clone, 'member', binding)).resolves.toMatchObject({ ok: true })
-  await expect(worker.sync(clone, 'explicit', binding)).resolves.toMatchObject({ ok: true })
-  await expect(worker.sync(clone, 'heartbeat', binding)).resolves.toMatchObject({ ok: true })
-  const [cold, member, explicit, heartbeat] = rows
-  expect(cold).toMatchObject({ mode: 'member', prepared: expect.any(Number) })
-  expect(cold?.prepared).toBeGreaterThan(1)
-  expect(member).toEqual({ mode: 'member', prepared: 0 })
-  // Every record body the cold import read, read again although git reports none changed.
-  expect(explicit).toEqual({ mode: 'explicit', prepared: cold?.prepared })
-  expect(heartbeat).toEqual({ mode: 'heartbeat', prepared: 0 })
+  // Each record a reconcile visited: imported, or read and found unchanged. A targeted read lists only what it read.
+  const visited = async (mode: 'member' | 'explicit' | 'heartbeat', binding?: string) => {
+    const response = await worker.sync(clone, mode, binding)
+    if (!response.ok) throw new Error(response.error.message)
+    const value = response.result.value as { result: { imported: string[]; unchanged: string[] } | null }
+    return { binding: response.result.binding, records: value.result ? [...value.result.imported, ...value.result.unchanged].sort() : [] }
+  }
+  const cold = await visited('member')
+  expect(cold.records).not.toEqual([])
+  // Git reports nothing changed since the marker, so a targeted reconcile visits no record.
+  expect((await visited('member', cold.binding)).records).toEqual([])
+  expect((await visited('explicit', cold.binding)).records).toEqual(cold.records)
+  expect((await visited('heartbeat', cold.binding)).records).toEqual([])
 })
 
 it('serves an epic read, the Kanban board and a card mutation while its lane reconcile is held at a barrier', async () => {
