@@ -4,7 +4,9 @@ import { join, resolve } from 'node:path'
 import { fail } from '../errors'
 import { gitOriginContext, queryLocalGitOrigin, type LocalGitOriginConfigCache } from './gitOriginConfig'
 import { nodeFs } from './nodeFs'
-import type { FsAdapter, GitAdapter, GitHead } from './types'
+import { ancestorsOf } from './discovery'
+import { DM_DIR } from './layout'
+import type { FsAdapter, GitAdapter, GitHead, GitPathChange, GitPathsFailure } from './types'
 
 type RunGit = (args: string[]) => Promise<{ code: number; stdout: string }>
 /** The same, synchronously: for the few reads a database transaction needs (e.g. binding an epic branch). */
@@ -231,6 +233,84 @@ function parseCommitLine(text: string): { commit: string; parents: string[] } | 
   return valid ? { commit, parents } : null
 }
 
+/** `git diff --name-status` letters `--no-renames` can print (copies and renames never appear). */
+const DIFF_STATUS = /^[ADMTUX]$/
+/** Field counts before the path in `git status --porcelain=v2` entries: ordinary, renamed or copied, unmerged. */
+const STATUS_FIELDS: Record<string, number> = { '1': 8, '2': 9, u: 10 }
+const UNBORN_OID = '(initial)'
+
+/** `<status>\0<path>\0` pairs of `git diff --name-status -z`; null for output that is not that shape. */
+function parseNameStatus(text: string): GitPathChange[] | null {
+  const tokens = text.split('\u0000')
+  if (tokens.pop() !== '' || tokens.length % 2 !== 0) {
+    return text === '' ? [] : null
+  }
+  const paths: GitPathChange[] = []
+  for (let index = 0; index < tokens.length; index += 2) {
+    const status = tokens[index] ?? ''
+    const path = tokens[index + 1] ?? ''
+    if (!DIFF_STATUS.test(status) || path === '') {
+      return null
+    }
+    paths.push({ status, path })
+  }
+  return paths
+}
+
+/** `git status --porcelain=v2 -z --branch`: HEAD's commit and the paths, still relative to the repository root. */
+function parseStatusV2(text: string): { head: string | null; paths: GitPathChange[] } | null {
+  const tokens = text.split('\u0000')
+  if (tokens.pop() !== '') {
+    return null
+  }
+  let head: string | null | undefined
+  const paths: GitPathChange[] = []
+  for (let index = 0; index < tokens.length; index += 1) {
+    const entry = tokens[index] ?? ''
+    if (entry.startsWith('# ')) {
+      const oid = /^# branch\.oid (.+)$/.exec(entry)?.[1]
+      if (oid !== undefined) {
+        head = oid === UNBORN_OID ? null : SHA_PATTERN.test(oid) ? oid : undefined
+        if (head === undefined) return null
+      }
+      continue
+    }
+    const kind = entry.slice(0, 2)
+    if (kind === '? ' || kind === '! ') {
+      paths.push({ status: entry.charAt(0), path: entry.slice(2) })
+      continue
+    }
+    const fields = STATUS_FIELDS[entry.charAt(0)]
+    const parts = fields === undefined ? [] : entry.split(' ')
+    const path = parts.slice(fields).join(' ')
+    if (fields === undefined || parts.length <= fields || path === '') {
+      return null
+    }
+    paths.push({ status: parts[1] ?? '', path })
+    if (entry.charAt(0) === '2') {
+      // A rename or copy names its source in the next token: that path changed too.
+      index += 1
+      const source = tokens[index]
+      if (source === undefined || source === '') return null
+      paths.push({ status: parts[1] ?? '', path: source })
+    }
+  }
+  return head === undefined ? null : { head, paths }
+}
+
+/** Repository-root paths made relative to the folder at `prefix` (`rev-parse --show-prefix`); null if one is outside. */
+function belowPrefix(paths: GitPathChange[], prefix: string): GitPathChange[] | null {
+  const relative: GitPathChange[] = []
+  for (const change of paths) {
+    const path = change.path.slice(prefix.length)
+    if (!change.path.startsWith(prefix) || path === '') {
+      return null
+    }
+    relative.push({ status: change.status, path })
+  }
+  return relative
+}
+
 /**
  * Git access for one repository root. `head()` reads `.git` files directly (worktrees included);
  * the other methods run the git CLI and degrade to null/empty results when git is unavailable.
@@ -245,6 +325,13 @@ export function createGitAdapter(
   const output = async (args: string[]): Promise<string | null> => {
     const result = await run(args)
     return result.code === 0 ? result.stdout : null
+  }
+  /** Runs in `.darkmechanicus/` (a second `-C`, relative to the root) and never takes git's optional index lock. */
+  const inDmDir = (args: string[]): Promise<string | null> => output(['--no-optional-locks', '-C', DM_DIR, ...args])
+  /** Why a git command run in `.darkmechanicus/` failed: no repository holds it, or git itself failed. */
+  const failure = (): { ok: false; reason: GitPathsFailure } => {
+    const inRepository = ancestorsOf(resolve(root, DM_DIR)).some((dir) => fs.exists(join(dir, '.git')))
+    return { ok: false, reason: inRepository ? 'git_failed' : 'not_work_tree' }
   }
   return {
     head: () => readGitHead(fs, root),
@@ -270,6 +357,24 @@ export function createGitAdapter(
       const resolved = (await output(['rev-parse', '--verify', '--quiet', `${safeArg(ref)}^{commit}`]))?.trim() ?? ''
       const text = SHA_PATTERN.test(resolved) ? await output(['rev-list', '--parents', '-n', '1', resolved, '--']) : null
       return text === null ? null : parseCommitLine(text)
+    },
+    diffPaths: async (from, to) => {
+      const text = await inDmDir(['diff', '--name-status', '-z', '--no-renames', '--no-color', '--relative', safeArg(from), safeArg(to), '--', '.'])
+      const paths = text === null ? null : parseNameStatus(text)
+      return paths === null ? failure() : { ok: true, paths }
+    },
+    statusPaths: async () => {
+      const [where, text] = await Promise.all([
+        inDmDir(['rev-parse', '--is-inside-work-tree', '--show-prefix']),
+        inDmDir(['status', '--porcelain=v2', '-z', '--branch', '--no-renames', '-uall', '--ignored=matching', '--', '.'])
+      ])
+      const [inside, prefix = ''] = (where ?? '').split(/\r?\n/)
+      if (where !== null && inside !== 'true') {
+        return { ok: false, reason: 'not_work_tree' }
+      }
+      const status = text === null ? null : parseStatusV2(text)
+      const paths = status === null || where === null ? null : belowPrefix(status.paths, prefix)
+      return status === null || paths === null ? failure() : { ok: true, head: status.head, paths }
     },
     branchCommit: (name) => {
       const ref = `${HEADS_PREFIX}${safeArg(name)}`
