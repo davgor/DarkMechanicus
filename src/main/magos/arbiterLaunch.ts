@@ -16,7 +16,7 @@ interface ArbiterLaunchInput {
   ompConfig?: string
 }
 
-interface ArbiterLaunchSpec {
+export interface ArbiterLaunchSpec {
   file: string
   args: string[]
   cwd: string
