@@ -55,9 +55,12 @@ export type GitPathsFailure = 'not_work_tree' | 'git_failed'
 
 export type GitDiffPaths = { ok: true; paths: GitPathChange[] } | { ok: false; reason: GitPathsFailure }
 
-/** `head` is the commit HEAD named when the status was taken (null while HEAD is unborn). */
+/**
+ * `head` is the commit HEAD named when the status was taken (null while HEAD is unborn); `branch` the branch it was on
+ * (null when detached). Both come from the same `git status`, so they describe the same moment as `paths`.
+ */
 export type GitStatusPaths =
-  | { ok: true; head: string | null; paths: GitPathChange[] }
+  | { ok: true; head: string | null; branch: string | null; paths: GitPathChange[] }
   | { ok: false; reason: GitPathsFailure }
 
 export interface GitAdapter {

@@ -242,7 +242,9 @@ function parseCommitLine(text: string): { commit: string; parents: string[] } | 
 const DIFF_STATUS = /^[ADMTUX]$/
 /** Field counts before the path in `git status --porcelain=v2` entries: ordinary, renamed or copied, unmerged. */
 const STATUS_FIELDS: Record<string, number> = { '1': 8, '2': 9, u: 10 }
+/** What `# branch.oid` and `# branch.head` say for an unborn HEAD and a detached one. */
 const UNBORN_OID = '(initial)'
+const DETACHED_HEAD = '(detached)'
 
 /** `<status>\0<path>\0` pairs of `git diff --name-status -z`; null for output that is not that shape. */
 function parseNameStatus(text: string): GitPathChange[] | null {
@@ -262,21 +264,25 @@ function parseNameStatus(text: string): GitPathChange[] | null {
   return paths
 }
 
-/** `git status --porcelain=v2 -z --branch`: HEAD's commit and the paths, still relative to the repository root. */
-function parseStatusV2(text: string): { head: string | null; paths: GitPathChange[] } | null {
+/** `git status --porcelain=v2 -z --branch`: HEAD's commit and branch, and the paths, still relative to the repository root. */
+function parseStatusV2(text: string): { head: string | null; branch: string | null; paths: GitPathChange[] } | null {
   const tokens = text.split('\u0000')
   if (tokens.pop() !== '') {
     return null
   }
   let head: string | null | undefined
+  let branch: string | null | undefined
   const paths: GitPathChange[] = []
   for (let index = 0; index < tokens.length; index += 1) {
     const entry = tokens[index] ?? ''
     if (entry.startsWith('# ')) {
-      const oid = /^# branch\.oid (.+)$/.exec(entry)?.[1]
-      if (oid !== undefined) {
-        head = oid === UNBORN_OID ? null : SHA_PATTERN.test(oid) ? oid : undefined
+      const [, key, value = ''] = /^# branch\.(oid|head) (.+)$/.exec(entry) ?? []
+      if (key === 'oid') {
+        head = value === UNBORN_OID ? null : SHA_PATTERN.test(value) ? value : undefined
         if (head === undefined) return null
+      } else if (key === 'head') {
+        branch = value === DETACHED_HEAD ? null : isBranchRef(`${HEADS_PREFIX}${value}`) ? value : undefined
+        if (branch === undefined) return null
       }
       continue
     }
@@ -300,7 +306,7 @@ function parseStatusV2(text: string): { head: string | null; paths: GitPathChang
       paths.push({ status: parts[1] ?? '', path: source })
     }
   }
-  return head === undefined ? null : { head, paths }
+  return head === undefined || branch === undefined ? null : { head, branch, paths }
 }
 
 /** Repository-root paths made relative to the folder at `prefix` (`rev-parse --show-prefix`); null if one is outside. */
@@ -394,7 +400,7 @@ export function createGitAdapter(
       }
       const status = text === null ? null : parseStatusV2(text)
       const paths = status === null || where === null ? null : belowPrefix(status.paths, prefix)
-      return status === null || paths === null ? failure() : { ok: true, head: status.head, paths }
+      return status === null || paths === null ? failure() : { ok: true, head: status.head, branch: status.branch, paths }
     },
     branchCommit: (name) => readBranchCommit(fs, root, runSync, name)
   }

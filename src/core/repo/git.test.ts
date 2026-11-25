@@ -1,12 +1,13 @@
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
 import { afterAll, afterEach, describe, expect, it } from 'vitest'
 import { createGitRepo, type GitRepo } from '../../test/gitRepo'
 import { createMemoryFs, type MemoryFs } from '../../test/memoryFs'
-import { domainErrorOf, domainErrorOfAsync } from '../../test/repoFixtures'
+import { domainErrorOf, domainErrorOfAsync, idOf } from '../../test/repoFixtures'
 import { createTempRepo, type TempRepo } from '../../test/tempRepo'
 import { createGitAdapter } from './git'
+import { IMPORTER_VERSION, trackedChanges } from './gitChanges'
 
 const ROOT = resolve('/repo')
 const SHA_A = 'a'.repeat(40)
@@ -503,5 +504,376 @@ describe('GitAdapter.branchCommit (CLI answers and hostile names)', () => {
     expect(domainErrorOf(() => adapter.branchCommit('-x')).code).toBe('unsafe_path')
     expect(domainErrorOf(() => adapter.branchCommit('main\u0000x')).code).toBe('unsafe_path')
     expect(calls).toEqual([])
+  })
+})
+
+/** Answers `rev-parse` (in `.darkmechanicus/`) and `status`/`diff` with the given outputs, recording every call. */
+function routedRun(answers: { revParse?: Step; status?: Step; diff?: Step }): FakeRun {
+  const calls: string[][] = []
+  return {
+    calls,
+    runGit: async (args) => {
+      calls.push(args)
+      const command = args[3] ?? ''
+      const answer = command === 'rev-parse' ? answers.revParse : command === 'status' ? answers.status : command === 'diff' ? answers.diff : undefined
+      return answer ?? { code: 128, stdout: '' }
+    }
+  }
+}
+
+const NUL = '\u0000'
+const ORDINARY = '100644 100644 100644 1111111111111111111111111111111111111111 2222222222222222222222222222222222222222'
+
+describe('GitAdapter.diffPaths and statusPaths (CLI answers)', () => {
+  it('runs diff in .darkmechanicus/ without renames or optional locks, relative to that folder', async () => {
+    const run = routedRun({ diff: { code: 0, stdout: `M${NUL}epics/e/state.json${NUL}A${NUL}kanban/k/card.json${NUL}D${NUL}profiles/a b.json${NUL}` } })
+    const adapter = createGitAdapter(ROOT, { fs: createMemoryFs(), runGit: run.runGit })
+    expect(await adapter.diffPaths(SHA_A, SHA_B)).toEqual({
+      ok: true,
+      paths: [
+        { status: 'M', path: 'epics/e/state.json' },
+        { status: 'A', path: 'kanban/k/card.json' },
+        { status: 'D', path: 'profiles/a b.json' }
+      ]
+    })
+    expect(run.calls).toEqual([
+      ['--no-optional-locks', '-C', '.darkmechanicus', 'diff', '--name-status', '-z', '--no-renames', '--no-color', '--relative', SHA_A, SHA_B, '--', '.']
+    ])
+    expect(await createGitAdapter(ROOT, { runGit: routedRun({ diff: { code: 0, stdout: '' } }).runGit }).diffPaths(SHA_A, SHA_A)).toEqual({ ok: true, paths: [] })
+  })
+
+  it('parses porcelain v2 status: HEAD, ordinary, renamed, unmerged, untracked and ignored entries, below the prefix', async () => {
+    const status = [
+      `# branch.oid ${SHA_C}`,
+      '# branch.head main',
+      `1 .M N... ${ORDINARY} M/.darkmechanicus/epics/e/state.json`,
+      `2 R. N... ${ORDINARY} R100 M/.darkmechanicus/profiles/new name.json`,
+      'M/.darkmechanicus/profiles/old.json',
+      `u UU N... 100644 100644 100644 100644 ${SHA_A} ${SHA_B} ${SHA_C} M/.darkmechanicus/kanban/k/card.json`,
+      '? M/.darkmechanicus/history/r/run.json',
+      '! M/.darkmechanicus/local/',
+      ''
+    ].join(NUL)
+    const run = routedRun({ revParse: { code: 0, stdout: 'true\nM/.darkmechanicus/\n' }, status: { code: 0, stdout: status } })
+    expect(await createGitAdapter(ROOT, { runGit: run.runGit }).statusPaths()).toEqual({
+      ok: true,
+      head: SHA_C,
+      branch: 'main',
+      paths: [
+        { status: '.M', path: 'epics/e/state.json' },
+        { status: 'R.', path: 'profiles/new name.json' },
+        { status: 'R.', path: 'profiles/old.json' },
+        { status: 'UU', path: 'kanban/k/card.json' },
+        { status: '?', path: 'history/r/run.json' },
+        { status: '!', path: 'local/' }
+      ]
+    })
+    expect(run.calls).toContainEqual([
+      '--no-optional-locks', '-C', '.darkmechanicus', 'status', '--porcelain=v2', '-z', '--branch', '--no-renames', '-uall', '--ignored=matching', '--', '.'
+    ])
+    expect(run.calls).toContainEqual(['--no-optional-locks', '-C', '.darkmechanicus', 'rev-parse', '--is-inside-work-tree', '--show-prefix'])
+  })
+
+  it('reports an unborn HEAD as a null head', async () => {
+    const run = routedRun({ revParse: { code: 0, stdout: 'true\n\n' }, status: { code: 0, stdout: `# branch.oid (initial)${NUL}# branch.head main${NUL}? .darkmechanicus/x${NUL}` } })
+    expect(await createGitAdapter(ROOT, { runGit: run.runGit }).statusPaths()).toEqual({ ok: true, head: null, branch: 'main', paths: [{ status: '?', path: '.darkmechanicus/x' }] })
+  })
+
+  it('fails with git_failed, never throwing, for a failed command or output it cannot read', async () => {
+    const inRepo = createMemoryFs()
+    inRepo.mkdirp(join(ROOT, '.git'))
+    const revParse = { code: 0, stdout: 'true\nM/.darkmechanicus/\n' }
+    const head = `# branch.oid ${SHA_A}${NUL}`
+    const badStatuses = [
+      { code: 128, stdout: '' },
+      { code: 0, stdout: `${head}1 .M N... short${NUL}` },
+      { code: 0, stdout: `${head}X what${NUL}` },
+      { code: 0, stdout: `${head}2 R. N... ${ORDINARY} R100 M/.darkmechanicus/a${NUL}` },
+      { code: 0, stdout: `${head}1 .M N... ${ORDINARY} Other/project/file${NUL}` },
+      { code: 0, stdout: `${head}? M/.darkmechanicus/${NUL}` },
+      { code: 0, stdout: `# branch.oid nonsense${NUL}` },
+      { code: 0, stdout: `? M/.darkmechanicus/a${NUL}` },
+      { code: 0, stdout: `${head}? M/.darkmechanicus/a` }
+    ]
+    for (const status of badStatuses) {
+      expect(await createGitAdapter(ROOT, { fs: inRepo, runGit: routedRun({ revParse, status }).runGit }).statusPaths()).toEqual({ ok: false, reason: 'git_failed' })
+    }
+    expect(await createGitAdapter(ROOT, { fs: inRepo, runGit: routedRun({ status: { code: 0, stdout: head } }).runGit }).statusPaths()).toEqual({ ok: false, reason: 'git_failed' })
+    for (const diff of [{ code: 128, stdout: '' }, { code: 0, stdout: `M${NUL}` }, { code: 0, stdout: `R100${NUL}a${NUL}b${NUL}` }, { code: 0, stdout: `M${NUL}${NUL}` }, { code: 0, stdout: 'M\ta' }]) {
+      expect(await createGitAdapter(ROOT, { fs: inRepo, runGit: routedRun({ diff }).runGit }).diffPaths(SHA_A, SHA_B)).toEqual({ ok: false, reason: 'git_failed' })
+    }
+  })
+
+  it('fails with not_work_tree when git says so, or when no folder above holds a repository', async () => {
+    const outside = routedRun({ revParse: { code: 0, stdout: 'false\n' }, status: { code: 0, stdout: '' } })
+    expect(await createGitAdapter(ROOT, { runGit: outside.runGit }).statusPaths()).toEqual({ ok: false, reason: 'not_work_tree' })
+    const noRepository = createMemoryFs()
+    expect(await createGitAdapter(ROOT, { fs: noRepository, runGit: routedRun({}).runGit }).statusPaths()).toEqual({ ok: false, reason: 'not_work_tree' })
+    expect(await createGitAdapter(ROOT, { fs: noRepository, runGit: routedRun({}).runGit }).diffPaths(SHA_A, SHA_B)).toEqual({ ok: false, reason: 'not_work_tree' })
+  })
+
+  it('refuses option-like or NUL-containing refs with unsafe_path before running git', async () => {
+    const run = routedRun({ diff: { code: 0, stdout: '' } })
+    const adapter = createGitAdapter(ROOT, { runGit: run.runGit })
+    expect((await domainErrorOfAsync(() => adapter.diffPaths('--output=x', SHA_B))).code).toBe('unsafe_path')
+    expect((await domainErrorOfAsync(() => adapter.diffPaths(SHA_A, `${SHA_B}\u0000`))).code).toBe('unsafe_path')
+    expect(run.calls).toEqual([])
+  })
+})
+
+describe('GitAdapter.diffPaths and statusPaths with the real git binary', () => {
+  let repo: GitRepo | undefined
+  afterEach(() => {
+    repo?.cleanup()
+    repo = undefined
+  })
+
+  const EPIC = idOf('epic', 1)
+  const EPIC_2 = idOf('epic', 2)
+  const RUN = idOf('run', 1)
+  const CARD = idOf('kanbanCard', 1)
+  const NEW_CARD = idOf('kanbanCard', 2)
+
+  /**
+   * A parent repository with a project nested two levels down (`Forge Wörld/Member`, like a Forge World member), its
+   * `.darkmechanicus/` holding one epic, run, card and profile, committed as the returned `c1`.
+   */
+  function nestedProject(): { repo: GitRepo; member: string; put: (path: string, text: string) => void; commit: (message: string) => string; c1: string } {
+    const created = createGitRepo()
+    const member = join(created.root, 'Forge Wörld', 'Member')
+    const dmDir = join(member, '.darkmechanicus')
+    const put = (path: string, text: string): void => {
+      mkdirSync(dirname(join(dmDir, path)), { recursive: true })
+      writeFileSync(join(dmDir, path), text)
+    }
+    const commit = (message: string): string => {
+      created.git('add', '-A')
+      created.git('commit', '-q', '-m', message)
+      return created.rev('HEAD')
+    }
+    put('.gitignore', 'local/\n')
+    put('project.json', '{}\n')
+    put(`epics/${EPIC}/state.json`, '{"v":1}\n')
+    put(`epics/${EPIC_2}/state.json`, '{"v":1}\n')
+    put(`history/${RUN}/run.json`, '{}\n')
+    put(`kanban/${CARD}/card.json`, '{}\n')
+    put('profiles/old-name.json', '{}\n')
+    put('local/state.sqlite', 'db')
+    const c1 = commit('records')
+    repo = created
+    return { repo: created, member, put, commit, c1 }
+  }
+
+  function remove(member: string, path: string): void {
+    rmSync(join(member, '.darkmechanicus', path))
+  }
+
+  it('reports committed modify, add, delete and rename relative to .darkmechanicus/, and trackedChanges targets them', async () => {
+    const project = nestedProject()
+    project.put(`epics/${EPIC}/state.json`, '{"v":2}\n')
+    project.put(`kanban/${NEW_CARD}/card.json`, '{}\n')
+    remove(project.member, `history/${RUN}/run.json`)
+    project.repo.git('mv', '--', join('Forge Wörld', 'Member', '.darkmechanicus', 'profiles', 'old-name.json'), join('Forge Wörld', 'Member', '.darkmechanicus', 'profiles', 'new-name.json'))
+    const c2 = project.commit('changes')
+    const adapter = createGitAdapter(project.member)
+    const diff = await adapter.diffPaths(project.c1, c2)
+    expect(diff.ok && [...diff.paths].sort((a, b) => a.path.localeCompare(b.path))).toEqual([
+      { status: 'M', path: `epics/${EPIC}/state.json` },
+      { status: 'D', path: `history/${RUN}/run.json` },
+      { status: 'A', path: `kanban/${NEW_CARD}/card.json` },
+      { status: 'A', path: 'profiles/new-name.json' },
+      { status: 'D', path: 'profiles/old-name.json' }
+    ])
+    const status = await adapter.statusPaths()
+    expect(status).toEqual({ ok: true, head: c2, branch: 'main', paths: [{ status: '!', path: 'local/' }] })
+    expect(trackedChanges({
+      marker: { baseCommit: project.c1, importerVersion: IMPORTER_VERSION, dirtyPaths: [] },
+      status,
+      recordedBranch: 'main',
+      isAncestor: await adapter.isAncestor(project.c1, c2),
+      diff
+    })).toEqual({
+      kind: 'targeted',
+      epics: new Set([EPIC]),
+      runs: new Set([RUN]),
+      kanbanCards: new Set([NEW_CARD]),
+      profiles: new Set(['new-name', 'old-name']),
+      projectObservations: false,
+      recoveredAttachments: false
+    })
+  })
+
+  it('targets exactly the one epic whose state.json changed in C2', async () => {
+    const project = nestedProject()
+    project.put(`epics/${EPIC_2}/state.json`, '{"v":2}\n')
+    const c2 = project.commit('one epic')
+    const adapter = createGitAdapter(project.member)
+    const diff = await adapter.diffPaths(project.c1, c2)
+    expect(diff).toEqual({ ok: true, paths: [{ status: 'M', path: `epics/${EPIC_2}/state.json` }] })
+    const result = trackedChanges({
+      marker: { baseCommit: project.c1, importerVersion: IMPORTER_VERSION, dirtyPaths: [] },
+      status: { ok: true, head: c2, branch: 'main', paths: [] },
+      recordedBranch: 'main',
+      isAncestor: true,
+      diff
+    })
+    expect(result).toMatchObject({ kind: 'targeted', epics: new Set([EPIC_2]), runs: new Set(), kanbanCards: new Set(), profiles: new Set() })
+  })
+
+  it('reports working-tree modify, staged add, delete, staged rename and an untracked new Kanban card, never the parent repository’s files', async () => {
+    const project = nestedProject()
+    writeFileSync(join(project.repo.root, 'outside.txt'), 'not a record\n')
+    project.put(`epics/${EPIC}/state.json`, '{"v":3}\n')
+    project.put(`epics/${EPIC_2}/comments/${idOf('comment', 1)}.json`, '{}\n')
+    project.repo.git('add', '--', join('Forge Wörld', 'Member', '.darkmechanicus', 'epics', EPIC_2))
+    remove(project.member, `history/${RUN}/run.json`)
+    project.repo.git('mv', '--', join('Forge Wörld', 'Member', '.darkmechanicus', 'profiles', 'old-name.json'), join('Forge Wörld', 'Member', '.darkmechanicus', 'profiles', 'new-name.json'))
+    project.put(`kanban/${NEW_CARD}/card.json`, '{}\n')
+    project.put(`kanban/${NEW_CARD}/events/${idOf('kanbanEvent', 1)}.json`, '{}\n')
+    const adapter = createGitAdapter(project.member)
+    const status = await adapter.statusPaths()
+    expect(status.ok && status.head).toBe(project.c1)
+    expect(status.ok && [...status.paths].sort((a, b) => a.path.localeCompare(b.path))).toEqual([
+      { status: '.M', path: `epics/${EPIC}/state.json` },
+      { status: 'A.', path: `epics/${EPIC_2}/comments/${idOf('comment', 1)}.json` },
+      { status: '.D', path: `history/${RUN}/run.json` },
+      { status: '?', path: `kanban/${NEW_CARD}/card.json` },
+      { status: '?', path: `kanban/${NEW_CARD}/events/${idOf('kanbanEvent', 1)}.json` },
+      { status: '!', path: 'local/' },
+      { status: 'A.', path: 'profiles/new-name.json' },
+      { status: 'D.', path: 'profiles/old-name.json' }
+    ])
+    expect(trackedChanges({
+      marker: { baseCommit: project.c1, importerVersion: IMPORTER_VERSION, dirtyPaths: [] },
+      status,
+      recordedBranch: 'main',
+      isAncestor: null,
+      diff: null
+    })).toEqual({
+      kind: 'targeted',
+      epics: new Set([EPIC, EPIC_2]),
+      runs: new Set([RUN]),
+      kanbanCards: new Set([NEW_CARD]),
+      profiles: new Set(['new-name', 'old-name']),
+      projectObservations: false,
+      recoveredAttachments: false
+    })
+  })
+
+  it('targets an untracked new Kanban card in a project nested two levels inside its parent repository', async () => {
+    const project = nestedProject()
+    project.put(`kanban/${NEW_CARD}/card.json`, '{}\n')
+    const adapter = createGitAdapter(project.member)
+    const status = await adapter.statusPaths()
+    expect(status).toEqual({ ok: true, head: project.c1, branch: 'main', paths: [{ status: '?', path: `kanban/${NEW_CARD}/card.json` }, { status: '!', path: 'local/' }] })
+    const result = trackedChanges({
+      marker: { baseCommit: project.c1, importerVersion: IMPORTER_VERSION, dirtyPaths: [] },
+      status,
+      recordedBranch: 'main',
+      isAncestor: null,
+      diff: null
+    })
+    expect(result).toMatchObject({ kind: 'targeted', epics: new Set(), kanbanCards: new Set([NEW_CARD]) })
+  })
+
+  it.runIf(process.platform === 'win32')('reports the same relative paths when the project folder is opened with another letter case (Windows)', async () => {
+    const project = nestedProject()
+    project.put(`kanban/${NEW_CARD}/card.json`, '{}\n')
+    const respelled = join(project.repo.root, 'FORGE WÖRLD', 'member')
+    expect(await createGitAdapter(respelled).statusPaths()).toEqual({
+      ok: true, head: project.c1, branch: 'main', paths: [{ status: '?', path: `kanban/${NEW_CARD}/card.json` }, { status: '!', path: 'local/' }]
+    })
+  })
+
+  it('works for a project at the repository root too', async () => {
+    repo = createGitRepo()
+    mkdirSync(join(repo.root, '.darkmechanicus', 'epics', EPIC), { recursive: true })
+    writeFileSync(join(repo.root, '.darkmechanicus', 'epics', EPIC, 'state.json'), '{}\n')
+    const c1 = repo.rev('HEAD')
+    repo.git('add', '-A')
+    repo.git('commit', '-q', '-m', 'record')
+    const c2 = repo.rev('HEAD')
+    const adapter = createGitAdapter(repo.root)
+    expect(await adapter.diffPaths(c1, c2)).toEqual({ ok: true, paths: [{ status: 'A', path: `epics/${EPIC}/state.json` }] })
+    writeFileSync(join(repo.root, '.darkmechanicus', 'project.json'), '{}\n')
+    const status = await adapter.statusPaths()
+    expect(status).toEqual({ ok: true, head: c2, branch: 'main', paths: [{ status: '?', path: 'project.json' }] })
+    expect(trackedChanges({
+      marker: { baseCommit: c2, importerVersion: IMPORTER_VERSION, dirtyPaths: [] },
+      status,
+      recordedBranch: 'main',
+      isAncestor: null,
+      diff: null
+    })).toEqual({ kind: 'full', reason: 'project_record' })
+  })
+
+  it('returns full with not_ancestor when the stored commit was rewritten out of the history', async () => {
+    const project = nestedProject()
+    project.put(`epics/${EPIC}/state.json`, '{"v":2}\n')
+    const stored = project.commit('imported, then force-pushed away')
+    project.repo.git('reset', '-q', '--hard', project.c1)
+    project.put(`epics/${EPIC_2}/state.json`, '{"v":9}\n')
+    const rewritten = project.commit('rewritten history')
+    const adapter = createGitAdapter(project.member)
+    const status = await adapter.statusPaths()
+    expect(status.ok && status.head).toBe(rewritten)
+    const isAncestor = await adapter.isAncestor(stored, rewritten)
+    expect(isAncestor).toBe(false)
+    expect(trackedChanges({
+      marker: { baseCommit: stored, importerVersion: IMPORTER_VERSION, dirtyPaths: [] },
+      status,
+      recordedBranch: 'main',
+      isAncestor,
+      diff: await adapter.diffPaths(stored, rewritten)
+    })).toEqual({ kind: 'full', reason: 'not_ancestor' })
+  })
+
+  it('fails with git_failed for an unknown commit, and reports an unborn HEAD', async () => {
+    const project = nestedProject()
+    expect(await createGitAdapter(project.member).diffPaths('f'.repeat(40), project.c1)).toEqual({ ok: false, reason: 'git_failed' })
+    const unborn = createTempRepo()
+    try {
+      execFileSync('git', ['-C', unborn.root, 'init', '-q', '-b', 'main'], { stdio: 'ignore' })
+      mkdirSync(join(unborn.root, '.darkmechanicus'))
+      writeFileSync(join(unborn.root, '.darkmechanicus', 'project.json'), '{}\n')
+      expect(await createGitAdapter(unborn.root).statusPaths()).toEqual({ ok: true, head: null, branch: 'main', paths: [{ status: '?', path: 'project.json' }] })
+    } finally {
+      unborn.cleanup()
+    }
+  })
+
+  it('fails with not_work_tree outside any repository', async () => {
+    const plain = createTempRepo()
+    try {
+      mkdirSync(join(plain.root, '.darkmechanicus'))
+      const adapter = createGitAdapter(plain.root)
+      expect(await adapter.statusPaths()).toEqual({ ok: false, reason: 'not_work_tree' })
+      expect(await adapter.diffPaths(SHA_A, SHA_B)).toEqual({ ok: false, reason: 'not_work_tree' })
+    } finally {
+      plain.cleanup()
+    }
+  })
+
+  it('never writes the index: .git/index bytes are identical even when a plain git status would refresh it', async () => {
+    const project = nestedProject()
+    project.put(`epics/${EPIC}/state.json`, '{"v":2}\n')
+    const c2 = project.commit('second')
+    // Same content, new modification time: the index entry is stale, so a refreshing status would rewrite the index.
+    const touched = join(project.member, '.darkmechanicus', 'kanban', CARD, 'card.json')
+    const later = new Date(Date.now() + 60_000)
+    utimesSync(touched, later, later)
+    project.put(`kanban/${NEW_CARD}/card.json`, '{}\n')
+    const indexFile = join(project.repo.root, '.git', 'index')
+    const before = readFileSync(indexFile)
+    const files = gitDirSnapshot(project.repo.root)
+    const adapter = createGitAdapter(project.member)
+    await adapter.statusPaths()
+    await adapter.diffPaths(project.c1, c2)
+    await adapter.statusPaths()
+    expect(readFileSync(indexFile).equals(before)).toBe(true)
+    expect(gitDirSnapshot(project.repo.root)).toEqual(files)
+    // The check can see a write: an ordinary status refreshes the stale entry and rewrites the index.
+    project.repo.git('status', '--porcelain')
+    expect(readFileSync(indexFile).equals(before)).toBe(false)
   })
 })

@@ -64,10 +64,8 @@ export interface RecheckRecords {
 
 export interface TrackedChangesInput {
   marker: ReconcileMarker
-  /** `statusPaths()`: the working tree against HEAD, and HEAD's commit (the end of the diff). */
+  /** `statusPaths()`: the working tree against HEAD, with HEAD's commit (the end of the diff) and branch. */
   status: GitStatusPaths
-  /** The checkout branch now (`GitAdapter.head().branch`), null when there is none. */
-  currentBranch: string | null
   /** `META_KEYS.checkoutBranch` as stored: null when never recorded, `''` for "no branch". */
   recordedBranch: string | null
   /** Whether `marker.baseCommit` is an ancestor of `status.head` (`isAncestor`); null when git could not say. */
@@ -122,7 +120,7 @@ function fallback(input: TrackedChangesInput): FullReason | null {
   if (marker.baseCommit === null || marker.importerVersion === null || marker.dirtyPaths === null) return 'no_marker'
   if (marker.importerVersion !== IMPORTER_VERSION) return 'importer_version'
   const recorded = input.recordedBranch === '' ? null : input.recordedBranch
-  if (input.recordedBranch === null || recorded !== input.currentBranch) return 'branch_changed'
+  if (input.recordedBranch === null || recorded !== status.branch) return 'branch_changed'
   if (marker.baseCommit === status.head) return null
   if (input.isAncestor === null) return 'git_failed'
   if (!input.isAncestor) return 'not_ancestor'
