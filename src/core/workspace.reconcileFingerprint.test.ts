@@ -168,19 +168,21 @@ describe('Automatic reconcile guards', () => {
   it('still flushes an export left failed when the fingerprint holds', async () => {
     const epicId = await savedEpic(desktop)
     harness.open('reader')
-    // Every tracked epic write fails: the status export stays in the outbox, pending with its error, for a retry.
+    // Every tracked epic write fails at its rename into place: the status export stays in the outbox, pending with its error.
     const epics = join(harness.root, '.darkmechanicus', 'epics')
-    const failing = { ...nodeFs, fsyncFile: () => undefined, writeFile: (path: string, data: string) => {
-      if (path.startsWith(epics)) throw new Error('Disk full')
-      nodeFs.writeFile(path, data)
+    const failing = { ...nodeFs, fsyncFile: () => undefined, rename: (from: string, to: string) => {
+      if (to.startsWith(epics)) throw new Error('Disk full')
+      nodeFs.rename(from, to)
     } }
     await harness.open('orchestrator', { fs: failing }).setEpicStatus({ epicId, status: 'in_progress' })
-    // The new entry changes the local part: this open reconciles in full, records the fingerprint, then fails to flush
-    // again, which leaves the entry pending and the fingerprint holding.
+    // The new entry changes the local part: this open reconciles in full and records the fingerprint; its flush leaves
+    // the entry in its backoff, pending with its error, and the fingerprint holding.
     expect(await scansDuring(() => harness.open('reader', { fs: failing }))).toBe(1)
     const held = (await desktop.getStorageStatus()).outbox
     expect([trackedStatus(harness, epicId), held.pending, held.lastError]).toEqual(['backlog', 1, 'Disk full'])
 
+    // Once the backoff has passed, the open's flush retries it even though the reconcile is skipped.
+    harness.clock.advanceSeconds(15)
     let reader = desktop
     expect(await scansDuring(() => { reader = harness.open('reader') })).toBe(0)
     expect(trackedStatus(harness, epicId)).toBe('in_progress')

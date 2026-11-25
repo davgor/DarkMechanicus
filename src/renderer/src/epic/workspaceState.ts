@@ -91,6 +91,8 @@ export type WorkspaceAction =
   | { type: 'show_view'; view: PlanViewKind; remember?: boolean }
   /** Save or Discard ended the draft: show Saved and forget the choice, so the next draft opens by default. */
   | { type: 'draft_closed' }
+  /** An unchanged draft the load skipped was read on request: add it to the loaded data. */
+  | { type: 'draft_loaded'; draft: Pick<WorkspaceData, 'draft' | 'draftTickets' | 'validation'> }
   | { type: 'show_layout'; layout: 'graph' | 'list' }
   | { type: 'select_ticket'; ticketId: string | null }
   /** Select the ticket and show the live activity of one of its attempts in its panel. */
@@ -199,6 +201,8 @@ const HANDLERS: Handlers = {
   }),
   show_view: (state, action) => showView(state, action.view, action.remember === false ? state.chosenView : action.view),
   draft_closed: (state) => showView(state, 'saved', null),
+  draft_loaded: (state, action) =>
+    state.data === null ? state : { ...state, data: { ...state.data, ...action.draft }, validation: action.draft.validation },
   show_layout: (state, action) => ({ ...state, layout: action.layout, scorecardOpen: false }),
   select_ticket: (state, action) => ({ ...state, selectedTicketId: action.ticketId, activity: null, ticketScorecard: null }),
   open_activity: (state, action) => ({ ...state, selectedTicketId: action.ticketId, activity: { attemptId: action.attemptId }, ticketScorecard: null }),

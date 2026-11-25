@@ -38,10 +38,10 @@ function planView(folder: string, epicId: string) {
   return timed(() => loadWorkspace(runnerFor(folder), epicId))
 }
 
-/** `TicketPanel` (`getTicket`) plus its History tab (`loadHistory`, paging `listEvents {epicId}`). */
+/** `TicketPanel` (`getTicket`) plus its History tab (`loadHistory`, paging `listEvents {epicId, ticketId}`). */
 function ticketPanel(folder: string, epicId: string, ticketId: string) {
   const runner = runnerFor(folder)
-  return timed(() => Promise.all([runner('getTicket', { epicId, ticketId, view: 'saved' }), loadHistory(runner, epicId)]))
+  return timed(() => Promise.all([runner('getTicket', { epicId, ticketId, view: 'saved' }), loadHistory(runner, epicId, ticketId)]))
 }
 
 /** `useKanbanBoard` (`listKanbanCards {doneLimit}`) and the sidebar's `useKanbanCounts` (`getKanbanOpenCount`). */

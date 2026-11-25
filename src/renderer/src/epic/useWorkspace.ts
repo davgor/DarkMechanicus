@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useState, type Dispatch } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useState, type Dispatch, type MutableRefObject } from 'react'
 import type { AgentView, TrackedFolderView } from '../../../shared/desktop/api'
 import { unwrapChat } from '../agents/chatCalls'
 import { CommandError, errorMessage } from '../api/dm'
@@ -70,15 +70,17 @@ interface LoadInput {
   refreshToken: number
   reloadToken: object
   dispatch: Dispatch<WorkspaceAction>
+  /** The latest state: an unchanged draft is read only while the draft is shown or chosen. */
+  stateRef: MutableRefObject<WorkspaceState>
 }
 
 /** Loads the epic into the workspace state, again whenever the refresh or reload token changes. */
-function useWorkspaceLoad({ runner, epicId, refreshToken, reloadToken, dispatch }: LoadInput): void {
+function useWorkspaceLoad({ runner, epicId, refreshToken, reloadToken, dispatch, stateRef }: LoadInput): void {
   const clock = useClock()
   useEffect(() => {
     let active = true
     dispatch({ type: 'load_started' })
-    loadWorkspace(runner, epicId).then(
+    loadWorkspace(runner, epicId, () => stateRef.current.view === 'draft' || stateRef.current.chosenView === 'draft').then(
       (data) => {
         if (active) {
           dispatch({ type: 'load_succeeded', data, at: clock.now() })
@@ -94,7 +96,7 @@ function useWorkspaceLoad({ runner, epicId, refreshToken, reloadToken, dispatch 
     return () => {
       active = false
     }
-  }, [runner, epicId, refreshToken, reloadToken, clock, dispatch])
+  }, [runner, epicId, refreshToken, reloadToken, clock, dispatch, stateRef])
 }
 
 /** The transfer calls of the chat bridge, for one epic of one folder. */
@@ -139,9 +141,9 @@ export function useWorkspace(input: WorkspaceInput): WorkspaceController {
   useEffect(() => {
     memory.remember(identity, epicId, chosenView)
     memory.saveWorkspace(identity, epicId, stateRef.current)
-    if (data?.draft === null) memory.discardEditors(identity, epicId)
+    if (data?.epic.hasDraft === false) memory.discardEditors(identity, epicId) // Not on draft === null: an unchanged draft may be unread.
   }, [memory, identity, epicId, data, loadedAt, view, layout, chosenView, selectedTicketId, checkpointOpen, scorecardOpen, stateRef])
-  useWorkspaceLoad({ runner, epicId, refreshToken, reloadToken, dispatch })
+  useWorkspaceLoad({ runner, epicId, refreshToken, reloadToken, dispatch, stateRef })
   const actions = useMemo(
     () =>
       createWorkspaceActions({

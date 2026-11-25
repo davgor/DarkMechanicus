@@ -52,3 +52,17 @@ describe('HistoryTab stale reads', () => {
     expect(titles()).toEqual(['Second moved'])
   })
 })
+
+describe('HistoryTab reads', () => {
+  it("asks the log for this ticket's events only", async () => {
+    const requests: unknown[] = []
+    dm.handlers.listEvents = (input) => {
+      requests.push(input)
+      return { events: [eventView({ seq: 3, epicId: 'ep_1', ticketId: 't1', kind: 'ticket.moved', at: '2026-03-01T11:00:00.000Z' })], cursor: 3 }
+    }
+    render(historyOf('ep_1'))
+    await settle()
+    expect(requests).toEqual([{ epicId: 'ep_1', ticketId: 't1', sinceSeq: 0, limit: 500 }])
+    expect(titles()).toEqual(['Ticket moved'])
+  })
+})

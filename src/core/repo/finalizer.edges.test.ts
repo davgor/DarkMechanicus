@@ -44,8 +44,8 @@ describe('flushOutbox read-back verification', () => {
   it('fails a save whose pointer reads back other than written, then saves on the retry', () => {
     const env = savedFirst()
     stageRevision(env, { epicId: EPIC, revisionId: R2, number: 2, bundle: makeBundle([[1, 2, 3]], [[1, 2]]), baseRevisionId: R1 })
-    // The third read of current.json is the read-back: the save's and the state export's checks for unimported records come first.
-    const fs = tamperedRead(env.fs, (path) => path.endsWith('current.json'), 3, (text) => `${text} `)
+    // The read-back is of the staged copy, before anything is replaced.
+    const fs = tamperedRead(env.fs, (path) => path.includes('current.json.tmp-'), 1, (text) => `${text} `)
     const shown = `.darkmechanicus/epics/${EPIC}/current.json`
     expect(flushThrough(env, fs)).toMatchObject({ failed: 1, failedRevisionIds: [R2], errors: [expect.stringContaining(`Read-back of ${shown} does not match what was written.`)] })
     expect(flush(env).savedRevisionIds).toEqual([R2])
@@ -56,7 +56,7 @@ describe('flushOutbox read-back verification', () => {
     stageRevision(env, { epicId: EPIC, revisionId: R2, number: 2, bundle: makeBundle([[1, 2, 3]], [[1, 2]]), baseRevisionId: R1 })
     const paths = ownedPaths(env.layout)
     const first = env.fs.get(paths.snapshotFile(EPIC, R1)) ?? ''
-    const fs = tamperedRead(env.fs, (path) => path.endsWith(`${R2}.json`), 1, () => first)
+    const fs = tamperedRead(env.fs, (path) => path.includes(`${R2}.json.tmp-`), 1, () => first)
     const shown = `.darkmechanicus/epics/${EPIC}/snapshots/${R2}.json`
     expect(flushThrough(env, fs)).toMatchObject({ failed: 1, errors: [expect.stringContaining(`Read-back of ${shown} does not match the revision's content hash.`)] })
     expect(env.fs.get(paths.snapshotFile(EPIC, R2))).toBeUndefined()
@@ -177,7 +177,7 @@ describe('flushOutbox scorecard writes that cannot complete', () => {
     deliver(w, 1, { minutes: 20, tokens: 30_000, productive: 18, corrective: 2 })
     const reportId = report(w).id
     const card = ownedPaths(w.env.layout).scorecardFile(w.runId, reportId)
-    w.env.fs.failOn({ op: 'readFile', match: (path) => path.endsWith(`${reportId}.json`) })
+    w.env.fs.failOn({ op: 'readFile', match: (path) => path.includes(`${reportId}.json.tmp-`) })
     expect(flush(w.env).failed).toBeGreaterThan(0)
     expect(w.env.fs.get(card)).toBeUndefined()
     expect(flush(w.env)).toMatchObject({ failed: 0, errors: [] })
