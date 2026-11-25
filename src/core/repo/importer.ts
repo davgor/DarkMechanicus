@@ -2101,13 +2101,15 @@ function prepareObserved(deps: ImporterDeps, full: boolean, only?: TrackedRecord
 }
 
 /**
- * Applies the prepared records, each in its own transaction that first checks HEAD, the record's files and its stamp.
- * Returns whether HEAD or the checkout moved: every record after that was left stale.
+ * Applies the prepared records, each in its own transaction that first checks HEAD, the checkout (its `project.json`
+ * stamp, not its body: nothing is read under the lock), the record's files and its stamp. Returns whether HEAD or the
+ * checkout moved: every record after that was left stale.
  */
 function applyRound(deps: ImporterDeps, prepared: Prepared, applied: AppliedRecords, now: string): boolean {
   let moved = false
   const check = (record: GuardedRecord): boolean => {
-    moved ||= JSON.stringify([checkoutKey(deps, requireProject(deps)), deps.git.head()]) !== prepared.identity
+    moved ||= JSON.stringify([checkoutKey(deps, prepared.context.project), deps.git.head()]) !== prepared.identity ||
+      !prepared.observed.unchangedUnder(deps.layout.projectFile)
     return !moved && prepared.observed.unchangedUnder(record.path) && stampHolds(deps.db, record, prepared.stamps)
   }
   applyRecords({ deps, check, applied, now }, prepared.context)
