@@ -10,6 +10,7 @@ import { nodeFs } from '../../core/repo/nodeFs'
 import { dbProjectDir } from '../../core/repo/storageMode'
 import { bindForge, currentForgeTransfer, FORGE_POINTER, withForgeTransfer } from '../../core/repo/forgeBinding'
 import { inThreadLane, type SyncLane } from './syncLane'
+import { reconcileOnLane, releaseLane, type LaneState } from './syncLaneCore'
 import type { Work, WorkspaceRequest, WorkspaceResponse } from './workspaceClient'
 import { serveWorkspaceOwner } from './workspaceOwnerRuntime'
 
@@ -215,6 +216,41 @@ it('uses the first member reconcile on the lane as the cold import instead of co
   // The explicit reconcile is ungated and full; a heartbeat with unchanged inputs passes the fingerprint gate.
   await expect(worker.sync(clone, 'explicit', first.result.binding)).resolves.toMatchObject({ ok: true, result: { value: { result: { imported: [] } } } })
   await expect(worker.sync(clone, 'heartbeat', first.result.binding)).resolves.toMatchObject({ ok: true, result: { value: { result: { imported: [] } } } })
+})
+
+it('reads every record on an explicit lane reconcile, but only what git reports on a member or heartbeat one', async () => {
+  const h = fixture()
+  const source = h.open('desktop')
+  await source.initializeRepository({ name: 'Full explicit' })
+  await source.createKanbanCard({ title: 'Read by every explicit reconcile' })
+  const clone = realpathSync.native(h.cloneTracked())
+  gitIn(clone, 'init', '-q')
+  gitIn(clone, 'add', '-A')
+  gitIn(clone, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'records')
+  const rows: { mode: string; prepared: number }[] = []
+  const state: LaneState = {
+    observer: { onTransaction: () => undefined, onReconcile: row => { rows.push({ mode: row.mode, prepared: row.fileReads.prepared }) } }
+  }
+  const lane: SyncLane = {
+    reconcile: async request => reconcileOnLane(state, request),
+    release: async () => releaseLane(state),
+    close: async () => releaseLane(state)
+  }
+  const worker = owner(h.homeDir, 1, lane)
+  const first = await worker.sync(clone, 'member')
+  if (!first.ok) throw new Error(first.error.message)
+  const binding = first.result.binding
+  // Git reports nothing changed since the marker, so a targeted reconcile reads no record body.
+  await expect(worker.sync(clone, 'member', binding)).resolves.toMatchObject({ ok: true })
+  await expect(worker.sync(clone, 'explicit', binding)).resolves.toMatchObject({ ok: true })
+  await expect(worker.sync(clone, 'heartbeat', binding)).resolves.toMatchObject({ ok: true })
+  const [cold, member, explicit, heartbeat] = rows
+  expect(cold).toMatchObject({ mode: 'member', prepared: expect.any(Number) })
+  expect(cold?.prepared).toBeGreaterThan(1)
+  expect(member).toEqual({ mode: 'member', prepared: 0 })
+  // Every record body the cold import read, read again although git reports none changed.
+  expect(explicit).toEqual({ mode: 'explicit', prepared: cold?.prepared })
+  expect(heartbeat).toEqual({ mode: 'heartbeat', prepared: 0 })
 })
 
 it('serves an epic read, the Kanban board and a card mutation while its lane reconcile is held at a barrier', async () => {

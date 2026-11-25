@@ -134,11 +134,11 @@ untrusted-input validation of every imported record and branch-change semantics 
   - *Up to three processes per desktop.* The pool serves the screen from two owner processes and may open a third for
     background work rather than retire an owner the person just used. Each owner now has a second SQLite connection on
     its sync-lane thread.
-- **The desktop's explicit Reconcile is git-targeted as merged.** `Workspace.reconcile()` passes `{ full: true }` for
-  an explicit reconcile, so `reconcile_repository` from the CLI or MCP reads everything. The desktop routes its
+- **Explicit reconciles read every record.** `Workspace.reconcile()` passes `{ full: true }` for an explicit
+  reconcile, so `reconcile_repository` from the CLI or MCP reads everything. The desktop routes its
   `reconcileRepository` command (the Reconcile button and Forge source validation) to the sync lane in `explicit`
-  mode, where it is ungated but called without `full`. It therefore reads what git reports, plus the rechecks and
-  fallbacks, rather than every record.
+  mode, which is ungated and passes `{ full: true }` as well. Only the automatic heartbeat and member reconciles are
+  git-targeted.
 - **The 250 ms hold target is a test, not a lock.** Nothing refuses or times out a long transaction. The `Db` hold
   observer (`onTransaction`, `tagTransactions`) and the pool's slow-operation log (over 1 s) make a regression
   visible.
