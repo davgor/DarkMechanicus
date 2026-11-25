@@ -77,7 +77,9 @@ describe('chatAgentNodes naming', () => {
       ticket: { key: 'DM-404', verified: false, mismatch: false }
     })
   })
+})
 
+describe('chatAgentNodes forged and legacy names', () => {
   it('names legacy threads without a callsign Servitor-<k> in item order, never from their label', () => {
     const nodes = derive([
       thread('t1', 'Magos:DM-1 take over', undefined),

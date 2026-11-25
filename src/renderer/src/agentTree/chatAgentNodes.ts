@@ -30,19 +30,7 @@ export function chatAgentNodes({ root, items, savedTickets, needsYou = new Set()
   needsYou?: ReadonlySet<string>
 }): AgentTreeNodeInput[] {
   const titles = new Map(savedTickets.map(({ key, title }) => [key, title]))
-  const rootCallsign = rootCallsignOf(root.chat)
-  const nodes: AgentTreeNodeInput[] = [{
-    id: root.id,
-    parentId: null,
-    name: rootCallsign === null ? root.fallbackName : formatCallsign(rootCallsign),
-    secondary: root.secondary,
-    chip: rootCallsign?.role ?? null,
-    ticket: null,
-    status: root.status,
-    startedAt: root.startedAt,
-    endedAt: root.endedAt,
-    lastTool: null
-  }]
+  const nodes: AgentTreeNodeInput[] = [rootNode(root)]
   let legacy = 0
   for (const item of items) {
     if (item.kind !== 'thread') continue
@@ -57,6 +45,22 @@ export function chatAgentNodes({ root, items, savedTickets, needsYou = new Set()
     })
   }
   return nodes
+}
+
+function rootNode(root: ChatRootInput): AgentTreeNodeInput {
+  const callsign = rootCallsignOf(root.chat)
+  return {
+    id: root.id,
+    parentId: null,
+    name: callsign === null ? root.fallbackName : formatCallsign(callsign),
+    secondary: root.secondary,
+    chip: callsign?.role ?? null,
+    ticket: null,
+    status: root.status,
+    startedAt: root.startedAt,
+    endedAt: root.endedAt,
+    lastTool: null
+  }
 }
 
 function naming(
