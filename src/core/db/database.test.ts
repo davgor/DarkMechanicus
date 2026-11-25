@@ -12,6 +12,7 @@ import {
   bool,
   DEFAULT_BUSY_TIMEOUT_MS,
   type Db,
+  guardTransactions,
   isBusyError,
   type OpenDatabaseOptions,
   openDatabase,
@@ -711,5 +712,28 @@ describe('transaction hold observer on a workspace', () => {
     } finally {
       workspace.close()
     }
+  })
+})
+
+describe('guardTransactions', () => {
+  it('checks the guard once per depth-0 transaction, never on a nested savepoint', () => {
+    const db = openWithNotes()
+    let checks = 0
+    const guarded = guardTransactions(db, () => { checks += 1 })
+    guarded.tx(() => {
+      add(guarded, 'outer')
+      guarded.tx(() => guarded.tx(() => add(guarded, 'nested')))
+    })
+    expect(checks).toBe(1)
+    guarded.tx(() => names(guarded), 'read')
+    expect(checks).toBe(2)
+    expect(names(db)).toEqual(['outer', 'nested'])
+  })
+
+  it('refuses a depth-0 transaction the guard rejects, leaving nothing written', () => {
+    const db = openWithNotes()
+    const guarded = guardTransactions(db, () => { throw new Error('storage moved') })
+    expect(() => guarded.tx(() => add(guarded, 'refused'))).toThrow('storage moved')
+    expect(names(db)).toEqual([])
   })
 })
