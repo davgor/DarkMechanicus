@@ -459,7 +459,13 @@ function checkoutStamp(root: string): string {
  * checkout's index stamp or HEAD changed (sampled every 100 ms). Measurement only.
  */
 async function footerIdle(deps: RevampDeps, project: ProfileProject): Promise<void> {
-  await clickAt(deps, await center(deps, basename(project.root), '.folder-main', null))
+  // Select the folder so the footer describes it. `clickToPaint` detached its CDP session; attach one for this click.
+  deps.window.webContents.debugger.attach('1.3')
+  try {
+    await clickAt(deps, await center(deps, basename(project.root), '.folder-main', null))
+  } finally {
+    deps.window.webContents.debugger.detach()
+  }
   await until(() => laneSettled(project.root) || null, 'the last sync to settle')
   const stamps = [checkoutStamp(project.root)]
   const from = absoluteNow()
