@@ -97,7 +97,7 @@ export function reconcileOnLane(state: LaneState, request: LaneRequest): SyncVal
     const counted = state.observer ? countingBodyReads(db, reads) : { db, fs: nodeFs }
     const result = tagTransactions('reconcile', () => reconcileRepository({
       db: counted.db, layout, fs: counted.fs, clock: createSystemClock(), machineId: request.machineId, git, sessionId: request.sessionId, fileHashes
-    }, reconcileGate({ db, layout, fs: nodeFs, git }, mode !== 'explicit')))
+    }, reconcileGate({ db, layout, fs: nodeFs, git }, mode !== 'explicit'), { full: mode === 'explicit' }))
     state.observer?.onReconcile({ mode, ms: performance.now() - started, fileReads: reads })
     return { result, hasLocalCache }
   })
