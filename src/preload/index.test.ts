@@ -22,6 +22,8 @@ import { registerCrossRepoCorrectionIpc, type CrossRepoCorrectionHandlers } from
 import type { DesktopHandlers } from '../main/desktop/handlers'
 import type { KnowledgeHandlers } from '../main/desktop/knowledgeHandlers'
 import { registerSourceCheckoutIpc, type SourceCheckoutHandlers } from '../main/desktop/sourceCheckoutIpc'
+import { registerSettingsIpc, type SettingsHandlers } from '../main/desktop/settingsIpc'
+import { DEFAULT_NOTIFICATION_SETTINGS } from '../shared/desktop/notificationSettings'
 import { registerGitIpc } from '../main/git/ipc'
 import type { GitHandlers } from '../main/git/handlers'
 import { registerGithubIpc } from '../main/github/ipc'
@@ -128,6 +130,7 @@ beforeAll(async () => {
   registerDesktopIpc(recorder(true), recordingHandlers<DesktopHandlers>())
   registerYoloIpc(recorder(true), recordingHandlers<YoloHandlers>())
   registerSourceCheckoutIpc(recorder(true), recordingHandlers<SourceCheckoutHandlers>())
+  registerSettingsIpc(recorder(true), recordingHandlers<SettingsHandlers>())
   registerCrossRepoCorrectionIpc(recorder(true), recordingHandlers<CrossRepoCorrectionHandlers>())
   registerKnowledgeIpc(recorder(true), recordingHandlers<KnowledgeHandlers>())
   registerChatIpc(recorder(true), recordingHandlers<ChatHandlers>())
@@ -195,6 +198,20 @@ describe('preload bridge', () => {
 
     expect(bridge.calls).toEqual([['chats:startPlanner', request]])
     expect(registered.has('chats:startPlanner')).toBe(true)
+  })
+
+  it('exposes the notification settings through exactly their two settings channels', async () => {
+    const dm = bridge.exposed.get('dm') as { settings: Record<string, Listener> }
+    const next = { ...DEFAULT_NOTIFICATION_SETTINGS, sound: false }
+
+    expect(Object.keys(dm.settings).sort()).toEqual(['getNotifications', 'setNotifications'])
+    bridge.calls.length = 0
+    handled.length = 0
+    await expect(dm.settings.getNotifications()).resolves.toBe('result:getNotifications')
+    await expect(dm.settings.setNotifications(next)).resolves.toBe('result:setNotifications')
+
+    expect(bridge.calls).toEqual([['settings:getNotifications'], ['settings:setNotifications', next]])
+    expect(handled).toEqual([{ method: 'getNotifications', args: [] }, { method: 'setNotifications', args: [next] }])
   })
 })
 

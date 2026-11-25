@@ -7,6 +7,7 @@ import { idleCrossRepoCorrections } from './idleCrossRepoCorrections'
 import { idleSourceCheckout } from './idleSourceCheckout'
 import { idleTerminals } from './idleTerminals'
 import { FakeAgentChat } from './fakeAgentChat'
+import { FakeSettings } from './fakeSettings'
 import type { Deferred } from './deferred'
 import type { DomainErrorShape } from '../../../shared/domain/errors'
 import type { BoardRemovalResultView, BoardRemovalView } from '../../../shared/domain/views'
@@ -65,6 +66,7 @@ export class FakeDm implements DmApi {
   agentChat = new FakeAgentChat()
   sourceCheckout = idleSourceCheckout()
   crossRepoCorrections = idleCrossRepoCorrections()
+  settings = new FakeSettings()
   folders: TrackedFolderView[] = []
   pickQueue: FolderPickResult[] = []
   responses: Partial<Record<CommandName, unknown>> = {

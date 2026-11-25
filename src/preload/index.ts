@@ -11,6 +11,7 @@ import { AGENT_CHAT_CHANNELS, agentChatEventSchema, type AgentChatApi } from '..
 import type { AutoUpdateState } from '../shared/autoUpdate/types'
 import type { AgentDownloadProgress, DmApi } from '../shared/desktop/api'
 import type { CrossRepoCorrectionsApi } from '../shared/desktop/crossRepoCorrections'
+import { SETTINGS_CHANNELS, type SettingsApi } from '../shared/desktop/notificationSettings'
 import type { SourceCheckoutApi } from '../shared/desktop/sourceCheckout'
 import { GIT_PROGRESS_CHANNEL, type GitApi, type GitProgressEvent } from '../shared/git/api'
 import { GITHUB_ACCOUNT_CHANGED_CHANNEL, type GithubAccountView, type GithubApi } from '../shared/github/api'
@@ -117,6 +118,12 @@ const crossRepoCorrections: CrossRepoCorrectionsApi = {
   collectResults: (folder, key) => ipcRenderer.invoke('corrections:collectCrossRepo', folder, key)
 }
 
+/** The notification and approval settings: main validates `next` and asks the person to confirm a loosening change. */
+const settings: SettingsApi = {
+  getNotifications: () => ipcRenderer.invoke(SETTINGS_CHANNELS.getNotifications),
+  setNotifications: (next) => ipcRenderer.invoke(SETTINGS_CHANNELS.setNotifications, next)
+}
+
 /**
  * The narrow desktop bridge: every method is one `dm:*`, `agents:*` or `knowledge:*` IPC invoke; main validates each payload.
  * `terminals` adds `terminals:attach`, `agents:signIn` and the port main posts for a running chat or sign-in terminal;
@@ -157,6 +164,7 @@ const dm: DmApi = {
   terminals: createTerminalsApi(ipcRenderer),
   sourceCheckout,
   crossRepoCorrections,
+  settings,
   listFolders: () => ipcRenderer.invoke('dm:listFolders'),
   onFoldersChanged: (receive) => {
     const handler = (): void => receive()

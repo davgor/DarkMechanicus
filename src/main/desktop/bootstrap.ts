@@ -93,6 +93,7 @@ import {
 import { agentDialogOptions, probeAgent, type AgentProbeDeps } from './agentProbe'
 import { inspectExecutable, runProcess } from './agentProbeNode'
 import { openAppDatabase } from './appDatabase'
+import { createAppSettings } from './appSettings'
 import { createAgentRegistry, type AgentRegistry } from './agentRegistry'
 import { importLegacyAgents } from './agentRegistryImport'
 import { previewBoardRemoval, removeBoardFiles } from './boardRemovalFiles'
@@ -126,6 +127,7 @@ import { startForge } from './forgeService'
 import { discoverGithubForgeSetup } from './forgeSetupGithub'
 import { createWorkspacePool, type WorkspacePool } from './workspacePool'
 import { openUtilityWorkspace } from './utilityWorkspace'
+import { createSettingsHandlers, registerSettingsIpc } from './settingsIpc'
 import type { ProjectWorkspace } from './workspaceClient'
 
 /** How often each open desktop session is marked alive. */
@@ -233,6 +235,23 @@ function confirmCustomAgent(confirmation: CustomAgentConfirmation): Promise<bool
   const parent = BrowserWindow.getFocusedWindow()
   const shown = parent ? dialog.showMessageBox(parent, options) : dialog.showMessageBox(options)
   return shown.then(customAgentApproved)
+}
+
+/** The only place a loosening change to the notification and approval settings is approved: a native message box. */
+function confirmNotificationSettings(summary: string): Promise<boolean> {
+  const options = {
+    type: 'warning' as const,
+    title: 'Loosen approval settings?',
+    message: 'Allow this change to the Notifications & approvals settings?',
+    detail: summary,
+    buttons: ['Cancel', 'Allow change'],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true
+  }
+  const parent = BrowserWindow.getFocusedWindow()
+  const shown = parent ? dialog.showMessageBox(parent, options) : dialog.showMessageBox(options)
+  return shown.then(({ response }) => response === 1)
 }
 
 function createCustom(agents: AgentRegistry): CustomAgents {
@@ -1150,6 +1169,7 @@ export function startDesktopBridge(skills: readonly SkillDefinition[], ipc: Pick
   startGit(forge, ipc, registry, github)
   const handlers = bridgeHandlers({ registry, pool, releaseFolder, mail, agents, folderDefaults, forge, installer, terminals, logins, skills })
   registerDesktopIpc(ipc, handlers)
+  registerSettingsIpc(ipc, createSettingsHandlers(createAppSettings({ db: appDb, confirm: confirmNotificationSettings, logger })))
   registerYoloIpc(ipc, createYoloHandlers({ registry, grants, confirm: confirmYolo }))
   startCrossRepoCorrections(ipc, registry, pool, sourceCheckouts)
   startKnowledge(ipc, registry)

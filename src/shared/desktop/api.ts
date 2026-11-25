@@ -13,6 +13,7 @@ import type { BoardRemovalResultView, BoardRemovalView, StorageMode } from '../d
 import type { CrossRepoCorrectionsApi } from './crossRepoCorrections'
 import type { ForgeSetupApi } from './forgeSetup'
 import type { ForgeApi, ForgeWorld } from './forgeWorld'
+import type { SettingsApi } from './notificationSettings'
 import type { SourceCheckoutApi } from './sourceCheckout'
 
 export interface TrackedFolderView {
@@ -278,6 +279,8 @@ export interface DmApi {
   sourceCheckout: SourceCheckoutApi
   /** Corrective work a folder's retro asks of the chosen Dark Mechanicus checkout: the `corrections:*CrossRepo` channels. */
   crossRepoCorrections: CrossRepoCorrectionsApi
+  /** The "Notifications & approvals" settings main owns: the `settings:*Notifications` channels. */
+  settings: SettingsApi
   listFolders(): Promise<TrackedFolderView[]>
   onFoldersChanged?(receive: () => void): () => void
   pickFolder(mode?: 'forge-world'): Promise<FolderPickResult>
