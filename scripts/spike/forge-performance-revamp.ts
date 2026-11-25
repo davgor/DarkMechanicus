@@ -3,6 +3,7 @@
  * sync, click to paint over CDP, write-lock holds by caller, unchanged-reconcile counters and built-CLI agent latency.
  * Runs inside the profiler's Electron main against the built desktop. Measurement only: no app behaviour is changed.
  */
+import { existsSync, readFileSync } from 'node:fs'
 import { once } from 'node:events'
 import { basename } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
@@ -34,6 +35,13 @@ export interface RevampDeps {
 const SMOKE = process.env['DM_REVAMP_SMOKE'] === '1'
 const ITERATIONS = SMOKE ? 3 : 30
 const AGENT_SECONDS = SMOKE ? 10 : 60
+/**
+ * `DM_REVAMP_SYNC_EVERY_MS=3500` starts the agent stage's desktop syncs on a fixed schedule (one every 3.5 s; a sync
+ * still running at its slot delays the next) instead of back to back, so builds whose syncs finish faster carry the
+ * same sync load. `DM_REVAMP_ONLY=cli-agents` runs only that stage, on the 10,000-ticket fixture.
+ */
+const SYNC_EVERY_MS = Number(process.env['DM_REVAMP_SYNC_EVERY_MS'] ?? 0)
+const ONLY_CLI_AGENTS = process.env['DM_REVAMP_ONLY'] === 'cli-agents'
 /** Renderer and main read separate monotonic clocks against one wall clock; allow this much skew at window edges. */
 const SKEW_MS = 5
 const CPU = cpuSink()
@@ -346,16 +354,67 @@ async function agentLoop(deps: RevampDeps, input: { project: ProfileProject; age
   return calls
 }
 
+/** Waits for the next fixed sync slot (`DM_REVAMP_SYNC_EVERY_MS`); returns whether the slot had already passed. */
+async function awaitSlot(slot: number): Promise<boolean> {
+  const wait = slot - absoluteNow()
+  if (wait > 0) await delay(wait)
+  return wait <= 0
+}
+
 async function syncLoop(deps: RevampDeps, project: ProfileProject, until: number) {
   const durations: number[] = []
   const failures: string[] = []
-  while (absoluteNow() < until) {
+  let late = 0
+  for (let slot = absoluteNow(); absoluteNow() < until; slot += SYNC_EVERY_MS) {
+    // A sync still running at its slot delays the next one; the schedule then restarts from when it finished.
+    if (SYNC_EVERY_MS > 0 && await awaitSlot(slot)) late += 1
+    if (absoluteNow() >= until) break
     const sync = await startSync(deps, project)
     const result = await sync.done
     durations.push(absoluteNow() - sync.startedAt)
     if (!result.ok) failures.push(result.error?.code ?? 'unknown')
+    slot = Math.max(slot, absoluteNow() - SYNC_EVERY_MS)
   }
-  return { syncs: latencyStats(durations), failures: outcomeCounts(failures.map((code) => ({ ok: false, code }))) }
+  return { everyMs: SYNC_EVERY_MS || 'closed-loop', late, syncs: latencyStats(durations), failures: outcomeCounts(failures.map((code) => ({ ok: false, code }))) }
+}
+
+interface PhaseRow {
+  at: number; command: string | null; marks: Record<string, number>; phases: Record<string, Record<string, number>>
+  reconciles?: Record<string, number>[]; gates?: { automatic: boolean; current: boolean[]; stale: boolean[]; applied: number }[]
+}
+
+/** The CLI processes' phase timings (`cli-phase-timing.cjs`, `DM_CLI_PHASE_LOG`) that exited between `from` and `to`. */
+function cliPhases(from: number, to: number) {
+  const file = process.env['DM_CLI_PHASE_LOG']
+  if (!file || !existsSync(file)) return null
+  const rows = readFileSync(file, 'utf8').split('\n').filter(Boolean).map((line) => JSON.parse(line) as PhaseRow).filter((row) => row.at >= from && row.at <= to)
+  const names = [...new Set(rows.flatMap((row) => Object.keys(row.phases)))]
+  const stat = (pick: (row: PhaseRow) => number) => latencyStats(rows.map(pick))
+  return {
+    processes: rows.length,
+    // Process start to the preload, the preload to the workspace open (module load), the open, and exit after close.
+    startToPreload: stat((row) => row.marks['preload'] ?? 0),
+    moduleLoad: stat((row) => (row.marks['open'] ?? 0) - (row.marks['preload'] ?? 0)),
+    total: stat((row) => row.marks['exit'] ?? 0),
+    phases: Object.fromEntries(names.map((name) => [name, {
+      wall: stat((row) => row.phases[name]?.['ms'] ?? 0),
+      gitMs: stat((row) => row.phases[name]?.['gitMs'] ?? 0),
+      gitRuns: rows.reduce((sum, row) => sum + (row.phases[name]?.['gitN'] ?? 0), 0),
+      gitVerbs: rows.reduce<Record<string, number>>((all, row) => {
+        for (const [verb, count] of Object.entries((row.phases[name]?.['git'] ?? {}) as unknown as Record<string, number>)) all[verb] = (all[verb] ?? 0) + count
+        return all
+      }, {}),
+      writerWaitMs: stat((row) => row.phases[name]?.['beginWaitMs'] ?? 0),
+      writes: rows.reduce((sum, row) => sum + (row.phases[name]?.['beginN'] ?? 0), 0),
+      busyErrors: rows.reduce((sum, row) => sum + (row.phases[name]?.['busy'] ?? 0), 0),
+      holdMs: stat((row) => row.phases[name]?.['holdMs'] ?? 0)
+    }])),
+    // Each automatic open's fingerprint gate: how often its first check hit, and how its reconciles ended.
+    gates: outcomeCounts(rows.flatMap((row) => row.gates ?? []).map((gate) => ({
+      ok: false, code: `${gate.automatic ? 'auto' : 'explicit'}:first=${gate.current[0] ?? 'none'}:recheck=${gate.current.slice(1).join('/') || 'none'}:stale=${gate.stale.join('/') || 'none'}:applied=${gate.applied}`
+    }))),
+    imported: rows.reduce((sum, row) => sum + (row.reconciles ?? []).reduce((total, result) => total + (result['imported'] ?? 0), 0), 0)
+  }
 }
 
 async function cliAgents(deps: RevampDeps, project: ProfileProject): Promise<void> {
@@ -378,13 +437,14 @@ async function cliAgents(deps: RevampDeps, project: ProfileProject): Promise<voi
       const rows = calls.filter((call) => call.name === name)
       return [name, { outcomes: outcomeCounts(rows), wall: latencyStats(rows.map((row) => row.ms)) }]
     })),
-    desktopSync: sync, lane: laneSummary(from, absoluteNow()), cpu: CPU.read()
+    desktopSync: sync, lane: laneSummary(from, absoluteNow()), cliPhases: cliPhases(from, absoluteNow()), cpu: CPU.read()
   })
 }
 
 /** The matrix for one generated fixture, after the profiler tracked it cold. */
 export async function revampProject(deps: RevampDeps, project: ProfileProject): Promise<void> {
   await js(deps, deps.rendererBundle)
+  if (ONLY_CLI_AGENTS) return cliAgents(deps, project)
   await viewsIdle(deps, project)
   await viewsDuringSync(deps, project)
   // The sidebar shows the title the desktop imported (the portable record's), so ask the desktop for it.
