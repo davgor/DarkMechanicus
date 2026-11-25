@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, resolve, win32 } from 'node:path'
+import { delimiter, dirname, join, resolve, win32 } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
@@ -12,6 +12,7 @@ import {
   runStep,
   verdict,
   waitFor,
+  wrapperSource,
   writeShim
 } from './e2e-agent-chat.mjs'
 
@@ -142,6 +143,9 @@ describe('writeShim', () => {
     const env = { ...process.env }
     delete env.FAKE_AGENT_SIGNED_OUT
     delete env.FAKE_AGENT_LOG
+    // The shim runs `node` from Path: put this Node first in the existing key, whatever its case.
+    const pathKey = Object.keys(env).find((key) => key.toUpperCase() === 'PATH') ?? 'Path'
+    env[pathKey] = [dirname(process.execPath), env[pathKey]].filter(Boolean).join(delimiter)
     const result = spawnSync('cmd.exe', ['/d', '/s', '/c', `"${shim}" auth status`], { env, encoding: 'utf8', windowsHide: true, windowsVerbatimArguments: true })
     expect(result.status, result.stderr).toBe(0)
     expect(result.stdout.trim()).toBe('{"loggedIn":true}')
@@ -155,6 +159,18 @@ describe('writeShim', () => {
     const result = spawnSync(shim, ['auth', 'status'], { env, encoding: 'utf8' })
     expect(result.status, result.stderr).toBe(0)
     expect(result.stdout.trim()).toBe('{"loggedIn":true}')
+  })
+})
+
+describe('wrapperSource', () => {
+  it('points Electron home at the isolated home before loading the built app', () => {
+    const source = wrapperSource({ repo: 'C:\\repo', main: 'C:\\repo\\out\\main\\index.js', home: 'C:\\tmp\\run\\home' })
+    const lines = source.split('\n')
+    const home = lines.indexOf(`app.setPath('home', ${JSON.stringify('C:\\tmp\\run\\home')})`)
+    const main = lines.indexOf(`require(${JSON.stringify('C:\\repo\\out\\main\\index.js')})`)
+    expect(home).toBeGreaterThan(0)
+    expect(main).toBeGreaterThan(home)
+    expect(source).toContain(`app.setAppPath(${JSON.stringify('C:\\repo')})`)
   })
 })
 

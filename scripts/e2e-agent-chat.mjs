@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Built-app e2e harness for agent chats. Launches the built Electron app (run `npm run build` first) with an isolated
  * profile and the deterministic fake agent CLI seeded as the built-in `claude` agent, drives it over CDP and runs named
@@ -210,6 +209,21 @@ function seedStores(session) {
   if (result.status !== 0) throw new Error(`Seeding the app stores failed: ${result.stderr || result.error}`)
 }
 
+/**
+ * The Electron entry the harness launches: the app's own `home` path is the isolated one (Electron reads the real
+ * profile otherwise), and a `quit` message asks for a normal quit, with the app's process disposal, on every platform.
+ */
+export function wrapperSource({ repo, main, home }) {
+  return [
+    `const { app } = require('electron')`,
+    `app.setAppPath(${JSON.stringify(repo)})`,
+    `app.setPath('home', ${JSON.stringify(home)})`,
+    `process.on('message', (message) => { if (message === 'quit') app.quit() })`,
+    `require(${JSON.stringify(main)})`,
+    ''
+  ].join('\n')
+}
+
 function setup(session) {
   if (!existsSync(BUILT_MAIN)) throw new Error('out/main/index.js is missing: run `npm run build` first.')
   const { env } = session
@@ -219,14 +233,7 @@ function setup(session) {
   session.shim = writeShim(join(session.root, 'shim'), FAKE_AGENT_CLI)
   seedRepository(session)
   seedStores(session)
-  // The wrapper lets the harness ask for a normal quit (with the app's process disposal) on every platform.
-  writeFileSync(session.wrapper, [
-    `const { app } = require('electron')`,
-    `app.setAppPath(${JSON.stringify(REPO)})`,
-    `process.on('message', (message) => { if (message === 'quit') app.quit() })`,
-    `require(${JSON.stringify(BUILT_MAIN)})`,
-    ''
-  ].join('\n'))
+  writeFileSync(session.wrapper, wrapperSource({ repo: REPO, main: BUILT_MAIN, home: session.env.HOME }))
   return { shim: session.shim, folder: session.folder, userData: session.userData }
 }
 
