@@ -1230,7 +1230,7 @@ function backingOff(deps: FinalizerDeps, entry: OutboxRow, mode: FlushMode): boo
 }
 
 /** What a reconcile applied, as `ReconcileResultView` names it. */
-export interface ReconciledRecords {
+interface ReconciledRecords {
   imported: readonly string[]
   branchChanged: boolean
 }

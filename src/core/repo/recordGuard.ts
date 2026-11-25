@@ -11,7 +11,7 @@ import { findOpenTransfer } from '../services/transferGuard'
 import type { TrackedRecords } from './gitChanges'
 import type { RepoLayout } from './types'
 
-export type GuardedKind = 'epic' | 'run' | 'comment' | 'profile' | 'kanban_card'
+type GuardedKind = 'epic' | 'run' | 'comment' | 'profile' | 'kanban_card'
 
 /** A record the reconcile applies (or whose conflict it stores), the folder a re-prepare reads it from, and its files. */
 export interface GuardedRecord {
@@ -44,7 +44,7 @@ const OUTBOX_COLUMN: Record<GuardedKind, string> = {
  * What the record's planning read from this database: its sync record (hashes, generation, conflict), its exports still
  * waiting, and for an epic its open transfer and pending plan revisions.
  */
-export function recordStamp(db: Db, record: GuardedRecord): string {
+function recordStamp(db: Db, record: GuardedRecord): string {
   const related = JSON.stringify(record.related)
   const sync = db.all(
     `SELECT kind, entity_id, exported_hash, imported_hash, generation, conflict FROM sync_state
@@ -63,7 +63,7 @@ export function recordStamp(db: Db, record: GuardedRecord): string {
   return JSON.stringify([sync, outbox, epic])
 }
 
-export function recordKey(record: GuardedRecord): string {
+function recordKey(record: GuardedRecord): string {
   return `${record.kind}:${record.id}`
 }
 

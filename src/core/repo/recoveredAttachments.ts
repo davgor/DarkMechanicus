@@ -150,7 +150,7 @@ function restoreArchive(env: Env, record: Archive, bytes: Uint8Array): boolean {
 }
 
 /** An archive read and verified before the writer lock, whose row still needs it. */
-export interface PreparedArchive {
+interface PreparedArchive {
   path: string
   record: Archive
   bytes: Uint8Array
