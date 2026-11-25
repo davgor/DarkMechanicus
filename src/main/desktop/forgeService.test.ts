@@ -7,7 +7,9 @@ import { afterAll, beforeAll, expect, it, onTestFailed, onTestFinished, vi } fro
 import { buildSync } from 'esbuild'
 import { openWorkspace } from '../../core/workspace'
 import { gitIn, scratchDir } from '../../test/gitScratch'
-import { createGitRunner } from '../git/runner'
+import { createGitAdapter } from '../../core/repo/git'
+import type { GitAdapter } from '../../core/repo/types'
+import { createGitRunner, type GitRunner } from '../git/runner'
 import { createFolderRegistry } from './folderRegistry'
 import { forgeKickoff, updateForge } from './forgeManifest'
 import { startForge } from './forgeService'
@@ -34,13 +36,84 @@ function networkFailureAt(failure: NetworkFailure, args: readonly string[]): str
   return failure && args.includes(failure) ? failure : undefined
 }
 
+/**
+ * Git that the code under test starts and nobody awaits (a background `git status` refresh, a Forge read still running
+ * when an IPC call returns) can outlive the test. On Windows a running git holds its working folder and the files it
+ * reads, so removing the scratch folder fails until it exits, and `rmSync`'s retries sleep on the event loop meanwhile.
+ * Each fixture tracks its git processes, and `close` waits until every one has exited before removing the folder.
+ */
+interface GitExits {
+  /** Returns `work`, and holds `settled` until it settles. */
+  track<T>(work: Promise<T>): Promise<T>
+  /** A workspace's git adapter: each asynchronous call settles once its git has exited and its output closed. */
+  adapter(root: string): GitAdapter
+  /** Resolves once every tracked git has settled, including those started while waiting. */
+  settled(): Promise<void>
+}
+
+function gitExits(): GitExits {
+  const running = new Set<Promise<void>>()
+  function track<T>(work: Promise<T>): Promise<T> {
+    const settled: Promise<void> = work.then(() => undefined, () => undefined).finally(() => { running.delete(settled) })
+    running.add(settled)
+    return work
+  }
+  return {
+    track,
+    /** A workspace's git adapter, with every asynchronous call tracked. */
+    adapter(root: string): GitAdapter {
+      const git = createGitAdapter(root)
+      return {
+        ...git,
+        countUncommitted: pathspec => track(git.countUncommitted(pathspec)),
+        listLocalBranches: () => track(git.listLocalBranches()),
+        listWorktrees: () => track(git.listWorktrees()),
+        listFiles: (ref, pathspec) => track(git.listFiles(ref, pathspec)),
+        showFile: (ref, path) => track(git.showFile(ref, path)),
+        isAncestor: (ancestor, descendant) => track(git.isAncestor(ancestor, descendant)),
+        commitParents: ref => track(git.commitParents(ref))
+      }
+    },
+    async settled(): Promise<void> {
+      while (running.size > 0) await Promise.all(running)
+    }
+  }
+}
+
+/** Local git runs for real and is tracked until it exits; network git is simulated, with an injectable failure. */
+function fixtureRunner(gits: GitExits, probes: string[], failing: () => NetworkFailure): GitRunner {
+  const real = createGitRunner()
+  return { run: async req => {
+    if (req.args.includes('push')) probes.push(req.cwd)
+    if (req.kind !== 'network') {
+      // The runner reports when git is gone: for a cancelled or timed-out git, after its run has settled.
+      // The ES2022 lib has no Promise.withResolvers.
+      let exited = (): void => undefined
+      gits.track(new Promise<void>(resolve => { exited = resolve }))
+      return real.run({ ...req, onExit: () => { req.onExit?.(); exited() } })
+    }
+    const failure = networkFailureAt(failing(), req.args)
+    if (failure !== undefined) throw new Error('Injected network failure at ' + failure)
+    if (req.args.includes('clone')) {
+      const dir = req.args.at(-1)!
+      mkdirSync(dir)
+      gitIn(dir, 'init', '-b', 'main')
+      gitIn(dir, 'remote', 'add', 'origin', req.args.at(-2)!)
+      gitIn(dir, 'config', 'user.name', 'Test')
+      gitIn(dir, 'config', 'user.email', 'test@example.test')
+    }
+    return { code: 0, stdout: '', stderr: '' }
+  } }
+}
+
 function fixture(seed?: { source: string; world: string }) {
   const scratch = scratchDir('forge-convert-')
   const home = join(scratch.path, 'home')
   const source = join(scratch.path, 'Software')
   const world = join(scratch.path, 'TicketStore')
   const registry = createFolderRegistry({ file: join(home, 'folders.json'), dmHome: home, homeDir: home })
-  const pool = createWorkspacePool((repoRoot, deferOpenReconcile) => openWorkspace({ repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Desktop fixture', serverInfo: { name: 'fixture', version: '1' }, deferOpenReconcile }), home)
+  const gits = gitExits()
+  const pool = createWorkspacePool((repoRoot, deferOpenReconcile) => openWorkspace({ repoRoot, homeDir: home, transport: 'desktop', role: 'desktop', label: 'Desktop fixture', serverInfo: { name: 'fixture', version: '1' }, deferOpenReconcile, git: gits.adapter(repoRoot) }), home)
   const handlers = new Map<string, Parameters<IpcMain['handle']>[1]>()
   const call = async (name: string, ...args: unknown[]) => handlers.get('forge:' + name)!({} as Electron.IpcMainInvokeEvent, ...args)
   for (const dir of [source, world]) {
@@ -48,7 +121,6 @@ function fixture(seed?: { source: string; world: string }) {
     else initializeCheckout(dir, dir === world ? 'tickets' : 'software')
     registry.track(dir)
   }
-  const real = createGitRunner()
   const published: string[] = []
   const probes: string[] = []
   const syncReceipts: Array<() => void> = []
@@ -58,21 +130,7 @@ function fixture(seed?: { source: string; world: string }) {
     home, registry, pool, session: { getAccount: () => ({ login: 'example', host: 'github.com' }), getToken: () => null },
     pickDirectory: async () => picked, cleanup: () => undefined, publish: async name => { published.push(name) },
     onSynced: async () => { syncReceipts.shift()?.() }, onConflict: async () => { throw new Error('Unexpected conflict') },
-    runner: { run: async req => {
-      if (req.args.includes('push')) probes.push(req.cwd)
-      if (req.kind !== 'network') return real.run(req)
-      const failure = networkFailureAt(failingNetwork, req.args)
-      if (failure !== undefined) throw new Error('Injected network failure at ' + failure)
-      if (req.args.includes('clone')) {
-        const dir = req.args.at(-1)!
-        mkdirSync(dir)
-        gitIn(dir, 'init', '-b', 'main')
-        gitIn(dir, 'remote', 'add', 'origin', req.args.at(-2)!)
-        gitIn(dir, 'config', 'user.name', 'Test')
-        gitIn(dir, 'config', 'user.email', 'test@example.test')
-      }
-      return { code: 0, stdout: '', stderr: '' }
-    } }
+    runner: fixtureRunner(gits, probes, () => failingNetwork)
   })
   return { pool, source, world, home, registry, call, forge, published, probes, pick(path: string | null) { picked = path },
     nextSync: () => new Promise<void>(resolve => { syncReceipts.push(resolve) }),
@@ -81,6 +139,7 @@ function fixture(seed?: { source: string; world: string }) {
       forge.stop()
       await forge.ready
       await pool.closeAll()
+      await gits.settled()
       scratch.cleanup()
     } }
 }
