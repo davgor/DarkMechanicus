@@ -378,7 +378,10 @@ async function syncLoop(deps: RevampDeps, project: ProfileProject, until: number
   return { everyMs: SYNC_EVERY_MS || 'closed-loop', late, syncs: latencyStats(durations), failures: outcomeCounts(failures.map((code) => ({ ok: false, code }))) }
 }
 
-interface PhaseRow { at: number; command: string | null; marks: Record<string, number>; phases: Record<string, Record<string, number>> }
+interface PhaseRow {
+  at: number; command: string | null; marks: Record<string, number>; phases: Record<string, Record<string, number>>
+  reconciles?: Record<string, number>[]; gates?: { automatic: boolean; current: boolean[]; stale: boolean[]; applied: number }[]
+}
 
 /** The CLI processes' phase timings (`cli-phase-timing.cjs`, `DM_CLI_PHASE_LOG`) that exited between `from` and `to`. */
 function cliPhases(from: number, to: number) {
@@ -405,7 +408,12 @@ function cliPhases(from: number, to: number) {
       writes: rows.reduce((sum, row) => sum + (row.phases[name]?.['beginN'] ?? 0), 0),
       busyErrors: rows.reduce((sum, row) => sum + (row.phases[name]?.['busy'] ?? 0), 0),
       holdMs: stat((row) => row.phases[name]?.['holdMs'] ?? 0)
-    }]))
+    }])),
+    // Each automatic open's fingerprint gate: how often its first check hit, and how its reconciles ended.
+    gates: outcomeCounts(rows.flatMap((row) => row.gates ?? []).map((gate) => ({
+      ok: false, code: `${gate.automatic ? 'auto' : 'explicit'}:first=${gate.current[0] ?? 'none'}:recheck=${gate.current.slice(1).join('/') || 'none'}:stale=${gate.stale.join('/') || 'none'}:applied=${gate.applied}`
+    }))),
+    imported: rows.reduce((sum, row) => sum + (row.reconciles ?? []).reduce((total, result) => total + (result['imported'] ?? 0), 0), 0)
   }
 }
 

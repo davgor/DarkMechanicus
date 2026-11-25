@@ -73,7 +73,10 @@ function bundleEntries(root: string): string | undefined {
 /** Runs Electron as Electron (never as Node, whatever the calling shell sets) on the profiler package in `root`. */
 function runProfiler(root: string, configFile: string, userData: string, result: string): void {
   // The project utilities' sync lanes (DM-963) append their write-lock holds and reconcile reads here; see `laneSince`.
-  const env = { ...process.env, DM_LANE_OBSERVE_FILE: join(root, 'lane.jsonl'), ...(cliPhases ? { DM_CLI_PHASE_LOG: join(root, 'cli-phases.jsonl') } : {}) }
+  const env = {
+    ...process.env, DM_LANE_OBSERVE_FILE: process.env['DM_LANE_OBSERVE_FILE'] ?? join(root, 'lane.jsonl'),
+    ...(cliPhases ? { DM_CLI_PHASE_LOG: process.env['DM_CLI_PHASE_LOG'] ?? join(root, 'cli-phases.jsonl') } : {})
+  }
   delete env['ELECTRON_RUN_AS_NODE']
   const child = spawnSync(electron, [root, configFile], {
     env, timeout: mode === 'revamp' ? 3_700_000 : 180_000, windowsHide: true, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024
@@ -99,6 +102,14 @@ withFixture((root) => {
   mkdirSync(home)
   const small = seedProject(join(root, 'unrelated-small'), 5)
   const projects = SIZES[mode].map((count) => seedProject(join(root, `tickets-${count}`), count))
+  // Real stores are committed, which lets git scope a reconcile (DM-961). `DM_REVAMP_COMMIT_FIXTURE=0` leaves each
+  // generated project uncommitted: HEAD is then unborn and every reconcile that misses its fingerprint reads everything.
+  if (mode === 'revamp' && process.env['DM_REVAMP_COMMIT_FIXTURE'] !== '0') {
+    for (const project of projects) {
+      execFileSync('git', ['-C', project.root, 'add', '-A'], { stdio: 'ignore' })
+      execFileSync('git', ['-C', project.root, '-c', 'user.name=Profiler', '-c', 'user.email=profiler@example.invalid', 'commit', '-qm', 'Fixture'])
+    }
+  }
   const realStore = realSource === undefined ? undefined : copyRealStore(resolve(realSource), join(root, 'DarkMechanicus'))
   writeFileSync(join(userData, 'folders.json'), JSON.stringify({
     version: 1, folders: [{ path: small.root, addedAt: '2026-01-01T00:00:00.000Z' }]
