@@ -919,8 +919,8 @@ function wireLive(manager: Manager, live: Live, reportEnded: () => void, reportC
     if (live.dmClient !== null) void dropDmClient(manager, live.dmClient)
     // Asked now, while the group's id can only be the CLI's: ends what it left running in its process group.
     void retire(manager, live)
-    // An exit is also a chance to retry an earlier owner's failed cleanup.
-    for (const fenced of manager.retiring) if (fenced !== live && fenced.chat.id === chat.id && fenced.retirement === undefined) void retire(manager, fenced)
+    // An exit is also a chance to retry an earlier owner's failed cleanup; this owner's own retirement is in flight.
+    void retryRetirements(manager, chat.id)
     if (live.stopMessage === null) {
       void track(manager, pauseIfSignedOut(manager, chat))
     }
