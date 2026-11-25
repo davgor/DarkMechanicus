@@ -15,6 +15,32 @@ export function testWorkspace(workspace: Workspace, home = ''): TestWorkspace {
   return Object.assign({}, workspace, client)
 }
 
+/** One owner over the shared stores. These workspaces reconcile on their own open and heartbeat; a member or explicit reconcile runs as the command. */
+function fixtureTransport(stores: Map<string, Workspace>, store: (path: string) => Workspace, home: string): OwnerTransport {
+  let path: string | undefined
+  return {
+    async run(repo, work, authority) {
+      path = repo
+      return { value: await withForgeOwnerAuthority({ home, ownerPid: process.pid, path: repo, authority }, () => runWorkspaceOperation(store(repo), work, home)), binding: repo }
+    },
+    async sync(repo, mode, authority) {
+      path = repo
+      const value = await withForgeOwnerAuthority({ home, ownerPid: process.pid, path: repo, authority }, async (): Promise<SyncValue> => {
+        if (mode === 'heartbeat') return { result: null, hasLocalCache: false }
+        const workspace = store(repo)
+        const hasLocalCache = hasValidatedRepositoryCache(workspace.ctx().db)
+        return { result: await workspace.reconcileRepository(), hasLocalCache }
+      })
+      return { value, binding: repo }
+    },
+    async close() {
+      if (path === undefined) return
+      stores.get(path)?.close()
+      stores.delete(path)
+    }
+  }
+}
+
 export function createTestWorkspacePool(open: (path: string) => Workspace, home = ''): TestWorkspacePool {
   const stores = new Map<string, Workspace>()
   function store(path: string): Workspace {
@@ -24,32 +50,7 @@ export function createTestWorkspacePool(open: (path: string) => Workspace, home 
     stores.set(path, workspace)
     return workspace
   }
-  const createTransport = (): OwnerTransport => {
-    let path: string | undefined
-    return {
-      async run(repo, work, authority) {
-        path = repo
-        return { value: await withForgeOwnerAuthority({ home, ownerPid: process.pid, path: repo, authority }, () => runWorkspaceOperation(store(repo), work, home)), binding: repo }
-      },
-      // These workspaces reconcile on their own open and heartbeat; a member or explicit reconcile runs as the command.
-      async sync(repo, mode, authority) {
-        path = repo
-        const value = await withForgeOwnerAuthority({ home, ownerPid: process.pid, path: repo, authority }, async (): Promise<SyncValue> => {
-          if (mode === 'heartbeat') return { result: null, hasLocalCache: false }
-          const workspace = store(repo)
-          const hasLocalCache = hasValidatedRepositoryCache(workspace.ctx().db)
-          return { result: await workspace.reconcileRepository(), hasLocalCache }
-        })
-        return { value, binding: repo }
-      },
-      async close() {
-        if (path === undefined) return
-        stores.get(path)?.close()
-        stores.delete(path)
-      }
-    }
-  }
-  const pool = createWorkspacePool({ open: createTransport, canonical: path => path, authority: currentForgeTransfer })
+  const pool = createWorkspacePool({ open: () => fixtureTransport(stores, store, home), canonical: path => path, authority: currentForgeTransfer })
   const clients = new WeakMap<ProjectWorkspace, TestWorkspace>()
   function probe(client: ProjectWorkspace): TestWorkspace {
     const previous = clients.get(client)

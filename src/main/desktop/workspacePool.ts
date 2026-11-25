@@ -70,7 +70,10 @@ interface Entry {
   retiring?: Promise<void>
 }
 
+/** Owner processes that serve the screen. */
 const OWNER_LIMIT = 2
+/** Background work (a lane reconcile, a background job) never takes a screen slot: it may open one process more. */
+const PROCESS_LIMIT = OWNER_LIMIT + 1
 const IDLE_MS = 60_000
 /** A heartbeat with nothing to join skips its reconcile when one finished this recently. */
 const RECONCILE_GAP_MS = 15_000
@@ -188,22 +191,22 @@ class Pool implements WorkspacePool {
 
   /**
    * Whether a project without an owner may get one for background work (a job or a lane reconcile). It may while a slot
-   * stays free for the screen. Otherwise it retires an idle owner, but never one that served a foreground request in
-   * the last `PROTECTED_MS`. When the screen used every owner that recently, it takes the remaining slot: a foreground
-   * request for another project may still retire an idle owner, while the background work never retires the screen's.
+   * stays free for the screen. Otherwise it retires an idle owner the screen has not used in the last `PROTECTED_MS`.
+   * When only that protection stands in the way, it opens the one process beyond the screen's slots instead of waiting
+   * for the protection to lapse; past that, or behind busy owners, it waits. It never retires an owner the screen just used.
    */
   private admitBackground(): boolean {
     if (this.owners.size < OWNER_LIMIT - 1) return true
     const now = Date.now()
-    const owners = [...this.owners]
-    const retirable = owners.find(owner => this.idle(owner) && now - owner.usedAt >= PROTECTED_MS)
+    const idle = [...this.owners].filter(owner => this.idle(owner))
+    const retirable = idle.find(owner => now - owner.usedAt >= PROTECTED_MS)
     if (retirable) {
       void this.retire(retirable)
       return false
     }
-    if (this.owners.size < OWNER_LIMIT && owners.every(owner => now - owner.usedAt < PROTECTED_MS)) return true
-    const lapses = owners.filter(owner => this.idle(owner)).map(owner => owner.usedAt + PROTECTED_MS)
-    if (lapses.length) this.wakeAt(Math.min(...lapses))
+    if (!idle.length) return false
+    if (this.owners.size < PROCESS_LIMIT) return true
+    this.wakeAt(Math.min(...idle.map(owner => owner.usedAt + PROTECTED_MS)))
     return false
   }
 
@@ -218,11 +221,19 @@ class Pool implements WorkspacePool {
     // Work that moves or replaces the store never overlaps the lane's own connection.
     if (exclusiveWork(job.work) && entry.lane.running) return false
     if (entry.owner) return true
-    if (job.background) return this.admitBackground()
-    if (this.owners.size < OWNER_LIMIT) return true
-    // Free an idle process before a foreground request needs another slot. Busy projects keep their
-    // owner and queue so a process can never be reused for a different project during an operation.
-    const idle = [...this.owners].find(owner => this.idle(owner))
+    return job.background ? this.admitBackground() : this.admitForeground()
+  }
+
+  /**
+   * A foreground request gets a process while fewer than `OWNER_LIMIT` owners serve the screen (an owner only background
+   * work used does not count) and the process limit allows. Otherwise it frees the least recently used idle process.
+   * Busy projects keep their owner and queue so a process can never be reused for a different project during an operation.
+   */
+  private admitForeground(): boolean {
+    const owners = [...this.owners]
+    const screen = owners.filter(owner => owner.usedAt > Number.NEGATIVE_INFINITY).length
+    if (screen < OWNER_LIMIT && owners.length < PROCESS_LIMIT) return true
+    const idle = owners.filter(owner => this.idle(owner)).sort((left, right) => left.usedAt - right.usedAt)[0]
     if (idle) void this.retire(idle)
     return false
   }
@@ -312,18 +323,7 @@ class Pool implements WorkspacePool {
     if (job === undefined) return
     delete entry.lane.pending
     entry.lane.running = job
-    let outcome: { ok: true; value: SyncValue } | { ok: false; error: unknown }
-    try {
-      const owner = this.ownerFor(entry)
-      const { value, binding } = await owner.sync(entry.path, job.mode, job.authority, entry.binding)
-      // Generation fence: a result arriving after its owner closed or was replaced is dropped.
-      if (entry.closing || entry.owner !== owner) throw stale('reconcile')
-      await this.adopt(entry, binding)
-      outcome = { ok: true, value: value as SyncValue }
-    } catch (error) {
-      await this.recover(entry, error)
-      outcome = { ok: false, error }
-    }
+    const outcome = await this.syncOnLane(entry, job)
     delete entry.lane.running
     entry.lane.finishedAt = Date.now()
     if (!outcome.ok && !job.waiters.length && !entry.closing && !this.stopping) this.options.onError?.(entry.path, outcome.error)
@@ -331,6 +331,24 @@ class Pool implements WorkspacePool {
       if (outcome.ok) waiter.resolve(outcome.value)
       else waiter.reject(outcome.error)
     }
+    this.settleLane(entry, job)
+  }
+
+  private async syncOnLane(entry: Entry, job: LaneJob): Promise<{ ok: true; value: SyncValue } | { ok: false; error: unknown }> {
+    try {
+      const owner = this.ownerFor(entry)
+      const { value, binding } = await owner.sync(entry.path, job.mode, job.authority, entry.binding)
+      // Generation fence: a result arriving after its owner closed or was replaced is dropped.
+      if (entry.closing || entry.owner !== owner) throw stale('reconcile')
+      await this.adopt(entry, binding)
+      return { ok: true, value: value as SyncValue }
+    } catch (error) {
+      await this.recover(entry, error)
+      return { ok: false, error }
+    }
+  }
+
+  private settleLane(entry: Entry, job: LaneJob): void {
     if (!entry.running && !entry.jobs.length) {
       if (entry.closing) void this.finishClose(entry)
       else if (entry.owner && job.waiters.length) this.armIdle(entry)
@@ -391,13 +409,17 @@ class Pool implements WorkspacePool {
         if (closingWork(waiting.work)) entry.jobs.push(waiting)
         else waiting.reject(closed())
       }
-      // The lane stops: its pending reconcile is dropped, and the owner closes only after a running one finishes.
-      const pending = entry.lane.pending
-      delete entry.lane.pending
-      for (const waiter of pending?.waiters ?? []) waiter.reject(closed())
+      this.stopLane(entry)
       if (!entry.running && !entry.jobs.length && !entry.lane.running) void this.finishClose(entry)
     }
     return entry.closing
+  }
+
+  /** The lane stops: its pending reconcile is dropped, and the owner closes only after a running one finishes. */
+  private stopLane(entry: Entry): void {
+    const pending = entry.lane.pending
+    delete entry.lane.pending
+    for (const waiter of pending?.waiters ?? []) waiter.reject(closed())
   }
 
   private async finishClose(entry: Entry): Promise<void> {

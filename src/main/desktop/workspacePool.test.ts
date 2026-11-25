@@ -48,7 +48,7 @@ function synced(project: string) {
 
 afterEach(() => vi.useRealTimers())
 
-it('serves reads and a mutation on the same project while its lane reconcile is held, and keeps two owner slots', async () => {
+it('serves reads and a mutation on the same project while its lane reconcile is held, and keeps both screen slots', async () => {
   const { pool, named, overrides, max, live } = fixture()
   expect(pool.get('a-link')).toBe(pool.get('a'))
   expect(live.size).toBe(0)
@@ -67,7 +67,8 @@ it('serves reads and a mutation on the same project while its lane reconcile is 
   held.resolve({ value: { result: synced('a'), hasLocalCache: false }, binding: 'binding-a' })
   await expect(reconcile).resolves.toEqual({ result: synced('a'), hasLocalCache: false })
   await mailbox
-  expect(max()).toBe(2)
+  // The screen used both owners just now: the background request took the one process beyond their slots.
+  expect(max()).toBe(3)
   await pool.closeAll()
   expect(live.size).toBe(0)
 })
@@ -139,22 +140,29 @@ it('stops the lane on untrack, waits for the running reconcile before closing th
 
 it('never retires an owner the screen used in the last 60 s to admit background work', async () => {
   vi.useFakeTimers()
-  const { pool, live, retired, named } = fixture(600_000)
+  const { pool, live, retired, named, overrides } = fixture(600_000)
   await Promise.all([pool.get('a').getProject(), pool.get('b').getProject()])
   await vi.advanceTimersByTimeAsync(0)
   expect(live.size).toBe(2)
+  // Both owners are protected: the reconcile opens the one process beyond the screen's slots at once.
+  const held = barrier<OwnerResult>()
+  overrides.set('c:sync', () => held.promise)
   const background = pool.reconcile('c')
+  await vi.advanceTimersByTimeAsync(0)
+  expect(named('c')).toEqual(['sync:member'])
+  expect(live.size).toBe(3)
+  // With no process left, further background work waits for the protection to lapse rather than retire a or b.
   const mailbox = pool.background('d').call('listMailboxRoutes', ['mailbox_chat'])
   await vi.advanceTimersByTimeAsync(59_000)
   expect(retired).toEqual([])
-  expect(named('c')).toEqual([])
+  expect(named('d')).toEqual([])
   await pool.get('a').getProject()
   await vi.advanceTimersByTimeAsync(1_000)
-  await expect(background).resolves.toMatchObject({ result: synced('c') })
   await expect(mailbox).resolves.toBe('d')
-  // b's protection lapsed at 60 s and made room for c; c, which the screen never used, made room for d; a, used at 59 s, stayed.
-  expect(retired).toEqual([2, 3])
-  expect(live.size).toBe(2)
+  // b's protection lapsed at 60 s and made room for d; a, used at 59 s, stayed.
+  expect(retired).toEqual([2])
+  held.resolve({ value: { result: synced('c'), hasLocalCache: true }, binding: 'binding-c' })
+  await expect(background).resolves.toMatchObject({ result: synced('c') })
   await pool.closeAll()
 })
 
